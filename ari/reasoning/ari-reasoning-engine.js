@@ -2,33 +2,46 @@
 // Ari Reasoning Engine
 //
 // Purpose:
-// Build the canonical cognitive evidence packet,
-// invoke OpenAI as ARI's authoritative reasoning engine,
-// validate the structured result,
-// and expose a safe compatibility contract.
+// Build the canonical cognitive reasoning request, invoke OpenAI exactly once,
+// validate the structured cognitive result, and preserve one authoritative
+// user-facing draft for downstream semantic validation, response planning,
+// final composition, and delivery.
 //
-// V9.3.0 — Registry-Bound Semantic Operations
+// V10.0.0 — Authoritative Cognitive Response Generation
+//
+// Architectural flow:
+//
+// Canonical Evidence + Current Turn
+//      ↓
+// Registry-Bound Cognitive Request
+//      ↓
+// One OpenAI Reasoning Invocation
+//      ↓
+// Semantic Frame + Response Requirements + Authoritative Draft
+//      ↓
+// Validation and Normalization
+//      ↓
+// Canonical Cognitive Reasoning Result
 //
 // Authority model:
 //
 // ARI:
 // - gathers evidence
-// - defines binding safety and execution constraints
+// - defines binding safety, routing, and execution constraints
 // - validates model output
-// - controls tools, persistence, realization, and delivery
+// - controls tools, persistence, final composition, and delivery
 //
 // OpenAI:
 // - interprets user meaning
 // - builds the semantic frame
-// - analyzes the situation
+// - analyzes evidence
 // - proposes decisions and actions
-// - defines semantic response requirements
-// - does not draft final response language
+// - defines response requirements
+// - produces the authoritative user-facing draft
 //
 // OpenAI may propose actions.
-// OpenAI may not execute actions, persist state,
-// claim tool success, override safety,
-// or authorize final delivery.
+// OpenAI may not execute actions, persist state, claim tool success,
+// override safety, authorize delivery, or expose private chain-of-thought.
 //
 // Responsibilities:
 // - Build one canonical reasoning request.
@@ -38,8 +51,8 @@
 // - Resolve an approved OpenAI reasoning invoker.
 // - Invoke OpenAI exactly once per reasoning execution.
 // - Validate and normalize structured cognitive output.
+// - Require and preserve one authoritative user-facing draft.
 // - Reject unsafe or falsely executed action claims.
-// - Return semantic response requirements for downstream planning.
 // - Return transparent invocation and validation diagnostics.
 //
 // Non-responsibilities:
@@ -47,29 +60,28 @@
 // - Does not call tools directly.
 // - Does not persist memory or runtime state.
 // - Does not authorize delivery.
-// - Does not produce final delivered language.
-// - Does not replace the Response Planning Stage.
-// - Does not replace the Response Realization Engine.
+// - Does not independently rewrite the model's authoritative draft.
+// - Does not replace Response Planning.
+// - Does not replace Final Composition.
 // - Does not expose private chain-of-thought.
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "9.3.0",
-
+  version: "10.0.0",
   source: "ari-reasoning-engine",
 
   requestSchema:
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "1.1.3",
+    "2.0.0",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
 
   resultSchemaVersion:
-    "1.1.3",
+    "2.0.0",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
@@ -94,36 +106,6 @@ window.AriReasoningEngine = {
       this.validateReasoningRequest(
         reasoningRequest
       );
-
-console.log(
-  "ARI REASONING ENGINE REQUEST DIAGNOSTIC:",
-  {
-    requestSchema:
-      reasoningRequest?.schema ||
-      null,
-
-    requestSchemaVersion:
-      reasoningRequest?.schemaVersion ||
-      null,
-
-    effectiveText:
-      reasoningRequest
-        ?.request
-        ?.effective ||
-      reasoningRequest
-        ?.resolvedUserQuestion ||
-      reasoningRequest
-        ?.currentTurn
-        ?.effectiveText ||
-      null,
-
-    authority:
-      reasoningRequest?.authority ||
-      null,
-
-    requestValidation
-  }
-);
 
     if (
       requestValidation.valid !==
@@ -174,70 +156,6 @@ console.log(
           null
       });
 
-console.log(
-  "ARI REASONING ENGINE INVOKER DIAGNOSTIC:",
-  {
-    available:
-      Boolean(
-        modelInvoker
-      ),
-
-    source:
-      modelInvoker?.source ||
-      null,
-
-    injectedInvokerType:
-      typeof summary
-        .openAIReasoningInvoker,
-
-    requestInvokerType:
-      typeof reasoningRequest
-        ?.openAIReasoningInvoker,
-
-    globalClientAvailable:
-      Boolean(
-        window.AriOpenAIReasoningClient
-      ),
-
-    globalClientVersion:
-      window.AriOpenAIReasoningClient
-        ?.version ||
-      null,
-
-    globalClientMethods: {
-      invoke:
-        typeof window
-          .AriOpenAIReasoningClient
-          ?.invoke ===
-        "function",
-
-      reason:
-        typeof window
-          .AriOpenAIReasoningClient
-          ?.reason ===
-        "function",
-
-      run:
-        typeof window
-          .AriOpenAIReasoningClient
-          ?.run ===
-        "function",
-
-      create:
-        typeof window
-          .AriOpenAIReasoningClient
-          ?.create ===
-        "function",
-
-      request:
-        typeof window
-          .AriOpenAIReasoningClient
-          ?.request ===
-        "function"
-    }
-  }
-);
-
     if (!modelInvoker) {
       return this.buildFailureResult({
         reason:
@@ -280,34 +198,31 @@ console.log(
 
     try {
       const operationContract =
-  this.getOperationContract();
+        this.getOperationContract();
 
-rawModelResult =
-  await modelInvoker.invoke({
-    ...reasoningRequest,
+      rawModelResult =
+        await modelInvoker.invoke({
+          ...reasoningRequest,
 
-    action:
-      reasoningRequest.action ||
-      "openai_reasoning",
+          action:
+            reasoningRequest.action ||
+            "openai_reasoning",
 
-    task:
-      "ari_cognitive_reasoning",
+          task:
+            "ari_cognitive_reasoning",
 
-    operationContract,
+          operationContract,
 
-    responseSchema:
-      this.getResponseSchema(
-        operationContract
-      ),
+          responseSchema:
+            this.getResponseSchema(
+              operationContract
+            ),
 
-    instructions:
-      this.getReasoningInstructions(
-        operationContract
-      ),
-          /*
-           * Compatibility alias for older clients
-           * that still expect payload.request.
-           */
+          instructions:
+            this.getReasoningInstructions(
+              operationContract
+            ),
+
           request:
             reasoningRequest
         });
@@ -352,6 +267,10 @@ rawModelResult =
       });
     }
 
+    const invocationDurationMs =
+      Date.now() -
+      invocationStartedAt;
+
     const normalizedResult =
       this.validateAndNormalizeResult({
         rawResult:
@@ -361,6 +280,11 @@ rawModelResult =
           reasoningRequest
       });
 
+    /*
+     * Invocation success and cognitive readiness are intentionally
+     * separate. A model call may succeed while the returned contract
+     * remains incomplete or invalid.
+     */
     const modelInvocation =
       this.buildModelInvocationDiagnostic({
         available:
@@ -370,25 +294,16 @@ rawModelResult =
           true,
 
         succeeded:
-          normalizedResult.ready ===
           true,
 
         source:
           modelInvoker.source,
 
         durationMs:
-          Date.now() -
-          invocationStartedAt,
+          invocationDurationMs,
 
         error:
-          normalizedResult.ready ===
-            true
-            ? null
-            : this.firstString(
-                normalizedResult
-                  .validation
-                  ?.errors
-              )
+          null
       });
 
     const cognitiveReasoningResult = {
@@ -456,6 +371,9 @@ rawModelResult =
       turnId:
         request.turnId
     };
+
+    const operationContract =
+      this.getOperationContract();
 
     return {
       schema:
@@ -578,15 +496,14 @@ rawModelResult =
         ),
 
       authority:
-  this.buildAuthorityContract(),
+        this.buildAuthorityContract(),
 
-operationContract:
-  this.getOperationContract(),
+      operationContract,
 
-outputContract:
-  this.getResponseSchema(
-    this.getOperationContract()
-  ),
+      outputContract:
+        this.getResponseSchema(
+          operationContract
+        ),
 
       openAIReasoningInvoker:
         summary.openAIReasoningInvoker ||
@@ -681,13 +598,16 @@ outputContract:
       summary.perceptionPacket ??
       null;
 
+    const operationContract =
+      request.operationContract ||
+      this.getOperationContract();
+
     return {
       schema:
         request.schema ||
         this.requestSchema,
 
       schemaVersion:
-        request.schemaVersion ||
         this.requestSchemaVersion,
 
       action:
@@ -845,10 +765,16 @@ outputContract:
           true,
 
         mayPlanResponse:
-          false,
+          true,
 
         mayDraftResponse:
-          false,
+          true,
+
+        mustProduceDraftResponse:
+          true,
+
+        draftResponseIsAuthoritative:
+          true,
 
         mayExecuteActions:
           false,
@@ -869,16 +795,12 @@ outputContract:
           false
       },
 
-      operationContract:
-  request.operationContract ||
-  this.getOperationContract(),
+      operationContract,
 
-outputContract:
-  request.outputContract ||
-  this.getResponseSchema(
-    request.operationContract ||
-    this.getOperationContract()
-  ),
+      outputContract:
+        this.getResponseSchema(
+          operationContract
+        ),
 
       openAIReasoningInvoker:
         request.openAIReasoningInvoker ||
@@ -1092,8 +1014,8 @@ outputContract:
         mayInformResponsePlanning:
           true,
 
-        mayWriteFinalResponse:
-          false,
+        mayInformAuthoritativeDraft:
+          true,
 
         mayAuthorizeDelivery:
           false
@@ -1246,10 +1168,16 @@ outputContract:
         true,
 
       mayPlanResponse:
-        false,
+        true,
 
       mayDraftResponse:
-        false,
+        true,
+
+      mustProduceDraftResponse:
+        true,
+
+      draftResponseIsAuthoritative:
+        true,
 
       mayProposeActions:
         true,
@@ -1331,9 +1259,7 @@ outputContract:
     };
   },
 
-  normalizeOperation(
-    value = ""
-  ) {
+  normalizeOperation(value = "") {
     const registry =
       this.getOperationRegistry();
 
@@ -1354,9 +1280,7 @@ outputContract:
     );
   },
 
-  resolveOperationDefinition(
-    value = ""
-  ) {
+  resolveOperationDefinition(value = "") {
     const registry =
       this.getOperationRegistry();
 
@@ -1403,124 +1327,98 @@ outputContract:
       {
         source:
           "summary.openAIReasoningInvoker",
-
         fn:
           summary.openAIReasoningInvoker,
-
         context:
           null
       },
-
       {
         source:
           "summary.modelInvoker",
-
         fn:
           summary.modelInvoker,
-
         context:
           null
       },
-
       {
         source:
           "AriOpenAIReasoningClient.invoke",
-
         fn:
           window
             .AriOpenAIReasoningClient
             ?.invoke,
-
         context:
           window
             .AriOpenAIReasoningClient ||
           null
       },
-
       {
         source:
           "AriOpenAIReasoningClient.reason",
-
         fn:
           window
             .AriOpenAIReasoningClient
             ?.reason,
-
         context:
           window
             .AriOpenAIReasoningClient ||
           null
       },
-
       {
         source:
           "Ari.openAIReasoningClient.invoke",
-
         fn:
           window.Ari
             ?.openAIReasoningClient
             ?.invoke,
-
         context:
           window.Ari
             ?.openAIReasoningClient ||
           null
       },
-
       {
         source:
           "Ari.openAIReasoningClient.reason",
-
         fn:
           window.Ari
             ?.openAIReasoningClient
             ?.reason,
-
         context:
           window.Ari
             ?.openAIReasoningClient ||
           null
       },
-
       {
         source:
           "AriOpenAIClient.generateStructured",
-
         fn:
           window
             .AriOpenAIClient
             ?.generateStructured,
-
         context:
           window
             .AriOpenAIClient ||
           null
       },
-
       {
         source:
           "AriOpenAIClient.reason",
-
         fn:
           window
             .AriOpenAIClient
             ?.reason,
-
         context:
           window
             .AriOpenAIClient ||
           null
       },
-
       {
         source:
           "AriOpenAIClient.createResponse",
-
         fn:
           window
             .AriOpenAIClient
             ?.createResponse,
-
         context:
           window
             .AriOpenAIClient ||
@@ -1592,7 +1490,7 @@ outputContract:
     };
   },
 
-    getReasoningInstructions(
+  getReasoningInstructions(
     operationContract = null
   ) {
     const contract =
@@ -1617,7 +1515,7 @@ outputContract:
 
       "Treat upstream semantic labels as evidence, not as unquestionable conclusions.",
 
-      "Treat knowledge-router output as supporting evidence, not as final response language.",
+      "Treat knowledge-router output as supporting evidence, not as prewritten final language.",
 
       "Distinguish stored memory, stored system knowledge, live-verified evidence, developer evidence, and general model knowledge.",
 
@@ -1630,8 +1528,6 @@ outputContract:
       `semanticFrame.operation must be exactly one of: ${allowedOperationText}`,
 
       "Do not invent operation names.",
-
-      "Do not emit natural-language synonyms such as define, describe, answer_question, diagnose_issue, summarize, or medical_explanation when a canonical operation is available.",
 
       "Do not include the subject, target, domain, medical condition, file name, or artifact name inside semanticFrame.operation.",
 
@@ -1653,11 +1549,19 @@ outputContract:
 
       "Any action must be returned only as a proposed action.",
 
-      "Build one coherent interpretation, semantic frame, and set of semantic response requirements.",
+      "Build one coherent interpretation, semantic frame, response requirements, and complete authoritative user-facing draft.",
+
+      "The draftResponse field is required.",
+
+      "draftResponse must directly answer the user's current request.",
+
+      "draftResponse must be complete, natural, user-facing language.",
+
+      "draftResponse must follow all safety, evidence, routing, tone, and response constraints.",
+
+      "draftResponse must not mention internal pipeline stages, schemas, hidden reasoning, or implementation details unless the user is explicitly asking about them.",
 
       "Response requirements should define the goal, shape, tone, required moves, prohibited moves, required behaviors, forbidden behaviors, constraints, clarification requirements, and action requirements.",
-
-      "Do not write the final response and do not return a provisional response draft.",
 
       "Use an empty array or empty object only for optional collection fields when no value applies.",
 
@@ -1725,6 +1629,26 @@ outputContract:
 
     if (
       request.authority
+        ?.mayDraftResponse !==
+        true
+    ) {
+      errors.push(
+        "authoritative_draft_permission_required"
+      );
+    }
+
+    if (
+      request.authority
+        ?.mustProduceDraftResponse !==
+        true
+    ) {
+      errors.push(
+        "authoritative_draft_requirement_missing"
+      );
+    }
+
+    if (
+      request.authority
         ?.mayExecuteActions ===
         true
     ) {
@@ -1773,32 +1697,32 @@ outputContract:
       );
     }
 
-const operationRegistry =
-  this.getOperationRegistry();
+    const operationRegistry =
+      this.getOperationRegistry();
 
-const operationContract =
-  this.getOperationContract();
+    const operationContract =
+      this.getOperationContract();
 
-if (
-  !operationRegistry ||
-  typeof operationRegistry
-    .normalizeOperation !==
-    "function" ||
-  typeof operationRegistry
-    .getOperation !==
-    "function" ||
-  operationContract
-    ?.registryAvailable !==
-    true ||
-  !this.arrayOrEmpty(
-    operationContract
-      ?.allowedOperations
-  ).length
-) {
-  errors.push(
-    "operation_registry_not_ready"
-  );
-}
+    if (
+      !operationRegistry ||
+      typeof operationRegistry
+        .normalizeOperation !==
+        "function" ||
+      typeof operationRegistry
+        .getOperation !==
+        "function" ||
+      operationContract
+        ?.registryAvailable !==
+        true ||
+      !this.arrayOrEmpty(
+        operationContract
+          ?.allowedOperations
+      ).length
+    ) {
+      errors.push(
+        "operation_registry_not_ready"
+      );
+    }
 
     return {
       valid:
@@ -1814,19 +1738,18 @@ if (
   ===================================================== */
 
   getResponseSchema(
-  operationContract = null
-) {
-  
-  const contract =
-  operationContract ||
-  this.getOperationContract();
+    operationContract = null
+  ) {
+    const contract =
+      operationContract ||
+      this.getOperationContract();
 
-const allowedOperations =
-  this.arrayOrEmpty(
-    contract
-      ?.allowedOperations
-  );
-  
+    const allowedOperations =
+      this.arrayOrEmpty(
+        contract
+          ?.allowedOperations
+      );
+
     return {
       schema:
         this.resultSchema,
@@ -1840,6 +1763,7 @@ const allowedOperations =
         "reasoningDecision",
         "semanticFrame",
         "responseRequirements",
+        "draftResponse",
         "grounding",
         "confidence"
       ],
@@ -1852,156 +1776,98 @@ const allowedOperations =
 
         interpretation: {
           type:
-            "object",
-
-          expectedFields: [
-            "conversationFunction",
-            "userGoal",
-            "operation",
-            "meaning",
-            "subjects",
-            "clarificationRequired",
-            "clarificationQuestion"
-          ]
+            "object"
         },
 
         reasoningDecision: {
           type:
-            "object",
-
-          expectedFields: [
-            "answerDirectly",
-            "reasoningMode",
-            "toolsNeeded",
-            "proposedActions",
-            "decisionRationale"
-          ]
+            "object"
         },
 
         semanticFrame: {
-  type:
-    "object",
-
-  required: [
-    "operation",
-    "requestType",
-    "frameType",
-    "interactionFamily",
-    "intentFamily",
-    "requestedOutput",
-    "domain",
-    "ambiguity",
-    "execution"
-  ],
-
-  expectedFields: [
-    "operation",
-    "requestType",
-    "frameType",
-    "interactionFamily",
-    "intentFamily",
-    "requestedOutput",
-    "domain",
-    "participants",
-    "subject",
-    "object",
-    "target",
-    "artifactTarget",
-    "referent",
-    "options",
-    "criteria",
-    "timeframe",
-    "audience",
-    "location",
-    "contextModifiers",
-    "constraints",
-    "stakes",
-    "continuity",
-    "ambiguity",
-    "execution",
-    "secondaryRequests",
-    "confidence",
-    "evidenceRefs",
-    "grounding",
-    "authority"
-  ],
-
-  properties: {
-    operation: {
-  type:
-    "string",
-
-  ...(allowedOperations.length
-    ? {
-        enum:
-          allowedOperations
-      }
-    : {})
-},
-    requestType: {
-      type:
-        "string"
-    },
-
-    frameType: {
-      type:
-        "string"
-    },
-
-    interactionFamily: {
-      type:
-        "string"
-    },
-
-    intentFamily: {
-      type:
-        "string"
-    },
-
-    requestedOutput: {
-      type:
-        "string"
-    },
-
-    domain: {
-      type: [
-        "string",
-        "object"
-      ]
-    },
-
-    ambiguity: {
-      type:
-        "object"
-    },
-
-    execution: {
-      type:
-        "object"
-    }
-  }
-},
-
-        responseRequirements: {
           type:
             "object",
 
-          expectedFields: [
-            "goal",
-            "shape",
-            "tone",
-            "requiredMoves",
-            "prohibitedMoves",
-            "requiredBehaviors",
-            "forbiddenBehaviors",
-            "constraints",
-            "safetyRequirements",
-            "continuityRequirements",
-            "toneRequirements",
-            "clarificationRequired",
-            "clarificationQuestion",
-            "actionRequired"
-          ]
+          required: [
+            "operation",
+            "requestType",
+            "frameType",
+            "interactionFamily",
+            "intentFamily",
+            "requestedOutput",
+            "domain",
+            "ambiguity",
+            "execution"
+          ],
+
+          properties: {
+            operation: {
+              type:
+                "string",
+
+              ...(allowedOperations.length
+                ? {
+                    enum:
+                      allowedOperations
+                  }
+                : {})
+            },
+
+            requestType: {
+              type:
+                "string"
+            },
+
+            frameType: {
+              type:
+                "string"
+            },
+
+            interactionFamily: {
+              type:
+                "string"
+            },
+
+            intentFamily: {
+              type:
+                "string"
+            },
+
+            requestedOutput: {
+              type:
+                "string"
+            },
+
+            domain: {
+              type: [
+                "string",
+                "object"
+              ]
+            },
+
+            ambiguity: {
+              type:
+                "object"
+            },
+
+            execution: {
+              type:
+                "object"
+            }
+          }
+        },
+
+        responseRequirements: {
+          type:
+            "object"
+        },
+
+        draftResponse: {
+          type:
+            "string",
+
+          minLength:
+            1
         },
 
         caseModel: {
@@ -2031,27 +1897,12 @@ const allowedOperations =
 
         executionMetadata: {
           type:
-            "object",
-
-          expectedFields: [
-            "confidence",
-            "reasoningMode",
-            "usedCurrentTurn",
-            "usedPriorContext",
-            "usedEvidence",
-            "evidenceCount"
-          ]
+            "object"
         },
 
         grounding: {
           type:
-            "object",
-
-          expectedFields: [
-            "evidenceUsed",
-            "assumptions",
-            "unresolvedConflicts"
-          ]
+            "object"
         },
 
         confidence: {
@@ -2085,7 +1936,7 @@ const allowedOperations =
         neverReturnPrivateChainOfThought:
           true,
 
-        neverWriteFinalResponse:
+        authoritativeDraftRequired:
           true
       }
     };
@@ -2118,14 +1969,14 @@ const allowedOperations =
       );
 
     const rawSemanticFrame =
-  this.objectOrEmpty(
-    value.semanticFrame
-  );
+      this.objectOrEmpty(
+        value.semanticFrame
+      );
 
-const semanticFrame =
-  this.normalizeSemanticFrame(
-    rawSemanticFrame
-  );
+    const semanticFrame =
+      this.normalizeSemanticFrame(
+        rawSemanticFrame
+      );
 
     const caseModel =
       this.objectOrEmpty(
@@ -2142,6 +1993,16 @@ const semanticFrame =
       this.objectOrEmpty(
         value.grounding
       );
+
+    const draftResponse =
+      this.firstNonEmptyString([
+        value.authoritativeDraft,
+        value.draftResponse,
+        value.responseText,
+        value.finalResponse,
+        value.answer,
+        value.reply
+      ]);
 
     if (
       !Object.keys(
@@ -2173,16 +2034,16 @@ const semanticFrame =
       );
     }
 
-const operationResolution =
-  this.resolveOperationDefinition(
-    semanticFrame.operation
-  );
+    const operationResolution =
+      this.resolveOperationDefinition(
+        semanticFrame.operation
+      );
 
-if (!operationResolution.recognized) {
-  validationErrors.push(
-    "semantic_operation_not_registered"
-  );
-}
+    if (!operationResolution.recognized) {
+      validationErrors.push(
+        "semantic_operation_not_registered"
+      );
+    }
 
     if (
       !this.isUsableResponseRequirements(
@@ -2191,6 +2052,12 @@ if (!operationResolution.recognized) {
     ) {
       validationErrors.push(
         "missing_response_requirements"
+      );
+    }
+
+    if (!draftResponse) {
+      validationErrors.push(
+        "authoritative_draft_missing"
       );
     }
 
@@ -2255,10 +2122,10 @@ if (!operationResolution.recognized) {
         ready,
 
       interpretation:
-  this.normalizeInterpretation(
-    interpretation,
-    semanticFrame.operation
-  ),
+        this.normalizeInterpretation(
+          interpretation,
+          semanticFrame.operation
+        ),
 
       reasoningDecision:
         this.normalizeReasoningDecision({
@@ -2289,12 +2156,13 @@ if (!operationResolution.recognized) {
       responseRequirements:
         normalizedResponseRequirements,
 
-      /*
-       * Compatibility alias for modules that have
-       * not yet migrated from responseStrategy.
-       */
       responseStrategy:
         normalizedResponseRequirements,
+
+      draftResponse,
+
+      authoritativeDraft:
+        draftResponse,
 
       executionMetadata:
         this.normalizeExecutionMetadata({
@@ -2311,9 +2179,6 @@ if (!operationResolution.recognized) {
           value.evidenceReferences ||
           grounding.evidenceUsed
         ),
-
-      draftResponse:
-        "",
 
       grounding:
         this.normalizeGrounding(
@@ -2340,7 +2205,7 @@ if (!operationResolution.recognized) {
 
       authority:
         ready
-          ? "semantic_interpretation_and_response_requirements"
+          ? "authoritative_cognitive_reasoning_and_draft"
           : "none"
     };
   },
@@ -2348,7 +2213,7 @@ if (!operationResolution.recognized) {
   extractModelValue(rawResult = {}) {
     if (
       typeof rawResult ===
-      "string"
+        "string"
     ) {
       return this.parseStructuredValue(
         rawResult
@@ -2365,61 +2230,56 @@ if (!operationResolution.recognized) {
     }
 
     const candidates = [
-  rawResult
-    .cognitiveReasoningResult,
+      rawResult
+        .cognitiveReasoningResult,
 
-  rawResult
-    .reasoningResult,
+      rawResult
+        .reasoningResult,
 
-  rawResult.result
-    ?.cognitiveReasoningResult,
+      rawResult.result
+        ?.cognitiveReasoningResult,
 
-  rawResult.result
-    ?.reasoningResult,
+      rawResult.result
+        ?.reasoningResult,
 
-  rawResult.result,
+      rawResult.result,
 
-  rawResult.output
-    ?.cognitiveReasoningResult,
+      rawResult.output
+        ?.cognitiveReasoningResult,
 
-  rawResult.output
-    ?.reasoningResult,
+      rawResult.output
+        ?.reasoningResult,
 
-  rawResult.output,
+      rawResult.output,
 
-  rawResult
-    .structuredOutput,
+      rawResult
+        .structuredOutput,
 
-  rawResult.parsed,
+      rawResult.parsed,
 
-  rawResult.response,
+      rawResult.response,
 
-  rawResult.data,
+      rawResult.data,
 
-  rawResult.rawContent,
+      rawResult.rawContent,
 
-  rawResult.output_text,
+      rawResult.output_text,
 
-  rawResult.outputText,
+      rawResult.outputText,
 
-  rawResult.responseText,
+      rawResult.responseText,
 
-  rawResult.content,
+      rawResult.content,
 
-  rawResult.text
-];
+      rawResult.text
+    ];
 
-    for (
-      const candidate
-      of candidates
-    ) {
+    for (const candidate of candidates) {
       if (
         candidate &&
         typeof candidate ===
           "object" &&
-        !Array.isArray(
-          candidate
-        )
+        !Array.isArray(candidate)
       ) {
         return candidate;
       }
@@ -2434,9 +2294,7 @@ if (!operationResolution.recognized) {
           );
 
         if (
-          Object.keys(
-            parsed
-          ).length
+          Object.keys(parsed).length
         ) {
           return parsed;
         }
@@ -2472,9 +2330,7 @@ if (!operationResolution.recognized) {
 
     try {
       return this.objectOrEmpty(
-        JSON.parse(
-          clean
-        )
+        JSON.parse(clean)
       );
     } catch {
       return {};
@@ -2482,50 +2338,50 @@ if (!operationResolution.recognized) {
   },
 
   isUsableSemanticFrame(
-  semanticFrame = {}
-) {
-  if (
-    !semanticFrame ||
-    typeof semanticFrame !==
-      "object" ||
-    Array.isArray(
-      semanticFrame
-    )
+    semanticFrame = {}
   ) {
-    return false;
-  }
+    if (
+      !semanticFrame ||
+      typeof semanticFrame !==
+        "object" ||
+      Array.isArray(
+        semanticFrame
+      )
+    ) {
+      return false;
+    }
 
-  return Boolean(
-    this.nullableString(
-      semanticFrame.operation
-    ) ||
-    semanticFrame.target != null ||
-    this.nullableString(
-      semanticFrame.domain
-    ) ||
-    this.nullableString(
-      semanticFrame.primaryLane
-    ) ||
-    this.nullableString(
-      semanticFrame.requestedOutput
-    ) ||
-    this.nullableString(
-      semanticFrame.semanticSummary
-    ) ||
-    this.nullableString(
-      semanticFrame.primaryIntent
-    ) ||
-    this.nullableString(
-      semanticFrame.userGoal
-    ) ||
-    this.nullableString(
-      semanticFrame.currentTurnMeaning
-    ) ||
-    this.arrayOrEmpty(
-      semanticFrame.constraints
-    ).length
-  );
-},
+    return Boolean(
+      this.nullableString(
+        semanticFrame.operation
+      ) ||
+      semanticFrame.target != null ||
+      this.nullableString(
+        semanticFrame.domain
+      ) ||
+      this.nullableString(
+        semanticFrame.primaryLane
+      ) ||
+      this.nullableString(
+        semanticFrame.requestedOutput
+      ) ||
+      this.nullableString(
+        semanticFrame.semanticSummary
+      ) ||
+      this.nullableString(
+        semanticFrame.primaryIntent
+      ) ||
+      this.nullableString(
+        semanticFrame.userGoal
+      ) ||
+      this.nullableString(
+        semanticFrame.currentTurnMeaning
+      ) ||
+      this.arrayOrEmpty(
+        semanticFrame.constraints
+      ).length
+    );
+  },
 
   isUsableResponseRequirements(
     requirements = {}
@@ -2543,9 +2399,9 @@ if (!operationResolution.recognized) {
 
     return Boolean(
       this.nullableString(
-  requirements.goal ||
-  requirements.responseGoal
-) ||
+        requirements.goal ||
+        requirements.responseGoal
+      ) ||
       this.nullableString(
         requirements.shape
       ) ||
@@ -2675,63 +2531,63 @@ if (!operationResolution.recognized) {
   },
 
   normalizeInterpretation(
-  interpretation = {},
-  semanticOperation = null
-) {
-  const canonicalOperation =
-    this.normalizeOperation(
-      semanticOperation ||
-      interpretation.operation
-    );
+    interpretation = {},
+    semanticOperation = null
+  ) {
+    const canonicalOperation =
+      this.normalizeOperation(
+        semanticOperation ||
+        interpretation.operation
+      );
 
-  return {
-    conversationFunction:
-      this.nullableString(
+    return {
+      conversationFunction:
+        this.nullableString(
+          interpretation
+            .conversationFunction
+        ),
+
+      userGoal:
+        this.nullableString(
+          interpretation.userGoal
+        ),
+
+      operation:
+        canonicalOperation,
+
+      meaning:
+        this.nullableString(
+          interpretation.meaning ||
+          interpretation
+            .primaryMeaning
+        ),
+
+      subjects:
+        this.stringArray(
+          interpretation.subjects
+        ),
+
+      contextUsed:
+        interpretation.contextUsed ===
+        true,
+
+      clarificationRequired:
         interpretation
-          .conversationFunction
-      ),
+          .clarificationRequired ===
+        true,
 
-    userGoal:
-      this.nullableString(
-        interpretation.userGoal
-      ),
+      clarificationQuestion:
+        this.nullableString(
+          interpretation
+            .clarificationQuestion
+        ),
 
-    operation:
-      canonicalOperation,
-
-    meaning:
-      this.nullableString(
-        interpretation.meaning ||
-        interpretation
-          .primaryMeaning
-      ),
-
-    subjects:
-      this.stringArray(
-        interpretation.subjects
-      ),
-
-    contextUsed:
-      interpretation.contextUsed ===
-      true,
-
-    clarificationRequired:
-      interpretation
-        .clarificationRequired ===
-      true,
-
-    clarificationQuestion:
-      this.nullableString(
-        interpretation
-          .clarificationQuestion
-      ),
-
-    ambiguity:
-      this.stringArray(
-        interpretation.ambiguity
-      )
-  };
-},
+      ambiguity:
+        this.stringArray(
+          interpretation.ambiguity
+        )
+    };
+  },
 
   normalizeReasoningDecision({
     reasoningDecision = {},
@@ -2771,7 +2627,7 @@ if (!operationResolution.recognized) {
     };
   },
 
-    normalizeSemanticFrame(
+  normalizeSemanticFrame(
     semanticFrame = {}
   ) {
     const operationResolution =
@@ -2788,10 +2644,10 @@ if (!operationResolution.recognized) {
         .definition ||
       {};
 
-const modelExecution =
-  this.objectOrEmpty(
-    semanticFrame.execution
-  );
+    const modelExecution =
+      this.objectOrEmpty(
+        semanticFrame.execution
+      );
 
     return {
       ...semanticFrame,
@@ -2907,39 +2763,39 @@ const modelExecution =
         ),
 
       execution: {
-  ...modelExecution,
+        ...modelExecution,
 
-  executionRequested:
-    modelExecution
-      .executionRequested ===
-    true,
+        executionRequested:
+          modelExecution
+            .executionRequested ===
+          true,
 
-  executionKind:
-    this.nullableString(
-      modelExecution
-        .executionKind
-    ) ||
-    definition.executionKind ||
-    null,
+        executionKind:
+          this.nullableString(
+            modelExecution
+              .executionKind
+          ) ||
+          definition.executionKind ||
+          null,
 
-  executionAllowed:
-    false,
+        executionAllowed:
+          false,
 
-  analysisOnly:
-    true,
+        analysisOnly:
+          true,
 
-  prohibitedOperations:
-    this.stringArray(
-      modelExecution
-        .prohibitedOperations
-    ),
+        prohibitedOperations:
+          this.stringArray(
+            modelExecution
+              .prohibitedOperations
+          ),
 
-  deferredOperations:
-    this.stringArray(
-      modelExecution
-        .deferredOperations
-    )
-},
+        deferredOperations:
+          this.stringArray(
+            modelExecution
+              .deferredOperations
+          )
+      },
 
       operationResolution: {
         rawOperation:
@@ -2977,10 +2833,10 @@ const modelExecution =
   ) {
     return {
       goal:
-  this.nullableString(
-    requirements.goal ||
-    requirements.responseGoal
-  ),
+        this.nullableString(
+          requirements.goal ||
+          requirements.responseGoal
+        ),
 
       shape:
         this.nullableString(
@@ -3058,9 +2914,7 @@ const modelExecution =
     confidence = 0
   } = {}) {
     const metadata =
-      this.objectOrEmpty(
-        value
-      );
+      this.objectOrEmpty(value);
 
     const evidenceReferences =
       this.arrayOrEmpty(
@@ -3378,6 +3232,15 @@ const modelExecution =
         .responseRequirements ||
       null;
 
+    const authoritativeDraft =
+      this.firstNonEmptyString([
+        cognitiveReasoningResult
+          .authoritativeDraft,
+
+        cognitiveReasoningResult
+          .draftResponse
+      ]);
+
     const executionMetadata =
       cognitiveReasoningResult
         .executionMetadata ||
@@ -3398,8 +3261,11 @@ const modelExecution =
       Boolean(
         responseRequirements
       ) &&
+      Boolean(
+        authoritativeDraft
+      ) &&
       modelInvocation
-        ?.succeeded !== false;
+        ?.succeeded === true;
 
     return {
       reasoningEngineRan:
@@ -3432,6 +3298,17 @@ const modelExecution =
       semanticFrame,
 
       responseRequirements,
+
+      responseStrategy:
+        responseRequirements,
+
+      authoritativeDraft,
+
+      draftResponse:
+        authoritativeDraft,
+
+      modelDraftResponse:
+        authoritativeDraft,
 
       executionMetadata,
 
@@ -3475,10 +3352,12 @@ const modelExecution =
               responseRequirements,
 
               responseStrategy:
-                responseRequirements ||
-                cognitiveReasoningResult
-                  .responseStrategy ||
-                null,
+                responseRequirements,
+
+              authoritativeDraft,
+
+              draftResponse:
+                authoritativeDraft,
 
               grounding:
                 cognitiveReasoningResult
@@ -3522,12 +3401,6 @@ const modelExecution =
             }
           : null,
 
-      reasoningAnswer:
-        null,
-
-      reasoningRecommendation:
-        null,
-
       reasoningConfidence:
         cognitiveReasoningResult
           .confidence ??
@@ -3544,7 +3417,7 @@ const modelExecution =
 
       authority:
         ready
-          ? "openai_cognitive_reasoning"
+          ? "openai_authoritative_cognitive_response"
           : "none",
 
       reason:
@@ -3555,7 +3428,11 @@ const modelExecution =
                 .validation
                 ?.errors
             ) ||
-            "reasoning_result_not_ready"
+            (
+              !authoritativeDraft
+                ? "authoritative_draft_missing"
+                : "reasoning_result_not_ready"
+            )
     };
   },
 
@@ -3610,6 +3487,12 @@ const modelExecution =
       responseStrategy:
         null,
 
+      authoritativeDraft:
+        "",
+
+      draftResponse:
+        "",
+
       executionMetadata:
         null,
 
@@ -3630,9 +3513,6 @@ const modelExecution =
 
       uncertainties:
         [],
-
-      draftResponse:
-        "",
 
       grounding:
         null,
@@ -3685,6 +3565,18 @@ const modelExecution =
       responseRequirements:
         null,
 
+      responseStrategy:
+        null,
+
+      authoritativeDraft:
+        "",
+
+      draftResponse:
+        "",
+
+      modelDraftResponse:
+        "",
+
       executionMetadata:
         null,
 
@@ -3692,12 +3584,6 @@ const modelExecution =
         [],
 
       reasoning:
-        null,
-
-      reasoningAnswer:
-        null,
-
-      reasoningRecommendation:
         null,
 
       reasoningConfidence:
@@ -3725,110 +3611,110 @@ const modelExecution =
   ===================================================== */
 
   validate() {
-  const resolvedClient =
-    this.resolveModelInvoker(
-      {}
-    );
+    const resolvedClient =
+      this.resolveModelInvoker(
+        {}
+      );
 
-  const operationRegistry =
-    this.getOperationRegistry();
+    const operationRegistry =
+      this.getOperationRegistry();
 
-  const operationContract =
-    this.getOperationContract();
+    const operationContract =
+      this.getOperationContract();
 
-  const allowedOperations =
-    this.arrayOrEmpty(
-      operationContract
-        ?.allowedOperations
-    );
+    const allowedOperations =
+      this.arrayOrEmpty(
+        operationContract
+          ?.allowedOperations
+      );
 
-  const operationRegistryReady =
-    Boolean(
-      operationRegistry &&
-      typeof operationRegistry
-        .normalizeOperation ===
-        "function" &&
-      typeof operationRegistry
-        .getOperation ===
-        "function" &&
-      operationContract
-        ?.registryAvailable ===
-        true &&
-      allowedOperations.length > 0
-    );
-
-  const structurallyValid =
-    typeof this.reason ===
-      "function" &&
-    typeof this.create ===
-      "function" &&
-    typeof this.resolveModelInvoker ===
-      "function" &&
-    typeof this.validateAndNormalizeResult ===
-      "function" &&
-    typeof this.normalizeSemanticFrame ===
-      "function";
-
-  return {
-    valid:
-      structurallyValid,
-
-    ready:
-      structurallyValid &&
+    const operationRegistryReady =
       Boolean(
+        operationRegistry &&
+        typeof operationRegistry
+          .normalizeOperation ===
+          "function" &&
+        typeof operationRegistry
+          .getOperation ===
+          "function" &&
+        operationContract
+          ?.registryAvailable ===
+          true &&
+        allowedOperations.length > 0
+      );
+
+    const structurallyValid =
+      typeof this.reason ===
+        "function" &&
+      typeof this.create ===
+        "function" &&
+      typeof this.resolveModelInvoker ===
+        "function" &&
+      typeof this.validateAndNormalizeResult ===
+        "function" &&
+      typeof this.normalizeSemanticFrame ===
+        "function";
+
+    return {
+      valid:
+        structurallyValid,
+
+      ready:
+        structurallyValid &&
+        Boolean(
+          resolvedClient
+        ) &&
+        operationRegistryReady,
+
+      modelInvokerAvailable:
+        Boolean(
+          resolvedClient
+        ),
+
+      modelInvokerSource:
         resolvedClient
-      ) &&
+          ?.source ||
+        null,
+
+      operationRegistryAvailable:
+        Boolean(
+          operationRegistry
+        ),
+
       operationRegistryReady,
 
-    modelInvokerAvailable:
-      Boolean(
-        resolvedClient
-      ),
-
-    modelInvokerSource:
-      resolvedClient
-        ?.source ||
-      null,
-
-    operationRegistryAvailable:
-      Boolean(
+      operationRegistryVersion:
         operationRegistry
-      ),
+          ?.version ||
+        null,
 
-    operationRegistryReady,
+      operationContractAvailable:
+        operationContract
+          ?.registryAvailable ===
+        true,
 
-    operationRegistryVersion:
-      operationRegistry
-        ?.version ||
-      null,
+      allowedOperationCount:
+        allowedOperations.length,
 
-    operationContractAvailable:
-      operationContract
-        ?.registryAvailable ===
-      true,
+      source:
+        this.source,
 
-    allowedOperationCount:
-      allowedOperations.length,
+      version:
+        this.version,
 
-    source:
-      this.source,
+      requestSchema:
+        this.requestSchema,
 
-    version:
-      this.version,
+      requestSchemaVersion:
+        this.requestSchemaVersion,
 
-    requestSchema:
-      this.requestSchema,
+      resultSchema:
+        this.resultSchema,
 
-    requestSchemaVersion:
-      this.requestSchemaVersion,
-
-    resultSchema:
-      this.resultSchema,
-
-    resultSchemaVersion:
-      this.resultSchemaVersion
-  };
-},
+      resultSchemaVersion:
+        this.resultSchemaVersion
+    };
+  },
 
   /* =====================================================
      UTILITIES
@@ -3953,7 +3839,7 @@ const modelExecution =
   nullableString(value) {
     if (
       typeof value !==
-      "string"
+        "string"
     ) {
       return null;
     }
