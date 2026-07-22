@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.5.0 — Authoritative Conversation Context Integration
+// V7.6.0 — Usable AI Semantic Frame Runtime Contract
 //
 // Architectural flow:
 //
@@ -23,7 +23,8 @@
 //      ↓
 // Layer 3 — Deliberation
 //   OpenAI Cognitive Reasoning
-//   Semantic Frame Validation
+//   Semantic Frame Normalization
+//   Advisory Semantic Validation Audit
 //   Response Planning
 //      ↓
 // Layer 4 — Expression
@@ -62,8 +63,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.5.0",
-  schemaVersion: "7.5.0",
+  version: "7.6.0",
+  schemaVersion: "7.6.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_five_layer_openai_cognitive_contract_authority",
@@ -586,7 +587,7 @@ window.AriRebirthPipeline = {
         this.schemaVersion,
 
       pipelineArchitecture:
-        "canonical-five-layer-openai-cognitive-authority-with-evidence-and-semantic-validation",
+"canonical-five-layer-openai-cognitive-authority-with-evidence-and-advisory-semantic-validation",
 
       pipelineAuthority:
         this.getAuthorityBoundaries()
@@ -3537,7 +3538,7 @@ stoppedByLayer:
         this.version,
 
       pipelineArchitecture:
-        "canonical-five-layer-openai-cognitive-authority-with-evidence-and-semantic-validation",
+"canonical-five-layer-openai-cognitive-authority-with-evidence-and-advisory-semantic-validation",
 
       pipelineLayers:
         Object.fromEntries(
@@ -3569,7 +3570,7 @@ stoppedByLayer:
           this.schemaVersion,
 
         architecture:
-          "canonical-five-layer-openai-cognitive-authority-with-evidence-and-semantic-validation",
+"canonical-five-layer-openai-cognitive-authority-with-evidence-and-advisory-semantic-validation",
 
         conversationOperatingState: {
           began:
@@ -4562,164 +4563,333 @@ stoppedByLayer:
   ===================================================== */
 
   validateCognitiveRuntimeState(
-    summary = {}
-  ) {
-    const errors = [];
-    const warnings = [];
+  summary = {}
+) {
+  const errors = [];
+  const warnings = [];
 
-    const evidenceAvailable =
-      Boolean(
-        summary.evidencePacket ||
-        summary.perceptionPacket
-          ?.evidencePacket
-      );
+  const evidenceAvailable =
+    Boolean(
+      summary.evidencePacket ||
+      summary.perceptionPacket
+        ?.evidencePacket
+    );
 
-    const cognitiveResultAvailable =
-  Boolean(
-    summary.cognitiveReasoningResult ||
-    summary.deliberationPacket
-      ?.reasoning
-      ?.result ||
-    summary.deliberationPacket
-      ?.stages
-      ?.reasoning
-      ?.cognitiveReasoningResult
-  );
+  const cognitiveReasoningResult =
+    this.readObject(
+      summary.cognitiveReasoningResult
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.reasoning
+        ?.result
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.stages
+        ?.reasoning
+        ?.cognitiveReasoningResult
+    ) ||
+    null;
 
-const semanticValidationAccepted =
-  summary.semanticValidationAccepted ===
-    true ||
-  summary.semanticFrameValidation
-    ?.accepted ===
-    true ||
-  summary.deliberationPacket
-    ?.semanticValidation
-    ?.accepted ===
-    true;
+  const cognitiveResultAvailable =
+    Boolean(
+      cognitiveReasoningResult
+    );
 
-const validatedFrameAvailable =
-  Boolean(
-    summary.validatedSemanticFrame ||
+  /*
+   * Semantic-validation acceptance is audit metadata.
+   * It is not downstream execution authority.
+   */
+  const semanticValidationAccepted =
+    summary.semanticValidationAccepted ===
+      true ||
+    summary.semanticFrameValidation
+      ?.accepted ===
+      true ||
+    summary.semanticFrameValidatorResult
+      ?.accepted ===
+      true ||
+    summary.semanticValidationStagePacket
+      ?.accepted ===
+      true ||
     summary.deliberationPacket
       ?.semanticValidation
-      ?.validatedSemanticFrame
-  );
-
-const responsePlanAvailable =
-  Boolean(
-    summary.responsePlan ||
+      ?.accepted ===
+      true ||
     summary.deliberationPacket
-      ?.responsePlanning
-      ?.plan
-  );
+      ?.semanticValidation
+      ?.result
+      ?.accepted ===
+      true;
 
-    const cognitiveContractsObserved =
-      evidenceAvailable ||
-      cognitiveResultAvailable ||
-      summary.evidenceBuilderRan ===
-        true ||
-      summary.semanticValidationStageRan ===
-        true ||
-      summary.semanticFrameValidatorRan ===
-        true;
+  /*
+   * Prefer an accepted normalized frame when one exists.
+   * Otherwise preserve the usable OpenAI-generated frame.
+   */
+  const usableSemanticFrame =
+    this.readObject(
+      summary.validatedSemanticFrame
+    ) ||
+    this.readObject(
+      summary.semanticFrame
+    ) ||
+    this.readObject(
+      cognitiveReasoningResult
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      cognitiveReasoningResult
+        ?.semanticStructure
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.validatedSemanticFrame
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.reasoning
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.reasoning
+        ?.result
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.stages
+        ?.reasoning
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.stages
+        ?.semanticValidation
+        ?.validatedSemanticFrame
+    ) ||
+    null;
 
-    const explicitlyEnforced =
-      summary.enforceCognitiveContracts ===
-        true ||
-      summary.appContext
-        ?.enforceCognitiveContracts ===
-        true;
+  const usableSemanticFrameAvailable =
+    Boolean(
+      usableSemanticFrame
+    );
 
-    const enforced =
-      explicitlyEnforced ||
-      cognitiveContractsObserved;
-
-    if (
-      enforced &&
-      summary.perceptionPipelineRan ===
-        true &&
-      !evidenceAvailable
-    ) {
-      errors.push(
-        "perception_ran_without_evidence_packet"
-      );
-    }
-
-    if (
-      enforced &&
-      summary.deliberationPipelineRan ===
-        true &&
-      !cognitiveResultAvailable
-    ) {
-      errors.push(
-        "deliberation_ran_without_cognitive_reasoning_result"
-      );
-    }
-
-    if (
-      enforced &&
-      responsePlanAvailable &&
-      (
-        !semanticValidationAccepted ||
-        !validatedFrameAvailable
+  const validatedFrameAvailable =
+    Boolean(
+      this.readObject(
+        summary.validatedSemanticFrame
+      ) ||
+      this.readObject(
+        summary.deliberationPacket
+          ?.semanticValidation
+          ?.validatedSemanticFrame
+      ) ||
+      this.readObject(
+        summary.deliberationPacket
+          ?.stages
+          ?.semanticValidation
+          ?.validatedSemanticFrame
       )
-    ) {
-      errors.push(
-        "response_plan_created_without_accepted_validated_semantic_frame"
-      );
-    }
+    );
 
-    if (
-      summary.semanticFrame &&
-      !cognitiveResultAvailable
-    ) {
-      warnings.push(
-        "semantic_frame_present_without_cognitive_reasoning_result"
-      );
-    }
+  const responsePlan =
+    this.readObject(
+      summary.responsePlan
+    ) ||
+    this.readObject(
+      summary.responsePlanningStagePacket
+        ?.responsePlan
+    ) ||
+    this.readObject(
+      summary.responsePlanningStagePacket
+        ?.plan
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.responsePlan
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.responsePlanning
+        ?.responsePlan
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.responsePlanning
+        ?.plan
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.stages
+        ?.responsePlanning
+        ?.responsePlan
+    ) ||
+    this.readObject(
+      summary.deliberationPacket
+        ?.stages
+        ?.responsePlanning
+        ?.plan
+    ) ||
+    null;
 
-    if (!enforced) {
-      warnings.push(
-        "cognitive_contracts_not_yet_observed"
-      );
-    }
+  const responsePlanAvailable =
+    Boolean(
+      responsePlan
+    );
 
-    return {
-      valid:
-        errors.length ===
-        0,
+  const cognitiveContractsObserved =
+    evidenceAvailable ||
+    cognitiveResultAvailable ||
+    usableSemanticFrameAvailable ||
+    summary.evidenceBuilderRan ===
+      true ||
+    summary.reasoningStageRan ===
+      true ||
+    summary.semanticValidationStageRan ===
+      true ||
+    summary.semanticFrameValidatorRan ===
+      true ||
+    summary.responsePlanningStageRan ===
+      true;
 
-      ready:
-        enforced &&
-        errors.length ===
-          0 &&
-        evidenceAvailable &&
-        cognitiveResultAvailable &&
-        semanticValidationAccepted &&
-        validatedFrameAvailable,
+  const explicitlyEnforced =
+    summary.enforceCognitiveContracts ===
+      true ||
+    summary.appContext
+      ?.enforceCognitiveContracts ===
+      true;
 
-      enforced,
+  const enforced =
+    explicitlyEnforced ||
+    cognitiveContractsObserved;
 
-      migrationPending:
-        !enforced,
+  if (
+    enforced &&
+    summary.perceptionPipelineRan ===
+      true &&
+    !evidenceAvailable
+  ) {
+    errors.push(
+      "perception_ran_without_evidence_packet"
+    );
+  }
 
-      errors,
-      warnings,
+  if (
+    enforced &&
+    summary.deliberationPipelineRan ===
+      true &&
+    !cognitiveResultAvailable
+  ) {
+    errors.push(
+      "deliberation_ran_without_cognitive_reasoning_result"
+    );
+  }
 
-      checks: {
-        evidenceAvailable,
-        cognitiveResultAvailable,
+  /*
+   * Planning may proceed only from a usable AI semantic
+   * frame. Validator acceptance is not required.
+   */
+  if (
+    enforced &&
+    responsePlanAvailable &&
+    !usableSemanticFrameAvailable
+  ) {
+    errors.push(
+      "response_plan_created_without_usable_ai_semantic_frame"
+    );
+  }
+
+  /*
+   * Preserve validator rejection as an advisory warning
+   * when a usable AI semantic frame exists.
+   */
+  if (
+    enforced &&
+    responsePlanAvailable &&
+    usableSemanticFrameAvailable &&
+    !semanticValidationAccepted
+  ) {
+    warnings.push(
+      "semantic_validation_not_accepted_but_usable_ai_frame_preserved"
+    );
+  }
+
+  if (
+    summary.semanticFrame &&
+    !cognitiveResultAvailable
+  ) {
+    warnings.push(
+      "semantic_frame_present_without_cognitive_reasoning_result"
+    );
+  }
+
+  if (!enforced) {
+    warnings.push(
+      "cognitive_contracts_not_yet_observed"
+    );
+  }
+
+  const valid =
+    errors.length ===
+    0;
+
+  const ready =
+    enforced &&
+    valid &&
+    evidenceAvailable &&
+    cognitiveResultAvailable &&
+    usableSemanticFrameAvailable;
+
+  return {
+    valid,
+    ready,
+    enforced,
+
+    migrationPending:
+      !enforced,
+
+    errors,
+    warnings,
+
+    checks: {
+      evidenceAvailable,
+      cognitiveResultAvailable,
+      semanticValidationAccepted,
+      validatedFrameAvailable,
+      usableSemanticFrameAvailable,
+      responsePlanAvailable,
+      cognitiveContractsObserved,
+      explicitlyEnforced
+    },
+
+    semanticFrameAuthority: {
+      source:
+        validatedFrameAvailable
+          ? "accepted_validated_semantic_frame"
+          : usableSemanticFrameAvailable
+            ? "authoritative_openai_semantic_frame"
+            : "none",
+
+      validatorAccepted:
         semanticValidationAccepted,
-        validatedFrameAvailable,
-        responsePlanAvailable,
-        cognitiveContractsObserved,
-        explicitlyEnforced
-      },
 
-      authority:
-        "cross_layer_runtime_invariant_validation_only"
-    };
-  },
+      advisoryValidationUsed:
+        usableSemanticFrameAvailable &&
+        !semanticValidationAccepted
+    },
+
+    authority:
+      "cross_layer_runtime_invariant_validation_only"
+  };
+},
 
   /* =====================================================
      DEBUGGING
@@ -5135,17 +5305,26 @@ console.log(
       canNormalizeAuthoritativeDelivery:
         true,
 
-      canPreserveEvidencePacket:
-        true,
+canPreserveEvidencePacket:
+  true,
 
-      canPreserveCognitiveReasoningResult:
-        true,
+canPreserveCognitiveReasoningResult:
+  true,
 
-      canPreserveValidatedSemanticFrame:
-        true,
+canPreserveValidatedSemanticFrame:
+  true,
 
-      canRequireSemanticValidationBeforePlanning:
-        true,
+canPreserveUsableAISemanticFrame:
+  true,
+
+canRequireUsableAISemanticFrameBeforePlanning:
+  true,
+
+canRequireValidatorAcceptanceBeforePlanning:
+  false,
+
+canTreatSemanticValidationAsAdvisory:
+  true,
 
       canBuildEvidencePacketDirectly:
         false,
@@ -5250,7 +5429,7 @@ console.log(
         false,
 
       role:
-        "canonical_five_layer_runtime_with_openai_cognitive_authority_and_cos_delegation"
+"canonical_five_layer_runtime_with_openai_semantic_authority_advisory_validation_and_cos_delegation"
     };
   },
 
@@ -5417,22 +5596,6 @@ console.log(
       ],
 
       [
-        "AriSemanticFrameValidator",
-
-        (
-          window.AriSemanticFrameValidator ||
-          window.Ari?.semanticFrameValidator ||
-          null
-        ),
-
-        component =>
-          typeof component?.validate ===
-            "function" &&
-          typeof component?.buildCompatibilityProjection ===
-            "function"
-      ],
-
-      [
         "AriPerceptionPipeline",
 
         window.AriPerceptionPipeline,
@@ -5483,41 +5646,82 @@ console.log(
       ]
     ];
 
-    const warnings =
-      requiredComponents
-        .filter(
-          ([
-            _name,
-            component,
-            validator
-          ]) =>
-            !component ||
-            validator(component) !==
-              true
-        )
-        .map(
-          ([name]) =>
-            `${name}_not_loaded`
-        );
+const optionalComponents = [
+  [
+    "AriSemanticFrameValidator",
 
+    (
+      window.AriSemanticFrameValidator ||
+      window.Ari?.semanticFrameValidator ||
+      null
+    ),
+
+    component =>
+      typeof component?.validate === "function"
+  ]
+];
+
+    const missingRequiredComponents =
+  requiredComponents
+    .filter(
+      ([
+        _name,
+        component,
+        validator
+      ]) =>
+        !component ||
+        validator(component) !==
+          true
+    )
+    .map(
+      ([name]) =>
+        `${name}_not_loaded`
+    );
+
+const unavailableOptionalComponents =
+  optionalComponents
+    .filter(
+      ([
+        _name,
+        component,
+        validator
+      ]) =>
+        !component ||
+        validator(component) !==
+          true
+    )
+    .map(
+      ([name]) =>
+        `${name}_optional_not_loaded`
+    );
+
+const warnings =
+  unavailableOptionalComponents;
     return {
-      valid:
-        errors.length === 0,
+  valid:
+    errors.length === 0,
 
-      ready:
-        errors.length === 0 &&
-        warnings.length === 0,
+  ready:
+    errors.length === 0 &&
+    missingRequiredComponents.length ===
+      0,
 
-      source:
-        "ari-rebirth-pipeline-validation",
+  source:
+    "ari-rebirth-pipeline-validation",
 
-      version:
-        this.version,
+  version:
+    this.version,
 
-      errors,
+  errors:
+    this.uniqueValues([
+      ...errors,
+      ...missingRequiredComponents
+    ]),
 
-      warnings:
-        this.uniqueValues(warnings),
+  warnings:
+    this.uniqueValues(
+      warnings
+    ),
 
       checks: {
         canonicalTurnPreserved:
@@ -5565,9 +5769,20 @@ console.log(
           authority.canGenerateResponseStrategy ===
           false,
 
-        semanticValidationRequiredBeforePlanning:
-          authority.canRequireSemanticValidationBeforePlanning ===
-          true,
+        usableAISemanticFrameRequiredBeforePlanning:
+  authority
+    .canRequireUsableAISemanticFrameBeforePlanning ===
+  true,
+
+validatorAcceptanceNotRequiredBeforePlanning:
+  authority
+    .canRequireValidatorAcceptanceBeforePlanning ===
+  false,
+
+semanticValidationIsAdvisory:
+  authority
+    .canTreatSemanticValidationAsAdvisory ===
+  true,
 
         directThreadLoadingDisabled:
           authority.canLoadPersistedThreadContextDirectly ===
@@ -5641,6 +5856,21 @@ console.log(
   /* =====================================================
      GENERAL UTILITIES
   ===================================================== */
+
+readObject(
+  value = null
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  return value;
+},
 
   toArray(
     value
