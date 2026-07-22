@@ -238,7 +238,8 @@ console.log(
       validatorVersion: this.version,
       transformations: sourceFrame
   ? [
-      "enum_normalization",
+      "operation_alias_normalization",
+      "registry_contract_normalization",
       "confidence_normalization",
       "missing_optional_field_defaults",
       "canonical_slot_alias_normalization",
