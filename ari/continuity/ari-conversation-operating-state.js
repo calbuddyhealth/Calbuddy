@@ -5,7 +5,7 @@
 // Build, maintain, and persist one concise authoritative operating state for
 // the current conversation turn.
 //
-// V1.3.0 — Progressive Conversation Context Integration
+// V1.3.1 — Progressive Conversation Context Integration
 //
 // Architectural flow:
 //
