@@ -65,7 +65,7 @@
 window.Ari = window.Ari || {};
 
 window.AriConversationOperatingState = {
-version: "1.3.0",
+version: "1.3.1",
   schemaVersion: "1.0.0",
   source: "ari-conversation-operating-state",
   authorityLevel: "conversation_operating_state_authority",
