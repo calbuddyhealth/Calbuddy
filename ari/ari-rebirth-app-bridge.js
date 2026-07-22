@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.4.3 — Conversation Relationship Dependency Registration
+// V2.5.0 — Shared Execution Trace Boundary Integration
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.4.3",
-  schemaVersion: "2.4.3",
+  version: "2.5.0",
+  schemaVersion: "2.5.0",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -83,10 +83,8 @@ window.AriRebirthAppBridge = {
     // ===================================================
 
     "ari/system/ari-loader.js",
-    "ari/system/ari-authority.js",
-
-    // Shared cognitive operation contracts.
-    "ari/contracts/ari-operation-registry.js",
+"ari/system/ari-authority.js",
+"ari/contracts/ari-operation-registry.js",
 
     // ===================================================
     // APPLICATION RUNTIME BOUNDARY SERVICES
@@ -412,352 +410,1376 @@ window.AriRebirthAppBridge = {
   loaded: false,
   loadingPromise: null,
 
+/* =====================================================
+   EXECUTION TRACE
+===================================================== */
+
+getExecutionTraceService() {
+  return (
+    window.AriExecutionTrace ||
+    window.Ari
+      ?.executionTrace ||
+    null
+  );
+},
+
+createExecutionTrace({
+  message = "",
+  options = {}
+} = {}) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !service ||
+    typeof service.create !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.create({
+    traceId:
+      options.traceId ||
+      null,
+
+    requestId:
+      options.requestId ||
+      null,
+
+    source:
+      this.source,
+
+    environment: {
+      location:
+        window.location
+          ?.pathname ||
+        null,
+
+      userAgent:
+        navigator
+          ?.userAgent ||
+        null
+    },
+
+    metadata: {
+      bridgeVersion:
+        this.version,
+
+      debug:
+        options.debug ===
+        true,
+
+      debugTiming:
+        options.debugTiming ===
+        true,
+
+      messageLength:
+        String(
+          message ||
+          ""
+        ).length
+    }
+  });
+},
+
+startTraceSpan(
+  trace,
+  component,
+  input = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !service ||
+    typeof service.startSpan !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.startSpan(
+    trace,
+    component,
+    input
+  );
+},
+
+completeTraceSpan(
+  trace,
+  span,
+  input = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !span ||
+    !service ||
+    typeof service.completeSpan !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.completeSpan(
+    trace,
+    span,
+    input
+  );
+},
+
+failTraceSpan(
+  trace,
+  span,
+  failure = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !span ||
+    !service ||
+    typeof service.failSpan !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.failSpan(
+    trace,
+    span,
+    failure
+  );
+},
+
+recordTraceCheckpoint(
+  trace,
+  component,
+  checkpoint,
+  input = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !service ||
+    typeof service.checkpoint !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.checkpoint(
+    trace,
+    component,
+    checkpoint,
+    input
+  );
+},
+
+recordTraceDependency(
+  trace,
+  dependency,
+  input = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !service ||
+    typeof service.dependency !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.dependency(
+    trace,
+    dependency,
+    input
+  );
+},
+
+completeExecutionTrace(
+  trace,
+  input = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !service ||
+    typeof service.completeTrace !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.completeTrace(
+    trace,
+    input
+  );
+},
+
+exportExecutionTrace(
+  trace,
+  input = {}
+) {
+  const service =
+    this.getExecutionTraceService();
+
+  if (
+    !trace ||
+    !service ||
+    typeof service.exportForLab !==
+      "function"
+  ) {
+    return null;
+  }
+
+  return service.exportForLab(
+    trace,
+    input
+  );
+},
+
   /* =====================================================
      PUBLIC ASK ENTRY
   ===================================================== */
 
   async ask(message, options = {}) {
-    const originalMessage =
-      String(
-        message ??
-        ""
-      );
+  const originalMessage =
+    String(
+      message ??
+      ""
+    );
 
-    const timing =
-      this.createTimingController(
-        options.debugTiming ===
-        true
-      );
+  const timing =
+    this.createTimingController(
+      options.debugTiming ===
+      true
+    );
+
+  timing.mark(
+    "bridge_ask_started"
+  );
+
+  const executionTrace =
+    this.createExecutionTrace({
+      message:
+        originalMessage,
+
+      options
+    });
+
+  const bridgeSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "ari_rebirth_app_bridge",
+      {
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        boundary:
+          "application_runtime_boundary",
+
+        inputSummary: {
+          messagePresent:
+            Boolean(
+              originalMessage.trim()
+            ),
+
+          messageLength:
+            originalMessage.length
+        }
+      }
+    );
+
+  const traceService =
+    this.getExecutionTraceService();
+
+  if (
+    executionTrace &&
+    traceService &&
+    typeof traceService
+      .enterRuntime ===
+      "function"
+  ) {
+    traceService.enterRuntime(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        source:
+          this.source,
+
+        version:
+          this.version
+      }
+    );
+  }
+
+  if (
+    !originalMessage.trim()
+  ) {
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "empty_current_turn",
+
+        message:
+          "A current-turn message is required.",
+
+        boundary:
+          "bridge_input_validation",
+
+        status:
+          "input_rejected"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeResponse({
+      reply:
+        "Say something first.",
+
+      emotion:
+        "idle",
+
+      error: {
+        code:
+          "empty_current_turn",
+
+        message:
+          "A current-turn message is required.",
+
+        source:
+          this.source
+      },
+
+      deliveryStatus:
+        "input_rejected",
+
+      diagnostics: {
+        reason:
+          "empty_current_turn",
+
+        executionTrace:
+          this.exportExecutionTrace(
+            executionTrace
+          ),
+
+        timing:
+          timing.getEntries()
+      }
+    });
+  }
+
+  const runtimeLoadSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "runtime_loader",
+      {
+        parentSpanId:
+          bridgeSpan?.spanId ||
+          null,
+
+        source:
+          this.source,
+
+        version:
+          this.version
+      }
+    );
+
+  try {
+    timing.mark(
+      "before_runtime_load"
+    );
+
+    await this.ensureLoaded();
 
     timing.mark(
-      "bridge_ask_started"
+      "after_runtime_load"
+    );
+
+    this.completeTraceSpan(
+      executionTrace,
+      runtimeLoadSpan,
+      {
+        outputSummary: {
+          loaded:
+            true,
+
+          requiredScriptCount:
+            this.requiredScripts.length
+        }
+      }
+    );
+  } catch (error) {
+    console.error(
+      "ARI REBIRTH SCRIPT LOAD ERROR:",
+      error
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      runtimeLoadSpan,
+      {
+        code:
+          error?.code ||
+          "runtime_load_failure",
+
+        message:
+          error?.message ||
+          "Runtime loading failed.",
+
+        boundary:
+          "runtime_loader",
+
+        details: {
+          lastLoadingScript:
+            this.readLoaderDiagnostic(
+              "ariLastLoadingScript"
+            ),
+
+          lastLoadedScript:
+            this.readLoaderDiagnostic(
+              "ariLastLoadedScript"
+            ),
+
+          lastLoadError:
+            this.readLoaderDiagnostic(
+              "ariLastLoadError"
+            ),
+
+          runtimeAvailability:
+            error?.runtimeAvailability ||
+            null
+        }
+      }
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "runtime_load_failure",
+
+        message:
+          error?.message ||
+          "Runtime loading failed.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari couldn’t finish loading the response system.",
+
+      error,
+      options,
+
+      failureType:
+        "runtime_load_failure",
+
+      executionTrace,
+
+      timing:
+        timing.getEntries()
+    });
+  }
+
+  const readinessSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "runtime_readiness",
+      {
+        parentSpanId:
+          bridgeSpan?.spanId ||
+          null,
+
+        source:
+          "ari-runtime-readiness",
+
+        version:
+          window.AriRuntimeReadiness
+            ?.version ||
+          window.Ari
+            ?.runtimeReadiness
+            ?.version ||
+          null
+      }
+    );
+
+  const readiness =
+    this.checkReadiness({
+      requireRuntimeDelivery:
+        true
+    });
+
+  this.recordRuntimeDependencies(
+    executionTrace,
+    readinessSpan,
+    readiness
+  );
+
+  if (
+    readiness.ready !==
+    true
+  ) {
+    console.error(
+      "ARI REBIRTH READINESS FAILURE:",
+      readiness
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      readinessSpan,
+      {
+        code:
+          readiness.reason ||
+          readiness.error ||
+          "runtime_not_ready",
+
+        message:
+          readiness.error ||
+          readiness.reason ||
+          "Runtime readiness validation failed.",
+
+        boundary:
+          "runtime_readiness",
+
+        details: {
+          missing:
+            readiness.missing ||
+            [],
+
+          errors:
+            readiness.errors ||
+            [],
+
+          warnings:
+            readiness.warnings ||
+            []
+        }
+      }
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "runtime_readiness_failure",
+
+        message:
+          readiness.error ||
+          readiness.reason ||
+          "Runtime readiness validation failed.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari’s response system is not fully ready.",
+
+      error:
+        readiness.error ||
+        readiness.reason ||
+        "runtime_not_ready",
+
+      options,
+
+      failureType:
+        "runtime_readiness_failure",
+
+      diagnostics:
+        readiness,
+
+      executionTrace,
+
+      timing:
+        timing.getEntries()
+    });
+  }
+
+  this.completeTraceSpan(
+    executionTrace,
+    readinessSpan,
+    {
+      outputSummary: {
+        ready:
+          true,
+
+        warningCount:
+          this.toArray(
+            readiness.warnings
+          ).length
+      }
+    }
+  );
+
+  let requestEnvelope;
+
+  const requestBuildSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "runtime_request_builder",
+      {
+        parentSpanId:
+          bridgeSpan?.spanId ||
+          null,
+
+        source:
+          "ari-runtime-request",
+
+        version:
+          window.AriRuntimeRequest
+            ?.version ||
+          window.Ari
+            ?.runtimeRequest
+            ?.version ||
+          null
+      }
+    );
+
+  try {
+    timing.mark(
+      "before_request_build"
+    );
+
+    requestEnvelope =
+      this.buildRuntimeRequest({
+        message:
+          originalMessage,
+
+        options: {
+          ...options,
+
+          bridgeVersion:
+            this.version,
+
+          executionTrace
+        }
+      });
+
+    this.attachExecutionTraceToRequest(
+      requestEnvelope,
+      executionTrace
     );
 
     if (
-      !originalMessage.trim()
+      executionTrace &&
+      requestEnvelope
+        ?.turn
+        ?.turnId
     ) {
-      timing.finish();
+      executionTrace.turnId =
+        requestEnvelope
+          .turn
+          .turnId;
+    }
 
-      return this.makeBridgeResponse({
-        reply:
-          "Say something first.",
+    timing.mark(
+      "after_request_build"
+    );
 
-        emotion:
-          "idle",
+    this.recordTraceCheckpoint(
+      executionTrace,
+      "runtime_request_builder",
+      "request_envelope_built",
+      {
+        spanId:
+          requestBuildSpan?.spanId,
 
-        error: {
-          code:
-            "empty_current_turn",
+        status:
+          "completed",
 
-          message:
-            "A current-turn message is required.",
+        data: {
+          turnId:
+            requestEnvelope
+              ?.turn
+              ?.turnId ||
+            null,
 
-          source:
-            this.source
-        },
-
-        deliveryStatus:
-          "input_rejected",
-
-        diagnostics: {
-          reason:
-            "empty_current_turn",
-
-          timing:
-            timing.getEntries()
+          runtimeRequestReady:
+            requestEnvelope
+              ?.runtimeRequestReady ===
+            true
         }
-      });
-    }
+      }
+    );
+  } catch (error) {
+    console.error(
+      "ARI RUNTIME REQUEST BUILD ERROR:",
+      error
+    );
 
-    try {
-      timing.mark(
-        "before_runtime_load"
-      );
-
-      await this.ensureLoaded();
-
-      timing.mark(
-        "after_runtime_load"
-      );
-    } catch (error) {
-      console.error(
-        "ARI REBIRTH SCRIPT LOAD ERROR:",
-        error
-      );
-
-      timing.finish();
-
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari couldn’t finish loading the response system.",
-
-        error,
-        options,
-
-        failureType:
-          "runtime_load_failure",
-
-        timing:
-          timing.getEntries()
-      });
-    }
-
-    const readiness =
-      this.checkReadiness({
-        requireRuntimeDelivery:
-          true
-      });
-
-    if (
-      readiness.ready !==
-      true
-    ) {
-      console.error(
-        "ARI REBIRTH READINESS FAILURE:",
-        readiness
-      );
-
-      timing.finish();
-
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari’s response system is not fully ready.",
-
-        error:
-          readiness.error ||
-          readiness.reason ||
-          "runtime_not_ready",
-
-        options,
-
-        failureType:
-          "runtime_readiness_failure",
-
-        diagnostics:
-          readiness,
-
-        timing:
-          timing.getEntries()
-      });
-    }
-
-    let requestEnvelope;
-
-    try {
-      timing.mark(
-        "before_request_build"
-      );
-
-      requestEnvelope =
-        this.buildRuntimeRequest({
-          message:
-            originalMessage,
-
-          options: {
-            ...options,
-
-            bridgeVersion:
-              this.version
-          }
-        });
-
-      timing.mark(
-        "after_request_build"
-      );
-    } catch (error) {
-      console.error(
-        "ARI RUNTIME REQUEST BUILD ERROR:",
-        error
-      );
-
-      timing.finish();
-
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari couldn’t prepare the current request.",
-
-        error,
-        options,
-
-        failureType:
+    this.failTraceSpan(
+      executionTrace,
+      requestBuildSpan,
+      {
+        code:
           "runtime_request_build_failure",
 
-        timing:
-          timing.getEntries()
-      });
-    }
+        message:
+          error?.message ||
+          "Runtime request construction failed.",
 
-    const requestValidation =
-      requestEnvelope
-        ?.runtimeRequestValidation ||
-      null;
+        boundary:
+          "runtime_request_builder"
+      }
+    );
 
-    if (
-      requestEnvelope
-        ?.runtimeRequestReady !==
-        true ||
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "runtime_request_build_failure",
+
+        message:
+          error?.message ||
+          "Runtime request construction failed.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari couldn’t prepare the current request.",
+
+      error,
+      options,
+
+      failureType:
+        "runtime_request_build_failure",
+
+      executionTrace,
+
+      timing:
+        timing.getEntries()
+    });
+  }
+
+  const requestValidation =
+    requestEnvelope
+      ?.runtimeRequestValidation ||
+    null;
+
+  if (
+    requestEnvelope
+      ?.runtimeRequestReady !==
+      true ||
+    requestValidation
+      ?.valid !==
+      true
+  ) {
+    console.error(
+      "ARI RUNTIME REQUEST INVALID:",
       requestValidation
-        ?.valid !==
-        true
-    ) {
-      console.error(
-        "ARI RUNTIME REQUEST INVALID:",
-        requestValidation
-      );
+    );
 
-      timing.finish();
-
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari couldn’t prepare a valid runtime request.",
-
-        error:
+    this.failTraceSpan(
+      executionTrace,
+      requestBuildSpan,
+      {
+        code:
           requestValidation
             ?.errors
             ?.[0] ||
           "runtime_request_invalid",
 
-        options,
+        message:
+          "The runtime request failed validation.",
 
-        failureType:
-          "runtime_request_validation_failure",
+        boundary:
+          "runtime_request_validation",
 
-        diagnostics: {
-          requestValidation,
+        details: {
+          validation:
+            requestValidation,
 
           turnId:
             requestEnvelope
               ?.turn
               ?.turnId ||
             null
-        },
-
-        timing:
-          timing.getEntries()
-      });
-    }
-
-    let runtimeResult;
-
-    try {
-      timing.mark(
-        "before_master_pipeline"
-      );
-
-      const masterPipeline =
-  window.AriRebirthPipeline ||
-  window.Ari
-    ?.rebirthPipeline ||
-  null;
-
-if (
-  !masterPipeline ||
-  typeof masterPipeline.run !==
-    "function"
-) {
-  throw new Error(
-    "ari_rebirth_pipeline_unavailable_at_execution"
-  );
-}
-
-runtimeResult =
-  await masterPipeline.run(
-    requestEnvelope
-  );
-
-      timing.mark(
-        "after_master_pipeline"
-      );
-    } catch (error) {
-      console.error(
-        "ARI REBIRTH PIPELINE ERROR:",
-        error
-      );
-
-      timing.finish();
-
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari hit an internal response error.",
-
-        error,
-        options,
-
-        failureType:
-          "master_pipeline_failure",
-
-        diagnostics: {
-          turnId:
-            requestEnvelope
-              .turn
-              ?.turnId ||
-            null
-        },
-
-        timing:
-          timing.getEntries()
-      });
-    }
-
-    let normalizedDelivery;
-
-    try {
-      timing.mark(
-        "before_delivery_read"
-      );
-
-      normalizedDelivery =
-        this.readAuthoritativeDelivery(
-          runtimeResult,
-          {
-            includeSummary:
-              options.includeSummary !==
-              false
-          }
-        );
-
-      timing.mark(
-        "after_delivery_read"
-      );
-    } catch (error) {
-      console.error(
-        "ARI RUNTIME DELIVERY READ ERROR:",
-        error
-      );
-
-      timing.finish();
-
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari understood the request, but the final delivery step could not be read.",
-
-        error,
-        options,
-
-        failureType:
-          "runtime_delivery_read_failure",
-
-        summary:
-          runtimeResult,
-
-        diagnostics: {
-          turnId:
-            requestEnvelope
-              .turn
-              ?.turnId ||
-            null
-        },
-
-        timing:
-          timing.getEntries()
-      });
-    }
-
-    timing.mark(
-      "before_delivery_adaptation"
+        }
+      }
     );
 
-    const response =
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "runtime_request_validation_failure",
+
+        message:
+          "The runtime request failed validation.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari couldn’t prepare a valid runtime request.",
+
+      error:
+        requestValidation
+          ?.errors
+          ?.[0] ||
+        "runtime_request_invalid",
+
+      options,
+
+      failureType:
+        "runtime_request_validation_failure",
+
+      diagnostics: {
+        requestValidation,
+
+        turnId:
+          requestEnvelope
+            ?.turn
+            ?.turnId ||
+          null
+      },
+
+      executionTrace,
+
+      timing:
+        timing.getEntries()
+    });
+  }
+
+  this.completeTraceSpan(
+    executionTrace,
+    requestBuildSpan,
+    {
+      outputSummary: {
+        valid:
+          true,
+
+        turnId:
+          requestEnvelope
+            ?.turn
+            ?.turnId ||
+          null
+      }
+    }
+  );
+
+  let runtimeResult;
+
+  const masterPipelineSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "ari_rebirth_pipeline",
+      {
+        parentSpanId:
+          bridgeSpan?.spanId ||
+          null,
+
+        source:
+          "ari-rebirth-pipeline",
+
+        version:
+          window.AriRebirthPipeline
+            ?.version ||
+          window.Ari
+            ?.rebirthPipeline
+            ?.version ||
+          null,
+
+        boundary:
+          "master_runtime_pipeline"
+      }
+    );
+
+  try {
+    timing.mark(
+      "before_master_pipeline"
+    );
+
+    const masterPipeline =
+      window.AriRebirthPipeline ||
+      window.Ari
+        ?.rebirthPipeline ||
+      null;
+
+    if (
+      !masterPipeline ||
+      typeof masterPipeline.run !==
+        "function"
+    ) {
+      throw new Error(
+        "ari_rebirth_pipeline_unavailable_at_execution"
+      );
+    }
+
+    this.recordTraceCheckpoint(
+      executionTrace,
+      "ari_rebirth_pipeline",
+      "master_pipeline_invoked",
+      {
+        spanId:
+          masterPipelineSpan
+            ?.spanId,
+
+        status:
+          "entered",
+
+        data: {
+          turnId:
+            requestEnvelope
+              ?.turn
+              ?.turnId ||
+            null
+        }
+      }
+    );
+
+    runtimeResult =
+      await masterPipeline.run(
+        requestEnvelope
+      );
+
+    timing.mark(
+      "after_master_pipeline"
+    );
+
+    const runtimeFailed =
+  runtimeResult
+    ?.success ===
+    false ||
+  runtimeResult
+    ?.ok ===
+    false ||
+  runtimeResult
+    ?.complete ===
+    false ||
+  runtimeResult
+    ?.deliveryStatus ===
+    "failed";
+
+if (runtimeFailed) {
+  this.failTraceSpan(
+    executionTrace,
+    masterPipelineSpan,
+    {
+      code:
+        runtimeResult
+          ?.error
+          ?.code ||
+        runtimeResult
+          ?.failure
+          ?.code ||
+        "master_pipeline_returned_failure",
+
+      message:
+        runtimeResult
+          ?.error
+          ?.message ||
+        runtimeResult
+          ?.failure
+          ?.message ||
+        "The master pipeline returned a controlled failure.",
+
+      boundary:
+        runtimeResult
+          ?.error
+          ?.boundary ||
+        "ari_rebirth_pipeline",
+
+      details: {
+        success:
+          runtimeResult
+            ?.success,
+
+        ok:
+          runtimeResult
+            ?.ok,
+
+        complete:
+          runtimeResult
+            ?.complete,
+
+        deliveryStatus:
+          runtimeResult
+            ?.deliveryStatus,
+
+        source:
+          runtimeResult
+            ?.source
+      }
+    }
+  );
+} else {
+  this.completeTraceSpan(
+    executionTrace,
+    masterPipelineSpan,
+    {
+      outputSummary: {
+        resultAvailable:
+          Boolean(
+            runtimeResult
+          ),
+
+        runtimeComplete:
+          runtimeResult
+            ?.complete ===
+          true,
+
+        deliveryStatus:
+          runtimeResult
+            ?.deliveryStatus ||
+          null
+      }
+    }
+  );
+}
+  } catch (error) {
+    console.error(
+      "ARI REBIRTH PIPELINE ERROR:",
+      error
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      masterPipelineSpan,
+      {
+        code:
+          error?.code ||
+          "master_pipeline_failure",
+
+        message:
+          error?.message ||
+          "The master runtime pipeline failed.",
+
+        boundary:
+          "ari_rebirth_pipeline"
+      }
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "master_pipeline_failure",
+
+        message:
+          error?.message ||
+          "The master runtime pipeline failed.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari hit an internal response error.",
+
+      error,
+      options,
+
+      failureType:
+        "master_pipeline_failure",
+
+      diagnostics: {
+        turnId:
+          requestEnvelope
+            ?.turn
+            ?.turnId ||
+          null
+      },
+
+      executionTrace,
+
+      timing:
+        timing.getEntries()
+    });
+  }
+
+  let normalizedDelivery;
+
+  const deliveryReadSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "runtime_delivery_reader",
+      {
+        parentSpanId:
+          bridgeSpan?.spanId ||
+          null,
+
+        source:
+          "ari-runtime-delivery",
+
+        version:
+          window.AriRuntimeDelivery
+            ?.version ||
+          window.Ari
+            ?.runtimeDelivery
+            ?.version ||
+          null
+      }
+    );
+
+  try {
+    timing.mark(
+      "before_delivery_read"
+    );
+
+    normalizedDelivery =
+      this.readAuthoritativeDelivery(
+        runtimeResult,
+        {
+          includeSummary:
+            options.includeSummary !==
+            false
+        }
+      );
+
+    timing.mark(
+      "after_delivery_read"
+    );
+
+    this.completeTraceSpan(
+      executionTrace,
+      deliveryReadSpan,
+      {
+        outputSummary: {
+          deliveryAvailable:
+            Boolean(
+              normalizedDelivery
+            ),
+
+          authoritative:
+            normalizedDelivery
+              ?.authoritative ===
+            true,
+
+          deliveryStatus:
+            normalizedDelivery
+              ?.deliveryStatus ||
+            null
+        }
+      }
+    );
+  } catch (error) {
+    console.error(
+      "ARI RUNTIME DELIVERY READ ERROR:",
+      error
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      deliveryReadSpan,
+      {
+        code:
+          "runtime_delivery_read_failure",
+
+        message:
+          error?.message ||
+          "Authoritative delivery could not be read.",
+
+        boundary:
+          "runtime_delivery_reader"
+      }
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "runtime_delivery_read_failure",
+
+        message:
+          error?.message ||
+          "Authoritative delivery could not be read.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
+    timing.finish();
+
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari understood the request, but the final delivery step could not be read.",
+
+      error,
+      options,
+
+      failureType:
+        "runtime_delivery_read_failure",
+
+      summary:
+        runtimeResult,
+
+      diagnostics: {
+        turnId:
+          requestEnvelope
+            ?.turn
+            ?.turnId ||
+          null
+      },
+
+      executionTrace,
+
+      timing:
+        timing.getEntries()
+    });
+  }
+
+  const adaptationSpan =
+    this.startTraceSpan(
+      executionTrace,
+      "runtime_delivery_adapter",
+      {
+        parentSpanId:
+          bridgeSpan?.spanId ||
+          null,
+
+        source:
+          "ari-runtime-delivery",
+
+        version:
+          window.AriRuntimeDelivery
+            ?.version ||
+          window.Ari
+            ?.runtimeDelivery
+            ?.version ||
+          null
+      }
+    );
+
+  timing.mark(
+    "before_delivery_adaptation"
+  );
+
+  let response;
+
+  try {
+    response =
       this.adaptDeliveryToAppResponse({
         delivery:
           normalizedDelivery,
@@ -771,17 +1793,137 @@ runtimeResult =
       "after_delivery_adaptation"
     );
 
+    this.completeTraceSpan(
+      executionTrace,
+      adaptationSpan,
+      {
+        outputSummary: {
+          responseAvailable:
+            Boolean(response),
+
+          success:
+            response
+              ?.success ===
+            true,
+
+          deliveryStatus:
+            response
+              ?.deliveryStatus ||
+            null
+        }
+      }
+    );
+  } catch (error) {
+    this.failTraceSpan(
+      executionTrace,
+      adaptationSpan,
+      {
+        code:
+          "runtime_delivery_adaptation_failure",
+
+        message:
+          error?.message ||
+          "Runtime delivery adaptation failed.",
+
+        boundary:
+          "runtime_delivery_adapter"
+      }
+    );
+
+    this.failTraceSpan(
+      executionTrace,
+      bridgeSpan,
+      {
+        code:
+          "runtime_delivery_adaptation_failure",
+
+        message:
+          error?.message ||
+          "Runtime delivery adaptation failed.",
+
+        boundary:
+          "ari_rebirth_app_bridge"
+      }
+    );
+
+    this.completeExecutionTrace(
+      executionTrace,
+      {
+        component:
+          "ari_rebirth_app_bridge",
+
+        completedRuntime:
+          false
+      }
+    );
+
     timing.finish();
 
-    return this.attachBridgeDiagnostics({
-      response,
-      requestEnvelope,
-      readiness,
+    return this.makeBridgeFailureResponse({
+      publicReply:
+        "Ari’s final response could not be prepared.",
+
+      error,
+
+      options,
+
+      failureType:
+        "runtime_delivery_adaptation_failure",
+
+      summary:
+        runtimeResult,
+
+      executionTrace,
 
       timing:
         timing.getEntries()
     });
-  },
+  }
+
+  this.completeTraceSpan(
+    executionTrace,
+    bridgeSpan,
+    {
+      outputSummary: {
+        success:
+          response
+            ?.success ===
+          true,
+
+        deliveryStatus:
+          response
+            ?.deliveryStatus ||
+          null
+      }
+    }
+  );
+
+  this.completeExecutionTrace(
+  executionTrace,
+  {
+    component:
+      "ari_rebirth_app_bridge",
+
+    completedRuntime:
+      response
+        ?.success ===
+      true
+  }
+);
+
+  timing.finish();
+
+  return this.attachBridgeDiagnostics({
+    response,
+    requestEnvelope,
+    readiness,
+
+    executionTrace,
+
+    timing:
+      timing.getEntries()
+  });
+},
 
   /* =====================================================
      REQUEST CONSTRUCTION DELEGATION
@@ -812,6 +1954,316 @@ runtimeResult =
       options
     });
   },
+
+attachExecutionTraceToRequest(
+  requestEnvelope,
+  executionTrace
+) {
+  if (
+    !requestEnvelope ||
+    typeof requestEnvelope !==
+      "object" ||
+    !executionTrace
+  ) {
+    return requestEnvelope;
+  }
+
+  requestEnvelope.executionTrace =
+    executionTrace;
+
+  requestEnvelope.runtimeContext =
+    requestEnvelope.runtimeContext &&
+    typeof requestEnvelope
+      .runtimeContext ===
+      "object"
+      ? requestEnvelope.runtimeContext
+      : {};
+
+  requestEnvelope.runtimeContext
+    .executionTrace =
+    executionTrace;
+
+  requestEnvelope.diagnostics =
+    requestEnvelope.diagnostics &&
+    typeof requestEnvelope
+      .diagnostics ===
+      "object"
+      ? requestEnvelope.diagnostics
+      : {};
+
+  requestEnvelope.diagnostics
+    .traceId =
+    executionTrace.traceId;
+
+  return requestEnvelope;
+},
+
+recordRuntimeDependencies(
+  executionTrace,
+  readinessSpan,
+  readiness = {}
+) {
+  const dependencies = [
+    {
+      name:
+        "runtime_request",
+
+      instance:
+        window.AriRuntimeRequest ||
+        window.Ari
+          ?.runtimeRequest,
+
+      requiredMethod:
+        "build",
+
+      resolvedFrom:
+        window.AriRuntimeRequest
+          ? "window.AriRuntimeRequest"
+          : "window.Ari.runtimeRequest"
+    },
+
+    {
+      name:
+        "runtime_readiness",
+
+      instance:
+        window.AriRuntimeReadiness ||
+        window.Ari
+          ?.runtimeReadiness,
+
+      requiredMethod:
+        "check",
+
+      resolvedFrom:
+        window.AriRuntimeReadiness
+          ? "window.AriRuntimeReadiness"
+          : "window.Ari.runtimeReadiness"
+    },
+
+    {
+      name:
+        "runtime_delivery",
+
+      instance:
+        window.AriRuntimeDelivery ||
+        window.Ari
+          ?.runtimeDelivery,
+
+      requiredMethod:
+        "read",
+
+      resolvedFrom:
+        window.AriRuntimeDelivery
+          ? "window.AriRuntimeDelivery"
+          : "window.Ari.runtimeDelivery"
+    },
+
+    {
+      name:
+        "operation_registry",
+
+      instance:
+        this.getOperationRegistry(),
+
+      requiredMethod:
+        "getOperation",
+
+      resolvedFrom:
+        window.AriOperationRegistry
+          ? "window.AriOperationRegistry"
+          : "window.Ari.operationRegistry"
+    },
+
+    {
+      name:
+        "reasoning_client",
+
+      instance:
+        this.getOpenAIReasoningClient(),
+
+      requiredMethod:
+        "reason",
+
+      resolvedFrom:
+        window.AriOpenAIReasoningClient
+          ? "window.AriOpenAIReasoningClient"
+          : "window.Ari.openAIReasoningClient"
+    },
+
+    {
+      name:
+        "reasoning_engine",
+
+      instance:
+        this.getReasoningEngine(),
+
+      requiredMethod:
+        "reason",
+
+      resolvedFrom:
+        window.AriReasoningEngine
+          ? "window.AriReasoningEngine"
+          : "window.Ari.reasoningEngine"
+    },
+
+    {
+      name:
+        "reasoning_stage",
+
+      instance:
+        this.getReasoningStage(),
+
+      requiredMethod:
+        "run",
+
+      resolvedFrom:
+        window.AriReasoningStage
+          ? "window.AriReasoningStage"
+          : "window.Ari.reasoningStage"
+    },
+
+    {
+      name:
+        "semantic_frame_validator",
+
+      instance:
+        this.getSemanticFrameValidator(),
+
+      requiredMethod:
+        "validate",
+
+      resolvedFrom:
+        window.AriSemanticFrameValidator
+          ? "window.AriSemanticFrameValidator"
+          : "window.Ari.semanticFrameValidator"
+    },
+
+    {
+      name:
+        "deliberation_pipeline",
+
+      instance:
+        this.getDeliberationPipeline(),
+
+      requiredMethod:
+        "run",
+
+      resolvedFrom:
+        window.AriDeliberationPipeline
+          ? "window.AriDeliberationPipeline"
+          : "window.Ari.deliberationPipeline"
+    },
+
+    {
+      name:
+        "master_pipeline",
+
+      instance:
+        window.AriRebirthPipeline ||
+        window.Ari
+          ?.rebirthPipeline,
+
+      requiredMethod:
+        "run",
+
+      resolvedFrom:
+        window.AriRebirthPipeline
+          ? "window.AriRebirthPipeline"
+          : "window.Ari.rebirthPipeline"
+    }
+  ];
+
+  for (
+    const dependency
+    of dependencies
+  ) {
+    const available =
+      Boolean(
+        dependency.instance
+      );
+
+    const ready =
+      Boolean(
+        dependency.instance &&
+        typeof dependency
+          .instance[
+            dependency
+              .requiredMethod
+          ] ===
+          "function"
+      );
+
+    this.recordTraceDependency(
+      executionTrace,
+      dependency.name,
+      {
+        component:
+          "runtime_readiness",
+
+        spanId:
+          readinessSpan
+            ?.spanId ||
+          null,
+
+        required:
+          true,
+
+        available,
+
+        ready,
+
+        resolvedFrom:
+          dependency
+            .resolvedFrom,
+
+        source:
+          dependency.instance
+            ?.source ||
+          null,
+
+        version:
+          dependency.instance
+            ?.version ||
+          null,
+
+        schema:
+          dependency.instance
+            ?.schema ||
+          null,
+
+        schemaVersion:
+          dependency.instance
+            ?.schemaVersion ||
+          null,
+
+        details: {
+          requiredMethod:
+            dependency
+              .requiredMethod,
+
+          readinessReported:
+            readiness.ready ===
+            true
+        }
+      }
+    );
+  }
+},
+
+readLoaderDiagnostic(
+  key = ""
+) {
+  try {
+    return (
+      sessionStorage.getItem(
+        key
+      ) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+},
 
   /* =====================================================
      REGISTERED COGNITIVE CONTRACT ACCESSORS
@@ -1033,6 +2485,14 @@ runtimeResult =
         summary:
           runtimeResult,
 
+executionTrace:
+  requestEnvelope
+    ?.executionTrace ||
+  requestEnvelope
+    ?.runtimeContext
+    ?.executionTrace ||
+  null,
+
         diagnostics: {
           turnId:
             requestEnvelope
@@ -1067,14 +2527,15 @@ runtimeResult =
   ===================================================== */
 
   makeBridgeFailureResponse({
-    publicReply = "Ari hit an internal response error.",
-    error = null,
-    options = {},
-    failureType = "internal_error",
-    summary = null,
-    diagnostics = null,
-    timing = []
-  } = {}) {
+  publicReply = "Ari hit an internal response error.",
+  error = null,
+  options = {},
+  failureType = "internal_error",
+  summary = null,
+  diagnostics = null,
+  executionTrace = null,
+  timing = []
+} = {}) {
     const normalizedError =
       error?.message ||
       (
@@ -1138,6 +2599,28 @@ const runtimeAvailability =
           diagnostics,
 
 runtimeAvailability,
+
+executionTrace:
+
+    this.exportExecutionTrace(
+
+      executionTrace,
+
+      {
+
+        context: {
+
+          failureType,
+
+          bridgeVersion:
+
+            this.version
+
+        }
+
+      }
+
+    ),
 
         internalErrorExposed:
           exposeInternalError,
@@ -1270,11 +2753,12 @@ runtimeAvailability,
   },
 
   attachBridgeDiagnostics({
-    response = {},
-    requestEnvelope = {},
-    readiness = {},
-    timing = []
-  } = {}) {
+  response = {},
+  requestEnvelope = {},
+  readiness = {},
+  executionTrace = null,
+  timing = []
+} = {}) {
     if (
       !response ||
       typeof response !==
@@ -1302,6 +2786,28 @@ runtimeAvailability,
       diagnostics: {
         ...existingDiagnostics,
 
+executionTrace:
+  this.exportExecutionTrace(
+    executionTrace,
+    {
+      context: {
+        turnId:
+          requestEnvelope
+            ?.turn
+            ?.turnId ||
+          null,
+
+        bridgeVersion:
+          this.version,
+
+        deliveryStatus:
+          response
+            ?.deliveryStatus ||
+          null
+      }
+    }
+  ),
+
         bridge: {
           source:
             this.source,
@@ -1311,6 +2817,14 @@ runtimeAvailability,
 
           schemaVersion:
             this.schemaVersion,
+
+traceId:
+
+    executionTrace
+
+      ?.traceId ||
+
+    null,
 
           requestService:
             window
@@ -2087,6 +3601,9 @@ if (!this.loaded) {
 },
 
 getRuntimeAvailability() {
+  const executionTraceService =
+  this.getExecutionTraceService();
+  
   const requestService =
     window.AriRuntimeRequest ||
     window.Ari
@@ -2133,6 +3650,27 @@ getRuntimeAvailability() {
     null;
 
   const checks = {
+    executionTraceServiceReady:
+  Boolean(
+    executionTraceService &&
+    typeof executionTraceService.create ===
+      "function" &&
+    typeof executionTraceService.startSpan ===
+      "function" &&
+    typeof executionTraceService.completeSpan ===
+      "function" &&
+    typeof executionTraceService.failSpan ===
+      "function" &&
+    typeof executionTraceService.checkpoint ===
+      "function" &&
+    typeof executionTraceService.dependency ===
+      "function" &&
+    typeof executionTraceService.completeTrace ===
+      "function" &&
+    typeof executionTraceService.exportForLab ===
+      "function"
+  ),
+    
     runtimeRequestBuild:
       typeof requestService
         ?.build ===
@@ -2220,6 +3758,12 @@ getRuntimeAvailability() {
     missing,
 
     registrations: {
+      executionTraceService:
+  executionTraceService
+    ? Object.keys(
+        executionTraceService
+      )
+    : [],
       runtimeRequest:
         requestService
           ? Object.keys(
@@ -2590,6 +4134,9 @@ getRuntimeAvailability() {
     const warnings =
       [];
 
+const executionTraceService =
+  this.getExecutionTraceService();
+
     const requestService =
       window.AriRuntimeRequest ||
       window.Ari
@@ -2643,6 +4190,30 @@ getRuntimeAvailability() {
 
     const deliberationPipeline =
       this.getDeliberationPipeline();
+
+if (
+  !executionTraceService ||
+  typeof executionTraceService.create !==
+    "function" ||
+  typeof executionTraceService.startSpan !==
+    "function" ||
+  typeof executionTraceService.completeSpan !==
+    "function" ||
+  typeof executionTraceService.failSpan !==
+    "function" ||
+  typeof executionTraceService.checkpoint !==
+    "function" ||
+  typeof executionTraceService.dependency !==
+    "function" ||
+  typeof executionTraceService.completeTrace !==
+    "function" ||
+  typeof executionTraceService.exportForLab !==
+    "function"
+) {
+  warnings.push(
+    "AriExecutionTrace_not_ready"
+  );
+}
 
     if (
       !requestService ||
@@ -2803,6 +4374,27 @@ getRuntimeAvailability() {
         ),
 
       checks: {
+        executionTraceRegistered:
+  Boolean(
+    executionTraceService &&
+    typeof executionTraceService.create ===
+      "function" &&
+    typeof executionTraceService.startSpan ===
+      "function" &&
+    typeof executionTraceService.completeSpan ===
+      "function" &&
+    typeof executionTraceService.failSpan ===
+      "function" &&
+    typeof executionTraceService.checkpoint ===
+      "function" &&
+    typeof executionTraceService.dependency ===
+      "function" &&
+    typeof executionTraceService.completeTrace ===
+      "function" &&
+    typeof executionTraceService.exportForLab ===
+      "function"
+  ),
+        
         publicAskPreserved:
           typeof this.ask ===
           "function",
