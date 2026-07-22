@@ -2,349 +2,564 @@
 // Ari Expression Pipeline
 //
 // Purpose:
-// Coordinate non-semantic character guidance, language guidance,
-// deterministic final composition, and canonical expression handoff.
+// Convert the authoritative OpenAI draft from Deliberation into the
+// canonical final response without changing semantic meaning.
 //
-// V4.0.0 — Direct Draft Composition / No Realization Authority
+// V5.0.0 — Authoritative Draft Expression / Deterministic Composition
 //
 // Canonical flow:
-//
-// Deliberation Pipeline
-//      ↓
-// Validated Semantic Frame
-//      ↓
-// Approved Response Plan + Authoritative Draft
-//      ↓
-// Character Stage
-//      ↓
-// Language Guidance Stage
-//      ↓
-// Final Composition Stage
-//      ↓
-// Delivery Pipeline
+// Deliberation → authoritative draft → optional style guidance →
+// optional deterministic composition → Expression Packet → Delivery.
 //
 // Authority model:
-// - OpenAI Cognitive Reasoning owns semantic meaning and user-facing draft language.
-// - AriSemanticFrameValidator approves or rejects semantic meaning.
-// - Response Planning governs the response contract and preserves the draft.
-// - Character and language guidance may provide style metadata only.
-// - Final Composition may deterministically normalize presentation only.
-// - Expression may not generate, reinterpret, repair, or replace semantic meaning.
-// - Expression performs no OpenAI response-generation pass.
+// - OpenAI Cognitive Reasoning owns meaning and draft language.
+// - Semantic validation is advisory.
+// - Character and language stages provide optional metadata only.
+// - Final Composition may normalize presentation only.
+// - If composition produces no usable text, preserve the OpenAI draft.
+// - Expression performs no OpenAI generation pass.
 
 window.Ari = window.Ari || {};
 
 window.AriExpressionPipeline = {
-  version: "4.0.0",
-  schemaVersion: "4.0.0",
+  version: "5.0.0",
+  schemaVersion: "5.0.0",
   source: "ari-expression-pipeline",
-  architecture: "validated-semantic-direct-draft-composition",
-
-  /* =====================================================
-     PUBLIC ENTRY POINT
-  ===================================================== */
+  architecture: "authoritative-draft-deterministic-expression",
 
   async run(summary = {}, runtime = {}) {
     const { mark = () => {} } = runtime;
 
     let state = {
       ...summary,
-
       activePipelineLayer: "expression",
       activeExpressionStage: null,
-
-      expressionStageErrors: Array.isArray(
-        summary.expressionStageErrors
-      )
-        ? [...summary.expressionStageErrors]
-        : [],
-
-      expressionFailureBoundary:
-        summary.expressionFailureBoundary || null,
-
-      firstFailedExpressionStage:
-        summary.firstFailedExpressionStage || null,
-
+      expressionStageErrors: this.toArray(summary.expressionStageErrors),
+      expressionWarnings: this.toArray(summary.expressionWarnings),
+      expressionFailureBoundary: summary.expressionFailureBoundary || null,
+      firstFailedExpressionStage: summary.firstFailedExpressionStage || null,
+      responseRealizationEnabled: false,
       legacyDraftGenerationEnabled: false,
-      legacyDraftArbitrationEnabled: false,
-      legacyBlueprintWriterEnabled: false,
-      legacyAIWriterEnabled: false,
-      legacyCandidateArbiterEnabled: false,
-      responseRealizationEnabled: false
+      legacyCandidatePipelineEnabled: false
     };
-
-    /* =================================================
-       0. DELIBERATION CONTRACT
-    ================================================= */
-
-    const deliberationPacket =
-      state.deliberationPacket ||
-      this.buildFallbackDeliberationPacket(state);
 
     state = {
       ...state,
-      deliberationPacket,
+      deliberationPacket:
+        this.readObject(state.deliberationPacket) ||
+        this.buildFallbackDeliberationPacket(state),
       expressionArchitecture: this.architecture
     };
 
-    /* =================================================
-       1. EXPRESSION INPUT GOVERNANCE
-    ================================================= */
+    mark("before expressionInputNormalization");
+    state = this.normalizeExpressionInputs(state);
+    mark("after expressionInputNormalization");
 
     mark("before expressionInputGovernance");
-
-    const expressionInputGovernance =
-      this.validateExpressionInputs(state);
-
+    const expressionInputGovernance = this.validateExpressionInputs(state);
     state = {
       ...state,
-
       expressionInputGovernance,
       expressionInputGovernanceRan: true,
       expressionInputGovernanceSource: this.source,
       expressionInputGovernanceVersion: this.version
     };
-
     mark("after expressionInputGovernance");
 
     if (expressionInputGovernance.ready !== true) {
-      return this.finishBlockedPipeline({
-        summary: this.recordStageFailure({
-          summary: state,
-          stageName: "expressionInputGovernance",
-          source: "expression-governance",
-          error: "expression_inputs_not_ready",
-          message:
-            "Expression was blocked because validated semantic meaning, an approved response plan, or an authoritative draft was unavailable."
-        })
+      state = this.recordStageFailure({
+        summary: state,
+        stageName: "expression_input_governance",
+        source: "expression-governance",
+        error: "expression_inputs_not_ready",
+        message:
+          "Expression requires a deliberation packet, usable semantic frame, response plan, and authoritative draft."
       });
+
+      return this.finishPipeline(state);
     }
 
-    /* =================================================
-       2. CANONICAL AUTHORITATIVE DRAFT
-    ================================================= */
+    state = await this.runOptionalStage({
+      summary: state,
+      runtime,
+      mark,
+      stageName: "character",
+      markName: "characterStage",
+      stage: window.AriCharacterStage || window.Ari?.characterStage
+    });
 
-    const authoritativeDraft =
-      this.resolveAuthoritativeDraft(state);
+    state = await this.runOptionalStage({
+      summary: state,
+      runtime,
+      mark,
+      stageName: "languageGuidance",
+      markName: "languageGuidanceStage",
+      stage:
+        window.AriLanguageGuidanceStage ||
+        window.Ari?.languageGuidanceStage
+    });
+
+    state = await this.runOptionalStage({
+      summary: state,
+      runtime,
+      mark,
+      stageName: "finalComposition",
+      markName: "finalCompositionStage",
+      stage:
+        window.AriFinalCompositionStage ||
+        window.Ari?.finalCompositionStage
+    });
+
+    state = this.normalizeFinalCompositionOutputs(state);
+
+    const expressionDiagnostics = this.buildExpressionDiagnostics(state);
 
     state = {
       ...state,
-
-      authoritativeDraft,
-      authoritativeDraftAvailable:
-        Boolean(authoritativeDraft),
-
-      authoritativeDraftSource:
-        this.resolveAuthoritativeDraftSource(state),
-
-      // Canonical aliases supplied to Final Composition.
-      compositionInputText:
-        authoritativeDraft,
-
-      draftResponse:
-        authoritativeDraft
-    };
-
-    /* =================================================
-       3. CHARACTER STAGE
-       Non-semantic style metadata only.
-    ================================================= */
-
-    mark("before characterStage");
-
-    state = await this.runStage(
-      window.AriCharacterStage ||
-        window.Ari?.characterStage,
-      state,
-      runtime,
-      "character"
-    );
-
-    mark("after characterStage");
-
-    if (this.hasStageFailed(state, "character")) {
-      return this.finishBlockedPipeline({
-        summary: state
-      });
-    }
-
-    /* =================================================
-       4. LANGUAGE GUIDANCE STAGE
-       Non-semantic lexical and presentation metadata only.
-    ================================================= */
-
-    mark("before languageGuidanceStage");
-
-    state = await this.runStage(
-      window.AriLanguageGuidanceStage ||
-        window.Ari?.languageGuidanceStage,
-      state,
-      runtime,
-      "languageGuidance"
-    );
-
-    mark("after languageGuidanceStage");
-
-    if (this.hasStageFailed(state, "languageGuidance")) {
-      return this.finishBlockedPipeline({
-        summary: state
-      });
-    }
-
-    /* =================================================
-       5. FINAL COMPOSITION STAGE
-       Deterministic presentation normalization only.
-    ================================================= */
-
-    mark("before finalCompositionStage");
-
-    state = await this.runStage(
-      window.AriFinalCompositionStage ||
-        window.Ari?.finalCompositionStage,
-      state,
-      runtime,
-      "finalComposition"
-    );
-
-    mark("after finalCompositionStage");
-
-    if (this.hasStageFailed(state, "finalComposition")) {
-      return this.finishBlockedPipeline({
-        summary: state
-      });
-    }
-
-    /* =================================================
-       6. EXPRESSION DIAGNOSTICS
-    ================================================= */
-
-    const expressionDiagnostics =
-      this.buildExpressionDiagnostics(state);
-
-    state = {
-      ...state,
-
       expressionDiagnostics,
-      expressionHealthy:
-        expressionDiagnostics.healthy,
-
-      expressionWarnings:
-        expressionDiagnostics.warnings
+      expressionHealthy: expressionDiagnostics.healthy,
+      expressionWarnings: expressionDiagnostics.warnings
     };
-
-    /* =================================================
-       7. EXPRESSION PACKET
-    ================================================= */
 
     return this.finishPipeline(state);
   },
 
-  /* =====================================================
-     STAGE RUNNER
-  ===================================================== */
+  normalizeExpressionInputs(summary = {}) {
+    const deliberationPacket = this.readObject(summary.deliberationPacket);
+    const usableSemanticFrame = this.resolveUsableSemanticFrame(summary);
+    const responsePlan = this.resolveResponsePlan(summary);
+    const authoritativeDraft = this.resolveAuthoritativeDraft(summary);
 
-  async runStage(
-    stage,
+    const validatedResponseRequirements =
+      this.readObject(summary.validatedResponseRequirements) ||
+      this.readObject(summary.responseRequirements) ||
+      this.readObject(
+        deliberationPacket?.semanticValidation?.responseRequirements
+      ) ||
+      this.readObject(deliberationPacket?.reasoning?.responseRequirements) ||
+      null;
+
+    return {
+      ...summary,
+      usableSemanticFrame,
+      validatedSemanticFrame:
+        summary.validatedSemanticFrame || usableSemanticFrame,
+      responsePlan,
+      authoritativeDraft,
+      selectedDraft: authoritativeDraft,
+      draftResponse: authoritativeDraft,
+      responseText: authoritativeDraft,
+      compositionInputText: authoritativeDraft,
+      authoritativeDraftAvailable: Boolean(authoritativeDraft),
+      authoritativeDraftSource:
+        this.resolveAuthoritativeDraftSource(summary),
+      validatedResponseRequirements,
+      semanticValidationAdvisory: true,
+      expressionInputNormalized: true
+    };
+  },
+
+  validateExpressionInputs(summary = {}) {
+    const errors = [];
+    const warnings = [];
+    const deliberationPacket = this.readObject(summary.deliberationPacket);
+    const usableSemanticFrame = this.resolveUsableSemanticFrame(summary);
+    const responsePlan = this.resolveResponsePlan(summary);
+    const authoritativeDraft = this.resolveAuthoritativeDraft(summary);
+
+    const semanticValidationAccepted =
+      summary.semanticValidationAccepted === true ||
+      deliberationPacket?.semanticValidation?.accepted === true;
+
+    if (!deliberationPacket) errors.push("deliberation_packet_missing");
+    if (!usableSemanticFrame) errors.push("usable_semantic_frame_missing");
+    if (!responsePlan) errors.push("response_plan_missing");
+    if (!authoritativeDraft) errors.push("authoritative_draft_missing");
+
+    if (!semanticValidationAccepted) {
+      warnings.push("semantic_validation_not_accepted_advisory");
+    }
+
+    if (!summary.validatedResponseRequirements &&
+        !summary.responseRequirements &&
+        !deliberationPacket?.semanticValidation?.responseRequirements &&
+        !deliberationPacket?.reasoning?.responseRequirements) {
+      warnings.push("response_requirements_missing");
+    }
+
+    return {
+      valid: errors.length === 0,
+      ready: errors.length === 0,
+      source: "ari-expression-input-governance",
+      version: this.version,
+      errors,
+      warnings,
+      contracts: {
+        deliberationPacketAvailable: Boolean(deliberationPacket),
+        usableSemanticFrameAvailable: Boolean(usableSemanticFrame),
+        responsePlanAvailable: Boolean(responsePlan),
+        authoritativeDraftAvailable: Boolean(authoritativeDraft),
+        authoritativeDraftSource:
+          this.resolveAuthoritativeDraftSource(summary),
+        semanticValidationAccepted,
+        semanticValidationAdvisory: true
+      }
+    };
+  },
+
+  async runOptionalStage({
     summary = {},
     runtime = {},
-    stageName = "unknown"
-  ) {
+    mark = () => {},
+    stageName = "unknown",
+    markName = "unknownStage",
+    stage = null
+  } = {}) {
+    mark(`before ${markName}`);
+
     if (!stage || typeof stage.run !== "function") {
-      return this.recordStageFailure({
-        summary,
-        stageName,
-        source: "not-loaded",
-        error: "stage_not_loaded",
-        message:
-          `The ${stageName} stage was not loaded.`
-      });
+      mark(`after ${markName}`);
+      return {
+        ...summary,
+        [`${stageName}StageRan`]: false,
+        [`${stageName}StageReady`]: null,
+        [`${stageName}StageSource`]: "optional-stage-not-loaded",
+        expressionWarnings: [
+          ...this.toArray(summary.expressionWarnings),
+          `${stageName}_stage_not_loaded_optional`
+        ]
+      };
     }
 
     try {
-      const protectedAuthority =
-        this.captureProtectedAuthority(summary);
-
+      const protectedAuthority = this.captureProtectedAuthority(summary);
       const result = await stage.run(
-        {
-          ...summary,
-          activeExpressionStage: stageName
-        },
+        { ...summary, activeExpressionStage: stageName },
         runtime
       );
 
-      if (
-        !result ||
-        typeof result !== "object" ||
-        Array.isArray(result)
-      ) {
-        return this.recordStageFailure({
-          summary,
-          stageName,
-          source: "invalid-result",
-          error: "invalid_stage_result",
-          message:
-            `The ${stageName} stage returned an invalid result.`
-        });
+      if (!result || typeof result !== "object" || Array.isArray(result)) {
+        mark(`after ${markName}`);
+        return {
+          ...summary,
+          [`${stageName}StageRan`]: false,
+          [`${stageName}StageReady`]: false,
+          [`${stageName}StageSource`]: "optional-stage-invalid-result",
+          expressionWarnings: [
+            ...this.toArray(summary.expressionWarnings),
+            `${stageName}_stage_invalid_result_optional`
+          ]
+        };
       }
 
-      const merged = {
-        ...summary,
-        ...result,
-        activeExpressionStage: stageName
-      };
+      mark(`after ${markName}`);
 
       return {
-        ...merged,
-        ...protectedAuthority
+        ...summary,
+        ...result,
+        ...protectedAuthority,
+        activeExpressionStage: stageName,
+        [`${stageName}StageRan`]:
+          result[`${stageName}StageRan`] !== false
       };
     } catch (error) {
       console.error(
-        `Ari expression stage error: ${stageName}`,
+        `Ari optional expression stage error: ${stageName}`,
         error
       );
 
-      return this.recordStageFailure({
-        summary,
-        stageName,
-        source: "stage-error",
-        error:
-          error?.message ||
-          String(error),
-        message:
-          error?.message ||
-          String(error)
-      });
+      mark(`after ${markName}`);
+
+      return {
+        ...summary,
+        [`${stageName}StageRan`]: false,
+        [`${stageName}StageReady`]: false,
+        [`${stageName}StageSource`]: "optional-stage-error",
+        [`${stageName}StageError`]: error?.message || String(error),
+        expressionWarnings: [
+          ...this.toArray(summary.expressionWarnings),
+          {
+            stage: stageName,
+            warning: "optional_stage_failed",
+            message: error?.message || String(error)
+          }
+        ]
+      };
     }
   },
 
   captureProtectedAuthority(summary = {}) {
     return {
-      deliberationPacket:
-        summary.deliberationPacket || null,
-
-      semanticValidationAccepted:
-        summary.semanticValidationAccepted === true,
-
-      validatedSemanticFrame:
-        summary.validatedSemanticFrame || null,
-
+      deliberationPacket: summary.deliberationPacket || null,
+      usableSemanticFrame: summary.usableSemanticFrame || null,
+      validatedSemanticFrame: summary.validatedSemanticFrame || null,
       validatedResponseRequirements:
         summary.validatedResponseRequirements || null,
+      responsePlan: summary.responsePlan || null,
+      authoritativeDraft: summary.authoritativeDraft || "",
+      selectedDraft: summary.selectedDraft || summary.authoritativeDraft || "",
+      authoritativeDraftSource: summary.authoritativeDraftSource || null,
+      compositionInputText: summary.compositionInputText || "",
+      draftResponse: summary.draftResponse || "",
+      responseText: summary.responseText || ""
+    };
+  },
 
-      responsePlan:
-        summary.responsePlan || null,
+  normalizeFinalCompositionOutputs(summary = {}) {
+    const stagePacket = this.readObject(summary.finalCompositionStagePacket);
+    const handoff =
+      this.readObject(summary.finalCompositionHandoff) ||
+      this.readObject(stagePacket?.handoff) ||
+      null;
 
-      authoritativeDraft:
-        summary.authoritativeDraft || "",
+    const composedText = this.firstText(
+      summary.finalResponse,
+      summary.composedResponse,
+      summary.compositionText,
+      handoff?.finalResponse,
+      handoff?.responseText,
+      handoff?.text,
+      handoff?.reply,
+      stagePacket?.finalResponse,
+      stagePacket?.responseText,
+      stagePacket?.text,
+      stagePacket?.reply,
+      stagePacket?.result?.finalResponse,
+      stagePacket?.result?.responseText,
+      stagePacket?.result?.text
+    );
 
-      authoritativeDraftSource:
-        summary.authoritativeDraftSource || null,
+    const authoritativeDraft = this.resolveAuthoritativeDraft(summary);
+    const finalResponse = composedText || authoritativeDraft;
 
-      compositionInputText:
-        summary.compositionInputText || "",
+    return {
+      ...summary,
+      finalResponse,
+      responseText: finalResponse,
+      reply: finalResponse,
+      finalCompositionAvailable: Boolean(composedText),
+      finalCompositionReady: Boolean(composedText),
+      finalResponseAvailable: Boolean(finalResponse),
+      finalResponseUsable: Boolean(finalResponse),
+      finalResponseSource: composedText
+        ? this.resolveFinalResponseSource(summary) || "final-composition"
+        : authoritativeDraft
+          ? "authoritative-draft-fallback"
+          : null,
+      finalResponseLength: finalResponse.length,
+      finalResponseDegraded: !composedText && Boolean(authoritativeDraft),
+      finalCompositionFallbackUsed:
+        !composedText && Boolean(authoritativeDraft)
+    };
+  },
 
-      draftResponse:
-        summary.draftResponse || ""
+  buildExpressionDiagnostics(summary = {}) {
+    const errors = this.toArray(summary.expressionStageErrors);
+    const warnings = [
+      ...this.toArray(summary.expressionWarnings),
+      ...this.toArray(summary.expressionInputGovernance?.warnings)
+    ];
+
+    const usableSemanticFrame = this.resolveUsableSemanticFrame(summary);
+    const responsePlan = this.resolveResponsePlan(summary);
+    const authoritativeDraft = this.resolveAuthoritativeDraft(summary);
+    const finalResponse = this.resolveFinalResponse(summary);
+
+    if (!usableSemanticFrame) {
+      errors.push({ stage: "expression", error: "usable_semantic_frame_missing" });
+    }
+    if (!responsePlan) {
+      errors.push({ stage: "expression", error: "response_plan_missing" });
+    }
+    if (!authoritativeDraft) {
+      errors.push({ stage: "expression", error: "authoritative_draft_missing" });
+    }
+    if (!finalResponse) {
+      errors.push({ stage: "expression", error: "final_response_missing" });
+    }
+
+    const uniqueErrors = this.dedupeErrors(errors);
+    const complete =
+      uniqueErrors.length === 0 &&
+      Boolean(usableSemanticFrame) &&
+      Boolean(responsePlan) &&
+      Boolean(authoritativeDraft) &&
+      Boolean(finalResponse);
+
+    return {
+      expressionDiagnosticsRan: true,
+      expressionDiagnosticsVersion: this.version,
+      healthy: uniqueErrors.length === 0,
+      complete,
+      ready: complete,
+      errors: uniqueErrors,
+      warnings,
+      failureBoundary: summary.expressionFailureBoundary || null,
+      firstFailedStage: summary.firstFailedExpressionStage || null,
+      contracts: {
+        usableSemanticFrameAvailable: Boolean(usableSemanticFrame),
+        responsePlanAvailable: Boolean(responsePlan),
+        authoritativeDraftAvailable: Boolean(authoritativeDraft),
+        authoritativeDraftSource:
+          summary.authoritativeDraftSource ||
+          this.resolveAuthoritativeDraftSource(summary),
+        finalCompositionAvailable:
+          summary.finalCompositionAvailable === true,
+        finalResponseAvailable: Boolean(finalResponse),
+        finalResponseSource: summary.finalResponseSource || null
+      },
+      invariants: {
+        openAIDraftPreserved: Boolean(authoritativeDraft),
+        semanticValidationIsAdvisory: true,
+        responsePlanRequired: true,
+        finalCompositionOptional: true,
+        authoritativeDraftFallbackAllowed: true,
+        expressionCannotChangeMeaning: true,
+        additionalGenerationPassUsed: false
+      }
+    };
+  },
+
+  buildExpressionPacket(summary = {}) {
+    const diagnostics =
+      summary.expressionDiagnostics ||
+      this.buildExpressionDiagnostics(summary);
+
+    const usableSemanticFrame = this.resolveUsableSemanticFrame(summary);
+    const responsePlan = this.resolveResponsePlan(summary);
+    const authoritativeDraft = this.resolveAuthoritativeDraft(summary);
+    const finalResponse = this.resolveFinalResponse(summary);
+
+    const ready =
+      diagnostics.complete === true &&
+      Boolean(usableSemanticFrame) &&
+      Boolean(responsePlan) &&
+      Boolean(authoritativeDraft) &&
+      Boolean(finalResponse);
+
+    return {
+      schema: "ari_expression_packet",
+      schemaVersion: this.schemaVersion,
+      ready,
+      complete: diagnostics.complete === true,
+      healthy: diagnostics.healthy === true,
+      architecture: this.architecture,
+      source: this.source,
+      version: this.version,
+      input: {
+        deliberationPacket: summary.deliberationPacket || null,
+        usableSemanticFrame,
+        validatedSemanticFrame:
+          summary.validatedSemanticFrame || usableSemanticFrame,
+        validatedResponseRequirements:
+          summary.validatedResponseRequirements || null,
+        responsePlan,
+        authoritativeDraft,
+        authoritativeDraftSource:
+          summary.authoritativeDraftSource ||
+          this.resolveAuthoritativeDraftSource(summary)
+      },
+      stages: {
+        inputGovernance: summary.expressionInputGovernance || null,
+        character: summary.characterStagePacket || null,
+        languageGuidance: summary.languageGuidanceStagePacket || null,
+        finalComposition: summary.finalCompositionStagePacket || null
+      },
+      result: {
+        finalResponse,
+        responseText: finalResponse,
+        reply: finalResponse,
+        usable: Boolean(finalResponse),
+        source:
+          summary.finalResponseSource || "authoritative-draft-fallback",
+        length: finalResponse.length,
+        authoritativeDraft,
+        authoritativeDraftSource:
+          summary.authoritativeDraftSource ||
+          this.resolveAuthoritativeDraftSource(summary),
+        finalCompositionAvailable:
+          summary.finalCompositionAvailable === true,
+        finalCompositionFallbackUsed:
+          summary.finalCompositionFallbackUsed === true,
+        degraded: summary.finalResponseDegraded === true,
+        emotion:
+          summary.emotion || summary.characterHandoff?.emotion || null
+      },
+      responseControl: {
+        responsePlan,
+        goal:
+          summary.responseGoal ||
+          responsePlan?.responseGoal ||
+          responsePlan?.goal ||
+          null,
+        shape:
+          summary.responseShape || responsePlan?.responseShape || null,
+        posture:
+          summary.responsePosture || responsePlan?.responsePosture || null,
+        order: this.toArray(
+          summary.responseOrder ||
+          summary.responseMoves ||
+          responsePlan?.responseMoves
+        ),
+        rules: this.toArray(
+          summary.responseRules || responsePlan?.responseRules
+        ),
+        constraints: this.toArray(
+          summary.responseConstraints || responsePlan?.responseConstraints
+        )
+      },
+      diagnostics,
+      quality: {
+        inputGovernanceReady:
+          summary.expressionInputGovernance?.ready === true,
+        usableSemanticFrameAvailable: Boolean(usableSemanticFrame),
+        responsePlanAvailable: Boolean(responsePlan),
+        authoritativeDraftAvailable: Boolean(authoritativeDraft),
+        finalResponseAvailable: Boolean(finalResponse),
+        finalResponseUsable: Boolean(finalResponse),
+        finalCompositionAvailable:
+          summary.finalCompositionAvailable === true,
+        finalCompositionFallbackUsed:
+          summary.finalCompositionFallbackUsed === true,
+        semanticValidationAdvisory: true,
+        additionalGenerationPassUsed: false
+      },
+      detached: {
+        responseRealizationEnabled: false,
+        draftGenerationEnabled: false,
+        candidatePipelineEnabled: false
+      },
+      authority: this.getAuthorityBoundaries()
+    };
+  },
+
+  finishPipeline(summary = {}) {
+    const expressionDiagnostics =
+      summary.expressionDiagnostics ||
+      this.buildExpressionDiagnostics(summary);
+
+    const state = {
+      ...summary,
+      expressionDiagnostics,
+      expressionHealthy: expressionDiagnostics.healthy,
+      expressionWarnings: expressionDiagnostics.warnings
+    };
+
+    const expressionPacket = this.buildExpressionPacket(state);
+    const finalResponse = expressionPacket?.result?.finalResponse || "";
+
+    return {
+      ...state,
+      expressionPacket,
+      responseResult: expressionPacket,
+      finalResponse,
+      responseText: finalResponse,
+      reply: finalResponse,
+      expressionPipelineRan: true,
+      expressionPipelineReady: expressionPacket.ready === true,
+      expressionPipelineSource: this.source,
+      expressionPipelineVersion: this.version,
+      activeExpressionStage: null
     };
   },
 
@@ -355,1240 +570,189 @@ window.AriExpressionPipeline = {
     error = "stage_error",
     message = ""
   } = {}) {
-    const existingErrors =
-      this.toArray(
-        summary.expressionStageErrors
-      );
-
     const failure = {
       stage: stageName,
       error,
-      message:
-        message ||
-        error,
+      message: message || error,
       source,
       timestamp: Date.now()
     };
 
     return {
       ...summary,
-
-      activeExpressionStage:
-        stageName,
-
-      [`${stageName}StageRan`]:
-        false,
-
-      [`${stageName}StageSource`]:
-        source,
-
-      [`${stageName}StageError`]:
-        message ||
-        error,
-
+      activeExpressionStage: stageName,
       expressionFailureBoundary:
-        summary.expressionFailureBoundary ||
-        stageName,
-
+        summary.expressionFailureBoundary || stageName,
       firstFailedExpressionStage:
-        summary.firstFailedExpressionStage ||
-        stageName,
-
+        summary.firstFailedExpressionStage || stageName,
       expressionStageErrors: [
-        ...existingErrors,
+        ...this.toArray(summary.expressionStageErrors),
         failure
       ]
     };
   },
 
-  hasStageFailed(
-    summary = {},
-    stageName = ""
-  ) {
-    return this.toArray(
-      summary.expressionStageErrors
-    ).some(
-      failure =>
-        failure?.stage ===
-        stageName
+  resolveUsableSemanticFrame(summary = {}) {
+    const packet = this.readObject(summary.deliberationPacket);
+
+    return (
+      this.readObject(summary.validatedSemanticFrame) ||
+      this.readObject(summary.semanticFrame) ||
+      this.readObject(summary.cognitiveReasoningResult?.semanticFrame) ||
+      this.readObject(packet?.semanticValidation?.validatedSemanticFrame) ||
+      this.readObject(packet?.semanticValidation?.primaryFrame) ||
+      this.readObject(packet?.reasoning?.semanticFrame) ||
+      null
     );
   },
 
-  /* =====================================================
-     INPUT GOVERNANCE
-  ===================================================== */
+  resolveResponsePlan(summary = {}) {
+    const packet = this.readObject(summary.deliberationPacket);
 
-  validateExpressionInputs(summary = {}) {
-    const errors = [];
-    const warnings = [];
-
-    const deliberationPacket =
-      summary.deliberationPacket ||
-      null;
-
-    const semanticValidationAccepted =
-      summary.semanticValidationAccepted === true ||
-      deliberationPacket
-        ?.semanticValidation
-        ?.accepted === true;
-
-    const validatedSemanticFrame =
-      summary.validatedSemanticFrame ||
-      deliberationPacket
-        ?.semanticValidation
-        ?.validatedSemanticFrame ||
-      null;
-
-    const responsePlan =
-      summary.responsePlan ||
-      summary.responseStrategy ||
-      deliberationPacket
-        ?.responsePlanning
-        ?.plan ||
-      null;
-
-    const validatedResponseRequirements =
-      summary.validatedResponseRequirements ||
-      deliberationPacket
-        ?.semanticValidation
-        ?.responseRequirements ||
-      null;
-
-    const authoritativeDraft =
-      this.resolveAuthoritativeDraft(summary);
-
-    if (!deliberationPacket) {
-      errors.push(
-        "deliberation_packet_missing"
-      );
-    }
-
-    if (!semanticValidationAccepted) {
-      errors.push(
-        "semantic_validation_not_accepted"
-      );
-    }
-
-    if (!validatedSemanticFrame) {
-      errors.push(
-        "validated_semantic_frame_missing"
-      );
-    }
-
-    if (!responsePlan) {
-      errors.push(
-        "response_plan_missing"
-      );
-    }
-
-    if (!authoritativeDraft) {
-      errors.push(
-        "authoritative_draft_missing"
-      );
-    }
-
-    if (!validatedResponseRequirements) {
-      warnings.push(
-        "validated_response_requirements_missing"
-      );
-    }
-
-    return {
-      valid: errors.length === 0,
-      ready: errors.length === 0,
-
-      source:
-        "ari-expression-input-governance",
-
-      version:
-        this.version,
-
-      errors,
-      warnings,
-
-      contracts: {
-        deliberationPacketAvailable:
-          Boolean(deliberationPacket),
-
-        semanticValidationAccepted,
-
-        validatedSemanticFrameAvailable:
-          Boolean(validatedSemanticFrame),
-
-        responsePlanAvailable:
-          Boolean(responsePlan),
-
-        authoritativeDraftAvailable:
-          Boolean(authoritativeDraft),
-
-        authoritativeDraftSource:
-          this.resolveAuthoritativeDraftSource(
-            summary
-          ),
-
-        validatedResponseRequirementsAvailable:
-          Boolean(
-            validatedResponseRequirements
-          )
-      },
-
-      authority: {
-        canValidateExpressionInputs: true,
-        canInterpretMeaning: false,
-        canRepairSemantics: false,
-        canCreateResponsePlan: false,
-        canGenerateResponseLanguage: false
-      }
-    };
+    return (
+      this.readObject(summary.responsePlan) ||
+      this.readObject(summary.responseStrategy) ||
+      this.readObject(packet?.responsePlanning?.plan) ||
+      null
+    );
   },
-
-  /* =====================================================
-     AUTHORITATIVE DRAFT RESOLUTION
-  ===================================================== */
 
   resolveAuthoritativeDraft(summary = {}) {
-    const deliberationPacket =
-      summary.deliberationPacket ||
-      null;
+    const packet = this.readObject(summary.deliberationPacket);
 
-    const candidates = [
+    return this.firstText(
       summary.authoritativeDraft,
-
-      summary.responsePlan
-        ?.draftResponse,
-
-      summary.responsePlanningHandoff
-        ?.draftResponse,
-
-      deliberationPacket
-        ?.responsePlanning
-        ?.plan
-        ?.draftResponse,
-
-      deliberationPacket
-        ?.responsePlanning
-        ?.handoff
-        ?.draftResponse,
-
-      summary.cognitiveReasoningResult
-        ?.draftResponse,
-
-      summary.cognitiveResult
-        ?.draftResponse,
-
-      deliberationPacket
-        ?.cognitiveReasoning
-        ?.result
-        ?.draftResponse,
-
-      summary.draftResponse
-    ];
-
-    for (const candidate of candidates) {
-      const text =
-        this.extractText(candidate);
-
-      if (text) {
-        return text;
-      }
-    }
-
-    return "";
+      summary.selectedDraft,
+      summary.draftResponse,
+      summary.responseText,
+      summary.cognitiveReasoningResult?.authoritativeDraft,
+      summary.cognitiveReasoningResult?.draftResponse,
+      summary.cognitiveReasoningResult?.responseText,
+      summary.cognitiveReasoningResult?.finalResponse,
+      summary.cognitiveReasoningResult?.answer,
+      summary.cognitiveReasoningResult?.reply,
+      packet?.authoritativeDraft,
+      packet?.selectedDraft,
+      packet?.draftResponse,
+      packet?.responseText,
+      packet?.reasoning?.authoritativeDraft,
+      packet?.reasoning?.draftResponse,
+      packet?.reasoning?.responseText,
+      packet?.reasoning?.result?.authoritativeDraft,
+      packet?.reasoning?.result?.draftResponse,
+      packet?.reasoning?.result?.responseText,
+      packet?.responsePlanning?.plan?.draftResponse
+    );
   },
 
-  resolveAuthoritativeDraftSource(
-    summary = {}
-  ) {
-    const deliberationPacket =
-      summary.deliberationPacket ||
-      null;
-
+  resolveAuthoritativeDraftSource(summary = {}) {
+    const packet = this.readObject(summary.deliberationPacket);
     const candidates = [
+      ["authoritativeDraft", summary.authoritativeDraft],
+      ["selectedDraft", summary.selectedDraft],
+      ["draftResponse", summary.draftResponse],
       [
-        "authoritativeDraft",
-        summary.authoritativeDraft
+        "cognitiveReasoningResult.authoritativeDraft",
+        summary.cognitiveReasoningResult?.authoritativeDraft
       ],
-
-      [
-        "responsePlan.draftResponse",
-        summary.responsePlan
-          ?.draftResponse
-      ],
-
-      [
-        "responsePlanningHandoff.draftResponse",
-        summary.responsePlanningHandoff
-          ?.draftResponse
-      ],
-
-      [
-        "deliberationPacket.responsePlanning.plan.draftResponse",
-        deliberationPacket
-          ?.responsePlanning
-          ?.plan
-          ?.draftResponse
-      ],
-
-      [
-        "deliberationPacket.responsePlanning.handoff.draftResponse",
-        deliberationPacket
-          ?.responsePlanning
-          ?.handoff
-          ?.draftResponse
-      ],
-
       [
         "cognitiveReasoningResult.draftResponse",
-        summary.cognitiveReasoningResult
-          ?.draftResponse
+        summary.cognitiveReasoningResult?.draftResponse
       ],
-
+      ["deliberationPacket.authoritativeDraft", packet?.authoritativeDraft],
+      ["deliberationPacket.selectedDraft", packet?.selectedDraft],
       [
-        "cognitiveResult.draftResponse",
-        summary.cognitiveResult
-          ?.draftResponse
+        "deliberationPacket.reasoning.authoritativeDraft",
+        packet?.reasoning?.authoritativeDraft
       ],
-
       [
-        "deliberationPacket.cognitiveReasoning.result.draftResponse",
-        deliberationPacket
-          ?.cognitiveReasoning
-          ?.result
-          ?.draftResponse
-      ],
-
-      [
-        "draftResponse",
-        summary.draftResponse
+        "deliberationPacket.reasoning.draftResponse",
+        packet?.reasoning?.draftResponse
       ]
     ];
 
     for (const [source, candidate] of candidates) {
-      if (this.extractText(candidate)) {
-        return source;
-      }
+      if (this.extractText(candidate)) return source;
     }
 
     return null;
   },
 
-  /* =====================================================
-     EXPRESSION DIAGNOSTICS
-  ===================================================== */
-
-  buildExpressionDiagnostics(summary = {}) {
-    const errors = [
-      ...this.toArray(
-        summary.expressionStageErrors
-      )
-    ];
-
-    const warnings = [
-      ...this.toArray(
-        summary
-          .expressionInputGovernance
-          ?.warnings
-      )
-    ];
-
-    const finalResponse =
-      this.resolveFinalResponse(summary);
-
-    const authoritativeDraft =
-      this.resolveAuthoritativeDraft(summary);
-
-    const semanticValidationAccepted =
-      summary.semanticValidationAccepted === true ||
-      summary.deliberationPacket
-        ?.semanticValidation
-        ?.accepted === true;
-
-    const validatedSemanticFrame =
-      summary.validatedSemanticFrame ||
-      summary.deliberationPacket
-        ?.semanticValidation
-        ?.validatedSemanticFrame ||
-      null;
-
-    const responsePlan =
-      summary.responsePlan ||
-      summary.responseStrategy ||
-      summary.deliberationPacket
-        ?.responsePlanning
-        ?.plan ||
-      null;
-
-    if (!semanticValidationAccepted) {
-      errors.push({
-        stage: "expression",
-        error:
-          "semantic_validation_not_accepted"
-      });
-    }
-
-    if (!validatedSemanticFrame) {
-      errors.push({
-        stage: "expression",
-        error:
-          "validated_semantic_frame_missing"
-      });
-    }
-
-    if (!responsePlan) {
-      errors.push({
-        stage: "expression",
-        error:
-          "response_plan_missing"
-      });
-    }
-
-    if (!authoritativeDraft) {
-      errors.push({
-        stage: "expression",
-        error:
-          "authoritative_draft_missing"
-      });
-    }
-
-    if (!finalResponse) {
-      errors.push({
-        stage: "finalComposition",
-        error:
-          "final_response_missing"
-      });
-    }
-
-    const characterRequired =
-      Boolean(
-        window.AriCharacterStage ||
-        window.Ari?.characterStage
-      );
-
-    const languageGuidanceRequired =
-      Boolean(
-        window.AriLanguageGuidanceStage ||
-        window.Ari?.languageGuidanceStage
-      );
-
-    return {
-      expressionDiagnosticsRan: true,
-      expressionDiagnosticsVersion:
-        this.version,
-
-      healthy:
-        errors.length === 0,
-
-      complete:
-        errors.length === 0 &&
-        Boolean(finalResponse),
-
-      errors,
-      warnings,
-
-      failureBoundary:
-        summary.expressionFailureBoundary ||
-        null,
-
-      firstFailedStage:
-        summary.firstFailedExpressionStage ||
-        null,
-
-      stages: {
-        inputGovernance:
-          summary
-            .expressionInputGovernance
-            ?.valid === true,
-
-        character:
-          characterRequired
-            ? summary.characterStageRan === true
-            : null,
-
-        languageGuidance:
-          languageGuidanceRequired
-            ? summary
-                .languageGuidanceStageRan === true
-            : null,
-
-        finalComposition:
-          summary
-            .finalCompositionStageRan === true
-      },
-
-      contracts: {
-        semanticValidationAccepted,
-
-        validatedSemanticFrameAvailable:
-          Boolean(
-            validatedSemanticFrame
-          ),
-
-        responsePlanAvailable:
-          Boolean(responsePlan),
-
-        authoritativeDraftAvailable:
-          Boolean(authoritativeDraft),
-
-        authoritativeDraftSource:
-          summary.authoritativeDraftSource ||
-          this.resolveAuthoritativeDraftSource(
-            summary
-          ),
-
-        finalResponseAvailable:
-          Boolean(finalResponse)
-      },
-
-      invariants: {
-        draftComesFromDeliberation:
-          Boolean(authoritativeDraft),
-
-        approvedPlanPreserved:
-          Boolean(responsePlan),
-
-        styleStagesCannotChangeMeaning:
-          true,
-
-        finalCompositionCannotChangeMeaning:
-          true,
-
-        responseRealizationDisabled:
-          true,
-
-        additionalOpenAIGenerationPass:
-          false
-      }
-    };
-  },
-
-  /* =====================================================
-     EXPRESSION PACKET
-  ===================================================== */
-
-  buildExpressionPacket(summary = {}) {
-    const finalResponse =
-      this.resolveFinalResponse(summary);
-
-    const authoritativeDraft =
-      this.resolveAuthoritativeDraft(summary);
-
-    const finalResponseUsable =
-      summary.finalResponseUsable !== false &&
-      Boolean(finalResponse);
-
-    const stageErrors =
-      this.toArray(
-        summary.expressionStageErrors
-      );
-
-    const semanticValidationAccepted =
-      summary.semanticValidationAccepted === true ||
-      summary.deliberationPacket
-        ?.semanticValidation
-        ?.accepted === true;
-
-    const validatedSemanticFrame =
-      summary.validatedSemanticFrame ||
-      summary.deliberationPacket
-        ?.semanticValidation
-        ?.validatedSemanticFrame ||
-      null;
-
-    const validatedResponseRequirements =
-      summary.validatedResponseRequirements ||
-      summary.deliberationPacket
-        ?.semanticValidation
-        ?.responseRequirements ||
-      null;
-
-    const responsePlan =
-      summary.responsePlan ||
-      summary.responseStrategy ||
-      summary.deliberationPacket
-        ?.responsePlanning
-        ?.plan ||
-      null;
-
-    const expressionDiagnostics =
-      summary.expressionDiagnostics ||
-      null;
-
-    return {
-      schema: "ari_expression_packet",
-      schemaVersion: this.schemaVersion,
-
-      ready:
-        finalResponseUsable &&
-        semanticValidationAccepted &&
-        Boolean(validatedSemanticFrame) &&
-        Boolean(responsePlan) &&
-        Boolean(authoritativeDraft),
-
-      complete:
-        expressionDiagnostics?.complete ===
-        true,
-
-      healthy:
-        expressionDiagnostics?.healthy ===
-        true,
-
-      architecture: this.architecture,
-      source: this.source,
-      version: this.version,
-
-      /* -----------------------------------------------
-         INPUT CONTRACTS
-      ----------------------------------------------- */
-
-      input: {
-        perceptionPacket:
-          summary.perceptionPacket ||
-          null,
-
-        evidencePacket:
-          summary.evidencePacket ||
-          summary.perceptionPacket
-            ?.evidencePacket ||
-          null,
-
-        executivePacket:
-          summary.executivePacket ||
-          null,
-
-        deliberationPacket:
-          summary.deliberationPacket ||
-          null,
-
-        validatedSemanticFrame,
-        validatedResponseRequirements,
-        responsePlan,
-
-        authoritativeDraft:
-          authoritativeDraft ||
-          null,
-
-        authoritativeDraftSource:
-          summary.authoritativeDraftSource ||
-          this.resolveAuthoritativeDraftSource(
-            summary
-          )
-      },
-
-      /* -----------------------------------------------
-         STAGE PACKETS
-      ----------------------------------------------- */
-
-      stages: {
-        inputGovernance:
-          summary
-            .expressionInputGovernance ||
-          null,
-
-        character:
-          summary.characterStagePacket ||
-          null,
-
-        languageGuidance:
-          summary
-            .languageGuidanceStagePacket ||
-          null,
-
-        finalComposition:
-          summary
-            .finalCompositionStagePacket ||
-          null
-      },
-
-      /* -----------------------------------------------
-         CHARACTER GUIDANCE
-      ----------------------------------------------- */
-
-      character: {
-        ran:
-          summary.characterStageRan ===
-          true,
-
-        handoff:
-          summary.characterHandoff ||
-          null,
-
-        enabled:
-          summary.characterHandoff
-            ?.enabled === true,
-
-        relevant:
-          summary.characterHandoff
-            ?.relevant === true,
-
-        emotion:
-          summary.emotion ||
-          summary.characterHandoff
-            ?.emotion ||
-          null,
-
-        tone:
-          summary.characterHandoff
-            ?.tone ||
-          null,
-
-        source:
-          summary.characterStageSource ||
-          null,
-
-        authority:
-          "style_guidance_only"
-      },
-
-      /* -----------------------------------------------
-         LANGUAGE GUIDANCE
-      ----------------------------------------------- */
-
-      languageGuidance: {
-        ran:
-          summary
-            .languageGuidanceStageRan ===
-          true,
-
-        handoff:
-          summary
-            .languageGuidanceHandoff ||
-          null,
-
-        lexicalGrounding:
-          summary.lexicalGrounding ||
-          null,
-
-        humanLanguageProfile:
-          summary
-            .humanLanguageProfile ||
-          null,
-
-        expressionPlan:
-          summary.expressionPlan ||
-          null,
-
-        communicationPlan:
-          summary.communicationPlan ||
-          null,
-
-        mouthDirective:
-          summary.mouthDirective ||
-          null,
-
-        source:
-          summary
-            .languageGuidanceStageSource ||
-          null,
-
-        authority:
-          "language_and_presentation_guidance_only"
-      },
-
-      /* -----------------------------------------------
-         FINAL RESPONSE
-      ----------------------------------------------- */
-
-      result: {
-        finalResponse:
-          finalResponse ||
-          null,
-
-        authoritativeDraft:
-          authoritativeDraft ||
-          null,
-
-        authoritativeDraftSource:
-          summary.authoritativeDraftSource ||
-          this.resolveAuthoritativeDraftSource(
-            summary
-          ),
-
-        usable:
-          finalResponseUsable,
-
-        degraded:
-          summary
-            .finalResponseDegraded === true,
-
-        source:
-          summary.finalResponseSource ||
-          "final-composition",
-
-        failureReason:
-          summary
-            .finalResponseFailureReason ||
-          null,
-
-        length:
-          summary.finalResponseLength ||
-          finalResponse.length,
-
-        warnings:
-          this.toArray(
-            summary.finalResponseWarnings
-          ),
-
-        emotion:
-          summary.emotion ||
-          summary.characterHandoff
-            ?.emotion ||
-          null,
-
-        handoff:
-          summary
-            .finalCompositionHandoff ||
-          null,
-
-        derivedFromValidatedMeaning:
-          semanticValidationAccepted &&
-          Boolean(validatedSemanticFrame),
-
-        derivedFromApprovedPlan:
-          Boolean(responsePlan),
-
-        derivedFromAuthoritativeDraft:
-          Boolean(authoritativeDraft)
-      },
-
-      /* -----------------------------------------------
-         RESPONSE CONTROL
-      ----------------------------------------------- */
-
-      responseControl: {
-        validatedSemanticFrame,
-        validatedResponseRequirements,
-        responsePlan,
-
-        goal:
-          summary.responseGoal ||
-          responsePlan
-            ?.responseGoal ||
-          null,
-
-        shape:
-          summary.responseShape ||
-          responsePlan
-            ?.responseShape ||
-          null,
-
-        posture:
-          summary.responsePosture ||
-          responsePlan
-            ?.responsePosture ||
-          null,
-
-        order:
-          this.toArray(
-            summary.responseOrder ||
-            summary.responseMoves ||
-            responsePlan
-              ?.responseMoves
-          ),
-
-        rules:
-          this.toArray(
-            summary.responseRules ||
-            responsePlan
-              ?.responseRules
-          ),
-
-        constraints:
-          this.toArray(
-            summary.responseConstraints ||
-            responsePlan
-              ?.responseConstraints
-          ),
-
-        requiredBehaviors:
-          this.toArray(
-            summary.responseRequired ||
-            summary.requiredBehaviors ||
-            validatedResponseRequirements
-              ?.must
-          ),
-
-        forbiddenBehaviors:
-          this.toArray(
-            summary.responseAvoid ||
-            summary.forbiddenBehaviors ||
-            validatedResponseRequirements
-              ?.mustNot
-          ),
-
-        communicationPlan:
-          summary.communicationPlan ||
-          responsePlan
-            ?.communicationPlan ||
-          null,
-
-        composerDirective:
-          summary.composerDirective ||
-          responsePlan
-            ?.composerDirective ||
-          null
-      },
-
-      /* -----------------------------------------------
-         CONTINUITY
-      ----------------------------------------------- */
-
-      continuity: {
-        available:
-          Boolean(
-            summary.continuityHandoff ||
-            summary.continuityResult ||
-            validatedSemanticFrame
-              ?.continuity
-          ),
-
-        handoff:
-          summary.continuityHandoff ||
-          summary.continuityResult ||
-          null,
-
-        validated:
-          validatedSemanticFrame
-            ?.continuity ||
-          null,
-
-        recentTurnsUsed:
-          Boolean(
-            summary.continuityHandoff ||
-            summary.continuityResult
-          ),
-
-        recentTurnCount:
-          this.toArray(
-            summary.continuityHandoff
-              ?.recentTurns ||
-            summary.continuityResult
-              ?.recentTurns
-          ).length
-      },
-
-      /* -----------------------------------------------
-         SAFETY
-      ----------------------------------------------- */
-
-      safety: {
-        earlyGate:
-          summary.safetyContextGate ||
-          null,
-
-        deepReview:
-          summary.deepSafetyResult ||
-          null,
-
-        disposition:
-          summary.safetyDisposition ||
-          null,
-
-        shouldStopNormalResponse:
-          summary
-            .safetyShouldStopNormalResponse ===
-            true ||
-          summary.safetyDisposition
-            ?.shouldStopNormalResponse ===
-            true ||
-          summary.deepSafetyResult
-            ?.shouldStopNormalResponse ===
-            true,
-
-        compositionGoverned:
-          semanticValidationAccepted &&
-          Boolean(
-            validatedResponseRequirements
-          )
-      },
-
-      /* -----------------------------------------------
-         QUALITY
-      ----------------------------------------------- */
-
-      diagnostics:
-        expressionDiagnostics,
-
-      quality: {
-        inputGovernanceValid:
-          summary
-            .expressionInputGovernance
-            ?.valid === true,
-
-        semanticValidationAccepted,
-
-        validatedSemanticFrameAvailable:
-          Boolean(validatedSemanticFrame),
-
-        responsePlanAvailable:
-          Boolean(responsePlan),
-
-        authoritativeDraftAvailable:
-          Boolean(authoritativeDraft),
-
-        authoritativeDraftSource:
-          summary.authoritativeDraftSource ||
-          this.resolveAuthoritativeDraftSource(
-            summary
-          ),
-
-        allStagesLoaded:
-          !stageErrors.some(
-            error =>
-              error?.error ===
-              "stage_not_loaded"
-          ),
-
-        stageErrorCount:
-          stageErrors.length,
-
-        stageErrors,
-
-        failureBoundary:
-          summary.expressionFailureBoundary ||
-          null,
-
-        firstFailedStage:
-          summary.firstFailedExpressionStage ||
-          null,
-
-        characterStageRan:
-          summary.characterStageRan === true,
-
-        languageGuidanceStageRan:
-          summary
-            .languageGuidanceStageRan === true,
-
-        finalCompositionStageRan:
-          summary
-            .finalCompositionStageRan === true,
-
-        finalResponseAvailable:
-          Boolean(finalResponse),
-
-        finalResponseUsable,
-
-        responseRealizationEnabled:
-          false,
-
-        additionalGenerationPassUsed:
-          false
-      },
-
-      /* -----------------------------------------------
-         DETACHED / LEGACY STATUS
-      ----------------------------------------------- */
-
-      detached: {
-        responseRealizationEnabled:
-          false,
-
-        responseRealizationStageUsed:
-          false,
-
-        responseRealizationEngineUsed:
-          false
-      },
-
-      legacy: {
-        draftGenerationEnabled:
-          false,
-
-        draftArbitrationEnabled:
-          false,
-
-        blueprintWriterEnabled:
-          false,
-
-        aiWriterEnabled:
-          false,
-
-        candidateArbiterEnabled:
-          false,
-
-        candidateDraftsUsed:
-          false,
-
-        selectedDraftUsed:
-          false
-      },
-
-      /* -----------------------------------------------
-         AUTHORITY
-      ----------------------------------------------- */
-
-      authority:
-        this.getAuthorityBoundaries()
-    };
-  },
-
-  /* =====================================================
-     PIPELINE FINALIZATION
-  ===================================================== */
-
-  finishPipeline(summary = {}) {
-    const expressionDiagnostics =
-      summary.expressionDiagnostics ||
-      this.buildExpressionDiagnostics(
-        summary
-      );
-
-    const state = {
-      ...summary,
-
-      expressionDiagnostics,
-
-      expressionHealthy:
-        expressionDiagnostics.healthy,
-
-      expressionWarnings:
-        expressionDiagnostics.warnings
-    };
-
-    const expressionPacket =
-      this.buildExpressionPacket(state);
-
-    return {
-      ...state,
-
-      expressionPacket,
-      responseResult:
-        expressionPacket,
-
-      expressionPipelineRan:
-        true,
-
-      expressionPipelineReady:
-        expressionPacket.ready === true,
-
-      expressionPipelineSource:
-        this.source,
-
-      expressionPipelineVersion:
-        this.version,
-
-      activeExpressionStage:
-        null
-    };
-  },
-
-  finishBlockedPipeline({
-    summary = {}
-  } = {}) {
-    return this.finishPipeline({
-      ...summary,
-      expressionHealthy: false
-    });
-  },
-
   resolveFinalResponse(summary = {}) {
-    return this.extractText(
-      summary.finalResponse ||
-      summary
-        .finalCompositionHandoff
-        ?.finalResponse ||
-      summary
-        .finalCompositionStagePacket
-        ?.finalResponse ||
-      ""
+    return this.firstText(
+      summary.finalResponse,
+      summary.reply,
+      summary.responseText,
+      summary.finalCompositionHandoff?.finalResponse,
+      summary.finalCompositionHandoff?.responseText,
+      summary.finalCompositionStagePacket?.finalResponse,
+      summary.finalCompositionStagePacket?.responseText,
+      summary.finalCompositionStagePacket?.result?.finalResponse,
+      summary.finalCompositionStagePacket?.result?.responseText,
+      summary.authoritativeDraft
     );
   },
 
-  /* =====================================================
-     DELIBERATION FALLBACK
-  ===================================================== */
+  resolveFinalResponseSource(summary = {}) {
+    const candidates = [
+      ["finalResponse", summary.finalResponse],
+      [
+        "finalCompositionHandoff.finalResponse",
+        summary.finalCompositionHandoff?.finalResponse
+      ],
+      [
+        "finalCompositionHandoff.responseText",
+        summary.finalCompositionHandoff?.responseText
+      ],
+      [
+        "finalCompositionStagePacket.finalResponse",
+        summary.finalCompositionStagePacket?.finalResponse
+      ],
+      [
+        "finalCompositionStagePacket.responseText",
+        summary.finalCompositionStagePacket?.responseText
+      ]
+    ];
 
-  buildFallbackDeliberationPacket(
-    summary = {}
-  ) {
-    const original =
-      this.extractText(
-        summary.originalUserMessage ||
-        summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        ""
-      );
+    for (const [source, candidate] of candidates) {
+      if (this.extractText(candidate)) return source;
+    }
 
-    const effective =
-      this.extractText(
-        summary.effectiveUserMessage ||
-        summary.resolvedUserQuestion ||
-        original
-      );
-
-    return {
-      schema:
-        "ari_deliberation_packet_fallback",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      ready:
-        false,
-
-      source:
-        "ari-expression-pipeline-fallback",
-
-      version:
-        this.version,
-
-      request: {
-        original,
-        effective:
-          effective ||
-          original
-      },
-
-      semanticValidation: {
-        accepted:
-          summary.semanticValidationAccepted ===
-          true,
-
-        validatedSemanticFrame:
-          summary.validatedSemanticFrame ||
-          null,
-
-        responseRequirements:
-          summary
-            .validatedResponseRequirements ||
-          null
-      },
-
-      responsePlanning: {
-        plan:
-          summary.responsePlan ||
-          summary.responseStrategy ||
-          null,
-
-        handoff:
-          summary.responsePlanningHandoff ||
-          null
-      },
-
-      cognitiveReasoning: {
-        result:
-          summary.cognitiveReasoningResult ||
-          summary.cognitiveResult ||
-          null
-      },
-
-      authority: {
-        canSupplyCompatibilityInput: true,
-        canInterpretMeaning: false,
-        canWriteFinalLanguage: false,
-        canChangeSemanticMeaning: false,
-        canCreateResponsePlan: false,
-        canChangeRouting: false,
-        canOverrideSafety: false,
-        role:
-          "compatibility_deliberation_fallback"
-      }
-    };
+    return null;
   },
 
-  /* =====================================================
-     AUTHORITY
-  ===================================================== */
+  buildFallbackDeliberationPacket(summary = {}) {
+    return {
+      schema: "ari_deliberation_packet_fallback",
+      schemaVersion: this.schemaVersion,
+      ready: false,
+      source: "ari-expression-pipeline-fallback",
+      version: this.version,
+      semanticValidation: {
+        accepted: summary.semanticValidationAccepted === true,
+        validatedSemanticFrame:
+          summary.validatedSemanticFrame || summary.semanticFrame || null,
+        responseRequirements:
+          summary.validatedResponseRequirements ||
+          summary.responseRequirements ||
+          null
+      },
+      responsePlanning: {
+        plan: summary.responsePlan || summary.responseStrategy || null
+      },
+      reasoning: {
+        result: summary.cognitiveReasoningResult || null,
+        semanticFrame:
+          summary.semanticFrame ||
+          summary.cognitiveReasoningResult?.semanticFrame ||
+          null,
+        authoritativeDraft:
+          summary.authoritativeDraft || summary.draftResponse || null
+      },
+      authoritativeDraft:
+        summary.authoritativeDraft || summary.draftResponse || null
+    };
+  },
 
   getAuthorityBoundaries() {
     return {
@@ -1598,141 +762,59 @@ window.AriExpressionPipeline = {
       canBuildExpressionPacket: true,
       canExposeFinalResponse: true,
       canResolveAuthoritativeDraft: true,
-      canApplyStyleGuidance: true,
-      canApplyPresentationGuidance: true,
-
-      canCoordinateResponseRealizationStage:
-        false,
-
-      canGenerateResponseLanguage:
-        false,
-
-      canCallOpenAIForResponseGeneration:
-        false,
-
-      canRunDraftGenerationStage:
-        false,
-
-      canRunDraftArbitrationStage:
-        false,
-
-      canRunBlueprintWriter:
-        false,
-
-      canRunAIWriter:
-        false,
-
-      canGenerateCandidateDrafts:
-        false,
-
-      canArbitrateCandidates:
-        false,
-
-      canSelectPreferredDraft:
-        false,
-
-      canInterpretEvidence:
-        false,
-
-      canReinterpretMeaning:
-        false,
-
-      canRepairSemanticFrame:
-        false,
-
-      canChangeSemanticFrame:
-        false,
-
-      canChangeValidatedOperation:
-        false,
-
-      canChangeResponseRequirements:
-        false,
-
-      canChangeOfficialRoute:
-        false,
-
-      canChangeResponsePlan:
-        false,
-
-      canChangeAuthoritativeDraft:
-        false,
-
-      canChangeSafetyDisposition:
-        false,
-
-      canExecuteActions:
-        false,
-
-      canRetrieveMemory:
-        false,
-
-      canPersistMemory:
-        false,
-
-      canPersistState:
-        false,
-
-      role:
-        "validated_semantic_direct_draft_composition_orchestration"
+      canUseAuthoritativeDraftFallback: true,
+      canGenerateResponseLanguage: false,
+      canCallOpenAIForResponseGeneration: false,
+      canRunResponseRealization: false,
+      canRunDraftGeneration: false,
+      canRunCandidateArbitration: false,
+      canInterpretEvidence: false,
+      canReinterpretMeaning: false,
+      canRepairSemanticFrame: false,
+      canChangeSemanticFrame: false,
+      canChangeResponsePlan: false,
+      canChangeAuthoritativeDraft: false,
+      canChangeSafetyDisposition: false,
+      canExecuteActions: false,
+      canRetrieveMemory: false,
+      canPersistMemory: false,
+      canPersistState: false,
+      role: "authoritative_draft_expression_orchestration"
     };
   },
-
-  /* =====================================================
-     VALIDATION
-  ===================================================== */
 
   validate() {
     const errors = [];
     const warnings = [];
-
-    const required = {
-      characterStage:
-        Boolean(
-          window.AriCharacterStage ||
-          window.Ari?.characterStage
-        ),
-
-      languageGuidanceStage:
-        Boolean(
-          window.AriLanguageGuidanceStage ||
-          window.Ari
-            ?.languageGuidanceStage
-        ),
-
-      finalCompositionStage:
-        Boolean(
-          window.AriFinalCompositionStage ||
-          window.Ari
-            ?.finalCompositionStage
-        )
+    const optional = {
+      characterStage: Boolean(
+        window.AriCharacterStage || window.Ari?.characterStage
+      ),
+      languageGuidanceStage: Boolean(
+        window.AriLanguageGuidanceStage ||
+        window.Ari?.languageGuidanceStage
+      ),
+      finalCompositionStage: Boolean(
+        window.AriFinalCompositionStage ||
+        window.Ari?.finalCompositionStage
+      )
     };
 
-    Object.entries(required)
-      .forEach(
-        ([name, loaded]) => {
-          if (!loaded) {
-            warnings.push(
-              `${name}_not_loaded`
-            );
-          }
-        }
-      );
+    Object.entries(optional).forEach(([name, loaded]) => {
+      if (!loaded) warnings.push(`${name}_not_loaded_optional`);
+    });
 
-    const authority =
-      this.getAuthorityBoundaries();
-
+    const authority = this.getAuthorityBoundaries();
     const forbiddenTrue = [
-      "canCoordinateResponseRealizationStage",
       "canGenerateResponseLanguage",
       "canCallOpenAIForResponseGeneration",
+      "canRunResponseRealization",
+      "canRunDraftGeneration",
+      "canRunCandidateArbitration",
       "canInterpretEvidence",
       "canReinterpretMeaning",
       "canRepairSemanticFrame",
       "canChangeSemanticFrame",
-      "canChangeValidatedOperation",
-      "canChangeResponseRequirements",
-      "canChangeOfficialRoute",
       "canChangeResponsePlan",
       "canChangeAuthoritativeDraft",
       "canChangeSafetyDisposition",
@@ -1743,90 +825,53 @@ window.AriExpressionPipeline = {
     ];
 
     forbiddenTrue
-      .filter(
-        key =>
-          authority[key] === true
-      )
-      .forEach(
-        key => {
-          errors.push(
-            `${key}_must_be_false`
-          );
-        }
-      );
+      .filter(key => authority[key] === true)
+      .forEach(key => errors.push(`${key}_must_be_false`));
 
     return {
-      valid:
-        errors.length === 0,
-
-      ready:
-        errors.length === 0 &&
-        warnings.length === 0,
-
-      source:
-        "ari-expression-pipeline-validation",
-
-      version:
-        this.version,
-
+      valid: errors.length === 0,
+      ready: errors.length === 0,
+      source: "ari-expression-pipeline-validation",
+      version: this.version,
       errors,
       warnings,
-      required,
-
+      optional,
       checks: {
-        validatedSemanticFrameRequired:
-          true,
-
-        approvedResponsePlanRequired:
-          true,
-
-        authoritativeDraftRequired:
-          true,
-
-        styleStagesAreNonSemantic:
-          true,
-
-        finalCompositionIsNonSemantic:
-          true,
-
-        responseRealizationDetached:
-          true,
-
-        additionalGenerationPassDisabled:
-          true,
-
-        legacyCandidatePipelineDisabled:
-          true
+        usableSemanticFrameRequired: true,
+        responsePlanRequired: true,
+        authoritativeDraftRequired: true,
+        semanticValidationIsAdvisory: true,
+        styleStagesAreOptional: true,
+        finalCompositionIsOptional: true,
+        authoritativeDraftFallbackEnabled: true,
+        responseRealizationDetached: true,
+        additionalGenerationPassDisabled: true,
+        legacyCandidatePipelineDisabled: true
       }
     };
   },
 
-  /* =====================================================
-     HELPERS
-  ===================================================== */
+  readObject(value) {
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : null;
+  },
+
+  firstText(...values) {
+    for (const value of values) {
+      const text = this.extractText(value);
+      if (text) return text;
+    }
+    return "";
+  },
 
   extractText(value = null) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return "";
-    }
-
-    if (typeof value === "string") {
-      return this.cleanText(value);
-    }
-
-    if (
-      typeof value === "number" ||
-      typeof value === "boolean"
-    ) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return this.cleanText(value);
+    if (typeof value === "number" || typeof value === "boolean") {
       return String(value).trim();
     }
-
-    if (
-      typeof value === "object"
-    ) {
+    if (typeof value === "object") {
       return this.extractText(
         value.text ||
         value.responseText ||
@@ -1835,40 +880,55 @@ window.AriExpressionPipeline = {
         value.response ||
         value.reply ||
         value.content ||
+        value.authoritativeDraft ||
         value.draftResponse ||
         value.draft ||
         ""
       );
     }
-
     return "";
   },
 
   toArray(value) {
     if (Array.isArray(value)) {
       return value.filter(
-        item =>
-          item !== null &&
-          item !== undefined &&
-          item !== ""
+        item => item !== null && item !== undefined && item !== ""
       );
     }
+    if (value === null || value === undefined || value === "") return [];
+    return [value];
+  },
 
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
-    ) {
-      return [];
+  dedupeErrors(value = []) {
+    const output = [];
+    const seen = new Set();
+
+    for (const item of this.toArray(value)) {
+      const normalized =
+        typeof item === "string"
+          ? { stage: "expression", error: item }
+          : item;
+
+      if (!normalized || typeof normalized !== "object") continue;
+
+      const key = [
+        normalized.stage || "unknown",
+        normalized.error || "unknown",
+        normalized.message || ""
+      ].join("::");
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push(normalized);
     }
 
-    return [value];
+    return output;
   },
 
   cleanText(value = "") {
     return String(value ?? "")
       .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, "\"")
+      .replace(/[“”]/g, '"')
       .replace(/[ \t]+/g, " ")
       .replace(/\n[ \t]+/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
@@ -1880,21 +940,15 @@ window.Ari.expressionPipeline =
   window.AriExpressionPipeline;
 
 const ariExpressionPipelineValidation =
-  window.AriExpressionPipeline
-    ?.validate?.();
+  window.AriExpressionPipeline?.validate?.();
 
 console.log(
   "ARI EXPRESSION PIPELINE LOADED:",
-  window.AriExpressionPipeline
-    ?.version,
-
-  ariExpressionPipelineValidation
-    ?.ready === true
+  window.AriExpressionPipeline?.version,
+  ariExpressionPipelineValidation?.ready === true
     ? "READY"
-    : ariExpressionPipelineValidation
-        ?.valid === true
-      ? "VALID_BUT_DEPENDENCIES_MISSING"
+    : ariExpressionPipelineValidation?.valid === true
+      ? "READY_WITH_OPTIONAL_WARNINGS"
       : "INVALID",
-
   ariExpressionPipelineValidation
 );
