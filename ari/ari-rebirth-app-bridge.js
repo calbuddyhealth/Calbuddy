@@ -1451,7 +1451,20 @@ exportExecutionTrace(
     false ||
   runtimeResult
     ?.deliveryStatus ===
-    "failed";
+    "failed" ||
+  runtimeResult
+    ?.rebirthPipelineReady ===
+    false ||
+  runtimeResult
+    ?.pipelineLifecycleComplete ===
+    false ||
+  runtimeResult
+    ?.pipelineStopped ===
+    true ||
+  runtimeResult
+    ?.deliveryResult
+    ?.available ===
+    false;
 
 if (runtimeFailed) {
   this.failTraceSpan(
@@ -1459,23 +1472,35 @@ if (runtimeFailed) {
     masterPipelineSpan,
     {
       code:
-        runtimeResult
-          ?.error
-          ?.code ||
-        runtimeResult
-          ?.failure
-          ?.code ||
-        "master_pipeline_returned_failure",
+  runtimeResult
+    ?.pipelineStopReason ||
+  runtimeResult
+    ?.error
+    ?.code ||
+  runtimeResult
+    ?.failure
+    ?.code ||
+  runtimeResult
+    ?.deliveryResult
+    ?.error ||
+  "master_pipeline_returned_failure",
 
-      message:
-        runtimeResult
-          ?.error
-          ?.message ||
-        runtimeResult
-          ?.failure
-          ?.message ||
-        "The master pipeline returned a controlled failure.",
-
+message:
+  runtimeResult
+    ?.pipelineLayerResults
+    ?.deliberation
+    ?.error
+    ?.message ||
+  runtimeResult
+    ?.error
+    ?.message ||
+  runtimeResult
+    ?.failure
+    ?.message ||
+  runtimeResult
+    ?.pipelineStopReason ||
+  "The master pipeline returned a controlled failure.",
+  
       boundary:
         runtimeResult
           ?.error
@@ -1483,26 +1508,58 @@ if (runtimeFailed) {
         "ari_rebirth_pipeline",
 
       details: {
-        success:
-          runtimeResult
-            ?.success,
+  success:
+    runtimeResult
+      ?.success,
 
-        ok:
-          runtimeResult
-            ?.ok,
+  ok:
+    runtimeResult
+      ?.ok,
 
-        complete:
-          runtimeResult
-            ?.complete,
+  complete:
+    runtimeResult
+      ?.complete,
 
-        deliveryStatus:
-          runtimeResult
-            ?.deliveryStatus,
+  rebirthPipelineReady:
+    runtimeResult
+      ?.rebirthPipelineReady,
 
-        source:
-          runtimeResult
-            ?.source
-      }
+  pipelineLifecycleComplete:
+    runtimeResult
+      ?.pipelineLifecycleComplete,
+
+  pipelineStopped:
+    runtimeResult
+      ?.pipelineStopped,
+
+  pipelineStopLayer:
+    runtimeResult
+      ?.pipelineStopLayer,
+
+  pipelineStopReason:
+    runtimeResult
+      ?.pipelineStopReason,
+
+  deliveryAvailable:
+    runtimeResult
+      ?.deliveryResult
+      ?.available,
+
+  deliveryStatus:
+    runtimeResult
+      ?.deliveryStatus ||
+    runtimeResult
+      ?.deliveryResult
+      ?.status ||
+    null,
+
+  source:
+    runtimeResult
+      ?.source ||
+    runtimeResult
+      ?.rebirthPipelineSource ||
+    null
+}
     }
   );
 } else {
