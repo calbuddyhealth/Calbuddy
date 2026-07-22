@@ -5,7 +5,7 @@
 // Collect and preserve deterministic evidence about the current turn, then
 // produce one canonical Evidence Packet for downstream OpenAI cognition.
 //
-// V2.0.0 — Evidence-Only Perception / OpenAI Semantic Authority
+// V2.1.0 — Evidence Perception with Canonical Reference Handoff
 //
 // Responsibilities:
 // - Preserve the original current-turn text.
@@ -16,6 +16,8 @@
 // - Merge and normalize observations.
 // - Invoke AriEvidenceBuilder exactly once.
 // - Produce one evidence-centered Perception Packet.
+// - Run canonical entity and reference resolution.
+// - Preserve one canonical Reference Packet for downstream routing.
 //
 // Non-responsibilities:
 // - Does not classify conversation meaning.
@@ -29,8 +31,8 @@
 window.Ari = window.Ari || {};
 
 window.AriPerceptionPipeline = {
-  version: "2.0.0",
-  schemaVersion: "2.0.0",
+  version: "2.1.0",
+  schemaVersion: "2.1.0",
   source: "ari-perception-pipeline",
   authorityLevel: "deterministic_evidence_orchestration",
 
@@ -426,6 +428,138 @@ window.AriPerceptionPipeline = {
     };
 
     mark("after continuityResolution");
+
+    /* =====================================================
+       2.5. CANONICAL REFERENCE RESOLUTION
+    ===================================================== */
+
+    mark("before referenceResolution");
+
+    const referenceResolver =
+      window.AriEntityReferenceResolver ||
+      window.Ari
+        ?.entityReferenceResolver ||
+      null;
+
+    const referenceResolutionFallback = {
+      referenceResolverRan:
+        false,
+
+      referenceResolverReady:
+        false,
+
+      referenceResolverSource:
+        "not-loaded",
+
+      referenceResolverVersion:
+        null,
+
+      referencePacket:
+        null,
+
+      resolvedSemanticStructure:
+        null,
+
+      referenceDecisions:
+        [],
+
+      referencesDetected:
+        false,
+
+      referenceCount:
+        0,
+
+      resolvedReferenceCount:
+        0,
+
+      unresolvedReferenceCount:
+        0,
+
+      errors: [
+        "reference_resolver_not_loaded"
+      ],
+
+      warnings: []
+    };
+
+    const referenceResolutionResult =
+      await runEngine(
+        referenceResolver,
+        ["resolve"],
+        referenceResolutionFallback,
+        this.buildEffectiveTurnState(
+          state
+        )
+      );
+
+    const normalizedReferenceResolution =
+      referenceResolutionResult &&
+      typeof referenceResolutionResult ===
+        "object" &&
+      !Array.isArray(
+        referenceResolutionResult
+      )
+        ? {
+            ...referenceResolutionFallback,
+            ...referenceResolutionResult
+          }
+        : referenceResolutionFallback;
+
+    const referencePacket =
+      normalizedReferenceResolution
+        .referencePacket ||
+      normalizedReferenceResolution
+        .packet ||
+      null;
+
+    state = {
+      ...state,
+
+      referenceResolution:
+        normalizedReferenceResolution,
+
+      referenceResolverResult:
+        normalizedReferenceResolution,
+
+      referencePacket,
+
+      resolvedSemanticStructure:
+        normalizedReferenceResolution
+          .resolvedSemanticStructure ||
+        state.resolvedSemanticStructure ||
+        null,
+
+      referenceDecisions:
+        normalizedReferenceResolution
+          .referenceDecisions ||
+        normalizedReferenceResolution
+          .resolutions ||
+        [],
+
+            referenceResolverRan:
+        normalizedReferenceResolution
+          .referenceResolverRan ===
+          true ||
+        normalizedReferenceResolution
+          .resolverRan ===
+          true ||
+        normalizedReferenceResolution
+          .source ===
+          "ari-entity-reference-resolver" ||
+        normalizedReferenceResolution
+          .referenceResolverSource ===
+          "ari-entity-reference-resolver",
+
+      referenceResolverReady:
+        normalizedReferenceResolution
+          .referenceResolverReady ===
+          true ||
+        Boolean(
+          referencePacket
+        )
+    };
+
+    mark("after referenceResolution");
 
     /* =====================================================
        3. GENERAL OBSERVER NETWORK
@@ -1603,7 +1737,21 @@ window.AriPerceptionPipeline = {
   buildPerceptionDiagnostics(
     summary = {}
   ) {
-    const errors = [];
+   
+        const referenceResolverRan =
+      summary.referenceResolverRan ===
+        true ||
+      summary.referenceResolution
+        ?.referenceResolverRan ===
+        true;
+
+    const referencePacketAvailable =
+      Boolean(
+        summary.referencePacket
+      );
+      
+      
+     const errors = [];
     const warnings = [];
 
     const message =
@@ -1702,6 +1850,18 @@ window.AriPerceptionPipeline = {
       );
     }
 
+    if (!referenceResolverRan) {
+      errors.push(
+        "reference_resolver_did_not_run"
+      );
+    }
+
+    if (!referencePacketAvailable) {
+      errors.push(
+        "reference_packet_missing"
+      );
+    }
+
     return {
       perceptionDiagnosticsRan:
         true,
@@ -1728,6 +1888,12 @@ window.AriPerceptionPipeline = {
 
         continuity:
           continuityLoaded,
+
+        referenceResolution:
+          referenceResolverRan,
+
+        referencePacket:
+          referencePacketAvailable,
 
         observer:
           observerLoaded,
@@ -1759,6 +1925,7 @@ window.AriPerceptionPipeline = {
           null
       },
 
+        
       removedCognitiveStages: {
         questionUnderstanding:
           true,
@@ -1845,6 +2012,12 @@ window.AriPerceptionPipeline = {
       summary.evidencePacket ||
       null;
 
+    const referencePacket =
+      summary.referencePacket ||
+      summary.referenceResolution
+        ?.referencePacket ||
+      null;
+
     const observations =
       this.toArray(
         summary
@@ -1864,13 +2037,16 @@ window.AriPerceptionPipeline = {
       schemaVersion:
         this.schemaVersion,
 
-      ready:
+            ready:
         diagnostics
           ?.complete === true &&
         summary.evidenceBuilderReady ===
           true &&
         Boolean(
           evidencePacket
+        ) &&
+        Boolean(
+          referencePacket
         ),
 
       source:
@@ -1947,6 +2123,57 @@ window.AriPerceptionPipeline = {
         raw:
           summary
             .continuityResolution ||
+          null
+      },
+
+      referencePacket,
+
+      referenceResolution: {
+        available:
+          Boolean(
+            referencePacket
+          ),
+
+        ran:
+          summary.referenceResolverRan ===
+            true ||
+          summary.referenceResolution
+            ?.referenceResolverRan ===
+            true,
+
+        ready:
+          summary.referenceResolverReady ===
+            true ||
+          summary.referenceResolution
+            ?.referenceResolverReady ===
+            true ||
+          Boolean(
+            referencePacket
+          ),
+
+        referenceCount:
+          referencePacket
+            ?.referenceCount ??
+          summary.referenceResolution
+            ?.referenceCount ??
+          0,
+
+        resolvedCount:
+          referencePacket
+            ?.resolvedCount ??
+          summary.referenceResolution
+            ?.resolvedReferenceCount ??
+          0,
+
+        unresolvedCount:
+          referencePacket
+            ?.unresolvedCount ??
+          summary.referenceResolution
+            ?.unresolvedReferenceCount ??
+          0,
+
+        raw:
+          summary.referenceResolution ||
           null
       },
 
@@ -2089,19 +2316,30 @@ window.AriPerceptionPipeline = {
       },
 
       downstreamHandoff: {
-        readyForExecutiveRouting:
+                readyForExecutiveRouting:
           Boolean(
             evidencePacket
+          ) &&
+          Boolean(
+            referencePacket
           ) &&
           summary.evidenceBuilderReady ===
             true,
 
-        readyForCognitiveReasoning:
+                readyForCognitiveReasoning:
           Boolean(
             evidencePacket
           ) &&
+          Boolean(
+            referencePacket
+          ) &&
           summary.evidenceBuilderReady ===
             true,
+
+        referencePacketAvailable:
+          Boolean(
+            referencePacket
+          ),
 
         evidencePacketId:
           evidencePacket
@@ -2123,7 +2361,7 @@ window.AriPerceptionPipeline = {
 
       diagnostics,
 
-      quality: {
+            quality: {
         hasMessage:
           Boolean(
             String(
@@ -2138,6 +2376,11 @@ window.AriPerceptionPipeline = {
         hasEvidencePacket:
           Boolean(
             evidencePacket
+          ),
+
+        hasReferencePacket:
+          Boolean(
+            referencePacket
           ),
 
         evidencePacketValid:
@@ -2169,6 +2412,10 @@ window.AriPerceptionPipeline = {
 
           !evidencePacket
             ? "evidence_packet"
+            : null,
+
+          !referencePacket
+            ? "reference_packet"
             : null
         ].filter(Boolean)
       },
@@ -2241,8 +2488,8 @@ window.AriPerceptionPipeline = {
      VALIDATION
   ===================================================== */
 
-  validate() {
-    const authority =
+      validate() {
+    const validationPacket =
       this.buildPerceptionPacket({
         evidenceBuilderReady:
           true,
@@ -2254,7 +2501,42 @@ window.AriPerceptionPipeline = {
 
         evidencePacket: {
           packetId:
-            "validation_packet"
+            "validation_evidence_packet"
+        },
+
+        referenceResolverRan:
+          true,
+
+        referenceResolverReady:
+          true,
+
+        referencePacket: {
+          schema:
+            "ari_reference_packet",
+
+          schemaVersion:
+            "1.0.0",
+
+          ready:
+            true,
+
+          complete:
+            true,
+
+          referenceCount:
+            0,
+
+          resolvedCount:
+            0,
+
+          unresolvedCount:
+            0,
+
+          references: [],
+
+          resolutions: [],
+
+          unresolvedReferences: []
         },
 
         perceptionDiagnostics: {
@@ -2282,7 +2564,10 @@ window.AriPerceptionPipeline = {
               "validation"
           }
         ]
-      }).authority;
+      });
+
+    const authority =
+      validationPacket.authority;
 
     const forbiddenTrue = [
       "canInterpretMeaning",
@@ -2313,9 +2598,25 @@ window.AriPerceptionPipeline = {
             `${key}_must_be_false`
         );
 
+    if (
+      validationPacket.ready !==
+      true
+    ) {
+      errors.push(
+        "validation_perception_packet_not_ready"
+      );
+    }
+
     const evidenceBuilder =
       window.AriEvidenceBuilder ||
-      window.Ari?.evidenceBuilder ||
+      window.Ari
+        ?.evidenceBuilder ||
+      null;
+
+    const referenceResolver =
+      window.AriEntityReferenceResolver ||
+      window.Ari
+        ?.entityReferenceResolver ||
       null;
 
     const warnings = [];
@@ -2330,6 +2631,16 @@ window.AriPerceptionPipeline = {
     ) {
       warnings.push(
         "AriEvidenceBuilder_not_loaded"
+      );
+    }
+
+    if (
+      !referenceResolver ||
+      typeof referenceResolver.resolve !==
+        "function"
+    ) {
+      warnings.push(
+        "AriEntityReferenceResolver_not_loaded"
       );
     }
 
@@ -2355,6 +2666,16 @@ window.AriPerceptionPipeline = {
 
       checks: {
         evidenceBuilderRequired:
+          true,
+
+        referenceResolverRequired:
+          true,
+
+        referencePacketRequired:
+          true,
+
+        validationPacketReady:
+          validationPacket.ready ===
           true,
 
         semanticFrameBuilderRemoved:
