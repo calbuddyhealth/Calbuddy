@@ -536,11 +536,19 @@ if (authoritativeSemanticFrame) {
             ),
 
           error:
-            state.semanticValidationErrors
-              ?.length
-              ? state.semanticValidationErrors
-              : state.semanticValidationStageError ||
-                null,
+  this.hasUsableSemanticFrame(
+    state
+  )
+    ? null
+    : (
+        state.semanticValidationStageError ||
+        (
+          state.semanticValidationErrors
+            ?.length
+            ? state.semanticValidationErrors
+            : null
+        )
+      ),
 
           diagnostics: {
   stageRan:
@@ -2932,8 +2940,16 @@ if (!authoritativeDraft) {
       invariants: {
         openAIIsSoleSemanticAuthority:
           true,
-        semanticFrameValidatedBeforePlanning:
-          validationAccepted,
+        semanticFrameAuditedBeforePlanning:
+  summary.semanticValidationStageRan ===
+    true ||
+  summary.semanticValidationBypassed ===
+    true,
+
+usableSemanticFrameAvailableForPlanning:
+  this.hasUsableSemanticFrame(
+    summary
+  ),
 responsePlanningRequiresUsableSemanticFrame:
   true,
 
