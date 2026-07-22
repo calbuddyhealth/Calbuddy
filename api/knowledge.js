@@ -4,20 +4,25 @@
 // Purpose:
 // Provide the server-side OpenAI transport for Ari Rebirth cognitive reasoning.
 //
-// V6.0.0 — Standalone Cognitive Reasoning Route / Complete Runtime Utilities
+// V6.1.0 — Lean Cognitive Transport / Advisory Result Normalization
 //
 // Supported actions:
 // - openai_reasoning
 //
 // Responsibilities:
-// - Validate and normalize the incoming reasoning request.
-// - Build the authoritative cognitive-reasoning prompt.
+// - Validate the minimum incoming transport contract.
+// - Preserve the complete canonical reasoning packet.
+// - Build a clear cognitive-reasoning prompt.
 // - Invoke OpenAI through a server-side API key.
-// - Parse and validate the structured cognitive result.
-// - Preserve exact transport and model-output diagnostics.
+// - Parse structured model output.
+// - Reject only structurally unusable or unsafe output.
+// - Normalize incomplete secondary fields and preserve warnings.
 // - Return one canonical cognitiveReasoningResult.
 //
 // Non-responsibilities:
+// - Does not perform full cognitive-result validation.
+// - Does not replace AriReasoningEngine validation.
+// - Does not create or repair semantic meaning locally.
 // - Does not execute proposed actions.
 // - Does not persist memory or runtime state.
 // - Does not override deterministic safety.
@@ -50,23 +55,15 @@ export default async function handler(
   req,
   res
 ) {
-  setCommonHeaders(
-    res
-  );
+  setCommonHeaders(res);
 
-  if (
-    req.method ===
-    "OPTIONS"
-  ) {
+  if (req.method === "OPTIONS") {
     return res
       .status(204)
       .end();
   }
 
-  if (
-    req.method !==
-    "POST"
-  ) {
+  if (req.method !== "POST") {
     res.setHeader(
       "Allow",
       "POST, OPTIONS"
@@ -75,20 +72,12 @@ export default async function handler(
     return res
       .status(405)
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
-        error:
-          "Method not allowed.",
-
+        success: false,
+        ready: false,
+        error: "Method not allowed.",
         failureType:
           "method_not_allowed",
-
-        source:
-          "knowledge_api"
+        source: "knowledge_api"
       });
   }
 
@@ -97,21 +86,16 @@ export default async function handler(
 
   try {
     const body =
-      await resolveRequestBody(
-        req
-      );
+      await resolveRequestBody(req);
 
     const action =
       firstNonEmptyString([
         body.action,
-        body.request
-          ?.action
+        body.request?.action
       ]) ||
       "openai_reasoning";
 
-    switch (
-      action
-    ) {
+    switch (action) {
       case "openai_reasoning":
       case "ari_cognitive_reasoning":
       case "reason":
@@ -125,27 +109,17 @@ export default async function handler(
         return res
           .status(400)
           .json({
-            success:
-              false,
-
-            ready:
-              false,
-
+            success: false,
+            ready: false,
             error:
               `Unsupported knowledge action: ${action}.`,
-
             failureType:
               "unsupported_knowledge_action",
-
             action,
-
             supportedActions: [
               "openai_reasoning"
             ],
-
-            source:
-              "knowledge_api",
-
+            source: "knowledge_api",
             timing: {
               totalMs:
                 Date.now() -
@@ -156,14 +130,10 @@ export default async function handler(
   } catch (error) {
     console.error(
       "[Ari Knowledge API Unhandled Failure]",
-      serializeError(
-        error
-      )
+      serializeError(error)
     );
 
-    if (
-      res.headersSent
-    ) {
+    if (res.headersSent) {
       return;
     }
 
@@ -175,28 +145,17 @@ export default async function handler(
         )
       )
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           error?.message ||
           "The Ari knowledge API encountered an unexpected failure.",
-
         failureType:
           error?.code ||
           "knowledge_api_unhandled_failure",
-
         diagnostics:
-          serializeError(
-            error
-          ),
-
-        source:
-          "knowledge_api",
-
+          serializeError(error),
+        source: "knowledge_api",
         timing: {
           totalMs:
             Date.now() -
@@ -221,46 +180,40 @@ async function handleOpenAIReasoning(
   const timing = {};
 
   const body =
-    isPlainObject(
-      suppliedBody
-    )
+    isPlainObject(suppliedBody)
       ? suppliedBody
-      : isPlainObject(
-          req.body
-        )
+      : isPlainObject(req.body)
         ? req.body
         : {};
 
-  if (
-    !process.env
-      .OPENAI_API_KEY
-  ) {
+  if (!process.env.OPENAI_API_KEY) {
     return res
       .status(500)
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           "Missing OPENAI_API_KEY.",
-
         failureType:
           "missing_environment_configuration",
-
-        source:
-          "openai_reasoning"
+        source: "openai_reasoning"
       });
   }
 
+  const requestWarnings = [];
+
   const evidencePacket =
-    normalizeObjectOrNull(
+    normalizeObject(
       body.evidencePacket ||
       body.perceptionPacket
         ?.evidencePacket
     );
+
+  if (!Object.keys(evidencePacket).length) {
+    requestWarnings.push(
+      "evidence_packet_missing_or_empty"
+    );
+  }
 
   const executivePacket =
     normalizeObjectOrNull(
@@ -270,8 +223,7 @@ async function handleOpenAIReasoning(
   const routingContract =
     normalizeObjectOrNull(
       body.routingContract ||
-      executivePacket
-        ?.routingContract
+      executivePacket?.routingContract
     );
 
   const continuity =
@@ -308,10 +260,7 @@ async function handleOpenAIReasoning(
     firstNonEmptyString([
       body.currentTurn
         ?.originalText,
-
-      body.request
-        ?.original,
-
+      body.request?.original,
       body.originalUserMessage,
       body.rawQuestion,
       body.userMessage,
@@ -323,10 +272,7 @@ async function handleOpenAIReasoning(
     firstNonEmptyString([
       body.currentTurn
         ?.effectiveText,
-
-      body.request
-        ?.effective,
-
+      body.request?.effective,
       body.effectiveUserMessage,
       body.resolvedUserQuestion,
       body.resolvedQuestion,
@@ -334,49 +280,17 @@ async function handleOpenAIReasoning(
       originalQuestion
     ]);
 
-  if (
-    !effectiveQuestion
-  ) {
+  if (!effectiveQuestion) {
     return res
       .status(400)
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           "No effective question was provided for cognitive reasoning.",
-
         failureType:
           "invalid_request",
-
-        source:
-          "openai_reasoning"
-      });
-  }
-
-  if (
-    !evidencePacket
-  ) {
-    return res
-      .status(400)
-      .json({
-        success:
-          false,
-
-        ready:
-          false,
-
-        error:
-          "No evidencePacket was provided for cognitive reasoning.",
-
-        failureType:
-          "evidence_packet_missing",
-
-        source:
-          "openai_reasoning"
+        source: "openai_reasoning"
       });
   }
 
@@ -391,31 +305,19 @@ async function handleOpenAIReasoning(
       outputContract
     );
 
-  if (
-    !allowedOperations.length
-  ) {
+  if (!allowedOperations.length) {
     return res
       .status(400)
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           "No canonical semantic operation registry was supplied to OpenAI reasoning.",
-
         failureType:
           "semantic_operation_registry_missing",
-
         outputContractKeys:
-          Object.keys(
-            outputContract
-          ),
-
-        source:
-          "openai_reasoning"
+          Object.keys(outputContract),
+        source: "openai_reasoning"
       });
   }
 
@@ -437,17 +339,15 @@ async function handleOpenAIReasoning(
 
       currentTurnWasResolved:
         body.currentTurnWasResolved ===
-          true,
+        true,
 
       turnId:
-        body.currentTurn
-          ?.turnId ||
+        body.currentTurn?.turnId ||
         body.turnId ||
         null,
 
       language:
-        body.request
-          ?.language ||
+        body.request?.language ||
         body.language ||
         null
     },
@@ -460,8 +360,7 @@ async function handleOpenAIReasoning(
         effectiveQuestion,
 
       turnId:
-        body.currentTurn
-          ?.turnId ||
+        body.currentTurn?.turnId ||
         body.turnId ||
         null
     },
@@ -475,7 +374,6 @@ async function handleOpenAIReasoning(
       ),
 
     executivePacket,
-
     routingContract,
 
     conversation:
@@ -513,38 +411,17 @@ async function handleOpenAIReasoning(
         body.authority
       ),
 
-      safetyIsBinding:
-        true,
-
-      mayPlanResponse:
-        true,
-
-      mayDraftResponse:
-        true,
-
-      mustProduceDraftResponse:
-        true,
-
-      draftResponseIsAuthoritative:
-        true,
-
-      mayExecuteActions:
-        false,
-
-      mayPersistState:
-        false,
-
-      mayOverrideSafety:
-        false,
-
-      mayClaimToolSuccess:
-        false,
-
-      mayAuthorizeDelivery:
-        false,
-
-      mayExposePrivateChainOfThought:
-        false
+      safetyIsBinding: true,
+      mayPlanResponse: true,
+      mayDraftResponse: true,
+      mustProduceDraftResponse: true,
+      draftResponseIsAuthoritative: true,
+      mayExecuteActions: false,
+      mayPersistState: false,
+      mayOverrideSafety: false,
+      mayClaimToolSuccess: false,
+      mayAuthorizeDelivery: false,
+      mayExposePrivateChainOfThought: false
     },
 
     outputContract,
@@ -564,7 +441,10 @@ async function handleOpenAIReasoning(
     instructions:
       normalizeArray(
         body.instructions
-      )
+      ),
+
+    transportWarnings:
+      requestWarnings
   };
 
   const systemPrompt =
@@ -586,12 +466,9 @@ async function handleOpenAIReasoning(
       await fetchWithTimeout(
         OPENAI_CHAT_COMPLETIONS_URL,
         {
-          method:
-            "POST",
-
+          method: "POST",
           headers:
             getOpenAIHeaders(),
-
           body:
             JSON.stringify({
               model:
@@ -599,31 +476,22 @@ async function handleOpenAIReasoning(
 
               messages: [
                 {
-                  role:
-                    "system",
-
+                  role: "system",
                   content:
                     systemPrompt
                 },
-
                 {
-                  role:
-                    "user",
-
+                  role: "user",
                   content:
                     userPrompt
                 }
               ],
 
-              temperature:
-                0.2,
-
-              max_tokens:
-                3200,
+              temperature: 0.2,
+              max_tokens: 3200,
 
               response_format: {
-                type:
-                  "json_object"
+                type: "json_object"
               }
             })
         },
@@ -650,16 +518,11 @@ async function handleOpenAIReasoning(
       {
         endpoint:
           OPENAI_CHAT_COMPLETIONS_URL,
-
         model:
           DEFAULT_OPENAI_MODEL,
-
         timing,
-
         error:
-          serializeError(
-            error
-          )
+          serializeError(error)
       }
     );
 
@@ -670,12 +533,8 @@ async function handleOpenAIReasoning(
           : 502
       )
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           isTimeout
             ? "OpenAI reasoning request timed out."
@@ -683,26 +542,17 @@ async function handleOpenAIReasoning(
                 error?.message ||
                 "OpenAI reasoning transport failed."
               ),
-
         failureType:
           isTimeout
             ? "openai_reasoning_timeout"
             : "openai_reasoning_transport_failed",
-
         model:
           DEFAULT_OPENAI_MODEL,
-
         diagnostics:
-          serializeError(
-            error
-          ),
-
-        source:
-          "openai_reasoning",
-
+          serializeError(error),
+        source: "openai_reasoning",
         timing: {
           ...timing,
-
           totalMs:
             Date.now() -
             totalStart
@@ -714,27 +564,18 @@ async function handleOpenAIReasoning(
     Date.now() -
     openAIStart;
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
     const providerError =
-      extractProviderError(
-        data
-      );
+      extractProviderError(data);
 
     console.error(
       "[Ari OpenAI Reasoning Provider Failure]",
       {
-        status:
-          response.status,
-
+        status: response.status,
         model:
           DEFAULT_OPENAI_MODEL,
-
         providerError,
-
-        response:
-          data
+        response: data
       }
     );
 
@@ -746,34 +587,21 @@ async function handleOpenAIReasoning(
         )
       )
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           providerError.message ||
           "OpenAI reasoning request failed.",
-
         failureType:
           "openai_reasoning_request_failed",
-
         providerError,
-
-        status:
-          response.status,
-
+        status: response.status,
         model:
           data?.model ||
           DEFAULT_OPENAI_MODEL,
-
-        source:
-          "openai_reasoning",
-
+        source: "openai_reasoning",
         timing: {
           ...timing,
-
           totalMs:
             Date.now() -
             totalStart
@@ -782,9 +610,7 @@ async function handleOpenAIReasoning(
   }
 
   const rawModelOutput =
-    extractRawModelOutput(
-      data
-    );
+    extractRawModelOutput(data);
 
   const parsedResult =
     parseModelResult(
@@ -796,50 +622,35 @@ async function handleOpenAIReasoning(
 
   if (
     !parsedResult.wasJson ||
-    !isPlainObject(
-      parsed
-    )
+    !isPlainObject(parsed)
   ) {
     return res
       .status(502)
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           "OpenAI reasoning returned a malformed cognitive result.",
-
         failureType:
           "invalid_reasoning_model_output",
-
         rawModelOutputPreview:
           previewText(
             rawModelOutput,
             MAX_MODEL_OUTPUT_PREVIEW
           ),
-
         parsedModelOutput:
           parsed ||
           null,
-
         model:
           data?.model ||
           DEFAULT_OPENAI_MODEL,
-
         finishReason:
           data?.choices?.[0]
             ?.finish_reason ||
           null,
-
-        source:
-          "openai_reasoning",
-
+        source: "openai_reasoning",
         timing: {
           ...timing,
-
           totalMs:
             Date.now() -
             totalStart
@@ -847,10 +658,154 @@ async function handleOpenAIReasoning(
       });
   }
 
+  const validationWarnings = [
+    ...requestWarnings
+  ];
+
   if (
     typeof parsed.ready !==
-      "boolean"
+    "boolean"
   ) {
+    validationWarnings.push(
+      "ready_missing_or_invalid_defaulted"
+    );
+  }
+
+  const rawInterpretation =
+    normalizeObject(
+      parsed.interpretation
+    );
+
+  if (!Object.keys(rawInterpretation).length) {
+    validationWarnings.push(
+      "interpretation_missing_or_empty"
+    );
+  }
+
+  const interpretation = {
+    ...rawInterpretation,
+
+    userGoal:
+      firstNonEmptyString([
+        rawInterpretation.userGoal,
+        rawInterpretation.goal,
+        effectiveQuestion
+      ]),
+
+    meaning:
+      firstNonEmptyString([
+        rawInterpretation.meaning,
+        rawInterpretation
+          .primaryMeaning,
+        effectiveQuestion
+      ]),
+
+    subjects:
+      normalizeArray(
+        rawInterpretation.subjects
+      ),
+
+    contextUsed:
+      rawInterpretation
+        .contextUsed ===
+      true,
+
+    clarificationRequired:
+      rawInterpretation
+        .clarificationRequired ===
+      true,
+
+    clarificationQuestion:
+      firstNonEmptyString([
+        rawInterpretation
+          .clarificationQuestion
+      ]) ||
+      null,
+
+    ambiguity:
+      normalizeArray(
+        rawInterpretation.ambiguity
+      )
+  };
+
+  const rawReasoningDecision =
+    normalizeObject(
+      parsed.reasoningDecision ||
+      parsed.reasoning_decision ||
+      parsed.decision
+    );
+
+  if (!Object.keys(rawReasoningDecision).length) {
+    validationWarnings.push(
+      "reasoning_decision_missing_or_empty"
+    );
+  }
+
+  const proposedActions =
+    normalizeArray(
+      rawReasoningDecision
+        .proposedActions ||
+      parsed.proposedActions
+    );
+
+  const reasoningDecision = {
+    ...rawReasoningDecision,
+
+    answerDirectly:
+      typeof rawReasoningDecision
+        .answerDirectly ===
+        "boolean"
+        ? rawReasoningDecision
+            .answerDirectly
+        : true,
+
+    reasoningMode:
+      firstNonEmptyString([
+        rawReasoningDecision
+          .reasoningMode
+      ]) ||
+      "analysis",
+
+    toolsNeeded:
+      normalizeArray(
+        rawReasoningDecision
+          .toolsNeeded
+      ),
+
+    proposedActions,
+
+    shouldAskClarifyingQuestion:
+      rawReasoningDecision
+        .shouldAskClarifyingQuestion ===
+      true
+  };
+
+  const semanticFrame =
+    normalizeObjectOrNull(
+      parsed.semanticFrame ||
+      parsed.semantic_frame
+    );
+
+  if (!isNonEmptyObject(semanticFrame)) {
+    return buildReasoningFieldFailure({
+      res,
+      data,
+      parsed,
+      rawModelOutput,
+      timing,
+      totalStart,
+      field: "semanticFrame",
+      failureType:
+        "semantic_frame_missing"
+    });
+  }
+
+  const canonicalOperation =
+    firstNonEmptyString([
+      semanticFrame.operation
+    ]);
+
+  if (!canonicalOperation) {
     return buildReasoningFieldFailure({
       res,
       data,
@@ -859,37 +814,153 @@ async function handleOpenAIReasoning(
       timing,
       totalStart,
       field:
-        "ready",
+        "semanticFrame.operation",
       failureType:
-        "reasoning_ready_invalid"
+        "semantic_operation_missing"
     });
   }
 
-  const interpretation =
-    normalizeObjectOrNull(
-      parsed.interpretation
-    );
+  if (
+    !allowedOperations.includes(
+      canonicalOperation
+    )
+  ) {
+    return res
+      .status(502)
+      .json({
+        success: false,
+        ready: false,
+        error:
+          `OpenAI reasoning returned an unregistered semantic operation: ${canonicalOperation}.`,
+        failureType:
+          "semantic_operation_not_registered",
+        semanticOperation:
+          canonicalOperation,
+        allowedOperations,
+        parsedModelOutput: parsed,
+        model:
+          data?.model ||
+          DEFAULT_OPENAI_MODEL,
+        source: "openai_reasoning",
+        timing: {
+          ...timing,
+          totalMs:
+            Date.now() -
+            totalStart
+        }
+      });
+  }
 
-  const reasoningDecision =
-    normalizeObjectOrNull(
-      parsed.reasoningDecision ||
-      parsed.reasoning_decision ||
-      parsed.decision
-    );
-
-  const semanticFrame =
-    normalizeObjectOrNull(
-      parsed.semanticFrame ||
-      parsed.semantic_frame
-    );
-
-  const responseRequirements =
-    normalizeObjectOrNull(
+  const rawResponseRequirements =
+    normalizeObject(
       parsed.responseRequirements ||
       parsed.response_requirements ||
       parsed.responseStrategy ||
       parsed.response_strategy
     );
+
+  if (!Object.keys(rawResponseRequirements).length) {
+    validationWarnings.push(
+      "response_requirements_missing_or_empty"
+    );
+  }
+
+  const responseRequirements = {
+    ...rawResponseRequirements,
+
+    goal:
+      firstNonEmptyString([
+        rawResponseRequirements.goal,
+        rawResponseRequirements
+          .responseGoal,
+        `Answer the user's current request: ${effectiveQuestion}`
+      ]),
+
+    shape:
+      firstNonEmptyString([
+        rawResponseRequirements.shape
+      ]) ||
+      "single_lane",
+
+    tone:
+      firstNonEmptyString([
+        rawResponseRequirements.tone
+      ]) ||
+      null,
+
+    requiredMoves:
+      normalizeArray(
+        rawResponseRequirements
+          .requiredMoves ||
+        rawResponseRequirements
+          .orderedPoints
+      ),
+
+    prohibitedMoves:
+      normalizeArray(
+        rawResponseRequirements
+          .prohibitedMoves
+      ),
+
+    requiredBehaviors:
+      normalizeArray(
+        rawResponseRequirements
+          .requiredBehaviors
+      ),
+
+    forbiddenBehaviors:
+      normalizeArray(
+        rawResponseRequirements
+          .forbiddenBehaviors
+      ),
+
+    constraints:
+      normalizeArray(
+        rawResponseRequirements
+          .constraints
+      ),
+
+    requiredFacts:
+      normalizeArray(
+        rawResponseRequirements
+          .requiredFacts
+      ),
+
+    safetyRequirements:
+      normalizeArray(
+        rawResponseRequirements
+          .safetyRequirements
+      ),
+
+    continuityRequirements:
+      normalizeArray(
+        rawResponseRequirements
+          .continuityRequirements
+      ),
+
+    toneRequirements:
+      normalizeArray(
+        rawResponseRequirements
+          .toneRequirements
+      ),
+
+    clarificationRequired:
+      rawResponseRequirements
+        .clarificationRequired ===
+      true,
+
+    clarificationQuestion:
+      firstNonEmptyString([
+        rawResponseRequirements
+          .clarificationQuestion
+      ]) ||
+      null,
+
+    actionRequired:
+      rawResponseRequirements
+        .actionRequired ===
+      true
+  };
 
   const authoritativeDraft =
     firstNonEmptyString([
@@ -905,282 +976,7 @@ async function handleOpenAIReasoning(
       parsed.reply
     ]);
 
-  const caseModel =
-    normalizeObject(
-      parsed.caseModel ||
-      parsed.case_model
-    );
-
-  const options =
-    normalizeArray(
-      parsed.options
-    );
-
-  const tradeoffs =
-    normalizeArray(
-      parsed.tradeoffs
-    );
-
-  const uncertainties =
-    normalizeArray(
-      parsed.uncertainties ||
-      parsed.unknowns
-    );
-
-  const executionMetadata =
-    normalizeObject(
-      parsed.executionMetadata ||
-      parsed.execution_metadata
-    );
-
-  const grounding =
-    normalizeObjectOrNull(
-      parsed.grounding
-    );
-
-  const evidenceReferences =
-    normalizeArray(
-      parsed.evidenceReferences ||
-      parsed.evidence_references ||
-      grounding?.evidenceUsed
-    );
-
-  const confidence =
-    normalizeReasoningConfidence(
-      parsed.confidence ??
-      executionMetadata.confidence
-    );
-
-  const proposedActions =
-    normalizeArray(
-      reasoningDecision
-        ?.proposedActions ||
-      parsed.proposedActions
-    );
-
-  const requiredFieldChecks = [
-    {
-      valid:
-        isNonEmptyObject(
-          interpretation
-        ),
-      field:
-        "interpretation",
-      failureType:
-        "interpretation_missing"
-    },
-    {
-      valid:
-        isNonEmptyObject(
-          reasoningDecision
-        ),
-      field:
-        "reasoningDecision",
-      failureType:
-        "reasoning_decision_missing"
-    },
-    {
-      valid:
-        isNonEmptyObject(
-          semanticFrame
-        ),
-      field:
-        "semanticFrame",
-      failureType:
-        "semantic_frame_missing"
-    },
-    {
-      valid:
-        isNonEmptyObject(
-          responseRequirements
-        ),
-      field:
-        "responseRequirements",
-      failureType:
-        "response_requirements_missing"
-    },
-    {
-      valid:
-        Boolean(
-          authoritativeDraft
-        ),
-      field:
-        "draftResponse",
-      failureType:
-        "authoritative_draft_missing"
-    },
-    {
-      valid:
-        isPlainObject(
-          grounding
-        ),
-      field:
-        "grounding",
-      failureType:
-        "grounding_missing"
-    },
-    {
-      valid:
-        Array.isArray(
-          grounding
-            ?.evidenceUsed
-        ),
-      field:
-        "grounding.evidenceUsed",
-      failureType:
-        "grounding_evidence_used_invalid"
-    },
-    {
-      valid:
-        grounding
-          ?.assumptions ==
-          null ||
-        Array.isArray(
-          grounding
-            ?.assumptions
-        ),
-      field:
-        "grounding.assumptions",
-      failureType:
-        "grounding_assumptions_invalid"
-    },
-    {
-      valid:
-        grounding
-          ?.unresolvedConflicts ==
-          null ||
-        Array.isArray(
-          grounding
-            ?.unresolvedConflicts
-        ),
-      field:
-        "grounding.unresolvedConflicts",
-      failureType:
-        "grounding_conflicts_invalid"
-    },
-    {
-      valid:
-        Boolean(
-          firstNonEmptyString([
-            interpretation
-              ?.userGoal
-          ])
-        ),
-      field:
-        "interpretation.userGoal",
-      failureType:
-        "interpretation_user_goal_missing"
-    },
-    {
-      valid:
-        Boolean(
-          firstNonEmptyString([
-            interpretation
-              ?.meaning
-          ])
-        ),
-      field:
-        "interpretation.meaning",
-      failureType:
-        "interpretation_meaning_missing"
-    },
-    {
-      valid:
-        typeof reasoningDecision
-          ?.answerDirectly ===
-        "boolean",
-      field:
-        "reasoningDecision.answerDirectly",
-      failureType:
-        "reasoning_answer_directly_invalid"
-    },
-    {
-      valid:
-        Array.isArray(
-          reasoningDecision
-            ?.proposedActions
-        ),
-      field:
-        "reasoningDecision.proposedActions",
-      failureType:
-        "reasoning_proposed_actions_invalid"
-    },
-    {
-      valid:
-        Boolean(
-          firstNonEmptyString([
-            semanticFrame
-              ?.operation
-          ])
-        ),
-      field:
-        "semanticFrame.operation",
-      failureType:
-        "semantic_operation_missing"
-    },
-    {
-      valid:
-        Boolean(
-          firstNonEmptyString([
-            semanticFrame
-              ?.requestedOutput
-          ])
-        ),
-      field:
-        "semanticFrame.requestedOutput",
-      failureType:
-        "semantic_requested_output_missing"
-    },
-    {
-      valid:
-        Boolean(
-          firstNonEmptyString([
-            responseRequirements
-              ?.goal,
-
-            responseRequirements
-              ?.responseGoal
-          ])
-        ),
-      field:
-        "responseRequirements.goal",
-      failureType:
-        "response_goal_missing"
-    },
-    {
-      valid:
-        Array.isArray(
-          responseRequirements
-            ?.requiredMoves
-        ),
-      field:
-        "responseRequirements.requiredMoves",
-      failureType:
-        "response_required_moves_invalid"
-    },
-    {
-      valid:
-        Array.isArray(
-          responseRequirements
-            ?.prohibitedMoves
-        ),
-      field:
-        "responseRequirements.prohibitedMoves",
-      failureType:
-        "response_prohibited_moves_invalid"
-    }
-  ];
-
-  const failedField =
-    requiredFieldChecks.find(
-      check =>
-        check.valid !==
-        true
-    );
-
-  if (
-    failedField
-  ) {
+  if (!authoritativeDraft) {
     return buildReasoningFieldFailure({
       res,
       data,
@@ -1188,75 +984,19 @@ async function handleOpenAIReasoning(
       rawModelOutput,
       timing,
       totalStart,
-      field:
-        failedField.field,
+      field: "draftResponse",
       failureType:
-        failedField
-          .failureType
+        "authoritative_draft_missing"
     });
-  }
-
-  const canonicalOperation =
-    firstNonEmptyString([
-      semanticFrame.operation
-    ]);
-
-  if (
-    !allowedOperations.includes(
-      canonicalOperation
-    )
-  ) {
-    return res
-      .status(502)
-      .json({
-        success:
-          false,
-
-        ready:
-          false,
-
-        error:
-          `OpenAI reasoning returned an unregistered semantic operation: ${canonicalOperation}.`,
-
-        failureType:
-          "semantic_operation_not_registered",
-
-        semanticOperation:
-          canonicalOperation,
-
-        allowedOperations,
-
-        parsedModelOutput:
-          parsed,
-
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-
-        source:
-          "openai_reasoning",
-
-        timing: {
-          ...timing,
-
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
   }
 
   const claimedActionExecution =
     proposedActions.some(
       action =>
-        isPlainObject(
-          action
-        ) &&
+        isPlainObject(action) &&
         (
-          action.executed ===
-            true ||
-          action.completed ===
-            true ||
+          action.executed === true ||
+          action.completed === true ||
           [
             "executed",
             "completed",
@@ -1273,37 +1013,23 @@ async function handleOpenAIReasoning(
         )
     );
 
-  if (
-    claimedActionExecution
-  ) {
+  if (claimedActionExecution) {
     return res
       .status(502)
       .json({
-        success:
-          false,
-
-        ready:
-          false,
-
+        success: false,
+        ready: false,
         error:
           "OpenAI reasoning falsely claimed that a proposed action was executed.",
-
         failureType:
           "model_claimed_action_execution",
-
-        parsedModelOutput:
-          parsed,
-
+        parsedModelOutput: parsed,
         model:
           data?.model ||
           DEFAULT_OPENAI_MODEL,
-
-        source:
-          "openai_reasoning",
-
+        source: "openai_reasoning",
         timing: {
           ...timing,
-
           totalMs:
             Date.now() -
             totalStart
@@ -1311,12 +1037,98 @@ async function handleOpenAIReasoning(
       });
   }
 
-  const ready =
-    parsed.ready ===
-      true &&
-    Boolean(
-      authoritativeDraft
+  const rawGrounding =
+    normalizeObject(
+      parsed.grounding
     );
+
+  if (!Object.keys(rawGrounding).length) {
+    validationWarnings.push(
+      "grounding_missing_or_empty"
+    );
+  }
+
+  const grounding = {
+    evidenceUsed:
+      normalizeArray(
+        rawGrounding.evidenceUsed
+      ),
+
+    assumptions:
+      normalizeArray(
+        rawGrounding.assumptions
+      ),
+
+    unresolvedConflicts:
+      normalizeArray(
+        rawGrounding
+          .unresolvedConflicts
+      )
+  };
+
+  const evidenceReferences =
+    normalizeArray(
+      parsed.evidenceReferences ||
+      parsed.evidence_references ||
+      grounding.evidenceUsed
+    );
+
+  const executionMetadata =
+    normalizeObject(
+      parsed.executionMetadata ||
+      parsed.execution_metadata
+    );
+
+  const confidence =
+    normalizeReasoningConfidence(
+      parsed.confidence ??
+      executionMetadata.confidence
+    );
+
+  const caseModel =
+    normalizeObject(
+      parsed.caseModel ||
+      parsed.case_model
+    );
+
+  const options =
+    normalizeArray(parsed.options);
+
+  const tradeoffs =
+    normalizeArray(parsed.tradeoffs);
+
+  const uncertainties =
+    normalizeArray(
+      parsed.uncertainties ||
+      parsed.unknowns
+    );
+
+  const normalizedProposedActions =
+    proposedActions.map(
+      action =>
+        isPlainObject(action)
+          ? {
+              ...action,
+              executed: false,
+              completed: false,
+              status: "proposed"
+            }
+          : {
+              description:
+                String(action),
+              executed: false,
+              completed: false,
+              status: "proposed"
+            }
+    );
+
+  const modelReady =
+    parsed.ready !== false;
+
+  const ready =
+    modelReady &&
+    Boolean(authoritativeDraft) &&
+    Boolean(canonicalOperation);
 
   timing.totalMs =
     Date.now() -
@@ -1330,15 +1142,9 @@ async function handleOpenAIReasoning(
       "2.0.0",
 
     ready,
-
-    authoritative:
-      ready,
-
-    success:
-      true,
-
-    source:
-      "openai_reasoning",
+    authoritative: ready,
+    success: true,
+    source: "openai_reasoning",
 
     model:
       data?.model ||
@@ -1348,74 +1154,33 @@ async function handleOpenAIReasoning(
 
     reasoningDecision: {
       ...reasoningDecision,
-
       proposedActions:
-        proposedActions.map(
-          action =>
-            isPlainObject(
-              action
-            )
-              ? {
-                  ...action,
-
-                  executed:
-                    false,
-
-                  completed:
-                    false,
-
-                  status:
-                    "proposed"
-                }
-              : {
-                  description:
-                    String(
-                      action
-                    ),
-
-                  executed:
-                    false,
-
-                  completed:
-                    false,
-
-                  status:
-                    "proposed"
-                }
-        )
+        normalizedProposedActions
     },
 
     semanticFrame: {
       ...semanticFrame,
-
       operation:
         canonicalOperation
     },
 
     responseRequirements,
-
     responseStrategy:
       responseRequirements,
 
     authoritativeDraft,
-
     draftResponse:
       authoritativeDraft,
-
     responseText:
       authoritativeDraft,
 
     caseModel,
-
     options,
-
     tradeoffs,
-
     uncertainties,
 
     executionMetadata: {
       ...executionMetadata,
-
       confidence,
 
       usedCurrentTurn:
@@ -1430,8 +1195,10 @@ async function handleOpenAIReasoning(
 
       usedEvidence:
         executionMetadata
-          .usedEvidence !==
-        false,
+          .usedEvidence ===
+        true ||
+        evidenceReferences.length >
+          0,
 
       evidenceCount:
         Number.isFinite(
@@ -1448,39 +1215,21 @@ async function handleOpenAIReasoning(
     },
 
     evidenceReferences,
-
-    grounding: {
-      evidenceUsed:
-        normalizeArray(
-          grounding
-            .evidenceUsed
-        ),
-
-      assumptions:
-        normalizeArray(
-          grounding
-            .assumptions
-        ),
-
-      unresolvedConflicts:
-        normalizeArray(
-          grounding
-            .unresolvedConflicts
-        )
-    },
-
+    grounding,
     confidence,
 
     validation: {
-      passed:
-        ready,
-
+      passed: ready,
       errors:
         ready
           ? []
           : [
               "reasoning_result_not_ready"
-            ]
+            ],
+      warnings:
+        uniqueStrings(
+          validationWarnings
+        )
     },
 
     authority:
@@ -1489,22 +1238,17 @@ async function handleOpenAIReasoning(
         : "none",
 
     modelInvocation: {
-      succeeded:
-        true,
-
+      succeeded: true,
       model:
         data?.model ||
         DEFAULT_OPENAI_MODEL,
-
       finishReason:
         data?.choices?.[0]
           ?.finish_reason ||
         null,
-
       usage:
         data?.usage ||
         null,
-
       durationMs:
         timing.openAIMs
     },
@@ -1518,33 +1262,28 @@ async function handleOpenAIReasoning(
       ready:
         cognitiveReasoningResult
           .ready,
-
       semanticOperation:
         canonicalOperation,
-
       responseGoal:
-        responseRequirements
-          .goal ||
-        responseRequirements
-          .responseGoal ||
+        responseRequirements.goal ||
         null,
-
       authoritativeDraftAvailable:
         Boolean(
           authoritativeDraft
         ),
-
       authoritativeDraftLength:
-        authoritativeDraft
-          .length,
-
+        authoritativeDraft.length,
       authoritativeDraftPreview:
-        authoritativeDraft
-          .slice(
-            0,
-            300
-          ),
-
+        authoritativeDraft.slice(
+          0,
+          300
+        ),
+      warningCount:
+        validationWarnings.length,
+      warnings:
+        uniqueStrings(
+          validationWarnings
+        ),
       timing
     }
   );
@@ -1552,21 +1291,17 @@ async function handleOpenAIReasoning(
   return res
     .status(200)
     .json({
-      success:
-        true,
-
+      success: true,
       ready:
         cognitiveReasoningResult
           .ready ===
         true,
-
       authoritative:
         cognitiveReasoningResult
           .authoritative ===
         true,
 
       cognitiveReasoningResult,
-
       reasoningResult:
         cognitiveReasoningResult,
 
@@ -1646,6 +1381,10 @@ async function handleOpenAIReasoning(
         cognitiveReasoningResult
           .confidence,
 
+      validation:
+        cognitiveReasoningResult
+          .validation,
+
       modelInvocation:
         cognitiveReasoningResult
           .modelInvocation,
@@ -1658,9 +1397,7 @@ async function handleOpenAIReasoning(
         cognitiveReasoningResult
           .authority,
 
-      source:
-        "openai_reasoning",
-
+      source: "openai_reasoning",
       timing
     });
 }
@@ -1673,32 +1410,25 @@ function buildOpenAIReasoningSystemPrompt() {
   return `
 You are the authoritative cognitive reasoning and response-generation model for Ari Rebirth.
 
-Interpret the current user request using only the supplied request, evidence, routing constraints, deterministic context, knowledge evidence, developer evidence, capabilities, response controls, authority contract, operation contract, and output contract.
+Use the complete supplied reasoning packet. Preserve the effective current-turn request and consider the supplied conversation, evidence, deterministic context, knowledge, developer evidence, capabilities, authority rules, operation contract, and response controls together.
 
-Produce one structured cognitive reasoning result and one complete authoritative user-facing draft in the same JSON object.
+Produce one structured cognitive result and one complete user-facing draft in the same JSON object.
 
 Authority rules:
 - Interpret the user's meaning, goal, conversational function, and required response behavior.
-- Resolve ambiguity only when supported by supplied evidence and continuity.
-- Define the response strategy and response requirements.
-- Produce the complete user-facing answer in draftResponse.
-- Treat draftResponse as authoritative response language for downstream preservation.
-- Distinguish direct evidence from inference.
-- Do not fabricate user facts, memories, external facts, citations, actions, or tool results.
-- Do not treat deterministic routing labels as semantic truth.
-- Respect all supplied safety, routing, tone, and response constraints.
-- Preserve the effective current-turn request.
-- Do not claim that an action, message, tool call, file change, deployment, or persistence operation occurred.
-- Return any action only as a proposal.
-- semanticFrame must represent the meaning of the current request.
-- responseRequirements must describe what the authoritative draft must accomplish.
-- grounding must identify evidence, assumptions, and unresolved conflicts.
-- evidenceReferences must identify supplied evidence supporting material conclusions.
-- confidence must be numeric from 0 through 1.
+- Resolve ambiguity only when supported by supplied context.
+- Treat safety and explicit response constraints as binding.
+- Treat routing labels and upstream semantic signals as evidence, not unquestionable semantic truth.
+- Use supplied knowledge and evidence when relevant, but distinguish evidence from inference.
+- Produce the complete natural answer in draftResponse.
+- Do not fabricate user facts, memories, citations, tool results, or completed actions.
+- Return actions only as proposals.
+- Never claim execution, persistence, delivery, or tool success.
 - Do not expose private chain-of-thought or hidden reasoning.
-- Return concise rationale and conclusions only.
+- Return concise conclusions, assumptions, uncertainties, and rationale only.
+- semanticFrame.operation must use the supplied canonical operation vocabulary.
 - Output exactly one valid JSON object.
-- Do not wrap the result in markdown.
+- Do not use markdown fences.
 - Do not add commentary outside the JSON object.
 
 Return JSON only.
@@ -1710,8 +1440,12 @@ function buildOpenAIReasoningUserPrompt(
 ) {
   const allowedOperations =
     resolveAllowedOperations(
-      reasoningInput
-        .outputContract
+      reasoningInput.outputContract
+    );
+
+  const suppliedInstructions =
+    normalizeArray(
+      reasoningInput.instructions
     );
 
   return `
@@ -1720,21 +1454,27 @@ ${safeJsonStringify(
   reasoningInput
 )}
 
+BINDING REASONING INSTRUCTIONS:
+${safeJsonStringify(
+  suppliedInstructions
+)}
+
 ALLOWED CANONICAL OPERATIONS:
 ${safeJsonStringify(
   allowedOperations
 )}
 
-Analyze the current request using the complete supplied evidence and contracts.
+Analyze the user's current request using the complete supplied packet.
+Follow the binding reasoning instructions above.
 
-Return exactly one JSON object using this shape:
+Return exactly one JSON object using this core shape:
 
 {
   "ready": true,
   "interpretation": {
-    "conversationFunction": "The functional role of the user's turn.",
+    "conversationFunction": null,
     "userGoal": "What the user wants accomplished.",
-    "operation": "The canonical semantic operation requested.",
+    "operation": "One allowed canonical operation.",
     "meaning": "The resolved meaning of the current turn.",
     "subjects": [],
     "contextUsed": false,
@@ -1747,31 +1487,21 @@ Return exactly one JSON object using this shape:
     "reasoningMode": "analysis",
     "toolsNeeded": [],
     "proposedActions": [],
-    "decisionRationale": "A concise rationale for the response strategy.",
+    "decisionRationale": null,
     "shouldAskClarifyingQuestion": false
   },
   "semanticFrame": {
-    "operation": "One exact operation from ALLOWED CANONICAL OPERATIONS.",
-    "requestType": "The canonical request type.",
-    "frameType": "The canonical frame type.",
-    "interactionFamily": "The interaction family.",
-    "intentFamily": "The intent family.",
+    "operation": "One exact value from ALLOWED CANONICAL OPERATIONS.",
+    "requestType": null,
+    "frameType": null,
+    "interactionFamily": null,
+    "intentFamily": null,
     "requestedOutput": "The output the user expects.",
-    "domain": "The relevant domain.",
-    "participants": [],
+    "domain": null,
     "subject": null,
     "object": null,
     "target": null,
-    "artifactTarget": null,
-    "referent": null,
-    "options": [],
-    "criteria": [],
-    "timeframe": null,
-    "audience": null,
-    "location": null,
-    "contextModifiers": [],
     "constraints": [],
-    "stakes": "low",
     "continuity": {
       "requiresPriorContext": false,
       "referencePresent": false,
@@ -1793,21 +1523,17 @@ Return exactly one JSON object using this shape:
       "analysisOnly": true,
       "prohibitedOperations": [],
       "deferredOperations": []
-    },
-    "secondaryRequests": [],
-    "confidence": 0.9,
-    "evidenceRefs": []
+    }
   },
   "responseRequirements": {
-    "goal": "What the authoritative response must accomplish.",
+    "goal": "What the response must accomplish.",
     "shape": "single_lane",
-    "tone": "The appropriate response tone.",
+    "tone": null,
     "requiredMoves": [],
     "prohibitedMoves": [],
     "requiredBehaviors": [],
     "forbiddenBehaviors": [],
     "constraints": [],
-    "requiredFacts": [],
     "safetyRequirements": [],
     "continuityRequirements": [],
     "toneRequirements": [],
@@ -1816,21 +1542,6 @@ Return exactly one JSON object using this shape:
     "actionRequired": false
   },
   "draftResponse": "The complete natural response Ari should give the user.",
-  "caseModel": {},
-  "options": [],
-  "tradeoffs": [],
-  "uncertainties": [],
-  "evidenceReferences": [],
-  "executionMetadata": {
-    "confidence": 0.9,
-    "reasoningMode": "analysis",
-    "usedCurrentTurn": true,
-    "usedPriorContext": false,
-    "usedEvidence": true,
-    "evidenceCount": 0,
-    "requiresExternalKnowledge": false,
-    "requiresToolExecution": false
-  },
   "grounding": {
     "evidenceUsed": [],
     "assumptions": [],
@@ -1839,38 +1550,18 @@ Return exactly one JSON object using this shape:
   "confidence": 0.9
 }
 
-Canonical operation requirements:
-- semanticFrame.operation must exactly match one value in ALLOWED CANONICAL OPERATIONS.
-- Do not invent, paraphrase, combine, or expand operation names.
-- Put the domain in semanticFrame.domain, not semanticFrame.operation.
-- Put subjects, targets, conditions, and artifact names in semantic slots, not the operation.
-- For a conceptual definition such as "What is heart failure?", use "explain_or_teach" when available.
-
-Contract requirements:
-- ready must be a boolean.
-- interpretation must be a non-empty object.
-- interpretation.userGoal must be a non-empty string.
-- interpretation.meaning must be a non-empty string.
-- reasoningDecision must be a non-empty object.
-- reasoningDecision.answerDirectly must be a boolean.
-- reasoningDecision.proposedActions must be an array.
-- semanticFrame must be a non-empty object.
-- semanticFrame.operation must be a non-empty registered operation.
-- semanticFrame.requestedOutput must be a non-empty string.
-- responseRequirements must be a non-empty object.
-- responseRequirements.goal must be a non-empty string.
-- responseRequirements.requiredMoves must be an array.
-- responseRequirements.prohibitedMoves must be an array.
-- draftResponse must be a complete, natural, non-empty user-facing response.
-- grounding must be an object.
-- grounding.evidenceUsed must be an array.
-- grounding.assumptions must be an array.
-- grounding.unresolvedConflicts must be an array.
-- confidence must be a number from 0 through 1.
-- executionMetadata.confidence must be a number from 0 through 1.
-- Never mark an action as executed, completed, successful, or persisted.
+Core requirements:
+- Return valid JSON.
+- draftResponse must be a complete, natural, non-empty user-facing answer.
+- semanticFrame must be an object.
+- semanticFrame.operation must exactly match one allowed operation.
+- Do not invent, combine, paraphrase, or expand operation names.
+- Put the domain, target, condition, file name, or artifact name in semantic slots, not in semanticFrame.operation.
+- Never mark an action as executed, completed, successful, delivered, or persisted.
 - Do not expose private chain-of-thought.
 - Do not place the result inside an additional wrapper.
+
+Secondary fields may be concise. Empty arrays and objects are acceptable when no value applies.
 `.trim();
 }
 
@@ -1889,63 +1580,44 @@ function buildReasoningFieldFailure({
   failureType =
     "reasoning_contract_validation_failed"
 } = {}) {
-  const status =
-    502;
-
   const totalMs =
     Date.now() -
     totalStart;
 
   const failure = {
-    success:
-      false,
-
-    ready:
-      false,
-
+    success: false,
+    ready: false,
     error:
-      `OpenAI reasoning returned an invalid or missing field: ${field}.`,
-
+      `OpenAI reasoning returned an invalid or missing fatal field: ${field}.`,
     failureType,
-
-    failedField:
-      field,
-
-    parsedModelOutput:
-      parsed,
-
+    failedField: field,
+    parsedModelOutput: parsed,
     rawModelOutputPreview:
       previewText(
         rawModelOutput,
         MAX_MODEL_OUTPUT_PREVIEW
       ),
-
     model:
       data?.model ||
       DEFAULT_OPENAI_MODEL,
-
     finishReason:
       data?.choices?.[0]
         ?.finish_reason ||
       null,
-
-    source:
-      "openai_reasoning",
-
+    source: "openai_reasoning",
     timing: {
       ...timing,
-
       totalMs
     }
   };
 
   console.error(
-    "[Ari OpenAI Reasoning Contract Failure]",
+    "[Ari OpenAI Reasoning Fatal Contract Failure]",
     failure
   );
 
   return res
-    .status(status)
+    .status(502)
     .json(failure);
 }
 
@@ -1957,7 +1629,6 @@ function getOpenAIHeaders() {
   return {
     "Content-Type":
       "application/json",
-
     Authorization:
       `Bearer ${process.env.OPENAI_API_KEY}`
   };
@@ -1966,8 +1637,7 @@ function getOpenAIHeaders() {
 async function fetchWithTimeout(
   url,
   options = {},
-  timeoutMs =
-    OPENAI_TIMEOUT_MS
+  timeoutMs = OPENAI_TIMEOUT_MS
 ) {
   const controller =
     new AbortController();
@@ -1984,16 +1654,12 @@ async function fetchWithTimeout(
       url,
       {
         ...options,
-
         signal:
           controller.signal
       }
     );
   } catch (error) {
-    if (
-      error?.name ===
-      "AbortError"
-    ) {
+    if (error?.name === "AbortError") {
       const timeoutError =
         new Error(
           `OpenAI request exceeded ${timeoutMs}ms.`
@@ -2013,9 +1679,7 @@ async function fetchWithTimeout(
 
     throw error;
   } finally {
-    clearTimeout(
-      timer
-    );
+    clearTimeout(timer);
   }
 }
 
@@ -2025,50 +1689,31 @@ async function readJsonResponse(
   const rawText =
     await response.text();
 
-  if (
-    !rawText ||
-    !rawText.trim()
-  ) {
+  if (!rawText?.trim()) {
     return {
-      _rawText:
-        "",
-
-      _emptyResponse:
-        true
+      _rawText: "",
+      _emptyResponse: true
     };
   }
 
   try {
     const parsed =
-      JSON.parse(
-        rawText
-      );
+      JSON.parse(rawText);
 
-    if (
-      isPlainObject(
-        parsed
-      )
-    ) {
+    if (isPlainObject(parsed)) {
       return {
         ...parsed,
-
-        _rawText:
-          rawText
+        _rawText: rawText
       };
     }
 
     return {
-      value:
-        parsed,
-
-      _rawText:
-        rawText
+      value: parsed,
+      _rawText: rawText
     };
   } catch (error) {
     return {
-      _rawText:
-        rawText,
-
+      _rawText: rawText,
       _jsonParseError:
         error?.message ||
         "response_json_parse_failed"
@@ -2080,9 +1725,7 @@ function extractProviderError(
   data = {}
 ) {
   const errorObject =
-    isPlainObject(
-      data?.error
-    )
+    isPlainObject(data?.error)
       ? data.error
       : {};
 
@@ -2095,7 +1738,6 @@ function extractProviderError(
           "string"
           ? data.error
           : null,
-
         data?._rawText
       ]) ||
       "OpenAI request failed.",
@@ -2133,82 +1775,53 @@ function extractRawModelOutput(
 
   if (
     typeof messageContent ===
-      "string"
+    "string"
   ) {
     return messageContent;
   }
 
-  if (
-    Array.isArray(
-      messageContent
-    )
-  ) {
+  if (Array.isArray(messageContent)) {
     const combined =
       messageContent
-        .map(
-          part => {
-            if (
-              typeof part ===
-              "string"
-            ) {
-              return part;
-            }
-
-            if (
-              isPlainObject(
-                part
-              )
-            ) {
-              return firstNonEmptyString([
-                part.text,
-                part.content,
-                part.output_text
-              ]);
-            }
-
-            return "";
+        .map(part => {
+          if (typeof part === "string") {
+            return part;
           }
-        )
-        .filter(
-          Boolean
-        )
-        .join(
-          "\n"
-        );
 
-    if (
-      combined
-    ) {
+          if (isPlainObject(part)) {
+            return firstNonEmptyString([
+              part.text,
+              part.content,
+              part.output_text
+            ]);
+          }
+
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
+
+    if (combined) {
       return combined;
     }
   }
 
-  const directCandidates = [
-    data?.output_text,
-    data?.outputText,
-    data?.responseText,
-    data?.content,
-    data?.text
-  ];
-
   const direct =
-    firstNonEmptyString(
-      directCandidates
-    );
+    firstNonEmptyString([
+      data?.output_text,
+      data?.outputText,
+      data?.responseText,
+      data?.content,
+      data?.text
+    ]);
 
-  if (
-    direct
-  ) {
+  if (direct) {
     return direct;
   }
 
   if (
-    isPlainObject(
-      data?.result
-    ) ||
-    Array.isArray(
-      data?.result
-    )
+    isPlainObject(data?.result) ||
+    Array.isArray(data?.result)
   ) {
     return safeJsonStringify(
       data.result
@@ -2221,20 +1834,11 @@ function extractRawModelOutput(
 function parseModelResult(
   rawModelOutput
 ) {
-  if (
-    isPlainObject(
-      rawModelOutput
-    )
-  ) {
+  if (isPlainObject(rawModelOutput)) {
     return {
-      value:
-        rawModelOutput,
-
-      wasJson:
-        true,
-
-      source:
-        "object"
+      value: rawModelOutput,
+      wasJson: true,
+      source: "object"
     };
   }
 
@@ -2244,14 +1848,9 @@ function parseModelResult(
     !rawModelOutput.trim()
   ) {
     return {
-      value:
-        null,
-
-      wasJson:
-        false,
-
-      source:
-        "empty"
+      value: null,
+      wasJson: false,
+      source: "empty"
     };
   }
 
@@ -2263,15 +1862,9 @@ function parseModelResult(
   try {
     return {
       value:
-        JSON.parse(
-          cleaned
-        ),
-
-      wasJson:
-        true,
-
-      source:
-        "json"
+        JSON.parse(cleaned),
+      wasJson: true,
+      source: "json"
     };
   } catch {
     const extracted =
@@ -2279,19 +1872,14 @@ function parseModelResult(
         cleaned
       );
 
-    if (
-      extracted
-    ) {
+    if (extracted) {
       try {
         return {
           value:
             JSON.parse(
               extracted
             ),
-
-          wasJson:
-            true,
-
+          wasJson: true,
           source:
             "extracted_json"
         };
@@ -2301,14 +1889,9 @@ function parseModelResult(
     }
 
     return {
-      value:
-        cleaned,
-
-      wasJson:
-        false,
-
-      source:
-        "text"
+      value: cleaned,
+      wasJson: false,
+      source: "text"
     };
   }
 }
@@ -2316,10 +1899,7 @@ function parseModelResult(
 function stripMarkdownCodeFence(
   value = ""
 ) {
-  return String(
-    value ||
-    ""
-  )
+  return String(value || "")
     .trim()
     .replace(
       /^```(?:json)?\s*/i,
@@ -2336,22 +1916,12 @@ function extractFirstJsonObject(
   value = ""
 ) {
   const text =
-    String(
-      value ||
-      ""
-    );
+    String(value || "");
 
-  let start =
-    -1;
-
-  let depth =
-    0;
-
-  let inString =
-    false;
-
-  let escaped =
-    false;
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
 
   for (
     let index = 0;
@@ -2361,79 +1931,44 @@ function extractFirstJsonObject(
     const character =
       text[index];
 
-    if (
-      start < 0
-    ) {
-      if (
-        character ===
-        "{"
-      ) {
-        start =
-          index;
-
-        depth =
-          1;
+    if (start < 0) {
+      if (character === "{") {
+        start = index;
+        depth = 1;
       }
 
       continue;
     }
 
-    if (
-      escaped
-    ) {
-      escaped =
-        false;
-
+    if (escaped) {
+      escaped = false;
       continue;
     }
 
-    if (
-      character ===
-      "\\"
-    ) {
-      escaped =
-        true;
-
+    if (character === "\\") {
+      escaped = true;
       continue;
     }
 
-    if (
-      character ===
-      '"'
-    ) {
+    if (character === '"') {
       inString =
         !inString;
-
       continue;
     }
 
-    if (
-      inString
-    ) {
+    if (inString) {
       continue;
     }
 
-    if (
-      character ===
-      "{"
-    ) {
-      depth +=
-        1;
-    } else if (
-      character ===
-      "}"
-    ) {
-      depth -=
-        1;
+    if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
 
-      if (
-        depth ===
-        0
-      ) {
+      if (depth === 0) {
         return text.slice(
           start,
-          index +
-            1
+          index + 1
         );
       }
     }
@@ -2449,11 +1984,7 @@ function extractFirstJsonObject(
 async function resolveRequestBody(
   req
 ) {
-  if (
-    isPlainObject(
-      req.body
-    )
-  ) {
+  if (isPlainObject(req.body)) {
     return req.body;
   }
 
@@ -2464,13 +1995,9 @@ async function resolveRequestBody(
   ) {
     try {
       const parsed =
-        JSON.parse(
-          req.body
-        );
+        JSON.parse(req.body);
 
-      return isPlainObject(
-        parsed
-      )
+      return isPlainObject(parsed)
         ? parsed
         : {};
     } catch {
@@ -2482,8 +2009,7 @@ async function resolveRequestBody(
       error.code =
         "invalid_json_request_body";
 
-      error.status =
-        400;
+      error.status = 400;
 
       throw error;
     }
@@ -2508,43 +2034,32 @@ function resolveAllowedOperations(
       ?.semanticFrame
       ?.operation
       ?.enum,
-
     outputContract
       ?.operationEnum,
-
     outputContract
       ?.allowedOperations,
-
     outputContract
       ?.operationContract
       ?.allowedOperations
   ];
 
   const source =
-    Array.isArray(
-      canonical
-    )
+    Array.isArray(canonical)
       ? canonical
       : fallbacks.find(
           Array.isArray
         ) ||
         [];
 
-  return uniqueStrings(
-    source
-  );
+  return uniqueStrings(source);
 }
 
 /* =====================================================
    GENERAL UTILITIES
 ===================================================== */
 
-function normalizeObject(
-  value
-) {
-  return isPlainObject(
-    value
-  )
+function normalizeObject(value) {
+  return isPlainObject(value)
     ? value
     : {};
 }
@@ -2552,71 +2067,51 @@ function normalizeObject(
 function normalizeObjectOrNull(
   value
 ) {
-  return isPlainObject(
-    value
-  )
+  return isPlainObject(value)
     ? value
     : null;
 }
 
-function normalizeArray(
-  value
-) {
-  return Array.isArray(
-    value
-  )
-    ? value
+function normalizeArray(value) {
+  return Array.isArray(value)
+    ? value.filter(
+        item =>
+          item !== undefined &&
+          item !== null
+      )
     : [];
 }
 
-function isPlainObject(
-  value
-) {
+function isPlainObject(value) {
   if (
     !value ||
-    typeof value !==
-      "object" ||
-    Array.isArray(
-      value
-    )
+    typeof value !== "object" ||
+    Array.isArray(value)
   ) {
     return false;
   }
 
   const prototype =
-    Object.getPrototypeOf(
-      value
-    );
+    Object.getPrototypeOf(value);
 
   return (
     prototype ===
       Object.prototype ||
-    prototype ===
-      null
+    prototype === null
   );
 }
 
-function isNonEmptyObject(
-  value
-) {
+function isNonEmptyObject(value) {
   return (
-    isPlainObject(
-      value
-    ) &&
-    Object.keys(
-      value
-    ).length >
-      0
+    isPlainObject(value) &&
+    Object.keys(value).length > 0
   );
 }
 
 function firstNonEmptyString(
   values = []
 ) {
-  for (
-    const value
-    of values
-  ) {
+  for (const value of values) {
     if (
       typeof value ===
         "string" &&
@@ -2634,21 +2129,16 @@ function uniqueStrings(
 ) {
   return [
     ...new Set(
-      normalizeArray(
-        values
-      )
+      normalizeArray(values)
         .filter(
           value =>
             typeof value ===
-              "string"
+            "string"
         )
-        .map(
-          value =>
-            value.trim()
+        .map(value =>
+          value.trim()
         )
-        .filter(
-          Boolean
-        )
+        .filter(Boolean)
     )
   ];
 }
@@ -2656,25 +2146,15 @@ function uniqueStrings(
 function normalizeReasoningConfidence(
   value
 ) {
-  const number =
-    Number(
-      value
-    );
+  const number = Number(value);
 
-  if (
-    !Number.isFinite(
-      number
-    )
-  ) {
+  if (!Number.isFinite(number)) {
     return 0.5;
   }
 
   return Math.min(
     1,
-    Math.max(
-      0,
-      number
-    )
+    Math.max(0, number)
   );
 }
 
@@ -2682,17 +2162,11 @@ function normalizePositiveInteger(
   value,
   fallback
 ) {
-  const number =
-    Number(
-      value
-    );
+  const number = Number(value);
 
   return (
-    Number.isInteger(
-      number
-    ) &&
-    number >
-      0
+    Number.isInteger(number) &&
+    number > 0
   )
     ? number
     : fallback;
@@ -2700,32 +2174,21 @@ function normalizePositiveInteger(
 
 function normalizeHttpStatus(
   value,
-  fallback =
-    500
+  fallback = 500
 ) {
-  const status =
-    Number(
-      value
-    );
+  const status = Number(value);
 
   return (
-    Number.isInteger(
-      status
-    ) &&
-    status >=
-      400 &&
-    status <=
-      599
+    Number.isInteger(status) &&
+    status >= 400 &&
+    status <= 599
   )
     ? status
     : fallback;
 }
 
-function safeJsonStringify(
-  value
-) {
-  const seen =
-    new WeakSet();
+function safeJsonStringify(value) {
+  const seen = new WeakSet();
 
   try {
     return JSON.stringify(
@@ -2736,7 +2199,7 @@ function safeJsonStringify(
       ) => {
         if (
           typeof currentValue ===
-            "bigint"
+          "bigint"
         ) {
           return currentValue
             .toString();
@@ -2747,17 +2210,11 @@ function safeJsonStringify(
           typeof currentValue ===
             "object"
         ) {
-          if (
-            seen.has(
-              currentValue
-            )
-          ) {
+          if (seen.has(currentValue)) {
             return "[Circular]";
           }
 
-          seen.add(
-            currentValue
-          );
+          seen.add(currentValue);
         }
 
         return currentValue;
@@ -2778,18 +2235,11 @@ function previewText(
   maximumLength =
     MAX_MODEL_OUTPUT_PREVIEW
 ) {
-  if (
-    typeof value !==
-      "string"
-  ) {
-    return value ||
-      null;
+  if (typeof value !== "string") {
+    return value || null;
   }
 
-  if (
-    value.length <=
-    maximumLength
-  ) {
+  if (value.length <= maximumLength) {
     return value;
   }
 
@@ -2802,12 +2252,8 @@ function previewText(
   );
 }
 
-function serializeError(
-  error
-) {
-  if (
-    !error
-  ) {
+function serializeError(error) {
+  if (!error) {
     return null;
   }
 
@@ -2815,47 +2261,33 @@ function serializeError(
     name:
       error.name ||
       "Error",
-
     message:
       error.message ||
-      String(
-        error
-      ),
-
+      String(error),
     code:
       error.code ||
       null,
-
     status:
       error.status ||
       null,
-
     stack:
       error.stack ||
       null,
-
     cause:
       error.cause
         ? {
             name:
-              error.cause
-                .name ||
+              error.cause.name ||
               null,
-
             message:
-              error.cause
-                .message ||
-              String(
-                error.cause
-              )
+              error.cause.message ||
+              String(error.cause)
           }
         : null
   };
 }
 
-function setCommonHeaders(
-  res
-) {
+function setCommonHeaders(res) {
   res.setHeader(
     "Cache-Control",
     "no-store"
