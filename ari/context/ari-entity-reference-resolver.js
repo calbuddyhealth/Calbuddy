@@ -1,1344 +1,3486 @@
-// ari/context/ari-reference-resolution-engine.js
-// Ari Reference Resolution Engine
-//
-// Purpose:
-// Coordinate canonical reference resolution for the current turn and
-// produce the authoritative Reference Packet.
-//
-// V2.0.0 — Canonical Resolver Adapter / Reference Packet Authority
-//
-// Architectural Flow:
-//
-// Turn Packet
-//      ↓
-// Turn Classification Packet
-//      ↓
-// Perception Packet
-//      ↓
-// Conversation Operating State
-//      ↓
-// Entity & Reference Resolver
-//      ↓
-// Reference Packet
-//      ↓
-// Context Selection Engine
-//
-// Responsibilities:
-// - Read canonical runtime packets.
-// - Build the bounded resolver input.
-// - Execute AriEntityReferenceResolver.
-// - Normalize its result into AriReferencePacket.
-// - Preserve the resolved semantic structure.
-// - Attach canonical reference outputs to the runtime.
-// - Validate the produced packet.
-// - Preserve deterministic diagnostics and existing runtime errors.
-//
-// Non-responsibilities:
-// - Does not implement candidate scoring.
-// - Does not create semantic structure.
-// - Does not create thread context.
-// - Does not retrieve memory.
-// - Does not select execution context.
-// - Does not perform routing.
-// - Does not deliberate.
-// - Does not answer users.
+// ari/context/ari-entity-reference-resolver.js
+// Ari Entity & Reference Resolver
+// Purpose: Resolve current-turn references against canonical semantic structure and thread context.
+// V6.0.0 — Canonical Reference Resolution / No Intent / No Situation / No Frame Authority
 
 window.Ari = window.Ari || {};
 
-window.AriReferenceResolutionEngine = {
-
-  version: "2.0.0",
-
+window.AriEntityReferenceResolver = {
+  version: "6.0.0",
   schemaVersion: "1.0.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
   ===================================================== */
 
-  run(runtime = {}) {
+  resolve(input = {}) {
+    const summary =
+      input.summary ||
+      input ||
+      {};
 
-    const dependencyValidation =
-      this.validateDependencies();
+    const semanticStructure =
+      this.readSemanticStructure(summary);
 
-    if (
-      dependencyValidation.valid !==
-      true
-    ) {
+    const threadContext =
+      this.readThreadContext(summary);
 
-      return this.attachFailure({
-        runtime,
-
-        errors:
-          dependencyValidation.errors,
-
-        diagnostics: {
-          complete: false,
-          valid: false,
-          resolverRan: false,
-          packetCreated: false,
-          error:
-            "reference_resolution_dependencies_missing"
-        }
+    const currentTurn =
+      this.readCurrentTurn({
+        summary,
+        semanticStructure,
+        threadContext
       });
 
-    }
-
-    const resolverInput =
-      this.buildResolverInput(
-        runtime
-      );
-
-    let resolverResult = null;
-
-    try {
-
-      resolverResult =
-        window
-          .AriEntityReferenceResolver
-          .resolve(
-            resolverInput
-          );
-
-    }
-
-    catch (error) {
-
-      return this.attachFailure({
-        runtime,
-
-        errors: [
-          "entity_reference_resolution_failed",
-          error?.message ||
-          "unknown_reference_resolution_error"
-        ],
-
-        diagnostics: {
-          complete: false,
-          valid: false,
-          resolverRan: false,
-          packetCreated: false,
-          error:
-            error?.message ||
-            "entity_reference_resolution_failed"
-        }
+    const referenceCandidates =
+      this.buildCandidateIndex({
+        semanticStructure,
+        threadContext,
+        currentTurn
       });
 
-    }
-
-    const normalizedResolution =
-      this.normalizeResolverResult(
-        resolverResult
-      );
-
-    let referencePacket = null;
-
-    try {
-
-      referencePacket =
-        window.AriReferencePacket.create({
-
-          references:
-            normalizedResolution
-              .references,
-
-          primaryReference:
-            normalizedResolution
-              .primaryReference,
-
-          unresolvedReferences:
-            normalizedResolution
-              .unresolvedReferences,
-
-          confidence:
-            normalizedResolution
-              .confidence,
-
-          evidence:
-            normalizedResolution
-              .evidence,
-
-          diagnostics:
-            normalizedResolution
-              .diagnostics
-
-        });
-
-    }
-
-    catch (error) {
-
-      return this.attachFailure({
-        runtime,
-
-        errors: [
-          "reference_packet_creation_failed",
-          error?.message ||
-          "unknown_reference_packet_error"
-        ],
-
-        diagnostics: {
-          complete: false,
-          valid: false,
-          resolverRan: true,
-          packetCreated: false,
-          error:
-            error?.message ||
-            "reference_packet_creation_failed"
-        },
-
-        additions: {
-          referenceResolution:
-            normalizedResolution
-              .referenceResolution,
-
-          resolvedSemanticStructure:
-            normalizedResolution
-              .resolvedSemanticStructure
-        }
+    const referenceDecisions =
+      this.resolveAllReferences({
+        semanticStructure,
+        threadContext,
+        referenceCandidates,
+        currentTurn
       });
 
-    }
+    const resolvedSemanticStructure =
+      this.applyResolutions({
+        semanticStructure,
+        referenceDecisions
+      });
 
-    const packetValidation =
-      referencePacket.validation ||
-      window.AriReferencePacket.validate(
-        referencePacket
+    const unresolvedReferences =
+      referenceDecisions.filter(
+        decision =>
+          decision.status !==
+          "resolved"
       );
 
-    const packetValid =
-      packetValidation.valid ===
-      true;
+    const resolvedReferences =
+      referenceDecisions.filter(
+        decision =>
+          decision.status ===
+          "resolved"
+      );
 
-    const runtimeErrors =
-      packetValid
-        ? this.readErrors(
-            runtime.errors
-          )
-        : [
-            ...this.readErrors(
-              runtime.errors
-            ),
+    const resolutionGraph =
+      this.buildResolutionGraph({
+        referenceDecisions,
+        referenceCandidates
+      });
 
-            ...this.asArray(
-              packetValidation.errors
-            ).map(
-              error =>
-                `reference_packet:${error}`
-            )
-          ];
+    const quality =
+      this.buildQualityReport({
+        semanticStructure,
+        threadContext,
+        referenceDecisions,
+        referenceCandidates
+      });
 
-    return {
+    const referenceResolution =
+      this.buildCanonicalResolution({
+        currentTurn,
+        semanticStructure,
+        resolvedSemanticStructure,
+        threadContext,
+        referenceCandidates,
+        referenceDecisions,
+        resolvedReferences,
+        unresolvedReferences,
+        resolutionGraph,
+        quality
+      });
 
-      ...runtime,
+    window.Ari.referenceResolution =
+      referenceResolution;
 
-      errors:
-        runtimeErrors,
+    window.Ari.entityReferenceState =
+      referenceResolution;
 
-      referencePacket,
+    // Temporary compatibility alias.
+    window.Ari.subjectGraphState =
+      referenceResolution;
 
-      referenceResolution:
-        normalizedResolution
-          .referenceResolution,
-
-      resolvedSemanticStructure:
-        normalizedResolution
-          .resolvedSemanticStructure,
-
-      currentSemanticStructure:
-        normalizedResolution
-          .resolvedSemanticStructure,
-
-      referenceCandidates:
-        normalizedResolution
-          .referenceCandidates,
-
-      resolvedReferences:
-        normalizedResolution
-          .references,
-
-      unresolvedReferences:
-        normalizedResolution
-          .unresolvedReferences,
-
-      activeReference:
-        normalizedResolution
-          .primaryReference,
-
-      diagnostics: {
-
-        ...this.readObject(
-          runtime.diagnostics
-        ),
-
-        referenceResolution: {
-
-          complete:
-            packetValid,
-
-          valid:
-            packetValid,
-
-          resolverRan: true,
-
-          packetCreated: true,
-
-          resolverVersion:
-            window
-              .AriEntityReferenceResolver
-              ?.version ||
-            null,
-
-          engineVersion:
-            this.version,
-
-          packetVersion:
-            window
-              .AriReferencePacket
-              ?.version ||
-            null,
-
-          references:
-            referencePacket
-              .references
-              .length,
-
-          unresolved:
-            referencePacket
-              .unresolvedReferences
-              .length,
-
-          confidence:
-            referencePacket
-              .confidence,
-
-          relationship:
-            runtime
-              .turnClassificationPacket
-              ?.relationship ||
-            null,
-
-          validationErrors:
-            this.asArray(
-              packetValidation.errors
-            ),
-
-          validationWarnings:
-            this.asArray(
-              packetValidation.warnings
-            )
-
-        }
-
-      }
-
-    };
-
+    return this.buildReturnPayload({
+      referenceResolution,
+      resolvedSemanticStructure,
+      resolvedReferences,
+      unresolvedReferences,
+      referenceCandidates,
+      quality
+    });
   },
 
   /* =====================================================
-     RESOLVER INPUT
+     INPUT READING
   ===================================================== */
 
-  buildResolverInput(runtime = {}) {
-
-    const turnPacket =
-      this.readObject(
-        runtime.turnPacket
-      );
-
-    const classificationPacket =
-      this.readObject(
-        runtime.turnClassificationPacket
-      );
-
-    const perceptionPacket =
-      this.readObject(
-        runtime.perceptionPacket
-      );
-
-    const operatingState =
-      this.readObject(
-        runtime.conversationOperatingState
-      );
-
-    const semanticStructure =
-      this.readSemanticStructure({
-        runtime,
-        perceptionPacket
-      });
-
-    const threadContext =
-      this.readThreadContext({
-        runtime,
-        operatingState
-      });
-
-    const userMessage =
-      this.readCurrentMessage(
-        turnPacket
-      );
-
-    /*
-     * AriEntityReferenceResolver currently accepts a summary-shaped
-     * object. This adapter preserves that contract while supplying the
-     * new canonical packets as additional evidence.
-     */
-
-    return {
-
-      summary: {
-
-        turnPacket,
-
-        turnClassificationPacket:
-          classificationPacket,
-
-        perceptionPacket,
-
-        conversationOperatingState:
-          operatingState,
-
-        semanticStructure,
-
-        currentSemanticStructure:
-          semanticStructure,
-
-        threadContext,
-
-        userMessage,
-
-        message:
-          userMessage,
-
-        normalizedMessage:
-          turnPacket
-            .normalizedMessage ||
-          userMessage,
-
-        turnId:
-          turnPacket.turnId ||
-          operatingState
-            .currentTurn
-            ?.turnId ||
-          null,
-
-        relationship:
-          classificationPacket
-            .relationship ||
-          null,
-
-        relationshipConfidence:
-          classificationPacket
-            .confidence ??
-          null
-
-      }
-
-    };
-
-  },
-
-  readSemanticStructure({
-    runtime = {},
-    perceptionPacket = {}
-  } = {}) {
-
+  readSemanticStructure(summary = {}) {
     const candidates = [
+      summary.semanticStructure,
+      summary.currentSemanticStructure,
 
-      runtime
-        .resolvedSemanticStructure,
-
-      runtime
-        .currentSemanticStructure,
-
-      runtime
-        .semanticStructure,
-
-      perceptionPacket
-        .semanticStructure,
-
-      perceptionPacket
-        .currentSemanticStructure,
-
-      perceptionPacket
-        .threadUnderstanding
+      summary.threadUnderstanding
         ?.semanticStructure,
 
-      runtime
-        .threadUnderstanding
+      summary.threadUnderstandingResult
         ?.semanticStructure,
 
-      window.Ari
-        ?.semanticStructure
+      summary.threadUnderstanding
+        ?.threadUnderstanding
+        ?.semanticStructure,
 
+      summary.semanticStructureOutput,
+
+      window.Ari.semanticStructure
     ];
 
-    return (
-      candidates.find(
-        candidate =>
-          candidate &&
-          typeof candidate ===
-            "object"
-      ) ||
-      {}
-    );
-
-  },
-
-  readThreadContext({
-    runtime = {},
-    operatingState = {}
-  } = {}) {
-
-    const immediateHorizon =
-      this.readObject(
-        operatingState
-          .immediateHorizon
+    const found =
+      candidates.find(candidate =>
+        candidate &&
+        typeof candidate === "object" &&
+        (
+          candidate.schema ===
+            "ari_semantic_structure" ||
+          Array.isArray(
+            candidate.references
+          ) ||
+          Array.isArray(
+            candidate.entities
+          )
+        )
       );
 
-    const compactContext =
-      this.readObject(
-        operatingState
-          .compactContext
-      );
-
-    const candidates = [
-
-      runtime.threadContext,
-
-      operatingState.threadContext,
-
-      compactContext.threadContext,
-
-      runtime
-        .continuityPacket
-        ?.threadContext,
-
-      window.Ari
-        ?.threadContext
-
-    ];
-
-    const existing =
-      candidates.find(
-        candidate =>
-          candidate &&
-          typeof candidate ===
-            "object"
-      );
-
-    if (existing) {
-
+    if (found) {
       return {
+        ...found,
 
-        ...existing,
-
-        currentTurn:
-          existing.currentTurn ||
-          operatingState.currentTurn ||
-          null,
-
-        immediatePreviousUserTurn:
-          existing
-            .immediatePreviousUserTurn ||
-          immediateHorizon
-            .previousUserTurn ||
-          immediateHorizon
-            .immediatePreviousUserTurn ||
-          null,
-
-        immediatePreviousAssistantTurn:
-          existing
-            .immediatePreviousAssistantTurn ||
-          immediateHorizon
-            .previousAssistantTurn ||
-          immediateHorizon
-            .immediatePreviousAssistantTurn ||
-          null,
-
-        recentTurns:
+        entities:
           this.asArray(
-            existing.recentTurns
-          ).length
-            ? this.asArray(
-                existing.recentTurns
-              )
-            : this.readRecentTurns(
-                operatingState
-              ),
+            found.entities
+          ),
 
-        referenceCandidates:
+        events:
           this.asArray(
-            existing
-              .referenceCandidates
-          ).length
-            ? this.asArray(
-                existing
-                  .referenceCandidates
-              )
-            : this.asArray(
-                operatingState
-                  .referenceCandidates
-              )
+            found.events
+          ),
 
+        claims:
+          this.asArray(
+            found.claims
+          ),
+
+        attributes:
+          this.asArray(
+            found.attributes
+          ),
+
+        quantities:
+          this.asArray(
+            found.quantities
+          ),
+
+        relations:
+          this.asArray(
+            found.relations
+          ),
+
+        references:
+          this.asArray(
+            found.references
+          ),
+
+        options:
+          this.asArray(
+            found.options
+          ),
+
+        criteria:
+          this.asArray(
+            found.criteria
+          ),
+
+        constraints:
+          this.asArray(
+            found.constraints
+          ),
+
+        stakes:
+          this.asArray(
+            found.stakes
+          ),
+
+        comparisonStructures:
+          this.asArray(
+            found.comparisonStructures
+          )
       };
-
     }
 
     return {
+      schema:
+        "ari_semantic_structure",
 
+      version:
+        null,
+
+      source:
+        "not_available",
+
+      ran:
+        false,
+
+      turnId:
+        null,
+
+      participants: {
+        speaker: {
+          entityRef:
+            "user"
+        },
+
+        addressee: {
+          entityRef:
+            "assistant"
+        },
+
+        mentionedParticipants: []
+      },
+
+      entities: [],
+      events: [],
+      claims: [],
+      attributes: [],
+      quantities: [],
+      relations: [],
+      negations: [],
+      discourseSignals: [],
+      emotionalSignals: [],
+      references: [],
+      options: [],
+      criteria: [],
+      constraints: [],
+      stakes: [],
+      comparisonStructures: [],
+      unresolved: [],
+      evidenceRefs: []
+    };
+  },
+
+  readThreadContext(summary = {}) {
+    const candidates = [
+      summary.threadContext,
+      summary.currentThreadContext,
+
+      summary.continuityState
+        ?.threadContext,
+
+      summary.conversationContinuity
+        ?.threadContext,
+
+      summary.threadState
+        ?.threadContext,
+
+      summary.continuityPacket
+        ?.threadContext,
+
+      summary.continuityPacket
+        ?.activeThread
+        ?.threadContext,
+
+      window.Ari.threadContext
+    ];
+
+    const found =
+      candidates.find(candidate =>
+        candidate &&
+        typeof candidate === "object" &&
+        (
+          candidate.schema ===
+            "ari_thread_context" ||
+          Array.isArray(
+            candidate.referenceCandidates
+          ) ||
+          Array.isArray(
+            candidate.recentTurns
+          )
+        )
+      );
+
+    if (found) {
+      return {
+        ...found,
+
+        recentTurns:
+          this.asArray(
+            found.recentTurns
+          ),
+
+        referenceCandidates:
+          this.asArray(
+            found.referenceCandidates
+          ),
+
+        staleContext:
+          this.asArray(
+            found.staleContext
+          )
+      };
+    }
+
+    return {
       schema:
         "ari_thread_context",
 
       version:
-        operatingState.version ||
         null,
 
       source:
-        "ari-reference-resolution-engine",
+        "not_available",
 
       ran:
-        Boolean(
-          operatingState &&
-          Object.keys(
-            operatingState
-          ).length
-        ),
+        false,
 
       threadId:
-        operatingState.threadId ||
         null,
 
       currentTurn:
-        operatingState.currentTurn ||
         null,
 
       immediatePreviousUserTurn:
-        immediateHorizon
-          .previousUserTurn ||
-        immediateHorizon
-          .immediatePreviousUserTurn ||
         null,
 
       immediatePreviousAssistantTurn:
-        immediateHorizon
-          .previousAssistantTurn ||
-        immediateHorizon
-          .immediatePreviousAssistantTurn ||
         null,
 
-      recentTurns:
-        this.readRecentTurns(
-          operatingState
+      recentTurns: [],
+      referenceCandidates: [],
+      continuitySignals: {},
+      staleContext: [],
+      evidenceRefs: []
+    };
+  },
+
+  readCurrentTurn({
+    summary = {},
+    semanticStructure = {},
+    threadContext = {}
+  } = {}) {
+    const rawText =
+      this.clean(
+        summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        summary.normalizedMessage ||
+        threadContext.currentTurn
+          ?.text ||
+        ""
+      );
+
+    return {
+      turnId:
+        semanticStructure.turnId ||
+        threadContext.currentTurn
+          ?.turnId ||
+        summary.turnId ||
+        this.createStableId(
+          "turn",
+          rawText
         ),
 
-      referenceCandidates:
-        this.asArray(
-          operatingState
-            .referenceCandidates
+      rawText,
+
+      normalizedText:
+        this.normalize(rawText),
+
+      wordCount:
+        this.normalize(rawText)
+          .split(/\s+/)
+          .filter(Boolean)
+          .length
+    };
+  },
+
+  /* =====================================================
+     CANDIDATE INDEX
+  ===================================================== */
+
+  buildCandidateIndex({
+    semanticStructure = {},
+    threadContext = {},
+    currentTurn = {}
+  } = {}) {
+    const candidates = [];
+
+    this.addCurrentTurnCandidates({
+      target:
+        candidates,
+
+      semanticStructure,
+      currentTurn
+    });
+
+    this.addThreadCandidates({
+      target:
+        candidates,
+
+      threadContext,
+      currentTurn
+    });
+
+    const merged =
+      this.mergeCandidates(
+        candidates
+      );
+
+    return {
+      items:
+        merged,
+
+      bySemanticType:
+        this.groupBy(
+          merged,
+          "semanticType"
         ),
 
-      continuitySignals:
-        compactContext
-          .continuitySignals ||
-        operatingState
-          .continuitySignals ||
-        {},
+      bySourceType:
+        this.groupBy(
+          merged,
+          "sourceType"
+        ),
 
-      staleContext:
-        this.asArray(
-          operatingState
-            .staleContext
+      byTurnDistance:
+        this.groupBy(
+          merged,
+          "turnDistance"
+        ),
+
+      currentTurnCandidateCount:
+        merged.filter(candidate =>
+          candidate.turnDistance ===
+          0
+        ).length,
+
+      priorTurnCandidateCount:
+        merged.filter(candidate =>
+          candidate.turnDistance >
+          0
+        ).length
+    };
+  },
+
+  addCurrentTurnCandidates({
+    target = [],
+    semanticStructure = {},
+    currentTurn = {}
+  } = {}) {
+    this.asArray(
+      semanticStructure.entities
+    ).forEach(entity => {
+      target.push(
+        this.candidateFromNode({
+          node:
+            entity,
+
+          semanticType:
+            entity.entityType ||
+            "entity",
+
+          sourceType:
+            "current_turn_entity",
+
+          turnId:
+            currentTurn.turnId,
+
+          turnDistance:
+            0,
+
+          recency:
+            1,
+
+          currentTurn:
+            true
+        })
+      );
+    });
+
+    this.asArray(
+      semanticStructure.events
+    ).forEach(event => {
+      target.push(
+        this.candidateFromNode({
+          node:
+            event,
+
+          semanticType:
+            "event",
+
+          sourceType:
+            "current_turn_event",
+
+          turnId:
+            currentTurn.turnId,
+
+          turnDistance:
+            0,
+
+          recency:
+            1,
+
+          currentTurn:
+            true
+        })
+      );
+    });
+
+    this.asArray(
+      semanticStructure.claims
+    ).forEach(claim => {
+      target.push(
+        this.candidateFromNode({
+          node:
+            claim,
+
+          semanticType:
+            "claim",
+
+          sourceType:
+            "current_turn_claim",
+
+          turnId:
+            currentTurn.turnId,
+
+          turnDistance:
+            0,
+
+          recency:
+            1,
+
+          currentTurn:
+            true
+        })
+      );
+    });
+
+    this.asArray(
+      semanticStructure.quantities
+    ).forEach(quantity => {
+      target.push(
+        this.candidateFromNode({
+          node:
+            quantity,
+
+          semanticType:
+            "quantity",
+
+          sourceType:
+            "current_turn_quantity",
+
+          turnId:
+            currentTurn.turnId,
+
+          turnDistance:
+            0,
+
+          recency:
+            1,
+
+          currentTurn:
+            true
+        })
+      );
+    });
+
+    this.asArray(
+      semanticStructure.options
+    ).forEach(option => {
+      target.push(
+        this.candidateFromNode({
+          node:
+            option,
+
+          semanticType:
+            "option",
+
+          sourceType:
+            "current_turn_option",
+
+          turnId:
+            currentTurn.turnId,
+
+          turnDistance:
+            0,
+
+          recency:
+            1,
+
+          currentTurn:
+            true
+        })
+      );
+    });
+
+    this.asArray(
+      semanticStructure.attributes
+    ).forEach(attribute => {
+      target.push(
+        this.candidateFromNode({
+          node:
+            attribute,
+
+          semanticType:
+            "attribute",
+
+          sourceType:
+            "current_turn_attribute",
+
+          turnId:
+            currentTurn.turnId,
+
+          turnDistance:
+            0,
+
+          recency:
+            1,
+
+          currentTurn:
+            true
+        })
+      );
+    });
+  },
+
+  addThreadCandidates({
+    target = [],
+    threadContext = {},
+    currentTurn = {}
+  } = {}) {
+    this.asArray(
+      threadContext.referenceCandidates
+    ).forEach(
+      (
+        candidate,
+        index
+      ) => {
+        target.push(
+          this.normalizeThreadCandidate({
+            candidate,
+            index,
+            currentTurn
+          })
+        );
+      }
+    );
+
+    this.addTurnSemanticCandidates({
+      target,
+
+      turn:
+        threadContext
+          .immediatePreviousUserTurn,
+
+      sourceType:
+        "previous_user_turn",
+
+      turnDistance:
+        1
+    });
+
+    this.addTurnSemanticCandidates({
+      target,
+
+      turn:
+        threadContext
+          .immediatePreviousAssistantTurn,
+
+      sourceType:
+        "previous_assistant_turn",
+
+      turnDistance:
+        1
+    });
+
+    this.asArray(
+      threadContext.recentTurns
+    )
+      .slice(-8)
+      .reverse()
+      .forEach(
+        (
+          turn,
+          index
+        ) => {
+          this.addTurnSemanticCandidates({
+            target,
+            turn,
+
+            sourceType:
+              turn.role ===
+                "assistant"
+                ? "recent_assistant_turn"
+                : "recent_user_turn",
+
+            turnDistance:
+              index + 1
+          });
+        }
+      );
+  },
+
+  addTurnSemanticCandidates({
+    target = [],
+    turn = null,
+    sourceType = "thread_turn",
+    turnDistance = 1
+  } = {}) {
+    if (
+      !turn ||
+      typeof turn !== "object"
+    ) {
+      return;
+    }
+
+    const semanticNodes = [
+      ...this.tagNodes(
+        turn.entities,
+        "entity"
+      ),
+
+      ...this.tagNodes(
+        turn.events,
+        "event"
+      ),
+
+      ...this.tagNodes(
+        turn.claims,
+        "claim"
+      ),
+
+      ...this.tagNodes(
+        turn.quantities,
+        "quantity"
+      ),
+
+      ...this.tagNodes(
+        turn.options,
+        "option"
+      ),
+
+      ...this.tagNodes(
+        turn.semanticNodes,
+        null
+      )
+    ];
+
+    semanticNodes.forEach(node => {
+      target.push(
+        this.candidateFromNode({
+          node,
+
+          semanticType:
+            node.__semanticType ||
+            node.semanticType ||
+            node.entityType ||
+            node.nodeType ||
+            "entity",
+
+          sourceType,
+
+          turnId:
+            turn.turnId ||
+            null,
+
+          turnDistance,
+
+          recency:
+            Math.max(
+              0.1,
+              1 -
+              turnDistance *
+              0.12
+            ),
+
+          currentTurn:
+            false,
+
+          speaker:
+            turn.role ||
+            null
+        })
+      );
+    });
+  },
+
+  tagNodes(
+    nodes = [],
+    semanticType = null
+  ) {
+    return this.asArray(nodes)
+      .map(node => ({
+        ...(
+          typeof node ===
+            "object"
+            ? node
+            : {
+                value:
+                  node
+              }
+        ),
+
+        __semanticType:
+          semanticType ||
+          node
+            ?.semanticType ||
+          null
+      }));
+  },
+
+  normalizeThreadCandidate({
+    candidate = {},
+    index = 0
+  } = {}) {
+    const semanticRef =
+      candidate.semanticRef ||
+      candidate.id ||
+      candidate.nodeId ||
+      this.createStableId(
+        "thread_candidate",
+        [
+          candidate.surface,
+          candidate.value,
+          candidate.label,
+          index
+        ].join("|")
+      );
+
+    return {
+      semanticRef,
+
+      semanticType:
+        this.normalizeSemanticType(
+          candidate.semanticType ||
+          candidate.nodeType ||
+          candidate.entityType ||
+          candidate.type ||
+          "entity"
+        ),
+
+      subtype:
+        candidate.subtype ||
+        null,
+
+      surface:
+        this.clean(
+          candidate.surface ||
+          candidate.label ||
+          candidate.value ||
+          candidate.claim ||
+          candidate.proposition ||
+          candidate.text ||
+          ""
+        ),
+
+      normalizedValue:
+        this.normalize(
+          candidate.normalizedValue ||
+          candidate.surface ||
+          candidate.label ||
+          candidate.value ||
+          candidate.claim ||
+          candidate.proposition ||
+          ""
+        ),
+
+      sourceType:
+        candidate.sourceType ||
+        "thread_reference_candidate",
+
+      turnId:
+        candidate.turnId ||
+        null,
+
+      turnDistance:
+        Number.isFinite(
+          Number(
+            candidate.turnDistance
+          )
+        )
+          ? Number(
+              candidate.turnDistance
+            )
+          : 1,
+
+      recency:
+        this.normalizeConfidence(
+          candidate.recency ??
+          0.82
+        ),
+
+      salience:
+        this.normalizeConfidence(
+          candidate.salience ??
+          0.65
+        ),
+
+      grammaticalRole:
+        candidate.grammaticalRole ||
+        null,
+
+      discourseRole:
+        candidate.discourseRole ||
+        null,
+
+      number:
+        candidate.number ||
+        null,
+
+      gender:
+        candidate.gender ||
+        null,
+
+      speaker:
+        candidate.speaker ||
+        null,
+
+      confidence:
+        this.normalizeConfidence(
+          candidate.confidence ??
+          0.72
         ),
 
       evidenceRefs:
         this.asArray(
-          operatingState
-            .evidenceRefs
-        )
+          candidate.evidenceRefs
+        ),
 
+      raw:
+        candidate
     };
-
   },
 
-  readRecentTurns(
-    operatingState = {}
-  ) {
-
-    const activeHorizon =
-      this.readObject(
-        operatingState
-          .activeHorizon
+  candidateFromNode({
+    node = {},
+    semanticType = "entity",
+    sourceType = "unknown",
+    turnId = null,
+    turnDistance = 0,
+    recency = 1,
+    currentTurn = false,
+    speaker = null
+  } = {}) {
+    const semanticRef =
+      node.id ||
+      node.semanticRef ||
+      this.createStableId(
+        "candidate",
+        [
+          semanticType,
+          this.extractNodeSurface(node),
+          turnId
+        ].join("|")
       );
 
-    const historicalHorizon =
-      this.readObject(
-        operatingState
-          .historicalHorizon
-      );
+    return {
+      semanticRef,
 
-    const compactContext =
-      this.readObject(
-        operatingState
-          .compactContext
-      );
+      semanticType:
+        this.normalizeSemanticType(
+          semanticType
+        ),
 
-    const candidates = [
+      subtype:
+        node.subtype ||
+        null,
 
-      operatingState.recentTurns,
+      surface:
+        this.extractNodeSurface(
+          node
+        ),
 
-      activeHorizon.recentTurns,
+      normalizedValue:
+        this.normalize(
+          node.normalizedValue ||
+          this.extractNodeSurface(
+            node
+          )
+        ),
 
-      compactContext.recentTurns,
+      sourceType,
 
-      historicalHorizon.recentTurns
+      turnId,
 
-    ];
+      turnDistance:
+        Number(
+          turnDistance ||
+          0
+        ),
 
-    return this.asArray(
-      candidates.find(
-        candidate =>
-          Array.isArray(
-            candidate
-          ) &&
-          candidate.length
-      ) ||
-      []
-    );
+      recency:
+        this.normalizeConfidence(
+          recency
+        ),
 
+      salience:
+        this.normalizeConfidence(
+          node.salience ??
+          this.defaultSalience(
+            node,
+            semanticType
+          )
+        ),
+
+      grammaticalRole:
+        node.grammaticalRole ||
+        null,
+
+      discourseRole:
+        node.discourseRole ||
+        null,
+
+      number:
+        node.number ||
+        null,
+
+      gender:
+        node.gender ||
+        null,
+
+      speaker,
+
+      confidence:
+        this.normalizeConfidence(
+          node.confidence ??
+          0.7
+        ),
+
+      currentTurn:
+        currentTurn === true,
+
+      evidenceRefs:
+        this.asArray(
+          node.evidenceRefs
+        ),
+
+      raw:
+        node
+    };
   },
 
-  readCurrentMessage(
-    turnPacket = {}
-  ) {
-
-    return String(
-
-      turnPacket
-        .normalizedMessage ||
-
-      turnPacket
-        .effectiveMessage ||
-
-      turnPacket
-        .originalMessage ||
-
-      turnPacket
-        .message ||
-
+  extractNodeSurface(node = {}) {
+    return this.clean(
+      node.surface ||
+      node.normalizedValue ||
+      node.label ||
+      node.value ||
+      node.name ||
+      node.proposition ||
+      node.claim ||
+      node.text ||
+      node.evidence ||
       ""
+    );
+  },
 
-    ).trim();
+  defaultSalience(
+    node = {},
+    semanticType = ""
+  ) {
+    if (
+      node.grammaticalRole ===
+      "subject"
+    ) {
+      return 0.82;
+    }
 
+    if (
+      node.discourseRole ===
+      "topic"
+    ) {
+      return 0.84;
+    }
+
+    if (
+      semanticType ===
+      "quantity"
+    ) {
+      return 0.76;
+    }
+
+    if (
+      semanticType ===
+      "option"
+    ) {
+      return 0.72;
+    }
+
+    return 0.62;
+  },
+
+  mergeCandidates(
+    candidates = []
+  ) {
+    const merged =
+      new Map();
+
+    candidates
+      .filter(candidate =>
+        candidate &&
+        candidate.semanticRef &&
+        candidate.surface
+      )
+      .forEach(candidate => {
+        const key =
+          [
+            candidate.semanticRef,
+            candidate.semanticType
+          ].join("|");
+
+        if (!merged.has(key)) {
+          merged.set(
+            key,
+            {
+              ...candidate,
+
+              sources: [
+                candidate.sourceType
+              ]
+            }
+          );
+
+          return;
+        }
+
+        const existing =
+          merged.get(key);
+
+        existing.recency =
+          Math.max(
+            existing.recency ||
+            0,
+            candidate.recency ||
+            0
+          );
+
+        existing.salience =
+          Math.max(
+            existing.salience ||
+            0,
+            candidate.salience ||
+            0
+          );
+
+        existing.confidence =
+          Math.max(
+            existing.confidence ||
+            0,
+            candidate.confidence ||
+            0
+          );
+
+        existing.turnDistance =
+          Math.min(
+            existing.turnDistance ??
+            99,
+            candidate.turnDistance ??
+            99
+          );
+
+        existing.sources = [
+          ...new Set([
+            ...this.asArray(
+              existing.sources
+            ),
+
+            candidate.sourceType
+          ])
+        ];
+
+        existing.evidenceRefs = [
+          ...new Set([
+            ...this.asArray(
+              existing.evidenceRefs
+            ),
+
+            ...this.asArray(
+              candidate.evidenceRefs
+            )
+          ])
+        ];
+      });
+
+    return [...merged.values()]
+      .sort(
+        (
+          left,
+          right
+        ) =>
+          this.baseCandidateScore(
+            right
+          ) -
+          this.baseCandidateScore(
+            left
+          )
+      )
+      .slice(0, 64);
   },
 
   /* =====================================================
-     RESULT NORMALIZATION
+     REFERENCE RESOLUTION
   ===================================================== */
 
-  normalizeResolverResult(
-    resolverResult = {}
-  ) {
+  resolveAllReferences({
+    semanticStructure = {},
+    threadContext = {},
+    referenceCandidates = {},
+    currentTurn = {}
+  } = {}) {
+    return this.asArray(
+      semanticStructure.references
+    ).map(reference =>
+      this.resolveSingleReference({
+        reference,
+        semanticStructure,
+        threadContext,
+        candidates:
+          referenceCandidates.items ||
+          [],
+        currentTurn
+      })
+    );
+  },
 
-    const referenceResolution =
-      this.readObject(
-
-        resolverResult
-          .referenceResolution
-
+  resolveSingleReference({
+    reference = {},
+    semanticStructure = {},
+    threadContext = {},
+    candidates = [],
+    currentTurn = {}
+  } = {}) {
+    const eligibleCandidates =
+      candidates.filter(candidate =>
+        this.candidateEligible({
+          reference,
+          candidate,
+          semanticStructure,
+          threadContext
+        })
       );
 
-    const references =
-      this.normalizeResolvedReferences(
+    const scoredCandidates =
+      eligibleCandidates
+        .map(candidate => ({
+          ...candidate,
 
-        resolverResult
-          .resolvedReferences ||
+          score:
+            this.scoreReferenceCandidate({
+              reference,
+              candidate,
+              semanticStructure,
+              threadContext,
+              currentTurn
+            }),
 
-        referenceResolution
-          .resolvedReferences
+          scoreBreakdown:
+            this.buildScoreBreakdown({
+              reference,
+              candidate,
+              semanticStructure,
+              threadContext,
+              currentTurn
+            })
+        }))
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            right.score -
+            left.score
+        );
 
-      );
+    const best =
+      scoredCandidates[0] ||
+      null;
 
-    const unresolvedReferences =
-      this.normalizeUnresolvedReferences(
+    const second =
+      scoredCandidates[1] ||
+      null;
 
-        resolverResult
-          .unresolvedReferences ||
-
-        referenceResolution
-          .unresolvedReferences
-
-      );
-
-    const primaryReference =
-      this.normalizePrimaryReference({
-
-        resolverResult,
-
-        references,
-
-        unresolvedReferences
-
-      });
-
-    const resolvedSemanticStructure =
-      this.readObject(
-
-        resolverResult
-          .resolvedSemanticStructure ||
-
-        resolverResult
-          .currentSemanticStructure ||
-
-        referenceResolution
-          .resolvedSemanticStructure
-
-      );
-
-    const quality =
-      this.readObject(
-
-        resolverResult
-          .referenceResolutionQuality ||
-
-        referenceResolution
-          .quality
-
-      );
-
-    const evidence =
-      this.asArray(
-
-        referenceResolution
-          .evidenceRefs ||
-
-        resolverResult
-          .evidenceRefs
-
-      );
-
-    const diagnostics =
-      this.buildDiagnostics({
-
-        resolverResult,
-
-        referenceResolution,
-
-        quality,
-
-        references,
-
-        unresolvedReferences
-
+    const decision =
+      this.decideResolution({
+        reference,
+        best,
+        second,
+        scoredCandidates,
+        currentTurn
       });
 
     return {
+      referenceId:
+        reference.id,
+
+      surface:
+        reference.surface,
+
+      referenceType:
+        reference.referenceType ||
+        "reference",
+
+      expectedTypes:
+        this.asArray(
+          reference.expectedTypes
+        ),
+
+      semanticRole:
+        reference.semanticRole ||
+        null,
+
+      status:
+        decision.status,
+
+      resolvedTo:
+        decision.resolvedTo,
+
+      confidence:
+        decision.confidence,
+
+      score:
+        decision.score,
+
+      margin:
+        decision.margin,
+
+      reason:
+        decision.reason,
+
+      ambiguity:
+        decision.ambiguity,
+
+      candidates:
+        scoredCandidates
+          .slice(0, 8)
+          .map(candidate => ({
+            semanticRef:
+              candidate.semanticRef,
+
+            semanticType:
+              candidate.semanticType,
+
+            surface:
+              candidate.surface,
+
+            score:
+              candidate.score,
+
+            scoreBreakdown:
+              candidate.scoreBreakdown,
+
+            sourceType:
+              candidate.sourceType,
+
+            turnDistance:
+              candidate.turnDistance,
+
+            confidence:
+              candidate.confidence
+          })),
+
+      evidenceRefs: [
+        ...new Set([
+          ...this.asArray(
+            reference.evidenceRefs
+          ),
+
+          ...this.asArray(
+            best?.evidenceRefs
+          )
+        ])
+      ],
+
+      authority:
+        "reference_resolution_only"
+    };
+  },
+
+  candidateEligible({
+    reference = {},
+    candidate = {}
+  } = {}) {
+    if (
+      !candidate.semanticRef ||
+      !candidate.surface
+    ) {
+      return false;
+    }
+
+    if (
+      candidate.semanticRef ===
+      reference.id
+    ) {
+      return false;
+    }
+
+    const expectedTypes =
+      this.asArray(
+        reference.expectedTypes
+      )
+        .map(value =>
+          this.normalizeSemanticType(
+            value
+          )
+        )
+        .filter(Boolean);
+
+    if (
+      !expectedTypes.length
+    ) {
+      return true;
+    }
+
+    return expectedTypes.some(
+      expectedType =>
+        this.semanticTypesCompatible(
+          expectedType,
+          candidate.semanticType
+        )
+    );
+  },
+
+  semanticTypesCompatible(
+    expectedType = "",
+    candidateType = ""
+  ) {
+    const expected =
+      this.normalizeSemanticType(
+        expectedType
+      );
+
+    const candidate =
+      this.normalizeSemanticType(
+        candidateType
+      );
+
+    if (
+      expected ===
+      candidate
+    ) {
+      return true;
+    }
+
+    const compatibility = {
+      person: [
+        "person",
+        "participant",
+        "group"
+      ],
+
+      participant: [
+        "person",
+        "participant",
+        "group",
+        "organization"
+      ],
+
+      group: [
+        "group",
+        "organization",
+        "participant"
+      ],
+
+      entity: [
+        "person",
+        "participant",
+        "group",
+        "organization",
+        "location",
+        "object",
+        "artifact",
+        "concept",
+        "entity"
+      ],
+
+      physical_entity: [
+        "object",
+        "location",
+        "artifact",
+        "entity"
+      ],
+
+      measurement: [
+        "quantity",
+        "attribute"
+      ],
+
+      quantity: [
+        "quantity",
+        "attribute"
+      ],
+
+      event: [
+        "event"
+      ],
+
+      claim: [
+        "claim"
+      ],
+
+      option: [
+        "option",
+        "event",
+        "entity",
+        "claim"
+      ],
+
+      concept: [
+        "concept",
+        "claim",
+        "event",
+        "entity"
+      ]
+    };
+
+    return this.asArray(
+      compatibility[expected]
+    ).includes(
+      candidate
+    );
+  },
+
+  scoreReferenceCandidate({
+    reference = {},
+    candidate = {},
+    semanticStructure = {},
+    threadContext = {},
+    currentTurn = {}
+  } = {}) {
+    const breakdown =
+      this.buildScoreBreakdown({
+        reference,
+        candidate,
+        semanticStructure,
+        threadContext,
+        currentTurn
+      });
+
+    return this.roundScore(
+      Object.values(
+        breakdown
+      ).reduce(
+        (
+          total,
+          value
+        ) =>
+          total +
+          Number(value || 0),
+        0
+      )
+    );
+  },
+
+  buildScoreBreakdown({
+    reference = {},
+    candidate = {},
+    semanticStructure = {},
+    threadContext = {},
+    currentTurn = {}
+  } = {}) {
+    return {
+      typeCompatibility:
+        this.scoreTypeCompatibility({
+          reference,
+          candidate
+        }),
+
+      recency:
+        this.scoreRecency(
+          candidate
+        ),
+
+      salience:
+        Number(
+          candidate.salience ||
+          0
+        ) * 18,
+
+      candidateConfidence:
+        Number(
+          candidate.confidence ||
+          0
+        ) * 14,
+
+      grammaticalCompatibility:
+        this.scoreGrammaticalCompatibility({
+          reference,
+          candidate
+        }),
+
+      lexicalCompatibility:
+        this.scoreLexicalCompatibility({
+          reference,
+          candidate,
+          currentTurn
+        }),
+
+      discourseCompatibility:
+        this.scoreDiscourseCompatibility({
+          reference,
+          candidate,
+          semanticStructure,
+          threadContext
+        }),
+
+      structuralCompatibility:
+        this.scoreStructuralCompatibility({
+          reference,
+          candidate,
+          semanticStructure
+        }),
+
+      sourceReliability:
+        this.scoreSourceReliability(
+          candidate
+        ),
+
+      stalePenalty:
+        this.scoreStalePenalty({
+          candidate,
+          threadContext
+        }),
+
+      currentTurnSelfReferencePenalty:
+        this.scoreCurrentTurnPenalty({
+          reference,
+          candidate
+        })
+    };
+  },
+
+  scoreTypeCompatibility({
+    reference = {},
+    candidate = {}
+  } = {}) {
+    const expectedTypes =
+      this.asArray(
+        reference.expectedTypes
+      );
+
+    if (
+      !expectedTypes.length
+    ) {
+      return 10;
+    }
+
+    const exact =
+      expectedTypes.some(
+        expected =>
+          this.normalizeSemanticType(
+            expected
+          ) ===
+          this.normalizeSemanticType(
+            candidate.semanticType
+          )
+      );
+
+    if (exact) {
+      return 24;
+    }
+
+    const compatible =
+      expectedTypes.some(
+        expected =>
+          this.semanticTypesCompatible(
+            expected,
+            candidate.semanticType
+          )
+      );
+
+    return compatible
+      ? 16
+      : -30;
+  },
+
+  scoreRecency(candidate = {}) {
+    const distance =
+      Number(
+        candidate.turnDistance ||
+        0
+      );
+
+    if (distance === 0) {
+      return 16;
+    }
+
+    if (distance === 1) {
+      return 14;
+    }
+
+    if (distance === 2) {
+      return 10;
+    }
+
+    if (distance === 3) {
+      return 6;
+    }
+
+    return Math.max(
+      -8,
+      4 -
+      distance *
+      2
+    );
+  },
+
+  scoreGrammaticalCompatibility({
+    reference = {},
+    candidate = {}
+  } = {}) {
+    const surface =
+      this.normalize(
+        reference.surface
+      );
+
+    let score = 0;
+
+    if (
+      [
+        "he",
+        "him",
+        "his",
+        "she",
+        "her",
+        "hers"
+      ].includes(surface)
+    ) {
+      if (
+        [
+          "person",
+          "participant"
+        ].includes(
+          this.normalizeSemanticType(
+            candidate.semanticType
+          )
+        )
+      ) {
+        score += 14;
+      }
+
+      if (
+        candidate.number ===
+        "plural"
+      ) {
+        score -= 12;
+      }
+    }
+
+    if (
+      [
+        "they",
+        "them",
+        "their"
+      ].includes(surface)
+    ) {
+      if (
+        [
+          "person",
+          "participant",
+          "group",
+          "organization"
+        ].includes(
+          this.normalizeSemanticType(
+            candidate.semanticType
+          )
+        )
+      ) {
+        score += 11;
+      }
+    }
+
+    if (
+      [
+        "it",
+        "its",
+        "this",
+        "that"
+      ].includes(surface)
+    ) {
+      if (
+        [
+          "event",
+          "claim",
+          "quantity",
+          "option",
+          "object",
+          "concept",
+          "artifact",
+          "attribute"
+        ].includes(
+          this.normalizeSemanticType(
+            candidate.semanticType
+          )
+        )
+      ) {
+        score += 9;
+      }
+    }
+
+    if (
+      surface.includes(
+        "amount"
+      ) &&
+      candidate.semanticType ===
+        "quantity"
+    ) {
+      score += 18;
+    }
+
+    if (
+      surface.includes(
+        "option"
+      ) &&
+      candidate.semanticType ===
+        "option"
+    ) {
+      score += 18;
+    }
+
+    if (
+      surface.includes(
+        "idea"
+      ) &&
+      [
+        "claim",
+        "concept"
+      ].includes(
+        candidate.semanticType
+      )
+    ) {
+      score += 15;
+    }
+
+    if (
+      surface.includes(
+        "plan"
+      ) &&
+      [
+        "event",
+        "claim",
+        "option"
+      ].includes(
+        candidate.semanticType
+      )
+    ) {
+      score += 15;
+    }
+
+    return score;
+  },
+
+  scoreLexicalCompatibility({
+    reference = {},
+    candidate = {},
+    currentTurn = {}
+  } = {}) {
+    const text =
+      currentTurn.normalizedText ||
+      "";
+
+    const candidateValue =
+      this.normalize(
+        candidate.normalizedValue ||
+        candidate.surface
+      );
+
+    let score = 0;
+
+    if (
+      candidateValue &&
+      text.includes(
+        candidateValue
+      )
+    ) {
+      score += 6;
+    }
+
+    if (
+      /\b(?:how big|how much|how many|amount|size|scale)\b/.test(
+        text
+      ) &&
+      candidate.semanticType ===
+        "quantity"
+    ) {
+      score += 22;
+    }
+
+    if (
+      /\b(?:who|he|she|him|her|they|them)\b/.test(
+        text
+      ) &&
+      [
+        "person",
+        "participant",
+        "group"
+      ].includes(
+        candidate.semanticType
+      )
+    ) {
+      score += 12;
+    }
+
+    if (
+      /\b(?:which one|that one|same one|other one)\b/.test(
+        text
+      ) &&
+      candidate.semanticType ===
+        "option"
+    ) {
+      score += 16;
+    }
+
+    if (
+      /\b(?:why did that|what caused that|because of that)\b/.test(
+        text
+      ) &&
+      [
+        "event",
+        "claim"
+      ].includes(
+        candidate.semanticType
+      )
+    ) {
+      score += 12;
+    }
+
+    return score;
+  },
+
+  scoreDiscourseCompatibility({
+    reference = {},
+    candidate = {},
+    semanticStructure = {},
+    threadContext = {}
+  } = {}) {
+    let score = 0;
+
+    if (
+      candidate.discourseRole ===
+      "topic"
+    ) {
+      score += 12;
+    }
+
+    if (
+      candidate.grammaticalRole ===
+      "subject"
+    ) {
+      score += 8;
+    }
+
+    if (
+      candidate.sourceType ===
+      "previous_assistant_turn"
+    ) {
+      const referenceSurface =
+        this.normalize(
+          reference.surface
+        );
+
+      if (
+        [
+          "that",
+          "this",
+          "it",
+          "that amount",
+          "that idea"
+        ].includes(
+          referenceSurface
+        )
+      ) {
+        score += 8;
+      }
+    }
+
+    if (
+      threadContext
+        .continuitySignals
+        ?.topicContinues ===
+        true
+    ) {
+      score += 5;
+    }
+
+    if (
+      this.asArray(
+        semanticStructure
+          .comparisonStructures
+      ).length &&
+      candidate.semanticType ===
+        "quantity"
+    ) {
+      score += 8;
+    }
+
+    return score;
+  },
+
+  scoreStructuralCompatibility({
+    reference = {},
+    candidate = {},
+    semanticStructure = {}
+  } = {}) {
+    let score = 0;
+
+    const comparisons =
+      this.asArray(
+        semanticStructure
+          .comparisonStructures
+      );
+
+    if (
+      comparisons.some(
+        comparison =>
+          comparison.leftRef ===
+            reference.id ||
+          !comparison.leftRef
+      )
+    ) {
+      if (
+        comparisonCandidateCompatible(
+          comparisons,
+          candidate
+        )
+      ) {
+        score += 16;
+      }
+    }
+
+    const relations =
+      this.asArray(
+        semanticStructure.relations
+      );
+
+    if (
+      relations.some(
+        relation =>
+          relation.sourceRef ===
+            candidate.semanticRef ||
+          relation.targetRef ===
+            candidate.semanticRef
+      )
+    ) {
+      score += 4;
+    }
+
+    return score;
+
+    function comparisonCandidateCompatible(
+      comparisonList = [],
+      candidateNode = {}
+    ) {
+      const candidateTypes =
+        comparisonList.flatMap(
+          comparison =>
+            comparison.candidateTypes ||
+            []
+        );
+
+      if (
+        !candidateTypes.length
+      ) {
+        return true;
+      }
+
+      if (
+        candidateTypes.includes(
+          "magnitude_analogy"
+        )
+      ) {
+        return [
+          "quantity",
+          "attribute",
+          "object"
+        ].includes(
+          candidateNode.semanticType
+        );
+      }
+
+      if (
+        candidateTypes.includes(
+          "option_evaluation"
+        )
+      ) {
+        return [
+          "option",
+          "event",
+          "claim"
+        ].includes(
+          candidateNode.semanticType
+        );
+      }
+
+      return true;
+    }
+  },
+
+  scoreSourceReliability(
+    candidate = {}
+  ) {
+    const sourceScores = {
+      current_turn_entity:
+        8,
+
+      current_turn_event:
+        8,
+
+      current_turn_claim:
+        8,
+
+      current_turn_quantity:
+        9,
+
+      current_turn_option:
+        8,
+
+      thread_reference_candidate:
+        8,
+
+      previous_user_turn:
+        7,
+
+      previous_assistant_turn:
+        7,
+
+      recent_user_turn:
+        5,
+
+      recent_assistant_turn:
+        5
+    };
+
+    return (
+      sourceScores[
+        candidate.sourceType
+      ] ??
+      3
+    );
+  },
+
+  scoreStalePenalty({
+    candidate = {},
+    threadContext = {}
+  } = {}) {
+    const stale =
+      this.asArray(
+        threadContext.staleContext
+      );
+
+    const candidateIsStale =
+      stale.some(item => {
+        const staleRef =
+          typeof item ===
+            "string"
+            ? item
+            : (
+                item.semanticRef ||
+                item.id ||
+                item.turnId
+              );
+
+        return (
+          staleRef ===
+            candidate.semanticRef ||
+          staleRef ===
+            candidate.turnId
+        );
+      });
+
+    return candidateIsStale
+      ? -35
+      : 0;
+  },
+
+  scoreCurrentTurnPenalty({
+    reference = {},
+    candidate = {}
+  } = {}) {
+    if (
+      candidate.currentTurn !==
+      true
+    ) {
+      return 0;
+    }
+
+    const referenceSurface =
+      this.normalize(
+        reference.surface
+      );
+
+    if (
+      [
+        "that",
+        "this",
+        "it",
+        "they",
+        "them",
+        "he",
+        "she",
+        "that amount",
+        "that option"
+      ].includes(
+        referenceSurface
+      )
+    ) {
+      return -5;
+    }
+
+    return 0;
+  },
+
+  decideResolution({
+    reference = {},
+    best = null,
+    second = null,
+    scoredCandidates = [],
+    currentTurn = {}
+  } = {}) {
+    if (!best) {
+      return {
+        status:
+          "unresolved",
+
+        resolvedTo:
+          null,
+
+        confidence:
+          0,
+
+        score:
+          0,
+
+        margin:
+          0,
+
+        reason:
+          "No compatible reference candidate was available.",
+
+        ambiguity: {
+          present:
+            true,
+
+          reason:
+            "no_candidate",
+
+          competingCandidates: []
+        }
+      };
+    }
+
+    const score =
+      Number(
+        best.score ||
+        0
+      );
+
+    const secondScore =
+      Number(
+        second?.score ||
+        0
+      );
+
+    const margin =
+      score -
+      secondScore;
+
+    const threshold =
+      this.resolutionThreshold({
+        reference,
+        currentTurn
+      });
+
+    const requiredMargin =
+      this.requiredResolutionMargin({
+        reference,
+        currentTurn
+      });
+
+    if (
+      score < threshold
+    ) {
+      return {
+        status:
+          "unresolved",
+
+        resolvedTo:
+          null,
+
+        confidence:
+          this.scoreToConfidence(
+            score
+          ),
+
+        score,
+
+        margin,
+
+        reason:
+          `Best candidate score ${score} did not meet the resolution threshold ${threshold}.`,
+
+        ambiguity: {
+          present:
+            true,
+
+          reason:
+            "insufficient_score",
+
+          competingCandidates:
+            scoredCandidates
+              .slice(0, 3)
+              .map(candidate =>
+                candidate.semanticRef
+              )
+        }
+      };
+    }
+
+    if (
+      second &&
+      margin <
+      requiredMargin
+    ) {
+      return {
+        status:
+          "ambiguous",
+
+        resolvedTo:
+          null,
+
+        confidence:
+          this.scoreToConfidence(
+            score
+          ),
+
+        score,
+
+        margin,
+
+        reason:
+          `The two strongest candidates were too close. Required margin: ${requiredMargin}; observed margin: ${margin}.`,
+
+        ambiguity: {
+          present:
+            true,
+
+          reason:
+            "close_candidates",
+
+          competingCandidates: [
+            best.semanticRef,
+            second.semanticRef
+          ]
+        }
+      };
+    }
+
+    return {
+      status:
+        "resolved",
+
+      resolvedTo:
+        best.semanticRef,
+
+      confidence:
+        this.scoreToConfidence(
+          score,
+          margin
+        ),
+
+      score,
+
+      margin,
+
+      reason:
+        this.buildResolutionReason({
+          reference,
+          best,
+          margin
+        }),
+
+      ambiguity: {
+        present:
+          false,
+
+        reason:
+          null,
+
+        competingCandidates: []
+      }
+    };
+  },
+
+  resolutionThreshold({
+    reference = {},
+    currentTurn = {}
+  } = {}) {
+    const type =
+      this.normalize(
+        reference.referenceType
+      );
+
+    if (
+      type ===
+      "pronoun"
+    ) {
+      return 54;
+    }
+
+    if (
+      type ===
+      "typed demonstrative"
+    ) {
+      return 48;
+    }
+
+    if (
+      type ===
+      "selection reference"
+    ) {
+      return 52;
+    }
+
+    if (
+      currentTurn.wordCount <= 5
+    ) {
+      return 50;
+    }
+
+    return 46;
+  },
+
+  requiredResolutionMargin({
+    reference = {}
+  } = {}) {
+    const surface =
+      this.normalize(
+        reference.surface
+      );
+
+    if (
+      [
+        "he",
+        "him",
+        "his",
+        "she",
+        "her",
+        "hers"
+      ].includes(surface)
+    ) {
+      return 10;
+    }
+
+    if (
+      [
+        "they",
+        "them",
+        "their"
+      ].includes(surface)
+    ) {
+      return 12;
+    }
+
+    if (
+      [
+        "this",
+        "that",
+        "it"
+      ].includes(surface)
+    ) {
+      return 8;
+    }
+
+    if (
+      surface.includes(
+        "amount"
+      ) ||
+      surface.includes(
+        "option"
+      )
+    ) {
+      return 6;
+    }
+
+    return 8;
+  },
+
+  buildResolutionReason({
+    reference = {},
+    best = {},
+    margin = 0
+  } = {}) {
+    return [
+      `"${reference.surface}" resolved to "${best.surface}".`,
+      `Semantic type: ${best.semanticType}.`,
+      `Source: ${best.sourceType}.`,
+      `Turn distance: ${best.turnDistance}.`,
+      `Winning margin: ${this.roundScore(margin)}.`
+    ].join(" ");
+  },
+
+  scoreToConfidence(
+    score = 0,
+    margin = 0
+  ) {
+    let confidence =
+      0.45 +
+      Math.min(
+        0.38,
+        Number(score || 0) /
+        200
+      ) +
+      Math.min(
+        0.12,
+        Number(margin || 0) /
+        100
+      );
+
+    confidence =
+      Math.max(
+        0,
+        Math.min(
+          0.97,
+          confidence
+        )
+      );
+
+    return Number(
+      confidence.toFixed(3)
+    );
+  },
+
+  baseCandidateScore(
+    candidate = {}
+  ) {
+    return (
+      Number(
+        candidate.recency ||
+        0
+      ) *
+      30 +
+      Number(
+        candidate.salience ||
+        0
+      ) *
+      30 +
+      Number(
+        candidate.confidence ||
+        0
+      ) *
+      25 -
+      Number(
+        candidate.turnDistance ||
+        0
+      ) *
+      3
+    );
+  },
+
+  /* =====================================================
+     APPLY RESOLUTIONS
+  ===================================================== */
+
+  applyResolutions({
+    semanticStructure = {},
+    referenceDecisions = []
+  } = {}) {
+    const decisionsById =
+      new Map(
+        referenceDecisions.map(
+          decision => [
+            decision.referenceId,
+            decision
+          ]
+        )
+      );
+
+    const resolvedReferences =
+      this.asArray(
+        semanticStructure.references
+      ).map(reference => {
+        const decision =
+          decisionsById.get(
+            reference.id
+          );
+
+        if (!decision) {
+          return {
+            ...reference,
+
+            resolved:
+              false,
+
+            resolvedTo:
+              null
+          };
+        }
+
+        return {
+          ...reference,
+
+          resolved:
+            decision.status ===
+            "resolved",
+
+          resolvedTo:
+            decision.resolvedTo,
+
+          resolutionStatus:
+            decision.status,
+
+          resolutionConfidence:
+            decision.confidence,
+
+          resolutionScore:
+            decision.score,
+
+          resolutionMargin:
+            decision.margin,
+
+          resolutionReason:
+            decision.reason,
+
+          candidateRefs:
+            decision.candidates.map(
+              candidate =>
+                candidate.semanticRef
+            )
+        };
+      });
+
+    const unresolvedReferenceIds =
+      resolvedReferences
+        .filter(reference =>
+          reference.resolved !==
+          true
+        )
+        .map(reference =>
+          reference.id
+        );
+
+    const inheritedNodes =
+      this.buildInheritedNodes({
+        semanticStructure,
+        referenceDecisions
+      });
+
+    return {
+      ...semanticStructure,
+
+      schema:
+        "ari_resolved_semantic_structure",
+
+      version:
+        this.schemaVersion,
+
+      source:
+        "ari-entity-reference-resolver",
+
+      references:
+        resolvedReferences,
+
+      inheritedNodes,
+
+      unresolved:
+        [
+          ...this.asArray(
+            semanticStructure.unresolved
+          ).filter(item =>
+            !(
+              item.type ===
+                "reference" &&
+              !unresolvedReferenceIds.includes(
+                item.semanticRef
+              )
+            )
+          ),
+
+          ...unresolvedReferenceIds
+            .filter(referenceId =>
+              !this.asArray(
+                semanticStructure.unresolved
+              ).some(item =>
+                item.type ===
+                  "reference" &&
+                item.semanticRef ===
+                  referenceId
+              )
+            )
+            .map(referenceId => ({
+              id:
+                this.createStableId(
+                  "unresolved",
+                  referenceId
+                ),
+
+              type:
+                "reference",
+
+              semanticRef:
+                referenceId,
+
+              requiredForMeaning:
+                true,
+
+              source:
+                "ari-entity-reference-resolver"
+            }))
+        ],
+
+      referenceResolutionApplied:
+        true,
+
+      referenceResolutionVersion:
+        this.version,
+
+      authority: {
+        ...(
+          semanticStructure.authority ||
+          {}
+        ),
+
+        canResolvePriorReferences:
+          true,
+
+        canChooseRequestedOperation:
+          false,
+
+        canChooseCanonicalMeaning:
+          false,
+
+        canChooseFrame:
+          false,
+
+        canChooseRoute:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "semantic_structure_with_reference_resolution"
+      }
+    };
+  },
+
+  buildInheritedNodes({
+    referenceDecisions = []
+  } = {}) {
+    const nodes =
+      new Map();
+
+    referenceDecisions
+      .filter(
+        decision =>
+          decision.status ===
+          "resolved"
+      )
+      .forEach(decision => {
+        const winner =
+          decision.candidates.find(
+            candidate =>
+              candidate.semanticRef ===
+              decision.resolvedTo
+          );
+
+        if (
+          !winner ||
+          winner.turnDistance ===
+          0
+        ) {
+          return;
+        }
+
+        if (
+          nodes.has(
+            winner.semanticRef
+          )
+        ) {
+          return;
+        }
+
+        nodes.set(
+          winner.semanticRef,
+          {
+            semanticRef:
+              winner.semanticRef,
+
+            semanticType:
+              winner.semanticType,
+
+            surface:
+              winner.surface,
+
+            sourceType:
+              winner.sourceType,
+
+            turnDistance:
+              winner.turnDistance,
+
+            confidence:
+              winner.confidence,
+
+            inheritedBecauseOfReferences: [
+              decision.referenceId
+            ]
+          }
+        );
+      });
+
+    return [...nodes.values()];
+  },
+
+  /* =====================================================
+     RESOLUTION GRAPH
+  ===================================================== */
+
+  buildResolutionGraph({
+    referenceDecisions = [],
+    referenceCandidates = {}
+  } = {}) {
+    const nodes = [
+      ...referenceDecisions.map(
+        decision => ({
+          id:
+            decision.referenceId,
+
+          nodeType:
+            "reference",
+
+          surface:
+            decision.surface,
+
+          status:
+            decision.status
+        })
+      ),
+
+      ...this.asArray(
+        referenceCandidates.items
+      ).map(candidate => ({
+        id:
+          candidate.semanticRef,
+
+        nodeType:
+          candidate.semanticType,
+
+        surface:
+          candidate.surface,
+
+        sourceType:
+          candidate.sourceType,
+
+        turnDistance:
+          candidate.turnDistance
+      }))
+    ];
+
+    const edges =
+      referenceDecisions.flatMap(
+        decision =>
+          decision.candidates.map(
+            candidate => ({
+              id:
+                this.createStableId(
+                  "resolution_edge",
+                  [
+                    decision.referenceId,
+                    candidate.semanticRef
+                  ].join("|")
+                ),
+
+              edgeType:
+                decision.resolvedTo ===
+                  candidate.semanticRef
+                  ? "resolved_to"
+                  : "candidate_for",
+
+              sourceRef:
+                decision.referenceId,
+
+              targetRef:
+                candidate.semanticRef,
+
+              score:
+                candidate.score,
+
+              selected:
+                decision.resolvedTo ===
+                candidate.semanticRef
+            })
+          )
+      );
+
+    return {
+      nodes:
+        this.dedupeById(
+          nodes
+        ),
+
+      edges:
+        this.dedupeById(
+          edges
+        )
+    };
+  },
+
+  /* =====================================================
+     QUALITY
+  ===================================================== */
+
+  buildQualityReport({
+    semanticStructure = {},
+    threadContext = {},
+    referenceDecisions = [],
+    referenceCandidates = {}
+  } = {}) {
+    const referenceCount =
+      this.asArray(
+        semanticStructure.references
+      ).length;
+
+    const resolvedCount =
+      referenceDecisions.filter(
+        decision =>
+          decision.status ===
+          "resolved"
+      ).length;
+
+    const ambiguousCount =
+      referenceDecisions.filter(
+        decision =>
+          decision.status ===
+          "ambiguous"
+      ).length;
+
+    const unresolvedCount =
+      referenceDecisions.filter(
+        decision =>
+          decision.status ===
+          "unresolved"
+      ).length;
+
+    const warnings = [];
+
+    if (
+      semanticStructure.ran ===
+      false
+    ) {
+      warnings.push({
+        type:
+          "semantic_structure_missing",
+
+        message:
+          "Canonical semantic structure was unavailable."
+      });
+    }
+
+    if (
+      referenceCount > 0 &&
+      threadContext.ran ===
+        false &&
+      referenceCandidates
+        .priorTurnCandidateCount ===
+        0
+    ) {
+      warnings.push({
+        type:
+          "thread_context_missing",
+
+        message:
+          "References were present, but no canonical prior-turn context was available."
+      });
+    }
+
+    if (
+      ambiguousCount > 0
+    ) {
+      warnings.push({
+        type:
+          "ambiguous_references",
+
+        count:
+          ambiguousCount,
+
+        message:
+          "One or more references had multiple similarly strong candidates."
+      });
+    }
+
+    if (
+      unresolvedCount > 0
+    ) {
+      warnings.push({
+        type:
+          "unresolved_references",
+
+        count:
+          unresolvedCount,
+
+        message:
+          "One or more references could not be safely resolved."
+      });
+    }
+
+    const accuracyConfidence =
+      referenceCount
+        ? this.normalizeConfidence(
+            (
+              resolvedCount *
+              1 +
+              ambiguousCount *
+              0.35
+            ) /
+            referenceCount
+          )
+        : 1;
+
+    return {
+      referenceCount,
+      resolvedCount,
+      ambiguousCount,
+      unresolvedCount,
+
+      resolutionRate:
+        referenceCount
+          ? Number(
+              (
+                resolvedCount /
+                referenceCount
+              ).toFixed(3)
+            )
+          : 1,
+
+      accuracyConfidence,
+
+      candidateCount:
+        this.asArray(
+          referenceCandidates.items
+        ).length,
+
+      warnings,
+
+      healthy:
+        warnings.length ===
+          0 ||
+        (
+          resolvedCount > 0 &&
+          ambiguousCount ===
+            0
+        )
+    };
+  },
+
+  /* =====================================================
+     CANONICAL OUTPUT
+  ===================================================== */
+
+  buildCanonicalResolution({
+    currentTurn = {},
+    semanticStructure = {},
+    resolvedSemanticStructure = {},
+    threadContext = {},
+    referenceCandidates = {},
+    referenceDecisions = [],
+    resolvedReferences = [],
+    unresolvedReferences = [],
+    resolutionGraph = {},
+    quality = {}
+  } = {}) {
+    return {
+      schema:
+        "ari_reference_resolution",
+
+      version:
+        this.schemaVersion,
+
+      engineVersion:
+        this.version,
+
+      source:
+        "ari-entity-reference-resolver",
+
+      ran:
+        true,
+
+      turnId:
+        currentTurn.turnId,
+
+      currentTurn,
+
+      input: {
+        semanticStructureVersion:
+          semanticStructure.version ||
+          null,
+
+        threadContextVersion:
+          threadContext.version ||
+          null,
+
+        referenceCount:
+          this.asArray(
+            semanticStructure.references
+          ).length,
+
+        candidateCount:
+          this.asArray(
+            referenceCandidates.items
+          ).length
+      },
+
+      decisions:
+        referenceDecisions,
+
+      resolvedReferences,
+
+      unresolvedReferences,
+
+      resolvedSemanticStructure,
+
+      resolutionGraph,
+
+      quality,
+
+      confidence:
+        quality.accuracyConfidence,
+
+      evidenceRefs: [
+        ...new Set([
+          ...this.asArray(
+            semanticStructure.evidenceRefs
+          ),
+
+          ...this.asArray(
+            threadContext.evidenceRefs
+          ),
+
+          ...referenceDecisions.flatMap(
+            decision =>
+              decision.evidenceRefs ||
+              []
+          )
+        ])
+      ],
+
+      authority: {
+        canResolveReferences:
+          true,
+
+        canRankReferenceCandidates:
+          true,
+
+        canLeaveAmbiguousReferencesUnresolved:
+          true,
+
+        canBuildActiveProblem:
+          false,
+
+        canInferUserIntent:
+          false,
+
+        canChooseRequestedOperation:
+          false,
+
+        canChooseCanonicalMeaning:
+          false,
+
+        canChooseSemanticFrame:
+          false,
+
+        canChooseRoute:
+          false,
+
+        canChoosePlanner:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "canonical_reference_resolution_only"
+      }
+    };
+  },
+
+  /* =====================================================
+     RETURN PAYLOAD
+  ===================================================== */
+
+  buildReturnPayload({
+    referenceResolution = {},
+    resolvedSemanticStructure = {},
+    resolvedReferences = [],
+    unresolvedReferences = [],
+    referenceCandidates = {},
+    quality = {}
+  } = {}) {
+    return {
+      entityReferenceResolverRan:
+        true,
+
+      entityReferenceResolverVersion:
+        this.version,
+
+      entityReferenceResolverSource:
+        "ari-entity-reference-resolver",
+
+      referenceResolutionRan:
+        true,
+
+      referenceResolutionVersion:
+        this.version,
+
+      referenceResolutionSource:
+        "ari-entity-reference-resolver",
 
       referenceResolution,
 
       resolvedSemanticStructure,
 
-      referenceCandidates:
-        this.asArray(
-          resolverResult
-            .referenceCandidates
-        ),
+      currentSemanticStructure:
+        resolvedSemanticStructure,
 
-      references,
+      resolvedReferences,
 
       unresolvedReferences,
 
-      primaryReference,
+      referenceCandidates:
+        referenceCandidates.items ||
+        [],
+
+      referenceResolutionGraph:
+        referenceResolution
+          .resolutionGraph,
+
+      referenceResolutionQuality:
+        quality,
+
+      activeReference:
+        resolvedReferences[0] ||
+        unresolvedReferences[0] ||
+        null,
 
       confidence:
-        this.normalizeConfidence(
+        referenceResolution.confidence,
 
-          resolverResult
-            .confidence ??
+      warnings:
+        quality.warnings ||
+        [],
 
-          referenceResolution
-            .confidence ??
+      // Temporary compatibility aliases.
+      entityReferenceState:
+        referenceResolution,
 
-          quality
-            .accuracyConfidence ??
+      subjectGraphState:
+        referenceResolution,
 
-          0
+      subjectGraphRan:
+        true,
 
-        ),
+      subjectGraphVersion:
+        this.version,
 
-      evidence,
+      subjectGraphSource:
+        "ari-entity-reference-resolver",
 
-      diagnostics
+      activeSubjects:
+        [],
 
+      activeEntities:
+        resolvedSemanticStructure
+          .entities ||
+        [],
+
+      activeSubject:
+        null,
+
+      activeEntity:
+        null,
+
+      activeProblem:
+        null,
+
+      activeIssue:
+        null,
+
+      resolvedActor:
+        null,
+
+      resolvedAction:
+        null,
+
+      resolvedIssue:
+        null,
+
+      resolvedPressure:
+        null,
+
+      resolvedDecision:
+        null,
+
+      resolvedConsequence:
+        null,
+
+      groundedContext:
+        null,
+
+      authority:
+        "canonical_reference_resolution_only"
     };
-
-  },
-
-  normalizeResolvedReferences(
-    value = []
-  ) {
-
-    return this.asArray(value)
-      .filter(
-        reference =>
-          reference &&
-          typeof reference ===
-            "object" &&
-          (
-            reference.status ===
-              "resolved" ||
-            reference.resolved ===
-              true ||
-            reference.resolvedTo
-          )
-      )
-      .map(
-        reference => ({
-
-          referenceId:
-            reference.referenceId ||
-            reference.id ||
-            null,
-
-          surface:
-            reference.surface ||
-            null,
-
-          referenceType:
-            reference.referenceType ||
-            "reference",
-
-          semanticRole:
-            reference.semanticRole ||
-            null,
-
-          status:
-            "resolved",
-
-          resolvedTo:
-            reference.resolvedTo ||
-            null,
-
-          confidence:
-            this.normalizeConfidence(
-              reference.confidence ??
-              reference
-                .resolutionConfidence ??
-              0
-            ),
-
-          score:
-            this.normalizeNumber(
-              reference.score ??
-              reference
-                .resolutionScore
-            ),
-
-          margin:
-            this.normalizeNumber(
-              reference.margin ??
-              reference
-                .resolutionMargin
-            ),
-
-          reason:
-            reference.reason ||
-            reference
-              .resolutionReason ||
-            null,
-
-          candidates:
-            this.asArray(
-              reference.candidates
-            ),
-
-          evidenceRefs:
-            this.asArray(
-              reference.evidenceRefs
-            )
-
-        })
-      );
-
-  },
-
-  normalizeUnresolvedReferences(
-    value = []
-  ) {
-
-    return this.asArray(value)
-      .filter(
-        reference =>
-          reference &&
-          typeof reference ===
-            "object"
-      )
-      .map(
-        reference => ({
-
-          referenceId:
-            reference.referenceId ||
-            reference.id ||
-            null,
-
-          surface:
-            reference.surface ||
-            null,
-
-          referenceType:
-            reference.referenceType ||
-            "reference",
-
-          semanticRole:
-            reference.semanticRole ||
-            null,
-
-          status:
-            reference.status ||
-            (
-              reference.ambiguity
-                ?.present === true
-                ? "ambiguous"
-                : "unresolved"
-            ),
-
-          resolvedTo:
-            null,
-
-          confidence:
-            this.normalizeConfidence(
-              reference.confidence ??
-              reference
-                .resolutionConfidence ??
-              0
-            ),
-
-          score:
-            this.normalizeNumber(
-              reference.score ??
-              reference
-                .resolutionScore
-            ),
-
-          margin:
-            this.normalizeNumber(
-              reference.margin ??
-              reference
-                .resolutionMargin
-            ),
-
-          reason:
-            reference.reason ||
-            reference
-              .resolutionReason ||
-            null,
-
-          ambiguity:
-            reference.ambiguity ||
-            null,
-
-          candidates:
-            this.asArray(
-              reference.candidates
-            ),
-
-          evidenceRefs:
-            this.asArray(
-              reference.evidenceRefs
-            )
-
-        })
-      );
-
-  },
-
-  normalizePrimaryReference({
-    resolverResult = {},
-    references = [],
-    unresolvedReferences = []
-  } = {}) {
-
-    const activeReference =
-      resolverResult
-        .activeReference;
-
-    if (
-      activeReference &&
-      typeof activeReference ===
-        "object"
-    ) {
-
-      const activeId =
-        activeReference.referenceId ||
-        activeReference.id ||
-        null;
-
-      return (
-        references.find(
-          reference =>
-            reference.referenceId ===
-            activeId
-        ) ||
-        unresolvedReferences.find(
-          reference =>
-            reference.referenceId ===
-            activeId
-        ) ||
-        activeReference
-      );
-
-    }
-
-    return (
-      references[0] ||
-      unresolvedReferences[0] ||
-      null
-    );
-
-  },
-
-  buildDiagnostics({
-    resolverResult = {},
-    referenceResolution = {},
-    quality = {},
-    references = [],
-    unresolvedReferences = []
-  } = {}) {
-
-    return [
-
-      {
-
-        engine:
-          "AriReferenceResolutionEngine",
-
-        engineVersion:
-          this.version,
-
-        resolver:
-          "AriEntityReferenceResolver",
-
-        resolverVersion:
-          resolverResult
-            .entityReferenceResolverVersion ||
-          window
-            .AriEntityReferenceResolver
-            ?.version ||
-          null,
-
-        resolverRan:
-          resolverResult
-            .entityReferenceResolverRan ===
-          true,
-
-        referenceCount:
-          Number(
-            quality.referenceCount ??
-            references.length +
-            unresolvedReferences.length
-          ),
-
-        resolvedCount:
-          references.length,
-
-        unresolvedCount:
-          unresolvedReferences.length,
-
-        confidence:
-          this.normalizeConfidence(
-            referenceResolution
-              .confidence ??
-            quality
-              .accuracyConfidence ??
-            0
-          )
-
-      },
-
-      ...this.asArray(
-        quality.warnings
-      ),
-
-      ...this.asArray(
-        resolverResult.warnings
-      )
-
-    ];
-
   },
 
   /* =====================================================
-     VALIDATION
+     GENERAL HELPERS
   ===================================================== */
 
-  validateDependencies() {
+  normalizeSemanticType(
+    value = ""
+  ) {
+    const type =
+      this.normalize(value)
+        .replace(/\s+/g, "_");
 
-    const errors = [];
+    const map = {
+      people:
+        "person",
 
-    if (
-      !window
-        .AriEntityReferenceResolver ||
-      typeof window
-        .AriEntityReferenceResolver
-        .resolve !==
-        "function"
-    ) {
+      human:
+        "person",
 
-      errors.push(
-        "entity_reference_resolver_unavailable"
-      );
+      participant:
+        "participant",
 
-    }
+      actor:
+        "participant",
 
-    if (
-      !window.AriReferencePacket ||
-      typeof window
-        .AriReferencePacket
-        .create !==
-        "function"
-    ) {
+      organization:
+        "organization",
 
-      errors.push(
-        "reference_packet_unavailable"
-      );
+      organisation:
+        "organization",
 
-    }
+      place:
+        "location",
 
-    return {
+      thing:
+        "object",
 
-      valid:
-        errors.length === 0,
+      physical_object:
+        "object",
 
-      errors
+      physical_entity:
+        "physical_entity",
 
+      measurement:
+        "measurement",
+
+      number:
+        "quantity",
+
+      amount:
+        "quantity",
+
+      proposition:
+        "claim",
+
+      statement:
+        "claim",
+
+      action:
+        "event",
+
+      activity:
+        "event",
+
+      choice:
+        "option",
+
+      decision_option:
+        "option",
+
+      file:
+        "artifact",
+
+      code:
+        "artifact",
+
+      topic:
+        "concept",
+
+      issue:
+        "concept"
     };
 
+    return map[type] ||
+      type ||
+      "entity";
   },
 
-  validate(runtime = {}) {
+  groupBy(
+    items = [],
+    field = "semanticType"
+  ) {
+    return this.asArray(items)
+      .reduce(
+        (
+          groups,
+          item
+        ) => {
+          const key =
+            item?.[field] ??
+            "unknown";
 
-    if (
-      !window.AriReferencePacket ||
-      typeof window
-        .AriReferencePacket
-        .validate !==
-        "function"
-    ) {
+          groups[key] =
+            groups[key] ||
+            [];
 
-      return {
+          groups[key].push(
+            item
+          );
 
-        valid: false,
-
-        errors: [
-          "reference_packet_validator_missing"
-        ],
-
-        warnings: []
-
-      };
-
-    }
-
-    return window
-      .AriReferencePacket
-      .validate(
-        runtime.referencePacket
+          return groups;
+        },
+        {}
       );
-
   },
 
-  /* =====================================================
-     FAILURE HANDLING
-  ===================================================== */
+  dedupeById(items = []) {
+    const seen =
+      new Set();
 
-  attachFailure({
-    runtime = {},
-    errors = [],
-    diagnostics = {},
-    additions = {}
-  } = {}) {
-
-    return {
-
-      ...runtime,
-
-      ...additions,
-
-      errors: [
-        ...this.readErrors(
-          runtime.errors
-        ),
-
-        ...this.asArray(
-          errors
-        )
-      ],
-
-      diagnostics: {
-
-        ...this.readObject(
-          runtime.diagnostics
-        ),
-
-        referenceResolution: {
-
-          complete: false,
-
-          valid: false,
-
-          resolverRan: false,
-
-          packetCreated: false,
-
-          engineVersion:
-            this.version,
-
-          ...diagnostics
-
+    return this.asArray(items)
+      .filter(item => {
+        if (!item?.id) {
+          return false;
         }
 
-      }
+        if (
+          seen.has(item.id)
+        ) {
+          return false;
+        }
 
-    };
+        seen.add(item.id);
 
-  },
-
-  /* =====================================================
-     HELPERS
-  ===================================================== */
-
-  readErrors(value = []) {
-
-    return this.asArray(value)
-      .filter(Boolean);
-
-  },
-
-  readObject(value = {}) {
-
-    if (
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(value)
-    ) {
-
-      return value;
-
-    }
-
-    return {};
-
+        return true;
+      });
   },
 
   asArray(value = []) {
-
     if (
       Array.isArray(value)
     ) {
-
       return value;
-
     }
 
     if (
@@ -1346,30 +3488,23 @@ window.AriReferenceResolutionEngine = {
       value === undefined ||
       value === ""
     ) {
-
       return [];
-
     }
 
     return [value];
-
   },
 
   normalizeConfidence(value = 0) {
-
     const number =
       Number(value);
 
     if (
       !Number.isFinite(number)
     ) {
-
       return 0;
-
     }
 
     if (number > 1) {
-
       return Math.max(
         0,
         Math.min(
@@ -1377,7 +3512,6 @@ window.AriReferenceResolutionEngine = {
           number / 100
         )
       );
-
     }
 
     return Math.max(
@@ -1387,38 +3521,94 @@ window.AriReferenceResolutionEngine = {
         number
       )
     );
-
   },
 
-  normalizeNumber(value = null) {
+  roundScore(value = 0) {
+    return Number(
+      Number(
+        value ||
+        0
+      ).toFixed(3)
+    );
+  },
 
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
+  createStableId(
+    prefix = "id",
+    value = ""
+  ) {
+    return [
+      prefix,
+      this.hashString(
+        String(value || "")
+      )
+    ].join("_");
+  },
+
+  hashString(value = "") {
+    let hash =
+      2166136261;
+
+    const text =
+      String(value || "");
+
+    for (
+      let index = 0;
+      index <
+      text.length;
+      index += 1
     ) {
+      hash ^=
+        text.charCodeAt(
+          index
+        );
 
-      return null;
-
+      hash +=
+        (
+          hash << 1
+        ) +
+        (
+          hash << 4
+        ) +
+        (
+          hash << 7
+        ) +
+        (
+          hash << 8
+        ) +
+        (
+          hash << 24
+        );
     }
 
-    const number =
-      Number(value);
+    return (
+      hash >>> 0
+    ).toString(36);
+  },
 
-    return Number.isFinite(
-      number
+  clean(value = "") {
+    return String(
+      value ??
+      ""
     )
-      ? number
-      : null;
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, "\"")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
 
+  normalize(value = "") {
+    return this.clean(value)
+      .toLowerCase()
+      .replace(/[_-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
-
 };
 
-window.Ari.referenceResolutionEngine =
-  window.AriReferenceResolutionEngine;
+window.Ari.entityReferenceResolver =
+  window.AriEntityReferenceResolver;
 
 console.log(
-  "ARI REFERENCE RESOLUTION ENGINE LOADED:",
-  window.AriReferenceResolutionEngine?.version
+  "ARI ENTITY & REFERENCE RESOLVER LOADED:",
+  window.AriEntityReferenceResolver?.version
 );
