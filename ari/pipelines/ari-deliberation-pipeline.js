@@ -1835,6 +1835,112 @@ window.AriDeliberationPipeline = {
           null
       };
 
+this.emitDebugLog(
+  runtime,
+  "semantic_validation_input",
+  {
+    semanticFrameAvailable:
+      Boolean(
+        validationInput.semanticFrame
+      ),
+
+    semanticFrameType:
+      Array.isArray(
+        validationInput.semanticFrame
+      )
+        ? "array"
+        : typeof validationInput
+            .semanticFrame,
+
+    semanticFrameKeys:
+      validationInput.semanticFrame &&
+      typeof validationInput
+        .semanticFrame ===
+        "object" &&
+      !Array.isArray(
+        validationInput.semanticFrame
+      )
+        ? Object.keys(
+            validationInput.semanticFrame
+          )
+        : [],
+
+    semanticFrameSchema:
+      validationInput.semanticFrame
+        ?.schema ||
+      null,
+
+    semanticFrameSchemaVersion:
+      validationInput.semanticFrame
+        ?.schemaVersion ||
+      null,
+
+    semanticFrameReady:
+      validationInput.semanticFrame
+        ?.ready ??
+      null,
+
+    semanticFrameValid:
+      validationInput.semanticFrame
+        ?.valid ??
+      null,
+
+    cognitiveReasoningResultAvailable:
+      Boolean(
+        validationInput
+          .cognitiveReasoningResult
+      ),
+
+    cognitiveReasoningResultKeys:
+      validationInput
+        .cognitiveReasoningResult &&
+      typeof validationInput
+        .cognitiveReasoningResult ===
+        "object" &&
+      !Array.isArray(
+        validationInput
+          .cognitiveReasoningResult
+      )
+        ? Object.keys(
+            validationInput
+              .cognitiveReasoningResult
+          )
+        : [],
+
+    evidencePacketAvailable:
+      Boolean(
+        validationInput.evidencePacket
+      ),
+
+    operationRegistryAvailable:
+      Boolean(
+        validationInput.operationRegistry
+      ),
+
+    continuityAvailable:
+      Boolean(
+        validationInput.continuity
+      ),
+
+    executionMetadataAvailable:
+      Boolean(
+        validationInput
+          .executionMetadata
+      ),
+
+    responseRequirementsAvailable:
+      Boolean(
+        validationInput
+          .responseRequirements
+      ),
+
+    validationInputKeys:
+      Object.keys(
+        validationInput
+      )
+  }
+);
+
       const validateMethod =
         typeof validator.validate ===
           "function"
@@ -1847,6 +1953,136 @@ window.AriDeliberationPipeline = {
           validationInput,
           runtime
         );
+
+this.emitDebugLog(
+  runtime,
+  "semantic_validation_output",
+  {
+    resultAvailable:
+      Boolean(result),
+
+    resultType:
+      Array.isArray(result)
+        ? "array"
+        : typeof result,
+
+    resultKeys:
+      result &&
+      typeof result ===
+        "object" &&
+      !Array.isArray(result)
+        ? Object.keys(result)
+        : [],
+
+    ready:
+      result?.ready ??
+      null,
+
+    valid:
+      result?.valid ??
+      null,
+
+    accepted:
+      result?.accepted ??
+      null,
+
+    status:
+      result?.status ||
+      null,
+
+    semanticFrameValidatorReady:
+      result
+        ?.semanticFrameValidatorReady ??
+      null,
+
+    nestedValidationAvailable:
+      Boolean(
+        result
+          ?.semanticFrameValidation
+      ),
+
+    nestedValidationKeys:
+      result
+        ?.semanticFrameValidation &&
+      typeof result
+        .semanticFrameValidation ===
+        "object" &&
+      !Array.isArray(
+        result
+          .semanticFrameValidation
+      )
+        ? Object.keys(
+            result
+              .semanticFrameValidation
+          )
+        : [],
+
+    nestedReady:
+      result
+        ?.semanticFrameValidation
+        ?.ready ??
+      null,
+
+    nestedValid:
+      result
+        ?.semanticFrameValidation
+        ?.valid ??
+      null,
+
+    nestedAccepted:
+      result
+        ?.semanticFrameValidation
+        ?.accepted ??
+      null,
+
+    nestedStatus:
+      result
+        ?.semanticFrameValidation
+        ?.status ||
+      null,
+
+    validatedSemanticFrameAvailable:
+      Boolean(
+        result
+          ?.validatedSemanticFrame ||
+        result
+          ?.semanticFrameValidation
+          ?.validatedSemanticFrame
+      ),
+
+    semanticFrameReturned:
+      Boolean(
+        result?.semanticFrame ||
+        result
+          ?.semanticFrameValidation
+          ?.semanticFrame
+      ),
+
+    errors:
+      this.toArray(
+        result?.errors
+      ),
+
+    nestedErrors:
+      this.toArray(
+        result
+          ?.semanticFrameValidation
+          ?.errors
+      ),
+
+    warnings:
+      this.toArray(
+        result?.warnings
+      ),
+
+    nestedWarnings:
+      this.toArray(
+        result
+          ?.semanticFrameValidation
+          ?.warnings
+      )
+  }
+);
 
       if (
         !result ||
