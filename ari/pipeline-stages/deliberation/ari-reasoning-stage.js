@@ -6,7 +6,7 @@
 // one authoritative OpenAI reasoning pass, result validation, and the
 // canonical authoritative-draft handoff.
 //
-// V3.0.0 — Single-Pass Cognitive Reasoning / Authoritative Draft Handoff
+// V3.1.0 — Canonical Operation Registry Contract
 //
 // Architectural flow:
 //
@@ -56,8 +56,8 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "3.0.0",
-  schemaVersion: "3.0.0",
+  version: "3.1.0",
+  schemaVersion: "3.1.0",
   source: "ari-reasoning-stage",
 
   /* =====================================================
@@ -1319,10 +1319,30 @@ window.AriReasoningStage = {
      REASONING REQUEST
   ===================================================== */
 
-  buildReasoningStageInput(
-    summary = {}
-  ) {
-    const evidencePacket =
+buildReasoningStageInput(
+  summary = {}
+) {
+  const operationRegistry =
+    window.AriOperationRegistry ||
+    window.Ari?.operationRegistry ||
+    null;
+
+  const allowedOperations =
+    this.resolveAllowedOperations(
+      operationRegistry
+    );
+
+console.log(
+  "ARI REASONING OPERATION CONTRACT",
+  {
+    operationCount:
+      allowedOperations.length,
+
+    allowedOperations
+  }
+);
+
+  const evidencePacket =
       this.firstObject([
         summary.evidencePacket,
         summary.perceptionPacket
@@ -1367,6 +1387,30 @@ window.AriReasoningStage = {
         summary.executivePacket
           ?.routingContract
       ]);
+
+if (!allowedOperations.length) {
+  console.error(
+    "ARI REASONING STAGE CANNOT BUILD OPERATION CONTRACT",
+    {
+      registryAvailable:
+        Boolean(
+          operationRegistry
+        ),
+
+      registryVersion:
+        operationRegistry
+          ?.version ||
+        null,
+
+      registryKeys:
+        operationRegistry
+          ? Object.keys(
+              operationRegistry
+            )
+          : []
+    }
+  );
+}
 
     return {
       schema:
@@ -1597,33 +1641,73 @@ window.AriReasoningStage = {
       },
 
       outputContract: {
-        requiredSchema:
-          "ari_cognitive_reasoning_result",
+  schema:
+    "ari_cognitive_reasoning_result",
 
-        semanticFrameRequired:
-          true,
+  schemaVersion:
+    "2.0.0",
 
-        responseRequirementsRequired:
-          true,
+  requiredSchema:
+    "ari_cognitive_reasoning_result",
 
-        authoritativeDraftRequired:
-          true,
+  semanticFrameRequired:
+    true,
 
-        authoritativeDraftField:
-          "draftResponse",
+  responseRequirementsRequired:
+    true,
 
-        authoritativeDraftMustBeUserFacing:
-          true,
+  authoritativeDraftRequired:
+    true,
 
-        authoritativeDraftMustBeComplete:
-          true,
+  authoritativeDraftField:
+    "draftResponse",
 
-        authoritativeDraftMustRespectSafety:
-          true,
+  authoritativeDraftMustBeUserFacing:
+    true,
 
-        authoritativeDraftMustRespectEvidence:
-          true
+  authoritativeDraftMustBeComplete:
+    true,
+
+  authoritativeDraftMustRespectSafety:
+    true,
+
+  authoritativeDraftMustRespectEvidence:
+    true,
+
+  properties: {
+    semanticFrame: {
+      type:
+        "object",
+
+      properties: {
+        operation: {
+          type:
+            "string",
+
+          enum:
+            allowedOperations
+        }
       },
+
+      required: [
+        "operation"
+      ]
+    },
+
+    draftResponse: {
+      type:
+        "string",
+
+      minLength:
+        1
+    }
+  },
+
+  operationEnum:
+    allowedOperations,
+
+  allowedOperations
+},
 
       authority: {
         safetyIsBinding:
@@ -2250,6 +2334,165 @@ window.AriReasoningStage = {
   /* =====================================================
      UTILITIES
   ===================================================== */
+
+resolveAllowedOperations(
+  registry = null
+) {
+  if (!registry) {
+    return [];
+  }
+
+  const methodNames = [
+    "getAllowedOperations",
+    "listOperations",
+    "getOperations",
+    "getOperationNames"
+  ];
+
+  for (const methodName of methodNames) {
+    if (
+      typeof registry[
+        methodName
+      ] !== "function"
+    ) {
+      continue;
+    }
+
+    try {
+      const result =
+        registry[
+          methodName
+        ]();
+
+      const normalized =
+        this.normalizeOperationList(
+          result
+        );
+
+      if (normalized.length) {
+        return normalized;
+      }
+    } catch (error) {
+      console.warn(
+        `Ari operation registry method failed: ${methodName}`,
+        error
+      );
+    }
+  }
+
+  const directCandidates = [
+    registry.operations,
+    registry.allowedOperations,
+    registry.operationNames,
+    registry.registry,
+    registry.definitions,
+    registry.entries
+  ];
+
+  for (const candidate of directCandidates) {
+    const normalized =
+      this.normalizeOperationList(
+        candidate
+      );
+
+    if (normalized.length) {
+      return normalized;
+    }
+  }
+
+  console.error(
+    "ARI REASONING STAGE OPERATION REGISTRY EMPTY",
+    {
+      registryAvailable:
+        true,
+
+      registryVersion:
+        registry.version ||
+        null,
+
+      registryKeys:
+        Object.keys(
+          registry
+        )
+    }
+  );
+
+  return [];
+},
+
+normalizeOperationList(
+  value = null
+) {
+  let items = [];
+
+  if (Array.isArray(value)) {
+    items = value;
+  } else if (
+    value &&
+    typeof value ===
+      "object"
+  ) {
+    items =
+      Object.entries(value)
+        .map(
+          ([key, entry]) => {
+            if (
+              typeof entry ===
+                "string"
+            ) {
+              return entry;
+            }
+
+            if (
+              entry &&
+              typeof entry ===
+                "object"
+            ) {
+              return (
+                entry.operation ||
+                entry.name ||
+                entry.id ||
+                entry.key ||
+                key
+              );
+            }
+
+            return key;
+          }
+        );
+  }
+
+  return [
+    ...new Set(
+      items
+        .map(item => {
+          if (
+            typeof item ===
+              "string"
+          ) {
+            return item.trim();
+          }
+
+          if (
+            item &&
+            typeof item ===
+              "object"
+          ) {
+            return String(
+              item.operation ||
+              item.name ||
+              item.id ||
+              item.key ||
+              ""
+            ).trim();
+          }
+
+          return "";
+        })
+        .filter(Boolean)
+    )
+  ];
+},
 
   objectOrNull(
     value
