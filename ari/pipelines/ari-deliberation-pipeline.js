@@ -5,7 +5,7 @@
 // Coordinate deterministic context preparation, OpenAI reasoning,
 // semantic validation, response planning, and stage-level diagnostics.
 //
-// V2.3.0 — Deliberation Boundary Trace / Failure Isolation
+// V2.4.0 — Authoritative Draft Preservation / Expression Handoff
 //
 // Canonical order:
 // 1. Continuity
@@ -32,8 +32,8 @@
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "2.3.0",
-  schemaVersion: "2.3.0",
+  version: "2.4.0",
+  schemaVersion: "2.4.0",
   debugSchemaVersion: "1.0.0",
   source: "ari-deliberation-pipeline",
   architecture:
@@ -333,42 +333,63 @@ window.AriDeliberationPipeline = {
             null,
 
           diagnostics: {
-            stageRan:
-              state.reasoningStageRan ===
-              true,
-            stagePacketAvailable:
-              Boolean(
-                state.reasoningStagePacket
-              ),
-            reasoningResultAvailable:
-              Boolean(
-                state.cognitiveReasoningResult
-              ),
-            semanticFrameAvailable:
-              Boolean(
-                state.semanticFrame
-              ),
-            responseRequirementsAvailable:
-              Boolean(
-                state.responseRequirements
-              ),
-            modelInvocationAvailable:
-              Boolean(
-                state.modelInvocation
-              ),
-            modelInvocationSucceeded:
-              state.modelInvocation
-                ?.succeeded ??
-              null,
-            model:
-              state.modelInvocation
-                ?.model ||
-              state.cognitiveReasoningResult
-                ?.model ||
-              state.cognitiveReasoningResult
-                ?.modelId ||
-              null
-          }
+  stageRan:
+    state.reasoningStageRan ===
+    true,
+
+  stagePacketAvailable:
+    Boolean(
+      state.reasoningStagePacket
+    ),
+
+  reasoningResultAvailable:
+    Boolean(
+      state.cognitiveReasoningResult
+    ),
+
+  semanticFrameAvailable:
+    Boolean(
+      state.semanticFrame
+    ),
+
+  responseRequirementsAvailable:
+    Boolean(
+      state.responseRequirements
+    ),
+
+  authoritativeDraftAvailable:
+    Boolean(
+      state.authoritativeDraft
+    ),
+
+  authoritativeDraftLength:
+    this.cleanText(
+      state.authoritativeDraft
+    ).length,
+
+  authoritativeDraftSource:
+    state.selectedDraftSource ||
+    null,
+
+  modelInvocationAvailable:
+    Boolean(
+      state.modelInvocation
+    ),
+
+  modelInvocationSucceeded:
+    state.modelInvocation
+      ?.succeeded ??
+    null,
+
+  model:
+    state.modelInvocation
+      ?.model ||
+    state.cognitiveReasoningResult
+      ?.model ||
+    state.cognitiveReasoningResult
+      ?.modelId ||
+    null
+}
         }
       );
 
@@ -498,9 +519,9 @@ if (authoritativeSemanticFrame) {
         "semantic_validation",
         {
           ready:
-            this.isSemanticValidationAccepted(
-              state
-            ),
+  this.hasUsableSemanticFrame(
+    state
+  ),
 
           source:
             state.semanticValidationStageSource ||
@@ -522,40 +543,61 @@ if (authoritativeSemanticFrame) {
                 null,
 
           diagnostics: {
-            stageRan:
-              state.semanticValidationStageRan ===
-              true,
-            validatorResultAvailable:
-              Boolean(
-                state.semanticFrameValidatorResult
-              ),
-            accepted:
-              state.semanticValidationAccepted ===
-              true,
-            rejected:
-              state.semanticValidationRejected ===
-              true,
-            validatedFrameAvailable:
-              Boolean(
-                state.validatedSemanticFrame
-              ),
-            rejectedFrameAvailable:
-              Boolean(
-                state.rejectedSemanticFrame
-              ),
-            compatibilityAvailable:
-              Boolean(
-                state.semanticCompatibility
-              ),
-            errors:
-              this.toArray(
-                state.semanticValidationErrors
-              ),
-            warnings:
-              this.toArray(
-                state.semanticValidationWarnings
-              )
-          }
+  stageRan:
+    state.semanticValidationStageRan ===
+    true,
+
+  validatorResultAvailable:
+    Boolean(
+      state.semanticFrameValidatorResult
+    ),
+
+  accepted:
+    state.semanticValidationAccepted ===
+    true,
+
+  advisoryBypass:
+    state.semanticValidationBypassed ===
+    true,
+
+  executionAllowed:
+    state.semanticValidationExecutionAllowed ===
+    true,
+
+  usableSemanticFrameAvailable:
+    this.hasUsableSemanticFrame(
+      state
+    ),
+
+  rejected:
+    state.semanticValidationRejected ===
+    true,
+
+  validatedFrameAvailable:
+    Boolean(
+      state.validatedSemanticFrame
+    ),
+
+  rejectedFrameAvailable:
+    Boolean(
+      state.rejectedSemanticFrame
+    ),
+
+  compatibilityAvailable:
+    Boolean(
+      state.semanticCompatibility
+    ),
+
+  errors:
+    this.toArray(
+      state.semanticValidationErrors
+    ),
+
+  warnings:
+    this.toArray(
+      state.semanticValidationWarnings
+    )
+}
         }
       );
 
@@ -1420,6 +1462,36 @@ if (authoritativeSemanticFrame) {
             Boolean(
               summary.cognitiveReasoningResult
             ),
+            
+            authoritativeDraftAvailable:
+  Boolean(
+    this.firstText(
+      summary.authoritativeDraft,
+      summary.draftResponse,
+      summary.responseText
+    )
+  ),
+
+authoritativeDraftLength:
+  this.firstText(
+    summary.authoritativeDraft,
+    summary.draftResponse,
+    summary.responseText
+  ).length,
+
+selectedDraftAvailable:
+  Boolean(
+    this.firstText(
+      summary.selectedDraft,
+      summary.authoritativeDraft,
+      summary.draftResponse
+    )
+  ),
+
+selectedDraftSource:
+  summary.selectedDraftSource ||
+  null,
+            
           semanticFrameAvailable:
             Boolean(
               summary.semanticFrame
@@ -1547,248 +1619,372 @@ if (authoritativeSemanticFrame) {
   ===================================================== */
 
   normalizeReasoningOutputs(
-    summary = {}
-  ) {
-    const reasoningStagePacket =
-      this.readObject(
-        summary.reasoningStagePacket
-      );
+  summary = {}
+) {
+  const reasoningStagePacket =
+    this.readObject(
+      summary.reasoningStagePacket
+    );
 
-    const directReasoningResult =
-      this.readObject(
-        summary.cognitiveReasoningResult
-      ) ||
-      this.readObject(
-        summary.reasoningResult
-      ) ||
-      this.readObject(
-        summary.openAIReasoningResult
-      );
+  const directReasoningResult =
+    this.readObject(
+      summary.cognitiveReasoningResult
+    ) ||
+    this.readObject(
+      summary.reasoningResult
+    ) ||
+    this.readObject(
+      summary.openAIReasoningResult
+    );
 
-    const nestedReasoningResult =
-      this.readObject(
-        reasoningStagePacket
-          ?.cognitiveReasoningResult
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.reasoningResult
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.openAIReasoningResult
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.result
-          ?.cognitiveReasoningResult
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.result
-          ?.reasoningResult
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.result
-      );
+  const nestedReasoningResult =
+    this.readObject(
+      reasoningStagePacket
+        ?.cognitiveReasoningResult
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.reasoningResult
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.openAIReasoningResult
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.result
+        ?.cognitiveReasoningResult
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.result
+        ?.reasoningResult
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.result
+    );
 
-    const reasoningResult =
-      directReasoningResult ||
-      nestedReasoningResult ||
-      null;
+  const reasoningResult =
+    directReasoningResult ||
+    nestedReasoningResult ||
+    null;
 
-    const semanticFrame =
-      this.readObject(
-        reasoningResult
-          ?.semanticFrame
-      ) ||
-      this.readObject(
-        reasoningResult
-          ?.result
-          ?.semanticFrame
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.semanticFrame
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.result
-          ?.semanticFrame
-      ) ||
-      this.readObject(
-        summary.semanticFrame
-      ) ||
-      null;
+  const semanticFrame =
+    this.readObject(
+      reasoningResult
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      reasoningResult
+        ?.result
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.result
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      summary.semanticFrame
+    ) ||
+    null;
 
-    const responseRequirements =
-      this.readObject(
-        reasoningResult
-          ?.responseRequirements
-      ) ||
-      this.readObject(
-        reasoningResult
-          ?.result
-          ?.responseRequirements
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.responseRequirements
-      ) ||
-      this.readObject(
-        summary.responseRequirements
-      ) ||
-      null;
+  const responseRequirements =
+    this.readObject(
+      reasoningResult
+        ?.responseRequirements
+    ) ||
+    this.readObject(
+      reasoningResult
+        ?.result
+        ?.responseRequirements
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.responseRequirements
+    ) ||
+    this.readObject(
+      summary.responseRequirements
+    ) ||
+    null;
 
-    const responseStrategy =
-      this.readObject(
-        reasoningResult
-          ?.responseStrategy
-      ) ||
-      this.readObject(
-        reasoningResult
-          ?.result
-          ?.responseStrategy
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.responseStrategy
-      ) ||
-      this.readObject(
-        summary.responseStrategy
-      ) ||
-      null;
+  const responseStrategy =
+    this.readObject(
+      reasoningResult
+        ?.responseStrategy
+    ) ||
+    this.readObject(
+      reasoningResult
+        ?.result
+        ?.responseStrategy
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.responseStrategy
+    ) ||
+    this.readObject(
+      summary.responseStrategy
+    ) ||
+    responseRequirements ||
+    null;
 
-    const executionMetadata =
-      this.readObject(
-        reasoningResult
-          ?.executionMetadata
-      ) ||
-      this.readObject(
-        reasoningResult
-          ?.result
-          ?.executionMetadata
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.executionMetadata
-      ) ||
-      this.readObject(
-        summary.executionMetadata
-      ) ||
-      null;
+  const authoritativeDraft =
+    this.firstText(
+      reasoningResult
+        ?.authoritativeDraft,
 
-    const evidenceReferences =
-      this.firstArray(
-        reasoningResult
-          ?.evidenceReferences,
-        reasoningResult
-          ?.result
-          ?.evidenceReferences,
-        reasoningStagePacket
-          ?.evidenceReferences,
-        summary.evidenceReferences
-      );
+      reasoningResult
+        ?.authoritative_draft,
 
-    const modelInvocation =
-      this.readObject(
-        reasoningResult
-          ?.modelInvocation
-      ) ||
-      this.readObject(
-        reasoningStagePacket
-          ?.modelInvocation
-      ) ||
-      this.readObject(
-        summary.modelInvocation
-      ) ||
-      null;
+      reasoningResult
+        ?.draftResponse,
 
-    const reasoningReady =
-      this.resolveReasoningReady({
-        reasoningResult,
-        reasoningStagePacket,
-        semanticFrame,
-        modelInvocation
-      });
+      reasoningResult
+        ?.draft_response,
 
-    return {
-      ...summary,
-      reasoningStagePacket,
-      cognitiveReasoningResult:
-        reasoningResult,
+      reasoningResult
+        ?.responseText,
+
+      reasoningResult
+        ?.response_text,
+
+      reasoningResult
+        ?.finalResponse,
+
+      reasoningResult
+        ?.final_response,
+
+      reasoningResult
+        ?.answer,
+
+      reasoningResult
+        ?.reply,
+
+      reasoningResult
+        ?.result
+        ?.authoritativeDraft,
+
+      reasoningResult
+        ?.result
+        ?.draftResponse,
+
+      reasoningResult
+        ?.result
+        ?.responseText,
+
+      reasoningStagePacket
+        ?.authoritativeDraft,
+
+      reasoningStagePacket
+        ?.draftResponse,
+
+      reasoningStagePacket
+        ?.responseText,
+
+      reasoningStagePacket
+        ?.finalResponse,
+
+      reasoningStagePacket
+        ?.answer,
+
+      reasoningStagePacket
+        ?.reply,
+
+      reasoningStagePacket
+        ?.result
+        ?.authoritativeDraft,
+
+      reasoningStagePacket
+        ?.result
+        ?.draftResponse,
+
+      reasoningStagePacket
+        ?.result
+        ?.responseText,
+
+      summary.authoritativeDraft,
+
+      summary.draftResponse,
+
+      summary.responseText
+    );
+
+  const executionMetadata =
+    this.readObject(
+      reasoningResult
+        ?.executionMetadata
+    ) ||
+    this.readObject(
+      reasoningResult
+        ?.result
+        ?.executionMetadata
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.executionMetadata
+    ) ||
+    this.readObject(
+      summary.executionMetadata
+    ) ||
+    null;
+
+  const evidenceReferences =
+    this.firstArray(
+      reasoningResult
+        ?.evidenceReferences,
+      reasoningResult
+        ?.result
+        ?.evidenceReferences,
+      reasoningStagePacket
+        ?.evidenceReferences,
+      summary.evidenceReferences
+    );
+
+  const modelInvocation =
+    this.readObject(
+      reasoningResult
+        ?.modelInvocation
+    ) ||
+    this.readObject(
+      reasoningStagePacket
+        ?.modelInvocation
+    ) ||
+    this.readObject(
+      summary.modelInvocation
+    ) ||
+    null;
+
+  const reasoningReady =
+    this.resolveReasoningReady({
       reasoningResult,
+      reasoningStagePacket,
       semanticFrame,
-      aiSemanticFrame:
-        semanticFrame,
-      responseRequirements,
-      responseStrategy,
-      executionMetadata,
-      evidenceReferences,
-      modelInvocation,
-      reasoningPacketAvailable:
-        Boolean(
-          reasoningResult
-        ),
-      reasoningResultAvailable:
-        Boolean(
-          reasoningResult
-        ),
-      semanticFrameAvailable:
-        Boolean(
-          semanticFrame
-        ),
-      reasoningStageReady:
-        reasoningReady,
-      reasoningReady
-    };
-  },
+      authoritativeDraft,
+      modelInvocation
+    });
+
+  return {
+    ...summary,
+
+    reasoningStagePacket,
+
+    cognitiveReasoningResult:
+      reasoningResult,
+
+    reasoningResult,
+
+    semanticFrame,
+
+    aiSemanticFrame:
+      semanticFrame,
+
+    responseRequirements,
+
+    responseStrategy,
+
+    authoritativeDraft,
+
+    draftResponse:
+      authoritativeDraft,
+
+    responseText:
+      authoritativeDraft,
+
+    modelDraftResponse:
+      authoritativeDraft,
+
+    selectedDraft:
+      authoritativeDraft,
+
+    selectedDraftSource:
+      authoritativeDraft
+        ? "openai_cognitive_reasoning"
+        : null,
+
+    authoritativeDraftAvailable:
+      Boolean(
+        authoritativeDraft
+      ),
+
+    executionMetadata,
+
+    evidenceReferences,
+
+    modelInvocation,
+
+    reasoningPacketAvailable:
+      Boolean(
+        reasoningResult
+      ),
+
+    reasoningResultAvailable:
+      Boolean(
+        reasoningResult
+      ),
+
+    semanticFrameAvailable:
+      Boolean(
+        semanticFrame
+      ),
+
+    reasoningStageReady:
+      reasoningReady,
+
+    reasoningReady
+  };
+},
 
   resolveReasoningReady({
-    reasoningResult = null,
-    reasoningStagePacket = null,
-    semanticFrame = null,
-    modelInvocation = null
-  } = {}) {
-    const explicitlyFailed =
-      reasoningResult
-        ?.ready === false ||
-      reasoningResult
-        ?.reasoningEngineReady === false ||
-      reasoningStagePacket
-        ?.ready === false ||
-      reasoningStagePacket
-        ?.reasoningStageReady === false ||
-      modelInvocation
-        ?.succeeded === false;
+  reasoningResult = null,
+  reasoningStagePacket = null,
+  semanticFrame = null,
+  authoritativeDraft = "",
+  modelInvocation = null
+} = {}) {
+  const explicitlyFailed =
+    reasoningResult
+      ?.ready === false ||
+    reasoningResult
+      ?.reasoningEngineReady === false ||
+    reasoningStagePacket
+      ?.ready === false ||
+    reasoningStagePacket
+      ?.reasoningStageReady === false ||
+    modelInvocation
+      ?.succeeded === false;
 
-    if (explicitlyFailed) {
-      return false;
-    }
+  if (explicitlyFailed) {
+    return false;
+  }
 
-    const explicitlyReady =
+  const resultAvailable =
+    Boolean(
       reasoningResult
-        ?.ready === true ||
-      reasoningResult
-        ?.reasoningEngineReady === true ||
-      reasoningStagePacket
-        ?.ready === true ||
-      reasoningStagePacket
-        ?.reasoningStageReady === true;
+    );
 
-    if (
-      explicitlyReady &&
-      Boolean(semanticFrame)
-    ) {
-      return true;
-    }
-
-    return Boolean(
-      reasoningResult &&
+  const semanticFrameAvailable =
+    Boolean(
       semanticFrame
     );
-  },
+
+  const draftAvailable =
+    Boolean(
+      this.cleanText(
+        authoritativeDraft
+      )
+    );
+
+  return (
+    resultAvailable &&
+    semanticFrameAvailable &&
+    draftAvailable
+  );
+},
 
   /* =====================================================
      SEMANTIC VALIDATION
@@ -2507,16 +2703,42 @@ hasUsableSemanticFrame(
         summary.cognitiveReasoningResult
       );
 
+const authoritativeDraft =
+  this.firstText(
+    summary.authoritativeDraft,
+    summary.draftResponse,
+    summary.responseText,
+    reasoningResult
+      ?.authoritativeDraft,
+    reasoningResult
+      ?.draftResponse,
+    reasoningResult
+      ?.responseText,
+    reasoningResult
+      ?.finalResponse,
+    reasoningResult
+      ?.answer,
+    reasoningResult
+      ?.reply
+  );
+
     const semanticFrame =
       this.readObject(
         summary.semanticFrame
       );
 
     const reasoningReady =
-      summary.reasoningReady ===
-        true &&
-      Boolean(reasoningResult) &&
-      Boolean(semanticFrame);
+  summary.reasoningReady ===
+    true &&
+  Boolean(
+    reasoningResult
+  ) &&
+  Boolean(
+    semanticFrame
+  ) &&
+  Boolean(
+    authoritativeDraft
+  );
 
     const validationAccepted =
       this.isSemanticValidationAccepted(
@@ -2572,6 +2794,16 @@ hasUsableSemanticFrame(
           "semantic_frame_missing"
       });
     }
+
+if (!authoritativeDraft) {
+  errors.push({
+    stage:
+      "reasoning",
+
+    error:
+      "authoritative_draft_missing"
+  });
+}
 
     if (!validationAccepted) {
   warnings.push({
@@ -2651,25 +2883,43 @@ hasUsableSemanticFrame(
           responsePlanAvailable
       },
       contracts: {
-        evidencePacketAvailable:
-          Boolean(evidencePacket),
-        reasoningResultAvailable:
-          Boolean(reasoningResult),
-        reasoningResultReady:
-          reasoningReady,
-        semanticFrameAvailable:
-          Boolean(semanticFrame),
-        validatedSemanticFrameAvailable:
-          Boolean(
-            summary.validatedSemanticFrame
-          ),
-        responseRequirementsAvailable:
-          Boolean(
-            summary.validatedResponseRequirements ||
-            summary.responseRequirements
-          ),
-        responsePlanAvailable
-      },
+  evidencePacketAvailable:
+    Boolean(
+      evidencePacket
+    ),
+
+  reasoningResultAvailable:
+    Boolean(
+      reasoningResult
+    ),
+
+  reasoningResultReady:
+    reasoningReady,
+
+  semanticFrameAvailable:
+    Boolean(
+      semanticFrame
+    ),
+
+  validatedSemanticFrameAvailable:
+    Boolean(
+      summary.validatedSemanticFrame
+    ),
+
+  responseRequirementsAvailable:
+    Boolean(
+      summary.validatedResponseRequirements ||
+      summary.responseRequirements
+    ),
+
+  authoritativeDraftAvailable:
+    Boolean(
+      authoritativeDraft
+    ),
+
+  responsePlanAvailable
+},
+      
       modelInvocation:
         summary.modelInvocation ||
         reasoningResult
@@ -2684,9 +2934,14 @@ hasUsableSemanticFrame(
           true,
         semanticFrameValidatedBeforePlanning:
           validationAccepted,
-        responsePlanningBlockedOnValidationFailure:
-          !responsePlanAvailable ||
-          validationAccepted,
+responsePlanningRequiresUsableSemanticFrame:
+  true,
+
+responsePlanningMayContinueAfterAdvisoryRejection:
+  true,
+
+semanticValidationIsAdvisory:
+  true,
         localUnderstandingStageRemoved:
           true
       }
@@ -2795,6 +3050,42 @@ hasUsableSemanticFrame(
       summary.cognitiveReasoningResult ||
       null;
 
+const authoritativeDraft =
+  this.firstText(
+    summary.authoritativeDraft,
+
+    summary.draftResponse,
+
+    summary.responseText,
+
+    reasoningResult
+      ?.authoritativeDraft,
+
+    reasoningResult
+      ?.draftResponse,
+
+    reasoningResult
+      ?.responseText,
+
+    reasoningResult
+      ?.finalResponse,
+
+    reasoningResult
+      ?.answer,
+
+    reasoningResult
+      ?.reply,
+
+    summary.reasoningStagePacket
+      ?.authoritativeDraft,
+
+    summary.reasoningStagePacket
+      ?.draftResponse,
+
+    summary.reasoningStagePacket
+      ?.responseText
+  );
+
     const validation =
       summary.semanticFrameValidatorResult ||
       summary.semanticFrameValidation ||
@@ -2823,6 +3114,28 @@ hasUsableSemanticFrame(
         this.version,
       architecture:
         this.architecture,
+        
+        authoritativeDraft,
+
+draftResponse:
+  authoritativeDraft,
+
+responseText:
+  authoritativeDraft,
+
+selectedDraft:
+  authoritativeDraft,
+
+selectedDraftAvailable:
+  Boolean(
+    authoritativeDraft
+  ),
+
+selectedDraftSource:
+  authoritativeDraft
+    ? "openai_cognitive_reasoning"
+    : null,
+        
       inputs: {
         perceptionPacket:
           summary.perceptionPacket ||
@@ -2883,57 +3196,80 @@ hasUsableSemanticFrame(
           true
       },
       reasoning: {
-        available:
-          Boolean(reasoningResult),
-        ready:
-          summary.reasoningReady ===
-          true,
-        source:
-          reasoningResult
-            ?.source ||
-          summary.reasoningStageSource ||
-          null,
-        model:
-          reasoningResult
-            ?.model ||
-          reasoningResult
-            ?.modelId ||
-          summary.modelInvocation
-            ?.model ||
-          null,
-        result:
-          reasoningResult,
-        modelInvocation:
-          summary.modelInvocation ||
-          reasoningResult
-            ?.modelInvocation ||
-          null,
-        error:
-          summary.reasoningStageError ||
-          reasoningResult
-            ?.error ||
-          null,
-        semanticFrame:
-          summary.semanticFrame ||
-          reasoningResult
-            ?.semanticFrame ||
-          null,
-        responseRequirements:
-          summary.responseRequirements ||
-          reasoningResult
-            ?.responseRequirements ||
-          null,
-        executionMetadata:
-          summary.executionMetadata ||
-          reasoningResult
-            ?.executionMetadata ||
-          null,
-        evidenceReferences:
-          summary.evidenceReferences ||
-          reasoningResult
-            ?.evidenceReferences ||
-          []
-      },
+  available:
+    Boolean(reasoningResult),
+
+  ready:
+    summary.reasoningReady ===
+    true,
+
+  source:
+    reasoningResult
+      ?.source ||
+    summary.reasoningStageSource ||
+    null,
+
+  model:
+    reasoningResult
+      ?.model ||
+    reasoningResult
+      ?.modelId ||
+    summary.modelInvocation
+      ?.model ||
+    null,
+
+  result:
+    reasoningResult,
+
+  authoritativeDraft,
+
+  draftResponse:
+    authoritativeDraft,
+
+  responseText:
+    authoritativeDraft,
+
+  draftAvailable:
+    Boolean(
+      authoritativeDraft
+    ),
+
+  modelInvocation:
+    summary.modelInvocation ||
+    reasoningResult
+      ?.modelInvocation ||
+    null,
+
+  error:
+    summary.reasoningStageError ||
+    reasoningResult
+      ?.error ||
+    null,
+
+  semanticFrame:
+    summary.semanticFrame ||
+    reasoningResult
+      ?.semanticFrame ||
+    null,
+
+  responseRequirements:
+    summary.responseRequirements ||
+    reasoningResult
+      ?.responseRequirements ||
+    null,
+
+  executionMetadata:
+    summary.executionMetadata ||
+    reasoningResult
+      ?.executionMetadata ||
+    null,
+
+  evidenceReferences:
+    summary.evidenceReferences ||
+    reasoningResult
+      ?.evidenceReferences ||
+    []
+},
       semanticValidation: {
         available:
           Boolean(validation),
@@ -3212,8 +3548,11 @@ ready:
           true,
         validatorCannotInventMeaning:
           true,
-        responsePlanningRequiresValidatedFrame:
-          true,
+        responsePlanningRequiresUsableSemanticFrame:
+  true,
+
+semanticValidationIsAdvisory:
+  true,
         deliberationDebugTraceAvailable:
           typeof this.initializeDeliberationDebugTrace ===
           "function",
@@ -3248,6 +3587,31 @@ ready:
 
     return [];
   },
+
+firstText(...values) {
+  for (
+    const value
+    of values
+  ) {
+    if (
+      typeof value !==
+        "string"
+    ) {
+      continue;
+    }
+
+    const text =
+      this.cleanText(
+        value
+      );
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+},
 
   appendUniqueError(
     existing = [],
