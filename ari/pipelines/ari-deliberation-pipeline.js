@@ -5,7 +5,7 @@
 // Coordinate deterministic context preparation, OpenAI reasoning,
 // semantic validation, response planning, and stage-level diagnostics.
 //
-// V2.2.0 — Deliberation Boundary Trace / Failure Isolation
+// V2.3.0 — Deliberation Boundary Trace / Failure Isolation
 //
 // Canonical order:
 // 1. Continuity
@@ -32,13 +32,12 @@
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "2.2.0",
-  schemaVersion: "2.2.0",
+  version: "2.3.0",
+  schemaVersion: "2.3.0",
   debugSchemaVersion: "1.0.0",
   source: "ari-deliberation-pipeline",
   architecture:
-    "openai-semantic-authority-with-deterministic-validation",
-
+  "openai-semantic-authority-with-advisory-validation",
   async run(summary = {}, runtime = {}) {
     const {
       mark = () => {}
@@ -415,7 +414,84 @@ window.AriDeliberationPipeline = {
       this.normalizeSemanticValidationOutputs(
         state
       );
+/*
+ * Semantic validation is advisory.
+ *
+ * OpenAI reasoning remains the semantic authority.
+ * A usable AI semantic frame must survive validator rejection,
+ * validator failure, or validator absence.
+ */
 
+const authoritativeSemanticFrame =
+  this.readObject(
+    state.validatedSemanticFrame
+  ) ||
+  this.readObject(
+    state.semanticFrame
+  ) ||
+  this.readObject(
+    state.cognitiveReasoningResult
+      ?.semanticFrame
+  ) ||
+  this.readObject(
+    state.reasoningStagePacket
+      ?.semanticFrame
+  ) ||
+  null;
+
+const semanticValidationPassed =
+  state.semanticValidationAccepted ===
+    true &&
+  Boolean(
+    state.validatedSemanticFrame
+  );
+
+if (authoritativeSemanticFrame) {
+  state = {
+    ...state,
+
+    validatedSemanticFrame:
+      authoritativeSemanticFrame,
+
+    primaryFrame:
+      state.primaryFrame ||
+      authoritativeSemanticFrame,
+
+    semanticValidationAdvisory:
+      true,
+
+    semanticValidationBypassed:
+      !semanticValidationPassed,
+
+    semanticValidationExecutionAllowed:
+      true
+  };
+
+  if (!semanticValidationPassed) {
+    state = {
+      ...state,
+
+      semanticValidationWarnings: [
+        ...this.toArray(
+          state.semanticValidationWarnings
+        ),
+        {
+          code:
+            "semantic_validation_advisory_bypass",
+          message:
+            "Semantic validation did not accept the frame, but OpenAI produced a usable semantic frame. Execution continued."
+        }
+      ]
+    };
+  }
+} else {
+  state = {
+    ...state,
+
+    semanticValidationExecutionAllowed:
+      false
+  };
+}
     state =
       this.completeDebugStage(
         state,
@@ -516,52 +592,51 @@ window.AriDeliberationPipeline = {
     );
 
     if (
-      this.isSemanticValidationAccepted(
-        state
+  this.hasUsableSemanticFrame(
+    state
+  )
+) {
+  state =
+    await this.runStage(
+      window.AriResponsePlanningStage ||
+      window.Ari?.responsePlanningStage,
+      state,
+      runtime,
+      "response_planning"
+    );
+} else {
+  state = {
+    ...state,
+
+    responsePlanningStageRan:
+      false,
+
+    responsePlanningStageSource:
+      "blocked-by-missing-semantic-frame",
+
+    responsePlanningStageError:
+      "Response planning was blocked because OpenAI reasoning did not produce a usable semantic frame.",
+
+    responsePlan:
+      null,
+
+    responseStrategy:
+      null,
+
+    deliberationStageErrors:
+      this.appendUniqueError(
+        state.deliberationStageErrors,
+        {
+          stage:
+            "response_planning",
+          error:
+            "usable_semantic_frame_missing",
+          message:
+            "Response planning was blocked because OpenAI reasoning did not produce a usable semantic frame."
+        }
       )
-    ) {
-      state =
-        await this.runStage(
-          window.AriResponsePlanningStage ||
-          window.Ari?.responsePlanningStage,
-          state,
-          runtime,
-          "response_planning"
-        );
-    } else {
-      state = {
-        ...state,
-
-        responsePlanningStageRan:
-          false,
-
-        responsePlanningStageSource:
-          "blocked-by-semantic-validation",
-
-        responsePlanningStageError:
-          "Response planning was blocked because semantic validation did not accept the AI semantic frame.",
-
-        responsePlan:
-          null,
-
-        responseStrategy:
-          null,
-
-        deliberationStageErrors:
-          this.appendUniqueError(
-            state.deliberationStageErrors,
-            {
-              stage:
-                "response_planning",
-              error:
-                "semantic_validation_not_accepted",
-              message:
-                "Response planning was blocked because semantic validation did not accept the AI semantic frame."
-            }
-          )
-      };
-    }
-
+  };
+}
     const responsePlan =
       this.resolveResponsePlan(
         state
@@ -1752,22 +1827,88 @@ window.AriDeliberationPipeline = {
       null;
 
     if (
-      !validator ||
-      (
-        typeof validator.validate !==
-          "function" &&
-        typeof validator.run !==
-          "function"
-      )
-    ) {
-      return this.appendStageError(
-        summary,
-        "semantic_validation",
-        "semantic_frame_validator_not_loaded",
-        "AriSemanticFrameValidator was not loaded.",
-        "not-loaded"
-      );
+  !validator ||
+  (
+    typeof validator.validate !==
+      "function" &&
+    typeof validator.run !==
+      "function"
+  )
+) {
+  const semanticFrame =
+    this.readObject(
+      summary.semanticFrame
+    ) ||
+    this.readObject(
+      summary.cognitiveReasoningResult
+        ?.semanticFrame
+    ) ||
+    null;
+
+  return {
+    ...summary,
+
+    semanticValidationStageRan:
+      false,
+
+    semanticValidationStageSource:
+      "validator-unavailable-advisory",
+
+    semanticValidationStageError:
+      null,
+
+    semanticValidationAccepted:
+      false,
+
+    semanticValidationRejected:
+      false,
+
+    semanticValidationAdvisory:
+      true,
+
+    semanticValidationBypassed:
+      Boolean(semanticFrame),
+
+    semanticValidationWarnings: [
+      ...this.toArray(
+        summary.semanticValidationWarnings
+      ),
+      {
+        code:
+          "semantic_frame_validator_not_loaded",
+        message:
+          "Semantic validator was unavailable. The OpenAI semantic frame was preserved."
+      }
+    ],
+
+    validatedSemanticFrame:
+      semanticFrame,
+
+    primaryFrame:
+      semanticFrame,
+
+    semanticFrameValidatorResult: {
+      ready:
+        false,
+      valid:
+        false,
+      accepted:
+        false,
+      advisoryOnly:
+        true,
+      bypassed:
+        Boolean(semanticFrame),
+      source:
+        "validator-unavailable-advisory",
+      validatedSemanticFrame:
+        semanticFrame,
+      errors: [],
+      warnings: [
+        "semantic_frame_validator_not_loaded"
+      ]
     }
+  };
+}
 
     try {
       const validationInput = {
@@ -2314,6 +2455,29 @@ this.emitDebugLog(
     );
   },
 
+hasUsableSemanticFrame(
+  summary = {}
+) {
+  const semanticFrame =
+    this.readObject(
+      summary.validatedSemanticFrame
+    ) ||
+    this.readObject(
+      summary.semanticFrame
+    ) ||
+    this.readObject(
+      summary.cognitiveReasoningResult
+        ?.semanticFrame
+    ) ||
+    this.readObject(
+      summary.reasoningStagePacket
+        ?.semanticFrame
+    ) ||
+    null;
+
+  return Boolean(semanticFrame);
+},
+
   /* =====================================================
      DIAGNOSTICS
   ===================================================== */
@@ -2410,18 +2574,26 @@ this.emitDebugLog(
     }
 
     if (!validationAccepted) {
-      errors.push({
-        stage:
-          "semantic_validation",
-        error:
-          "semantic_validation_not_accepted"
-      });
-    }
+  warnings.push({
+    stage:
+      "semantic_validation",
+    warning:
+      "semantic_validation_not_accepted",
+    advisoryOnly:
+      true,
+    executionContinued:
+      this.hasUsableSemanticFrame(
+        summary
+      )
+  });
+}
 
     if (
-      validationAccepted &&
-      !responsePlanAvailable
-    ) {
+  this.hasUsableSemanticFrame(
+    summary
+  ) &&
+  !responsePlanAvailable
+) {
       errors.push({
         stage:
           "response_planning",
@@ -2436,10 +2608,12 @@ this.emitDebugLog(
       );
 
     const complete =
-      uniqueErrors.length === 0 &&
-      reasoningReady &&
-      validationAccepted &&
-      responsePlanAvailable;
+  uniqueErrors.length === 0 &&
+  reasoningReady &&
+  this.hasUsableSemanticFrame(
+    summary
+  ) &&
+  responsePlanAvailable;
 
     return {
       deliberationDiagnosticsRan:
@@ -2796,10 +2970,10 @@ this.emitDebugLog(
           null
       },
       responsePlanning: {
-        allowed:
-          this.isSemanticValidationAccepted(
-            summary
-          ),
+  allowed:
+    this.hasUsableSemanticFrame(
+      summary
+    ),
         ran:
           summary.responsePlanningStageRan ===
           true,
@@ -2860,9 +3034,9 @@ this.emitDebugLog(
         canSelectOperationLocally:
           false,
         canBypassSemanticValidation:
-          false,
-        canPlanFromUnvalidatedMeaning:
-          false,
+  true,
+canPlanFromUnvalidatedMeaning:
+  true,
         canChooseFinalRoute:
           false,
         canWriteFinalLanguage:
@@ -2996,10 +3170,10 @@ this.emitDebugLog(
     const warnings = [];
 
     if (!required.semanticFrameValidator) {
-      errors.push(
-        "semantic_frame_validator_not_loaded"
-      );
-    }
+  warnings.push(
+    "semantic_frame_validator_not_loaded_advisory_mode"
+  );
+}
 
     if (!required.operationRegistry) {
       warnings.push(
@@ -3021,10 +3195,9 @@ this.emitDebugLog(
 
     return {
       valid:
-        errors.length === 0,
-      ready:
-        errors.length === 0 &&
-        warnings.length === 0,
+  errors.length === 0,
+ready:
+  errors.length === 0,
       source:
         "ari-deliberation-pipeline-validation",
       version:
