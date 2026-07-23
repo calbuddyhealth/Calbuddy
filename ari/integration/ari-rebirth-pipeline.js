@@ -591,9 +591,6 @@ summary =
 mark(
   "after conversationOperatingState.completeTurn"
 );
-/* =================================================
-   9. FINAL RUNTIME METADATA
-================================================= */
 
 /* =================================================
    9. FINAL RUNTIME METADATA
@@ -1437,28 +1434,41 @@ async completeConversationTurn(
     );
 
   if (
-    delivery.available !== true ||
-    !delivery.reply
-  ) {
-    return {
-      ...summary,
+  delivery.available !== true ||
+  !delivery.reply
+) {
+  return {
+    ...summary,
 
-      conversationOperatingStateCompleted:
-        false,
+    runtimeExecutionReady,
 
-      conversationOperatingStateCompletionReason:
-        "authoritative_delivery_unavailable",
+    runtimeExecutionComplete:
+      runtimeExecutionReady,
 
-      finalPersistenceRan:
-        false,
+    rebirthPipelineReady:
+      runtimeExecutionReady,
 
-      finalPersistenceReason:
-        "authoritative_delivery_unavailable",
+    authoritativeDeliveryReady:
+      false,
 
-      turnPersistenceReady:
-        false
-    };
-  }
+    conversationOperatingStateCompleted:
+      false,
+
+    conversationOperatingStateCompletionReason:
+      "authoritative_delivery_unavailable",
+
+    finalPersistenceRan:
+      false,
+
+    finalPersistenceReason:
+      "authoritative_delivery_unavailable",
+
+    turnPersistenceReady:
+      false
+  };
+}
+
+  
 
   if (
     summary.conversationOperatingStateCompleted ===
@@ -1557,8 +1567,8 @@ async completeConversationTurn(
     }
 
     const completed =
-      result.conversationOperatingStateCompleted !==
-        false;
+  result.conversationOperatingStateCompleted ===
+    true;
 
     /*
      * Only project fields owned by Conversation Operating
@@ -1695,10 +1705,16 @@ async completeConversationTurn(
         result,
 
       finalPersistenceRan:
-        true,
+  result.finalPersistenceRan === true ||
+  result.persistenceRan === true ||
+  completed,
 
-      finalPersistenceSource:
-        "ari-conversation-operating-state",
+finalPersistenceSource:
+  result.finalPersistenceSource ||
+  result.persistenceSource ||
+  result.conversationOperatingStateSource ||
+  operatingState.source ||
+  "ari-conversation-operating-state",
 
       finalPersistenceReason:
         completed
