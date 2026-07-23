@@ -7,11 +7,11 @@
 // user-facing draft for downstream semantic validation, response planning,
 // final composition, and delivery.
 //
-// V10.0.0 — Authoritative Cognitive Response Generation
+// V10.1.0 — Canonical Communication Style Handoff
 //
 // Architectural flow:
 //
-// Canonical Evidence + Current Turn
+// Canonical Evidence + Current Turn + Communication Preferences
 //      ↓
 // Registry-Bound Cognitive Request
 //      ↓
@@ -27,7 +27,8 @@
 //
 // ARI:
 // - gathers evidence
-// - defines binding safety, routing, and execution constraints
+// - defines binding safety, routing, execution, and response constraints
+// - resolves supplied persistent and current-turn communication-style packets
 // - validates model output
 // - controls tools, persistence, final composition, and delivery
 //
@@ -35,6 +36,7 @@
 // - interprets user meaning
 // - builds the semantic frame
 // - analyzes evidence
+// - applies supplied communication preferences
 // - proposes decisions and actions
 // - defines response requirements
 // - produces the authoritative user-facing draft
@@ -48,14 +50,19 @@
 // - Preserve current-turn and conversation context.
 // - Preserve routing, safety, continuity, memory, knowledge,
 //   evidence, and developer context.
+// - Preserve persistent user communication preferences.
+// - Preserve explicit current-turn response-style overrides.
 // - Resolve an approved OpenAI reasoning invoker.
 // - Invoke OpenAI exactly once per reasoning execution.
 // - Validate and normalize structured cognitive output.
 // - Require and preserve one authoritative user-facing draft.
+// - Preserve the style OpenAI reports applying.
 // - Reject unsafe or falsely executed action claims.
 // - Return transparent invocation and validation diagnostics.
 //
 // Non-responsibilities:
+// - Does not infer personality or profanity preferences from ordinary text.
+// - Does not independently persist communication preferences.
 // - Does not execute actions.
 // - Does not call tools directly.
 // - Does not persist memory or runtime state.
@@ -68,7 +75,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "10.0.0",
+  version: "10.1.0",
   source: "ari-reasoning-engine",
 
   requestSchema:
@@ -223,6 +230,23 @@ window.AriReasoningEngine = {
               operationContract
             ),
 
+          /*
+           * These are repeated at the top level because the
+           * OpenAI client accepts the canonical engine packet
+           * and transports these fields explicitly.
+           */
+          userPreferences:
+            this.objectOrEmpty(
+              reasoningRequest
+                .userPreferences
+            ),
+
+          responseStyle:
+            this.objectOrEmpty(
+              reasoningRequest
+                .responseStyle
+            ),
+
           request:
             reasoningRequest
         });
@@ -280,11 +304,6 @@ window.AriReasoningEngine = {
           reasoningRequest
       });
 
-    /*
-     * Invocation success and cognitive readiness are intentionally
-     * separate. A model call may succeed while the returned contract
-     * remains incomplete or invalid.
-     */
     const modelInvocation =
       this.buildModelInvocationDiagnostic({
         available:
@@ -308,7 +327,6 @@ window.AriReasoningEngine = {
 
     const cognitiveReasoningResult = {
       ...normalizedResult,
-
       modelInvocation
     };
 
@@ -361,6 +379,11 @@ window.AriReasoningEngine = {
         summary
       );
 
+    const styleContext =
+      this.resolveStyleContext(
+        summary
+      );
+
     const currentTurn = {
       originalText:
         request.original,
@@ -369,7 +392,11 @@ window.AriReasoningEngine = {
         request.effective,
 
       turnId:
-        request.turnId
+        request.turnId,
+
+      responseStyle:
+        styleContext
+          .responseStyle
     };
 
     const operationContract =
@@ -438,10 +465,19 @@ window.AriReasoningEngine = {
 
       request,
 
-      conversation:
-        this.buildConversationContext(
+      conversation: {
+        ...this.buildConversationContext(
           summary
         ),
+
+        userPreferences:
+          styleContext
+            .userPreferences,
+
+        responseStyle:
+          styleContext
+            .responseStyle
+      },
 
       perception:
         summary.perceptionPacket ||
@@ -471,6 +507,18 @@ window.AriReasoningEngine = {
         summary.memoryStagePacket ||
         null,
 
+      userPreferences:
+        styleContext
+          .userPreferences,
+
+      responseStyle:
+        styleContext
+          .responseStyle,
+
+      styleContext:
+        styleContext
+          .diagnostics,
+
       knowledge:
         this.buildKnowledgeEvidence(
           summary
@@ -485,10 +533,19 @@ window.AriReasoningEngine = {
           summary
         ),
 
-      responseControl:
-        this.buildResponseControl(
+      responseControl: {
+        ...this.buildResponseControl(
           summary
         ),
+
+        userPreferences:
+          styleContext
+            .userPreferences,
+
+        responseStyle:
+          styleContext
+            .responseStyle
+      },
 
       capabilities:
         this.buildCapabilityContext(
@@ -602,6 +659,53 @@ window.AriReasoningEngine = {
       request.operationContract ||
       this.getOperationContract();
 
+    const styleContext =
+      this.resolveStyleContext({
+        ...summary,
+
+        memoryStagePacket,
+
+        userPreferences:
+          request.userPreferences ??
+          summary.userPreferences,
+
+        communicationPreferences:
+          request.communicationPreferences ??
+          summary.communicationPreferences,
+
+        stylePreferences:
+          request.stylePreferences ??
+          summary.stylePreferences,
+
+        responseStyle:
+          request.responseStyle ??
+          summary.responseStyle,
+
+        styleOverride:
+          request.styleOverride ??
+          summary.styleOverride,
+
+        responseControl: {
+          ...this.objectOrEmpty(
+            summary.responseControl
+          ),
+
+          ...this.objectOrEmpty(
+            request.responseControl
+          )
+        },
+
+        currentTurn: {
+          ...this.objectOrEmpty(
+            summary.currentTurn
+          ),
+
+          ...this.objectOrEmpty(
+            request.currentTurn
+          )
+        }
+      });
+
     return {
       schema:
         request.schema ||
@@ -621,7 +725,11 @@ window.AriReasoningEngine = {
         effectiveText:
           effective,
 
-        turnId
+        turnId,
+
+        responseStyle:
+          styleContext
+            .responseStyle
       },
 
       originalUserMessage:
@@ -685,7 +793,15 @@ window.AriReasoningEngine = {
 
         ...this.objectOrEmpty(
           request.conversation
-        )
+        ),
+
+        userPreferences:
+          styleContext
+            .userPreferences,
+
+        responseStyle:
+          styleContext
+            .responseStyle
       },
 
       perception:
@@ -708,6 +824,18 @@ window.AriReasoningEngine = {
 
       memory:
         memoryStagePacket,
+
+      userPreferences:
+        styleContext
+          .userPreferences,
+
+      responseStyle:
+        styleContext
+          .responseStyle,
+
+      styleContext:
+        styleContext
+          .diagnostics,
 
       knowledge: {
         ...this.buildKnowledgeEvidence(
@@ -741,7 +869,15 @@ window.AriReasoningEngine = {
 
         ...this.objectOrEmpty(
           request.responseControl
-        )
+        ),
+
+        userPreferences:
+          styleContext
+            .userPreferences,
+
+        responseStyle:
+          styleContext
+            .responseStyle
       },
 
       capabilities: {
@@ -895,6 +1031,327 @@ window.AriReasoningEngine = {
         null
     };
   },
+
+  /* =====================================================
+     COMMUNICATION STYLE CONTEXT
+  ===================================================== */
+
+  resolveStyleContext(summary = {}) {
+    const memory =
+      this.objectOrEmpty(
+        summary.memoryStagePacket ||
+        summary.memory ||
+        summary.memoryContext
+      );
+
+    const userPreferenceResolution =
+      this.resolveFirstObject([
+        [
+          "summary.userPreferences",
+          summary.userPreferences
+        ],
+        [
+          "summary.communicationPreferences",
+          summary.communicationPreferences
+        ],
+        [
+          "summary.stylePreferences",
+          summary.stylePreferences
+        ],
+        [
+          "summary.conversation.userPreferences",
+          summary.conversation
+            ?.userPreferences
+        ],
+        [
+          "summary.responseControl.userPreferences",
+          summary.responseControl
+            ?.userPreferences
+        ],
+        [
+          "memory.userPreferences",
+          memory.userPreferences
+        ],
+        [
+          "memory.communicationPreferences",
+          memory.communicationPreferences
+        ],
+        [
+          "memory.stylePreferences",
+          memory.stylePreferences
+        ],
+        [
+          "memory.preferences.style",
+          memory.preferences
+            ?.style
+        ],
+        [
+          "memory.preferences.communication",
+          memory.preferences
+            ?.communication
+        ],
+        [
+          "memory.profile.communicationPreferences",
+          memory.profile
+            ?.communicationPreferences
+        ]
+      ]);
+
+    const responseStyleResolution =
+      this.resolveFirstObject([
+        [
+          "summary.responseStyle",
+          summary.responseStyle
+        ],
+        [
+          "summary.styleOverride",
+          summary.styleOverride
+        ],
+        [
+          "summary.currentTurn.responseStyle",
+          summary.currentTurn
+            ?.responseStyle
+        ],
+        [
+          "summary.currentTurn.styleOverride",
+          summary.currentTurn
+            ?.styleOverride
+        ],
+        [
+          "summary.responseControl.responseStyle",
+          summary.responseControl
+            ?.responseStyle
+        ],
+        [
+          "summary.responseControl.styleOverride",
+          summary.responseControl
+            ?.styleOverride
+        ],
+        [
+          "summary.responseControl.styleOverrides",
+          summary.responseControl
+            ?.styleOverrides
+        ],
+        [
+          "summary.conversation.responseStyle",
+          summary.conversation
+            ?.responseStyle
+        ],
+        [
+          "memory.currentTurnStyle",
+          memory.currentTurnStyle
+        ]
+      ]);
+
+    const userPreferences =
+      this.normalizeCommunicationPreferences(
+        userPreferenceResolution.value
+      );
+
+    const responseStyle =
+      this.normalizeCommunicationPreferences({
+        ...responseStyleResolution.value,
+
+        source:
+          responseStyleResolution.source
+            ? "current_turn_override"
+            : userPreferenceResolution.source
+              ? "persistent_user_preference"
+              : "default"
+      });
+
+    return {
+      userPreferences,
+      responseStyle,
+
+      diagnostics: {
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        interpretationPerformed:
+          false,
+
+        persistencePerformed:
+          false,
+
+        userPreferencesSource:
+          userPreferenceResolution.source,
+
+        responseStyleSource:
+          responseStyleResolution.source,
+
+        userPreferencesPresent:
+          this.hasKeys(
+            userPreferences
+          ),
+
+        responseStylePresent:
+          this.hasKeys(
+            responseStyle
+          ),
+
+        effectiveStyleSource:
+          responseStyle.source ||
+          (
+            userPreferenceResolution.source
+              ? "persistent_user_preference"
+              : "default"
+          )
+      }
+    };
+  },
+
+  resolveFirstObject(
+    candidates = []
+  ) {
+    for (
+      const candidate
+      of this.arrayOrEmpty(
+        candidates
+      )
+    ) {
+      if (
+        !Array.isArray(
+          candidate
+        ) ||
+        candidate.length < 2
+      ) {
+        continue;
+      }
+
+      const [source, value] =
+        candidate;
+
+      if (
+        this.hasKeys(
+          value
+        )
+      ) {
+        return {
+          source,
+          value
+        };
+      }
+    }
+
+    return {
+      source: null,
+      value: {}
+    };
+  },
+
+  normalizeCommunicationPreferences(
+    value = {}
+  ) {
+    if (
+      !this.isPlainObject(
+        value
+      )
+    ) {
+      return {};
+    }
+
+    const profanity =
+      this.objectOrEmpty(
+        value.profanity
+      );
+
+    const profanityAllowed =
+      this.firstDefinedBoolean([
+        value.profanityAllowed,
+        value.allowProfanity,
+        profanity.allowed
+      ]);
+
+    const profanityLevel =
+      this.firstNonEmptyString([
+        value.profanityLevel,
+        value.swearingLevel,
+        profanity.level,
+        profanity.intensity
+      ]) ||
+      null;
+
+    return this.removeUndefinedValues({
+      ...value,
+
+      tone:
+        this.firstNonEmptyString([
+          value.tone,
+          value.preferredTone
+        ]) ||
+        null,
+
+      directness:
+        this.firstNonEmptyString([
+          value.directness,
+          value.preferredDirectness
+        ]) ||
+        null,
+
+      warmth:
+        this.firstNonEmptyString([
+          value.warmth,
+          value.preferredWarmth
+        ]) ||
+        null,
+
+      humor:
+        this.firstNonEmptyString([
+          value.humor,
+          value.humorStyle
+        ]) ||
+        null,
+
+      formality:
+        this.firstNonEmptyString([
+          value.formality,
+          value.formalityLevel
+        ]) ||
+        null,
+
+      verbosity:
+        this.firstNonEmptyString([
+          value.verbosity,
+          value.responseLength
+        ]) ||
+        null,
+
+      personality:
+        this.firstNonEmptyString([
+          value.personality,
+          value.personalityStyle,
+          value.energy
+        ]) ||
+        null,
+
+      profanity: {
+        ...profanity,
+
+        allowed:
+          profanityAllowed,
+
+        level:
+          profanityLevel,
+
+        useNaturally:
+          this.firstDefinedBoolean([
+            profanity.useNaturally,
+            value.useProfanityNaturally
+          ])
+      },
+
+      profanityAllowed,
+      profanityLevel
+    });
+  },
+
+  /* =====================================================
+     EVIDENCE AND CONTROL PACKETS
+  ===================================================== */
 
   buildKnowledgeEvidence(summary = {}) {
     const routerPacket =
@@ -1146,6 +1603,12 @@ window.AriReasoningEngine = {
       knowledgeEvidenceIsAdvisory:
         true,
 
+      communicationPreferencesAreAdvisory:
+        true,
+
+      currentTurnStyleOverridesPersistentPreferences:
+        true,
+
       mayInterpretMeaning:
         true,
 
@@ -1165,6 +1628,9 @@ window.AriReasoningEngine = {
         true,
 
       mayDefineResponseRequirements:
+        true,
+
+      mayApplyCommunicationStyle:
         true,
 
       mayPlanResponse:
@@ -1523,6 +1989,24 @@ window.AriReasoningEngine = {
 
       "Resolve meaning by considering the current turn, recent conversation, continuity evidence, memory, knowledge evidence, situation, understanding signals, and developer evidence together.",
 
+      "Apply supplied userPreferences and responseStyle when they do not conflict with safety or explicit response constraints.",
+
+      "Current-turn responseStyle overrides persistent userPreferences.",
+
+      "Communication style controls tone, directness, warmth, humor, formality, verbosity, personality, and ordinary profanity.",
+
+      "Do not treat a request for ordinary profanity, bluntness, humor, teasing, or casual language as a safety violation by itself.",
+
+      "Do not produce a generic respectful-language refusal merely because ordinary profanity was requested or allowed.",
+
+      "Use permitted profanity naturally and proportionately. Do not force profanity into every response.",
+
+      "Do not use style preferences to justify slurs, threats, hateful degradation, abusive harassment, or unsafe content.",
+
+      "Do not claim communication preferences were saved or persisted.",
+
+      "Record the style actually used in responseRequirements.styleApplied when practical.",
+
       "The semanticFrame.operation field is a closed canonical vocabulary.",
 
       `semanticFrame.operation must be exactly one of: ${allowedOperationText}`,
@@ -1557,11 +2041,11 @@ window.AriReasoningEngine = {
 
       "draftResponse must be complete, natural, user-facing language.",
 
-      "draftResponse must follow all safety, evidence, routing, tone, and response constraints.",
+      "draftResponse must follow all safety, evidence, routing, tone, style, and response constraints.",
 
       "draftResponse must not mention internal pipeline stages, schemas, hidden reasoning, or implementation details unless the user is explicitly asking about them.",
 
-      "Response requirements should define the goal, shape, tone, required moves, prohibited moves, required behaviors, forbidden behaviors, constraints, clarification requirements, and action requirements.",
+      "Response requirements should define the goal, shape, tone, required moves, prohibited moves, required behaviors, forbidden behaviors, constraints, clarification requirements, action requirements, and style applied.",
 
       "Use an empty array or empty object only for optional collection fields when no value applies.",
 
@@ -1575,6 +2059,7 @@ window.AriReasoningEngine = {
 
   validateReasoningRequest(request = {}) {
     const errors = [];
+    const warnings = [];
 
     if (
       !request ||
@@ -1588,7 +2073,9 @@ window.AriReasoningEngine = {
 
         errors: [
           "reasoning_request_must_be_an_object"
-        ]
+        ],
+
+        warnings
       };
     }
 
@@ -1697,6 +2184,46 @@ window.AriReasoningEngine = {
       );
     }
 
+    if (
+      !this.isPlainObject(
+        request.userPreferences
+      )
+    ) {
+      errors.push(
+        "user_preferences_must_be_an_object"
+      );
+    }
+
+    if (
+      !this.isPlainObject(
+        request.responseStyle
+      )
+    ) {
+      errors.push(
+        "response_style_must_be_an_object"
+      );
+    }
+
+    if (
+      !this.hasKeys(
+        request.userPreferences
+      )
+    ) {
+      warnings.push(
+        "user_preferences_not_supplied"
+      );
+    }
+
+    if (
+      !this.hasKeys(
+        request.responseStyle
+      )
+    ) {
+      warnings.push(
+        "response_style_not_supplied"
+      );
+    }
+
     const operationRegistry =
       this.getOperationRegistry();
 
@@ -1729,7 +2256,8 @@ window.AriReasoningEngine = {
         errors.length ===
         0,
 
-      errors
+      errors,
+      warnings
     };
   },
 
@@ -1859,7 +2387,72 @@ window.AriReasoningEngine = {
 
         responseRequirements: {
           type:
-            "object"
+            "object",
+
+          properties: {
+            styleApplied: {
+              type:
+                "object",
+
+              properties: {
+                source: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                tone: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                directness: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                warmth: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                humor: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                formality: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                verbosity: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                },
+
+                profanityLevel: {
+                  type: [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
         },
 
         draftResponse: {
@@ -1937,6 +2530,12 @@ window.AriReasoningEngine = {
           true,
 
         authoritativeDraftRequired:
+          true,
+
+        communicationStyleMayBeApplied:
+          true,
+
+        currentTurnStyleOverridesPersistentPreferences:
           true
       }
     };
@@ -2106,7 +2705,8 @@ window.AriReasoningEngine = {
 
     const normalizedResponseRequirements =
       this.normalizeResponseRequirements(
-        responseRequirements
+        responseRequirements,
+        request
       );
 
     return {
@@ -2186,6 +2786,22 @@ window.AriReasoningEngine = {
         ),
 
       confidence,
+
+      styleContext: {
+        userPreferences:
+          this.objectOrEmpty(
+            request.userPreferences
+          ),
+
+        responseStyle:
+          this.objectOrEmpty(
+            request.responseStyle
+          ),
+
+        styleApplied:
+          normalizedResponseRequirements
+            .styleApplied
+      },
 
       validation: {
         passed:
@@ -2825,1064 +3441,3 @@ window.AriReasoningEngine = {
             ?.version ||
           null
       }
-    };
-  },
-
-  normalizeResponseRequirements(
-    requirements = {}
-  ) {
-    return {
-      goal:
-        this.nullableString(
-          requirements.goal ||
-          requirements.responseGoal
-        ),
-
-      shape:
-        this.nullableString(
-          requirements.shape
-        ) ||
-        "single_lane",
-
-      tone:
-        this.nullableString(
-          requirements.tone
-        ),
-
-      requiredMoves:
-        this.arrayOrEmpty(
-          requirements.requiredMoves ||
-          requirements.orderedPoints
-        ),
-
-      prohibitedMoves:
-        this.stringArray(
-          requirements.prohibitedMoves
-        ),
-
-      requiredBehaviors:
-        this.stringArray(
-          requirements.requiredBehaviors
-        ),
-
-      forbiddenBehaviors:
-        this.stringArray(
-          requirements.forbiddenBehaviors
-        ),
-
-      constraints:
-        this.stringArray(
-          requirements.constraints
-        ),
-
-      safetyRequirements:
-        this.stringArray(
-          requirements.safetyRequirements
-        ),
-
-      continuityRequirements:
-        this.stringArray(
-          requirements
-            .continuityRequirements
-        ),
-
-      toneRequirements:
-        this.stringArray(
-          requirements.toneRequirements
-        ),
-
-      clarificationRequired:
-        requirements
-          .clarificationRequired ===
-        true,
-
-      clarificationQuestion:
-        this.nullableString(
-          requirements
-            .clarificationQuestion
-        ),
-
-      actionRequired:
-        requirements.actionRequired ===
-        true
-    };
-  },
-
-  normalizeExecutionMetadata({
-    value = {},
-    request = {},
-    confidence = 0
-  } = {}) {
-    const metadata =
-      this.objectOrEmpty(value);
-
-    const evidenceReferences =
-      this.arrayOrEmpty(
-        request.evidencePacket
-          ?.evidenceReferences ||
-        request.evidencePacket
-          ?.evidence ||
-        request.evidencePacket
-          ?.items
-      );
-
-    return {
-      confidence:
-        this.normalizeConfidence(
-          metadata.confidence ??
-          confidence
-        ),
-
-      reasoningMode:
-        this.nullableString(
-          metadata.reasoningMode
-        ),
-
-      usedCurrentTurn:
-        metadata.usedCurrentTurn !==
-        false,
-
-      usedPriorContext:
-        metadata.usedPriorContext ===
-        true ||
-        this.arrayOrEmpty(
-          request.conversation
-            ?.recentTurns
-        ).length > 0,
-
-      usedEvidence:
-        metadata.usedEvidence ===
-        true ||
-        evidenceReferences.length > 0,
-
-      evidenceCount:
-        Number.isFinite(
-          Number(
-            metadata.evidenceCount
-          )
-        )
-          ? Number(
-              metadata.evidenceCount
-            )
-          : evidenceReferences.length
-    };
-  },
-
-  normalizeEvidenceReferences(
-    references
-  ) {
-    return this.arrayOrEmpty(
-      references
-    ).filter(
-      reference =>
-        reference !==
-          undefined &&
-      reference !==
-        null
-    );
-  },
-
-  normalizeGrounding(
-    grounding = {}
-  ) {
-    return {
-      evidenceUsed:
-        this.arrayOrEmpty(
-          grounding.evidenceUsed
-        ),
-
-      assumptions:
-        this.arrayOrEmpty(
-          grounding.assumptions
-        ),
-
-      unresolvedConflicts:
-        this.arrayOrEmpty(
-          grounding
-            .unresolvedConflicts
-        )
-    };
-  },
-
-  normalizeOptions(options) {
-    return this.arrayOrEmpty(
-      options
-    ).map(option => {
-      if (
-        typeof option ===
-        "string"
-      ) {
-        return {
-          label:
-            option,
-
-          benefits:
-            [],
-
-          risks:
-            [],
-
-          reversibility:
-            null
-        };
-      }
-
-      const value =
-        this.objectOrEmpty(
-          option
-        );
-
-      return {
-        ...value,
-
-        label:
-          this.nullableString(
-            value.label ||
-            value.option ||
-            value.name
-          ),
-
-        benefits:
-          this.stringArray(
-            value.benefits
-          ),
-
-        risks:
-          this.stringArray(
-            value.risks
-          ),
-
-        reversibility:
-          this.nullableString(
-            value.reversibility
-          )
-      };
-    });
-  },
-
-  normalizeTradeoffs(tradeoffs) {
-    return this.arrayOrEmpty(
-      tradeoffs
-    ).map(tradeoff => {
-      if (
-        typeof tradeoff ===
-        "string"
-      ) {
-        return {
-          description:
-            tradeoff,
-
-          sideA:
-            null,
-
-          sideB:
-            null
-        };
-      }
-
-      const value =
-        this.objectOrEmpty(
-          tradeoff
-        );
-
-      return {
-        ...value,
-
-        description:
-          this.nullableString(
-            value.description
-          ),
-
-        sideA:
-          this.nullableString(
-            value.sideA
-          ),
-
-        sideB:
-          this.nullableString(
-            value.sideB
-          )
-      };
-    });
-  },
-
-  normalizeUncertainties(
-    uncertainties
-  ) {
-    return this.arrayOrEmpty(
-      uncertainties
-    ).map(uncertainty => {
-      if (
-        typeof uncertainty ===
-        "string"
-      ) {
-        return {
-          description:
-            uncertainty,
-
-          material:
-            true,
-
-          resolution:
-            null
-        };
-      }
-
-      const value =
-        this.objectOrEmpty(
-          uncertainty
-        );
-
-      return {
-        ...value,
-
-        description:
-          this.nullableString(
-            value.description ||
-            value.unknown
-          ),
-
-        material:
-          value.material !==
-          false,
-
-        resolution:
-          this.nullableString(
-            value.resolution
-          )
-      };
-    });
-  },
-
-  normalizeProposedActions(actions) {
-    return this.arrayOrEmpty(
-      actions
-    )
-      .filter(
-        action =>
-          action &&
-          typeof action ===
-            "object" &&
-          !Array.isArray(
-            action
-          ) &&
-          typeof action.type ===
-            "string" &&
-          action.type.trim()
-      )
-      .map(action => ({
-        type:
-          action.type.trim(),
-
-        arguments:
-          this.objectOrEmpty(
-            action.arguments
-          ),
-
-        rationale:
-          this.nullableString(
-            action.rationale
-          ),
-
-        requiresApproval:
-          action.requiresApproval !==
-          false,
-
-        executed:
-          false,
-
-        status:
-          "proposed"
-      }));
-  },
-
-  normalizeConfidence(value) {
-    if (
-      value &&
-      typeof value ===
-        "object"
-    ) {
-      return this.clampConfidence(
-        value.score
-      );
-    }
-
-    return this.clampConfidence(
-      value
-    );
-  },
-
-  /* =====================================================
-     ENGINE RESPONSE CONSTRUCTION
-  ===================================================== */
-
-  buildEngineResult({
-    cognitiveReasoningResult = {},
-    request = {},
-    engineRan = false,
-    modelInvocation = {}
-  } = {}) {
-    const semanticFrame =
-      cognitiveReasoningResult
-        .semanticFrame ||
-      null;
-
-    const responseRequirements =
-      cognitiveReasoningResult
-        .responseRequirements ||
-      null;
-
-    const authoritativeDraft =
-      this.firstNonEmptyString([
-        cognitiveReasoningResult
-          .authoritativeDraft,
-
-        cognitiveReasoningResult
-          .draftResponse
-      ]);
-
-    const executionMetadata =
-      cognitiveReasoningResult
-        .executionMetadata ||
-      null;
-
-    const evidenceReferences =
-      this.arrayOrEmpty(
-        cognitiveReasoningResult
-          .evidenceReferences
-      );
-
-    const ready =
-      cognitiveReasoningResult
-        .ready === true &&
-      Boolean(
-        semanticFrame
-      ) &&
-      Boolean(
-        responseRequirements
-      ) &&
-      Boolean(
-        authoritativeDraft
-      ) &&
-      modelInvocation
-        ?.succeeded === true;
-
-    return {
-      reasoningEngineRan:
-        engineRan === true,
-
-      reasoningEngineReady:
-        ready,
-
-      reasoningEngineVersion:
-        this.version,
-
-      reasoningEngineSource:
-        this.source,
-
-      reasoningSource:
-        cognitiveReasoningResult
-          .source ||
-        "openai-cognitive-reasoning",
-
-      modelInvocation:
-        this.objectOrEmpty(
-          modelInvocation
-        ),
-
-      cognitiveReasoningResult,
-
-      reasoningResult:
-        cognitiveReasoningResult,
-
-      semanticFrame,
-
-      responseRequirements,
-
-      responseStrategy:
-        responseRequirements,
-
-      authoritativeDraft,
-
-      draftResponse:
-        authoritativeDraft,
-
-      modelDraftResponse:
-        authoritativeDraft,
-
-      executionMetadata,
-
-      evidenceReferences,
-
-      reasoning:
-        ready
-          ? {
-              interpretation:
-                cognitiveReasoningResult
-                  .interpretation ||
-                null,
-
-              decision:
-                cognitiveReasoningResult
-                  .reasoningDecision ||
-                null,
-
-              semanticFrame,
-
-              caseModel:
-                cognitiveReasoningResult
-                  .caseModel ||
-                null,
-
-              options:
-                cognitiveReasoningResult
-                  .options ||
-                [],
-
-              tradeoffs:
-                cognitiveReasoningResult
-                  .tradeoffs ||
-                [],
-
-              uncertainties:
-                cognitiveReasoningResult
-                  .uncertainties ||
-                [],
-
-              responseRequirements,
-
-              responseStrategy:
-                responseRequirements,
-
-              authoritativeDraft,
-
-              draftResponse:
-                authoritativeDraft,
-
-              grounding:
-                cognitiveReasoningResult
-                  .grounding ||
-                null,
-
-              capabilities:
-                this.arrayOrEmpty(
-                  request.capabilities
-                    ?.required
-                ),
-
-              requiredCapabilities:
-                this.arrayOrEmpty(
-                  request.capabilities
-                    ?.required
-                ),
-
-              requiredBehaviors:
-                this.arrayOrEmpty(
-                  responseRequirements
-                    ?.requiredBehaviors
-                ),
-
-              forbiddenBehaviors:
-                this.arrayOrEmpty(
-                  responseRequirements
-                    ?.forbiddenBehaviors
-                ),
-
-              constraints:
-                this.arrayOrEmpty(
-                  responseRequirements
-                    ?.constraints
-                ),
-
-              confidence:
-                cognitiveReasoningResult
-                  .confidence ??
-                0
-            }
-          : null,
-
-      reasoningConfidence:
-        cognitiveReasoningResult
-          .confidence ??
-        0,
-
-      reasoningPrimary:
-        semanticFrame
-          ?.primaryLane ||
-        request.responseControl
-          ?.primaryLane ||
-        request.routing
-          ?.primaryLane ||
-        null,
-
-      authority:
-        ready
-          ? "openai_authoritative_cognitive_response"
-          : "none",
-
-      reason:
-        ready
-          ? null
-          : this.firstString(
-              cognitiveReasoningResult
-                .validation
-                ?.errors
-            ) ||
-            (
-              !authoritativeDraft
-                ? "authoritative_draft_missing"
-                : "reasoning_result_not_ready"
-            )
-    };
-  },
-
-  buildFailureResult({
-    reason =
-      "reasoning_failed",
-
-    errors = [],
-
-    request = {},
-
-    engineRan = false,
-
-    modelInvocation = {}
-  } = {}) {
-    const validationErrors =
-      this.cleanStringList([
-        reason,
-        ...errors
-      ]);
-
-    const normalizedModelInvocation =
-      this.objectOrEmpty(
-        modelInvocation
-      );
-
-    const cognitiveReasoningResult = {
-      schema:
-        this.resultSchema,
-
-      schemaVersion:
-        this.resultSchemaVersion,
-
-      ready:
-        false,
-
-      authoritative:
-        false,
-
-      interpretation:
-        null,
-
-      reasoningDecision:
-        null,
-
-      semanticFrame:
-        null,
-
-      responseRequirements:
-        null,
-
-      responseStrategy:
-        null,
-
-      authoritativeDraft:
-        "",
-
-      draftResponse:
-        "",
-
-      executionMetadata:
-        null,
-
-      evidenceReferences:
-        [],
-
-      modelInvocation:
-        normalizedModelInvocation,
-
-      caseModel:
-        null,
-
-      options:
-        [],
-
-      tradeoffs:
-        [],
-
-      uncertainties:
-        [],
-
-      grounding:
-        null,
-
-      confidence:
-        0,
-
-      validation: {
-        passed:
-          false,
-
-        errors:
-          validationErrors
-      },
-
-      source:
-        "ari-reasoning-engine-failure",
-
-      authority:
-        "none"
-    };
-
-    return {
-      reasoningEngineRan:
-        engineRan === true,
-
-      reasoningEngineReady:
-        false,
-
-      reasoningEngineVersion:
-        this.version,
-
-      reasoningEngineSource:
-        this.source,
-
-      reasoningSource:
-        "ari-reasoning-engine-failure",
-
-      modelInvocation:
-        normalizedModelInvocation,
-
-      cognitiveReasoningResult,
-
-      reasoningResult:
-        cognitiveReasoningResult,
-
-      semanticFrame:
-        null,
-
-      responseRequirements:
-        null,
-
-      responseStrategy:
-        null,
-
-      authoritativeDraft:
-        "",
-
-      draftResponse:
-        "",
-
-      modelDraftResponse:
-        "",
-
-      executionMetadata:
-        null,
-
-      evidenceReferences:
-        [],
-
-      reasoning:
-        null,
-
-      reasoningConfidence:
-        0,
-
-      reasoningPrimary:
-        request.responseControl
-          ?.primaryLane ||
-        request.routing
-          ?.primaryLane ||
-        null,
-
-      authority:
-        "none",
-
-      reason,
-
-      errors:
-        validationErrors
-    };
-  },
-
-  /* =====================================================
-     VALIDATION
-  ===================================================== */
-
-  validate() {
-    const resolvedClient =
-      this.resolveModelInvoker(
-        {}
-      );
-
-    const operationRegistry =
-      this.getOperationRegistry();
-
-    const operationContract =
-      this.getOperationContract();
-
-    const allowedOperations =
-      this.arrayOrEmpty(
-        operationContract
-          ?.allowedOperations
-      );
-
-    const operationRegistryReady =
-      Boolean(
-        operationRegistry &&
-        typeof operationRegistry
-          .normalizeOperation ===
-          "function" &&
-        typeof operationRegistry
-          .getOperation ===
-          "function" &&
-        operationContract
-          ?.registryAvailable ===
-          true &&
-        allowedOperations.length > 0
-      );
-
-    const structurallyValid =
-      typeof this.reason ===
-        "function" &&
-      typeof this.create ===
-        "function" &&
-      typeof this.resolveModelInvoker ===
-        "function" &&
-      typeof this.validateAndNormalizeResult ===
-        "function" &&
-      typeof this.normalizeSemanticFrame ===
-        "function";
-
-    return {
-      valid:
-        structurallyValid,
-
-      ready:
-        structurallyValid &&
-        Boolean(
-          resolvedClient
-        ) &&
-        operationRegistryReady,
-
-      modelInvokerAvailable:
-        Boolean(
-          resolvedClient
-        ),
-
-      modelInvokerSource:
-        resolvedClient
-          ?.source ||
-        null,
-
-      operationRegistryAvailable:
-        Boolean(
-          operationRegistry
-        ),
-
-      operationRegistryReady,
-
-      operationRegistryVersion:
-        operationRegistry
-          ?.version ||
-        null,
-
-      operationContractAvailable:
-        operationContract
-          ?.registryAvailable ===
-        true,
-
-      allowedOperationCount:
-        allowedOperations.length,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      requestSchema:
-        this.requestSchema,
-
-      requestSchemaVersion:
-        this.requestSchemaVersion,
-
-      resultSchema:
-        this.resultSchema,
-
-      resultSchemaVersion:
-        this.resultSchemaVersion
-    };
-  },
-
-  /* =====================================================
-     UTILITIES
-  ===================================================== */
-
-  objectOrEmpty(value) {
-    return (
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(value)
-    )
-      ? value
-      : {};
-  },
-
-  objectOrDefault(
-    value,
-    defaults = {}
-  ) {
-    return {
-      ...this.objectOrEmpty(
-        defaults
-      ),
-
-      ...this.objectOrEmpty(
-        value
-      )
-    };
-  },
-
-  arrayOrEmpty(value) {
-    return Array.isArray(value)
-      ? value.filter(
-          item =>
-            item !==
-              undefined &&
-            item !==
-              null
-        )
-      : [];
-  },
-
-  stringArray(value) {
-    return [
-      ...new Set(
-        this.arrayOrEmpty(
-          value
-        )
-          .map(item =>
-            typeof item ===
-              "string"
-              ? item.trim()
-              : ""
-          )
-          .filter(Boolean)
-      )
-    ];
-  },
-
-  cleanStringList(value) {
-    return [
-      ...new Set(
-        this.arrayOrEmpty(
-          value
-        )
-          .map(item =>
-            String(
-              item ||
-              ""
-            ).trim()
-          )
-          .filter(Boolean)
-      )
-    ];
-  },
-
-  firstString(value) {
-    if (
-      typeof value ===
-        "string"
-    ) {
-      return value.trim();
-    }
-
-    for (
-      const item
-      of this.arrayOrEmpty(
-        value
-      )
-    ) {
-      if (
-        typeof item ===
-          "string" &&
-        item.trim()
-      ) {
-        return item.trim();
-      }
-    }
-
-    return "";
-  },
-
-  firstNonEmptyString(
-    values = []
-  ) {
-    for (
-      const value of values
-    ) {
-      if (
-        typeof value ===
-          "string" &&
-        value.trim()
-      ) {
-        return value.trim();
-      }
-    }
-
-    return "";
-  },
-
-  nullableString(value) {
-    if (
-      typeof value !==
-        "string"
-    ) {
-      return null;
-    }
-
-    const clean =
-      value.trim();
-
-    return clean ||
-      null;
-  },
-
-  clampConfidence(value) {
-    const number =
-      Number(
-        value
-      );
-
-    if (
-      !Number.isFinite(
-        number
-      )
-    ) {
-      return 0;
-    }
-
-    return Math.max(
-      0,
-      Math.min(
-        1,
-        number
-      )
-    );
-  }
-};
-
-window.Ari.reasoningEngine =
-  window.AriReasoningEngine;
-
-console.log(
-  "ARI REASONING ENGINE LOADED:",
-  window.AriReasoningEngine
-    ?.version,
-
-  window.AriReasoningEngine
-    ?.validate?.()
-);
