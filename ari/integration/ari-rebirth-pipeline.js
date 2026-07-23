@@ -1468,24 +1468,25 @@ async completeConversationTurn(
   };
 }
 
-  
+if (
+  summary.conversationOperatingStateCompleted ===
+    true
+) {
+  return {
+    ...summary,
 
-  if (
-    summary.conversationOperatingStateCompleted ===
-      true
-  ) {
-    return {
-      ...summary,
+    runtimeExecutionReady,
 
+    runtimeExecutionComplete:
       runtimeExecutionReady,
 
-      rebirthPipelineReady:
-        runtimeExecutionReady,
+    rebirthPipelineReady:
+      runtimeExecutionReady,
 
-      turnPersistenceReady:
-        true
-    };
-  }
+    turnPersistenceReady:
+      true
+  };
+}
 
   const operatingState =
     this.getConversationOperatingState();
