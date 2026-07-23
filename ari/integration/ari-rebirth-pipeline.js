@@ -126,13 +126,25 @@ window.AriRebirthPipeline = {
         null,
 
       conversationOperatingStateRan:
-        false,
+  false,
 
-      conversationOperatingStateReady:
-        false,
+conversationOperatingStateReady:
+  false,
 
-      conversationOperatingStateCompleted:
-        false,
+conversationOperatingStateUsable:
+  false,
+
+conversationOperatingStateDegraded:
+  false,
+
+conversationOperatingStateMode:
+  "unavailable",
+
+conversationOperatingStateCompleted:
+  false,
+
+conversationOperatingStatePersisted:
+  false,
 
       deliveryResult:
         null
@@ -215,22 +227,50 @@ window.AriRebirthPipeline = {
     );
 
     if (
-      summary.conversationOperatingStateReady !==
-      true
-    ) {
-      summary = {
-        ...summary,
+  summary.conversationOperatingStateUsable !==
+  true
+) {
+  summary = {
+    ...summary,
 
-        pipelineStopped:
-          true,
+    pipelineStopped:
+      true,
 
-        pipelineStopReason:
-          "conversation_operating_state_not_ready",
+    pipelineStopReason:
+      summary.conversationOperatingStateError ||
+      "conversation_operating_state_unusable",
 
-        pipelineStopLayer:
-          "initialization"
-      };
-    }
+    pipelineStopLayer:
+      "initialization"
+  };
+} else if (
+  summary.conversationOperatingStateDegraded ===
+  true
+) {
+  summary = {
+    ...summary,
+
+    pipelineLifecycleWarnings:
+      this.appendUniqueError(
+        summary.pipelineLifecycleWarnings,
+
+        this.buildLayerError({
+          layer:
+            "conversationOperatingState",
+
+          type:
+            "conversation_operating_state_degraded",
+
+          message:
+            summary.conversationOperatingStateError ||
+            "Conversation Operating State continued using a degraded current-turn projection.",
+
+          fatal:
+            false
+        })
+      )
+  };
+}
 
     /* =================================================
        2. PRESERVE CURRENT-TURN EVIDENCE
@@ -609,20 +649,26 @@ const finalRuntimeExecutionReady =
     summary.pipelineStopped !== true
   );
 
-const turnPersistenceReady =
+const turnCompletionReady =
   summary.conversationOperatingStateCompleted ===
-    true;
+  true;
+
+const turnPersistenceReady =
+  summary.conversationOperatingStatePersisted ===
+  true;
 
 const runtimeTurnFinalized =
   finalRuntimeExecutionReady &&
-  turnPersistenceReady;
+  turnCompletionReady;
 
 const runtimeOutcome =
   finalRuntimeExecutionReady
     ? (
         turnPersistenceReady
           ? "delivered_and_persisted"
-          : "delivered_persistence_incomplete"
+          : turnCompletionReady
+            ? "delivered_without_persistence"
+            : "delivered_turn_completion_incomplete"
       )
     : (
         summary.pipelineStopped === true
@@ -664,6 +710,8 @@ summary = {
     Boolean(
       summary.deliveryResult?.reply
     ),
+
+    turnCompletionReady,
 
   turnPersistenceReady,
 
@@ -1193,7 +1241,7 @@ deliberationPipelineVersion:
       actionDelivery:
         null,
 
-      finalPersistenceRan:
+            finalPersistenceRan:
         false,
 
       finalPersistenceSource:
@@ -1202,7 +1250,43 @@ deliberationPipelineVersion:
       finalPersistenceReason:
         null,
 
+      conversationOperatingStateRan:
+        false,
+
+      conversationOperatingStateReady:
+        false,
+
+      conversationOperatingStateUsable:
+        false,
+
+      conversationOperatingStateDegraded:
+        false,
+
+      conversationOperatingStateMode:
+        "unavailable",
+
+      conversationOperatingStateSource:
+        null,
+
+      conversationOperatingStateVersion:
+        null,
+
+      conversationOperatingStateError:
+        null,
+
+      conversationOperatingStateErrors:
+        [],
+
+      conversationOperatingStateWarnings:
+        [],
+
+      conversationOperatingStateBeginResult:
+        null,
+
       conversationOperatingStateCompleted:
+        false,
+
+      conversationOperatingStatePersisted:
         false,
 
       conversationOperatingStateCompletionReason:
@@ -1214,9 +1298,11 @@ deliberationPipelineVersion:
       conversationOperatingStateCompletionVersion:
         null,
 
-      conversationOperatingStateCompleteResult:
+      conversationOperatingStateCompletionError:
         null,
 
+      conversationOperatingStateCompleteResult:
+        null,
 runtimeExecutionReady:
   false,
 
@@ -1227,6 +1313,9 @@ runtimeExecutionStatus:
   null,
 
 authoritativeDeliveryReady:
+  false,
+
+turnCompletionReady:
   false,
 
 turnPersistenceReady:
@@ -1271,144 +1360,244 @@ status:
   },
 
   async beginConversationTurn(
-    summary = {}
+  summary = {}
+) {
+  const operatingState =
+    this.getConversationOperatingState();
+
+  if (
+    !operatingState ||
+    typeof operatingState.beginTurn !==
+      "function"
   ) {
-    const operatingState =
-      this.getConversationOperatingState();
+    const error =
+      this.buildLayerError({
+        layer:
+          "conversationOperatingState",
+
+        type:
+          "conversation_operating_state_not_available",
+
+        message:
+          "Conversation Operating State was not available before Perception.",
+
+        fatal:
+          true
+      });
+
+    return {
+      ...summary,
+
+      conversationOperatingStateRan:
+        false,
+
+      conversationOperatingStateReady:
+        false,
+
+      conversationOperatingStateUsable:
+        false,
+
+      conversationOperatingStateDegraded:
+        false,
+
+      conversationOperatingStateMode:
+        "unavailable",
+
+      conversationOperatingStateSource:
+        "not-loaded",
+
+      conversationOperatingStateError:
+        error.message,
+
+      conversationOperatingStateErrors: [
+        error.message
+      ],
+
+      conversationOperatingStateWarnings:
+        [],
+
+      pipelineLifecycleErrors:
+        this.appendUniqueError(
+          summary.pipelineLifecycleErrors,
+          error
+        )
+    };
+  }
+
+  try {
+    const result =
+      await operatingState.beginTurn(
+        summary
+      );
 
     if (
-      !operatingState ||
-      typeof operatingState.beginTurn !==
-        "function"
+      !result ||
+      typeof result !==
+        "object" ||
+      Array.isArray(result)
     ) {
-      const error =
-        this.buildLayerError({
-          layer:
-            "conversationOperatingState",
-
-          type:
-            "conversation_operating_state_not_available",
-
-          message:
-            "Conversation Operating State was not available before Perception.",
-
-          fatal:
-            true
-        });
-
-      return {
-        ...summary,
-
-        conversationOperatingStateRan:
-          false,
-
-        conversationOperatingStateReady:
-          false,
-
-        conversationOperatingStateSource:
-          "not-loaded",
-
-        conversationOperatingStateError:
-          error.message,
-
-        pipelineLifecycleErrors:
-          this.appendUniqueError(
-            summary.pipelineLifecycleErrors,
-            error
-          )
-      };
+      throw new Error(
+        "conversation_operating_state_begin_turn_returned_invalid_result"
+      );
     }
 
-    try {
-      const result =
-        await operatingState.beginTurn(
-          summary
-        );
+    const ready =
+      result
+        .conversationOperatingStateReady ===
+      true;
 
-      if (
-        !result ||
-        typeof result !==
-          "object" ||
-        Array.isArray(result)
-      ) {
-        throw new Error(
-          "conversation_operating_state_begin_turn_returned_invalid_result"
-        );
-      }
+    const usable =
+      result
+        .conversationOperatingStateUsable ===
+        true ||
+      Boolean(
+        result
+          .conversationOperatingState
+          ?.currentTurn
+          ?.effectiveText ||
+        result
+          .conversationOperatingState
+          ?.currentTurn
+          ?.originalText ||
+        result.currentTurn
+          ?.effectiveText ||
+        result.currentTurn
+          ?.originalText ||
+        result.effectiveUserMessage ||
+        result.userMessage
+      );
 
-      const ready =
-        result.conversationOperatingStateReady !==
-          false &&
-        result.ready !==
-          false;
+    const degraded =
+      result
+        .conversationOperatingStateDegraded ===
+        true ||
+      result
+        .conversationOperatingState
+        ?.degraded ===
+        true;
 
-      return {
-        ...summary,
-        ...result,
+    return {
+      ...summary,
+      ...result,
 
-        conversationOperatingStateRan:
-          true,
+      conversationOperatingStateRan:
+        true,
 
-        conversationOperatingStateReady:
-          ready,
+      conversationOperatingStateReady:
+        ready,
 
-        conversationOperatingStateSource:
-          result.conversationOperatingStateSource ||
-          result.source ||
-          operatingState.source ||
-          "ari-conversation-operating-state",
+      conversationOperatingStateUsable:
+        usable,
 
-        conversationOperatingStateVersion:
-          result.conversationOperatingStateVersion ||
-          result.version ||
-          operatingState.version ||
-          null,
+      conversationOperatingStateDegraded:
+        degraded,
 
-        conversationOperatingStateBeginResult:
+      conversationOperatingStateMode:
+        result
+          .conversationOperatingStateMode ||
+        (
+          degraded
+            ? "degraded_current_turn"
+            : ready
+              ? "authoritative"
+              : "unavailable"
+        ),
+
+      conversationOperatingStateSource:
+        result
+          .conversationOperatingStateSource ||
+        result.source ||
+        operatingState.source ||
+        "ari-conversation-operating-state",
+
+      conversationOperatingStateVersion:
+        result
+          .conversationOperatingStateVersion ||
+        result.version ||
+        operatingState.version ||
+        null,
+
+      conversationOperatingStateError:
+        result
+          .conversationOperatingStateError ||
+        null,
+
+      conversationOperatingStateErrors:
+        this.toArray(
           result
-      };
-    } catch (error) {
-      const lifecycleError =
-        this.buildLayerError({
-          layer:
-            "conversationOperatingState",
+            .conversationOperatingStateErrors
+        ),
 
-          type:
-            "conversation_operating_state_begin_turn_failed",
+      conversationOperatingStateWarnings:
+        this.toArray(
+          result
+            .conversationOperatingStateWarnings
+        ),
 
-          message:
-            error?.message ||
-            String(error),
+      conversationOperatingStateBeginResult:
+        result
+    };
+  } catch (error) {
+    const lifecycleError =
+      this.buildLayerError({
+        layer:
+          "conversationOperatingState",
 
-          fatal:
-            true
-        });
+        type:
+          "conversation_operating_state_begin_turn_failed",
 
-      return {
-        ...summary,
+        message:
+          error?.message ||
+          String(error),
 
-        conversationOperatingStateRan:
-          false,
+        fatal:
+          true
+      });
 
-        conversationOperatingStateReady:
-          false,
+    return {
+      ...summary,
 
-        conversationOperatingStateSource:
-          operatingState.source ||
-          "ari-conversation-operating-state",
+      conversationOperatingStateRan:
+        false,
 
-        conversationOperatingStateError:
-          lifecycleError.message,
+      conversationOperatingStateReady:
+        false,
 
-        pipelineLifecycleErrors:
-          this.appendUniqueError(
-            summary.pipelineLifecycleErrors,
-            lifecycleError
-          )
-      };
-    }
-  },
+      conversationOperatingStateUsable:
+        false,
 
+      conversationOperatingStateDegraded:
+        false,
+
+      conversationOperatingStateMode:
+        "execution_failed",
+
+      conversationOperatingStateSource:
+        operatingState.source ||
+        "ari-conversation-operating-state",
+
+      conversationOperatingStateVersion:
+        operatingState.version ||
+        null,
+
+      conversationOperatingStateError:
+        lifecycleError.message,
+
+      conversationOperatingStateErrors: [
+        lifecycleError.message
+      ],
+
+      conversationOperatingStateWarnings:
+        [],
+
+      pipelineLifecycleErrors:
+        this.appendUniqueError(
+          summary.pipelineLifecycleErrors,
+          lifecycleError
+        )
+    };
+  }
+},
 async completeConversationTurn(
   summary = {}
 ) {
@@ -1470,8 +1659,18 @@ async completeConversationTurn(
 
 if (
   summary.conversationOperatingStateCompleted ===
-    true
+  true
 ) {
+  const persisted =
+    summary.conversationOperatingStatePersisted ===
+      true ||
+    summary.threadStatePersisted ===
+      true ||
+    summary.threadPersistenceResult?.saved ===
+      true ||
+    summary.persistenceResult?.saved ===
+      true;
+
   return {
     ...summary,
 
@@ -1483,8 +1682,14 @@ if (
     rebirthPipelineReady:
       runtimeExecutionReady,
 
+    turnCompletionReady:
+      true,
+
     turnPersistenceReady:
-      true
+      persisted,
+
+    conversationOperatingStatePersisted:
+      persisted
   };
 }
 
@@ -1568,8 +1773,22 @@ if (
     }
 
     const completed =
-  result.conversationOperatingStateCompleted ===
-    true;
+  result
+    .conversationOperatingStateCompleted ===
+  true;
+
+const persisted =
+  result
+    .conversationOperatingStatePersisted ===
+  true ||
+  result.threadStatePersisted ===
+  true ||
+  result.threadPersistenceResult
+    ?.saved ===
+  true ||
+  result.persistenceResult
+    ?.saved ===
+  true;
 
     /*
      * Only project fields owned by Conversation Operating
@@ -1678,17 +1897,23 @@ if (
       rebirthPipelineReady:
         runtimeExecutionReady,
 
-      conversationOperatingStateCompleted:
+            conversationOperatingStateCompleted:
         completed,
 
+      conversationOperatingStatePersisted:
+        persisted,
+
       conversationOperatingStateCompletionReason:
-        completed
-          ? "completed"
-          : (
-              result
-                .conversationOperatingStateCompletionReason ||
-              "conversation_operating_state_reported_incomplete"
-            ),
+        result.conversationOperatingStateCompletionReason ||
+        (
+          completed
+            ? (
+                persisted
+                  ? "completed_and_persisted"
+                  : "completed_without_persistence"
+              )
+            : "conversation_operating_state_reported_incomplete"
+        ),
 
       conversationOperatingStateCompletionSource:
         result.conversationOperatingStateSource ||
@@ -1706,29 +1931,37 @@ if (
         result,
 
       finalPersistenceRan:
-  result.finalPersistenceRan === true ||
-  result.persistenceRan === true ||
-  completed,
+        result.finalPersistenceRan ===
+          true ||
+        result.persistenceRan ===
+          true ||
+        result.threadSaveRan ===
+          true,
 
-finalPersistenceSource:
-  result.finalPersistenceSource ||
-  result.persistenceSource ||
-  result.conversationOperatingStateSource ||
-  operatingState.source ||
-  "ari-conversation-operating-state",
+      finalPersistenceSource:
+        result.finalPersistenceSource ||
+        result.persistenceSource ||
+        result.conversationOperatingStateSource ||
+        operatingState.source ||
+        "ari-conversation-operating-state",
 
       finalPersistenceReason:
-        completed
+        persisted
           ? null
           : (
               result.finalPersistenceReason ||
               result
+                .conversationOperatingStateCompletionError ||
+              result
                 .conversationOperatingStateCompletionReason ||
-              "conversation_operating_state_reported_incomplete"
+              "persistence_not_completed"
             ),
 
+      turnCompletionReady:
+        completed,
+
       turnPersistenceReady:
-        completed
+        persisted
     };
   } catch (error) {
     const lifecycleError =
@@ -1748,47 +1981,49 @@ finalPersistenceSource:
       });
 
     return {
-      ...summary,
+  ...summary,
 
-      /*
-       * Persistence failure is a warning. It does not revoke
-       * authoritative Delivery.
-       */
-      runtimeExecutionReady,
+  runtimeExecutionReady,
 
-      runtimeExecutionComplete:
-        runtimeExecutionReady,
+  runtimeExecutionComplete:
+    runtimeExecutionReady,
 
-      rebirthPipelineReady:
-        runtimeExecutionReady,
+  rebirthPipelineReady:
+    runtimeExecutionReady,
 
-      conversationOperatingStateCompleted:
-        false,
+  conversationOperatingStateCompleted:
+    false,
 
-      conversationOperatingStateCompletionReason:
-        "conversation_operating_state_complete_turn_failed",
+  conversationOperatingStatePersisted:
+    false,
 
-      conversationOperatingStateCompletionError:
-        lifecycleError.message,
+  conversationOperatingStateCompletionReason:
+    "conversation_operating_state_complete_turn_failed",
 
-      finalPersistenceRan:
-        false,
+  conversationOperatingStateCompletionError:
+    lifecycleError.message,
 
-      finalPersistenceReason:
-        lifecycleError.type,
+  finalPersistenceRan:
+    false,
 
-      turnPersistenceReady:
-        false,
+  finalPersistenceReason:
+    lifecycleError.type,
 
-      pipelineLifecycleWarnings:
-        this.appendUniqueError(
-          summary.pipelineLifecycleWarnings,
-          lifecycleError
-        )
-    };
-  }
+  turnCompletionReady:
+    false,
+
+  turnPersistenceReady:
+    false,
+
+  pipelineLifecycleWarnings:
+    this.appendUniqueError(
+      summary.pipelineLifecycleWarnings,
+      lifecycleError
+    )
+};
+}
+
 },
-
   /* =====================================================
      CONVERSATION CONTEXT AUTHORITIES
   ===================================================== */
@@ -3957,22 +4192,48 @@ stoppedByLayer:
 "canonical-five-layer-openai-cognitive-authority-with-evidence-and-advisory-semantic-validation",
 
         conversationOperatingState: {
-          began:
-            summary.conversationOperatingStateRan ===
-            true,
+  began:
+    summary.conversationOperatingStateRan ===
+    true,
 
-          ready:
-            summary.conversationOperatingStateReady ===
-            true,
+  ready:
+    summary.conversationOperatingStateReady ===
+    true,
 
-          source:
-            summary.conversationOperatingStateSource ||
-            null,
+  usable:
+    summary.conversationOperatingStateUsable ===
+    true,
 
-          version:
-            summary.conversationOperatingStateVersion ||
-            null
-        },
+  degraded:
+    summary.conversationOperatingStateDegraded ===
+    true,
+
+  mode:
+    summary.conversationOperatingStateMode ||
+    null,
+
+  source:
+    summary.conversationOperatingStateSource ||
+    null,
+
+  version:
+    summary.conversationOperatingStateVersion ||
+    null,
+
+  error:
+    summary.conversationOperatingStateError ||
+    null,
+
+  errors:
+    this.toArray(
+      summary.conversationOperatingStateErrors
+    ),
+
+  warnings:
+    this.toArray(
+      summary.conversationOperatingStateWarnings
+    )
+},
 
         executionOrder:
           summary.pipelineExecutionOrder ||
@@ -5293,31 +5554,53 @@ stoppedByLayer:
     );
 
     console.log(
-      "===== CONVERSATION OPERATING STATE =====",
-      {
-        began:
-          summary.conversationOperatingStateRan ===
-          true,
+  "===== CONVERSATION OPERATING STATE =====",
+  {
+    began:
+      summary.conversationOperatingStateRan ===
+      true,
 
-        ready:
-          summary.conversationOperatingStateReady ===
-          true,
+    ready:
+      summary.conversationOperatingStateReady ===
+      true,
 
-        completed:
-          summary.conversationOperatingStateCompleted ===
-          true,
+    usable:
+      summary.conversationOperatingStateUsable ===
+      true,
 
-        source:
-          summary.conversationOperatingStateSource ||
-          summary.conversationOperatingStateCompletionSource ||
-          null,
+    degraded:
+      summary.conversationOperatingStateDegraded ===
+      true,
 
-        error:
-          summary.conversationOperatingStateError ||
-          summary.conversationOperatingStateCompletionError ||
-          null
-      }
-    );
+    mode:
+      summary.conversationOperatingStateMode ||
+      null,
+
+    completed:
+      summary.conversationOperatingStateCompleted ===
+      true,
+
+    persisted:
+      summary.conversationOperatingStatePersisted ===
+      true,
+
+    source:
+      summary.conversationOperatingStateSource ||
+      summary
+        .conversationOperatingStateCompletionSource ||
+      null,
+
+    error:
+      summary.conversationOperatingStateError ||
+      summary
+        .conversationOperatingStateCompletionError ||
+      null,
+
+    warnings:
+      summary.conversationOperatingStateWarnings ||
+      []
+  }
+);
 
     console.log(
       "===== PIPELINE LIFECYCLE =====",
@@ -5654,6 +5937,24 @@ console.log(
         true,
 
       canCompleteConversationOperatingState:
+        true,
+
+      canCompleteConversationOperatingState:
+        true,
+
+      canEvaluateConversationOperatingStateUsability:
+        true,
+
+      canContinueWithDegradedConversationOperatingState:
+        true,
+
+      canTreatConversationOperatingStateReadinessAsRuntimeGate:
+        false,
+
+      canTreatPersistenceAsRuntimeDeliveryAuthority:
+        false,
+
+      canPreserveExternalEvidence:
         true,
 
       canPreserveExternalEvidence:
