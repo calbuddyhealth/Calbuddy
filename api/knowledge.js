@@ -4,7 +4,7 @@
 // Purpose:
 // Provide the server-side OpenAI transport for Ari Rebirth cognitive reasoning.
 //
-// V6.1.0 — Lean Cognitive Transport / Advisory Result Normalization
+// V6.2.0 — User Style Preference Aware Cognitive Transport
 //
 // Supported actions:
 // - openai_reasoning
@@ -12,6 +12,7 @@
 // Responsibilities:
 // - Validate the minimum incoming transport contract.
 // - Preserve the complete canonical reasoning packet.
+// - Resolve supplied persistent and current-turn communication preferences.
 // - Build a clear cognitive-reasoning prompt.
 // - Invoke OpenAI through a server-side API key.
 // - Parse structured model output.
@@ -44,49 +45,35 @@ const OPENAI_TIMEOUT_MS =
     45000
   );
 
-const MAX_MODEL_OUTPUT_PREVIEW =
-  4000;
+const MAX_MODEL_OUTPUT_PREVIEW = 4000;
 
 /* =====================================================
    VERCEL API ENTRY POINT
 ===================================================== */
 
-export default async function handler(
-  req,
-  res
-) {
+export default async function handler(req, res) {
   setCommonHeaders(res);
 
   if (req.method === "OPTIONS") {
-    return res
-      .status(204)
-      .end();
+    return res.status(204).end();
   }
 
   if (req.method !== "POST") {
-    res.setHeader(
-      "Allow",
-      "POST, OPTIONS"
-    );
+    res.setHeader("Allow", "POST, OPTIONS");
 
-    return res
-      .status(405)
-      .json({
-        success: false,
-        ready: false,
-        error: "Method not allowed.",
-        failureType:
-          "method_not_allowed",
-        source: "knowledge_api"
-      });
+    return res.status(405).json({
+      success: false,
+      ready: false,
+      error: "Method not allowed.",
+      failureType: "method_not_allowed",
+      source: "knowledge_api"
+    });
   }
 
-  const requestStart =
-    Date.now();
+  const requestStart = Date.now();
 
   try {
-    const body =
-      await resolveRequestBody(req);
+    const body = await resolveRequestBody(req);
 
     const action =
       firstNonEmptyString([
@@ -106,26 +93,24 @@ export default async function handler(
         );
 
       default:
-        return res
-          .status(400)
-          .json({
-            success: false,
-            ready: false,
-            error:
-              `Unsupported knowledge action: ${action}.`,
-            failureType:
-              "unsupported_knowledge_action",
-            action,
-            supportedActions: [
-              "openai_reasoning"
-            ],
-            source: "knowledge_api",
-            timing: {
-              totalMs:
-                Date.now() -
-                requestStart
-            }
-          });
+        return res.status(400).json({
+          success: false,
+          ready: false,
+          error:
+            `Unsupported knowledge action: ${action}.`,
+          failureType:
+            "unsupported_knowledge_action",
+          action,
+          supportedActions: [
+            "openai_reasoning"
+          ],
+          source: "knowledge_api",
+          timing: {
+            totalMs:
+              Date.now() -
+              requestStart
+          }
+        });
     }
   } catch (error) {
     console.error(
@@ -174,9 +159,7 @@ async function handleOpenAIReasoning(
   res,
   suppliedBody = {}
 ) {
-  const totalStart =
-    Date.now();
-
+  const totalStart = Date.now();
   const timing = {};
 
   const body =
@@ -187,17 +170,15 @@ async function handleOpenAIReasoning(
         : {};
 
   if (!process.env.OPENAI_API_KEY) {
-    return res
-      .status(500)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "Missing OPENAI_API_KEY.",
-        failureType:
-          "missing_environment_configuration",
-        source: "openai_reasoning"
-      });
+    return res.status(500).json({
+      success: false,
+      ready: false,
+      error:
+        "Missing OPENAI_API_KEY.",
+      failureType:
+        "missing_environment_configuration",
+      source: "openai_reasoning"
+    });
   }
 
   const requestWarnings = [];
@@ -256,6 +237,19 @@ async function handleOpenAIReasoning(
       body.memoryHandoff
     );
 
+  const userPreferences =
+    resolveUserPreferences({
+      body,
+      memory
+    });
+
+  const responseStyle =
+    resolveResponseStyle({
+      body,
+      memory,
+      userPreferences
+    });
+
   const originalQuestion =
     firstNonEmptyString([
       body.currentTurn
@@ -281,17 +275,15 @@ async function handleOpenAIReasoning(
     ]);
 
   if (!effectiveQuestion) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "No effective question was provided for cognitive reasoning.",
-        failureType:
-          "invalid_request",
-        source: "openai_reasoning"
-      });
+    return res.status(400).json({
+      success: false,
+      ready: false,
+      error:
+        "No effective question was provided for cognitive reasoning.",
+      failureType:
+        "invalid_request",
+      source: "openai_reasoning"
+    });
   }
 
   const outputContract =
@@ -306,19 +298,17 @@ async function handleOpenAIReasoning(
     );
 
   if (!allowedOperations.length) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "No canonical semantic operation registry was supplied to OpenAI reasoning.",
-        failureType:
-          "semantic_operation_registry_missing",
-        outputContractKeys:
-          Object.keys(outputContract),
-        source: "openai_reasoning"
-      });
+    return res.status(400).json({
+      success: false,
+      ready: false,
+      error:
+        "No canonical semantic operation registry was supplied to OpenAI reasoning.",
+      failureType:
+        "semantic_operation_registry_missing",
+      outputContractKeys:
+        Object.keys(outputContract),
+      source: "openai_reasoning"
+    });
   }
 
   const reasoningInput = {
@@ -333,19 +323,15 @@ async function handleOpenAIReasoning(
     request: {
       original:
         originalQuestion,
-
       effective:
         effectiveQuestion,
-
       currentTurnWasResolved:
         body.currentTurnWasResolved ===
         true,
-
       turnId:
         body.currentTurn?.turnId ||
         body.turnId ||
         null,
-
       language:
         body.request?.language ||
         body.language ||
@@ -355,10 +341,8 @@ async function handleOpenAIReasoning(
     currentTurn: {
       originalText:
         originalQuestion,
-
       effectiveText:
         effectiveQuestion,
-
       turnId:
         body.currentTurn?.turnId ||
         body.turnId ||
@@ -400,6 +384,9 @@ async function handleOpenAIReasoning(
       normalizeObject(
         body.responseControl
       ),
+
+    userPreferences,
+    responseStyle,
 
     capabilities:
       normalizeObject(
@@ -455,8 +442,7 @@ async function handleOpenAIReasoning(
       reasoningInput
     );
 
-  const openAIStart =
-    Date.now();
+  const openAIStart = Date.now();
 
   let response;
   let data;
@@ -624,38 +610,36 @@ async function handleOpenAIReasoning(
     !parsedResult.wasJson ||
     !isPlainObject(parsed)
   ) {
-    return res
-      .status(502)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "OpenAI reasoning returned a malformed cognitive result.",
-        failureType:
-          "invalid_reasoning_model_output",
-        rawModelOutputPreview:
-          previewText(
-            rawModelOutput,
-            MAX_MODEL_OUTPUT_PREVIEW
-          ),
-        parsedModelOutput:
-          parsed ||
-          null,
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-        finishReason:
-          data?.choices?.[0]
-            ?.finish_reason ||
-          null,
-        source: "openai_reasoning",
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+    return res.status(502).json({
+      success: false,
+      ready: false,
+      error:
+        "OpenAI reasoning returned a malformed cognitive result.",
+      failureType:
+        "invalid_reasoning_model_output",
+      rawModelOutputPreview:
+        previewText(
+          rawModelOutput,
+          MAX_MODEL_OUTPUT_PREVIEW
+        ),
+      parsedModelOutput:
+        parsed ||
+        null,
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+      finishReason:
+        data?.choices?.[0]
+          ?.finish_reason ||
+        null,
+      source: "openai_reasoning",
+      timing: {
+        ...timing,
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    });
   }
 
   const validationWarnings = [
@@ -825,30 +809,28 @@ async function handleOpenAIReasoning(
       canonicalOperation
     )
   ) {
-    return res
-      .status(502)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          `OpenAI reasoning returned an unregistered semantic operation: ${canonicalOperation}.`,
-        failureType:
-          "semantic_operation_not_registered",
-        semanticOperation:
-          canonicalOperation,
-        allowedOperations,
-        parsedModelOutput: parsed,
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-        source: "openai_reasoning",
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+    return res.status(502).json({
+      success: false,
+      ready: false,
+      error:
+        `OpenAI reasoning returned an unregistered semantic operation: ${canonicalOperation}.`,
+      failureType:
+        "semantic_operation_not_registered",
+      semanticOperation:
+        canonicalOperation,
+      allowedOperations,
+      parsedModelOutput: parsed,
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+      source: "openai_reasoning",
+      timing: {
+        ...timing,
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    });
   }
 
   const rawResponseRequirements =
@@ -944,6 +926,12 @@ async function handleOpenAIReasoning(
           .toneRequirements
       ),
 
+    styleApplied:
+      normalizeObject(
+        rawResponseRequirements
+          .styleApplied
+      ),
+
     clarificationRequired:
       rawResponseRequirements
         .clarificationRequired ===
@@ -1014,27 +1002,25 @@ async function handleOpenAIReasoning(
     );
 
   if (claimedActionExecution) {
-    return res
-      .status(502)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "OpenAI reasoning falsely claimed that a proposed action was executed.",
-        failureType:
-          "model_claimed_action_execution",
-        parsedModelOutput: parsed,
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-        source: "openai_reasoning",
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+    return res.status(502).json({
+      success: false,
+      ready: false,
+      error:
+        "OpenAI reasoning falsely claimed that a proposed action was executed.",
+      failureType:
+        "model_claimed_action_execution",
+      parsedModelOutput: parsed,
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+      source: "openai_reasoning",
+      timing: {
+        ...timing,
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    });
   }
 
   const rawGrounding =
@@ -1267,6 +1253,21 @@ async function handleOpenAIReasoning(
       responseGoal:
         responseRequirements.goal ||
         null,
+      responseStyleSource:
+        responseStyle.source ||
+        null,
+      profanityAllowed:
+        responseStyle
+          .profanityAllowed ??
+        responseStyle
+          .profanity?.allowed ??
+        null,
+      profanityLevel:
+        responseStyle
+          .profanityLevel ||
+        responseStyle
+          .profanity?.level ||
+        null,
       authoritativeDraftAvailable:
         Boolean(
           authoritativeDraft
@@ -1288,118 +1289,116 @@ async function handleOpenAIReasoning(
     }
   );
 
-  return res
-    .status(200)
-    .json({
-      success: true,
-      ready:
-        cognitiveReasoningResult
-          .ready ===
-        true,
-      authoritative:
-        cognitiveReasoningResult
-          .authoritative ===
-        true,
+  return res.status(200).json({
+    success: true,
+    ready:
+      cognitiveReasoningResult
+        .ready ===
+      true,
+    authoritative:
+      cognitiveReasoningResult
+        .authoritative ===
+      true,
 
+    cognitiveReasoningResult,
+    reasoningResult:
       cognitiveReasoningResult,
-      reasoningResult:
-        cognitiveReasoningResult,
 
-      interpretation:
-        cognitiveReasoningResult
-          .interpretation,
+    interpretation:
+      cognitiveReasoningResult
+        .interpretation,
 
-      reasoningDecision:
-        cognitiveReasoningResult
-          .reasoningDecision,
+    reasoningDecision:
+      cognitiveReasoningResult
+        .reasoningDecision,
 
-      semanticFrame:
-        cognitiveReasoningResult
-          .semanticFrame,
+    semanticFrame:
+      cognitiveReasoningResult
+        .semanticFrame,
 
-      responseRequirements:
-        cognitiveReasoningResult
-          .responseRequirements,
+    responseRequirements:
+      cognitiveReasoningResult
+        .responseRequirements,
 
-      responseStrategy:
-        cognitiveReasoningResult
-          .responseRequirements,
+    responseStrategy:
+      cognitiveReasoningResult
+        .responseRequirements,
 
-      authoritativeDraft:
-        cognitiveReasoningResult
-          .authoritativeDraft,
+    authoritativeDraft:
+      cognitiveReasoningResult
+        .authoritativeDraft,
 
-      draftResponse:
-        cognitiveReasoningResult
-          .draftResponse,
+    draftResponse:
+      cognitiveReasoningResult
+        .draftResponse,
 
-      responseText:
-        cognitiveReasoningResult
-          .draftResponse,
+    responseText:
+      cognitiveReasoningResult
+        .draftResponse,
 
-      finalResponse:
-        cognitiveReasoningResult
-          .draftResponse,
+    finalResponse:
+      cognitiveReasoningResult
+        .draftResponse,
 
-      answer:
-        cognitiveReasoningResult
-          .draftResponse,
+    answer:
+      cognitiveReasoningResult
+        .draftResponse,
 
-      reply:
-        cognitiveReasoningResult
-          .draftResponse,
+    reply:
+      cognitiveReasoningResult
+        .draftResponse,
 
-      caseModel:
-        cognitiveReasoningResult
-          .caseModel,
+    caseModel:
+      cognitiveReasoningResult
+        .caseModel,
 
-      options:
-        cognitiveReasoningResult
-          .options,
+    options:
+      cognitiveReasoningResult
+        .options,
 
-      tradeoffs:
-        cognitiveReasoningResult
-          .tradeoffs,
+    tradeoffs:
+      cognitiveReasoningResult
+        .tradeoffs,
 
-      uncertainties:
-        cognitiveReasoningResult
-          .uncertainties,
+    uncertainties:
+      cognitiveReasoningResult
+        .uncertainties,
 
-      executionMetadata:
-        cognitiveReasoningResult
-          .executionMetadata,
+    executionMetadata:
+      cognitiveReasoningResult
+        .executionMetadata,
 
-      evidenceReferences:
-        cognitiveReasoningResult
-          .evidenceReferences,
+    evidenceReferences:
+      cognitiveReasoningResult
+        .evidenceReferences,
 
-      grounding:
-        cognitiveReasoningResult
-          .grounding,
+    grounding:
+      cognitiveReasoningResult
+        .grounding,
 
-      confidence:
-        cognitiveReasoningResult
-          .confidence,
+    confidence:
+      cognitiveReasoningResult
+        .confidence,
 
-      validation:
-        cognitiveReasoningResult
-          .validation,
+    validation:
+      cognitiveReasoningResult
+        .validation,
 
-      modelInvocation:
-        cognitiveReasoningResult
-          .modelInvocation,
+    modelInvocation:
+      cognitiveReasoningResult
+        .modelInvocation,
 
-      model:
-        cognitiveReasoningResult
-          .model,
+    model:
+      cognitiveReasoningResult
+        .model,
 
-      authority:
-        cognitiveReasoningResult
-          .authority,
+    authority:
+      cognitiveReasoningResult
+        .authority,
 
-      source: "openai_reasoning",
-      timing
-    });
+    source: "openai_reasoning",
+    timing
+  });
 }
 
 /* =====================================================
@@ -1410,14 +1409,14 @@ function buildOpenAIReasoningSystemPrompt() {
   return `
 You are the authoritative cognitive reasoning and response-generation model for Ari Rebirth.
 
-Use the complete supplied reasoning packet. Preserve the effective current-turn request and consider the supplied conversation, evidence, deterministic context, knowledge, developer evidence, capabilities, authority rules, operation contract, and response controls together.
+Use the complete supplied reasoning packet. Preserve the effective current-turn request and consider the supplied conversation, evidence, deterministic context, knowledge, developer evidence, capabilities, authority rules, operation contract, response controls, user preferences, and response style together.
 
 Produce one structured cognitive result and one complete user-facing draft in the same JSON object.
 
 Authority rules:
 - Interpret the user's meaning, goal, conversational function, and required response behavior.
 - Resolve ambiguity only when supported by supplied context.
-- Treat safety and explicit response constraints as binding.
+- Treat deterministic safety and explicit response constraints as binding.
 - Treat routing labels and upstream semantic signals as evidence, not unquestionable semantic truth.
 - Use supplied knowledge and evidence when relevant, but distinguish evidence from inference.
 - Produce the complete natural answer in draftResponse.
@@ -1430,6 +1429,27 @@ Authority rules:
 - Output exactly one valid JSON object.
 - Do not use markdown fences.
 - Do not add commentary outside the JSON object.
+
+Style and personality rules:
+- Adapt the draft to explicit current-turn style requests and supplied user preferences when they do not conflict with safety or explicit response constraints.
+- Current-turn style instructions take priority over persistent user preferences.
+- Persistent user preferences should shape tone consistently when relevant.
+- Tone, humor, warmth, directness, formality, verbosity, personality, and profanity are communication-style controls, not safety exceptions.
+- Profanity is allowed when the supplied preferences or current request permit it.
+- When profanity is allowed, use it naturally and proportionately rather than forcing it into every response.
+- Do not refuse or moralize merely because the user requested ordinary profanity, bluntness, casual language, teasing, or a more forceful personality.
+- Never interpret "respectful" by itself as a universal ban on profanity.
+- Do not use slurs, threats, hateful degradation, abusive harassment, or targeted humiliation.
+- Do not aim profanity abusively at the user unless the current request clearly calls for harmless consensual banter, and even then keep it playful rather than degrading.
+- Reduce or omit profanity when it would be contextually inappropriate, including sensitive crisis communication, formal documents, professional correspondence, or language intended for children.
+- Style preferences never override factual accuracy, deterministic safety, or explicit response constraints.
+
+Instruction priority:
+1. Deterministic safety requirements.
+2. Explicit response constraints and forbidden behaviors.
+3. Explicit current-turn style instructions.
+4. Persistent user preferences.
+5. Default Ari style.
 
 Return JSON only.
 `.trim();
@@ -1448,6 +1468,16 @@ function buildOpenAIReasoningUserPrompt(
       reasoningInput.instructions
     );
 
+  const userPreferences =
+    normalizeObject(
+      reasoningInput.userPreferences
+    );
+
+  const responseStyle =
+    normalizeObject(
+      reasoningInput.responseStyle
+    );
+
   return `
 CURRENT REASONING INPUT:
 ${safeJsonStringify(
@@ -1459,6 +1489,16 @@ ${safeJsonStringify(
   suppliedInstructions
 )}
 
+USER COMMUNICATION PREFERENCES:
+${safeJsonStringify(
+  userPreferences
+)}
+
+CURRENT EFFECTIVE RESPONSE STYLE:
+${safeJsonStringify(
+  responseStyle
+)}
+
 ALLOWED CANONICAL OPERATIONS:
 ${safeJsonStringify(
   allowedOperations
@@ -1466,6 +1506,19 @@ ${safeJsonStringify(
 
 Analyze the user's current request using the complete supplied packet.
 Follow the binding reasoning instructions above.
+
+Apply communication preferences using this priority:
+1. Deterministic safety.
+2. Explicit response constraints.
+3. Current-turn style requests.
+4. Persistent user preferences.
+5. Default Ari style.
+
+Do not invent preferences that were not supplied.
+Do not claim that a preference was saved or remembered.
+This transport may use supplied preferences, but it does not persist them.
+
+Ordinary profanity, casual language, bluntness, humor, teasing, and personality adaptation are allowed when requested or permitted by the supplied style packet. Do not produce a generic respectful-language refusal merely because profanity was requested. Use permitted profanity naturally, contextually, and proportionately.
 
 Return exactly one JSON object using this core shape:
 
@@ -1537,6 +1590,16 @@ Return exactly one JSON object using this core shape:
     "safetyRequirements": [],
     "continuityRequirements": [],
     "toneRequirements": [],
+    "styleApplied": {
+      "source": null,
+      "tone": null,
+      "directness": null,
+      "warmth": null,
+      "humor": null,
+      "formality": null,
+      "verbosity": null,
+      "profanityLevel": null
+    },
     "clarificationRequired": false,
     "clarificationQuestion": null,
     "actionRequired": false
@@ -1560,6 +1623,7 @@ Core requirements:
 - Never mark an action as executed, completed, successful, delivered, or persisted.
 - Do not expose private chain-of-thought.
 - Do not place the result inside an additional wrapper.
+- Reflect the style actually used in responseRequirements.styleApplied when practical.
 
 Secondary fields may be concise. Empty arrays and objects are acceptable when no value applies.
 `.trim();
@@ -1884,7 +1948,7 @@ function parseModelResult(
             "extracted_json"
         };
       } catch {
-        // Continue to the standard failure result.
+        // Continue to standard failure.
       }
     }
 
@@ -2052,6 +2116,250 @@ function resolveAllowedOperations(
         [];
 
   return uniqueStrings(source);
+}
+
+function resolveUserPreferences({
+  body = {},
+  memory = {}
+} = {}) {
+  return normalizeCommunicationPreferences(
+    mergePlainObjects([
+      memory.profile
+        ?.communicationPreferences,
+      memory.preferences
+        ?.communication,
+      memory.preferences
+        ?.style,
+      memory.userPreferences,
+      memory.communicationPreferences,
+      memory.stylePreferences,
+      body.conversation
+        ?.userPreferences,
+      body.conversation
+        ?.communicationPreferences,
+      body.responseControl
+        ?.userPreferences,
+      body.userPreferences,
+      body.communicationPreferences,
+      body.stylePreferences
+    ])
+  );
+}
+
+function resolveResponseStyle({
+  body = {},
+  memory = {},
+  userPreferences = {}
+} = {}) {
+  const persistentStyle =
+    normalizeCommunicationPreferences(
+      userPreferences
+    );
+
+  const currentTurnStyle =
+    mergePlainObjects([
+      memory.currentTurnStyle,
+      body.conversation
+        ?.currentTurnStyle,
+      body.responseControl
+        ?.responseStyle,
+      body.responseControl
+        ?.styleOverride,
+      body.responseControl
+        ?.styleOverrides,
+      body.currentTurn
+        ?.responseStyle,
+      body.currentTurn
+        ?.styleOverride,
+      body.responseStyle,
+      body.styleOverride
+    ]);
+
+  return normalizeCommunicationPreferences({
+    ...persistentStyle,
+    ...currentTurnStyle,
+    source:
+      Object.keys(currentTurnStyle).length
+        ? "current_turn_override"
+        : Object.keys(persistentStyle).length
+          ? "persistent_user_preference"
+          : "default"
+  });
+}
+
+function normalizeCommunicationPreferences(
+  value = {}
+) {
+  if (!isPlainObject(value)) {
+    return {};
+  }
+
+  const profanityObject =
+    isPlainObject(value.profanity)
+      ? value.profanity
+      : {};
+
+  const profanityAllowed =
+    firstDefinedBoolean([
+      value.profanityAllowed,
+      value.allowProfanity,
+      profanityObject.allowed
+    ]);
+
+  const profanityLevel =
+    firstNonEmptyString([
+      value.profanityLevel,
+      value.swearingLevel,
+      profanityObject.level,
+      profanityObject.intensity
+    ]) ||
+    null;
+
+  return removeUndefinedValues({
+    ...value,
+
+    tone:
+      firstNonEmptyString([
+        value.tone,
+        value.preferredTone
+      ]) ||
+      null,
+
+    directness:
+      firstNonEmptyString([
+        value.directness,
+        value.preferredDirectness
+      ]) ||
+      null,
+
+    warmth:
+      firstNonEmptyString([
+        value.warmth,
+        value.preferredWarmth
+      ]) ||
+      null,
+
+    humor:
+      firstNonEmptyString([
+        value.humor,
+        value.humorStyle
+      ]) ||
+      null,
+
+    formality:
+      firstNonEmptyString([
+        value.formality,
+        value.formalityLevel
+      ]) ||
+      null,
+
+    verbosity:
+      firstNonEmptyString([
+        value.verbosity,
+        value.responseLength
+      ]) ||
+      null,
+
+    personality:
+      firstNonEmptyString([
+        value.personality,
+        value.personalityStyle,
+        value.energy
+      ]) ||
+      null,
+
+    profanity: {
+      ...profanityObject,
+      allowed:
+        profanityAllowed,
+      level:
+        profanityLevel,
+      useNaturally:
+        firstDefinedBoolean([
+          profanityObject.useNaturally,
+          value.useProfanityNaturally
+        ])
+    },
+
+    profanityAllowed,
+    profanityLevel
+  });
+}
+
+function mergePlainObjects(
+  values = []
+) {
+  const merged = {};
+
+  for (const value of values) {
+    if (isPlainObject(value)) {
+      Object.assign(
+        merged,
+        value
+      );
+    }
+  }
+
+  return merged;
+}
+
+function firstDefinedBoolean(
+  values = []
+) {
+  for (const value of values) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function removeUndefinedValues(
+  value
+) {
+  if (Array.isArray(value)) {
+    return value
+      .map(
+        removeUndefinedValues
+      )
+      .filter(
+        item =>
+          item !== undefined
+      );
+  }
+
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  const output = {};
+
+  for (
+    const [key, currentValue]
+    of Object.entries(value)
+  ) {
+    if (currentValue === undefined) {
+      continue;
+    }
+
+    const normalized =
+      removeUndefinedValues(
+        currentValue
+      );
+
+    if (
+      isPlainObject(normalized) &&
+      !Object.keys(normalized).length
+    ) {
+      continue;
+    }
+
+    output[key] =
+      normalized;
+  }
+
+  return output;
 }
 
 /* =====================================================
