@@ -156,6 +156,7 @@ window.AriRebirthAppBridge = {
     "ari/conversation/ari-turn-intake-engine.js",
 
     "ari/continuity/ari-conversation-operating-state.js",
+    "ari/continuity/ari-conversation-operating-state-resilience-patch.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
 
