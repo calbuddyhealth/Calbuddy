@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.6.0 — Usable AI Semantic Frame Runtime Contract
+// V7.7.0 — Runtime Completion Authority / Persistence Isolation
 //
 // Architectural flow:
 //
@@ -63,8 +63,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.6.0",
-  schemaVersion: "7.6.0",
+  version: "7.7.0",
+  schemaVersion: "7.7.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_five_layer_openai_cognitive_contract_authority",
@@ -496,116 +496,237 @@ window.AriRebirthPipeline = {
       );
 
     /* =================================================
-       7. AUTHORITATIVE DELIVERY NORMALIZATION
-    ================================================= */
+   7. AUTHORITATIVE DELIVERY NORMALIZATION
+================================================= */
 
-    mark(
-      "before canonicalDeliveryResult"
-    );
+mark(
+  "before canonicalDeliveryResult"
+);
 
-    const deliveryResult =
-      this.buildCanonicalDeliveryResult(
-        summary
+const deliveryResult =
+  this.buildCanonicalDeliveryResult(
+    summary
+  );
+
+const authoritativeDeliveryReady =
+  deliveryResult.available === true &&
+  deliveryResult.ready === true &&
+  deliveryResult.authoritative === true &&
+  Boolean(deliveryResult.reply);
+
+const runtimeExecutionReady =
+  summary.pipelineLifecycleComplete === true &&
+  authoritativeDeliveryReady === true &&
+  summary.pipelineStopped !== true;
+
+summary = {
+  ...summary,
+
+  deliveryResult,
+
+  deliveryComplete:
+    authoritativeDeliveryReady,
+
+  pipelineOutputReady:
+    authoritativeDeliveryReady,
+
+  authoritativeDeliveryReady,
+
+  runtimeExecutionReady,
+
+  runtimeExecutionComplete:
+    runtimeExecutionReady,
+
+  runtimeExecutionStatus:
+    runtimeExecutionReady
+      ? "delivered"
+      : (
+          summary.pipelineStopped === true
+            ? "runtime_stopped"
+            : "delivery_unavailable"
+        ),
+
+  /*
+   * This value must be established before Conversation
+   * Operating State and Conversation Meaning History inspect
+   * the completed runtime.
+   *
+   * Persistence must not determine whether the five-layer
+   * runtime successfully produced an authoritative reply.
+   */
+  rebirthPipelineReady:
+    runtimeExecutionReady
+};
+
+/*
+ * Temporary compatibility projection.
+ * Remove after the App Bridge and all downstream readers
+ * consume deliveryResult.reply directly.
+ */
+if (
+  authoritativeDeliveryReady &&
+  deliveryResult.reply
+) {
+  summary.finalResponse =
+    deliveryResult.reply;
+}
+
+mark(
+  "after canonicalDeliveryResult"
+);
+
+/* =================================================
+   8. COMPLETE CANONICAL TURN
+================================================= */
+
+mark(
+  "before conversationOperatingState.completeTurn"
+);
+
+summary =
+  await this.completeConversationTurn(
+    summary
+  );
+
+mark(
+  "after conversationOperatingState.completeTurn"
+);
+/* =================================================
+   9. FINAL RUNTIME METADATA
+================================================= */
+
+/* =================================================
+   9. FINAL RUNTIME METADATA
+================================================= */
+
+const finalRuntimeExecutionReady =
+  summary.runtimeExecutionReady === true ||
+  (
+    summary.pipelineLifecycleComplete === true &&
+    summary.deliveryResult?.available === true &&
+    summary.deliveryResult?.ready === true &&
+    summary.deliveryResult?.authoritative === true &&
+    Boolean(
+      summary.deliveryResult?.reply
+    ) &&
+    summary.pipelineStopped !== true
+  );
+
+const turnPersistenceReady =
+  summary.conversationOperatingStateCompleted ===
+    true;
+
+const runtimeTurnFinalized =
+  finalRuntimeExecutionReady &&
+  turnPersistenceReady;
+
+const runtimeOutcome =
+  finalRuntimeExecutionReady
+    ? (
+        turnPersistenceReady
+          ? "delivered_and_persisted"
+          : "delivered_persistence_incomplete"
+      )
+    : (
+        summary.pipelineStopped === true
+          ? "runtime_failed"
+          : "delivery_unavailable"
       );
 
-    summary = {
-      ...summary,
+summary = {
+  ...summary,
 
-      deliveryResult,
+  activeRuntimeLayer:
+    "complete",
 
-      deliveryComplete:
-        deliveryResult.available ===
-        true,
+  rebirthPipelineRan:
+    true,
 
-      pipelineOutputReady:
-        deliveryResult.available ===
-        true
-    };
+  /*
+   * Runtime readiness belongs to the five-layer execution
+   * and authoritative Delivery boundary. Persistence does
+   * not determine whether the response was successfully
+   * generated and delivered.
+   */
+  rebirthPipelineReady:
+    finalRuntimeExecutionReady,
 
-    /*
-     * Temporary compatibility projection.
-     * Remove after the App Bridge and all downstream readers
-     * are confirmed to consume deliveryResult.reply directly.
-     */
-    if (
-      deliveryResult.available === true &&
-      deliveryResult.reply
-    ) {
-      summary.finalResponse =
-        deliveryResult.reply;
-    }
+  runtimeExecutionReady:
+    finalRuntimeExecutionReady,
 
-    mark(
-      "after canonicalDeliveryResult"
-    );
+  runtimeExecutionComplete:
+    finalRuntimeExecutionReady,
 
-    /* =================================================
-       8. COMPLETE CANONICAL TURN
-    ================================================= */
+  authoritativeDeliveryReady:
+    summary.deliveryResult?.available ===
+      true &&
+    summary.deliveryResult?.ready ===
+      true &&
+    summary.deliveryResult?.authoritative ===
+      true &&
+    Boolean(
+      summary.deliveryResult?.reply
+    ),
 
-    mark(
-      "before conversationOperatingState.completeTurn"
-    );
+  turnPersistenceReady,
 
-    summary =
-      await this.completeConversationTurn(
-        summary
-      );
+  runtimeTurnFinalized,
 
-    mark(
-      "after conversationOperatingState.completeTurn"
-    );
+  runtimeOutcome,
 
-    /* =================================================
-       9. FINAL RUNTIME METADATA
-    ================================================= */
+  ok:
+    finalRuntimeExecutionReady,
 
-    summary = {
-      ...summary,
+  success:
+    finalRuntimeExecutionReady,
 
-      activeRuntimeLayer:
-        "complete",
+  complete:
+    finalRuntimeExecutionReady,
 
-      rebirthPipelineRan:
-        true,
+  ready:
+    finalRuntimeExecutionReady,
 
-      rebirthPipelineReady:
-        summary.pipelineLifecycleComplete ===
-          true &&
-        summary.deliveryResult?.available ===
-          true &&
-        summary.conversationOperatingStateCompleted ===
-          true,
+  status:
+    runtimeOutcome,
 
-      rebirthPipelineSource:
-        this.source,
+  deliveryStatus:
+    summary.deliveryResult?.status ||
+    (
+      finalRuntimeExecutionReady
+        ? "delivered"
+        : "delivery_unavailable"
+    ),
 
-      rebirthPipelineVersion:
-        this.version,
+  rebirthPipelineSource:
+    this.source,
 
-      rebirthPipelineSchemaVersion:
-        this.schemaVersion,
+  rebirthPipelineVersion:
+    this.version,
 
-      pipelineArchitecture:
-"canonical-five-layer-openai-cognitive-authority-with-evidence-and-advisory-semantic-validation",
+  rebirthPipelineSchemaVersion:
+    this.schemaVersion,
 
-      pipelineAuthority:
-        this.getAuthorityBoundaries()
-    };
+  pipelineArchitecture:
+    "canonical-five-layer-openai-cognitive-authority-with-evidence-and-advisory-semantic-validation",
 
-    this.debugLog(summary);
+  pipelineAuthority:
+    this.getAuthorityBoundaries()
+};
 
-    finishTiming();
+this.debugLog(
+  summary
+);
 
-    summary.pipelineTiming =
-      timing;
+finishTiming();
 
-    summary.pipelineTimingStart =
-      timingStart;
+summary.pipelineTiming =
+  timing;
 
-    return summary;
-  },
+summary.pipelineTimingStart =
+  timingStart;
 
+return summary;
+},
   /* =====================================================
      CURRENT-TURN OUTPUT ISOLATION
   ===================================================== */
@@ -1099,6 +1220,42 @@ deliberationPipelineVersion:
       conversationOperatingStateCompleteResult:
         null,
 
+runtimeExecutionReady:
+  false,
+
+runtimeExecutionComplete:
+  false,
+
+runtimeExecutionStatus:
+  null,
+
+authoritativeDeliveryReady:
+  false,
+
+turnPersistenceReady:
+  false,
+
+runtimeTurnFinalized:
+  false,
+
+runtimeOutcome:
+  null,
+
+ok:
+  false,
+
+success:
+  false,
+
+complete:
+  false,
+
+ready:
+  false,
+
+status:
+  null,
+
       rebirthPipelineReady:
         false
     };
@@ -1255,155 +1412,365 @@ deliberationPipelineVersion:
     }
   },
 
-  async completeConversationTurn(
-    summary = {}
+async completeConversationTurn(
+  summary = {}
+) {
+  const delivery =
+    summary.deliveryResult ||
+    {};
+
+  const runtimeExecutionReady =
+    summary.runtimeExecutionReady ===
+      true ||
+    (
+      summary.pipelineLifecycleComplete ===
+        true &&
+      delivery.available ===
+        true &&
+      delivery.ready ===
+        true &&
+      delivery.authoritative ===
+        true &&
+      Boolean(delivery.reply) &&
+      summary.pipelineStopped !==
+        true
+    );
+
+  if (
+    delivery.available !== true ||
+    !delivery.reply
   ) {
-    const delivery =
-      summary.deliveryResult ||
-      {};
+    return {
+      ...summary,
 
-    if (
-      delivery.available !== true ||
-      !delivery.reply
-    ) {
-      return {
-        ...summary,
+      conversationOperatingStateCompleted:
+        false,
 
-        conversationOperatingStateCompleted:
-          false,
+      conversationOperatingStateCompletionReason:
+        "authoritative_delivery_unavailable",
 
-        conversationOperatingStateCompletionReason:
-          "authoritative_delivery_unavailable",
+      finalPersistenceRan:
+        false,
 
-        finalPersistenceRan:
-          false,
+      finalPersistenceReason:
+        "authoritative_delivery_unavailable",
 
-        finalPersistenceReason:
-          "authoritative_delivery_unavailable"
-      };
-    }
+      turnPersistenceReady:
+        false
+    };
+  }
 
-    if (
-      summary.conversationOperatingStateCompleted ===
+  if (
+    summary.conversationOperatingStateCompleted ===
       true
-    ) {
-      return summary;
-    }
+  ) {
+    return {
+      ...summary,
 
-    const operatingState =
-      this.getConversationOperatingState();
+      runtimeExecutionReady,
+
+      rebirthPipelineReady:
+        runtimeExecutionReady,
+
+      turnPersistenceReady:
+        true
+    };
+  }
+
+  const operatingState =
+    this.getConversationOperatingState();
+
+  if (
+    !operatingState ||
+    typeof operatingState.completeTurn !==
+      "function"
+  ) {
+    return {
+      ...summary,
+
+      conversationOperatingStateCompleted:
+        false,
+
+      conversationOperatingStateCompletionReason:
+        "conversation_operating_state_not_available",
+
+      finalPersistenceRan:
+        false,
+
+      finalPersistenceReason:
+        "conversation_operating_state_not_available",
+
+      turnPersistenceReady:
+        false,
+
+      /*
+       * Preserve runtime authority even when persistence
+       * infrastructure is unavailable.
+       */
+      runtimeExecutionReady,
+
+      rebirthPipelineReady:
+        runtimeExecutionReady
+    };
+  }
+
+  try {
+    /*
+     * Explicitly provide the completed runtime state to
+     * Conversation Operating State.
+     */
+    const completionInput = {
+      ...summary,
+
+      runtimeExecutionReady,
+
+      runtimeExecutionComplete:
+        runtimeExecutionReady,
+
+      authoritativeDeliveryReady:
+        delivery.available ===
+          true &&
+        delivery.ready ===
+          true &&
+        delivery.authoritative ===
+          true &&
+        Boolean(delivery.reply),
+
+      rebirthPipelineReady:
+        runtimeExecutionReady
+    };
+
+    const result =
+      await operatingState.completeTurn(
+        completionInput
+      );
 
     if (
-      !operatingState ||
-      typeof operatingState.completeTurn !==
-        "function"
+      !result ||
+      typeof result !==
+        "object" ||
+      Array.isArray(result)
     ) {
-      return {
-        ...summary,
-
-        conversationOperatingStateCompleted:
-          false,
-
-        conversationOperatingStateCompletionReason:
-          "conversation_operating_state_not_available",
-
-        finalPersistenceRan:
-          false,
-
-        finalPersistenceReason:
-          "conversation_operating_state_not_available"
-      };
+      throw new Error(
+        "conversation_operating_state_complete_turn_returned_invalid_result"
+      );
     }
 
-    try {
-      const result =
-        await operatingState.completeTurn(
-          summary
-        );
+    const completed =
+      result.conversationOperatingStateCompleted !==
+        false;
 
-      if (
-        !result ||
-        typeof result !==
-          "object" ||
-        Array.isArray(result)
-      ) {
-        throw new Error(
-          "conversation_operating_state_complete_turn_returned_invalid_result"
-        );
-      }
+    /*
+     * Only project fields owned by Conversation Operating
+     * State. Do not spread the entire result into the master
+     * runtime summary.
+     */
+    const persistenceProjection = {
+      threadState:
+        result.threadState ??
+        summary.threadState,
 
-      return {
-        ...summary,
-        ...result,
+      conversationState:
+        result.conversationState ??
+        summary.conversationState,
 
-        conversationOperatingStateCompleted:
-          result.conversationOperatingStateCompleted !==
-          false,
+      conversationContext:
+        result.conversationContext ??
+        summary.conversationContext,
 
-        conversationOperatingStateCompletionSource:
-          result.conversationOperatingStateSource ||
-          result.source ||
-          operatingState.source ||
-          "ari-conversation-operating-state",
+      compactConversationContext:
+        result.compactConversationContext ??
+        summary.compactConversationContext,
 
-        conversationOperatingStateCompletionVersion:
-          result.conversationOperatingStateVersion ||
-          result.version ||
-          operatingState.version ||
-          null,
+      conversationHistory:
+        result.conversationHistory ??
+        summary.conversationHistory,
 
-        conversationOperatingStateCompleteResult:
-          result,
+      conversationHistoryResult:
+        result.conversationHistoryResult ??
+        summary.conversationHistoryResult,
 
-        finalPersistenceRan:
-          true,
+      conversationMeaningHistory:
+        result.conversationMeaningHistory ??
+        summary.conversationMeaningHistory,
 
-        finalPersistenceSource:
-          "ari-conversation-operating-state"
-      };
-    } catch (error) {
-      const lifecycleError =
-        this.buildLayerError({
-          layer:
-            "conversationOperatingState",
+      conversationMeaningHistoryResult:
+        result.conversationMeaningHistoryResult ??
+        summary.conversationMeaningHistoryResult,
 
-          type:
-            "conversation_operating_state_complete_turn_failed",
+      conversationMeaningHistoryReady:
+        result.conversationMeaningHistoryReady ??
+        summary.conversationMeaningHistoryReady,
 
-          message:
-            error?.message ||
-            String(error),
+      conversationMeaningHistoryPersisted:
+        result.conversationMeaningHistoryPersisted ??
+        summary.conversationMeaningHistoryPersisted,
 
-          fatal:
-            false
-        });
+      conversationMeaningHistoryError:
+        result.conversationMeaningHistoryError ??
+        summary.conversationMeaningHistoryError,
 
-      return {
-        ...summary,
+      threadPersistenceResult:
+        result.threadPersistenceResult ??
+        summary.threadPersistenceResult,
 
-        conversationOperatingStateCompleted:
-          false,
+      persistenceResult:
+        result.persistenceResult ??
+        summary.persistenceResult,
 
-        conversationOperatingStateCompletionReason:
+      persistedTurn:
+        result.persistedTurn ??
+        summary.persistedTurn,
+
+      persistedTurnId:
+        result.persistedTurnId ??
+        summary.persistedTurnId,
+
+      latestCompletedTurn:
+        result.latestCompletedTurn ??
+        summary.latestCompletedTurn
+    };
+
+    return {
+      ...summary,
+      ...persistenceProjection,
+
+      /*
+       * Master runtime authority remains preserved.
+       */
+      deliveryResult:
+        summary.deliveryResult,
+
+      finalResponse:
+        summary.finalResponse,
+
+      pipelineLifecycle:
+        summary.pipelineLifecycle,
+
+      pipelineLifecycleComplete:
+        summary.pipelineLifecycleComplete,
+
+      pipelineStopped:
+        summary.pipelineStopped,
+
+      pipelineStopReason:
+        summary.pipelineStopReason,
+
+      pipelineStopLayer:
+        summary.pipelineStopLayer,
+
+      runtimeExecutionReady,
+
+      runtimeExecutionComplete:
+        runtimeExecutionReady,
+
+      rebirthPipelineReady:
+        runtimeExecutionReady,
+
+      conversationOperatingStateCompleted:
+        completed,
+
+      conversationOperatingStateCompletionReason:
+        completed
+          ? "completed"
+          : (
+              result
+                .conversationOperatingStateCompletionReason ||
+              "conversation_operating_state_reported_incomplete"
+            ),
+
+      conversationOperatingStateCompletionSource:
+        result.conversationOperatingStateSource ||
+        result.source ||
+        operatingState.source ||
+        "ari-conversation-operating-state",
+
+      conversationOperatingStateCompletionVersion:
+        result.conversationOperatingStateVersion ||
+        result.version ||
+        operatingState.version ||
+        null,
+
+      conversationOperatingStateCompleteResult:
+        result,
+
+      finalPersistenceRan:
+        true,
+
+      finalPersistenceSource:
+        "ari-conversation-operating-state",
+
+      finalPersistenceReason:
+        completed
+          ? null
+          : (
+              result.finalPersistenceReason ||
+              result
+                .conversationOperatingStateCompletionReason ||
+              "conversation_operating_state_reported_incomplete"
+            ),
+
+      turnPersistenceReady:
+        completed
+    };
+  } catch (error) {
+    const lifecycleError =
+      this.buildLayerError({
+        layer:
+          "conversationOperatingState",
+
+        type:
           "conversation_operating_state_complete_turn_failed",
 
-        conversationOperatingStateCompletionError:
-          lifecycleError.message,
+        message:
+          error?.message ||
+          String(error),
 
-        finalPersistenceRan:
-          false,
+        fatal:
+          false
+      });
 
-        finalPersistenceReason:
-          lifecycleError.type,
+    return {
+      ...summary,
 
-        pipelineLifecycleWarnings:
-          this.appendUniqueError(
-            summary.pipelineLifecycleWarnings,
-            lifecycleError
-          )
-      };
-    }
-  },
+      /*
+       * Persistence failure is a warning. It does not revoke
+       * authoritative Delivery.
+       */
+      runtimeExecutionReady,
+
+      runtimeExecutionComplete:
+        runtimeExecutionReady,
+
+      rebirthPipelineReady:
+        runtimeExecutionReady,
+
+      conversationOperatingStateCompleted:
+        false,
+
+      conversationOperatingStateCompletionReason:
+        "conversation_operating_state_complete_turn_failed",
+
+      conversationOperatingStateCompletionError:
+        lifecycleError.message,
+
+      finalPersistenceRan:
+        false,
+
+      finalPersistenceReason:
+        lifecycleError.type,
+
+      turnPersistenceReady:
+        false,
+
+      pipelineLifecycleWarnings:
+        this.appendUniqueError(
+          summary.pipelineLifecycleWarnings,
+          lifecycleError
+        )
+    };
+  }
+},
 
   /* =====================================================
      CONVERSATION CONTEXT AUTHORITIES
