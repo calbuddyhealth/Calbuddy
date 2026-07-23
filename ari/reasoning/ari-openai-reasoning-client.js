@@ -5,19 +5,22 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.1.3 — Canonical Effective-Request Validation
+// V1.2.0 — Canonical Style Preference Transport
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
 // - Send a structured reasoning request to the server.
 // - Preserve response-schema and instruction contracts.
+// - Preserve persistent user communication preferences.
+// - Preserve current-turn response-style overrides.
 // - Parse structured JSON returned by the server.
 // - Return model output to AriReasoningEngine.
-// - Expose request, transport, and extraction diagnostics.
+// - Expose request, transport, style, and extraction diagnostics.
 //
 // Non-responsibilities:
 // - Does not interpret user meaning locally.
 // - Does not create or validate the semantic frame.
+// - Does not create, merge, or reinterpret style preferences.
 // - Does not execute actions.
 // - Does not persist state.
 // - Does not compose the final user-facing response.
@@ -27,7 +30,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.1.3",
+    "1.2.0",
 
   source:
     "ari-openai-reasoning-client",
@@ -56,6 +59,11 @@ window.AriOpenAIReasoningClient = {
         payload.request
       );
 
+    const preferenceTransport =
+      this.resolvePreferenceTransport(
+        payload
+      );
+
     console.log(
       "ARI OPENAI REASONING CLIENT PAYLOAD DIAGNOSTIC:",
       {
@@ -65,6 +73,9 @@ window.AriOpenAIReasoningClient = {
 
         errors:
           validation.errors,
+
+        warnings:
+          validation.warnings,
 
         task:
           payload.task ||
@@ -93,7 +104,29 @@ window.AriOpenAIReasoningClient = {
         responseSchemaVersion:
           payload.responseSchema
             ?.schemaVersion ||
-          null
+          null,
+
+        userPreferencesPresent:
+          this.hasKeys(
+            preferenceTransport
+              .userPreferences
+          ),
+
+        responseStylePresent:
+          this.hasKeys(
+            preferenceTransport
+              .responseStyle
+          ),
+
+        userPreferencesSource:
+          preferenceTransport
+            .diagnostics
+            .userPreferencesSource,
+
+        responseStyleSource:
+          preferenceTransport
+            .diagnostics
+            .responseStyleSource
       }
     );
 
@@ -107,6 +140,9 @@ window.AriOpenAIReasoningClient = {
           errors:
             validation.errors,
 
+          warnings:
+            validation.warnings,
+
           effectiveText:
             effectiveText ||
             null,
@@ -115,6 +151,10 @@ window.AriOpenAIReasoningClient = {
             this.resolveEffectiveTextSource(
               payload.request
             ),
+
+          preferenceTransport:
+            preferenceTransport
+              .diagnostics,
 
           payload
         }
@@ -160,6 +200,23 @@ window.AriOpenAIReasoningClient = {
 
         responseContract:
           requestBody.responseContract ||
+          null,
+
+        userPreferencesPresent:
+          this.hasKeys(
+            requestBody
+              .userPreferences
+          ),
+
+        responseStylePresent:
+          this.hasKeys(
+            requestBody
+              .responseStyle
+          ),
+
+        styleTransport:
+          requestBody
+            .styleTransport ||
           null
       }
     );
@@ -335,6 +392,16 @@ window.AriOpenAIReasoningClient = {
               ?.responseRequirements ||
             result
               ?.responseStrategy
+          ),
+
+        hasStyleApplied:
+          Boolean(
+            result
+              ?.responseRequirements
+              ?.styleApplied ||
+            result
+              ?.responseStrategy
+              ?.styleApplied
           )
       }
     );
@@ -394,7 +461,19 @@ window.AriOpenAIReasoningClient = {
           this.endpoint,
 
         status:
-          response.status
+          response.status,
+
+        userPreferencesForwarded:
+          this.hasKeys(
+            requestBody
+              .userPreferences
+          ),
+
+        responseStyleForwarded:
+          this.hasKeys(
+            requestBody
+              .responseStyle
+          )
       }
     };
   },
@@ -407,6 +486,11 @@ window.AriOpenAIReasoningClient = {
         payload.request
       );
 
+    const preferenceTransport =
+      this.resolvePreferenceTransport(
+        payload
+      );
+
     return {
       /*
        * Flatten the canonical reasoning request so
@@ -415,6 +499,23 @@ window.AriOpenAIReasoningClient = {
        * canonical fields directly from body.
        */
       ...reasoningRequest,
+
+      /*
+       * Preserve communication-preference packets
+       * unchanged. The client does not merge or
+       * reinterpret them.
+       */
+      userPreferences:
+        preferenceTransport
+          .userPreferences,
+
+      responseStyle:
+        preferenceTransport
+          .responseStyle,
+
+      styleTransport:
+        preferenceTransport
+          .diagnostics,
 
       action:
         "openai_reasoning",
@@ -456,8 +557,223 @@ window.AriOpenAIReasoningClient = {
           true,
 
         allowPlainText:
-          false
+          false,
+
+        preserveUserPreferences:
+          true,
+
+        preserveResponseStyle:
+          true
       }
+    };
+  },
+
+  resolvePreferenceTransport(
+    payload = {}
+  ) {
+    const reasoningRequest =
+      this.normalizeObject(
+        payload.request
+      );
+
+    const userPreferencesCandidates = [
+      [
+        "payload.userPreferences",
+        payload.userPreferences
+      ],
+
+      [
+        "payload.communicationPreferences",
+        payload.communicationPreferences
+      ],
+
+      [
+        "payload.stylePreferences",
+        payload.stylePreferences
+      ],
+
+      [
+        "request.userPreferences",
+        reasoningRequest
+          .userPreferences
+      ],
+
+      [
+        "request.communicationPreferences",
+        reasoningRequest
+          .communicationPreferences
+      ],
+
+      [
+        "request.stylePreferences",
+        reasoningRequest
+          .stylePreferences
+      ],
+
+      [
+        "request.memory.userPreferences",
+        reasoningRequest
+          .memory
+          ?.userPreferences
+      ],
+
+      [
+        "request.memory.communicationPreferences",
+        reasoningRequest
+          .memory
+          ?.communicationPreferences
+      ],
+
+      [
+        "request.memory.preferences.style",
+        reasoningRequest
+          .memory
+          ?.preferences
+          ?.style
+      ]
+    ];
+
+    const responseStyleCandidates = [
+      [
+        "payload.responseStyle",
+        payload.responseStyle
+      ],
+
+      [
+        "payload.styleOverride",
+        payload.styleOverride
+      ],
+
+      [
+        "request.responseStyle",
+        reasoningRequest
+          .responseStyle
+      ],
+
+      [
+        "request.styleOverride",
+        reasoningRequest
+          .styleOverride
+      ],
+
+      [
+        "request.currentTurn.responseStyle",
+        reasoningRequest
+          .currentTurn
+          ?.responseStyle
+      ],
+
+      [
+        "request.currentTurn.styleOverride",
+        reasoningRequest
+          .currentTurn
+          ?.styleOverride
+      ],
+
+      [
+        "request.responseControl.responseStyle",
+        reasoningRequest
+          .responseControl
+          ?.responseStyle
+      ],
+
+      [
+        "request.responseControl.styleOverride",
+        reasoningRequest
+          .responseControl
+          ?.styleOverride
+      ]
+    ];
+
+    const userPreferencesResolution =
+      this.resolveFirstObject(
+        userPreferencesCandidates
+      );
+
+    const responseStyleResolution =
+      this.resolveFirstObject(
+        responseStyleCandidates
+      );
+
+    return {
+      userPreferences:
+        userPreferencesResolution
+          .value,
+
+      responseStyle:
+        responseStyleResolution
+          .value,
+
+      diagnostics: {
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        preservedWithoutInterpretation:
+          true,
+
+        userPreferencesSource:
+          userPreferencesResolution
+            .source,
+
+        responseStyleSource:
+          responseStyleResolution
+            .source,
+
+        userPreferencesPresent:
+          this.hasKeys(
+            userPreferencesResolution
+              .value
+          ),
+
+        responseStylePresent:
+          this.hasKeys(
+            responseStyleResolution
+              .value
+          )
+      }
+    };
+  },
+
+  resolveFirstObject(
+    candidates = []
+  ) {
+    for (
+      const candidate
+      of candidates
+    ) {
+      if (
+        !Array.isArray(
+          candidate
+        ) ||
+        candidate.length < 2
+      ) {
+        continue;
+      }
+
+      const [source, value] =
+        candidate;
+
+      if (
+        this.isPlainObject(
+          value
+        ) &&
+        Object.keys(
+          value
+        ).length
+      ) {
+        return {
+          source,
+          value
+        };
+      }
+    }
+
+    return {
+      source: null,
+      value: {}
     };
   },
 
@@ -465,6 +781,7 @@ window.AriOpenAIReasoningClient = {
     payload = {}
   ) {
     const errors = [];
+    const warnings = [];
 
     if (
       !this.isPlainObject(
@@ -477,7 +794,9 @@ window.AriOpenAIReasoningClient = {
 
         errors: [
           "reasoning_payload_must_be_an_object"
-        ]
+        ],
+
+        warnings
       };
     }
 
@@ -515,12 +834,38 @@ window.AriOpenAIReasoningClient = {
       );
     }
 
+    const preferenceTransport =
+      this.resolvePreferenceTransport(
+        payload
+      );
+
+    if (
+      !preferenceTransport
+        .diagnostics
+        .userPreferencesPresent
+    ) {
+      warnings.push(
+        "user_preferences_not_supplied"
+      );
+    }
+
+    if (
+      !preferenceTransport
+        .diagnostics
+        .responseStylePresent
+    ) {
+      warnings.push(
+        "response_style_not_supplied"
+      );
+    }
+
     return {
       valid:
         errors.length ===
         0,
 
-      errors
+      errors,
+      warnings
     };
   },
 
@@ -926,6 +1271,19 @@ window.AriOpenAIReasoningClient = {
       : {};
   },
 
+  hasKeys(
+    value
+  ) {
+    return (
+      this.isPlainObject(
+        value
+      ) &&
+      Object.keys(
+        value
+      ).length > 0
+    );
+  },
+
   isPlainObject(
     value
   ) {
@@ -946,6 +1304,10 @@ window.AriOpenAIReasoningClient = {
       typeof this.reason ===
         "function" &&
       typeof this.buildRequestBody ===
+        "function" &&
+      typeof this.resolvePreferenceTransport ===
+        "function" &&
+      typeof this.resolveFirstObject ===
         "function" &&
       typeof this.validatePayload ===
         "function" &&
