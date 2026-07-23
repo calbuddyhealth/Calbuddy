@@ -433,35 +433,41 @@ conversationOperatingStatePersisted:
           "before conversation context authorities"
         );
 
-        summary =
-          await this.runConversationContextAuthorities(
-            summary
-          );
+       summary =
+  await this.runConversationContextAuthorities(
+    summary
+  );
 
-        mark(
-          "after conversation context authorities"
-        );
+if (
+  summary.conversationContextAuthoritiesReady !== true
+) {
+  summary = {
+    ...summary,
+    pipelineStopped: true,
+    pipelineStopReason:
+      summary.conversationContextAuthoritiesError ||
+      "conversation_context_authorities_not_ready",
+    pipelineStopLayer:
+      "conversationContext"
+  };
+} else {
+  summary =
+    await this.runPreferenceResolver(summary);
 
-        if (
-          summary.conversationContextAuthoritiesReady !==
-          true
-        ) {
-          summary = {
-            ...summary,
-
-            pipelineStopped:
-              true,
-
-            pipelineStopReason:
-              summary
-                .conversationContextAuthoritiesError ||
-              "conversation_context_authorities_not_ready",
-
-            pipelineStopLayer:
-              "conversationContext"
-          };
-        }
-      }
+  if (
+    summary.preferenceResolverReady !== true
+  ) {
+    summary = {
+      ...summary,
+      pipelineStopped: true,
+      pipelineStopReason:
+        summary.preferenceResolverError ||
+        "preference_resolver_not_ready",
+      pipelineStopLayer:
+        "preferenceResolution"
+    };
+  }
+}
     }
 
     /* =================================================
@@ -1033,6 +1039,36 @@ return summary;
 
       conversationContextAuthoritiesError:
         null,
+
+preferenceResolutionPacket:
+  null,
+
+preferenceResolverRan:
+  false,
+
+preferenceResolverReady:
+  false,
+
+preferenceResolverSource:
+  null,
+
+preferenceResolverVersion:
+  null,
+
+preferenceResolverError:
+  null,
+
+userPreferences:
+  {},
+
+currentTurnOverride:
+  {},
+
+responseStyle:
+  {},
+
+preferenceResolution:
+  null,
 
 deliberationDebugTrace:
   null,
@@ -2712,9 +2748,89 @@ const persisted =
         null
     };
   },
+  
+  
   /* =====================================================
      LAYER DEFINITIONS
   ===================================================== */
+
+getPreferenceResolver() {
+  return (
+    window.AriPreferenceResolver ||
+    window.Ari?.preferenceResolver ||
+    null
+  );
+},
+
+async runPreferenceResolver(summary = {}) {
+
+  const resolver =
+    this.getPreferenceResolver();
+
+  if (!resolver) {
+
+    return {
+
+      ...summary,
+
+      preferenceResolverRan: false,
+
+      preferenceResolverReady: false,
+
+      preferenceResolverError:
+        "preference_resolver_not_loaded"
+
+    };
+
+  }
+
+  const result =
+    await this.runEngine({
+
+      engine: resolver,
+
+      methods: [
+        "resolve",
+        "create"
+      ],
+
+      inputState: summary
+
+    });
+
+  return {
+
+    ...summary,
+
+    preferenceResolverRan: true,
+
+    preferenceResolverReady:
+      result.ready === true,
+
+    preferenceResolverSource:
+      resolver.source,
+
+    preferenceResolverVersion:
+      resolver.version,
+
+    preferenceResolutionPacket:
+      result,
+
+    userPreferences:
+      result.userPreferences || {},
+
+    currentTurnOverride:
+      result.currentTurnOverride || {},
+
+    responseStyle:
+      result.responseStyle || {},
+
+    preferenceResolution:
+      result.resolution || null
+
+  };
+
+},
 
   getLayerDefinitions() {
     return [
@@ -6287,6 +6403,16 @@ canTreatSemanticValidationAsAdvisory:
           typeof component?.validateEvidencePacket ===
             "function"
       ],
+
+[
+  "AriPreferenceResolver",
+
+  this.getPreferenceResolver(),
+
+  component =>
+    typeof component?.resolve ===
+    "function"
+],
 
       [
         "AriPerceptionPipeline",
