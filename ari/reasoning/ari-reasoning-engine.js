@@ -3441,3 +3441,1327 @@ window.AriReasoningEngine = {
             ?.version ||
           null
       }
+    };
+  },
+
+  normalizeResponseRequirements(
+    requirements = {},
+    request = {}
+  ) {
+    const suppliedStyleApplied =
+      this.objectOrEmpty(
+        requirements.styleApplied
+      );
+
+    const effectiveStyle =
+      this.objectOrEmpty(
+        request.responseStyle
+      );
+
+    const persistentPreferences =
+      this.objectOrEmpty(
+        request.userPreferences
+      );
+
+    return {
+      goal:
+        this.nullableString(
+          requirements.goal ||
+          requirements.responseGoal
+        ),
+
+      shape:
+        this.nullableString(
+          requirements.shape
+        ) ||
+        "single_lane",
+
+      tone:
+        this.nullableString(
+          requirements.tone
+        ),
+
+      requiredMoves:
+        this.arrayOrEmpty(
+          requirements.requiredMoves ||
+          requirements.orderedPoints
+        ),
+
+      prohibitedMoves:
+        this.stringArray(
+          requirements.prohibitedMoves
+        ),
+
+      requiredBehaviors:
+        this.stringArray(
+          requirements.requiredBehaviors
+        ),
+
+      forbiddenBehaviors:
+        this.stringArray(
+          requirements.forbiddenBehaviors
+        ),
+
+      constraints:
+        this.stringArray(
+          requirements.constraints
+        ),
+
+      safetyRequirements:
+        this.stringArray(
+          requirements.safetyRequirements
+        ),
+
+      continuityRequirements:
+        this.stringArray(
+          requirements
+            .continuityRequirements
+        ),
+
+      toneRequirements:
+        this.stringArray(
+          requirements.toneRequirements
+        ),
+
+      styleApplied: {
+        source:
+          this.nullableString(
+            suppliedStyleApplied.source ||
+            effectiveStyle.source
+          ),
+
+        tone:
+          this.nullableString(
+            suppliedStyleApplied.tone ||
+            requirements.tone ||
+            effectiveStyle.tone ||
+            persistentPreferences.tone
+          ),
+
+        directness:
+          this.nullableString(
+            suppliedStyleApplied.directness ||
+            effectiveStyle.directness ||
+            persistentPreferences.directness
+          ),
+
+        warmth:
+          this.nullableString(
+            suppliedStyleApplied.warmth ||
+            effectiveStyle.warmth ||
+            persistentPreferences.warmth
+          ),
+
+        humor:
+          this.nullableString(
+            suppliedStyleApplied.humor ||
+            effectiveStyle.humor ||
+            persistentPreferences.humor
+          ),
+
+        formality:
+          this.nullableString(
+            suppliedStyleApplied.formality ||
+            effectiveStyle.formality ||
+            persistentPreferences.formality
+          ),
+
+        verbosity:
+          this.nullableString(
+            suppliedStyleApplied.verbosity ||
+            effectiveStyle.verbosity ||
+            persistentPreferences.verbosity
+          ),
+
+        profanityLevel:
+          this.nullableString(
+            suppliedStyleApplied.profanityLevel ||
+            effectiveStyle.profanityLevel ||
+            effectiveStyle.profanity
+              ?.level ||
+            persistentPreferences.profanityLevel ||
+            persistentPreferences.profanity
+              ?.level
+          )
+      },
+
+      clarificationRequired:
+        requirements
+          .clarificationRequired ===
+        true,
+
+      clarificationQuestion:
+        this.nullableString(
+          requirements
+            .clarificationQuestion
+        ),
+
+      actionRequired:
+        requirements.actionRequired ===
+        true
+    };
+  },
+
+  normalizeExecutionMetadata({
+    value = {},
+    request = {},
+    confidence = 0
+  } = {}) {
+    const metadata =
+      this.objectOrEmpty(value);
+
+    const evidenceReferences =
+      this.arrayOrEmpty(
+        request.evidencePacket
+          ?.evidenceReferences ||
+        request.evidencePacket
+          ?.evidence ||
+        request.evidencePacket
+          ?.items
+      );
+
+    return {
+      confidence:
+        this.normalizeConfidence(
+          metadata.confidence ??
+          confidence
+        ),
+
+      reasoningMode:
+        this.nullableString(
+          metadata.reasoningMode
+        ),
+
+      usedCurrentTurn:
+        metadata.usedCurrentTurn !==
+        false,
+
+      usedPriorContext:
+        metadata.usedPriorContext ===
+        true ||
+        this.arrayOrEmpty(
+          request.conversation
+            ?.recentTurns
+        ).length > 0,
+
+      usedEvidence:
+        metadata.usedEvidence ===
+        true ||
+        evidenceReferences.length > 0,
+
+      usedUserPreferences:
+        metadata.usedUserPreferences ===
+        true ||
+        this.hasKeys(
+          request.userPreferences
+        ),
+
+      usedResponseStyle:
+        metadata.usedResponseStyle ===
+        true ||
+        this.hasKeys(
+          request.responseStyle
+        ),
+
+      evidenceCount:
+        Number.isFinite(
+          Number(
+            metadata.evidenceCount
+          )
+        )
+          ? Number(
+              metadata.evidenceCount
+            )
+          : evidenceReferences.length
+    };
+  },
+
+  normalizeEvidenceReferences(
+    references
+  ) {
+    return this.arrayOrEmpty(
+      references
+    ).filter(
+      reference =>
+        reference !==
+          undefined &&
+      reference !==
+        null
+    );
+  },
+
+  normalizeGrounding(
+    grounding = {}
+  ) {
+    return {
+      evidenceUsed:
+        this.arrayOrEmpty(
+          grounding.evidenceUsed
+        ),
+
+      assumptions:
+        this.arrayOrEmpty(
+          grounding.assumptions
+        ),
+
+      unresolvedConflicts:
+        this.arrayOrEmpty(
+          grounding
+            .unresolvedConflicts
+        )
+    };
+  },
+
+  normalizeOptions(options) {
+    return this.arrayOrEmpty(
+      options
+    ).map(option => {
+      if (
+        typeof option ===
+        "string"
+      ) {
+        return {
+          label:
+            option,
+
+          benefits:
+            [],
+
+          risks:
+            [],
+
+          reversibility:
+            null
+        };
+      }
+
+      const value =
+        this.objectOrEmpty(
+          option
+        );
+
+      return {
+        ...value,
+
+        label:
+          this.nullableString(
+            value.label ||
+            value.option ||
+            value.name
+          ),
+
+        benefits:
+          this.stringArray(
+            value.benefits
+          ),
+
+        risks:
+          this.stringArray(
+            value.risks
+          ),
+
+        reversibility:
+          this.nullableString(
+            value.reversibility
+          )
+      };
+    });
+  },
+
+  normalizeTradeoffs(tradeoffs) {
+    return this.arrayOrEmpty(
+      tradeoffs
+    ).map(tradeoff => {
+      if (
+        typeof tradeoff ===
+        "string"
+      ) {
+        return {
+          description:
+            tradeoff,
+
+          sideA:
+            null,
+
+          sideB:
+            null
+        };
+      }
+
+      const value =
+        this.objectOrEmpty(
+          tradeoff
+        );
+
+      return {
+        ...value,
+
+        description:
+          this.nullableString(
+            value.description
+          ),
+
+        sideA:
+          this.nullableString(
+            value.sideA
+          ),
+
+        sideB:
+          this.nullableString(
+            value.sideB
+          )
+      };
+    });
+  },
+
+  normalizeUncertainties(
+    uncertainties
+  ) {
+    return this.arrayOrEmpty(
+      uncertainties
+    ).map(uncertainty => {
+      if (
+        typeof uncertainty ===
+        "string"
+      ) {
+        return {
+          description:
+            uncertainty,
+
+          material:
+            true,
+
+          resolution:
+            null
+        };
+      }
+
+      const value =
+        this.objectOrEmpty(
+          uncertainty
+        );
+
+      return {
+        ...value,
+
+        description:
+          this.nullableString(
+            value.description ||
+            value.unknown
+          ),
+
+        material:
+          value.material !==
+          false,
+
+        resolution:
+          this.nullableString(
+            value.resolution
+          )
+      };
+    });
+  },
+
+  normalizeProposedActions(actions) {
+    return this.arrayOrEmpty(
+      actions
+    )
+      .filter(
+        action =>
+          action &&
+          typeof action ===
+            "object" &&
+          !Array.isArray(
+            action
+          ) &&
+          typeof action.type ===
+            "string" &&
+          action.type.trim()
+      )
+      .map(action => ({
+        type:
+          action.type.trim(),
+
+        arguments:
+          this.objectOrEmpty(
+            action.arguments
+          ),
+
+        rationale:
+          this.nullableString(
+            action.rationale
+          ),
+
+        requiresApproval:
+          action.requiresApproval !==
+          false,
+
+        executed:
+          false,
+
+        status:
+          "proposed"
+      }));
+  },
+
+  normalizeConfidence(value) {
+    if (
+      value &&
+      typeof value ===
+        "object"
+    ) {
+      return this.clampConfidence(
+        value.score
+      );
+    }
+
+    return this.clampConfidence(
+      value
+    );
+  },
+
+  /* =====================================================
+     ENGINE RESPONSE CONSTRUCTION
+  ===================================================== */
+
+  buildEngineResult({
+    cognitiveReasoningResult = {},
+    request = {},
+    engineRan = false,
+    modelInvocation = {}
+  } = {}) {
+    const semanticFrame =
+      cognitiveReasoningResult
+        .semanticFrame ||
+      null;
+
+    const responseRequirements =
+      cognitiveReasoningResult
+        .responseRequirements ||
+      null;
+
+    const authoritativeDraft =
+      this.firstNonEmptyString([
+        cognitiveReasoningResult
+          .authoritativeDraft,
+
+        cognitiveReasoningResult
+          .draftResponse
+      ]);
+
+    const executionMetadata =
+      cognitiveReasoningResult
+        .executionMetadata ||
+      null;
+
+    const evidenceReferences =
+      this.arrayOrEmpty(
+        cognitiveReasoningResult
+          .evidenceReferences
+      );
+
+    const ready =
+      cognitiveReasoningResult
+        .ready === true &&
+      Boolean(
+        semanticFrame
+      ) &&
+      Boolean(
+        responseRequirements
+      ) &&
+      Boolean(
+        authoritativeDraft
+      ) &&
+      modelInvocation
+        ?.succeeded === true;
+
+    return {
+      reasoningEngineRan:
+        engineRan === true,
+
+      reasoningEngineReady:
+        ready,
+
+      reasoningEngineVersion:
+        this.version,
+
+      reasoningEngineSource:
+        this.source,
+
+      reasoningSource:
+        cognitiveReasoningResult
+          .source ||
+        "openai-cognitive-reasoning",
+
+      modelInvocation:
+        this.objectOrEmpty(
+          modelInvocation
+        ),
+
+      cognitiveReasoningResult,
+
+      reasoningResult:
+        cognitiveReasoningResult,
+
+      semanticFrame,
+
+      responseRequirements,
+
+      responseStrategy:
+        responseRequirements,
+
+      styleContext: {
+        userPreferences:
+          this.objectOrEmpty(
+            request.userPreferences
+          ),
+
+        responseStyle:
+          this.objectOrEmpty(
+            request.responseStyle
+          ),
+
+        styleApplied:
+          this.objectOrEmpty(
+            responseRequirements
+              ?.styleApplied
+          )
+      },
+
+      userPreferences:
+        this.objectOrEmpty(
+          request.userPreferences
+        ),
+
+      responseStyle:
+        this.objectOrEmpty(
+          request.responseStyle
+        ),
+
+      styleApplied:
+        this.objectOrEmpty(
+          responseRequirements
+            ?.styleApplied
+        ),
+
+      authoritativeDraft,
+
+      draftResponse:
+        authoritativeDraft,
+
+      modelDraftResponse:
+        authoritativeDraft,
+
+      executionMetadata,
+
+      evidenceReferences,
+
+      reasoning:
+        ready
+          ? {
+              interpretation:
+                cognitiveReasoningResult
+                  .interpretation ||
+                null,
+
+              decision:
+                cognitiveReasoningResult
+                  .reasoningDecision ||
+                null,
+
+              semanticFrame,
+
+              caseModel:
+                cognitiveReasoningResult
+                  .caseModel ||
+                null,
+
+              options:
+                cognitiveReasoningResult
+                  .options ||
+                [],
+
+              tradeoffs:
+                cognitiveReasoningResult
+                  .tradeoffs ||
+                [],
+
+              uncertainties:
+                cognitiveReasoningResult
+                  .uncertainties ||
+                [],
+
+              responseRequirements,
+
+              responseStrategy:
+                responseRequirements,
+
+              styleApplied:
+                responseRequirements
+                  ?.styleApplied ||
+                null,
+
+              authoritativeDraft,
+
+              draftResponse:
+                authoritativeDraft,
+
+              grounding:
+                cognitiveReasoningResult
+                  .grounding ||
+                null,
+
+              capabilities:
+                this.arrayOrEmpty(
+                  request.capabilities
+                    ?.required
+                ),
+
+              requiredCapabilities:
+                this.arrayOrEmpty(
+                  request.capabilities
+                    ?.required
+                ),
+
+              requiredBehaviors:
+                this.arrayOrEmpty(
+                  responseRequirements
+                    ?.requiredBehaviors
+                ),
+
+              forbiddenBehaviors:
+                this.arrayOrEmpty(
+                  responseRequirements
+                    ?.forbiddenBehaviors
+                ),
+
+              constraints:
+                this.arrayOrEmpty(
+                  responseRequirements
+                    ?.constraints
+                ),
+
+              confidence:
+                cognitiveReasoningResult
+                  .confidence ??
+                0
+            }
+          : null,
+
+      reasoningConfidence:
+        cognitiveReasoningResult
+          .confidence ??
+        0,
+
+      reasoningPrimary:
+        semanticFrame
+          ?.primaryLane ||
+        request.responseControl
+          ?.primaryLane ||
+        request.routing
+          ?.primaryLane ||
+        null,
+
+      authority:
+        ready
+          ? "openai_authoritative_cognitive_response"
+          : "none",
+
+      reason:
+        ready
+          ? null
+          : this.firstString(
+              cognitiveReasoningResult
+                .validation
+                ?.errors
+            ) ||
+            (
+              !authoritativeDraft
+                ? "authoritative_draft_missing"
+                : "reasoning_result_not_ready"
+            )
+    };
+  },
+
+  buildFailureResult({
+    reason =
+      "reasoning_failed",
+
+    errors = [],
+
+    request = {},
+
+    engineRan = false,
+
+    modelInvocation = {}
+  } = {}) {
+    const validationErrors =
+      this.cleanStringList([
+        reason,
+        ...errors
+      ]);
+
+    const normalizedModelInvocation =
+      this.objectOrEmpty(
+        modelInvocation
+      );
+
+    const cognitiveReasoningResult = {
+      schema:
+        this.resultSchema,
+
+      schemaVersion:
+        this.resultSchemaVersion,
+
+      ready:
+        false,
+
+      authoritative:
+        false,
+
+      interpretation:
+        null,
+
+      reasoningDecision:
+        null,
+
+      semanticFrame:
+        null,
+
+      responseRequirements:
+        null,
+
+      responseStrategy:
+        null,
+
+      styleContext: {
+        userPreferences:
+          this.objectOrEmpty(
+            request.userPreferences
+          ),
+
+        responseStyle:
+          this.objectOrEmpty(
+            request.responseStyle
+          ),
+
+        styleApplied:
+          {}
+      },
+
+      authoritativeDraft:
+        "",
+
+      draftResponse:
+        "",
+
+      executionMetadata:
+        null,
+
+      evidenceReferences:
+        [],
+
+      modelInvocation:
+        normalizedModelInvocation,
+
+      caseModel:
+        null,
+
+      options:
+        [],
+
+      tradeoffs:
+        [],
+
+      uncertainties:
+        [],
+
+      grounding:
+        null,
+
+      confidence:
+        0,
+
+      validation: {
+        passed:
+          false,
+
+        errors:
+          validationErrors
+      },
+
+      source:
+        "ari-reasoning-engine-failure",
+
+      authority:
+        "none"
+    };
+
+    return {
+      reasoningEngineRan:
+        engineRan === true,
+
+      reasoningEngineReady:
+        false,
+
+      reasoningEngineVersion:
+        this.version,
+
+      reasoningEngineSource:
+        this.source,
+
+      reasoningSource:
+        "ari-reasoning-engine-failure",
+
+      modelInvocation:
+        normalizedModelInvocation,
+
+      cognitiveReasoningResult,
+
+      reasoningResult:
+        cognitiveReasoningResult,
+
+      semanticFrame:
+        null,
+
+      responseRequirements:
+        null,
+
+      responseStrategy:
+        null,
+
+      userPreferences:
+        this.objectOrEmpty(
+          request.userPreferences
+        ),
+
+      responseStyle:
+        this.objectOrEmpty(
+          request.responseStyle
+        ),
+
+      styleApplied:
+        {},
+
+      authoritativeDraft:
+        "",
+
+      draftResponse:
+        "",
+
+      modelDraftResponse:
+        "",
+
+      executionMetadata:
+        null,
+
+      evidenceReferences:
+        [],
+
+      reasoning:
+        null,
+
+      reasoningConfidence:
+        0,
+
+      reasoningPrimary:
+        request.responseControl
+          ?.primaryLane ||
+        request.routing
+          ?.primaryLane ||
+        null,
+
+      authority:
+        "none",
+
+      reason,
+
+      errors:
+        validationErrors
+    };
+  },
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  validate() {
+    const resolvedClient =
+      this.resolveModelInvoker(
+        {}
+      );
+
+    const operationRegistry =
+      this.getOperationRegistry();
+
+    const operationContract =
+      this.getOperationContract();
+
+    const allowedOperations =
+      this.arrayOrEmpty(
+        operationContract
+          ?.allowedOperations
+      );
+
+    const operationRegistryReady =
+      Boolean(
+        operationRegistry &&
+        typeof operationRegistry
+          .normalizeOperation ===
+          "function" &&
+        typeof operationRegistry
+          .getOperation ===
+          "function" &&
+        operationContract
+          ?.registryAvailable ===
+          true &&
+        allowedOperations.length > 0
+      );
+
+    const structurallyValid =
+      typeof this.reason ===
+        "function" &&
+      typeof this.create ===
+        "function" &&
+      typeof this.resolveStyleContext ===
+        "function" &&
+      typeof this.normalizeCommunicationPreferences ===
+        "function" &&
+      typeof this.resolveModelInvoker ===
+        "function" &&
+      typeof this.validateAndNormalizeResult ===
+        "function" &&
+      typeof this.normalizeSemanticFrame ===
+        "function";
+
+    return {
+      valid:
+        structurallyValid,
+
+      ready:
+        structurallyValid &&
+        Boolean(
+          resolvedClient
+        ) &&
+        operationRegistryReady,
+
+      modelInvokerAvailable:
+        Boolean(
+          resolvedClient
+        ),
+
+      modelInvokerSource:
+        resolvedClient
+          ?.source ||
+        null,
+
+      operationRegistryAvailable:
+        Boolean(
+          operationRegistry
+        ),
+
+      operationRegistryReady,
+
+      operationRegistryVersion:
+        operationRegistry
+          ?.version ||
+        null,
+
+      operationContractAvailable:
+        operationContract
+          ?.registryAvailable ===
+        true,
+
+      allowedOperationCount:
+        allowedOperations.length,
+
+      styleContextSupported:
+        true,
+
+      source:
+        this.source,
+
+      version:
+        this.version,
+
+      requestSchema:
+        this.requestSchema,
+
+      requestSchemaVersion:
+        this.requestSchemaVersion,
+
+      resultSchema:
+        this.resultSchema,
+
+      resultSchemaVersion:
+        this.resultSchemaVersion
+    };
+  },
+
+  /* =====================================================
+     UTILITIES
+  ===================================================== */
+
+  isPlainObject(value) {
+    return Boolean(
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(
+        value
+      )
+    );
+  },
+
+  hasKeys(value) {
+    return (
+      this.isPlainObject(
+        value
+      ) &&
+      Object.keys(
+        value
+      ).length > 0
+    );
+  },
+
+  objectOrEmpty(value) {
+    return this.isPlainObject(
+      value
+    )
+      ? value
+      : {};
+  },
+
+  objectOrDefault(
+    value,
+    defaults = {}
+  ) {
+    return {
+      ...this.objectOrEmpty(
+        defaults
+      ),
+
+      ...this.objectOrEmpty(
+        value
+      )
+    };
+  },
+
+  arrayOrEmpty(value) {
+    return Array.isArray(value)
+      ? value.filter(
+          item =>
+            item !==
+              undefined &&
+            item !==
+              null
+        )
+      : [];
+  },
+
+  stringArray(value) {
+    return [
+      ...new Set(
+        this.arrayOrEmpty(
+          value
+        )
+          .map(item =>
+            typeof item ===
+              "string"
+              ? item.trim()
+              : ""
+          )
+          .filter(Boolean)
+      )
+    ];
+  },
+
+  cleanStringList(value) {
+    return [
+      ...new Set(
+        this.arrayOrEmpty(
+          value
+        )
+          .map(item =>
+            String(
+              item ||
+              ""
+            ).trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+  },
+
+  firstString(value) {
+    if (
+      typeof value ===
+        "string"
+    ) {
+      return value.trim();
+    }
+
+    for (
+      const item
+      of this.arrayOrEmpty(
+        value
+      )
+    ) {
+      if (
+        typeof item ===
+          "string" &&
+        item.trim()
+      ) {
+        return item.trim();
+      }
+    }
+
+    return "";
+  },
+
+  firstNonEmptyString(
+    values = []
+  ) {
+    for (
+      const value of values
+    ) {
+      if (
+        typeof value ===
+          "string" &&
+        value.trim()
+      ) {
+        return value.trim();
+      }
+    }
+
+    return "";
+  },
+
+  firstDefinedBoolean(
+    values = []
+  ) {
+    for (
+      const value of values
+    ) {
+      if (
+        typeof value ===
+        "boolean"
+      ) {
+        return value;
+      }
+    }
+
+    return undefined;
+  },
+
+  removeUndefinedValues(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map(item =>
+          this.removeUndefinedValues(
+            item
+          )
+        )
+        .filter(
+          item =>
+            item !==
+            undefined
+        );
+    }
+
+    if (
+      !this.isPlainObject(
+        value
+      )
+    ) {
+      return value;
+    }
+
+    const output = {};
+
+    for (
+      const [key, currentValue]
+      of Object.entries(
+        value
+      )
+    ) {
+      if (
+        currentValue ===
+        undefined
+      ) {
+        continue;
+      }
+
+      const normalized =
+        this.removeUndefinedValues(
+          currentValue
+        );
+
+      if (
+        this.isPlainObject(
+          normalized
+        ) &&
+        !Object.keys(
+          normalized
+        ).length
+      ) {
+        continue;
+      }
+
+      output[key] =
+        normalized;
+    }
+
+    return output;
+  },
+
+  nullableString(value) {
+    if (
+      typeof value !==
+        "string"
+    ) {
+      return null;
+    }
+
+    const clean =
+      value.trim();
+
+    return clean ||
+      null;
+  },
+
+  clampConfidence(value) {
+    const number =
+      Number(
+        value
+      );
+
+    if (
+      !Number.isFinite(
+        number
+      )
+    ) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
+  }
+};
+
+window.Ari.reasoningEngine =
+  window.AriReasoningEngine;
+
+console.log(
+  "ARI REASONING ENGINE LOADED:",
+  window.AriReasoningEngine
+    ?.version,
+
+  window.AriReasoningEngine
+    ?.validate?.()
+);
