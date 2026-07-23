@@ -1622,40 +1622,46 @@ async completeConversationTurn(
         true
     );
 
-  if (
-  delivery.available !== true ||
-  !delivery.reply
-) {
-  return {
-    ...summary,
+    if (
+    delivery.available !== true ||
+    !delivery.reply
+  ) {
+    return {
+      ...summary,
 
-    runtimeExecutionReady,
-
-    runtimeExecutionComplete:
       runtimeExecutionReady,
 
-    rebirthPipelineReady:
-      runtimeExecutionReady,
+      runtimeExecutionComplete:
+        runtimeExecutionReady,
 
-    authoritativeDeliveryReady:
-      false,
+      rebirthPipelineReady:
+        runtimeExecutionReady,
 
-    conversationOperatingStateCompleted:
-      false,
+      authoritativeDeliveryReady:
+        false,
 
-    conversationOperatingStateCompletionReason:
-      "authoritative_delivery_unavailable",
+      conversationOperatingStateCompleted:
+        false,
 
-    finalPersistenceRan:
-      false,
+      conversationOperatingStatePersisted:
+        false,
 
-    finalPersistenceReason:
-      "authoritative_delivery_unavailable",
+      conversationOperatingStateCompletionReason:
+        "authoritative_delivery_unavailable",
 
-    turnPersistenceReady:
-      false
-  };
-}
+      finalPersistenceRan:
+        false,
+
+      finalPersistenceReason:
+        "authoritative_delivery_unavailable",
+
+      turnCompletionReady:
+        false,
+
+      turnPersistenceReady:
+        false
+    };
+  }
 
 if (
   summary.conversationOperatingStateCompleted ===
@@ -1696,7 +1702,7 @@ if (
   const operatingState =
     this.getConversationOperatingState();
 
-  if (
+   if (
     !operatingState ||
     typeof operatingState.completeTurn !==
       "function"
@@ -1705,6 +1711,9 @@ if (
       ...summary,
 
       conversationOperatingStateCompleted:
+        false,
+
+      conversationOperatingStatePersisted:
         false,
 
       conversationOperatingStateCompletionReason:
@@ -1716,20 +1725,25 @@ if (
       finalPersistenceReason:
         "conversation_operating_state_not_available",
 
+      turnCompletionReady:
+        false,
+
       turnPersistenceReady:
         false,
 
       /*
-       * Preserve runtime authority even when persistence
-       * infrastructure is unavailable.
+       * Preserve runtime authority even when completion or
+       * persistence infrastructure is unavailable.
        */
       runtimeExecutionReady,
+
+      runtimeExecutionComplete:
+        runtimeExecutionReady,
 
       rebirthPipelineReady:
         runtimeExecutionReady
     };
   }
-
   try {
     /*
      * Explicitly provide the completed runtime state to
@@ -5933,10 +5947,7 @@ console.log(
       canPreserveCanonicalCurrentTurn:
         true,
 
-      canBeginConversationOperatingState:
-        true,
-
-      canCompleteConversationOperatingState:
+            canBeginConversationOperatingState:
         true,
 
       canCompleteConversationOperatingState:
@@ -5953,9 +5964,6 @@ console.log(
 
       canTreatPersistenceAsRuntimeDeliveryAuthority:
         false,
-
-      canPreserveExternalEvidence:
-        true,
 
       canPreserveExternalEvidence:
         true,
