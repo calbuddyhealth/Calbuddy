@@ -1,985 +1,1107 @@
-// ari/continuity/ari-conversation-operating-state.js
-// Ari Conversation Operating State
+// ari/continuity/ari-conversation-operating-state-resilience-patch.js
+// Ari Conversation Operating State — Resilient Continuity / Non-Blocking Runtime
+//
+// V2.1.0 — Recoverable COS / Non-Blocking Continuity Authority
 //
 // Purpose:
-// Build, maintain, and persist one concise authoritative operating state for
-// the current conversation turn.
+// - Keep COS authoritative over conversation state.
+// - Prevent continuity defects from blocking normal runtime execution.
+// - Validate the canonical Turn Packet itself, not the intake wrapper.
+// - Preserve strict diagnostics while exposing a usable degraded current turn.
+// - Separate COS completion from persistence success.
 //
-// V1.3.1 — Progressive Conversation Context Integration
+// Load order:
+// 1. ari/conversation/ari-turn-packet.js
+// 2. ari/conversation/ari-turn-intake-engine.js
+// 3. ari/continuity/ari-conversation-operating-state.js
+// 4. THIS FILE
 //
-// Architectural flow:
+// Runtime policy:
+// - Missing usable current-turn text: unusable; master runtime may stop.
+// - Missing/invalid canonical Turn Packet: degraded but usable when text exists.
+// - Missing thread history/store: degraded or warning; continue.
+// - Persistence failure: completed but not persisted; delivery remains valid.
 //
-// Ari Thread Store
-//      ↓
-// Ari Conversation Operating State.beginTurn()
-//      ↓
-// Perception Pipeline
-//      ↓
-// Conversation Relationship Engine
-//      ↓
-// Reference Resolution Engine
-//      ↓
-// Ari Conversation Operating State.attachConversationContext()
-//      ↓
-// Routing / Deliberation / Expression / Delivery
-//      ↓
-// Ari Conversation Operating State.completeTurn()
-//      ↓
-// Ari Thread Store
-//
-// Responsibilities:
-// - Load and normalize stored conversation state.
-// - Create one current-turn Conversation Operating State.
-// - Preserve the original current-turn text.
-// - Preserve immediate prior user and assistant turns.
-// - Preserve the active conversation frame.
-// - Build concise active claims, entities, constraints, goals, and open loops.
-// - Rank prior context into reference candidates.
-// - Detect and expose non-authoritative reference signals.
-// - Expose immediate, active, and historical continuity horizons.
-// - Attach the authoritative Turn Classification Packet.
-// - Attach the authoritative Reference Packet.
-// - Preserve the canonical reference-resolution result.
-// - Attach the resolved semantic structure.
-// - Rebuild compact context after conversation authorities run.
-// - Project continuity requirements into compatibility handoffs.
-// - Preserve compatibility aliases for the existing pipeline.
-// - Complete and persist the finished turn after Delivery.
-//
-// Non-responsibilities:
-// - Does not classify the conversation.
-// - Does not reinterpret semantic meaning.
-// - Does not rewrite the current user turn.
-// - Does not resolve elliptical follow-ups.
-// - Does not bind entity references.
-// - Does not choose the Conversation Function.
-// - Does not choose the Situation Contract.
-// - Does not determine safety severity.
-// - Does not create a Response Plan.
-// - Does not create response candidates.
-// - Does not write the final response.
-// - Does not retrieve long-term user memory.
-// - Does not access Supabase.
-// - Does not execute tools.
+// Important:
+// The master pipeline must gate on conversationOperatingStateUsable,
+// not conversationOperatingStateReady.
 
 window.Ari = window.Ari || {};
 
-window.AriConversationOperatingState = {
-version: "1.3.1",
-  schemaVersion: "1.0.0",
-  source: "ari-conversation-operating-state",
-  authorityLevel: "conversation_operating_state_authority",
+(function installAriConversationOperatingStateResiliencePatch() {
+  const cos =
+    window.AriConversationOperatingState ||
+    window.Ari?.conversationOperatingState ||
+    null;
 
-  /* =====================================================
-     PUBLIC ENTRY POINTS
-  ===================================================== */
-
-  async beginTurn(summary = {}) {
-  const storedState =
-    await this.loadStoredState();
-
-  const normalizedStored =
-    this.normalizeStoredState(
-      storedState
+  if (!cos) {
+    console.error(
+      "ARI COS RESILIENCE PATCH FAILED:",
+      "AriConversationOperatingState_not_loaded"
     );
-
-  const recentTurns =
-    this.buildRecentTurns({
-      summary,
-      storedState:
-        normalizedStored
-    });
-
-  /*
-   * The Turn Intake Engine is the sole authority
-   * responsible for creating the canonical Turn Packet.
-   */
-  const intakeState =
-    await this.runTurnIntake({
-      summary,
-      storedState:
-        normalizedStored,
-      recentTurns
-    });
-
-  if (
-    intakeState.turnIntakeEngineReady !==
-      true ||
-    !intakeState.turnPacket
-  ) {
-    return {
-      ...intakeState,
-
-      conversationOperatingState:
-        null,
-
-      conversationOperatingStateRan:
-        false,
-
-      conversationOperatingStateReady:
-        false,
-
-      conversationOperatingStateSource:
-        this.source,
-
-      conversationOperatingStateVersion:
-        this.version,
-
-      conversationOperatingStateError:
-        intakeState.turnIntakeEngineError ||
-        "canonical_turn_packet_not_ready"
-    };
+    return;
   }
 
-  /*
-   * COS does not create the turn.
-   * It projects the immutable Turn Packet into the
-   * continuity-facing currentTurn representation.
-   */
-  const input =
-    this.normalizeCurrentTurnInput(
-      intakeState
-    );
-
-if (
-  !input.turnPacket ||
-  !input.currentTurn
-) {
-  return {
-    ...intakeState,
-
-    conversationOperatingState:
-      null,
-
-    conversationOperatingStateRan:
-      false,
-
-    conversationOperatingStateReady:
-      false,
-
-    conversationOperatingStateSource:
-      this.source,
-
-    conversationOperatingStateVersion:
-      this.version,
-
-    conversationOperatingStateError:
-      "canonical_turn_projection_failed"
-  };
-}
-
-  const immediate =
-    this.resolveImmediateHorizon(
-      recentTurns
-    );
-
-  const activeFrame =
-    this.buildActiveFrame({
-      summary:
-        intakeState,
-      storedState:
-        normalizedStored,
-      immediate
-    });
-
-  const activeHorizon =
-    this.buildActiveHorizon({
-      summary:
-        intakeState,
-      storedState:
-        normalizedStored,
-      activeFrame
-    });
-
-  const historicalHorizon =
-    this.buildHistoricalHorizon({
-      summary:
-        intakeState,
-      storedState:
-        normalizedStored,
-      recentTurns,
-      activeFrame,
-      activeHorizon,
-      currentTurn:
-        input.currentTurn
-    });
-
-  const continuityMode =
-    this.resolveContinuityMode({
-      currentTurn:
-        input.currentTurn,
-      immediate,
-      activeFrame,
-      historicalHorizon
-    });
-
-  const referenceSignal =
-    this.buildReferenceSignal(
-      input.currentTurn
-    );
-
-  const operatingState = {
-    schema:
-      "ari_conversation_operating_state",
-
-    schemaVersion:
-      this.schemaVersion,
-
-    source:
-      this.source,
-
-    version:
-      this.version,
-
-    authorityLevel:
-      this.authorityLevel,
-
-    createdAt:
-      new Date()
-        .toISOString(),
-
-    conversationId:
-      input.turnPacket
-        ?.conversationId ||
-      normalizedStored
-        .conversationId ||
-      intakeState.conversationId ||
-      this.createConversationId(),
-
-    turnIndex:
-      this.resolveTurnIndex({
-        summary:
-          intakeState,
-        storedState:
-          normalizedStored,
-        recentTurns
-      }),
-
-    /*
-     * Immutable canonical intake authority.
-     */
-    turnPacket:
-      input.turnPacket,
-
-    /*
-     * Continuity-facing projection.
-     * This is not a second canonical turn contract.
-     */
-    currentTurn:
-      input.currentTurn,
-
-    immediateHorizon:
-      immediate,
-
-    activeHorizon,
-
-    historicalHorizon,
-
-    activeFrame,
-
-    continuityMode,
-
-    referenceSignal,
-
-    priorContextAvailable:
-      recentTurns.length >
-      0,
-
-    referenceCandidates:
-      historicalHorizon
-        .referenceCandidates,
-
-    openLoops:
-      activeHorizon
-        .openLoops,
-
-    unresolvedItems:
-      activeHorizon
-        .unresolvedItems,
-
-    confidence:
-      this.calculateOperatingStateConfidence({
-        currentTurn:
-          input.currentTurn,
-        immediate,
-        activeFrame,
-        recentTurns
-      }),
-
-    compactContext:
-      this.buildCompactContext({
-        currentTurn:
-          input.currentTurn,
-        immediate,
-        activeFrame,
-        activeHorizon,
-        historicalHorizon,
-        continuityMode,
-        referenceSignal
-      }),
-
-    rawStoredState:
-      normalizedStored,
-
-    authority:
-      this.getAuthorityBoundaries()
-  };
-
-  return this.attachCompatibilityAliases({
-    summary:
-      intakeState,
-    operatingState,
-    storedState:
-      normalizedStored,
-    recentTurns,
-    immediate,
-    activeFrame,
-    activeHorizon
-  });
-},
-
-  build(summary = {}) {
-    return this.beginTurn(
-      summary
-    );
-  },
-
-  async update(summary = {}) {
-    const existing =
-      summary
-        .conversationOperatingState;
-
-    if (
-      !existing ||
-      typeof existing !==
-        "object"
-    ) {
-      return this.beginTurn(
-        summary
-      );
-    }
-
-    const activeFrame =
-      this.buildActiveFrame({
-        summary,
-        storedState:
-          existing.rawStoredState ||
-          {},
-        immediate:
-          existing.immediateHorizon ||
-          {}
-      });
-
-    const activeHorizon =
-      this.buildActiveHorizon({
-        summary,
-        storedState:
-          existing.rawStoredState ||
-          {},
-        activeFrame
-      });
-
-    const currentTurn =
-  existing.currentTurn ||
-  this.normalizeCurrentTurnInput({
-    ...summary,
-
-    turnPacket:
-      summary.turnPacket ||
-      existing.turnPacket ||
-      null
-  }).currentTurn;
-
-if (!currentTurn) {
-  return {
-    ...summary,
-
-    conversationOperatingState:
-      existing,
-
-    conversationOperatingStateRan:
-      false,
-
-    conversationOperatingStateReady:
-      false,
-
-    conversationOperatingStateError:
-      "current_turn_projection_not_available"
-  };
-}
-
-const historicalHorizon =
-  this.buildHistoricalHorizon({
-    summary,
-    storedState:
-      existing.rawStoredState ||
-      {},
-    recentTurns:
-      this.toArray(
-        existing
-          .immediateHorizon
-          ?.recentTurns
-      ),
-    activeFrame,
-    activeHorizon,
-    currentTurn
-  });
-
-        const turnClassificationPacket =
-      this.readObject(
-        summary
-          .turnClassificationPacket
-      ) ||
-      this.readObject(
-        existing
-          .turnClassificationPacket
-      );
-
-    const referencePacket =
-      this.readObject(
-        summary.referencePacket
-      ) ||
-      this.readObject(
-        existing.referencePacket
-      );
-
-    const referenceResolution =
-      this.readObject(
-        summary
-          .referenceResolution
-      ) ||
-      this.readObject(
-        existing
-          .referenceResolution
-      );
-
-    const resolvedSemanticStructure =
-      this.readObject(
-        summary
-          .resolvedSemanticStructure
-      ) ||
-      this.readObject(
-        summary
-          .currentSemanticStructure
-      ) ||
-      this.readObject(
-        existing
-          .resolvedSemanticStructure
-      );
-
-    const authoritativeContextAvailable =
-      Boolean(
-        turnClassificationPacket &&
-        referencePacket
-      );
-
-    const continuityMode =
-      authoritativeContextAvailable
-        ? this.resolveAuthoritativeContinuityMode({
-            existingMode:
-              existing.continuityMode,
-
-            turnClassificationPacket,
-
-            referencePacket,
-
-            immediate:
-              existing.immediateHorizon ||
-              {},
-
-            activeFrame,
-
-            currentTurn,
-
-            historicalHorizon
-          })
-        : this.resolveContinuityMode({
-            currentTurn,
-
-            immediate:
-              existing.immediateHorizon ||
-              {},
-
-            activeFrame,
-
-            historicalHorizon
-          });
-
-    const referenceSignal =
-      authoritativeContextAvailable
-        ? this.buildAttachedReferenceSignal({
-            existingSignal:
-              existing.referenceSignal,
-
-            referencePacket
-          })
-        : this.buildReferenceSignal(
-            currentTurn
-          );
-
-    const operatingState = {
-      ...existing,
-
-      updatedAt:
-        new Date()
-          .toISOString(),
-
-      activeFrame,
-
-      activeHorizon,
-
-      historicalHorizon,
-
-      continuityMode,
-
-            referenceSignal,
-
-      turnClassificationPacket:
-        turnClassificationPacket ||
-        null,
-
-      referencePacket:
-        referencePacket ||
-        null,
-
-      referenceResolution:
-        referenceResolution ||
-        null,
-
-      resolvedSemanticStructure:
-        resolvedSemanticStructure ||
-        null,
-
-      referenceCandidates:
-        historicalHorizon
-          .referenceCandidates,
-
-      openLoops:
-        activeHorizon
-          .openLoops,
-
-      unresolvedItems:
-        activeHorizon
-          .unresolvedItems,
-
-            compactContext:
-        this.buildCompactContext({
-          currentTurn,
-
-          immediate:
-            existing.immediateHorizon ||
-            {},
-
-          activeFrame,
-
-          activeHorizon,
-
-          historicalHorizon,
-
-          continuityMode,
-
-          referenceSignal,
-
-          turnClassificationPacket:
-            existing
-              .turnClassificationPacket ||
-            summary
-              .turnClassificationPacket ||
-            null,
-
-          referencePacket:
-            existing.referencePacket ||
-            summary.referencePacket ||
-            null,
-
-          referenceResolution:
-            existing
-              .referenceResolution ||
-            summary
-              .referenceResolution ||
-            null,
-
-          resolvedSemanticStructure:
-            existing
-              .resolvedSemanticStructure ||
-            summary
-              .resolvedSemanticStructure ||
-            summary
-              .currentSemanticStructure ||
-            null
-        })
-    };
-
-    return this.attachCompatibilityAliases({
-      summary,
-      operatingState,
-      storedState:
-        existing.rawStoredState ||
-        {},
-      recentTurns:
-        existing.immediateHorizon
-          ?.recentTurns ||
-        [],
-      immediate:
-        existing.immediateHorizon ||
-        {},
-      activeFrame,
-      activeHorizon
-    });
-  },
-
-  attachConversationContext(
-    summary = {}
-  ) {
-    const existing =
-      this.readObject(
-        summary
-          .conversationOperatingState
-      );
-
-    if (!existing) {
-      return {
-        ...summary,
-
-        conversationOperatingState:
-          null,
-
-        conversationOperatingStateRan:
-          false,
-
-        conversationOperatingStateReady:
-          false,
-
-        conversationContextAttachmentRan:
-          false,
-
-        conversationContextAttachmentReady:
-          false,
-
-        conversationContextAttachmentError:
-          "conversation_operating_state_not_available"
-      };
-    }
-
-    const turnClassificationPacket =
-      this.readObject(
-        summary
-          .turnClassificationPacket
-      ) ||
-      this.readObject(
-        existing
-          .turnClassificationPacket
-      );
-
-    const referencePacket =
-      this.readObject(
-        summary.referencePacket
-      ) ||
-      this.readObject(
-        existing.referencePacket
-      );
-
-    const referenceResolution =
-      this.readObject(
-        summary.referenceResolution
-      ) ||
-      this.readObject(
-        existing.referenceResolution
-      );
-
-    const resolvedSemanticStructure =
-      this.readObject(
-        summary
-          .resolvedSemanticStructure
-      ) ||
-      this.readObject(
-        summary
-          .currentSemanticStructure
-      ) ||
-      this.readObject(
-        existing
-          .resolvedSemanticStructure
-      );
-
-    const classificationValidation =
-      this.validateAttachedPacket({
-        packet:
-          turnClassificationPacket,
-
-        validator:
-  window
-    .AriTurnClassificationPacket
-    ?.validate
-    ?.bind(
-      window
-        .AriTurnClassificationPacket
-    ),
-
-        packetName:
-          "turn_classification_packet",
-
-        required:
-          true
-      });
-
-    const referenceValidation =
-      this.validateAttachedPacket({
-        packet:
-          referencePacket,
-
-        validator:
-  window
-    .AriReferencePacket
-    ?.validate
-    ?.bind(
-      window.AriReferencePacket
-    ),
-
-        packetName:
-          "reference_packet",
-
-        required:
-          true
-      });
-
-    const attachmentErrors = [
-      ...classificationValidation
-        .errors,
-
-      ...referenceValidation
-        .errors
+  const originalCompleteTurn =
+    typeof cos.completeTurn === "function"
+      ? cos.completeTurn.bind(cos)
+      : null;
+
+  const originalAttachCompatibilityAliases =
+    typeof cos.attachCompatibilityAliases === "function"
+      ? cos.attachCompatibilityAliases.bind(cos)
+      : null;
+
+  const originalGetAuthorityBoundaries =
+    typeof cos.getAuthorityBoundaries === "function"
+      ? cos.getAuthorityBoundaries.bind(cos)
+      : null;
+
+  const originalValidate =
+    typeof cos.validate === "function"
+      ? cos.validate.bind(cos)
+      : null;
+
+  /* =====================================================
+     LOCAL UTILITIES
+  ===================================================== */
+
+  const readObject = value =>
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+      ? value
+      : null;
+
+  const toArray = value =>
+    Array.isArray(value)
+      ? value
+      : value === null ||
+        value === undefined ||
+        value === ""
+        ? []
+        : [value];
+
+  const cleanText = value =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const unique = values =>
+    [
+      ...new Set(
+        toArray(values)
+          .flat(Infinity)
+          .filter(
+            value =>
+              value !== null &&
+              value !== undefined &&
+              value !== ""
+          )
+      )
     ];
 
-    if (
-      attachmentErrors.length >
-      0
-    ) {
-      return {
-        ...summary,
+  const firstText = (...values) => {
+    for (const value of values) {
+      const text = cleanText(value);
 
-        conversationOperatingState:
-          existing,
-
-        conversationOperatingStateRan:
-          true,
-
-        conversationOperatingStateReady:
-          false,
-
-        conversationContextAttachmentRan:
-          true,
-
-        conversationContextAttachmentReady:
-          false,
-
-        conversationContextAttachmentError:
-          "canonical_conversation_packets_invalid",
-
-        conversationContextAttachmentErrors:
-          attachmentErrors,
-
-        conversationContextAttachmentWarnings: [
-          ...classificationValidation
-            .warnings,
-
-          ...referenceValidation
-            .warnings
-        ]
-      };
+      if (text) {
+        return text;
+      }
     }
 
-    const attachedReferenceSignal =
-      this.buildAttachedReferenceSignal({
-        existingSignal:
-          existing.referenceSignal,
+    return "";
+  };
 
-        referencePacket
-      });
+  const safeCall = (
+    operation,
+    fallback,
+    label
+  ) => {
+    try {
+      return operation();
+    } catch (error) {
+      console.warn(
+        `Ari COS operation failed: ${label}`,
+        error
+      );
 
-    const attachedCurrentTurn =
-      this.buildAttachedCurrentTurn({
-        currentTurn:
-          existing.currentTurn,
+      return fallback;
+    }
+  };
 
-        summary,
+  cos.readObject =
+    cos.readObject ||
+    readObject;
 
-        turnClassificationPacket,
+  /* =====================================================
+     CURRENT-TURN EXTRACTION
+  ===================================================== */
 
-        referencePacket
-      });
+  cos.extractUsableCurrentTurnText =
+    function extractUsableCurrentTurnText(
+      summary = {},
+      request = null
+    ) {
+      const resolvedRequest =
+        readObject(request) ||
+        readObject(summary.request) ||
+        {};
 
-    const activeFrame =
-      this.buildActiveFrame({
-        summary: {
-          ...summary,
+      const requestTurn =
+        readObject(
+          resolvedRequest.turn
+        ) ||
+        readObject(
+          summary.turn
+        ) ||
+        {};
 
-          currentSemanticStructure:
-            resolvedSemanticStructure ||
+      return firstText(
+        requestTurn.originalMessage,
+        requestTurn.originalText,
+        requestTurn.message,
+        resolvedRequest.message,
+        summary.originalUserMessage,
+        summary.effectiveUserMessage,
+        summary.userMessage,
+        summary.message,
+        summary.input
+      );
+    };
+
+  cos.hasUsableCurrentTurn =
+    function hasUsableCurrentTurn(
+      summary = {}
+    ) {
+      return Boolean(
+        firstText(
+          summary
+            .conversationOperatingState
+            ?.currentTurn
+            ?.effectiveText,
+          summary
+            .conversationOperatingState
+            ?.currentTurn
+            ?.originalText,
+          summary
+            .currentTurn
+            ?.effectiveText,
+          summary
+            .currentTurn
+            ?.originalText,
+          summary
+            .turnPacket
+            ?.originalMessage,
+          this.extractUsableCurrentTurnText(
             summary
-              .currentSemanticStructure,
+          )
+        )
+      );
+    };
 
-          semanticStructure:
-            resolvedSemanticStructure ||
-            summary.semanticStructure
+  /* =====================================================
+     TURN INTAKE COORDINATION
+  ===================================================== */
+
+  cos.runTurnIntake =
+    async function runTurnIntake({
+      summary = {},
+      storedState = {},
+      recentTurns = []
+    } = {}) {
+      const intakeEngine =
+        window.AriTurnIntakeEngine ||
+        window.Ari?.turnIntakeEngine ||
+        null;
+
+      const existingRequest =
+        readObject(
+          summary.request
+        ) || {};
+
+      const suppliedTurn =
+        readObject(
+          existingRequest.turn
+        ) ||
+        readObject(
+          summary.turn
+        ) ||
+        {};
+
+      const suppliedConversation =
+        readObject(
+          existingRequest.conversation
+        ) ||
+        readObject(
+          summary.conversation
+        ) ||
+        {};
+
+      const suppliedThread =
+        readObject(
+          existingRequest.thread
+        ) ||
+        readObject(
+          summary.thread
+        ) ||
+        {};
+
+      const originalMessage =
+        this.extractUsableCurrentTurnText(
+          summary,
+          existingRequest
+        );
+
+      const lastTurn =
+        recentTurns.length
+          ? recentTurns[
+              recentTurns.length - 1
+            ]
+          : null;
+
+      const request = {
+        ...existingRequest,
+
+        turn: {
+          ...suppliedTurn,
+
+          turnId:
+            suppliedTurn.turnId ||
+            summary.currentTurnId ||
+            summary.turnId ||
+            null,
+
+          timestamp:
+            suppliedTurn.timestamp ||
+            suppliedTurn.createdAt ||
+            summary.timestamp ||
+            summary.createdAt ||
+            new Date().toISOString(),
+
+          source:
+            suppliedTurn.source ||
+            existingRequest.source ||
+            summary.requestSource ||
+            summary.source ||
+            "user",
+
+          originalMessage
         },
 
-        storedState:
-          existing.rawStoredState ||
-          {},
+        conversation: {
+          ...suppliedConversation,
 
-        immediate:
-          existing.immediateHorizon ||
-          {}
-      });
+          conversationId:
+            suppliedConversation
+              .conversationId ||
+            storedState.conversationId ||
+            summary.conversationId ||
+            null
+        },
 
-    const activeHorizon =
-      this.buildActiveHorizon({
-        summary: {
-          ...summary,
+        thread: {
+          ...suppliedThread,
 
-          currentSemanticStructure:
-            resolvedSemanticStructure ||
-            summary
-              .currentSemanticStructure,
+          threadId:
+            suppliedThread.threadId ||
+            storedState.threadId ||
+            summary.threadId ||
+            null,
 
-          semanticStructure:
-            resolvedSemanticStructure ||
-            summary.semanticStructure,
+          previousTurn:
+            suppliedThread.previousTurn ||
+            lastTurn ||
+            null,
 
-          semanticUnresolved:
-            this.mergeUnique(
-              summary
-                .semanticUnresolved,
+          lastTurn:
+            suppliedThread.lastTurn ||
+            lastTurn ||
+            null,
 
-              referencePacket
-                ?.unresolvedReferences
+          history:
+            Array.isArray(
+              suppliedThread.history
             )
+              ? suppliedThread.history
+              : recentTurns
         },
 
-        storedState:
-          existing.rawStoredState ||
-          {},
+        metadata: {
+          ...(
+            readObject(
+              summary.metadata
+            ) || {}
+          ),
 
-        activeFrame
-      });
+          ...(
+            readObject(
+              existingRequest.metadata
+            ) || {}
+          )
+        },
 
-    const historicalHorizon =
-      this.buildHistoricalHorizon({
-        summary: {
+        message:
+          existingRequest.message ||
+          originalMessage
+      };
+
+      if (!originalMessage) {
+        return {
           ...summary,
 
-          referencePacket,
+          request,
 
-          referenceResolution,
+          turnPacket:
+            null,
 
-          resolvedSemanticStructure
-        },
+          turnIntakeEngineRan:
+            false,
 
-        storedState:
-          existing.rawStoredState ||
-          {},
+          turnIntakeEngineReady:
+            false,
 
-        recentTurns:
-          existing
-            .immediateHorizon
-            ?.recentTurns ||
-          [],
+          turnIntakeEngineUsable:
+            false,
 
-        activeFrame,
+          turnIntakeEngineSource:
+            intakeEngine
+              ? "ari-turn-intake-engine"
+              : "not-loaded",
 
-        activeHorizon,
+          turnIntakeEngineVersion:
+            intakeEngine?.version ||
+            null,
 
-        currentTurn:
-          attachedCurrentTurn
-      });
+          turnIntakeEngineError:
+            "current_turn_text_not_available",
 
-    const continuityMode =
-      this.resolveAuthoritativeContinuityMode({
-        existingMode:
-          existing.continuityMode,
+          turnIntakeValidation: {
+            valid:
+              false,
 
-        turnClassificationPacket,
+            errors: [
+              "current_turn_text_not_available"
+            ],
 
-        referencePacket,
+            warnings:
+              []
+          }
+        };
+      }
 
-        immediate:
-          existing.immediateHorizon,
+      if (
+        !intakeEngine ||
+        typeof intakeEngine.run !==
+          "function"
+      ) {
+        return {
+          ...summary,
 
-        activeFrame,
+          request,
 
-        currentTurn:
-          attachedCurrentTurn,
+          turnPacket:
+            null,
 
-        historicalHorizon
-      });
+          turnIntakeEngineRan:
+            false,
 
-    const operatingState = {
-      ...existing,
+          turnIntakeEngineReady:
+            false,
 
-      updatedAt:
-        new Date()
-          .toISOString(),
+          // Text exists, so COS can construct a provisional projection.
+          turnIntakeEngineUsable:
+            true,
 
-      currentTurn:
-        attachedCurrentTurn,
+          turnIntakeEngineSource:
+            "not-loaded",
 
-      activeFrame,
+          turnIntakeEngineVersion:
+            null,
 
-      activeHorizon,
+          turnIntakeEngineError:
+            "ari_turn_intake_engine_not_loaded",
 
-      historicalHorizon,
+          turnIntakeValidation: {
+            valid:
+              false,
 
-      continuityMode,
+            errors: [
+              "ari_turn_intake_engine_not_loaded"
+            ],
 
-      referenceSignal:
-        attachedReferenceSignal,
+            warnings: [
+              "degraded_current_turn_projection_required"
+            ]
+          }
+        };
+      }
 
-      turnClassificationPacket,
+      try {
+        const result =
+          await intakeEngine.run({
+            ...summary,
+            request
+          });
 
-      referencePacket,
+        if (
+          !result ||
+          typeof result !==
+            "object" ||
+          Array.isArray(result)
+        ) {
+          return {
+            ...summary,
 
-      referenceResolution,
+            request,
 
-      resolvedSemanticStructure:
-        resolvedSemanticStructure ||
-        null,
+            turnPacket:
+              null,
 
-      resolvedReferences:
-        this.toArray(
-          referencePacket
-            ?.references
-        ),
+            turnIntakeEngineRan:
+              true,
 
-      unresolvedReferences:
-        this.toArray(
-          referencePacket
-            ?.unresolvedReferences
-        ),
+            turnIntakeEngineReady:
+              false,
 
-      activeReference:
-        referencePacket
-          ?.primaryReference ||
-        null,
+            turnIntakeEngineUsable:
+              true,
 
-      referenceCandidates:
-        historicalHorizon
-          .referenceCandidates,
+            turnIntakeEngineSource:
+              "invalid-result",
 
-      openLoops:
-        activeHorizon.openLoops,
+            turnIntakeEngineVersion:
+              intakeEngine.version ||
+              null,
 
-      unresolvedItems:
-        this.mergeUnique(
-          activeHorizon
-            .unresolvedItems,
+            turnIntakeEngineError:
+              "ari_turn_intake_engine_invalid_result",
 
-          referencePacket
-            ?.unresolvedReferences
-        ).slice(-12),
+            turnIntakeValidation: {
+              valid:
+                false,
 
-      conversationContext: {
+              errors: [
+                "ari_turn_intake_engine_invalid_result"
+              ],
+
+              warnings: [
+                "degraded_current_turn_projection_required"
+              ]
+            }
+          };
+        }
+
+        const turnPacket =
+          readObject(
+            result.turnPacket
+          );
+
+        let validation =
+          turnPacket?.validation ||
+          null;
+
+        try {
+          if (
+            typeof intakeEngine
+              .validateTurnPacket ===
+              "function"
+          ) {
+            validation =
+              intakeEngine
+                .validateTurnPacket(
+                  turnPacket
+                );
+          } else if (
+            typeof window
+              .AriTurnPacket
+              ?.validate ===
+              "function"
+          ) {
+            validation =
+              window.AriTurnPacket
+                .validate(
+                  turnPacket
+                );
+          } else if (
+            typeof intakeEngine
+              .validate ===
+              "function"
+          ) {
+            // Validate the packet itself, never the intake wrapper.
+            validation =
+              intakeEngine.validate(
+                turnPacket
+              );
+          }
+        } catch (error) {
+          validation = {
+            valid:
+              false,
+
+            errors: [
+              error?.message ||
+              String(error)
+            ],
+
+            warnings:
+              []
+          };
+        }
+
+        const ready =
+          Boolean(
+            turnPacket &&
+            validation?.valid ===
+              true
+          );
+
+        return {
+          ...summary,
+          ...result,
+
+          request,
+
+          turnPacket:
+            turnPacket ||
+            null,
+
+          turnIntakeValidation:
+            validation || {
+              valid:
+                false,
+
+              errors: [
+                "canonical_turn_packet_validation_unavailable"
+              ],
+
+              warnings:
+                []
+            },
+
+          turnIntakeEngineRan:
+            true,
+
+          turnIntakeEngineReady:
+            ready,
+
+          turnIntakeEngineUsable:
+            ready ||
+            Boolean(
+              originalMessage
+            ),
+
+          turnIntakeEngineSource:
+            result
+              .turnIntakeEngineSource ||
+            result.source ||
+            intakeEngine.source ||
+            "ari-turn-intake-engine",
+
+          turnIntakeEngineVersion:
+            result
+              .turnIntakeEngineVersion ||
+            result.version ||
+            intakeEngine.version ||
+            null,
+
+          turnIntakeEngineError:
+            ready
+              ? null
+              : (
+                  toArray(
+                    validation?.errors
+                  )[0] ||
+                  (
+                    turnPacket
+                      ? "canonical_turn_packet_invalid"
+                      : "canonical_turn_packet_missing"
+                  )
+                )
+        };
+      } catch (error) {
+        console.error(
+          "Ari COS turn intake failed:",
+          error
+        );
+
+        return {
+          ...summary,
+
+          request,
+
+          turnPacket:
+            null,
+
+          turnIntakeEngineRan:
+            true,
+
+          turnIntakeEngineReady:
+            false,
+
+          turnIntakeEngineUsable:
+            Boolean(
+              originalMessage
+            ),
+
+          turnIntakeEngineSource:
+            "execution-error",
+
+          turnIntakeEngineVersion:
+            intakeEngine.version ||
+            null,
+
+          turnIntakeEngineError:
+            error?.message ||
+            String(error),
+
+          turnIntakeValidation: {
+            valid:
+              false,
+
+            errors: [
+              error?.message ||
+              String(error)
+            ],
+
+            warnings: [
+              "degraded_current_turn_projection_required"
+            ]
+          }
+        };
+      }
+    };
+
+  /* =====================================================
+     CANONICAL TURN PROJECTION
+  ===================================================== */
+
+  cos.normalizeCurrentTurnInput =
+    function normalizeCurrentTurnInput(
+      summary = {}
+    ) {
+      const turnPacket =
+        readObject(
+          summary.turnPacket
+        );
+
+      if (!turnPacket) {
+        return {
+          turnPacket:
+            null,
+
+          currentTurn:
+            null
+        };
+      }
+
+      const originalText =
+        firstText(
+          turnPacket.originalMessage,
+          this.extractUsableCurrentTurnText(
+            summary
+          )
+        );
+
+      return {
+        turnPacket,
+
+        currentTurn: {
+          schema:
+            "ari_conversation_turn_projection",
+
+          schemaVersion:
+            this.schemaVersion,
+
+          id:
+            turnPacket.turnId ||
+            null,
+
+          turnId:
+            turnPacket.turnId ||
+            null,
+
+          role:
+            "user",
+
+          source:
+            turnPacket.source ||
+            "user",
+
+          conversationId:
+            turnPacket.conversationId ||
+            null,
+
+          threadId:
+            turnPacket.threadId ||
+            null,
+
+          originalText,
+
+          resolvedText:
+            null,
+
+          effectiveText:
+            originalText,
+
+          normalizedText:
+            turnPacket.normalizedMessage ||
+            (
+              typeof this
+                .normalizeForComparison ===
+                "function"
+                ? this.normalizeForComparison(
+                    originalText
+                  )
+                : originalText
+                    .toLowerCase()
+            ),
+
+          createdAt:
+            turnPacket.timestamp ||
+            new Date().toISOString(),
+
+          previousTurnAvailable:
+            turnPacket.previousTurnAvailable ===
+            true,
+
+          resolutionStatus:
+            "unresolved",
+
+          textWasRewritten:
+            false,
+
+          originalTextPreserved:
+            true,
+
+          authority: {
+            owner:
+              "ari-conversation-operating-state",
+
+            sourceAuthority:
+              "ari-turn-packet",
+
+            projection:
+              true,
+
+            canonical:
+              false,
+
+            provisional:
+              false,
+
+            canReplaceTurnPacket:
+              false,
+
+            role:
+              "continuity_facing_projection_of_canonical_turn_packet"
+          }
+        }
+      };
+    };
+
+  /* =====================================================
+     DEGRADED OPERATING STATE
+  ===================================================== */
+
+  cos.buildDegradedOperatingState =
+    function buildDegradedOperatingState({
+      summary = {},
+      intakeState = {},
+      storedState = {},
+      recentTurns = [],
+      reason =
+        "authoritative_conversation_state_not_ready"
+    } = {}) {
+      const request =
+        readObject(
+          intakeState.request
+        ) ||
+        readObject(
+          summary.request
+        ) ||
+        {};
+
+      const requestTurn =
+        readObject(
+          request.turn
+        ) ||
+        readObject(
+          summary.turn
+        ) ||
+        {};
+
+      const originalText =
+        firstText(
+          requestTurn.originalMessage,
+          requestTurn.originalText,
+          requestTurn.message,
+          request.message,
+          intakeState.originalUserMessage,
+          intakeState.userMessage,
+          summary.originalUserMessage,
+          summary.userMessage,
+          summary.message,
+          summary.input
+        );
+
+      if (!originalText) {
+        return {
+          ...summary,
+          ...intakeState,
+
+          conversationOperatingState:
+            null,
+
+          conversationOperatingStateRan:
+            true,
+
+          conversationOperatingStateReady:
+            false,
+
+          conversationOperatingStateUsable:
+            false,
+
+          conversationOperatingStateDegraded:
+            false,
+
+          conversationOperatingStateMode:
+            "unavailable",
+
+          conversationOperatingStateSource:
+            this.source,
+
+          conversationOperatingStateVersion:
+            this.version,
+
+          conversationOperatingStateError:
+            "current_turn_text_not_available",
+
+          conversationOperatingStateErrors:
+            unique([
+              reason,
+              intakeState
+                .turnIntakeEngineError,
+              "current_turn_text_not_available"
+            ]),
+
+          conversationOperatingStateWarnings:
+            []
+        };
+      }
+
+      const immediate =
+        typeof this
+          .resolveImmediateHorizon ===
+          "function"
+          ? this.resolveImmediateHorizon(
+              recentTurns
+            )
+          : {
+              available:
+                recentTurns.length >
+                0,
+
+              recentTurns,
+
+              previousUserTurn:
+                null,
+
+              previousAssistantTurn:
+                null
+            };
+
+      const currentTurn = {
         schema:
-          "ari_conversation_context_attachment",
+          "ari_conversation_turn_projection",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        id:
+          requestTurn.turnId ||
+          summary.currentTurnId ||
+          summary.turnId ||
+          null,
+
+        turnId:
+          requestTurn.turnId ||
+          summary.currentTurnId ||
+          summary.turnId ||
+          null,
+
+        role:
+          "user",
+
+        source:
+          requestTurn.source ||
+          summary.turnSource ||
+          "user",
+
+        conversationId:
+          request.conversation
+            ?.conversationId ||
+          storedState.conversationId ||
+          summary.conversationId ||
+          null,
+
+        threadId:
+          request.thread
+            ?.threadId ||
+          storedState.threadId ||
+          summary.threadId ||
+          null,
+
+        originalText,
+
+        resolvedText:
+          null,
+
+        effectiveText:
+          originalText,
+
+        normalizedText:
+          typeof this
+            .normalizeForComparison ===
+            "function"
+            ? this.normalizeForComparison(
+                originalText
+              )
+            : originalText
+                .toLowerCase(),
+
+        createdAt:
+          requestTurn.timestamp ||
+          summary.timestamp ||
+          new Date().toISOString(),
+
+        previousTurnAvailable:
+          immediate.available ===
+          true,
+
+        resolutionStatus:
+          "degraded_unresolved",
+
+        textWasRewritten:
+          false,
+
+        originalTextPreserved:
+          true,
+
+        authority: {
+          owner:
+            "ari-conversation-operating-state",
+
+          sourceAuthority:
+            "runtime_request_fallback",
+
+          projection:
+            true,
+
+          canonical:
+            false,
+
+          provisional:
+            true,
+
+          canReplaceTurnPacket:
+            false,
+
+          role:
+            "degraded_current_turn_projection"
+        }
+      };
+
+      const activeFrame =
+        typeof this
+          .buildActiveFrame ===
+          "function"
+          ? this.buildActiveFrame({
+              summary: {
+                ...summary,
+                ...intakeState
+              },
+
+              storedState,
+              immediate
+            })
+          : {};
+
+      const activeHorizon =
+        typeof this
+          .buildActiveHorizon ===
+          "function"
+          ? this.buildActiveHorizon({
+              summary: {
+                ...summary,
+                ...intakeState
+              },
+
+              storedState,
+              activeFrame
+            })
+          : {
+              openLoops:
+                [],
+
+              unresolvedItems:
+                []
+            };
+
+      const historicalHorizon =
+        typeof this
+          .buildHistoricalHorizon ===
+          "function"
+          ? this.buildHistoricalHorizon({
+              summary: {
+                ...summary,
+                ...intakeState
+              },
+
+              storedState,
+              recentTurns,
+              activeFrame,
+              activeHorizon,
+              currentTurn
+            })
+          : {
+              referenceCandidates:
+                [],
+
+              topCandidates:
+                []
+            };
+
+      const continuityMode =
+        typeof this
+          .resolveContinuityMode ===
+          "function"
+          ? this.resolveContinuityMode({
+              currentTurn,
+              immediate,
+              activeFrame,
+              historicalHorizon
+            })
+          : "direct_current_turn";
+
+      const referenceSignal =
+        typeof this
+          .buildReferenceSignal ===
+          "function"
+          ? this.buildReferenceSignal(
+              currentTurn
+            )
+          : {
+              detected:
+                false,
+
+              resolutionRequired:
+                false
+            };
+
+      const operatingState = {
+        schema:
+          "ari_conversation_operating_state",
 
         schemaVersion:
           this.schemaVersion,
@@ -990,4230 +1112,57 @@ const historicalHorizon =
         version:
           this.version,
 
-        attachedAt:
-          new Date()
-            .toISOString(),
+        authorityLevel:
+          "degraded_conversation_operating_state",
 
-        classificationAttached:
-          Boolean(
-            turnClassificationPacket
-          ),
-
-        referencePacketAttached:
-          Boolean(
-            referencePacket
-          ),
-
-        referenceResolutionAttached:
-          Boolean(
-            referenceResolution
-          ),
-
-        resolvedSemanticStructureAttached:
-          Boolean(
-            resolvedSemanticStructure
-          ),
-
-        relationship:
-          this.readClassificationRelationship(
-            turnClassificationPacket
-          ),
-
-        resolvedReferenceCount:
-          this.toArray(
-            referencePacket
-              ?.references
-          ).length,
-
-        unresolvedReferenceCount:
-          this.toArray(
-            referencePacket
-              ?.unresolvedReferences
-          ).length,
-
-        confidence:
-          this.calculateAttachedContextConfidence({
-            operatingState:
-              existing,
-
-            turnClassificationPacket,
-
-            referencePacket
-          }),
-
-        authority:
-          "authoritative_packet_attachment_only"
-      },
-
-                  compactContext:
-        this.buildCompactContext({
-          currentTurn:
-            attachedCurrentTurn,
-
-          immediate:
-            existing.immediateHorizon ||
-            {},
-
-          activeFrame,
-
-          activeHorizon,
-
-          historicalHorizon,
-
-          continuityMode,
-
-          referenceSignal:
-            attachedReferenceSignal,
-
-          turnClassificationPacket,
-
-          referencePacket,
-
-          referenceResolution,
-
-          resolvedSemanticStructure
-        })
-    };
-
-    const attachedState =
-  this.attachCompatibilityAliases({
-    summary: {
-      ...summary,
-
-      turnClassificationPacket,
-
-      referencePacket,
-
-      referenceResolution,
-
-      resolvedSemanticStructure,
-
-      currentSemanticStructure:
-        resolvedSemanticStructure ||
-        summary.currentSemanticStructure
-    },
-
-    operatingState,
-
-    storedState:
-      existing.rawStoredState ||
-      {},
-
-    recentTurns:
-      existing
-        .immediateHorizon
-        ?.recentTurns ||
-      [],
-
-    immediate:
-      existing.immediateHorizon ||
-      {},
-
-    activeFrame,
-
-    activeHorizon
-  });
-
-return {
-  ...attachedState,
-
-  conversationContext:
-    operatingState
-      .conversationContext ||
-    null,
-
-  compactConversationContext:
-    operatingState
-      .compactContext ||
-    null,
-
-  conversationContextAttachmentRan:
-    true,
-
-  conversationContextAttachmentReady:
-    true,
-
-  conversationContextAttachmentError:
-    null,
-
-  conversationContextAttachmentErrors:
-    [],
-
-  conversationContextAttachmentWarnings: [
-    ...classificationValidation
-      .warnings,
-
-    ...referenceValidation
-      .warnings
-  ],
-
-  conversationContextAttachmentSource:
-    this.source,
-
-  conversationContextAttachmentVersion:
-    this.version
-};
-  },
-  validateAttachedPacket({
-    packet = null,
-    validator = null,
-    packetName = "packet",
-    required = false
-  } = {}) {
-    const errors = [];
-    const warnings = [];
-
-    if (!packet) {
-      if (required) {
-        errors.push(
-          `${packetName}_missing`
-        );
-      }
-
-      return {
-        valid:
-          required !== true,
-
-        errors,
-
-        warnings
-      };
-    }
-
-    if (
-      typeof validator !==
-      "function"
-    ) {
-      warnings.push(
-        `${packetName}_validator_not_loaded`
-      );
-
-      return {
-        valid: true,
-        errors,
-        warnings
-      };
-    }
-
-    let validation = null;
-
-    try {
-      validation =
-        validator.call(
-          null,
-          packet
-        );
-    } catch (error) {
-      errors.push(
-        `${packetName}_validation_failed:${
-          error?.message ||
-          String(error)
-        }`
-      );
-
-      return {
-        valid: false,
-        errors,
-        warnings
-      };
-    }
-
-    if (
-      validation?.valid !==
-      true
-    ) {
-      errors.push(
-        ...this.toArray(
-          validation?.errors
-        ).map(
-          error =>
-            `${packetName}:${error}`
-        )
-      );
-    }
-
-    warnings.push(
-      ...this.toArray(
-        validation?.warnings
-      ).map(
-        warning =>
-          `${packetName}:${warning}`
-      )
-    );
-
-    return {
-      valid:
-        errors.length === 0,
-
-      errors,
-
-      warnings
-    };
-  },
-
-  buildAttachedCurrentTurn({
-    currentTurn = {},
-    summary = {},
-    turnClassificationPacket = null,
-    referencePacket = null
-  } = {}) {
-    const existing =
-      this.readObject(
-        currentTurn
-      ) ||
-      {};
-
-    const externallyResolvedText =
-      this.cleanText(
-        summary
-          .resolvedUserMessage ||
-        summary
-          .resolvedTurn
-          ?.resolvedText ||
-        summary
-          .ellipticalResolution
-          ?.resolvedText ||
-        summary
-          .ellipsisResolution
-          ?.resolvedText ||
-        ""
-      );
-
-    const referenceCount =
-      this.toArray(
-        referencePacket
-          ?.references
-      ).length;
-
-    const unresolvedCount =
-      this.toArray(
-        referencePacket
-          ?.unresolvedReferences
-      ).length;
-
-    const hasResolvedText =
-      Boolean(
-        externallyResolvedText
-      );
-
-    return {
-      ...existing,
-
-      resolvedText:
-        hasResolvedText
-          ? externallyResolvedText
-          : existing.resolvedText ||
-            null,
-
-      effectiveText:
-        hasResolvedText
-          ? externallyResolvedText
-          : existing.effectiveText ||
-            existing.originalText ||
-            "",
-
-            resolutionStatus:
-        hasResolvedText
-          ? "resolved_text_available"
-          : referenceCount > 0 &&
-            unresolvedCount === 0
-            ? "references_resolved"
-            : referenceCount > 0 &&
-              unresolvedCount > 0
-              ? "references_partially_resolved"
-              : unresolvedCount > 0
-                ? "references_unresolved"
-                : "no_reference_resolution_required",
-      textWasRewritten:
-        hasResolvedText &&
-        this.normalizeForComparison(
-          externallyResolvedText
-        ) !==
-        this.normalizeForComparison(
-          existing.originalText ||
-          ""
-        ),
-
-      relationship:
-        this.readClassificationRelationship(
-          turnClassificationPacket
-        ),
-
-      relationshipConfidence:
-        this.readClassificationConfidence(
-          turnClassificationPacket
-        ),
-
-      referenceResolution: {
-        resolvedCount:
-          referenceCount,
-
-        unresolvedCount,
-
-        primaryReference:
-          referencePacket
-            ?.primaryReference ||
-          null,
-
-        confidence:
-          this.clamp(
-            referencePacket
-              ?.confidence ??
-            0
-          )
-      },
-
-      originalTextPreserved:
-        true
-    };
-  },
-
-  buildAttachedReferenceSignal({
-    existingSignal = null,
-    referencePacket = null
-  } = {}) {
-    const prior =
-      this.readObject(
-        existingSignal
-      ) ||
-      {
-        present: false,
-        surface: null,
-        normalizedSurface: null,
-        kind: null,
-        resolutionRequired: false,
-        resolved: false,
-        authority:
-          "reference_signal_detection_only"
-      };
-
-    const resolvedReferences =
-      this.toArray(
-        referencePacket
-          ?.references
-      );
-
-    const unresolvedReferences =
-      this.toArray(
-        referencePacket
-          ?.unresolvedReferences
-      );
-
-    const referenceWasProcessed =
-      resolvedReferences.length >
-        0 ||
-      unresolvedReferences.length >
-        0;
-
-    return {
-      ...prior,
-
-      resolutionAttempted:
-        referenceWasProcessed,
-
-      resolved:
-        referenceWasProcessed &&
-        resolvedReferences.length >
-          0 &&
-        unresolvedReferences.length ===
-          0,
-
-      partiallyResolved:
-        resolvedReferences.length >
-          0 &&
-        unresolvedReferences.length >
-          0,
-
-      unresolved:
-        unresolvedReferences.length >
-        0,
-
-      resolvedCount:
-        resolvedReferences.length,
-
-      unresolvedCount:
-        unresolvedReferences.length,
-
-      primaryReference:
-        referencePacket
-          ?.primaryReference ||
-        null,
-
-      resolutionConfidence:
-        this.clamp(
-          referencePacket
-            ?.confidence ??
-          0
-        ),
-
-      resolutionAuthority:
-        referenceWasProcessed
-          ? "ari-reference-packet"
-          : null,
-
-      authority:
-        "reference_signal_with_authoritative_resolution_status"
-    };
-  },
-
-  resolveAuthoritativeContinuityMode({
-    existingMode =
-      "direct_current_turn",
-
-    turnClassificationPacket = null,
-
-    referencePacket = null,
-
-    immediate = {},
-
-    activeFrame = {},
-
-    currentTurn = {},
-
-    historicalHorizon = {}
-  } = {}) {
-    const relationship =
-      this.readClassificationRelationship(
-        turnClassificationPacket
-      );
-
-    const normalizedRelationship =
-      this.normalizeForComparison(
-        relationship
-      )
-        .replace(
-          /\s+/g,
-          "_"
-        )
-        .toUpperCase();
-
-    const resolvedCount =
-      this.toArray(
-        referencePacket
-          ?.references
-      ).length;
-
-    const unresolvedCount =
-      this.toArray(
-        referencePacket
-          ?.unresolvedReferences
-      ).length;
-
-    const followUpRelationships =
-      new Set([
-        "FOLLOW_UP",
-        "ELLIPTICAL_FOLLOW_UP",
-        "REFERENCE_FOLLOW_UP",
-        "TASK_CONTINUATION",
-        "ANSWER_CONTINUATION",
-        "CLARIFICATION",
-        "CORRECTION",
-        "CONFIRMATION",
-        "THREAD_RESUME"
-      ]);
-
-    if (
-      followUpRelationships.has(
-        normalizedRelationship
-      )
-    ) {
-      if (
-        resolvedCount >
-          0 &&
-        unresolvedCount ===
-          0
-      ) {
-        return "resolved_follow_up";
-      }
-
-      if (
-        unresolvedCount >
-        0
-      ) {
-        return "unresolved_follow_up";
-      }
-
-      return "classified_follow_up";
-    }
-
-    if (
-      normalizedRelationship ===
-      "TOPIC_SHIFT" ||
-      normalizedRelationship ===
-      "NEW_TOPIC"
-    ) {
-      return "topic_shift";
-    }
-
-    if (
-      normalizedRelationship ===
-      "DIRECT" ||
-      normalizedRelationship ===
-      "INDEPENDENT_TURN"
-    ) {
-      return "direct_current_turn";
-    }
-
-    return (
-      existingMode ||
-      this.resolveContinuityMode({
-        currentTurn,
-        immediate,
-        activeFrame,
-        historicalHorizon
-      })
-    );
-  },
-
-  readClassificationRelationship(
-    packet = null
-  ) {
-    if (
-      !packet ||
-      typeof packet !==
-        "object"
-    ) {
-      return null;
-    }
-
-    return (
-      packet.relationship ||
-      packet.relationshipType ||
-      packet.classification ||
-      packet.primaryRelationship ||
-      packet.result
-        ?.relationship ||
-      null
-    );
-  },
-
-  readClassificationConfidence(
-    packet = null
-  ) {
-    if (
-      !packet ||
-      typeof packet !==
-        "object"
-    ) {
-      return 0;
-    }
-
-    return this.clamp(
-      packet.confidence ??
-      packet.relationshipConfidence ??
-      packet.result
-        ?.confidence ??
-      0
-    );
-  },
-
-  calculateAttachedContextConfidence({
-    operatingState = {},
-    turnClassificationPacket = null,
-    referencePacket = null
-  } = {}) {
-    const operatingConfidence =
-      this.clamp(
-        operatingState.confidence ??
-        0
-      );
-
-    const classificationConfidence =
-      this.readClassificationConfidence(
-        turnClassificationPacket
-      );
-
-    const referenceConfidence =
-      this.clamp(
-        referencePacket
-          ?.confidence ??
-        (
-          this.toArray(
-            referencePacket
-              ?.references
-          ).length ||
-          this.toArray(
-            referencePacket
-              ?.unresolvedReferences
-          ).length
-            ? 0
-            : 1
-        )
-      );
-
-    return this.roundScore(
-      operatingConfidence *
-        0.4 +
-      classificationConfidence *
-        0.3 +
-      referenceConfidence *
-        0.3
-    );
-  },
-
-  async completeTurn(summary = {}) {
-  let existing =
-    summary.conversationOperatingState ||
-    null;
-
-  if (!existing) {
-    const initialized =
-      await this.beginTurn(
-        summary
-      );
-
-    existing =
-      initialized
-        .conversationOperatingState ||
-      null;
-
-    if (!existing) {
-      return {
-        ...initialized,
-
-        conversationOperatingStateRan:
-          false,
-
-        conversationOperatingStateReady:
-          false,
-
-        conversationOperatingStateCompletionRan:
-          false,
-
-        conversationOperatingStateCompletionError:
-          initialized
-            .conversationOperatingStateError ||
-          "conversation_operating_state_not_available"
-      };
-    }
-  }
-
-  const finalResponse =
-    this.extractFinalResponse(
-      summary
-    );
-
-    const now =
-      new Date()
-        .toISOString();
-
-    const completedTurns =
-      this.completeRecentTurns({
-        existingTurns:
-          existing
-            .immediateHorizon
-            ?.recentTurns ||
-          existing
-            .rawStoredState
-            ?.recentTurns ||
-          [],
-        currentTurn:
-          existing.currentTurn,
-        finalResponse,
-        summary,
         createdAt:
-          now
-      });
+          new Date().toISOString(),
 
-    const completedFrame =
-      this.buildCompletedActiveFrame({
-        summary,
-        existing,
-        finalResponse
-      });
-
-    const persistedState =
-      this.buildPersistedState({
-        summary,
-        existing,
-        recentTurns:
-          completedTurns,
-        activeFrame:
-          completedFrame,
-        finalResponse,
-        createdAt:
-          now
-      });
-
-    const saveResult =
-      await this.saveStoredState(
-        persistedState
-      );
-
-    const immediate =
-      this.resolveImmediateHorizon(
-        completedTurns
-      );
-
-    const operatingState = {
-      ...existing,
-
-      completedAt:
-        now,
-
-      completed:
-        true,
-
-      turnIndex:
-        persistedState.turnIndex,
-
-      immediateHorizon:
-        immediate,
-
-      activeFrame:
-        completedFrame,
-
-      activeHorizon: {
-        ...existing.activeHorizon,
-
-        topic:
-          completedFrame.topic,
-
-        subject:
-          completedFrame.subject,
-
-        issue:
-          completedFrame.issue,
-
-        goal:
-          completedFrame.goal,
-
-        claims:
-          persistedState
-            .activeClaims,
-
-        entities:
-          persistedState
-            .activeEntities,
-
-        events:
-          persistedState
-            .activeEvents,
-
-        relations:
-          persistedState
-            .activeRelations,
-
-        constraints:
-          persistedState
-            .activeConstraints,
-
-        openLoops:
-          persistedState
-            .openLoops,
-
-        unresolvedItems:
-          persistedState
-            .unresolvedItems
-      },
-
-      finalResponse,
-
-      persistence: {
-        attempted:
-          true,
-
-        saved:
-          saveResult.saved ===
-          true,
-
-        source:
-          saveResult.source,
-
-        reason:
-          saveResult.reason ||
+        conversationId:
+          currentTurn.conversationId ||
+          storedState.conversationId ||
           null,
 
-        error:
-          saveResult.error ||
-          null
-      },
-
-      rawStoredState:
-        persistedState,
-
-            compactContext:
-        this.buildCompactContext({
-          currentTurn:
-            existing.currentTurn,
-
-          immediate,
-
-          activeFrame:
-            completedFrame,
-
-          activeHorizon: {
-            ...existing.activeHorizon,
-
-            topic:
-              completedFrame.topic,
-
-            subject:
-              completedFrame.subject,
-
-            issue:
-              completedFrame.issue,
-
-            goal:
-              completedFrame.goal,
-
-            claims:
-              persistedState
-                .activeClaims,
-
-            entities:
-              persistedState
-                .activeEntities,
-
-            events:
-              persistedState
-                .activeEvents,
-
-            relations:
-              persistedState
-                .activeRelations,
-
-            constraints:
-              persistedState
-                .activeConstraints,
-
-            openLoops:
-              persistedState
-                .openLoops,
-
-            unresolvedItems:
-              persistedState
-                .unresolvedItems
-          },
-
-          historicalHorizon:
-            existing.historicalHorizon,
-
-          continuityMode:
-            existing.continuityMode,
-
-          referenceSignal:
-            existing.referenceSignal,
-
-          turnClassificationPacket:
-            existing
-              .turnClassificationPacket,
-
-          referencePacket:
-            existing.referencePacket,
-
-          referenceResolution:
-            existing
-              .referenceResolution,
-
-          resolvedSemanticStructure:
-            existing
-              .resolvedSemanticStructure
-        })
-    };
-
-    return this.attachCompatibilityAliases({
-      summary: {
-        ...summary,
-
-        threadSaveRan:
-          saveResult.saved ===
-          true,
-
-        threadSaveSource:
-          saveResult.source,
-
-        threadSaveReason:
-          saveResult.reason ||
-          null,
-
-        threadSaveError:
-          saveResult.error ||
-          null
-      },
-      operatingState,
-      storedState:
-        persistedState,
-      recentTurns:
-        completedTurns,
-      immediate,
-      activeFrame:
-        completedFrame,
-      activeHorizon:
-        operatingState.activeHorizon
-    });
-  },
-
-/* =====================================================
-   TURN INTAKE
-===================================================== */
-
-async runTurnIntake({
-  summary = {},
-  storedState = {},
-  recentTurns = []
-} = {}) {
-  const intakeEngine =
-    window.AriTurnIntakeEngine ||
-    window.Ari?.turnIntakeEngine ||
-    null;
-
-  if (
-    !intakeEngine ||
-    typeof intakeEngine.run !==
-      "function"
-  ) {
-    return {
-      ...summary,
-
-      turnPacket:
-        null,
-
-      turnIntakeEngineRan:
-        false,
-
-      turnIntakeEngineReady:
-        false,
-
-      turnIntakeEngineSource:
-        "not-loaded",
-
-      turnIntakeEngineError:
-        "ari_turn_intake_engine_not_loaded"
-    };
-  }
-
-  const existingRequest =
-    this.readObject(
-      summary.request
-    ) ||
-    {};
-
-  const suppliedTurn =
-    this.readObject(
-      existingRequest.turn
-    ) ||
-    this.readObject(
-      summary.turn
-    ) ||
-    {};
-
-  const suppliedConversation =
-    this.readObject(
-      existingRequest.conversation
-    ) ||
-    this.readObject(
-      summary.conversation
-    ) ||
-    {};
-
-  const suppliedThread =
-    this.readObject(
-      existingRequest.thread
-    ) ||
-    this.readObject(
-      summary.thread
-    ) ||
-    {};
-
-  const originalMessage =
-    this.cleanText(
-      suppliedTurn.originalMessage ??
-      suppliedTurn.originalText ??
-      suppliedTurn.message ??
-      existingRequest.message ??
-      summary.originalUserMessage ??
-      summary.userMessage ??
-      summary.message ??
-      summary.input ??
-      ""
-    );
-
-  const lastTurn =
-    recentTurns.length
-      ? recentTurns[
-          recentTurns.length -
-          1
-        ]
-      : null;
-
-  const request = {
-    ...existingRequest,
-
-    turn: {
-      ...suppliedTurn,
-
-      /*
-       * Preserve externally supplied identifiers.
-       * AriTurnPacket creates a fallback ID only when
-       * none was supplied.
-       */
-      turnId:
-        suppliedTurn.turnId ||
-        summary.currentTurnId ||
-        summary.turnId ||
-        null,
-
-      timestamp:
-        suppliedTurn.timestamp ||
-        suppliedTurn.createdAt ||
-        summary.timestamp ||
-        summary.createdAt ||
-        null,
-
-      source:
-  suppliedTurn.source ||
-  existingRequest.turnSource ||
-  summary.turnSource ||
-  "user",
-
-      originalMessage
-    },
-
-    conversation: {
-      ...suppliedConversation,
-
-      conversationId:
-        suppliedConversation
-          .conversationId ||
-        storedState.conversationId ||
-        summary.conversationId ||
-        null
-    },
-
-    thread: {
-      ...suppliedThread,
-
-      threadId:
-        suppliedThread.threadId ||
-        storedState.threadId ||
-        summary.threadId ||
-        null,
-
-      previousTurn:
-        suppliedThread.previousTurn ||
-        lastTurn ||
-        null,
-
-      lastTurn:
-        suppliedThread.lastTurn ||
-        lastTurn ||
-        null,
-
-      history:
-        Array.isArray(
-          suppliedThread.history
-        )
-          ? suppliedThread.history
-          : recentTurns
-    },
-
-    metadata: {
-      ...(
-        this.readObject(
-          summary.metadata
-        ) ||
-        {}
-      ),
-
-      ...(
-        this.readObject(
-          existingRequest.metadata
-        ) ||
-        {}
-      )
-    },
-
-    message:
-      existingRequest.message ||
-      originalMessage
-  };
-
-  try {
-    const result =
-      await intakeEngine.run({
-        ...summary,
-        request
-      });
-
-    if (
-      !result ||
-      typeof result !==
-        "object" ||
-      Array.isArray(result)
-    ) {
-      return {
-        ...summary,
-
-        request,
+        turnIndex:
+          typeof this
+            .resolveTurnIndex ===
+            "function"
+            ? this.resolveTurnIndex({
+                summary,
+                storedState,
+                recentTurns
+              })
+            : null,
 
         turnPacket:
           null,
 
-        turnIntakeEngineRan:
-          false,
+        currentTurn,
 
-        turnIntakeEngineReady:
-          false,
+        immediateHorizon:
+          immediate,
 
-        turnIntakeEngineSource:
-          "invalid-result",
-
-        turnIntakeEngineError:
-          "ari_turn_intake_engine_invalid_result"
-      };
-    }
-
-    const validation =
-      typeof intakeEngine.validate ===
-        "function"
-        ? intakeEngine.validate(
-            result
-          )
-        : result.turnPacket
-            ?.validation ||
-          null;
-
-    const ready =
-      Boolean(
-        result.turnPacket &&
-        validation?.valid === true
-      );
-
-    return {
-      ...result,
-
-      request,
-
-      turnPacket:
-        result.turnPacket ||
-        null,
-
-      turnIntakeValidation:
-        validation,
-
-      turnIntakeEngineRan:
-        true,
-
-      turnIntakeEngineReady:
-        ready,
-
-      turnIntakeEngineSource:
-        "ari-turn-intake-engine",
-
-      turnIntakeEngineVersion:
-        intakeEngine.version ||
-        null,
-
-      turnIntakeEngineError:
-        ready
-          ? null
-          : "canonical_turn_packet_invalid"
-    };
-  } catch (error) {
-    console.error(
-      "Ari COS turn intake failed:",
-      error
-    );
-
-    return {
-      ...summary,
-
-      request,
-
-      turnPacket:
-        null,
-
-      turnIntakeEngineRan:
-        false,
-
-      turnIntakeEngineReady:
-        false,
-
-      turnIntakeEngineSource:
-        "execution-error",
-
-      turnIntakeEngineError:
-        error?.message ||
-        String(error)
-    };
-  }
-},
-
-  /* =====================================================
-     CURRENT TURN
-  ===================================================== */
-
-  normalizeCurrentTurnInput(
-  summary = {}
-) {
-  const turnPacket =
-    this.readObject(
-      summary.turnPacket
-    );
-
-  if (!turnPacket) {
-    return {
-      turnPacket:
-        null,
-
-      currentTurn:
-        null
-    };
-  }
-
-  return {
-    turnPacket,
-
-    currentTurn: {
-      schema:
-        "ari_conversation_turn_projection",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      /*
-       * Identity is inherited from the canonical packet.
-       * COS does not generate a separate ID.
-       */
-      id:
-        turnPacket.turnId,
-
-      turnId:
-        turnPacket.turnId,
-
-      role:
-        "user",
-
-      source:
-        turnPacket.source ||
-        "user",
-
-      conversationId:
-        turnPacket.conversationId ||
-        null,
-
-      threadId:
-        turnPacket.threadId ||
-        null,
-
-      originalText:
-        turnPacket.originalMessage ||
-        "",
-
-      resolvedText:
-        null,
-
-      effectiveText:
-        turnPacket.originalMessage ||
-        "",
-
-      normalizedText:
-        turnPacket.normalizedMessage ||
-        this.normalizeForComparison(
-          turnPacket.originalMessage ||
-          ""
-        ),
-
-      createdAt:
-        turnPacket.timestamp ||
-        null,
-
-      previousTurnAvailable:
-        turnPacket
-          .previousTurnAvailable ===
-        true,
-
-      resolutionStatus:
-        "unresolved",
-
-      textWasRewritten:
-        false,
-
-      originalTextPreserved:
-        true,
-
-      authority: {
-        owner:
-          "ari-conversation-operating-state",
-
-        sourceAuthority:
-          "ari-turn-packet",
-
-        projection:
-          true,
-
-        canonical:
-          false,
-
-        canPreserveOriginalText:
-          true,
-
-        canReceiveResolvedText:
-          true,
-
-        canReplaceTurnPacket:
-          false,
-
-        role:
-          "continuity_facing_projection_of_canonical_turn_packet"
-      }
-    }
-  };
-},
-
-  resolveTurnIndex({
-    summary = {},
-    storedState = {},
-    recentTurns = []
-  } = {}) {
-    const explicit =
-      Number(
-        summary.turnIndex
-      );
-
-    if (
-      Number.isFinite(
-        explicit
-      )
-    ) {
-      return explicit;
-    }
-
-    const stored =
-      Number(
-        storedState.turnIndex
-      );
-
-    if (
-      Number.isFinite(
-        stored
-      )
-    ) {
-      return stored + 1;
-    }
-
-    return recentTurns.filter(
-      turn =>
-        turn.role ===
-          "user"
-    ).length + 1;
-  },
-
-  /* =====================================================
-     THREAD STORE
-  ===================================================== */
-
-  async loadStoredState() {
-    const store =
-      window.AriThreadStore;
-
-    if (!store) {
-      return null;
-    }
-
-    try {
-      if (
-        typeof store.load ===
-        "function"
-      ) {
-        return await store.load();
-      }
-
-      if (
-        typeof store.get ===
-        "function"
-      ) {
-        return await store.get();
-      }
-
-      if (
-        typeof store.read ===
-        "function"
-      ) {
-        return await store.read();
-      }
-    } catch (error) {
-      console.error(
-        "Ari COS thread load failed:",
-        error
-      );
-    }
-
-    return null;
-  },
-
-  async saveStoredState(
-    state = {}
-  ) {
-    const store =
-      window.AriThreadStore;
-
-    if (
-      !store ||
-      typeof store.save !==
-        "function"
-    ) {
-      return {
-        saved:
-          false,
-
-        source:
-          "not-loaded",
-
-        reason:
-          "thread_store_not_available"
-      };
-    }
-
-    try {
-      await store.save(
-        state
-      );
-
-      return {
-        saved:
-          true,
-
-        source:
-          "ari-thread-store"
-      };
-    } catch (error) {
-      console.error(
-        "Ari COS thread save failed:",
-        error
-      );
-
-      return {
-        saved:
-          false,
-
-        source:
-          "save-error",
-
-        reason:
-          "thread_store_save_failed",
-
-        error:
-          error?.message ||
-          String(error)
-      };
-    }
-  },
-
-  normalizeStoredState(
-    state = null
-  ) {
-    const raw =
-      state &&
-      typeof state ===
-        "object"
-        ? state
-        : {};
-
-    return {
-      ...raw,
-
-      schema:
-        raw.schema ||
-        "ari_persisted_conversation_state",
-
-      schemaVersion:
-        raw.schemaVersion ||
-        this.schemaVersion,
-
-      conversationId:
-        raw.conversationId ||
-        null,
-
-      turnIndex:
-        this.numberOr(
-          raw.turnIndex,
-          0
-        ),
-
-      currentTopic:
-        this.normalizeTopic(
-          raw.currentTopic ||
-          raw.activeTopic
-        ),
-
-      activeSubject:
-        raw.activeSubject ||
-        null,
-
-      activeIssue:
-        raw.activeIssue ||
-        null,
-
-      activeGoal:
-        raw.activeGoal ||
-        null,
-
-      recentTurns:
-        this.normalizeStoredRecentTurns(
-          raw
-        ),
-
-      activeClaims:
-        this.toArray(
-          raw.activeClaims
-        ),
-
-      activeEntities:
-        this.toArray(
-          raw.activeEntities
-        ),
-
-      activeEvents:
-        this.toArray(
-          raw.activeEvents
-        ),
-
-      activeRelations:
-        this.toArray(
-          raw.activeRelations
-        ),
-
-      activeConstraints:
-        this.toArray(
-          raw.activeConstraints
-        ),
-
-      unresolvedItems:
-        this.toArray(
-          raw.unresolvedItems
-        ),
-
-      openLoops:
-        this.toArray(
-          raw.openLoops ||
-          raw
-            .conversationMeaningOpenLoops
-        ),
-
-      topicHistory:
-        this.toArray(
-          raw.topicHistory
-        ),
-
-      previousAnswerSummary:
-        this.cleanText(
-          raw.previousAnswerSummary ||
-          ""
-        ) ||
-        null,
-
-      lastFinalResponse:
-        this.cleanText(
-          raw.lastFinalResponse ||
-          ""
-        ) ||
-        null,
-
-      continuitySummary:
-        raw.continuitySummary ||
-        null,
-
-      latestConversationMeaning:
-        raw.latestConversationMeaning ||
-        null,
-
-      activeSemanticFrame:
-        raw.activeSemanticFrame ||
-        null,
-
-      conversationMeaningFocus:
-        raw.conversationMeaningFocus ||
-        null,
-
-      conversationMeaningHistory:
-        this.toArray(
-          raw
-            .conversationMeaningHistory
-        ),
-
-      activeSemanticTimeline:
-        this.toArray(
-          raw.activeSemanticTimeline
-        ),
-
-      lastMealEstimate:
-        raw.lastMealEstimate ||
-        null,
-
-      lastUpdatedAt:
-        raw.lastUpdatedAt ||
-        null
-    };
-  },
-
-  /* =====================================================
-     RECENT TURNS
-  ===================================================== */
-
-  buildRecentTurns({
-    summary = {},
-    storedState = {}
-  } = {}) {
-    const appHistory =
-      this.toArray(
-        summary.appContext
-          ?.history
-      )
-        .map(
-          (
-            turn,
-            index
-          ) =>
-            this.normalizeTurnRecord(
-              turn,
-              index
-            )
-        )
-        .filter(Boolean);
-
-    const stored =
-      this.toArray(
-        storedState.recentTurns
-      );
-
-    return this.dedupeRecentTurns([
-      ...stored,
-      ...appHistory
-    ]).slice(-12);
-  },
-
-  normalizeStoredRecentTurns(
-    storedState = {}
-  ) {
-    const direct =
-      this.toArray(
-        storedState.recentTurns
-      )
-        .map(
-          (
-            turn,
-            index
-          ) =>
-            this.normalizeTurnRecord(
-              turn,
-              index
-            )
-        )
-        .filter(Boolean);
-
-    if (direct.length) {
-      return this
-        .dedupeRecentTurns(
-          direct
-        )
-        .slice(-12);
-    }
-
-    const legacy =
-      this.toArray(
-        storedState.lastMessages
-      )
-        .map(
-          (
-            message,
-            index
-          ) =>
-            this.normalizeTurnRecord(
-              typeof message ===
-                "string"
-                ? {
-                    role:
-                      "user",
-
-                    text:
-                      message
-                  }
-                : message,
-              index
-            )
-        )
-        .filter(Boolean);
-
-    const previousAnswer =
-      this.cleanText(
-        storedState
-          .lastFinalResponse ||
-        storedState
-          .previousAnswerSummary ||
-        ""
-      );
-
-    if (previousAnswer) {
-      legacy.push({
-        id:
-          null,
-
-        role:
-          "assistant",
-
-        text:
-          previousAnswer,
-
-        createdAt:
-          storedState
-            .lastUpdatedAt ||
-          null
-      });
-    }
-
-    return this
-      .dedupeRecentTurns(
-        legacy
-      )
-      .slice(-12);
-  },
-
-  normalizeTurnRecord(
-    turn = null,
-    index = 0
-  ) {
-    if (
-      turn === null ||
-      turn === undefined
-    ) {
-      return null;
-    }
-
-    if (
-      typeof turn ===
-        "string"
-    ) {
-      const text =
-        this.cleanText(
-          turn
-        );
-
-      return text
-        ? {
-            id:
-              null,
-
-            role:
-              "unknown",
-
-            text,
-
-            createdAt:
-              null,
-
-            index
-          }
-        : null;
-    }
-
-    const text =
-      this.cleanText(
-        turn.text ||
-        turn.content ||
-        turn.message ||
-        turn.claim ||
-        turn.value ||
-        ""
-      );
-
-    if (!text) {
-      return null;
-    }
-
-    return {
-      id:
-        turn.id ||
-        turn.turnId ||
-        turn.messageId ||
-        null,
-
-      role:
-        this.normalizeTurnRole(
-          turn.role
-        ),
-
-      text,
-
-      createdAt:
-        turn.createdAt ||
-        turn.created_at ||
-        turn.timestamp ||
-        turn.updatedAt ||
-        null,
-
-      topic:
-        this.normalizeTopic(
-          turn.topic ||
-          turn.activeTopic ||
-          turn.situationFrame
-        ),
-
-      semanticMeaning:
-        turn.semanticMeaning ||
-        turn.meaning ||
-        null,
-
-      emotionalState:
-        turn.emotionalState ||
-        turn.emotion ||
-        null,
-
-      index
-    };
-  },
-
-  normalizeTurnRole(
-    role = ""
-  ) {
-    const value =
-      String(
-        role ||
-        ""
-      )
-        .toLowerCase()
-        .trim();
-
-    if (
-      [
-        "assistant",
-        "ari",
-        "ai"
-      ].includes(
-        value
-      )
-    ) {
-      return "assistant";
-    }
-
-    if (
-      [
-        "user",
-        "human"
-      ].includes(
-        value
-      )
-    ) {
-      return "user";
-    }
-
-    if (
-      value ===
-      "system"
-    ) {
-      return "system";
-    }
-
-    return "unknown";
-  },
-
-  dedupeRecentTurns(
-    turns = []
-  ) {
-    const seen =
-      new Set();
-
-    return this.toArray(
-      turns
-    ).filter(
-      turn => {
-        if (
-          !turn ||
-          !turn.text
-        ) {
-          return false;
-        }
-
-        const key = [
-          turn.role ||
-          "unknown",
-
-          this
-            .normalizeForComparison(
-              turn.text
-            )
-        ].join("|");
-
-        if (
-          !key ||
-          seen.has(
-            key
-          )
-        ) {
-          return false;
-        }
-
-        seen.add(
-          key
-        );
-
-        return true;
-      }
-    );
-  },
-
-  resolveImmediateHorizon(
-    recentTurns = []
-  ) {
-    const turns =
-      this.toArray(
-        recentTurns
-      );
-
-    const previousUserTurn =
-      [...turns]
-        .reverse()
-        .find(
-          turn =>
-            turn.role ===
-            "user"
-        ) ||
-      null;
-
-    const previousAssistantTurn =
-      [...turns]
-        .reverse()
-        .find(
-          turn =>
-            turn.role ===
-            "assistant"
-        ) ||
-      null;
-
-    return {
-      schema:
-        "ari_conversation_immediate_horizon",
-
-      previousUserTurn,
-
-      previousAssistantTurn,
-
-      previousExchange: {
-        user:
-          previousUserTurn,
-
-        assistant:
-          previousAssistantTurn
-      },
-
-      recentTurns:
-        turns,
-
-      available:
-        Boolean(
-          previousUserTurn ||
-          previousAssistantTurn
-        ),
-
-      authority:
-        "immediate_prior_turn_context_only"
-    };
-  },
-
-  /* =====================================================
-     ACTIVE FRAME
-  ===================================================== */
-
-  buildActiveFrame({
-    summary = {},
-    storedState = {},
-    immediate = {}
-  } = {}) {
-    const semanticFrame =
-      summary
-        .activeSemanticFrame ||
-      summary
-        .currentSemanticStructure ||
-      summary.semanticStructure ||
-      storedState
-        .activeSemanticFrame ||
-      {};
-
-    const topic =
-      this.normalizeTopic(
-        summary
-          .resolvedPrimarySubject ||
-        summary.activeTopic ||
-        summary.activeSubject ||
-        summary
-          .continuityPacket
-          ?.activeThread
-          ?.activeTopic ||
-        summary
-          .situationMap
-          ?.situations
-          ?.[0] ||
-        semanticFrame.topic ||
-        storedState.currentTopic ||
-        immediate
-          .previousUserTurn
-          ?.topic ||
-        null
-      );
-
-    const subject =
-      summary
-        .resolvedPrimarySubject ||
-      summary.activeSubject ||
-      semanticFrame.subject ||
-      storedState.activeSubject ||
-      null;
-
-    const issue =
-      summary.activeIssue ||
-      summary
-        .continuityActiveSituation ||
-      semanticFrame.issue ||
-      storedState.activeIssue ||
-      null;
-
-    const goal =
-      summary.activeGoal ||
-      semanticFrame.goal ||
-      storedState.activeGoal ||
-      null;
-
-    return {
-      schema:
-        "ari_conversation_active_frame",
-
-      topic:
-        topic ||
-        this.deriveTopicFromText(
-          immediate
-            .previousUserTurn
-            ?.text
-        ) ||
-        null,
-
-      subject,
-
-      issue,
-
-      goal,
-
-      currentNeed:
-        summary.currentNeed ||
-        summary
-          .responseStrategy
-          ?.currentNeed ||
-        null,
-
-      primaryLane:
-        summary.primaryLane ||
-        summary
-          .routingContract
-          ?.primaryLane ||
-        null,
-
-      contextLane:
-        summary.contextLane ||
-        summary
-          .routingContract
-          ?.contextLane ||
-        null,
-
-      conversationFunction:
-        summary
-          .conversationFunction ||
-        null,
-
-      semanticFrame:
-        semanticFrame &&
-        Object.keys(
-          semanticFrame
-        ).length
-          ? semanticFrame
-          : null,
-
-      confidence:
-        this.calculateFrameConfidence({
-          topic,
-          subject,
-          issue,
-          goal
-        }),
-
-      authority:
-        "active_conversation_frame_organization_only"
-    };
-  },
-
-  buildCompletedActiveFrame({
-    summary = {},
-    existing = {},
-    finalResponse = ""
-  } = {}) {
-    const current =
-      this.buildActiveFrame({
-        summary,
-        storedState:
-          existing.rawStoredState ||
-          {},
-        immediate:
-          existing.immediateHorizon ||
-          {}
-      });
-
-    return {
-      ...existing.activeFrame,
-      ...current,
-
-      lastFinalResponse:
-        finalResponse ||
-        existing.activeFrame
-          ?.lastFinalResponse ||
-        null,
-
-      updatedAt:
-        new Date()
-          .toISOString()
-    };
-  },
-
-  calculateFrameConfidence({
-    topic = null,
-    subject = null,
-    issue = null,
-    goal = null
-  } = {}) {
-    const available = [
-      topic,
-      subject,
-      issue,
-      goal
-    ].filter(Boolean).length;
-
-    return Math.min(
-      0.55 +
-      available *
-        0.1,
-      0.95
-    );
-  },
-
-  /* =====================================================
-     ACTIVE HORIZON
-  ===================================================== */
-
-  buildActiveHorizon({
-    summary = {},
-    storedState = {},
-    activeFrame = {}
-  } = {}) {
-    return {
-      schema:
-        "ari_conversation_active_horizon",
-
-      topic:
-        activeFrame.topic,
-
-      subject:
-        activeFrame.subject,
-
-      issue:
-        activeFrame.issue,
-
-      goal:
-        activeFrame.goal,
-
-      claims:
-        this.mergeUnique(
-          summary.semanticClaims,
-          summary
-            .currentSemanticStructure
-            ?.claims,
-          summary
-            .semanticStructure
-            ?.claims,
-          storedState.activeClaims
-        ).slice(-16),
-
-      entities:
-        this.mergeUnique(
-          summary.semanticEntities,
-          summary
-            .currentSemanticStructure
-            ?.entities,
-          summary
-            .semanticStructure
-            ?.entities,
-          storedState.activeEntities
-        ).slice(-16),
-
-      events:
-        this.mergeUnique(
-          summary.semanticEvents,
-          summary
-            .currentSemanticStructure
-            ?.events,
-          summary
-            .semanticStructure
-            ?.events,
-          storedState.activeEvents
-        ).slice(-12),
-
-      relations:
-        this.mergeUnique(
-          summary.semanticRelations,
-          summary
-            .currentSemanticStructure
-            ?.relations,
-          summary
-            .semanticStructure
-            ?.relations,
-          storedState.activeRelations
-        ).slice(-16),
-
-      constraints:
-        this.mergeUnique(
-          summary.activeConstraints,
-          summary.semanticConstraints,
-          storedState
-            .activeConstraints
-        ).slice(-12),
-
-      openLoops:
-        this.mergeUnique(
-          summary
-            .conversationMeaningOpenLoops,
-          summary.openLoops,
-          storedState.openLoops
-        ).slice(-12),
-
-      unresolvedItems:
-        this.mergeUnique(
-          summary
-            .continuityPacket
-            ?.unresolvedReferences,
-          summary.semanticUnresolved,
-          storedState.unresolvedItems
-        ).slice(-12),
-
-      latestConversationMeaning:
-        summary
-          .latestConversationMeaning ||
-        storedState
-          .latestConversationMeaning ||
-        null,
-
-      conversationMeaningFocus:
-        summary
-          .conversationMeaningFocus ||
-        storedState
-          .conversationMeaningFocus ||
-        null,
-
-      authority:
-        "active_conversation_material_only"
-    };
-  },
-
-  /* =====================================================
-     HISTORICAL HORIZON
-  ===================================================== */
-
-  buildHistoricalHorizon({
-    summary = {},
-    storedState = {},
-    recentTurns = [],
-    activeFrame = {},
-    activeHorizon = {},
-    currentTurn = {}
-  } = {}) {
-    const candidates =
-      this.buildReferenceCandidates({
-        summary,
-        storedState,
-        recentTurns,
-        activeFrame,
         activeHorizon,
-        currentTurn
-      });
 
-    return {
-      schema:
-        "ari_conversation_historical_horizon",
+        historicalHorizon,
 
-      retrievalRequired:
-        this.shouldRetrieveHistoricalContext({
-          currentTurn,
-          activeFrame,
-          candidates
-        }),
+        activeFrame,
 
-      referenceCandidates:
-        candidates,
+        continuityMode,
 
-      topCandidates:
-        candidates.slice(
-          0,
-          8
-        ),
-
-      topicHistory:
-        this.toArray(
-          storedState.topicHistory
-        ).slice(-12),
-
-      meaningHistory:
-        this.toArray(
-          storedState
-            .conversationMeaningHistory
-        ).slice(-12),
-
-      semanticTimeline:
-        this.toArray(
-          storedState
-            .activeSemanticTimeline
-        ).slice(-12),
-
-      authority:
-        "ranked_prior_conversation_context_only"
-    };
-  },
-
-  buildReferenceCandidates({
-    summary = {},
-    storedState = {},
-    recentTurns = [],
-    activeFrame = {},
-    activeHorizon = {},
-    currentTurn = {}
-  } = {}) {
-    const candidates = [];
-
-    const add = ({
-      id = null,
-      semanticRef = null,
-      semanticType = "claim",
-      label = "",
-      value = null,
-      source = "conversation_state",
-      turnDistance = 1,
-      role = null,
-      status = null,
-      baseConfidence = 0.65
-    } = {}) => {
-      const resolvedLabel =
-        this.cleanText(
-          label ||
-          this.extractLabel(
-            value
-          )
-        );
-
-      if (!resolvedLabel) {
-        return;
-      }
-
-      const scores =
-        this.scoreReferenceCandidate({
-          label:
-            resolvedLabel,
-          value,
-          semanticType,
-          turnDistance,
-          activeFrame,
-          currentTurn,
-          baseConfidence
-        });
-
-      candidates.push({
-        id:
-          id ||
-          semanticRef ||
-          null,
-
-        semanticRef:
-          semanticRef ||
-          id ||
-          null,
-
-        semanticType,
-
-        label:
-          resolvedLabel,
-
-        value,
-
-        source,
-
-        role,
-
-        status,
-
-        turnDistance,
-
-        scores,
-
-        salience:
-          scores.salience,
-
-        confidence:
-          scores.confidence
-      });
-    };
-
-    add({
-      semanticRef:
-        "active_topic",
-
-      semanticType:
-        "topic",
-
-      value:
-        activeFrame.topic,
-
-      source:
-        "conversation_operating_state.activeFrame.topic",
-
-      baseConfidence:
-        0.9
-    });
-
-    add({
-      semanticRef:
-        "active_subject",
-
-      semanticType:
-        "entity",
-
-      value:
-        activeFrame.subject,
-
-      source:
-        "conversation_operating_state.activeFrame.subject",
-
-      baseConfidence:
-        0.88
-    });
-
-    add({
-      semanticRef:
-        "active_issue",
-
-      semanticType:
-        "claim",
-
-      value:
-        activeFrame.issue,
-
-      source:
-        "conversation_operating_state.activeFrame.issue",
-
-      baseConfidence:
-        0.86
-    });
-
-    add({
-      semanticRef:
-        "active_goal",
-
-      semanticType:
-        "goal",
-
-      value:
-        activeFrame.goal,
-
-      source:
-        "conversation_operating_state.activeFrame.goal",
-
-      baseConfidence:
-        0.82
-    });
-
-    this.toArray(
-      activeHorizon.entities
-    ).forEach(
-      (
-        entity,
-        index
-      ) => {
-        add({
-          id:
-            entity?.id ||
-            `active_entity_${index}`,
-
-          semanticRef:
-            entity?.semanticRef ||
-            entity?.entityRef ||
-            entity?.id ||
-            `active_entity_${index}`,
-
-          semanticType:
-            entity?.semanticType ||
-            entity?.entityType ||
-            entity?.type ||
-            "entity",
-
-          value:
-            entity,
-
-          source:
-            "conversation_operating_state.activeHorizon.entities",
-
-          status:
-            entity?.status ||
-            null,
-
-          baseConfidence:
-            entity?.confidence ??
-            0.78
-        });
-      }
-    );
-
-    this.toArray(
-      activeHorizon.claims
-    ).forEach(
-      (
-        claim,
-        index
-      ) => {
-        add({
-          id:
-            claim?.id ||
-            `active_claim_${index}`,
-
-          semanticRef:
-            claim?.semanticRef ||
-            claim?.id ||
-            `active_claim_${index}`,
-
-          semanticType:
-            "claim",
-
-          value:
-            claim,
-
-          source:
-            "conversation_operating_state.activeHorizon.claims",
-
-          status:
-            claim?.status ||
-            null,
-
-          baseConfidence:
-            claim?.confidence ??
-            0.75
-        });
-      }
-    );
-
-    this.toArray(
-      activeHorizon.openLoops
-    ).forEach(
-      (
-        loop,
-        index
-      ) => {
-        add({
-          id:
-            loop?.id ||
-            `open_loop_${index}`,
-
-          semanticRef:
-            loop?.semanticRef ||
-            loop?.id ||
-            `open_loop_${index}`,
-
-          semanticType:
-            "open_loop",
-
-          value:
-            loop,
-
-          source:
-            "conversation_operating_state.activeHorizon.openLoops",
-
-          status:
-            loop?.status ||
-            "active",
-
-          baseConfidence:
-            loop?.confidence ??
-            0.82
-        });
-      }
-    );
-
-    this.toArray(
-      recentTurns
-    )
-      .slice(-8)
-      .forEach(
-        (
-          turn,
-          index,
-          collection
-        ) => {
-          const turnDistance =
-            collection.length -
-            index;
-
-          add({
-            id:
-              turn.id ||
-              `recent_turn_${index}`,
-
-            semanticRef:
-              turn.id ||
-              `recent_turn_${index}`,
-
-            semanticType:
-              turn.role ===
-                "assistant"
-                ? "assistant_answer"
-                : "user_turn",
-
-            label:
-              turn.text,
-
-            value:
-              turn,
-
-            source:
-              `conversation_operating_state.recentTurns.${turn.role}`,
-
-            role:
-              turn.role,
-
-            turnDistance,
-
-            baseConfidence:
-              turn.role ===
-                "user"
-                ? 0.8
-                : 0.72
-          });
-        }
-      );
-
-    this.toArray(
-      storedState.topicHistory
-    )
-      .slice(-6)
-      .forEach(
-        (
-          topic,
-          index,
-          collection
-        ) => {
-          add({
-            id:
-              `topic_history_${index}`,
-
-            semanticRef:
-              `topic_history_${index}`,
-
-            semanticType:
-              "historical_topic",
-
-            value:
-              topic,
-
-            source:
-              "conversation_operating_state.topicHistory",
-
-            turnDistance:
-              collection.length -
-              index +
-              2,
-
-            baseConfidence:
-              0.58
-          });
-        }
-      );
-
-    const seen =
-      new Set();
-
-    return candidates
-      .filter(
-        candidate => {
-          const key = [
-            candidate.semanticType,
-            this
-              .normalizeForComparison(
-                candidate.label
-              )
-          ].join("|");
-
-          if (
-            !key ||
-            seen.has(
-              key
-            )
-          ) {
-            return false;
-          }
-
-          seen.add(
-            key
-          );
-
-          return true;
-        }
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          b.salience -
-          a.salience
-      )
-      .slice(
-        0,
-        24
-      );
-  },
-
-  scoreReferenceCandidate({
-    label = "",
-    value = null,
-    semanticType = "claim",
-    turnDistance = 1,
-    activeFrame = {},
-    currentTurn = {},
-    baseConfidence = 0.65
-  } = {}) {
-    const currentText =
-      this
-        .normalizeForComparison(
-          currentTurn.originalText ||
-          currentTurn.effectiveText ||
-          ""
-        );
-
-    const candidateText =
-      this
-        .normalizeForComparison(
-          label ||
-          this.extractLabel(
-            value
-          )
-        );
-
-    const activeText =
-      this
-        .normalizeForComparison([
-          activeFrame.topic,
-          activeFrame.subject,
-          activeFrame.issue,
-          activeFrame.goal
-        ]
-          .filter(Boolean)
-          .join(" ")
-        );
-
-    const recency =
-      Math.max(
-        0.15,
-        1 -
-        (
-          Math.max(
-            1,
-            turnDistance
-          ) -
-          1
-        ) *
-          0.11
-      );
-
-    const tokenOverlap =
-      this.calculateTokenOverlap(
-        currentText,
-        candidateText
-      );
-
-    const activeFrameMatch =
-      this.calculateTokenOverlap(
-        activeText,
-        candidateText
-      );
-
-    const grammaticalCompatibility =
-      this.calculateGrammaticalCompatibility({
-        currentText,
-        semanticType
-      });
-
-    const typeWeight = {
-      open_loop:
-        0.95,
-
-      assistant_answer:
-        0.9,
-
-      entity:
-        0.88,
-
-      topic:
-        0.86,
-
-      goal:
-        0.8,
-
-      claim:
-        0.78,
-
-      user_turn:
-        0.75,
-
-      historical_topic:
-        0.55
-    }[semanticType] ??
-    0.65;
-
-    const salience =
-      recency *
-        0.25 +
-      activeFrameMatch *
-        0.22 +
-      tokenOverlap *
-        0.18 +
-      grammaticalCompatibility *
-        0.15 +
-      typeWeight *
-        0.1 +
-      this.clamp(
-        baseConfidence
-      ) *
-        0.1;
-
-    return {
-      recency:
-        this.roundScore(
-          recency
-        ),
-
-      tokenOverlap:
-        this.roundScore(
-          tokenOverlap
-        ),
-
-      activeFrameMatch:
-        this.roundScore(
-          activeFrameMatch
-        ),
-
-      grammaticalCompatibility:
-        this.roundScore(
-          grammaticalCompatibility
-        ),
-
-      typeWeight:
-        this.roundScore(
-          typeWeight
-        ),
-
-      baseConfidence:
-        this.roundScore(
-          this.clamp(
-            baseConfidence
-          )
-        ),
-
-      salience:
-        this.roundScore(
-          this.clamp(
-            salience
-          )
-        ),
-
-      confidence:
-        this.roundScore(
-          this.clamp(
-            baseConfidence *
-              0.55 +
-            salience *
-              0.45
-          )
-        )
-    };
-  },
-
-  calculateTokenOverlap(
-    a = "",
-    b = ""
-  ) {
-    const left =
-      new Set(
-        this.tokenize(
-          a
-        )
-      );
-
-    const right =
-      new Set(
-        this.tokenize(
-          b
-        )
-      );
-
-    if (
-      !left.size ||
-      !right.size
-    ) {
-      return 0;
-    }
-
-    let overlap = 0;
-
-    left.forEach(
-      token => {
-        if (
-          right.has(
-            token
-          )
-        ) {
-          overlap += 1;
-        }
-      }
-    );
-
-    return overlap /
-      Math.max(
-        left.size,
-        right.size
-      );
-  },
-
-  calculateGrammaticalCompatibility({
-    currentText = "",
-    semanticType = ""
-  } = {}) {
-    if (!currentText) {
-      return 0.4;
-    }
-
-    const elliptical =
-      /^(why|how|really|when|where|who|which|what about|and|but|so|then|because|okay|ok|yes|no)\b/i
-        .test(
-          currentText
-        ) ||
-      currentText.split(
-        /\s+/
-      ).length <=
-        5;
-
-    const pronounReference =
-      /\b(it|that|this|they|them|he|she|him|her|those|these|one|ones|other|another)\b/i
-        .test(
-          currentText
-        );
-
-    if (
-      semanticType ===
-        "assistant_answer" &&
-      elliptical
-    ) {
-      return 1;
-    }
-
-    if (
-      semanticType ===
-        "entity" &&
-      pronounReference
-    ) {
-      return 1;
-    }
-
-    if (
-      semanticType ===
-        "open_loop" &&
-      (
-        elliptical ||
-        pronounReference
-      )
-    ) {
-      return 0.95;
-    }
-
-    if (
-      semanticType ===
-        "topic" &&
-      elliptical
-    ) {
-      return 0.85;
-    }
-
-    return 0.45;
-  },
-
-  shouldRetrieveHistoricalContext({
-    currentTurn = {},
-    activeFrame = {},
-    candidates = []
-  } = {}) {
-    const text =
-      this.normalizeForComparison(
-        currentTurn.originalText ||
-        ""
-      );
-
-    const elliptical =
-      text.split(
-        /\s+/
-      ).filter(Boolean).length <=
-        5 ||
-      /\b(it|that|this|they|them|he|she|him|her|other|another|before|earlier|previous)\b/i
-        .test(
-          text
-        );
-
-    const strongCandidate =
-      candidates.some(
-        candidate =>
-          candidate.salience >=
-          0.72
-      );
-
-    return Boolean(
-      elliptical &&
-      (
-        strongCandidate ||
-        activeFrame.topic
-      )
-    );
-  },
-
-  /* =====================================================
-     CONTINUITY MODE
-  ===================================================== */
-
-  resolveContinuityMode({
-    currentTurn = {},
-    immediate = {},
-    activeFrame = {},
-    historicalHorizon = {}
-  } = {}) {
-    const text =
-      this
-        .normalizeForComparison(
-          currentTurn.originalText ||
-          ""
-        );
-
-    const wordCount =
-      text
-        .split(
-          /\s+/
-        )
-        .filter(Boolean)
-        .length;
-
-    const explicitPriorReference =
-      /\b(earlier|before|previous|last time|we discussed|you said|you mentioned|that|this|it|they|them|he|she|him|her|the other one|another one)\b/i
-        .test(
-          text
-        );
-
-    const elliptical =
-      wordCount <=
-        5 ||
-      /^(why|how|really|what about|and|but|so|then|okay|ok|yes|no)\b/i
-        .test(
-          text
-        );
-
-    if (
-      !immediate.available &&
-      !activeFrame.topic
-    ) {
-      return "direct_current_turn";
-    }
-
-    if (
-      explicitPriorReference &&
-      historicalHorizon
-        .topCandidates
-        ?.length
-    ) {
-      return "reference_follow_up";
-    }
-
-    if (
-      elliptical &&
-      immediate.available
-    ) {
-      return "likely_follow_up";
-    }
-
-    if (
-      activeFrame.topic
-    ) {
-      return "active_topic_continuation";
-    }
-
-    return "direct_current_turn";
-  },
-
-  buildReferenceSignal(
-    currentTurn = {}
-  ) {
-    const text =
-      this.cleanText(
-        currentTurn.originalText ||
-        currentTurn.effectiveText ||
-        ""
-      );
-
-    const match =
-      text.match(
-        /\b(it|that|this|they|them|he|she|him|her|those|these|one|ones|another|the other one)\b/i
-      );
-
-    if (!match) {
-      return {
-        present:
-          false,
-
-        surface:
-          null,
-
-        normalizedSurface:
-          null,
-
-        kind:
-          null,
-
-        resolutionRequired:
-          false,
-
-        resolved:
-          false,
-
-        authority:
-          "reference_signal_detection_only"
-      };
-    }
-
-    return {
-      present:
-        true,
-
-      surface:
-        match[0],
-
-      normalizedSurface:
-        this.normalizeForComparison(
-          match[0]
-        ),
-
-      kind:
-        "context_dependent_reference",
-
-      resolutionRequired:
-        true,
-
-      resolved:
-        false,
-
-      authority:
-        "reference_signal_detection_only"
-    };
-  },
-
-  /* =====================================================
-     COMPACT CONTEXT
-  ===================================================== */
-
-    buildCompactContext({
-    currentTurn = {},
-    immediate = {},
-    activeFrame = {},
-    activeHorizon = {},
-    historicalHorizon = {},
-    continuityMode =
-      "direct_current_turn",
-    referenceSignal = null,
-    turnClassificationPacket = null,
-    referencePacket = null,
-    referenceResolution = null,
-    resolvedSemanticStructure = null
-  } = {}) {
-    const relationship =
-      this.readClassificationRelationship(
-        turnClassificationPacket
-      );
-
-    const relationshipConfidence =
-      this.readClassificationConfidence(
-        turnClassificationPacket
-      );
-
-    const resolvedReferences =
-      this.toArray(
-        referencePacket
-          ?.references
-      );
-
-    const unresolvedReferences =
-      this.toArray(
-        referencePacket
-          ?.unresolvedReferences
-      );
-
-    return {
-      schema:
-        "ari_compact_conversation_context",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source:
-        this.source,
-
-      currentTurn: {
-        id:
-          currentTurn.id ||
-          null,
-
-        turnId:
-          currentTurn.turnId ||
-          currentTurn.id ||
-          null,
-
-        originalText:
-          currentTurn.originalText ||
-          "",
-
-        resolvedText:
-          currentTurn.resolvedText ||
-          null,
-
-        effectiveText:
-          currentTurn.effectiveText ||
-          currentTurn.originalText ||
-          "",
-
-        role:
-          currentTurn.role ||
-          "user",
-
-        relationship,
-
-        relationshipConfidence,
-
-        resolutionStatus:
-          currentTurn
-            .resolutionStatus ||
-          null
-      },
-
-      continuity: {
-        mode:
-          continuityMode,
-
-        relationship,
-
-        relationshipConfidence,
+        referenceSignal,
 
         priorContextAvailable:
           immediate.available ===
           true,
 
-        requiresPriorContext: [
-          "reference_follow_up",
-          "likely_follow_up",
-          "classified_follow_up",
-          "resolved_follow_up",
-          "unresolved_follow_up"
-        ].includes(
-          continuityMode
-        )
-      },
-
-      referenceSignal:
-        referenceSignal ||
-        null,
-
-      referenceResolution: {
-        ran:
-          Boolean(
-            referencePacket ||
-            referenceResolution
-          ),
-
-        confidence:
-          this.clamp(
-            referencePacket
-              ?.confidence ??
-            referenceResolution
-              ?.confidence ??
-            0
-          ),
-
-        primaryReference:
-          referencePacket
-            ?.primaryReference ||
-          null,
-
-        resolvedReferences:
-          resolvedReferences
-            .slice(0, 8),
-
-        unresolvedReferences:
-          unresolvedReferences
-            .slice(0, 8),
-
-        resolvedCount:
-          resolvedReferences.length,
-
-        unresolvedCount:
-          unresolvedReferences.length
-      },
-
-      previousTurn: {
-        user:
-          immediate
-            .previousUserTurn
-            ? {
-                id:
-                  immediate
-                    .previousUserTurn
-                    .id ||
-                  null,
-
-                text:
-                  immediate
-                    .previousUserTurn
-                    .text
-              }
-            : null,
-
-        assistant:
-          immediate
-            .previousAssistantTurn
-            ? {
-                id:
-                  immediate
-                    .previousAssistantTurn
-                    .id ||
-                  null,
-
-                text:
-                  immediate
-                    .previousAssistantTurn
-                    .text
-              }
-            : null
-      },
-
-      recentTurns:
-        this.toArray(
-          immediate.recentTurns
-        )
-          .slice(-6)
-          .map(
-            turn => ({
-              id:
-                turn.id ||
-                null,
-
-              role:
-                turn.role ||
-                "unknown",
-
-              text:
-                turn.text ||
-                "",
-
-              topic:
-                turn.topic ||
-                null
-            })
-          ),
-
-      activeFrame: {
-        topic:
-          activeFrame.topic ||
-          null,
-
-        subject:
-          activeFrame.subject ||
-          null,
-
-        issue:
-          activeFrame.issue ||
-          null,
-
-        goal:
-          activeFrame.goal ||
-          null
-      },
-
-      openLoops:
-        this.toArray(
-          activeHorizon.openLoops
-        ).slice(0, 5),
-
-      unresolvedItems:
-        this.mergeUnique(
-          activeHorizon
-            .unresolvedItems,
-
-          unresolvedReferences
-        ).slice(0, 8),
-
-      activeEntities:
-        this.toArray(
-          activeHorizon.entities
-        ).slice(0, 8),
-
-      activeClaims:
-        this.toArray(
-          activeHorizon.claims
-        ).slice(0, 8),
-
-      referenceCandidates:
-        this.toArray(
-          historicalHorizon
-            .topCandidates
-        )
-          .slice(0, 8)
-          .map(
-            candidate => ({
-              id:
-                candidate.id,
-
-              semanticRef:
-                candidate.semanticRef,
-
-              semanticType:
-                candidate.semanticType,
-
-              label:
-                candidate.label,
-
-              salience:
-                candidate.salience,
-
-              confidence:
-                candidate.confidence,
-
-              source:
-                candidate.source
-            })
-          ),
-
-      semanticResolution: {
-        available:
-          Boolean(
-            resolvedSemanticStructure
-          ),
-
-        schema:
-          resolvedSemanticStructure
-            ?.schema ||
-          null,
-
-        version:
-          resolvedSemanticStructure
-            ?.version ||
-          null,
-
-        inheritedNodes:
-          this.toArray(
-            resolvedSemanticStructure
-              ?.inheritedNodes
-          ).slice(0, 8),
-
-        unresolved:
-          this.toArray(
-            resolvedSemanticStructure
-              ?.unresolved
-          ).slice(0, 8)
-      },
-
-      authority: {
-        stateOwner:
-          "ari-conversation-operating-state",
-
-        relationshipAuthority:
-          turnClassificationPacket
-            ? "ari-turn-classification-packet"
-            : null,
-
-        referenceAuthority:
-          referencePacket
-            ? "ari-reference-packet"
-            : null,
-
-        canProvideReasoningContext:
-          true,
-
-        canReclassifyRelationship:
-          false,
-
-        canResolveReferences:
-          false,
-
-        canRewriteCurrentTurn:
-          false,
-
-        role:
-          "bounded_authoritative_context_projection"
-      }
-    };
-  },
-
-  /* =====================================================
-     PERSISTENCE
-  ===================================================== */
-
-  completeRecentTurns({
-    existingTurns = [],
-    currentTurn = {},
-    finalResponse = "",
-    summary = {},
-    createdAt = null
-  } = {}) {
-    const turns =
-      this.toArray(
-        existingTurns
-      );
-
-    const userText =
-      this.cleanText(
-        currentTurn.originalText ||
-        summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        ""
-      );
-
-    const additions = [];
-
-    if (userText) {
-      additions.push({
-        id:
-          currentTurn.id ||
-          null,
-
-        role:
-          "user",
-
-        text:
-          userText,
-
-        createdAt:
-          currentTurn.createdAt ||
-          createdAt,
-
-        topic:
-          this.normalizeTopic(
-            summary.activeTopic ||
-            summary.activeSubject
-          ),
-
-        semanticMeaning:
-          summary
-            .latestConversationMeaning ||
-          summary.semanticSummary ||
-          null,
-
-        emotionalState:
-          summary.humanState
-            ?.primaryState ||
-          summary.humanState
-            ?.state ||
-          summary.emotion ||
-          null
-      });
-    }
-
-    if (finalResponse) {
-      additions.push({
-        id:
-          null,
-
-        role:
-          "assistant",
-
-        text:
-          finalResponse,
-
-        createdAt,
-
-        topic:
-          this.normalizeTopic(
-            summary.activeTopic ||
-            summary.activeSubject
-          ),
-
-        semanticMeaning:
-          null,
-
-        emotionalState:
-          summary.emotion ||
-          null
-      });
-    }
-
-    return this
-      .dedupeRecentTurns([
-        ...turns,
-        ...additions
-      ])
-      .slice(-12);
-  },
-
-  buildPersistedState({
-    summary = {},
-    existing = {},
-    recentTurns = [],
-    activeFrame = {},
-    finalResponse = "",
-    createdAt = null
-  } = {}) {
-    const previous =
-      existing.rawStoredState ||
-      {};
-
-    const userTurns =
-      recentTurns.filter(
-        turn =>
-          turn.role ===
-          "user"
-      );
-
-    const assistantTurns =
-      recentTurns.filter(
-        turn =>
-          turn.role ===
-          "assistant"
-      );
-
-    const activeHorizon =
-      existing.activeHorizon ||
-      {};
-
-    const topic =
-      activeFrame.topic ||
-      previous.currentTopic ||
-      this.deriveTopicFromText(
-        existing.currentTurn
-          ?.originalText
-      ) ||
-      "general_thread";
-
-    return {
-      ...previous,
-
-      schema:
-        "ari_persisted_conversation_state",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      conversationId:
-        existing.conversationId ||
-        previous.conversationId ||
-        this.createConversationId(),
-
-      turnIndex:
-        this.numberOr(
-          existing.turnIndex,
-          0
-        ),
-
-      currentTopic:
-        topic,
-
-      activeTopic:
-        topic,
-
-      activeSubject:
-        activeFrame.subject ||
-        previous.activeSubject ||
-        null,
-
-      activeIssue:
-        activeFrame.issue ||
-        previous.activeIssue ||
-        null,
-
-      activeGoal:
-        activeFrame.goal ||
-        previous.activeGoal ||
-        null,
-
-      recentTurns,
-
-      lastMessages:
-        userTurns
-          .map(
-            turn =>
-              turn.text
-          )
-          .slice(-8),
-
-      immediatePreviousUserTurn:
-        userTurns.length
-          ? userTurns[
-              userTurns.length -
-              1
-            ]
-          : null,
-
-      immediatePreviousAssistantTurn:
-        assistantTurns.length
-          ? assistantTurns[
-              assistantTurns.length -
-              1
-            ]
-          : null,
-
-      activeClaims:
-        this.toArray(
-          activeHorizon.claims
-        ).slice(-16),
-
-      activeEntities:
-        this.toArray(
-          activeHorizon.entities
-        ).slice(-16),
-
-      activeEvents:
-        this.toArray(
-          activeHorizon.events
-        ).slice(-12),
-
-      activeRelations:
-        this.toArray(
-          activeHorizon.relations
-        ).slice(-16),
-
-      activeConstraints:
-        this.toArray(
-          activeHorizon.constraints
-        ).slice(-12),
-
-      openLoops:
-        this.toArray(
-          activeHorizon.openLoops
-        ).slice(-12),
-
-      unresolvedItems:
-        this.toArray(
-          activeHorizon
-            .unresolvedItems
-        ).slice(-12),
-
-      topicHistory:
-        this.buildTopicHistory({
-          previous:
-            previous.topicHistory,
-          currentTopic:
-            topic,
-          createdAt
-        }),
-
-      continuitySummary:
-        existing.currentTurn
-          ?.originalText &&
-        finalResponse
-          ? `User said: ${existing.currentTurn.originalText}. Ari answered: ${finalResponse.slice(0, 300)}`
-          : previous
-              .continuitySummary ||
-            null,
-
-      previousAnswerSummary:
-        finalResponse
-          ? finalResponse.slice(
-              0,
-              500
-            )
-          : previous
-              .previousAnswerSummary ||
-            null,
-
-      lastFinalResponse:
-        finalResponse ||
-        previous.lastFinalResponse ||
-        null,
-
-      latestConversationMeaning:
-        summary
-          .latestConversationMeaning ||
-        previous
-          .latestConversationMeaning ||
-        null,
-
-      activeSemanticFrame:
-        summary
-          .activeSemanticFrame ||
-        previous
-          .activeSemanticFrame ||
-        null,
-
-      conversationMeaningFocus:
-        summary
-          .conversationMeaningFocus ||
-        previous
-          .conversationMeaningFocus ||
-        null,
-
-      conversationMeaningHistory:
-        summary
-          .conversationMeaningHistory ||
-        previous
-          .conversationMeaningHistory ||
-        [],
-
-      activeSemanticTimeline:
-        summary
-          .activeSemanticTimeline ||
-        previous
-          .activeSemanticTimeline ||
-        [],
-
-      lastMealEstimate:
-        summary.mealEstimate ||
-        summary.lastMealEstimate ||
-        previous.lastMealEstimate ||
-        null,
-
-      lastUpdatedAt:
-        createdAt ||
-        new Date()
-          .toISOString()
-    };
-  },
-
-  buildTopicHistory({
-    previous = [],
-    currentTopic = null,
-    createdAt = null
-  } = {}) {
-    const history =
-      this.toArray(
-        previous
-      )
-        .map(
-          item => {
-            if (
-              typeof item ===
-              "string"
-            ) {
-              return {
-                topic:
-                  this.normalizeTopic(
-                    item
-                  ),
-
-                createdAt:
-                  null
-              };
-            }
-
-            return {
-              ...item,
-
-              topic:
-                this.normalizeTopic(
-                  item?.topic ||
-                  item?.label ||
-                  item?.value ||
-                  item
-                )
-            };
-          }
-        )
-        .filter(
-          item =>
-            item.topic
-        );
-
-    const latest =
-      history.length
-        ? history[
-            history.length -
-            1
-          ].topic
-        : null;
-
-    if (
-      currentTopic &&
-      this
-        .normalizeForComparison(
-          latest
-        ) !==
-      this
-        .normalizeForComparison(
-          currentTopic
-        )
-    ) {
-      history.push({
-        topic:
-          currentTopic,
-
-        createdAt:
-          createdAt ||
-          new Date()
-            .toISOString()
-      });
-    }
-
-    return history.slice(-12);
-  },
-
-  /* =====================================================
-     COMPATIBILITY
-  ===================================================== */
-
-  attachCompatibilityAliases({
-    summary = {},
-    operatingState = {},
-    storedState = {},
-    recentTurns = [],
-    immediate = {},
-    activeFrame = {},
-    activeHorizon = {}
-  } = {}) {
-    const continuityMode =
-      operatingState.continuityMode ||
-      "direct_current_turn";
-
-     const isFollowUp =
-      [
-        "reference_follow_up",
-        "likely_follow_up",
-        "active_topic_continuation",
-        "classified_follow_up",
-        "resolved_follow_up",
-        "unresolved_follow_up"
-      ].includes(
-        continuityMode
-      );
-
-    const requiresPriorContext =
-      [
-        "reference_follow_up",
-        "likely_follow_up",
-        "classified_follow_up",
-        "resolved_follow_up",
-        "unresolved_follow_up"
-      ].includes(
-        continuityMode
-      );
-
-    const priorContextAvailable =
-      operatingState
-        .priorContextAvailable ===
-      true;
-
-    const referenceSignal =
-      operatingState.referenceSignal ||
-      {
-        present:
-          false,
-
-        surface:
-          null,
-
-        normalizedSurface:
-          null,
-
-        kind:
-          null,
-
-        resolutionRequired:
-          false,
-
-        resolved:
-          false,
-
-        authority:
-          "reference_signal_detection_only"
-      };
-
-    const storedThreadEvidenceAvailable =
-      Boolean(
-        storedState.conversationId ||
-        storedState.lastUpdatedAt ||
-        storedState.recentTurns
-          ?.length ||
-        storedState.lastFinalResponse ||
-        storedState.previousAnswerSummary ||
-        storedState.currentTopic ||
-        storedState.activeSubject
-      );
-
-    const threadContext = {
-      schema:
-        "ari_thread_context",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      ran:
-        true,
-
-      available:
-        priorContextAvailable,
-
-      continuityMode,
-
-      isFollowUp,
-
-      requiresPriorContext,
-
-      priorContextAvailable,
-
-      referenceSignal,
-
-      currentTopic:
-        activeFrame.topic ||
-        null,
-
-      activeTopic:
-        activeFrame.topic ||
-        null,
-
-      activeSubject:
-        activeFrame.subject ||
-        null,
-
-      activeIssue:
-        activeFrame.issue ||
-        null,
-
-      activeGoal:
-        activeFrame.goal ||
-        null,
-
-      previousAnswer:
-        immediate
-          .previousAssistantTurn
-          ?.text ||
-        storedState
-          .previousAnswerSummary ||
-        storedState
-          .lastFinalResponse ||
-        null,
-
-      previousAnswerSummary:
-        storedState
-          .previousAnswerSummary ||
-        null,
-
-      lastFinalResponse:
-        storedState
-          .lastFinalResponse ||
-        null,
-
-      immediatePreviousUserTurn:
-        immediate
-          .previousUserTurn ||
-        null,
-
-      immediatePreviousAssistantTurn:
-        immediate
-          .previousAssistantTurn ||
-        null,
-
-      recentTurns,
-
-      recentMessages:
-        recentTurns,
-
-      lastMessages:
-        recentTurns
-          .filter(
-            turn =>
-              turn.role ===
-              "user"
-          )
-          .map(
-            turn =>
-              turn.text
-          ),
-
-      continuitySummary:
-        storedState
-          .continuitySummary ||
-        null,
-
-      workingContext: {
-        summary:
-          storedState
-            .continuitySummary ||
-          null,
-
-        continuityMode,
-
-        isFollowUp,
-
-        requiresPriorContext,
-
-        priorContextAvailable,
-
-        referenceSignal,
-
         referenceCandidates:
-          operatingState
+          historicalHorizon
             .referenceCandidates ||
           [],
 
-        activeTopic:
-          activeFrame.topic ||
-          null,
-
-        activeSubject:
-          activeFrame.subject ||
-          null,
-
-        activeIssue:
-          activeFrame.issue ||
-          null,
-
-        activeGoal:
-          activeFrame.goal ||
-          null,
-
-        immediatePreviousUserTurn:
-          immediate
-            .previousUserTurn ||
-          null,
-
-        immediatePreviousAssistantTurn:
-          immediate
-            .previousAssistantTurn ||
-          null,
-
-        recentTurns,
-
-        keyFacts:
-          activeHorizon.claims ||
-          [],
-
         openLoops:
-          activeHorizon
-            .openLoops ||
-          [],
-
-        constraints:
-          activeHorizon
-            .constraints ||
+          activeHorizon.openLoops ||
           [],
 
         unresolvedItems:
@@ -5221,1255 +1170,1399 @@ async runTurnIntake({
             .unresolvedItems ||
           [],
 
+        confidence:
+          typeof this
+            .calculateOperatingStateConfidence ===
+            "function"
+            ? this.calculateOperatingStateConfidence({
+                currentTurn,
+                immediate,
+                activeFrame,
+                recentTurns
+              })
+            : 0.5,
+
+        degraded:
+          true,
+
+        degradedReason:
+          reason,
+
+        limitations: [
+          "canonical_turn_packet_not_available",
+          "authoritative_continuity_not_confirmed",
+          "reference_resolution_not_authoritative"
+        ],
+
+        compactContext:
+          typeof this
+            .buildCompactContext ===
+            "function"
+            ? this.buildCompactContext({
+                currentTurn,
+                immediate,
+                activeFrame,
+                activeHorizon,
+                historicalHorizon,
+                continuityMode,
+                referenceSignal
+              })
+            : {
+                currentTurn: {
+                  originalText
+                }
+              },
+
+        rawStoredState:
+          storedState,
+
         authority:
-          "conversation_operating_state_compatibility_alias"
-      },
+          typeof this
+            .getAuthorityBoundaries ===
+            "function"
+            ? this.getAuthorityBoundaries()
+            : {}
+      };
 
-      activeClaims:
-        activeHorizon.claims ||
-        [],
+      const projected = {
+        ...summary,
+        ...intakeState,
 
-      activeEntities:
-        activeHorizon.entities ||
-        [],
+        conversationOperatingState:
+          operatingState,
 
-      activeEvents:
-        activeHorizon.events ||
-        [],
+        currentTurn,
 
-      activeRelations:
-        activeHorizon.relations ||
-        [],
+        turnPacket:
+          null,
 
-      activeConstraints:
-        activeHorizon
-          .constraints ||
-        [],
+        originalUserMessage:
+          originalText,
 
-      unresolvedItems:
-        activeHorizon
-          .unresolvedItems ||
-        [],
+        userMessage:
+          originalText,
 
-      openLoops:
-        activeHorizon
-          .openLoops ||
-        [],
+        effectiveUserMessage:
+          originalText
+      };
 
-      topicHistory:
-        storedState
-          .topicHistory ||
-        [],
+      return {
+        ...summary,
+        ...intakeState,
+        ...projected,
 
-      conversationMeaningHistory:
-        storedState
-          .conversationMeaningHistory ||
-        [],
+        conversationOperatingState:
+          operatingState,
 
-      latestConversationMeaning:
-        activeHorizon
-          .latestConversationMeaning ||
-        null,
+        currentTurn,
 
-      activeSemanticTimeline:
-        storedState
-          .activeSemanticTimeline ||
-        [],
+        originalUserMessage:
+          originalText,
 
-      activeSemanticFrame:
-        activeFrame.semanticFrame ||
-        storedState
-          .activeSemanticFrame ||
-        null,
+        userMessage:
+          originalText,
 
-      conversationMeaningFocus:
-        activeHorizon
-          .conversationMeaningFocus ||
-        null,
+        effectiveUserMessage:
+          originalText,
 
-      conversationMeaningOpenLoops:
-        activeHorizon
-          .openLoops ||
-        [],
-
-      referenceCandidates:
-        operatingState
-          .referenceCandidates ||
-        [],
-
-      confidence:
-        operatingState.confidence ||
-        0,
-
-      authority: {
-        canProvideStoredThreadContext:
+        conversationOperatingStateRan:
           true,
 
-        canPreserveRecentTurns:
+        conversationOperatingStateReady:
+          false,
+
+        conversationOperatingStateUsable:
           true,
 
-        canExposeContinuityRequirements:
+        conversationOperatingStateDegraded:
           true,
 
-        canDetectReferenceSignal:
+        conversationOperatingStateMode:
+          "degraded_current_turn",
+
+        conversationOperatingStateSource:
+          this.source,
+
+        conversationOperatingStateVersion:
+          this.version,
+
+        conversationOperatingStateError:
+          reason,
+
+        conversationOperatingStateErrors:
+          unique([
+            intakeState
+              .turnIntakeValidation
+              ?.errors,
+            intakeState
+              .turnIntakeEngineError,
+            reason
+          ]),
+
+        conversationOperatingStateWarnings:
+          unique([
+            intakeState
+              .turnIntakeValidation
+              ?.warnings,
+            "runtime_continued_without_authoritative_turn_packet"
+          ])
+      };
+    };
+
+  /* =====================================================
+     BEGIN TURN
+  ===================================================== */
+
+  cos.buildAuthoritativeOrDegradedState =
+    async function buildAuthoritativeOrDegradedState(
+      summary = {}
+    ) {
+      let storedState =
+        null;
+
+      let storedStateError =
+        null;
+
+      try {
+        storedState =
+          typeof this
+            .loadStoredState ===
+            "function"
+            ? await this.loadStoredState()
+            : null;
+      } catch (error) {
+        storedStateError =
+          error?.message ||
+          String(error);
+
+        console.warn(
+          "Ari COS stored-state load failed; continuing without stored state:",
+          error
+        );
+
+        storedState =
+          null;
+      }
+
+      const normalizedStored =
+        typeof this
+          .normalizeStoredState ===
+          "function"
+          ? this.normalizeStoredState(
+              storedState
+            )
+          : (
+              readObject(
+                storedState
+              ) || {}
+            );
+
+      const recentTurns =
+        typeof this
+          .buildRecentTurns ===
+          "function"
+          ? this.buildRecentTurns({
+              summary,
+              storedState:
+                normalizedStored
+            })
+          : [];
+
+      const intakeState =
+        await this.runTurnIntake({
+          summary,
+          storedState:
+            normalizedStored,
+          recentTurns
+        });
+
+      if (
+        intakeState
+          .turnIntakeEngineReady !==
+          true ||
+        !intakeState.turnPacket
+      ) {
+        return this
+          .buildDegradedOperatingState({
+            summary,
+            intakeState,
+            storedState:
+              normalizedStored,
+            recentTurns,
+            reason:
+              intakeState
+                .turnIntakeEngineError ||
+              "canonical_turn_packet_not_ready"
+          });
+      }
+
+      const input =
+        this.normalizeCurrentTurnInput(
+          intakeState
+        );
+
+      if (
+        !input.currentTurn ||
+        !input.turnPacket
+      ) {
+        return this
+          .buildDegradedOperatingState({
+            summary,
+            intakeState,
+            storedState:
+              normalizedStored,
+            recentTurns,
+            reason:
+              "canonical_turn_projection_failed"
+          });
+      }
+
+      const immediate =
+        this.resolveImmediateHorizon(
+          recentTurns
+        );
+
+      const activeFrame =
+        this.buildActiveFrame({
+          summary:
+            intakeState,
+          storedState:
+            normalizedStored,
+          immediate
+        });
+
+      const activeHorizon =
+        this.buildActiveHorizon({
+          summary:
+            intakeState,
+          storedState:
+            normalizedStored,
+          activeFrame
+        });
+
+      const historicalHorizon =
+        this.buildHistoricalHorizon({
+          summary:
+            intakeState,
+          storedState:
+            normalizedStored,
+          recentTurns,
+          activeFrame,
+          activeHorizon,
+          currentTurn:
+            input.currentTurn
+        });
+
+      const continuityMode =
+        this.resolveContinuityMode({
+          currentTurn:
+            input.currentTurn,
+          immediate,
+          activeFrame,
+          historicalHorizon
+        });
+
+      const referenceSignal =
+        this.buildReferenceSignal(
+          input.currentTurn
+        );
+
+      const operatingState = {
+        schema:
+          "ari_conversation_operating_state",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        authorityLevel:
+          this.authorityLevel,
+
+        createdAt:
+          new Date().toISOString(),
+
+        conversationId:
+          input.turnPacket
+            ?.conversationId ||
+          normalizedStored
+            .conversationId ||
+          intakeState
+            .conversationId ||
+          (
+            typeof this
+              .createConversationId ===
+              "function"
+              ? this.createConversationId()
+              : null
+          ),
+
+        turnIndex:
+          this.resolveTurnIndex({
+            summary:
+              intakeState,
+            storedState:
+              normalizedStored,
+            recentTurns
+          }),
+
+        turnPacket:
+          input.turnPacket,
+
+        currentTurn:
+          input.currentTurn,
+
+        immediateHorizon:
+          immediate,
+
+        activeHorizon,
+
+        historicalHorizon,
+
+        activeFrame,
+
+        continuityMode,
+
+        referenceSignal,
+
+        priorContextAvailable:
+          recentTurns.length >
+          0,
+
+        referenceCandidates:
+          historicalHorizon
+            .referenceCandidates,
+
+        openLoops:
+          activeHorizon
+            .openLoops,
+
+        unresolvedItems:
+          activeHorizon
+            .unresolvedItems,
+
+        confidence:
+          this.calculateOperatingStateConfidence({
+            currentTurn:
+              input.currentTurn,
+            immediate,
+            activeFrame,
+            recentTurns
+          }),
+
+        degraded:
+          false,
+
+        degradedReason:
+          null,
+
+        limitations:
+          [],
+
+        compactContext:
+          this.buildCompactContext({
+            currentTurn:
+              input.currentTurn,
+            immediate,
+            activeFrame,
+            activeHorizon,
+            historicalHorizon,
+            continuityMode,
+            referenceSignal
+          }),
+
+        rawStoredState:
+          normalizedStored,
+
+        authority:
+          this.getAuthorityBoundaries()
+      };
+
+      let result =
+        originalAttachCompatibilityAliases
+          ? originalAttachCompatibilityAliases({
+              summary:
+                intakeState,
+              operatingState,
+              storedState:
+                normalizedStored,
+              recentTurns,
+              immediate,
+              activeFrame,
+              activeHorizon
+            })
+          : {
+              ...intakeState,
+
+              conversationOperatingState:
+                operatingState
+            };
+
+      return {
+        ...summary,
+        ...intakeState,
+        ...result,
+
+        conversationOperatingState:
+          operatingState,
+
+        currentTurn:
+          input.currentTurn,
+
+        conversationOperatingStateRan:
           true,
 
-        canChooseCurrentMeaning:
+        conversationOperatingStateReady:
+          true,
+
+        conversationOperatingStateUsable:
+          true,
+
+        conversationOperatingStateDegraded:
           false,
 
-        canChooseRequestedOperation:
+        conversationOperatingStateMode:
+          "authoritative",
+
+        conversationOperatingStateSource:
+          this.source,
+
+        conversationOperatingStateVersion:
+          this.version,
+
+        conversationOperatingStateError:
+          null,
+
+        conversationOperatingStateErrors:
+          [],
+
+        conversationOperatingStateWarnings:
+          unique([
+            intakeState
+              .turnIntakeValidation
+              ?.warnings,
+
+            storedStateError
+              ? "stored_conversation_state_unavailable"
+              : null
+          ])
+      };
+    };
+
+  cos.beginTurn =
+    async function beginTurn(
+      summary = {}
+    ) {
+      try {
+        return await this
+          .buildAuthoritativeOrDegradedState(
+            summary
+          );
+      } catch (error) {
+        console.error(
+          "Ari COS beginTurn failed; recovering with minimal current-turn state:",
+          error
+        );
+
+        const originalText =
+          this.extractUsableCurrentTurnText(
+            summary
+          );
+
+        if (!originalText) {
+          return {
+            ...summary,
+
+            conversationOperatingState:
+              null,
+
+            conversationOperatingStateRan:
+              true,
+
+            conversationOperatingStateReady:
+              false,
+
+            conversationOperatingStateUsable:
+              false,
+
+            conversationOperatingStateDegraded:
+              false,
+
+            conversationOperatingStateMode:
+              "unavailable",
+
+            conversationOperatingStateSource:
+              this.source,
+
+            conversationOperatingStateVersion:
+              this.version,
+
+            conversationOperatingStateError:
+              "current_turn_text_not_available",
+
+            conversationOperatingStateErrors:
+              unique([
+                error?.message ||
+                String(error),
+                "current_turn_text_not_available"
+              ]),
+
+            conversationOperatingStateWarnings:
+              []
+          };
+        }
+
+        const currentTurn = {
+          schema:
+            "ari_conversation_turn_projection",
+
+          schemaVersion:
+            this.schemaVersion,
+
+          id:
+            summary.currentTurnId ||
+            summary.turnId ||
+            null,
+
+          turnId:
+            summary.currentTurnId ||
+            summary.turnId ||
+            null,
+
+          role:
+            "user",
+
+          source:
+            summary.turnSource ||
+            "user",
+
+          conversationId:
+            summary.conversationId ||
+            summary.request
+              ?.conversation
+              ?.conversationId ||
+            null,
+
+          threadId:
+            summary.threadId ||
+            summary.request
+              ?.thread
+              ?.threadId ||
+            null,
+
+          originalText,
+
+          resolvedText:
+            null,
+
+          effectiveText:
+            originalText,
+
+          normalizedText:
+            cleanText(originalText)
+              .toLowerCase(),
+
+          createdAt:
+            summary.timestamp ||
+            new Date().toISOString(),
+
+          previousTurnAvailable:
+            false,
+
+          resolutionStatus:
+            "emergency_degraded_unresolved",
+
+          textWasRewritten:
+            false,
+
+          originalTextPreserved:
+            true,
+
+          authority: {
+            owner:
+              "ari-conversation-operating-state",
+
+            sourceAuthority:
+              "runtime_request_emergency_fallback",
+
+            projection:
+              true,
+
+            canonical:
+              false,
+
+            provisional:
+              true,
+
+            canReplaceTurnPacket:
+              false,
+
+            role:
+              "minimal_emergency_current_turn_projection"
+          }
+        };
+
+        const operatingState = {
+          schema:
+            "ari_conversation_operating_state",
+
+          schemaVersion:
+            this.schemaVersion,
+
+          source:
+            this.source,
+
+          version:
+            this.version,
+
+          authorityLevel:
+            "emergency_degraded_conversation_operating_state",
+
+          createdAt:
+            new Date().toISOString(),
+
+          conversationId:
+            currentTurn.conversationId,
+
+          turnIndex:
+            null,
+
+          turnPacket:
+            null,
+
+          currentTurn,
+
+          immediateHorizon: {
+            available:
+              false,
+
+            recentTurns:
+              [],
+
+            previousUserTurn:
+              null,
+
+            previousAssistantTurn:
+              null
+          },
+
+          activeHorizon: {
+            openLoops:
+              [],
+
+            unresolvedItems:
+              []
+          },
+
+          historicalHorizon: {
+            referenceCandidates:
+              [],
+
+            topCandidates:
+              []
+          },
+
+          activeFrame:
+            {},
+
+          continuityMode:
+            "direct_current_turn",
+
+          referenceSignal: {
+            detected:
+              false,
+
+            resolutionRequired:
+              false
+          },
+
+          priorContextAvailable:
+            false,
+
+          referenceCandidates:
+            [],
+
+          openLoops:
+            [],
+
+          unresolvedItems:
+            [],
+
+          confidence:
+            0.25,
+
+          degraded:
+            true,
+
+          degradedReason:
+            "conversation_operating_state_execution_failed",
+
+          limitations: [
+            "canonical_turn_packet_not_available",
+            "continuity_processing_failed",
+            "reference_resolution_not_authoritative"
+          ],
+
+          compactContext: {
+            currentTurn: {
+              originalText
+            }
+          },
+
+          rawStoredState:
+            {},
+
+          authority:
+            safeCall(
+              () =>
+                this.getAuthorityBoundaries(),
+              {},
+              "getAuthorityBoundaries_emergency"
+            )
+        };
+
+        return {
+          ...summary,
+
+          conversationOperatingState:
+            operatingState,
+
+          currentTurn,
+
+          turnPacket:
+            null,
+
+          originalUserMessage:
+            originalText,
+
+          userMessage:
+            originalText,
+
+          effectiveUserMessage:
+            originalText,
+
+          conversationOperatingStateRan:
+            true,
+
+          conversationOperatingStateReady:
+            false,
+
+          conversationOperatingStateUsable:
+            true,
+
+          conversationOperatingStateDegraded:
+            true,
+
+          conversationOperatingStateMode:
+            "emergency_degraded_current_turn",
+
+          conversationOperatingStateSource:
+            this.source,
+
+          conversationOperatingStateVersion:
+            this.version,
+
+          conversationOperatingStateError:
+            "conversation_operating_state_execution_failed",
+
+          conversationOperatingStateErrors:
+            unique([
+              error?.message ||
+              String(error),
+              "conversation_operating_state_execution_failed"
+            ]),
+
+          conversationOperatingStateWarnings: [
+            "runtime_continued_with_minimal_current_turn_state"
+          ]
+        };
+      }
+    };
+
+  cos.build =
+    function build(
+      summary = {}
+    ) {
+      return this.beginTurn(
+        summary
+      );
+    };
+
+  /* =====================================================
+     COMPATIBILITY PROJECTION
+  ===================================================== */
+
+  cos.attachCompatibilityAliases =
+    function attachCompatibilityAliases(
+      input = {}
+    ) {
+      const summary =
+        input.summary ||
+        {};
+
+      const operatingState =
+        input.operatingState ||
+        {};
+
+      let result = {
+        ...summary,
+
+        conversationOperatingState:
+          operatingState
+      };
+
+      if (
+        originalAttachCompatibilityAliases
+      ) {
+        result =
+          originalAttachCompatibilityAliases(
+            input
+          );
+      }
+
+      const turnPacket =
+        operatingState.turnPacket ||
+        summary.turnPacket ||
+        null;
+
+      const currentTurn =
+        operatingState.currentTurn ||
+        result.currentTurn ||
+        null;
+
+      const originalMessage =
+        firstText(
+          turnPacket
+            ?.originalMessage,
+          currentTurn
+            ?.originalText,
+          summary
+            .originalUserMessage,
+          summary.userMessage,
+          summary.message,
+          summary.input
+        );
+
+      const effectiveMessage =
+        firstText(
+          currentTurn
+            ?.effectiveText,
+          originalMessage
+        );
+
+      const degraded =
+        operatingState.degraded ===
+        true;
+
+      const usable =
+        Boolean(
+          effectiveMessage
+        );
+
+      return {
+        ...result,
+
+        conversationOperatingState:
+          operatingState,
+
+        turnPacket,
+
+        currentTurn,
+
+        currentTurnId:
+          currentTurn?.turnId ||
+          turnPacket?.turnId ||
+          null,
+
+        originalUserMessage:
+          originalMessage,
+
+        userMessage:
+          effectiveMessage,
+
+        effectiveUserMessage:
+          effectiveMessage,
+
+        turnIntakeEngineRan:
+          summary
+            .turnIntakeEngineRan ===
+          true,
+
+        turnIntakeEngineReady:
+          summary
+            .turnIntakeEngineReady ===
+          true,
+
+        turnIntakeEngineUsable:
+          summary
+            .turnIntakeEngineUsable ===
+          true ||
+          usable,
+
+        turnIntakeEngineSource:
+          summary
+            .turnIntakeEngineSource ||
+          null,
+
+        turnIntakeEngineVersion:
+          summary
+            .turnIntakeEngineVersion ||
+          null,
+
+        turnIntakeEngineError:
+          summary
+            .turnIntakeEngineError ||
+          null,
+
+        turnIntakeValidation:
+          summary
+            .turnIntakeValidation ||
+          turnPacket?.validation ||
+          null,
+
+        conversationOperatingStateRan:
+          true,
+
+        conversationOperatingStateReady:
+          !degraded &&
+          usable,
+
+        conversationOperatingStateUsable:
+          usable,
+
+        conversationOperatingStateDegraded:
+          degraded,
+
+        conversationOperatingStateMode:
+          degraded
+            ? "degraded_current_turn"
+            : "authoritative",
+
+        conversationOperatingStateSource:
+          this.source,
+
+        conversationOperatingStateVersion:
+          this.version
+      };
+    };
+
+  /* =====================================================
+     COMPLETION / PERSISTENCE SEPARATION
+  ===================================================== */
+
+  if (originalCompleteTurn) {
+    cos.completeTurn =
+      async function completeTurn(
+        summary = {}
+      ) {
+        try {
+          const result =
+            await originalCompleteTurn(
+              summary
+            );
+
+          const persistence =
+            result
+              ?.conversationOperatingState
+              ?.persistence ||
+            result?.persistence ||
+            {};
+
+          const persisted =
+            persistence.saved ===
+              true ||
+            result.threadSaveSucceeded ===
+              true ||
+            result.threadStatePersisted ===
+              true;
+
+          const persistenceAttempted =
+            result.threadSaveRan ===
+              true ||
+            persistence.attempted ===
+              true;
+
+          return {
+            ...summary,
+            ...result,
+
+            // Turn lifecycle completion is independent from storage success.
+            conversationOperatingStateCompleted:
+              true,
+
+            conversationOperatingStateCompletionRan:
+              true,
+
+            conversationOperatingStateCompletionReason:
+              persisted
+                ? "completed_and_persisted"
+                : persistenceAttempted
+                  ? "completed_persistence_failed"
+                  : "completed_without_persistence",
+
+            conversationOperatingStatePersisted:
+              persisted,
+
+            conversationOperatingStatePersistenceRequired:
+              false,
+
+            conversationOperatingStateCompletionSource:
+              this.source,
+
+            conversationOperatingStateCompletionVersion:
+              this.version
+          };
+        } catch (error) {
+          console.error(
+            "Ari COS completion failed:",
+            error
+          );
+
+          return {
+            ...summary,
+
+            conversationOperatingStateCompleted:
+              true,
+
+            conversationOperatingStateCompletionRan:
+              true,
+
+            conversationOperatingStateCompletionReason:
+              "completed_persistence_or_cleanup_failed",
+
+            conversationOperatingStateCompletionError:
+              error?.message ||
+              String(error),
+
+            conversationOperatingStatePersisted:
+              false,
+
+            conversationOperatingStatePersistenceRequired:
+              false,
+
+            conversationOperatingStateCompletionSource:
+              this.source,
+
+            conversationOperatingStateCompletionVersion:
+              this.version
+          };
+        }
+      };
+  }
+
+  /* =====================================================
+     AUTHORITY BOUNDARIES
+  ===================================================== */
+
+  cos.getAuthorityBoundaries =
+    function getAuthorityBoundaries() {
+      const existing =
+        originalGetAuthorityBoundaries
+          ? originalGetAuthorityBoundaries()
+          : {};
+
+      return {
+        ...existing,
+
+        canCoordinateTurnIntake:
+          true,
+
+        canConsumeCanonicalTurnPacket:
+          true,
+
+        canProjectTurnForContinuity:
+          true,
+
+        canBuildDegradedCurrentTurnProjection:
+          true,
+
+        canReportRuntimeUsability:
+          true,
+
+        canStopGlobalRuntime:
           false,
 
-        canResolveReferences:
+        canCreateCanonicalTurnPacket:
           false,
 
-        canChooseRoute:
+        canGenerateCanonicalTurnId:
           false,
 
-        canAnswerUser:
+        canCreateConversationId:
+          false,
+
+        persistenceRequiredForCompletion:
           false,
 
         role:
-          "conversation_operating_state_compatibility_projection"
-      }
+          "authoritative_conversation_state_provider_not_global_runtime_gatekeeper"
+      };
     };
 
-    return {
-      ...summary,
-
-turnPacket:
-  operatingState.turnPacket ||
-  summary.turnPacket ||
-  null,
-
-currentTurn:
-  operatingState.currentTurn ||
-  null,
-
-currentTurnId:
-  operatingState.currentTurn
-    ?.turnId ||
-  operatingState.turnPacket
-    ?.turnId ||
-  null,
-
-originalUserMessage:
-  operatingState.turnPacket
-    ?.originalMessage ||
-  summary.originalUserMessage ||
-  summary.userMessage ||
-  summary.message ||
-  summary.input ||
-  "",
-
-userMessage:
-  operatingState.currentTurn
-    ?.effectiveText ||
-  operatingState.turnPacket
-    ?.originalMessage ||
-  summary.userMessage ||
-  summary.message ||
-  summary.input ||
-  "",
-
-effectiveUserMessage:
-  operatingState.currentTurn
-    ?.effectiveText ||
-  operatingState.turnPacket
-    ?.originalMessage ||
-  "",
-
-turnIntakeEngineRan:
-  summary.turnIntakeEngineRan ===
-  true,
-
-turnIntakeEngineReady:
-  summary.turnIntakeEngineReady ===
-  true,
-
-turnIntakeEngineSource:
-  summary.turnIntakeEngineSource ||
-  null,
-
-turnIntakeEngineVersion:
-  summary.turnIntakeEngineVersion ||
-  null,
-
-turnIntakeEngineError:
-  summary.turnIntakeEngineError ||
-  null,
-
-turnIntakeValidation:
-  summary.turnIntakeValidation ||
-  operatingState.turnPacket
-    ?.validation ||
-  null,
-
-      conversationOperatingState:
-        operatingState,
-
-      conversationOperatingStateReady:
-        true,
-
-      conversationOperatingStateRan:
-        true,
-
-      conversationOperatingStateSource:
-        this.source,
-
-      conversationOperatingStateVersion:
-        this.version,
-
-      continuityMode,
-
-      isFollowUp,
-
-      requiresPriorContext,
-
-      priorContextAvailable,
-
-      referenceSignal,
-
-      threadStateLoaded:
-        storedThreadEvidenceAvailable,
-
-      threadState:
-        storedState,
-
-      threadContext,
-
-      currentThreadContext:
-        threadContext,
-
-      recentTurns,
-
-      recentMessages:
-        recentTurns,
-
-      immediatePreviousUserTurn:
-        immediate
-          .previousUserTurn ||
-        null,
-
-      immediatePreviousAssistantTurn:
-        immediate
-          .previousAssistantTurn ||
-        null,
-
-      workingContext:
-        threadContext
-          .workingContext,
-
-      activeTopic:
-        activeFrame.topic ||
-        summary.activeTopic ||
-        null,
-
-      activeSubject:
-        activeFrame.subject ||
-        summary.activeSubject ||
-        null,
-
-      activeIssue:
-        activeFrame.issue ||
-        summary.activeIssue ||
-        null,
-
-      activeGoal:
-        activeFrame.goal ||
-        summary.activeGoal ||
-        null,
-
-      previousAnswerSummary:
-        threadContext
-          .previousAnswerSummary ||
-        null,
-
-      conversationMeaningHistory:
-        threadContext
-          .conversationMeaningHistory,
-
-      latestConversationMeaning:
-        threadContext
-          .latestConversationMeaning,
-
-      activeSemanticTimeline:
-        threadContext
-          .activeSemanticTimeline,
-
-      activeSemanticFrame:
-        threadContext
-          .activeSemanticFrame,
-
-      conversationMeaningFocus:
-        threadContext
-          .conversationMeaningFocus,
-
-      conversationMeaningOpenLoops:
-        threadContext
-          .conversationMeaningOpenLoops,
-
-      priorMeaningForFollowUp:
-        threadContext
-          .latestConversationMeaning ||
-        null,
-
-      turnClassificationPacket:
-        operatingState
-          .turnClassificationPacket ||
-        summary
-          .turnClassificationPacket ||
-        null,
-
-      conversationRelationship:
-        this.readClassificationRelationship(
-          operatingState
-            .turnClassificationPacket ||
-          summary
-            .turnClassificationPacket
-        ),
-
-      conversationRelationshipConfidence:
-        this.readClassificationConfidence(
-          operatingState
-            .turnClassificationPacket ||
-          summary
-            .turnClassificationPacket
-        ),
-
-      referencePacket:
-        operatingState
-          .referencePacket ||
-        summary.referencePacket ||
-        null,
-
-      referenceResolution:
-        operatingState
-          .referenceResolution ||
-        summary
-          .referenceResolution ||
-        null,
-
-      resolvedSemanticStructure:
-        operatingState
-          .resolvedSemanticStructure ||
-        summary
-          .resolvedSemanticStructure ||
-        null,
-
-      currentSemanticStructure:
-        operatingState
-          .resolvedSemanticStructure ||
-        summary
-          .currentSemanticStructure ||
-        summary.semanticStructure ||
-        null,
-
-      resolvedReferences:
-        operatingState
-          .resolvedReferences ||
-        summary
-          .resolvedReferences ||
-        [],
-
-      unresolvedReferences:
-        operatingState
-          .unresolvedReferences ||
-        summary
-          .unresolvedReferences ||
-        [],
-
-      activeReference:
-        operatingState
-          .activeReference ||
-        summary.activeReference ||
-        null,
-
-      compactConversationContext:
-        operatingState
-          .compactContext ||
-        null,
-
-      referenceCandidates:
-        operatingState
-          .referenceCandidates ||
-        summary.referenceCandidates ||
-        []
-    };
-  },
-
   /* =====================================================
-     FINAL RESPONSE
+     VALIDATION
   ===================================================== */
 
-  extractFinalResponse(
-    summary = {}
-  ) {
-    const candidate =
-      summary.finalResponse ||
-      summary.selectedDraft
-        ?.text ||
-      summary.selectedDraft ||
-      summary.aiWriterDraft ||
-      summary.blueprintWriterDraft ||
-      summary.response ||
-      "";
+  cos.validate =
+    function validate() {
+      const existing =
+        originalValidate
+          ? originalValidate()
+          : {
+              valid:
+                true,
 
-    if (
-      candidate &&
-      typeof candidate ===
-        "object"
-    ) {
-      return this.cleanText(
-        candidate.text ||
-        candidate.reply ||
-        candidate.response ||
-        candidate.content ||
-        candidate.answer ||
-        candidate.draft ||
-        ""
-      );
-    }
+              errors:
+                [],
 
-    return this.cleanText(
-      candidate
-    );
-  },
+              warnings:
+                [],
 
-  /* =====================================================
-     CONFIDENCE
-  ===================================================== */
+              checks:
+                {}
+            };
 
-  calculateOperatingStateConfidence({
-    currentTurn = {},
-    immediate = {},
-    activeFrame = {},
-    recentTurns = []
-  } = {}) {
-    let score =
-      currentTurn.originalText
-        ? 0.5
-        : 0.2;
+      const authority =
+        this.getAuthorityBoundaries();
 
-    if (
-      immediate.available
-    ) {
-      score +=
-        0.15;
-    }
+      const degradableErrors =
+        new Set([
+          "AriTurnIntakeEngine_not_loaded",
+          "ari_turn_intake_engine_not_loaded",
+          "AriTurnPacket_not_loaded",
+          "ari_turn_packet_not_loaded",
+          "conversation_store_not_loaded",
+          "thread_store_not_loaded",
+          "stored_state_not_available",
+          "canonical_turn_packet_validation_unavailable"
+        ]);
 
-    if (
-      activeFrame.topic
-    ) {
-      score +=
-        0.12;
-    }
-
-    if (
-      activeFrame.subject
-    ) {
-      score +=
-        0.08;
-    }
-
-    if (
-      recentTurns.length >=
-      2
-    ) {
-      score +=
-        0.08;
-    }
-
-    return this.roundScore(
-      this.clamp(
-        score
-      )
-    );
-  },
-
-  /* =====================================================
-     AUTHORITY
-  ===================================================== */
-
-    getAuthorityBoundaries() {
-    return {
-      canCoordinateTurnIntake:
-        true,
-
-      canConsumeCanonicalTurnPacket:
-        true,
-
-      canProjectTurnForContinuity:
-        true,
-
-      canCreateCanonicalTurnPacket:
-        false,
-
-      canGenerateCanonicalTurnId:
-        false,
-
-      canLoadThreadState:
-        true,
-
-      canNormalizeStoredTurns:
-        true,
-
-      canBuildImmediateHorizon:
-        true,
-
-      canBuildActiveHorizon:
-        true,
-
-      canBuildHistoricalHorizon:
-        true,
-
-      canRankReferenceCandidates:
-        true,
-
-      canDetectReferenceSignal:
-        true,
-
-      canExposeContinuityRequirements:
-        true,
-
-      canPreserveCompatibilityAliases:
-        true,
-
-      canPersistCompletedTurn:
-        true,
-
-      canAttachTurnClassificationPacket:
-        true,
-
-      canAttachReferencePacket:
-        true,
-
-      canAttachReferenceResolution:
-        true,
-
-      canAttachResolvedSemanticStructure:
-        true,
-
-      canBuildCompactReasoningContext:
-        true,
-
-      canRewriteCurrentTurn:
-        false,
-
-      canResolveEllipticalFollowUp:
-        false,
-
-      canBindEntityReference:
-        false,
-
-      canInterpretSemanticMeaning:
-        false,
-
-      canClassifyConversation:
-        false,
-
-      canChooseConversationFunction:
-        false,
-
-      canChooseSituationContract:
-        false,
-
-      canDetermineSafetySeverity:
-        false,
-
-      canChooseRoute:
-        false,
-
-      canCreateResponsePlan:
-        false,
-
-      canRegisterResponseCandidate:
-        false,
-
-      canSelectFinalDraft:
-        false,
-
-      canWriteFinalResponse:
-        false,
-
-      canRetrieveUserMemory:
-        false,
-
-      canStoreUserMemory:
-        false,
-
-      canAccessSupabase:
-        false,
-
-      canExecuteTools:
-        false,
-
-      role:
-        "conversation_state_organization_packet_attachment_context_projection_and_persistence"
-    };
-  },
-
-  validate() {
-    const authority =
-      this.getAuthorityBoundaries();
-
-    const forbiddenTrue = [
-      "canCreateCanonicalTurnPacket",
-"canGenerateCanonicalTurnId",
-      "canRewriteCurrentTurn",
-      "canResolveEllipticalFollowUp",
-      "canBindEntityReference",
-      "canInterpretSemanticMeaning",
-      "canClassifyConversation",
-      "canChooseConversationFunction",
-      "canChooseSituationContract",
-      "canDetermineSafetySeverity",
-      "canChooseRoute",
-      "canCreateResponsePlan",
-      "canRegisterResponseCandidate",
-      "canSelectFinalDraft",
-      "canWriteFinalResponse",
-      "canRetrieveUserMemory",
-      "canStoreUserMemory",
-      "canAccessSupabase",
-      "canExecuteTools"
-    ];
-
-    const errors =
-      forbiddenTrue
-        .filter(
-          key =>
-            authority[key] ===
-            true
-        )
-        .map(
-          key =>
-            `${key}_must_be_false`
+      const inheritedErrors =
+        unique(
+          existing.errors
         );
 
-    const requiredTrue = [
-      "canCoordinateTurnIntake",
-      "canConsumeCanonicalTurnPacket",
-      "canProjectTurnForContinuity",
-      "canLoadThreadState",
-      "canNormalizeStoredTurns",
-      "canBuildImmediateHorizon",
-      "canBuildActiveHorizon",
-      "canBuildHistoricalHorizon",
-      "canRankReferenceCandidates",
-      "canDetectReferenceSignal",
-      "canExposeContinuityRequirements",
-      "canPreserveCompatibilityAliases",
-      "canPersistCompletedTurn",
-      "canAttachTurnClassificationPacket",
-      "canAttachReferencePacket",
-      "canAttachReferenceResolution",
-      "canAttachResolvedSemanticStructure",
-      "canBuildCompactReasoningContext"
-    ];
-
-    requiredTrue
-      .filter(
-        key =>
-          authority[key] !==
-          true
-      )
-      .forEach(
-        key => {
-          errors.push(
-            `${key}_must_be_true`
-          );
-        }
-      );
-
-    const warnings = [];
-
-    if (
-      !window.AriThreadStore
-    ) {
-      warnings.push(
-        "AriThreadStore_not_loaded"
-      );
-    }
-
-    return {
-      valid:
-        errors.length ===
-        0,
-
-      source:
-        "ari-conversation-operating-state-validation",
-
-      version:
-        this.version,
-
-      errors,
-
-      warnings,
-
-      checks: {
-        threeHorizonModel:
-          true,
-
-        originalTurnPreserved:
-          true,
-
-        turnClassificationPacketAttachmentEnabled:
-          authority
-            .canAttachTurnClassificationPacket ===
-          true,
-
-        referencePacketAttachmentEnabled:
-          authority
-            .canAttachReferencePacket ===
-          true,
-
-        referenceResolutionAttachmentEnabled:
-          authority
-            .canAttachReferenceResolution ===
-          true,
-
-        resolvedSemanticStructureAttachmentEnabled:
-          authority
-            .canAttachResolvedSemanticStructure ===
-          true,
-
-        compactReasoningContextEnabled:
-          authority
-            .canBuildCompactReasoningContext ===
-          true,
-
- turnIntakeCoordinationEnabled:
-  authority
-    .canCoordinateTurnIntake ===
-  true,
-
-canonicalTurnPacketConsumptionEnabled:
-  authority
-    .canConsumeCanonicalTurnPacket ===
-  true,
-
-continuityTurnProjectionEnabled:
-  authority
-    .canProjectTurnForContinuity ===
-  true,
-
-canonicalTurnCreationSeparated:
-  authority
-    .canCreateCanonicalTurnPacket ===
-  false,
-
-canonicalTurnIdGenerationSeparated:
-  authority
-    .canGenerateCanonicalTurnId ===
-  false,
-
-        referenceSignalDetectionEnabled:
-          authority
-            .canDetectReferenceSignal ===
-          true,
-
-        continuityRequirementProjectionEnabled:
-          authority
-            .canExposeContinuityRequirements ===
-          true,
-
-        referenceResolutionSeparated:
-          authority
-            .canResolveEllipticalFollowUp ===
-          false,
-
-        entityBindingSeparated:
-          authority
-            .canBindEntityReference ===
-          false,
-
-        semanticInterpretationSeparated:
-          authority
-            .canInterpretSemanticMeaning ===
-          false,
-
-        routeAuthorityDisabled:
-          authority
-            .canChooseRoute ===
-          false,
-
-        responsePlanAuthorityDisabled:
-          authority
-            .canCreateResponsePlan ===
-          false,
-
-        finalResponseAuthorityDisabled:
-          authority
-            .canWriteFinalResponse ===
-          false,
-
-        supabaseDisabled:
-          authority
-            .canAccessSupabase ===
-          false
-      }
-    };
-  },
-
-  /* =====================================================
-     UTILITIES
-  ===================================================== */
-  
-  createConversationId() {
-    return [
-      "conversation",
-      Date.now()
-        .toString(36),
-      Math.random()
-        .toString(36)
-        .slice(2, 8)
-    ].join("_");
-  },
-
-  deriveTopicFromText(
-    text = ""
-  ) {
-    const clean =
-      this.cleanText(
-        text
-      );
-
-    if (!clean) {
-      return null;
-    }
-
-    return clean.length >
-      140
-      ? `${clean.slice(
-          0,
-          137
-        )}...`
-      : clean;
-  },
-
-  normalizeTopic(
-    value = null
-  ) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return null;
-    }
-
-    if (
-      typeof value ===
-      "string"
-    ) {
-      return this.cleanText(
-        value
-      ) || null;
-    }
-
-    if (
-      typeof value ===
-      "number"
-    ) {
-      return String(
-        value
-      );
-    }
-
-    if (
-      typeof value ===
-      "object"
-    ) {
-      return this.normalizeTopic(
-        value.topic ||
-        value.activeTopic ||
-        value.label ||
-        value.name ||
-        value.title ||
-        value.claim ||
-        value.proposition ||
-        value.summary ||
-        value.description ||
-        value.value ||
-        value.text ||
-        value.situation ||
-        value.type ||
-        null
-      );
-    }
-
-    return null;
-  },
-
-  extractLabel(
-    value = null
-  ) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return "";
-    }
-
-    if (
-      typeof value ===
-      "string"
-    ) {
-      return this.cleanText(
-        value
-      );
-    }
-
-    if (
-      typeof value ===
-      "number"
-    ) {
-      return String(
-        value
-      );
-    }
-
-    if (
-      typeof value ===
-      "object"
-    ) {
-      return this.cleanText(
-        value.label ||
-        value.name ||
-        value.title ||
-        value.claim ||
-        value.proposition ||
-        value.value ||
-        value.text ||
-        value.surface ||
-        value.description ||
-        value.topic ||
-        value.id ||
-        ""
-      );
-    }
-
-    return this.cleanText(
-      String(
-        value
-      )
-    );
-  },
-
-  tokenize(
-    value = ""
-  ) {
-    const stopWords =
-      new Set([
-        "the",
-        "a",
-        "an",
-        "and",
-        "or",
-        "but",
-        "to",
-        "of",
-        "in",
-        "on",
-        "for",
-        "with",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "being",
-        "i",
-        "you",
-        "it",
-        "that",
-        "this"
-      ]);
-
-    return this
-      .normalizeForComparison(
-        value
-      )
-      .split(
-        /\s+/
-      )
-      .filter(
-        token =>
-          token.length >=
-            3 &&
-          !stopWords.has(
-            token
-          )
-      );
-  },
-
-  numberOr(
-    value,
-    fallback = 0
-  ) {
-    const number =
-      Number(
-        value
-      );
-
-    return Number.isFinite(
-      number
-    )
-      ? number
-      : fallback;
-  },
-
-  clamp(
-    value,
-    min = 0,
-    max = 1
-  ) {
-    const number =
-      Number(
-        value
-      );
-
-    if (
-      !Number.isFinite(
-        number
-      )
-    ) {
-      return min;
-    }
-
-    return Math.max(
-      min,
-      Math.min(
-        max,
-        number
-      )
-    );
-  },
-
-  roundScore(
-    value
-  ) {
-    return Math.round(
-      this.clamp(
-        value
-      ) *
-      1000
-    ) /
-    1000;
-  },
-
-readObject(value) {
-  return (
-    value &&
-    typeof value ===
-      "object" &&
-    !Array.isArray(value)
-  )
-    ? value
-    : null;
-},
-
-  toArray(
-    value
-  ) {
-    if (
-      Array.isArray(
-        value
-      )
-    ) {
-      return value.filter(
-        item =>
-          item !==
-            undefined &&
-          item !==
-            null &&
-          item !==
-            ""
-      );
-    }
-
-    if (
-      value ===
-        undefined ||
-      value ===
-        null ||
-      value ===
-        ""
-    ) {
-      return [];
-    }
-
-    return [
-      value
-    ];
-  },
-
-  mergeUnique(
-    ...values
-  ) {
-    const output = [];
-    const seen =
-      new Set();
-
-    values
-      .flatMap(
-        value =>
-          this.toArray(
-            value
-          )
-      )
-      .forEach(
-        value => {
-          const key =
-            typeof value ===
-              "string"
-              ? this
-                  .normalizeForComparison(
-                    value
-                  )
-              : this
-                  .normalizeForComparison(
-                    value?.id ||
-                    value?.semanticRef ||
-                    value?.name ||
-                    value?.label ||
-                    value?.type ||
-                    value?.value ||
-                    value?.claim ||
-                    this.safeJSONStringify(
-                      value
-                    )
-                  );
-
-          if (
-            !key ||
-            seen.has(
-              key
+      const errors =
+        inheritedErrors.filter(
+          error =>
+            !degradableErrors.has(
+              error
             )
-          ) {
-            return;
-          }
+        );
 
-          seen.add(
-            key
-          );
+      const warnings =
+        unique([
+          existing.warnings,
 
-          output.push(
-            value
-          );
-        }
-      );
-
-    return output;
-  },
-
-  safeJSONStringify(
-    value = null
-  ) {
-    const seen =
-      new WeakSet();
-
-    try {
-      return JSON.stringify(
-        value,
-        (
-          key,
-          nestedValue
-        ) => {
-          if (
-            nestedValue &&
-            typeof nestedValue ===
-              "object"
-          ) {
-            if (
-              seen.has(
-                nestedValue
+          inheritedErrors.filter(
+            error =>
+              degradableErrors.has(
+                error
               )
-            ) {
-              return "[Circular]";
-            }
+          )
+        ]);
 
-            seen.add(
-              nestedValue
-            );
-          }
+      if (
+        authority
+          .canCreateCanonicalTurnPacket ===
+        true
+      ) {
+        errors.push(
+          "canCreateCanonicalTurnPacket_must_be_false"
+        );
+      }
 
-          return nestedValue;
+      if (
+        authority
+          .canGenerateCanonicalTurnId ===
+        true
+      ) {
+        errors.push(
+          "canGenerateCanonicalTurnId_must_be_false"
+        );
+      }
+
+      if (
+        authority
+          .canStopGlobalRuntime ===
+        true
+      ) {
+        errors.push(
+          "canStopGlobalRuntime_must_be_false"
+        );
+      }
+
+      if (
+        !window.AriTurnPacket ||
+        (
+          typeof window
+            .AriTurnPacket
+            .validate !==
+            "function" &&
+          typeof window
+            .AriTurnPacket
+            .create !==
+            "function"
+        )
+      ) {
+        warnings.push(
+          "AriTurnPacket_not_loaded_authoritative_mode_unavailable"
+        );
+      }
+
+      if (
+        !window
+          .AriTurnIntakeEngine ||
+        typeof window
+          .AriTurnIntakeEngine
+          .run !==
+          "function"
+      ) {
+        warnings.push(
+          "AriTurnIntakeEngine_not_loaded_degraded_mode_available"
+        );
+      }
+
+      const dedupedErrors =
+        unique(
+          errors
+        );
+
+      const dedupedWarnings =
+        unique(
+          warnings
+        );
+
+      return {
+        ...existing,
+
+        valid:
+          dedupedErrors.length ===
+          0,
+
+        ready:
+          dedupedErrors.length ===
+            0 &&
+          Boolean(
+            window
+              .AriTurnIntakeEngine &&
+            typeof window
+              .AriTurnIntakeEngine
+              .run ===
+              "function"
+          ),
+
+        moduleUsable:
+          dedupedErrors.length ===
+          0,
+
+        degradedModeAvailable:
+          typeof this
+            .buildDegradedOperatingState ===
+            "function",
+
+        source:
+          "ari-conversation-operating-state-resilience-validation",
+
+        errors:
+          dedupedErrors,
+
+        warnings:
+          dedupedWarnings,
+
+        checks: {
+          ...(
+            existing.checks ||
+            {}
+          ),
+
+          turnIntakeCoordinationEnabled:
+            authority
+              .canCoordinateTurnIntake ===
+            true,
+
+          canonicalTurnPacketConsumptionEnabled:
+            authority
+              .canConsumeCanonicalTurnPacket ===
+            true,
+
+          continuityTurnProjectionEnabled:
+            authority
+              .canProjectTurnForContinuity ===
+            true,
+
+          degradedCurrentTurnProjectionEnabled:
+            authority
+              .canBuildDegradedCurrentTurnProjection ===
+            true,
+
+          runtimeUsabilityReportingEnabled:
+            authority
+              .canReportRuntimeUsability ===
+            true,
+
+          globalRuntimeGatekeepingDisabled:
+            authority
+              .canStopGlobalRuntime ===
+            false,
+
+          canonicalTurnCreationSeparated:
+            authority
+              .canCreateCanonicalTurnPacket ===
+            false,
+
+          canonicalTurnIdGenerationSeparated:
+            authority
+              .canGenerateCanonicalTurnId ===
+            false,
+
+          persistenceSeparatedFromCompletion:
+            authority
+              .persistenceRequiredForCompletion ===
+            false
         }
+      };
+    };
+
+  /*
+   * COS must never generate a competing canonical Turn ID.
+   */
+  cos.createTurnId =
+    function createTurnId() {
+      throw new Error(
+        "AriConversationOperatingState cannot create canonical turn IDs. Use AriTurnPacket.create()."
       );
-    } catch (error) {
-      return "";
-    }
-  },
+    };
 
-  cleanText(
-    value = ""
-  ) {
-    return String(
-      value ??
-      ""
-    )
-      .replace(
-        /[’‘]/g,
-        "'"
-      )
-      .replace(
-        /[“”]/g,
-        "\""
-      )
-      .replace(
-        /[ \t]+/g,
-        " "
-      )
-      .replace(
-        /\n[ \t]+/g,
-        "\n"
-      )
-      .replace(
-        /\n{3,}/g,
-        "\n\n"
-      )
-      .trim();
-  },
+  cos.version =
+    "2.1.0";
 
-  normalizeForComparison(
-    value = ""
-  ) {
-    return this
-      .cleanText(
-        value
-      )
-      .toLowerCase()
-      .replace(
-        /[_-]/g,
-        " "
-      )
-      .replace(
-        /[^\w\s']/g,
-        " "
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .trim();
-  }
-};
+  window.AriConversationOperatingState =
+    cos;
 
-window.Ari.conversationOperatingState =
-  window.AriConversationOperatingState;
+  window.Ari.conversationOperatingState =
+    cos;
 
-console.log(
-  "ARI CONVERSATION OPERATING STATE LOADED:",
-  window
-    .AriConversationOperatingState
-    ?.version,
-  window
-    .AriConversationOperatingState
-    ?.validate?.()
-    .valid ===
+  const validation =
+    cos.validate();
+
+  const status =
+    validation.valid !==
     true
-    ? "READY"
-    : "INVALID"
-);
+      ? "INVALID"
+      : validation.ready ===
+        true
+        ? "READY"
+        : "DEGRADED_READY";
+
+  console.log(
+    "ARI COS RESILIENCE PATCH LOADED:",
+    cos.version,
+    status,
+    validation
+  );
+})();
