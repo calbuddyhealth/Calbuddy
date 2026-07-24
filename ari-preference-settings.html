@@ -1,19 +1,111 @@
-ari-preference-settings.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080d14" />
+
+  <title>Ari Preferences</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="assets/css/base.css?v=16" />
+  <link rel="stylesheet" href="assets/css/header.css?v=17" />
+  <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
+
+  <style>
+    html {
+      min-height: 100%;
+      background: #080d14;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: #f5f7fb;
+      background:
+        radial-gradient(
+          circle at 50% -12%,
+          rgba(56, 217, 255, 0.12),
+          transparent 34rem
+        ),
+        linear-gradient(180deg, #080d14 0%, #090f18 54%, #070b11 100%);
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      z-index: -1;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(
+          rgba(255, 255, 255, 0.012) 1px,
+          transparent 1px
+        ),
+        linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.012) 1px,
+          transparent 1px
+        );
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 78%);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
 <!-- Ari Preference Settings -->
-<!-- V1.0.0 — Contract-Driven Preference Settings UI -->
+<!-- V2.0.0 â ARI Control Center / Contract-Driven Preference Settings UI -->
 
 <section
   id="ari-preference-settings"
   class="ari-preference-settings"
   aria-labelledby="ari-preference-settings-title"
 >
+  <nav class="ari-preference-settings__topbar" aria-label="Ari Preferences navigation">
+    <a
+      href="home.html"
+      class="ari-preference-settings__back"
+      aria-label="Back to Ari home"
+    >
+      <span aria-hidden="true">â</span>
+      <span>Home</span>
+    </a>
+
+    <div class="ari-preference-settings__brand" aria-label="Ari Rebirth">
+      <span class="ari-preference-settings__brand-name">ARI</span>
+      <span class="ari-preference-settings__brand-engine">REBIRTH</span>
+    </div>
+  </nav>
+
   <header class="ari-preference-settings__header">
     <div>
-      <p class="ari-preference-settings__eyebrow">ARI PERSONALIZATION</p>
-      <h1 id="ari-preference-settings-title">Response Preferences</h1>
+      <p class="ari-preference-settings__eyebrow">ARI CONTROL CENTER</p>
+
+      <h1 id="ari-preference-settings-title">Ari Preferences</h1>
+
       <p class="ari-preference-settings__subtitle">
-        Choose how Ari communicates, explains, supports, and challenges you.
-        Changes apply after saving.
+        Personalize how Ari communicates, reasons, explains, supports, and
+        challenges you. These preferences change Ariâs styleânot its safety
+        rules, factual standards, or crisis protections.
       </p>
     </div>
 
@@ -29,7 +121,8 @@ ari-preference-settings.html
     id="ari-preference-loading"
     class="ari-preference-settings__loading"
   >
-    Loading preferences…
+    <span class="ari-preference-settings__loading-dot" aria-hidden="true"></span>
+    Loading your Ari preferencesâ¦
   </div>
 
   <form
@@ -38,47 +131,397 @@ ari-preference-settings.html
     hidden
     novalidate
   >
-    <section class="ari-preference-settings__preset-card">
-      <div>
-        <label for="ari-preference-preset">Preference preset</label>
-        <p>Start with a preset, then customize individual settings.</p>
+    <!-- =====================================================
+         COMMUNICATION PRESET
+         The existing controller populates this select.
+    ====================================================== -->
+
+    <section
+      class="ari-preference-panel ari-preference-settings__preset-card"
+      aria-labelledby="ari-communication-style-title"
+    >
+      <div class="ari-preference-panel__heading">
+        <div class="ari-preference-panel__icon" aria-hidden="true">â¦</div>
+
+        <div>
+          <p class="ari-preference-panel__kicker">CORE STYLE</p>
+          <h2 id="ari-communication-style-title">Communication Style</h2>
+          <p>
+            Start with a preset, then fine-tune profanity, humor, honesty,
+            roasting, challenge level, and other preferences below.
+          </p>
+        </div>
       </div>
 
-      <select
-        id="ari-preference-preset"
-        name="activePreset"
-      ></select>
+      <div class="ari-preference-settings__preset-control">
+        <label for="ari-preference-preset">Communication preset</label>
+
+        <select
+          id="ari-preference-preset"
+          name="activePreset"
+          aria-describedby="ari-preference-preset-description"
+        ></select>
+
+        <p id="ari-preference-preset-description">
+          Individual changes can create a custom version of the selected preset.
+        </p>
+      </div>
     </section>
+
+    <!-- =====================================================
+         SPECIALIZATION
+         This interface is ready visually.
+         Add specialization to the canonical preference contract before
+         treating it as authoritative runtime preference data.
+    ====================================================== -->
+
+    <section
+      class="ari-preference-panel ari-specialization"
+      aria-labelledby="ari-specialization-title"
+    >
+      <div class="ari-preference-panel__heading">
+        <div class="ari-preference-panel__icon" aria-hidden="true">â</div>
+
+        <div>
+          <p class="ari-preference-panel__kicker">RESPONSE EMPHASIS</p>
+          <h2 id="ari-specialization-title">Specialize</h2>
+          <p>
+            Choose an area where Ari should emphasize deeper terminology,
+            examples, and reasoning.
+          </p>
+        </div>
+      </div>
+
+      <div class="ari-specialization__body">
+        <p class="ari-specialization__notice">
+          A specialty changes emphasis only. Ari can still answer questions
+          outside the selected area.
+        </p>
+
+        <fieldset class="ari-specialization__fieldset">
+          <legend>General</legend>
+
+          <div class="ari-specialization__grid">
+            <label class="ari-specialization-option ari-specialization-option--wide">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="default"
+                checked
+              />
+              <span>
+                <strong>â­ Default</strong>
+                <small>Balanced across topics</small>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ari-specialization__fieldset">
+          <legend>Health</legend>
+
+          <div class="ari-specialization__grid">
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="medical" />
+              <span>Medical</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="mental_health"
+              />
+              <span>Mental Health</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="fitness" />
+              <span>Fitness</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="nutrition" />
+              <span>Nutrition</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ari-specialization__fieldset">
+          <legend>Professional</legend>
+
+          <div class="ari-specialization__grid">
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="programming"
+              />
+              <span>Programming</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="technology"
+              />
+              <span>Technology</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="business" />
+              <span>Business</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="finance" />
+              <span>Finance</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="education" />
+              <span>Education</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="military" />
+              <span>Military</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="legal_information"
+              />
+              <span>Law &amp; Legal Information</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ari-specialization__fieldset">
+          <legend>STEM</legend>
+
+          <div class="ari-specialization__grid">
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="mathematics"
+              />
+              <span>Mathematics</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="science" />
+              <span>Science</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="engineering"
+              />
+              <span>Engineering</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ari-specialization__fieldset">
+          <legend>Life</legend>
+
+          <div class="ari-specialization__grid">
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="relationships"
+              />
+              <span>Relationships</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="faith_religion"
+              />
+              <span>Faith &amp; Religion</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="travel" />
+              <span>Travel</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input
+                type="radio"
+                name="ariSpecialization"
+                value="creative_writing"
+              />
+              <span>Creative Writing</span>
+            </label>
+
+            <label class="ari-specialization-option">
+              <input type="radio" name="ariSpecialization" value="custom" />
+              <span>Custom Specialization</span>
+            </label>
+          </div>
+        </fieldset>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         CONTRACT-DRIVEN CATEGORIES
+         The existing controller renders communication settings here,
+         including profanity, humor, roasting, and consent-gated options
+         when they exist in the preference contract.
+    ====================================================== -->
 
     <div
       id="ari-preference-categories"
       class="ari-preference-settings__categories"
     ></div>
 
-    <div class="ari-preference-settings__actions">
-      <button
-        id="ari-preference-reset"
-        class="ari-preference-button ari-preference-button--secondary"
-        type="button"
-      >
-        Reset all
-      </button>
+    <!-- =====================================================
+         LIVE PREVIEW
+         Local examples only; no model request is required.
+    ====================================================== -->
 
-      <button
-        id="ari-preference-save"
-        class="ari-preference-button ari-preference-button--primary"
-        type="submit"
-      >
-        Save preferences
-      </button>
+    <section
+      class="ari-preference-panel ari-preference-preview"
+      aria-labelledby="ari-preference-preview-title"
+    >
+      <div class="ari-preference-panel__heading">
+        <div class="ari-preference-panel__icon ari-preference-panel__icon--ari" aria-hidden="true">
+          A
+        </div>
+
+        <div>
+          <p class="ari-preference-panel__kicker">LIVE EXAMPLE</p>
+          <h2 id="ari-preference-preview-title">Preview Ari</h2>
+          <p>
+            See how the selected communication preset may sound in different
+            situations.
+          </p>
+        </div>
+      </div>
+
+      <div class="ari-preference-preview__body">
+        <div
+          class="ari-preference-preview__scenarios"
+          role="group"
+          aria-label="Preview scenario"
+        >
+          <button
+            type="button"
+            class="ari-preference-preview__chip"
+            data-ari-preview-scenario="motivation"
+            aria-pressed="true"
+          >
+            Motivation
+          </button>
+
+          <button
+            type="button"
+            class="ari-preference-preview__chip"
+            data-ari-preview-scenario="advice"
+            aria-pressed="false"
+          >
+            Advice
+          </button>
+
+          <button
+            type="button"
+            class="ari-preference-preview__chip"
+            data-ari-preview-scenario="learning"
+            aria-pressed="false"
+          >
+            Learning
+          </button>
+
+          <button
+            type="button"
+            class="ari-preference-preview__chip"
+            data-ari-preview-scenario="support"
+            aria-pressed="false"
+          >
+            Support
+          </button>
+
+          <button
+            type="button"
+            class="ari-preference-preview__chip"
+            data-ari-preview-scenario="humor"
+            aria-pressed="false"
+          >
+            Humor
+          </button>
+        </div>
+
+        <p
+          id="ari-preference-preview-prompt"
+          class="ari-preference-preview__prompt"
+        >
+          âI skipped the gym today.â
+        </p>
+
+        <div class="ari-preference-preview__message">
+          <div class="ari-preference-preview__avatar" aria-hidden="true">A</div>
+
+          <p id="ari-preference-preview-response" aria-live="polite">
+            Missing one workout will not erase your progress. Reset tomorrow
+            and get back into the routine.
+          </p>
+        </div>
+
+        <p class="ari-preference-preview__disclaimer">
+          Preview responses are local demonstrations. Saved preferences still
+          pass through Ariâs normal context, accuracy, and safety controls.
+        </p>
+      </div>
+    </section>
+
+    <div class="ari-preference-settings__actions">
+      <div class="ari-preference-settings__actions-inner">
+        <button
+          id="ari-preference-reset"
+          class="ari-preference-button ari-preference-button--secondary"
+          type="button"
+        >
+          Reset all
+        </button>
+
+        <button
+          id="ari-preference-save"
+          class="ari-preference-button ari-preference-button--primary"
+          type="submit"
+        >
+          Save preferences
+        </button>
+      </div>
     </div>
   </form>
+
+  <!-- =====================================================
+       CONSENT DIALOG
+       Used by the existing controller for consent-gated preferences,
+       including highly profane, roasting, edgy, or unhinged-style modes.
+  ====================================================== -->
 
   <dialog
     id="ari-preference-consent-dialog"
     class="ari-preference-consent-dialog"
+    aria-labelledby="ari-preference-consent-title"
   >
     <form method="dialog">
+      <div class="ari-preference-consent-dialog__badge">
+        Advisory
+      </div>
+
       <h2 id="ari-preference-consent-title">Confirm preference</h2>
 
       <p
@@ -86,11 +529,18 @@ ari-preference-settings.html
         class="ari-preference-consent-dialog__text"
       ></p>
 
+      <div class="ari-preference-consent-dialog__safety">
+        This changes Ariâs communication style only. It does not disable safety
+        protections, factual standards, medical or legal safeguards, crisis
+        handling, or platform rules.
+      </div>
+
       <label class="ari-preference-consent-dialog__check">
         <input
           id="ari-preference-consent-checkbox"
           type="checkbox"
         />
+
         <span>
           I understand this setting and explicitly consent to enabling it.
         </span>
@@ -121,27 +571,115 @@ ari-preference-settings.html
 </section>
 
 <style>
+  :root {
+    --ari-preference-bg: var(--ari-page-bg, #080d14);
+    --ari-preference-surface: rgba(17, 27, 41, 0.9);
+    --ari-preference-surface-soft: rgba(255, 255, 255, 0.035);
+    --ari-preference-border: rgba(255, 255, 255, 0.09);
+    --ari-preference-border-accent: rgba(56, 217, 255, 0.22);
+    --ari-preference-text: var(--ari-text, #f5f7fb);
+    --ari-preference-muted: #91a3b5;
+    --ari-preference-accent: var(--ari-accent, #38d9ff);
+    --ari-preference-success: #62e6a7;
+    --ari-preference-warning: #ffc766;
+    --ari-preference-danger: #ff7d8d;
+    --ari-preference-radius-lg: 22px;
+    --ari-preference-radius-md: 15px;
+    --ari-preference-shadow: 0 18px 52px rgba(0, 0, 0, 0.32);
+  }
+
+  .ari-preference-settings,
+  .ari-preference-settings * {
+    box-sizing: border-box;
+  }
+
   .ari-preference-settings {
-    width: min(960px, calc(100% - 32px));
+    width: min(1040px, calc(100% - 28px));
     margin: 0 auto;
-    padding: 32px 0 48px;
-    color: var(--ari-text, #f5f7fb);
+    padding: 18px 0 120px;
+    color: var(--ari-preference-text);
+  }
+
+  .ari-preference-settings button,
+  .ari-preference-settings select,
+  .ari-preference-settings input {
+    font: inherit;
+  }
+
+  .ari-preference-settings__topbar {
+    min-height: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+
+  .ari-preference-settings__back {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 14px;
+    border: 1px solid var(--ari-preference-border);
+    border-radius: 14px;
+    color: var(--ari-preference-text);
+    background: rgba(255, 255, 255, 0.035);
+    text-decoration: none;
+    font-weight: 750;
+    transition:
+      transform 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease;
+  }
+
+  .ari-preference-settings__back:hover,
+  .ari-preference-settings__back:focus-visible {
+    border-color: var(--ari-preference-accent);
+    color: var(--ari-preference-accent);
+    transform: translateX(-2px);
+    outline: none;
+  }
+
+  .ari-preference-settings__brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+  }
+
+  .ari-preference-settings__brand-name {
+    color: var(--ari-preference-accent);
+    font-family: Audiowide, Orbitron, sans-serif;
+    font-size: 1.25rem;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 18px rgba(56, 217, 255, 0.42);
+  }
+
+  .ari-preference-settings__brand-engine {
+    margin-top: 5px;
+    color: #ffffff;
+    font-family: Orbitron, sans-serif;
+    font-size: 0.52rem;
+    font-weight: 800;
+    letter-spacing: 0.28em;
   }
 
   .ari-preference-settings__header {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 24px;
-    align-items: flex-start;
+    align-items: start;
     margin-bottom: 24px;
   }
 
   .ari-preference-settings__eyebrow {
-    margin: 0 0 6px;
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    color: var(--ari-accent, #38d9ff);
+    margin: 0 0 8px;
+    color: var(--ari-preference-accent);
+    font-family: Orbitron, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 850;
+    letter-spacing: 0.17em;
   }
 
   .ari-preference-settings h1,
@@ -151,150 +689,498 @@ ari-preference-settings.html
     margin-top: 0;
   }
 
-  .ari-preference-settings__subtitle {
-    max-width: 680px;
+  .ari-preference-settings h1 {
     margin-bottom: 0;
-    opacity: 0.76;
-    line-height: 1.55;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(1.7rem, 5vw, 2.65rem);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+  }
+
+  .ari-preference-settings__subtitle {
+    max-width: 740px;
+    margin: 12px 0 0;
+    color: var(--ari-preference-muted);
+    line-height: 1.62;
   }
 
   .ari-preference-settings__status {
-    min-height: 24px;
+    min-height: 40px;
+    padding: 10px 14px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ari-preference-muted);
+    font-size: 0.86rem;
     text-align: right;
-    font-size: 0.9rem;
+  }
+
+  .ari-preference-settings__status:empty {
+    display: none;
   }
 
   .ari-preference-settings__status[data-state="success"] {
-    color: #62e6a7;
+    border-color: rgba(98, 230, 167, 0.22);
+    color: var(--ari-preference-success);
+    background: rgba(98, 230, 167, 0.075);
   }
 
   .ari-preference-settings__status[data-state="error"] {
-    color: #ff7d8d;
+    border-color: rgba(255, 125, 141, 0.22);
+    color: var(--ari-preference-danger);
+    background: rgba(255, 125, 141, 0.075);
   }
 
   .ari-preference-settings__status[data-state="working"] {
-    color: var(--ari-accent, #38d9ff);
+    border-color: rgba(56, 217, 255, 0.22);
+    color: var(--ari-preference-accent);
+    background: rgba(56, 217, 255, 0.075);
   }
 
   .ari-preference-settings__loading,
-  .ari-preference-settings__preset-card,
+  .ari-preference-panel,
   .ari-preference-category {
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 18px;
+    border: 1px solid var(--ari-preference-border);
+    border-radius: var(--ari-preference-radius-lg);
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.045),
+        rgba(255, 255, 255, 0.018)
+      ),
+      var(--ari-preference-surface);
+    box-shadow: var(--ari-preference-shadow);
   }
 
   .ari-preference-settings__loading {
-    padding: 24px;
-  }
-
-  .ari-preference-settings__preset-card {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 24px;
-    padding: 20px;
-    margin-bottom: 18px;
+    gap: 12px;
+    padding: 24px;
+    color: var(--ari-preference-muted);
   }
 
-  .ari-preference-settings__preset-card p {
-    margin-bottom: 0;
-    opacity: 0.68;
-    font-size: 0.9rem;
+  .ari-preference-settings__loading-dot {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--ari-preference-accent);
+    box-shadow: 0 0 18px rgba(56, 217, 255, 0.55);
+    animation: ari-preference-loading-pulse 1.1s ease-in-out infinite;
   }
 
-  .ari-preference-settings select {
-    min-width: 220px;
-    max-width: 100%;
-    padding: 11px 38px 11px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: var(--ari-input-bg, #151a24);
-    color: inherit;
-    font: inherit;
+  @keyframes ari-preference-loading-pulse {
+    0%,
+    100% {
+      opacity: 0.45;
+      transform: scale(0.88);
+    }
+
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
   }
 
-  .ari-preference-settings__categories {
+  .ari-preference-settings__form {
     display: grid;
-    gap: 18px;
+    gap: 20px;
   }
 
+  .ari-preference-panel,
   .ari-preference-category {
     overflow: hidden;
   }
 
+  .ari-preference-panel__heading {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 22px;
+    border-bottom: 1px solid var(--ari-preference-border);
+  }
+
+  .ari-preference-panel__icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--ari-preference-border-accent);
+    border-radius: 13px;
+    color: var(--ari-preference-accent);
+    background: rgba(56, 217, 255, 0.075);
+    font-size: 1.1rem;
+    font-weight: 850;
+  }
+
+  .ari-preference-panel__icon--ari {
+    color: #071018;
+    background: var(--ari-preference-accent);
+    font-family: Audiowide, sans-serif;
+  }
+
+  .ari-preference-panel__kicker {
+    margin-bottom: 5px;
+    color: var(--ari-preference-accent);
+    font-size: 0.68rem;
+    font-weight: 850;
+    letter-spacing: 0.13em;
+  }
+
+  .ari-preference-panel__heading h2 {
+    margin-bottom: 6px;
+    font-family: Orbitron, sans-serif;
+    font-size: 1rem;
+  }
+
+  .ari-preference-panel__heading p:last-child {
+    margin-bottom: 0;
+    color: var(--ari-preference-muted);
+    font-size: 0.89rem;
+    line-height: 1.5;
+  }
+
+  .ari-preference-settings__preset-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 330px);
+  }
+
+  .ari-preference-settings__preset-card .ari-preference-panel__heading {
+    border-right: 1px solid var(--ari-preference-border);
+    border-bottom: 0;
+  }
+
+  .ari-preference-settings__preset-control {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 22px;
+  }
+
+  .ari-preference-settings__preset-control label {
+    margin-bottom: 9px;
+    font-weight: 800;
+  }
+
+  .ari-preference-settings__preset-control p {
+    margin: 9px 0 0;
+    color: var(--ari-preference-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .ari-preference-settings select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 42px 0 14px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 14px;
+    color: inherit;
+    background: var(--ari-input-bg, #151a24);
+    outline: none;
+    cursor: pointer;
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .ari-preference-settings select:hover,
+  .ari-preference-settings select:focus-visible {
+    border-color: var(--ari-preference-accent);
+    box-shadow: 0 0 0 3px rgba(56, 217, 255, 0.1);
+  }
+
+  .ari-specialization__body {
+    padding: 22px;
+  }
+
+  .ari-specialization__notice {
+    margin-bottom: 20px;
+    color: var(--ari-preference-muted);
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+
+  .ari-specialization__fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .ari-specialization__fieldset + .ari-specialization__fieldset {
+    margin-top: 22px;
+  }
+
+  .ari-specialization__fieldset legend {
+    width: 100%;
+    margin-bottom: 10px;
+    color: #bdd0df;
+    font-size: 0.74rem;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .ari-specialization__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ari-specialization-option {
+    position: relative;
+    min-width: 0;
+  }
+
+  .ari-specialization-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .ari-specialization-option span {
+    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid var(--ari-preference-border);
+    border-radius: 14px;
+    color: #cad6df;
+    background: var(--ari-preference-surface-soft);
+    text-align: center;
+    font-size: 0.87rem;
+    font-weight: 720;
+    cursor: pointer;
+    transition:
+      transform 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      background 150ms ease;
+  }
+
+  .ari-specialization-option span:hover {
+    border-color: rgba(56, 217, 255, 0.42);
+    transform: translateY(-1px);
+  }
+
+  .ari-specialization-option small {
+    color: inherit;
+    opacity: 0.72;
+    font-size: 0.7rem;
+    font-weight: 650;
+  }
+
+  .ari-specialization-option input:checked + span {
+    border-color: var(--ari-preference-accent);
+    color: #071018;
+    background: var(--ari-preference-accent);
+    box-shadow: 0 0 20px rgba(56, 217, 255, 0.22);
+  }
+
+  .ari-specialization-option input:focus-visible + span {
+    outline: 3px solid rgba(56, 217, 255, 0.18);
+    outline-offset: 2px;
+  }
+
+  .ari-specialization-option--wide {
+    grid-column: 1 / -1;
+  }
+
+  .ari-specialization-option--wide span {
+    align-items: flex-start;
+    padding-inline: 16px;
+    text-align: left;
+  }
+
+  .ari-preference-settings__categories {
+    display: grid;
+    gap: 20px;
+  }
+
   .ari-preference-category__header {
-    padding: 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    position: relative;
+    padding: 22px;
+    border-bottom: 1px solid var(--ari-preference-border);
   }
 
   .ari-preference-category__header h2 {
     margin-bottom: 6px;
-    font-size: 1.12rem;
+    font-family: Orbitron, sans-serif;
+    font-size: 1rem;
   }
 
   .ari-preference-category__header p {
+    max-width: 760px;
     margin-bottom: 0;
-    opacity: 0.68;
-    font-size: 0.9rem;
+    color: var(--ari-preference-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
   }
 
   .ari-preference-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(190px, 250px);
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 280px);
     gap: 24px;
     align-items: center;
-    padding: 18px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 18px 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 150ms ease;
   }
 
   .ari-preference-row:last-child {
     border-bottom: 0;
   }
 
+  .ari-preference-row:hover {
+    background: rgba(255, 255, 255, 0.018);
+  }
+
   .ari-preference-row__label {
     display: block;
     margin-bottom: 5px;
-    font-weight: 700;
+    font-weight: 760;
   }
 
   .ari-preference-row__description {
     margin-bottom: 0;
-    opacity: 0.66;
-    font-size: 0.88rem;
-    line-height: 1.45;
+    color: var(--ari-preference-muted);
+    font-size: 0.84rem;
+    line-height: 1.48;
   }
 
   .ari-preference-row__consent {
     display: block;
-    margin-top: 6px;
+    margin-top: 7px;
+    color: var(--ari-preference-warning);
     font-size: 0.76rem;
-    color: #ffc766;
+    font-weight: 700;
+  }
+
+  .ari-preference-preview__body {
+    padding: 22px;
+  }
+
+  .ari-preference-preview__scenarios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .ari-preference-preview__chip {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--ari-preference-border);
+    border-radius: 999px;
+    color: #c8d4dd;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition:
+      transform 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      background 150ms ease;
+  }
+
+  .ari-preference-preview__chip:hover {
+    border-color: rgba(56, 217, 255, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .ari-preference-preview__chip[aria-pressed="true"] {
+    border-color: var(--ari-preference-accent);
+    color: #061019;
+    background: var(--ari-preference-accent);
+  }
+
+  .ari-preference-preview__prompt {
+    margin-bottom: 12px;
+    color: var(--ari-preference-muted);
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .ari-preference-preview__message {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 17px;
+    border: 1px solid rgba(56, 217, 255, 0.16);
+    border-radius: 17px;
+    background: rgba(56, 217, 255, 0.045);
+  }
+
+  .ari-preference-preview__avatar {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #071018;
+    background: var(--ari-preference-accent);
+    font-family: Audiowide, sans-serif;
+    font-size: 0.75rem;
+  }
+
+  .ari-preference-preview__message p {
+    margin: 3px 0 0;
+    line-height: 1.58;
+  }
+
+  .ari-preference-preview__disclaimer {
+    margin: 12px 0 0;
+    color: #748697;
+    font-size: 0.74rem;
+    line-height: 1.45;
   }
 
   .ari-preference-settings__actions {
-    position: sticky;
+    position: fixed;
+    z-index: 40;
+    right: 0;
     bottom: 0;
+    left: 0;
     display: flex;
-    justify-content: flex-end;
+    justify-content: center;
+    padding:
+      14px max(16px, env(safe-area-inset-right))
+      calc(14px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(8, 13, 20, 0.9);
+    backdrop-filter: blur(18px);
+  }
+
+  .ari-preference-settings__actions-inner {
+    width: min(1040px, 100%);
+    display: grid;
+    grid-template-columns: minmax(120px, 0.35fr) minmax(180px, 0.65fr);
     gap: 12px;
-    padding: 18px 0 0;
-    margin-top: 18px;
-    background: linear-gradient(
-      to bottom,
-      transparent,
-      var(--ari-page-bg, #0b0f17) 34%
-    );
   }
 
   .ari-preference-button {
-    min-height: 44px;
-    padding: 0 18px;
-    border: 0;
-    border-radius: 12px;
-    font: inherit;
-    font-weight: 750;
+    min-height: 50px;
+    padding: 0 20px;
+    border: 1px solid transparent;
+    border-radius: 15px;
+    font-weight: 800;
     cursor: pointer;
+    transition:
+      transform 150ms ease,
+      opacity 150ms ease,
+      border-color 150ms ease;
+  }
+
+  .ari-preference-button:hover:not(:disabled) {
+    transform: translateY(-1px);
   }
 
   .ari-preference-button:disabled {
@@ -303,68 +1189,460 @@ ari-preference-settings.html
   }
 
   .ari-preference-button--primary {
-    background: var(--ari-accent, #38d9ff);
-    color: #071018;
+    color: #061019;
+    background: linear-gradient(135deg, #54e1ff, #19c8ef);
+    box-shadow: 0 9px 26px rgba(56, 217, 255, 0.18);
   }
 
   .ari-preference-button--secondary {
-    background: rgba(255, 255, 255, 0.09);
+    border-color: var(--ari-preference-border);
     color: inherit;
+    background: rgba(255, 255, 255, 0.055);
   }
 
   .ari-preference-consent-dialog {
-    width: min(520px, calc(100% - 32px));
+    width: min(540px, calc(100% - 28px));
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 18px;
-    background: #121722;
+    border-radius: 22px;
     color: #f5f7fb;
+    background: #101824;
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62);
   }
 
   .ari-preference-consent-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.68);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
   }
 
   .ari-preference-consent-dialog form {
-    padding: 24px;
+    padding: 25px;
+  }
+
+  .ari-preference-consent-dialog__badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    margin-bottom: 14px;
+    padding: 0 11px;
+    border: 1px solid rgba(255, 199, 102, 0.22);
+    border-radius: 999px;
+    color: var(--ari-preference-warning);
+    background: rgba(255, 199, 102, 0.07);
+    font-size: 0.72rem;
+    font-weight: 850;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .ari-preference-consent-dialog h2 {
+    margin-bottom: 0;
+    font-family: Orbitron, sans-serif;
+    font-size: 1.15rem;
   }
 
   .ari-preference-consent-dialog__text {
-    opacity: 0.78;
-    line-height: 1.55;
+    margin: 14px 0 0;
+    color: var(--ari-preference-muted);
+    line-height: 1.6;
+  }
+
+  .ari-preference-consent-dialog__safety {
+    margin: 16px 0 0;
+    padding: 13px 14px;
+    border: 1px solid rgba(56, 217, 255, 0.15);
+    border-radius: 13px;
+    color: #9fb3c2;
+    background: rgba(56, 217, 255, 0.045);
+    font-size: 0.8rem;
+    line-height: 1.5;
   }
 
   .ari-preference-consent-dialog__check {
     display: flex;
-    gap: 10px;
+    gap: 11px;
     align-items: flex-start;
     margin: 22px 0;
-    line-height: 1.45;
+    line-height: 1.48;
+  }
+
+  .ari-preference-consent-dialog__check input {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+    accent-color: var(--ari-preference-accent);
   }
 
   .ari-preference-consent-dialog__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
-  @media (max-width: 700px) {
-    .ari-preference-settings__header,
-    .ari-preference-settings__preset-card,
-    .ari-preference-row {
-      display: block;
+  @media (max-width: 760px) {
+    .ari-preference-settings {
+      width: min(100% - 20px, 1040px);
+      padding-top: 10px;
+    }
+
+    .ari-preference-settings__header {
+      grid-template-columns: 1fr;
     }
 
     .ari-preference-settings__status {
-      margin-top: 12px;
+      justify-self: start;
       text-align: left;
     }
 
-    .ari-preference-settings__preset-card select,
-    .ari-preference-row select {
-      width: 100%;
-      margin-top: 14px;
+    .ari-preference-settings__preset-card {
+      grid-template-columns: 1fr;
+    }
+
+    .ari-preference-settings__preset-card .ari-preference-panel__heading {
+      border-right: 0;
+      border-bottom: 1px solid var(--ari-preference-border);
+    }
+
+    .ari-specialization__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ari-preference-row {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+  }
+
+  @media (max-width: 450px) {
+    .ari-preference-settings__brand-engine {
+      letter-spacing: 0.2em;
+    }
+
+    .ari-specialization__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ari-specialization-option--wide {
+      grid-column: auto;
+    }
+
+    .ari-preference-settings__actions-inner,
+    .ari-preference-consent-dialog__actions {
+      grid-template-columns: 1fr;
+    }
+
+    .ari-preference-settings {
+      padding-bottom: 182px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ari-preference-settings *,
+    .ari-preference-settings *::before,
+    .ari-preference-settings *::after {
+      animation: none !important;
+      scroll-behavior: auto !important;
+      transition: none !important;
     }
   }
 </style>
+
+<script>
+  (() => {
+    "use strict";
+
+    const STORAGE_KEY = "ari_preference_specialization";
+    const DEFAULT_SPECIALIZATION = "default";
+
+    const presetSelect = document.getElementById("ari-preference-preset");
+    const previewPrompt = document.getElementById(
+      "ari-preference-preview-prompt"
+    );
+    const previewResponse = document.getElementById(
+      "ari-preference-preview-response"
+    );
+    const previewButtons = Array.from(
+      document.querySelectorAll("[data-ari-preview-scenario]")
+    );
+    const specializationInputs = Array.from(
+      document.querySelectorAll('input[name="ariSpecialization"]')
+    );
+    const preferenceForm = document.getElementById("ari-preference-form");
+    const resetButton = document.getElementById("ari-preference-reset");
+
+    let activePreviewScenario = "motivation";
+
+    const previewContent = {
+      motivation: {
+        prompt: "âI skipped the gym today.â",
+        default:
+          "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine.",
+        balanced:
+          "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine.",
+        professional:
+          "One missed session is manageable. Identify the obstacle, reschedule the workout, and continue the plan.",
+        friendly:
+          "You are okay. One missed day is not the problemâjust do not let it become the whole week.",
+        teacher:
+          "A single missed workout matters far less than your consistency across several weeks.",
+        coach:
+          "You missed today. Own it, stop negotiating with yourself, and show up tomorrow.",
+        therapist:
+          "What got in the way today? Understanding the obstacle may help you respond differently tomorrow.",
+        companion:
+          "No beating yourself up. We reset tomorrow, and I will help you get moving again.",
+        comedian:
+          "Your gym membership has officially filed a missing-person report.",
+        unhinged:
+          "The couch won this round. Tomorrow, drag your ass back to the gym and reclaim your dignity.",
+        custom:
+          "Your custom preferences will shape how Ari responds after you save them."
+      },
+
+      advice: {
+        prompt: "âShould I accept this new job?â",
+        default:
+          "Compare compensation, growth, stability, and how well the role fits your priorities before deciding.",
+        balanced:
+          "Compare compensation, growth, stability, and how well the role fits your priorities before deciding.",
+        professional:
+          "Evaluate compensation, advancement, organizational stability, role scope, and long-term strategic fit.",
+        friendly:
+          "Do not choose the job that only looks impressive. Choose the one that fits the life you actually want.",
+        teacher:
+          "A weighted decision matrix can help compare the opportunities while reducing emotional bias.",
+        coach:
+          "Choose based on your long-term goalânot fear, comfort, or somebody elseâs expectations.",
+        therapist:
+          "Which option feels aligned with your values, and which one are you considering mainly from fear or pressure?",
+        companion:
+          "Letâs compare both options together and make sure the choice works for your real life, not just your rÃ©sumÃ©.",
+        comedian:
+          "Pick the job with the best ratio of money to meetings that should have been emails.",
+        unhinged:
+          "Do not sell your soul for a shiny title and a manager who says âcircle backâ twelve times a day.",
+        custom:
+          "Your custom preferences will shape how Ari responds after you save them."
+      },
+
+      learning: {
+        prompt: "âExplain heart failure.â",
+        default:
+          "Heart failure means the heart cannot pump or fill efficiently enough to meet the bodyâs needs.",
+        balanced:
+          "Heart failure means the heart cannot pump or fill efficiently enough to meet the bodyâs needs.",
+        professional:
+          "Heart failure is a clinical syndrome caused by impaired ventricular filling, impaired ejection, or both.",
+        friendly:
+          "It does not mean the heart suddenly stopped. It means the heart is struggling to move blood as efficiently as it should.",
+        teacher:
+          "Think of the heart as a pump. In heart failure, the pump is too weak, too stiff, or both.",
+        coach:
+          "The key idea: the heart is still working, but not efficiently enough. That can cause fatigue, swelling, and shortness of breath.",
+        therapist:
+          "Heart failure can sound frightening, but the term describes reduced pumping or filling efficiencyânot that the heart has stopped.",
+        companion:
+          "The heart is still working, but it needs more help moving blood effectively. I can walk you through the types and symptoms.",
+        comedian:
+          "The heart did not quit its jobâit is just struggling with the workload and causing a backup.",
+        unhinged:
+          "The heart is still clocked in, but the pump is doing a half-assed job and fluid starts backing up.",
+        custom:
+          "Your custom preferences will shape how Ari responds after you save them."
+      },
+
+      support: {
+        prompt: "âI feel like I failed.â",
+        default:
+          "A painful outcome can feel like failure, but it does not define your ability or what happens next.",
+        balanced:
+          "A painful outcome can feel like failure, but it does not define your ability or what happens next.",
+        professional:
+          "Separate the emotional impact from the operational lesson, then identify the next controllable action.",
+        friendly:
+          "I know it hurts, but this is one outcomeânot your identity. We can figure out the next move.",
+        teacher:
+          "Failure is information about an attempt, not a permanent judgment about the person who made it.",
+        coach:
+          "Feel it, learn from it, and then move. This does not get to become the story of who you are.",
+        therapist:
+          "It sounds like this outcome is carrying a lot of meaning for you. What does it seem to say about you right now?",
+        companion:
+          "I am here with you. You do not have to solve everything immediately, but you also do not have to face it alone.",
+        comedian:
+          "The attempt flopped. That does not mean your entire character arc got canceled.",
+        unhinged:
+          "One thing went to shit. That does not mean you are shit. Learn from it and run the next play.",
+        custom:
+          "Your custom preferences will shape how Ari responds after you save them."
+      },
+
+      humor: {
+        prompt: "âI procrastinated all day.â",
+        default:
+          "Your to-do list survived another day undefeated.",
+        balanced:
+          "Your to-do list survived another day undefeated.",
+        professional:
+          "Productivity was not achieved. The avoidance strategy, however, was executed flawlessly.",
+        friendly:
+          "You spent eight hours emotionally preparing for a task that takes twenty minutes. Impressive, honestly.",
+        teacher:
+          "Todayâs lesson: delaying discomfort usually creates a larger and more annoying version of it.",
+        coach:
+          "Congratulationsâyou trained all day for the Procrastination Olympics. Now do the damn task.",
+        therapist:
+          "Your avoidance mechanism worked perfectly. Unfortunately, the task is still sitting there.",
+        companion:
+          "We procrastinated. We confess. We now open the task before it evolves into a final boss.",
+        comedian:
+          "You did everything today except the one thing today was actually about.",
+        unhinged:
+          "You dodged that task like it had a warrant for your arrest. Open the damn file.",
+        custom:
+          "Your custom preferences will shape how Ari responds after you save them."
+      }
+    };
+
+    function normalizePreset(value) {
+      return String(value || "default")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/-/g, "_");
+    }
+
+    function getSelectedPreset() {
+      return normalizePreset(presetSelect?.value || "default");
+    }
+
+    function updatePreview() {
+      if (!previewPrompt || !previewResponse) return;
+
+      const scenario =
+        previewContent[activePreviewScenario] || previewContent.motivation;
+      const selectedPreset = getSelectedPreset();
+
+      previewPrompt.textContent = scenario.prompt;
+      previewResponse.textContent =
+        scenario[selectedPreset] ||
+        scenario.default;
+    }
+
+    function selectPreviewScenario(button) {
+      activePreviewScenario =
+        button.dataset.ariPreviewScenario || "motivation";
+
+      previewButtons.forEach((candidate) => {
+        candidate.setAttribute(
+          "aria-pressed",
+          candidate === button ? "true" : "false"
+        );
+      });
+
+      updatePreview();
+    }
+
+    function readStoredSpecialization() {
+      try {
+        return (
+          window.localStorage.getItem(STORAGE_KEY) ||
+          DEFAULT_SPECIALIZATION
+        );
+      } catch (_error) {
+        return DEFAULT_SPECIALIZATION;
+      }
+    }
+
+    function restoreSpecialization() {
+      const storedValue = readStoredSpecialization();
+
+      const matchingInput = specializationInputs.find(
+        (input) => input.value === storedValue
+      );
+
+      const fallbackInput = specializationInputs.find(
+        (input) => input.value === DEFAULT_SPECIALIZATION
+      );
+
+      (matchingInput || fallbackInput)?.click();
+    }
+
+    function saveSpecializationLocally() {
+      const selected = specializationInputs.find((input) => input.checked);
+
+      if (!selected) return;
+
+      try {
+        window.localStorage.setItem(STORAGE_KEY, selected.value);
+      } catch (_error) {
+        // Local visual preference persistence is optional.
+      }
+    }
+
+    function resetSpecialization() {
+      const defaultInput = specializationInputs.find(
+        (input) => input.value === DEFAULT_SPECIALIZATION
+      );
+
+      if (defaultInput) {
+        defaultInput.checked = true;
+      }
+
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch (_error) {
+        // Local visual preference persistence is optional.
+      }
+    }
+
+    previewButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        selectPreviewScenario(button);
+      });
+    });
+
+    presetSelect?.addEventListener("change", updatePreview);
+
+    specializationInputs.forEach((input) => {
+      input.addEventListener("change", saveSpecializationLocally);
+    });
+
+    preferenceForm?.addEventListener("submit", saveSpecializationLocally);
+
+    resetButton?.addEventListener("click", () => {
+      resetSpecialization();
+
+      window.setTimeout(() => {
+        updatePreview();
+      }, 0);
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      restoreSpecialization();
+      updatePreview();
+    });
+
+    restoreSpecialization();
+    updatePreview();
+  })();
+</script>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+
+  <!--
+    Canonical preference dependency order.
+    Keep these paths synchronized with the production repository.
+  -->
+  <script src="ari/profile/ari-user-preference-contract.js?v=1.1.0"></script>
+  <script src="ari/profile/ari-user-preference-store.js?v=1.0.0"></script>
+  <script src="ari/context/ari-preference-resolver.js?v=1.0.0"></script>
+  <script src="ari/profile/ari-preference-runtime.js?v=1.0.0"></script>
+  <script src="ari/settings/ari-preference-settings-controller.js?v=1.0.0"></script>
+</body>
+</html>
