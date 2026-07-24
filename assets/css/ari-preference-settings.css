@@ -1,40 +1,29 @@
-==========================================================
-   ARI PREFERENCE SETTINGS
-   Clean Rebuild
-   File: assets/css/ari-preference-settings.css
-   Version: 6.0.0
-
-   Goals:
-   - Keep existing HTML and JavaScript unchanged
-   - Use one reusable visual system
-   - Eliminate stacked patches and duplicate selectors
-   - Prevent mobile overflow and vertical text wrapping
-========================================================== */
-
-
 /* ==========================================================
-   1. TOKENS
+   ARI PREFERENCE SETTINGS
+   HTML-Matched Rebuild
+   File: assets/css/ari-preference-settings.css
+   Version: 6.1.0
 ========================================================== */
 
 :root {
   --ari-bg: #050911;
-  --ari-bg-soft: #09111c;
-  --ari-panel: rgba(15, 25, 39, 0.88);
-  --ari-panel-strong: rgba(19, 32, 49, 0.96);
-  --ari-field: rgba(5, 12, 21, 0.82);
+  --ari-bg-2: #09111c;
+  --ari-panel: rgba(13, 23, 36, 0.94);
+  --ari-panel-2: rgba(18, 31, 47, 0.96);
+  --ari-field: rgba(5, 12, 21, 0.92);
 
-  --ari-accent: #38d9ff;
-  --ari-accent-bright: #7ce9ff;
-  --ari-accent-deep: #0fa9d4;
-  --ari-accent-soft: rgba(56, 217, 255, 0.1);
+  --ari-cyan: #38d9ff;
+  --ari-cyan-bright: #7ce9ff;
+  --ari-cyan-deep: #0fa9d4;
+  --ari-cyan-soft: rgba(56, 217, 255, 0.10);
 
   --ari-text: #f3f7fb;
-  --ari-text-soft: #b5c1cf;
+  --ari-text-soft: #b8c4d1;
   --ari-text-muted: #7f8c9c;
 
   --ari-border: rgba(255, 255, 255, 0.09);
   --ari-border-strong: rgba(255, 255, 255, 0.15);
-  --ari-border-accent: rgba(56, 217, 255, 0.3);
+  --ari-border-cyan: rgba(56, 217, 255, 0.30);
 
   --ari-success: #5cffb0;
   --ari-warning: #ffc857;
@@ -44,8 +33,8 @@
   --ari-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --ari-radius-sm: 0.75rem;
-  --ari-radius-md: 1.125rem;
-  --ari-radius-lg: 1.5rem;
+  --ari-radius-md: 1rem;
+  --ari-radius-lg: 1.35rem;
   --ari-radius-pill: 999px;
 
   --ari-space-1: 0.25rem;
@@ -57,17 +46,15 @@
   --ari-space-8: 2rem;
   --ari-space-10: 2.5rem;
   --ari-space-12: 3rem;
-  --ari-space-16: 4rem;
 
-  --ari-content-width: 64rem;
-  --ari-page-width: 74rem;
+  --ari-page-width: 72rem;
+  --ari-content-width: 62rem;
 
   --ari-shadow:
-    0 20px 55px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 18px 48px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
 
-  --ari-focus:
-    0 0 0 3px rgba(56, 217, 255, 0.18);
+  --ari-focus: 0 0 0 3px rgba(56, 217, 255, 0.18);
 
   --ari-fast: 140ms;
   --ari-normal: 220ms;
@@ -77,7 +64,7 @@
 
 
 /* ==========================================================
-   2. FOUNDATION
+   FOUNDATION
 ========================================================== */
 
 html {
@@ -95,18 +82,10 @@ body {
 
   color: var(--ari-text);
   background:
-    radial-gradient(
-      circle at 50% -8rem,
-      rgba(56, 217, 255, 0.13),
-      transparent 34rem
-    ),
-    linear-gradient(
-      180deg,
-      #07101a 0%,
-      var(--ari-bg) 100%
-    );
+    radial-gradient(circle at 50% -8rem, rgba(56, 217, 255, 0.13), transparent 34rem),
+    linear-gradient(180deg, #07101a 0%, var(--ari-bg) 100%);
 
-  font-family: var(--ari-font-body);
+  font-family: var(--ari-font-body) !important;
   font-size: 1rem;
   line-height: 1.55;
 }
@@ -119,18 +98,11 @@ body::before {
   pointer-events: none;
 
   background-image:
-    linear-gradient(
-      rgba(255, 255, 255, 0.018) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.018) 1px,
-      transparent 1px
-    );
+    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
 
   background-size: 3.5rem 3.5rem;
-  opacity: 0.35;
+  opacity: 0.28;
 }
 
 *,
@@ -159,19 +131,9 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-button {
-  border: 0;
-}
-
 a {
   color: inherit;
   text-decoration: none;
-}
-
-img,
-svg {
-  display: block;
-  max-width: 100%;
 }
 
 [hidden],
@@ -181,16 +143,28 @@ svg {
 
 ::selection {
   color: var(--ari-bg);
-  background: var(--ari-accent);
+  background: var(--ari-cyan);
 }
 
 :focus-visible {
-  outline: 2px solid var(--ari-accent);
+  outline: 2px solid var(--ari-cyan);
   outline-offset: 3px;
 }
 
-.ari-preference-settings :focus:not(:focus-visible) {
-  outline: none;
+.ari-preference-settings,
+.ari-preference-settings * {
+  font-family: var(--ari-font-body);
+}
+
+.ari-preference-settings h1,
+.ari-preference-settings h2,
+.ari-preference-settings h3,
+.ari-preference-settings legend,
+.ari-preference-settings__brand-name,
+.ari-preference-settings__brand-engine,
+.ari-preference-settings__eyebrow,
+.ari-preference-panel__kicker {
+  font-family: var(--ari-font-display) !important;
 }
 
 .ari-preference-settings h1,
@@ -210,7 +184,7 @@ svg {
 
 
 /* ==========================================================
-   3. PAGE SHELL
+   PAGE
 ========================================================== */
 
 .ari-preference-settings {
@@ -220,7 +194,7 @@ svg {
   padding:
     0
     clamp(var(--ari-space-4), 4vw, var(--ari-space-8))
-    var(--ari-space-16);
+    var(--ari-space-12);
 }
 
 .ari-preference-settings__form,
@@ -233,11 +207,12 @@ svg {
 
 
 /* ==========================================================
-   4. TOP BAR
+   TOP BAR
 ========================================================== */
 
 .ari-preference-settings__topbar {
   min-height: 4.75rem;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -251,7 +226,7 @@ svg {
     clamp(var(--ari-space-4), 4vw, var(--ari-space-8));
 
   border-bottom: 1px solid var(--ari-border);
-  background: rgba(5, 9, 17, 0.78);
+  background: rgba(5, 9, 17, 0.82);
 
   -webkit-backdrop-filter: blur(1rem);
   backdrop-filter: blur(1rem);
@@ -259,9 +234,10 @@ svg {
 
 .ari-preference-settings__back {
   min-height: 2.75rem;
+
   display: inline-flex;
   align-items: center;
-  gap: var(--ari-space-3);
+  gap: var(--ari-space-2);
 
   padding-inline: var(--ari-space-4);
 
@@ -269,7 +245,7 @@ svg {
   border-radius: var(--ari-radius-pill);
 
   color: var(--ari-text-soft);
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(255, 255, 255, 0.03);
 
   font-size: 0.875rem;
   font-weight: 700;
@@ -282,13 +258,13 @@ svg {
 
 .ari-preference-settings__back:hover {
   color: var(--ari-text);
-  border-color: var(--ari-border-accent);
-  background: var(--ari-accent-soft);
+  border-color: var(--ari-border-cyan);
+  background: var(--ari-cyan-soft);
 }
 
 .ari-preference-settings__back span:first-child {
-  color: var(--ari-accent);
-  font-size: 1.15rem;
+  color: var(--ari-cyan);
+  font-size: 1.1rem;
 }
 
 .ari-preference-settings__brand {
@@ -298,15 +274,8 @@ svg {
   white-space: nowrap;
 }
 
-.ari-preference-settings__brand-name,
-.ari-preference-settings__brand-engine {
-  font-family: var(--ari-font-display);
-  line-height: 1;
-  text-transform: uppercase;
-}
-
 .ari-preference-settings__brand-name {
-  color: var(--ari-accent);
+  color: var(--ari-cyan);
   font-size: 0.92rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -321,20 +290,20 @@ svg {
 
 
 /* ==========================================================
-   5. HERO
+   HERO
 ========================================================== */
 
 .ari-preference-settings__header {
   position: relative;
+
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--ari-space-8);
 
-  margin-top: clamp(var(--ari-space-10), 7vw, var(--ari-space-16));
+  margin-top: clamp(var(--ari-space-8), 7vw, var(--ari-space-12));
   margin-bottom: var(--ari-space-8);
 
-  padding:
-    clamp(var(--ari-space-6), 5vw, var(--ari-space-10));
+  padding: clamp(var(--ari-space-6), 5vw, var(--ari-space-10));
 
   overflow: hidden;
 
@@ -342,11 +311,7 @@ svg {
   border-radius: var(--ari-radius-lg);
 
   background:
-    linear-gradient(
-      145deg,
-      rgba(20, 32, 48, 0.8),
-      rgba(8, 15, 25, 0.76)
-    );
+    linear-gradient(145deg, rgba(20, 32, 48, 0.82), rgba(8, 15, 25, 0.80));
 
   -webkit-backdrop-filter: blur(1.25rem);
   backdrop-filter: blur(1.25rem);
@@ -366,11 +331,7 @@ svg {
   pointer-events: none;
 
   background:
-    radial-gradient(
-      circle,
-      rgba(56, 217, 255, 0.14),
-      transparent 66%
-    );
+    radial-gradient(circle, rgba(56, 217, 255, 0.14), transparent 66%);
 }
 
 .ari-preference-settings__header > * {
@@ -380,8 +341,7 @@ svg {
 
 .ari-preference-settings__eyebrow,
 .ari-preference-panel__kicker {
-  color: var(--ari-accent);
-  font-family: var(--ari-font-display);
+  color: var(--ari-cyan);
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1.25;
@@ -393,28 +353,29 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: var(--ari-space-3);
+
   margin: 0 0 var(--ari-space-4);
 }
 
 .ari-preference-settings__eyebrow::before {
   content: "";
+
   width: 1.75rem;
   height: 1px;
-  background: linear-gradient(90deg, var(--ari-accent), transparent);
+
+  background:
+    linear-gradient(90deg, var(--ari-cyan), transparent);
 }
 
 .ari-preference-settings__header h1 {
-  max-width: 13ch;
+  max-width: 14ch;
   margin: 0;
 
   color: var(--ari-text);
-  font-family: var(--ari-font-display);
-  font-size: clamp(2.3rem, 7vw, 4.6rem);
+  font-size: clamp(2.25rem, 6vw, 4.25rem);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.035em;
-
-  text-wrap: balance;
 }
 
 .ari-preference-settings__subtitle {
@@ -422,13 +383,13 @@ svg {
   margin: var(--ari-space-5) 0 0;
 
   color: var(--ari-text-soft);
-  font-size: clamp(0.96rem, 2vw, 1.08rem);
+  font-size: clamp(0.95rem, 2vw, 1.06rem);
   line-height: 1.7;
 }
 
 
 /* ==========================================================
-   6. STATUS AND LOADING
+   STATUS + LOADING
 ========================================================== */
 
 .ari-preference-settings__status {
@@ -451,19 +412,19 @@ svg {
 
   padding: var(--ari-space-3) var(--ari-space-4);
 
-  border: 1px solid var(--ari-border-accent);
+  border: 1px solid var(--ari-border-cyan);
   border-radius: var(--ari-radius-md);
 
-  background: var(--ari-accent-soft);
+  background: var(--ari-cyan-soft);
 }
 
 .ari-preference-settings__status:not(:empty)::before {
   content: "";
-  flex: 0 0 auto;
 
   width: 0.5rem;
   height: 0.5rem;
-  margin-top: 0.31rem;
+  flex: 0 0 auto;
+  margin-top: 0.3rem;
 
   border-radius: 50%;
   background: currentColor;
@@ -483,6 +444,7 @@ svg {
 
 .ari-preference-settings__loading {
   min-height: 6.5rem;
+
   display: flex;
   align-items: center;
   justify-content: center;
@@ -509,25 +471,26 @@ svg {
   flex: 0 0 auto;
 
   border-radius: 50%;
-  background: var(--ari-accent);
+  background: var(--ari-cyan);
 
   animation: ari-pulse 1.35s var(--ari-ease) infinite;
 }
 
 
 /* ==========================================================
-   7. PANELS AND ACCORDION
+   PANELS
 ========================================================== */
 
 .ari-preference-settings__categories {
   display: grid;
-  gap: var(--ari-space-5);
-  margin-block: var(--ari-space-5);
+  gap: var(--ari-space-4);
+  margin-block: var(--ari-space-4);
 }
 
 .ari-preference-panel,
 .ari-preference-category {
   position: relative;
+
   width: 100%;
   min-width: 0;
   margin: 0;
@@ -537,11 +500,7 @@ svg {
   border-radius: var(--ari-radius-lg);
 
   background:
-    linear-gradient(
-      145deg,
-      rgba(18, 30, 46, 0.88),
-      rgba(8, 15, 25, 0.84)
-    );
+    linear-gradient(145deg, rgba(18, 30, 46, 0.90), rgba(8, 15, 25, 0.88));
 
   -webkit-backdrop-filter: blur(1.15rem);
   backdrop-filter: blur(1.15rem);
@@ -555,17 +514,18 @@ svg {
 
 .ari-preference-panel:hover,
 .ari-preference-category:hover {
-  border-color: var(--ari-border-accent);
+  border-color: var(--ari-border-cyan);
   transform: translateY(-1px);
 }
 
 .ari-preference-panel[data-ari-accordion-open="true"],
 .ari-preference-category[data-ari-accordion-open="true"] {
-  border-color: var(--ari-border-accent);
+  border-color: var(--ari-border-cyan);
 }
 
-.ari-preference-panel__heading,
-.ari-preference-category__header {
+
+/* Manual panels: icon + copy + arrow */
+.ari-preference-panel__heading {
   position: relative;
   z-index: 2;
 
@@ -574,12 +534,33 @@ svg {
   min-height: 6rem;
 
   display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) 2.5rem;
+  grid-template-columns: 3rem minmax(0, 1fr) 2.25rem;
   align-items: center;
   gap: var(--ari-space-5);
 
   padding:
     var(--ari-space-6)
+    clamp(var(--ari-space-5), 4vw, var(--ari-space-8));
+
+  user-select: none;
+}
+
+/* Generated categories: copy + arrow */
+.ari-preference-category__header {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 5.5rem;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.25rem;
+  align-items: center;
+  gap: var(--ari-space-4);
+
+  padding:
+    var(--ari-space-5)
     clamp(var(--ari-space-5), 4vw, var(--ari-space-8));
 
   user-select: none;
@@ -601,8 +582,7 @@ svg {
   margin: 0;
 
   color: var(--ari-text);
-  font-family: var(--ari-font-display);
-  font-size: clamp(1rem, 2vw, 1.2rem);
+  font-size: clamp(1rem, 2vw, 1.18rem);
   font-weight: 700;
   line-height: 1.3;
 }
@@ -612,7 +592,7 @@ svg {
   margin: var(--ari-space-2) 0 0;
 
   color: var(--ari-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   line-height: 1.5;
 }
 
@@ -623,13 +603,12 @@ svg {
   display: grid;
   place-items: center;
 
-  border: 1px solid var(--ari-border-accent);
+  border: 1px solid var(--ari-border-cyan);
   border-radius: var(--ari-radius-md);
 
-  color: var(--ari-accent);
-  background: var(--ari-accent-soft);
+  color: var(--ari-cyan);
+  background: var(--ari-cyan-soft);
 
-  font-family: var(--ari-font-display);
   font-size: 1rem;
   font-weight: 800;
 }
@@ -640,7 +619,7 @@ svg {
   margin-top: var(--ari-space-2);
   overflow: hidden;
 
-  color: var(--ari-accent);
+  color: var(--ari-cyan);
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.4;
@@ -649,34 +628,24 @@ svg {
   white-space: nowrap;
 }
 
+
+/* Smaller chevron, not a giant empty circle */
 [data-ari-accordion-trigger="true"]::after {
   content: "";
 
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2rem;
+  height: 2rem;
+
+  justify-self: end;
 
   border: 1px solid var(--ari-border);
   border-radius: 50%;
 
   background:
-    linear-gradient(
-      45deg,
-      transparent 47%,
-      var(--ari-text-muted) 48%,
-      var(--ari-text-muted) 55%,
-      transparent 56%
-    )
-    calc(50% - 0.22rem) 50% / 0.52rem 0.52rem no-repeat,
-
-    linear-gradient(
-      -45deg,
-      transparent 47%,
-      var(--ari-text-muted) 48%,
-      var(--ari-text-muted) 55%,
-      transparent 56%
-    )
-    calc(50% + 0.22rem) 50% / 0.52rem 0.52rem no-repeat,
-
+    linear-gradient(45deg, transparent 47%, var(--ari-text-muted) 48%, var(--ari-text-muted) 55%, transparent 56%)
+      calc(50% - 0.19rem) 50% / 0.46rem 0.46rem no-repeat,
+    linear-gradient(-45deg, transparent 47%, var(--ari-text-muted) 48%, var(--ari-text-muted) 55%, transparent 56%)
+      calc(50% + 0.19rem) 50% / 0.46rem 0.46rem no-repeat,
     rgba(255, 255, 255, 0.025);
 
   transition:
@@ -685,13 +654,18 @@ svg {
 }
 
 [data-ari-accordion-trigger="true"]:hover::after {
-  border-color: var(--ari-border-accent);
+  border-color: var(--ari-border-cyan);
 }
 
 [data-ari-accordion-open="true"]
   > [data-ari-accordion-trigger="true"]::after {
   transform: rotate(180deg);
 }
+
+
+/* ==========================================================
+   ACCORDION CONTENT
+========================================================== */
 
 .ari-accordion-content {
   position: relative;
@@ -745,19 +719,18 @@ svg {
 
 
 /* ==========================================================
-   8. GENERATED CONTENT
+   COMMUNICATION PRESET + SPECIALIZATION
 ========================================================== */
 
 .ari-preference-settings__preset-card,
-.ari-specialization {
-  margin-bottom: var(--ari-space-5);
+.ari-specialization,
+.ari-preference-preview {
+  margin-bottom: var(--ari-space-4);
 }
 
 .ari-preference-settings__preset-control,
 .ari-specialization__body,
-.ari-preference-category__content,
-.ari-preference-options,
-.ari-preference-option-group {
+.ari-preference-category__content {
   width: 100%;
   min-width: 0;
 
@@ -773,7 +746,7 @@ svg {
 .ari-preference-option__label {
   color: var(--ari-text);
   font-size: 0.875rem;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.4;
 }
 
@@ -783,6 +756,8 @@ svg {
 .ari-preference-control-row__description,
 .ari-preference-option__description,
 .ari-preference-category__description {
+  margin: 0;
+
   color: var(--ari-text-muted);
   font-size: 0.75rem;
   line-height: 1.55;
@@ -796,7 +771,7 @@ svg {
   border-radius: var(--ari-radius-md);
 
   color: var(--ari-text-soft);
-  background: rgba(120, 169, 255, 0.1);
+  background: rgba(120, 169, 255, 0.10);
 
   font-size: 0.875rem;
   line-height: 1.6;
@@ -818,20 +793,16 @@ svg {
   margin-bottom: var(--ari-space-4);
   padding: 0;
 
-  font-family: var(--ari-font-display);
-  font-size: 0.75rem;
+  color: var(--ari-text);
+  font-size: 0.72rem;
+  font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .ari-specialization__grid {
   display: grid;
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--ari-space-3);
 }
 
@@ -863,13 +834,11 @@ svg {
 .ari-specialization-option:has(input:checked),
 .ari-preference-option:has(input:checked) {
   color: var(--ari-text);
-  border-color: var(--ari-border-accent);
-  background: var(--ari-accent-soft);
+  border-color: var(--ari-border-cyan);
+  background: var(--ari-cyan-soft);
 }
 
-.ari-specialization-option input,
-.ari-preference-switch input,
-.ari-preference-toggle input {
+.ari-specialization-option input {
   position: absolute;
 
   width: 1px;
@@ -879,7 +848,6 @@ svg {
 
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
-
   white-space: nowrap;
 }
 
@@ -888,23 +856,44 @@ svg {
   min-width: 0;
 }
 
+.ari-specialization-option span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ari-specialization-option strong {
+  color: var(--ari-text);
+  font-size: 0.875rem;
+}
+
+.ari-specialization-option small {
+  color: var(--ari-text-muted);
+  font-size: 0.75rem;
+}
+
 .ari-specialization-option--wide {
   grid-column: 1 / -1;
+}
+
+
+/* ==========================================================
+   GENERATED ROWS
+========================================================== */
+
+.ari-preference-options,
+.ari-preference-option-group {
+  display: grid;
+  gap: var(--ari-space-3);
 }
 
 .ari-preference-row,
 .ari-preference-setting,
 .ari-preference-control-row {
-  position: relative;
-
   width: 100%;
   min-width: 0;
 
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    minmax(10rem, 18rem);
-
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 18rem);
   align-items: center;
   gap: var(--ari-space-6);
 
@@ -936,7 +925,7 @@ svg {
 
 
 /* ==========================================================
-   9. CONTROLS
+   CONTROLS
 ========================================================== */
 
 .ari-preference-settings input,
@@ -961,7 +950,6 @@ svg {
 
   transition:
     border-color var(--ari-fast) var(--ari-ease),
-    background var(--ari-fast) var(--ari-ease),
     box-shadow var(--ari-fast) var(--ari-ease);
 }
 
@@ -978,16 +966,8 @@ svg {
   padding-right: 2.8rem;
 
   background-image:
-    linear-gradient(
-      45deg,
-      transparent 50%,
-      var(--ari-accent) 50%
-    ),
-    linear-gradient(
-      135deg,
-      var(--ari-accent) 50%,
-      transparent 50%
-    );
+    linear-gradient(45deg, transparent 50%, var(--ari-cyan) 50%),
+    linear-gradient(135deg, var(--ari-cyan) 50%, transparent 50%);
 
   background-position:
     calc(100% - 1.15rem) calc(50% - 0.12rem),
@@ -1021,7 +1001,7 @@ svg {
 .ari-preference-settings input[type="number"]:hover,
 .ari-preference-settings input[type="email"]:hover,
 .ari-preference-settings textarea:hover {
-  border-color: var(--ari-border-accent);
+  border-color: var(--ari-border-cyan);
 }
 
 .ari-preference-settings select:focus-visible,
@@ -1029,30 +1009,18 @@ svg {
 .ari-preference-settings input[type="number"]:focus-visible,
 .ari-preference-settings input[type="email"]:focus-visible,
 .ari-preference-settings textarea:focus-visible {
-  border-color: var(--ari-accent);
+  border-color: var(--ari-cyan);
   box-shadow: var(--ari-focus);
 }
 
 .ari-preference-option input[type="radio"],
-.ari-preference-option input[type="checkbox"],
-.ari-preference-checkbox input {
+.ari-preference-option input[type="checkbox"] {
   width: 1.1rem;
   height: 1.1rem;
-
   flex: 0 0 auto;
   margin-top: 0.12rem;
 
-  accent-color: var(--ari-accent);
-}
-
-.ari-preference-checkbox {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: var(--ari-space-3);
-
-  color: var(--ari-text-soft);
-  font-size: 0.875rem;
-  line-height: 1.5;
+  accent-color: var(--ari-cyan);
 }
 
 .ari-preference-switch,
@@ -1066,6 +1034,20 @@ svg {
   flex: 0 0 auto;
 
   border-radius: var(--ari-radius-pill);
+}
+
+.ari-preference-switch input,
+.ari-preference-toggle input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  overflow: hidden;
+
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .ari-preference-switch__track,
@@ -1086,6 +1068,7 @@ svg {
 .ari-preference-switch__track::after,
 .ari-preference-toggle__track::after {
   content: "";
+
   position: absolute;
   top: 50%;
   left: 0.2rem;
@@ -1106,14 +1089,8 @@ svg {
 
 .ari-preference-switch input:checked + .ari-preference-switch__track,
 .ari-preference-toggle input:checked + .ari-preference-toggle__track {
-  border-color: var(--ari-accent);
-
-  background:
-    linear-gradient(
-      90deg,
-      var(--ari-accent-deep),
-      var(--ari-accent)
-    );
+  border-color: var(--ari-cyan);
+  background: linear-gradient(90deg, var(--ari-cyan-deep), var(--ari-cyan));
 }
 
 .ari-preference-switch input:checked + .ari-preference-switch__track::after,
@@ -1128,10 +1105,7 @@ svg {
   min-width: 0;
 
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
-
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--ari-space-4);
 }
@@ -1144,18 +1118,10 @@ svg {
   background: transparent;
 }
 
-.ari-preference-settings input[type="range"]::-webkit-slider-runnable-track,
-.ari-preference-settings input[type="range"]::-moz-range-track {
+.ari-preference-settings input[type="range"]::-webkit-slider-runnable-track {
   height: 0.38rem;
-
   border-radius: var(--ari-radius-pill);
-
-  background:
-    linear-gradient(
-      90deg,
-      rgba(56, 217, 255, 0.72),
-      rgba(56, 217, 255, 0.14)
-    );
+  background: linear-gradient(90deg, rgba(56, 217, 255, 0.72), rgba(56, 217, 255, 0.14));
 }
 
 .ari-preference-settings input[type="range"]::-webkit-slider-thumb {
@@ -1167,8 +1133,13 @@ svg {
 
   border: 0.2rem solid var(--ari-bg);
   border-radius: 50%;
+  background: var(--ari-cyan);
+}
 
-  background: var(--ari-accent);
+.ari-preference-settings input[type="range"]::-moz-range-track {
+  height: 0.38rem;
+  border-radius: var(--ari-radius-pill);
+  background: linear-gradient(90deg, rgba(56, 217, 255, 0.72), rgba(56, 217, 255, 0.14));
 }
 
 .ari-preference-settings input[type="range"]::-moz-range-thumb {
@@ -1177,8 +1148,7 @@ svg {
 
   border: 0.2rem solid var(--ari-bg);
   border-radius: 50%;
-
-  background: var(--ari-accent);
+  background: var(--ari-cyan);
 }
 
 .ari-preference-range__value,
@@ -1191,202 +1161,33 @@ svg {
 
   padding: var(--ari-space-2) var(--ari-space-3);
 
-  border: 1px solid var(--ari-border-accent);
+  border: 1px solid var(--ari-border-cyan);
   border-radius: var(--ari-radius-pill);
 
-  color: var(--ari-accent);
-  background: var(--ari-accent-soft);
+  color: var(--ari-cyan);
+  background: var(--ari-cyan-soft);
 
-  font-family: var(--ari-font-display);
   font-size: 0.75rem;
   font-weight: 800;
 }
 
 
 /* ==========================================================
-   10. PREVIEW
+   PREVIEW â MATCHES CURRENT HTML
 ========================================================== */
 
-.ari-preference-preview {
-  margin-top: var(--ari-space-5);
-}
-
-.ari-preference-preview__body,
-.ari-preference-preview__conversation {
+.ari-preference-preview__body {
   display: grid;
   gap: var(--ari-space-5);
 }
 
-.ari-preference-preview__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ari-space-4);
-
-  padding-bottom: var(--ari-space-5);
-  border-bottom: 1px solid var(--ari-border);
-}
-
-.ari-preference-preview__toolbar h3 {
-  margin: 0;
-
-  color: var(--ari-text);
-  font-family: var(--ari-font-display);
-  font-size: 0.94rem;
-}
-
-.ari-preference-preview__toolbar p {
-  margin: var(--ari-space-2) 0 0;
-
-  color: var(--ari-text-muted);
-  font-size: 0.75rem;
-}
-
-.ari-preference-preview__status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ari-space-2);
-
-  padding: var(--ari-space-2) var(--ari-space-3);
-
-  border: 1px solid var(--ari-border-accent);
-  border-radius: var(--ari-radius-pill);
-
-  color: var(--ari-accent);
-  background: var(--ari-accent-soft);
-
-  font-size: 0.64rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.ari-preference-preview__stage {
-  min-height: 21rem;
-  display: grid;
-  align-items: end;
-
-  padding:
-    clamp(var(--ari-space-5), 4vw, var(--ari-space-8));
-
-  overflow: hidden;
-
-  border: 1px solid var(--ari-border);
-  border-radius: var(--ari-radius-lg);
-
-  background:
-    radial-gradient(
-      circle at 50% 0,
-      rgba(56, 217, 255, 0.08),
-      transparent 19rem
-    ),
-    linear-gradient(
-      180deg,
-      rgba(5, 10, 17, 0.84),
-      rgba(3, 7, 12, 0.96)
-    );
-}
-
-.ari-preference-preview__conversation {
-  width: min(100%, 48rem);
-  margin-inline: auto;
-}
-
-.ari-preference-preview__message {
-  max-width: min(88%, 40rem);
-
-  padding: var(--ari-space-4) var(--ari-space-5);
-
-  border-radius: var(--ari-radius-md);
-
-  font-size: 0.875rem;
-  line-height: 1.65;
-}
-
-.ari-preference-preview__message p {
-  margin: 0;
-}
-
-.ari-preference-preview__message--user {
-  justify-self: end;
-
-  color: var(--ari-text);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(32, 44, 61, 0.92),
-      rgba(18, 27, 40, 0.9)
-    );
-}
-
-.ari-preference-preview__message--ari {
-  justify-self: start;
-
-  color: var(--ari-text-soft);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(15, 31, 45, 0.94),
-      rgba(8, 17, 27, 0.92)
-    );
-}
-
-.ari-preference-preview__meta {
-  display: grid;
-  grid-template-columns:
-    repeat(
-      3,
-      minmax(0, 1fr)
-    );
-
-  gap: var(--ari-space-3);
-}
-
-.ari-preference-preview__metric {
-  min-width: 0;
-  padding: var(--ari-space-4);
-
-  border: 1px solid var(--ari-border);
-  border-radius: var(--ari-radius-md);
-
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.ari-preference-preview__metric-label {
-  display: block;
-  margin-bottom: var(--ari-space-2);
-
-  color: var(--ari-text-muted);
-
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.ari-preference-preview__metric-value {
-  display: block;
-  overflow: hidden;
-
-  color: var(--ari-text);
-
-  font-size: 0.875rem;
-  font-weight: 750;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ari-preference-scenarios,
-.ari-preview-scenarios {
+.ari-preference-preview__scenarios {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ari-space-2);
 }
 
-.ari-preference-scenario,
-.ari-preview-scenario,
-.ari-preference-chip {
+.ari-preference-preview__chip {
   min-height: 2.5rem;
 
   display: inline-flex;
@@ -1402,27 +1203,85 @@ svg {
   background: rgba(255, 255, 255, 0.025);
 
   font-size: 0.75rem;
-  font-weight: 750;
+  font-weight: 700;
+
+  transition:
+    color var(--ari-fast) var(--ari-ease),
+    border-color var(--ari-fast) var(--ari-ease),
+    background var(--ari-fast) var(--ari-ease);
 }
 
-.ari-preference-scenario[aria-pressed="true"],
-.ari-preview-scenario[aria-pressed="true"],
-.ari-preference-chip.is-active,
-.ari-preference-chip[data-active="true"] {
+.ari-preference-preview__chip:hover {
+  color: var(--ari-text);
+  border-color: var(--ari-border-cyan);
+}
+
+.ari-preference-preview__chip[aria-pressed="true"] {
   color: var(--ari-bg);
   border-color: transparent;
+  background: linear-gradient(135deg, var(--ari-cyan-bright), var(--ari-cyan-deep));
+}
 
-  background:
-    linear-gradient(
-      135deg,
-      var(--ari-accent-bright),
-      var(--ari-accent-deep)
-    );
+.ari-preference-preview__prompt {
+  margin: 0;
+
+  color: var(--ari-text);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.ari-preference-preview__message {
+  max-width: 44rem;
+
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ari-space-4);
+
+  padding: var(--ari-space-5);
+
+  border: 1px solid var(--ari-border-cyan);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-text-soft);
+  background: rgba(56, 217, 255, 0.06);
+
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.ari-preference-preview__message p {
+  margin: 0;
+}
+
+.ari-preference-preview__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid var(--ari-border-cyan);
+  border-radius: 50%;
+
+  color: var(--ari-cyan);
+  background: var(--ari-cyan-soft);
+
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.ari-preference-preview__disclaimer {
+  margin: 0;
+
+  color: var(--ari-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
 }
 
 
 /* ==========================================================
-   11. ACTIONS AND BUTTONS
+   ACTIONS â MATCHES CURRENT HTML
 ========================================================== */
 
 .ari-preference-settings__actions {
@@ -1430,23 +1289,14 @@ svg {
   bottom: var(--ari-space-4);
   z-index: 30;
 
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ari-space-4);
-
   margin-top: var(--ari-space-8);
-  padding: var(--ari-space-4) var(--ari-space-5);
+  padding: var(--ari-space-4);
 
   border: 1px solid var(--ari-border-strong);
   border-radius: var(--ari-radius-lg);
 
   background:
-    linear-gradient(
-      145deg,
-      rgba(17, 27, 40, 0.94),
-      rgba(8, 14, 23, 0.96)
-    );
+    linear-gradient(145deg, rgba(17, 27, 40, 0.96), rgba(8, 14, 23, 0.97));
 
   -webkit-backdrop-filter: blur(1.25rem);
   backdrop-filter: blur(1.25rem);
@@ -1454,15 +1304,14 @@ svg {
   box-shadow: var(--ari-shadow);
 }
 
-.ari-preference-settings__actions-buttons {
+.ari-preference-settings__actions-inner {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--ari-space-3);
 }
 
-.ari-preference-button,
-.ari-button,
-.ari-preference-settings__button {
+.ari-preference-button {
   min-height: 3rem;
 
   display: inline-flex;
@@ -1483,36 +1332,22 @@ svg {
     opacity var(--ari-fast) var(--ari-ease);
 }
 
-.ari-preference-button:hover,
-.ari-button:hover,
-.ari-preference-settings__button:hover {
+.ari-preference-button:hover {
   transform: translateY(-1px);
 }
 
-.ari-preference-button--primary,
-.ari-button--primary,
-.ari-preference-settings__button--primary {
+.ari-preference-button--primary {
   color: var(--ari-bg);
-
-  background:
-    linear-gradient(
-      135deg,
-      var(--ari-accent-bright),
-      var(--ari-accent-deep)
-    );
+  background: linear-gradient(135deg, var(--ari-cyan-bright), var(--ari-cyan-deep));
 }
 
-.ari-preference-button--secondary,
-.ari-button--secondary,
-.ari-preference-settings__button--secondary {
+.ari-preference-button--secondary {
   color: var(--ari-text-soft);
   border-color: var(--ari-border-strong);
   background: rgba(255, 255, 255, 0.035);
 }
 
-.ari-preference-button:disabled,
-.ari-button:disabled,
-.ari-preference-settings__button:disabled {
+.ari-preference-button:disabled {
   cursor: not-allowed;
   opacity: 0.46;
   transform: none;
@@ -1520,7 +1355,7 @@ svg {
 
 
 /* ==========================================================
-   12. DIALOG AND STATES
+   CONSENT DIALOG â MATCHES CURRENT HTML
 ========================================================== */
 
 .ari-preference-consent-dialog {
@@ -1534,16 +1369,9 @@ svg {
   border-radius: var(--ari-radius-lg);
 
   color: var(--ari-text);
+  background: linear-gradient(145deg, rgba(20, 32, 48, 0.99), rgba(7, 13, 22, 0.99));
 
-  background:
-    linear-gradient(
-      145deg,
-      rgba(20, 32, 48, 0.99),
-      rgba(7, 13, 22, 0.99)
-    );
-
-  box-shadow:
-    0 34px 100px rgba(0, 0, 0, 0.62);
+  box-shadow: 0 34px 100px rgba(0, 0, 0, 0.62);
 }
 
 .ari-preference-consent-dialog::backdrop {
@@ -1553,46 +1381,91 @@ svg {
   backdrop-filter: blur(0.7rem);
 }
 
-.ari-preference-consent-dialog__content {
+.ari-preference-consent-dialog form {
   max-height: min(88vh, 48rem);
-
-  display: grid;
-  grid-template-rows:
-    auto
-    minmax(0, 1fr)
-    auto;
-}
-
-.ari-preference-consent-dialog__header,
-.ari-preference-consent-dialog__body,
-.ari-preference-consent-dialog__footer {
-  padding-inline: var(--ari-space-6);
-}
-
-.ari-preference-consent-dialog__header {
-  padding-top: var(--ari-space-6);
-  padding-bottom: var(--ari-space-5);
-
-  border-bottom: 1px solid var(--ari-border);
-}
-
-.ari-preference-consent-dialog__body {
   overflow-y: auto;
 
-  padding-top: var(--ari-space-6);
-  padding-bottom: var(--ari-space-6);
+  display: grid;
+  gap: var(--ari-space-5);
+
+  padding: var(--ari-space-6);
 }
 
-.ari-preference-consent-dialog__footer {
+.ari-preference-consent-dialog__badge {
+  width: fit-content;
+
+  padding: var(--ari-space-2) var(--ari-space-3);
+
+  border: 1px solid rgba(255, 200, 87, 0.28);
+  border-radius: var(--ari-radius-pill);
+
+  color: var(--ari-warning);
+  background: rgba(255, 200, 87, 0.08);
+
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ari-preference-consent-dialog h2 {
+  margin: 0;
+
+  color: var(--ari-text);
+  font-size: 1.25rem;
+}
+
+.ari-preference-consent-dialog__text {
+  margin: 0;
+
+  color: var(--ari-text-soft);
+  line-height: 1.65;
+}
+
+.ari-preference-consent-dialog__safety {
+  padding: var(--ari-space-4);
+
+  border: 1px solid var(--ari-border);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-text-muted);
+  background: rgba(255, 255, 255, 0.025);
+
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.ari-preference-consent-dialog__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ari-space-3);
+
+  color: var(--ari-text-soft);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.ari-preference-consent-dialog__check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+
+  accent-color: var(--ari-cyan);
+}
+
+.ari-preference-consent-dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--ari-space-3);
 
-  padding-top: var(--ari-space-5);
-  padding-bottom: var(--ari-space-5);
-
+  padding-top: var(--ari-space-4);
   border-top: 1px solid var(--ari-border);
 }
+
+
+/* ==========================================================
+   STATES
+========================================================== */
 
 .ari-preference-option[data-consent-required="true"],
 .ari-preference-row[data-consent-required="true"],
@@ -1610,8 +1483,7 @@ svg {
 .ari-preference-settings [aria-invalid="true"],
 .ari-preference-settings .has-error {
   border-color: rgba(255, 110, 138, 0.5) !important;
-  box-shadow:
-    0 0 0 3px rgba(255, 110, 138, 0.1) !important;
+  box-shadow: 0 0 0 3px rgba(255, 110, 138, 0.1) !important;
 }
 
 .ari-preference-error,
@@ -1632,35 +1504,7 @@ svg {
 
 
 /* ==========================================================
-   13. UTILITIES
-========================================================== */
-
-.ari-visually-hidden {
-  position: absolute !important;
-
-  width: 1px !important;
-  height: 1px !important;
-
-  padding: 0 !important;
-  margin: -1px !important;
-
-  overflow: hidden !important;
-
-  clip: rect(0 0 0 0) !important;
-  clip-path: inset(50%) !important;
-
-  border: 0 !important;
-
-  white-space: nowrap !important;
-}
-
-.ari-full-width {
-  width: 100% !important;
-}
-
-
-/* ==========================================================
-   14. RESPONSIVE
+   RESPONSIVE
 ========================================================== */
 
 @media (max-width: 52rem) {
@@ -1675,7 +1519,7 @@ svg {
   .ari-preference-row,
   .ari-preference-setting,
   .ari-preference-control-row {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .ari-preference-row__control,
@@ -1690,18 +1534,6 @@ svg {
   .ari-preference-control-row__control > * {
     width: 100%;
   }
-
-  .ari-preference-preview__meta {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      );
-  }
-
-  .ari-preference-preview__metric:last-child {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 40rem) {
@@ -1713,9 +1545,7 @@ svg {
   .ari-preference-settings__topbar {
     min-height: 4.25rem;
 
-    margin-inline:
-      calc(var(--ari-space-4) * -1);
-
+    margin-inline: calc(var(--ari-space-4) * -1);
     padding-inline: var(--ari-space-4);
   }
 
@@ -1724,38 +1554,25 @@ svg {
     padding-inline: var(--ari-space-3);
   }
 
-  .ari-preference-settings__brand-engine {
-    font-size: 0.56rem;
-  }
-
   .ari-preference-settings__header {
-    width: 100%;
+    margin-top: var(--ari-space-8);
+    margin-bottom: var(--ari-space-6);
 
-    margin-top: var(--ari-space-10);
-    margin-bottom: var(--ari-space-8);
-
-    padding:
-      var(--ari-space-8)
-      var(--ari-space-5);
+    padding: var(--ari-space-6) var(--ari-space-5);
 
     border-radius: var(--ari-radius-md);
   }
 
   .ari-preference-settings__header h1 {
     max-width: none;
-
-    font-size:
-      clamp(
-        2.5rem,
-        13vw,
-        3.5rem
-      );
+    font-size: clamp(2rem, 9vw, 2.8rem);
+    line-height: 1.08;
   }
 
   .ari-preference-settings__subtitle {
     margin-top: var(--ari-space-4);
 
-    font-size: 0.95rem;
+    font-size: 0.94rem;
     line-height: 1.65;
   }
 
@@ -1769,32 +1586,39 @@ svg {
     transform: none;
   }
 
-  .ari-preference-panel__heading,
-  .ari-preference-category__header {
-    min-height: 5.5rem;
+  .ari-preference-panel__heading {
+    min-height: 5rem;
 
-    grid-template-columns:
-      2.6rem
-      minmax(0, 1fr)
-      2.25rem;
-
+    grid-template-columns: 2.5rem minmax(0, 1fr) 1.9rem;
     gap: var(--ari-space-3);
 
-    padding:
-      var(--ari-space-5)
-      var(--ari-space-4);
+    padding: var(--ari-space-4);
+  }
+
+  .ari-preference-category__header {
+    min-height: 4.75rem;
+
+    grid-template-columns: minmax(0, 1fr) 1.9rem;
+    gap: var(--ari-space-3);
+
+    padding: var(--ari-space-4);
   }
 
   .ari-preference-panel__icon {
-    width: 2.6rem;
-    height: 2.6rem;
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  [data-ari-accordion-trigger="true"]::after {
+    width: 1.85rem;
+    height: 1.85rem;
   }
 
   .ari-preference-panel__heading h2,
   .ari-preference-panel__heading h3,
   .ari-preference-category__header h2,
   .ari-preference-category__header h3 {
-    font-size: 1rem;
+    font-size: 0.98rem;
   }
 
   .ari-preference-panel__heading p:not(.ari-preference-panel__kicker),
@@ -1812,17 +1636,30 @@ svg {
   }
 
   .ari-specialization__grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .ari-specialization-option--wide {
     grid-column: auto;
   }
 
-  .ari-preference-preview__toolbar,
-  .ari-preference-settings__actions {
-    flex-direction: column;
-    align-items: stretch;
+  .ari-preference-preview__scenarios {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ari-preference-preview__chip {
+    width: 100%;
+  }
+
+  .ari-preference-preview__message {
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    padding: var(--ari-space-4);
+  }
+
+  .ari-preference-preview__avatar {
+    width: 2.25rem;
+    height: 2.25rem;
   }
 
   .ari-preference-settings__actions {
@@ -1830,59 +1667,34 @@ svg {
     bottom: auto;
   }
 
-  .ari-preference-settings__actions-buttons {
+  .ari-preference-settings__actions-inner {
     width: 100%;
   }
 
-  .ari-preference-settings__actions-buttons > * {
+  .ari-preference-settings__actions-inner > * {
     flex: 1 1 0;
   }
 }
 
-@media (max-width: 36rem) {
-  .ari-preference-preview__meta {
+@media (max-width: 30rem) {
+  .ari-preference-preview__scenarios {
     grid-template-columns: 1fr;
   }
 
-  .ari-preference-preview__metric:last-child {
-    grid-column: auto;
-  }
-
-  .ari-preference-scenarios,
-  .ari-preview-scenarios {
-    display: grid;
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      );
-  }
-
-  .ari-preference-settings__actions-buttons,
-  .ari-preference-consent-dialog__footer {
+  .ari-preference-settings__actions-inner,
+  .ari-preference-consent-dialog__actions {
     flex-direction: column;
   }
 
-  .ari-preference-settings__actions-buttons > *,
-  .ari-preference-consent-dialog__footer > * {
+  .ari-preference-settings__actions-inner > *,
+  .ari-preference-consent-dialog__actions > * {
     width: 100%;
-  }
-}
-
-@media (max-width: 25rem) {
-  .ari-preference-settings__brand-engine {
-    display: none;
-  }
-
-  .ari-preference-scenarios,
-  .ari-preview-scenarios {
-    grid-template-columns: 1fr;
   }
 }
 
 
 /* ==========================================================
-   15. ACCESSIBILITY AND MOTION
+   MOTION
 ========================================================== */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1911,8 +1723,3 @@ svg {
     opacity: 1;
   }
 }
-
-
-/* ==========================================================
-   END
-========================================================== */
