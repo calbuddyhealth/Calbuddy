@@ -1,0 +1,3484 @@
+/* ==========================================================
+   ARI CONTROL CENTER
+   Mission Control Interface
+
+   File:
+   assets/css/ari-preference-settings.css
+
+   Version:
+   5.0.0
+
+   Part 1 of 3:
+   - Design tokens
+   - Page foundation
+   - Background system
+   - Navigation
+   - Header
+   - Status messages
+   - Loading state
+   - Base form layout
+========================================================== */
+
+
+/* ==========================================================
+   1. DESIGN TOKENS
+========================================================== */
+
+:root {
+  /* --------------------------------------------------------
+     Color system
+  -------------------------------------------------------- */
+
+  --ari-color-page: #070b12;
+  --ari-color-page-deep: #04070c;
+
+  --ari-color-surface: rgba(15, 24, 36, 0.84);
+  --ari-color-surface-solid: #0f1824;
+  --ari-color-surface-raised: #142033;
+  --ari-color-surface-hover: #18263a;
+  --ari-color-surface-soft: rgba(255, 255, 255, 0.035);
+
+  --ari-color-accent: #38d9ff;
+  --ari-color-accent-bright: #7ce9ff;
+  --ari-color-accent-deep: #0fa9d4;
+  --ari-color-accent-soft: rgba(56, 217, 255, 0.12);
+  --ari-color-accent-faint: rgba(56, 217, 255, 0.055);
+
+  --ari-color-text: #f4f8fc;
+  --ari-color-text-secondary: #b6c3d1;
+  --ari-color-text-muted: #7f8c9d;
+  --ari-color-text-subtle: #5f6c7c;
+
+  --ari-color-border: rgba(255, 255, 255, 0.08);
+  --ari-color-border-strong: rgba(255, 255, 255, 0.14);
+  --ari-color-border-accent: rgba(56, 217, 255, 0.24);
+  --ari-color-border-accent-strong: rgba(56, 217, 255, 0.42);
+
+  --ari-color-success: #5cffb0;
+  --ari-color-success-soft: rgba(92, 255, 176, 0.12);
+
+  --ari-color-warning: #ffc857;
+  --ari-color-warning-soft: rgba(255, 200, 87, 0.13);
+
+  --ari-color-danger: #ff6e8a;
+  --ari-color-danger-soft: rgba(255, 110, 138, 0.13);
+
+  --ari-color-info: #78a9ff;
+  --ari-color-info-soft: rgba(120, 169, 255, 0.13);
+
+  /* --------------------------------------------------------
+     Typography
+  -------------------------------------------------------- */
+
+  --ari-font-display: "Orbitron", system-ui, sans-serif;
+  --ari-font-brand: "Audiowide", system-ui, sans-serif;
+  --ari-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+
+  --ari-font-size-xs: 0.75rem;
+  --ari-font-size-sm: 0.875rem;
+  --ari-font-size-md: 1rem;
+  --ari-font-size-lg: 1.125rem;
+  --ari-font-size-xl: 1.375rem;
+  --ari-font-size-2xl: clamp(1.75rem, 4vw, 2.5rem);
+  --ari-font-size-3xl: clamp(2.25rem, 7vw, 4.75rem);
+
+  --ari-line-height-tight: 1.15;
+  --ari-line-height-normal: 1.55;
+  --ari-line-height-relaxed: 1.75;
+
+  --ari-letter-spacing-tight: -0.025em;
+  --ari-letter-spacing-normal: 0;
+  --ari-letter-spacing-wide: 0.1em;
+  --ari-letter-spacing-display: 0.14em;
+
+  /* --------------------------------------------------------
+     Spacing system
+  -------------------------------------------------------- */
+
+  --ari-space-1: 0.25rem;
+  --ari-space-2: 0.5rem;
+  --ari-space-3: 0.75rem;
+  --ari-space-4: 1rem;
+  --ari-space-5: 1.25rem;
+  --ari-space-6: 1.5rem;
+  --ari-space-7: 1.75rem;
+  --ari-space-8: 2rem;
+  --ari-space-10: 2.5rem;
+  --ari-space-12: 3rem;
+  --ari-space-14: 3.5rem;
+  --ari-space-16: 4rem;
+  --ari-space-20: 5rem;
+
+  /* --------------------------------------------------------
+     Radius system
+  -------------------------------------------------------- */
+
+  --ari-radius-sm: 0.75rem;
+  --ari-radius-md: 1.125rem;
+  --ari-radius-lg: 1.5rem;
+  --ari-radius-pill: 999px;
+
+  /* --------------------------------------------------------
+     Shadows
+  -------------------------------------------------------- */
+
+  --ari-shadow-sm:
+    0 6px 18px rgba(0, 0, 0, 0.2);
+
+  --ari-shadow-md:
+    0 14px 36px rgba(0, 0, 0, 0.3);
+
+  --ari-shadow-lg:
+    0 28px 70px rgba(0, 0, 0, 0.42);
+
+  --ari-shadow-accent:
+    0 0 0 1px rgba(56, 217, 255, 0.08),
+    0 14px 36px rgba(0, 0, 0, 0.32),
+    0 0 32px rgba(56, 217, 255, 0.08);
+
+  --ari-shadow-focus:
+    0 0 0 3px rgba(56, 217, 255, 0.18);
+
+  /* --------------------------------------------------------
+     Motion
+  -------------------------------------------------------- */
+
+  --ari-duration-fast: 120ms;
+  --ari-duration-normal: 200ms;
+  --ari-duration-slow: 320ms;
+
+  --ari-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ari-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* --------------------------------------------------------
+     Layout
+  -------------------------------------------------------- */
+
+  --ari-page-width: 74rem;
+  --ari-content-width: 64rem;
+  --ari-topbar-height: 4.75rem;
+
+  /* --------------------------------------------------------
+     Layering
+  -------------------------------------------------------- */
+
+  --ari-z-background: 0;
+  --ari-z-content: 1;
+  --ari-z-topbar: 20;
+  --ari-z-actions: 30;
+  --ari-z-dialog: 100;
+}
+
+
+/* ==========================================================
+   2. PAGE FOUNDATION
+========================================================== */
+
+html {
+  min-height: 100%;
+  color-scheme: dark;
+  background: var(--ari-color-page-deep);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 20rem;
+  min-height: 100vh;
+  margin: 0;
+
+  font-family: var(--ari-font-body);
+  font-size: var(--ari-font-size-md);
+  line-height: var(--ari-line-height-normal);
+  color: var(--ari-color-text);
+
+  background:
+    radial-gradient(
+      circle at 50% -12rem,
+      rgba(56, 217, 255, 0.14) 0,
+      rgba(56, 217, 255, 0.055) 20rem,
+      transparent 42rem
+    ),
+    radial-gradient(
+      circle at 8% 26rem,
+      rgba(59, 95, 246, 0.08),
+      transparent 30rem
+    ),
+    radial-gradient(
+      circle at 94% 42rem,
+      rgba(56, 217, 255, 0.055),
+      transparent 32rem
+    ),
+    linear-gradient(
+      180deg,
+      var(--ari-color-page) 0%,
+      var(--ari-color-page-deep) 100%
+    );
+
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: var(--ari-z-background);
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      rgba(255, 255, 255, 0.018) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.018) 1px,
+      transparent 1px
+    );
+
+  background-size: 3.5rem 3.5rem;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.8),
+      transparent 72%
+    );
+
+  opacity: 0.45;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: -18rem;
+  left: 50%;
+  width: 50rem;
+  height: 35rem;
+  z-index: var(--ari-z-background);
+
+  transform: translateX(-50%);
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(56, 217, 255, 0.11),
+      transparent 68%
+    );
+
+  filter: blur(3rem);
+  opacity: 0.8;
+}
+
+main {
+  position: relative;
+  z-index: var(--ari-z-content);
+  min-height: 100vh;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+::selection {
+  color: var(--ari-color-page-deep);
+  background: var(--ari-color-accent);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+select,
+input[type="radio"],
+input[type="checkbox"] {
+  cursor: pointer;
+}
+
+button {
+  border: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+
+/* ==========================================================
+   3. ACCESSIBILITY
+========================================================== */
+
+:focus-visible {
+  outline: 2px solid var(--ari-color-accent);
+  outline-offset: 3px;
+}
+
+.ari-preference-settings :focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+
+/* ==========================================================
+   4. CONTROL CENTER SHELL
+========================================================== */
+
+.ari-preference-settings {
+  position: relative;
+  width: min(100%, var(--ari-page-width));
+  min-height: 100vh;
+  margin-inline: auto;
+  padding:
+    0
+    clamp(var(--ari-space-4), 4vw, var(--ari-space-8))
+    var(--ari-space-20);
+
+  isolation: isolate;
+}
+
+.ari-preference-settings::before {
+  content: "";
+  position: absolute;
+  top: 8rem;
+  left: 50%;
+  width: min(92vw, 64rem);
+  height: 28rem;
+  z-index: -1;
+
+  transform: translateX(-50%);
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      ellipse,
+      rgba(56, 217, 255, 0.065),
+      transparent 68%
+    );
+
+  filter: blur(2rem);
+}
+
+
+/* ==========================================================
+   5. TOP NAVIGATION
+========================================================== */
+
+.ari-preference-settings__topbar {
+  position: relative;
+  z-index: var(--ari-z-topbar);
+
+  min-height: var(--ari-topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ari-space-4);
+
+  margin-inline:
+    calc(clamp(var(--ari-space-4), 4vw, var(--ari-space-8)) * -1);
+
+  padding:
+    var(--ari-space-4)
+    clamp(var(--ari-space-4), 4vw, var(--ari-space-8));
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 11, 18, 0.94),
+      rgba(7, 11, 18, 0.72)
+    );
+
+  -webkit-backdrop-filter: blur(1.25rem);
+  backdrop-filter: blur(1.25rem);
+}
+
+.ari-preference-settings__topbar::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(56, 217, 255, 0.24),
+      transparent
+    );
+
+  opacity: 0.5;
+}
+
+.ari-preference-settings__back {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ari-space-3);
+
+  padding:
+    0
+    var(--ari-space-4);
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-pill);
+
+  color: var(--ari-color-text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+
+  font-size: var(--ari-font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+
+  transition:
+    color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    transform var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-settings__back:hover {
+  color: var(--ari-color-text);
+  border-color: var(--ari-color-border-accent);
+  background: var(--ari-color-accent-faint);
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.24),
+    0 0 18px rgba(56, 217, 255, 0.055);
+}
+
+.ari-preference-settings__back:active {
+  transform: translateY(0);
+}
+
+.ari-preference-settings__back span:first-child {
+  display: grid;
+  place-items: center;
+
+  width: 1.25rem;
+  height: 1.25rem;
+
+  color: var(--ari-color-accent);
+  font-size: 1.15rem;
+  line-height: 1;
+
+  transition:
+    transform var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-settings__back:hover span:first-child {
+  transform: translateX(-2px);
+}
+
+.ari-preference-settings__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ari-space-3);
+
+  white-space: nowrap;
+}
+
+.ari-preference-settings__brand-name {
+  position: relative;
+
+  color: var(--ari-color-accent);
+  font-family: var(--ari-font-brand);
+  font-size: 1rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+
+  text-shadow:
+    0 0 14px rgba(56, 217, 255, 0.38);
+}
+
+.ari-preference-settings__brand-name::after {
+  content: "";
+  position: absolute;
+  right: -0.55rem;
+  top: 50%;
+
+  width: 0.22rem;
+  height: 0.22rem;
+
+  transform: translateY(-50%);
+  border-radius: 50%;
+
+  background: var(--ari-color-accent);
+  box-shadow:
+    0 0 10px rgba(56, 217, 255, 0.72);
+}
+
+.ari-preference-settings__brand-engine {
+  color: var(--ari-color-text-muted);
+  font-family: var(--ari-font-display);
+  font-size: 0.67rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: var(--ari-letter-spacing-display);
+}
+
+
+/* ==========================================================
+   6. PAGE HEADER
+========================================================== */
+
+.ari-preference-settings__header {
+  position: relative;
+
+  width: min(100%, var(--ari-content-width));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ari-space-8);
+
+  margin:
+    clamp(var(--ari-space-12), 8vw, var(--ari-space-20))
+    auto
+    var(--ari-space-10);
+
+  padding:
+    clamp(var(--ari-space-6), 5vw, var(--ari-space-10))
+    clamp(var(--ari-space-5), 5vw, var(--ari-space-10));
+
+  overflow: hidden;
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-lg);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(20, 32, 48, 0.78),
+      rgba(10, 17, 27, 0.68)
+    );
+
+  -webkit-backdrop-filter: blur(1.5rem);
+  backdrop-filter: blur(1.5rem);
+
+  box-shadow:
+    var(--ari-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.ari-preference-settings__header::before {
+  content: "";
+  position: absolute;
+  top: -11rem;
+  right: -8rem;
+
+  width: 28rem;
+  height: 28rem;
+
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(56, 217, 255, 0.15),
+      transparent 66%
+    );
+
+  filter: blur(1rem);
+}
+
+.ari-preference-settings__header::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+
+  width: 0.2rem;
+
+  background:
+    linear-gradient(
+      to bottom,
+      transparent,
+      var(--ari-color-accent),
+      transparent
+    );
+
+  opacity: 0.7;
+}
+
+.ari-preference-settings__header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ari-preference-settings__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ari-space-3);
+
+  margin: 0 0 var(--ari-space-4);
+
+  color: var(--ari-color-accent);
+  font-family: var(--ari-font-display);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: var(--ari-letter-spacing-display);
+  text-transform: uppercase;
+}
+
+.ari-preference-settings__eyebrow::before {
+  content: "";
+
+  width: 1.75rem;
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--ari-color-accent),
+      rgba(56, 217, 255, 0.12)
+    );
+
+  box-shadow:
+    0 0 10px rgba(56, 217, 255, 0.36);
+}
+
+.ari-preference-settings__header h1 {
+  max-width: 12ch;
+  margin: 0;
+
+  color: var(--ari-color-text);
+  font-family: var(--ari-font-display);
+  font-size: var(--ari-font-size-3xl);
+  font-weight: 700;
+  line-height: var(--ari-line-height-tight);
+  letter-spacing: var(--ari-letter-spacing-tight);
+
+  text-wrap: balance;
+
+  text-shadow:
+    0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+.ari-preference-settings__header h1::first-line {
+  color: var(--ari-color-text);
+}
+
+.ari-preference-settings__subtitle {
+  max-width: 48rem;
+  margin:
+    var(--ari-space-5)
+    0
+    0;
+
+  color: var(--ari-color-text-secondary);
+  font-size: clamp(0.96rem, 2vw, 1.08rem);
+  line-height: var(--ari-line-height-relaxed);
+}
+
+
+/* ==========================================================
+   7. STATUS MESSAGE
+========================================================== */
+
+.ari-preference-settings__status {
+  min-width: 0;
+  max-width: 18rem;
+
+  color: var(--ari-color-text-secondary);
+  font-size: var(--ari-font-size-sm);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.ari-preference-settings__status:empty {
+  display: none;
+}
+
+.ari-preference-settings__status:not(:empty) {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ari-space-3);
+
+  padding:
+    var(--ari-space-3)
+    var(--ari-space-4);
+
+  border: 1px solid var(--ari-color-border-accent);
+  border-radius: var(--ari-radius-md);
+
+  background:
+    rgba(56, 217, 255, 0.07);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 20px rgba(0, 0, 0, 0.2);
+
+  animation:
+    ari-status-enter
+    var(--ari-duration-slow)
+    var(--ari-ease-emphasized)
+    both;
+}
+
+.ari-preference-settings__status:not(:empty)::before {
+  content: "";
+
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.31rem;
+
+  border-radius: 50%;
+
+  background: var(--ari-color-accent);
+  box-shadow:
+    0 0 12px rgba(56, 217, 255, 0.7);
+}
+
+.ari-preference-settings__status[data-status="success"] {
+  color: var(--ari-color-success);
+  border-color: rgba(92, 255, 176, 0.25);
+  background: var(--ari-color-success-soft);
+}
+
+.ari-preference-settings__status[data-status="success"]::before {
+  background: var(--ari-color-success);
+  box-shadow:
+    0 0 12px rgba(92, 255, 176, 0.68);
+}
+
+.ari-preference-settings__status[data-status="warning"] {
+  color: var(--ari-color-warning);
+  border-color: rgba(255, 200, 87, 0.26);
+  background: var(--ari-color-warning-soft);
+}
+
+.ari-preference-settings__status[data-status="warning"]::before {
+  background: var(--ari-color-warning);
+  box-shadow:
+    0 0 12px rgba(255, 200, 87, 0.62);
+}
+
+.ari-preference-settings__status[data-status="error"] {
+  color: var(--ari-color-danger);
+  border-color: rgba(255, 110, 138, 0.28);
+  background: var(--ari-color-danger-soft);
+}
+
+.ari-preference-settings__status[data-status="error"]::before {
+  background: var(--ari-color-danger);
+  box-shadow:
+    0 0 12px rgba(255, 110, 138, 0.62);
+}
+
+
+/* ==========================================================
+   8. LOADING STATE
+========================================================== */
+
+.ari-preference-settings__loading {
+  width: min(100%, var(--ari-content-width));
+  min-height: 7rem;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ari-space-4);
+
+  margin:
+    0
+    auto
+    var(--ari-space-8);
+
+  padding: var(--ari-space-8);
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-lg);
+
+  color: var(--ari-color-text-secondary);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(20, 32, 48, 0.66),
+      rgba(10, 17, 27, 0.58)
+    );
+
+  -webkit-backdrop-filter: blur(1.25rem);
+  backdrop-filter: blur(1.25rem);
+
+  font-size: var(--ari-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+
+  box-shadow:
+    var(--ari-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.ari-preference-settings__loading[hidden] {
+  display: none !important;
+}
+
+.ari-preference-settings__loading-dot {
+  position: relative;
+
+  width: 0.7rem;
+  height: 0.7rem;
+  flex: 0 0 auto;
+
+  border-radius: 50%;
+
+  background: var(--ari-color-accent);
+
+  box-shadow:
+    0 0 0 0 rgba(56, 217, 255, 0.45),
+    0 0 14px rgba(56, 217, 255, 0.65);
+
+  animation:
+    ari-loading-pulse
+    1.45s
+    var(--ari-ease-standard)
+    infinite;
+}
+
+.ari-preference-settings__loading-dot::before,
+.ari-preference-settings__loading-dot::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+
+  width: 0.36rem;
+  height: 0.36rem;
+
+  transform: translateY(-50%);
+  border-radius: 50%;
+
+  background: rgba(56, 217, 255, 0.58);
+}
+
+.ari-preference-settings__loading-dot::before {
+  right: calc(100% + 0.45rem);
+
+  animation:
+    ari-loading-side-left
+    1.45s
+    var(--ari-ease-standard)
+    infinite;
+}
+
+.ari-preference-settings__loading-dot::after {
+  left: calc(100% + 0.45rem);
+
+  animation:
+    ari-loading-side-right
+    1.45s
+    var(--ari-ease-standard)
+    infinite;
+}
+
+
+/* ==========================================================
+   9. FORM FOUNDATION
+========================================================== */
+
+.ari-preference-settings__form {
+  width: min(100%, var(--ari-content-width));
+  margin-inline: auto;
+}
+
+.ari-preference-settings__form[hidden] {
+  display: none !important;
+}
+
+.ari-preference-settings__categories {
+  display: grid;
+  gap: var(--ari-space-5);
+  margin-block: var(--ari-space-5);
+}
+
+
+/* ==========================================================
+   10. SHARED TEXT FOUNDATION
+========================================================== */
+
+.ari-preference-settings h1,
+.ari-preference-settings h2,
+.ari-preference-settings h3,
+.ari-preference-settings p {
+  overflow-wrap: anywhere;
+}
+
+.ari-preference-settings h2,
+.ari-preference-settings h3 {
+  text-wrap: balance;
+}
+
+.ari-preference-panel__kicker {
+  margin: 0 0 var(--ari-space-2);
+
+  color: var(--ari-color-accent);
+  font-family: var(--ari-font-display);
+  font-size: 0.67rem;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: var(--ari-letter-spacing-display);
+  text-transform: uppercase;
+}
+
+
+/* ==========================================================
+   11. FOUNDATION ANIMATIONS
+========================================================== */
+
+@keyframes ari-loading-pulse {
+  0% {
+    transform: scale(0.88);
+    box-shadow:
+      0 0 0 0 rgba(56, 217, 255, 0.42),
+      0 0 12px rgba(56, 217, 255, 0.58);
+  }
+
+  50% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 0.55rem rgba(56, 217, 255, 0),
+      0 0 18px rgba(56, 217, 255, 0.78);
+  }
+
+  100% {
+    transform: scale(0.88);
+    box-shadow:
+      0 0 0 0 rgba(56, 217, 255, 0),
+      0 0 12px rgba(56, 217, 255, 0.58);
+  }
+}
+
+@keyframes ari-loading-side-left {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform:
+      translateY(-50%)
+      scale(0.72);
+  }
+
+  35% {
+    opacity: 0.9;
+    transform:
+      translateY(-50%)
+      scale(1);
+  }
+
+  70% {
+    opacity: 0.38;
+    transform:
+      translateY(-50%)
+      scale(0.8);
+  }
+}
+
+@keyframes ari-loading-side-right {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform:
+      translateY(-50%)
+      scale(0.8);
+  }
+
+  35% {
+    opacity: 0.25;
+    transform:
+      translateY(-50%)
+      scale(0.72);
+  }
+
+  70% {
+    opacity: 0.9;
+    transform:
+      translateY(-50%)
+      scale(1);
+  }
+}
+
+@keyframes ari-status-enter {
+  from {
+    opacity: 0;
+    transform:
+      translateY(-0.35rem)
+      scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+
+/* ==========================================================
+   12. FOUNDATION RESPONSIVE RULES
+========================================================== */
+
+@media (max-width: 52rem) {
+  .ari-preference-settings__header {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-preference-settings__status {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 40rem) {
+  :root {
+    --ari-topbar-height: 4.25rem;
+  }
+
+  .ari-preference-settings {
+    padding-inline: var(--ari-space-4);
+    padding-bottom: var(--ari-space-16);
+  }
+
+  .ari-preference-settings__topbar {
+    margin-inline: calc(var(--ari-space-4) * -1);
+    padding-inline: var(--ari-space-4);
+  }
+
+  .ari-preference-settings__back {
+    min-height: 2.5rem;
+    padding-inline: var(--ari-space-3);
+  }
+
+  .ari-preference-settings__back span:last-child {
+    font-size: var(--ari-font-size-xs);
+  }
+
+  .ari-preference-settings__brand {
+    gap: var(--ari-space-2);
+  }
+
+  .ari-preference-settings__brand-name {
+    font-size: 0.9rem;
+  }
+
+  .ari-preference-settings__brand-engine {
+    font-size: 0.58rem;
+  }
+
+  .ari-preference-settings__header {
+    margin-top: var(--ari-space-10);
+    margin-bottom: var(--ari-space-8);
+
+    padding:
+      var(--ari-space-7)
+      var(--ari-space-5);
+  }
+
+  .ari-preference-settings__header::before {
+    top: -8rem;
+    right: -10rem;
+  }
+
+  .ari-preference-settings__header h1 {
+    max-width: none;
+    font-size: clamp(2rem, 13vw, 3.1rem);
+  }
+
+  .ari-preference-settings__subtitle {
+    margin-top: var(--ari-space-4);
+    font-size: 0.94rem;
+  }
+
+  .ari-preference-settings__loading {
+    min-height: 6rem;
+    padding: var(--ari-space-6);
+  }
+}
+
+@media (max-width: 25rem) {
+  .ari-preference-settings__brand-engine {
+    display: none;
+  }
+
+  .ari-preference-settings__header {
+    border-radius: var(--ari-radius-md);
+  }
+}
+/* ==========================================================
+   ARI CONTROL CENTER
+   Mission Control Interface
+
+   Version:
+   5.0.0
+
+   Part 2 of 3:
+   - Shared panels
+   - Accordion structure
+   - Panel headings
+   - Communication preset
+   - Specialization
+   - Contract-generated categories
+   - Form controls
+   - Radio options
+   - Checkboxes and switches
+   - Range controls
+========================================================== */
+
+
+/* ==========================================================
+   13. SHARED MODULE PANELS
+========================================================== */
+
+.ari-preference-panel,
+.ari-preference-category {
+  position: relative;
+  overflow: hidden;
+
+  width: 100%;
+  margin: 0;
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-lg);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(20, 32, 48, 0.78),
+      rgba(10, 17, 27, 0.72)
+    );
+
+  -webkit-backdrop-filter: blur(1.5rem);
+  backdrop-filter: blur(1.5rem);
+
+  box-shadow:
+    var(--ari-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  transition:
+    border-color var(--ari-duration-normal) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-normal) var(--ari-ease-standard),
+    transform var(--ari-duration-normal) var(--ari-ease-standard),
+    background-color var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+.ari-preference-panel::before,
+.ari-preference-category::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+
+  height: 1px;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(56, 217, 255, 0.32),
+      transparent
+    );
+
+  opacity: 0.25;
+
+  transition:
+    opacity var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+.ari-preference-panel::after,
+.ari-preference-category::after {
+  content: "";
+  position: absolute;
+  top: -11rem;
+  right: -10rem;
+
+  width: 22rem;
+  height: 22rem;
+
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(56, 217, 255, 0.07),
+      transparent 68%
+    );
+
+  opacity: 0;
+
+  transition:
+    opacity var(--ari-duration-slow) var(--ari-ease-standard);
+}
+
+.ari-preference-panel:hover,
+.ari-preference-category:hover {
+  border-color: var(--ari-color-border-accent);
+
+  box-shadow:
+    var(--ari-shadow-accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+
+  transform: translateY(-2px);
+}
+
+.ari-preference-panel:hover::before,
+.ari-preference-category:hover::before {
+  opacity: 0.72;
+}
+
+.ari-preference-panel:hover::after,
+.ari-preference-category:hover::after {
+  opacity: 1;
+}
+
+.ari-preference-panel[data-ari-accordion-open="true"],
+.ari-preference-category[data-ari-accordion-open="true"] {
+  border-color: rgba(56, 217, 255, 0.3);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(22, 36, 54, 0.9),
+      rgba(10, 17, 27, 0.78)
+    );
+
+  box-shadow:
+    var(--ari-shadow-accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.ari-preference-panel[data-ari-accordion-open="true"]::before,
+.ari-preference-category[data-ari-accordion-open="true"]::before {
+  opacity: 1;
+}
+
+
+/* ==========================================================
+   14. PANEL HEADING SYSTEM
+========================================================== */
+
+.ari-preference-panel__heading,
+.ari-preference-category__header {
+  position: relative;
+  z-index: 2;
+
+  min-height: 6.25rem;
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ari-space-5);
+
+  padding:
+    var(--ari-space-6)
+    clamp(var(--ari-space-5), 4vw, var(--ari-space-8));
+
+  user-select: none;
+
+  transition:
+    background-color var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-panel__heading[data-ari-accordion-trigger="true"],
+.ari-preference-category__header[data-ari-accordion-trigger="true"] {
+  cursor: pointer;
+}
+
+.ari-preference-panel__heading[data-ari-accordion-trigger="true"]:hover,
+.ari-preference-category__header[data-ari-accordion-trigger="true"]:hover {
+  background: rgba(56, 217, 255, 0.025);
+}
+
+.ari-preference-panel__heading[data-ari-accordion-trigger="true"]:active,
+.ari-preference-category__header[data-ari-accordion-trigger="true"]:active {
+  background: rgba(56, 217, 255, 0.045);
+}
+
+.ari-preference-panel__heading > div:last-child,
+.ari-preference-category__header > div:last-child {
+  min-width: 0;
+}
+
+.ari-preference-panel__heading h2,
+.ari-preference-panel__heading h3,
+.ari-preference-category__header h2,
+.ari-preference-category__header h3 {
+  margin: 0;
+
+  color: var(--ari-color-text);
+  font-family: var(--ari-font-display);
+  font-size: clamp(1.02rem, 2vw, 1.24rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.ari-preference-panel__heading p:not(.ari-preference-panel__kicker),
+.ari-preference-category__header p:not(.ari-preference-panel__kicker) {
+  max-width: 46rem;
+  margin:
+    var(--ari-space-2)
+    0
+    0;
+
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-sm);
+  line-height: 1.55;
+}
+
+.ari-preference-panel__icon {
+  position: relative;
+
+  width: 3rem;
+  height: 3rem;
+
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 auto;
+
+  border: 1px solid rgba(56, 217, 255, 0.2);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-color-accent);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(56, 217, 255, 0.12),
+      rgba(56, 217, 255, 0.035)
+    );
+
+  font-family: var(--ari-font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 24px rgba(56, 217, 255, 0.07);
+
+  transition:
+    border-color var(--ari-duration-normal) var(--ari-ease-standard),
+    background-color var(--ari-duration-normal) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-normal) var(--ari-ease-standard),
+    transform var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+.ari-preference-panel:hover .ari-preference-panel__icon,
+.ari-preference-category:hover .ari-preference-panel__icon,
+[data-ari-accordion-open="true"] .ari-preference-panel__icon {
+  border-color: rgba(56, 217, 255, 0.42);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(56, 217, 255, 0.18),
+      rgba(56, 217, 255, 0.055)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 28px rgba(56, 217, 255, 0.13);
+
+  transform: translateY(-1px);
+}
+
+.ari-preference-panel__icon--ari {
+  color: var(--ari-color-page-deep);
+  border-color: transparent;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--ari-color-accent-bright),
+      var(--ari-color-accent-deep)
+    );
+
+  text-shadow: none;
+
+  box-shadow:
+    0 10px 28px rgba(56, 217, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+
+/* ==========================================================
+   15. ACCORDION SUMMARY AND CHEVRON
+========================================================== */
+
+.ari-accordion-summary {
+  display: block;
+
+  max-width: 100%;
+  margin-top: var(--ari-space-2);
+
+  overflow: hidden;
+
+  color: var(--ari-color-accent);
+  font-family: var(--ari-font-body);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.025em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  transition:
+    color var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+[data-ari-accordion-trigger="true"]::after {
+  content: "";
+
+  width: 2.5rem;
+  height: 2.5rem;
+
+  display: grid;
+  place-items: center;
+
+  align-self: center;
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: 50%;
+
+  background-color: rgba(255, 255, 255, 0.025);
+
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 47%,
+      var(--ari-color-text-muted) 48%,
+      var(--ari-color-text-muted) 55%,
+      transparent 56%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 47%,
+      var(--ari-color-text-muted) 48%,
+      var(--ari-color-text-muted) 55%,
+      transparent 56%
+    );
+
+  background-position:
+    calc(50% - 0.22rem) 50%,
+    calc(50% + 0.22rem) 50%;
+
+  background-repeat: no-repeat;
+  background-size:
+    0.52rem 0.52rem,
+    0.52rem 0.52rem;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+
+  transition:
+    border-color var(--ari-duration-normal) var(--ari-ease-standard),
+    background-color var(--ari-duration-normal) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-normal) var(--ari-ease-standard),
+    transform var(--ari-duration-slow) var(--ari-ease-emphasized);
+}
+
+[data-ari-accordion-trigger="true"]:hover::after {
+  border-color: var(--ari-color-border-accent);
+  background-color: var(--ari-color-accent-faint);
+
+  box-shadow:
+    0 0 18px rgba(56, 217, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+[data-ari-accordion-open="true"]
+  > [data-ari-accordion-trigger="true"]::after {
+  border-color: rgba(56, 217, 255, 0.34);
+  background-color: rgba(56, 217, 255, 0.09);
+
+  transform: rotate(180deg);
+}
+
+
+/* ==========================================================
+   16. ACCORDION CONTENT
+========================================================== */
+
+.ari-accordion-content {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  grid-template-rows: 0fr;
+
+  opacity: 0;
+  visibility: hidden;
+
+  border-top: 1px solid transparent;
+
+  transition:
+    grid-template-rows var(--ari-duration-slow) var(--ari-ease-emphasized),
+    opacity var(--ari-duration-normal) var(--ari-ease-standard),
+    visibility 0s linear var(--ari-duration-slow),
+    border-color var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+.ari-accordion-content__inner {
+  min-height: 0;
+  overflow: hidden;
+
+  padding:
+    0
+    clamp(var(--ari-space-5), 4vw, var(--ari-space-8));
+
+  transition:
+    padding var(--ari-duration-slow) var(--ari-ease-emphasized);
+}
+
+[data-ari-accordion-open="true"] > .ari-accordion-content {
+  grid-template-rows: 1fr;
+
+  opacity: 1;
+  visibility: visible;
+
+  border-top-color: rgba(255, 255, 255, 0.065);
+
+  transition:
+    grid-template-rows var(--ari-duration-slow) var(--ari-ease-emphasized),
+    opacity var(--ari-duration-normal) var(--ari-ease-standard),
+    visibility 0s linear 0s,
+    border-color var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+[data-ari-accordion-open="true"]
+  > .ari-accordion-content
+  > .ari-accordion-content__inner {
+  padding-top: var(--ari-space-7);
+  padding-bottom: var(--ari-space-8);
+}
+
+
+/* ==========================================================
+   17. COMMUNICATION PRESET
+========================================================== */
+
+.ari-preference-settings__preset-card {
+  margin-bottom: var(--ari-space-5);
+}
+
+.ari-preference-settings__preset-control {
+  display: grid;
+  gap: var(--ari-space-3);
+}
+
+.ari-preference-settings__preset-control label {
+  color: var(--ari-color-text);
+  font-size: var(--ari-font-size-sm);
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.ari-preference-settings__preset-control select {
+  width: 100%;
+  min-height: 3.5rem;
+
+  appearance: none;
+
+  padding:
+    0
+    3.25rem
+    0
+    var(--ari-space-5);
+
+  border: 1px solid var(--ari-color-border-strong);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-color-text);
+
+  background-color: rgba(6, 12, 20, 0.72);
+
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 50%,
+      var(--ari-color-accent) 50%
+    ),
+    linear-gradient(
+      135deg,
+      var(--ari-color-accent) 50%,
+      transparent 50%
+    ),
+    linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.07)
+    );
+
+  background-position:
+    calc(100% - 1.35rem) calc(50% - 0.15rem),
+    calc(100% - 1rem) calc(50% - 0.15rem),
+    calc(100% - 2.6rem) 50%;
+
+  background-size:
+    0.38rem 0.38rem,
+    0.38rem 0.38rem,
+    1px 1.5rem;
+
+  background-repeat: no-repeat;
+
+  font-weight: 700;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 8px 24px rgba(0, 0, 0, 0.18);
+
+  transition:
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-settings__preset-control select:hover {
+  border-color: var(--ari-color-border-accent);
+  background-color: rgba(8, 16, 27, 0.86);
+}
+
+.ari-preference-settings__preset-control select:focus-visible {
+  border-color: var(--ari-color-accent);
+
+  box-shadow:
+    var(--ari-shadow-focus),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ari-preference-settings__preset-control select option {
+  color: var(--ari-color-text);
+  background: var(--ari-color-surface-solid);
+}
+
+.ari-preference-settings__preset-control > p {
+  margin: 0;
+
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-xs);
+  line-height: 1.55;
+}
+
+
+/* ==========================================================
+   18. SPECIALIZATION
+========================================================== */
+
+.ari-specialization {
+  margin-bottom: var(--ari-space-5);
+}
+
+.ari-specialization__body {
+  display: grid;
+  gap: var(--ari-space-7);
+}
+
+.ari-specialization__notice {
+  position: relative;
+
+  margin: 0;
+  padding:
+    var(--ari-space-4)
+    var(--ari-space-5)
+    var(--ari-space-4)
+    3.25rem;
+
+  border: 1px solid rgba(120, 169, 255, 0.2);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-color-text-secondary);
+  background: var(--ari-color-info-soft);
+
+  font-size: var(--ari-font-size-sm);
+  line-height: 1.6;
+}
+
+.ari-specialization__notice::before {
+  content: "i";
+  position: absolute;
+  top: 50%;
+  left: var(--ari-space-4);
+
+  width: 1.5rem;
+  height: 1.5rem;
+
+  display: grid;
+  place-items: center;
+
+  transform: translateY(-50%);
+
+  border: 1px solid rgba(120, 169, 255, 0.34);
+  border-radius: 50%;
+
+  color: var(--ari-color-info);
+  background: rgba(120, 169, 255, 0.08);
+
+  font-family: Georgia, serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ari-specialization__fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+}
+
+.ari-specialization__fieldset + .ari-specialization__fieldset {
+  padding-top: var(--ari-space-6);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ari-specialization__fieldset legend {
+  margin-bottom: var(--ari-space-4);
+  padding: 0;
+
+  color: var(--ari-color-text-secondary);
+  font-family: var(--ari-font-display);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: var(--ari-letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.ari-specialization__grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: var(--ari-space-3);
+}
+
+.ari-specialization-option {
+  position: relative;
+
+  min-height: 3.75rem;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    var(--ari-space-4)
+    var(--ari-space-5);
+
+  overflow: hidden;
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-color-text-secondary);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.012)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+
+  transition:
+    color var(--ari-duration-fast) var(--ari-ease-standard),
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard),
+    transform var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-specialization-option::before {
+  content: "";
+
+  width: 1.12rem;
+  height: 1.12rem;
+
+  flex: 0 0 auto;
+
+  margin-right: var(--ari-space-3);
+
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+
+  background: rgba(0, 0, 0, 0.14);
+
+  box-shadow:
+    inset 0 0 0 0.22rem rgba(7, 11, 18, 0.9);
+
+  transition:
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-specialization-option:hover {
+  color: var(--ari-color-text);
+
+  border-color: var(--ari-color-border-accent);
+  background-color: rgba(56, 217, 255, 0.045);
+
+  transform: translateY(-1px);
+}
+
+.ari-specialization-option:has(input:focus-visible) {
+  border-color: var(--ari-color-accent);
+  box-shadow: var(--ari-shadow-focus);
+}
+
+.ari-specialization-option:has(input:checked) {
+  color: var(--ari-color-text);
+
+  border-color: rgba(56, 217, 255, 0.42);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(56, 217, 255, 0.13),
+      rgba(56, 217, 255, 0.035)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 0 24px rgba(56, 217, 255, 0.065);
+}
+
+.ari-specialization-option:has(input:checked)::before {
+  border-color: var(--ari-color-accent);
+  background: var(--ari-color-accent);
+
+  box-shadow:
+    inset 0 0 0 0.25rem rgba(7, 11, 18, 0.9),
+    0 0 12px rgba(56, 217, 255, 0.36);
+}
+
+.ari-specialization-option input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  overflow: hidden;
+
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+
+  white-space: nowrap;
+}
+
+.ari-specialization-option > span {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--ari-space-1);
+
+  font-size: var(--ari-font-size-sm);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ari-specialization-option strong {
+  color: inherit;
+  font-size: var(--ari-font-size-sm);
+  font-weight: 800;
+}
+
+.ari-specialization-option small {
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.ari-specialization-option--wide {
+  grid-column: 1 / -1;
+}
+
+
+/* ==========================================================
+   19. CONTRACT-GENERATED CATEGORY PANELS
+========================================================== */
+
+.ari-preference-settings__categories > * {
+  min-width: 0;
+}
+
+.ari-preference-category {
+  isolation: isolate;
+}
+
+.ari-preference-category__header {
+  min-height: 5.75rem;
+}
+
+.ari-preference-category__content {
+  display: grid;
+  gap: var(--ari-space-4);
+}
+
+.ari-preference-category__description {
+  margin:
+    calc(var(--ari-space-2) * -1)
+    0
+    var(--ari-space-2);
+
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-sm);
+  line-height: 1.6;
+}
+
+
+/* ==========================================================
+   20. GENERATED PREFERENCE ROWS
+========================================================== */
+
+.ari-preference-row,
+.ari-preference-setting,
+.ari-preference-control-row {
+  position: relative;
+
+  min-width: 0;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 18rem);
+  align-items: center;
+  gap: var(--ari-space-6);
+
+  padding: var(--ari-space-5);
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-md);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.025),
+      rgba(255, 255, 255, 0.008)
+    );
+
+  transition:
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-row:hover,
+.ari-preference-setting:hover,
+.ari-preference-control-row:hover {
+  border-color: rgba(56, 217, 255, 0.18);
+  background-color: rgba(56, 217, 255, 0.018);
+}
+
+.ari-preference-row__copy,
+.ari-preference-setting__copy,
+.ari-preference-control-row__copy {
+  min-width: 0;
+}
+
+.ari-preference-row__label,
+.ari-preference-setting__label,
+.ari-preference-control-row__label,
+.ari-preference-option__label {
+  display: block;
+
+  margin: 0;
+
+  color: var(--ari-color-text);
+  font-size: var(--ari-font-size-sm);
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.ari-preference-row__description,
+.ari-preference-setting__description,
+.ari-preference-control-row__description,
+.ari-preference-option__description {
+  display: block;
+
+  max-width: 42rem;
+  margin-top: var(--ari-space-2);
+
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.ari-preference-row__control,
+.ari-preference-setting__control,
+.ari-preference-control-row__control {
+  min-width: 0;
+
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--ari-space-3);
+}
+
+
+/* ==========================================================
+   21. GENERIC SELECT CONTROLS
+========================================================== */
+
+.ari-preference-settings select {
+  min-height: 3rem;
+
+  appearance: none;
+
+  padding:
+    0
+    2.9rem
+    0
+    var(--ari-space-4);
+
+  border: 1px solid var(--ari-color-border-strong);
+  border-radius: var(--ari-radius-sm);
+
+  color: var(--ari-color-text);
+  background-color: rgba(5, 11, 19, 0.72);
+
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 50%,
+      var(--ari-color-accent) 50%
+    ),
+    linear-gradient(
+      135deg,
+      var(--ari-color-accent) 50%,
+      transparent 50%
+    );
+
+  background-position:
+    calc(100% - 1.15rem) calc(50% - 0.12rem),
+    calc(100% - 0.84rem) calc(50% - 0.12rem);
+
+  background-size:
+    0.34rem 0.34rem,
+    0.34rem 0.34rem;
+
+  background-repeat: no-repeat;
+
+  font-size: var(--ari-font-size-sm);
+  font-weight: 700;
+
+  transition:
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-settings select:hover {
+  border-color: var(--ari-color-border-accent);
+  background-color: rgba(8, 16, 27, 0.84);
+}
+
+.ari-preference-settings select:focus-visible {
+  border-color: var(--ari-color-accent);
+
+  box-shadow:
+    var(--ari-shadow-focus),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ari-preference-settings select:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.ari-preference-settings select option {
+  color: var(--ari-color-text);
+  background: var(--ari-color-surface-solid);
+}
+
+
+/* ==========================================================
+   22. TEXT INPUTS AND TEXTAREAS
+========================================================== */
+
+.ari-preference-settings input[type="text"],
+.ari-preference-settings input[type="number"],
+.ari-preference-settings input[type="email"],
+.ari-preference-settings textarea {
+  width: 100%;
+
+  border: 1px solid var(--ari-color-border-strong);
+  border-radius: var(--ari-radius-sm);
+
+  color: var(--ari-color-text);
+  background: rgba(5, 11, 19, 0.72);
+
+  caret-color: var(--ari-color-accent);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+
+  transition:
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-settings input[type="text"],
+.ari-preference-settings input[type="number"],
+.ari-preference-settings input[type="email"] {
+  min-height: 3rem;
+  padding:
+    0
+    var(--ari-space-4);
+}
+
+.ari-preference-settings textarea {
+  min-height: 7rem;
+  resize: vertical;
+
+  padding: var(--ari-space-4);
+
+  line-height: 1.6;
+}
+
+.ari-preference-settings input::placeholder,
+.ari-preference-settings textarea::placeholder {
+  color: var(--ari-color-text-subtle);
+}
+
+.ari-preference-settings input[type="text"]:hover,
+.ari-preference-settings input[type="number"]:hover,
+.ari-preference-settings input[type="email"]:hover,
+.ari-preference-settings textarea:hover {
+  border-color: var(--ari-color-border-accent);
+  background-color: rgba(8, 16, 27, 0.84);
+}
+
+.ari-preference-settings input[type="text"]:focus-visible,
+.ari-preference-settings input[type="number"]:focus-visible,
+.ari-preference-settings input[type="email"]:focus-visible,
+.ari-preference-settings textarea:focus-visible {
+  border-color: var(--ari-color-accent);
+
+  box-shadow:
+    var(--ari-shadow-focus),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+
+/* ==========================================================
+   23. RADIO AND CHECKBOX OPTION CARDS
+========================================================== */
+
+.ari-preference-options,
+.ari-preference-option-group {
+  display: grid;
+  gap: var(--ari-space-3);
+}
+
+.ari-preference-option {
+  position: relative;
+
+  min-height: 3.5rem;
+
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ari-space-3);
+
+  padding: var(--ari-space-4);
+
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-md);
+
+  color: var(--ari-color-text-secondary);
+  background: rgba(255, 255, 255, 0.018);
+
+  transition:
+    color var(--ari-duration-fast) var(--ari-ease-standard),
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-option:hover {
+  color: var(--ari-color-text);
+  border-color: var(--ari-color-border-accent);
+  background: var(--ari-color-accent-faint);
+}
+
+.ari-preference-option:has(input:checked) {
+  color: var(--ari-color-text);
+
+  border-color: rgba(56, 217, 255, 0.4);
+  background: rgba(56, 217, 255, 0.085);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 0 20px rgba(56, 217, 255, 0.055);
+}
+
+.ari-preference-option:has(input:focus-visible) {
+  border-color: var(--ari-color-accent);
+  box-shadow: var(--ari-shadow-focus);
+}
+
+.ari-preference-option input[type="radio"],
+.ari-preference-option input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+
+  flex: 0 0 auto;
+
+  margin:
+    0.12rem
+    0
+    0;
+
+  accent-color: var(--ari-color-accent);
+}
+
+.ari-preference-option > span {
+  min-width: 0;
+}
+
+
+/* ==========================================================
+   24. CUSTOM CHECKBOXES
+========================================================== */
+
+.ari-preference-settings input[type="checkbox"]:not(
+    .ari-preference-consent-dialog input
+  ) {
+  accent-color: var(--ari-color-accent);
+}
+
+.ari-preference-checkbox {
+  position: relative;
+
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--ari-space-3);
+
+  color: var(--ari-color-text-secondary);
+  font-size: var(--ari-font-size-sm);
+  line-height: 1.5;
+}
+
+.ari-preference-checkbox input {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+
+  margin-top: 0.1rem;
+
+  accent-color: var(--ari-color-accent);
+}
+
+
+/* ==========================================================
+   25. TOGGLE SWITCHES
+========================================================== */
+
+.ari-preference-switch,
+.ari-preference-toggle {
+  position: relative;
+
+  width: 3.25rem;
+  height: 1.85rem;
+
+  display: inline-flex;
+  flex: 0 0 auto;
+
+  border-radius: var(--ari-radius-pill);
+}
+
+.ari-preference-switch input,
+.ari-preference-toggle input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  overflow: hidden;
+
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+
+  white-space: nowrap;
+}
+
+.ari-preference-switch__track,
+.ari-preference-toggle__track {
+  position: absolute;
+  inset: 0;
+
+  border: 1px solid var(--ari-color-border-strong);
+  border-radius: inherit;
+
+  background: rgba(255, 255, 255, 0.07);
+
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.28);
+
+  transition:
+    border-color var(--ari-duration-normal) var(--ari-ease-standard),
+    background-color var(--ari-duration-normal) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+.ari-preference-switch__track::after,
+.ari-preference-toggle__track::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0.2rem;
+
+  width: 1.35rem;
+  height: 1.35rem;
+
+  transform: translateY(-50%);
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #bfc9d5
+    );
+
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.38);
+
+  transition:
+    transform var(--ari-duration-normal) var(--ari-ease-emphasized),
+    background-color var(--ari-duration-normal) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-normal) var(--ari-ease-standard);
+}
+
+.ari-preference-switch input:checked + .ari-preference-switch__track,
+.ari-preference-toggle input:checked + .ari-preference-toggle__track {
+  border-color: rgba(56, 217, 255, 0.5);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(15, 169, 212, 0.9),
+      rgba(56, 217, 255, 0.88)
+    );
+
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.2),
+    0 0 18px rgba(56, 217, 255, 0.18);
+}
+
+.ari-preference-switch input:checked + .ari-preference-switch__track::after,
+.ari-preference-toggle input:checked + .ari-preference-toggle__track::after {
+  transform:
+    translateX(1.38rem)
+    translateY(-50%);
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.34),
+    0 0 10px rgba(255, 255, 255, 0.25);
+}
+
+.ari-preference-switch input:focus-visible + .ari-preference-switch__track,
+.ari-preference-toggle input:focus-visible + .ari-preference-toggle__track {
+  box-shadow:
+    var(--ari-shadow-focus),
+    inset 0 2px 6px rgba(0, 0, 0, 0.24);
+}
+
+.ari-preference-switch input:disabled + .ari-preference-switch__track,
+.ari-preference-toggle input:disabled + .ari-preference-toggle__track {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+
+/* ==========================================================
+   26. RANGE CONTROLS
+========================================================== */
+
+.ari-preference-range {
+  min-width: 12rem;
+
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) auto;
+  align-items: center;
+  gap: var(--ari-space-4);
+}
+
+.ari-preference-range input[type="range"],
+.ari-preference-settings input[type="range"] {
+  width: 100%;
+  height: 1.5rem;
+
+  appearance: none;
+
+  background: transparent;
+}
+
+.ari-preference-range input[type="range"]::-webkit-slider-runnable-track,
+.ari-preference-settings input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.38rem;
+
+  border-radius: var(--ari-radius-pill);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(56, 217, 255, 0.7),
+      rgba(56, 217, 255, 0.12)
+    );
+
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.ari-preference-range input[type="range"]::-webkit-slider-thumb,
+.ari-preference-settings input[type="range"]::-webkit-slider-thumb {
+  width: 1.2rem;
+  height: 1.2rem;
+
+  appearance: none;
+
+  margin-top: -0.41rem;
+
+  border: 0.2rem solid var(--ari-color-page);
+  border-radius: 50%;
+
+  background: var(--ari-color-accent);
+
+  box-shadow:
+    0 0 0 1px rgba(56, 217, 255, 0.65),
+    0 0 14px rgba(56, 217, 255, 0.34);
+}
+
+.ari-preference-range input[type="range"]::-moz-range-track,
+.ari-preference-settings input[type="range"]::-moz-range-track {
+  height: 0.38rem;
+
+  border-radius: var(--ari-radius-pill);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(56, 217, 255, 0.7),
+      rgba(56, 217, 255, 0.12)
+    );
+}
+
+.ari-preference-range input[type="range"]::-moz-range-thumb,
+.ari-preference-settings input[type="range"]::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+
+  border: 0.2rem solid var(--ari-color-page);
+  border-radius: 50%;
+
+  background: var(--ari-color-accent);
+
+  box-shadow:
+    0 0 0 1px rgba(56, 217, 255, 0.65),
+    0 0 14px rgba(56, 217, 255, 0.34);
+}
+
+.ari-preference-range__value,
+.ari-preference-value {
+  min-width: 3rem;
+
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+
+  padding:
+    var(--ari-space-2)
+    var(--ari-space-3);
+
+  border: 1px solid var(--ari-color-border-accent);
+  border-radius: var(--ari-radius-pill);
+
+  color: var(--ari-color-accent);
+  background: var(--ari-color-accent-faint);
+
+  font-family: var(--ari-font-display);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 800;
+  line-height: 1;
+}
+
+
+/* ==========================================================
+   27. CONSENT-GATED AND ADVISORY SETTINGS
+========================================================== */
+
+.ari-preference-option[data-consent-required="true"],
+.ari-preference-row[data-consent-required="true"],
+.ari-preference-setting[data-consent-required="true"] {
+  border-color: rgba(255, 200, 87, 0.18);
+}
+
+.ari-preference-option[data-consent-required="true"]::after,
+.ari-preference-row[data-consent-required="true"]::after,
+.ari-preference-setting[data-consent-required="true"]::after {
+  content: "Advisory";
+
+  position: absolute;
+  top: var(--ari-space-3);
+  right: var(--ari-space-3);
+
+  padding:
+    0.28rem
+    0.55rem;
+
+  border: 1px solid rgba(255, 200, 87, 0.25);
+  border-radius: var(--ari-radius-pill);
+
+  color: var(--ari-color-warning);
+  background: var(--ari-color-warning-soft);
+
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+
+/* ==========================================================
+   28. DISABLED AND READ-ONLY STATES
+========================================================== */
+
+.ari-preference-settings [aria-disabled="true"],
+.ari-preference-settings .is-disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.ari-preference-settings input:disabled,
+.ari-preference-settings select:disabled,
+.ari-preference-settings textarea:disabled,
+.ari-preference-settings button:disabled {
+  cursor: not-allowed;
+}
+
+
+/* ==========================================================
+   29. VALIDATION STATES
+========================================================== */
+
+.ari-preference-settings [aria-invalid="true"],
+.ari-preference-settings .has-error {
+  border-color: rgba(255, 110, 138, 0.5) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(255, 110, 138, 0.1) !important;
+}
+
+.ari-preference-error {
+  margin-top: var(--ari-space-2);
+
+  color: var(--ari-color-danger);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.ari-preference-help {
+  margin-top: var(--ari-space-2);
+
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-xs);
+  line-height: 1.5;
+}
+
+
+/* ==========================================================
+   30. COMPONENT RESPONSIVE RULES
+========================================================== */
+
+@media (max-width: 48rem) {
+  .ari-preference-panel__heading,
+  .ari-preference-category__header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+
+    gap: var(--ari-space-4);
+
+    padding:
+      var(--ari-space-5)
+      var(--ari-space-5);
+  }
+
+  .ari-preference-row,
+  .ari-preference-setting,
+  .ari-preference-control-row {
+    grid-template-columns: 1fr;
+    gap: var(--ari-space-4);
+  }
+
+  .ari-preference-row__control,
+  .ari-preference-setting__control,
+  .ari-preference-control-row__control {
+    justify-content: flex-start;
+  }
+
+  .ari-preference-row__control select,
+  .ari-preference-setting__control select,
+  .ari-preference-control-row__control select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 40rem) {
+  .ari-preference-panel,
+  .ari-preference-category {
+    border-radius: var(--ari-radius-md);
+  }
+
+  .ari-preference-panel__heading,
+  .ari-preference-category__header {
+    min-height: 5.5rem;
+
+    grid-template-columns: 2.6rem minmax(0, 1fr) 2.25rem;
+
+    gap: var(--ari-space-3);
+
+    padding:
+      var(--ari-space-5)
+      var(--ari-space-4);
+  }
+
+  .ari-preference-panel__icon {
+    width: 2.6rem;
+    height: 2.6rem;
+
+    border-radius: var(--ari-radius-sm);
+
+    font-size: 1rem;
+  }
+
+  [data-ari-accordion-trigger="true"]::after {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .ari-preference-panel__heading h2,
+  .ari-preference-panel__heading h3,
+  .ari-preference-category__header h2,
+  .ari-preference-category__header h3 {
+    font-size: 0.98rem;
+  }
+
+  .ari-preference-panel__heading p:not(.ari-preference-panel__kicker),
+  .ari-preference-category__header p:not(.ari-preference-panel__kicker) {
+    display: none;
+  }
+
+  .ari-accordion-summary {
+    font-size: 0.69rem;
+  }
+
+  [data-ari-accordion-open="true"]
+    > .ari-accordion-content
+    > .ari-accordion-content__inner {
+    padding:
+      var(--ari-space-5)
+      var(--ari-space-4)
+      var(--ari-space-6);
+  }
+
+  .ari-specialization__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-specialization-option--wide {
+    grid-column: auto;
+  }
+
+  .ari-specialization__notice {
+    padding:
+      var(--ari-space-4)
+      var(--ari-space-4)
+      var(--ari-space-4)
+      3rem;
+  }
+
+  .ari-preference-row,
+  .ari-preference-setting,
+  .ari-preference-control-row {
+    padding: var(--ari-space-4);
+  }
+
+  .ari-preference-range {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 26rem) {
+  .ari-preference-panel__heading,
+  .ari-preference-category__header {
+    grid-template-columns: minmax(0, 1fr) 2.25rem;
+  }
+
+  .ari-preference-panel__icon {
+    display: none;
+  }
+
+  .ari-specialization-option {
+    padding:
+      var(--ari-space-4)
+      var(--ari-space-4);
+  }
+}
+/* ==========================================================
+   ARI CONTROL CENTER
+   Mission Control Interface
+
+   Version:
+   5.0.0
+
+   Part 3 of 3:
+   - Live preview
+   - Scenario chips
+   - Action bar
+   - Buttons
+   - Consent dialog
+   - Toasts and notices
+   - Animations
+   - Scrollbars
+   - Utilities
+   - Final responsive rules
+   - Print handling
+========================================================== */
+
+
+/* ==========================================================
+   31. LIVE PREVIEW PANEL
+========================================================== */
+
+.ari-preference-preview {
+  margin-top: var(--ari-space-5);
+}
+
+.ari-preference-preview__body {
+  display: grid;
+  gap: var(--ari-space-6);
+}
+
+.ari-preference-preview__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ari-space-4);
+  padding-bottom: var(--ari-space-5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ari-preference-preview__toolbar-copy {
+  min-width: 0;
+}
+
+.ari-preference-preview__toolbar h3 {
+  margin: 0;
+  color: var(--ari-color-text);
+  font-family: var(--ari-font-display);
+  font-size: 0.94rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+.ari-preference-preview__toolbar p {
+  margin: var(--ari-space-2) 0 0;
+  color: var(--ari-color-text-muted);
+  font-size: var(--ari-font-size-xs);
+  line-height: 1.5;
+}
+
+.ari-preference-preview__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ari-space-2);
+  flex: 0 0 auto;
+  padding: var(--ari-space-2) var(--ari-space-3);
+  border: 1px solid var(--ari-color-border-accent);
+  border-radius: var(--ari-radius-pill);
+  color: var(--ari-color-accent);
+  background: var(--ari-color-accent-faint);
+  font-family: var(--ari-font-display);
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ari-preference-preview__status::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--ari-color-accent);
+  box-shadow: 0 0 10px rgba(56, 217, 255, 0.65);
+  animation: ari-preview-status-pulse 2s var(--ari-ease-standard) infinite;
+}
+
+.ari-preference-preview__stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 24rem;
+  display: grid;
+  align-items: end;
+  padding: clamp(var(--ari-space-5), 4vw, var(--ari-space-8));
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: var(--ari-radius-lg);
+  background:
+    radial-gradient(circle at 50% 0, rgba(56, 217, 255, 0.08), transparent 19rem),
+    linear-gradient(180deg, rgba(5, 10, 17, 0.84), rgba(3, 7, 12, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    inset 0 -4rem 8rem rgba(0, 0, 0, 0.2);
+}
+
+.ari-preference-preview__stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 2.75rem 2.75rem;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 90%);
+}
+
+.ari-preference-preview__stage::after {
+  content: "";
+  position: absolute;
+  top: -13rem;
+  left: 50%;
+  width: 28rem;
+  height: 28rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(56, 217, 255, 0.08), transparent 68%);
+  filter: blur(2rem);
+}
+
+.ari-preference-preview__conversation {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 48rem);
+  display: grid;
+  gap: var(--ari-space-5);
+  margin-inline: auto;
+}
+
+.ari-preference-preview__message {
+  position: relative;
+  max-width: min(88%, 40rem);
+  padding: var(--ari-space-4) var(--ari-space-5);
+  border-radius: var(--ari-radius-md);
+  font-size: var(--ari-font-size-sm);
+  line-height: 1.65;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.ari-preference-preview__message p {
+  margin: 0;
+}
+
+.ari-preference-preview__message p + p {
+  margin-top: var(--ari-space-3);
+}
+
+.ari-preference-preview__message--user {
+  justify-self: end;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ari-color-text);
+  background: linear-gradient(145deg, rgba(32, 44, 61, 0.92), rgba(18, 27, 40, 0.9));
+  border-bottom-right-radius: 0.35rem;
+}
+
+.ari-preference-preview__message--ari {
+  justify-self: start;
+  border: 1px solid rgba(56, 217, 255, 0.18);
+  color: var(--ari-color-text-secondary);
+  background: linear-gradient(145deg, rgba(15, 31, 45, 0.94), rgba(8, 17, 27, 0.92));
+  border-bottom-left-radius: 0.35rem;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.24),
+    0 0 24px rgba(56, 217, 255, 0.045);
+}
+
+.ari-preference-preview__message--ari::before {
+  content: "ARI";
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  color: var(--ari-color-accent);
+  font-family: var(--ari-font-brand);
+  font-size: 0.62rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 10px rgba(56, 217, 255, 0.35);
+}
+
+.ari-preference-preview__message--loading {
+  min-width: 7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.ari-preference-preview__typing-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--ari-color-accent);
+  opacity: 0.35;
+  animation: ari-preview-typing 1.15s var(--ari-ease-standard) infinite;
+}
+
+.ari-preference-preview__typing-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.ari-preference-preview__typing-dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+
+/* ==========================================================
+   32. PREVIEW META AND TRAITS
+========================================================== */
+
+.ari-preference-preview__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ari-space-3);
+}
+
+.ari-preference-preview__metric {
+  min-width: 0;
+  padding: var(--ari-space-4);
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-md);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.008));
+}
+
+.ari-preference-preview__metric-label {
+  display: block;
+  margin-bottom: var(--ari-space-2);
+  color: var(--ari-color-text-muted);
+  font-family: var(--ari-font-display);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ari-preference-preview__metric-value {
+  display: block;
+  overflow: hidden;
+  color: var(--ari-color-text);
+  font-size: var(--ari-font-size-sm);
+  font-weight: 750;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ==========================================================
+   33. SCENARIO SELECTOR AND CHIPS
+========================================================== */
+
+.ari-preference-scenarios,
+.ari-preview-scenarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ari-space-2);
+}
+
+.ari-preference-scenario,
+.ari-preview-scenario,
+.ari-preference-chip {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ari-space-2);
+  padding: 0 var(--ari-space-4);
+  border: 1px solid var(--ari-color-border);
+  border-radius: var(--ari-radius-pill);
+  color: var(--ari-color-text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: var(--ari-font-size-xs);
+  font-weight: 750;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  transition:
+    color var(--ari-duration-fast) var(--ari-ease-standard),
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard),
+    transform var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-scenario:hover,
+.ari-preview-scenario:hover,
+.ari-preference-chip:hover {
+  color: var(--ari-color-text);
+  border-color: var(--ari-color-border-accent);
+  background: var(--ari-color-accent-faint);
+  transform: translateY(-1px);
+}
+
+.ari-preference-scenario[aria-pressed="true"],
+.ari-preview-scenario[aria-pressed="true"],
+.ari-preference-chip.is-active,
+.ari-preference-chip[data-active="true"] {
+  color: var(--ari-color-page-deep);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--ari-color-accent-bright), var(--ari-color-accent-deep));
+  box-shadow:
+    0 8px 22px rgba(56, 217, 255, 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+
+/* ==========================================================
+   34. ACTION BAR AND BUTTONS
+========================================================== */
+
+.ari-preference-settings__actions {
+  position: sticky;
+  bottom: var(--ari-space-4);
+  z-index: var(--ari-z-actions);
+  width: min(100%, var(--ari-content-width));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ari-space-4);
+  margin: var(--ari-space-8) auto 0;
+  padding: var(--ari-space-4) var(--ari-space-5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--ari-radius-lg);
+  background: linear-gradient(145deg, rgba(17, 27, 40, 0.92), rgba(8, 14, 23, 0.94));
+  backdrop-filter: blur(1.5rem);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ari-preference-settings__actions-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ari-space-3);
+  flex: 0 0 auto;
+}
+
+.ari-preference-button,
+.ari-button,
+.ari-preference-settings__button {
+  min-height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ari-space-2);
+  padding: 0 var(--ari-space-5);
+  border: 1px solid transparent;
+  border-radius: var(--ari-radius-pill);
+  font-size: var(--ari-font-size-sm);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  transition:
+    color var(--ari-duration-fast) var(--ari-ease-standard),
+    border-color var(--ari-duration-fast) var(--ari-ease-standard),
+    background-color var(--ari-duration-fast) var(--ari-ease-standard),
+    box-shadow var(--ari-duration-fast) var(--ari-ease-standard),
+    transform var(--ari-duration-fast) var(--ari-ease-standard),
+    opacity var(--ari-duration-fast) var(--ari-ease-standard);
+}
+
+.ari-preference-button:hover,
+.ari-button:hover,
+.ari-preference-settings__button:hover {
+  transform: translateY(-1px);
+}
+
+.ari-preference-button:active,
+.ari-button:active,
+.ari-preference-settings__button:active {
+  transform: translateY(0);
+}
+
+.ari-preference-button--primary,
+.ari-button--primary,
+.ari-preference-settings__button--primary {
+  color: var(--ari-color-page-deep);
+  background: linear-gradient(135deg, var(--ari-color-accent-bright), var(--ari-color-accent-deep));
+  box-shadow:
+    0 12px 28px rgba(56, 217, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.ari-preference-button--secondary,
+.ari-button--secondary,
+.ari-preference-settings__button--secondary {
+  color: var(--ari-color-text-secondary);
+  border-color: var(--ari-color-border-strong);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
+}
+
+.ari-preference-button:disabled,
+.ari-button:disabled,
+.ari-preference-settings__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+  transform: none;
+  box-shadow: none;
+}
+
+
+/* ==========================================================
+   35. CONSENT DIALOG
+========================================================== */
+
+.ari-preference-consent-dialog {
+  width: min(calc(100% - 2rem), 36rem);
+  max-height: min(88vh, 48rem);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--ari-radius-lg);
+  color: var(--ari-color-text);
+  background: linear-gradient(145deg, rgba(20, 32, 48, 0.98), rgba(7, 13, 22, 0.99));
+  box-shadow:
+    0 34px 100px rgba(0, 0, 0, 0.62),
+    0 0 45px rgba(56, 217, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(1.75rem);
+}
+
+.ari-preference-consent-dialog::backdrop {
+  background: rgba(1, 4, 8, 0.78);
+  backdrop-filter: blur(0.7rem);
+}
+
+.ari-preference-consent-dialog[open] {
+  animation: ari-dialog-enter var(--ari-duration-slow) var(--ari-ease-emphasized) both;
+}
+
+.ari-preference-consent-dialog__content {
+  max-height: min(88vh, 48rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.ari-preference-consent-dialog__header {
+  padding: var(--ari-space-7) var(--ari-space-7) var(--ari-space-5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.ari-preference-consent-dialog__body {
+  overflow-y: auto;
+  padding: var(--ari-space-6) var(--ari-space-7);
+}
+
+.ari-preference-consent-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ari-space-3);
+  padding: var(--ari-space-5) var(--ari-space-7);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(4, 9, 15, 0.45);
+}
+
+
+/* ==========================================================
+   36. TOASTS, SCROLLBARS, UTILITIES
+========================================================== */
+
+.ari-preference-toast-region {
+  position: fixed;
+  right: var(--ari-space-5);
+  bottom: var(--ari-space-5);
+  z-index: calc(var(--ari-z-dialog) + 10);
+  width: min(calc(100% - 2rem), 24rem);
+  display: grid;
+  gap: var(--ari-space-3);
+  pointer-events: none;
+}
+
+.ari-preference-toast {
+  padding: var(--ari-space-4) var(--ari-space-5);
+  border: 1px solid var(--ari-color-border-accent);
+  border-radius: var(--ari-radius-md);
+  color: var(--ari-color-text-secondary);
+  background: linear-gradient(145deg, rgba(18, 31, 46, 0.97), rgba(8, 15, 24, 0.98));
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  pointer-events: auto;
+  animation: ari-toast-enter var(--ari-duration-slow) var(--ari-ease-emphasized) both;
+}
+
+.ari-preference-settings,
+.ari-preference-consent-dialog__body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 217, 255, 0.28) rgba(255, 255, 255, 0.025);
+}
+
+.ari-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+.ari-hidden {
+  display: none !important;
+}
+
+.ari-full-width {
+  width: 100% !important;
+}
+
+
+/* ==========================================================
+   37. FINAL ANIMATIONS
+========================================================== */
+
+@keyframes ari-preview-status-pulse {
+  0%, 100% {
+    opacity: 0.7;
+    box-shadow: 0 0 8px rgba(56, 217, 255, 0.48);
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 14px rgba(56, 217, 255, 0.78);
+  }
+}
+
+@keyframes ari-preview-typing {
+  0%, 60%, 100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-0.24rem);
+  }
+}
+
+@keyframes ari-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ari-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(1rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+
+/* ==========================================================
+   38. FINAL RESPONSIVE RULES
+========================================================== */
+
+@media (max-width: 56rem) {
+  .ari-preference-preview__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ari-preference-preview__metric:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 44rem) {
+  .ari-preference-preview__toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ari-preference-settings__actions {
+    position: relative;
+    bottom: auto;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ari-preference-settings__actions-buttons {
+    width: 100%;
+  }
+
+  .ari-preference-settings__actions-buttons > * {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 36rem) {
+  .ari-preference-preview__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-preference-preview__metric:last-child {
+    grid-column: auto;
+  }
+
+  .ari-preference-scenarios,
+  .ari-preview-scenarios {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ari-preference-settings__actions-buttons {
+    flex-direction: column;
+  }
+
+  .ari-preference-settings__actions-buttons > * {
+    width: 100%;
+  }
+
+  .ari-preference-consent-dialog__footer {
+    flex-direction: column-reverse;
+  }
+
+  .ari-preference-consent-dialog__footer > * {
+    width: 100%;
+  }
+}
+
+@media (max-width: 25rem) {
+  .ari-preference-scenarios,
+  .ari-preview-scenarios {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-preference-settings__actions,
+  .ari-preference-consent-dialog {
+    border-radius: var(--ari-radius-md);
+  }
+}
+
+@media print {
+  html,
+  body {
+    color: #000000;
+    background: #ffffff;
+  }
+
+  body::before,
+  body::after,
+  .ari-preference-settings::before,
+  .ari-preference-settings__topbar,
+  .ari-preference-settings__actions,
+  .ari-preference-toast-region {
+    display: none !important;
+  }
+
+  .ari-preference-settings {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+
+  .ari-preference-settings__header,
+  .ari-preference-panel,
+  .ari-preference-category,
+  .ari-preference-preview__stage {
+    break-inside: avoid;
+    border: 1px solid #b8b8b8;
+    color: #000000;
+    background: #ffffff;
+    box-shadow: none;
+  }
+
+  .ari-accordion-content {
+    grid-template-rows: 1fr !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+
+/* ==========================================================
+   END OF ARI CONTROL CENTER V5 STYLESHEET
+========================================================== */
