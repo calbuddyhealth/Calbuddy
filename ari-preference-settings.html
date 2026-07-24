@@ -73,7 +73,7 @@
 <body>
   <main>
 <!-- Ari Preference Settings -->
-<!-- V2.1.0 &mdash; ARI Control Center / Contract-Driven Preference Settings UI -->
+<!-- V3.0.0 &mdash; Expandable ARI Control Center / Contract-Driven Preference Settings UI -->
 
 <section
   id="ari-preference-settings"
@@ -500,7 +500,7 @@
           class="ari-preference-button ari-preference-button--primary"
           type="submit"
         >
-          Save preferences
+          Apply configuration
         </button>
       </div>
     </div>
@@ -1459,6 +1459,193 @@
     }
   }
 
+
+  /* =====================================================
+     V3.0.0 EXPANDABLE CONTROL CENTER
+  ====================================================== */
+
+  .ari-preference-settings__form {
+    gap: 14px;
+  }
+
+  .ari-preference-panel,
+  .ari-preference-category {
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      background 180ms ease;
+  }
+
+  .ari-preference-panel[data-ari-accordion-ready="true"],
+  .ari-preference-category[data-ari-accordion-ready="true"] {
+    overflow: clip;
+  }
+
+  .ari-preference-panel[data-ari-accordion-open="true"],
+  .ari-preference-category[data-ari-accordion-open="true"] {
+    border-color: rgba(56, 217, 255, 0.24);
+    box-shadow:
+      0 18px 52px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(56, 217, 255, 0.035);
+  }
+
+  .ari-preference-panel__heading[data-ari-accordion-trigger],
+  .ari-preference-category__header[data-ari-accordion-trigger] {
+    position: relative;
+    min-height: 82px;
+    align-items: center;
+    padding-right: 64px;
+    border-bottom: 0;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background 160ms ease,
+      color 160ms ease;
+  }
+
+  .ari-preference-category__header[data-ari-accordion-trigger] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .ari-preference-panel__heading[data-ari-accordion-trigger]:hover,
+  .ari-preference-category__header[data-ari-accordion-trigger]:hover {
+    background: rgba(255, 255, 255, 0.022);
+  }
+
+  .ari-preference-panel__heading[data-ari-accordion-trigger]:focus-visible,
+  .ari-preference-category__header[data-ari-accordion-trigger]:focus-visible {
+    outline: 3px solid rgba(56, 217, 255, 0.16);
+    outline-offset: -3px;
+  }
+
+  .ari-preference-panel__heading[data-ari-accordion-trigger]::after,
+  .ari-preference-category__header[data-ari-accordion-trigger]::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 24px;
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid var(--ari-preference-accent);
+    border-bottom: 2px solid var(--ari-preference-accent);
+    transform: translateY(-66%) rotate(45deg);
+    transition: transform 180ms ease;
+  }
+
+  [data-ari-accordion-open="true"]
+    > .ari-preference-panel__heading[data-ari-accordion-trigger]::after,
+  [data-ari-accordion-open="true"]
+    > .ari-preference-category__header[data-ari-accordion-trigger]::after {
+    transform: translateY(-35%) rotate(225deg);
+  }
+
+  .ari-accordion-summary {
+    display: block;
+    max-width: min(680px, 90%);
+    margin-top: 7px;
+    color: #b4c4d0;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+
+  [data-ari-accordion-open="true"] .ari-accordion-summary {
+    color: var(--ari-preference-accent);
+  }
+
+  .ari-accordion-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    border-top: 1px solid transparent;
+    transition:
+      grid-template-rows 220ms ease,
+      opacity 180ms ease,
+      visibility 0s linear 220ms,
+      border-color 180ms ease;
+  }
+
+  .ari-accordion-content > .ari-accordion-content__inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-ari-accordion-open="true"] > .ari-accordion-content {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    border-top-color: var(--ari-preference-border);
+    transition:
+      grid-template-rows 220ms ease,
+      opacity 180ms ease,
+      visibility 0s linear 0s,
+      border-color 180ms ease;
+  }
+
+  /* The preset card is now one vertical accordion card. */
+  .ari-preference-settings__preset-card {
+    display: block;
+  }
+
+  .ari-preference-settings__preset-card .ari-preference-panel__heading {
+    border-right: 0;
+  }
+
+  /* Controller-generated rows are moved into this inner wrapper. */
+  .ari-preference-category__content {
+    min-width: 0;
+  }
+
+  .ari-preference-settings__categories {
+    gap: 14px;
+  }
+
+  .ari-preference-settings__empty-filter {
+    padding: 20px;
+    border: 1px dashed var(--ari-preference-border);
+    border-radius: var(--ari-preference-radius-md);
+    color: var(--ari-preference-muted);
+    text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .ari-preference-panel__heading[data-ari-accordion-trigger],
+    .ari-preference-category__header[data-ari-accordion-trigger] {
+      min-height: 76px;
+      padding-right: 54px;
+    }
+
+    .ari-preference-panel__heading[data-ari-accordion-trigger]::after,
+    .ari-preference-category__header[data-ari-accordion-trigger]::after {
+      right: 20px;
+    }
+
+    .ari-preference-panel__heading[data-ari-accordion-trigger]
+      .ari-preference-panel__icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+    }
+
+    .ari-accordion-summary {
+      max-width: 100%;
+      font-size: 0.75rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ari-accordion-content,
+    .ari-preference-panel__heading[data-ari-accordion-trigger]::after,
+    .ari-preference-category__header[data-ari-accordion-trigger]::after {
+      transition: none !important;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .ari-preference-settings *,
     .ari-preference-settings *::before,
@@ -1497,7 +1684,7 @@
 
     const previewContent = {
       motivation: {
-        prompt: ""I skipped the gym today."",
+        prompt: "\"I skipped the gym today.\"",
         default:
           "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine.",
         balanced:
@@ -1523,7 +1710,7 @@
       },
 
       advice: {
-        prompt: ""Should I accept this new job?"",
+        prompt: "\"Should I accept this new job?\"",
         default:
           "Compare compensation, growth, stability, and how well the role fits your priorities before deciding.",
         balanced:
@@ -1549,7 +1736,7 @@
       },
 
       learning: {
-        prompt: ""Explain heart failure."",
+        prompt: "\"Explain heart failure.\"",
         default:
           "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs.",
         balanced:
@@ -1575,7 +1762,7 @@
       },
 
       support: {
-        prompt: ""I feel like I failed."",
+        prompt: "\"I feel like I failed.\"",
         default:
           "A painful outcome can feel like failure, but it does not define your ability or what happens next.",
         balanced:
@@ -1601,7 +1788,7 @@
       },
 
       humor: {
-        prompt: ""I procrastinated all day."",
+        prompt: "\"I procrastinated all day.\"",
         default:
           "Your to-do list survived another day undefeated.",
         balanced:
@@ -1751,6 +1938,385 @@
   })();
 </script>
 
+
+<script>
+  (() => {
+    "use strict";
+
+    const ACCORDION_STORAGE_KEY = "ari_preference_open_section";
+    const ROOT_SELECTOR =
+      ".ari-preference-panel[data-ari-accordion-ready='true'], " +
+      ".ari-preference-category[data-ari-accordion-ready='true']";
+
+    const categoriesHost = document.getElementById("ari-preference-categories");
+    const presetSelect = document.getElementById("ari-preference-preset");
+    const specializationInputs = Array.from(
+      document.querySelectorAll('input[name="ariSpecialization"]')
+    );
+
+    let observer = null;
+    let enhancementScheduled = false;
+
+    function slugify(value) {
+      return String(value || "section")
+        .trim()
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "section";
+    }
+
+    function titleFromPanel(panel) {
+      return (
+        panel.querySelector("h2, h3")?.textContent?.trim() ||
+        panel.getAttribute("aria-label") ||
+        "Preference section"
+      );
+    }
+
+    function readableValue(value) {
+      return String(value || "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (character) => character.toUpperCase());
+    }
+
+    function currentPresetSummary() {
+      const selectedOption = presetSelect?.selectedOptions?.[0];
+      return selectedOption?.textContent?.trim() || "Choose a communication preset";
+    }
+
+    function currentSpecializationSummary() {
+      const selected = specializationInputs.find((input) => input.checked);
+      if (!selected) return "Balanced across topics";
+
+      const label = selected.closest("label");
+      const strong = label?.querySelector("strong");
+      const labelText =
+        strong?.textContent ||
+        label?.querySelector("span")?.childNodes?.[0]?.textContent ||
+        selected.value;
+
+      return readableValue(String(labelText || selected.value).replace(/[^A-Za-z0-9 &]/g, ""));
+    }
+
+    function categorySummary(panel) {
+      const controls = Array.from(
+        panel.querySelectorAll("select, input:checked")
+      ).filter((control) => control.name !== "ariSpecialization");
+
+      const values = controls
+        .map((control) => {
+          if (control.tagName === "SELECT") {
+            return control.selectedOptions?.[0]?.textContent?.trim();
+          }
+
+          const label = control.closest("label");
+          return (
+            label?.querySelector(".ari-preference-option__label")?.textContent?.trim() ||
+            label?.textContent?.trim() ||
+            control.value
+          );
+        })
+        .filter(Boolean)
+        .slice(0, 3);
+
+      return values.length ? values.join(" / ") : "Customize settings";
+    }
+
+    function summaryForPanel(panel) {
+      if (panel.classList.contains("ari-preference-settings__preset-card")) {
+        return currentPresetSummary();
+      }
+
+      if (panel.classList.contains("ari-specialization")) {
+        return currentSpecializationSummary();
+      }
+
+      if (panel.classList.contains("ari-preference-preview")) {
+        return "Tap to preview Ari";
+      }
+
+      if (panel.classList.contains("ari-preference-category")) {
+        return categorySummary(panel);
+      }
+
+      return "Tap to configure";
+    }
+
+    function updatePanelSummary(panel) {
+      const summary = panel.querySelector(
+        ":scope > [data-ari-accordion-trigger] .ari-accordion-summary"
+      );
+
+      if (summary) {
+        summary.textContent = summaryForPanel(panel);
+      }
+    }
+
+    function allPanels() {
+      return Array.from(document.querySelectorAll(ROOT_SELECTOR));
+    }
+
+    function openPanel(panel, options = {}) {
+      const { remember = true, scroll = false } = options;
+
+      allPanels().forEach((candidate) => {
+        const isTarget = candidate === panel;
+        candidate.dataset.ariAccordionOpen = isTarget ? "true" : "false";
+
+        const trigger = candidate.querySelector(
+          ":scope > [data-ari-accordion-trigger]"
+        );
+
+        trigger?.setAttribute("aria-expanded", isTarget ? "true" : "false");
+      });
+
+      if (remember) {
+        try {
+          window.localStorage.setItem(
+            ACCORDION_STORAGE_KEY,
+            panel.dataset.ariAccordionId || ""
+          );
+        } catch (_error) {
+          // Remembering the open section is optional.
+        }
+      }
+
+      if (scroll) {
+        window.setTimeout(() => {
+          panel.scrollIntoView({
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+            block: "start"
+          });
+        }, 230);
+      }
+    }
+
+    function togglePanel(panel) {
+      const isOpen = panel.dataset.ariAccordionOpen === "true";
+
+      if (isOpen) {
+        panel.dataset.ariAccordionOpen = "false";
+        panel
+          .querySelector(":scope > [data-ari-accordion-trigger]")
+          ?.setAttribute("aria-expanded", "false");
+        return;
+      }
+
+      openPanel(panel, { remember: true, scroll: true });
+    }
+
+    function wrapStaticPanel(panel, trigger, contentNode) {
+      const content = document.createElement("div");
+      content.className = "ari-accordion-content";
+
+      const inner = document.createElement("div");
+      inner.className = "ari-accordion-content__inner";
+
+      contentNode.parentNode.insertBefore(content, contentNode);
+      inner.appendChild(contentNode);
+      content.appendChild(inner);
+
+      return content;
+    }
+
+    function wrapCategoryRows(panel, trigger) {
+      const existingContent = panel.querySelector(
+        ":scope > .ari-accordion-content"
+      );
+      if (existingContent) return existingContent;
+
+      const content = document.createElement("div");
+      content.className = "ari-accordion-content";
+
+      const inner = document.createElement("div");
+      inner.className =
+        "ari-accordion-content__inner ari-preference-category__content";
+
+      Array.from(panel.children)
+        .filter((child) => child !== trigger)
+        .forEach((child) => inner.appendChild(child));
+
+      content.appendChild(inner);
+      panel.appendChild(content);
+
+      return content;
+    }
+
+    function enhancePanel(panel, preferredId) {
+      if (panel.dataset.ariAccordionReady === "true") {
+        updatePanelSummary(panel);
+        return;
+      }
+
+      const trigger =
+        panel.querySelector(":scope > .ari-preference-panel__heading") ||
+        panel.querySelector(":scope > .ari-preference-category__header");
+
+      if (!trigger) return;
+
+      const title = titleFromPanel(panel);
+      const accordionId =
+        preferredId ||
+        panel.id ||
+        `ari-accordion-${slugify(title)}`;
+
+      panel.dataset.ariAccordionId = accordionId;
+      panel.dataset.ariAccordionReady = "true";
+      panel.dataset.ariAccordionOpen = "false";
+
+      trigger.dataset.ariAccordionTrigger = "true";
+      trigger.setAttribute("role", "button");
+      trigger.setAttribute("tabindex", "0");
+      trigger.setAttribute("aria-expanded", "false");
+
+      const summary = document.createElement("span");
+      summary.className = "ari-accordion-summary";
+      trigger.querySelector("div:last-child, h2, h3")?.appendChild(summary);
+
+      let content = null;
+
+      if (panel.classList.contains("ari-preference-settings__preset-card")) {
+        content = wrapStaticPanel(
+          panel,
+          trigger,
+          panel.querySelector(":scope > .ari-preference-settings__preset-control")
+        );
+      } else if (panel.classList.contains("ari-specialization")) {
+        content = wrapStaticPanel(
+          panel,
+          trigger,
+          panel.querySelector(":scope > .ari-specialization__body")
+        );
+      } else if (panel.classList.contains("ari-preference-preview")) {
+        content = wrapStaticPanel(
+          panel,
+          trigger,
+          panel.querySelector(":scope > .ari-preference-preview__body")
+        );
+      } else {
+        content = wrapCategoryRows(panel, trigger);
+      }
+
+      if (content) {
+        const contentId = `${accordionId}-content`;
+        content.id = contentId;
+        trigger.setAttribute("aria-controls", contentId);
+      }
+
+      trigger.addEventListener("click", () => togglePanel(panel));
+      trigger.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        togglePanel(panel);
+      });
+
+      panel.addEventListener("change", () => updatePanelSummary(panel));
+      updatePanelSummary(panel);
+    }
+
+    function enhanceAllPanels() {
+      const presetPanel = document.querySelector(
+        ".ari-preference-settings__preset-card"
+      );
+      const specializationPanel = document.querySelector(".ari-specialization");
+      const previewPanel = document.querySelector(".ari-preference-preview");
+
+      if (presetPanel) enhancePanel(presetPanel, "communication-style");
+      if (specializationPanel) enhancePanel(specializationPanel, "specialization");
+
+      document
+        .querySelectorAll("#ari-preference-categories > .ari-preference-category")
+        .forEach((panel, index) => {
+          enhancePanel(
+            panel,
+            `contract-${slugify(titleFromPanel(panel))}-${index + 1}`
+          );
+        });
+
+      if (previewPanel) enhancePanel(previewPanel, "preview-ari");
+
+      const panels = allPanels();
+      if (!panels.length) return;
+
+      let rememberedId = "";
+
+      try {
+        rememberedId =
+          window.localStorage.getItem(ACCORDION_STORAGE_KEY) || "";
+      } catch (_error) {
+        rememberedId = "";
+      }
+
+      const currentlyOpen = panels.find(
+        (panel) => panel.dataset.ariAccordionOpen === "true"
+      );
+
+      if (currentlyOpen) {
+        panels.forEach(updatePanelSummary);
+        return;
+      }
+
+      const remembered = panels.find(
+        (panel) => panel.dataset.ariAccordionId === rememberedId
+      );
+
+      openPanel(remembered || panels[0], {
+        remember: false,
+        scroll: false
+      });
+
+      panels.forEach(updatePanelSummary);
+    }
+
+    function scheduleEnhancement() {
+      if (enhancementScheduled) return;
+      enhancementScheduled = true;
+
+      window.requestAnimationFrame(() => {
+        enhancementScheduled = false;
+        enhanceAllPanels();
+      });
+    }
+
+    function beginCategoryObserver() {
+      if (!categoriesHost || observer) return;
+
+      observer = new MutationObserver(scheduleEnhancement);
+      observer.observe(categoriesHost, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    presetSelect?.addEventListener("change", () => {
+      const panel = presetSelect.closest("[data-ari-accordion-ready='true']");
+      if (panel) updatePanelSummary(panel);
+    });
+
+    specializationInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        const panel = input.closest("[data-ari-accordion-ready='true']");
+        if (panel) updatePanelSummary(panel);
+      });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      enhanceAllPanels();
+      beginCategoryObserver();
+
+      window.setTimeout(enhanceAllPanels, 0);
+      window.setTimeout(enhanceAllPanels, 250);
+      window.setTimeout(enhanceAllPanels, 800);
+    });
+
+    enhanceAllPanels();
+    beginCategoryObserver();
+  })();
+</script>
+
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1765,6 +2331,6 @@
   <script src="ari/profile/ari-user-preference-store.js?v=1.0.1"></script>
   <script src="ari/context/ari-preference-resolver.js?v=1.0.1"></script>
   <script src="ari/profile/ari-preference-runtime.js?v=1.0.1"></script>
-  <script src="ari/settings/ari-preference-settings-controller.js?v=1.0.1"></script>
+  <script src="ari/settings/ari-preference-settings-controller.js?v=1.0.2"></script>
 </body>
 </html>
