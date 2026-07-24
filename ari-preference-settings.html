@@ -73,7 +73,7 @@
 <body>
   <main>
 <!-- Ari Preference Settings -->
-<!-- V2.0.0 â ARI Control Center / Contract-Driven Preference Settings UI -->
+<!-- V2.1.0 &mdash; ARI Control Center / Contract-Driven Preference Settings UI -->
 
 <section
   id="ari-preference-settings"
@@ -86,7 +86,7 @@
       class="ari-preference-settings__back"
       aria-label="Back to Ari home"
     >
-      <span aria-hidden="true">â</span>
+      <span aria-hidden="true">&larr;</span>
       <span>Home</span>
     </a>
 
@@ -104,7 +104,7 @@
 
       <p class="ari-preference-settings__subtitle">
         Personalize how Ari communicates, reasons, explains, supports, and
-        challenges you. These preferences change Ariâs styleânot its safety
+        challenges you. These preferences change Ari&rsquo;s style&mdash;not its safety
         rules, factual standards, or crisis protections.
       </p>
     </div>
@@ -122,7 +122,7 @@
     class="ari-preference-settings__loading"
   >
     <span class="ari-preference-settings__loading-dot" aria-hidden="true"></span>
-    Loading your Ari preferencesâ¦
+    Loading your Ari preferences&hellip;
   </div>
 
   <form
@@ -141,7 +141,7 @@
       aria-labelledby="ari-communication-style-title"
     >
       <div class="ari-preference-panel__heading">
-        <div class="ari-preference-panel__icon" aria-hidden="true">â¦</div>
+        <div class="ari-preference-panel__icon" aria-hidden="true">&#10022;</div>
 
         <div>
           <p class="ari-preference-panel__kicker">CORE STYLE</p>
@@ -180,7 +180,7 @@
       aria-labelledby="ari-specialization-title"
     >
       <div class="ari-preference-panel__heading">
-        <div class="ari-preference-panel__icon" aria-hidden="true">â</div>
+        <div class="ari-preference-panel__icon" aria-hidden="true">&#8961;</div>
 
         <div>
           <p class="ari-preference-panel__kicker">RESPONSE EMPHASIS</p>
@@ -210,7 +210,7 @@
                 checked
               />
               <span>
-                <strong>â­ Default</strong>
+                <strong>&#9733; Default</strong>
                 <small>Balanced across topics</small>
               </span>
             </label>
@@ -466,7 +466,7 @@
           id="ari-preference-preview-prompt"
           class="ari-preference-preview__prompt"
         >
-          âI skipped the gym today.â
+          &ldquo;I skipped the gym today.&rdquo;
         </p>
 
         <div class="ari-preference-preview__message">
@@ -480,7 +480,7 @@
 
         <p class="ari-preference-preview__disclaimer">
           Preview responses are local demonstrations. Saved preferences still
-          pass through Ariâs normal context, accuracy, and safety controls.
+          pass through Ari&rsquo;s normal context, accuracy, and safety controls.
         </p>
       </div>
     </section>
@@ -530,7 +530,7 @@
       ></p>
 
       <div class="ari-preference-consent-dialog__safety">
-        This changes Ariâs communication style only. It does not disable safety
+        This changes Ari&rsquo;s communication style only. It does not disable safety
         protections, factual standards, medical or legal safeguards, crisis
         handling, or platform rules.
       </div>
@@ -1337,6 +1337,128 @@
     }
   }
 
+
+  /* =====================================================
+     V2.1.0 MOBILE POLISH
+  ====================================================== */
+
+  .ari-preference-settings {
+    padding-top: 10px;
+  }
+
+  .ari-preference-settings__topbar {
+    min-height: 48px;
+    margin-bottom: 18px;
+  }
+
+  .ari-preference-settings__back {
+    min-height: 38px;
+    gap: 7px;
+    padding: 0 12px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  .ari-preference-settings__back span:first-child {
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .ari-preference-settings__brand {
+    justify-content: center;
+    min-height: 38px;
+  }
+
+  .ari-preference-settings__brand-name {
+    font-size: 1.12rem;
+  }
+
+  .ari-preference-settings__brand-engine {
+    margin-top: 4px;
+    font-size: 0.48rem;
+  }
+
+  .ari-preference-settings__header {
+    margin-bottom: 18px;
+  }
+
+  .ari-preference-settings__eyebrow {
+    margin-bottom: 7px;
+  }
+
+  .ari-preference-settings h1 {
+    font-size: clamp(1.65rem, 7vw, 2.45rem);
+  }
+
+  .ari-preference-settings__subtitle {
+    margin-top: 9px;
+    max-width: 700px;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: clamp(0.93rem, 3.8vw, 1.02rem);
+    line-height: 1.52;
+    letter-spacing: 0;
+  }
+
+  .ari-preference-panel__heading h2,
+  .ari-preference-category__header h2 {
+    letter-spacing: -0.01em;
+  }
+
+  .ari-preference-panel__heading p:last-child,
+  .ari-preference-category__header p,
+  .ari-preference-row__description,
+  .ari-specialization__notice,
+  .ari-preference-preview__message p,
+  .ari-preference-preview__disclaimer {
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: 0;
+  }
+
+  .ari-preference-settings__preset-control {
+    position: relative;
+  }
+
+  .ari-preference-settings__preset-control::after {
+    content: "Balanced baseline";
+    display: inline-flex;
+    align-self: flex-start;
+    margin-top: 12px;
+    padding: 6px 9px;
+    border: 1px solid rgba(56, 217, 255, 0.18);
+    border-radius: 999px;
+    color: var(--ari-preference-accent);
+    background: rgba(56, 217, 255, 0.06);
+    font-size: 0.7rem;
+    font-weight: 750;
+    letter-spacing: 0.03em;
+  }
+
+  .ari-preference-settings__actions {
+    padding-top: 11px;
+  }
+
+  @media (max-width: 760px) {
+    .ari-preference-settings__topbar {
+      margin-bottom: 16px;
+    }
+
+    .ari-preference-settings__header {
+      margin-bottom: 16px;
+    }
+
+    .ari-preference-panel__heading,
+    .ari-specialization__body,
+    .ari-preference-preview__body,
+    .ari-preference-settings__preset-control,
+    .ari-preference-category__header,
+    .ari-preference-row {
+      padding-left: 18px;
+      padding-right: 18px;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .ari-preference-settings *,
     .ari-preference-settings *::before,
@@ -1375,7 +1497,7 @@
 
     const previewContent = {
       motivation: {
-        prompt: "âI skipped the gym today.â",
+        prompt: ""I skipped the gym today."",
         default:
           "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine.",
         balanced:
@@ -1383,7 +1505,7 @@
         professional:
           "One missed session is manageable. Identify the obstacle, reschedule the workout, and continue the plan.",
         friendly:
-          "You are okay. One missed day is not the problemâjust do not let it become the whole week.",
+          "You are okay. One missed day is not the problem - just do not let it become the whole week.",
         teacher:
           "A single missed workout matters far less than your consistency across several weeks.",
         coach:
@@ -1401,7 +1523,7 @@
       },
 
       advice: {
-        prompt: "âShould I accept this new job?â",
+        prompt: ""Should I accept this new job?"",
         default:
           "Compare compensation, growth, stability, and how well the role fits your priorities before deciding.",
         balanced:
@@ -1413,25 +1535,25 @@
         teacher:
           "A weighted decision matrix can help compare the opportunities while reducing emotional bias.",
         coach:
-          "Choose based on your long-term goalânot fear, comfort, or somebody elseâs expectations.",
+          "Choose based on your long-term goal - not fear, comfort, or somebody else's expectations.",
         therapist:
           "Which option feels aligned with your values, and which one are you considering mainly from fear or pressure?",
         companion:
-          "Letâs compare both options together and make sure the choice works for your real life, not just your rÃ©sumÃ©.",
+          "Let's compare both options together and make sure the choice works for your real life, not just your resume.",
         comedian:
           "Pick the job with the best ratio of money to meetings that should have been emails.",
         unhinged:
-          "Do not sell your soul for a shiny title and a manager who says âcircle backâ twelve times a day.",
+          "Do not sell your soul for a shiny title and a manager who says 'circle back' twelve times a day.",
         custom:
           "Your custom preferences will shape how Ari responds after you save them."
       },
 
       learning: {
-        prompt: "âExplain heart failure.â",
+        prompt: ""Explain heart failure."",
         default:
-          "Heart failure means the heart cannot pump or fill efficiently enough to meet the bodyâs needs.",
+          "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs.",
         balanced:
-          "Heart failure means the heart cannot pump or fill efficiently enough to meet the bodyâs needs.",
+          "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs.",
         professional:
           "Heart failure is a clinical syndrome caused by impaired ventricular filling, impaired ejection, or both.",
         friendly:
@@ -1441,11 +1563,11 @@
         coach:
           "The key idea: the heart is still working, but not efficiently enough. That can cause fatigue, swelling, and shortness of breath.",
         therapist:
-          "Heart failure can sound frightening, but the term describes reduced pumping or filling efficiencyânot that the heart has stopped.",
+          "Heart failure can sound frightening, but the term describes reduced pumping or filling efficiency - not that the heart has stopped.",
         companion:
           "The heart is still working, but it needs more help moving blood effectively. I can walk you through the types and symptoms.",
         comedian:
-          "The heart did not quit its jobâit is just struggling with the workload and causing a backup.",
+          "The heart did not quit its job - it is just struggling with the workload and causing a backup.",
         unhinged:
           "The heart is still clocked in, but the pump is doing a half-assed job and fluid starts backing up.",
         custom:
@@ -1453,7 +1575,7 @@
       },
 
       support: {
-        prompt: "âI feel like I failed.â",
+        prompt: ""I feel like I failed."",
         default:
           "A painful outcome can feel like failure, but it does not define your ability or what happens next.",
         balanced:
@@ -1461,7 +1583,7 @@
         professional:
           "Separate the emotional impact from the operational lesson, then identify the next controllable action.",
         friendly:
-          "I know it hurts, but this is one outcomeânot your identity. We can figure out the next move.",
+          "I know it hurts, but this is one outcome - not your identity. We can figure out the next move.",
         teacher:
           "Failure is information about an attempt, not a permanent judgment about the person who made it.",
         coach:
@@ -1479,7 +1601,7 @@
       },
 
       humor: {
-        prompt: "âI procrastinated all day.â",
+        prompt: ""I procrastinated all day."",
         default:
           "Your to-do list survived another day undefeated.",
         balanced:
@@ -1489,9 +1611,9 @@
         friendly:
           "You spent eight hours emotionally preparing for a task that takes twenty minutes. Impressive, honestly.",
         teacher:
-          "Todayâs lesson: delaying discomfort usually creates a larger and more annoying version of it.",
+          "Today's lesson: delaying discomfort usually creates a larger and more annoying version of it.",
         coach:
-          "Congratulationsâyou trained all day for the Procrastination Olympics. Now do the damn task.",
+          "Congratulations - you trained all day for the Procrastination Olympics. Now do the damn task.",
         therapist:
           "Your avoidance mechanism worked perfectly. Unfortunately, the task is still sitting there.",
         companion:
@@ -1639,10 +1761,10 @@
     Canonical preference dependency order.
     Keep these paths synchronized with the production repository.
   -->
-  <script src="ari/profile/ari-user-preference-contract.js?v=1.1.0"></script>
-  <script src="ari/profile/ari-user-preference-store.js?v=1.0.0"></script>
-  <script src="ari/context/ari-preference-resolver.js?v=1.0.0"></script>
-  <script src="ari/profile/ari-preference-runtime.js?v=1.0.0"></script>
-  <script src="ari/settings/ari-preference-settings-controller.js?v=1.0.0"></script>
+  <script src="ari/profile/ari-user-preference-contract.js?v=1.1.1"></script>
+  <script src="ari/profile/ari-user-preference-store.js?v=1.0.1"></script>
+  <script src="ari/context/ari-preference-resolver.js?v=1.0.1"></script>
+  <script src="ari/profile/ari-preference-runtime.js?v=1.0.1"></script>
+  <script src="ari/settings/ari-preference-settings-controller.js?v=1.0.1"></script>
 </body>
 </html>
