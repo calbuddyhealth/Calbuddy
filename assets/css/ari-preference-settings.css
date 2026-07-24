@@ -1692,7 +1692,61 @@ a {
   }
 }
 
+/* ==========================================================
+   ANIMATION ASSIGNMENTS
+   Keyframes live in assets/css/animations.css
+========================================================== */
 
+.ari-preference-settings__header h1 {
+  color: transparent;
+
+  background:
+    linear-gradient(
+      100deg,
+      #ffffff 0%,
+      #dff8ff 30%,
+      #ffffff 43%,
+      var(--ari-cyan-bright) 52%,
+      #ffffff 61%,
+      #c9f5ff 76%,
+      var(--ari-cyan) 100%
+    );
+
+  background-size: 240% 100%;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  text-shadow:
+    0 0 12px rgba(56, 217, 255, 0.12);
+
+  animation:
+    ariTextMaterialize 700ms var(--ari-ease) both,
+    ariTextShimmer 7s ease-in-out 1s infinite;
+}
+
+.ari-preference-settings__eyebrow,
+.ari-preference-panel__kicker {
+  animation:
+    ariTextMaterialize 500ms var(--ari-ease) both,
+    ariLedTextPulse 5s ease-in-out infinite;
+}
+
+.ari-accordion-summary {
+  animation:
+    ariSelectedTextPulse 4s ease-in-out infinite;
+}
+
+.ari-preference-settings__brand-name {
+  animation:
+    ariLogoPowerOn 900ms ease-out both,
+    ariLedTextPulse 6s ease-in-out 1s infinite;
+}
+
+.ari-preference-settings__loading-dot {
+  animation:
+    ariStatusPulse 1.35s var(--ari-ease) infinite;
+}
 /* ==========================================================
    MOTION
 ========================================================== */
