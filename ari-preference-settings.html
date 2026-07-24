@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 <link
   rel="stylesheet"
-  href="assets/css/ari-preference-settings.css?v=4.0.0"
+  href="assets/css/ari-preference-settings.css?v=6.0.0"
 />
 </head>
 
@@ -971,18 +971,29 @@ assets/css/ari-preference-settings.css
     }
 
     function togglePanel(panel) {
-      const isOpen = panel.dataset.ariAccordionOpen === "true";
+  const trigger = panel.querySelector(
+    ":scope > [data-ari-accordion-trigger]"
+  );
 
-      if (isOpen) {
-        panel.dataset.ariAccordionOpen = "false";
-        panel
-          .querySelector(":scope > [data-ari-accordion-trigger]")
-          ?.setAttribute("aria-expanded", "false");
-        return;
-      }
+  const isOpen = panel.dataset.ariAccordionOpen === "true";
 
-      openPanel(panel, { remember: true, scroll: true });
-    }
+  if (isOpen) {
+    panel.dataset.ariAccordionOpen = "false";
+    trigger?.setAttribute("aria-expanded", "false");
+
+    // Nothing is open anymore
+    try {
+      localStorage.removeItem(ACCORDION_STORAGE_KEY);
+    } catch (_) {}
+
+    return;
+  }
+
+  openPanel(panel, {
+    remember: true,
+    scroll: true
+  });
+}
 
     function wrapStaticPanel(panel, trigger, contentNode) {
       const content = document.createElement("div");
