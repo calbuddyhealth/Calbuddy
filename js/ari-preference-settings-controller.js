@@ -1,4 +1,4 @@
-// ari/settings/ari-preference-settings-controller.js
+// js/ari-preference-settings-controller.js
 // Ari Preference Settings Controller
 //
 // Purpose:
