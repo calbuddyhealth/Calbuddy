@@ -82,7 +82,7 @@ window.AriReasoningEngine = {
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "2.0.1",
+    "2.1.1",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
@@ -444,6 +444,70 @@ console.log(
         summary
       );
 
+const suppliedPreferenceContext =
+  this.objectOrEmpty(
+    summary.preferenceContext ||
+    summary.reasoningStageInput
+      ?.preferenceContext
+  );
+
+const currentTurnOverride =
+  this.objectOrEmpty(
+    suppliedPreferenceContext
+      .currentTurnOverride ||
+    summary.currentTurnOverride ||
+    summary.styleOverride
+  );
+
+const preferenceContext = {
+  ...suppliedPreferenceContext,
+
+  available:
+    suppliedPreferenceContext
+      .available === true ||
+    this.hasKeys(
+      styleContext.userPreferences
+    ) ||
+    this.hasKeys(
+      styleContext.responseStyle
+    ) ||
+    this.hasKeys(
+      currentTurnOverride
+    ),
+
+  ready:
+    suppliedPreferenceContext
+      .ready === true ||
+    summary.preferenceResolverReady ===
+      true,
+
+  resolverRan:
+    suppliedPreferenceContext
+      .resolverRan === true ||
+    summary.preferenceResolverRan ===
+      true,
+
+  resolverSource:
+    suppliedPreferenceContext
+      .resolverSource ||
+    summary.preferenceResolverSource ||
+    null,
+
+  resolverVersion:
+    suppliedPreferenceContext
+      .resolverVersion ||
+    summary.preferenceResolverVersion ||
+    null,
+
+  userPreferences:
+    styleContext.userPreferences,
+
+  responseStyle:
+    styleContext.responseStyle,
+
+  currentTurnOverride
+};
+
     const currentTurn = {
       originalText:
         request.original,
@@ -470,9 +534,11 @@ console.log(
         this.requestSchemaVersion,
 
       action:
-        "openai_reasoning",
+  "openai_reasoning",
 
-      currentTurn,
+preferenceContext,
+
+currentTurn,
 
       originalUserMessage:
         request.original,
@@ -773,13 +839,13 @@ responseStyle:
   )
     ? request.responseStyle
     : this.hasKeys(
-        preferenceResponseStyle
+        preferenceCurrentTurnOverride
       )
-      ? preferenceResponseStyle
+      ? preferenceCurrentTurnOverride
       : this.hasKeys(
-          preferenceCurrentTurnOverride
+          preferenceResponseStyle
         )
-        ? preferenceCurrentTurnOverride
+        ? preferenceResponseStyle
         : summary.responseStyle,
 
 styleOverride:
@@ -895,13 +961,20 @@ styleOverride:
       },
 
       conversation: {
-        ...this.buildConversationContext(
-          summary
-        ),
+  ...this.buildConversationContext(
+    summary
+  ),
 
-        ...this.objectOrEmpty(
-          request.conversation
-        ),
+  ...this.objectOrEmpty(
+    request.conversation
+  ),
+
+  userPreferences:
+    styleContext.userPreferences,
+
+  responseStyle:
+    styleContext.responseStyle
+},
 
 preferenceContext: {
   ...preferenceContext,
@@ -914,7 +987,26 @@ preferenceContext: {
     ) ||
     this.hasKeys(
       styleContext.responseStyle
+    ) ||
+    this.hasKeys(
+      preferenceCurrentTurnOverride
     ),
+
+  ready:
+    preferenceContext.ready ===
+      true,
+
+  resolverRan:
+    preferenceContext.resolverRan ===
+      true,
+
+  resolverSource:
+    preferenceContext.resolverSource ||
+    null,
+
+  resolverVersion:
+    preferenceContext.resolverVersion ||
+    null,
 
   userPreferences:
     styleContext.userPreferences,
@@ -925,15 +1017,6 @@ preferenceContext: {
   currentTurnOverride:
     preferenceCurrentTurnOverride
 },
-
-        userPreferences:
-          styleContext
-            .userPreferences,
-
-        responseStyle:
-          styleContext
-            .responseStyle
-      },
 
       perception:
         perceptionPacket,
