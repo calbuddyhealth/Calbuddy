@@ -2,7 +2,7 @@
    ARI PREFERENCE SETTINGS
    HTML-Matched Rebuild
    File: assets/css/ari-preference-settings.css
-   Version: 6.1.0
+Version: 6.2.1
 ========================================================== */
 
 :root {
@@ -29,9 +29,9 @@
   --ari-warning: #ffc857;
   --ari-danger: #ff6e8a;
 
-  --ari-font-display: "Orbitron", system-ui, sans-serif;
-  --ari-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-
+--ari-font-display: "Oxanium", system-ui, sans-serif;
+--ari-font-body: "Rajdhani", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+--ari-font-brand: "Audiowide", system-ui, sans-serif;
   --ari-radius-sm: 0.75rem;
   --ari-radius-md: 1rem;
   --ari-radius-lg: 1.35rem;
@@ -81,28 +81,111 @@ body {
   overflow-x: hidden;
 
   color: var(--ari-text);
+
   background:
-    radial-gradient(circle at 50% -8rem, rgba(56, 217, 255, 0.13), transparent 34rem),
-    linear-gradient(180deg, #07101a 0%, var(--ari-bg) 100%);
+    radial-gradient(
+      circle at 50% -8rem,
+      rgba(56, 217, 255, 0.16),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at 82% 30%,
+      rgba(22, 115, 155, 0.10),
+      transparent 30rem
+    ),
+    linear-gradient(
+      180deg,
+      #06101a 0%,
+      #030810 56%,
+      #02060c 100%
+    );
 
   font-family: var(--ari-font-body) !important;
   font-size: 1rem;
+  font-weight: 500;
   line-height: 1.55;
 }
 
 body::before {
   content: "";
+
   position: fixed;
   inset: 0;
   z-index: 0;
+
   pointer-events: none;
 
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'%3E%3Cg fill='%2338d9ff' fill-opacity='.18' font-family='monospace' font-size='16'%3E%3Ctext x='18' y='32'%3E%E2%8C%81%3C/text%3E%3Ctext x='92' y='58'%3E%E2%97%87%3C/text%3E%3Ctext x='178' y='28'%3E%CE%BB%3C/text%3E%3Ctext x='268' y='72'%3E%E2%8C%AC%3C/text%3E%3Ctext x='42' y='126'%3E%E2%8A%95%3C/text%3E%3Ctext x='136' y='110'%3E%E2%88%86%3C/text%3E%3Ctext x='220' y='148'%3E%E2%9F%A1%3C/text%3E%3Ctext x='290' y='120'%3E%CE%A8%3C/text%3E%3Ctext x='24' y='214'%3E%E2%8C%96%3C/text%3E%3Ctext x='104' y='184'%3E%E2%97%8B%3C/text%3E%3Ctext x='184' y='238'%3E%E2%88%B4%3C/text%3E%3Ctext x='274' y='202'%3E%E2%8C%81%3C/text%3E%3Ctext x='58' y='292'%3E%E2%9F%A0%3C/text%3E%3Ctext x='154' y='278'%3E%E2%8A%97%3C/text%3E%3Ctext x='250' y='304'%3E%E2%88%87%3C/text%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(
+      rgba(56, 217, 255, 0.022) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(56, 217, 255, 0.022) 1px,
+      transparent 1px
+    );
 
-  background-size: 3.5rem 3.5rem;
-  opacity: 0.28;
+  background-size:
+    20rem 20rem,
+    4rem 4rem,
+    4rem 4rem;
+
+  opacity: 0.48;
+
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 10%,
+      black 88%,
+      transparent 100%
+    );
+
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 10%,
+      black 88%,
+      transparent 100%
+    );
+
+  animation:
+    ariSymbolFieldDrift 34s linear infinite;
+}
+
+body::after {
+  content: "";
+
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(56, 217, 255, 0.025) 49.5%,
+      rgba(56, 217, 255, 0.06) 50%,
+      rgba(56, 217, 255, 0.025) 50.5%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle at 80% 16%,
+      rgba(56, 217, 255, 0.10),
+      transparent 24rem
+    ),
+    radial-gradient(
+      circle at 8% 74%,
+      rgba(15, 169, 212, 0.07),
+      transparent 28rem
+    );
+
+  opacity: 0.7;
 }
 
 *,
@@ -160,11 +243,14 @@ a {
 .ari-preference-settings h2,
 .ari-preference-settings h3,
 .ari-preference-settings legend,
-.ari-preference-settings__brand-name,
 .ari-preference-settings__brand-engine,
 .ari-preference-settings__eyebrow,
 .ari-preference-panel__kicker {
   font-family: var(--ari-font-display) !important;
+}
+
+.ari-preference-settings__brand-name {
+  font-family: var(--ari-font-brand) !important;
 }
 
 .ari-preference-settings h1,
@@ -275,17 +361,39 @@ a {
 }
 
 .ari-preference-settings__brand-name {
-  color: var(--ari-cyan);
+  color: transparent;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--ari-cyan),
+      #d9fbff,
+      var(--ari-cyan)
+    );
+
+  background-size: 200% 100%;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
   font-size: 0.92rem;
-  font-weight: 800;
+  font-weight: 400;
   letter-spacing: 0.08em;
+
+  text-shadow:
+    0 0 0.9rem rgba(56, 217, 255, 0.30);
+
+  animation:
+    ariLogoPowerOn 900ms ease-out both,
+    ariTextShimmer 7s ease-in-out 1s infinite;
 }
 
 .ari-preference-settings__brand-engine {
   color: var(--ari-text-muted);
+
   font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.15em;
 }
 
 
@@ -347,6 +455,10 @@ a {
   line-height: 1.25;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+
+  animation:
+    ariTextMaterialize 500ms var(--ari-ease) both,
+    ariLedTextPulse 5s ease-in-out infinite;
 }
 
 .ari-preference-settings__eyebrow {
@@ -371,11 +483,35 @@ a {
   max-width: 14ch;
   margin: 0;
 
-  color: var(--ari-text);
+  color: transparent;
   font-size: clamp(2.25rem, 6vw, 4.25rem);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.035em;
+
+  background:
+    linear-gradient(
+      100deg,
+      #ffffff 0%,
+      #dff8ff 30%,
+      #ffffff 43%,
+      var(--ari-cyan-bright) 52%,
+      #ffffff 61%,
+      #c9f5ff 76%,
+      var(--ari-cyan) 100%
+    );
+
+  background-size: 240% 100%;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  text-shadow:
+    0 0 12px rgba(56, 217, 255, 0.12);
+
+  animation:
+    ariTextMaterialize 700ms var(--ari-ease) both,
+    ariTextShimmer 7s ease-in-out 1s infinite;
 }
 
 .ari-preference-settings__subtitle {
@@ -383,8 +519,18 @@ a {
   margin: var(--ari-space-5) 0 0;
 
   color: var(--ari-text-soft);
-  font-size: clamp(0.95rem, 2vw, 1.06rem);
-  line-height: 1.7;
+
+  font-size: clamp(1rem, 2vw, 1.1rem);
+  font-weight: 500;
+  line-height: 1.68;
+  letter-spacing: 0.012em;
+}
+.ari-preference-settings label,
+.ari-preference-settings button,
+.ari-preference-settings select,
+.ari-preference-settings input,
+.ari-preference-settings textarea {
+  font-weight: 600;
 }
 
 
@@ -473,7 +619,7 @@ a {
   border-radius: 50%;
   background: var(--ari-cyan);
 
-  animation: ari-pulse 1.35s var(--ari-ease) infinite;
+  animation: ariStatusPulse 1.35s var(--ari-ease) infinite;
 }
 
 
@@ -626,6 +772,9 @@ a {
 
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  animation:
+    ariSelectedTextPulse 4s ease-in-out infinite;
 }
 
 
@@ -1173,7 +1322,7 @@ a {
 
 
 /* ==========================================================
-   PREVIEW â MATCHES CURRENT HTML
+   PREVIEW
 ========================================================== */
 
 .ari-preference-preview__body {
@@ -1281,7 +1430,7 @@ a {
 
 
 /* ==========================================================
-   ACTIONS â MATCHES CURRENT HTML
+   ACTIONS
 ========================================================== */
 
 .ari-preference-settings__actions {
@@ -1355,7 +1504,7 @@ a {
 
 
 /* ==========================================================
-   CONSENT DIALOG â MATCHES CURRENT HTML
+   CONSENT DIALOG
 ========================================================== */
 
 .ari-preference-consent-dialog {
@@ -1693,62 +1842,9 @@ a {
 }
 
 /* ==========================================================
-   ANIMATION ASSIGNMENTS
-   Keyframes live in assets/css/animations.css
-========================================================== */
-
-.ari-preference-settings__header h1 {
-  color: transparent;
-
-  background:
-    linear-gradient(
-      100deg,
-      #ffffff 0%,
-      #dff8ff 30%,
-      #ffffff 43%,
-      var(--ari-cyan-bright) 52%,
-      #ffffff 61%,
-      #c9f5ff 76%,
-      var(--ari-cyan) 100%
-    );
-
-  background-size: 240% 100%;
-
-  -webkit-background-clip: text;
-  background-clip: text;
-
-  text-shadow:
-    0 0 12px rgba(56, 217, 255, 0.12);
-
-  animation:
-    ariTextMaterialize 700ms var(--ari-ease) both,
-    ariTextShimmer 7s ease-in-out 1s infinite;
-}
-
-.ari-preference-settings__eyebrow,
-.ari-preference-panel__kicker {
-  animation:
-    ariTextMaterialize 500ms var(--ari-ease) both,
-    ariLedTextPulse 5s ease-in-out infinite;
-}
-
-.ari-accordion-summary {
-  animation:
-    ariSelectedTextPulse 4s ease-in-out infinite;
-}
-
-.ari-preference-settings__brand-name {
-  animation:
-    ariLogoPowerOn 900ms ease-out both,
-    ariLedTextPulse 6s ease-in-out 1s infinite;
-}
-
-.ari-preference-settings__loading-dot {
-  animation:
-    ariStatusPulse 1.35s var(--ari-ease) infinite;
-}
-/* ==========================================================
    MOTION
+   Keyframes for all `animation:` declarations above live in
+   assets/css/animations.css
 ========================================================== */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1762,18 +1858,5 @@ a {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
-  }
-}
-
-@keyframes ari-pulse {
-  0%,
-  100% {
-    transform: scale(0.88);
-    opacity: 0.65;
-  }
-
-  50% {
-    transform: scale(1);
-    opacity: 1;
   }
 }
