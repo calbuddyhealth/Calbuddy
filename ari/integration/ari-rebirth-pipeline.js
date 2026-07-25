@@ -438,36 +438,50 @@ conversationOperatingStatePersisted:
     summary
   );
 
-if (
-  summary.conversationContextAuthoritiesReady !== true
-) {
-  summary = {
-    ...summary,
-    pipelineStopped: true,
-    pipelineStopReason:
-      summary.conversationContextAuthoritiesError ||
-      "conversation_context_authorities_not_ready",
-    pipelineStopLayer:
-      "conversationContext"
-  };
-} else {
-  summary =
-    await this.runPreferenceResolver(summary);
+        if (
+          summary.conversationContextAuthoritiesReady !==
+          true
+        ) {
+          summary = {
+            ...summary,
 
-  if (
-    summary.preferenceResolverReady !== true
-  ) {
-    summary = {
-      ...summary,
-      pipelineStopped: true,
-      pipelineStopReason:
-        summary.preferenceResolverError ||
-        "preference_resolver_not_ready",
-      pipelineStopLayer:
-        "preferenceResolution"
-    };
-  }
-}
+            pipelineStopped:
+              true,
+
+            pipelineStopReason:
+              summary
+                .conversationContextAuthoritiesError ||
+              "conversation_context_authorities_not_ready",
+
+            pipelineStopLayer:
+              "conversationContext"
+          };
+        } else {
+          summary =
+            await this.runPreferenceResolver(
+              summary
+            );
+
+          if (
+            summary.preferenceResolverReady !==
+            true
+          ) {
+            summary = {
+              ...summary,
+
+              pipelineStopped:
+                true,
+
+              pipelineStopReason:
+                summary.preferenceResolverError ||
+                "preference_resolver_not_ready",
+
+              pipelineStopLayer:
+                "preferenceResolution"
+            };
+          }
+        }
+      }
     }
 
     /* =================================================
