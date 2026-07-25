@@ -146,6 +146,10 @@ window.AriRebirthAppBridge = {
     "ari/storage/ari-thread-store.js",
     "ari/storage/ari-memory-store.js",
 
+"ari/profile/ari-preference-store.js",
+"ari/profile/ari-preference-resolver.js",
+"ari/profile/ari-preference-runtime.js",
+
     "ari/conversation/ari-turn-packet.js",
 
     // Canonical conversation relationship enumeration.
