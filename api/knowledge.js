@@ -4,7 +4,7 @@
 // Purpose:
 // Provide the server-side OpenAI transport for Ari Rebirth cognitive reasoning.
 //
-// V6.3.0 — Canonical Preference Context Aware Cognitive Transport
+// V6.4.0 — Canonical Preference Context Aware Cognitive Transport
 //
 // Supported actions:
 // - openai_reasoning
