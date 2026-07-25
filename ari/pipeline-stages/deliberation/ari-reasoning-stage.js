@@ -6,7 +6,7 @@
 // one authoritative OpenAI reasoning pass, result validation, and the
 // canonical authoritative-draft handoff.
 //
-// V3.1.0 — Canonical Operation Registry Contract
+// V3.2.0 — Canonical Operation Registry Contract
 //
 // Architectural flow:
 //
@@ -56,8 +56,8 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "3.1.0",
-  schemaVersion: "3.1.0",
+  version: "3.2.0",
+  schemaVersion: "3.2.0",
   source: "ari-reasoning-stage",
 
   /* =====================================================
@@ -269,11 +269,64 @@ window.AriReasoningStage = {
       };
 
       const reasoningStageInput =
-        this.buildReasoningStageInput(
-          state
-        );
+  this.buildReasoningStageInput(
+    state
+  );
 
-      mark("before AriReasoningEngine");
+state = {
+  ...state,
+  reasoningStageInput
+};
+
+console.log(
+  "ARI REASONING PREFERENCE HANDOFF",
+  {
+    resolverRan:
+      reasoningStageInput
+        .preferenceContext
+        ?.resolverRan === true,
+
+    resolverReady:
+      reasoningStageInput
+        .preferenceContext
+        ?.ready === true,
+
+    available:
+      reasoningStageInput
+        .preferenceContext
+        ?.available === true,
+
+    userPreferenceKeys:
+      Object.keys(
+        reasoningStageInput
+          .preferenceContext
+          ?.userPreferences || {}
+      ),
+
+    responseStyleKeys:
+      Object.keys(
+        reasoningStageInput
+          .preferenceContext
+          ?.responseStyle || {}
+      ),
+
+    currentTurnOverrideKeys:
+      Object.keys(
+        reasoningStageInput
+          .preferenceContext
+          ?.currentTurnOverride || {}
+      ),
+
+    resolutionAvailable:
+      Boolean(
+        reasoningStageInput
+          .preferenceContext
+          ?.resolution
+      )
+  }
+);
+
+mark("before AriReasoningEngine");
 
       let reasoningEngineResult;
 
@@ -1388,6 +1441,79 @@ console.log(
           ?.routingContract
       ]);
 
+const preferenceResolutionPacket =
+  this.objectOrNull(
+    summary.preferenceResolutionPacket
+  );
+
+const preferenceResolution =
+  this.objectOrNull(
+    summary.preferenceResolution
+  );
+
+const userPreferences =
+  this.objectOrEmpty(
+    summary.userPreferences
+  );
+
+const responseStyle =
+  this.objectOrEmpty(
+    summary.responseStyle
+  );
+
+const currentTurnOverride =
+  this.objectOrEmpty(
+    summary.currentTurnOverride
+  );
+
+const preferenceContext = {
+  available:
+    Boolean(
+      preferenceResolutionPacket ||
+      preferenceResolution ||
+      Object.keys(
+        userPreferences
+      ).length > 0 ||
+      Object.keys(
+        responseStyle
+      ).length > 0 ||
+      Object.keys(
+        currentTurnOverride
+      ).length > 0
+    ),
+
+  ready:
+    summary.preferenceResolverReady ===
+    true,
+
+  resolverRan:
+    summary.preferenceResolverRan ===
+    true,
+
+  resolverSource:
+    summary.preferenceResolverSource ||
+    null,
+
+  resolverVersion:
+    summary.preferenceResolverVersion ||
+    null,
+
+  packet:
+    preferenceResolutionPacket,
+
+  resolution:
+    preferenceResolution,
+
+  userPreferences,
+
+  responseStyle,
+
+  currentTurnOverride,
+
+  authority:
+    "user_preferences_within_safety_and_runtime_constraints"
+};
+
 if (!allowedOperations.length) {
   console.error(
     "ARI REASONING STAGE CANNOT BUILD OPERATION CONTRACT",
@@ -1413,16 +1539,18 @@ if (!allowedOperations.length) {
 }
 
     return {
-      schema:
-        "ari_cognitive_reasoning_request",
+  schema:
+    "ari_cognitive_reasoning_request",
 
-      schemaVersion:
-        "2.0.0",
+  schemaVersion:
+    "2.1.0",
 
-      action:
-        "openai_reasoning",
+  action:
+    "openai_reasoning",
 
-      currentTurn: {
+  preferenceContext,
+
+  currentTurn: {
         originalText:
           original,
         effectiveText:
@@ -1710,17 +1838,35 @@ if (!allowedOperations.length) {
 },
 
       authority: {
-        safetyIsBinding:
-          true,
+  safetyIsBinding:
+    true,
 
-        routingIsBinding:
-          true,
+  routingIsBinding:
+    true,
 
-        responseConstraintsAreBinding:
-          true,
+  responseConstraintsAreBinding:
+    true,
 
-        upstreamSemanticSignalsAreAdvisory:
-          true,
+  userPreferencesAreAdvisory:
+    true,
+
+  userPreferencesMustBeConsidered:
+    preferenceContext.available ===
+      true &&
+    preferenceContext.ready ===
+      true,
+
+  currentTurnOverridesTakePriorityOverStoredPreferences:
+    true,
+
+  preferencesMayNotOverrideSafety:
+    true,
+
+  preferencesMayNotOverrideEvidence:
+    true,
+
+  upstreamSemanticSignalsAreAdvisory:
+    true,
 
         mayInterpretMeaning:
           true,
@@ -2048,6 +2194,63 @@ if (!allowedOperations.length) {
             null
         }
       },
+
+preferences: {
+  available:
+    summary.reasoningStageInput
+      ?.preferenceContext
+      ?.available === true,
+
+  ready:
+    summary.reasoningStageInput
+      ?.preferenceContext
+      ?.ready === true,
+
+  resolverRan:
+    summary.reasoningStageInput
+      ?.preferenceContext
+      ?.resolverRan === true,
+
+  resolverSource:
+    summary.reasoningStageInput
+      ?.preferenceContext
+      ?.resolverSource ||
+    null,
+
+  resolverVersion:
+    summary.reasoningStageInput
+      ?.preferenceContext
+      ?.resolverVersion ||
+    null,
+
+  userPreferenceKeys:
+    Object.keys(
+      summary.reasoningStageInput
+        ?.preferenceContext
+        ?.userPreferences || {}
+    ),
+
+  responseStyleKeys:
+    Object.keys(
+      summary.reasoningStageInput
+        ?.preferenceContext
+        ?.responseStyle || {}
+    ),
+
+  currentTurnOverrideKeys:
+    Object.keys(
+      summary.reasoningStageInput
+        ?.preferenceContext
+        ?.currentTurnOverride || {}
+    ),
+
+  resolutionAvailable:
+    Boolean(
+      summary.reasoningStageInput
+        ?.preferenceContext
+        ?.resolution
+    )
+},
 
       generalReasoning: {
         applicable:
