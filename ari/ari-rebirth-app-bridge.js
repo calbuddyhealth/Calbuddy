@@ -81,7 +81,7 @@ window.AriRebirthAppBridge = {
     // ===================================================
     // FOUNDATION
     // ===================================================
-
+"ari/diagnostics/ari-execution-trace.js",
     "ari/system/ari-loader.js",
 "ari/system/ari-authority.js",
 "ari/contracts/ari-operation-registry.js",
