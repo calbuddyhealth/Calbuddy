@@ -5,7 +5,7 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.2.0 — Canonical Style Preference Transport
+// V1.3.0 — Canonical Preference Context Transport
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
@@ -30,7 +30,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.2.0",
+    "1.3.0",
 
   source:
     "ari-openai-reasoning-client",
@@ -105,6 +105,20 @@ window.AriOpenAIReasoningClient = {
           payload.responseSchema
             ?.schemaVersion ||
           null,
+
+preferenceContextPresent:
+  this.hasKeys(
+    payload.preferenceContext ||
+    payload.request
+      ?.preferenceContext
+  ),
+
+preferenceContextReady:
+  (
+    payload.preferenceContext ||
+    payload.request
+      ?.preferenceContext
+  )?.ready === true,
 
         userPreferencesPresent:
           this.hasKeys(
@@ -201,6 +215,16 @@ window.AriOpenAIReasoningClient = {
         responseContract:
           requestBody.responseContract ||
           null,
+
+preferenceContextPresent:
+  this.hasKeys(
+    requestBody.preferenceContext
+  ),
+
+preferenceContextReady:
+  requestBody
+    .preferenceContext
+    ?.ready === true,
 
         userPreferencesPresent:
           this.hasKeys(
@@ -463,6 +487,11 @@ window.AriOpenAIReasoningClient = {
         status:
           response.status,
 
+preferenceContextForwarded:
+  this.hasKeys(
+    requestBody.preferenceContext
+  ),
+
         userPreferencesForwarded:
           this.hasKeys(
             requestBody
@@ -486,33 +515,55 @@ window.AriOpenAIReasoningClient = {
         payload.request
       );
 
+const payloadPreferenceContext =
+  this.normalizeObject(
+    payload.preferenceContext
+  );
+
+const requestPreferenceContext =
+  this.normalizeObject(
+    reasoningRequest.preferenceContext
+  );
+
+const preferenceContext =
+  this.hasKeys(
+    payloadPreferenceContext
+  )
+    ? payloadPreferenceContext
+    : requestPreferenceContext;
+
     const preferenceTransport =
       this.resolvePreferenceTransport(
         payload
       );
 
     return {
-      /*
-       * Flatten the canonical reasoning request so
-       * /api/knowledge can read currentTurn,
-       * evidencePacket, routingContract, and other
-       * canonical fields directly from body.
-       */
-      ...reasoningRequest,
+  /*
+   * Flatten the canonical reasoning request so
+   * /api/knowledge can read currentTurn,
+   * evidencePacket, routingContract, and other
+   * canonical fields directly from body.
+   */
+  ...reasoningRequest,
 
-      /*
-       * Preserve communication-preference packets
-       * unchanged. The client does not merge or
-       * reinterpret them.
-       */
-      userPreferences:
-        preferenceTransport
-          .userPreferences,
+  /*
+   * Explicitly preserve the canonical preference
+   * wrapper for the server-side OpenAI transport.
+   */
+  preferenceContext,
 
-      responseStyle:
-        preferenceTransport
-          .responseStyle,
+  /*
+   * Preserve communication-preference packets
+   * unchanged. The client does not merge or
+   * reinterpret them.
+   */
+  userPreferences:
+    preferenceTransport
+      .userPreferences,
 
+  responseStyle:
+    preferenceTransport
+      .responseStyle,
       styleTransport:
         preferenceTransport
           .diagnostics,
@@ -559,6 +610,9 @@ window.AriOpenAIReasoningClient = {
         allowPlainText:
           false,
 
+preservePreferenceContext:
+  true,
+
         preserveUserPreferences:
           true,
 
@@ -577,15 +631,28 @@ window.AriOpenAIReasoningClient = {
       );
 
     const userPreferencesCandidates = [
-      [
-        "payload.userPreferences",
-        payload.userPreferences
-      ],
+  [
+    "payload.userPreferences",
+    payload.userPreferences
+  ],
 
-      [
-        "payload.communicationPreferences",
-        payload.communicationPreferences
-      ],
+  [
+    "payload.preferenceContext.userPreferences",
+    payload.preferenceContext
+      ?.userPreferences
+  ],
+
+  [
+    "request.preferenceContext.userPreferences",
+    reasoningRequest
+      .preferenceContext
+      ?.userPreferences
+  ],
+
+  [
+    "payload.communicationPreferences",
+    payload.communicationPreferences
+  ],
 
       [
         "payload.stylePreferences",
@@ -634,27 +701,53 @@ window.AriOpenAIReasoningClient = {
     ];
 
     const responseStyleCandidates = [
-      [
-        "payload.responseStyle",
-        payload.responseStyle
-      ],
+  [
+    "payload.responseStyle",
+    payload.responseStyle
+  ],
 
-      [
-        "payload.styleOverride",
-        payload.styleOverride
-      ],
+  [
+    "payload.preferenceContext.currentTurnOverride",
+    payload.preferenceContext
+      ?.currentTurnOverride
+  ],
 
-      [
-        "request.responseStyle",
-        reasoningRequest
-          .responseStyle
-      ],
+  [
+    "request.preferenceContext.currentTurnOverride",
+    reasoningRequest
+      .preferenceContext
+      ?.currentTurnOverride
+  ],
 
-      [
-        "request.styleOverride",
-        reasoningRequest
-          .styleOverride
-      ],
+  [
+    "payload.preferenceContext.responseStyle",
+    payload.preferenceContext
+      ?.responseStyle
+  ],
+
+  [
+    "request.preferenceContext.responseStyle",
+    reasoningRequest
+      .preferenceContext
+      ?.responseStyle
+  ],
+
+  [
+    "payload.styleOverride",
+    payload.styleOverride
+  ],
+
+[
+  "request.responseStyle",
+  reasoningRequest
+    .responseStyle
+],
+
+[
+  "request.styleOverride",
+  reasoningRequest
+    .styleOverride
+],
 
       [
         "request.currentTurn.responseStyle",
