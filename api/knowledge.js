@@ -4,7 +4,7 @@
 // Purpose:
 // Provide the server-side OpenAI transport for Ari Rebirth cognitive reasoning.
 //
-// V6.2.0 — User Style Preference Aware Cognitive Transport
+// V6.3.0 — Canonical Preference Context Aware Cognitive Transport
 //
 // Supported actions:
 // - openai_reasoning
@@ -230,25 +230,32 @@ async function handleOpenAIReasoning(
     );
 
   const memory =
-    normalizeObject(
-      body.memory ||
-      body.memoryStagePacket ||
-      body.memoryContext ||
-      body.memoryHandoff
-    );
+  normalizeObject(
+    body.memory ||
+    body.memoryStagePacket ||
+    body.memoryContext ||
+    body.memoryHandoff
+  );
 
-  const userPreferences =
-    resolveUserPreferences({
-      body,
-      memory
-    });
+const preferenceContext =
+  normalizeObject(
+    body.preferenceContext
+  );
+
+const userPreferences =
+  resolveUserPreferences({
+    body,
+    memory,
+    preferenceContext
+  });
 
   const responseStyle =
-    resolveResponseStyle({
-      body,
-      memory,
-      userPreferences
-    });
+  resolveResponseStyle({
+    body,
+    memory,
+    preferenceContext,
+    userPreferences
+  });
 
   const originalQuestion =
     firstNonEmptyString([
@@ -381,14 +388,15 @@ async function handleOpenAIReasoning(
       ),
 
     responseControl:
-      normalizeObject(
-        body.responseControl
-      ),
+  normalizeObject(
+    body.responseControl
+  ),
 
-    userPreferences,
-    responseStyle,
+preferenceContext,
+userPreferences,
+responseStyle,
 
-    capabilities:
+capabilities:
       normalizeObject(
         body.capabilities
       ),
@@ -1253,6 +1261,26 @@ async function handleOpenAIReasoning(
       responseGoal:
         responseRequirements.goal ||
         null,
+      
+      preferenceContextPresent:
+  isNonEmptyObject(
+    preferenceContext
+  ),
+
+preferenceContextReady:
+  preferenceContext
+    .ready === true,
+
+userPreferencesPresent:
+  isNonEmptyObject(
+    userPreferences
+  ),
+
+responseStylePresent:
+  isNonEmptyObject(
+    responseStyle
+  ),
+      
       responseStyleSource:
         responseStyle.source ||
         null,
@@ -1409,10 +1437,27 @@ function buildOpenAIReasoningSystemPrompt() {
   return `
 You are the authoritative cognitive reasoning and response-generation model for Ari Rebirth.
 
-Use the complete supplied reasoning packet. Preserve the effective current-turn request and consider the supplied conversation, evidence, deterministic context, knowledge, developer evidence, capabilities, authority rules, operation contract, response controls, user preferences, and response style together.
+Use every relevant field contained in the complete supplied reasoning packet. Preserve the effective current-turn request and consider the supplied conversation, evidence, deterministic context, knowledge, developer evidence, capabilities, authority rules, operation contract, response controls, canonical preference context, user preferences, and response style together.
+
+The supplied preferenceContext is the canonical communication-style contract.
+
+Interpret its fields as follows:
+- preferenceContext.userPreferences contains persistent user communication preferences.
+- preferenceContext.responseStyle contains the resolved effective communication style.
+- preferenceContext.currentTurnOverride contains explicit style instructions for the current turn.
+- preferenceContext.authority and preferenceContext.resolution describe how the style packet was resolved and which source has precedence.
+- Legacy userPreferences and responseStyle fields are compatibility copies and must not override a populated canonical preferenceContext.
+
+Communication-style priority:
+1. Deterministic safety requirements.
+2. Explicit response constraints and forbidden behaviors.
+3. preferenceContext.currentTurnOverride.
+4. preferenceContext.responseStyle.
+5. preferenceContext.userPreferences.
+6. Legacy compatibility style fields.
+7. Default Ari style.
 
 Produce one structured cognitive result and one complete user-facing draft in the same JSON object.
-
 Authority rules:
 - Interpret the user's meaning, goal, conversational function, and required response behavior.
 - Resolve ambiguity only when supported by supplied context.
@@ -1447,9 +1492,11 @@ Style and personality rules:
 Instruction priority:
 1. Deterministic safety requirements.
 2. Explicit response constraints and forbidden behaviors.
-3. Explicit current-turn style instructions.
-4. Persistent user preferences.
-5. Default Ari style.
+3. preferenceContext.currentTurnOverride.
+4. preferenceContext.responseStyle.
+5. preferenceContext.userPreferences.
+6. Legacy compatibility style fields.
+7. Default Ari style.
 
 Return JSON only.
 `.trim();
@@ -1468,15 +1515,20 @@ function buildOpenAIReasoningUserPrompt(
       reasoningInput.instructions
     );
 
-  const userPreferences =
-    normalizeObject(
-      reasoningInput.userPreferences
-    );
+  const preferenceContext =
+  normalizeObject(
+    reasoningInput.preferenceContext
+  );
 
-  const responseStyle =
-    normalizeObject(
-      reasoningInput.responseStyle
-    );
+const userPreferences =
+  normalizeObject(
+    reasoningInput.userPreferences
+  );
+
+const responseStyle =
+  normalizeObject(
+    reasoningInput.responseStyle
+  );
 
   return `
 CURRENT REASONING INPUT:
@@ -1487,6 +1539,11 @@ ${safeJsonStringify(
 BINDING REASONING INSTRUCTIONS:
 ${safeJsonStringify(
   suppliedInstructions
+)}
+
+CANONICAL PREFERENCE CONTEXT:
+${safeJsonStringify(
+  preferenceContext
 )}
 
 USER COMMUNICATION PREFERENCES:
@@ -1508,11 +1565,13 @@ Analyze the user's current request using the complete supplied packet.
 Follow the binding reasoning instructions above.
 
 Apply communication preferences using this priority:
-1. Deterministic safety.
-2. Explicit response constraints.
-3. Current-turn style requests.
-4. Persistent user preferences.
-5. Default Ari style.
+1. Deterministic safety requirements.
+2. Explicit response constraints and forbidden behaviors.
+3. preferenceContext.currentTurnOverride.
+4. preferenceContext.responseStyle.
+5. preferenceContext.userPreferences.
+6. Legacy compatibility style fields.
+7. Default Ari style.
 
 Do not invent preferences that were not supplied.
 Do not claim that a preference was saved or remembered.
@@ -2120,70 +2179,171 @@ function resolveAllowedOperations(
 
 function resolveUserPreferences({
   body = {},
-  memory = {}
+  memory = {},
+  preferenceContext = {}
 } = {}) {
   return normalizeCommunicationPreferences(
     mergePlainObjects([
+      /*
+       * Lowest-priority legacy and memory sources.
+       */
       memory.profile
         ?.communicationPreferences,
+
       memory.preferences
         ?.communication,
+
       memory.preferences
         ?.style,
+
       memory.userPreferences,
+
       memory.communicationPreferences,
+
       memory.stylePreferences,
+
       body.conversation
         ?.userPreferences,
+
       body.conversation
         ?.communicationPreferences,
+
       body.responseControl
         ?.userPreferences,
-      body.userPreferences,
+
+      /*
+       * Canonical persistent preference packet.
+       */
+      preferenceContext
+        .communicationPreferences,
+
+      preferenceContext
+        .stylePreferences,
+
+      preferenceContext
+        .userPreferences,
+
+      /*
+       * Explicit top-level transport fields remain
+       * the final compatibility fallback.
+       */
       body.communicationPreferences,
-      body.stylePreferences
+
+      body.stylePreferences,
+
+      body.userPreferences
     ])
   );
 }
-
 function resolveResponseStyle({
   body = {},
   memory = {},
+  preferenceContext = {},
   userPreferences = {}
 } = {}) {
+  /*
+   * Persistent preferences establish the user's
+   * long-term communication defaults.
+   */
   const persistentStyle =
     normalizeCommunicationPreferences(
-      userPreferences
+      mergePlainObjects([
+        userPreferences,
+
+        preferenceContext
+          .userPreferences
+      ])
     );
 
+  /*
+   * Resolved effective style supplied by the
+   * canonical Preference Resolver.
+   *
+   * The top-level body.responseStyle field is a
+   * compatibility copy of this resolved style,
+   * not proof of a current-turn override.
+   */
+  const resolvedStyle =
+    normalizeCommunicationPreferences(
+      mergePlainObjects([
+        body.responseStyle,
+
+        preferenceContext
+          .responseStyle
+      ])
+    );
+
+  /*
+   * Only actual current-turn instructions belong
+   * in this collection.
+   *
+   * Later sources override earlier sources.
+   * preferenceContext.currentTurnOverride has the
+   * highest communication-style authority.
+   */
   const currentTurnStyle =
     mergePlainObjects([
       memory.currentTurnStyle,
+
       body.conversation
         ?.currentTurnStyle,
+
       body.responseControl
         ?.responseStyle,
+
       body.responseControl
         ?.styleOverride,
+
       body.responseControl
         ?.styleOverrides,
+
       body.currentTurn
         ?.responseStyle,
+
       body.currentTurn
         ?.styleOverride,
-      body.responseStyle,
-      body.styleOverride
+
+      body.styleOverride,
+
+      preferenceContext
+        .currentTurnOverride
     ]);
 
-  return normalizeCommunicationPreferences({
-    ...persistentStyle,
-    ...currentTurnStyle,
-    source:
-      Object.keys(currentTurnStyle).length
-        ? "current_turn_override"
-        : Object.keys(persistentStyle).length
+  const source =
+    Object.keys(
+      currentTurnStyle
+    ).length
+      ? "current_turn_override"
+      : Object.keys(
+          resolvedStyle
+        ).length
+        ? (
+            resolvedStyle.source ||
+            "resolved_response_style"
+          )
+        : Object.keys(
+            persistentStyle
+          ).length
           ? "persistent_user_preference"
-          : "default"
+          : "default";
+
+  return normalizeCommunicationPreferences({
+    /*
+     * Lowest style authority.
+     */
+    ...persistentStyle,
+
+    /*
+     * Canonical resolved effective style.
+     */
+    ...resolvedStyle,
+
+    /*
+     * Highest style authority.
+     */
+    ...currentTurnStyle,
+
+    source
   });
 }
 
