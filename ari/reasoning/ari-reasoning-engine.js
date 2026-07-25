@@ -7,7 +7,7 @@
 // user-facing draft for downstream semantic validation, response planning,
 // final composition, and delivery.
 //
-// V10.1.0 — Canonical Communication Style Handoff
+// V10.2.0 — Canonical Communication Style Handoff
 //
 // Architectural flow:
 //
@@ -75,20 +75,20 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "10.1.0",
+  version: "10.2.0",
   source: "ari-reasoning-engine",
 
   requestSchema:
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "2.0.0",
+    "2.0.1",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
 
   resultSchemaVersion:
-    "2.0.0",
+    "2.0.1",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
@@ -207,6 +207,60 @@ window.AriReasoningEngine = {
       const operationContract =
         this.getOperationContract();
 
+console.log(
+  "ARI REASONING ENGINE STYLE HANDOFF",
+  {
+    requestSchemaVersion:
+      reasoningRequest.schemaVersion ||
+      null,
+
+    preferenceContextAvailable:
+      reasoningRequest
+        .preferenceContext
+        ?.available === true,
+
+    preferenceContextReady:
+      reasoningRequest
+        .preferenceContext
+        ?.ready === true,
+
+    userPreferenceKeys:
+      Object.keys(
+        reasoningRequest
+          .userPreferences || {}
+      ),
+
+    responseStyleKeys:
+      Object.keys(
+        reasoningRequest
+          .responseStyle || {}
+      ),
+
+    currentTurnOverrideKeys:
+      Object.keys(
+        reasoningRequest
+          .preferenceContext
+          ?.currentTurnOverride || {}
+      ),
+
+    userPreferencesSource:
+      reasoningRequest
+        .styleContext
+        ?.userPreferencesSource ||
+      null,
+
+    responseStyleSource:
+      reasoningRequest
+        .styleContext
+        ?.responseStyleSource ||
+      null,
+
+    invokerSource:
+      modelInvoker.source ||
+      null
+  }
+);
+
       rawModelResult =
         await modelInvoker.invoke({
           ...reasoningRequest,
@@ -235,7 +289,13 @@ window.AriReasoningEngine = {
            * OpenAI client accepts the canonical engine packet
            * and transports these fields explicitly.
            */
-          userPreferences:
+         
+          preferenceContext:
+  this.objectOrEmpty(
+    reasoningRequest.preferenceContext
+  ),
+          
+           userPreferences:
             this.objectOrEmpty(
               reasoningRequest
                 .userPreferences
@@ -659,6 +719,29 @@ window.AriReasoningEngine = {
       request.operationContract ||
       this.getOperationContract();
 
+const preferenceContext =
+  this.objectOrEmpty(
+    request.preferenceContext ||
+    summary.preferenceContext ||
+    summary.reasoningStageInput
+      ?.preferenceContext
+  );
+
+const preferenceUserPreferences =
+  this.objectOrEmpty(
+    preferenceContext.userPreferences
+  );
+
+const preferenceResponseStyle =
+  this.objectOrEmpty(
+    preferenceContext.responseStyle
+  );
+
+const preferenceCurrentTurnOverride =
+  this.objectOrEmpty(
+    preferenceContext.currentTurnOverride
+  );
+
     const styleContext =
       this.resolveStyleContext({
         ...summary,
@@ -666,24 +749,49 @@ window.AriReasoningEngine = {
         memoryStagePacket,
 
         userPreferences:
-          request.userPreferences ??
-          summary.userPreferences,
+  this.hasKeys(
+    request.userPreferences
+  )
+    ? request.userPreferences
+    : this.hasKeys(
+        preferenceUserPreferences
+      )
+      ? preferenceUserPreferences
+      : summary.userPreferences,
 
-        communicationPreferences:
-          request.communicationPreferences ??
-          summary.communicationPreferences,
+communicationPreferences:
+  request.communicationPreferences ??
+  summary.communicationPreferences,
 
-        stylePreferences:
-          request.stylePreferences ??
-          summary.stylePreferences,
+stylePreferences:
+  request.stylePreferences ??
+  summary.stylePreferences,
 
-        responseStyle:
-          request.responseStyle ??
-          summary.responseStyle,
+responseStyle:
+  this.hasKeys(
+    request.responseStyle
+  )
+    ? request.responseStyle
+    : this.hasKeys(
+        preferenceResponseStyle
+      )
+      ? preferenceResponseStyle
+      : this.hasKeys(
+          preferenceCurrentTurnOverride
+        )
+        ? preferenceCurrentTurnOverride
+        : summary.responseStyle,
 
-        styleOverride:
-          request.styleOverride ??
-          summary.styleOverride,
+styleOverride:
+  this.hasKeys(
+    request.styleOverride
+  )
+    ? request.styleOverride
+    : this.hasKeys(
+        preferenceCurrentTurnOverride
+      )
+      ? preferenceCurrentTurnOverride
+      : summary.styleOverride,
 
         responseControl: {
           ...this.objectOrEmpty(
@@ -794,6 +902,29 @@ window.AriReasoningEngine = {
         ...this.objectOrEmpty(
           request.conversation
         ),
+
+preferenceContext: {
+  ...preferenceContext,
+
+  available:
+    preferenceContext.available ===
+      true ||
+    this.hasKeys(
+      styleContext.userPreferences
+    ) ||
+    this.hasKeys(
+      styleContext.responseStyle
+    ),
+
+  userPreferences:
+    styleContext.userPreferences,
+
+  responseStyle:
+    styleContext.responseStyle,
+
+  currentTurnOverride:
+    preferenceCurrentTurnOverride
+},
 
         userPreferences:
           styleContext
