@@ -146,9 +146,10 @@ window.AriRebirthAppBridge = {
     "ari/storage/ari-thread-store.js",
     "ari/storage/ari-memory-store.js",
 
-"ari/profile/ari-preference-store.js",
-"ari/profile/ari-preference-resolver.js",
-"ari/profile/ari-preference-runtime.js",
+"ari/profile/ari-user-preference-contract.js?v=1.1.1",
+"ari/profile/ari-user-preference-store.js?v=1.0.1",
+"ari/profile/ari-preference-resolver.js?v=2.0.0",
+"ari/profile/ari-preference-runtime.js?v=1.1.0",
 
     "ari/conversation/ari-turn-packet.js",
 
