@@ -39,7 +39,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
-  <script src="calbuddy-core.js?v=3.5.8"></script>
+<script src="calbuddy-core.js?v=3.6.1"></script>
 <script src="ari/diagnostics/ari-execution-trace.js"></script>
 <script src="ari/ari-rebirth-app-bridge.js"></script>
 
@@ -133,64 +133,60 @@
     }
 
     async function runAriOnce(message, options = {}) {
-      if (
-        !window.AriRebirthAppBridge ||
-        typeof window.AriRebirthAppBridge.ask !== "function"
-      ) {
-        throw new Error("Ari Rebirth App Bridge is not loaded.");
-      }
+  if (
+    !window.CalBuddy ||
+    typeof window.CalBuddy.askAri !== "function"
+  ) {
+    throw new Error(
+      "CalBuddy.askAri is not loaded."
+    );
+  }
 
-      const result = await window.AriRebirthAppBridge.ask(message, {
-        source: "ari-lab",
-        appMode: "rebirth-only",
-        debug: true,
-        exposeInternalErrors: true,
-        debugTiming: true,
-        ownerMode: true,
+  const result =
+    await window.CalBuddy.askAri({
+      message,
+      history:
+        Array.isArray(options.history)
+          ? options.history
+          : [],
+      debugTiming:
+        options.debugTiming !== false
+    });
 
-        ariPermissions: {
-          owner_access: true,
-          suggest_code_changes: true,
-          direct_code_editing: true,
-          create_developer_tasks: true
-        },
+  return {
+    reply:
+      firstText(
+        result.reply,
+        result.text,
+        result.message,
+        result.response,
+        result.finalResponse
+      ),
 
-        githubFileContext: null,
-        ...options
-      });
+    emotion:
+      firstText(
+        result.emotion,
+        result.finalEmotion
+      ) || "idle",
 
-      return {
-        reply:
-          firstText(
-            result.reply,
-            result.text,
-            result.message,
-            result.response,
-            result.finalResponse
-          ),
+    source:
+      firstText(
+        result.responseSource,
+        result.source
+      ) || "calbuddy-core",
 
-        emotion:
-          firstText(
-            result.emotion,
-            result.finalEmotion
-          ) || "idle",
+    summary:
+      getRuntimeSummary(result),
 
-        source:
-          firstText(
-            result.responseSource,
-            result.source
-          ) || "ari-rebirth-app-bridge",
+    analysis:
+      firstObject(
+        result.analysis
+      ),
 
-        summary:
-          getRuntimeSummary(result),
-
-        analysis:
-          firstObject(result.analysis),
-
-        raw:
-          result
-      };
-    }
+    raw:
+      result
+  };
+}
 
     function formatTiming(summary = {}, raw = {}) {
       const pipelineTiming =
