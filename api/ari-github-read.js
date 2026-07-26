@@ -10,9 +10,6 @@ import { timingSafeEqual } from "crypto";
 //
 // V3.0.1 — Repository Investigation / Search / Range Reads / Crypto Import Fix
 
-const DEFAULT_BRANCH =
-  "1-build-calbuddy-v02--supabase-login-and-data-saving";
-
 const MAX_PREVIEW_LENGTH = 1200;
 const MAX_BATCH_FILES = 12;
 const MAX_SEARCH_RESULTS = 50;
@@ -70,12 +67,29 @@ export default async function handler(req, res) {
       });
     }
 
-    const token = process.env.GITHUB_TOKEN;
-    const repo = process.env.GITHUB_REPO;
-    const branch =
-      cleanString(req.body?.branch) ||
-      process.env.GITHUB_BRANCH ||
-      DEFAULT_BRANCH;
+    const token =
+  process.env.GITHUB_TOKEN;
+
+const repo =
+  process.env.GITHUB_REPO;
+
+const branch =
+  cleanString(
+    req.body?.branch
+  ) ||
+  cleanString(
+    process.env.GITHUB_BRANCH
+  );
+
+if (!branch) {
+  return res.status(500).json({
+    success: false,
+    error:
+      "GitHub branch is not configured.",
+    code:
+      "MISSING_GITHUB_BRANCH"
+  });
+}
 
     const authorization =
       verifyOwnerAuthorization(req);
