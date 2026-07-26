@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.6.0";
+CalBuddy.version = "3.6.1";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 
@@ -1903,39 +1903,198 @@ if (userContext?.ownerMode !== true) {
       };
     }
 
-    const analysisResponse = await window.AriRebirthAppBridge.ask(
-  `OWNER REQUEST:
+    const fileContent =
+  String(
+    readResult.content ||
+    ""
+  );
 
-${originalMessage}`,
+const analysisPrompt =
+  `OWNER GITHUB FILE REQUEST
+
+Original request:
+${originalMessage}
+
+File path:
+${filePath}
+
+The GitHub read already succeeded.
+
+Analyze the exact file content below. Do not say that GitHub access is unavailable. Do not attempt to read the file again.
+
+Return a clear explanation of:
+- what the file does
+- any important problems found
+- the safest next step
+
+FILE CONTENT START
+${fileContent}
+FILE CONTENT END`;
+
+try {
+  const analysisResponse =
+    await window.AriRebirthAppBridge.ask(
+      analysisPrompt,
       {
-        source: "calbuddy-core-github-read",
-        page: window.location.pathname || "unknown",
-        history: history.slice(-10),
+        source:
+          "calbuddy-core-github-file-analysis",
 
-        userContext: userContext || await CalBuddy.getUserContext(),
-        coachMemorySummary: userContext?.coachMemorySummary || "",
+        page:
+          window.location.pathname ||
+          "unknown",
 
-        ownerMode: true,
-        ariPermissions: userContext?.ariPermissions || {},
+        history:
+          history.slice(-10),
+
+        userContext:
+          userContext ||
+          await CalBuddy.getUserContext(),
+
+        coachMemorySummary:
+          userContext
+            ?.coachMemorySummary ||
+          "",
+
+        ownerMode:
+          true,
+
+        ariPermissions:
+          userContext
+            ?.ariPermissions ||
+          {},
 
         githubFileContext: {
           filePath,
-          content: readResult.content,
+
+          content:
+            fileContent,
+
           contentLength:
-            readResult.contentLength ||
-            readResult.content?.length ||
-            0
+            fileContent.length,
+
+          contentComplete:
+            readResult
+              .contentComplete !==
+            false,
+
+          fullContent:
+            readResult
+              .fullContent ===
+            true,
+
+          isFullFile:
+            readResult
+              .isFullFile ===
+            true,
+
+          hasExactCurrentCode:
+            true
         }
       }
     );
 
+  const analysisSucceeded =
+    analysisResponse &&
+    analysisResponse.success !==
+      false &&
+    analysisResponse.ok !==
+      false &&
+    analysisResponse.deliveryStatus !==
+      "failed" &&
+    Boolean(
+      String(
+        analysisResponse.reply ||
+        ""
+      ).trim()
+    );
+
+  if (!analysisSucceeded) {
+    console.error(
+      "GITHUB FILE ANALYSIS FAILED:",
+      analysisResponse
+    );
+
     return {
-      reply: analysisResponse.reply || `I read ${filePath}.`,
-      emotion: analysisResponse.emotion || "thinking",
-      developerIntent: analysisResponse.developerIntent || developerIntent,
-      githubReadResult: readResult,
-      rebirthSummary: analysisResponse.summary
+      reply:
+        `I successfully read ${filePath}, but Ari's analysis pipeline failed at ${
+          analysisResponse
+            ?.error
+            ?.message ||
+          analysisResponse
+            ?.reply ||
+          "an unknown reasoning stage"
+        }.`,
+
+      emotion:
+        "concerned",
+
+      developerIntent,
+
+      githubReadResult:
+        readResult,
+
+      githubAnalysisFailed:
+        true,
+
+      githubAnalysisFailure:
+        analysisResponse ||
+        null
     };
+  }
+
+  return {
+    reply:
+      analysisResponse.reply,
+
+    emotion:
+      analysisResponse.emotion ||
+      "thinking",
+
+    developerIntent:
+      analysisResponse.developerIntent ||
+      developerIntent,
+
+    githubReadResult:
+      readResult,
+
+    rebirthSummary:
+      analysisResponse.summary ||
+      null,
+
+    githubAnalysisSucceeded:
+      true
+  };
+} catch (error) {
+  console.error(
+    "GITHUB FILE ANALYSIS EXCEPTION:",
+    error
+  );
+
+  return {
+    reply:
+      `I successfully read ${filePath}, but the file-analysis step failed: ${
+        error?.message ||
+        "unknown analysis error"
+      }`,
+
+    emotion:
+      "concerned",
+
+    developerIntent,
+
+    githubReadResult:
+      readResult,
+
+    githubAnalysisFailed:
+      true,
+
+    githubAnalysisError: {
+      message:
+        error?.message ||
+        String(error)
+    }
+  };
+}
   }
 
   if (developerIntent.type === "github_search_request") {
