@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.8";
+CalBuddy.version = "3.5.9";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 
@@ -1484,16 +1484,24 @@ if (response.developerIntent?.type === "github_search_request") {
     const searchResult = await CalBuddy.searchGithubCode(query);
 
     if (searchResult.success) {
-      const resultsText = (searchResult.results || [])
-        .map(item => `- ${item.path}`)
-        .join("\n");
+      const resultPaths = [
+  ...new Set(
+    (searchResult.results || [])
+      .map(item => item.path)
+      .filter(Boolean)
+  )
+];
 
-      response.githubSearchResult = searchResult;
+const resultsText = resultPaths
+  .map(path => `- ${path}`)
+  .join("\n");
 
-      response.reply =
-        searchResult.count > 0
-          ? `I found ${searchResult.count} result(s) for "${query}":\n${resultsText}`
-          : `I searched for "${query}" but did not find a match.`;
+response.githubSearchResult = searchResult;
+
+response.reply =
+  resultPaths.length > 0
+    ? `I found ${resultPaths.length} matching file(s) for "${query}":\n${resultsText}`
+    : `I searched for "${query}" but did not find a match.`;
     } else {
       response.reply =
         searchResult.error ||
@@ -1807,19 +1815,27 @@ ${originalMessage}`,
       };
     }
 
-    const resultsText = (searchResult.results || [])
-      .map(item => `- ${item.path}`)
-      .join("\n");
+    const resultPaths = [
+  ...new Set(
+    (searchResult.results || [])
+      .map(item => item.path)
+      .filter(Boolean)
+  )
+];
 
-    return {
-      reply:
-        searchResult.count > 0
-          ? `I found ${searchResult.count} result(s) for "${query}":\n${resultsText}`
-          : `I searched for "${query}" but did not find a match.`,
-      emotion: "thinking",
-      developerIntent,
-      githubSearchResult: searchResult
-    };
+const resultsText = resultPaths
+  .map(path => `- ${path}`)
+  .join("\n");
+
+return {
+  reply:
+    resultPaths.length > 0
+      ? `I found ${resultPaths.length} matching file(s) for "${query}":\n${resultsText}`
+      : `I searched for "${query}" but did not find a match.`,
+  emotion: "thinking",
+  developerIntent,
+  githubSearchResult: searchResult
+};
   }
 
   return {
@@ -1997,35 +2013,124 @@ Do not claim anything was changed.`,
   };
 };
 
-CalBuddy.searchGithubCode = async function (query) {
+CalBuddy.searchGithubCode = async function (
+  query,
+  {
+    searchPath = "",
+    maxResults = 25,
+    caseSensitive = false,
+    extensions = []
+  } = {}
+) {
   try {
-    const context = await CalBuddy.getUserContext();
+    const context =
+      await CalBuddy.getUserContext();
 
-    const response = await fetch("/api/ari-github-search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        owner_access: context.ownerMode === true,
-        query
-      })
-    });
+    const response =
+      await fetch(
+        "/api/ari-github-read",
+        {
+          method: "POST",
 
-    const data = await response.json();
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-    console.log("GitHub Search Response:", data);
+          body: JSON.stringify({
+            owner_access:
+              context.ownerMode === true,
 
-    return data;
-  } catch (err) {
-    console.error("GitHub Search Error:", err);
+            operation:
+              "search_code",
+
+            query,
+            searchPath,
+            maxResults,
+            caseSensitive,
+            extensions
+          })
+        }
+      );
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    console.log(
+      "GitHub Search Response:",
+      data
+    );
+
+    if (
+      !response.ok ||
+      data?.success !== true
+    ) {
+      return {
+        success: false,
+
+        error:
+          data?.error ||
+          "GitHub search failed.",
+
+        code:
+          data?.code ||
+          "GITHUB_SEARCH_FAILED",
+
+        status:
+          response.status,
+
+        raw:
+          data
+      };
+    }
+
+    const results =
+      Array.isArray(data.matches)
+        ? data.matches.map(
+            match => ({
+              ...match,
+
+              // Compatibility with existing callers.
+              path:
+                match.filePath ||
+                match.path ||
+                null
+            })
+          )
+        : [];
+
+    return {
+      ...data,
+
+      count:
+        Number(
+          data.resultCount
+        ) ||
+        results.length,
+
+      results
+    };
+  } catch (error) {
+    console.error(
+      "GitHub Search Error:",
+      error
+    );
 
     return {
       success: false,
-      error: err.message
+
+      error:
+        error?.message ||
+        "GitHub search failed.",
+
+      code:
+        "GITHUB_SEARCH_REQUEST_FAILED"
     };
   }
 };
+
 CalBuddy.sendGithubEditRequest = async function (payload) {
   try {
     const response = await fetch("/api/ari-github-edit", {
@@ -2050,34 +2155,101 @@ CalBuddy.sendGithubEditRequest = async function (payload) {
     };
   }
 };
-CalBuddy.readGithubFile = async function (filePath) {
+CalBuddy.readGithubFile = async function (
+  filePath,
+  {
+    startLine = null,
+    endLine = null
+  } = {}
+) {
   try {
-    const context = await CalBuddy.getUserContext();
+    const context =
+      await CalBuddy.getUserContext();
 
-    const response = await fetch("/api/ari-github-read", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        owner_access: context.ownerMode === true,
-        filePath
-      })
-    });
+    const response =
+      await fetch(
+        "/api/ari-github-read",
+        {
+          method: "POST",
 
-    const data = await response.json();
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-    console.log("GitHub Read Response:", data);
+          body: JSON.stringify({
+            owner_access:
+              context.ownerMode === true,
+
+            operation:
+              "read_file",
+
+            filePath,
+
+            ...(startLine
+              ? { startLine }
+              : {}),
+
+            ...(endLine
+              ? { endLine }
+              : {})
+          })
+        }
+      );
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    console.log(
+      "GitHub Read Response:",
+      data
+    );
+
+    if (
+      !response.ok ||
+      data?.success !== true
+    ) {
+      return {
+        success: false,
+
+        error:
+          data?.error ||
+          "GitHub read failed.",
+
+        code:
+          data?.code ||
+          "GITHUB_READ_FAILED",
+
+        status:
+          response.status,
+
+        filePath,
+
+        raw:
+          data
+      };
+    }
 
     return data;
-
-  } catch (err) {
-
-    console.error("GitHub Read Error:", err);
+  } catch (error) {
+    console.error(
+      "GitHub Read Error:",
+      error
+    );
 
     return {
       success: false,
-      error: err.message
+
+      error:
+        error?.message ||
+        "GitHub read failed.",
+
+      code:
+        "GITHUB_READ_REQUEST_FAILED",
+
+      filePath
     };
   }
 };
