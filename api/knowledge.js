@@ -4,7 +4,7 @@
 // Purpose:
 // Provide the server-side OpenAI transport for Ari Rebirth cognitive reasoning.
 //
-// V6.4.0 — Canonical Preference Context Aware Cognitive Transport
+// V6.5.0 — Lean Reasoning Prompt / Truncation Diagnostics
 //
 // Supported actions:
 // - openai_reasoning
@@ -442,13 +442,129 @@ capabilities:
       requestWarnings
   };
 
-  const systemPrompt =
+    const systemPrompt =
     buildOpenAIReasoningSystemPrompt();
 
   const userPrompt =
     buildOpenAIReasoningUserPrompt(
       reasoningInput
     );
+
+  /*
+   * Developer and code-analysis requests may need
+   * more output room than ordinary conversation.
+   */
+  const developerEvidenceAvailable =
+    isNonEmptyObject(
+      reasoningInput.developerEvidence
+    );
+
+  const developerFileContentAvailable =
+    Boolean(
+      firstNonEmptyString([
+        reasoningInput
+          .developerEvidence
+          ?.github
+          ?.content,
+
+        reasoningInput
+          .developerEvidence
+          ?.github
+          ?.fileContent,
+
+        reasoningInput
+          .developerEvidence
+          ?.fileContext
+          ?.content,
+
+        reasoningInput
+          .developerEvidence
+          ?.fileContext
+          ?.fileContent
+      ])
+    );
+
+  const isDeveloperReasoning =
+    developerEvidenceAvailable ||
+    developerFileContentAvailable ||
+    [
+      "developer",
+      "developer_task",
+      "code",
+      "project"
+    ].includes(
+      String(
+        reasoningInput
+          .responseControl
+          ?.contextLane ||
+        reasoningInput
+          .responseControl
+          ?.primaryLane ||
+        reasoningInput
+          .routingContract
+          ?.contextLane ||
+        reasoningInput
+          .routingContract
+          ?.primaryLane ||
+        ""
+      )
+        .trim()
+        .toLowerCase()
+    );
+
+  const maxOutputTokens =
+    isDeveloperReasoning
+      ? 7000
+      : 4000;
+
+  const serializedReasoningInput =
+    safeJsonStringify(
+      reasoningInput
+    );
+
+  console.log(
+    "[Ari OpenAI Reasoning Request Size]",
+    {
+      model:
+        DEFAULT_OPENAI_MODEL,
+
+      isDeveloperReasoning,
+
+      maxOutputTokens,
+
+      systemPromptCharacters:
+        systemPrompt.length,
+
+      userPromptCharacters:
+        userPrompt.length,
+
+      reasoningInputCharacters:
+        serializedReasoningInput.length,
+
+      effectiveQuestionCharacters:
+        effectiveQuestion.length,
+
+      evidencePacketCharacters:
+        safeJsonStringify(
+          reasoningInput.evidencePacket
+        ).length,
+
+      perceptionPacketCharacters:
+        safeJsonStringify(
+          reasoningInput.perceptionPacket
+        ).length,
+
+      developerEvidenceCharacters:
+        safeJsonStringify(
+          reasoningInput.developerEvidence
+        ).length,
+
+      preferenceContextCharacters:
+        safeJsonStringify(
+          reasoningInput.preferenceContext
+        ).length
+    }
+  );
 
   const openAIStart = Date.now();
 
@@ -481,8 +597,10 @@ capabilities:
                 }
               ],
 
-              temperature: 0.2,
-              max_tokens: 3200,
+                            temperature: 0.2,
+
+              max_tokens:
+                maxOutputTokens,
 
               response_format: {
                 type: "json_object"
@@ -603,8 +721,70 @@ capabilities:
       });
   }
 
-  const rawModelOutput =
+    const rawModelOutput =
     extractRawModelOutput(data);
+
+  const finishReason =
+    data?.choices?.[0]
+      ?.finish_reason ||
+    null;
+
+  if (finishReason === "length") {
+    const truncationFailure = {
+      success: false,
+      ready: false,
+
+      error:
+        "OpenAI reasoning output was truncated before the cognitive result was complete.",
+
+      failureType:
+        "openai_reasoning_output_truncated",
+
+      finishReason,
+
+      rawModelOutputLength:
+        typeof rawModelOutput ===
+          "string"
+          ? rawModelOutput.length
+          : null,
+
+      rawModelOutputPreview:
+        previewText(
+          rawModelOutput,
+          MAX_MODEL_OUTPUT_PREVIEW
+        ),
+
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+
+      usage:
+        data?.usage ||
+        null,
+
+      source:
+        "openai_reasoning",
+
+      timing: {
+        ...timing,
+
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    };
+
+    console.error(
+      "[Ari OpenAI Reasoning Output Truncated]",
+      truncationFailure
+    );
+
+    return res
+      .status(502)
+      .json(
+        truncationFailure
+      );
+  }
 
   const parsedResult =
     parseModelResult(
@@ -1510,50 +1690,10 @@ function buildOpenAIReasoningUserPrompt(
       reasoningInput.outputContract
     );
 
-  const suppliedInstructions =
-    normalizeArray(
-      reasoningInput.instructions
-    );
-
-  const preferenceContext =
-  normalizeObject(
-    reasoningInput.preferenceContext
-  );
-
-const userPreferences =
-  normalizeObject(
-    reasoningInput.userPreferences
-  );
-
-const responseStyle =
-  normalizeObject(
-    reasoningInput.responseStyle
-  );
-
   return `
 CURRENT REASONING INPUT:
 ${safeJsonStringify(
   reasoningInput
-)}
-
-BINDING REASONING INSTRUCTIONS:
-${safeJsonStringify(
-  suppliedInstructions
-)}
-
-CANONICAL PREFERENCE CONTEXT:
-${safeJsonStringify(
-  preferenceContext
-)}
-
-USER COMMUNICATION PREFERENCES:
-${safeJsonStringify(
-  userPreferences
-)}
-
-CURRENT EFFECTIVE RESPONSE STYLE:
-${safeJsonStringify(
-  responseStyle
 )}
 
 ALLOWED CANONICAL OPERATIONS:
@@ -1561,25 +1701,24 @@ ${safeJsonStringify(
   allowedOperations
 )}
 
-Analyze the user's current request using the complete supplied packet.
-Follow the binding reasoning instructions above.
+Analyze the user's current request using the complete supplied reasoning packet.
 
-Apply communication preferences using this priority:
-1. Deterministic safety requirements.
-2. Explicit response constraints and forbidden behaviors.
-3. preferenceContext.currentTurnOverride.
-4. preferenceContext.responseStyle.
-5. preferenceContext.userPreferences.
-6. Legacy compatibility style fields.
-7. Default Ari style.
+The reasoning packet already contains:
+- binding reasoning instructions
+- deterministic safety requirements
+- response constraints
+- conversation and continuity context
+- evidence and knowledge
+- developer evidence
+- preferenceContext
+- userPreferences
+- responseStyle
+- the output contract
+- the operation contract
 
-Do not invent preferences that were not supplied.
-Do not claim that a preference was saved or remembered.
-This transport may use supplied preferences, but it does not persist them.
+Use those supplied fields directly. Do not invent missing facts, preferences, memories, evidence, tool results, or completed actions.
 
-Ordinary profanity, casual language, bluntness, humor, teasing, and personality adaptation are allowed when requested or permitted by the supplied style packet. Do not produce a generic respectful-language refusal merely because profanity was requested. Use permitted profanity naturally, contextually, and proportionately.
-
-Return exactly one JSON object using this core shape:
+Return exactly one valid JSON object using this core shape:
 
 {
   "ready": true,
@@ -1673,21 +1812,24 @@ Return exactly one JSON object using this core shape:
 }
 
 Core requirements:
-- Return valid JSON.
-- draftResponse must be a complete, natural, non-empty user-facing answer.
+- Return one valid JSON object.
+- Do not use markdown fences.
+- Do not add text outside the JSON object.
+- draftResponse must be complete, natural, user-facing, and non-empty.
 - semanticFrame must be an object.
-- semanticFrame.operation must exactly match one allowed operation.
+- semanticFrame.operation must exactly match one allowed canonical operation.
 - Do not invent, combine, paraphrase, or expand operation names.
-- Put the domain, target, condition, file name, or artifact name in semantic slots, not in semanticFrame.operation.
+- Put the domain, target, condition, file name, or artifact name in semantic slots.
 - Never mark an action as executed, completed, successful, delivered, or persisted.
+- Actions may only be proposed.
 - Do not expose private chain-of-thought.
-- Do not place the result inside an additional wrapper.
+- Do not place the cognitive result inside another wrapper.
+- Apply the supplied communication style according to its stated authority and precedence.
 - Reflect the style actually used in responseRequirements.styleApplied when practical.
 
 Secondary fields may be concise. Empty arrays and objects are acceptable when no value applies.
 `.trim();
 }
-
 /* =====================================================
    REASONING VALIDATION FAILURES
 ===================================================== */
