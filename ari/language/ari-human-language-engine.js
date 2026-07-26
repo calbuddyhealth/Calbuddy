@@ -1,1007 +1,216 @@
 // ari/language/ari-human-language-engine.js
+//
 // Ari Human Language Engine
-// Purpose: Decide how Ari should SOUND as a human communicator.
-// V1.1.0
 //
-// Role:
-// - Does NOT decide the response lane.
-// - Does NOT override Situation Contract.
-// - Does NOT write the final response.
-// - Produces a humanLanguageProfile for Composer V4.
+// Purpose:
+// Normalize and package the already-resolved communication guidance for
+// downstream realization.
 //
-// Chain:
-// Situation Contract -> Human Language Engine -> Mouth Director -> Composer
+// V2.0.0 — Language Adapter Architecture
+//
+// Architectural Flow:
+//
+// Ari Preferences
+//        ↓
+// Character
+//        ↓
+// Deliberation
+//        ↓
+// Human Language Engine
+//        ↓
+// Mouth Director
+//        ↓
+// Response Realization
+//
+// Responsibilities:
+// - Normalize resolved language guidance.
+// - Merge communication guidance.
+// - Resolve conflicting language directives.
+// - Validate language profile.
+// - Produce one canonical Human Language Guidance packet.
+//
+// Non-responsibilities:
+// - Does NOT define Ari's personality.
+// - Does NOT override user preferences.
+// - Does NOT create humor policy.
+// - Does NOT create profanity policy.
+// - Does NOT create warmth.
+// - Does NOT create professionalism.
+// - Does NOT reinterpret reasoning.
+// - Does NOT reinterpret safety.
+// - Does NOT reinterpret character.
+// - Does NOT decide how Ari should behave.
 
 window.Ari = window.Ari || {};
 
 window.AriHumanLanguageEngine = {
-  version: "1.1.0",
+  version: "2.0.0",
 
   create(input = {}) {
-    const summary = input.summary || input || {};
-    const contract = summary.situationContract || {};
 
-    const primary =
-      summary.situationContractPrimary ||
-      contract.primary ||
-      "general_understanding";
-
-    const risk = contract.risk || {};
-    const clarity = contract.clarity || {};
-
-    const profile = this.baseProfile(primary);
-
-    this.applyContractContext(profile, contract, risk, clarity);
-this.applyDomainProfile(profile, primary, summary);
-this.applyContractCommunicationProfile(profile, contract);
-this.applyAriSignatureVoice(profile, primary, summary);
-this.applyRiskSafetyRules(profile, primary, risk, clarity);
-    this.applyRelationshipMode(profile, summary);
-    this.applyUserStyle(profile, summary);
-    this.applyValidationRules(profile, primary, summary);
-    this.applyHumorRules(profile, primary, risk, summary);
-    this.applyProfanityRules(profile, primary, risk, summary);
-    this.applyAccountabilityRules(profile, primary, summary);
-    this.applyBannedPhrases(profile);
-    this.applyPreferredMoves(profile, primary);
-    this.applyPolishRules(profile);
-    this.finalize(profile);
-
-    return {
-      humanLanguageEngineRan: true,
-      humanLanguageEngineVersion: this.version,
-      source: "ari-human-language-engine",
-
-      humanLanguageProfile: profile,
-
-      humanLanguageDomain: profile.domain,
-      humanLanguageTone: profile.tone,
-      humanLanguageWarmth: profile.warmth,
-      humanLanguageDirectness: profile.directness,
-      humanLanguageValidationLevel: profile.validationLevel,
-      humanLanguageHumor: profile.humor,
-      humanLanguageSarcasm: profile.sarcasm,
-      humanLanguageProfanity: profile.profanity,
-      humanLanguageChallenge: profile.challenge,
-      humanLanguagePreferredMoves: profile.preferredMoves,
-      humanLanguageBannedPhrases: profile.bannedPhrases,
-      humanLanguageReasons: profile.reasons
-    };
-  },
-
-  baseProfile(primary = "general_understanding") {
-    return {
-      domain: primary,
-
-      tone: "balanced",
-      voice: "ari",
-signatureVoice: {
-  presence: 70,
-  curiosity: 65,
-  playfulness: 35,
-  wit: 25,
-  confidence: 75,
-  emotionalRange: 60,
-  naturalSurprise: 30,
-  antiFlatness: true
-},
-      warmth: 50,
-      directness: 70,
-      tenderness: 30,
-      bluntness: 30,
-      formality: 45,
-      professionalism: 55,
-
-      humor: 0,
-      sarcasm: 0,
-      playfulness: 0,
-      profanity: 0,
-
-      validationLevel: "light",
-      maxValidationSentences: 1,
-
-      accountability: 0,
-      challenge: 0,
-      encouragement: 40,
-
-      pace: "normal",
-      depth: "practical",
-      sentenceStyle: "natural_mixed",
-
-      openingStyle: "direct",
-      closingStyle: "optional",
-
-      allowedMoves: [],
-      preferredMoves: [],
-      bannedMoves: [],
-      bannedPhrases: [],
-      preferredPhrases: [],
-
-      safety: {
-        humorAllowed: true,
-        sarcasmAllowed: true,
-        profanityAllowed: true,
-        challengeAllowed: true,
-        validationAllowed: true
-      },
-
-      polish: {
-        noSystemLanguage: true,
-        noGenericTherapyVoice: true,
-        noFakeCertainty: true,
-        noRambling: true,
-        noOverValidation: true,
-        preferSpecificNextStep: true,
-        preferConcreteLanguage: true,
-        preferNaturalContractions: true
-      },
-
-      reasons: []
-    };
-  },
-
-  applyContractContext(profile, contract = {}, risk = {}, clarity = {}) {
-    profile.contractPrimary = contract.primary || profile.domain;
-    profile.contractAuthority = contract.authority || "normal";
-    profile.responseShape = contract.responseShape || "standard";
-
-    if (clarity.needed) {
-      profile.tone = "clear_direct";
-      profile.directness = 95;
-      profile.warmth = 25;
-      profile.validationLevel = "none";
-      profile.maxValidationSentences = 0;
-      profile.preferredMoves.push("ask_one_clear_question");
-      profile.bannedMoves.push("explain_before_clarifying");
-      profile.reasons.push("Contract requires clarification, so language should be direct and minimal.");
-    }
-
-    if (contract.authority === "absolute") {
-      profile.formality = Math.max(profile.formality, 75);
-      profile.professionalism = Math.max(profile.professionalism, 90);
-      profile.reasons.push("Absolute contract authority requires controlled language.");
-    }
-  },
-
-applyContractCommunicationProfile(profile, contract = {}) {
-  const communication = contract.communicationProfile || null;
-  if (!communication) return;
-
-  profile.contractCommunicationProfile = communication;
-
-  if (communication.directness === "high") {
-    profile.directness = Math.max(profile.directness, 90);
-  }
-
-  if (communication.directness === "medium") {
-    profile.directness = Math.max(profile.directness, 70);
-  }
-
-  if (communication.directness === "low") {
-    profile.directness = Math.min(profile.directness, 45);
-  }
-
-  if (communication.emotionalWeight === "low") {
-    profile.tenderness = Math.min(profile.tenderness, 30);
-  }
-
-  if (communication.emotionalWeight === "high") {
-    profile.warmth = Math.max(profile.warmth, 75);
-    profile.tenderness = Math.max(profile.tenderness, 65);
-  }
-
-  if (communication.validationLevel) {
-    profile.validationLevel = communication.validationLevel;
-  }
-
-  if (communication.validationAllowed === false) {
-    profile.validationLevel = "none";
-    profile.maxValidationSentences = 0;
-    profile.safety.validationAllowed = false;
-  }
-
-  if (communication.humorAllowed === false) {
-    profile.humor = 0;
-    profile.playfulness = 0;
-    profile.safety.humorAllowed = false;
-  }
-
-  if (communication.sarcasmAllowed === false) {
-    profile.sarcasm = 0;
-    profile.safety.sarcasmAllowed = false;
-  }
-
-  if (communication.profanityAllowed === false) {
-    profile.profanity = 0;
-    profile.safety.profanityAllowed = false;
-  }
-
-  if (communication.challengeAllowed === false) {
-    profile.challenge = 0;
-    profile.accountability = 0;
-    profile.safety.challengeAllowed = false;
-  }
-
-  if (Array.isArray(communication.styleNotes)) {
-    communication.styleNotes.forEach(note => {
-      this.add(profile.reasons, `Contract communication constraint: ${note}`);
-    });
-  }
-},
-
-  applyDomainProfile(profile, primary, summary = {}) {
-    const domain = primary || "general_understanding";
-
-    const profiles = {
-      safety: {
-        tone: "urgent_calm",
-        warmth: 30,
-        directness: 100,
-        tenderness: 20,
-        bluntness: 75,
-        formality: 80,
-        professionalism: 95,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "none",
-        accountability: 0,
-        challenge: 0,
-        pace: "fast",
-        depth: "minimal",
-        openingStyle: "urgent_direct",
-        closingStyle: "safety_next_step"
-      },
-
-      risk_clarification: {
-        tone: "calm_direct",
-        warmth: 20,
-        directness: 100,
-        formality: 80,
-        professionalism: 95,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "none",
-        pace: "slow",
-        depth: "minimal",
-        openingStyle: "no_opening",
-        closingStyle: "question_only"
-      },
-
-      medical_body: {
-        tone: "calm_medical",
-        warmth: 45,
-        directness: 95,
-        tenderness: 25,
-        bluntness: 55,
-        formality: 75,
-        professionalism: 95,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "light",
-        pace: "calm",
-        depth: "practical",
-        openingStyle: "medical_first",
-        closingStyle: "red_flags_or_next_step"
-      },
-
-      medical_context: {
-        tone: "calm_direct",
-        warmth: 45,
-        directness: 90,
-        tenderness: 25,
-        bluntness: 45,
-        formality: 65,
-        professionalism: 90,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "light",
-        pace: "calm",
-        depth: "practical",
-        openingStyle: "answer_first",
-        closingStyle: "practical_next_step"
-      },
-
-      builder: {
-        tone: "developer_direct",
-        warmth: 20,
-        directness: 95,
-        tenderness: 5,
-        bluntness: 60,
-        formality: 35,
-        professionalism: 70,
-        humor: 20,
-        sarcasm: 10,
-        profanity: 0,
-        validationLevel: "none",
-        accountability: 20,
-        challenge: 20,
-        pace: "efficient",
-        depth: "technical",
-        openingStyle: "skip_fluff",
-        closingStyle: "next_code_step"
-      },
-
-      teacher: {
-        tone: "clear_teacher",
-        warmth: 30,
-        directness: 85,
-        tenderness: 10,
-        bluntness: 35,
-        formality: 45,
-        professionalism: 80,
-        humor: 5,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "none",
-        pace: "clear",
-        depth: "educational",
-        openingStyle: "answer_first",
-        closingStyle: "optional_example"
-      },
-
-      executive_decision: {
-        tone: "advisor_direct",
-        warmth: 35,
-        directness: 92,
-        tenderness: 10,
-        bluntness: 65,
-        formality: 50,
-        professionalism: 80,
-        humor: 5,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "none",
-        accountability: 35,
-        challenge: 35,
-        pace: "organized",
-        depth: "practical",
-        openingStyle: "organize_first",
-        closingStyle: "next_step"
-      },
-
-      emotion: {
-        tone: "grounded_warm",
-        warmth: 80,
-        directness: 60,
-        tenderness: 75,
-        bluntness: 20,
-        formality: 25,
-        professionalism: 50,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "moderate",
-        accountability: 5,
-        challenge: 10,
-        pace: "slow",
-        depth: "emotional",
-        openingStyle: "brief_attunement",
-        closingStyle: "grounding_question"
-      },
-
-      relationship: {
-        tone: "honest_warm",
-        warmth: 65,
-        directness: 75,
-        tenderness: 50,
-        bluntness: 35,
-        formality: 25,
-        professionalism: 55,
-        humor: 5,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "light",
-        accountability: 30,
-        challenge: 35,
-        pace: "calm",
-        depth: "relational",
-        openingStyle: "name_relationship_truth",
-        closingStyle: "repair_step"
-      },
-
-      family: {
-        tone: "protective_warm",
-        warmth: 70,
-        directness: 80,
-        tenderness: 55,
-        bluntness: 30,
-        formality: 30,
-        professionalism: 60,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "light",
-        accountability: 35,
-        challenge: 30,
-        pace: "calm",
-        depth: "meaningful_practical",
-        openingStyle: "protective_truth",
-        closingStyle: "family_next_step"
-      },
-
-      wisdom: {
-        tone: "wise_direct",
-        warmth: 45,
-        directness: 80,
-        tenderness: 25,
-        bluntness: 45,
-        formality: 35,
-        professionalism: 65,
-        humor: 5,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "none",
-        accountability: 25,
-        challenge: 35,
-        pace: "measured",
-        depth: "principled",
-        openingStyle: "principle_first",
-        closingStyle: "choice_point"
-      },
-
-      memory: {
-        tone: "simple_acknowledgment",
-        warmth: 30,
-        directness: 90,
-        tenderness: 5,
-        bluntness: 20,
-        formality: 35,
-        professionalism: 70,
-        humor: 0,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "none",
-        pace: "brief",
-        depth: "minimal",
-        openingStyle: "acknowledge",
-        closingStyle: "none"
-      },
-
-      general_understanding: {
-        tone: "balanced",
-        warmth: 45,
-        directness: 75,
-        tenderness: 20,
-        bluntness: 35,
-        formality: 40,
-        professionalism: 60,
-        humor: 5,
-        sarcasm: 0,
-        profanity: 0,
-        validationLevel: "light",
-        pace: "normal",
-        depth: "practical",
-        openingStyle: "answer_first",
-        closingStyle: "optional"
-      }
-    };
-
-    const selected = profiles[domain] || profiles.general_understanding;
-    Object.assign(profile, selected);
-
-    profile.domain = domain;
-    profile.reasons.push(`Applied human language profile for '${domain}'.`);
-  },
-
-applyAriSignatureVoice(profile, primary, summary = {}) {
-  const message = String(
-    summary.normalizedMessage ||
-    summary.userMessage ||
-    summary.message ||
-    ""
-  ).toLowerCase();
-
-  const seriousDomains = [
-    "safety",
-    "medical_body",
-    "medical_context",
-    "risk_clarification"
-  ];
-
-  const playfulSafeDomains = [
-    "builder",
-    "teacher",
-    "executive_decision",
-    "general_understanding",
-    "wisdom"
-  ];
-
-  profile.signatureVoice = profile.signatureVoice || {};
-
-  profile.signatureVoice.presence = Math.max(profile.signatureVoice.presence || 0, 70);
-  profile.signatureVoice.confidence = Math.max(profile.signatureVoice.confidence || 0, 75);
-  profile.signatureVoice.curiosity = Math.max(profile.signatureVoice.curiosity || 0, 60);
-  profile.signatureVoice.antiFlatness = true;
-
-  if (seriousDomains.includes(primary)) {
-    profile.signatureVoice.playfulness = 0;
-    profile.signatureVoice.wit = 0;
-    profile.signatureVoice.naturalSurprise = 0;
-    profile.playfulness = 0;
-    profile.humor = 0;
-    profile.sarcasm = 0;
-    profile.reasons.push("Serious context suppresses Ari signature playfulness.");
-    return;
-  }
-
-  if (playfulSafeDomains.includes(primary)) {
-    profile.playfulness = Math.max(profile.playfulness, 20);
-    profile.humor = Math.max(profile.humor, 10);
-    profile.signatureVoice.playfulness = Math.max(profile.signatureVoice.playfulness || 0, 35);
-    profile.signatureVoice.wit = Math.max(profile.signatureVoice.wit || 0, 25);
-    profile.signatureVoice.naturalSurprise = Math.max(profile.signatureVoice.naturalSurprise || 0, 25);
-  }
-
-  if (/\b(lol|haha|wtf|annoying|confused|this is crazy|damn|fuck|shit)\b/.test(message)) {
-    profile.playfulness = Math.max(profile.playfulness, 35);
-    profile.humor = Math.max(profile.humor, 20);
-    profile.bluntness = Math.max(profile.bluntness, 55);
-    profile.signatureVoice.naturalSurprise = Math.max(profile.signatureVoice.naturalSurprise || 0, 40);
-    profile.reasons.push("User energy allows more expressive Ari voice.");
-  }
-
-  profile.preferredMoves.push(
-    "sound_alive_not_scripted",
-    "use_specific_reaction",
-    "vary_sentence_rhythm",
-    "show_confident_presence",
-    "use_playfulness_when_safe"
-  );
-
-  profile.bannedMoves.push(
-    "flat_professional_voice",
-    "shy_over_apologetic_voice",
-    "generic_assistant_tone"
-  );
-},
-
-  applyRiskSafetyRules(profile, primary, risk = {}, clarity = {}) {
-    const highRisk =
-      ["safety", "medical_body", "risk_clarification"].includes(primary) ||
-      ["high", "critical"].includes(risk.level) ||
-      Boolean(risk.override);
-
-    const sensitive =
-      highRisk ||
-      ["medical_context"].includes(primary) ||
-      ["safety", "medical", "violence", "abuse", "substance"].includes(risk.type);
-
-    if (sensitive) {
-      profile.safety.humorAllowed = false;
-      profile.safety.sarcasmAllowed = false;
-      profile.safety.profanityAllowed = false;
-      profile.humor = 0;
-      profile.sarcasm = 0;
-      profile.profanity = 0;
-      profile.playfulness = 0;
-      profile.reasons.push("Sensitive safety/medical context blocks humor, sarcasm, and profanity.");
-    }
-
-    if (primary === "risk_clarification") {
-      profile.allowedMoves = ["ask_one_clear_question"];
-      profile.bannedMoves.push("validate_at_length", "teach", "joke", "philosophize");
-    }
-
-    if (primary === "safety") {
-      profile.allowedMoves = ["direct_safety_step", "brief_grounding"];
-      profile.bannedMoves.push("joke", "philosophize", "deep_reflection", "generic_question");
-    }
-  },
-
-  applyRelationshipMode(profile, summary = {}) {
-    const mode =
-      summary.relationshipMode ||
-      summary.userRelationshipMode ||
-      summary.ariMode ||
-      null;
-
-    if (!mode) return;
-
-    profile.relationshipMode = mode;
-
-    if (mode === "developer" || mode === "developer_wonder") {
-      profile.directness = Math.max(profile.directness, 90);
-      profile.warmth = Math.min(profile.warmth, 35);
-      profile.validationLevel = "none";
-      profile.preferredMoves.push("show_exact_fix");
-      profile.reasons.push("Developer mode favors direct technical usefulness.");
-    }
-
-    if (mode === "coach" || mode === "coach_wonder") {
-      profile.accountability = Math.max(profile.accountability, 55);
-      profile.challenge = Math.max(profile.challenge, 45);
-      profile.directness = Math.max(profile.directness, 85);
-      profile.preferredMoves.push("call_out_pattern", "give_next_step");
-      profile.reasons.push("Coach mode allows accountability and challenge.");
-    }
-
-    if (mode === "companion" || mode === "companion_wonder") {
-      profile.warmth = Math.max(profile.warmth, 70);
-      profile.tenderness = Math.max(profile.tenderness, 55);
-      profile.validationLevel = profile.validationLevel === "none" ? "light" : profile.validationLevel;
-      profile.reasons.push("Companion mode increases warmth and presence.");
-    }
-
-    if (mode === "accountability") {
-      profile.accountability = 85;
-      profile.challenge = 75;
-      profile.bluntness = Math.max(profile.bluntness, 75);
-      profile.humor = Math.max(profile.humor, 20);
-      profile.reasons.push("Accountability mode allows stronger challenge.");
-    }
-  },
-
-  applyUserStyle(profile, summary = {}) {
-    const ownerStyle =
-      summary.ownerStyle ||
-      summary.userStyle ||
+    const summary =
+      input.summary ||
+      input ||
       {};
 
-    if (ownerStyle.prefersBluntness === true) {
-      profile.bluntness = Math.max(profile.bluntness, 65);
-      profile.directness = Math.max(profile.directness, 85);
-      profile.reasons.push("User preference allows bluntness.");
-    }
+    const personality =
+      summary.resolvedAriPersonality ||
+      {};
 
-    if (ownerStyle.prefersHumor === true) {
-      profile.humor = Math.max(profile.humor, 15);
-      profile.reasons.push("User preference allows humor.");
-    }
+    const reasoning =
+      summary.reasoningLanguageGuidance ||
+      {};
 
-    if (ownerStyle.prefersProfanity === true) {
-      profile.profanity = Math.max(profile.profanity, 10);
-      profile.reasons.push("User preference allows light profanity when safe.");
-    }
+    const safety =
+      summary.safetyLanguageGuidance ||
+      {};
 
-    if (ownerStyle.lowValidation === true) {
-      profile.validationLevel = "none";
-      profile.maxValidationSentences = 0;
-      profile.reasons.push("User preference reduces validation.");
-    }
-  },
+    const relationship =
+      summary.relationshipLanguageGuidance ||
+      {};
 
-  applyValidationRules(profile, primary, summary = {}) {
-    const validationNeededDomains = [
-      "emotion",
-      "relationship",
-      "family"
-    ];
+    const guidance = {
 
-    const validationUsuallyBadDomains = [
-      "builder",
-      "teacher",
-      "executive_decision",
-      "memory"
-    ];
+      tone:
+        reasoning.tone ??
+        personality.tone ??
+        "natural",
 
-    if (validationUsuallyBadDomains.includes(primary)) {
-      profile.validationLevel = "none";
-    }
+      warmth:
+        personality.warmth,
 
-    if (validationNeededDomains.includes(primary) && profile.validationLevel === "none") {
-      profile.validationLevel = "light";
-    }
+      bluntness:
+        personality.bluntness,
 
-    const shameOrFear =
-      this.hasAny(summary.normalizedMessage || summary.userMessage || "", [
-        "embarrassed",
-        "ashamed",
-        "worried",
-        "scared",
-        "afraid",
-        "failed",
-        "rejected"
-      ]);
+      humor:
+        personality.humor,
 
-    if (shameOrFear && !["builder", "teacher", "memory"].includes(primary)) {
-      if (profile.validationLevel === "none") profile.validationLevel = "light";
-      profile.reasons.push("Shame/fear language allows brief attunement.");
-    }
+      profanity:
+        personality.profanity,
 
-    profile.maxValidationSentences =
-      profile.validationLevel === "none" ? 0 :
-      profile.validationLevel === "light" ? 1 :
-      profile.validationLevel === "moderate" ? 2 :
-      3;
+      sarcasm:
+        personality.sarcasm,
 
-    profile.bannedMoves.push("over_validate", "repeat_validation");
-  },
+      professionalism:
+        personality.professionalism,
 
-  applyHumorRules(profile, primary, risk = {}, summary = {}) {
-    const humorSafeDomains = [
-      "builder",
-      "teacher",
-      "executive_decision",
-      "general_understanding",
-      "wisdom"
-    ];
+      challenge:
+        personality.challenge,
 
-    const humorUnsafeDomains = [
-      "safety",
-      "medical_body",
-      "medical_context",
-      "risk_clarification",
-      "emotion",
-      "relationship",
-      "family"
-    ];
+      validation:
+        reasoning.validation ??
+        personality.validation,
 
-    if (humorUnsafeDomains.includes(primary)) {
-      profile.humor = 0;
-      profile.sarcasm = 0;
-      profile.playfulness = 0;
-      return;
-    }
+      pacing:
+        reasoning.pacing ??
+        personality.pacing,
 
-    if (humorSafeDomains.includes(primary)) {
-      profile.humor = Math.max(profile.humor, 5);
-    }
+      sentenceStyle:
+        personality.sentenceStyle,
 
-    if (primary === "builder") {
-      profile.humor = Math.max(profile.humor, 20);
-      profile.sarcasm = Math.max(profile.sarcasm, 10);
-    }
+      vocabulary:
+        personality.vocabulary,
 
-    if (profile.relationshipMode === "accountability") {
-      profile.humor = Math.max(profile.humor, 20);
-      profile.sarcasm = Math.max(profile.sarcasm, 10);
-    }
-  },
-
-  applyProfanityRules(profile, primary, risk = {}, summary = {}) {
-    const profanityUnsafe =
-      ["safety", "medical_body", "medical_context", "risk_clarification"].includes(primary) ||
-      ["safety", "medical", "violence", "abuse", "substance"].includes(risk.type);
-
-    if (profanityUnsafe) {
-      profile.profanity = 0;
-      profile.safety.profanityAllowed = false;
-      return;
-    }
-
-    const message = summary.normalizedMessage || summary.userMessage || "";
-
-    const userUsesProfanity =
-      /\b(fuck|shit|damn|ass|bullshit)\b/i.test(message);
-
-    if (userUsesProfanity && ["builder", "executive_decision", "general_understanding", "wisdom"].includes(primary)) {
-      profile.profanity = Math.max(profile.profanity, 10);
-      profile.reasons.push("User uses casual profanity, so light matching is allowed in safe domains.");
-    }
-
-    if (profile.relationshipMode === "accountability") {
-      profile.profanity = Math.max(profile.profanity, 15);
-    }
-
-    profile.profanity = Math.min(profile.profanity, 25);
-  },
-
-  applyAccountabilityRules(profile, primary, summary = {}) {
-    const accountabilityTopics = [
-      "weight",
-      "diet",
-      "drinking",
-      "alcohol",
-      "procrastinating",
-      "avoid",
-      "excuse",
-      "discipline",
-      "goal"
-    ];
-
-    const message = summary.normalizedMessage || summary.userMessage || "";
-
-    const accountabilitySignal = this.hasAny(message, accountabilityTopics);
-
-    if (
-      accountabilitySignal &&
-      ["executive_decision", "general_understanding", "wisdom", "emotion"].includes(primary)
-    ) {
-      profile.accountability = Math.max(profile.accountability, 40);
-      profile.challenge = Math.max(profile.challenge, 35);
-      profile.directness = Math.max(profile.directness, 80);
-      profile.preferredMoves.push("name_pattern_without_shame");
-      profile.reasons.push("Accountability topic detected.");
-    }
-
-    if (["medical_context", "medical_body", "safety", "risk_clarification"].includes(primary)) {
-      profile.accountability = 0;
-      profile.challenge = 0;
-    }
-  },
-
-  applyBannedPhrases(profile) {
-    const banned = [
-      "what feels important here",
-      "what feels important about this",
-      "what has not been said out loud",
-      "there may be more here than first appears",
-      "there may be a deeper signal",
-      "something important may be present",
-      "something feels important",
-      "before interpreting",
-      "before we interpret",
-      "life chapter",
-      "deeper signal",
-      "human need",
-      "lead organ",
-      "salience",
-      "observer hierarchy",
-      "mouth director",
-      "situation contract",
-      "continue observing",
-      "not enough evidence",
-      "unclear before naming",
-      "what do you need to understand before choosing a direction",
-      "stability comes before interpretation",
-      "protect safety and stability first, then decide what the situation means"
-    ];
-
-    banned.forEach(item => this.add(profile.bannedPhrases, item));
-  },
-
-  applyPreferredMoves(profile, primary) {
-    const moves = {
-      safety: [
-        "direct_safety_step",
-        "brief_reassurance_only_if_useful",
-        "no_philosophy"
+      preferredMoves: [
+        ...(personality.preferredMoves || []),
+        ...(reasoning.preferredMoves || [])
       ],
 
-      risk_clarification: [
-        "ask_one_clear_question",
-        "no_extra_sections"
+      bannedMoves: [
+        ...(personality.bannedMoves || []),
+        ...(reasoning.bannedMoves || []),
+        ...(safety.bannedMoves || [])
       ],
 
-      medical_body: [
-        "medical_boundary",
-        "specific_next_step",
-        "red_flags_if_needed"
+      preferredPhrases: [
+        ...(personality.preferredPhrases || [])
       ],
 
-      medical_context: [
-        "answer_medical_context_first",
-        "name_likely_nonurgent_possibilities",
-        "specific_next_step",
-        "red_flags_if_needed"
-      ],
-
-      builder: [
-        "show_exact_fix",
-        "give_replacement_block",
-        "explain_after_code",
-        "avoid_reflection"
-      ],
-
-      teacher: [
-        "answer_first",
-        "plain_explanation",
-        "example_if_helpful"
-      ],
-
-      executive_decision: [
-        "name_priority",
-        "organize_options",
-        "recommend_next_step"
-      ],
-
-      emotion: [
-        "brief_attunement",
-        "name_feeling_without_overdoing_it",
-        "ground_or_next_step"
-      ],
-
-      wisdom: [
-        "name_tension",
-        "state_principle_plainly",
-        "make_choice_clear"
-      ],
-
-      relationship: [
-        "name_relationship_truth",
-        "avoid_mind_reading",
-        "repair_step"
-      ],
-
-      family: [
-        "protect_irreplaceable",
-        "practical_family_next_step"
-      ],
-
-      memory: [
-        "acknowledge_plainly",
-        "no_extra_reflection"
+      bannedPhrases: [
+        ...(personality.bannedPhrases || []),
+        ...(safety.bannedPhrases || [])
       ]
     };
 
-    (moves[primary] || ["answer_first", "specific_next_step"]).forEach(move => {
-      this.add(profile.preferredMoves, move);
+    this.resolveConflicts(guidance, safety);
+    this.normalize(guidance);
+
+    return {
+
+      humanLanguageEngineRan: true,
+
+      humanLanguageEngineVersion:
+        this.version,
+
+      source:
+        "ari-human-language-engine",
+
+      humanLanguageGuidance:
+        guidance
+    };
+
+  },
+
+  resolveConflicts(guidance = {}, safety = {}) {
+
+    if (safety.disableHumor) {
+      guidance.humor = 0;
+    }
+
+    if (safety.disableProfanity) {
+      guidance.profanity = 0;
+    }
+
+    if (safety.disableSarcasm) {
+      guidance.sarcasm = 0;
+    }
+
+    if (safety.disableChallenge) {
+      guidance.challenge = 0;
+    }
+
+    guidance.preferredMoves =
+      [...new Set(guidance.preferredMoves)];
+
+    guidance.bannedMoves =
+      [...new Set(guidance.bannedMoves)];
+
+    guidance.preferredPhrases =
+      [...new Set(guidance.preferredPhrases)];
+
+    guidance.bannedPhrases =
+      [...new Set(guidance.bannedPhrases)];
+
+  },
+
+  normalize(guidance = {}) {
+
+    [
+      "warmth",
+      "bluntness",
+      "humor",
+      "profanity",
+      "sarcasm",
+      "professionalism",
+      "challenge"
+    ].forEach(key => {
+
+      if (typeof guidance[key] !== "number") {
+        return;
+      }
+
+      guidance[key] =
+        Math.max(
+          0,
+          Math.min(100, guidance[key])
+        );
+
     });
 
-    profile.allowedMoves = [...new Set([
-      ...profile.allowedMoves,
-      ...profile.preferredMoves
-    ])];
-  },
-
-  applyPolishRules(profile) {
-    profile.preferredPhrases.push(
-      "Here’s the practical move.",
-      "I’d handle it this way.",
-      "The priority is simple.",
-      "Don’t overcomplicate this.",
-      "That is worth taking seriously.",
-      "This does not need a dramatic interpretation."
-    );
-
-    profile.bannedMoves.push(
-      "generic_therapy_voice",
-      "performative_validation",
-      "vague_reflection",
-      "system_explanation",
-      "fortune_cookie_wisdom"
-    );
-  },
-
-  finalize(profile) {
-    profile.warmth = this.clamp(profile.warmth);
-    profile.directness = this.clamp(profile.directness);
-    profile.tenderness = this.clamp(profile.tenderness);
-    profile.bluntness = this.clamp(profile.bluntness);
-    profile.formality = this.clamp(profile.formality);
-    profile.professionalism = this.clamp(profile.professionalism);
-    profile.humor = this.clamp(profile.humor);
-    profile.sarcasm = this.clamp(profile.sarcasm);
-    profile.playfulness = this.clamp(profile.playfulness);
-    profile.profanity = this.clamp(profile.profanity);
-    profile.accountability = this.clamp(profile.accountability);
-    profile.challenge = this.clamp(profile.challenge);
-    profile.encouragement = this.clamp(profile.encouragement);
-
-    profile.bannedPhrases = [...new Set(profile.bannedPhrases)];
-    profile.preferredMoves = [...new Set(profile.preferredMoves)];
-    profile.allowedMoves = [...new Set(profile.allowedMoves)];
-    profile.bannedMoves = [...new Set(profile.bannedMoves)];
-    profile.preferredPhrases = [...new Set(profile.preferredPhrases)];
-
-    if (profile.validationLevel === "none") {
-      profile.maxValidationSentences = 0;
-    }
-
-    if (profile.humor === 0) {
-      profile.safety.humorAllowed = false;
-    }
-
-    if (profile.sarcasm === 0) {
-      profile.safety.sarcasmAllowed = false;
-    }
-
-    if (profile.profanity === 0) {
-      profile.safety.profanityAllowed = false;
-    }
-  },
-
-  hasAny(text = "", terms = []) {
-    const normalized = String(text || "").toLowerCase();
-    return terms.some(term => normalized.includes(String(term).toLowerCase()));
-  },
-
-  add(list = [], item) {
-    if (item && Array.isArray(list) && !list.includes(item)) {
-      list.push(item);
-    }
-  },
-
-  clamp(value, min = 0, max = 100) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return min;
-    return Math.max(min, Math.min(max, number));
   }
+
 };
+
 console.log(
   "ARI HUMAN LANGUAGE ENGINE LOADED:",
   window.AriHumanLanguageEngine?.version
