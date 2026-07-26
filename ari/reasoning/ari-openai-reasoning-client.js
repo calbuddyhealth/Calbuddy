@@ -5,7 +5,7 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.3.0 — Canonical Preference Context Transport
+// V1.4.0 — Structured Server Failure Preservation
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
@@ -30,7 +30,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.3.0",
+    "1.4.0",
 
   source:
     "ari-openai-reasoning-client",
@@ -285,10 +285,31 @@ preferenceContextReady:
         }
       );
 
-      throw new Error(
-        error?.message ||
-        "openai_reasoning_network_request_failed"
-      );
+            const networkError =
+        new Error(
+          error?.message ||
+          "OpenAI reasoning network request failed."
+        );
+
+      networkError.name =
+        "AriOpenAIReasoningNetworkError";
+
+      networkError.code =
+        "openai_reasoning_network_request_failed";
+
+      networkError.failureType =
+        "openai_reasoning_network_request_failed";
+
+      networkError.source =
+        this.source;
+
+      networkError.endpoint =
+        this.endpoint;
+
+      networkError.cause =
+        error;
+
+      throw networkError;
     }
 
     const rawText =
@@ -327,7 +348,7 @@ preferenceContextReady:
         rawText
       );
 
-    if (
+        if (
       response.ok !==
       true
     ) {
@@ -338,6 +359,77 @@ preferenceContextReady:
           status:
             response.status
         });
+
+      const failureType =
+        typeof data?.failureType ===
+          "string" &&
+        data.failureType.trim()
+          ? data.failureType.trim()
+          : "openai_reasoning_server_failure";
+
+      const serverError =
+        new Error(
+          extractedError
+        );
+
+      serverError.name =
+        "AriOpenAIReasoningServerError";
+
+      serverError.code =
+        failureType;
+
+      serverError.failureType =
+        failureType;
+
+      serverError.status =
+        response.status;
+
+      serverError.source =
+        data?.source ||
+        this.source;
+
+      serverError.finishReason =
+        data?.finishReason ||
+        null;
+
+      serverError.failedField =
+        data?.failedField ||
+        null;
+
+      serverError.semanticOperation =
+        data?.semanticOperation ||
+        null;
+
+      serverError.usage =
+        data?.usage ||
+        data?.modelInvocation
+          ?.usage ||
+        null;
+
+      serverError.providerError =
+        data?.providerError ||
+        null;
+
+      serverError.serverDiagnostics =
+        data?.diagnostics ||
+        null;
+
+      serverError.serverTiming =
+        data?.timing ||
+        null;
+
+      serverError.rawModelOutputPreview =
+        data?.rawModelOutputPreview ||
+        null;
+
+      serverError.parsedModelOutput =
+        data?.parsedModelOutput ||
+        null;
+
+      serverError.serverResponse =
+        this.normalizeObject(
+          data
+        );
 
       console.error(
         "ARI OPENAI REASONING CLIENT SERVER FAILURE:",
@@ -351,13 +443,35 @@ preferenceContextReady:
           error:
             extractedError,
 
+          failureType,
+
+          finishReason:
+            serverError.finishReason,
+
+          failedField:
+            serverError.failedField,
+
+          semanticOperation:
+            serverError.semanticOperation,
+
+          usage:
+            serverError.usage,
+
+          providerError:
+            serverError.providerError,
+
+          serverTiming:
+            serverError.serverTiming,
+
+          rawModelOutputPreview:
+            serverError
+              .rawModelOutputPreview,
+
           data
         }
       );
 
-      throw new Error(
-        extractedError
-      );
+      throw serverError;
     }
 
     const result =
