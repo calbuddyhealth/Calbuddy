@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.9";
+CalBuddy.version = "3.6.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 
@@ -1157,13 +1157,160 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
     return CalBuddy.cancelPendingAction();
   }
   mark("before getUserContext");
-const userContext = await CalBuddy.getUserContext();
+
+const userContext =
+  await CalBuddy.getUserContext();
+
 mark("after getUserContext");
 
+/* -----------------------------
+DETERMINISTIC OWNER GITHUB ROUTING
+
+Explicit GitHub read/search commands must be routed before
+the conversational runtime. This prevents the language model
+from incorrectly claiming that GitHub access is unavailable.
+----------------------------- */
+
+if (
+  userContext.ownerMode === true &&
+  CalBuddy.isDeveloperCommand(message)
+) {
+  const normalizedMessage =
+    String(message || "").trim();
+
+  const filePathMatch =
+    normalizedMessage.match(
+      /\b(?:read|open|show|inspect|analyze)\s+(?:the\s+)?(?:github\s+)?(?:file\s+)?([a-zA-Z0-9_./-]+\.[a-zA-Z0-9]+)\b/i
+    );
+
+  if (filePathMatch?.[1]) {
+    const filePath =
+      filePathMatch[1]
+        .replace(/[.,;:!?]+$/, "")
+        .trim();
+
+    mark("before deterministic GitHub read");
+
+    const handledRead =
+      await CalBuddy.handleDeveloperIntent({
+        developerIntent: {
+          enabled: true,
+          type: "github_read_request",
+          source:
+            "deterministic_owner_command",
+
+          filePath,
+
+          githubRead: {
+            filePath
+          }
+        },
+
+        originalMessage:
+          normalizedMessage,
+
+        userContext,
+        history
+      });
+
+    mark("after deterministic GitHub read");
+
+    if (handledRead) {
+      CalBuddy.setAriMood(
+        handledRead.emotion ||
+        "thinking"
+      );
+
+      finishTiming();
+
+      return {
+        ...handledRead,
+
+        pendingAction:
+          handledRead.pendingAction ||
+          null,
+
+        memoryCandidate:
+          handledRead.memoryCandidate ||
+          null
+      };
+    }
+  }
+
+  const searchMatch =
+    normalizedMessage.match(
+      /\b(?:search|find|look\s+for)\s+(?:(?:github|the\s+repo|the\s+repository)\s*)?(?:for\s+)?(.+)$/i
+    );
+
+  if (searchMatch?.[1]) {
+    const query =
+      searchMatch[1]
+        .replace(/[?!]+$/, "")
+        .trim();
+
+    if (query) {
+      mark("before deterministic GitHub search");
+
+      const handledSearch =
+        await CalBuddy.handleDeveloperIntent({
+          developerIntent: {
+            enabled: true,
+            type:
+              "github_search_request",
+            source:
+              "deterministic_owner_command",
+
+            query,
+            searchQuery:
+              query,
+
+            githubSearch: {
+              query
+            }
+          },
+
+          originalMessage:
+            normalizedMessage,
+
+          userContext,
+          history
+        });
+
+      mark("after deterministic GitHub search");
+
+      if (handledSearch) {
+        CalBuddy.setAriMood(
+          handledSearch.emotion ||
+          "thinking"
+        );
+
+        finishTiming();
+
+        return {
+          ...handledSearch,
+
+          pendingAction:
+            handledSearch.pendingAction ||
+            null,
+
+          memoryCandidate:
+            handledSearch.memoryCandidate ||
+            null
+        };
+      }
+    }
+  }
+}
+
 mark("before detectAriActionFromMessage");
-const quickAction = await CalBuddy.detectAriActionFromMessage(message, userContext);
+
+const quickAction =
+  await CalBuddy.detectAriActionFromMessage(
+    message,
+    userContext
+  );
+
 mark("after detectAriActionFromMessage");
-  
   if (quickAction) {
     const action = await CalBuddy.createPendingAction(quickAction);
     CalBuddy.setAriMood("coach");
