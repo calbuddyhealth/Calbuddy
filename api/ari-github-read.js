@@ -25,7 +25,10 @@ const DEFAULT_ALLOWED_PREFIXES = [
   "ari/",
   "api/ari-",
   "rebirth/",
-  "assets/"
+  "assets/",
+  "calbuddy-core.js",
+  "index.html",
+  "style.css"
 ];
 
 const BLOCKED_PATH_PATTERNS = [
@@ -634,11 +637,11 @@ async function handleSearchCode({
   }
 
   const searchPath =
-    cleanRepositoryPath(
-      req.body?.searchPath ??
-      req.body?.path ??
-      "ari"
-    );
+  cleanRepositoryPath(
+    req.body?.searchPath ??
+    req.body?.path ??
+    ""
+  );
 
   const pathValidation =
     validateRepositoryPath(
