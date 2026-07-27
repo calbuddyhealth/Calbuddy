@@ -2,25 +2,43 @@
 // Ari OpenAI Reasoning Client
 //
 // Purpose:
-// Send one canonical cognitive reasoning request to the server-side
-// OpenAI transport and return structured model output.
+// Transport one lean cognitive packet from AriReasoningEngine to the
+// server-side OpenAI endpoint and return structured model output.
 //
-// V1.4.0 — Structured Server Failure Preservation
+// V2.0.0 — Cognitive Packet Transport Boundary
+//
+// Architectural flow:
+//
+// AriReasoningEngine
+//      ↓
+// AriReasoningContextEngine
+//      ↓
+// Lean Cognitive Packet
+//      ↓
+// AriOpenAIReasoningClient
+//      ↓
+// /api/knowledge
+//      ↓
+// Structured OpenAI Result
+//      ↓
+// AriReasoningEngine Validation
 //
 // Responsibilities:
-// - Accept the canonical reasoning-engine payload.
-// - Send a structured reasoning request to the server.
-// - Preserve response-schema and instruction contracts.
-// - Preserve persistent user communication preferences.
-// - Preserve current-turn response-style overrides.
+// - Accept one lean cognitive packet.
+// - Preserve the response-schema, operation, and instruction contracts.
+// - Send exactly one structured HTTP request to the server.
 // - Parse structured JSON returned by the server.
+// - Preserve structured server and provider failures.
 // - Return model output to AriReasoningEngine.
-// - Expose request, transport, style, and extraction diagnostics.
+// - Expose transport and extraction diagnostics.
 //
 // Non-responsibilities:
+// - Does not accept or flatten the full canonical reasoning request.
+// - Does not inspect Ari memory, routing, continuity, or perception schemas.
+// - Does not select or trim reasoning context.
+// - Does not resolve, merge, or reinterpret communication preferences.
 // - Does not interpret user meaning locally.
 // - Does not create or validate the semantic frame.
-// - Does not create, merge, or reinterpret style preferences.
 // - Does not execute actions.
 // - Does not persist state.
 // - Does not compose the final user-facing response.
@@ -30,7 +48,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.4.0",
+    "2.0.0",
 
   source:
     "ari-openai-reasoning-client",
@@ -38,38 +56,33 @@ window.AriOpenAIReasoningClient = {
   endpoint:
     "/api/knowledge",
 
-  async invoke(
-    payload = {}
-  ) {
-    return this.reason(
-      payload
-    );
+  /* =====================================================
+     PUBLIC ENTRY POINTS
+  ===================================================== */
+
+  async invoke(payload = {}) {
+    return this.reason(payload);
   },
 
-  async reason(
-    payload = {}
-  ) {
+  async reason(payload = {}) {
     const validation =
-      this.validatePayload(
-        payload
+      this.validatePayload(payload);
+
+    const cognitivePacket =
+      this.normalizeObject(
+        payload.cognitivePacket
       );
 
-    const effectiveText =
-      this.resolveEffectiveText(
-        payload.request
+    const requestText =
+      this.resolvePacketRequestText(
+        cognitivePacket
       );
 
-    const preferenceTransport =
-      this.resolvePreferenceTransport(
-        payload
-      );
-
-    console.log(
+    this.debugLog(
       "ARI OPENAI REASONING CLIENT PAYLOAD DIAGNOSTIC:",
       {
         valid:
-          validation.valid ===
-          true,
+          validation.valid === true,
 
         errors:
           validation.errors,
@@ -77,78 +90,66 @@ window.AriOpenAIReasoningClient = {
         warnings:
           validation.warnings,
 
+        action:
+          payload.action ||
+          null,
+
         task:
           payload.task ||
           null,
 
-        action:
-          payload.action ||
-          payload.request
-            ?.action ||
+        cognitivePacketSchema:
+          cognitivePacket.schema ||
           null,
 
-        effectiveText:
-          effectiveText ||
+        cognitivePacketSchemaVersion:
+          cognitivePacket.schemaVersion ||
           null,
 
-        effectiveTextSource:
-          this.resolveEffectiveTextSource(
-            payload.request
+        requestText:
+          requestText ||
+          null,
+
+        requestTextSource:
+          this.resolvePacketRequestTextSource(
+            cognitivePacket
           ),
 
         responseSchema:
           payload.responseSchema
+            ?.schema ||
+          cognitivePacket
+            ?.outputContract
             ?.schema ||
           null,
 
         responseSchemaVersion:
           payload.responseSchema
             ?.schemaVersion ||
+          cognitivePacket
+            ?.outputContract
+            ?.schemaVersion ||
           null,
 
-preferenceContextPresent:
-  this.hasKeys(
-    payload.preferenceContext ||
-    payload.request
-      ?.preferenceContext
-  ),
-
-preferenceContextReady:
-  (
-    payload.preferenceContext ||
-    payload.request
-      ?.preferenceContext
-  )?.ready === true,
-
-        userPreferencesPresent:
+        operationContractPresent:
           this.hasKeys(
-            preferenceTransport
-              .userPreferences
+            payload.operationContract ||
+            cognitivePacket
+              .operationContract
           ),
 
-        responseStylePresent:
-          this.hasKeys(
-            preferenceTransport
-              .responseStyle
-          ),
-
-        userPreferencesSource:
-          preferenceTransport
-            .diagnostics
-            .userPreferencesSource,
-
-        responseStyleSource:
-          preferenceTransport
-            .diagnostics
-            .responseStyleSource
+        instructionsPresent:
+          this.resolveInstructions(
+            payload,
+            cognitivePacket
+          ).length > 0
       }
     );
 
     if (
-      validation.valid !==
-      true
+      validation.valid !== true
     ) {
-      console.error(
+      this.errorLog(
         "ARI OPENAI REASONING CLIENT PAYLOAD REJECTED:",
         {
           errors:
@@ -157,37 +158,49 @@ preferenceContextReady:
           warnings:
             validation.warnings,
 
-          effectiveText:
-            effectiveText ||
+          requestText:
+            requestText ||
             null,
 
-          effectiveTextSource:
-            this.resolveEffectiveTextSource(
-              payload.request
+          requestTextSource:
+            this.resolvePacketRequestTextSource(
+              cognitivePacket
             ),
 
-          preferenceTransport:
-            preferenceTransport
-              .diagnostics,
-
-          payload
+          cognitivePacketSchema:
+            cognitivePacket.schema ||
+            null
         }
       );
 
-      throw new Error(
-        validation.errors.join(
-          ","
-        ) ||
-        "invalid_reasoning_client_payload"
-      );
+      const payloadError =
+        new Error(
+          validation.errors.join(",") ||
+          "invalid_reasoning_client_payload"
+        );
+
+      payloadError.name =
+        "AriOpenAIReasoningPayloadError";
+
+      payloadError.code =
+        "invalid_reasoning_client_payload";
+
+      payloadError.failureType =
+        "invalid_reasoning_client_payload";
+
+      payloadError.source =
+        this.source;
+
+      payloadError.validation =
+        validation;
+
+      throw payloadError;
     }
 
     const requestBody =
-      this.buildRequestBody(
-        payload
-      );
+      this.buildRequestBody(payload);
 
-    console.log(
+    this.debugLog(
       "ARI OPENAI REASONING CLIENT REQUEST DIAGNOSTIC:",
       {
         endpoint:
@@ -201,47 +214,42 @@ preferenceContextReady:
           requestBody.task ||
           null,
 
-        effectiveText:
-          this.resolveEffectiveText(
-            requestBody
-          ) ||
+        cognitivePacketSchema:
+          requestBody
+            .cognitivePacket
+            ?.schema ||
           null,
 
-        effectiveTextSource:
-          this.resolveEffectiveTextSource(
-            requestBody
-          ),
+        cognitivePacketSchemaVersion:
+          requestBody
+            .cognitivePacket
+            ?.schemaVersion ||
+          null,
+
+        requestText:
+          this.resolvePacketRequestText(
+            requestBody.cognitivePacket
+          ) ||
+          null,
 
         responseContract:
           requestBody.responseContract ||
           null,
 
-preferenceContextPresent:
-  this.hasKeys(
-    requestBody.preferenceContext
-  ),
-
-preferenceContextReady:
-  requestBody
-    .preferenceContext
-    ?.ready === true,
-
-        userPreferencesPresent:
+        operationContractPresent:
           this.hasKeys(
             requestBody
-              .userPreferences
+              .operationContract
           ),
 
-        responseStylePresent:
-          this.hasKeys(
-            requestBody
-              .responseStyle
-          ),
-
-        styleTransport:
-          requestBody
-            .styleTransport ||
-          null
+        instructionsCount:
+          Array.isArray(
+            requestBody.instructions
+          )
+            ? requestBody
+                .instructions
+                .length
+            : 0
       }
     );
 
@@ -267,7 +275,7 @@ preferenceContextReady:
           }
         );
     } catch (error) {
-      console.error(
+      this.errorLog(
         "ARI OPENAI REASONING CLIENT NETWORK FAILURE:",
         {
           endpoint:
@@ -275,9 +283,7 @@ preferenceContextReady:
 
           message:
             error?.message ||
-            String(
-              error
-            ),
+            String(error),
 
           stack:
             error?.stack ||
@@ -285,7 +291,7 @@ preferenceContextReady:
         }
       );
 
-            const networkError =
+      const networkError =
         new Error(
           error?.message ||
           "OpenAI reasoning network request failed."
@@ -315,12 +321,11 @@ preferenceContextReady:
     const rawText =
       await response.text();
 
-    console.log(
+    this.debugLog(
       "ARI OPENAI REASONING CLIENT RESPONSE DIAGNOSTIC:",
       {
         ok:
-          response.ok ===
-          true,
+          response.ok === true,
 
         status:
           response.status,
@@ -344,13 +349,10 @@ preferenceContextReady:
     );
 
     const data =
-      this.parseJSON(
-        rawText
-      );
+      this.parseJSON(rawText);
 
-        if (
-      response.ok !==
-      true
+    if (
+      response.ok !== true
     ) {
       const extractedError =
         this.extractError({
@@ -368,9 +370,7 @@ preferenceContextReady:
           : "openai_reasoning_server_failure";
 
       const serverError =
-        new Error(
-          extractedError
-        );
+        new Error(extractedError);
 
       serverError.name =
         "AriOpenAIReasoningServerError";
@@ -427,11 +427,9 @@ preferenceContextReady:
         null;
 
       serverError.serverResponse =
-        this.normalizeObject(
-          data
-        );
+        this.normalizeObject(data);
 
-      console.error(
+      this.errorLog(
         "ARI OPENAI REASONING CLIENT SERVER FAILURE:",
         {
           endpoint:
@@ -465,9 +463,7 @@ preferenceContextReady:
 
           rawModelOutputPreview:
             serverError
-              .rawModelOutputPreview,
-
-          data
+              .rawModelOutputPreview
         }
       );
 
@@ -475,22 +471,16 @@ preferenceContextReady:
     }
 
     const result =
-      this.extractStructuredResult(
-        data
-      );
+      this.extractStructuredResult(data);
 
-    console.log(
+    this.debugLog(
       "ARI OPENAI REASONING CLIENT RESULT DIAGNOSTIC:",
       {
         extracted:
-          Boolean(
-            result
-          ),
+          Boolean(result),
 
         resultType:
-          Array.isArray(
-            result
-          )
+          Array.isArray(result)
             ? "array"
             : typeof result,
 
@@ -498,12 +488,8 @@ preferenceContextReady:
           result &&
           typeof result ===
             "object" &&
-          !Array.isArray(
-            result
-          )
-            ? Object.keys(
-                result
-              )
+          !Array.isArray(result)
+            ? Object.keys(result)
             : [],
 
         hasInterpretation:
@@ -532,14 +518,12 @@ preferenceContextReady:
               ?.responseStrategy
           ),
 
-        hasStyleApplied:
+        hasDraftResponse:
           Boolean(
             result
-              ?.responseRequirements
-              ?.styleApplied ||
+              ?.draftResponse ||
             result
-              ?.responseStrategy
-              ?.styleApplied
+              ?.authoritativeDraft
           )
       }
     );
@@ -548,11 +532,9 @@ preferenceContextReady:
       !result ||
       typeof result !==
         "object" ||
-      Array.isArray(
-        result
-      )
+      Array.isArray(result)
     ) {
-      console.error(
+      this.errorLog(
         "ARI OPENAI REASONING CLIENT INVALID STRUCTURED RESULT:",
         {
           endpoint:
@@ -575,9 +557,27 @@ preferenceContextReady:
         }
       );
 
-      throw new Error(
-        "openai_reasoning_server_returned_invalid_structured_result"
-      );
+      const resultError =
+        new Error(
+          "openai_reasoning_server_returned_invalid_structured_result"
+        );
+
+      resultError.name =
+        "AriOpenAIReasoningResultError";
+
+      resultError.code =
+        "openai_reasoning_server_returned_invalid_structured_result";
+
+      resultError.failureType =
+        "openai_reasoning_server_returned_invalid_structured_result";
+
+      resultError.source =
+        this.source;
+
+      resultError.status =
+        response.status;
+
+      throw resultError;
     }
 
     return {
@@ -588,6 +588,62 @@ preferenceContextReady:
         data?.source ||
         this.source,
 
+      transportMetadata: {
+        client:
+          this.source,
+
+        clientVersion:
+          this.version,
+
+        endpoint:
+          this.endpoint,
+
+        status:
+          response.status,
+
+        cognitivePacketForwarded:
+          this.hasKeys(
+            requestBody
+              .cognitivePacket
+          ),
+
+        cognitivePacketSchema:
+          requestBody
+            .cognitivePacket
+            ?.schema ||
+          null,
+
+        cognitivePacketSchemaVersion:
+          requestBody
+            .cognitivePacket
+            ?.schemaVersion ||
+          null,
+
+        responseSchemaForwarded:
+          this.hasKeys(
+            requestBody
+              .responseSchema
+          ),
+
+        operationContractForwarded:
+          this.hasKeys(
+            requestBody
+              .operationContract
+          ),
+
+        instructionsForwarded:
+          Array.isArray(
+            requestBody.instructions
+          ) &&
+          requestBody
+            .instructions
+            .length > 0
+      },
+
+      /*
+       * Preserve the old metadata key temporarily so existing
+       * diagnostics do not break during migration.
+       */
       clientMetadata: {
         client:
           this.source,
@@ -601,88 +657,46 @@ preferenceContextReady:
         status:
           response.status,
 
-preferenceContextForwarded:
-  this.hasKeys(
-    requestBody.preferenceContext
-  ),
-
-        userPreferencesForwarded:
+        cognitivePacketForwarded:
           this.hasKeys(
             requestBody
-              .userPreferences
-          ),
-
-        responseStyleForwarded:
-          this.hasKeys(
-            requestBody
-              .responseStyle
+              .cognitivePacket
           )
       }
     };
   },
 
-  buildRequestBody(
-    payload = {}
-  ) {
-    const reasoningRequest =
+  /* =====================================================
+     REQUEST BODY
+  ===================================================== */
+
+  buildRequestBody(payload = {}) {
+    const cognitivePacket =
       this.normalizeObject(
-        payload.request
+        payload.cognitivePacket
       );
 
-const payloadPreferenceContext =
-  this.normalizeObject(
-    payload.preferenceContext
-  );
+    const responseSchema =
+      this.resolveResponseSchema(
+        payload,
+        cognitivePacket
+      );
 
-const requestPreferenceContext =
-  this.normalizeObject(
-    reasoningRequest.preferenceContext
-  );
+    const operationContract =
+      this.resolveOperationContract(
+        payload,
+        cognitivePacket
+      );
 
-const preferenceContext =
-  this.hasKeys(
-    payloadPreferenceContext
-  )
-    ? payloadPreferenceContext
-    : requestPreferenceContext;
-
-    const preferenceTransport =
-      this.resolvePreferenceTransport(
-        payload
+    const instructions =
+      this.resolveInstructions(
+        payload,
+        cognitivePacket
       );
 
     return {
-  /*
-   * Flatten the canonical reasoning request so
-   * /api/knowledge can read currentTurn,
-   * evidencePacket, routingContract, and other
-   * canonical fields directly from body.
-   */
-  ...reasoningRequest,
-
-  /*
-   * Explicitly preserve the canonical preference
-   * wrapper for the server-side OpenAI transport.
-   */
-  preferenceContext,
-
-  /*
-   * Preserve communication-preference packets
-   * unchanged. The client does not merge or
-   * reinterpret them.
-   */
-  userPreferences:
-    preferenceTransport
-      .userPreferences,
-
-  responseStyle:
-    preferenceTransport
-      .responseStyle,
-      styleTransport:
-        preferenceTransport
-          .diagnostics,
-
       action:
+        payload.action ||
         "openai_reasoning",
 
       task:
@@ -692,31 +706,36 @@ const preferenceContext =
       clientVersion:
         this.version,
 
-      responseSchema:
-        this.normalizeObject(
-          payload.responseSchema
-        ),
+      /*
+       * This is the only Ari context packet sent to the
+       * server. Never spread or attach the full canonical
+       * reasoning request here.
+       */
+      cognitivePacket,
 
-      instructions:
-        Array.isArray(
-          payload.instructions
-        )
-          ? payload.instructions
-          : [],
+      /*
+       * These contracts remain top-level transport fields so
+       * /api/knowledge can configure the provider request
+       * without reconstructing Ari context.
+       */
+      responseSchema,
+
+      operationContract,
+
+      instructions,
 
       outputMode:
         "structured_json",
 
       responseContract: {
         schema:
-          payload.responseSchema
-            ?.schema ||
+          responseSchema.schema ||
           "ari_cognitive_reasoning_result",
 
         schemaVersion:
-          payload.responseSchema
-            ?.schemaVersion ||
-          "1.1.1",
+          responseSchema
+            .schemaVersion ||
+          "2.0.1",
 
         requireValidJSON:
           true,
@@ -724,276 +743,91 @@ const preferenceContext =
         allowPlainText:
           false,
 
-preservePreferenceContext:
-  true,
-
-        preserveUserPreferences:
+        authoritativeDraftRequired:
           true,
 
-        preserveResponseStyle:
+        actionsAreProposalsOnly:
+          true,
+
+        preserveCognitivePacket:
           true
       }
     };
   },
 
-  resolvePreferenceTransport(
-    payload = {}
+  resolveResponseSchema(
+    payload = {},
+    cognitivePacket = {}
   ) {
-    const reasoningRequest =
+    const payloadSchema =
       this.normalizeObject(
-        payload.request
+        payload.responseSchema
       );
 
-    const userPreferencesCandidates = [
-  [
-    "payload.userPreferences",
-    payload.userPreferences
-  ],
-
-  [
-    "payload.preferenceContext.userPreferences",
-    payload.preferenceContext
-      ?.userPreferences
-  ],
-
-  [
-    "request.preferenceContext.userPreferences",
-    reasoningRequest
-      .preferenceContext
-      ?.userPreferences
-  ],
-
-  [
-    "payload.communicationPreferences",
-    payload.communicationPreferences
-  ],
-
-      [
-        "payload.stylePreferences",
-        payload.stylePreferences
-      ],
-
-      [
-        "request.userPreferences",
-        reasoningRequest
-          .userPreferences
-      ],
-
-      [
-        "request.communicationPreferences",
-        reasoningRequest
-          .communicationPreferences
-      ],
-
-      [
-        "request.stylePreferences",
-        reasoningRequest
-          .stylePreferences
-      ],
-
-      [
-        "request.memory.userPreferences",
-        reasoningRequest
-          .memory
-          ?.userPreferences
-      ],
-
-      [
-        "request.memory.communicationPreferences",
-        reasoningRequest
-          .memory
-          ?.communicationPreferences
-      ],
-
-      [
-        "request.memory.preferences.style",
-        reasoningRequest
-          .memory
-          ?.preferences
-          ?.style
-      ]
-    ];
-
-    const responseStyleCandidates = [
-  [
-    "payload.responseStyle",
-    payload.responseStyle
-  ],
-
-  [
-    "payload.preferenceContext.currentTurnOverride",
-    payload.preferenceContext
-      ?.currentTurnOverride
-  ],
-
-  [
-    "request.preferenceContext.currentTurnOverride",
-    reasoningRequest
-      .preferenceContext
-      ?.currentTurnOverride
-  ],
-
-  [
-    "payload.preferenceContext.responseStyle",
-    payload.preferenceContext
-      ?.responseStyle
-  ],
-
-  [
-    "request.preferenceContext.responseStyle",
-    reasoningRequest
-      .preferenceContext
-      ?.responseStyle
-  ],
-
-  [
-    "payload.styleOverride",
-    payload.styleOverride
-  ],
-
-[
-  "request.responseStyle",
-  reasoningRequest
-    .responseStyle
-],
-
-[
-  "request.styleOverride",
-  reasoningRequest
-    .styleOverride
-],
-
-      [
-        "request.currentTurn.responseStyle",
-        reasoningRequest
-          .currentTurn
-          ?.responseStyle
-      ],
-
-      [
-        "request.currentTurn.styleOverride",
-        reasoningRequest
-          .currentTurn
-          ?.styleOverride
-      ],
-
-      [
-        "request.responseControl.responseStyle",
-        reasoningRequest
-          .responseControl
-          ?.responseStyle
-      ],
-
-      [
-        "request.responseControl.styleOverride",
-        reasoningRequest
-          .responseControl
-          ?.styleOverride
-      ]
-    ];
-
-    const userPreferencesResolution =
-      this.resolveFirstObject(
-        userPreferencesCandidates
-      );
-
-    const responseStyleResolution =
-      this.resolveFirstObject(
-        responseStyleCandidates
-      );
-
-    return {
-      userPreferences:
-        userPreferencesResolution
-          .value,
-
-      responseStyle:
-        responseStyleResolution
-          .value,
-
-      diagnostics: {
-        source:
-          this.source,
-
-        version:
-          this.version,
-
-        preservedWithoutInterpretation:
-          true,
-
-        userPreferencesSource:
-          userPreferencesResolution
-            .source,
-
-        responseStyleSource:
-          responseStyleResolution
-            .source,
-
-        userPreferencesPresent:
-          this.hasKeys(
-            userPreferencesResolution
-              .value
-          ),
-
-        responseStylePresent:
-          this.hasKeys(
-            responseStyleResolution
-              .value
-          )
-      }
-    };
-  },
-
-  resolveFirstObject(
-    candidates = []
-  ) {
-    for (
-      const candidate
-      of candidates
+    if (
+      this.hasKeys(payloadSchema)
     ) {
-      if (
-        !Array.isArray(
-          candidate
-        ) ||
-        candidate.length < 2
-      ) {
-        continue;
-      }
-
-      const [source, value] =
-        candidate;
-
-      if (
-        this.isPlainObject(
-          value
-        ) &&
-        Object.keys(
-          value
-        ).length
-      ) {
-        return {
-          source,
-          value
-        };
-      }
+      return payloadSchema;
     }
 
-    return {
-      source: null,
-      value: {}
-    };
+    return this.normalizeObject(
+      cognitivePacket.outputContract
+    );
   },
 
-  validatePayload(
-    payload = {}
+  resolveOperationContract(
+    payload = {},
+    cognitivePacket = {}
   ) {
+    const payloadContract =
+      this.normalizeObject(
+        payload.operationContract
+      );
+
+    if (
+      this.hasKeys(
+        payloadContract
+      )
+    ) {
+      return payloadContract;
+    }
+
+    return this.normalizeObject(
+      cognitivePacket
+        .operationContract
+    );
+  },
+
+  resolveInstructions(
+    payload = {},
+    cognitivePacket = {}
+  ) {
+    const payloadInstructions =
+      this.cleanStringList(
+        payload.instructions
+      );
+
+    if (
+      payloadInstructions.length
+    ) {
+      return payloadInstructions;
+    }
+
+    return this.cleanStringList(
+      cognitivePacket.instructions
+    );
+  },
+
+  /* =====================================================
+     PAYLOAD VALIDATION
+  ===================================================== */
+
+  validatePayload(payload = {}) {
     const errors = [];
     const warnings = [];
 
     if (
-      !this.isPlainObject(
-        payload
-      )
+      !this.isPlainObject(payload)
     ) {
       return {
         valid:
@@ -1007,119 +841,215 @@ preservePreferenceContext:
       };
     }
 
-    const reasoningRequest =
-      this.isPlainObject(
-        payload.request
+    /*
+     * Reject the former canonical request transport shape.
+     * The client should receive only cognitivePacket.
+     */
+    if (
+      this.hasKeys(payload.request) ||
+      this.hasKeys(
+        payload
+          .canonicalReasoningRequest
       )
-        ? payload.request
-        : null;
-
-    if (!reasoningRequest) {
+    ) {
       errors.push(
-        "reasoning_request_missing"
+        "full_canonical_reasoning_request_not_allowed"
+      );
+    }
+
+    const cognitivePacket =
+      this.normalizeObject(
+        payload.cognitivePacket
+      );
+
+    if (
+      !this.hasKeys(cognitivePacket)
+    ) {
+      errors.push(
+        "cognitive_packet_missing"
+      );
+
+      return {
+        valid:
+          false,
+
+        errors:
+          this.cleanStringList(errors),
+
+        warnings
+      };
+    }
+
+    if (
+      cognitivePacket.schema !==
+      "ari_cognitive_context_packet"
+    ) {
+      errors.push(
+        "invalid_cognitive_packet_schema"
       );
     }
 
     const effectiveText =
-      this.resolveEffectiveText(
-        reasoningRequest
+      this.resolvePacketRequestText(
+        cognitivePacket
       );
 
     if (!effectiveText) {
       errors.push(
-        "effective_user_request_missing"
+        "cognitive_packet_effective_request_missing"
       );
     }
 
+    const responseSchema =
+      this.resolveResponseSchema(
+        payload,
+        cognitivePacket
+      );
+
     if (
-      !this.isPlainObject(
-        payload.responseSchema
-      )
+      !this.hasKeys(responseSchema)
     ) {
       errors.push(
         "reasoning_response_schema_missing"
       );
     }
 
-    const preferenceTransport =
-      this.resolvePreferenceTransport(
-        payload
+    const operationContract =
+      this.resolveOperationContract(
+        payload,
+        cognitivePacket
       );
 
     if (
-      !preferenceTransport
-        .diagnostics
-        .userPreferencesPresent
+      !this.hasKeys(
+        operationContract
+      )
     ) {
+      errors.push(
+        "reasoning_operation_contract_missing"
+      );
+    }
+
+    const instructions =
+      this.resolveInstructions(
+        payload,
+        cognitivePacket
+      );
+
+    if (!instructions.length) {
       warnings.push(
-        "user_preferences_not_supplied"
+        "reasoning_instructions_not_supplied"
       );
     }
 
     if (
-      !preferenceTransport
-        .diagnostics
-        .responseStylePresent
+      cognitivePacket.authority
+        ?.safetyIsBinding !==
+      true
     ) {
-      warnings.push(
-        "response_style_not_supplied"
+      errors.push(
+        "cognitive_packet_safety_authority_missing"
+      );
+    }
+
+    if (
+      cognitivePacket.authority
+        ?.mayExecuteActions ===
+      true
+    ) {
+      errors.push(
+        "cognitive_packet_may_not_authorize_action_execution"
+      );
+    }
+
+    if (
+      cognitivePacket.authority
+        ?.mayPersistState ===
+      true
+    ) {
+      errors.push(
+        "cognitive_packet_may_not_authorize_persistence"
+      );
+    }
+
+    if (
+      cognitivePacket.authority
+        ?.mayOverrideSafety ===
+      true
+    ) {
+      errors.push(
+        "cognitive_packet_may_not_override_safety"
+      );
+    }
+
+    if (
+      cognitivePacket.authority
+        ?.mayClaimToolSuccess ===
+      true
+    ) {
+      errors.push(
+        "cognitive_packet_may_not_claim_tool_success"
+      );
+    }
+
+    if (
+      cognitivePacket.authority
+        ?.mayAuthorizeDelivery ===
+      true
+    ) {
+      errors.push(
+        "cognitive_packet_may_not_authorize_delivery"
+      );
+    }
+
+    if (
+      cognitivePacket.authority
+        ?.mayExposePrivateChainOfThought ===
+      true
+    ) {
+      errors.push(
+        "cognitive_packet_may_not_expose_private_chain_of_thought"
       );
     }
 
     return {
       valid:
-        errors.length ===
-        0,
+        errors.length === 0,
 
-      errors,
-      warnings
+      errors:
+        this.cleanStringList(errors),
+
+      warnings:
+        this.cleanStringList(warnings)
     };
   },
 
-  resolveEffectiveText(
-    request = {}
+  resolvePacketRequestText(
+    cognitivePacket = {}
   ) {
     if (
-      !request ||
-      typeof request !==
-        "object" ||
-      Array.isArray(
-        request
+      !this.isPlainObject(
+        cognitivePacket
       )
     ) {
       return "";
     }
 
     const candidates = [
-      request.request
+      cognitivePacket.request
         ?.effective,
 
-      request.currentTurn
-        ?.effectiveText,
+      cognitivePacket.request
+        ?.resolved,
 
-      request.effectiveUserMessage,
-
-      request.resolvedUserQuestion,
-
-      request.resolvedQuestion,
-
-      request.question,
-
-      request.request
+      cognitivePacket.request
         ?.original,
 
-      request.currentTurn
-        ?.originalText,
+      cognitivePacket.currentTurn
+        ?.effectiveText,
 
-      request.originalUserMessage,
-
-      request.rawQuestion,
-
-      request.userMessage,
-
-      request.message,
-
-      request.input
+      cognitivePacket.currentTurn
+        ?.originalText
     ];
 
     for (
@@ -1138,15 +1068,12 @@ preservePreferenceContext:
     return "";
   },
 
-  resolveEffectiveTextSource(
-    request = {}
+  resolvePacketRequestTextSource(
+    cognitivePacket = {}
   ) {
     if (
-      !request ||
-      typeof request !==
-        "object" ||
-      Array.isArray(
-        request
+      !this.isPlainObject(
+        cognitivePacket
       )
     ) {
       return null;
@@ -1155,71 +1082,32 @@ preservePreferenceContext:
     const candidates = [
       [
         "request.effective",
-        request.request
+        cognitivePacket.request
           ?.effective
       ],
 
       [
-        "currentTurn.effectiveText",
-        request.currentTurn
-          ?.effectiveText
-      ],
-
-      [
-        "effectiveUserMessage",
-        request.effectiveUserMessage
-      ],
-
-      [
-        "resolvedUserQuestion",
-        request.resolvedUserQuestion
-      ],
-
-      [
-        "resolvedQuestion",
-        request.resolvedQuestion
-      ],
-
-      [
-        "question",
-        request.question
+        "request.resolved",
+        cognitivePacket.request
+          ?.resolved
       ],
 
       [
         "request.original",
-        request.request
+        cognitivePacket.request
           ?.original
       ],
 
       [
+        "currentTurn.effectiveText",
+        cognitivePacket.currentTurn
+          ?.effectiveText
+      ],
+
+      [
         "currentTurn.originalText",
-        request.currentTurn
+        cognitivePacket.currentTurn
           ?.originalText
-      ],
-
-      [
-        "originalUserMessage",
-        request.originalUserMessage
-      ],
-
-      [
-        "rawQuestion",
-        request.rawQuestion
-      ],
-
-      [
-        "userMessage",
-        request.userMessage
-      ],
-
-      [
-        "message",
-        request.message
-      ],
-
-      [
-        "input",
-        request.input
       ]
     ];
 
@@ -1239,9 +1127,11 @@ preservePreferenceContext:
     return null;
   },
 
-  extractStructuredResult(
-    data = null
-  ) {
+  /* =====================================================
+     STRUCTURED RESPONSE EXTRACTION
+  ===================================================== */
+
+  extractStructuredResult(data = null) {
     if (!data) {
       return null;
     }
@@ -1258,9 +1148,7 @@ preservePreferenceContext:
     if (
       typeof data !==
         "object" ||
-      Array.isArray(
-        data
-      )
+      Array.isArray(data)
     ) {
       return null;
     }
@@ -1305,9 +1193,7 @@ preservePreferenceContext:
         candidate &&
         typeof candidate ===
           "object" &&
-        !Array.isArray(
-          candidate
-        )
+        !Array.isArray(candidate)
       ) {
         return candidate;
       }
@@ -1346,9 +1232,7 @@ preservePreferenceContext:
       : null;
   },
 
-  parseStructuredText(
-    value = ""
-  ) {
+  parseStructuredText(value = "") {
     if (
       typeof value !==
         "string" ||
@@ -1370,14 +1254,10 @@ preservePreferenceContext:
         )
         .trim();
 
-    return this.parseJSON(
-      cleaned
-    );
+    return this.parseJSON(cleaned);
   },
 
-  parseJSON(
-    value = ""
-  ) {
+  parseJSON(value = "") {
     if (
       typeof value !==
         "string" ||
@@ -1387,13 +1267,15 @@ preservePreferenceContext:
     }
 
     try {
-      return JSON.parse(
-        value
-      );
+      return JSON.parse(value);
     } catch {
       return null;
     }
   },
+
+  /* =====================================================
+     FAILURE EXTRACTION
+  ===================================================== */
 
   extractError({
     data = null,
@@ -1468,41 +1350,92 @@ preservePreferenceContext:
     );
   },
 
-  normalizeObject(
-    value
-  ) {
-    return this.isPlainObject(
-      value
-    )
+  /* =====================================================
+     DIAGNOSTIC LOGGING
+  ===================================================== */
+
+  isDeveloperLoggingEnabled() {
+    return (
+      window.AriDeveloperMode ===
+        true ||
+      window.Ari
+        ?.developerMode ===
+        true ||
+      window.Ari
+        ?.config
+        ?.developerMode ===
+        true ||
+      window.Ari
+        ?.config
+        ?.debug ===
+        true
+    );
+  },
+
+  debugLog(...args) {
+    if (
+      this.isDeveloperLoggingEnabled()
+    ) {
+      console.log(...args);
+    }
+  },
+
+  errorLog(...args) {
+    /*
+     * Failures remain visible even when developer logging is
+     * disabled because they are operationally meaningful.
+     */
+    console.error(...args);
+  },
+
+  /* =====================================================
+     UTILITIES
+  ===================================================== */
+
+  normalizeObject(value) {
+    return this.isPlainObject(value)
       ? value
       : {};
   },
 
-  hasKeys(
-    value
-  ) {
+  hasKeys(value) {
     return (
-      this.isPlainObject(
-        value
-      ) &&
-      Object.keys(
-        value
-      ).length > 0
+      this.isPlainObject(value) &&
+      Object.keys(value).length > 0
     );
   },
 
-  isPlainObject(
-    value
-  ) {
+  isPlainObject(value) {
     return Boolean(
       value &&
       typeof value ===
         "object" &&
-      !Array.isArray(
-        value
-      )
+      !Array.isArray(value)
     );
   },
+
+  cleanStringList(value) {
+    return [
+      ...new Set(
+        (
+          Array.isArray(value)
+            ? value
+            : []
+        )
+          .map(item =>
+            typeof item ===
+              "string"
+              ? item.trim()
+              : ""
+          )
+          .filter(Boolean)
+      )
+    ];
+  },
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
 
   validate() {
     const valid =
@@ -1512,17 +1445,19 @@ preservePreferenceContext:
         "function" &&
       typeof this.buildRequestBody ===
         "function" &&
-      typeof this.resolvePreferenceTransport ===
+      typeof this.resolveResponseSchema ===
         "function" &&
-      typeof this.resolveFirstObject ===
+      typeof this.resolveOperationContract ===
+        "function" &&
+      typeof this.resolveInstructions ===
         "function" &&
       typeof this.validatePayload ===
         "function" &&
-      typeof this.resolveEffectiveText ===
-        "function" &&
-      typeof this.resolveEffectiveTextSource ===
+      typeof this.resolvePacketRequestText ===
         "function" &&
       typeof this.extractStructuredResult ===
+        "function" &&
+      typeof this.extractError ===
         "function";
 
     return {
@@ -1530,6 +1465,21 @@ preservePreferenceContext:
 
       ready:
         valid,
+
+      cognitivePacketOnly:
+        true,
+
+      acceptsCanonicalReasoningRequest:
+        false,
+
+      fullCanonicalRequestForwarded:
+        false,
+
+      structuredFailurePreservation:
+        true,
+
+      developerLoggingGated:
+        true,
 
       source:
         this.source,
@@ -1556,8 +1506,7 @@ console.log(
     ?.version,
 
   ariOpenAIReasoningClientValidation
-    ?.ready ===
-    true
+    ?.ready === true
     ? "READY"
     : "NOT_READY",
 
