@@ -2,25 +2,41 @@
 // Ari Reasoning Context Engine
 //
 // Purpose:
-// Build one lean, canonical cognitive packet for OpenAI from the complete
-// Ari reasoning request.
+// Select, trim, and package the canonical Ari reasoning request into one
+// lean cognitive context packet for the OpenAI reasoning invocation.
 //
-// V1.0.0 — Lean Cognitive Context Selection
+// V2.0.0 — Canonical Context Selection / No Context Reconstruction
+//
+// Architectural flow:
+//
+// Ari Reasoning Engine
+//      ↓
+// Complete Canonical Reasoning Request
+//      ↓
+// Ari Reasoning Context Engine
+//      ↓
+// Lean Cognitive Context Packet
+//      ↓
+// Ari OpenAI Reasoning Client
 //
 // Responsibilities:
-// - Accept the complete canonical reasoning request.
+// - Accept one complete canonical reasoning request.
 // - Preserve the effective current-turn request.
-// - Select only model-relevant reasoning context.
-// - Remove duplicated packet aliases and runtime-only metadata.
-// - Preserve deterministic safety, resolved preferences, operation contracts,
-//   and relevant conversation, memory, knowledge, and developer evidence.
-// - Return one canonical cognitive packet with size diagnostics.
+// - Preserve binding safety, authority, operation, and output contracts.
+// - Select context according to canonical routing and continuity signals.
+// - Trim oversized conversation, memory, evidence, knowledge, and developer data.
+// - Remove empty values and duplicated packet aliases.
+// - Produce prompt-size and context-selection diagnostics.
+// - Return one canonical cognitive packet.
 //
 // Non-responsibilities:
+// - Does not build the canonical reasoning request.
+// - Does not reconstruct semantic meaning.
+// - Does not resolve references or conversation continuity.
+// - Does not retrieve memory or knowledge.
+// - Does not resolve communication preferences.
 // - Does not call OpenAI.
 // - Does not build provider-specific prompts.
-// - Does not interpret or change semantic meaning.
-// - Does not merge or resolve communication preferences.
 // - Does not validate model output.
 // - Does not execute actions.
 // - Does not persist state.
@@ -29,305 +45,285 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningContextEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
-  schemaVersion: "1.0.0",
+  schemaVersion: "2.0.0",
 
-  source:
-    "ari-reasoning-context-engine",
+  source: "ari-reasoning-context-engine",
+
+  packetSchema: "ari_cognitive_context_packet",
+
+  supportedModes: [
+    "fast",
+    "standard",
+    "deep",
+    "developer"
+  ],
+
+  defaultLimits: {
+    fast: {
+      conversationTurns: 4,
+      memoryItems: 8,
+      evidenceItems: 12,
+      evidenceSources: 8,
+      knowledgeItems: 10,
+      knowledgeCitations: 10,
+      developerFiles: 6
+    },
+
+    standard: {
+      conversationTurns: 7,
+      memoryItems: 14,
+      evidenceItems: 24,
+      evidenceSources: 14,
+      knowledgeItems: 18,
+      knowledgeCitations: 16,
+      developerFiles: 10
+    },
+
+    deep: {
+      conversationTurns: 10,
+      memoryItems: 20,
+      evidenceItems: 36,
+      evidenceSources: 20,
+      knowledgeItems: 26,
+      knowledgeCitations: 20,
+      developerFiles: 12
+    },
+
+    developer: {
+      conversationTurns: 8,
+      memoryItems: 12,
+      evidenceItems: 24,
+      evidenceSources: 16,
+      knowledgeItems: 20,
+      knowledgeCitations: 16,
+      developerFiles: 16
+    }
+  },
 
   /* =====================================================
      PUBLIC ENTRY POINT
   ===================================================== */
 
   build(input = {}) {
-    const startedAt =
-      this.now();
+    const startedAt = this.now();
 
-    const sourceRequest =
-      this.readSourceRequest(
-        input
+    try {
+      const canonicalRequest =
+        this.readCanonicalRequest(input);
+
+      if (!this.hasKeys(canonicalRequest)) {
+        return this.buildFailure({
+          startedAt,
+          error: "canonical_reasoning_request_missing"
+        });
+      }
+
+      const currentTurn =
+        this.selectCurrentTurn(canonicalRequest);
+
+      if (!currentTurn.effective) {
+        return this.buildFailure({
+          startedAt,
+          error: "effective_user_request_missing"
+        });
+      }
+
+      const mode =
+        this.resolveMode(canonicalRequest);
+
+      const requirements =
+        this.resolveContextRequirements({
+          request: canonicalRequest,
+          mode
+        });
+
+      const limits =
+        this.resolveLimits({
+          request: canonicalRequest,
+          mode
+        });
+
+      const cognitivePacket =
+        this.removeEmptyValues({
+          schema: this.packetSchema,
+
+          schemaVersion:
+            this.schemaVersion,
+
+          source:
+            this.source,
+
+          mode,
+
+          request:
+            currentTurn,
+
+          semanticContext:
+            this.selectSemanticContext(
+              canonicalRequest
+            ),
+
+          routing:
+            this.selectRoutingContext(
+              canonicalRequest
+            ),
+
+          safety:
+            this.selectSafetyContext(
+              canonicalRequest
+            ),
+
+          continuity:
+            requirements.continuity
+              ? this.selectContinuityContext(
+                  canonicalRequest,
+                  limits
+                )
+              : {},
+
+          situation:
+            requirements.situation
+              ? this.selectSituationContext(
+                  canonicalRequest
+                )
+              : {},
+
+          memory:
+            requirements.memory
+              ? this.selectMemoryContext(
+                  canonicalRequest,
+                  limits,
+                  mode
+                )
+              : {},
+
+          conversation:
+            requirements.conversation
+              ? this.selectConversationContext(
+                  canonicalRequest,
+                  limits
+                )
+              : {},
+
+          evidence:
+            requirements.evidence
+              ? this.selectEvidenceContext(
+                  canonicalRequest,
+                  limits
+                )
+              : {},
+
+          knowledge:
+            requirements.knowledge
+              ? this.selectKnowledgeContext(
+                  canonicalRequest,
+                  limits
+                )
+              : {},
+
+          developerEvidence:
+            requirements.developer
+              ? this.selectDeveloperContext(
+                  canonicalRequest,
+                  limits
+                )
+              : {},
+
+          preferences:
+            this.selectPreferenceContext(
+              canonicalRequest
+            ),
+
+          responseControl:
+            this.selectResponseControl(
+              canonicalRequest
+            ),
+
+          authority:
+            this.selectAuthorityContext(
+              canonicalRequest
+            ),
+
+          outputContract:
+            this.selectOutputContract(
+              canonicalRequest
+            ),
+
+          operationContract:
+            this.selectOperationContract(
+              canonicalRequest
+            ),
+
+          instructions:
+            this.selectInstructions(
+              canonicalRequest
+            )
+        });
+
+      const serialized =
+        this.safeStringify(cognitivePacket);
+
+      const diagnostics =
+        this.buildDiagnostics({
+          startedAt,
+          request: canonicalRequest,
+          packet: cognitivePacket,
+          serialized,
+          mode,
+          requirements,
+          limits
+        });
+
+      return {
+        ready: true,
+
+        success: true,
+
+        complete: true,
+
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        schemaVersion:
+          this.schemaVersion,
+
+        cognitivePacket,
+
+        reasoningPacket:
+          cognitivePacket,
+
+        diagnostics
+      };
+    } catch (error) {
+      console.error(
+        "ARI REASONING CONTEXT ENGINE BUILD ERROR:",
+        error
       );
 
-    const effectiveText =
-      this.resolveEffectiveText(
-        sourceRequest
-      );
-
-    const originalText =
-      this.resolveOriginalText(
-        sourceRequest
-      );
-
-    if (!effectiveText) {
       return this.buildFailure({
         startedAt,
+
         error:
-          "effective_user_request_missing"
+          error?.message ||
+          "reasoning_context_build_failed"
       });
     }
-
-    const mode =
-      this.resolveMode(
-        sourceRequest
-      );
-
-    const cognitivePacket = {
-      schema:
-        "ari_cognitive_context_packet",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source:
-        this.source,
-
-      mode,
-
-      request:
-        this.buildRequestContext({
-          sourceRequest,
-          effectiveText,
-          originalText
-        }),
-
-      semanticContext:
-        this.buildSemanticContext(
-          sourceRequest
-        ),
-
-      routing:
-        this.buildRoutingContext(
-          sourceRequest
-        ),
-
-      safety:
-        this.buildSafetyContext(
-          sourceRequest
-        ),
-
-      continuity:
-        this.buildContinuityContext(
-          sourceRequest
-        ),
-
-      situation:
-        this.buildSituationContext(
-          sourceRequest
-        ),
-
-      memory:
-        this.buildMemoryContext({
-          sourceRequest,
-          mode
-        }),
-
-      conversation:
-        this.buildConversationContext({
-          sourceRequest,
-          mode
-        }),
-
-      evidence:
-        this.buildEvidenceContext({
-          sourceRequest,
-          mode
-        }),
-
-      knowledge:
-        this.buildKnowledgeContext({
-          sourceRequest,
-          mode
-        }),
-
-      developerEvidence:
-        this.buildDeveloperContext({
-          sourceRequest,
-          mode
-        }),
-
-      preferences:
-        this.buildPreferenceContext(
-          sourceRequest
-        ),
-
-      responseControl:
-        this.buildResponseControl(
-          sourceRequest
-        ),
-
-      authority:
-        this.buildAuthorityContext(
-          sourceRequest
-        ),
-
-      outputContract:
-        this.buildOutputContract(
-          sourceRequest
-        ),
-
-      operationContract:
-        this.buildOperationContract(
-          sourceRequest
-        ),
-
-      instructions:
-        this.buildInstructions(
-          sourceRequest
-        )
-    };
-
-    const compactPacket =
-      this.removeEmptyValues(
-        cognitivePacket
-      );
-
-    const serialized =
-      this.safeStringify(
-        compactPacket
-      );
-
-    const diagnostics = {
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      mode,
-
-      ready:
-        true,
-
-      durationMs:
-        this.now() -
-        startedAt,
-
-      characters:
-        serialized.length,
-
-      approximateTokens:
-        Math.ceil(
-          serialized.length / 4
-        ),
-
-      included: {
-        semanticContext:
-          this.hasKeys(
-            compactPacket
-              .semanticContext
-          ),
-
-        routing:
-          this.hasKeys(
-            compactPacket.routing
-          ),
-
-        safety:
-          this.hasKeys(
-            compactPacket.safety
-          ),
-
-        continuity:
-          this.hasKeys(
-            compactPacket.continuity
-          ),
-
-        situation:
-          this.hasKeys(
-            compactPacket.situation
-          ),
-
-        memory:
-          this.hasKeys(
-            compactPacket.memory
-          ),
-
-        conversation:
-          this.hasKeys(
-            compactPacket.conversation
-          ),
-
-        evidence:
-          this.hasKeys(
-            compactPacket.evidence
-          ),
-
-        knowledge:
-          this.hasKeys(
-            compactPacket.knowledge
-          ),
-
-        developerEvidence:
-          this.hasKeys(
-            compactPacket
-              .developerEvidence
-          ),
-
-        preferences:
-          this.hasKeys(
-            compactPacket.preferences
-          ),
-
-        responseControl:
-          this.hasKeys(
-            compactPacket
-              .responseControl
-          ),
-
-        outputContract:
-          this.hasKeys(
-            compactPacket
-              .outputContract
-          ),
-
-        operationContract:
-          this.hasKeys(
-            compactPacket
-              .operationContract
-          )
-      }
-    };
-
-    return {
-      ready: true,
-      success: true,
-      source:
-        this.source,
-      version:
-        this.version,
-
-      cognitivePacket:
-        compactPacket,
-
-      reasoningPacket:
-        compactPacket,
-
-      diagnostics
-    };
   },
 
   create(input = {}) {
-    return this.build(
-      input
-    );
+    return this.build(input);
   },
 
   /* =====================================================
-     SOURCE REQUEST
+     CANONICAL REQUEST
   ===================================================== */
 
-  readSourceRequest(
-    input = {}
-  ) {
-    if (
-      this.isPlainObject(
-        input.request
-      )
-    ) {
-      return input.request;
-    }
-
+  readCanonicalRequest(input = {}) {
     if (
       this.isPlainObject(
         input.reasoningRequest
@@ -338,8 +334,22 @@ window.AriReasoningContextEngine = {
 
     if (
       this.isPlainObject(
-        input
+        input.canonicalReasoningRequest
       )
+    ) {
+      return input.canonicalReasoningRequest;
+    }
+
+    if (
+      this.isPlainObject(
+        input.request
+      )
+    ) {
+      return input.request;
+    }
+
+    if (
+      this.isPlainObject(input)
     ) {
       return input;
     }
@@ -348,111 +358,195 @@ window.AriReasoningContextEngine = {
   },
 
   /* =====================================================
+     CURRENT TURN
+  ===================================================== */
+
+  selectCurrentTurn(request = {}) {
+    const requestContext =
+      this.firstObject([
+        request.request,
+        request.currentTurn
+      ]);
+
+    const effective =
+      this.firstString([
+        requestContext.effective,
+        requestContext.effectiveText,
+        request.effectiveUserMessage,
+        request.resolvedUserQuestion,
+        request.resolvedQuestion,
+        request.question,
+        requestContext.original,
+        requestContext.originalText,
+        request.originalUserMessage,
+        request.rawQuestion,
+        request.userMessage,
+        request.message,
+        request.input
+      ]);
+
+    const original =
+      this.firstString([
+        requestContext.original,
+        requestContext.originalText,
+        request.originalUserMessage,
+        request.rawQuestion,
+        request.userMessage,
+        request.message,
+        request.input,
+        effective
+      ]);
+
+    return this.removeEmptyValues({
+      original:
+        original || effective,
+
+      effective,
+
+      turnId:
+        this.firstString([
+          requestContext.turnId,
+          request.turnId,
+          request.requestId
+        ]),
+
+      threadId:
+        this.firstString([
+          requestContext.threadId,
+          request.threadId,
+          request.conversationId
+        ]),
+
+      language:
+        this.firstString([
+          requestContext.language,
+          request.language
+        ]),
+
+      currentTurnWasResolved:
+        request.currentTurnWasResolved ===
+          true ||
+        requestContext
+          .currentTurnWasResolved ===
+          true ||
+        (
+          Boolean(original) &&
+          Boolean(effective) &&
+          original !== effective
+        )
+    });
+  },
+
+  /* =====================================================
      MODE
   ===================================================== */
 
-  resolveMode(
-    request = {}
-  ) {
-    const explicitlyRequested =
+  resolveMode(request = {}) {
+    const explicitMode =
       this.firstString([
         request.reasoningMode,
         request.responseControl
+          ?.reasoningMode,
+        request.routing
           ?.reasoningMode,
         request.routingContract
           ?.reasoningMode,
         request.executivePacket
           ?.reasoningMode
-      ])
-        .toLowerCase();
+      ]).toLowerCase();
 
     if (
-      [
-        "fast",
-        "standard",
-        "deep",
-        "developer"
-      ].includes(
-        explicitlyRequested
+      this.supportedModes.includes(
+        explicitMode
       )
     ) {
-      return explicitlyRequested;
+      return explicitMode;
     }
 
-    const lane =
+    const routing =
+      this.readRouting(request);
+
+    const primaryLane =
       this.firstString([
-        request.responseControl
-          ?.contextLane,
+        routing.primaryLane,
+        routing.contextLane,
+        routing.lane,
         request.responseControl
           ?.primaryLane,
-        request.routingContract
-          ?.contextLane,
-        request.routingContract
-          ?.primaryLane,
-        request.executivePacket
-          ?.routingContract
-          ?.contextLane,
-        request.executivePacket
-          ?.routingContract
-          ?.primaryLane
-      ])
-        .toLowerCase();
+        request.responseControl
+          ?.contextLane
+      ]).toLowerCase();
+
+    const operation =
+      this.firstString([
+        routing.operation,
+        request.semanticContext
+          ?.operation,
+        request.semanticFrame
+          ?.operation,
+        request.operationContract
+          ?.operation
+      ]).toLowerCase();
+
+    const safety =
+      this.readSafety(request);
 
     if (
+      safety.stop === true ||
+      safety.blocked === true ||
+      safety.crisis === true ||
+      safety.escalationRequired ===
+        true ||
+      [
+        "critical",
+        "severe",
+        "high"
+      ].includes(
+        String(
+          safety.riskLevel || ""
+        ).toLowerCase()
+      )
+    ) {
+      return "deep";
+    }
+
+    if (
+      this.hasDeveloperContext(
+        request
+      ) ||
       [
         "developer",
         "developer_task",
         "code",
-        "project"
-      ].includes(
-        lane
-      ) ||
-      this.hasKeys(
-        request.developerEvidence
+        "coding",
+        "debug",
+        "debugging",
+        "project",
+        "repository"
+      ].some(
+        value =>
+          primaryLane.includes(value)
       )
     ) {
       return "developer";
     }
 
-    const safety =
-      this.readSafety(
-        request
-      );
-
-    if (
-      safety.stop === true ||
-      safety.blocked === true ||
-      safety.escalationRequired ===
-        true ||
-      safety.crisis === true
-    ) {
-      return "deep";
-    }
-
-    const operation =
-      this.firstString([
-        request.routingContract
-          ?.operation,
-        request.routing
-          ?.operation,
-        request.semanticFrame
-          ?.operation
-      ])
-        .toLowerCase();
-
     if (
       [
-        "plan",
-        "compare",
-        "evaluate",
-        "investigate",
         "analyze",
-        "decision_support"
+        "analysis",
+        "evaluate",
+        "compare",
+        "plan",
+        "planning",
+        "investigate",
+        "decision",
+        "decision_support",
+        "reason",
+        "reasoning"
       ].some(
         value =>
-          operation.includes(
-            value
-          )
+          operation.includes(value)
       )
     ) {
       return "standard";
@@ -462,182 +556,280 @@ window.AriReasoningContextEngine = {
   },
 
   /* =====================================================
-     CURRENT TURN
+     CONTEXT REQUIREMENTS
   ===================================================== */
 
-  buildRequestContext({
-    sourceRequest = {},
-    effectiveText = "",
-    originalText = ""
+  resolveContextRequirements({
+    request = {},
+    mode = "fast"
   } = {}) {
-    return {
-      original:
-        originalText ||
-        effectiveText,
+    const routing =
+      this.readRouting(request);
 
-      effective:
-        effectiveText,
+    const responseControl =
+      this.normalizeObject(
+        request.responseControl
+      );
 
-      turnId:
-        this.firstString([
-          sourceRequest.currentTurn
-            ?.turnId,
-          sourceRequest.turnId
-        ]) ||
-        null,
+    const continuity =
+      this.readContinuity(request);
 
-      language:
-        this.firstString([
-          sourceRequest.request
-            ?.language,
-          sourceRequest.currentTurn
-            ?.language,
-          sourceRequest.language
-        ]) ||
-        null,
+    const operationContract =
+      this.normalizeObject(
+        request.operationContract
+      );
 
-      currentTurnWasResolved:
-        sourceRequest
-          .currentTurnWasResolved ===
+    const explicit =
+      this.firstObject([
+        request.contextRequirements,
+        responseControl
+          .contextRequirements,
+        routing.contextRequirements,
+        operationContract
+          .contextRequirements
+      ]);
+
+    const continuityRequired =
+      explicit.continuity === true ||
+      explicit.requiresContinuity ===
         true ||
-        (
-          Boolean(originalText) &&
-          Boolean(effectiveText) &&
-          originalText !==
-            effectiveText
-        )
+      continuity.requiresPriorContext ===
+        true ||
+      continuity.referencePresent ===
+        true ||
+      continuity.referenceResolved ===
+        true ||
+      this.hasMeaningfulContinuity(
+        continuity
+      );
+
+    const conversationRequired =
+      explicit.conversation === true ||
+      explicit.requiresConversation ===
+        true ||
+      continuityRequired ||
+      responseControl
+        .continuityRequired ===
+        true ||
+      responseControl
+        .continuityRequirements !=
+        null;
+
+    const memoryRequired =
+      explicit.memory === true ||
+      explicit.requiresMemory === true ||
+      routing.requiresMemory === true ||
+      operationContract
+        .requiresMemory === true ||
+      continuityRequired ||
+      this.hasMeaningfulMemory(
+        request
+      );
+
+    const developerRequired =
+      explicit.developer === true ||
+      explicit.requiresDeveloperContext ===
+        true ||
+      mode === "developer" ||
+      this.hasDeveloperContext(
+        request
+      );
+
+    const evidenceRequired =
+      explicit.evidence === true ||
+      explicit.requiresEvidence ===
+        true ||
+      routing.requiresEvidence ===
+        true ||
+      operationContract
+        .requiresEvidence === true ||
+      this.hasMeaningfulEvidence(
+        request
+      );
+
+    const knowledgeRequired =
+      explicit.knowledge === true ||
+      explicit.requiresKnowledge ===
+        true ||
+      routing.requiresKnowledge ===
+        true ||
+      operationContract
+        .requiresKnowledge === true ||
+      this.hasMeaningfulKnowledge(
+        request
+      );
+
+    const situationRequired =
+      explicit.situation === true ||
+      explicit.requiresSituation ===
+        true ||
+      routing.requiresSituation ===
+        true ||
+      operationContract
+        .requiresSituation === true ||
+      mode === "standard" ||
+      mode === "deep" ||
+      this.hasMeaningfulSituation(
+        request
+      );
+
+    return {
+      continuity:
+        continuityRequired,
+
+      conversation:
+        conversationRequired,
+
+      memory:
+        memoryRequired,
+
+      situation:
+        situationRequired,
+
+      evidence:
+        evidenceRequired,
+
+      knowledge:
+        knowledgeRequired,
+
+      developer:
+        developerRequired
     };
   },
 
-  resolveEffectiveText(
-    request = {}
-  ) {
-    return this.firstString([
-      request.request
-        ?.effective,
-      request.currentTurn
-        ?.effectiveText,
-      request.effectiveUserMessage,
-      request.resolvedUserQuestion,
-      request.resolvedQuestion,
-      request.question,
-      request.request
-        ?.original,
-      request.currentTurn
-        ?.originalText,
-      request.originalUserMessage,
-      request.rawQuestion,
-      request.userMessage,
-      request.message,
-      request.input
-    ]);
-  },
+  /* =====================================================
+     LIMITS
+  ===================================================== */
 
-  resolveOriginalText(
-    request = {}
-  ) {
-    return this.firstString([
-      request.request
-        ?.original,
-      request.currentTurn
-        ?.originalText,
-      request.originalUserMessage,
-      request.rawQuestion,
-      request.userMessage,
-      request.message,
-      request.input,
-      request.request
-        ?.effective,
-      request.currentTurn
-        ?.effectiveText
-    ]);
+  resolveLimits({
+    request = {},
+    mode = "fast"
+  } = {}) {
+    const modeLimits =
+      this.defaultLimits[mode] ||
+      this.defaultLimits.fast;
+
+    const suppliedLimits =
+      this.firstObject([
+        request.contextLimits,
+        request.responseControl
+          ?.contextLimits,
+        request.operationContract
+          ?.contextLimits
+      ]);
+
+    return {
+      conversationTurns:
+        this.resolvePositiveInteger(
+          suppliedLimits
+            .conversationTurns,
+          modeLimits
+            .conversationTurns
+        ),
+
+      memoryItems:
+        this.resolvePositiveInteger(
+          suppliedLimits.memoryItems,
+          modeLimits.memoryItems
+        ),
+
+      evidenceItems:
+        this.resolvePositiveInteger(
+          suppliedLimits.evidenceItems,
+          modeLimits.evidenceItems
+        ),
+
+      evidenceSources:
+        this.resolvePositiveInteger(
+          suppliedLimits
+            .evidenceSources,
+          modeLimits
+            .evidenceSources
+        ),
+
+      knowledgeItems:
+        this.resolvePositiveInteger(
+          suppliedLimits.knowledgeItems,
+          modeLimits.knowledgeItems
+        ),
+
+      knowledgeCitations:
+        this.resolvePositiveInteger(
+          suppliedLimits
+            .knowledgeCitations,
+          modeLimits
+            .knowledgeCitations
+        ),
+
+      developerFiles:
+        this.resolvePositiveInteger(
+          suppliedLimits.developerFiles,
+          modeLimits.developerFiles
+        )
+    };
   },
 
   /* =====================================================
      SEMANTIC CONTEXT
   ===================================================== */
 
-  buildSemanticContext(
-    request = {}
-  ) {
-    const semanticFrame =
+  selectSemanticContext(request = {}) {
+    const canonical =
       this.firstObject([
+        request.semanticContext,
         request.semanticFrame,
-        request.semanticStructure,
-        request.perceptionPacket
-          ?.semanticFrame,
-        request.perception
-          ?.semanticFrame,
-        request.understanding
-          ?.semanticFrame
+        request.semanticStructure
       ]);
 
-    const understanding =
-      this.firstObject([
-        request.understanding,
-        request.perceptionPacket
-          ?.understanding,
-        request.perception
-          ?.understanding
-      ]);
+    if (!this.hasKeys(canonical)) {
+      return {};
+    }
 
-    return this.removeEmptyValues({
-      semanticFrame:
-        this.pickObjectFields(
-          semanticFrame,
-          [
-            "operation",
-            "requestType",
-            "frameType",
-            "interactionFamily",
-            "intentFamily",
-            "requestedOutput",
-            "domain",
-            "subject",
-            "object",
-            "target",
-            "constraints",
-            "continuity",
-            "ambiguity",
-            "execution"
-          ]
-        ),
-
-      understanding:
-        this.pickObjectFields(
-          understanding,
-          [
-            "resolvedQuestion",
-            "resolvedMeaning",
-            "semanticSummary",
-            "userGoal",
-            "conversationFunction",
-            "subjects",
-            "ambiguity"
-          ]
-        )
-    });
+    return this.pickFields(
+      canonical,
+      [
+        "operation",
+        "requestType",
+        "frameType",
+        "interactionFamily",
+        "intentFamily",
+        "primaryIntent",
+        "domain",
+        "requestedOutput",
+        "resolvedQuestion",
+        "resolvedMeaning",
+        "semanticSummary",
+        "userGoal",
+        "conversationFunction",
+        "subject",
+        "subjects",
+        "object",
+        "target",
+        "constraints",
+        "ambiguity",
+        "execution"
+      ]
+    );
   },
 
   /* =====================================================
      ROUTING
   ===================================================== */
 
-  buildRoutingContext(
-    request = {}
-  ) {
-    const routing =
-      this.firstObject([
-        request.routingContract,
-        request.routing,
-        request.executivePacket
-          ?.routingContract,
-        request.executivePacket
-          ?.routing
-      ]);
+  readRouting(request = {}) {
+    return this.firstObject([
+      request.routing,
+      request.routingContract,
+      request.executivePacket
+        ?.routing,
+      request.executivePacket
+        ?.routingContract
+    ]);
+  },
 
-    return this.pickObjectFields(
-      routing,
+  selectRoutingContext(request = {}) {
+    return this.pickFields(
+      this.readRouting(request),
       [
         "mode",
         "operation",
@@ -648,7 +840,11 @@ window.AriReasoningContextEngine = {
         "planner",
         "requiresReasoning",
         "requiresTools",
-        "requiresClarification"
+        "requiresClarification",
+        "requiresMemory",
+        "requiresKnowledge",
+        "requiresEvidence",
+        "requiresSituation"
       ]
     );
   },
@@ -657,28 +853,19 @@ window.AriReasoningContextEngine = {
      SAFETY
   ===================================================== */
 
-  readSafety(
-    request = {}
-  ) {
+  readSafety(request = {}) {
     return this.firstObject([
       request.safety,
-      request.safetyStagePacket,
+      request.safetyContext,
       request.safetyDisposition,
       request.deterministicContext
         ?.safety
     ]);
   },
 
-  buildSafetyContext(
-    request = {}
-  ) {
-    const safety =
-      this.readSafety(
-        request
-      );
-
-    return this.pickObjectFields(
-      safety,
+  selectSafetyContext(request = {}) {
+    return this.pickFields(
+      this.readSafety(request),
       [
         "ready",
         "safe",
@@ -702,53 +889,70 @@ window.AriReasoningContextEngine = {
      CONTINUITY
   ===================================================== */
 
-  buildContinuityContext(
-    request = {}
+  readContinuity(request = {}) {
+    return this.firstObject([
+      request.continuity,
+      request.continuityContext,
+      request.continuityResolution,
+      request.deterministicContext
+        ?.continuity
+    ]);
+  },
+
+  selectContinuityContext(
+    request = {},
+    limits = {}
   ) {
     const continuity =
-      this.firstObject([
-        request.continuity,
-        request.continuityStagePacket,
-        request.continuityResolution,
-        request.deterministicContext
-          ?.continuity
-      ]);
+      this.readContinuity(request);
 
-    return this.pickObjectFields(
-      continuity,
-      [
-        "ready",
-        "requiresPriorContext",
-        "referencePresent",
-        "referenceResolved",
-        "missingAnchor",
-        "resolvedReferences",
-        "relevantPriorTurns",
-        "continuitySummary",
-        "threadSummary",
-        "warnings"
-      ]
-    );
+    return this.removeEmptyValues({
+      ...this.pickFields(
+        continuity,
+        [
+          "ready",
+          "requiresPriorContext",
+          "referencePresent",
+          "referenceResolved",
+          "missingAnchor",
+          "continuitySummary",
+          "threadSummary",
+          "warnings"
+        ]
+      ),
+
+      resolvedReferences:
+        this.limitArray(
+          continuity
+            .resolvedReferences,
+          limits.conversationTurns
+        ),
+
+      relevantPriorTurns:
+        this.limitRecentArray(
+          continuity
+            .relevantPriorTurns,
+          limits.conversationTurns
+        )
+    });
   },
 
   /* =====================================================
      SITUATION
   ===================================================== */
 
-  buildSituationContext(
-    request = {}
-  ) {
+  selectSituationContext(request = {}) {
     const situation =
       this.firstObject([
         request.situation,
-        request.situationStagePacket,
+        request.situationContext,
         request.situationContract,
         request.situationMap,
         request.deterministicContext
           ?.situation
       ]);
 
-    return this.pickObjectFields(
+    return this.pickFields(
       situation,
       [
         "summary",
@@ -769,18 +973,17 @@ window.AriReasoningContextEngine = {
      MEMORY
   ===================================================== */
 
-  buildMemoryContext({
-    sourceRequest = {},
+  selectMemoryContext(
+    request = {},
+    limits = {},
     mode = "fast"
-  } = {}) {
+  ) {
     const memory =
       this.firstObject([
-        sourceRequest.memory,
-        sourceRequest.memoryStagePacket,
-        sourceRequest.memoryContext,
-        sourceRequest.memoryHandoff,
-        sourceRequest
-          .deterministicContext
+        request.memory,
+        request.memoryContext,
+        request.memoryHandoff,
+        request.deterministicContext
           ?.memory
       ]);
 
@@ -788,43 +991,45 @@ window.AriReasoningContextEngine = {
       return {};
     }
 
-    const base = {
-      relevantItems:
-        memory.relevantItems ||
-        memory.relevantMemories ||
-        memory.matches ||
-        memory.items ||
-        [],
+    const selected =
+      this.pickFields(
+        memory,
+        [
+          "summary",
+          "userContext",
+          "profileSummary",
+          "userSummary",
+          "threadContext",
+          "threadSummary"
+        ]
+      );
 
-      userContext:
-        memory.userContext ||
-        memory.profileSummary ||
-        memory.userSummary ||
-        null,
-
-      threadContext:
-        memory.threadContext ||
-        memory.threadSummary ||
-        null
-    };
+    selected.relevantItems =
+      this.limitArray(
+        this.firstArray([
+          memory.relevantItems,
+          memory.relevantMemories,
+          memory.matches,
+          memory.items
+        ]),
+        limits.memoryItems
+      );
 
     if (
-      mode === "standard" ||
-      mode === "deep" ||
-      mode === "developer"
+      mode !== "fast"
     ) {
-      base.episodicContext =
+      selected.episodicContext =
         memory.episodicContext ||
         memory.episodicMemory ||
         null;
 
-      base.relationshipContext =
+      selected.relationshipContext =
         memory.relationshipContext ||
         null;
     }
 
     return this.removeEmptyValues(
-      base
+      selected
     );
   },
 
@@ -832,69 +1037,59 @@ window.AriReasoningContextEngine = {
      CONVERSATION
   ===================================================== */
 
-  buildConversationContext({
-    sourceRequest = {},
-    mode = "fast"
-  } = {}) {
+  selectConversationContext(
+    request = {},
+    limits = {}
+  ) {
     const conversation =
-      this.normalizeObject(
-        sourceRequest.conversation
-      );
+      this.firstObject([
+        request.conversation,
+        request.conversationContext,
+        request.threadContext
+      ]);
 
     if (!this.hasKeys(conversation)) {
       return {};
     }
 
-    const output = {
-      conversationType:
-        conversation
-          .conversationType ||
-        null,
-
-      currentTopic:
-        conversation.currentTopic ||
-        conversation.topic ||
-        null,
+    return this.removeEmptyValues({
+      ...this.pickFields(
+        conversation,
+        [
+          "conversationType",
+          "currentTopic",
+          "topic",
+          "summary",
+          "conversationSummary",
+          "threadSummary"
+        ]
+      ),
 
       recentTurns:
-        this.limitArray(
-          conversation.recentTurns ||
-          conversation.turns ||
-          conversation.messages,
-          mode === "fast"
-            ? 3
-            : mode === "developer"
-              ? 6
-              : 5
-        ),
-
-      summary:
-        conversation.summary ||
-        conversation
-          .conversationSummary ||
-        null
-    };
-
-    return this.removeEmptyValues(
-      output
-    );
+        this.limitRecentArray(
+          this.firstArray([
+            conversation.recentTurns,
+            conversation.turns,
+            conversation.messages
+          ]),
+          limits.conversationTurns
+        )
+    });
   },
 
   /* =====================================================
      EVIDENCE
   ===================================================== */
 
-  buildEvidenceContext({
-    sourceRequest = {},
-    mode = "fast"
-  } = {}) {
+  selectEvidenceContext(
+    request = {},
+    limits = {}
+  ) {
     const evidence =
       this.firstObject([
-        sourceRequest.evidencePacket,
-        sourceRequest.perceptionPacket
-          ?.evidencePacket,
-        sourceRequest.perception
-          ?.evidencePacket
+        request.evidence,
+        request.evidencePacket,
+        request.perceptionEvidence
       ]);
 
     if (!this.hasKeys(evidence)) {
@@ -902,36 +1097,42 @@ window.AriReasoningContextEngine = {
     }
 
     return this.removeEmptyValues({
+      summary:
+        evidence.summary ||
+        evidence.evidenceSummary ||
+        null,
+
       facts:
         this.limitArray(
-          evidence.facts ||
-          evidence.observations ||
-          evidence.claims,
-          mode === "fast"
-            ? 12
-            : 30
+          this.firstArray([
+            evidence.facts,
+            evidence.observations,
+            evidence.claims
+          ]),
+          limits.evidenceItems
         ),
 
       sources:
         this.limitArray(
-          evidence.sources ||
-          evidence.references,
-          mode === "fast"
-            ? 8
-            : 20
+          this.firstArray([
+            evidence.sources,
+            evidence.references,
+            evidence.citations
+          ]),
+          limits.evidenceSources
         ),
 
       conflicts:
         this.limitArray(
-          evidence.conflicts ||
-          evidence.contradictions,
-          10
-        ),
-
-      summary:
-        evidence.summary ||
-        evidence.evidenceSummary ||
-        null
+          this.firstArray([
+            evidence.conflicts,
+            evidence.contradictions
+          ]),
+          Math.min(
+            limits.evidenceItems,
+            12
+          )
+        )
     });
   },
 
@@ -939,122 +1140,112 @@ window.AriReasoningContextEngine = {
      KNOWLEDGE
   ===================================================== */
 
-  buildKnowledgeContext({
-    sourceRequest = {},
-    mode = "fast"
-  } = {}) {
+  selectKnowledgeContext(
+    request = {},
+    limits = {}
+  ) {
     const knowledge =
-      this.normalizeObject(
-        sourceRequest.knowledge
-      );
+      this.firstObject([
+        request.knowledge,
+        request.knowledgeContext,
+        request.knowledgePacket
+      ]);
 
     if (!this.hasKeys(knowledge)) {
       return {};
     }
 
     return this.removeEmptyValues({
-      relevantKnowledge:
-        this.limitArray(
-          knowledge.relevantKnowledge ||
-          knowledge.items ||
-          knowledge.matches ||
-          knowledge.results,
-          mode === "fast"
-            ? 10
-            : 25
-        ),
-
       summary:
         knowledge.summary ||
         knowledge.knowledgeSummary ||
         null,
 
+      relevantKnowledge:
+        this.limitArray(
+          this.firstArray([
+            knowledge.relevantKnowledge,
+            knowledge.items,
+            knowledge.matches,
+            knowledge.results
+          ]),
+          limits.knowledgeItems
+        ),
+
       citations:
         this.limitArray(
-          knowledge.citations ||
-          knowledge.references,
-          15
+          this.firstArray([
+            knowledge.citations,
+            knowledge.references,
+            knowledge.sources
+          ]),
+          limits.knowledgeCitations
         )
     });
   },
 
   /* =====================================================
-     DEVELOPER CONTEXT
+     DEVELOPER EVIDENCE
   ===================================================== */
 
-  buildDeveloperContext({
-    sourceRequest = {},
-    mode = "fast"
-  } = {}) {
-    if (
-      mode !== "developer" &&
-      !this.hasKeys(
-        sourceRequest
-          .developerEvidence
-      )
-    ) {
+  hasDeveloperContext(request = {}) {
+    return this.hasKeys(
+      this.firstObject([
+        request.developerEvidence,
+        request.developerContext,
+        request.projectContext
+      ])
+    );
+  },
+
+  selectDeveloperContext(
+    request = {},
+    limits = {}
+  ) {
+    const developer =
+      this.firstObject([
+        request.developerEvidence,
+        request.developerContext,
+        request.projectContext
+      ]);
+
+    if (!this.hasKeys(developer)) {
       return {};
     }
 
-    const developerEvidence =
-      this.normalizeObject(
-        sourceRequest
-          .developerEvidence
-      );
-
     return this.removeEmptyValues({
-      task:
-        developerEvidence.task ||
-        developerEvidence
-          .requestedWork ||
-        null,
-
-      repository:
-        developerEvidence.repository ||
-        developerEvidence.repo ||
-        null,
-
-      branch:
-        developerEvidence.branch ||
-        null,
-
-      filePath:
-        developerEvidence.filePath ||
-        developerEvidence.github
-          ?.path ||
-        developerEvidence.fileContext
-          ?.path ||
-        null,
-
-      content:
-        this.firstString([
-          developerEvidence.github
-            ?.content,
-          developerEvidence.github
-            ?.fileContent,
-          developerEvidence
-            .fileContext
-            ?.content,
-          developerEvidence
-            .fileContext
-            ?.fileContent,
-          developerEvidence.content,
-          developerEvidence.fileContent
-        ]) ||
-        null,
+      ...this.pickFields(
+        developer,
+        [
+          "task",
+          "requestedWork",
+          "repository",
+          "repo",
+          "branch",
+          "filePath",
+          "path",
+          "content",
+          "fileContent",
+          "language",
+          "framework",
+          "runtime",
+          "architecture",
+          "constraints"
+        ]
+      ),
 
       relatedFiles:
         this.limitArray(
-          developerEvidence
-            .relatedFiles ||
-          developerEvidence.files,
-          12
+          this.firstArray([
+            developer.relatedFiles,
+            developer.files
+          ]),
+          limits.developerFiles
         ),
 
       diagnostics:
-        this.pickObjectFields(
-          developerEvidence
-            .diagnostics,
+        this.pickFields(
+          developer.diagnostics,
           [
             "errors",
             "warnings",
@@ -1069,45 +1260,37 @@ window.AriReasoningContextEngine = {
      PREFERENCES
   ===================================================== */
 
-  buildPreferenceContext(
-    request = {}
-  ) {
-    const preferenceContext =
-      this.normalizeObject(
+  selectPreferenceContext(request = {}) {
+    const preferences =
+      this.firstObject([
+        request.preferences,
         request.preferenceContext
-      );
+      ]);
 
-    if (
-      this.hasKeys(
-        preferenceContext
-      )
-    ) {
+    if (this.hasKeys(preferences)) {
       return this.removeEmptyValues({
         ready:
-          preferenceContext.ready ===
-          true,
+          preferences.ready,
 
         userPreferences:
-          preferenceContext
-            .userPreferences ||
+          preferences.userPreferences ||
           {},
 
         responseStyle:
-          preferenceContext
-            .responseStyle ||
+          preferences.responseStyle ||
           {},
 
         currentTurnOverride:
-          preferenceContext
-            .currentTurnOverride ||
+          preferences.currentTurnOverride ||
+          preferences.styleOverride ||
           {},
 
         authority:
-          preferenceContext.authority ||
+          preferences.authority ||
           null,
 
         resolution:
-          preferenceContext.resolution ||
+          preferences.resolution ||
           null
       });
     }
@@ -1116,8 +1299,7 @@ window.AriReasoningContextEngine = {
       userPreferences:
         this.firstObject([
           request.userPreferences,
-          request
-            .communicationPreferences,
+          request.communicationPreferences,
           request.stylePreferences
         ]),
 
@@ -1125,16 +1307,13 @@ window.AriReasoningContextEngine = {
         this.firstObject([
           request.responseStyle,
           request.responseControl
-            ?.responseStyle,
-          request.currentTurn
             ?.responseStyle
         ]),
 
       currentTurnOverride:
         this.firstObject([
+          request.currentTurnOverride,
           request.styleOverride,
-          request.currentTurn
-            ?.styleOverride,
           request.responseControl
             ?.styleOverride
         ])
@@ -1145,16 +1324,9 @@ window.AriReasoningContextEngine = {
      RESPONSE CONTROL
   ===================================================== */
 
-  buildResponseControl(
-    request = {}
-  ) {
-    const responseControl =
-      this.normalizeObject(
-        request.responseControl
-      );
-
-    return this.pickObjectFields(
-      responseControl,
+  selectResponseControl(request = {}) {
+    return this.pickFields(
+      request.responseControl,
       [
         "goal",
         "contextLane",
@@ -1179,28 +1351,22 @@ window.AriReasoningContextEngine = {
      AUTHORITY
   ===================================================== */
 
-  buildAuthorityContext(
-    request = {}
-  ) {
-    return {
-      ...this.pickObjectFields(
+  selectAuthorityContext(request = {}) {
+    const suppliedAuthority =
+      this.pickFields(
         request.authority,
         [
-          "safetyIsBinding",
           "communicationPreferencesAreBindingWithinSafety",
           "communicationPreferencesAreAdvisory",
           "mayPlanResponse",
           "mayDraftResponse",
           "mustProduceDraftResponse",
-          "draftResponseIsAuthoritative",
-          "mayExecuteActions",
-          "mayPersistState",
-          "mayOverrideSafety",
-          "mayClaimToolSuccess",
-          "mayAuthorizeDelivery",
-          "mayExposePrivateChainOfThought"
+          "draftResponseIsAuthoritative"
         ]
-      ),
+      );
+
+    return {
+      ...suppliedAuthority,
 
       safetyIsBinding:
         true,
@@ -1241,33 +1407,345 @@ window.AriReasoningContextEngine = {
      CONTRACTS
   ===================================================== */
 
-  buildOutputContract(
-    request = {}
-  ) {
+  selectOutputContract(request = {}) {
     return this.firstObject([
       request.outputContract,
       request.responseSchema
     ]);
   },
 
-  buildOperationContract(
-    request = {}
-  ) {
+  selectOperationContract(request = {}) {
     return this.normalizeObject(
       request.operationContract
     );
   },
 
-  buildInstructions(
-    request = {}
-  ) {
+  selectInstructions(request = {}) {
     return this.uniqueStrings(
-      Array.isArray(
-        request.instructions
-      )
-        ? request.instructions
-        : []
+      this.firstArray([
+        request.instructions,
+        request.reasoningInstructions
+      ])
     );
+  },
+
+  /* =====================================================
+     REQUIREMENT DETECTION
+  ===================================================== */
+
+  hasMeaningfulContinuity(
+    continuity = {}
+  ) {
+    return Boolean(
+      continuity.referencePresent ===
+        true ||
+      continuity.referenceResolved ===
+        true ||
+      continuity.requiresPriorContext ===
+        true ||
+      this.nonEmptyArray(
+        continuity.resolvedReferences
+      ) ||
+      this.nonEmptyArray(
+        continuity.relevantPriorTurns
+      ) ||
+      this.nonEmptyString(
+        continuity.continuitySummary
+      ) ||
+      this.nonEmptyString(
+        continuity.threadSummary
+      )
+    );
+  },
+
+  hasMeaningfulMemory(request = {}) {
+    const memory =
+      this.firstObject([
+        request.memory,
+        request.memoryContext,
+        request.memoryHandoff,
+        request.deterministicContext
+          ?.memory
+      ]);
+
+    return Boolean(
+      this.nonEmptyArray(
+        memory.relevantItems
+      ) ||
+      this.nonEmptyArray(
+        memory.relevantMemories
+      ) ||
+      this.nonEmptyArray(
+        memory.matches
+      ) ||
+      this.nonEmptyArray(
+        memory.items
+      ) ||
+      this.nonEmptyString(
+        memory.summary
+      ) ||
+      this.hasKeys(
+        memory.userContext
+      ) ||
+      this.hasKeys(
+        memory.threadContext
+      )
+    );
+  },
+
+  hasMeaningfulEvidence(request = {}) {
+    const evidence =
+      this.firstObject([
+        request.evidence,
+        request.evidencePacket,
+        request.perceptionEvidence
+      ]);
+
+    return Boolean(
+      this.nonEmptyArray(
+        evidence.facts
+      ) ||
+      this.nonEmptyArray(
+        evidence.observations
+      ) ||
+      this.nonEmptyArray(
+        evidence.claims
+      ) ||
+      this.nonEmptyString(
+        evidence.summary
+      )
+    );
+  },
+
+  hasMeaningfulKnowledge(request = {}) {
+    const knowledge =
+      this.firstObject([
+        request.knowledge,
+        request.knowledgeContext,
+        request.knowledgePacket
+      ]);
+
+    return Boolean(
+      this.nonEmptyArray(
+        knowledge.relevantKnowledge
+      ) ||
+      this.nonEmptyArray(
+        knowledge.items
+      ) ||
+      this.nonEmptyArray(
+        knowledge.matches
+      ) ||
+      this.nonEmptyArray(
+        knowledge.results
+      ) ||
+      this.nonEmptyString(
+        knowledge.summary
+      )
+    );
+  },
+
+  hasMeaningfulSituation(request = {}) {
+    const situation =
+      this.firstObject([
+        request.situation,
+        request.situationContext,
+        request.situationContract,
+        request.situationMap,
+        request.deterministicContext
+          ?.situation
+      ]);
+
+    return this.hasKeys(situation);
+  },
+
+  /* =====================================================
+     DIAGNOSTICS
+  ===================================================== */
+
+  buildDiagnostics({
+    startedAt = this.now(),
+    request = {},
+    packet = {},
+    serialized = "",
+    mode = "fast",
+    requirements = {},
+    limits = {}
+  } = {}) {
+    const sourceSerialized =
+      this.safeStringify(request);
+
+    const sourceCharacters =
+      sourceSerialized.length;
+
+    const packetCharacters =
+      serialized.length;
+
+    const reductionCharacters =
+      Math.max(
+        0,
+        sourceCharacters -
+          packetCharacters
+      );
+
+    const reductionPercentage =
+      sourceCharacters > 0
+        ? Math.round(
+            (
+              reductionCharacters /
+              sourceCharacters
+            ) *
+              1000
+          ) / 10
+        : 0;
+
+    return {
+      source:
+        this.source,
+
+      version:
+        this.version,
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ready:
+        true,
+
+      mode,
+
+      durationMs:
+        Math.round(
+          this.now() -
+            startedAt
+        ),
+
+      sourceCharacters,
+
+      sourceApproximateTokens:
+        Math.ceil(
+          sourceCharacters / 4
+        ),
+
+      packetCharacters,
+
+      packetApproximateTokens:
+        Math.ceil(
+          packetCharacters / 4
+        ),
+
+      characters:
+        packetCharacters,
+
+      approximateTokens:
+        Math.ceil(
+          packetCharacters / 4
+        ),
+
+      reductionCharacters,
+
+      reductionPercentage,
+
+      requirements:
+        { ...requirements },
+
+      limits:
+        { ...limits },
+
+      included:
+        this.buildIncludedMap(
+          packet
+        )
+    };
+  },
+
+  buildIncludedMap(packet = {}) {
+    return {
+      request:
+        this.hasKeys(
+          packet.request
+        ),
+
+      semanticContext:
+        this.hasKeys(
+          packet.semanticContext
+        ),
+
+      routing:
+        this.hasKeys(
+          packet.routing
+        ),
+
+      safety:
+        this.hasKeys(
+          packet.safety
+        ),
+
+      continuity:
+        this.hasKeys(
+          packet.continuity
+        ),
+
+      situation:
+        this.hasKeys(
+          packet.situation
+        ),
+
+      memory:
+        this.hasKeys(
+          packet.memory
+        ),
+
+      conversation:
+        this.hasKeys(
+          packet.conversation
+        ),
+
+      evidence:
+        this.hasKeys(
+          packet.evidence
+        ),
+
+      knowledge:
+        this.hasKeys(
+          packet.knowledge
+        ),
+
+      developerEvidence:
+        this.hasKeys(
+          packet.developerEvidence
+        ),
+
+      preferences:
+        this.hasKeys(
+          packet.preferences
+        ),
+
+      responseControl:
+        this.hasKeys(
+          packet.responseControl
+        ),
+
+      authority:
+        this.hasKeys(
+          packet.authority
+        ),
+
+      outputContract:
+        this.hasKeys(
+          packet.outputContract
+        ),
+
+      operationContract:
+        this.hasKeys(
+          packet.operationContract
+        ),
+
+      instructions:
+        Array.isArray(
+          packet.instructions
+        ) &&
+        packet.instructions.length > 0
+    };
   },
 
   /* =====================================================
@@ -1281,27 +1759,48 @@ window.AriReasoningContextEngine = {
   } = {}) {
     return {
       ready: false,
+
       success: false,
+
+      complete: false,
+
       source:
         this.source,
+
       version:
         this.version,
 
+      schemaVersion:
+        this.schemaVersion,
+
       error,
 
-      cognitivePacket: null,
-      reasoningPacket: null,
+      cognitivePacket:
+        null,
+
+      reasoningPacket:
+        null,
 
       diagnostics: {
         source:
           this.source,
+
         version:
           this.version,
+
+        schemaVersion:
+          this.schemaVersion,
+
         ready:
           false,
+
         durationMs:
-          this.now() -
-          startedAt
+          Math.round(
+            this.now() -
+              startedAt
+          ),
+
+        error
       }
     };
   },
@@ -1310,12 +1809,9 @@ window.AriReasoningContextEngine = {
      OBJECT HELPERS
   ===================================================== */
 
-  firstObject(
-    candidates = []
-  ) {
+  firstObject(candidates = []) {
     for (
-      const candidate
-      of candidates
+      const candidate of candidates
     ) {
       if (
         this.isPlainObject(
@@ -1323,7 +1819,7 @@ window.AriReasoningContextEngine = {
         ) &&
         Object.keys(
           candidate
-        ).length
+        ).length > 0
       ) {
         return candidate;
       }
@@ -1332,12 +1828,24 @@ window.AriReasoningContextEngine = {
     return {};
   },
 
-  firstString(
-    candidates = []
-  ) {
+  firstArray(candidates = []) {
     for (
-      const candidate
-      of candidates
+      const candidate of candidates
+    ) {
+      if (
+        Array.isArray(candidate) &&
+        candidate.length > 0
+      ) {
+        return candidate;
+      }
+    }
+
+    return [];
+  },
+
+  firstString(candidates = []) {
+    for (
+      const candidate of candidates
     ) {
       if (
         typeof candidate ===
@@ -1351,14 +1859,12 @@ window.AriReasoningContextEngine = {
     return "";
   },
 
-  pickObjectFields(
+  pickFields(
     value = {},
     fields = []
   ) {
     if (
-      !this.isPlainObject(
-        value
-      )
+      !this.isPlainObject(value)
     ) {
       return {};
     }
@@ -1366,14 +1872,13 @@ window.AriReasoningContextEngine = {
     const output = {};
 
     for (
-      const field
-      of fields
+      const field of fields
     ) {
       if (
         value[field] !==
-        undefined &&
+          undefined &&
         value[field] !==
-        null
+          null
       ) {
         output[field] =
           value[field];
@@ -1389,36 +1894,78 @@ window.AriReasoningContextEngine = {
     value,
     maximum = 10
   ) {
-    if (
-      !Array.isArray(
-        value
-      )
-    ) {
+    if (!Array.isArray(value)) {
       return [];
     }
+
+    const safeMaximum =
+      this.resolvePositiveInteger(
+        maximum,
+        10
+      );
 
     return value
       .filter(
         item =>
-          item !==
-            undefined &&
-          item !==
-            null
+          item !== undefined &&
+          item !== null
       )
-      .slice(
-        0,
-        maximum
-      );
+      .slice(0, safeMaximum);
   },
 
-  removeEmptyValues(
-    value
+  limitRecentArray(
+    value,
+    maximum = 10
   ) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const safeMaximum =
+      this.resolvePositiveInteger(
+        maximum,
+        10
+      );
+
+    const normalized =
+      value.filter(
+        item =>
+          item !== undefined &&
+          item !== null
+      );
+
     if (
-      Array.isArray(
-        value
-      )
+      normalized.length <=
+      safeMaximum
     ) {
+      return normalized;
+    }
+
+    return normalized.slice(
+      normalized.length -
+        safeMaximum
+    );
+  },
+
+  resolvePositiveInteger(
+    value,
+    fallback
+  ) {
+    const numeric =
+      Number(value);
+
+    if (
+      Number.isInteger(numeric) &&
+      numeric > 0
+    ) {
+      return numeric;
+    }
+
+    return fallback;
+  },
+
+  removeEmptyValues(value) {
+    if (Array.isArray(value)) {
       return value
         .map(
           item =>
@@ -1428,33 +1975,14 @@ window.AriReasoningContextEngine = {
         )
         .filter(
           item =>
-            item !==
-              undefined &&
-            item !==
-              null &&
-            item !==
-              "" &&
-            !(
-              Array.isArray(
-                item
-              ) &&
-              item.length === 0
-            ) &&
-            !(
-              this.isPlainObject(
-                item
-              ) &&
-              Object.keys(
-                item
-              ).length === 0
+            !this.isEmptyValue(
+              item
             )
         );
     }
 
     if (
-      !this.isPlainObject(
-        value
-      )
+      !this.isPlainObject(value)
     ) {
       return value;
     }
@@ -1465,18 +1993,12 @@ window.AriReasoningContextEngine = {
       const [
         key,
         currentValue
-      ]
-      of Object.entries(
-        value
-      )
+      ] of Object.entries(value)
     ) {
       if (
-        currentValue ===
-          undefined ||
-        currentValue ===
-          null ||
-        currentValue ===
-          ""
+        this.isEmptyValue(
+          currentValue
+        )
       ) {
         continue;
       }
@@ -1487,21 +2009,9 @@ window.AriReasoningContextEngine = {
         );
 
       if (
-        Array.isArray(
+        this.isEmptyValue(
           normalized
-        ) &&
-        normalized.length === 0
-      ) {
-        continue;
-      }
-
-      if (
-        this.isPlainObject(
-          normalized
-        ) &&
-        Object.keys(
-          normalized
-        ).length === 0
+        )
       ) {
         continue;
       }
@@ -1513,9 +2023,38 @@ window.AriReasoningContextEngine = {
     return output;
   },
 
-  uniqueStrings(
-    values = []
-  ) {
+  isEmptyValue(value) {
+    if (
+      value === undefined ||
+      value === null ||
+      value === ""
+    ) {
+      return true;
+    }
+
+    if (
+      Array.isArray(value)
+    ) {
+      return value.length === 0;
+    }
+
+    if (
+      this.isPlainObject(value)
+    ) {
+      return (
+        Object.keys(value)
+          .length === 0
+      );
+    }
+
+    return false;
+  },
+
+  uniqueStrings(values = []) {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+
     return [
       ...new Set(
         values
@@ -1533,45 +2072,53 @@ window.AriReasoningContextEngine = {
     ];
   },
 
-  normalizeObject(
-    value
-  ) {
-    return this.isPlainObject(
-      value
-    )
+  normalizeObject(value) {
+    return this.isPlainObject(value)
       ? value
       : {};
   },
 
-  hasKeys(
-    value
-  ) {
-    return (
-      this.isPlainObject(
-        value
-      ) &&
-      Object.keys(
-        value
-      ).length > 0
-    );
-  },
-
-  isPlainObject(
-    value
-  ) {
+  hasKeys(value) {
     return Boolean(
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(
-        value
-      )
+      this.isPlainObject(value) &&
+      Object.keys(value).length > 0
     );
   },
 
-  safeStringify(
-    value
-  ) {
+  nonEmptyArray(value) {
+    return (
+      Array.isArray(value) &&
+      value.length > 0
+    );
+  },
+
+  nonEmptyString(value) {
+    return (
+      typeof value === "string" &&
+      value.trim().length > 0
+    );
+  },
+
+  isPlainObject(value) {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      return false;
+    }
+
+    const prototype =
+      Object.getPrototypeOf(value);
+
+    return (
+      prototype ===
+        Object.prototype ||
+      prototype === null
+    );
+  },
+
+  safeStringify(value) {
     const seen =
       new WeakSet();
 
@@ -1591,27 +2138,35 @@ window.AriReasoningContextEngine = {
           }
 
           if (
+            typeof currentValue ===
+              "function"
+          ) {
+            return undefined;
+          }
+
+          if (
             currentValue &&
             typeof currentValue ===
               "object"
           ) {
             if (
-              seen.has(
-                currentValue
-              )
+              seen.has(currentValue)
             ) {
               return "[Circular]";
             }
 
-            seen.add(
-              currentValue
-            );
+            seen.add(currentValue);
           }
 
           return currentValue;
         }
       );
-    } catch {
+    } catch (error) {
+      console.warn(
+        "ARI REASONING CONTEXT ENGINE STRINGIFY WARNING:",
+        error
+      );
+
       return "{}";
     }
   },
@@ -1632,21 +2187,47 @@ window.AriReasoningContextEngine = {
   ===================================================== */
 
   validate() {
+    const requiredMethods = [
+      "build",
+      "create",
+      "readCanonicalRequest",
+      "selectCurrentTurn",
+      "resolveMode",
+      "resolveContextRequirements",
+      "resolveLimits",
+      "selectSemanticContext",
+      "selectRoutingContext",
+      "selectSafetyContext",
+      "selectContinuityContext",
+      "selectSituationContext",
+      "selectMemoryContext",
+      "selectConversationContext",
+      "selectEvidenceContext",
+      "selectKnowledgeContext",
+      "selectDeveloperContext",
+      "selectPreferenceContext",
+      "selectResponseControl",
+      "selectAuthorityContext",
+      "selectOutputContract",
+      "selectOperationContract",
+      "buildDiagnostics"
+    ];
+
+    const missingMethods =
+      requiredMethods.filter(
+        method =>
+          typeof this[method] !==
+          "function"
+      );
+
     const valid =
-      typeof this.build ===
-        "function" &&
-      typeof this.create ===
-        "function" &&
-      typeof this.resolveMode ===
-        "function" &&
-      typeof this.resolveEffectiveText ===
-        "function" &&
-      typeof this.buildRequestContext ===
-        "function" &&
-      typeof this.buildPreferenceContext ===
-        "function" &&
-      typeof this.buildOutputContract ===
-        "function";
+      missingMethods.length === 0 &&
+      this.packetSchema ===
+        "ari_cognitive_context_packet" &&
+      Array.isArray(
+        this.supportedModes
+      ) &&
+      this.supportedModes.length > 0;
 
     return {
       valid,
@@ -1661,7 +2242,12 @@ window.AriReasoningContextEngine = {
         this.version,
 
       schemaVersion:
-        this.schemaVersion
+        this.schemaVersion,
+
+      packetSchema:
+        this.packetSchema,
+
+      missingMethods
     };
   }
 };
@@ -1679,8 +2265,7 @@ console.log(
     ?.version,
 
   ariReasoningContextEngineValidation
-    ?.ready ===
-    true
+    ?.ready === true
     ? "READY"
     : "NOT_READY",
 
