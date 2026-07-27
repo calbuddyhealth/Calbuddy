@@ -23,12 +23,12 @@
 //   - Does not determine safety severity.
 //   - Does not compose or answer the user.
 //
-// V3.0.1 — Structured Reference Continuity Guard
+// V3.0.2 — Nested Canonical Continuity Resolution
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "3.0.1",
+  version: "3.0.2",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -373,16 +373,17 @@ window.Ari.laneSplitterEngine = {
       );
 
     const threadAvailable =
-      Boolean(
-        summary.threadStateLoaded ===
-          true ||
-        recentMessages.length > 0 ||
-        threadState.currentTopic ||
-        threadState.activeSubject ||
-        threadState.continuitySummary ||
-        threadState.previousAnswerSummary ||
-        summary.workingContext
-      );
+  Boolean(
+    recentMessages.length > 0 ||
+    threadState.currentTopic ||
+    threadState.activeSubject ||
+    threadState.continuitySummary ||
+    threadState.previousAnswerSummary ||
+    threadState.lastFinalResponse ||
+    summary.workingContext ||
+    summary.resolvedPrimarySubject ||
+    summary.previousAnswerSummary
+  );
 
     const memoryAvailable =
       Boolean(
@@ -450,39 +451,68 @@ window.Ari.laneSplitterEngine = {
     availableContext = {}
   } = {}) {
     const semanticIntent =
-      packet.semanticIntent ||
-      {};
+  this.firstNonEmptyObject(
+    packet.semanticIntent,
+    packet.semanticSummary,
+    packet.canonicalMeaning
+  );
 
-    const conversationPurpose =
-      packet.conversationPurpose ||
-      {};
+const canonicalMeaning =
+  this.firstNonEmptyObject(
+    packet.canonicalMeaning,
+    semanticIntent.canonicalMeaning,
+    packet.semanticSummary
+      ?.canonicalMeaning
+  );
 
-    const supportingPurposes =
-      Array.isArray(
-        packet.supportingPurposes
-      )
-        ? packet.supportingPurposes
-        : [];
+const conversationPurpose =
+  this.firstNonEmptyObject(
+    packet.conversationPurpose,
+    semanticIntent.conversationPurpose
+  );
 
-    const continuity =
-      packet.continuity ||
-      {};
+const supportingPurposes =
+  this.firstNonEmptyArray(
+    packet.supportingPurposes,
+    semanticIntent.supportingPurposes
+  );
 
-    const ambiguity =
-      packet.ambiguity ||
-      {};
+const continuity =
+  this.firstNonEmptyObject(
+    packet.continuity,
+    semanticIntent.continuity,
+    canonicalMeaning.continuity,
+    packet.semanticSummary
+      ?.continuity
+  );
 
-    const governance =
-      packet.governance ||
-      {};
+const ambiguity =
+  this.firstNonEmptyObject(
+    packet.ambiguity,
+    semanticIntent.ambiguity,
+    canonicalMeaning.ambiguity,
+    packet.semanticSummary
+      ?.ambiguity
+  );
 
-    const readiness =
-      packet.readiness ||
-      {};
+const governance =
+  this.firstNonEmptyObject(
+    packet.governance,
+    semanticIntent.governance
+  );
 
-    const responseRequirements =
-      packet.responseRequirements ||
-      {};
+const readiness =
+  this.firstNonEmptyObject(
+    packet.readiness,
+    semanticIntent.readiness
+  );
+
+const responseRequirements =
+  this.firstNonEmptyObject(
+    packet.responseRequirements,
+    semanticIntent.responseRequirements,
+    canonicalMeaning.responseRequirements
+  );
 
     const operation =
       this.normalizeIdentifier(
@@ -619,19 +649,16 @@ window.Ari.laneSplitterEngine = {
         ]
       );
 
-    const currentTurnMeaningAvailable =
-      semanticIntent.available ===
-        true ||
+        const currentTurnMeaningAvailable =
+      semanticIntent.available === true ||
       Boolean(
-        semanticIntent
-          .requestedOperation ||
+        semanticIntent.requestedOperation ||
         semanticIntent.userGoal ||
         conversationPurpose.name
       );
 
     const packetUsable =
-      readiness.packetUsable !==
-        false &&
+      readiness.packetUsable !== false &&
       currentTurnMeaningAvailable;
 
     const directCurrentTurnEligible =
@@ -640,6 +667,7 @@ window.Ari.laneSplitterEngine = {
       !isContinuation &&
       !unresolvedReference &&
       !missingAnchor &&
+      !clarificationRequired &&
       !recallRequested &&
       !correctionRequested &&
       !relationshipContinuityRequested;
@@ -672,12 +700,10 @@ window.Ari.laneSplitterEngine = {
       availableContext,
 
       operation:
-        operation ||
-        null,
+        operation || null,
 
       purpose:
-        purpose ||
-        null,
+        purpose || null,
 
       supportingPurposeNames:
         supportingNames,
@@ -719,8 +745,7 @@ window.Ari.laneSplitterEngine = {
         "normal",
 
       routingBlocked:
-        readiness.packetUsable ===
-          false,
+        readiness.packetUsable === false,
 
       rawTextUsed:
         false,
@@ -886,6 +911,9 @@ window.Ari.laneSplitterEngine = {
           ?.primaryMeaning
       );
 
+const clarificationRequired =
+  ambiguity.requiresClarification === true;
+
     return {
       source:
         "legacy_structured_fallback",
@@ -970,9 +998,7 @@ window.Ari.laneSplitterEngine = {
         continuity.referencesPriorQuestion ===
         true,
 
-      clarificationRequired:
-        ambiguity.requiresClarification ===
-        true,
+      clarificationRequired,
 
       missingAnchor,
 
@@ -983,14 +1009,15 @@ window.Ari.laneSplitterEngine = {
       relationshipContinuityRequested,
 
       directCurrentTurnEligible:
-        currentTurnMeaningAvailable &&
-        !requiresPriorContext &&
-        !isContinuation &&
-        !unresolvedReference &&
-        !missingAnchor &&
-        !recallRequested &&
-        !correctionRequested &&
-        !relationshipContinuityRequested,
+  currentTurnMeaningAvailable &&
+  !requiresPriorContext &&
+  !isContinuation &&
+  !unresolvedReference &&
+  !missingAnchor &&
+  !clarificationRequired &&
+  !recallRequested &&
+  !correctionRequested &&
+  !relationshipContinuityRequested,
 
       responseOrder:
         "normal",
@@ -1176,12 +1203,12 @@ window.Ari.laneSplitterEngine = {
     }
 
     if (
-      context.requiresPriorContext ||
-      context.isContinuation ||
-      context.unresolvedReference
-    ) {
-      return "continuity_follow_up";
-    }
+  context.requiresPriorContext ||
+  context.isContinuation ||
+  context.unresolvedReference
+) {
+  return "continuity_follow_up";
+}
 
     if (
       context.directCurrentTurnEligible
@@ -1324,6 +1351,7 @@ window.Ari.laneSplitterEngine = {
         context.recallRequested ||
         context
           .relationshipContinuityRequested ||
+          context.clarificationRequired ||
         context.requiresPriorContext ||
         context.unresolvedReference ||
         context.directCurrentTurnEligible
@@ -1451,18 +1479,18 @@ window.Ari.laneSplitterEngine = {
       return "The canonical intent packet identifies a relationship-continuity request requiring relationship context.";
     }
 
-    if (
-      lane ===
-      "continuity_follow_up"
-    ) {
-      if (
-        context.unresolvedReference
-      ) {
-        return "The canonical intent packet reports a current-turn reference that is not yet resolved, so prior thread context is required.";
-      }
+    if (lane === "continuity_follow_up") {
 
-      return "The canonical intent packet states that the current request requires prior thread context.";
+    if (context.clarificationRequired) {
+        return "The canonical intent packet indicates that clarification is required before a response can be generated.";
     }
+
+    if (context.unresolvedReference) {
+        return "The canonical intent packet reports a current-turn reference that is not yet resolved, so prior thread context is required.";
+    }
+
+    return "The canonical intent packet states that the current request requires prior thread context.";
+}
 
     if (
       lane ===
