@@ -315,7 +315,7 @@ window.AriRebirthAppBridge = {
     "ari/knowledge/ari-supabase-knowledge-client.js",
     "ari/reasoning/ari-reasoning-context-engine.js",
 "ari/reasoning/ari-openai-reasoning-client.js",
-"ari/reasoning/ari-reasoning-engine.js"
+"ari/reasoning/ari-reasoning-engine.js",
 
     // Post-reasoning structural and contract validation.
     "ari/meaning/ari-semantic-frame-validator.js",
