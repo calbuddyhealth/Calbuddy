@@ -45,9 +45,9 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningContextEngine = {
-  version: "2.0.0",
+  version: "2.0.1",
 
-  schemaVersion: "2.0.0",
+  schemaVersion: "2.0.1",
 
   source: "ari-reasoning-context-engine",
 
