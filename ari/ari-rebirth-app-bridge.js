@@ -137,7 +137,7 @@ window.AriRebirthAppBridge = {
     "ari/conversation/ari-conversation-function-engine.js",
     "ari/conversation/ari-universal-conversation-classifier.js",
     "ari/observer-system/ari-observer-routing-evidence.js",
-    "ari/routing/ari-lane-splitter-engine.js",
+"ari/routing/ari-lane-splitter-engine.js?v=3.0.2",
 
         // ===================================================
     // CONTINUITY FOUNDATION
