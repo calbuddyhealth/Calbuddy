@@ -45,9 +45,9 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningContextEngine = {
-  version: "2.0.1",
+  version: "2.1.0",
 
-  schemaVersion: "2.0.1",
+  schemaVersion: "2.1.0",
 
   source: "ari-reasoning-context-engine",
 
@@ -774,43 +774,197 @@ window.AriReasoningContextEngine = {
   ===================================================== */
 
   selectSemanticContext(request = {}) {
-    const canonical =
-      this.firstObject([
-        request.semanticContext,
-        request.semanticFrame,
-        request.semanticStructure
-      ]);
-
-    if (!this.hasKeys(canonical)) {
-      return {};
-    }
-
-    return this.pickFields(
-      canonical,
-      [
-        "operation",
-        "requestType",
-        "frameType",
-        "interactionFamily",
-        "intentFamily",
-        "primaryIntent",
-        "domain",
-        "requestedOutput",
-        "resolvedQuestion",
-        "resolvedMeaning",
-        "semanticSummary",
-        "userGoal",
-        "conversationFunction",
-        "subject",
-        "subjects",
-        "object",
-        "target",
-        "constraints",
-        "ambiguity",
-        "execution"
-      ]
+  /*
+   * Merge semantic sources from least authoritative/rich to most
+   * directly usable. Later values override earlier aliases, while
+   * nested continuity and reference evidence are preserved.
+   */
+  const semanticStructure =
+    this.normalizeObject(
+      request.semanticStructure
     );
-  },
+
+  const semanticFrame =
+    this.normalizeObject(
+      request.semanticFrame
+    );
+
+  const semanticContext =
+    this.normalizeObject(
+      request.semanticContext
+    );
+
+  const canonical = {
+    ...semanticStructure,
+    ...semanticFrame,
+    ...semanticContext,
+
+    participants:
+      this.firstObject([
+        semanticContext.participants,
+        semanticFrame.participants,
+        semanticStructure.participants
+      ]),
+
+    subject:
+      semanticContext.subject ??
+      semanticFrame.subject ??
+      semanticStructure.subject ??
+      null,
+
+    subjects:
+      this.firstNonEmptyArray([
+        semanticContext.subjects,
+        semanticFrame.subjects,
+        semanticStructure.subjects
+      ]),
+
+    object:
+      semanticContext.object ??
+      semanticFrame.object ??
+      semanticStructure.object ??
+      null,
+
+    target:
+      semanticContext.target ??
+      semanticFrame.target ??
+      semanticStructure.target ??
+      null,
+
+    referent:
+      this.firstObject([
+        semanticContext.referent,
+        semanticFrame.referent,
+        semanticStructure.referent
+      ]),
+
+    continuity:
+      this.mergeObjects([
+        semanticStructure.continuity,
+        semanticFrame.continuity,
+        semanticContext.continuity,
+        request.continuity,
+        request.continuityContext,
+        request.continuityResolution,
+        request.deterministicContext
+          ?.continuity
+      ]),
+
+    ambiguity:
+      this.mergeObjects([
+        semanticStructure.ambiguity,
+        semanticFrame.ambiguity,
+        semanticContext.ambiguity
+      ]),
+
+    references:
+      this.firstNonEmptyArray([
+        semanticContext.references,
+        semanticFrame.references,
+        semanticStructure.references,
+        request.referenceResolution
+          ?.decisions,
+        request.referencePacket
+          ?.references
+      ]),
+
+    resolvedReferences:
+      this.firstNonEmptyArray([
+        semanticContext.resolvedReferences,
+        semanticFrame.resolvedReferences,
+        semanticStructure.resolvedReferences,
+        request.referenceResolution
+          ?.resolvedReferences,
+        request.referencePacket
+          ?.resolvedReferences,
+        request.continuity
+          ?.resolvedReferences
+      ]),
+
+    unresolvedReferences:
+      this.firstNonEmptyArray([
+        semanticContext.unresolvedReferences,
+        semanticFrame.unresolvedReferences,
+        semanticStructure.unresolvedReferences,
+        request.referenceResolution
+          ?.unresolvedReferences,
+        request.referencePacket
+          ?.unresolvedReferences
+      ]),
+
+    inheritedNodes:
+      this.firstNonEmptyArray([
+        semanticContext.inheritedNodes,
+        semanticFrame.inheritedNodes,
+        semanticStructure.inheritedNodes,
+        request.resolvedSemanticStructure
+          ?.inheritedNodes
+      ])
+  };
+
+  if (!this.hasKeys(canonical)) {
+    return {};
+  }
+
+  return this.pickFields(
+    canonical,
+    [
+      "schema",
+      "schemaVersion",
+      "frameId",
+      "turnId",
+
+      "operation",
+      "requestType",
+      "frameType",
+      "interactionFamily",
+      "intentFamily",
+      "primaryIntent",
+      "domain",
+      "requestedOutput",
+
+      "resolvedQuestion",
+      "resolvedMeaning",
+      "semanticSummary",
+      "interpretation",
+      "userGoal",
+      "conversationFunction",
+
+      "participants",
+      "subject",
+      "subjects",
+      "object",
+      "target",
+      "referent",
+
+      "entities",
+      "events",
+      "claims",
+      "attributes",
+      "quantities",
+      "relations",
+
+      "references",
+      "resolvedReferences",
+      "unresolvedReferences",
+      "inheritedNodes",
+
+      "options",
+      "criteria",
+      "constraints",
+      "stakes",
+
+      "continuity",
+      "ambiguity",
+      "execution",
+
+      "confidence",
+      "evidenceRefs",
+      "grounding",
+      "authority"
+    ]
+  );
+},
 
   /* =====================================================
      ROUTING
@@ -890,52 +1044,220 @@ window.AriReasoningContextEngine = {
   ===================================================== */
 
   readContinuity(request = {}) {
-    return this.firstObject([
-      request.continuity,
-      request.continuityContext,
-      request.continuityResolution,
-      request.deterministicContext
-        ?.continuity
+  const semanticContext =
+    this.normalizeObject(
+      request.semanticContext
+    );
+
+  const semanticFrame =
+    this.normalizeObject(
+      request.semanticFrame
+    );
+
+  const semanticStructure =
+    this.normalizeObject(
+      request.semanticStructure
+    );
+
+  const referenceResolution =
+    this.normalizeObject(
+      request.referenceResolution
+    );
+
+  const referencePacket =
+    this.normalizeObject(
+      request.referencePacket
+    );
+
+  const detectedReferences =
+    referencePacket.referencesDetected === true ||
+    Number(
+      referencePacket.referenceCount || 0
+    ) > 0 ||
+    this.nonEmptyArray(
+      referencePacket.references
+    ) ||
+    this.nonEmptyArray(
+      referenceResolution.decisions
+    );
+
+  const detectedResolvedReferences =
+    Number(
+      referencePacket.resolvedCount || 0
+    ) > 0 ||
+    this.nonEmptyArray(
+      referencePacket.resolvedReferences
+    ) ||
+    this.nonEmptyArray(
+      referenceResolution.resolvedReferences
+    );
+
+  const derivedContinuity = {};
+
+  /*
+   * Only contribute positive derived evidence.
+   * Never overwrite authoritative true values with synthetic false values.
+   */
+  if (detectedReferences) {
+    derivedContinuity.referencePresent =
+      true;
+  }
+
+  if (detectedResolvedReferences) {
+    derivedContinuity.referenceResolved =
+      true;
+  }
+
+  const resolvedReferences =
+    this.firstNonEmptyArray([
+      request.continuity
+        ?.resolvedReferences,
+
+      request.continuityContext
+        ?.resolvedReferences,
+
+      request.continuityResolution
+        ?.resolvedReferences,
+
+      referencePacket
+        .resolvedReferences,
+
+      referenceResolution
+        .resolvedReferences
     ]);
-  },
+
+  if (resolvedReferences.length > 0) {
+    derivedContinuity.resolvedReferences =
+      resolvedReferences;
+  }
+
+  const unresolvedReferences =
+    this.firstNonEmptyArray([
+      request.continuity
+        ?.unresolvedReferences,
+
+      request.continuityContext
+        ?.unresolvedReferences,
+
+      request.continuityResolution
+        ?.unresolvedReferences,
+
+      referencePacket
+        .unresolvedReferences,
+
+      referenceResolution
+        .unresolvedReferences
+    ]);
+
+  if (unresolvedReferences.length > 0) {
+    derivedContinuity.unresolvedReferences =
+      unresolvedReferences;
+  }
+
+  const references =
+    this.firstNonEmptyArray([
+      request.continuity
+        ?.references,
+
+      request.continuityContext
+        ?.references,
+
+      request.continuityResolution
+        ?.references,
+
+      referencePacket.references,
+
+      referenceResolution.decisions
+    ]);
+
+  if (references.length > 0) {
+    derivedContinuity.references =
+      references;
+  }
+
+  const merged =
+    this.mergeObjects([
+      semanticStructure.continuity,
+      semanticFrame.continuity,
+      semanticContext.continuity,
+
+      request.deterministicContext
+        ?.continuity,
+
+      request.continuityResolution,
+      request.continuityContext,
+      request.continuity,
+
+      derivedContinuity
+    ]);
+
+  return this.removeEmptyValues(
+    merged
+  );
+},
 
   selectContinuityContext(
-    request = {},
-    limits = {}
-  ) {
-    const continuity =
-      this.readContinuity(request);
+  request = {},
+  limits = {}
+) {
+  const continuity =
+    this.readContinuity(request);
 
-    return this.removeEmptyValues({
-      ...this.pickFields(
-        continuity,
-        [
-          "ready",
-          "requiresPriorContext",
-          "referencePresent",
-          "referenceResolved",
-          "missingAnchor",
-          "continuitySummary",
-          "threadSummary",
-          "warnings"
-        ]
+  return this.removeEmptyValues({
+    ...this.pickFields(
+      continuity,
+      [
+        "ready",
+        "requiresPriorContext",
+        "isContinuation",
+
+        "referencePresent",
+        "referenceType",
+        "referenceSurface",
+        "referenceResolved",
+        "resolvedReferenceValue",
+        "resolutionSource",
+
+        "missingAnchor",
+        "unresolvedReference",
+
+        "sourceTurnId",
+        "continuitySummary",
+        "threadSummary",
+
+        "clarificationRequired",
+        "clarificationQuestion",
+
+        "warnings",
+        "errors"
+      ]
+    ),
+
+    references:
+      this.limitArray(
+        continuity.references,
+        limits.conversationTurns
       ),
 
-      resolvedReferences:
-        this.limitArray(
-          continuity
-            .resolvedReferences,
-          limits.conversationTurns
-        ),
+    resolvedReferences:
+      this.limitArray(
+        continuity.resolvedReferences,
+        limits.conversationTurns
+      ),
 
-      relevantPriorTurns:
-        this.limitRecentArray(
-          continuity
-            .relevantPriorTurns,
-          limits.conversationTurns
-        )
-    });
-  },
+    unresolvedReferences:
+      this.limitArray(
+        continuity.unresolvedReferences,
+        limits.conversationTurns
+      ),
+
+    relevantPriorTurns:
+      this.limitRecentArray(
+        continuity.relevantPriorTurns,
+        limits.conversationTurns
+      )
+  });
+},
 
   /* =====================================================
      SITUATION
@@ -1434,29 +1756,59 @@ window.AriReasoningContextEngine = {
   ===================================================== */
 
   hasMeaningfulContinuity(
-    continuity = {}
-  ) {
-    return Boolean(
-      continuity.referencePresent ===
-        true ||
-      continuity.referenceResolved ===
-        true ||
-      continuity.requiresPriorContext ===
-        true ||
-      this.nonEmptyArray(
-        continuity.resolvedReferences
-      ) ||
-      this.nonEmptyArray(
-        continuity.relevantPriorTurns
-      ) ||
-      this.nonEmptyString(
-        continuity.continuitySummary
-      ) ||
-      this.nonEmptyString(
-        continuity.threadSummary
-      )
-    );
-  },
+  continuity = {}
+) {
+  return Boolean(
+    continuity.requiresPriorContext ===
+      true ||
+
+    continuity.isContinuation ===
+      true ||
+
+    continuity.referencePresent ===
+      true ||
+
+    continuity.referenceResolved ===
+      true ||
+
+    continuity.missingAnchor ===
+      true ||
+
+    continuity.unresolvedReference ===
+      true ||
+
+    continuity.clarificationRequired ===
+      true ||
+
+    this.nonEmptyArray(
+      continuity.references
+    ) ||
+
+    this.nonEmptyArray(
+      continuity.resolvedReferences
+    ) ||
+
+    this.nonEmptyArray(
+      continuity.unresolvedReferences
+    ) ||
+
+    this.nonEmptyArray(
+      continuity.relevantPriorTurns
+    ) ||
+
+    this.nonEmptyString(
+      continuity.referenceSurface
+    ) ||
+
+    this.nonEmptyString(
+      continuity.continuitySummary
+    ) ||
+
+    this.nonEmptyString(
+      continuity.threadSummary
+    )
+  );
+},
 
   hasMeaningfulMemory(request = {}) {
     const memory =
@@ -1843,6 +2195,69 @@ window.AriReasoningContextEngine = {
     return [];
   },
 
+mergeObjects(candidates = []) {
+  const output = {};
+
+  for (const candidate of candidates) {
+    if (!this.isPlainObject(candidate)) {
+      continue;
+    }
+
+    for (
+      const [
+        key,
+        value
+      ] of Object.entries(candidate)
+    ) {
+      if (
+        value === undefined ||
+        value === null ||
+        value === ""
+      ) {
+        continue;
+      }
+
+      if (
+        this.isPlainObject(value) &&
+        this.isPlainObject(output[key])
+      ) {
+        output[key] = {
+          ...output[key],
+          ...value
+        };
+
+        continue;
+      }
+
+      if (
+        Array.isArray(value) &&
+        value.length === 0 &&
+        Array.isArray(output[key]) &&
+        output[key].length > 0
+      ) {
+        continue;
+      }
+
+      output[key] = value;
+    }
+  }
+
+  return output;
+},
+
+firstNonEmptyArray(candidates = []) {
+  for (const candidate of candidates) {
+    if (
+      Array.isArray(candidate) &&
+      candidate.length > 0
+    ) {
+      return candidate;
+    }
+  }
+
+  return [];
+},
+
   firstString(candidates = []) {
     for (
       const candidate of candidates
@@ -2210,6 +2625,8 @@ window.AriReasoningContextEngine = {
       "selectAuthorityContext",
       "selectOutputContract",
       "selectOperationContract",
+      "mergeObjects",
+"firstNonEmptyArray",
       "buildDiagnostics"
     ];
 
