@@ -7,19 +7,23 @@
 // user-facing draft for downstream semantic validation, response planning,
 // final composition, and delivery.
 //
-// V10.2.0 — Canonical Communication Style Handoff
+// V10.3.0 — Lean Cognitive Context Integration
 //
 // Architectural flow:
 //
 // Canonical Evidence + Current Turn + Communication Preferences
 //      ↓
-// Registry-Bound Cognitive Request
+// Registry-Bound Canonical Reasoning Request
+//      ↓
+// Ari Reasoning Context Engine
+//      ↓
+// Lean Cognitive Context Packet
 //      ↓
 // One OpenAI Reasoning Invocation
 //      ↓
 // Semantic Frame + Response Requirements + Authoritative Draft
 //      ↓
-// Validation and Normalization
+// Validation Against the Canonical Reasoning Request
 //      ↓
 // Canonical Cognitive Reasoning Result
 //
@@ -59,6 +63,10 @@
 // - Preserve the style OpenAI reports applying.
 // - Reject unsafe or falsely executed action claims.
 // - Return transparent invocation and validation diagnostics.
+// - Resolve and invoke the Ari Reasoning Context Engine.
+// - Preserve the complete canonical request inside Ari.
+// - Send only the lean cognitive packet to the OpenAI client.
+// - Preserve context-selection and prompt-size diagnostics.
 //
 // Non-responsibilities:
 // - Does not infer personality or profanity preferences from ordinary text.
@@ -71,11 +79,13 @@
 // - Does not replace Response Planning.
 // - Does not replace Final Composition.
 // - Does not expose private chain-of-thought.
+// - Does not send the complete canonical reasoning request to OpenAI.
+// - Does not independently select or trim model context.
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "10.2.0",
+  version: "10.3.0",
   source: "ari-reasoning-engine",
 
   requestSchema:
@@ -99,299 +109,512 @@ window.AriReasoningEngine = {
   },
 
   async reason(input = {}) {
-    const summary =
-      input.summary ||
-      input ||
-      {};
+  const summary =
+    input.summary ||
+    input ||
+    {};
 
-    const reasoningRequest =
-      this.resolveReasoningRequest(
+  /*
+   * The canonical reasoning request remains the complete,
+   * authoritative internal request owned by Ari.
+   */
+  const reasoningRequest =
+    this.resolveReasoningRequest(
+      summary
+    );
+
+  const requestValidation =
+    this.validateReasoningRequest(
+      reasoningRequest
+    );
+
+  if (
+    requestValidation.valid !==
+    true
+  ) {
+    return this.buildFailureResult({
+      reason:
+        "invalid_reasoning_request",
+
+      errors:
+        requestValidation.errors,
+
+      request:
+        reasoningRequest,
+
+      engineRan:
+        false,
+
+      contextSelection:
+        this.buildContextSelectionDiagnostic({
+          available:
+            false,
+
+          attempted:
+            false,
+
+          succeeded:
+            false,
+
+          error:
+            "Reasoning request validation failed before context selection."
+        }),
+
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            false,
+
+          attempted:
+            false,
+
+          succeeded:
+            false,
+
+          source:
+            null,
+
+          error:
+            "Reasoning request validation failed before model invocation."
+        })
+    });
+  }
+
+  /*
+   * Resolve the context engine before resolving the model
+   * client. The model must never receive the complete
+   * canonical request directly.
+   */
+  const contextEngine =
+    this.resolveContextEngine();
+
+  if (!contextEngine) {
+    return this.buildFailureResult({
+      reason:
+        "reasoning_context_engine_not_available",
+
+      errors: [
+        "AriReasoningContextEngine was not loaded or did not expose a supported build method."
+      ],
+
+      request:
+        reasoningRequest,
+
+      engineRan:
+        false,
+
+      contextSelection:
+        this.buildContextSelectionDiagnostic({
+          available:
+            false,
+
+          attempted:
+            false,
+
+          succeeded:
+            false,
+
+          source:
+            null,
+
+          error:
+            "No supported reasoning context engine was available."
+        }),
+
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            false,
+
+          attempted:
+            false,
+
+          succeeded:
+            false,
+
+          source:
+            null,
+
+          error:
+            "Model invocation was not attempted because context selection was unavailable."
+        })
+    });
+  }
+
+  const contextStartedAt =
+    Date.now();
+
+  let contextResult;
+
+  try {
+    contextResult =
+      contextEngine.build({
+        reasoningRequest
+      });
+  } catch (error) {
+    return this.buildFailureResult({
+      reason:
+        "reasoning_context_build_failed",
+
+      errors: [
+        error?.message ||
+        "The reasoning context engine failed while building the cognitive packet."
+      ],
+
+      request:
+        reasoningRequest,
+
+      engineRan:
+        false,
+
+      contextSelection:
+        this.buildContextSelectionDiagnostic({
+          available:
+            true,
+
+          attempted:
+            true,
+
+          succeeded:
+            false,
+
+          source:
+            contextEngine.source,
+
+          durationMs:
+            Date.now() -
+            contextStartedAt,
+
+          error:
+            error?.message ||
+            "The reasoning context engine failed."
+        }),
+
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            false,
+
+          attempted:
+            false,
+
+          succeeded:
+            false,
+
+          source:
+            null,
+
+          error:
+            "Model invocation was not attempted because context selection failed."
+        })
+    });
+  }
+
+  const contextValidation =
+    this.validateContextResult(
+      contextResult
+    );
+
+  const contextSelection =
+    this.buildContextSelectionDiagnostic({
+      available:
+        true,
+
+      attempted:
+        true,
+
+      succeeded:
+        contextValidation.valid ===
+        true,
+
+      source:
+        contextEngine.source,
+
+      durationMs:
+        Date.now() -
+        contextStartedAt,
+
+      error:
+        contextValidation.valid ===
+        true
+          ? null
+          : this.firstString(
+              contextValidation.errors
+            ) ||
+            "The cognitive context packet was invalid.",
+
+      diagnostics:
+        contextResult
+          ?.diagnostics ||
+        null
+    });
+
+  if (
+    contextValidation.valid !==
+    true
+  ) {
+    return this.buildFailureResult({
+      reason:
+        "invalid_cognitive_context_packet",
+
+      errors:
+        contextValidation.errors,
+
+      request:
+        reasoningRequest,
+
+      engineRan:
+        false,
+
+      contextSelection,
+
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            false,
+
+          attempted:
+            false,
+
+          succeeded:
+            false,
+
+          source:
+            null,
+
+          error:
+            "Model invocation was not attempted because the cognitive packet was invalid."
+        })
+    });
+  }
+
+  const cognitivePacket =
+    contextResult.cognitivePacket;
+
+  const modelInvoker =
+    this.resolveModelInvoker({
+      ...summary,
+
+      openAIReasoningInvoker:
+        reasoningRequest
+          .openAIReasoningInvoker ||
         summary
-      );
+          .openAIReasoningInvoker ||
+        null
+    });
 
-    const requestValidation =
-      this.validateReasoningRequest(
-        reasoningRequest
-      );
+  if (!modelInvoker) {
+    return this.buildFailureResult({
+      reason:
+        "openai_reasoning_invoker_not_available",
 
-    if (
-      requestValidation.valid !==
-      true
-    ) {
-      return this.buildFailureResult({
-        reason:
-          "invalid_reasoning_request",
+      errors: [
+        "No supported OpenAI reasoning client or injected invoker was found."
+      ],
 
-        errors:
-          requestValidation.errors,
+      request:
+        reasoningRequest,
 
-        request:
-          reasoningRequest,
+      engineRan:
+        false,
 
-        engineRan:
-          false,
+      contextSelection,
 
-        modelInvocation:
-          this.buildModelInvocationDiagnostic({
-            available:
-              false,
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            false,
 
-            attempted:
-              false,
+          attempted:
+            false,
 
-            succeeded:
-              false,
+          succeeded:
+            false,
 
-            source:
-              null,
+          source:
+            null,
 
-            error:
-              "Reasoning request validation failed before model invocation."
-          })
-      });
-    }
+          error:
+            "No supported OpenAI reasoning invoker was available."
+        })
+    });
+  }
 
-    const modelInvoker =
-      this.resolveModelInvoker({
-        ...summary,
+  console.log(
+    "ARI REASONING ENGINE CONTEXT HANDOFF",
+    {
+      requestSchemaVersion:
+        reasoningRequest.schemaVersion ||
+        null,
 
-        openAIReasoningInvoker:
-          reasoningRequest
-            .openAIReasoningInvoker ||
-          summary
-            .openAIReasoningInvoker ||
-          null
-      });
+      cognitivePacketSchema:
+        cognitivePacket.schema ||
+        null,
 
-    if (!modelInvoker) {
-      return this.buildFailureResult({
-        reason:
-          "openai_reasoning_invoker_not_available",
+      cognitivePacketSchemaVersion:
+        cognitivePacket.schemaVersion ||
+        null,
 
-        errors: [
-          "No supported OpenAI reasoning client or injected invoker was found."
-        ],
+      contextMode:
+        cognitivePacket.mode ||
+        null,
 
-        request:
-          reasoningRequest,
+      sourceApproximateTokens:
+        contextResult
+          .diagnostics
+          ?.sourceApproximateTokens ??
+        null,
 
-        engineRan:
-          false,
+      packetApproximateTokens:
+        contextResult
+          .diagnostics
+          ?.packetApproximateTokens ??
+        contextResult
+          .diagnostics
+          ?.approximateTokens ??
+        null,
 
-        modelInvocation:
-          this.buildModelInvocationDiagnostic({
-            available:
-              false,
+      reductionPercentage:
+        contextResult
+          .diagnostics
+          ?.reductionPercentage ??
+        null,
 
-            attempted:
-              false,
+      includedContext:
+        contextResult
+          .diagnostics
+          ?.included ||
+        {},
 
-            succeeded:
-              false,
-
-            source:
-              null,
-
-            error:
-              "No supported OpenAI reasoning invoker was available."
-          })
-      });
-    }
-
-    const invocationStartedAt =
-      Date.now();
-
-    let rawModelResult;
-
-    try {
-      const operationContract =
-        this.getOperationContract();
-
-console.log(
-  "ARI REASONING ENGINE STYLE HANDOFF",
-  {
-    requestSchemaVersion:
-      reasoningRequest.schemaVersion ||
-      null,
-
-    preferenceContextAvailable:
-      reasoningRequest
-        .preferenceContext
-        ?.available === true,
-
-    preferenceContextReady:
-      reasoningRequest
-        .preferenceContext
-        ?.ready === true,
-
-    userPreferenceKeys:
-      Object.keys(
-        reasoningRequest
-          .userPreferences || {}
-      ),
-
-    responseStyleKeys:
-      Object.keys(
-        reasoningRequest
-          .responseStyle || {}
-      ),
-
-    currentTurnOverrideKeys:
-      Object.keys(
+      preferenceContextAvailable:
         reasoningRequest
           .preferenceContext
-          ?.currentTurnOverride || {}
-      ),
+          ?.available ===
+        true,
 
-    userPreferencesSource:
-      reasoningRequest
-        .styleContext
-        ?.userPreferencesSource ||
-      null,
+      preferenceContextReady:
+        reasoningRequest
+          .preferenceContext
+          ?.ready ===
+        true,
 
-    responseStyleSource:
-      reasoningRequest
-        .styleContext
-        ?.responseStyleSource ||
-      null,
-
-    invokerSource:
-      modelInvoker.source ||
-      null
-  }
-);
-
-      rawModelResult =
-        await modelInvoker.invoke({
-          ...reasoningRequest,
-
-          action:
-            reasoningRequest.action ||
-            "openai_reasoning",
-
-          task:
-            "ari_cognitive_reasoning",
-
-          operationContract,
-
-          responseSchema:
-            this.getResponseSchema(
-              operationContract
-            ),
-
-          instructions:
-            this.getReasoningInstructions(
-              operationContract
-            ),
-
-          /*
-           * These are repeated at the top level because the
-           * OpenAI client accepts the canonical engine packet
-           * and transports these fields explicitly.
-           */
-         
-          preferenceContext:
-  this.objectOrEmpty(
-    reasoningRequest.preferenceContext
-  ),
-          
-           userPreferences:
-            this.objectOrEmpty(
-              reasoningRequest
-                .userPreferences
-            ),
-
-          responseStyle:
-            this.objectOrEmpty(
-              reasoningRequest
-                .responseStyle
-            ),
-
-          request:
-            reasoningRequest
-        });
-    } catch (error) {
-      return this.buildFailureResult({
-        reason:
-          "openai_reasoning_invocation_failed",
-
-        errors: [
-          error?.message ||
-          "The OpenAI reasoning invocation failed."
-        ],
-
-        request:
-          reasoningRequest,
-
-        engineRan:
-          true,
-
-        modelInvocation:
-          this.buildModelInvocationDiagnostic({
-            available:
-              true,
-
-            attempted:
-              true,
-
-            succeeded:
-              false,
-
-            source:
-              modelInvoker.source,
-
-            durationMs:
-              Date.now() -
-              invocationStartedAt,
-
-            error:
-              error?.message ||
-              "The OpenAI reasoning invocation failed."
-          })
-      });
-    }
-
-    const invocationDurationMs =
-      Date.now() -
-      invocationStartedAt;
-
-    const normalizedResult =
-      this.validateAndNormalizeResult({
-        rawResult:
-          rawModelResult,
-
-        request:
+      userPreferenceKeys:
+        Object.keys(
           reasoningRequest
+            .userPreferences ||
+          {}
+        ),
+
+      responseStyleKeys:
+        Object.keys(
+          reasoningRequest
+            .responseStyle ||
+          {}
+        ),
+
+      currentTurnOverrideKeys:
+        Object.keys(
+          reasoningRequest
+            .preferenceContext
+            ?.currentTurnOverride ||
+          {}
+        ),
+
+      userPreferencesSource:
+        reasoningRequest
+          .styleContext
+          ?.userPreferencesSource ||
+        null,
+
+      responseStyleSource:
+        reasoningRequest
+          .styleContext
+          ?.responseStyleSource ||
+        null,
+
+      contextEngineSource:
+        contextEngine.source ||
+        null,
+
+      invokerSource:
+        modelInvoker.source ||
+        null
+    }
+  );
+
+  const invocationStartedAt =
+    Date.now();
+
+  let rawModelResult;
+
+  try {
+    /*
+     * Only the cognitive packet crosses the OpenAI client
+     * boundary.
+     *
+     * Do not add:
+     *
+     * request: reasoningRequest
+     * canonicalReasoningRequest: reasoningRequest
+     * ...reasoningRequest
+     *
+     * Those would restore the oversized payload.
+     */
+    rawModelResult =
+      await modelInvoker.invoke({
+        action:
+          reasoningRequest.action ||
+          "openai_reasoning",
+
+        task:
+          "ari_cognitive_reasoning",
+
+        cognitivePacket,
+
+        /*
+         * These contracts are exposed separately so the
+         * transport client can configure structured output
+         * without rebuilding context.
+         *
+         * The client must not serialize these twice into the
+         * provider prompt.
+         */
+        operationContract:
+          cognitivePacket
+            .operationContract ||
+          reasoningRequest
+            .operationContract ||
+          this.getOperationContract(),
+
+        responseSchema:
+          cognitivePacket
+            .outputContract ||
+          reasoningRequest
+            .outputContract ||
+          this.getResponseSchema(
+            reasoningRequest
+              .operationContract
+          ),
+
+        instructions:
+          this.arrayOrEmpty(
+            cognitivePacket.instructions
+          ).length
+            ? cognitivePacket.instructions
+            : this.getReasoningInstructions(
+                reasoningRequest
+                  .operationContract
+              )
       });
+  } catch (error) {
+    return this.buildFailureResult({
+      reason:
+        "openai_reasoning_invocation_failed",
 
-    const modelInvocation =
-      this.buildModelInvocationDiagnostic({
-        available:
-          true,
-
-        attempted:
-          true,
-
-        succeeded:
-          true,
-
-        source:
-          modelInvoker.source,
-
-        durationMs:
-          invocationDurationMs,
-
-        error:
-          null
-      });
-
-    const cognitiveReasoningResult = {
-      ...normalizedResult,
-      modelInvocation
-    };
-
-    return this.buildEngineResult({
-      cognitiveReasoningResult,
+      errors: [
+        error?.message ||
+        "The OpenAI reasoning invocation failed."
+      ],
 
       request:
         reasoningRequest,
@@ -399,9 +622,97 @@ console.log(
       engineRan:
         true,
 
-      modelInvocation
+      contextSelection,
+
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            true,
+
+          attempted:
+            true,
+
+          succeeded:
+            false,
+
+          source:
+            modelInvoker.source,
+
+          durationMs:
+            Date.now() -
+            invocationStartedAt,
+
+          error:
+            error?.message ||
+            "The OpenAI reasoning invocation failed."
+        })
     });
-  },
+  }
+
+  const invocationDurationMs =
+    Date.now() -
+    invocationStartedAt;
+
+  /*
+   * Model output is still validated against the complete
+   * canonical request—not the trimmed cognitive packet.
+   */
+  const normalizedResult =
+    this.validateAndNormalizeResult({
+      rawResult:
+        rawModelResult,
+
+      request:
+        reasoningRequest
+    });
+
+  const modelInvocation =
+    this.buildModelInvocationDiagnostic({
+      available:
+        true,
+
+      attempted:
+        true,
+
+      succeeded:
+        true,
+
+      source:
+        modelInvoker.source,
+
+      durationMs:
+        invocationDurationMs,
+
+      error:
+        null
+    });
+
+  const cognitiveReasoningResult = {
+    ...normalizedResult,
+
+    contextSelection,
+
+    contextDiagnostics:
+      contextResult.diagnostics ||
+      null,
+
+    modelInvocation
+  };
+
+  return this.buildEngineResult({
+    cognitiveReasoningResult,
+
+    request:
+      reasoningRequest,
+
+    engineRan:
+      true,
+
+    contextSelection,
+
+    modelInvocation
+  });
+},
 
   /* =====================================================
      REQUEST CONSTRUCTION
@@ -684,13 +995,18 @@ currentTurn,
       operationContract,
 
       outputContract:
-        this.getResponseSchema(
-          operationContract
-        ),
+  this.getResponseSchema(
+    operationContract
+  ),
 
-      openAIReasoningInvoker:
-        summary.openAIReasoningInvoker ||
-        null
+instructions:
+  this.getReasoningInstructions(
+    operationContract
+  ),
+
+openAIReasoningInvoker:
+  summary.openAIReasoningInvoker ||
+  null
     };
   },
 
@@ -1997,6 +2313,459 @@ preferenceContext: {
         )
     };
   },
+
+/* =====================================================
+   REASONING CONTEXT SELECTION
+===================================================== */
+
+resolveContextEngine() {
+  const candidates = [
+    {
+      source:
+        "AriReasoningContextEngine.build",
+
+      target:
+        window
+          .AriReasoningContextEngine,
+
+      fn:
+        window
+          .AriReasoningContextEngine
+          ?.build
+    },
+
+    {
+      source:
+        "AriReasoningContextEngine.create",
+
+      target:
+        window
+          .AriReasoningContextEngine,
+
+      fn:
+        window
+          .AriReasoningContextEngine
+          ?.create
+    },
+
+    {
+      source:
+        "Ari.reasoningContextEngine.build",
+
+      target:
+        window.Ari
+          ?.reasoningContextEngine,
+
+      fn:
+        window.Ari
+          ?.reasoningContextEngine
+          ?.build
+    },
+
+    {
+      source:
+        "Ari.reasoningContextEngine.create",
+
+      target:
+        window.Ari
+          ?.reasoningContextEngine,
+
+      fn:
+        window.Ari
+          ?.reasoningContextEngine
+          ?.create
+    }
+  ];
+
+  const selected =
+    candidates.find(
+      candidate =>
+        typeof candidate.fn ===
+        "function"
+    ) ||
+    null;
+
+  if (!selected) {
+    return null;
+  }
+
+  return {
+    source:
+      selected.source,
+
+    build:
+      payload =>
+        selected.fn.call(
+          selected.target,
+          payload
+        )
+  };
+},
+
+validateContextResult(
+  contextResult = {}
+) {
+  const errors = [];
+  const warnings = [];
+
+  if (
+    !this.isPlainObject(
+      contextResult
+    )
+  ) {
+    return {
+      valid:
+        false,
+
+      errors: [
+        "reasoning_context_result_must_be_an_object"
+      ],
+
+      warnings
+    };
+  }
+
+  if (
+    contextResult.ready !==
+      true
+  ) {
+    errors.push(
+      contextResult.error ||
+      "reasoning_context_result_not_ready"
+    );
+  }
+
+  if (
+    contextResult.success !==
+      true
+  ) {
+    errors.push(
+      "reasoning_context_result_not_successful"
+    );
+  }
+
+  const cognitivePacket =
+    contextResult
+      .cognitivePacket;
+
+  if (
+    !this.isPlainObject(
+      cognitivePacket
+    )
+  ) {
+    errors.push(
+      "cognitive_packet_missing"
+    );
+
+    return {
+      valid:
+        false,
+
+      errors:
+        this.cleanStringList(
+          errors
+        ),
+
+      warnings
+    };
+  }
+
+  if (
+    cognitivePacket.schema !==
+    "ari_cognitive_context_packet"
+  ) {
+    errors.push(
+      "invalid_cognitive_packet_schema"
+    );
+  }
+
+  const effectiveRequest =
+    this.firstNonEmptyString([
+      cognitivePacket
+        .request
+        ?.effective,
+
+      cognitivePacket
+        .request
+        ?.original
+    ]);
+
+  if (!effectiveRequest) {
+    errors.push(
+      "cognitive_packet_effective_request_missing"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.safetyIsBinding !==
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_safety_authority_missing"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.mayExecuteActions ===
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_may_not_authorize_action_execution"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.mayPersistState ===
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_may_not_authorize_persistence"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.mayOverrideSafety ===
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_may_not_override_safety"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.mayClaimToolSuccess ===
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_may_not_claim_tool_success"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.mayAuthorizeDelivery ===
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_may_not_authorize_delivery"
+    );
+  }
+
+  if (
+    cognitivePacket.authority
+      ?.mayExposePrivateChainOfThought ===
+    true
+  ) {
+    errors.push(
+      "cognitive_packet_may_not_expose_private_chain_of_thought"
+    );
+  }
+
+  if (
+    !this.hasKeys(
+      cognitivePacket
+        .outputContract
+    )
+  ) {
+    errors.push(
+      "cognitive_packet_output_contract_missing"
+    );
+  }
+
+  if (
+    !this.hasKeys(
+      cognitivePacket
+        .operationContract
+    )
+  ) {
+    errors.push(
+      "cognitive_packet_operation_contract_missing"
+    );
+  }
+
+  if (
+    !this.arrayOrEmpty(
+      cognitivePacket.instructions
+    ).length
+  ) {
+    warnings.push(
+      "cognitive_packet_instructions_missing"
+    );
+  }
+
+  return {
+    valid:
+      errors.length ===
+      0,
+
+    errors:
+      this.cleanStringList(
+        errors
+      ),
+
+    warnings:
+      this.cleanStringList(
+        warnings
+      )
+  };
+},
+
+buildContextSelectionDiagnostic({
+  available = false,
+  attempted = false,
+  succeeded = false,
+  source = null,
+  durationMs = null,
+  error = null,
+  diagnostics = null
+} = {}) {
+  const suppliedDiagnostics =
+    this.objectOrEmpty(
+      diagnostics
+    );
+
+  return {
+    contextEngineAvailable:
+      available ===
+      true,
+
+    contextEngineSource:
+      source ||
+      null,
+
+    attempted:
+      attempted ===
+      true,
+
+    succeeded:
+      succeeded ===
+      true,
+
+    durationMs:
+      Number.isFinite(
+        Number(durationMs)
+      )
+        ? Number(durationMs)
+        : null,
+
+    mode:
+      suppliedDiagnostics.mode ||
+      null,
+
+    sourceCharacters:
+      Number.isFinite(
+        Number(
+          suppliedDiagnostics
+            .sourceCharacters
+        )
+      )
+        ? Number(
+            suppliedDiagnostics
+              .sourceCharacters
+          )
+        : null,
+
+    sourceApproximateTokens:
+      Number.isFinite(
+        Number(
+          suppliedDiagnostics
+            .sourceApproximateTokens
+        )
+      )
+        ? Number(
+            suppliedDiagnostics
+              .sourceApproximateTokens
+          )
+        : null,
+
+    packetCharacters:
+      Number.isFinite(
+        Number(
+          suppliedDiagnostics
+            .packetCharacters ??
+          suppliedDiagnostics
+            .characters
+        )
+      )
+        ? Number(
+            suppliedDiagnostics
+              .packetCharacters ??
+            suppliedDiagnostics
+              .characters
+          )
+        : null,
+
+    packetApproximateTokens:
+      Number.isFinite(
+        Number(
+          suppliedDiagnostics
+            .packetApproximateTokens ??
+          suppliedDiagnostics
+            .approximateTokens
+        )
+      )
+        ? Number(
+            suppliedDiagnostics
+              .packetApproximateTokens ??
+            suppliedDiagnostics
+              .approximateTokens
+          )
+        : null,
+
+    reductionCharacters:
+      Number.isFinite(
+        Number(
+          suppliedDiagnostics
+            .reductionCharacters
+        )
+      )
+        ? Number(
+            suppliedDiagnostics
+              .reductionCharacters
+          )
+        : null,
+
+    reductionPercentage:
+      Number.isFinite(
+        Number(
+          suppliedDiagnostics
+            .reductionPercentage
+        )
+      )
+        ? Number(
+            suppliedDiagnostics
+              .reductionPercentage
+          )
+        : null,
+
+    requirements:
+      this.objectOrEmpty(
+        suppliedDiagnostics
+          .requirements
+      ),
+
+    limits:
+      this.objectOrEmpty(
+        suppliedDiagnostics
+          .limits
+      ),
+
+    included:
+      this.objectOrEmpty(
+        suppliedDiagnostics
+          .included
+      ),
+
+    error:
+      error ||
+      null
+  };
+},
 
   /* =====================================================
      MODEL INVOCATION
@@ -4139,11 +4908,12 @@ preferenceContext: {
   ===================================================== */
 
   buildEngineResult({
-    cognitiveReasoningResult = {},
-    request = {},
-    engineRan = false,
-    modelInvocation = {}
-  } = {}) {
+  cognitiveReasoningResult = {},
+  request = {},
+  engineRan = false,
+  contextSelection = {},
+  modelInvocation = {}
+} = {}) {
     const semanticFrame =
       cognitiveReasoningResult
         .semanticFrame ||
@@ -4211,6 +4981,16 @@ preferenceContext: {
         this.objectOrEmpty(
           modelInvocation
         ),
+
+contextSelection:
+  this.objectOrEmpty(
+    contextSelection
+  ),
+
+contextDiagnostics:
+  cognitiveReasoningResult
+    .contextDiagnostics ||
+  null,
 
       cognitiveReasoningResult,
 
@@ -4398,17 +5178,19 @@ preferenceContext: {
   },
 
   buildFailureResult({
-    reason =
-      "reasoning_failed",
+  reason =
+    "reasoning_failed",
 
-    errors = [],
+  errors = [],
 
-    request = {},
+  request = {},
 
-    engineRan = false,
+  engineRan = false,
 
-    modelInvocation = {}
-  } = {}) {
+  contextSelection = {},
+
+  modelInvocation = {}
+} = {}) {
     const validationErrors =
       this.cleanStringList([
         reason,
@@ -4419,6 +5201,11 @@ preferenceContext: {
       this.objectOrEmpty(
         modelInvocation
       );
+
+const normalizedContextSelection =
+  this.objectOrEmpty(
+    contextSelection
+  );
 
     const cognitiveReasoningResult = {
       schema:
@@ -4475,6 +5262,12 @@ preferenceContext: {
       evidenceReferences:
         [],
 
+contextSelection:
+  normalizedContextSelection,
+
+contextDiagnostics:
+  null,
+
       modelInvocation:
         normalizedModelInvocation,
 
@@ -4526,6 +5319,12 @@ preferenceContext: {
 
       reasoningSource:
         "ari-reasoning-engine-failure",
+
+contextSelection:
+  normalizedContextSelection,
+
+contextDiagnostics:
+  null,
 
       modelInvocation:
         normalizedModelInvocation,
@@ -4617,6 +5416,9 @@ preferenceContext: {
           ?.allowedOperations
       );
 
+const resolvedContextEngine =
+  this.resolveContextEngine();
+
     const operationRegistryReady =
       Boolean(
         operationRegistry &&
@@ -4645,6 +5447,12 @@ preferenceContext: {
         "function" &&
       typeof this.validateAndNormalizeResult ===
         "function" &&
+        typeof this.resolveContextEngine ===
+  "function" &&
+typeof this.validateContextResult ===
+  "function" &&
+typeof this.buildContextSelectionDiagnostic ===
+  "function" &&
       typeof this.normalizeSemanticFrame ===
         "function";
 
@@ -4653,11 +5461,14 @@ preferenceContext: {
         structurallyValid,
 
       ready:
-        structurallyValid &&
-        Boolean(
-          resolvedClient
-        ) &&
-        operationRegistryReady,
+  structurallyValid &&
+  Boolean(
+    resolvedContextEngine
+  ) &&
+  Boolean(
+    resolvedClient
+  ) &&
+  operationRegistryReady,
 
       modelInvokerAvailable:
         Boolean(
@@ -4685,6 +5496,25 @@ preferenceContext: {
         operationContract
           ?.registryAvailable ===
         true,
+
+contextEngineAvailable:
+  Boolean(
+    resolvedContextEngine
+  ),
+
+contextEngineSource:
+  resolvedContextEngine
+    ?.source ||
+  null,
+
+contextSelectionSupported:
+  true,
+
+canonicalRequestRetainedLocally:
+  true,
+
+fullCanonicalRequestSentToModel:
+  false,
 
       allowedOperationCount:
         allowedOperations.length,
