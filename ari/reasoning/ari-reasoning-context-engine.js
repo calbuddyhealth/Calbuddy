@@ -5,7 +5,7 @@
 // Select, trim, and package the canonical Ari reasoning request into one
 // lean cognitive context packet for the OpenAI reasoning invocation.
 //
-// V2.0.1 — Canonical Preference Context Alignment
+// V2.1.0 — Canonical Preference Context Alignment
 //
 // Architectural flow:
 //
