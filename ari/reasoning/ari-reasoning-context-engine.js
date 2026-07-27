@@ -5,7 +5,7 @@
 // Select, trim, and package the canonical Ari reasoning request into one
 // lean cognitive context packet for the OpenAI reasoning invocation.
 //
-// V2.0.0 — Canonical Context Selection / No Context Reconstruction
+// V2.0.1 — Canonical Preference Context Alignment
 //
 // Architectural flow:
 //
@@ -231,10 +231,10 @@ window.AriReasoningContextEngine = {
                 )
               : {},
 
-          preferences:
-            this.selectPreferenceContext(
-              canonicalRequest
-            ),
+          preferenceContext:
+  this.selectPreferenceContext(
+    canonicalRequest
+  ),
 
           responseControl:
             this.selectResponseControl(
@@ -1715,10 +1715,10 @@ window.AriReasoningContextEngine = {
           packet.developerEvidence
         ),
 
-      preferences:
-        this.hasKeys(
-          packet.preferences
-        ),
+      preferenceContext:
+  this.hasKeys(
+    packet.preferenceContext
+  ),
 
       responseControl:
         this.hasKeys(
