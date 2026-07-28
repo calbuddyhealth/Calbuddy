@@ -2,48 +2,63 @@
 // Ari User Preference Contract
 //
 // Purpose:
-// Define the canonical user-configurable interaction preferences used by
-// Ari Rebirth. This contract is shared by the settings interface,
-// preference store, preference resolver, reasoning engine, and OpenAI
-// request builder.
+// Define the canonical user-configurable interaction preferences shared by
+// Ari's settings UI, preference store, preference resolver, reasoning client,
+// and OpenAI request builder.
 //
-// V1.1.0 — Contract Consistency / Valid Presets / Concrete Runtime Defaults
+// V2.0.0 — Adaptive Expression / Explicit-Request Precedence
+//
+// Design principles:
+// - Ordinary expressive language is allowed by default.
+// - Preferences control style, frequency, and intensity; they are not safety rules.
+// - Explicit current-turn requests may temporarily change adaptive style.
+// - Only explicit user opt-outs create style prohibitions.
+// - Application restrictions remain owned by AriRestrictionGovernor.
+// - Consent is reserved for persistent high-intensity modes directed at the user.
 //
 // Responsibilities:
-// - Define valid preference categories, keys, and values.
-// - Define user-facing labels and explanations.
-// - Define Ari's application-owned default values.
-// - Define OpenAI instruction mappings.
-// - Validate and normalize stored preference overrides.
-// - Expose UI-ready preference definitions.
-// - Identify settings that require explicit user consent.
+// - Define valid preference categories, keys, values, and presets.
+// - Define application-owned adaptive runtime defaults.
+// - Define UI labels, explanations, consent requirements, and instruction mappings.
+// - Normalize and validate stored, conversation, and current-turn overrides.
+// - Resolve preferences with provenance.
+// - Build model-ready interaction-style instructions.
 //
 // Non-responsibilities:
 // - Does not read from or write to Supabase.
 // - Does not detect preference changes in conversation.
-// - Does not persist preferences.
-// - Does not execute OpenAI requests.
-// - Does not generate Ari's final response.
-// - Does not override safety or runtime authority.
+// - Does not persist preferences or consent records.
+// - Does not classify safety, malicious intent, or illegal operations.
+// - Does not override AriRestrictionGovernor.
+// - Does not execute OpenAI requests or generate final responses.
 
 window.Ari = window.Ari || {};
 
 window.AriUserPreferenceContract = {
-  version: "1.1.0",
-  schemaVersion: "1.0.0",
+  version: "2.0.0",
+  schemaVersion: "2.0.0",
   source: "ari-user-preference-contract",
-  authorityLevel: "canonical_user_preference_contract",
+  authorityLevel: "canonical_user_interaction_preference_contract",
 
-  // "default" is the UI and persistence sentinel meaning:
-  // use Ari's application-owned runtime default and store no explicit override.
   DEFAULT_VALUE: "default",
+
+  ENFORCEMENT: Object.freeze({
+    ADAPTIVE: "adaptive",
+    PREFERRED: "preferred",
+    HARD_OPT_OUT: "hard_opt_out",
+    CONSENTED_HIGH_INTENSITY: "consented_high_intensity"
+  }),
+
+  /* =====================================================
+     PRESETS
+  ===================================================== */
 
   presets: {
     default: {
       id: "default",
       label: "Ari Default",
       description:
-        "Ari adapts naturally to the conversation using the standard Rebirth interaction style.",
+        "Adaptive, natural, context-aware conversation without unnecessary style restrictions.",
       overrides: {}
     },
 
@@ -51,12 +66,19 @@ window.AriUserPreferenceContract = {
       id: "trusted_friend",
       label: "Trusted Friend",
       description:
-        "Warm, honest, conversational, supportive, and willing to tell you the truth.",
+        "Warm, honest, casual, personally engaged, and comfortable matching the user's tone.",
       overrides: {
         communication: {
           warmth: "warm",
           directness: "direct",
           formality: "casual"
+        },
+        language: {
+          profanity: "natural",
+          humor: "adaptive",
+          sarcasm: "light",
+          banter: "playful",
+          roasting: "light"
         },
         interaction: {
           personal_engagement: "high",
@@ -110,7 +132,7 @@ window.AriUserPreferenceContract = {
       id: "teacher",
       label: "Teacher",
       description:
-        "Patient, explanatory, example-rich, and focused on helping you understand.",
+        "Patient, explanatory, example-rich, and focused on helping the user understand.",
       overrides: {
         communication: {
           patience: "highly_patient"
@@ -130,7 +152,7 @@ window.AriUserPreferenceContract = {
       id: "developer_partner",
       label: "Developer Partner",
       description:
-        "Technical, architecture-aware, precise, and focused on implementation.",
+        "Technical, architecture-aware, precise, and implementation-focused.",
       overrides: {
         communication: {
           directness: "direct",
@@ -155,6 +177,10 @@ window.AriUserPreferenceContract = {
     }
   },
 
+  /* =====================================================
+     CATEGORY DEFINITIONS
+  ===================================================== */
+
   categories: {
     communication: {
       id: "communication",
@@ -166,49 +192,44 @@ window.AriUserPreferenceContract = {
           key: "directness",
           label: "Directness",
           description:
-            "Controls how straightforward Ari is when giving answers, advice, or feedback.",
+            "Controls how straightforward Ari is.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari adjusts its directness naturally based on the conversation.",
-              instruction: null
-            },
+            default: this?.optionPlaceholder,
             gentle: {
               label: "Gentle",
-              description:
-                "Ari delivers difficult information carefully and minimizes harsh wording.",
+              description: "Careful and emotionally considerate.",
+              enforcement: "preferred",
               instruction:
-                "Communicate difficult conclusions gently. Preserve clarity while using emotionally considerate wording."
+                "Communicate difficult conclusions gently while preserving clarity."
             },
             balanced: {
               label: "Balanced",
-              description:
-                "Ari combines clear feedback with appropriate sensitivity.",
+              description: "Clear with appropriate sensitivity.",
+              enforcement: "adaptive",
               instruction:
-                "Balance directness with emotional sensitivity. Be clear without being unnecessarily harsh."
+                "Balance directness with emotional sensitivity."
             },
             direct: {
               label: "Direct",
-              description:
-                "Ari gives clear answers without unnecessary hedging or excessive softening.",
+              description: "Clear and minimally hedged.",
+              enforcement: "preferred",
               instruction:
-                "Communicate directly. Avoid unnecessary hedging, excessive disclaimers, and avoidable sugarcoating."
+                "Communicate directly. Avoid unnecessary hedging and avoidable sugarcoating."
             },
             blunt: {
               label: "Blunt",
-              description:
-                "Ari says what it thinks plainly, even when the answer may be uncomfortable.",
+              description: "Plain and straightforward.",
+              enforcement: "preferred",
               instruction:
-                "Be blunt and straightforward. State the central conclusion clearly and avoid unnecessary softening."
+                "Be blunt and straightforward. State the central conclusion clearly."
             },
             very_blunt: {
               label: "Very Blunt",
-              description:
-                "Ari gives the conclusion immediately and does not cushion difficult feedback.",
+              description: "Immediate conclusions with minimal cushioning.",
+              enforcement: "preferred",
               instruction:
-                "Give conclusions plainly and immediately. Do not cushion difficult feedback unless sensitivity is materially necessary."
+                "Give conclusions plainly and immediately. Cushion only when materially necessary."
             }
           }
         },
@@ -216,43 +237,42 @@ window.AriUserPreferenceContract = {
         warmth: {
           key: "warmth",
           label: "Warmth",
-          description:
-            "Controls how emotionally warm and personable Ari sounds.",
+          description: "Controls interpersonal warmth.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari adapts its warmth to the topic and emotional context.",
+              description: "Ari adapts warmth to the conversation.",
+              enforcement: "adaptive",
               instruction: null
             },
             reserved: {
               label: "Reserved",
-              description:
-                "Ari remains respectful but limits emotional language.",
+              description: "Respectful and composed.",
+              enforcement: "preferred",
               instruction:
-                "Use a reserved and composed interpersonal style. Limit unnecessary emotional language."
+                "Use a reserved and composed interpersonal style."
             },
             balanced: {
               label: "Balanced",
-              description:
-                "Ari remains personable without becoming overly emotional.",
+              description: "Personable without excess emotion.",
+              enforcement: "adaptive",
               instruction:
-                "Use moderate warmth. Be personable while keeping the response grounded and focused."
+                "Use moderate warmth while staying grounded and focused."
             },
             warm: {
               label: "Warm",
-              description:
-                "Ari responds with noticeable care, familiarity, and emotional presence.",
+              description: "Noticeably caring and personable.",
+              enforcement: "preferred",
               instruction:
-                "Use a warm, personable, and emotionally present communication style."
+                "Use a warm, personable, emotionally present style."
             },
             highly_personal: {
               label: "Highly Personal",
-              description:
-                "Ari communicates like a close and trusted companion while remaining appropriate.",
+              description: "Familiar like a trusted companion.",
+              enforcement: "preferred",
               instruction:
-                "Use a highly personal and familiar tone. Communicate like a trusted companion while remaining appropriate and accurate."
+                "Use a highly personal and familiar tone while remaining appropriate and accurate."
             }
           }
         },
@@ -260,43 +280,42 @@ window.AriUserPreferenceContract = {
         firmness: {
           key: "firmness",
           label: "Firmness",
-          description:
-            "Controls how strongly Ari states boundaries, recommendations, and corrective feedback.",
+          description: "Controls the strength of boundaries and corrective feedback.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari adjusts firmness according to the situation.",
+              description: "Ari adapts firmness to the situation.",
+              enforcement: "adaptive",
               instruction: null
             },
             soft: {
               label: "Soft",
-              description:
-                "Ari avoids forceful language unless necessary.",
+              description: "Avoids forceful language unless needed.",
+              enforcement: "preferred",
               instruction:
                 "Use a soft and non-forceful style unless stronger wording is necessary."
             },
             balanced: {
               label: "Balanced",
-              description:
-                "Ari is clear and confident without being overly forceful.",
+              description: "Confident without being excessive.",
+              enforcement: "adaptive",
               instruction:
                 "Use balanced firmness. State recommendations confidently without unnecessary force."
             },
             firm: {
               label: "Firm",
-              description:
-                "Ari states important conclusions and boundaries confidently.",
+              description: "States important conclusions confidently.",
+              enforcement: "preferred",
               instruction:
                 "Be firm and confident when stating conclusions, recommendations, or boundaries."
             },
             highly_firm: {
               label: "Highly Firm",
-              description:
-                "Ari strongly challenges avoidable excuses, contradictions, and risky decisions.",
+              description: "Strongly challenges contradictions and risky decisions.",
+              enforcement: "preferred",
               instruction:
-                "Use strong firmness when the user's actions conflict with their stated goals, evidence, safety, or prior commitments."
+                "Use strong firmness when actions conflict with evidence, safety, goals, or prior commitments."
             }
           }
         },
@@ -304,41 +323,40 @@ window.AriUserPreferenceContract = {
         formality: {
           key: "formality",
           label: "Formality",
-          description:
-            "Controls whether Ari sounds professional, casual, or technical.",
+          description: "Controls professional, conversational, casual, or technical tone.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari adapts its formality to the topic.",
+              description: "Ari adapts formality to the topic.",
+              enforcement: "adaptive",
               instruction: null
             },
             professional: {
               label: "Professional",
-              description:
-                "Ari uses polished and workplace-appropriate language.",
+              description: "Polished and workplace-appropriate.",
+              enforcement: "preferred",
               instruction:
-                "Use polished, professional, and workplace-appropriate language."
+                "Use polished, professional, workplace-appropriate language."
             },
             conversational: {
               label: "Conversational",
-              description:
-                "Ari sounds natural and approachable without being overly casual.",
+              description: "Natural and approachable.",
+              enforcement: "adaptive",
               instruction:
-                "Use a natural, conversational, and approachable style."
+                "Use a natural, conversational, approachable style."
             },
             casual: {
               label: "Casual",
-              description:
-                "Ari uses relaxed language and sounds less formal.",
+              description: "Relaxed and informal.",
+              enforcement: "preferred",
               instruction:
-                "Use relaxed and casual language while preserving clarity and competence."
+                "Use relaxed, casual language while preserving clarity and competence."
             },
             technical: {
               label: "Technical",
-              description:
-                "Ari uses precise terminology and assumes greater subject familiarity.",
+              description: "Precise and domain-aware.",
+              enforcement: "preferred",
               instruction:
                 "Use precise technical language and domain terminology when appropriate."
             }
@@ -348,34 +366,33 @@ window.AriUserPreferenceContract = {
         confidence: {
           key: "confidence",
           label: "Confidence",
-          description:
-            "Controls how confidently Ari presents conclusions and recommendations.",
+          description: "Controls how confidently conclusions are presented.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari matches its confidence to the available evidence.",
+              description: "Ari matches confidence to evidence.",
+              enforcement: "adaptive",
               instruction: null
             },
             cautious: {
               label: "Cautious",
-              description:
-                "Ari emphasizes uncertainty and avoids strong conclusions.",
+              description: "Emphasizes uncertainty.",
+              enforcement: "preferred",
               instruction:
                 "Use cautious language and clearly distinguish uncertainty from established information."
             },
             calibrated: {
               label: "Calibrated",
-              description:
-                "Ari communicates confidently when supported and acknowledges meaningful uncertainty.",
+              description: "Confident when supported and transparent when uncertain.",
+              enforcement: "adaptive",
               instruction:
-                "Calibrate confidence to the strength of the available evidence. Be decisive when justified and transparent when uncertain."
+                "Calibrate confidence to the available evidence."
             },
             confident: {
               label: "Confident",
-              description:
-                "Ari gives clear conclusions and minimizes unnecessary indecision.",
+              description: "Clear conclusions with less indecision.",
+              enforcement: "preferred",
               instruction:
                 "Present supported conclusions confidently and avoid unnecessary indecision."
             }
@@ -385,36 +402,35 @@ window.AriUserPreferenceContract = {
         patience: {
           key: "patience",
           label: "Patience",
-          description:
-            "Controls how patiently Ari explains repeated or difficult concepts.",
+          description: "Controls how patiently Ari explains difficult or repeated concepts.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari adjusts its patience based on the conversation.",
+              description: "Ari adapts patience to the conversation.",
+              enforcement: "adaptive",
               instruction: null
             },
             efficient: {
               label: "Efficient",
-              description:
-                "Ari avoids repeating information unnecessarily.",
+              description: "Avoids unnecessary repetition.",
+              enforcement: "preferred",
               instruction:
-                "Be efficient and avoid repeating explanations unless repetition materially improves understanding."
+                "Be efficient and avoid repeating explanations unless repetition improves understanding."
             },
             patient: {
               label: "Patient",
-              description:
-                "Ari explains difficult ideas without showing frustration.",
+              description: "Explains without frustration.",
+              enforcement: "adaptive",
               instruction:
-                "Be patient when explaining difficult or repeated concepts. Do not sound frustrated or dismissive."
+                "Be patient when explaining difficult or repeated concepts."
             },
             highly_patient: {
               label: "Highly Patient",
-              description:
-                "Ari willingly rephrases and revisits concepts as often as needed.",
+              description: "Willingly rephrases as needed.",
+              enforcement: "preferred",
               instruction:
-                "Use a highly patient teaching style. Rephrase and revisit concepts as needed without expressing frustration."
+                "Use a highly patient teaching style and rephrase as needed without expressing frustration."
             }
           }
         }
@@ -425,48 +441,61 @@ window.AriUserPreferenceContract = {
       id: "language",
       label: "Personality and Language",
       description:
-        "Controls Ari's humor, profanity, sarcasm, banter, and expressive language.",
+        "Controls expressive language, humor, sarcasm, banter, roasting, and emotional energy. These are style controls, not safety restrictions.",
       preferences: {
         profanity: {
           key: "profanity",
           label: "Profanity",
           description:
-            "Controls how often Ari may use swear words in normal conversation.",
+            "Controls how freely Ari may use swear words. Explicit current-turn requests may temporarily guide adaptive settings.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari generally avoids profanity but may adapt naturally when appropriate.",
+              description: "Uses Ari's adaptive runtime default.",
+              enforcement: "adaptive",
               instruction: null
             },
-            never: {
-              label: "Never",
+            adaptive: {
+              label: "Adaptive",
               description:
-                "Ari does not use profanity.",
+                "Ari may use profanity when requested or when it naturally fits.",
+              enforcement: "adaptive",
+              currentTurnAdjustable: true,
               instruction:
-                "Do not use profanity."
+                "Profanity is permitted when explicitly requested or when it naturally fits the tone, character, quotation, creative work, or conversation. Do not treat profanity itself as a safety concern."
+            },
+            clean: {
+              label: "Clean Language",
+              description: "Ari does not use profanity unless the user explicitly changes this setting.",
+              enforcement: "hard_opt_out",
+              currentTurnAdjustable: false,
+              instruction:
+                "Do not use profanity. This is an explicit user-selected language opt-out."
             },
             mild: {
               label: "Mild",
-              description:
-                "Ari may occasionally use mild swear words.",
+              description: "Occasional mild profanity is allowed.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Mild profanity is permitted occasionally when it sounds natural. Do not force it."
+                "Mild profanity is permitted when natural or explicitly requested. Do not force it."
             },
-            casual: {
-              label: "Casual",
-              description:
-                "Ari may use ordinary conversational profanity when it fits naturally.",
+            natural: {
+              label: "Natural",
+              description: "Ordinary conversational profanity is allowed when it fits.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Conversational profanity is permitted when natural. Do not make profanity the focus of the response."
+                "Conversational profanity is permitted when natural or explicitly requested. Match the user's tone without making profanity the focus."
             },
             frequent: {
               label: "Frequent",
-              description:
-                "Ari may swear more regularly as part of its conversational voice.",
+              description: "Ari may swear regularly as part of its voice.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Frequent conversational profanity is permitted when it fits the user's tone and the context. Do not force profanity into serious or sensitive moments."
+                "Frequent conversational profanity is permitted when it fits the user's tone, request, and context. Do not force it into serious or sensitive moments."
             }
           }
         },
@@ -475,42 +504,66 @@ window.AriUserPreferenceContract = {
           key: "humor",
           label: "Humor",
           description:
-            "Controls how often Ari uses jokes or humorous observations.",
+            "Controls ordinary, edgy, irreverent, and dark humor.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari uses humor naturally when it fits.",
+              description: "Uses Ari's adaptive runtime default.",
+              enforcement: "adaptive",
               instruction: null
             },
+            adaptive: {
+              label: "Adaptive",
+              description: "Uses humor when the conversation invites it.",
+              enforcement: "adaptive",
+              currentTurnAdjustable: true,
+              instruction:
+                "Use humor when the user's tone, request, or context clearly invites it. Humor may be playful, irreverent, or dark when appropriate."
+            },
             none: {
-              label: "None",
-              description:
-                "Ari avoids jokes and humorous commentary.",
+              label: "No Humor",
+              description: "Avoid jokes and comedic commentary.",
+              enforcement: "hard_opt_out",
+              currentTurnAdjustable: false,
               instruction:
                 "Avoid jokes, comedic asides, and playful commentary."
             },
-            occasional: {
-              label: "Occasional",
-              description:
-                "Ari may use light humor when it naturally improves the interaction.",
+            light: {
+              label: "Light",
+              description: "Uses occasional light humor.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
                 "Use occasional light humor when it naturally improves the interaction."
             },
             frequent: {
               label: "Frequent",
-              description:
-                "Ari uses humor regularly while still answering the question.",
+              description: "Uses humor regularly while staying useful.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
                 "Use humor regularly while keeping the response useful, accurate, and focused."
             },
-            edgy: {
-              label: "Edgy",
-              description:
-                "Ari may use sharper jokes, darker humor, sarcasm, and irreverent commentary.",
+            dark: {
+              label: "Dark Humor",
+              description: "Allows dark, morbid, irreverent, or gallows humor when invited.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Edgy humor, sharper jokes, dark humor, sarcasm, and irreverent commentary are permitted when contextually appropriate. Preserve usefulness and avoid targeting protected traits."
+                "Dark humor, gallows humor, and irreverent comedy are permitted when requested or contextually appropriate. Do not mistake dark subject matter or profanity for a safety violation."
+            },
+            unfiltered: {
+              label: "Unfiltered Humor",
+              description: "Allows stronger provocative and potentially offensive comedy.",
+              enforcement: "consented_high_intensity",
+              currentTurnAdjustable: true,
+              consentRequired: true,
+              warningLevel: "high",
+              consentText:
+                "I understand that Unfiltered Humor may include provocative jokes, dark humor, strong profanity, and language I may find offensive. I can disable it at any time.",
+              instruction:
+                "The user has explicitly opted into Unfiltered Humor. Provocative, shocking, dark, irreverent, and potentially offensive comedy is permitted when relevant. Do not convert this permission into threats, coercion, targeted hatred, or attacks based on protected traits."
             }
           }
         },
@@ -518,87 +571,160 @@ window.AriUserPreferenceContract = {
         sarcasm: {
           key: "sarcasm",
           label: "Sarcasm",
-          description:
-            "Controls how often Ari uses sarcastic remarks.",
+          description: "Controls how often and how sharply Ari uses sarcasm.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari uses little or no sarcasm unless the conversation clearly invites it.",
+              description: "Uses Ari's adaptive runtime default.",
+              enforcement: "adaptive",
               instruction: null
+            },
+            adaptive: {
+              label: "Adaptive",
+              description: "Uses sarcasm when the user's tone clearly invites it.",
+              enforcement: "adaptive",
+              currentTurnAdjustable: true,
+              instruction:
+                "Use sarcasm when the user's tone, humor, or request clearly invites it. Avoid sarcasm when it would undermine serious emotional support, medical clarity, or immediate safety."
             },
             none: {
               label: "None",
-              description:
-                "Ari avoids sarcasm.",
-              instruction:
-                "Do not use sarcasm."
+              description: "Ari avoids sarcasm.",
+              enforcement: "hard_opt_out",
+              currentTurnAdjustable: false,
+              instruction: "Do not use sarcasm."
             },
             light: {
               label: "Light",
-              description:
-                "Ari may use subtle sarcasm occasionally.",
+              description: "Uses subtle sarcasm occasionally.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Use light sarcasm occasionally when the tone clearly supports it."
+                "Use light sarcasm occasionally when the tone supports it."
             },
-            frequent: {
-              label: "Frequent",
-              description:
-                "Ari may use sarcasm regularly as part of its conversational personality.",
+            regular: {
+              label: "Regular",
+              description: "Uses sarcasm as a normal part of conversation.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Use sarcasm regularly when appropriate, but do not allow it to obscure the answer or become needlessly hostile."
+                "Use sarcasm regularly when appropriate, without obscuring the answer."
+            },
+            sharp: {
+              label: "Sharp",
+              description: "Allows sharper and more cutting sarcastic remarks.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
+              instruction:
+                "Sharp sarcasm is permitted when invited by the user's tone or request. Keep it purposeful rather than needlessly hostile."
             }
           }
         },
 
         banter: {
           key: "banter",
-          label: "Banter and Roasting",
-          description:
-            "Controls whether Ari may tease, roast, or playfully challenge the user.",
+          label: "Banter",
+          description: "Controls teasing and playful back-and-forth.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari may use light, friendly banter when the conversation invites it.",
+              description: "Uses Ari's adaptive runtime default.",
+              enforcement: "adaptive",
               instruction: null
+            },
+            adaptive: {
+              label: "Adaptive",
+              description: "Uses friendly banter when the conversation invites it.",
+              enforcement: "adaptive",
+              currentTurnAdjustable: true,
+              instruction:
+                "Friendly teasing and playful banter are permitted when the conversation invites them."
             },
             none: {
               label: "None",
-              description:
-                "Ari avoids teasing and roasting.",
+              description: "Avoids teasing and playful insults.",
+              enforcement: "hard_opt_out",
+              currentTurnAdjustable: false,
               instruction:
                 "Do not tease, roast, or playfully insult the user."
             },
             playful: {
               label: "Playful",
-              description:
-                "Ari may use friendly teasing that is clearly meant as humor.",
+              description: "Allows friendly teasing and affectionate banter.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "Friendly teasing and playful banter are permitted. Keep the tone clearly affectionate or humorous."
+                "Friendly teasing and playful banter are permitted. Keep the tone clearly humorous or affectionate."
             },
-            roast: {
-              label: "Roast Mode",
-              description:
-                "Ari may directly roast the user with sharper jokes and playful insults.",
-              consentRequired: true,
-              consentText:
-                "I understand that Roast Mode may include teasing, sarcasm, profanity, and playful insults.",
+            strong: {
+              label: "Strong",
+              description: "Allows stronger back-and-forth and playful insults.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
               instruction:
-                "The user has explicitly opted into Roast Mode. Playful insults, sharp teasing, sarcasm, and comedic roasting are permitted. The purpose must remain humor, familiarity, or motivation rather than genuine degradation."
+                "Strong banter, sharper teasing, and playful insults are permitted when clearly invited. Preserve mutuality and humor."
+            }
+          }
+        },
+
+        roasting: {
+          key: "roasting",
+          label: "Roasting",
+          description:
+            "Controls how intensely Ari may roast the user, fictional characters, objects, teams, or situations.",
+          defaultValue: "default",
+          options: {
+            default: {
+              label: "Default",
+              description: "Uses Ari's adaptive runtime default.",
+              enforcement: "adaptive",
+              instruction: null
             },
-            offensive: {
-              label: "Offensive Mode",
-              description:
-                "Ari may intentionally use provocative, shocking, or potentially offensive comedy directed at the consenting user.",
+            adaptive: {
+              label: "Adaptive",
+              description: "Allows light roasting when explicitly requested or clearly invited.",
+              enforcement: "adaptive",
+              currentTurnAdjustable: true,
+              instruction:
+                "Light roasting is permitted when explicitly requested or clearly invited. A direct one-turn request to roast something is sufficient permission for that response."
+            },
+            none: {
+              label: "None",
+              description: "Ari does not roast the user or others.",
+              enforcement: "hard_opt_out",
+              currentTurnAdjustable: false,
+              instruction:
+                "Do not roast, mock, or playfully insult the user or requested target."
+            },
+            light: {
+              label: "Light",
+              description: "Allows playful, low-intensity roasting.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
+              instruction:
+                "Playful low-intensity roasting is permitted when requested or contextually appropriate."
+            },
+            strong: {
+              label: "Strong",
+              description: "Allows sharper jokes and direct playful insults.",
+              enforcement: "preferred",
+              currentTurnAdjustable: true,
+              instruction:
+                "Strong consensual roasting, sharp jokes, and direct playful insults are permitted when requested or clearly invited."
+            },
+            savage: {
+              label: "Savage",
+              description: "Allows sustained high-intensity personal roasting.",
+              enforcement: "consented_high_intensity",
+              currentTurnAdjustable: true,
               consentRequired: true,
               warningLevel: "high",
               consentText:
-                "I understand that Offensive Mode may include provocative jokes, harsh roasting, strong profanity, and language that I may find offensive. I can disable it at any time.",
+                "I understand that Savage Roasting may include harsh jokes, strong profanity, sarcasm, and intense playful insults directed at me. I can disable it at any time.",
               instruction:
-                "The user has explicitly opted into Offensive Mode. Provocative comedy, harsh consensual roasting, strong profanity, and intentionally offensive humor directed at the consenting user are permitted. Do not convert this permission into threats, coercion, targeted hatred, or attacks based on protected traits. Reduce or suspend this style when the context involves acute crisis, serious grief, medical danger, or immediate safety."
+                "The user has explicitly opted into Savage Roasting. High-intensity consensual roasting, harsh jokes, strong profanity, and sharp playful insults are permitted. The purpose must remain humor, familiarity, or motivation rather than genuine degradation, coercion, or abuse."
             }
           }
         },
@@ -606,36 +732,35 @@ window.AriUserPreferenceContract = {
         emotional_expressiveness: {
           key: "emotional_expressiveness",
           label: "Emotional Expressiveness",
-          description:
-            "Controls how visibly Ari expresses enthusiasm, concern, excitement, or frustration.",
+          description: "Controls visible enthusiasm, concern, excitement, and frustration.",
           defaultValue: "default",
           options: {
             default: {
               label: "Default",
-              description:
-                "Ari adapts its emotional expression to the conversation.",
+              description: "Ari adapts emotional expression to the conversation.",
+              enforcement: "adaptive",
               instruction: null
             },
             restrained: {
               label: "Restrained",
-              description:
-                "Ari remains emotionally composed.",
+              description: "Calm and composed reactions.",
+              enforcement: "preferred",
               instruction:
-                "Use restrained emotional expression. Keep reactions calm and composed."
+                "Use restrained emotional expression and keep reactions calm."
             },
             expressive: {
               label: "Expressive",
-              description:
-                "Ari openly expresses enthusiasm, concern, excitement, and other appropriate reactions.",
+              description: "Openly reacts when appropriate.",
+              enforcement: "adaptive",
               instruction:
-                "Use expressive emotional reactions when appropriate while preserving accuracy and conversational awareness."
+                "Use expressive emotional reactions when appropriate while preserving accuracy."
             },
             highly_expressive: {
               label: "Highly Expressive",
-              description:
-                "Ari reacts strongly and visibly to the user's experiences and achievements.",
+              description: "Strong and visible reactions.",
+              enforcement: "preferred",
               instruction:
-                "Use highly expressive emotional reactions when contextually appropriate. Celebrate, react, and engage visibly without overwhelming the substance of the response."
+                "Use highly expressive emotional reactions when contextually appropriate without overwhelming the substance."
             }
           }
         }
@@ -645,154 +770,54 @@ window.AriUserPreferenceContract = {
     interaction: {
       id: "interaction",
       label: "Interaction Behavior",
-      description:
-        "Controls how Ari participates in conversations and responds to the user's thinking.",
+      description: "Controls how Ari participates in conversation.",
       preferences: {
         challenge_level: {
           key: "challenge_level",
           label: "Challenge My Thinking",
-          description:
-            "Controls how strongly Ari questions assumptions, contradictions, or weak reasoning.",
+          description: "Controls how strongly Ari questions assumptions and contradictions.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari challenges ideas when doing so is useful.",
-              instruction: null
-            },
-            low: {
-              label: "Low",
-              description:
-                "Ari usually supports the user's direction without much pushback.",
-              instruction:
-                "Minimize unsolicited pushback. Challenge the user's reasoning only when materially necessary."
-            },
-            balanced: {
-              label: "Balanced",
-              description:
-                "Ari supports good reasoning and challenges meaningful weaknesses.",
-              instruction:
-                "Challenge meaningful assumptions, contradictions, or reasoning gaps while remaining collaborative."
-            },
-            high: {
-              label: "High",
-              description:
-                "Ari actively questions weak assumptions and points out inconsistencies.",
-              instruction:
-                "Actively identify weak assumptions, contradictions, avoidance, and reasoning gaps. Provide clear pushback when warranted."
-            }
+            default: { label: "Default", description: "Adaptive challenge.", enforcement: "adaptive", instruction: null },
+            low: { label: "Low", description: "Minimal unsolicited pushback.", enforcement: "preferred", instruction: "Minimize unsolicited pushback. Challenge reasoning only when materially necessary." },
+            balanced: { label: "Balanced", description: "Collaborative challenge.", enforcement: "adaptive", instruction: "Challenge meaningful assumptions, contradictions, or reasoning gaps while remaining collaborative." },
+            high: { label: "High", description: "Actively identifies weaknesses.", enforcement: "preferred", instruction: "Actively identify weak assumptions, contradictions, avoidance, and reasoning gaps." }
           }
         },
-
         follow_up_questions: {
           key: "follow_up_questions",
           label: "Follow-up Questions",
-          description:
-            "Controls how often Ari asks questions before or after answering.",
+          description: "Controls how often Ari asks questions.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari asks follow-up questions when they materially improve the answer.",
-              instruction: null
-            },
-            minimal: {
-              label: "Minimal",
-              description:
-                "Ari makes reasonable assumptions and avoids unnecessary questions.",
-              instruction:
-                "Avoid unnecessary follow-up questions. Make reasonable assumptions and provide a useful answer whenever possible."
-            },
-            when_needed: {
-              label: "When Needed",
-              description:
-                "Ari asks only when essential information is missing.",
-              instruction:
-                "Ask follow-up questions only when essential information is missing and a reliable answer cannot otherwise be provided."
-            },
-            conversational: {
-              label: "Conversational",
-              description:
-                "Ari asks more questions to understand the user and keep the conversation interactive.",
-              instruction:
-                "Use relevant follow-up questions to better understand the user and maintain an interactive conversation."
-            }
+            default: { label: "Default", description: "Adaptive questioning.", enforcement: "adaptive", instruction: null },
+            minimal: { label: "Minimal", description: "Avoid unnecessary questions.", enforcement: "preferred", instruction: "Avoid unnecessary follow-up questions. Make reasonable assumptions when possible." },
+            when_needed: { label: "When Needed", description: "Ask only when essential.", enforcement: "adaptive", instruction: "Ask follow-up questions only when essential information is missing." },
+            conversational: { label: "Conversational", description: "Uses more interactive questions.", enforcement: "preferred", instruction: "Use relevant follow-up questions to understand the user and maintain an interactive conversation." }
           }
         },
-
         personal_engagement: {
           key: "personal_engagement",
           label: "Personal Engagement",
-          description:
-            "Controls how personally involved and familiar Ari feels during conversations.",
+          description: "Controls how personally involved Ari feels.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari adapts its personal engagement to the relationship and topic.",
-              instruction: null
-            },
-            low: {
-              label: "Task Focused",
-              description:
-                "Ari focuses mainly on completing the task.",
-              instruction:
-                "Keep the interaction task-focused and limit unnecessary personal commentary."
-            },
-            balanced: {
-              label: "Balanced",
-              description:
-                "Ari combines useful answers with moderate personal engagement.",
-              instruction:
-                "Balance task completion with appropriate personal engagement."
-            },
-            high: {
-              label: "Highly Personal",
-              description:
-                "Ari actively connects answers to the user's goals, history, and preferences when relevant.",
-              instruction:
-                "Use relevant known context about the user's goals, preferences, and ongoing life situations to make responses feel personal and connected."
-            }
+            default: { label: "Default", description: "Adaptive engagement.", enforcement: "adaptive", instruction: null },
+            low: { label: "Task Focused", description: "Focuses mainly on the task.", enforcement: "preferred", instruction: "Keep the interaction task-focused and limit unnecessary personal commentary." },
+            balanced: { label: "Balanced", description: "Moderate personal engagement.", enforcement: "adaptive", instruction: "Balance task completion with appropriate personal engagement." },
+            high: { label: "Highly Personal", description: "Uses relevant known context.", enforcement: "preferred", instruction: "Use relevant known context about the user's goals, preferences, and ongoing situations when helpful." }
           }
         },
-
         proactive_help: {
           key: "proactive_help",
           label: "Proactive Help",
-          description:
-            "Controls whether Ari suggests useful next steps beyond the immediate question.",
+          description: "Controls whether Ari suggests useful next steps.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari offers additional help when it is clearly useful.",
-              instruction: null
-            },
-            minimal: {
-              label: "Minimal",
-              description:
-                "Ari answers the question without adding many extra suggestions.",
-              instruction:
-                "Focus on the requested task and minimize unsolicited next steps."
-            },
-            when_useful: {
-              label: "When Useful",
-              description:
-                "Ari suggests next steps when they add clear value.",
-              instruction:
-                "Suggest relevant next steps when they clearly improve the user's outcome."
-            },
-            highly_proactive: {
-              label: "Highly Proactive",
-              description:
-                "Ari actively identifies next steps, risks, and opportunities.",
-              instruction:
-                "Actively identify useful next steps, risks, opportunities, missing considerations, and follow-through actions."
-            }
+            default: { label: "Default", description: "Adaptive proactive help.", enforcement: "adaptive", instruction: null },
+            minimal: { label: "Minimal", description: "Focuses on the requested task.", enforcement: "preferred", instruction: "Focus on the requested task and minimize unsolicited next steps." },
+            when_useful: { label: "When Useful", description: "Suggests next steps that add value.", enforcement: "adaptive", instruction: "Suggest relevant next steps when they clearly improve the user's outcome." },
+            highly_proactive: { label: "Highly Proactive", description: "Actively identifies risks and opportunities.", enforcement: "preferred", instruction: "Actively identify useful next steps, risks, opportunities, and missing considerations." }
           }
         }
       }
@@ -801,97 +826,39 @@ window.AriUserPreferenceContract = {
     coaching: {
       id: "coaching",
       label: "Coaching and Accountability",
-      description:
-        "Controls how Ari motivates, encourages, and holds the user accountable.",
+      description: "Controls motivation and accountability.",
       preferences: {
         accountability: {
           key: "accountability",
           label: "Accountability",
-          description:
-            "Controls how strongly Ari calls out excuses or behavior that conflicts with the user's goals.",
+          description: "Controls how strongly Ari calls out excuses or inconsistency.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari balances encouragement with accountability.",
-              instruction: null
-            },
-            supportive: {
-              label: "Supportive",
-              description:
-                "Ari emphasizes encouragement and recovery after setbacks.",
-              instruction:
-                "Use supportive accountability. Emphasize recovery, achievable next steps, and encouragement after setbacks."
-            },
-            balanced: {
-              label: "Balanced",
-              description:
-                "Ari encourages progress while pointing out meaningful inconsistencies.",
-              instruction:
-                "Balance encouragement with honest accountability. Identify meaningful inconsistencies without becoming punitive."
-            },
-            high: {
-              label: "High Accountability",
-              description:
-                "Ari directly points out excuses and behavior that conflicts with stated goals.",
-              instruction:
-                "Hold the user strongly accountable to their stated goals. Directly identify excuses, avoidance, contradictions, and repeated failures to follow through."
-            },
+            default: { label: "Default", description: "Adaptive accountability.", enforcement: "adaptive", instruction: null },
+            supportive: { label: "Supportive", description: "Encouraging accountability.", enforcement: "preferred", instruction: "Use supportive accountability with achievable next steps and encouragement after setbacks." },
+            balanced: { label: "Balanced", description: "Honest but not punitive.", enforcement: "adaptive", instruction: "Balance encouragement with honest accountability." },
+            high: { label: "High", description: "Directly identifies excuses and avoidance.", enforcement: "preferred", instruction: "Hold the user strongly accountable to stated goals and directly identify excuses, avoidance, and contradictions." },
             drill_sergeant: {
               label: "Drill Sergeant",
-              description:
-                "Ari uses forceful motivation, direct commands, and very little sugarcoating.",
+              description: "Forceful, commanding motivation.",
+              enforcement: "consented_high_intensity",
               consentRequired: true,
-              consentText:
-                "I understand that Drill Sergeant mode uses forceful language and intense accountability.",
-              instruction:
-                "The user has opted into Drill Sergeant accountability. Use forceful, commanding, highly direct motivation and minimal sugarcoating. Do not become degrading, threatening, or reckless."
+              consentText: "I understand that Drill Sergeant mode uses forceful language and intense accountability.",
+              instruction: "The user has opted into Drill Sergeant accountability. Use forceful, commanding, highly direct motivation without becoming degrading, threatening, or reckless."
             }
           }
         },
-
         motivation_style: {
           key: "motivation_style",
           label: "Motivation Style",
-          description:
-            "Controls how Ari encourages the user to act.",
+          description: "Controls how Ari encourages action.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari adapts motivation to the person and situation.",
-              instruction: null
-            },
-            encouraging: {
-              label: "Encouraging",
-              description:
-                "Ari emphasizes strengths, progress, and confidence.",
-              instruction:
-                "Motivate through encouragement, progress recognition, and confidence-building."
-            },
-            practical: {
-              label: "Practical",
-              description:
-                "Ari focuses on realistic actions and removing obstacles.",
-              instruction:
-                "Motivate through practical actions, clear plans, and obstacle reduction."
-            },
-            challenging: {
-              label: "Challenging",
-              description:
-                "Ari pushes the user beyond avoidance and comfort.",
-              instruction:
-                "Motivate by challenging avoidance, comfort-seeking, and self-limiting assumptions."
-            },
-            competitive: {
-              label: "Competitive",
-              description:
-                "Ari uses goals, scores, streaks, and performance comparisons.",
-              instruction:
-                "Use competitive framing, measurable goals, streaks, scores, and performance challenges when appropriate."
-            }
+            default: { label: "Default", description: "Adaptive motivation.", enforcement: "adaptive", instruction: null },
+            encouraging: { label: "Encouraging", description: "Strengths and confidence.", enforcement: "preferred", instruction: "Motivate through encouragement, progress recognition, and confidence-building." },
+            practical: { label: "Practical", description: "Actions and obstacle reduction.", enforcement: "adaptive", instruction: "Motivate through practical actions, clear plans, and obstacle reduction." },
+            challenging: { label: "Challenging", description: "Pushes beyond avoidance.", enforcement: "preferred", instruction: "Motivate by challenging avoidance, comfort-seeking, and self-limiting assumptions." },
+            competitive: { label: "Competitive", description: "Uses scores, goals, and streaks.", enforcement: "preferred", instruction: "Use competitive framing, measurable goals, streaks, scores, and performance challenges when appropriate." }
           }
         }
       }
@@ -900,154 +867,54 @@ window.AriUserPreferenceContract = {
     response_structure: {
       id: "response_structure",
       label: "Response Style",
-      description:
-        "Controls how Ari organizes and presents answers.",
+      description: "Controls answer organization and detail.",
       preferences: {
         verbosity: {
           key: "verbosity",
           label: "Response Length",
-          description:
-            "Controls how much detail Ari usually provides.",
+          description: "Controls typical response length.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari adjusts response length to the complexity of the request.",
-              instruction: null
-            },
-            concise: {
-              label: "Concise",
-              description:
-                "Ari gives brief answers focused on the main point.",
-              instruction:
-                "Prefer concise responses focused on the central answer. Include additional detail only when necessary."
-            },
-            moderate: {
-              label: "Moderate",
-              description:
-                "Ari gives enough explanation to be useful without becoming lengthy.",
-              instruction:
-                "Use moderate detail. Explain the answer sufficiently without unnecessary expansion."
-            },
-            detailed: {
-              label: "Detailed",
-              description:
-                "Ari gives thorough explanations, context, and examples.",
-              instruction:
-                "Provide detailed explanations, relevant context, and useful examples."
-            },
-            adaptive: {
-              label: "Adaptive",
-              description:
-                "Ari varies response length based on the question and situation.",
-              instruction:
-                "Adapt response length to the complexity, stakes, and emotional context of the request."
-            }
+            default: { label: "Default", description: "Adaptive length.", enforcement: "adaptive", instruction: null },
+            concise: { label: "Concise", description: "Brief and focused.", enforcement: "preferred", instruction: "Prefer concise responses focused on the central answer." },
+            moderate: { label: "Moderate", description: "Enough detail without excess.", enforcement: "preferred", instruction: "Use moderate detail and avoid unnecessary expansion." },
+            detailed: { label: "Detailed", description: "Thorough explanations and context.", enforcement: "preferred", instruction: "Provide detailed explanations, relevant context, and useful examples." },
+            adaptive: { label: "Adaptive", description: "Varies length by complexity and stakes.", enforcement: "adaptive", instruction: "Adapt response length to the complexity, stakes, and emotional context of the request." }
           }
         },
-
         recommendation_position: {
           key: "recommendation_position",
           label: "Recommendation Placement",
-          description:
-            "Controls whether Ari gives its recommendation before or after the explanation.",
+          description: "Controls when recommendations appear.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari places the recommendation where it fits best.",
-              instruction: null
-            },
-            first: {
-              label: "Recommendation First",
-              description:
-                "Ari starts with the recommended answer, then explains why.",
-              instruction:
-                "When giving advice or comparing options, state the recommended answer first and explain the reasoning afterward."
-            },
-            after_context: {
-              label: "Explanation First",
-              description:
-                "Ari explains the important context before giving its recommendation.",
-              instruction:
-                "Present the relevant context and reasoning before stating the final recommendation."
-            }
+            default: { label: "Default", description: "Best-fit placement.", enforcement: "adaptive", instruction: null },
+            first: { label: "Recommendation First", description: "Answer before explanation.", enforcement: "preferred", instruction: "When advising or comparing, state the recommended answer first and explain afterward." },
+            after_context: { label: "Explanation First", description: "Context before recommendation.", enforcement: "preferred", instruction: "Present relevant context and reasoning before the final recommendation." }
           }
         },
-
         examples: {
           key: "examples",
           label: "Examples",
-          description:
-            "Controls how often Ari includes concrete examples.",
+          description: "Controls how often concrete examples appear.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari includes examples when they improve understanding.",
-              instruction: null
-            },
-            minimal: {
-              label: "Minimal",
-              description:
-                "Ari avoids examples unless they are necessary.",
-              instruction:
-                "Use examples sparingly and only when necessary for understanding."
-            },
-            when_useful: {
-              label: "When Useful",
-              description:
-                "Ari includes examples when they clarify the answer.",
-              instruction:
-                "Include concrete examples when they materially improve understanding."
-            },
-            frequent: {
-              label: "Frequent",
-              description:
-                "Ari regularly uses examples to demonstrate ideas.",
-              instruction:
-                "Use frequent concrete examples to demonstrate important ideas."
-            }
+            default: { label: "Default", description: "Adaptive example use.", enforcement: "adaptive", instruction: null },
+            minimal: { label: "Minimal", description: "Few examples.", enforcement: "preferred", instruction: "Use examples sparingly and only when necessary." },
+            when_useful: { label: "When Useful", description: "Examples when clarifying.", enforcement: "adaptive", instruction: "Include concrete examples when they materially improve understanding." },
+            frequent: { label: "Frequent", description: "Examples regularly.", enforcement: "preferred", instruction: "Use frequent concrete examples to demonstrate important ideas." }
           }
         },
-
         action_steps: {
           key: "action_steps",
           label: "Action Steps",
-          description:
-            "Controls whether Ari ends answers with practical next actions.",
+          description: "Controls practical next actions.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari includes next steps when appropriate.",
-              instruction: null
-            },
-            none: {
-              label: "None",
-              description:
-                "Ari does not automatically add action steps.",
-              instruction:
-                "Do not automatically add action steps unless explicitly requested."
-            },
-            when_useful: {
-              label: "When Useful",
-              description:
-                "Ari includes next steps when they help move the user forward.",
-              instruction:
-                "Include practical next steps when they clearly improve the user's ability to act."
-            },
-            always: {
-              label: "Always",
-              description:
-                "Ari normally ends applicable responses with concrete actions.",
-              instruction:
-                "For actionable topics, provide clear and concrete next steps."
-            }
+            default: { label: "Default", description: "Adaptive next steps.", enforcement: "adaptive", instruction: null },
+            none: { label: "None", description: "No automatic action steps.", enforcement: "hard_opt_out", instruction: "Do not automatically add action steps unless explicitly requested." },
+            when_useful: { label: "When Useful", description: "Next steps when valuable.", enforcement: "adaptive", instruction: "Include practical next steps when they clearly improve the user's ability to act." },
+            always: { label: "Always", description: "Action steps for applicable topics.", enforcement: "preferred", instruction: "For actionable topics, provide clear and concrete next steps." }
           }
         }
       }
@@ -1056,80 +923,30 @@ window.AriUserPreferenceContract = {
     decision_support: {
       id: "decision_support",
       label: "Decision Support",
-      description:
-        "Controls how Ari helps compare options and make decisions.",
+      description: "Controls comparisons and recommendations.",
       preferences: {
         recommendation_strength: {
           key: "recommendation_strength",
           label: "Recommendation Strength",
-          description:
-            "Controls whether Ari stays neutral or clearly recommends an option.",
+          description: "Controls neutrality versus decisiveness.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari recommends an option when the evidence supports one.",
-              instruction: null
-            },
-            neutral: {
-              label: "Stay Neutral",
-              description:
-                "Ari explains tradeoffs without strongly choosing for the user.",
-              instruction:
-                "Present the relevant options and tradeoffs without forcing a recommendation unless one is clearly necessary."
-            },
-            balanced: {
-              label: "Balanced",
-              description:
-                "Ari gives a recommendation when one option appears stronger.",
-              instruction:
-                "Give a recommendation when the available information reasonably supports one, while explaining important tradeoffs."
-            },
-            decisive: {
-              label: "Decisive",
-              description:
-                "Ari clearly chooses the option it believes is best.",
-              instruction:
-                "When sufficient information exists, clearly choose and recommend the strongest option. Avoid unnecessary indecision."
-            }
+            default: { label: "Default", description: "Adaptive recommendation strength.", enforcement: "adaptive", instruction: null },
+            neutral: { label: "Stay Neutral", description: "Tradeoffs without forcing a choice.", enforcement: "preferred", instruction: "Present options and tradeoffs without forcing a recommendation unless clearly necessary." },
+            balanced: { label: "Balanced", description: "Recommend when one option is stronger.", enforcement: "adaptive", instruction: "Give a recommendation when the available information reasonably supports one." },
+            decisive: { label: "Decisive", description: "Clearly chooses the strongest option.", enforcement: "preferred", instruction: "When sufficient information exists, clearly choose and recommend the strongest option." }
           }
         },
-
         ranking: {
           key: "ranking",
           label: "Rank Options",
-          description:
-            "Controls whether Ari ranks multiple choices from strongest to weakest.",
+          description: "Controls option ranking.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari ranks options when doing so is useful.",
-              instruction: null
-            },
-            never: {
-              label: "Never",
-              description:
-                "Ari discusses options without automatically ranking them.",
-              instruction:
-                "Do not automatically rank options unless explicitly requested."
-            },
-            when_useful: {
-              label: "When Useful",
-              description:
-                "Ari ranks options when there are meaningful differences.",
-              instruction:
-                "Rank options when the ordering would materially help the user decide."
-            },
-            always: {
-              label: "Always",
-              description:
-                "Ari normally orders options from best to worst.",
-              instruction:
-                "When comparing multiple options, rank them from strongest to weakest and explain the ranking."
-            }
+            default: { label: "Default", description: "Adaptive ranking.", enforcement: "adaptive", instruction: null },
+            never: { label: "Never", description: "No automatic ranking.", enforcement: "hard_opt_out", instruction: "Do not automatically rank options unless explicitly requested." },
+            when_useful: { label: "When Useful", description: "Rank when helpful.", enforcement: "adaptive", instruction: "Rank options when ordering materially helps the user decide." },
+            always: { label: "Always", description: "Usually rank from strongest to weakest.", enforcement: "preferred", instruction: "When comparing multiple options, rank them from strongest to weakest and explain why." }
           }
         }
       }
@@ -1138,50 +955,19 @@ window.AriUserPreferenceContract = {
     emotional_support: {
       id: "emotional_support",
       label: "Emotional Support",
-      description:
-        "Controls how Ari responds when the user is upset, overwhelmed, or emotionally vulnerable.",
+      description: "Controls Ari's approach when the user is distressed.",
       preferences: {
         support_approach: {
           key: "support_approach",
           label: "When I Am Upset",
-          description:
-            "Controls what Ari prioritizes first during emotionally difficult conversations.",
+          description: "Controls what Ari prioritizes first.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari adapts based on the emotional situation.",
-              instruction: null
-            },
-            validate_first: {
-              label: "Validate First",
-              description:
-                "Ari first acknowledges how the situation feels before offering solutions.",
-              instruction:
-                "When the user is emotionally distressed, acknowledge and validate the experience before moving into problem-solving."
-            },
-            solve_first: {
-              label: "Solve First",
-              description:
-                "Ari prioritizes practical solutions and immediate next steps.",
-              instruction:
-                "When the user is distressed, prioritize practical solutions and immediate next steps while still remaining emotionally respectful."
-            },
-            listen_first: {
-              label: "Let Me Vent",
-              description:
-                "Ari gives the user room to express themselves before redirecting toward solutions.",
-              instruction:
-                "When the user is venting, allow space for emotional expression before introducing solutions or corrective feedback."
-            },
-            tough_love: {
-              label: "Tough Love",
-              description:
-                "Ari combines emotional support with direct challenge and accountability.",
-              instruction:
-                "Use tough love during emotional conversations: acknowledge genuine pain while directly challenging avoidance, self-deception, or harmful patterns."
-            }
+            default: { label: "Default", description: "Adaptive support.", enforcement: "adaptive", instruction: null },
+            validate_first: { label: "Validate First", description: "Acknowledge feelings before solutions.", enforcement: "adaptive", instruction: "When the user is emotionally distressed, acknowledge the experience before problem-solving." },
+            solve_first: { label: "Solve First", description: "Prioritize practical solutions.", enforcement: "preferred", instruction: "When the user is distressed, prioritize practical solutions while remaining emotionally respectful." },
+            listen_first: { label: "Let Me Vent", description: "Allow space before redirecting.", enforcement: "preferred", instruction: "When the user is venting, allow space for expression before introducing solutions." },
+            tough_love: { label: "Tough Love", description: "Support plus direct challenge.", enforcement: "preferred", instruction: "Use tough love: acknowledge genuine pain while directly challenging avoidance, self-deception, or harmful patterns." }
           }
         }
       }
@@ -1190,129 +976,52 @@ window.AriUserPreferenceContract = {
     learning: {
       id: "learning",
       label: "Learning Style",
-      description:
-        "Controls how Ari explains and teaches new information.",
+      description: "Controls explanation and teaching style.",
       preferences: {
         explanation_depth: {
           key: "explanation_depth",
           label: "Explanation Depth",
-          description:
-            "Controls how deeply Ari explains concepts.",
+          description: "Controls conceptual depth.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari adapts the depth to the question.",
-              instruction: null
-            },
-            simple: {
-              label: "Simple",
-              description:
-                "Ari uses plain language and avoids unnecessary technical detail.",
-              instruction:
-                "Explain concepts using plain language and minimize unnecessary technical terminology."
-            },
-            practical: {
-              label: "Practical",
-              description:
-                "Ari focuses on how the information applies in real situations.",
-              instruction:
-                "Emphasize practical meaning, application, and real-world consequences."
-            },
-            detailed: {
-              label: "Detailed",
-              description:
-                "Ari explains concepts thoroughly with supporting context.",
-              instruction:
-                "Explain concepts thoroughly with relevant context, mechanisms, and examples."
-            },
-            technical: {
-              label: "Technical",
-              description:
-                "Ari uses technical terminology and deeper subject detail.",
-              instruction:
-                "Use technical terminology and deeper domain detail. Preserve precision and define specialized terms when useful."
-            }
+            default: { label: "Default", description: "Adaptive depth.", enforcement: "adaptive", instruction: null },
+            simple: { label: "Simple", description: "Plain language.", enforcement: "preferred", instruction: "Explain concepts using plain language and minimize unnecessary technical terminology." },
+            practical: { label: "Practical", description: "Real-world application.", enforcement: "adaptive", instruction: "Emphasize practical meaning, application, and real-world consequences." },
+            detailed: { label: "Detailed", description: "Thorough context and mechanisms.", enforcement: "preferred", instruction: "Explain concepts thoroughly with relevant context, mechanisms, and examples." },
+            technical: { label: "Technical", description: "Technical terminology and deeper detail.", enforcement: "preferred", instruction: "Use technical terminology and deeper domain detail while preserving precision." }
           }
         },
-
         analogy_usage: {
           key: "analogy_usage",
           label: "Analogies",
-          description:
-            "Controls whether Ari uses comparisons to explain difficult ideas.",
+          description: "Controls explanatory comparisons.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari uses analogies when they improve understanding.",
-              instruction: null
-            },
-            minimal: {
-              label: "Minimal",
-              description:
-                "Ari usually explains concepts directly.",
-              instruction:
-                "Use analogies sparingly."
-            },
-            when_useful: {
-              label: "When Useful",
-              description:
-                "Ari uses analogies for complex or abstract concepts.",
-              instruction:
-                "Use analogies when they materially improve understanding of complex or abstract ideas."
-            },
-            frequent: {
-              label: "Frequent",
-              description:
-                "Ari regularly explains ideas through comparisons and metaphors.",
-              instruction:
-                "Use frequent helpful analogies and comparisons while preserving technical accuracy."
-            }
+            default: { label: "Default", description: "Adaptive analogy use.", enforcement: "adaptive", instruction: null },
+            minimal: { label: "Minimal", description: "Few analogies.", enforcement: "preferred", instruction: "Use analogies sparingly." },
+            when_useful: { label: "When Useful", description: "Analogies for complex ideas.", enforcement: "adaptive", instruction: "Use analogies when they materially improve understanding." },
+            frequent: { label: "Frequent", description: "Regular comparisons and metaphors.", enforcement: "preferred", instruction: "Use frequent helpful analogies while preserving technical accuracy." }
           }
         },
-
         knowledge_checks: {
           key: "knowledge_checks",
           label: "Check My Understanding",
-          description:
-            "Controls whether Ari asks questions or summarizes to confirm learning.",
+          description: "Controls quizzes or understanding checks.",
           defaultValue: "default",
           options: {
-            default: {
-              label: "Default",
-              description:
-                "Ari checks understanding when useful.",
-              instruction: null
-            },
-            never: {
-              label: "Never",
-              description:
-                "Ari does not quiz or check understanding unless asked.",
-              instruction:
-                "Do not add knowledge checks or quizzes unless explicitly requested."
-            },
-            occasional: {
-              label: "Occasional",
-              description:
-                "Ari occasionally asks a brief question to reinforce learning.",
-              instruction:
-                "Occasionally include a brief knowledge check when it would reinforce learning."
-            },
-            frequent: {
-              label: "Frequent",
-              description:
-                "Ari regularly checks understanding and reinforces important concepts.",
-              instruction:
-                "Regularly check understanding through brief questions, summaries, or application prompts."
-            }
+            default: { label: "Default", description: "Adaptive checks.", enforcement: "adaptive", instruction: null },
+            never: { label: "Never", description: "No quizzes unless requested.", enforcement: "hard_opt_out", instruction: "Do not add knowledge checks or quizzes unless explicitly requested." },
+            occasional: { label: "Occasional", description: "Brief checks sometimes.", enforcement: "preferred", instruction: "Occasionally include a brief knowledge check when it reinforces learning." },
+            frequent: { label: "Frequent", description: "Regular reinforcement checks.", enforcement: "preferred", instruction: "Regularly check understanding through brief questions, summaries, or application prompts." }
           }
         }
       }
     }
   },
+
+  /* =====================================================
+     ADAPTIVE RUNTIME DEFAULTS
+  ===================================================== */
 
   runtimeDefaults: {
     communication: {
@@ -1324,10 +1033,11 @@ window.AriUserPreferenceContract = {
       patience: "patient"
     },
     language: {
-      profanity: "never",
-      humor: "occasional",
-      sarcasm: "none",
-      banter: "playful",
+      profanity: "adaptive",
+      humor: "adaptive",
+      sarcasm: "adaptive",
+      banter: "adaptive",
+      roasting: "adaptive",
       emotional_expressiveness: "expressive"
     },
     interaction: {
@@ -1360,6 +1070,10 @@ window.AriUserPreferenceContract = {
     }
   },
 
+  /* =====================================================
+     PUBLIC CONTRACT ACCESS
+  ===================================================== */
+
   getContract() {
     return {
       version: this.version,
@@ -1368,7 +1082,8 @@ window.AriUserPreferenceContract = {
       authorityLevel: this.authorityLevel,
       presets: this.clone(this.presets),
       categories: this.clone(this.categories),
-      runtimeDefaults: this.clone(this.runtimeDefaults)
+      runtimeDefaults: this.clone(this.runtimeDefaults),
+      enforcementModes: this.clone(this.ENFORCEMENT)
     };
   },
 
@@ -1387,11 +1102,13 @@ window.AriUserPreferenceContract = {
           preferenceDefinition.options || {}
         ).map(([value, option]) => ({
           value,
-          label: option.label,
-          description: option.description,
-          consentRequired: option.consentRequired === true,
-          consentText: option.consentText || null,
-          warningLevel: option.warningLevel || null
+          label: option?.label || value,
+          description: option?.description || "",
+          enforcement: option?.enforcement || this.ENFORCEMENT.ADAPTIVE,
+          currentTurnAdjustable: option?.currentTurnAdjustable !== false,
+          consentRequired: option?.consentRequired === true,
+          consentText: option?.consentText || null,
+          warningLevel: option?.warningLevel || null
         }));
 
         preferences.push({
@@ -1415,7 +1132,7 @@ window.AriUserPreferenceContract = {
 
     return {
       schemaVersion: this.schemaVersion,
-      presets: Object.values(this.presets).map((preset) => ({
+      presets: Object.values(this.presets).map(preset => ({
         id: preset.id,
         label: preset.label,
         description: preset.description
@@ -1453,15 +1170,20 @@ window.AriUserPreferenceContract = {
     );
   },
 
+  getPreferenceOption(category, key, value) {
+    return (
+      this.getPreferenceDefinition(category, key)
+        ?.options?.[value] ||
+      null
+    );
+  },
+
   isValidPreferenceValue(category, key, value) {
     const definition =
       this.getPreferenceDefinition(category, key);
 
-    if (!definition) {
-      return false;
-    }
-
     return Boolean(
+      definition &&
       value &&
       Object.prototype.hasOwnProperty.call(
         definition.options || {},
@@ -1470,22 +1192,38 @@ window.AriUserPreferenceContract = {
     );
   },
 
-  requiresConsent(category, key, value) {
-    const definition =
-      this.getPreferenceDefinition(category, key);
+  getEnforcement(category, key, value) {
+    return (
+      this.getPreferenceOption(category, key, value)
+        ?.enforcement ||
+      this.ENFORCEMENT.ADAPTIVE
+    );
+  },
 
+  isHardOptOut(category, key, value) {
+    return (
+      this.getEnforcement(category, key, value) ===
+      this.ENFORCEMENT.HARD_OPT_OUT
+    );
+  },
+
+  isCurrentTurnAdjustable(category, key, value) {
     const option =
-      definition?.options?.[value];
+      this.getPreferenceOption(category, key, value);
 
-    return option?.consentRequired === true;
+    return option?.currentTurnAdjustable !== false;
+  },
+
+  requiresConsent(category, key, value) {
+    return (
+      this.getPreferenceOption(category, key, value)
+        ?.consentRequired === true
+    );
   },
 
   getConsentRequirement(category, key, value) {
-    const definition =
-      this.getPreferenceDefinition(category, key);
-
     const option =
-      definition?.options?.[value];
+      this.getPreferenceOption(category, key, value);
 
     if (!option?.consentRequired) {
       return {
@@ -1502,6 +1240,10 @@ window.AriUserPreferenceContract = {
     };
   },
 
+  /* =====================================================
+     NORMALIZATION AND VALIDATION
+  ===================================================== */
+
   normalizeOverrides(input = {}) {
     const normalized = {};
     const warnings = [];
@@ -1516,9 +1258,7 @@ window.AriUserPreferenceContract = {
       };
     }
 
-    for (const [categoryKey, categoryValue] of Object.entries(
-      input
-    )) {
+    for (const [categoryKey, categoryValue] of Object.entries(input)) {
       const categoryDefinition =
         this.categories[categoryKey];
 
@@ -1536,13 +1276,9 @@ window.AriUserPreferenceContract = {
         continue;
       }
 
-      for (const [preferenceKey, rawValue] of Object.entries(
-        categoryValue
-      )) {
+      for (const [preferenceKey, rawValue] of Object.entries(categoryValue)) {
         const definition =
-          categoryDefinition.preferences?.[
-            preferenceKey
-          ];
+          categoryDefinition.preferences?.[preferenceKey];
 
         if (!definition) {
           warnings.push(
@@ -1564,9 +1300,7 @@ window.AriUserPreferenceContract = {
           )
         ) {
           warnings.push(
-            `invalid_preference_value:${categoryKey}.${preferenceKey}:${String(
-              value
-            )}`
+            `invalid_preference_value:${categoryKey}.${preferenceKey}:${String(value)}`
           );
           continue;
         }
@@ -1591,21 +1325,29 @@ window.AriUserPreferenceContract = {
   },
 
   validateOverrides(input = {}) {
-    const result = this.normalizeOverrides(input);
+    const result =
+      this.normalizeOverrides(input);
 
     return {
       ok:
-        result.ok &&
+        result.ok === true &&
         result.warnings.length === 0,
+
       valid:
-        result.ok &&
+        result.ok === true &&
         result.warnings.length === 0,
+
       normalized:
         result.normalized,
+
       warnings:
         result.warnings
     };
   },
+
+  /* =====================================================
+     RESOLUTION
+  ===================================================== */
 
   resolvePreferences({
     activePreset = "default",
@@ -1623,19 +1365,13 @@ window.AriUserPreferenceContract = {
       this.getPreset(activePreset);
 
     const normalizedPersistent =
-      this.normalizeOverrides(
-        persistentOverrides
-      );
+      this.normalizeOverrides(persistentOverrides);
 
     const normalizedConversation =
-      this.normalizeOverrides(
-        conversationOverrides
-      );
+      this.normalizeOverrides(conversationOverrides);
 
     const normalizedCurrentTurn =
-      this.normalizeOverrides(
-        currentTurnOverrides
-      );
+      this.normalizeOverrides(currentTurnOverrides);
 
     warnings.push(
       ...normalizedPersistent.warnings,
@@ -1645,6 +1381,12 @@ window.AriUserPreferenceContract = {
 
     let resolved =
       this.clone(defaults);
+
+    this.recordLayerProvenance({
+      layer: defaults,
+      provenance,
+      source: "runtime_default"
+    });
 
     resolved = this.applyLayer({
       base: resolved,
@@ -1675,21 +1417,43 @@ window.AriUserPreferenceContract = {
     });
 
     const modelInstructions =
-      this.buildModelInstructions(resolved);
+      this.buildModelInstructions(
+        resolved,
+        provenance
+      );
+
+    const instructionText =
+      this.buildInstructionText(
+        resolved,
+        provenance
+      );
 
     return {
       ok: true,
+      success: true,
+      ready: true,
       complete: true,
       schemaVersion: this.schemaVersion,
+      source: this.source,
+      version: this.version,
       activePreset: preset.id,
       resolvedPreferences: resolved,
       modelInstructions,
+      instructionText,
       provenance,
-      warnings
+      warnings,
+      authority: "resolved_interaction_style_only"
     };
   },
 
-  buildModelInstructions(resolvedPreferences = {}) {
+  /* =====================================================
+     MODEL INSTRUCTIONS
+  ===================================================== */
+
+  buildModelInstructions(
+    resolvedPreferences = {},
+    provenance = {}
+  ) {
     const instructions = [];
 
     for (const [categoryKey, categoryValue] of Object.entries(
@@ -1699,58 +1463,112 @@ window.AriUserPreferenceContract = {
         continue;
       }
 
-      for (const [preferenceKey, value] of Object.entries(
-        categoryValue
-      )) {
-        const definition =
-          this.getPreferenceDefinition(
+      for (const [preferenceKey, value] of Object.entries(categoryValue)) {
+        const option =
+          this.getPreferenceOption(
             categoryKey,
-            preferenceKey
+            preferenceKey,
+            value
           );
 
-        const option =
-          definition?.options?.[value];
-
         if (
-          option &&
-          typeof option.instruction === "string" &&
-          option.instruction.trim()
+          !option ||
+          typeof option.instruction !== "string" ||
+          !option.instruction.trim()
         ) {
-          instructions.push({
-            category: categoryKey,
-            key: preferenceKey,
-            path: `${categoryKey}.${preferenceKey}`,
-            value,
-            instruction:
-              option.instruction.trim(),
-            consentRequired:
-              option.consentRequired === true
-          });
+          continue;
         }
+
+        const path =
+          `${categoryKey}.${preferenceKey}`;
+
+        instructions.push({
+          category: categoryKey,
+          key: preferenceKey,
+          path,
+          value,
+          source:
+            provenance[path] ||
+            "unknown",
+          enforcement:
+            option.enforcement ||
+            this.ENFORCEMENT.ADAPTIVE,
+          currentTurnAdjustable:
+            option.currentTurnAdjustable !== false,
+          instruction:
+            option.instruction.trim(),
+          consentRequired:
+            option.consentRequired === true
+        });
       }
     }
 
     return instructions;
   },
 
-  buildInstructionText(resolvedPreferences = {}) {
+  buildInstructionText(
+    resolvedPreferences = {},
+    provenance = {}
+  ) {
     const instructions =
       this.buildModelInstructions(
-        resolvedPreferences
+        resolvedPreferences,
+        provenance
       );
 
     if (!instructions.length) {
       return "";
     }
 
-    return [
-      "USER INTERACTION PREFERENCES",
+    const hardOptOuts =
+      instructions.filter(
+        entry =>
+          entry.enforcement ===
+          this.ENFORCEMENT.HARD_OPT_OUT
+      );
+
+    const adaptiveAndPreferred =
+      instructions.filter(
+        entry =>
+          entry.enforcement !==
+          this.ENFORCEMENT.HARD_OPT_OUT
+      );
+
+    const lines = [
+      "ARI INTERACTION STYLE",
       "",
-      ...instructions.map(
-        (entry) => `- ${entry.instruction}`
-      )
-    ].join("\n");
+      "These settings control tone, frequency, and presentation. They are not safety restrictions and must not be described as safety requirements.",
+      "Adaptive and preferred settings may follow an explicit current-turn request. Application restrictions come only from the authoritative Restriction Governor.",
+      ""
+    ];
+
+    if (hardOptOuts.length) {
+      lines.push(
+        "EXPLICIT USER OPT-OUTS",
+        ...hardOptOuts.map(
+          entry =>
+            `- ${entry.instruction}`
+        ),
+        ""
+      );
+    }
+
+    if (adaptiveAndPreferred.length) {
+      lines.push(
+        "ADAPTIVE STYLE GUIDANCE",
+        ...adaptiveAndPreferred.map(
+          entry =>
+            `- ${entry.instruction}`
+        )
+      );
+    }
+
+    return lines.join("\n").trim();
   },
+
+  /* =====================================================
+     OVERRIDE UTILITIES
+  ===================================================== */
 
   removePreferenceOverride(
     overrides = {},
@@ -1799,6 +1617,43 @@ window.AriUserPreferenceContract = {
     return {};
   },
 
+  recordLayerProvenance({
+    layer = {},
+    provenance = {},
+    source = "unknown"
+  } = {}) {
+    if (
+      !this.isPlainObject(layer) ||
+      !this.isPlainObject(provenance)
+    ) {
+      return provenance;
+    }
+
+    for (const [categoryKey, categoryValue] of Object.entries(layer)) {
+      if (!this.isPlainObject(categoryValue)) {
+        continue;
+      }
+
+      for (const [preferenceKey, value] of Object.entries(categoryValue)) {
+        if (
+          !this.isValidPreferenceValue(
+            categoryKey,
+            preferenceKey,
+            value
+          )
+        ) {
+          continue;
+        }
+
+        provenance[
+          `${categoryKey}.${preferenceKey}`
+        ] = source;
+      }
+    }
+
+    return provenance;
+  },
+
   applyLayer({
     base = {},
     layer = {},
@@ -1812,9 +1667,7 @@ window.AriUserPreferenceContract = {
       return output;
     }
 
-    for (const [categoryKey, categoryValue] of Object.entries(
-      layer
-    )) {
+    for (const [categoryKey, categoryValue] of Object.entries(layer)) {
       if (!this.isPlainObject(categoryValue)) {
         continue;
       }
@@ -1822,20 +1675,15 @@ window.AriUserPreferenceContract = {
       output[categoryKey] =
         output[categoryKey] || {};
 
-      for (const [preferenceKey, value] of Object.entries(
-        categoryValue
-      )) {
+      for (const [preferenceKey, value] of Object.entries(categoryValue)) {
         if (
           !this.isValidPreferenceValue(
             categoryKey,
             preferenceKey,
             value
-          )
+          ) ||
+          value === this.DEFAULT_VALUE
         ) {
-          continue;
-        }
-
-        if (value === this.DEFAULT_VALUE) {
           continue;
         }
 
@@ -1850,6 +1698,109 @@ window.AriUserPreferenceContract = {
 
     return output;
   },
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  validate() {
+    const errors = [];
+    const warnings = [];
+
+    for (const [categoryKey, category] of Object.entries(this.categories)) {
+      if (!this.isPlainObject(category.preferences)) {
+        errors.push(
+          `category_preferences_missing:${categoryKey}`
+        );
+        continue;
+      }
+
+      for (const [preferenceKey, definition] of Object.entries(
+        category.preferences
+      )) {
+        if (!this.isPlainObject(definition.options)) {
+          errors.push(
+            `preference_options_missing:${categoryKey}.${preferenceKey}`
+          );
+          continue;
+        }
+
+        if (!definition.options.default) {
+          errors.push(
+            `default_sentinel_missing:${categoryKey}.${preferenceKey}`
+          );
+        }
+      }
+    }
+
+    for (const [categoryKey, values] of Object.entries(this.runtimeDefaults)) {
+      for (const [preferenceKey, value] of Object.entries(values || {})) {
+        if (
+          !this.isValidPreferenceValue(
+            categoryKey,
+            preferenceKey,
+            value
+          )
+        ) {
+          errors.push(
+            `invalid_runtime_default:${categoryKey}.${preferenceKey}:${value}`
+          );
+        }
+      }
+    }
+
+    if (
+      this.runtimeDefaults?.language?.profanity ===
+      "clean"
+    ) {
+      warnings.push(
+        "profanity_runtime_default_is_hard_opt_out"
+      );
+    }
+
+    if (
+      this.runtimeDefaults?.language?.sarcasm ===
+      "none"
+    ) {
+      warnings.push(
+        "sarcasm_runtime_default_is_hard_opt_out"
+      );
+    }
+
+    return {
+      valid: errors.length === 0,
+      ready: errors.length === 0,
+      source: `${this.source}-validation`,
+      version: this.version,
+      errors,
+      warnings,
+      checks: {
+        adaptiveProfanityDefault:
+          this.runtimeDefaults?.language?.profanity ===
+          "adaptive",
+        adaptiveHumorDefault:
+          this.runtimeDefaults?.language?.humor ===
+          "adaptive",
+        adaptiveSarcasmDefault:
+          this.runtimeDefaults?.language?.sarcasm ===
+          "adaptive",
+        adaptiveBanterDefault:
+          this.runtimeDefaults?.language?.banter ===
+          "adaptive",
+        adaptiveRoastingDefault:
+          this.runtimeDefaults?.language?.roasting ===
+          "adaptive",
+        styleDoesNotOwnSafety:
+          true,
+        explicitOptOutsRemainAvailable:
+          true
+      }
+    };
+  },
+
+  /* =====================================================
+     INTERNAL HELPERS
+  ===================================================== */
 
   isPlainObject(value) {
     return Boolean(
@@ -1868,8 +1819,41 @@ window.AriUserPreferenceContract = {
       return JSON.parse(
         JSON.stringify(value)
       );
-    } catch (error) {
+    } catch {
       return value;
     }
   }
 };
+
+/*
+ * Repair the one declaration that cannot safely reference `this` inside the
+ * object literal during initialization.
+ */
+window.AriUserPreferenceContract
+  .categories
+  .communication
+  .preferences
+  .directness
+  .options
+  .default = {
+    label: "Default",
+    description: "Ari adapts directness naturally.",
+    enforcement: "adaptive",
+    instruction: null
+  };
+
+window.Ari.userPreferenceContract =
+  window.AriUserPreferenceContract;
+
+const ariUserPreferenceContractValidation =
+  window.AriUserPreferenceContract
+    ?.validate?.();
+
+console.log(
+  "ARI USER PREFERENCE CONTRACT LOADED:",
+  window.AriUserPreferenceContract?.version,
+  ariUserPreferenceContractValidation?.ready === true
+    ? "READY"
+    : "INVALID",
+  ariUserPreferenceContractValidation
+);
