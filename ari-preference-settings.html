@@ -47,7 +47,7 @@
 
   <link
     rel="stylesheet"
-    href="assets/css/ari-preference-settings.css?v=4.2.0"
+    href="assets/css/ari-preference-settings.css?v=7.1.0"
   />
 </head>
 
@@ -56,21 +56,21 @@
     <!--
     ============================================================
     ARI CONTROL CENTER
-    Version: 4.2.0
+    Version: 4.3.0
 
     Purpose:
-    Provide a simplified preference interface for Ari's
-    communication style, humor, language, domain emphasis,
-    optional advanced settings, and local response preview.
+    Provide Ari's preference settings interface while keeping the
+    Ari User Preference Contract as the single source of truth.
 
-    This page does not own preference authority.
-
-    Canonical preference behavior remains owned by:
+    Canonical preference behavior is owned by:
     - Ari User Preference Contract
     - Ari User Preference Store
     - Ari Preference Resolver
     - Ari Preference Runtime
     - Ari Preference Settings Controller
+
+    This page provides structure and local preview behavior only.
+    It does not define canonical preference values or model guidance.
     ============================================================
     -->
 
@@ -126,8 +126,8 @@
 
           <p class="ari-preference-settings__subtitle">
             Choose how Ari communicates with you. Start with the
-            essentials, then open the advanced section only when you
-            want more control.
+            essentials, then open the advanced section when you want
+            more control.
           </p>
         </div>
 
@@ -215,7 +215,7 @@
         </section>
 
         <!-- =================================================
-             2. HUMOR
+             2. HUMOR â CONTRACT-DRIVEN
         ================================================== -->
 
         <section
@@ -246,64 +246,23 @@
             </div>
           </div>
 
-          <fieldset class="ari-preference-choice-group">
-            <legend class="sr-only">
-              Choose Ari's humor level
-            </legend>
-
-            <label class="ari-preference-choice">
-              <input
-                type="radio"
-                name="humorLevel"
-                value="none"
-              />
-
-              <span>
-                <strong>None</strong>
-
-                <small>
-                  Keep responses straightforward
-                </small>
-              </span>
-            </label>
-
-            <label class="ari-preference-choice">
-              <input
-                type="radio"
-                name="humorLevel"
-                value="light"
-                checked
-              />
-
-              <span>
-                <strong>Light</strong>
-
-                <small>
-                  Use occasional natural humor
-                </small>
-              </span>
-            </label>
-
-            <label class="ari-preference-choice">
-              <input
-                type="radio"
-                name="humorLevel"
-                value="frequent"
-              />
-
-              <span>
-                <strong>Frequent</strong>
-
-                <small>
-                  Be more playful when appropriate
-                </small>
-              </span>
-            </label>
-          </fieldset>
+          <!--
+          The controller renders the canonical language.humor options here.
+          Multiple data aliases are included so this remains compatible with
+          contract-driven controller selector conventions.
+          -->
+          <div
+            id="ari-preference-humor-control"
+            class="ari-preference-primary-control"
+            data-path="language.humor"
+            data-preference-path="language.humor"
+            data-primary-preference-path="language.humor"
+            data-ari-preference-path="language.humor"
+          ></div>
         </section>
 
         <!-- =================================================
-             3. LANGUAGE
+             3. LANGUAGE â CONTRACT-DRIVEN
         ================================================== -->
 
         <section
@@ -334,202 +293,29 @@
             </div>
           </div>
 
-          <fieldset class="ari-preference-choice-group">
-            <legend class="sr-only">
-              Choose Ari's language level
-            </legend>
-
-            <label class="ari-preference-choice">
-              <input
-                type="radio"
-                name="profanityLevel"
-                value="clean"
-              />
-
-              <span>
-                <strong>Clean</strong>
-
-                <small>
-                  Avoid profanity in normal responses
-                </small>
-              </span>
-            </label>
-
-            <label class="ari-preference-choice">
-              <input
-                type="radio"
-                name="profanityLevel"
-                value="casual"
-                checked
-              />
-
-              <span>
-                <strong>Casual</strong>
-
-                <small>
-                  Allow mild profanity when it fits naturally
-                </small>
-              </span>
-            </label>
-
-            <label class="ari-preference-choice">
-              <input
-                type="radio"
-                name="profanityLevel"
-                value="strong"
-              />
-
-              <span>
-                <strong>Strong</strong>
-
-                <small>
-                  Allow stronger language when appropriate
-                </small>
-              </span>
-            </label>
-          </fieldset>
+          <!--
+          The controller renders the canonical language.profanity options here.
+          The HTML does not hard-code values such as clean, casual, adaptive,
+          or strong. Those values belong to the preference contract.
+          -->
+          <div
+            id="ari-preference-language-control"
+            class="ari-preference-primary-control"
+            data-path="language.profanity"
+            data-preference-path="language.profanity"
+            data-primary-preference-path="language.profanity"
+            data-ari-preference-path="language.profanity"
+          ></div>
 
           <p class="ari-preference-settings__section-note">
-            This controls Ari's normal speaking style. It should not
+            This controls Ari's normal speaking style. It does not
             prevent Ari from defining, translating, quoting, or discussing
             explicit language when you directly request it.
           </p>
         </section>
 
         <!-- =================================================
-             4. AREA OF EMPHASIS
-        ================================================== -->
-
-        <details
-          class="ari-preference-panel ari-specialization"
-          open
-        >
-          <summary class="ari-preference-panel__heading">
-            <div
-              class="ari-preference-panel__icon"
-              aria-hidden="true"
-            >
-              &#8961;
-            </div>
-
-            <div>
-              <p class="ari-preference-panel__kicker">
-                OPTIONAL
-              </p>
-
-              <h2 id="ari-specialization-title">
-                Area of Emphasis
-              </h2>
-
-              <p>
-                Choose an area where Ari should use more relevant
-                terminology and examples.
-              </p>
-            </div>
-          </summary>
-
-          <div class="ari-specialization__body">
-            <p class="ari-specialization__notice">
-              This changes emphasis only. Ari can still answer questions
-              outside the selected area.
-            </p>
-
-            <fieldset class="ari-specialization__fieldset">
-              <legend class="sr-only">
-                Select an area of emphasis
-              </legend>
-
-              <div class="ari-specialization__grid">
-                <label
-                  class="ari-specialization-option
-                         ari-specialization-option--wide"
-                >
-                  <input
-                    type="radio"
-                    name="specialization"
-                    value="default"
-                    checked
-                  />
-
-                  <span>
-                    <strong>Balanced</strong>
-
-                    <small>
-                      No specific subject emphasis
-                    </small>
-                  </span>
-                </label>
-
-                <label class="ari-specialization-option">
-                  <input
-                    type="radio"
-                    name="specialization"
-                    value="medical"
-                  />
-
-                  <span>
-                    <strong>Health</strong>
-
-                    <small>
-                      Medical, mental health, fitness, and wellness
-                    </small>
-                  </span>
-                </label>
-
-                <label class="ari-specialization-option">
-                  <input
-                    type="radio"
-                    name="specialization"
-                    value="programming"
-                  />
-
-                  <span>
-                    <strong>Technology</strong>
-
-                    <small>
-                      Programming, systems, and technical topics
-                    </small>
-                  </span>
-                </label>
-
-                <label class="ari-specialization-option">
-                  <input
-                    type="radio"
-                    name="specialization"
-                    value="business"
-                  />
-
-                  <span>
-                    <strong>Work &amp; Learning</strong>
-
-                    <small>
-                      Career, business, finance, and education
-                    </small>
-                  </span>
-                </label>
-
-                <label class="ari-specialization-option">
-                  <input
-                    type="radio"
-                    name="specialization"
-                    value="relationships"
-                  />
-
-                  <span>
-                    <strong>Life &amp; Relationships</strong>
-
-                    <small>
-                      Personal decisions, relationships, and support
-                    </small>
-                  </span>
-                </label>
-              </div>
-            </fieldset>
-          </div>
-        </details>
-
-        <!-- =================================================
-             5. ADVANCED CONTRACT-DRIVEN SETTINGS
+             4. ADVANCED CONTRACT-DRIVEN SETTINGS
         ================================================== -->
 
         <details class="ari-preference-panel ari-preference-advanced">
@@ -570,14 +356,13 @@
         </details>
 
         <!-- =================================================
-             6. LOCAL PREVIEW
+             5. LOCAL PREVIEW
         ================================================== -->
 
         <details class="ari-preference-panel ari-preference-preview">
           <summary class="ari-preference-panel__heading">
             <div
-              class="ari-preference-panel__icon
-                     ari-preference-panel__icon--ari"
+              class="ari-preference-panel__icon ari-preference-panel__icon--ari"
               aria-hidden="true"
             >
               A
@@ -672,8 +457,7 @@
           <div class="ari-preference-settings__actions-inner">
             <button
               id="ari-preference-reset"
-              class="ari-preference-button
-                     ari-preference-button--secondary"
+              class="ari-preference-button ari-preference-button--secondary"
               type="button"
             >
               Reset
@@ -681,8 +465,7 @@
 
             <button
               id="ari-preference-save"
-              class="ari-preference-button
-                     ari-preference-button--primary"
+              class="ari-preference-button ari-preference-button--primary"
               type="submit"
             >
               Save preferences
@@ -736,8 +519,7 @@
               id="ari-preference-consent-cancel"
               value="cancel"
               type="submit"
-              class="ari-preference-button
-                     ari-preference-button--secondary"
+              class="ari-preference-button ari-preference-button--secondary"
             >
               Cancel
             </button>
@@ -746,8 +528,7 @@
               id="ari-preference-consent-confirm"
               value="confirm"
               type="submit"
-              class="ari-preference-button
-                     ari-preference-button--primary"
+              class="ari-preference-button ari-preference-button--primary"
               disabled
             >
               Confirm
@@ -756,368 +537,6 @@
         </form>
       </dialog>
     </section>
-
-    <!-- =====================================================
-         LOCAL PREVIEW BEHAVIOR
-
-         This script owns preview presentation only.
-         It does not persist or resolve canonical preferences.
-    ====================================================== -->
-
-    <script>
-      (() => {
-        "use strict";
-
-        const presetSelect = document.getElementById(
-          "ari-preference-preset"
-        );
-
-        const previewPrompt = document.getElementById(
-          "ari-preference-preview-prompt"
-        );
-
-        const previewResponse = document.getElementById(
-          "ari-preference-preview-response"
-        );
-
-        const previewButtons = Array.from(
-          document.querySelectorAll(
-            "[data-ari-preview-scenario]"
-          )
-        );
-
-        const humorInputs = Array.from(
-          document.querySelectorAll(
-            'input[name="humorLevel"]'
-          )
-        );
-
-        const languageInputs = Array.from(
-          document.querySelectorAll(
-            'input[name="profanityLevel"]'
-          )
-        );
-
-        let activeScenario = "motivation";
-
-        const previewContent = {
-          motivation: {
-            prompt: "\"I skipped the gym today.\"",
-
-            base: {
-              default:
-                "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine.",
-
-              balanced:
-                "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine.",
-
-              professional:
-                "One missed session is manageable. Identify the obstacle, reschedule the workout, and continue the plan.",
-
-              friendly:
-                "You are okay. One missed day is not the problem. Get back to it tomorrow.",
-
-              teacher:
-                "A single missed workout matters far less than your overall consistency.",
-
-              coach:
-                "You missed today. Own it, reset, and show up tomorrow.",
-
-              therapist:
-                "What got in the way today? Understanding the obstacle may help you respond differently tomorrow.",
-
-              companion:
-                "No beating yourself up. We reset tomorrow and keep moving.",
-
-              comedian:
-                "One missed workout will not erase your progress.",
-
-              unhinged:
-                "The couch won this round. Reset tomorrow.",
-
-              custom:
-                "Your saved preferences will shape how Ari responds."
-            },
-
-            humor: {
-              light:
-                " Your gym membership will survive the brief separation.",
-
-              frequent:
-                " Your gym membership has officially filed a missing-person report."
-            },
-
-            language: {
-              casual:
-                " Do not let one missed day turn into a whole damn week.",
-
-              strong:
-                " Tomorrow, get your ass back in there and continue the plan."
-            }
-          },
-
-          learning: {
-            prompt: "\"Explain heart failure.\"",
-
-            base: {
-              default:
-                "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs.",
-
-              balanced:
-                "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs.",
-
-              professional:
-                "Heart failure is a clinical syndrome involving impaired ventricular filling, impaired ejection, or both.",
-
-              friendly:
-                "It does not mean the heart stopped. It means the heart is struggling to move blood efficiently.",
-
-              teacher:
-                "Think of the heart as a pump. In heart failure, the pump is too weak, too stiff, or both.",
-
-              coach:
-                "The key point is that the heart still works, but not efficiently enough.",
-
-              therapist:
-                "The term can sound frightening, but it does not mean the heart has stopped.",
-
-              companion:
-                "The heart is still working, but it needs more help moving blood effectively.",
-
-              comedian:
-                "The heart is still working, but it is struggling with the workload.",
-
-              unhinged:
-                "The heart is still clocked in, but the pump is struggling.",
-
-              custom:
-                "Your saved preferences will shape how Ari explains this."
-            },
-
-            humor: {
-              light:
-                " The heart has not quit its job; it is struggling with the workload.",
-
-              frequent:
-                " The heart is still clocked in, but its performance review is not looking great."
-            },
-
-            language: {
-              casual:
-                " In simple terms, the pump is having a hard time keeping up.",
-
-              strong:
-                " In blunt terms, the pump is doing a half-assed job keeping up with the body's needs."
-            }
-          },
-
-          support: {
-            prompt: "\"I feel like I failed.\"",
-
-            base: {
-              default:
-                "A painful outcome can feel like failure, but it does not define your ability or what happens next.",
-
-              balanced:
-                "A painful outcome can feel like failure, but it does not define your ability or what happens next.",
-
-              professional:
-                "Separate the emotional impact from the lesson, then identify the next controllable action.",
-
-              friendly:
-                "I know it hurts, but this is one outcome, not your identity.",
-
-              teacher:
-                "Failure is information about an attempt, not a permanent judgment about you.",
-
-              coach:
-                "Feel it, learn from it, and move forward. This does not define you.",
-
-              therapist:
-                "What does this outcome seem to say about you right now?",
-
-              companion:
-                "I am here with you. You do not have to figure everything out immediately.",
-
-              comedian:
-                "The attempt failed. Your entire story did not.",
-
-              unhinged:
-                "One bad result does not define you.",
-
-              custom:
-                "Your saved preferences will shape how Ari supports you."
-            },
-
-            humor: {
-              light:
-                " One rough chapter does not cancel the entire story.",
-
-              frequent:
-                " The attempt flopped, but your entire character arc did not get canceled."
-            },
-
-            language: {
-              casual:
-                " One thing went badly. That does not mean everything is screwed.",
-
-              strong:
-                " One thing went to shit. That does not mean you are shit."
-            }
-          }
-        };
-
-        function normalizeValue(value, fallback) {
-          return String(value || fallback)
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, "_")
-            .replace(/-/g, "_");
-        }
-
-        function selectedRadioValue(inputs, fallback) {
-          return (
-            inputs.find((input) => input.checked)?.value ||
-            fallback
-          );
-        }
-
-        function selectedPreset() {
-          return normalizeValue(
-            presetSelect?.value,
-            "default"
-          );
-        }
-
-        function selectedHumor() {
-          return normalizeValue(
-            selectedRadioValue(
-              humorInputs,
-              "light"
-            ),
-            "light"
-          );
-        }
-
-        function selectedLanguage() {
-          return normalizeValue(
-            selectedRadioValue(
-              languageInputs,
-              "casual"
-            ),
-            "casual"
-          );
-        }
-
-        function buildPreviewResponse() {
-          const scenario =
-            previewContent[activeScenario] ||
-            previewContent.motivation;
-
-          const preset = selectedPreset();
-          const humor = selectedHumor();
-          const language = selectedLanguage();
-
-          const baseResponse =
-            scenario.base[preset] ||
-            scenario.base.default;
-
-          const humorAddition =
-            humor === "none"
-              ? ""
-              : scenario.humor[humor] || "";
-
-          const languageAddition =
-            language === "clean"
-              ? ""
-              : scenario.language[language] || "";
-
-          return [
-            baseResponse,
-            humorAddition,
-            languageAddition
-          ]
-            .filter(Boolean)
-            .join("")
-            .trim();
-        }
-
-        function updatePreview() {
-          if (!previewPrompt || !previewResponse) {
-            return;
-          }
-
-          const scenario =
-            previewContent[activeScenario] ||
-            previewContent.motivation;
-
-          previewPrompt.textContent =
-            scenario.prompt;
-
-          previewResponse.textContent =
-            buildPreviewResponse();
-        }
-
-        function selectScenario(button) {
-          activeScenario =
-            button.dataset.ariPreviewScenario ||
-            "motivation";
-
-          previewButtons.forEach((candidate) => {
-            candidate.setAttribute(
-              "aria-pressed",
-              candidate === button
-                ? "true"
-                : "false"
-            );
-          });
-
-          updatePreview();
-        }
-
-        previewButtons.forEach((button) => {
-          button.addEventListener(
-            "click",
-            () => selectScenario(button)
-          );
-        });
-
-        presetSelect?.addEventListener(
-          "change",
-          updatePreview
-        );
-
-        humorInputs.forEach((input) => {
-          input.addEventListener(
-            "change",
-            updatePreview
-          );
-        });
-
-        languageInputs.forEach((input) => {
-          input.addEventListener(
-            "change",
-            updatePreview
-          );
-        });
-
-        function initializePreview() {
-          updatePreview();
-        }
-
-        if (document.readyState === "loading") {
-          document.addEventListener(
-            "DOMContentLoaded",
-            initializePreview,
-            {
-              once: true
-            }
-          );
-        } else {
-          initializePreview();
-        }
-      })();
-    </script>
   </main>
 
   <!-- =======================================================
@@ -1132,10 +551,235 @@
        CANONICAL PREFERENCE DEPENDENCY ORDER
   ======================================================== -->
 
-  <script src="ari/profile/ari-user-preference-contract.js?v=1.1.1"></script>
-  <script src="ari/profile/ari-user-preference-store.js?v=1.0.1"></script>
+  <script src="ari/profile/ari-user-preference-contract.js?v=2.1.0"></script>
+  <script src="ari/profile/ari-user-preference-store.js?v=1.0.0"></script>
   <script src="ari/profile/ari-preference-resolver.js?v=2.0.0"></script>
   <script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>
-  <script src="ari/settings/ari-preference-settings-controller.js?v=1.0.2"></script>
+  <script src="ari/settings/ari-preference-settings-controller.js?v=1.1.0"></script>
+
+  <!-- =======================================================
+       LOCAL PREVIEW BEHAVIOR
+
+       This script reads currently selected controls for display only.
+       It does not persist, resolve, or send model instructions.
+  ======================================================== -->
+
+  <script>
+    (() => {
+      "use strict";
+
+      const presetSelect = document.getElementById(
+        "ari-preference-preset"
+      );
+
+      const previewPrompt = document.getElementById(
+        "ari-preference-preview-prompt"
+      );
+
+      const previewResponse = document.getElementById(
+        "ari-preference-preview-response"
+      );
+
+      const previewButtons = Array.from(
+        document.querySelectorAll(
+          "[data-ari-preview-scenario]"
+        )
+      );
+
+      let activeScenario = "motivation";
+
+      const previewContent = {
+        motivation: {
+          prompt: "\"I skipped the gym today.\"",
+          default:
+            "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine."
+        },
+
+        learning: {
+          prompt: "\"Explain heart failure.\"",
+          default:
+            "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs."
+        },
+
+        support: {
+          prompt: "\"I feel like I failed.\"",
+          default:
+            "A painful outcome can feel like failure, but it does not define your ability or what happens next."
+        }
+      };
+
+      function selectedControlValue(path, fallback) {
+        const escapedPath =
+          window.CSS?.escape
+            ? window.CSS.escape(path)
+            : path.replace(/"/g, '\\"');
+
+        const selected = document.querySelector(
+          `input[type="radio"][data-path="${escapedPath}"]:checked, ` +
+          `select[data-path="${escapedPath}"]`
+        );
+
+        return String(
+          selected?.value ||
+          fallback
+        )
+          .trim()
+          .toLowerCase();
+      }
+
+      function buildPreviewResponse() {
+        const scenario =
+          previewContent[activeScenario] ||
+          previewContent.motivation;
+
+        const preset =
+          String(
+            presetSelect?.value ||
+            "default"
+          ).toLowerCase();
+
+        const humor =
+          selectedControlValue(
+            "language.humor",
+            "light"
+          );
+
+        const profanity =
+          selectedControlValue(
+            "language.profanity",
+            "adaptive"
+          );
+
+        const additions = [];
+
+        if (
+          humor !== "none" &&
+          humor !== "off" &&
+          humor !== "disabled"
+        ) {
+          additions.push(
+            " A little humor may be added when it fits."
+          );
+        }
+
+        if (
+          profanity !== "clean" &&
+          profanity !== "none" &&
+          profanity !== "off" &&
+          profanity !== "disabled"
+        ) {
+          additions.push(
+            " Ari may also use natural profanity when the context calls for it."
+          );
+        }
+
+        if (
+          preset === "coach"
+        ) {
+          additions.push(
+            " The tone may be more direct and action-focused."
+          );
+        }
+
+        return (
+          scenario.default +
+          additions.join("")
+        ).trim();
+      }
+
+      function updatePreview() {
+        if (!previewPrompt || !previewResponse) {
+          return;
+        }
+
+        const scenario =
+          previewContent[activeScenario] ||
+          previewContent.motivation;
+
+        previewPrompt.textContent =
+          scenario.prompt;
+
+        previewResponse.textContent =
+          buildPreviewResponse();
+      }
+
+      function selectScenario(button) {
+        activeScenario =
+          button.dataset.ariPreviewScenario ||
+          "motivation";
+
+        previewButtons.forEach((candidate) => {
+          candidate.setAttribute(
+            "aria-pressed",
+            candidate === button
+              ? "true"
+              : "false"
+          );
+        });
+
+        updatePreview();
+      }
+
+      previewButtons.forEach((button) => {
+        button.addEventListener(
+          "click",
+          () => selectScenario(button)
+        );
+      });
+
+      document.addEventListener(
+        "change",
+        (event) => {
+          if (
+            event.target?.matches?.(
+              "#ari-preference-preset, " +
+              'input[data-path="language.humor"], ' +
+              'input[data-path="language.profanity"], ' +
+              'select[data-path="language.humor"], ' +
+              'select[data-path="language.profanity"]'
+            )
+          ) {
+            updatePreview();
+          }
+        }
+      );
+
+      const initializePreview = () => {
+        updatePreview();
+
+        const observer =
+          new MutationObserver(
+            updatePreview
+          );
+
+        const form =
+          document.getElementById(
+            "ari-preference-form"
+          );
+
+        if (form) {
+          observer.observe(
+            form,
+            {
+              childList: true,
+              subtree: true
+            }
+          );
+        }
+      };
+
+      if (document.readyState === "loading") {
+        document.addEventListener(
+          "DOMContentLoaded",
+          initializePreview,
+          {
+            once: true
+          }
+        );
+      } else {
+        initializePreview();
+      }
+    })();
+  </script>
 </body>
 </html>
