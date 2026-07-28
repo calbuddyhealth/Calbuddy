@@ -5,7 +5,7 @@
 // Select, trim, and package the canonical Ari reasoning request into one
 // lean cognitive context packet for the OpenAI reasoning invocation.
 //
-// V2.1.0 — Canonical Preference Context Alignment
+// V2.2.0 — Canonical Preference Context Alignment
 //
 // Architectural flow:
 //
@@ -45,9 +45,9 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningContextEngine = {
-  version: "2.1.0",
+  version: "2.2.0",
 
-  schemaVersion: "2.1.0",
+  schemaVersion: "2.2.0",
 
   source: "ari-reasoning-context-engine",
 
@@ -174,7 +174,11 @@ window.AriReasoningContextEngine = {
             this.selectSafetyContext(
               canonicalRequest
             ),
-
+            
+restrictionContext:
+  this.selectRestrictionContext(
+    canonicalRequest
+  ),
           continuity:
             requirements.continuity
               ? this.selectContinuityContext(
@@ -1018,26 +1022,111 @@ window.AriReasoningContextEngine = {
   },
 
   selectSafetyContext(request = {}) {
-    return this.pickFields(
-      this.readSafety(request),
+  return this.pickFields(
+    this.readSafety(request),
+    [
+      "ready",
+      "applicable",
+      "safe",
+      "blocked",
+      "stop",
+      "crisis",
+
+      "riskLevel",
+      "riskType",
+      "classification",
+      "disposition",
+      "safetyAuthority",
+
+      "shouldStopNormalResponse",
+      "requiresClarification",
+      "requiredPlanner",
+      "communicationStyle",
+
+      "requiredActions",
+      "requiredBehaviors",
+      "forbiddenBehaviors",
+      "constraints",
+
+      "evidence",
+      "reasons",
+      "warnings",
+      "errors",
+
+      "escalationRequired",
+      "source",
+      "version"
+    ]
+  );
+},
+
+/* =====================================================
+   RESTRICTION GOVERNANCE
+===================================================== */
+
+readRestrictionContext(request = {}) {
+  return this.mergeObjects([
+    request.restrictionContext,
+    request.restrictionGovernorPacket,
+    request.restrictionPacket,
+    request.restrictionDisposition,
+
+    request.deterministicContext
+      ?.restrictionContext,
+
+    request.deterministicContext
+      ?.restrictionGovernor,
+
+    request.responseControl
+      ?.restrictionContext
+  ]);
+},
+
+selectRestrictionContext(request = {}) {
+  const restriction =
+    this.readRestrictionContext(
+      request
+    );
+
+  if (!this.hasKeys(restriction)) {
+    return {};
+  }
+
+  return this.removeEmptyValues({
+    ...this.pickFields(
+      restriction,
       [
         "ready",
-        "safe",
-        "blocked",
-        "stop",
-        "crisis",
-        "riskLevel",
-        "classification",
+        "applicable",
+        "authoritative",
+        "restrictionMode",
         "disposition",
-        "requiredActions",
+
+        "normalResponseAllowed",
+        "shouldRestrict",
+        "shouldBlock",
+        "blocked",
+
         "requiredBehaviors",
         "forbiddenBehaviors",
+        "allowedBehaviors",
         "constraints",
+
+        "reason",
+        "reasons",
         "warnings",
-        "escalationRequired"
+        "source",
+        "version"
       ]
-    );
-  },
+    ),
+
+    restrictionAuthority:
+      "binding",
+
+    mayInventRestrictions:
+      false
+  });
+},
 
   /* =====================================================
      CONTINUITY
@@ -1583,43 +1672,25 @@ window.AriReasoningContextEngine = {
   ===================================================== */
 
   selectPreferenceContext(request = {}) {
-    const preferences =
-      this.firstObject([
-        request.preferences,
-        request.preferenceContext
-      ]);
+  const preferences =
+    this.mergeObjects([
+      request.preferenceResolutionPacket,
+      request.resolvedPreferencePacket,
+      request.preferences,
+      request.preferenceContext,
 
-    if (this.hasKeys(preferences)) {
-      return this.removeEmptyValues({
-        ready:
-          preferences.ready,
+      request.deterministicContext
+        ?.preferences,
 
-        userPreferences:
-          preferences.userPreferences ||
-          {},
+      request.deterministicContext
+        ?.preferenceContext
+    ]);
 
-        responseStyle:
-          preferences.responseStyle ||
-          {},
-
-        currentTurnOverride:
-          preferences.currentTurnOverride ||
-          preferences.styleOverride ||
-          {},
-
-        authority:
-          preferences.authority ||
-          null,
-
-        resolution:
-          preferences.resolution ||
-          null
-      });
-    }
-
+  if (!this.hasKeys(preferences)) {
     return this.removeEmptyValues({
-      userPreferences:
+      resolvedPreferences:
         this.firstObject([
+          request.resolvedPreferences,
           request.userPreferences,
           request.communicationPreferences,
           request.stylePreferences
@@ -1638,9 +1709,80 @@ window.AriReasoningContextEngine = {
           request.styleOverride,
           request.responseControl
             ?.styleOverride
-        ])
+        ]),
+
+      preferencesAreSafetyRestrictions:
+        false
     });
-  },
+  }
+
+  return this.removeEmptyValues({
+    ready:
+      preferences.ready,
+
+    complete:
+      preferences.complete,
+
+    activePreset:
+      preferences.activePreset,
+
+    resolvedPreferences:
+      this.firstObject([
+        preferences.resolvedPreferences,
+        preferences.userPreferences,
+        preferences.preferences
+      ]),
+
+    modelInstructions:
+      this.firstArray([
+        preferences.modelInstructions,
+        preferences.instructions
+      ]),
+
+    instructionText:
+      this.firstString([
+        preferences.instructionText,
+        preferences.modelInstructionText,
+        preferences.preferenceInstructionText
+      ]),
+
+    provenance:
+      this.firstObject([
+        preferences.provenance,
+        preferences.preferenceProvenance
+      ]),
+
+    responseStyle:
+      this.firstObject([
+        preferences.responseStyle,
+        request.responseStyle
+      ]),
+
+    currentTurnOverride:
+      this.firstObject([
+        preferences.currentTurnOverride,
+        preferences.currentTurnOverrides,
+        preferences.styleOverride
+      ]),
+
+    authority:
+      preferences.authority ||
+      "adaptive_style_guidance",
+
+    resolution:
+      preferences.resolution ||
+      null,
+
+    warnings:
+      preferences.warnings,
+
+    preferencesAreSafetyRestrictions:
+      false,
+
+    explicitCurrentTurnRequestMayGuideStyle:
+      true
+  });
+},
 
   /* =====================================================
      RESPONSE CONTROL
@@ -1674,56 +1816,74 @@ window.AriReasoningContextEngine = {
   ===================================================== */
 
   selectAuthorityContext(request = {}) {
-    const suppliedAuthority =
-      this.pickFields(
-        request.authority,
-        [
-          "communicationPreferencesAreBindingWithinSafety",
-          "communicationPreferencesAreAdvisory",
-          "mayPlanResponse",
-          "mayDraftResponse",
-          "mustProduceDraftResponse",
-          "draftResponseIsAuthoritative"
-        ]
-      );
+  const suppliedAuthority =
+    this.pickFields(
+      request.authority,
+      [
+        "communicationPreferencesAreBindingWithinSafety",
+        "communicationPreferencesAreAdvisory",
+        "mayPlanResponse",
+        "mayDraftResponse",
+        "mustProduceDraftResponse",
+        "draftResponseIsAuthoritative"
+      ]
+    );
 
-    return {
-      ...suppliedAuthority,
+  return {
+    ...suppliedAuthority,
 
-      safetyIsBinding:
-        true,
+    safetyIsBinding:
+      true,
 
-      mayPlanResponse:
-        true,
+    restrictionGovernorIsBinding:
+      true,
 
-      mayDraftResponse:
-        true,
+    mayCreateRestrictions:
+      false,
 
-      mustProduceDraftResponse:
-        true,
+    mayExpandRestrictions:
+      false,
 
-      draftResponseIsAuthoritative:
-        true,
+    mustPreserveExplicitUserRequest:
+      true,
 
-      mayExecuteActions:
-        false,
+    stylePreferencesAreNotSafetyRules:
+      true,
 
-      mayPersistState:
-        false,
+    mayPlanResponse:
+      true,
 
-      mayOverrideSafety:
-        false,
+    mayDraftResponse:
+      true,
 
-      mayClaimToolSuccess:
-        false,
+    mustProduceDraftResponse:
+      true,
 
-      mayAuthorizeDelivery:
-        false,
+    draftResponseIsAuthoritative:
+      true,
 
-      mayExposePrivateChainOfThought:
-        false
-    };
-  },
+    mayExecuteActions:
+      false,
+
+    mayPersistState:
+      false,
+
+    mayOverrideSafety:
+      false,
+
+    mayOverrideRestrictionGovernor:
+      false,
+
+    mayClaimToolSuccess:
+      false,
+
+    mayAuthorizeDelivery:
+      false,
+
+    mayExposePrivateChainOfThought:
+      false
+  };
+},
 
   /* =====================================================
      CONTRACTS
@@ -1743,13 +1903,24 @@ window.AriReasoningContextEngine = {
   },
 
   selectInstructions(request = {}) {
-    return this.uniqueStrings(
-      this.firstArray([
-        request.instructions,
-        request.reasoningInstructions
-      ])
-    );
-  },
+  return this.uniqueStrings([
+    ...this.normalizeStringArray(
+      request.instructions
+    ),
+
+    ...this.normalizeStringArray(
+      request.reasoningInstructions
+    ),
+
+    ...this.normalizeStringArray(
+      request.authorityInstructions
+    ),
+
+    ...this.normalizeStringArray(
+      request.restrictionInstructions
+    )
+  ]);
+},
 
   /* =====================================================
      REQUIREMENT DETECTION
@@ -2031,6 +2202,11 @@ window.AriReasoningContextEngine = {
         this.hasKeys(
           packet.safety
         ),
+
+restrictionContext:
+  this.hasKeys(
+    packet.restrictionContext
+  ),
 
       continuity:
         this.hasKeys(
@@ -2487,6 +2663,21 @@ firstNonEmptyArray(candidates = []) {
     ];
   },
 
+normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    return [value.trim()];
+  }
+
+  return [];
+},
+
   normalizeObject(value) {
     return this.isPlainObject(value)
       ? value
@@ -2627,6 +2818,9 @@ firstNonEmptyArray(candidates = []) {
       "selectOperationContract",
       "mergeObjects",
 "firstNonEmptyArray",
+"readRestrictionContext",
+"selectRestrictionContext",
+"normalizeStringArray",
       "buildDiagnostics"
     ];
 
