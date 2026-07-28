@@ -1,170 +1,609 @@
 /* =====================================================
    ARI ANIMATIONS
-   Version: 1.2.0
+   Version: 2.0.0
+
    Purpose:
    - Central animation library for Ari Rebirth
+   - Alien-tech environmental motion
    - Conversation and avatar motion
    - Hero and composer effects
    - Header and brand effects
    - Ambient background effects
    - Navigation and menu effects
-   - Account, identity, and nutrition page effects
-   Important:
+   - Account, identity, nutrition, and authentication effects
+
+   Architecture:
+   - This file contains keyframes only.
    - Animation assignments belong in component/page CSS.
-   - This file should contain keyframes only.
+   - Layout and permanent transforms must not be defined here.
+   - Page CSS should use wrapper elements when animated transforms
+     need to coexist with permanent positioning transforms.
 ===================================================== */
+
+
 /* =====================================================
    CONVERSATION
 ===================================================== */
+
 @keyframes conversationFadeIn {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translate3d(0, 18px, 0) scale(0.985);
+    filter: blur(5px);
   }
+
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
   }
 }
+
+@keyframes ariConversationMaterialize {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.97);
+    filter: blur(10px) brightness(0.65);
+  }
+
+  55% {
+    opacity: 0.82;
+    transform: translate3d(0, -2px, 0) scale(1.006);
+    filter: blur(1px) brightness(1.12);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes ariMessageEnergyArrival {
+  0% {
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0) scaleX(0.78);
+    filter: blur(8px) brightness(1.8);
+  }
+
+  42% {
+    opacity: 0.75;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scaleX(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes ariMessageSurfacePulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 rgba(34, 211, 238, 0),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  50% {
+    box-shadow:
+      0 0 22px rgba(34, 211, 238, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+}
+
+
 /* =====================================================
-   HERO
+   HERO / ARI PRESENCE
 ===================================================== */
+
 @keyframes ariHeroBreathe {
   0%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
-  50% {
-    transform: translateY(-4px) scale(1.012);
+
+  38% {
+    transform: translate3d(0, -3px, 0) scale(1.008);
+  }
+
+  72% {
+    transform: translate3d(0, -1px, 0) scale(1.004);
   }
 }
+
 @keyframes ariHeroHaloPulse {
   0%,
   100% {
-    opacity: 0.42;
-    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.34;
+    transform: translate3d(-50%, -50%, 0) scale(0.96);
+    filter: blur(1px) brightness(0.92);
   }
-  50% {
-    opacity: 0.72;
-    transform: translate(-50%, -50%) scale(1.08);
+
+  48% {
+    opacity: 0.76;
+    transform: translate3d(-50%, -50%, 0) scale(1.08);
+    filter: blur(0) brightness(1.24);
+  }
+
+  72% {
+    opacity: 0.54;
+    transform: translate3d(-50%, -50%, 0) scale(1.035);
+    filter: blur(0.5px) brightness(1.08);
   }
 }
+
+@keyframes ariHeroMaterialize {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0) scale(0.92);
+    filter:
+      blur(18px)
+      brightness(0.45)
+      saturate(0.6);
+  }
+
+  38% {
+    opacity: 0.64;
+    filter:
+      blur(6px)
+      brightness(1.45)
+      saturate(1.35);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translate3d(0, -2px, 0) scale(1.012);
+    filter:
+      blur(0)
+      brightness(1.12)
+      saturate(1.1);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter:
+      blur(0)
+      brightness(1)
+      saturate(1);
+  }
+}
+
+@keyframes ariHeroPowerSurge {
+  0%,
+  100% {
+    filter:
+      brightness(1)
+      saturate(1)
+      drop-shadow(0 22px 28px rgba(0, 0, 0, 0.42))
+      drop-shadow(0 0 12px rgba(34, 211, 238, 0.14));
+  }
+
+  44% {
+    filter:
+      brightness(1.08)
+      saturate(1.15)
+      drop-shadow(0 26px 36px rgba(0, 0, 0, 0.48))
+      drop-shadow(0 0 26px rgba(34, 211, 238, 0.28));
+  }
+
+  52% {
+    filter:
+      brightness(1.18)
+      saturate(1.28)
+      drop-shadow(0 28px 42px rgba(0, 0, 0, 0.52))
+      drop-shadow(0 0 46px rgba(96, 82, 255, 0.28));
+  }
+}
+
+@keyframes ariHeroChromaticShift {
+  0%,
+  100% {
+    filter:
+      hue-rotate(0deg)
+      saturate(1)
+      brightness(1);
+  }
+
+  50% {
+    filter:
+      hue-rotate(7deg)
+      saturate(1.12)
+      brightness(1.05);
+  }
+}
+
+@keyframes ariHeroGroundAura {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: translate3d(-50%, 0, 0) scaleX(0.92) scaleY(0.88);
+    filter: blur(16px) brightness(0.92);
+  }
+
+  50% {
+    opacity: 0.68;
+    transform: translate3d(-50%, 0, 0) scaleX(1.08) scaleY(1);
+    filter: blur(20px) brightness(1.24);
+  }
+}
+
+
 /* =====================================================
    AVATAR
 ===================================================== */
+
 @keyframes avatarArrive {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(8px) scale(0.82);
+    transform: translate3d(0, 10px, 0) scale(0.78);
+    filter: blur(8px) brightness(0.65);
   }
-  to {
+
+  70% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, -1px, 0) scale(1.035);
+    filter: blur(0) brightness(1.16);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0) brightness(1);
   }
 }
+
 @keyframes avatarThinkingRing {
   0%,
   100% {
     box-shadow:
       0 0 12px rgba(34, 211, 238, 0.24),
+      0 0 30px rgba(34, 211, 238, 0.06),
       inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
+
   50% {
     box-shadow:
-      0 0 26px rgba(34, 211, 238, 0.58),
-      inset 0 1px 0 rgba(255, 255, 255, 0.20);
+      0 0 28px rgba(34, 211, 238, 0.62),
+      0 0 58px rgba(93, 74, 255, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
 }
+
 @keyframes ariAvatarBreath {
   0%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
-  50% {
-    transform: translateY(-1px) scale(1.025);
+
+  46% {
+    transform: translate3d(0, -1px, 0) scale(1.022);
+  }
+
+  72% {
+    transform: translate3d(0, 0, 0) scale(1.01);
   }
 }
+
 @keyframes ariAvatarGlow {
   0%,
   100% {
     filter:
+      brightness(1)
       drop-shadow(0 0 6px rgba(34, 211, 238, 0.18));
   }
+
   50% {
     filter:
-      drop-shadow(0 0 13px rgba(34, 211, 238, 0.42));
+      brightness(1.07)
+      drop-shadow(0 0 15px rgba(34, 211, 238, 0.48))
+      drop-shadow(0 0 28px rgba(108, 74, 255, 0.14));
   }
 }
+
+@keyframes ariAvatarSignalSweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -140%, 0);
+  }
+
+  18% {
+    opacity: 0.72;
+  }
+
+  60% {
+    opacity: 0.32;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 160%, 0);
+  }
+}
+
+
 /* =====================================================
    ARI IDLE
+   Important:
+   These keyframes use relative movement only.
+   Permanent ARI placement belongs in homepage.css.
 ===================================================== */
+
 @keyframes ariOrganicBreath {
   0%,
   100% {
     transform:
-      translateY(-145px)
-      translateX(0)
+      translate3d(0, 0, 0)
       scale(1);
   }
 
-  35% {
+  34% {
     transform:
-      translateY(-148px)
-      translateX(1px)
-      scale(1.008);
+      translate3d(1px, -3px, 0)
+      scale(1.006);
   }
 
-  70% {
+  68% {
     transform:
-      translateY(-146px)
-      translateX(-1px)
-      scale(1.004);
+      translate3d(-1px, -1px, 0)
+      scale(1.003);
   }
 }
+
 @keyframes ariOrganicGlow {
   0%,
   100% {
     filter:
+      brightness(1)
+      saturate(1)
       drop-shadow(0 24px 34px rgba(0, 0, 0, 0.45))
       drop-shadow(0 0 14px rgba(34, 211, 238, 0.16));
   }
+
   50% {
     filter:
-      drop-shadow(0 26px 38px rgba(0, 0, 0, 0.48))
-      drop-shadow(0 0 26px rgba(34, 211, 238, 0.30));
+      brightness(1.04)
+      saturate(1.08)
+      drop-shadow(0 26px 40px rgba(0, 0, 0, 0.50))
+      drop-shadow(0 0 28px rgba(34, 211, 238, 0.32))
+      drop-shadow(0 0 54px rgba(92, 72, 255, 0.10));
   }
 }
+
+@keyframes ariIdleMicroDrift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  28% {
+    transform: translate3d(0.6px, -1px, 0) rotate(0.08deg);
+  }
+
+  64% {
+    transform: translate3d(-0.6px, 0, 0) rotate(-0.08deg);
+  }
+}
+
+@keyframes ariIdleEnergyWake {
+  0%,
+  82%,
+  100% {
+    opacity: 0.16;
+    filter: brightness(0.85);
+  }
+
+  88% {
+    opacity: 0.78;
+    filter: brightness(1.75);
+  }
+
+  92% {
+    opacity: 0.34;
+    filter: brightness(1.05);
+  }
+
+  96% {
+    opacity: 0.62;
+    filter: brightness(1.42);
+  }
+}
+
+
 /* =====================================================
    HEADER / BRAND
 ===================================================== */
+
 @keyframes ariLedTextPulse {
   0%,
   100% {
-    opacity: 0.88;
-    filter: brightness(1);
+    opacity: 0.84;
+    filter:
+      brightness(1)
+      drop-shadow(0 0 4px rgba(34, 211, 238, 0.18));
   }
+
   50% {
     opacity: 1;
-    filter: brightness(1.18);
+    filter:
+      brightness(1.22)
+      drop-shadow(0 0 9px rgba(34, 211, 238, 0.38));
   }
 }
+
 @keyframes ariBrandThinkingPulse {
   0%,
   100% {
-    opacity: 0.78;
-    filter: brightness(1);
+    opacity: 0.76;
+    filter:
+      brightness(1)
+      drop-shadow(0 0 5px rgba(34, 211, 238, 0.18));
   }
+
   50% {
     opacity: 1;
-    filter: brightness(1.65);
+    filter:
+      brightness(1.62)
+      drop-shadow(0 0 14px rgba(34, 211, 238, 0.64))
+      drop-shadow(0 0 28px rgba(108, 76, 255, 0.24));
   }
 }
+
+@keyframes ariBrandPowerOn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+    filter: blur(8px) brightness(0.4);
+  }
+
+  18% {
+    opacity: 1;
+    filter: blur(0) brightness(1.8);
+  }
+
+  28% {
+    opacity: 0.42;
+    filter: brightness(0.65);
+  }
+
+  43% {
+    opacity: 1;
+    filter: brightness(1.42);
+  }
+
+  60% {
+    opacity: 0.72;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes ariBrandEnergySweep {
+  0% {
+    background-position: 180% 50%;
+  }
+
+  100% {
+    background-position: -80% 50%;
+  }
+}
+
+@keyframes ariHeaderGlassPulse {
+  0%,
+  100% {
+    border-color: rgba(91, 226, 255, 0.16);
+    box-shadow:
+      0 8px 30px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  50% {
+    border-color: rgba(91, 226, 255, 0.30);
+    box-shadow:
+      0 8px 36px rgba(0, 0, 0, 0.22),
+      0 0 24px rgba(34, 211, 238, 0.10),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+}
+
+@keyframes ariHeaderScanline {
+  0% {
+    opacity: 0;
+    transform: translate3d(-120%, 0, 0) skewX(-18deg);
+  }
+
+  24% {
+    opacity: 0.52;
+  }
+
+  70% {
+    opacity: 0.18;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(220%, 0, 0) skewX(-18deg);
+  }
+}
+
+@keyframes ariHeaderGlyphFlicker {
+  0%,
+  76%,
+  100% {
+    opacity: 0.28;
+    filter: brightness(0.9);
+  }
+
+  81% {
+    opacity: 0.82;
+    filter: brightness(1.5);
+  }
+
+  84% {
+    opacity: 0.38;
+  }
+
+  88% {
+    opacity: 0.68;
+    filter: brightness(1.3);
+  }
+}
+
+@keyframes ariHeaderButtonIdle {
+  0%,
+  100% {
+    box-shadow:
+      0 0 12px rgba(34, 211, 238, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 20px rgba(34, 211, 238, 0.25),
+      0 0 42px rgba(105, 72, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+}
+
+@keyframes ariHeaderButtonPress {
+  0% {
+    transform: scale(1);
+  }
+
+  42% {
+    transform: scale(0.90);
+    filter: brightness(1.38);
+  }
+
+  72% {
+    transform: scale(1.045);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes ariHeaderOrbitSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
 /* =====================================================
    COMPOSER
 ===================================================== */
+
 @keyframes ariComposerBreath {
   0%,
   100% {
+    border-color: rgba(91, 226, 255, 0.20);
     box-shadow:
       0 0 20px rgba(34, 211, 238, 0.16),
       0 0 42px rgba(34, 211, 238, 0.07),
@@ -172,175 +611,1251 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.16),
       inset 0 -18px 34px rgba(0, 0, 0, 0.28);
   }
+
   50% {
+    border-color: rgba(91, 226, 255, 0.34);
     box-shadow:
-      0 0 28px rgba(34, 211, 238, 0.25),
-      0 0 58px rgba(34, 211, 238, 0.11),
-      0 24px 60px rgba(0, 0, 0, 0.46),
-      inset 0 1px 0 rgba(255, 255, 255, 0.19),
-      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
+      0 0 30px rgba(34, 211, 238, 0.28),
+      0 0 64px rgba(91, 80, 255, 0.13),
+      0 26px 64px rgba(0, 0, 0, 0.48),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -18px 34px rgba(0, 0, 0, 0.30);
   }
 }
+
+@keyframes ariComposerMaterialize {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0) scale(0.94);
+    filter: blur(14px) brightness(0.65);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translate3d(0, -2px, 0) scale(1.008);
+    filter: blur(0) brightness(1.16);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes ariComposerFocus {
+  0% {
+    box-shadow:
+      0 0 18px rgba(34, 211, 238, 0.14),
+      0 20px 50px rgba(0, 0, 0, 0.44);
+  }
+
+  48% {
+    box-shadow:
+      0 0 38px rgba(34, 211, 238, 0.42),
+      0 0 72px rgba(101, 75, 255, 0.18),
+      0 22px 56px rgba(0, 0, 0, 0.48);
+  }
+
+  100% {
+    box-shadow:
+      0 0 25px rgba(34, 211, 238, 0.28),
+      0 0 48px rgba(101, 75, 255, 0.10),
+      0 22px 56px rgba(0, 0, 0, 0.46);
+  }
+}
+
+@keyframes ariComposerEnergySweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(-140%, 0, 0) skewX(-20deg);
+  }
+
+  20% {
+    opacity: 0.42;
+  }
+
+  58% {
+    opacity: 0.72;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(240%, 0, 0) skewX(-20deg);
+  }
+}
+
+@keyframes ariComposerCircuitFlow {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      72px 0,
+      -48px 0,
+      0 0;
+  }
+}
+
+@keyframes ariComposerBorderCharge {
+  0%,
+  100% {
+    opacity: 0.32;
+    filter: brightness(0.92);
+  }
+
+  42% {
+    opacity: 0.82;
+    filter: brightness(1.35);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.75);
+  }
+
+  62% {
+    opacity: 0.58;
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes ariComposerInputPulse {
+  0%,
+  100% {
+    color: rgba(235, 250, 255, 0.84);
+    text-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  }
+
+  50% {
+    color: rgba(255, 255, 255, 0.98);
+    text-shadow: 0 0 9px rgba(34, 211, 238, 0.18);
+  }
+}
+
+@keyframes ariComposerPlaceholderPulse {
+  0%,
+  100% {
+    opacity: 0.46;
+  }
+
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@keyframes ariComposerReadyPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  45% {
+    transform: scale(1.035);
+    filter: brightness(1.22);
+  }
+
+  62% {
+    transform: scale(1.015);
+    filter: brightness(1.10);
+  }
+}
+
+@keyframes ariComposerSendCharge {
+  0% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+
+  28% {
+    transform: scale(0.92) rotate(-4deg);
+    filter: brightness(1.25);
+  }
+
+  62% {
+    transform: scale(1.10) rotate(2deg);
+    filter: brightness(1.75);
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
+@keyframes ariComposerSendOrbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariComposerMicListening {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 0 rgba(34, 211, 238, 0.22),
+      0 0 14px rgba(34, 211, 238, 0.22);
+  }
+
+  50% {
+    transform: scale(1.06);
+    box-shadow:
+      0 0 0 9px rgba(34, 211, 238, 0),
+      0 0 28px rgba(34, 211, 238, 0.52);
+  }
+}
+
+@keyframes ariComposerWaveform {
+  0%,
+  100% {
+    transform: scaleY(0.42);
+    opacity: 0.52;
+  }
+
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
 @keyframes ariLedIdle {
   0%,
   100% {
-    opacity: 0.42;
-    filter: brightness(0.9);
+    opacity: 0.38;
+    filter: brightness(0.86);
   }
+
   50% {
-    opacity: 0.88;
-    filter: brightness(1.25);
+    opacity: 0.92;
+    filter: brightness(1.34);
   }
 }
+
 @keyframes ariLedThinking {
   from {
-    background-position: 120% 0;
+    background-position: 140% 0;
   }
+
   to {
-    background-position: -120% 0;
+    background-position: -140% 0;
   }
 }
+
 @keyframes ariReactorRotate {
   to {
     transform: rotate(360deg);
   }
 }
+
 @keyframes ariReactorRotateReverse {
   to {
     transform: rotate(-360deg);
   }
 }
+
 @keyframes ariTypingPulse {
   0%,
   80%,
   100% {
-    opacity: 0.35;
-    transform: translateY(0) scale(0.88);
+    opacity: 0.30;
+    transform: translate3d(0, 0, 0) scale(0.86);
   }
+
   40% {
     opacity: 1;
-    transform: translateY(-3px) scale(1.08);
+    transform: translate3d(0, -4px, 0) scale(1.10);
   }
 }
+
+
+/* =====================================================
+   ALIEN ENVIRONMENT
+===================================================== */
+
+@keyframes ariAlienNebulaDrift {
+  0% {
+    background-position:
+      42% 35%,
+      58% 64%,
+      center;
+    transform: scale(1.04);
+  }
+
+  50% {
+    background-position:
+      48% 40%,
+      52% 58%,
+      center;
+    transform: scale(1.08);
+  }
+
+  100% {
+    background-position:
+      54% 46%,
+      46% 52%,
+      center;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes ariAlienSkyBreathe {
+  0%,
+  100% {
+    opacity: 0.58;
+    filter:
+      brightness(0.92)
+      saturate(0.96);
+  }
+
+  50% {
+    opacity: 0.84;
+    filter:
+      brightness(1.12)
+      saturate(1.18);
+  }
+}
+
+@keyframes ariAlienRingRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariAlienRingRotateReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes ariAlienRingPulse {
+  0%,
+  100% {
+    opacity: 0.34;
+    filter:
+      brightness(0.90)
+      drop-shadow(0 0 6px rgba(34, 211, 238, 0.20));
+  }
+
+  50% {
+    opacity: 0.78;
+    filter:
+      brightness(1.28)
+      drop-shadow(0 0 14px rgba(34, 211, 238, 0.52))
+      drop-shadow(0 0 28px rgba(106, 78, 255, 0.20));
+  }
+}
+
+@keyframes ariAlienRingDepthFloat {
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      rotateX(66deg)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translate3d(0, -7px, 0)
+      rotateX(69deg)
+      scale(1.025);
+  }
+}
+
+@keyframes ariAlienCorePulse {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scale(0.92);
+    filter: blur(10px) brightness(0.92);
+  }
+
+  48% {
+    opacity: 0.92;
+    transform: scale(1.12);
+    filter: blur(14px) brightness(1.48);
+  }
+
+  64% {
+    opacity: 0.58;
+    transform: scale(1.03);
+    filter: blur(12px) brightness(1.16);
+  }
+}
+
+@keyframes ariAlienCoreIgnition {
+  0% {
+    opacity: 0;
+    transform: scale(0.18);
+    filter: blur(18px) brightness(2.4);
+  }
+
+  32% {
+    opacity: 1;
+    transform: scale(1.22);
+    filter: blur(8px) brightness(1.9);
+  }
+
+  58% {
+    transform: scale(0.94);
+    filter: blur(4px) brightness(1.25);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes ariAlienBeamBreathe {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: scaleX(0.72);
+    filter: blur(1px) brightness(0.85);
+  }
+
+  48% {
+    opacity: 0.74;
+    transform: scaleX(1.25);
+    filter: blur(0) brightness(1.42);
+  }
+
+  58% {
+    opacity: 0.48;
+    transform: scaleX(0.94);
+    filter: blur(0.5px) brightness(1.12);
+  }
+}
+
+@keyframes ariAlienBeamTravel {
+  0% {
+    background-position: 50% -140%;
+  }
+
+  100% {
+    background-position: 50% 220%;
+  }
+}
+
+@keyframes ariAlienEnergyColumn {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: scaleX(0.76);
+  }
+
+  24% {
+    opacity: 0.62;
+    transform: scaleX(1.08);
+  }
+
+  29% {
+    opacity: 0.34;
+    transform: scaleX(0.88);
+  }
+
+  64% {
+    opacity: 0.72;
+    transform: scaleX(1.18);
+  }
+
+  72% {
+    opacity: 0.28;
+    transform: scaleX(0.82);
+  }
+}
+
+@keyframes ariAlienGlyphOrbit {
+  from {
+    transform: rotate(0deg) translateX(var(--ari-glyph-orbit, 80px)) rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg) translateX(var(--ari-glyph-orbit, 80px)) rotate(-360deg);
+  }
+}
+
+@keyframes ariAlienGlyphPulse {
+  0%,
+  100% {
+    opacity: 0.16;
+    filter:
+      brightness(0.82)
+      drop-shadow(0 0 2px rgba(34, 211, 238, 0.16));
+  }
+
+  36% {
+    opacity: 0.82;
+    filter:
+      brightness(1.56)
+      drop-shadow(0 0 8px rgba(34, 211, 238, 0.62));
+  }
+
+  44% {
+    opacity: 0.32;
+  }
+
+  68% {
+    opacity: 0.60;
+    filter:
+      brightness(1.20)
+      drop-shadow(0 0 5px rgba(112, 74, 255, 0.44));
+  }
+}
+
+@keyframes ariAlienGlyphStream {
+  from {
+    background-position:
+      0 -180px,
+      0 0;
+  }
+
+  to {
+    background-position:
+      0 180px,
+      0 0;
+  }
+}
+
+@keyframes ariAlienGlyphDecode {
+  0%,
+  100% {
+    opacity: 0.18;
+    letter-spacing: 0.12em;
+    filter: blur(0.6px);
+  }
+
+  48% {
+    opacity: 0.86;
+    letter-spacing: 0.20em;
+    filter: blur(0);
+  }
+
+  58% {
+    opacity: 0.42;
+    letter-spacing: 0.15em;
+  }
+}
+
+@keyframes ariAlienMonolithFloat {
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      rotate(-1.2deg);
+  }
+
+  46% {
+    transform:
+      translate3d(3px, -12px, 0)
+      rotate(0.8deg);
+  }
+
+  72% {
+    transform:
+      translate3d(-2px, -5px, 0)
+      rotate(-0.3deg);
+  }
+}
+
+@keyframes ariAlienCrystalFloat {
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      rotate(-5deg)
+      scale(1);
+  }
+
+  45% {
+    transform:
+      translate3d(4px, -14px, 0)
+      rotate(7deg)
+      scale(1.06);
+  }
+
+  72% {
+    transform:
+      translate3d(-2px, -7px, 0)
+      rotate(2deg)
+      scale(1.02);
+  }
+}
+
+@keyframes ariAlienCrystalGlow {
+  0%,
+  100% {
+    opacity: 0.54;
+    filter:
+      brightness(0.95)
+      drop-shadow(0 0 6px rgba(34, 211, 238, 0.30));
+  }
+
+  50% {
+    opacity: 1;
+    filter:
+      brightness(1.45)
+      drop-shadow(0 0 14px rgba(34, 211, 238, 0.72))
+      drop-shadow(0 0 28px rgba(110, 72, 255, 0.34));
+  }
+}
+
+@keyframes ariAlienShardOrbit {
+  from {
+    transform:
+      rotate(0deg)
+      translateX(var(--ari-shard-radius, 110px))
+      rotate(0deg);
+  }
+
+  to {
+    transform:
+      rotate(360deg)
+      translateX(var(--ari-shard-radius, 110px))
+      rotate(-360deg);
+  }
+}
+
+@keyframes ariAlienPlatformPulse {
+  0%,
+  100% {
+    opacity: 0.30;
+    transform:
+      translate3d(-50%, 0, 0)
+      scaleX(0.92)
+      scaleY(0.88);
+    filter: brightness(0.9);
+  }
+
+  50% {
+    opacity: 0.78;
+    transform:
+      translate3d(-50%, 0, 0)
+      scaleX(1.08)
+      scaleY(1);
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes ariAlienPlatformRotate {
+  to {
+    transform:
+      translate3d(-50%, 0, 0)
+      rotate(360deg);
+  }
+}
+
+@keyframes ariAlienPlatformRotateReverse {
+  to {
+    transform:
+      translate3d(-50%, 0, 0)
+      rotate(-360deg);
+  }
+}
+
+@keyframes ariAlienPortalIdle {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: scale(0.96);
+    filter:
+      blur(0.8px)
+      brightness(0.92);
+  }
+
+  50% {
+    opacity: 0.52;
+    transform: scale(1.03);
+    filter:
+      blur(0)
+      brightness(1.22);
+  }
+}
+
+@keyframes ariAlienPortalOpen {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.04) scaleY(0.72);
+    filter: blur(14px) brightness(2.6);
+  }
+
+  28% {
+    opacity: 0.90;
+    transform: scaleX(0.42) scaleY(1.08);
+    filter: blur(7px) brightness(2);
+  }
+
+  52% {
+    opacity: 1;
+    transform: scaleX(1.08) scaleY(1);
+    filter: blur(1px) brightness(1.55);
+  }
+
+  72% {
+    transform: scaleX(0.96) scaleY(1.02);
+    filter: blur(0) brightness(1.18);
+  }
+
+  100% {
+    opacity: 0.66;
+    transform: scaleX(1) scaleY(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes ariAlienPortalCollapse {
+  0% {
+    opacity: 0.66;
+    transform: scaleX(1) scaleY(1);
+    filter: blur(0) brightness(1);
+  }
+
+  52% {
+    opacity: 0.86;
+    transform: scaleX(0.22) scaleY(1.12);
+    filter: blur(6px) brightness(2.1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleX(0.02) scaleY(0.68);
+    filter: blur(16px) brightness(2.8);
+  }
+}
+
+@keyframes ariAlienWaveExpansion {
+  0% {
+    opacity: 0.82;
+    transform:
+      translate3d(-50%, -50%, 0)
+      scale(0.24);
+    filter: blur(0);
+  }
+
+  68% {
+    opacity: 0.24;
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(-50%, -50%, 0)
+      scale(2.4);
+    filter: blur(2px);
+  }
+}
+
+@keyframes ariAlienAtmosphericFlash {
+  0%,
+  86%,
+  100% {
+    opacity: 0;
+  }
+
+  88% {
+    opacity: 0.12;
+  }
+
+  89% {
+    opacity: 0.42;
+  }
+
+  90% {
+    opacity: 0.08;
+  }
+
+  92% {
+    opacity: 0.22;
+  }
+
+  94% {
+    opacity: 0;
+  }
+}
+
+@keyframes ariAlienPowerBrownout {
+  0%,
+  82%,
+  100% {
+    opacity: 1;
+    filter:
+      brightness(1)
+      saturate(1);
+  }
+
+  85% {
+    opacity: 0.74;
+    filter:
+      brightness(0.42)
+      saturate(0.68);
+  }
+
+  88% {
+    opacity: 0.92;
+    filter:
+      brightness(1.42)
+      saturate(1.35);
+  }
+
+  91% {
+    opacity: 0.82;
+    filter:
+      brightness(0.70)
+      saturate(0.82);
+  }
+
+  95% {
+    opacity: 1;
+    filter:
+      brightness(1.10)
+      saturate(1.08);
+  }
+}
+
+@keyframes ariAlienScanSweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -140%, 0);
+  }
+
+  18% {
+    opacity: 0.16;
+  }
+
+  46% {
+    opacity: 0.38;
+  }
+
+  72% {
+    opacity: 0.12;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 520%, 0);
+  }
+}
+
+@keyframes ariAlienHorizontalScan {
+  0% {
+    opacity: 0;
+    transform: translate3d(-160%, 0, 0) skewX(-18deg);
+  }
+
+  30% {
+    opacity: 0.30;
+  }
+
+  70% {
+    opacity: 0.12;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(260%, 0, 0) skewX(-18deg);
+  }
+}
+
+@keyframes ariAlienFogDrift {
+  0% {
+    transform: translate3d(-8%, 2%, 0) scale(1.06);
+    opacity: 0.16;
+  }
+
+  50% {
+    transform: translate3d(5%, -2%, 0) scale(1.12);
+    opacity: 0.30;
+  }
+
+  100% {
+    transform: translate3d(12%, 1%, 0) scale(1.08);
+    opacity: 0.18;
+  }
+}
+
+@keyframes ariAlienMistRise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 18%, 0) scale(1);
+  }
+
+  28% {
+    opacity: 0.22;
+  }
+
+  72% {
+    opacity: 0.10;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -24%, 0) scale(1.18);
+  }
+}
+
+@keyframes ariAlienParticleRise {
+  0% {
+    opacity: 0;
+    transform:
+      translate3d(
+        var(--ari-particle-x-start, 0),
+        24px,
+        0
+      )
+      scale(0.45);
+  }
+
+  18% {
+    opacity: var(--ari-particle-opacity, 0.68);
+  }
+
+  76% {
+    opacity: calc(var(--ari-particle-opacity, 0.68) * 0.62);
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(
+        var(--ari-particle-x-end, 16px),
+        var(--ari-particle-rise, -180px),
+        0
+      )
+      scale(1.08);
+  }
+}
+
+@keyframes ariAlienParticleTwinkle {
+  0%,
+  100% {
+    opacity: 0.24;
+    filter: brightness(0.80);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.80);
+  }
+}
+
+@keyframes ariAlienStarDrift {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      center;
+  }
+
+  to {
+    background-position:
+      44px 86px,
+      -64px 120px,
+      center;
+  }
+}
+
+@keyframes ariAlienStructureFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(0, -8px, 0) scale(1.012);
+  }
+}
+
+@keyframes ariAlienCircuitTravel {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      90px 0,
+      0 72px;
+  }
+}
+
+
 /* =====================================================
    AMBIENT
 ===================================================== */
+
 @keyframes ariAmbientPulse {
   0%,
   100% {
-    opacity: 0.26;
-    transform: scale(1);
-    filter: brightness(0.95);
+    opacity: 0.22;
+    transform: scale(0.98);
+    filter: brightness(0.92);
   }
+
   50% {
-    opacity: 0.42;
-    transform: scale(1.018);
-    filter: brightness(1.12);
+    opacity: 0.48;
+    transform: scale(1.025);
+    filter: brightness(1.18);
   }
 }
+
 @keyframes ariGridDrift {
   from {
     background-position:
       0 0,
       0 0;
   }
+
   to {
     background-position:
       46px 46px,
       -46px 46px;
   }
 }
+
+@keyframes ariGridPerspectiveTravel {
+  from {
+    background-position:
+      center 0,
+      center 0;
+  }
+
+  to {
+    background-position:
+      center 96px,
+      center 48px;
+  }
+}
+
 @keyframes ariThinkingField {
   0%,
   100% {
-    opacity: 0.34;
-    filter: brightness(1);
+    opacity: 0.30;
+    filter:
+      brightness(0.96)
+      saturate(1);
   }
+
   50% {
-    opacity: 0.58;
-    filter: brightness(1.28);
+    opacity: 0.64;
+    filter:
+      brightness(1.34)
+      saturate(1.18);
   }
 }
+
+@keyframes ariAmbientAurora {
+  0% {
+    transform: translate3d(-10%, 3%, 0) rotate(-2deg) scale(1.06);
+  }
+
+  50% {
+    transform: translate3d(4%, -2%, 0) rotate(2deg) scale(1.14);
+  }
+
+  100% {
+    transform: translate3d(12%, 2%, 0) rotate(-1deg) scale(1.08);
+  }
+}
+
+@keyframes ariAmbientNoiseShift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  20% {
+    transform: translate3d(-1%, 1%, 0);
+  }
+
+  40% {
+    transform: translate3d(1%, -1%, 0);
+  }
+
+  60% {
+    transform: translate3d(1%, 1%, 0);
+  }
+
+  80% {
+    transform: translate3d(-1%, -1%, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ariAmbientVignetteBreathe {
+  0%,
+  100% {
+    opacity: 0.76;
+  }
+
+  50% {
+    opacity: 0.90;
+  }
+}
+
+@keyframes ariAmbientLightRay {
+  0%,
+  100% {
+    opacity: 0.08;
+    transform: translate3d(-8%, 0, 0) rotate(-7deg);
+  }
+
+  50% {
+    opacity: 0.24;
+    transform: translate3d(8%, 0, 0) rotate(-4deg);
+  }
+}
+
+
 /* =====================================================
    NAVIGATION / MENU
 ===================================================== */
+
 @keyframes ariMenuGridDrift {
   from {
     background-position:
       0 0,
       0 0;
   }
+
   to {
     background-position:
       34px 34px,
       -34px 34px;
   }
 }
+
 @keyframes ariMenuScan {
-  0%,
-  100% {
-    opacity: 0.12;
-    transform: translateY(-40px);
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -60px, 0);
   }
-  50% {
-    opacity: 0.38;
-    transform: translateY(30px);
+
+  35% {
+    opacity: 0.36;
+  }
+
+  65% {
+    opacity: 0.16;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 120px, 0);
   }
 }
+
 @keyframes ariMenuReactorSpin {
   to {
     transform: rotate(360deg);
   }
 }
+
 @keyframes ariMenuCardSweep {
-  from {
-    left: -45%;
+  0% {
+    left: -48%;
     opacity: 0;
   }
-  35% {
-    opacity: 1;
+
+  30% {
+    opacity: 0.72;
   }
-  to {
-    left: 110%;
+
+  72% {
+    opacity: 0.24;
+  }
+
+  100% {
+    left: 118%;
     opacity: 0;
   }
 }
+
 @keyframes ariNavLedPulse {
   0%,
   100% {
-    opacity: 0.38;
-    filter: brightness(0.85);
+    opacity: 0.34;
+    filter:
+      brightness(0.82)
+      drop-shadow(0 0 3px rgba(34, 211, 238, 0.18));
   }
+
   50% {
     opacity: 1;
-    filter: brightness(1.35);
+    filter:
+      brightness(1.48)
+      drop-shadow(0 0 9px rgba(34, 211, 238, 0.62));
   }
 }
+
 @keyframes ariMenuMaterialize {
-  from {
+  0% {
     opacity: 0;
-    filter: blur(12px);
+    transform: scale(0.985);
+    filter: blur(14px) brightness(0.65);
   }
-  to {
+
+  72% {
     opacity: 1;
-    filter: blur(0);
+    transform: scale(1.005);
+    filter: blur(0) brightness(1.12);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) brightness(1);
   }
 }
+
+@keyframes ariMenuDematerialize {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) brightness(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.975);
+    filter: blur(14px) brightness(1.45);
+  }
+}
+
 @keyframes ariNavCardIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translateX(-18px) scale(0.96);
-    filter: blur(8px);
+    transform: translate3d(-20px, 5px, 0) scale(0.95);
+    filter: blur(9px) brightness(0.72);
   }
-  to {
+
+  72% {
     opacity: 1;
-    transform: translateX(0) scale(1);
-    filter: blur(0);
+    transform: translate3d(2px, 0, 0) scale(1.008);
+    filter: blur(0) brightness(1.12);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0) brightness(1);
   }
 }
+
 @keyframes ariNavCardBreath {
   0%,
   100% {
+    border-color: rgba(77, 220, 255, 0.18);
     box-shadow:
       0 0 14px rgba(34, 211, 238, 0.16),
       0 0 34px rgba(34, 211, 238, 0.07),
@@ -348,15 +1863,18 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.14),
       inset 0 0 22px rgba(34, 211, 238, 0.045);
   }
+
   50% {
+    border-color: rgba(77, 220, 255, 0.34);
     box-shadow:
-      0 0 22px rgba(34, 211, 238, 0.30),
-      0 0 54px rgba(34, 211, 238, 0.14),
-      0 14px 34px rgba(0, 0, 0, 0.36),
-      inset 0 1px 0 rgba(255, 255, 255, 0.20),
-      inset 0 0 30px rgba(34, 211, 238, 0.09);
+      0 0 24px rgba(34, 211, 238, 0.32),
+      0 0 58px rgba(100, 76, 255, 0.15),
+      0 14px 36px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 0 32px rgba(34, 211, 238, 0.10);
   }
 }
+
 @keyframes ariNavGlassShimmer {
   0%,
   100% {
@@ -365,6 +1883,7 @@
       center,
       center;
   }
+
   50% {
     background-position:
       100% 50%,
@@ -372,99 +1891,433 @@
       center;
   }
 }
+
+@keyframes ariNavDockBreathe {
+  0%,
+  100% {
+    box-shadow:
+      0 -10px 34px rgba(0, 0, 0, 0.24),
+      0 0 20px rgba(34, 211, 238, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  }
+
+  50% {
+    box-shadow:
+      0 -12px 42px rgba(0, 0, 0, 0.30),
+      0 0 34px rgba(34, 211, 238, 0.17),
+      0 0 62px rgba(98, 74, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+}
+
+@keyframes ariNavButtonIdle {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: brightness(0.96);
+  }
+
+  50% {
+    transform: translate3d(0, -1px, 0) scale(1.015);
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes ariNavButtonPress {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  38% {
+    transform: translate3d(0, 2px, 0) scale(0.88);
+    filter: brightness(1.30);
+  }
+
+  70% {
+    transform: translate3d(0, -1px, 0) scale(1.075);
+    filter: brightness(1.58);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes ariNavActiveRing {
+  0%,
+  100% {
+    opacity: 0.40;
+    transform: scale(0.90) rotate(0deg);
+    filter: brightness(0.92);
+  }
+
+  50% {
+    opacity: 0.94;
+    transform: scale(1.08) rotate(180deg);
+    filter: brightness(1.42);
+  }
+
+  100% {
+    transform: scale(0.90) rotate(360deg);
+  }
+}
+
+@keyframes ariNavActiveProjection {
+  0%,
+  100% {
+    opacity: 0.20;
+    transform: translate3d(-50%, 0, 0) scaleX(0.72);
+    filter: blur(7px);
+  }
+
+  50% {
+    opacity: 0.62;
+    transform: translate3d(-50%, -2px, 0) scaleX(1.08);
+    filter: blur(10px);
+  }
+}
+
+@keyframes ariNavIconSignal {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    filter:
+      brightness(1)
+      drop-shadow(0 0 0 rgba(34, 211, 238, 0));
+  }
+
+  45% {
+    transform: translate3d(0, -2px, 0);
+    filter:
+      brightness(1.34)
+      drop-shadow(0 0 8px rgba(34, 211, 238, 0.48));
+  }
+
+  62% {
+    transform: translate3d(0, -1px, 0);
+  }
+}
+
+@keyframes ariNavLabelMaterialize {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0);
+  }
+}
+
+
+/* =====================================================
+   SHARED INTERACTION EFFECTS
+===================================================== */
+
+@keyframes ariControlHover {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(0, -2px, 0) scale(1.025);
+  }
+}
+
+@keyframes ariControlPress {
+  0% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(0.90);
+  }
+
+  75% {
+    transform: scale(1.04);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes ariControlEnergyRipple {
+  0% {
+    opacity: 0.82;
+    transform: translate3d(-50%, -50%, 0) scale(0.18);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(1.8);
+  }
+}
+
+@keyframes ariControlBorderOrbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariControlGlowPulse {
+  0%,
+  100% {
+    opacity: 0.40;
+    filter: brightness(0.90);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.44);
+  }
+}
+
+@keyframes ariGlassReflectionSweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(-170%, 0, 0) skewX(-20deg);
+  }
+
+  25% {
+    opacity: 0.42;
+  }
+
+  70% {
+    opacity: 0.12;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(270%, 0, 0) skewX(-20deg);
+  }
+}
+
+
+/* =====================================================
+   SYSTEM STATES
+===================================================== */
+
+@keyframes ariSystemThinkingPulse {
+  0%,
+  100% {
+    opacity: 0.32;
+    filter:
+      brightness(0.94)
+      saturate(1);
+  }
+
+  50% {
+    opacity: 0.78;
+    filter:
+      brightness(1.38)
+      saturate(1.22);
+  }
+}
+
+@keyframes ariSystemListeningPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.48;
+  }
+
+  50% {
+    transform: scale(1.10);
+    opacity: 1;
+  }
+}
+
+@keyframes ariSystemSuccessBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0.42);
+    filter: brightness(2);
+  }
+
+  42% {
+    opacity: 1;
+    transform: scale(1.18);
+    filter: brightness(1.55);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.62);
+    filter: brightness(1);
+  }
+}
+
+@keyframes ariSystemWarningPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.98);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+}
+
+@keyframes ariSystemOnline {
+  0% {
+    opacity: 0;
+    filter:
+      brightness(0.22)
+      saturate(0.5);
+  }
+
+  16% {
+    opacity: 1;
+    filter:
+      brightness(1.8)
+      saturate(1.5);
+  }
+
+  26% {
+    opacity: 0.46;
+    filter:
+      brightness(0.65)
+      saturate(0.8);
+  }
+
+  44% {
+    opacity: 1;
+    filter:
+      brightness(1.36)
+      saturate(1.2);
+  }
+
+  100% {
+    opacity: 1;
+    filter:
+      brightness(1)
+      saturate(1);
+  }
+}
+
+
 /* =====================================================
    SHARED PAGE SWEEP
-   These animation names intentionally use the same motion
-   so existing page CSS remains compatible.
+   These names intentionally use matching motion so
+   existing page CSS remains compatible.
 ===================================================== */
+
 @keyframes ariAccountSweep {
   from {
     transform: translate3d(-12%, 8%, 0);
   }
+
   to {
     transform: translate3d(12%, -8%, 0);
   }
 }
+
 @keyframes ariIdentitySweep {
   from {
     transform: translate3d(-12%, 8%, 0);
   }
+
   to {
     transform: translate3d(12%, -8%, 0);
   }
 }
+
 @keyframes ariNutritionSweep {
   from {
     transform: translate3d(-12%, 8%, 0);
   }
+
   to {
     transform: translate3d(12%, -8%, 0);
   }
 }
+
+
 /* =====================================================
    NUTRITION
 ===================================================== */
+
 @keyframes ariLeafFloat {
   0%,
   100% {
-    transform: translateY(0) rotate(-4deg);
+    transform: translate3d(0, 0, 0) rotate(-4deg);
   }
+
   50% {
-    transform: translateY(-3px) rotate(4deg);
+    transform: translate3d(0, -4px, 0) rotate(4deg);
   }
 }
+
 @keyframes ariConsoleAura {
   0%,
   100% {
-    opacity: 0.40;
-    filter: brightness(0.92);
+    opacity: 0.36;
+    filter: brightness(0.90);
   }
+
   50% {
-    opacity: 0.82;
-    filter: brightness(1.25);
+    opacity: 0.86;
+    filter: brightness(1.30);
   }
 }
+
 @keyframes ariStatusPulse {
   0%,
   100% {
-    opacity: 0.75;
-    transform: scale(0.92);
+    opacity: 0.72;
+    transform: scale(0.90);
   }
+
   50% {
     opacity: 1;
     transform: scale(1.16);
   }
 }
+
 @keyframes ariGreenScan {
   from {
-    background-position: 120% 0;
+    background-position: 130% 0;
   }
+
   to {
-    background-position: -120% 0;
+    background-position: -130% 0;
   }
 }
+
 @keyframes ariCommandBlink {
   0%,
   100% {
-    opacity: 0.38;
-    transform: translateX(0);
+    opacity: 0.34;
+    transform: translate3d(0, 0, 0);
   }
+
   50% {
-    opacity: 0.82;
-    transform: translateX(2px);
+    opacity: 0.88;
+    transform: translate3d(2px, 0, 0);
   }
 }
+
 @keyframes ariCommandReady {
   0%,
   100% {
-    opacity: 0.72;
-    transform: translateX(0);
+    opacity: 0.68;
+    transform: translate3d(0, 0, 0);
   }
+
   50% {
     opacity: 1;
-    transform: translateX(4px);
+    transform: translate3d(4px, 0, 0);
   }
 }
+
+
 /* =====================================================
    AUTHENTICATION
 ===================================================== */
@@ -472,13 +2325,13 @@
 @keyframes ariAuthScan {
   0%,
   100% {
-    opacity: 0.35;
-    transform: translateX(-8px);
+    opacity: 0.30;
+    transform: translate3d(-9px, 0, 0);
   }
 
   50% {
     opacity: 1;
-    transform: translateX(8px);
+    transform: translate3d(9px, 0, 0);
   }
 }
 
@@ -535,6 +2388,8 @@
     filter: brightness(1.35);
   }
 }
+
+
 /* =====================================================
    PREFERENCE SETTINGS TYPOGRAPHY
 ===================================================== */
@@ -542,13 +2397,13 @@
 @keyframes ariTextMaterialize {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translate3d(0, 10px, 0);
     filter: blur(8px) brightness(0.7);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
     filter: blur(0) brightness(1);
   }
 }
@@ -566,7 +2421,7 @@
 @keyframes ariSelectedTextPulse {
   0%,
   100% {
-    opacity: 0.9;
+    opacity: 0.88;
     filter:
       brightness(1)
       drop-shadow(0 0 5px rgba(56, 217, 255, 0.18));
@@ -575,7 +2430,36 @@
   50% {
     opacity: 1;
     filter:
-      brightness(1.16)
-      drop-shadow(0 0 9px rgba(56, 217, 255, 0.34));
+      brightness(1.18)
+      drop-shadow(0 0 10px rgba(56, 217, 255, 0.38));
+  }
+}
+
+
+/* =====================================================
+   ACCESSIBILITY / REDUCED-MOTION SUPPORT KEYFRAMES
+
+   The actual prefers-reduced-motion media query belongs
+   in base.css or the relevant component/page stylesheet.
+===================================================== */
+
+@keyframes ariReducedMotionFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ariReducedMotionPulse {
+  0%,
+  100% {
+    opacity: 0.82;
+  }
+
+  50% {
+    opacity: 1;
   }
 }
