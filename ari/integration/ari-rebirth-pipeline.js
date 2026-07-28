@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.7.0 — Runtime Completion Authority / Persistence Isolation
+// V7.8.0 — Minimal Restriction Governor Integration
 //
 // Architectural flow:
 //
@@ -63,8 +63,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.7.0",
-  schemaVersion: "7.7.0",
+  version: "7.8.0",
+  schemaVersion: "7.8.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_five_layer_openai_cognitive_contract_authority",
@@ -426,62 +426,128 @@ conversationOperatingStatePersisted:
        * and before Executive Routing.
        */
       if (
-        layer.name ===
-        "perception"
-      ) {
-        mark(
-          "before conversation context authorities"
-        );
-
-       summary =
-  await this.runConversationContextAuthorities(
-    summary
+  layer.name ===
+  "perception"
+) {
+  mark(
+    "before conversation context authorities"
   );
 
-        if (
-          summary.conversationContextAuthoritiesReady !==
-          true
-        ) {
-          summary = {
-            ...summary,
+  summary =
+    await this.runConversationContextAuthorities(
+      summary
+    );
 
-            pipelineStopped:
-              true,
+  mark(
+    "after conversation context authorities"
+  );
 
-            pipelineStopReason:
-              summary
-                .conversationContextAuthoritiesError ||
-              "conversation_context_authorities_not_ready",
+  if (
+    summary.conversationContextAuthoritiesReady !==
+    true
+  ) {
+    summary = {
+      ...summary,
 
-            pipelineStopLayer:
-              "conversationContext"
-          };
-        } else {
-          summary =
-            await this.runPreferenceResolver(
-              summary
-            );
+      pipelineStopped:
+        true,
 
-          if (
-            summary.preferenceResolverReady !==
-            true
-          ) {
-            summary = {
-              ...summary,
+      pipelineStopReason:
+        summary
+          .conversationContextAuthoritiesError ||
+        "conversation_context_authorities_not_ready",
 
-              pipelineStopped:
-                true,
+      pipelineStopLayer:
+        "conversationContext"
+    };
 
-              pipelineStopReason:
-                summary.preferenceResolverError ||
-                "preference_resolver_not_ready",
+    continue;
+  }
 
-              pipelineStopLayer:
-                "preferenceResolution"
-            };
-          }
-        }
-      }
+  /* ===============================================
+     APPLICATION RESTRICTION GOVERNOR
+  =============================================== */
+
+  mark(
+    "before restriction governor"
+  );
+
+  summary =
+    await this.runRestrictionGovernor(
+      summary
+    );
+
+  mark(
+    "after restriction governor"
+  );
+
+  if (
+    summary.restrictionGovernorReady !==
+    true
+  ) {
+    summary = {
+      ...summary,
+
+      pipelineStopped:
+        true,
+
+      pipelineStopReason:
+        summary.restrictionGovernorError ||
+        "restriction_governor_not_ready",
+
+      pipelineStopLayer:
+        "restrictionGovernor"
+    };
+
+    continue;
+  }
+
+  /*
+   * Do not stop the five-layer runtime merely because the
+   * governor activated a boundary.
+   *
+   * Emergency and illegal-operation modes still require
+   * Deliberation and Expression so Ari can produce the
+   * correct emergency response, refusal, explanation, or
+   * safe alternative.
+   */
+
+  /* ===============================================
+     USER PREFERENCE RESOLUTION
+  =============================================== */
+
+  mark(
+    "before preference resolver"
+  );
+
+  summary =
+    await this.runPreferenceResolver(
+      summary
+    );
+
+  mark(
+    "after preference resolver"
+  );
+
+  if (
+    summary.preferenceResolverReady !==
+    true
+  ) {
+    summary = {
+      ...summary,
+
+      pipelineStopped:
+        true,
+
+      pipelineStopReason:
+        summary.preferenceResolverError ||
+        "preference_resolver_not_ready",
+
+      pipelineStopLayer:
+        "preferenceResolution"
+    };
+  }
+}
     }
 
     /* =================================================
@@ -1053,6 +1119,45 @@ return summary;
 
       conversationContextAuthoritiesError:
         null,
+
+restrictionGovernorResult:
+  null,
+
+restrictionGovernorRan:
+  false,
+
+restrictionGovernorReady:
+  false,
+
+restrictionGovernorSource:
+  null,
+
+restrictionGovernorVersion:
+  null,
+
+restrictionGovernorError:
+  null,
+
+restrictionMode:
+  "normal",
+
+normalResponseAllowed:
+  true,
+
+emergencySafetyActive:
+  false,
+
+maliciousOrIllegalOperationActive:
+  false,
+
+responseBoundary:
+  null,
+
+applicationRestriction:
+  null,
+
+preferenceResolutionPacket:
+  null,
 
 preferenceResolutionPacket:
   null,
@@ -2768,6 +2873,206 @@ const persisted =
      LAYER DEFINITIONS
   ===================================================== */
 
+getRestrictionGovernor() {
+  return (
+    window.AriRestrictionGovernor ||
+    window.Ari?.restrictionGovernor ||
+    null
+  );
+},
+
+async runRestrictionGovernor(
+  summary = {}
+) {
+  const governor =
+    this.getRestrictionGovernor();
+
+  if (
+    !governor
+  ) {
+    return {
+      ...summary,
+
+      restrictionGovernorRan:
+        false,
+
+      restrictionGovernorReady:
+        false,
+
+      restrictionGovernorSource:
+        "not-loaded",
+
+      restrictionGovernorVersion:
+        null,
+
+      restrictionGovernorError:
+        "restriction_governor_not_loaded",
+
+      restrictionMode:
+        "normal",
+
+      normalResponseAllowed:
+        true,
+
+      emergencySafetyActive:
+        false,
+
+      maliciousOrIllegalOperationActive:
+        false
+    };
+  }
+
+  const result =
+    await this.runEngine({
+      engine:
+        governor,
+
+      methods: [
+        "evaluate",
+        "run"
+      ],
+
+      fallback: {
+        restrictionGovernorRan:
+          false,
+
+        restrictionGovernorReady:
+          false
+      },
+
+      inputState:
+        summary
+    });
+
+  const invocation =
+    result
+      .engineInvocationDiagnostic ||
+    null;
+
+  const invocationSucceeded =
+    invocation?.succeeded ===
+    true;
+
+  const resultReady =
+    result.ready === true &&
+    result.complete === true &&
+    typeof result.mode ===
+      "string";
+
+  if (
+    !invocationSucceeded ||
+    !resultReady
+  ) {
+    const failureReason =
+      invocation?.failureType ||
+      result.error ||
+      "restriction_governor_returned_invalid_result";
+
+    return {
+      ...summary,
+
+      restrictionGovernorResult:
+        result,
+
+      restrictionGovernorRan:
+        invocation?.attempted ===
+        true,
+
+      restrictionGovernorReady:
+        false,
+
+      restrictionGovernorSource:
+        governor.source ||
+        "ari-restriction-governor",
+
+      restrictionGovernorVersion:
+        governor.version ||
+        null,
+
+      restrictionGovernorError:
+        failureReason,
+
+      /*
+       * A governor infrastructure failure does not invent a
+       * restriction. The master runtime may decide whether
+       * missing infrastructure is fatal, but it must not
+       * silently prohibit ordinary responses.
+       */
+      restrictionMode:
+        "normal",
+
+      normalResponseAllowed:
+        true,
+
+      emergencySafetyActive:
+        false,
+
+      maliciousOrIllegalOperationActive:
+        false
+    };
+  }
+
+  return {
+    ...summary,
+
+    restrictionGovernorResult:
+      result,
+
+    restrictionGovernorRan:
+      true,
+
+    restrictionGovernorReady:
+      true,
+
+    restrictionGovernorSource:
+      result.source ||
+      governor.source ||
+      "ari-restriction-governor",
+
+    restrictionGovernorVersion:
+      result.version ||
+      governor.version ||
+      null,
+
+    restrictionGovernorError:
+      null,
+
+    restrictionMode:
+      result.mode ||
+      "normal",
+
+    normalResponseAllowed:
+      result.normalResponseAllowed !==
+      false,
+
+    emergencySafetyActive:
+      result.emergencySafetyActive ===
+      true,
+
+    maliciousOrIllegalOperationActive:
+      result
+        .maliciousOrIllegalOperationActive ===
+      true,
+
+    responseBoundary:
+      result.responseBoundary ||
+      null,
+
+    applicationRestriction:
+      result,
+
+    /*
+     * Compatibility aliases for components that consume
+     * differently named restriction packets.
+     */
+    restrictionContext:
+      result,
+
+    restrictionGovernor:
+      result
+  };
+},
+
 getPreferenceResolver() {
   return (
     window.AriPreferenceResolver ||
@@ -2776,74 +3081,166 @@ getPreferenceResolver() {
   );
 },
 
-async runPreferenceResolver(summary = {}) {
-
+async runPreferenceResolver(
+  summary = {}
+) {
   const resolver =
     this.getPreferenceResolver();
 
   if (!resolver) {
-
     return {
-
       ...summary,
 
-      preferenceResolverRan: false,
+      preferenceResolverRan:
+        false,
 
-      preferenceResolverReady: false,
+      preferenceResolverReady:
+        false,
+
+      preferenceResolverSource:
+        "not-loaded",
+
+      preferenceResolverVersion:
+        null,
 
       preferenceResolverError:
         "preference_resolver_not_loaded"
-
     };
-
   }
 
   const result =
     await this.runEngine({
-
-      engine: resolver,
+      engine:
+        resolver,
 
       methods: [
         "resolve",
         "create"
       ],
 
-      inputState: summary
+      fallback: {
+        preferenceResolverRan:
+          false,
 
+        preferenceResolverReady:
+          false
+      },
+
+      inputState:
+        summary
     });
 
-  return {
+  const invocation =
+    result
+      .engineInvocationDiagnostic ||
+    null;
 
+  const invocationSucceeded =
+    invocation?.succeeded ===
+    true;
+
+  const ready =
+    invocationSucceeded &&
+    result.ready === true &&
+    result.complete === true;
+
+  if (!ready) {
+    return {
+      ...summary,
+
+      preferenceResolutionPacket:
+        result,
+
+      preferenceResolverRan:
+        invocation?.attempted ===
+        true,
+
+      preferenceResolverReady:
+        false,
+
+      preferenceResolverSource:
+        resolver.source ||
+        "ari-preference-resolver",
+
+      preferenceResolverVersion:
+        resolver.version ||
+        null,
+
+      preferenceResolverError:
+        invocation?.failureType ||
+        result.error ||
+        "preference_resolver_returned_invalid_result"
+    };
+  }
+
+  const resolvedPreferences =
+    result.resolvedPreferences ||
+    result.userPreferences ||
+    {};
+
+  const currentTurnOverrides =
+    result.layers
+      ?.currentTurnOverrides ||
+    result.currentTurnOverride ||
+    {};
+
+  return {
     ...summary,
 
-    preferenceResolverRan: true,
+    preferenceResolverRan:
+      true,
 
     preferenceResolverReady:
-      result.ready === true,
+      true,
 
     preferenceResolverSource:
-      resolver.source,
+      result.source ||
+      resolver.source ||
+      "ari-preference-resolver",
 
     preferenceResolverVersion:
-      resolver.version,
+      result.version ||
+      resolver.version ||
+      null,
+
+    preferenceResolverError:
+      null,
 
     preferenceResolutionPacket:
       result,
 
+    resolvedPreferences,
+
     userPreferences:
-      result.userPreferences || {},
+      resolvedPreferences,
+
+    currentTurnPreferenceOverrides:
+      currentTurnOverrides,
 
     currentTurnOverride:
-      result.currentTurnOverride || {},
+      currentTurnOverrides,
 
     responseStyle:
-      result.responseStyle || {},
+      result.modelInstructions ||
+      result.responseStyle ||
+      {},
+
+    preferenceModelInstructions:
+      result.modelInstructions ||
+      {},
+
+    preferenceInstructionText:
+      result.instructionText ||
+      "",
+
+    preferenceProvenance:
+      result.provenance ||
+      {},
 
     preferenceResolution:
-      result.resolution || null
-
+      result.resolution ||
+      null
   };
-
 },
 
   getLayerDefinitions() {
@@ -5127,29 +5524,50 @@ stoppedByLayer:
         ?.authoritative ===
       true;
 
-    const safetyOverride =
-      summary.safetyDisposition
-        ?.shouldStopNormalResponse ===
-      true;
+    const restriction =
+  summary.restrictionGovernorResult ||
+  summary.applicationRestriction ||
+  {};
+
+const emergencySafetyActive =
+  restriction.emergencySafetyActive ===
+    true ||
+  summary.emergencySafetyActive ===
+    true;
+
+const illegalOperationActive =
+  restriction
+    .maliciousOrIllegalOperationActive ===
+    true ||
+  summary
+    .maliciousOrIllegalOperationActive ===
+    true;
+
+const restrictionMode =
+  restriction.mode ||
+  summary.restrictionMode ||
+  "normal";
 
     const primary =
-      safetyOverride
-        ? (
-            summary.safetyRequiredPlanner ||
+  emergencySafetyActive
+    ? (
+        summary.safetyRequiredPlanner ||
+        contract.primary ||
+        triage.primaryLane ||
+        "immediate_safety_response"
+      )
+    : illegalOperationActive
+      ? "safe_boundary_response"
+      : routingAuthoritative &&
+          routing.primaryLane
+        ? routing.primaryLane
+        : (
             contract.primary ||
             triage.primaryLane ||
-            "immediate_safety_response"
-          )
-        : routingAuthoritative &&
-            routing.primaryLane
-          ? routing.primaryLane
-          : (
-              contract.primary ||
-              triage.primaryLane ||
-              summary.situationContractPrimary ||
-              summary.primaryLane ||
-              "general_understanding"
-            );
+            summary.situationContractPrimary ||
+            summary.primaryLane ||
+            "general_understanding"
+          );
 
     return {
       ...summary,
@@ -5159,6 +5577,22 @@ stoppedByLayer:
 
       contractBridgeSource:
         this.source,
+
+restrictionMode,
+
+normalResponseAllowed:
+  restrictionMode ===
+  "normal",
+
+emergencySafetyActive,
+
+maliciousOrIllegalOperationActive:
+  illegalOperationActive,
+
+responseBoundary:
+  restriction.responseBoundary ||
+  summary.responseBoundary ||
+  null,
 
       situationContract:
         contract,
@@ -5180,12 +5614,13 @@ stoppedByLayer:
         primary,
 
       responseShape:
-        (
-          routingAuthoritative &&
-          !safetyOverride
-            ? routing.responseShape
-            : null
-        ) ||
+  (
+    routingAuthoritative &&
+    restrictionMode ===
+      "normal"
+      ? routing.responseShape
+      : null
+  ) ||
         contract.responseShape ||
         triage.responseShape ||
         summary.responseShape ||
@@ -5795,6 +6230,102 @@ stoppedByLayer:
       null
     );
 
+console.log(
+  "===== RESTRICTION GOVERNOR =====",
+  {
+    ran:
+      summary.restrictionGovernorRan ===
+      true,
+
+    ready:
+      summary.restrictionGovernorReady ===
+      true,
+
+    mode:
+      summary.restrictionMode ||
+      "normal",
+
+    normalResponseAllowed:
+      summary.normalResponseAllowed !==
+      false,
+
+    emergencySafetyActive:
+      summary.emergencySafetyActive ===
+      true,
+
+    maliciousOrIllegalOperationActive:
+      summary
+        .maliciousOrIllegalOperationActive ===
+      true,
+
+    source:
+      summary.restrictionGovernorSource ||
+      null,
+
+    version:
+      summary.restrictionGovernorVersion ||
+      null,
+
+    error:
+      summary.restrictionGovernorError ||
+      null,
+
+    boundary:
+      summary.responseBoundary ||
+      null,
+
+    result:
+      summary.restrictionGovernorResult ||
+      null
+  }
+);
+
+console.log(
+  "===== USER PREFERENCE RESOLUTION =====",
+  {
+    ran:
+      summary.preferenceResolverRan ===
+      true,
+
+    ready:
+      summary.preferenceResolverReady ===
+      true,
+
+    source:
+      summary.preferenceResolverSource ||
+      null,
+
+    version:
+      summary.preferenceResolverVersion ||
+      null,
+
+    error:
+      summary.preferenceResolverError ||
+      null,
+
+    resolvedPreferences:
+      summary.resolvedPreferences ||
+      summary.userPreferences ||
+      {},
+
+    modelInstructions:
+      summary.preferenceModelInstructions ||
+      null,
+
+    instructionText:
+      summary.preferenceInstructionText ||
+      null,
+
+    provenance:
+      summary.preferenceProvenance ||
+      null,
+
+    packet:
+      summary.preferenceResolutionPacket ||
+      null
+  }
+);
+
     console.log(
       "===== EXECUTIVE PACKET =====",
       summary.executivePacket ||
@@ -6104,6 +6635,24 @@ console.log(
       canProjectRuntimeContracts:
         true,
 
+canCoordinateRestrictionGovernor:
+  true,
+
+canPreserveRestrictionGovernorResult:
+  true,
+
+canRequireRestrictionGovernorAvailability:
+  true,
+
+canDetermineApplicationRestrictionDirectly:
+  false,
+
+canOverrideRestrictionGovernor:
+  false,
+
+canCreateStyleProhibitions:
+  false,
+
       canExecutePerceptionLayer:
         true,
 
@@ -6297,6 +6846,9 @@ canTreatSemanticValidationAsAdvisory:
       "canOverrideDeliveryResult",
       "canExecuteApplicationWrites",
       "canAccessSupabaseDirectly",
+      "canDetermineApplicationRestrictionDirectly",
+"canOverrideRestrictionGovernor",
+"canCreateStyleProhibitions",
       "canRetrieveLongTermUserMemory",
       "canStoreLongTermUserMemory"
     ];
@@ -6417,6 +6969,22 @@ canTreatSemanticValidationAsAdvisory:
           typeof component?.validateEvidencePacket ===
             "function"
       ],
+
+[
+  "AriRestrictionGovernor",
+
+  this.getRestrictionGovernor(),
+
+  component =>
+    (
+      typeof component?.evaluate ===
+        "function" ||
+      typeof component?.run ===
+        "function"
+    ) &&
+    typeof component?.validate ===
+      "function"
+],
 
 [
   "AriPreferenceResolver",
@@ -6559,6 +7127,31 @@ const warnings =
       checks: {
         canonicalTurnPreserved:
           true,
+
+restrictionGovernorCoordinated:
+  authority
+    .canCoordinateRestrictionGovernor ===
+  true,
+
+restrictionGovernorResultPreserved:
+  authority
+    .canPreserveRestrictionGovernorResult ===
+  true,
+
+directRestrictionDecisionDisabled:
+  authority
+    .canDetermineApplicationRestrictionDirectly ===
+  false,
+
+restrictionGovernorOverrideDisabled:
+  authority
+    .canOverrideRestrictionGovernor ===
+  false,
+
+styleProhibitionCreationDisabled:
+  authority
+    .canCreateStyleProhibitions ===
+  false,
 
         priorTurnOutputsCleared:
           authority.canClearPriorTurnOutputs ===
