@@ -6,7 +6,7 @@
 // Ari's settings UI, preference store, preference resolver, reasoning client,
 // and OpenAI request builder.
 //
-// V2.0.0 — Adaptive Expression / Explicit-Request Precedence
+// V2.1.0 — Simplified Preference Presentation Contract
 //
 // Design principles:
 // - Ordinary expressive language is allowed by default.
@@ -15,11 +15,13 @@
 // - Only explicit user opt-outs create style prohibitions.
 // - Application restrictions remain owned by AriRestrictionGovernor.
 // - Consent is reserved for persistent high-intensity modes directed at the user.
+// - Canonical UI presentation metadata controls how preferences are displayed.
 //
 // Responsibilities:
 // - Define valid preference categories, keys, values, and presets.
 // - Define application-owned adaptive runtime defaults.
 // - Define UI labels, explanations, consent requirements, and instruction mappings.
+// - Define canonical simplified-settings presentation metadata.
 // - Normalize and validate stored, conversation, and current-turn overrides.
 // - Resolve preferences with provenance.
 // - Build model-ready interaction-style instructions.
@@ -35,8 +37,8 @@
 window.Ari = window.Ari || {};
 
 window.AriUserPreferenceContract = {
-  version: "2.0.0",
-  schemaVersion: "2.0.0",
+  version: "2.1.0",
+  schemaVersion: "2.1.0",
   source: "ari-user-preference-contract",
   authorityLevel: "canonical_user_interaction_preference_contract",
 
@@ -48,6 +50,65 @@ window.AriUserPreferenceContract = {
     HARD_OPT_OUT: "hard_opt_out",
     CONSENTED_HIGH_INTENSITY: "consented_high_intensity"
   }),
+
+  /* =====================================================
+     UI PRESENTATION
+  ===================================================== */
+
+  uiPresentation: {
+    primaryPreferences: {
+      humor: {
+        id: "humor",
+        path: "language.humor",
+        category: "language",
+        key: "humor",
+        hostSelector: "#ari-preference-humor",
+        label: "Humor",
+        description:
+          "Choose how often Ari should use humor.",
+        controlType: "radio_cards",
+        visibleValues: [
+          "adaptive",
+          "none",
+          "light",
+          "frequent"
+        ]
+      },
+
+      language: {
+        id: "language",
+        path: "language.profanity",
+        category: "language",
+        key: "profanity",
+        hostSelector: "#ari-preference-language",
+        label: "Language",
+        description:
+          "Choose how freely Ari may use profanity in its normal voice.",
+        controlType: "radio_cards",
+        visibleValues: [
+          "adaptive",
+          "clean",
+          "mild",
+          "natural"
+        ]
+      }
+    },
+
+    advancedPreferences: {
+      includeUnpromotedValues: true,
+
+      promotedValueAccess: {
+        "language.humor": [
+          "dark",
+          "unfiltered"
+        ],
+
+        "language.profanity": [
+          "frequent"
+        ]
+      }
+    }
+  },
 
   /* =====================================================
      PRESETS
@@ -195,7 +256,13 @@ window.AriUserPreferenceContract = {
             "Controls how straightforward Ari is.",
           defaultValue: "default",
           options: {
-            default: this?.optionPlaceholder,
+            default: {
+              label: "Default",
+              description:
+                "Ari adapts directness naturally.",
+              enforcement: "adaptive",
+              instruction: null
+            },
             gentle: {
               label: "Gentle",
               description: "Careful and emotionally considerate.",
@@ -784,6 +851,7 @@ window.AriUserPreferenceContract = {
             high: { label: "High", description: "Actively identifies weaknesses.", enforcement: "preferred", instruction: "Actively identify weak assumptions, contradictions, avoidance, and reasoning gaps." }
           }
         },
+
         follow_up_questions: {
           key: "follow_up_questions",
           label: "Follow-up Questions",
@@ -796,6 +864,7 @@ window.AriUserPreferenceContract = {
             conversational: { label: "Conversational", description: "Uses more interactive questions.", enforcement: "preferred", instruction: "Use relevant follow-up questions to understand the user and maintain an interactive conversation." }
           }
         },
+
         personal_engagement: {
           key: "personal_engagement",
           label: "Personal Engagement",
@@ -808,6 +877,7 @@ window.AriUserPreferenceContract = {
             high: { label: "Highly Personal", description: "Uses relevant known context.", enforcement: "preferred", instruction: "Use relevant known context about the user's goals, preferences, and ongoing situations when helpful." }
           }
         },
+
         proactive_help: {
           key: "proactive_help",
           label: "Proactive Help",
@@ -848,6 +918,7 @@ window.AriUserPreferenceContract = {
             }
           }
         },
+
         motivation_style: {
           key: "motivation_style",
           label: "Motivation Style",
@@ -882,6 +953,7 @@ window.AriUserPreferenceContract = {
             adaptive: { label: "Adaptive", description: "Varies length by complexity and stakes.", enforcement: "adaptive", instruction: "Adapt response length to the complexity, stakes, and emotional context of the request." }
           }
         },
+
         recommendation_position: {
           key: "recommendation_position",
           label: "Recommendation Placement",
@@ -893,6 +965,7 @@ window.AriUserPreferenceContract = {
             after_context: { label: "Explanation First", description: "Context before recommendation.", enforcement: "preferred", instruction: "Present relevant context and reasoning before the final recommendation." }
           }
         },
+
         examples: {
           key: "examples",
           label: "Examples",
@@ -905,6 +978,7 @@ window.AriUserPreferenceContract = {
             frequent: { label: "Frequent", description: "Examples regularly.", enforcement: "preferred", instruction: "Use frequent concrete examples to demonstrate important ideas." }
           }
         },
+
         action_steps: {
           key: "action_steps",
           label: "Action Steps",
@@ -937,6 +1011,7 @@ window.AriUserPreferenceContract = {
             decisive: { label: "Decisive", description: "Clearly chooses the strongest option.", enforcement: "preferred", instruction: "When sufficient information exists, clearly choose and recommend the strongest option." }
           }
         },
+
         ranking: {
           key: "ranking",
           label: "Rank Options",
@@ -991,6 +1066,7 @@ window.AriUserPreferenceContract = {
             technical: { label: "Technical", description: "Technical terminology and deeper detail.", enforcement: "preferred", instruction: "Use technical terminology and deeper domain detail while preserving precision." }
           }
         },
+
         analogy_usage: {
           key: "analogy_usage",
           label: "Analogies",
@@ -1003,6 +1079,7 @@ window.AriUserPreferenceContract = {
             frequent: { label: "Frequent", description: "Regular comparisons and metaphors.", enforcement: "preferred", instruction: "Use frequent helpful analogies while preserving technical accuracy." }
           }
         },
+
         knowledge_checks: {
           key: "knowledge_checks",
           label: "Check My Understanding",
@@ -1032,6 +1109,7 @@ window.AriUserPreferenceContract = {
       confidence: "calibrated",
       patience: "patient"
     },
+
     language: {
       profanity: "adaptive",
       humor: "adaptive",
@@ -1040,29 +1118,35 @@ window.AriUserPreferenceContract = {
       roasting: "adaptive",
       emotional_expressiveness: "expressive"
     },
+
     interaction: {
       challenge_level: "balanced",
       follow_up_questions: "when_needed",
       personal_engagement: "balanced",
       proactive_help: "when_useful"
     },
+
     coaching: {
       accountability: "balanced",
       motivation_style: "practical"
     },
+
     response_structure: {
       verbosity: "adaptive",
       recommendation_position: "after_context",
       examples: "when_useful",
       action_steps: "when_useful"
     },
+
     decision_support: {
       recommendation_strength: "balanced",
       ranking: "when_useful"
     },
+
     emotional_support: {
       support_approach: "validate_first"
     },
+
     learning: {
       explanation_depth: "practical",
       analogy_usage: "when_useful",
@@ -1083,149 +1167,411 @@ window.AriUserPreferenceContract = {
       presets: this.clone(this.presets),
       categories: this.clone(this.categories),
       runtimeDefaults: this.clone(this.runtimeDefaults),
-      enforcementModes: this.clone(this.ENFORCEMENT)
+      enforcementModes: this.clone(this.ENFORCEMENT),
+      uiPresentation: this.clone(this.uiPresentation)
     };
   },
 
   getUiSchema() {
     const categories = [];
 
-    for (const [categoryKey, categoryDefinition] of Object.entries(
-      this.categories
-    )) {
+    for (
+      const [categoryKey, categoryDefinition]
+      of Object.entries(this.categories)
+    ) {
       const preferences = [];
 
-      for (const [preferenceKey, preferenceDefinition] of Object.entries(
-        categoryDefinition.preferences || {}
-      )) {
-        const options = Object.entries(
-          preferenceDefinition.options || {}
-        ).map(([value, option]) => ({
-          value,
-          label: option?.label || value,
-          description: option?.description || "",
-          enforcement: option?.enforcement || this.ENFORCEMENT.ADAPTIVE,
-          currentTurnAdjustable: option?.currentTurnAdjustable !== false,
-          consentRequired: option?.consentRequired === true,
-          consentText: option?.consentText || null,
-          warningLevel: option?.warningLevel || null
-        }));
+      for (
+        const [preferenceKey, preferenceDefinition]
+        of Object.entries(
+          categoryDefinition.preferences || {}
+        )
+      ) {
+        const path =
+          `${categoryKey}.${preferenceKey}`;
+
+        const options =
+          Object.entries(
+            preferenceDefinition.options || {}
+          ).map(([value, option]) => ({
+            value,
+            label: option?.label || value,
+            description: option?.description || "",
+            enforcement:
+              option?.enforcement ||
+              this.ENFORCEMENT.ADAPTIVE,
+            currentTurnAdjustable:
+              option?.currentTurnAdjustable !== false,
+            consentRequired:
+              option?.consentRequired === true,
+            consentText:
+              option?.consentText || null,
+            warningLevel:
+              option?.warningLevel || null
+          }));
+
+        const primaryPresentation =
+          this.getPrimaryUiPresentation(path);
 
         preferences.push({
           category: categoryKey,
           key: preferenceKey,
-          path: `${categoryKey}.${preferenceKey}`,
+          path,
           label: preferenceDefinition.label,
-          description: preferenceDefinition.description,
-          defaultValue: preferenceDefinition.defaultValue,
-          options
+          description:
+            preferenceDefinition.description,
+          defaultValue:
+            preferenceDefinition.defaultValue,
+          options,
+
+          presentation:
+            primaryPresentation
+              ? {
+                  placement: "primary",
+                  id:
+                    primaryPresentation.id,
+                  hostSelector:
+                    primaryPresentation.hostSelector,
+                  controlType:
+                    primaryPresentation.controlType,
+                  visibleValues:
+                    this.clone(
+                      primaryPresentation.visibleValues
+                    )
+                }
+              : {
+                  placement: "advanced",
+                  controlType: "select"
+                }
         });
       }
 
       categories.push({
-        id: categoryDefinition.id || categoryKey,
-        label: categoryDefinition.label,
-        description: categoryDefinition.description,
+        id:
+          categoryDefinition.id ||
+          categoryKey,
+        label:
+          categoryDefinition.label,
+        description:
+          categoryDefinition.description,
         preferences
       });
     }
 
     return {
-      schemaVersion: this.schemaVersion,
-      presets: Object.values(this.presets).map(preset => ({
-        id: preset.id,
-        label: preset.label,
-        description: preset.description
-      })),
-      categories
+      schemaVersion:
+        this.schemaVersion,
+
+      presets:
+        Object.values(this.presets)
+          .map(preset => ({
+            id: preset.id,
+            label: preset.label,
+            description:
+              preset.description
+          })),
+
+      categories,
+
+      presentation:
+        this.clone(
+          this.uiPresentation
+        )
     };
   },
 
-  getRuntimeDefaults() {
-    return this.clone(this.runtimeDefaults);
+  getUiPresentation() {
+    return this.clone(
+      this.uiPresentation
+    );
   },
 
-  getPreset(presetId = "default") {
+  getPrimaryUiPresentations() {
+    return this.clone(
+      this.uiPresentation
+        ?.primaryPreferences ||
+      {}
+    );
+  },
+
+  getPrimaryUiPresentation(path) {
+    if (
+      typeof path !== "string" ||
+      !path.trim()
+    ) {
+      return null;
+    }
+
+    const normalizedPath =
+      path.trim();
+
+    for (
+      const presentation
+      of Object.values(
+        this.uiPresentation
+          ?.primaryPreferences ||
+        {}
+      )
+    ) {
+      if (
+        presentation?.path ===
+        normalizedPath
+      ) {
+        return this.clone(
+          presentation
+        );
+      }
+    }
+
+    return null;
+  },
+
+  isPrimaryUiPreference(
+    category,
+    key
+  ) {
+    return Boolean(
+      this.getPrimaryUiPresentation(
+        `${category}.${key}`
+      )
+    );
+  },
+
+  getPrimaryUiOptions(
+    category,
+    key
+  ) {
+    const path =
+      `${category}.${key}`;
+
+    const presentation =
+      this.getPrimaryUiPresentation(
+        path
+      );
+
+    if (!presentation) {
+      return [];
+    }
+
+    const definition =
+      this.getPreferenceDefinition(
+        category,
+        key
+      );
+
+    if (!definition) {
+      return [];
+    }
+
+    return (
+      presentation.visibleValues ||
+      []
+    )
+      .map(value => {
+        const option =
+          definition.options?.[value];
+
+        if (!option) {
+          return null;
+        }
+
+        return {
+          value,
+          label:
+            option.label || value,
+          description:
+            option.description || "",
+          enforcement:
+            option.enforcement ||
+            this.ENFORCEMENT.ADAPTIVE,
+          currentTurnAdjustable:
+            option.currentTurnAdjustable !==
+            false,
+          consentRequired:
+            option.consentRequired ===
+            true,
+          consentText:
+            option.consentText || null,
+          warningLevel:
+            option.warningLevel || null
+        };
+      })
+      .filter(Boolean);
+  },
+
+  getAdvancedPromotedValues(
+    category,
+    key
+  ) {
+    const path =
+      `${category}.${key}`;
+
+    return this.clone(
+      this.uiPresentation
+        ?.advancedPreferences
+        ?.promotedValueAccess
+        ?.[path] ||
+      []
+    );
+  },
+
+  getRuntimeDefaults() {
+    return this.clone(
+      this.runtimeDefaults
+    );
+  },
+
+  getPreset(
+    presetId = "default"
+  ) {
     const resolvedPreset =
       this.presets[presetId] ||
       this.presets.default;
 
-    return this.clone(resolvedPreset);
+    return this.clone(
+      resolvedPreset
+    );
   },
 
   isValidPreset(presetId) {
     return Boolean(
       presetId &&
-      Object.prototype.hasOwnProperty.call(
-        this.presets,
-        presetId
+      Object.prototype
+        .hasOwnProperty.call(
+          this.presets,
+          presetId
+        )
+    );
+  },
+
+  getPreferenceDefinition(
+    category,
+    key
+  ) {
+    return (
+      this.categories
+        ?.[category]
+        ?.preferences
+        ?.[key] ||
+      null
+    );
+  },
+
+  getPreferenceOption(
+    category,
+    key,
+    value
+  ) {
+    return (
+      this.getPreferenceDefinition(
+        category,
+        key
       )
-    );
-  },
-
-  getPreferenceDefinition(category, key) {
-    return (
-      this.categories?.[category]?.preferences?.[key] ||
+        ?.options
+        ?.[value] ||
       null
     );
   },
 
-  getPreferenceOption(category, key, value) {
-    return (
-      this.getPreferenceDefinition(category, key)
-        ?.options?.[value] ||
-      null
-    );
-  },
-
-  isValidPreferenceValue(category, key, value) {
+  isValidPreferenceValue(
+    category,
+    key,
+    value
+  ) {
     const definition =
-      this.getPreferenceDefinition(category, key);
+      this.getPreferenceDefinition(
+        category,
+        key
+      );
 
     return Boolean(
       definition &&
       value &&
-      Object.prototype.hasOwnProperty.call(
-        definition.options || {},
-        value
-      )
+      Object.prototype
+        .hasOwnProperty.call(
+          definition.options || {},
+          value
+        )
     );
   },
 
-  getEnforcement(category, key, value) {
+  getEnforcement(
+    category,
+    key,
+    value
+  ) {
     return (
-      this.getPreferenceOption(category, key, value)
-        ?.enforcement ||
+      this.getPreferenceOption(
+        category,
+        key,
+        value
+      )?.enforcement ||
       this.ENFORCEMENT.ADAPTIVE
     );
   },
 
-  isHardOptOut(category, key, value) {
+  isHardOptOut(
+    category,
+    key,
+    value
+  ) {
     return (
-      this.getEnforcement(category, key, value) ===
+      this.getEnforcement(
+        category,
+        key,
+        value
+      ) ===
       this.ENFORCEMENT.HARD_OPT_OUT
     );
   },
 
-  isCurrentTurnAdjustable(category, key, value) {
+  isCurrentTurnAdjustable(
+    category,
+    key,
+    value
+  ) {
     const option =
-      this.getPreferenceOption(category, key, value);
+      this.getPreferenceOption(
+        category,
+        key,
+        value
+      );
 
-    return option?.currentTurnAdjustable !== false;
-  },
-
-  requiresConsent(category, key, value) {
     return (
-      this.getPreferenceOption(category, key, value)
-        ?.consentRequired === true
+      option?.currentTurnAdjustable !==
+      false
     );
   },
 
-  getConsentRequirement(category, key, value) {
-    const option =
-      this.getPreferenceOption(category, key, value);
+  requiresConsent(
+    category,
+    key,
+    value
+  ) {
+    return (
+      this.getPreferenceOption(
+        category,
+        key,
+        value
+      )?.consentRequired === true
+    );
+  },
 
-    if (!option?.consentRequired) {
+  getConsentRequirement(
+    category,
+    key,
+    value
+  ) {
+    const option =
+      this.getPreferenceOption(
+        category,
+        key,
+        value
+      );
+
+    if (
+      !option?.consentRequired
+    ) {
       return {
         required: false,
         text: null,
@@ -1235,8 +1581,12 @@ window.AriUserPreferenceContract = {
 
     return {
       required: true,
-      text: option.consentText || null,
-      warningLevel: option.warningLevel || "standard"
+      text:
+        option.consentText ||
+        null,
+      warningLevel:
+        option.warningLevel ||
+        "standard"
     };
   },
 
@@ -1248,7 +1598,9 @@ window.AriUserPreferenceContract = {
     const normalized = {};
     const warnings = [];
 
-    if (!this.isPlainObject(input)) {
+    if (
+      !this.isPlainObject(input)
+    ) {
       return {
         ok: false,
         normalized: {},
@@ -1258,37 +1610,57 @@ window.AriUserPreferenceContract = {
       };
     }
 
-    for (const [categoryKey, categoryValue] of Object.entries(input)) {
+    for (
+      const [categoryKey, categoryValue]
+      of Object.entries(input)
+    ) {
       const categoryDefinition =
-        this.categories[categoryKey];
+        this.categories[
+          categoryKey
+        ];
 
       if (!categoryDefinition) {
         warnings.push(
           `unknown_preference_category:${categoryKey}`
         );
+
         continue;
       }
 
-      if (!this.isPlainObject(categoryValue)) {
+      if (
+        !this.isPlainObject(
+          categoryValue
+        )
+      ) {
         warnings.push(
           `preference_category_not_object:${categoryKey}`
         );
+
         continue;
       }
 
-      for (const [preferenceKey, rawValue] of Object.entries(categoryValue)) {
+      for (
+        const [preferenceKey, rawValue]
+        of Object.entries(
+          categoryValue
+        )
+      ) {
         const definition =
-          categoryDefinition.preferences?.[preferenceKey];
+          categoryDefinition
+            .preferences
+            ?.[preferenceKey];
 
         if (!definition) {
           warnings.push(
             `unknown_preference_key:${categoryKey}.${preferenceKey}`
           );
+
           continue;
         }
 
         const value =
-          typeof rawValue === "string"
+          typeof rawValue ===
+          "string"
             ? rawValue.trim()
             : rawValue;
 
@@ -1302,17 +1674,25 @@ window.AriUserPreferenceContract = {
           warnings.push(
             `invalid_preference_value:${categoryKey}.${preferenceKey}:${String(value)}`
           );
+
           continue;
         }
 
-        if (value === this.DEFAULT_VALUE) {
+        if (
+          value ===
+          this.DEFAULT_VALUE
+        ) {
           continue;
         }
 
         normalized[categoryKey] =
-          normalized[categoryKey] || {};
+          normalized[
+            categoryKey
+          ] || {};
 
-        normalized[categoryKey][preferenceKey] =
+        normalized[
+          categoryKey
+        ][preferenceKey] =
           value;
       }
     }
@@ -1326,16 +1706,20 @@ window.AriUserPreferenceContract = {
 
   validateOverrides(input = {}) {
     const result =
-      this.normalizeOverrides(input);
+      this.normalizeOverrides(
+        input
+      );
 
     return {
       ok:
         result.ok === true &&
-        result.warnings.length === 0,
+        result.warnings.length ===
+        0,
 
       valid:
         result.ok === true &&
-        result.warnings.length === 0,
+        result.warnings.length ===
+        0,
 
       normalized:
         result.normalized,
@@ -1362,16 +1746,24 @@ window.AriUserPreferenceContract = {
       this.getRuntimeDefaults();
 
     const preset =
-      this.getPreset(activePreset);
+      this.getPreset(
+        activePreset
+      );
 
     const normalizedPersistent =
-      this.normalizeOverrides(persistentOverrides);
+      this.normalizeOverrides(
+        persistentOverrides
+      );
 
     const normalizedConversation =
-      this.normalizeOverrides(conversationOverrides);
+      this.normalizeOverrides(
+        conversationOverrides
+      );
 
     const normalizedCurrentTurn =
-      this.normalizeOverrides(currentTurnOverrides);
+      this.normalizeOverrides(
+        currentTurnOverrides
+      );
 
     warnings.push(
       ...normalizedPersistent.warnings,
@@ -1388,33 +1780,48 @@ window.AriUserPreferenceContract = {
       source: "runtime_default"
     });
 
-    resolved = this.applyLayer({
-      base: resolved,
-      layer: preset.overrides || {},
-      provenance,
-      source: `preset:${preset.id}`
-    });
+    resolved =
+      this.applyLayer({
+        base: resolved,
+        layer:
+          preset.overrides || {},
+        provenance,
+        source:
+          `preset:${preset.id}`
+      });
 
-    resolved = this.applyLayer({
-      base: resolved,
-      layer: normalizedPersistent.normalized,
-      provenance,
-      source: "persistent_user_preference"
-    });
+    resolved =
+      this.applyLayer({
+        base: resolved,
+        layer:
+          normalizedPersistent
+            .normalized,
+        provenance,
+        source:
+          "persistent_user_preference"
+      });
 
-    resolved = this.applyLayer({
-      base: resolved,
-      layer: normalizedConversation.normalized,
-      provenance,
-      source: "conversation_override"
-    });
+    resolved =
+      this.applyLayer({
+        base: resolved,
+        layer:
+          normalizedConversation
+            .normalized,
+        provenance,
+        source:
+          "conversation_override"
+      });
 
-    resolved = this.applyLayer({
-      base: resolved,
-      layer: normalizedCurrentTurn.normalized,
-      provenance,
-      source: "current_turn_override"
-    });
+    resolved =
+      this.applyLayer({
+        base: resolved,
+        layer:
+          normalizedCurrentTurn
+            .normalized,
+        provenance,
+        source:
+          "current_turn_override"
+      });
 
     const modelInstructions =
       this.buildModelInstructions(
@@ -1433,16 +1840,20 @@ window.AriUserPreferenceContract = {
       success: true,
       ready: true,
       complete: true,
-      schemaVersion: this.schemaVersion,
+      schemaVersion:
+        this.schemaVersion,
       source: this.source,
       version: this.version,
-      activePreset: preset.id,
-      resolvedPreferences: resolved,
+      activePreset:
+        preset.id,
+      resolvedPreferences:
+        resolved,
       modelInstructions,
       instructionText,
       provenance,
       warnings,
-      authority: "resolved_interaction_style_only"
+      authority:
+        "resolved_interaction_style_only"
     };
   },
 
@@ -1456,14 +1867,26 @@ window.AriUserPreferenceContract = {
   ) {
     const instructions = [];
 
-    for (const [categoryKey, categoryValue] of Object.entries(
-      resolvedPreferences
-    )) {
-      if (!this.isPlainObject(categoryValue)) {
+    for (
+      const [categoryKey, categoryValue]
+      of Object.entries(
+        resolvedPreferences
+      )
+    ) {
+      if (
+        !this.isPlainObject(
+          categoryValue
+        )
+      ) {
         continue;
       }
 
-      for (const [preferenceKey, value] of Object.entries(categoryValue)) {
+      for (
+        const [preferenceKey, value]
+        of Object.entries(
+          categoryValue
+        )
+      ) {
         const option =
           this.getPreferenceOption(
             categoryKey,
@@ -1473,7 +1896,8 @@ window.AriUserPreferenceContract = {
 
         if (
           !option ||
-          typeof option.instruction !== "string" ||
+          typeof option.instruction !==
+            "string" ||
           !option.instruction.trim()
         ) {
           continue;
@@ -1492,13 +1916,17 @@ window.AriUserPreferenceContract = {
             "unknown",
           enforcement:
             option.enforcement ||
-            this.ENFORCEMENT.ADAPTIVE,
+            this.ENFORCEMENT
+              .ADAPTIVE,
           currentTurnAdjustable:
-            option.currentTurnAdjustable !== false,
+            option
+              .currentTurnAdjustable !==
+            false,
           instruction:
             option.instruction.trim(),
           consentRequired:
-            option.consentRequired === true
+            option.consentRequired ===
+            true
         });
       }
     }
@@ -1516,7 +1944,9 @@ window.AriUserPreferenceContract = {
         provenance
       );
 
-    if (!instructions.length) {
+    if (
+      !instructions.length
+    ) {
       return "";
     }
 
@@ -1524,14 +1954,16 @@ window.AriUserPreferenceContract = {
       instructions.filter(
         entry =>
           entry.enforcement ===
-          this.ENFORCEMENT.HARD_OPT_OUT
+          this.ENFORCEMENT
+            .HARD_OPT_OUT
       );
 
     const adaptiveAndPreferred =
       instructions.filter(
         entry =>
           entry.enforcement !==
-          this.ENFORCEMENT.HARD_OPT_OUT
+          this.ENFORCEMENT
+            .HARD_OPT_OUT
       );
 
     const lines = [
@@ -1542,7 +1974,9 @@ window.AriUserPreferenceContract = {
       ""
     ];
 
-    if (hardOptOuts.length) {
+    if (
+      hardOptOuts.length
+    ) {
       lines.push(
         "EXPLICIT USER OPT-OUTS",
         ...hardOptOuts.map(
@@ -1553,7 +1987,9 @@ window.AriUserPreferenceContract = {
       );
     }
 
-    if (adaptiveAndPreferred.length) {
+    if (
+      adaptiveAndPreferred.length
+    ) {
       lines.push(
         "ADAPTIVE STYLE GUIDANCE",
         ...adaptiveAndPreferred.map(
@@ -1563,7 +1999,9 @@ window.AriUserPreferenceContract = {
       );
     }
 
-    return lines.join("\n").trim();
+    return lines
+      .join("\n")
+      .trim();
   },
 
   /* =====================================================
@@ -1580,32 +2018,43 @@ window.AriUserPreferenceContract = {
 
     if (
       next?.[category] &&
-      Object.prototype.hasOwnProperty.call(
-        next[category],
-        key
-      )
+      Object.prototype
+        .hasOwnProperty.call(
+          next[category],
+          key
+        )
     ) {
-      delete next[category][key];
+      delete next[
+        category
+      ][key];
 
       if (
-        Object.keys(next[category]).length === 0
+        Object.keys(
+          next[category]
+        ).length === 0
       ) {
-        delete next[category];
+        delete next[
+          category
+        ];
       }
     }
 
     return next;
   },
 
-  resetCategory(overrides = {}, category) {
+  resetCategory(
+    overrides = {},
+    category
+  ) {
     const next =
       this.clone(overrides);
 
     if (
-      Object.prototype.hasOwnProperty.call(
-        next,
-        category
-      )
+      Object.prototype
+        .hasOwnProperty.call(
+          next,
+          category
+        )
     ) {
       delete next[category];
     }
@@ -1623,18 +2072,34 @@ window.AriUserPreferenceContract = {
     source = "unknown"
   } = {}) {
     if (
-      !this.isPlainObject(layer) ||
-      !this.isPlainObject(provenance)
+      !this.isPlainObject(
+        layer
+      ) ||
+      !this.isPlainObject(
+        provenance
+      )
     ) {
       return provenance;
     }
 
-    for (const [categoryKey, categoryValue] of Object.entries(layer)) {
-      if (!this.isPlainObject(categoryValue)) {
+    for (
+      const [categoryKey, categoryValue]
+      of Object.entries(layer)
+    ) {
+      if (
+        !this.isPlainObject(
+          categoryValue
+        )
+      ) {
         continue;
       }
 
-      for (const [preferenceKey, value] of Object.entries(categoryValue)) {
+      for (
+        const [preferenceKey, value]
+        of Object.entries(
+          categoryValue
+        )
+      ) {
         if (
           !this.isValidPreferenceValue(
             categoryKey,
@@ -1663,31 +2128,52 @@ window.AriUserPreferenceContract = {
     const output =
       this.clone(base);
 
-    if (!this.isPlainObject(layer)) {
+    if (
+      !this.isPlainObject(
+        layer
+      )
+    ) {
       return output;
     }
 
-    for (const [categoryKey, categoryValue] of Object.entries(layer)) {
-      if (!this.isPlainObject(categoryValue)) {
+    for (
+      const [categoryKey, categoryValue]
+      of Object.entries(layer)
+    ) {
+      if (
+        !this.isPlainObject(
+          categoryValue
+        )
+      ) {
         continue;
       }
 
       output[categoryKey] =
-        output[categoryKey] || {};
+        output[
+          categoryKey
+        ] || {};
 
-      for (const [preferenceKey, value] of Object.entries(categoryValue)) {
+      for (
+        const [preferenceKey, value]
+        of Object.entries(
+          categoryValue
+        )
+      ) {
         if (
           !this.isValidPreferenceValue(
             categoryKey,
             preferenceKey,
             value
           ) ||
-          value === this.DEFAULT_VALUE
+          value ===
+          this.DEFAULT_VALUE
         ) {
           continue;
         }
 
-        output[categoryKey][preferenceKey] =
+        output[
+          categoryKey
+        ][preferenceKey] =
           value;
 
         provenance[
@@ -1707,25 +2193,46 @@ window.AriUserPreferenceContract = {
     const errors = [];
     const warnings = [];
 
-    for (const [categoryKey, category] of Object.entries(this.categories)) {
-      if (!this.isPlainObject(category.preferences)) {
+    for (
+      const [categoryKey, category]
+      of Object.entries(
+        this.categories
+      )
+    ) {
+      if (
+        !this.isPlainObject(
+          category.preferences
+        )
+      ) {
         errors.push(
           `category_preferences_missing:${categoryKey}`
         );
+
         continue;
       }
 
-      for (const [preferenceKey, definition] of Object.entries(
-        category.preferences
-      )) {
-        if (!this.isPlainObject(definition.options)) {
+      for (
+        const [preferenceKey, definition]
+        of Object.entries(
+          category.preferences
+        )
+      ) {
+        if (
+          !this.isPlainObject(
+            definition.options
+          )
+        ) {
           errors.push(
             `preference_options_missing:${categoryKey}.${preferenceKey}`
           );
+
           continue;
         }
 
-        if (!definition.options.default) {
+        if (
+          !definition.options
+            .default
+        ) {
           errors.push(
             `default_sentinel_missing:${categoryKey}.${preferenceKey}`
           );
@@ -1733,8 +2240,18 @@ window.AriUserPreferenceContract = {
       }
     }
 
-    for (const [categoryKey, values] of Object.entries(this.runtimeDefaults)) {
-      for (const [preferenceKey, value] of Object.entries(values || {})) {
+    for (
+      const [categoryKey, values]
+      of Object.entries(
+        this.runtimeDefaults
+      )
+    ) {
+      for (
+        const [preferenceKey, value]
+        of Object.entries(
+          values || {}
+        )
+      ) {
         if (
           !this.isValidPreferenceValue(
             categoryKey,
@@ -1749,8 +2266,83 @@ window.AriUserPreferenceContract = {
       }
     }
 
+    for (
+      const [presentationId, presentation]
+      of Object.entries(
+        this.uiPresentation
+          ?.primaryPreferences ||
+        {}
+      )
+    ) {
+      const category =
+        presentation?.category;
+
+      const key =
+        presentation?.key;
+
+      const expectedPath =
+        category && key
+          ? `${category}.${key}`
+          : null;
+
+      if (
+        !category ||
+        !key ||
+        !presentation?.path
+      ) {
+        errors.push(
+          `primary_ui_preference_invalid:${presentationId}`
+        );
+
+        continue;
+      }
+
+      if (
+        presentation.path !==
+        expectedPath
+      ) {
+        errors.push(
+          `primary_ui_path_mismatch:${presentationId}:${presentation.path}:${expectedPath}`
+        );
+      }
+
+      const definition =
+        this.getPreferenceDefinition(
+          category,
+          key
+        );
+
+      if (!definition) {
+        errors.push(
+          `primary_ui_preference_missing:${presentation.path}`
+        );
+
+        continue;
+      }
+
+      for (
+        const value
+        of presentation
+          .visibleValues || []
+      ) {
+        if (
+          !this.isValidPreferenceValue(
+            category,
+            key,
+            value
+          )
+        ) {
+          errors.push(
+            `primary_ui_value_invalid:${presentation.path}:${value}`
+          );
+        }
+      }
+    }
+
     if (
-      this.runtimeDefaults?.language?.profanity ===
+      this.runtimeDefaults
+        ?.language
+        ?.profanity ===
       "clean"
     ) {
       warnings.push(
@@ -1759,7 +2351,9 @@ window.AriUserPreferenceContract = {
     }
 
     if (
-      this.runtimeDefaults?.language?.sarcasm ===
+      this.runtimeDefaults
+        ?.language
+        ?.sarcasm ===
       "none"
     ) {
       warnings.push(
@@ -1768,32 +2362,75 @@ window.AriUserPreferenceContract = {
     }
 
     return {
-      valid: errors.length === 0,
-      ready: errors.length === 0,
-      source: `${this.source}-validation`,
-      version: this.version,
+      valid:
+        errors.length === 0,
+
+      ready:
+        errors.length === 0,
+
+      source:
+        `${this.source}-validation`,
+
+      version:
+        this.version,
+
       errors,
       warnings,
+
       checks: {
         adaptiveProfanityDefault:
-          this.runtimeDefaults?.language?.profanity ===
+          this.runtimeDefaults
+            ?.language
+            ?.profanity ===
           "adaptive",
+
         adaptiveHumorDefault:
-          this.runtimeDefaults?.language?.humor ===
+          this.runtimeDefaults
+            ?.language
+            ?.humor ===
           "adaptive",
+
         adaptiveSarcasmDefault:
-          this.runtimeDefaults?.language?.sarcasm ===
+          this.runtimeDefaults
+            ?.language
+            ?.sarcasm ===
           "adaptive",
+
         adaptiveBanterDefault:
-          this.runtimeDefaults?.language?.banter ===
+          this.runtimeDefaults
+            ?.language
+            ?.banter ===
           "adaptive",
+
         adaptiveRoastingDefault:
-          this.runtimeDefaults?.language?.roasting ===
+          this.runtimeDefaults
+            ?.language
+            ?.roasting ===
           "adaptive",
+
         styleDoesNotOwnSafety:
           true,
+
         explicitOptOutsRemainAvailable:
-          true
+          true,
+
+        primaryHumorConfigured:
+          this.isPrimaryUiPreference(
+            "language",
+            "humor"
+          ),
+
+        primaryLanguageConfigured:
+          this.isPrimaryUiPreference(
+            "language",
+            "profanity"
+          ),
+
+        specializationNotDeclared:
+          !this.categories
+            ?.domain
+            ?.preferences
+            ?.specialization
       }
     };
   },
@@ -1805,42 +2442,30 @@ window.AriUserPreferenceContract = {
   isPlainObject(value) {
     return Boolean(
       value &&
-      typeof value === "object" &&
+      typeof value ===
+        "object" &&
       !Array.isArray(value)
     );
   },
 
   clone(value) {
-    if (value === undefined) {
+    if (
+      value === undefined
+    ) {
       return undefined;
     }
 
     try {
       return JSON.parse(
-        JSON.stringify(value)
+        JSON.stringify(
+          value
+        )
       );
     } catch {
       return value;
     }
   }
 };
-
-/*
- * Repair the one declaration that cannot safely reference `this` inside the
- * object literal during initialization.
- */
-window.AriUserPreferenceContract
-  .categories
-  .communication
-  .preferences
-  .directness
-  .options
-  .default = {
-    label: "Default",
-    description: "Ari adapts directness naturally.",
-    enforcement: "adaptive",
-    instruction: null
-  };
 
 window.Ari.userPreferenceContract =
   window.AriUserPreferenceContract;
@@ -1851,9 +2476,14 @@ const ariUserPreferenceContractValidation =
 
 console.log(
   "ARI USER PREFERENCE CONTRACT LOADED:",
-  window.AriUserPreferenceContract?.version,
-  ariUserPreferenceContractValidation?.ready === true
-    ? "READY"
-    : "INVALID",
+  window
+    .AriUserPreferenceContract
+    ?.version,
+
+  ariUserPreferenceContractValidation
+    ?.ready === true
+      ? "READY"
+      : "INVALID",
+
   ariUserPreferenceContractValidation
 );
