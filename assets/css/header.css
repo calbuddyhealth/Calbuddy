@@ -1,21 +1,59 @@
 /* =====================================================
    ARI HEADER
    File: header.css
-   Version: 1.3.1
+   Version: 2.0.0
 
    Purpose:
-   - Control the home and conversation header layouts
-   - Style the menu reactor, center avatar, and brand
-   - Keep the brand fully inside the mobile viewport
-   - Synchronize header effects with Ari's thinking state
+   - Control welcome and conversation header layouts
+   - Present the header as alien command technology
+   - Style the menu reactor, center avatar, and ARI brand
+   - Keep all controls inside the mobile viewport
+   - Synchronize visual states with Ari's runtime state
+   - Preserve accessible touch targets and reduced motion
 
    Animation dependencies:
    - ariLedTextPulse
    - ariBrandThinkingPulse
+   - ariBrandPowerOn
+   - ariBrandEnergySweep
+   - ariHeaderGlassPulse
+   - ariHeaderScanline
+   - ariHeaderGlyphFlicker
+   - ariHeaderButtonIdle
+   - ariHeaderButtonPress
+   - ariHeaderOrbitSpin
    - avatarArrive
    - avatarThinkingRing
    - ariAvatarGlow
+   - ariAvatarSignalSweep
+   - ariControlEnergyRipple
+   - ariGlassReflectionSweep
 ===================================================== */
+
+
+/* =====================================================
+   HEADER TOKENS
+===================================================== */
+
+main#ariApp .ari-header-v4 {
+  --ari-header-cyan: 103, 232, 249;
+  --ari-header-cyan-bright: 200, 255, 255;
+  --ari-header-blue: 34, 211, 238;
+  --ari-header-violet: 109, 82, 255;
+  --ari-header-deep: 2, 7, 18;
+
+  --ari-header-menu-size: 60px;
+  --ari-header-avatar-size: 96px;
+
+  --ari-header-edge:
+    rgba(var(--ari-header-cyan), 0.22);
+
+  --ari-header-glow:
+    rgba(var(--ari-header-blue), 0.24);
+
+  --ari-header-glass:
+    rgba(3, 10, 24, 0.48);
+}
 
 
 /* =====================================================
@@ -26,21 +64,124 @@ main#ariApp .ari-header-v4 {
   position: relative;
   z-index: 50;
 
+  isolation: isolate;
+
   display: grid;
   grid-template-columns:
-    58px
+    var(--ari-header-menu-size)
     minmax(0, 1fr);
 
   align-items: center;
 
   width: 100%;
   max-width: 100%;
-  min-height: 86px;
+  min-height: 88px;
 
-  gap: 12px;
-  padding: 8px 4px 4px;
+  gap: 14px;
+
+  margin: 0;
+  padding:
+    max(8px, env(safe-area-inset-top))
+    6px
+    4px;
 
   overflow: visible;
+
+  transform: translateZ(0);
+}
+
+
+/* =====================================================
+   HEADER ATMOSPHERIC FIELD
+===================================================== */
+
+main#ariApp .ari-header-v4::before {
+  content: "";
+
+  position: absolute;
+  z-index: -2;
+
+  top: max(4px, env(safe-area-inset-top));
+  right: -8px;
+  bottom: -8px;
+  left: -8px;
+
+  border: 1px solid rgba(var(--ari-header-cyan), 0.08);
+  border-radius: 26px;
+
+  background:
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.045),
+      transparent 24%,
+      rgba(var(--ari-header-blue), 0.025) 52%,
+      transparent 76%
+    ),
+    radial-gradient(
+      circle at 14% 50%,
+      rgba(var(--ari-header-blue), 0.10),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 92% 42%,
+      rgba(var(--ari-header-violet), 0.08),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(4, 14, 30, 0.30),
+      rgba(2, 7, 18, 0.12)
+    );
+
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+
+  opacity: 0.82;
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
+   HEADER SCANNING LIGHT
+===================================================== */
+
+main#ariApp .ari-header-v4::after {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+
+  top: 11px;
+  bottom: 2px;
+  left: -25%;
+
+  width: 18%;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--ari-header-cyan-bright), 0.03),
+      rgba(var(--ari-header-cyan), 0.15),
+      rgba(255, 255, 255, 0.24),
+      rgba(var(--ari-header-cyan), 0.10),
+      transparent
+    );
+
+  filter: blur(2px);
+
+  opacity: 0;
+
+  transform: skewX(-18deg);
+
+  animation:
+    ariHeaderScanline 12s ease-in-out 2.4s infinite;
+
+  pointer-events: none;
 }
 
 
@@ -50,11 +191,13 @@ main#ariApp .ari-header-v4 {
 
 main#ariApp.conversation-mode .ari-header-v4 {
   grid-template-columns:
-    58px
-    minmax(76px, 1fr)
-    minmax(120px, auto);
+    var(--ari-header-menu-size)
+    minmax(78px, 1fr)
+    minmax(124px, auto);
 
-  gap: 8px;
+  gap: 9px;
+
+  min-height: 104px;
 }
 
 
@@ -66,6 +209,7 @@ main#ariApp .ari-header-v4 .ari-menu-toggle {
   grid-column: 1;
 
   justify-self: start;
+  align-self: center;
 }
 
 
@@ -75,16 +219,28 @@ main#ariApp .ari-header-v4 .ari-menu-toggle {
 
 main#ariApp .ari-header-v4 .ari-brand-right {
   position: relative;
+  isolation: isolate;
 
   grid-column: 2;
   justify-self: end;
+  align-self: center;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 
   min-width: 0;
   width: auto;
   max-width: 100%;
 
   margin: 0;
-  padding: 0;
+  padding:
+    7px
+    4px
+    6px
+    18px;
+
+  overflow: visible;
 
   color: inherit;
 
@@ -96,8 +252,13 @@ main#ariApp .ari-header-v4 .ari-brand-right {
   text-align: right;
   text-decoration: none;
 
+  transform-origin: right center;
+
   animation:
-    ariLedTextPulse 4.8s ease-in-out infinite;
+    ariBrandPowerOn 1.2s ease-out both,
+    ariLedTextPulse 5.4s ease-in-out 1.25s infinite;
+
+  -webkit-tap-highlight-color: transparent;
 }
 
 main#ariApp.conversation-mode
@@ -108,26 +269,124 @@ main#ariApp.conversation-mode
 
 
 /* =====================================================
+   BRAND HOLOGRAPHIC BACKPLATE
+===================================================== */
+
+main#ariApp .ari-header-v4 .ari-brand-right::before {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+
+  inset: -7px -7px -7px 5px;
+
+  border-top: 1px solid rgba(var(--ari-header-cyan), 0.14);
+  border-right: 1px solid rgba(var(--ari-header-cyan), 0.18);
+  border-bottom: 1px solid rgba(var(--ari-header-cyan), 0.10);
+  border-radius:
+    4px
+    17px
+    17px
+    4px;
+
+  background:
+    linear-gradient(
+      105deg,
+      transparent,
+      rgba(var(--ari-header-blue), 0.035) 35%,
+      rgba(var(--ari-header-violet), 0.045) 74%,
+      rgba(var(--ari-header-cyan), 0.07)
+    );
+
+  box-shadow:
+    12px 0 30px rgba(var(--ari-header-blue), 0.045),
+    inset -1px 0 0 rgba(255, 255, 255, 0.055);
+
+  opacity: 0.92;
+
+  clip-path:
+    polygon(
+      10px 0,
+      100% 0,
+      100% calc(100% - 10px),
+      calc(100% - 10px) 100%,
+      0 100%,
+      0 10px
+    );
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
    BRAND TITLE
 ===================================================== */
 
 main#ariApp .ari-header-v4 .ari-brand-title {
+  position: relative;
+
   display: block;
+
+  max-width: 100%;
+
   margin: 0;
 
-  color: #e8ffff;
+  color: #eaffff;
 
-  font-size: clamp(30px, 8vw, 40px);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: 0.04em;
+  font-family:
+    Audiowide,
+    Orbitron,
+    system-ui,
+    sans-serif;
+
+  font-size: clamp(30px, 8vw, 41px);
+  font-weight: 400;
+  line-height: 0.94;
+  letter-spacing: 0.055em;
 
   white-space: nowrap;
 
+  background:
+    linear-gradient(
+      96deg,
+      #ffffff 0%,
+      #dfffff 18%,
+      #68efff 42%,
+      #ffffff 53%,
+      #69eaff 68%,
+      #bdefff 100%
+    );
+
+  background-size: 240% 100%;
+  background-position: 40% 50%;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+
   text-shadow:
-    0 0 5px rgba(232,255,255,1),
-    0 0 12px rgba(34,211,238,.90),
-    0 0 26px rgba(34,211,238,.48);
+    0 0 5px rgba(232, 255, 255, 0.95),
+    0 0 12px rgba(var(--ari-header-blue), 0.86),
+    0 0 27px rgba(var(--ari-header-blue), 0.48),
+    0 0 50px rgba(var(--ari-header-violet), 0.12);
+
+  filter:
+    drop-shadow(
+      0 0 1px
+      rgba(255, 255, 255, 0.80)
+    );
+}
+
+
+/* =====================================================
+   BRAND TITLE SHIMMER
+===================================================== */
+
+main#ariApp .ari-header-v4 .ari-brand-right:hover .ari-brand-title,
+main#ariApp .ari-header-v4 .ari-brand-right:focus-visible .ari-brand-title {
+  animation:
+    ariBrandEnergySweep 1.1s linear both;
 }
 
 
@@ -136,23 +395,56 @@ main#ariApp .ari-header-v4 .ari-brand-title {
 ===================================================== */
 
 main#ariApp .ari-header-v4 .ari-brand-subtitle {
+  position: relative;
+
   display: block;
-  margin-top: 2px;
 
-  color: rgba(200,255,255,.92);
+  max-width: 100%;
 
-  font-size: clamp(11px, 2.8vw, 14px);
-  font-weight: 900;
-  line-height: 1.1;
-  letter-spacing: 0.18em;
+  margin-top: 4px;
+
+  color: rgba(203, 255, 255, 0.92);
+
+  font-size: clamp(10px, 2.6vw, 13px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.20em;
 
   white-space: nowrap;
 
   text-shadow:
-    0 0 4px rgba(200,255,255,.95),
-    0 0 10px rgba(34,211,238,.80),
-    0 0 22px rgba(34,211,238,.42);
+    0 0 4px rgba(203, 255, 255, 0.92),
+    0 0 10px rgba(var(--ari-header-blue), 0.70),
+    0 0 22px rgba(var(--ari-header-blue), 0.36);
+
+  opacity: 0.94;
 }
+
+
+/* =====================================================
+   BRAND MICRO GLYPH
+===================================================== */
+
+main#ariApp .ari-header-v4 .ari-brand-subtitle::before {
+  content: "◈";
+
+  display: inline-block;
+
+  margin-right: 7px;
+
+  color: rgba(var(--ari-header-cyan), 0.82);
+
+  font-size: 0.72em;
+  line-height: 1;
+
+  text-shadow:
+    0 0 6px rgba(var(--ari-header-blue), 0.85);
+
+  animation:
+    ariHeaderGlyphFlicker 7.5s ease-in-out infinite;
+}
+
+
 /* =====================================================
    BRAND LED LINE
 ===================================================== */
@@ -162,26 +454,33 @@ main#ariApp .ari-header-v4 .ari-brand-right::after {
 
   display: block;
 
-  width: 100%;
-  height: 1px;
+  width: calc(100% - 2px);
+  height: 2px;
 
-  margin-top: 5px;
+  margin-top: 7px;
 
   border-radius: 999px;
 
   background:
     linear-gradient(
       90deg,
-      transparent,
-      rgba(103, 232, 249, 0.35),
-      rgba(200, 255, 255, 0.95),
-      rgba(103, 232, 249, 0.35),
-      transparent
+      transparent 0%,
+      rgba(var(--ari-header-cyan), 0.20) 10%,
+      rgba(var(--ari-header-cyan), 0.76) 38%,
+      rgba(var(--ari-header-cyan-bright), 1) 51%,
+      rgba(var(--ari-header-violet), 0.72) 74%,
+      transparent 100%
     );
 
+  background-size: 220% 100%;
+
   box-shadow:
-    0 0 8px rgba(34, 211, 238, 0.80),
-    0 0 18px rgba(34, 211, 238, 0.45);
+    0 0 8px rgba(var(--ari-header-blue), 0.86),
+    0 0 20px rgba(var(--ari-header-blue), 0.44),
+    0 0 34px rgba(var(--ari-header-violet), 0.12);
+
+  animation:
+    ariBrandEnergySweep 6.5s linear infinite;
 
   pointer-events: none;
 }
@@ -198,7 +497,44 @@ main#ariApp:has(#ariInput:disabled)
   .ari-header-v4
   .ari-brand-right {
   animation:
-    ariBrandThinkingPulse 1.15s ease-in-out infinite;
+    ariBrandThinkingPulse 1.12s ease-in-out infinite;
+}
+
+main#ariApp.ari-thinking-mode
+  .ari-header-v4
+  .ari-brand-right::before,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4
+  .ari-brand-right::before {
+  border-color:
+    rgba(var(--ari-header-cyan), 0.36);
+
+  background:
+    linear-gradient(
+      105deg,
+      transparent,
+      rgba(var(--ari-header-blue), 0.08) 38%,
+      rgba(var(--ari-header-violet), 0.12) 72%,
+      rgba(var(--ari-header-cyan), 0.13)
+    );
+
+  box-shadow:
+    0 0 25px rgba(var(--ari-header-blue), 0.14),
+    0 0 52px rgba(var(--ari-header-violet), 0.08),
+    inset -1px 0 0 rgba(255, 255, 255, 0.10);
+}
+
+
+/* =====================================================
+   BRAND INTERACTION
+===================================================== */
+
+main#ariApp
+  .ari-header-v4
+  .ari-brand-right:focus-visible {
+  outline: 2px solid rgba(var(--ari-header-cyan), 0.94);
+  outline-offset: 5px;
+  border-radius: 10px;
 }
 
 
@@ -209,11 +545,14 @@ main#ariApp:has(#ariInput:disabled)
 main#ariApp .ari-header-v4 .ari-header-avatar-shell {
   display: none;
 
+  position: relative;
+  isolation: isolate;
+
   grid-column: 2;
 
   border-radius: 50%;
 
-  overflow: hidden;
+  overflow: visible;
 }
 
 
@@ -231,24 +570,142 @@ main#ariApp.conversation-mode
   justify-self: center;
   align-self: center;
 
-  width: 96px;
-  height: 96px;
+  width: var(--ari-header-avatar-size);
+  height: var(--ari-header-avatar-size);
 
   margin: 0;
-  padding: 0;
+  padding: 5px;
 
-  overflow: hidden;
+  border:
+    1px solid
+    rgba(var(--ari-header-cyan), 0.76);
 
-  border: 2px solid rgba(103, 232, 249, 0.90);
   border-radius: 50%;
 
-  background: rgba(2, 8, 18, 0.90);
+  background:
+    radial-gradient(
+      circle at 34% 24%,
+      rgba(255, 255, 255, 0.16),
+      transparent 23%
+    ),
+    radial-gradient(
+      circle,
+      rgba(var(--ari-header-blue), 0.12),
+      rgba(2, 8, 18, 0.93) 68%
+    );
 
   box-shadow:
-    0 0 20px rgba(34, 211, 238, 0.75),
-    0 0 44px rgba(34, 211, 238, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    0 0 0 5px rgba(var(--ari-header-blue), 0.055),
+    0 0 20px rgba(var(--ari-header-blue), 0.58),
+    0 0 46px rgba(var(--ari-header-blue), 0.22),
+    0 0 72px rgba(var(--ari-header-violet), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -14px 24px rgba(0, 0, 0, 0.40);
+
+  animation:
+    avatarArrive 0.58s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+
+
+/* =====================================================
+   AVATAR OUTER ORBIT
+===================================================== */
+
+main#ariApp.conversation-mode
+  .ari-header-v4
+  .ari-header-avatar-shell::before {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+
+  inset: -8px;
+
+  border:
+    1px dashed
+    rgba(var(--ari-header-cyan), 0.30);
+
+  border-radius: 50%;
+
+  background:
+    conic-gradient(
+      from 20deg,
+      transparent 0deg 22deg,
+      rgba(var(--ari-header-cyan), 0.72) 23deg 28deg,
+      transparent 29deg 105deg,
+      rgba(var(--ari-header-violet), 0.60) 106deg 112deg,
+      transparent 113deg 210deg,
+      rgba(var(--ari-header-cyan), 0.54) 211deg 216deg,
+      transparent 217deg 332deg,
+      rgba(255, 255, 255, 0.62) 333deg 337deg,
+      transparent 338deg 360deg
+    );
+
+  -webkit-mask:
+    radial-gradient(
+      circle,
+      transparent 63%,
+      #000 65% 68%,
+      transparent 70%
+    );
+
+  mask:
+    radial-gradient(
+      circle,
+      transparent 63%,
+      #000 65% 68%,
+      transparent 70%
+    );
+
+  opacity: 0.78;
+
+  animation:
+    ariHeaderOrbitSpin 15s linear infinite;
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
+   AVATAR SIGNAL SCAN
+===================================================== */
+
+main#ariApp.conversation-mode
+  .ari-header-v4
+  .ari-header-avatar-shell::after {
+  content: "";
+
+  position: absolute;
+  z-index: 3;
+
+  top: 5px;
+  right: 5px;
+  bottom: 5px;
+  left: 5px;
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 35%,
+      rgba(var(--ari-header-cyan), 0.08) 43%,
+      rgba(var(--ari-header-cyan-bright), 0.42) 49%,
+      rgba(var(--ari-header-cyan), 0.08) 55%,
+      transparent 64%
+    );
+
+  mix-blend-mode: screen;
+
+  opacity: 0;
+
+  animation:
+    ariAvatarSignalSweep 8.5s ease-in-out 1.8s infinite;
+
+  pointer-events: none;
+}
+
 
 /* =====================================================
    HEADER AVATAR IMAGE
@@ -257,21 +714,48 @@ main#ariApp.conversation-mode
 main#ariApp.conversation-mode
   .ari-header-v4
   #ariHeaderAvatar {
+  position: relative;
+  z-index: 1;
+
   display: block;
   flex: 0 0 auto;
 
-  width: 160%;
-  height: 160%;
+  width: 100%;
+  height: 100%;
   max-width: none;
+
+  border-radius: 50%;
 
   object-fit: cover;
   object-position: center 47%;
 
+  transform: scale(1.58);
   transform-origin: center;
 
   animation:
     ariAvatarGlow 6.2s ease-in-out infinite;
+
+  will-change: filter;
 }
+
+
+/* =====================================================
+   AVATAR IMAGE CLIPPING
+===================================================== */
+
+main#ariApp.conversation-mode
+  .ari-header-v4
+  .ari-header-avatar-shell {
+  clip-path: circle(72% at 50% 50%);
+}
+
+main#ariApp.conversation-mode
+  .ari-header-v4
+  .ari-header-avatar-shell
+  #ariHeaderAvatar {
+  clip-path: circle(31.4% at 50% 50%);
+}
+
 
 /* =====================================================
    AVATAR THINKING STATE
@@ -279,10 +763,42 @@ main#ariApp.conversation-mode
 
 main#ariApp.ari-thinking-mode
   .ari-header-v4
+  .ari-header-avatar-shell,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4
   .ari-header-avatar-shell {
+  border-color:
+    rgba(var(--ari-header-cyan-bright), 0.96);
+
   animation:
     avatarArrive 0.55s ease both,
-    avatarThinkingRing 1.2s ease-in-out infinite;
+    avatarThinkingRing 1.15s ease-in-out infinite;
+}
+
+main#ariApp.ari-thinking-mode
+  .ari-header-v4
+  .ari-header-avatar-shell::before,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4
+  .ari-header-avatar-shell::before {
+  opacity: 1;
+
+  animation-duration: 3.4s;
+
+  filter:
+    drop-shadow(
+      0 0 8px
+      rgba(var(--ari-header-blue), 0.70)
+    );
+}
+
+main#ariApp.ari-thinking-mode
+  .ari-header-v4
+  .ari-header-avatar-shell::after,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4
+  .ari-header-avatar-shell::after {
+  animation-duration: 2.1s;
 }
 
 
@@ -292,49 +808,172 @@ main#ariApp.ari-thinking-mode
 
 main#ariApp .ari-header-v4 .ari-menu-toggle {
   position: relative;
+  isolation: isolate;
 
   display: grid;
   place-items: center;
 
-  width: 58px;
-  height: 58px;
+  width: var(--ari-header-menu-size);
+  height: var(--ari-header-menu-size);
+
+  min-width: 48px;
+  min-height: 48px;
 
   padding: 0;
 
-  overflow: hidden;
+  overflow: visible;
 
-  border: 1px solid rgba(165, 243, 252, 0.46);
+  border:
+    1px solid
+    rgba(var(--ari-header-cyan), 0.54);
+
   border-radius: 50%;
 
   background:
     radial-gradient(
-      circle at 32% 24%,
-      rgba(255, 255, 255, 0.22),
-      transparent 24%
+      circle at 34% 25%,
+      rgba(255, 255, 255, 0.30),
+      transparent 20%
+    ),
+    radial-gradient(
+      circle at 50% 52%,
+      rgba(var(--ari-header-blue), 0.16),
+      transparent 46%
     ),
     linear-gradient(
       145deg,
-      rgba(103, 232, 249, 0.16),
-      rgba(2, 6, 23, 0.86)
+      rgba(var(--ari-header-cyan), 0.18),
+      rgba(8, 20, 44, 0.80) 38%,
+      rgba(2, 6, 23, 0.96)
     );
 
-  color: rgba(200, 255, 255, 0.95);
+  color:
+    rgba(var(--ari-header-cyan-bright), 0.98);
 
   cursor: pointer;
 
   box-shadow:
-    0 0 0 7px rgba(34, 211, 238, 0.06),
-    0 0 24px rgba(34, 211, 238, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -10px 22px rgba(0, 0, 0, 0.35);
+    0 0 0 6px rgba(var(--ari-header-blue), 0.055),
+    0 0 22px rgba(var(--ari-header-blue), 0.34),
+    0 0 44px rgba(var(--ari-header-violet), 0.07),
+    0 14px 32px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -12px 24px rgba(0, 0, 0, 0.42);
+
+  transform: translateZ(0);
 
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    filter 160ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease,
+    filter 180ms ease,
     transform 140ms ease;
 
+  animation:
+    ariHeaderButtonIdle 4.8s ease-in-out infinite;
+
   -webkit-tap-highlight-color: transparent;
+}
+
+
+/* =====================================================
+   MENU OUTER REACTOR RING
+===================================================== */
+
+main#ariApp .ari-header-v4 .ari-menu-toggle::before {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+
+  inset: -7px;
+
+  border:
+    1px solid
+    rgba(var(--ari-header-cyan), 0.24);
+
+  border-radius: 50%;
+
+  background:
+    conic-gradient(
+      from 0deg,
+      transparent 0deg 34deg,
+      rgba(var(--ari-header-cyan), 0.76) 35deg 42deg,
+      transparent 43deg 112deg,
+      rgba(var(--ari-header-violet), 0.62) 113deg 120deg,
+      transparent 121deg 205deg,
+      rgba(var(--ari-header-cyan), 0.62) 206deg 214deg,
+      transparent 215deg 310deg,
+      rgba(255, 255, 255, 0.70) 311deg 316deg,
+      transparent 317deg 360deg
+    );
+
+  -webkit-mask:
+    radial-gradient(
+      circle,
+      transparent 64%,
+      #000 66% 70%,
+      transparent 72%
+    );
+
+  mask:
+    radial-gradient(
+      circle,
+      transparent 64%,
+      #000 66% 70%,
+      transparent 72%
+    );
+
+  opacity: 0.72;
+
+  animation:
+    ariHeaderOrbitSpin 13s linear infinite;
+
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease,
+    transform 180ms ease;
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
+   MENU CORE / ENERGY RIPPLE
+===================================================== */
+
+main#ariApp .ari-header-v4 .ari-menu-toggle::after {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+
+  top: 50%;
+  left: 50%;
+
+  width: 72%;
+  height: 72%;
+
+  border:
+    1px solid
+    rgba(var(--ari-header-cyan), 0.28);
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--ari-header-blue), 0.14),
+      transparent 68%
+    );
+
+  opacity: 0;
+
+  transform:
+    translate(-50%, -50%)
+    scale(0.42);
+
+  pointer-events: none;
 }
 
 
@@ -344,6 +983,8 @@ main#ariApp .ari-header-v4 .ari-menu-toggle {
 
 main#ariApp .ari-header-v4 .ari-menu-toggle span {
   position: absolute;
+  z-index: 2;
+
   left: 50%;
 
   width: 25px;
@@ -351,39 +992,52 @@ main#ariApp .ari-header-v4 .ari-menu-toggle span {
 
   border-radius: 999px;
 
-  background: rgba(200, 255, 255, 0.95);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--ari-header-cyan), 0.64),
+      rgba(var(--ari-header-cyan-bright), 1),
+      rgba(var(--ari-header-cyan), 0.74)
+    );
 
   box-shadow:
-    0 0 8px rgba(200, 255, 255, 0.90),
-    0 0 18px rgba(34, 211, 238, 0.58);
+    0 0 6px rgba(var(--ari-header-cyan-bright), 0.95),
+    0 0 13px rgba(var(--ari-header-blue), 0.76),
+    0 0 22px rgba(var(--ari-header-blue), 0.30);
 
   transform: translateX(-50%);
 
+  transform-origin: center;
+
   transition:
-    top 250ms ease,
+    top 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 220ms ease,
     opacity 200ms ease,
-    transform 250ms ease;
+    filter 200ms ease,
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle
   span:nth-child(1) {
-  top: 20px;
+  top: 21px;
 }
 
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle
   span:nth-child(2) {
-  top: 28px;
+  top: 29px;
+
+  width: 19px;
 }
 
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle
   span:nth-child(3) {
-  top: 36px;
+  top: 37px;
 }
 
 
@@ -393,9 +1047,48 @@ main#ariApp
 
 main#ariApp
   .ari-header-v4
+  .ari-menu-toggle.open {
+  border-color:
+    rgba(var(--ari-header-cyan-bright), 0.92);
+
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(var(--ari-header-blue), 0.22),
+      rgba(8, 20, 44, 0.90) 48%,
+      rgba(2, 6, 23, 0.98)
+    );
+
+  box-shadow:
+    0 0 0 7px rgba(var(--ari-header-blue), 0.09),
+    0 0 30px rgba(var(--ari-header-blue), 0.54),
+    0 0 60px rgba(var(--ari-header-violet), 0.16),
+    0 14px 34px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -12px 25px rgba(0, 0, 0, 0.38);
+}
+
+main#ariApp
+  .ari-header-v4
+  .ari-menu-toggle.open::before {
+  opacity: 1;
+
+  animation-duration: 4.2s;
+
+  filter:
+    drop-shadow(
+      0 0 8px
+      rgba(var(--ari-header-blue), 0.72)
+    );
+}
+
+main#ariApp
+  .ari-header-v4
   .ari-menu-toggle.open
   span:nth-child(1) {
-  top: 28px;
+  top: 29px;
+
+  width: 27px;
 
   transform:
     translateX(-50%)
@@ -417,7 +1110,9 @@ main#ariApp
   .ari-header-v4
   .ari-menu-toggle.open
   span:nth-child(3) {
-  top: 28px;
+  top: 29px;
+
+  width: 27px;
 
   transform:
     translateX(-50%)
@@ -432,36 +1127,160 @@ main#ariApp
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle:not(:disabled):hover {
-  border-color: rgba(165, 243, 252, 0.72);
+  border-color:
+    rgba(var(--ari-header-cyan-bright), 0.88);
 
-  filter: brightness(1.08);
+  filter:
+    brightness(1.12)
+    saturate(1.12);
+
+  transform:
+    translate3d(0, -2px, 0)
+    scale(1.025);
 
   box-shadow:
-    0 0 0 7px rgba(34, 211, 238, 0.08),
-    0 0 30px rgba(34, 211, 238, 0.46),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 -10px 22px rgba(0, 0, 0, 0.35);
+    0 0 0 7px rgba(var(--ari-header-blue), 0.09),
+    0 0 32px rgba(var(--ari-header-blue), 0.54),
+    0 0 58px rgba(var(--ari-header-violet), 0.12),
+    0 16px 34px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -10px 22px rgba(0, 0, 0, 0.32);
+}
+
+main#ariApp
+  .ari-header-v4
+  .ari-menu-toggle:not(:disabled):hover::before {
+  opacity: 1;
+
+  filter:
+    drop-shadow(
+      0 0 7px
+      rgba(var(--ari-header-blue), 0.64)
+    );
+}
+
+main#ariApp
+  .ari-header-v4
+  .ari-menu-toggle:not(:disabled):hover
+  span {
+  filter: brightness(1.30);
 }
 
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle:not(:disabled):active {
-  transform: scale(0.94);
+  transform: scale(0.91);
+
+  animation:
+    ariHeaderButtonPress 360ms ease both;
+}
+
+main#ariApp
+  .ari-header-v4
+  .ari-menu-toggle:not(:disabled):active::after {
+  animation:
+    ariControlEnergyRipple 520ms ease-out both;
 }
 
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle:focus-visible {
-  outline: 2px solid #67e8f9;
-  outline-offset: 4px;
+  outline:
+    2px solid
+    rgba(var(--ari-header-cyan), 0.96);
+
+  outline-offset: 5px;
+
+  box-shadow:
+    0 0 0 7px rgba(var(--ari-header-blue), 0.10),
+    0 0 36px rgba(var(--ari-header-blue), 0.64),
+    0 0 68px rgba(var(--ari-header-violet), 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 main#ariApp
   .ari-header-v4
   .ari-menu-toggle:disabled {
-  opacity: 0.5;
+  opacity: 0.42;
 
   cursor: not-allowed;
+
+  filter:
+    grayscale(0.42)
+    brightness(0.72);
+
+  animation: none;
+}
+
+
+/* =====================================================
+   HEADER SYSTEM THINKING STATE
+===================================================== */
+
+main#ariApp.ari-thinking-mode
+  .ari-header-v4::before,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4::before {
+  border-color:
+    rgba(var(--ari-header-cyan), 0.18);
+
+  opacity: 1;
+
+  animation:
+    ariHeaderGlassPulse 2.4s ease-in-out infinite;
+}
+
+main#ariApp.ari-thinking-mode
+  .ari-header-v4::after,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4::after {
+  animation-duration: 2.8s;
+}
+
+main#ariApp.ari-thinking-mode
+  .ari-header-v4
+  .ari-menu-toggle,
+main#ariApp:has(#ariInput:disabled)
+  .ari-header-v4
+  .ari-menu-toggle {
+  border-color:
+    rgba(var(--ari-header-cyan), 0.76);
+
+  box-shadow:
+    0 0 0 7px rgba(var(--ari-header-blue), 0.08),
+    0 0 28px rgba(var(--ari-header-blue), 0.48),
+    0 0 54px rgba(var(--ari-header-violet), 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -12px 24px rgba(0, 0, 0, 0.38);
+}
+
+
+/* =====================================================
+   TABLET / WIDER MOBILE
+===================================================== */
+
+@media (min-width: 600px) {
+  main#ariApp .ari-header-v4 {
+    --ari-header-menu-size: 64px;
+    --ari-header-avatar-size: 104px;
+
+    min-height: 96px;
+
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  main#ariApp.conversation-mode .ari-header-v4 {
+    min-height: 112px;
+  }
+
+  main#ariApp .ari-header-v4 .ari-brand-title {
+    font-size: 43px;
+  }
+
+  main#ariApp .ari-header-v4 .ari-brand-subtitle {
+    font-size: 13px;
+  }
 }
 
 
@@ -471,42 +1290,82 @@ main#ariApp
 
 @media (max-width: 380px) {
   main#ariApp .ari-header-v4 {
+    --ari-header-menu-size: 54px;
+    --ari-header-avatar-size: 84px;
+
     grid-template-columns:
-      54px
+      var(--ari-header-menu-size)
       minmax(0, 1fr);
 
     gap: 8px;
+
+    min-height: 80px;
+
+    padding-right: 3px;
+    padding-left: 3px;
   }
 
   main#ariApp.conversation-mode .ari-header-v4 {
     grid-template-columns:
-      54px
-      minmax(68px, 1fr)
-      minmax(108px, auto);
+      var(--ari-header-menu-size)
+      minmax(65px, 1fr)
+      minmax(106px, auto);
 
     gap: 5px;
+
+    min-height: 96px;
   }
 
-  main#ariApp .ari-header-v4 .ari-menu-toggle {
-    width: 54px;
-    height: 54px;
+  main#ariApp .ari-header-v4 .ari-brand-right {
+    padding-left: 10px;
   }
 
   main#ariApp .ari-header-v4 .ari-brand-title {
-  font-size: 27px;
-  letter-spacing: 0.04em;
-}
+    font-size: 27px;
+    letter-spacing: 0.045em;
+  }
 
-main#ariApp .ari-header-v4 .ari-brand-subtitle {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-}
+  main#ariApp .ari-header-v4 .ari-brand-subtitle {
+    margin-top: 3px;
 
-  main#ariApp.conversation-mode
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+  }
+
+  main#ariApp .ari-header-v4 .ari-brand-subtitle::before {
+    margin-right: 4px;
+  }
+
+  main#ariApp
     .ari-header-v4
-    .ari-header-avatar-shell {
-    width: 86px;
-    height: 86px;
+    .ari-menu-toggle
+    span:nth-child(1) {
+    top: 18px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle
+    span:nth-child(2) {
+    top: 26px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle
+    span:nth-child(3) {
+    top: 34px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle.open
+    span:nth-child(1),
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle.open
+    span:nth-child(3) {
+    top: 26px;
   }
 }
 
@@ -517,38 +1376,138 @@ main#ariApp .ari-header-v4 .ari-brand-subtitle {
 
 @media (max-width: 340px) {
   main#ariApp .ari-header-v4 {
+    --ari-header-menu-size: 50px;
+    --ari-header-avatar-size: 74px;
+
     grid-template-columns:
-      50px
+      var(--ari-header-menu-size)
       minmax(0, 1fr);
+
+    gap: 6px;
+
+    min-height: 74px;
   }
 
   main#ariApp.conversation-mode .ari-header-v4 {
     grid-template-columns:
-      50px
-      minmax(60px, 1fr)
-      minmax(98px, auto);
+      var(--ari-header-menu-size)
+      minmax(55px, 1fr)
+      minmax(96px, auto);
+
+    gap: 3px;
+
+    min-height: 88px;
   }
 
-  main#ariApp .ari-header-v4 .ari-menu-toggle {
-    width: 50px;
-    height: 50px;
+  main#ariApp .ari-header-v4 .ari-brand-right {
+    padding:
+      5px
+      2px
+      5px
+      7px;
   }
 
   main#ariApp .ari-header-v4 .ari-brand-title {
-  font-size: 24px;
-  letter-spacing: 0.03em;
-}
+    font-size: 23px;
+    letter-spacing: 0.03em;
+  }
 
-main#ariApp .ari-header-v4 .ari-brand-subtitle {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-}
+  main#ariApp .ari-header-v4 .ari-brand-subtitle {
+    font-size: 8px;
+    letter-spacing: 0.10em;
+  }
 
-  main#ariApp.conversation-mode
+  main#ariApp .ari-header-v4 .ari-brand-subtitle::before {
+    display: none;
+  }
+
+  main#ariApp .ari-header-v4 .ari-brand-right::after {
+    margin-top: 5px;
+  }
+
+  main#ariApp
     .ari-header-v4
-    .ari-header-avatar-shell {
-    width: 76px;
-    height: 76px;
+    .ari-menu-toggle
+    span {
+    width: 22px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle
+    span:nth-child(1) {
+    top: 16px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle
+    span:nth-child(2) {
+    top: 24px;
+
+    width: 17px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle
+    span:nth-child(3) {
+    top: 32px;
+  }
+
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle.open
+    span:nth-child(1),
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle.open
+    span:nth-child(3) {
+    top: 24px;
+  }
+}
+
+
+/* =====================================================
+   SHORT MOBILE VIEWPORTS
+===================================================== */
+
+@media (max-height: 720px) {
+  main#ariApp .ari-header-v4 {
+    min-height: 76px;
+
+    padding-top:
+      max(5px, env(safe-area-inset-top));
+  }
+
+  main#ariApp.conversation-mode .ari-header-v4 {
+    min-height: 90px;
+  }
+}
+
+
+/* =====================================================
+   TOUCH DEVICES
+===================================================== */
+
+@media (hover: none) {
+  main#ariApp
+    .ari-header-v4
+    .ari-menu-toggle:not(:disabled):hover {
+    border-color:
+      rgba(var(--ari-header-cyan), 0.54);
+
+    filter: none;
+
+    transform: none;
+
+    box-shadow:
+      0 0 0 6px rgba(var(--ari-header-blue), 0.055),
+      0 0 22px rgba(var(--ari-header-blue), 0.34),
+      0 0 44px rgba(var(--ari-header-violet), 0.07),
+      0 14px 32px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 -12px 24px rgba(0, 0, 0, 0.42);
   }
 }
 
@@ -558,22 +1517,43 @@ main#ariApp .ari-header-v4 .ari-brand-subtitle {
 ===================================================== */
 
 @media (prefers-reduced-motion: reduce) {
+  main#ariApp .ari-header-v4::after,
   main#ariApp .ari-header-v4 .ari-brand-right,
+  main#ariApp .ari-header-v4 .ari-brand-right::after,
+  main#ariApp .ari-header-v4 .ari-brand-subtitle::before,
+  main#ariApp .ari-header-v4 .ari-menu-toggle,
+  main#ariApp .ari-header-v4 .ari-menu-toggle::before,
+  main#ariApp.conversation-mode
+    .ari-header-v4
+    .ari-header-avatar-shell,
+  main#ariApp.conversation-mode
+    .ari-header-v4
+    .ari-header-avatar-shell::before,
+  main#ariApp.conversation-mode
+    .ari-header-v4
+    .ari-header-avatar-shell::after,
+  main#ariApp.conversation-mode
+    .ari-header-v4
+    #ariHeaderAvatar,
   main#ariApp.ari-thinking-mode
     .ari-header-v4
     .ari-brand-right,
   main#ariApp:has(#ariInput:disabled)
     .ari-header-v4
     .ari-brand-right,
-  main#ariApp .ari-header-v4 #ariHeaderAvatar,
   main#ariApp.ari-thinking-mode
+    .ari-header-v4
+    .ari-header-avatar-shell,
+  main#ariApp:has(#ariInput:disabled)
     .ari-header-v4
     .ari-header-avatar-shell {
     animation: none;
   }
 
   main#ariApp .ari-header-v4 .ari-menu-toggle,
-  main#ariApp .ari-header-v4 .ari-menu-toggle span {
+  main#ariApp .ari-header-v4 .ari-menu-toggle::before,
+  main#ariApp .ari-header-v4 .ari-menu-toggle span,
+  main#ariApp .ari-header-v4 .ari-brand-title {
     transition: none;
   }
 }
