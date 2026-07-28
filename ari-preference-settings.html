@@ -62,7 +62,12 @@ assets/css/ari-preference-settings.css
 
   <header class="ari-preference-settings__header">
     <div>
-      <p class="ari-preference-settings__eyebrow">ARI CONTROL CENTER</p>
+<p
+  id="ari-preference-settings-title"
+  class="ari-preference-settings__eyebrow"
+>
+  ARI CONTROL CENTER
+</p>
 
       <p class="ari-preference-settings__subtitle">
         Personalize how Ari communicates, reasons, explains, supports, and
@@ -132,9 +137,10 @@ assets/css/ari-preference-settings.css
 
     <!-- =====================================================
          SPECIALIZATION
-         This interface is ready visually.
-         Add specialization to the canonical preference contract before
-         treating it as authoritative runtime preference data.
+         Specialization is submitted through the canonical preference form
+using the "specialization" field. The preference contract, store,
+resolver, and runtime must recognize this field before it can alter
+model behavior.
     ====================================================== -->
 
     <section
@@ -160,17 +166,25 @@ assets/css/ari-preference-settings.css
           outside the selected area.
         </p>
 
+<input
+  id="ari-preference-specialization-value"
+  type="hidden"
+  name="specialization"
+  value="default"
+/>
+
         <fieldset class="ari-specialization__fieldset">
           <legend>General</legend>
 
           <div class="ari-specialization__grid">
             <label class="ari-specialization-option ari-specialization-option--wide">
-              <input
-                type="radio"
-                name="ariSpecialization"
-                value="default"
-                checked
-              />
+<input
+  type="radio"
+  name="ariSpecialization"
+  data-ari-specialization-option
+  value="default"
+  checked
+/>
               <span>
                 <strong>&#9733; Default</strong>
                 <small>Balanced across topics</small>
@@ -184,7 +198,8 @@ assets/css/ari-preference-settings.css
 
           <div class="ari-specialization__grid">
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="medical" />
+              <input type="radio" name="ariSpecialization" 
+                data-ari-specialization-option value="medical" />
               <span>Medical</span>
             </label>
 
@@ -192,18 +207,19 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="mental_health"
               />
               <span>Mental Health</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="fitness" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="fitness" />
               <span>Fitness</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="nutrition" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="nutrition" />
               <span>Nutrition</span>
             </label>
           </div>
@@ -217,6 +233,7 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="programming"
               />
               <span>Programming</span>
@@ -226,28 +243,29 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="technology"
               />
               <span>Technology</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="business" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="business" />
               <span>Business</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="finance" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="finance" />
               <span>Finance</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="education" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="education" />
               <span>Education</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="military" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="military" />
               <span>Military</span>
             </label>
 
@@ -255,6 +273,7 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="legal_information"
               />
               <span>Law &amp; Legal Information</span>
@@ -270,13 +289,14 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="mathematics"
               />
               <span>Mathematics</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="science" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="science" />
               <span>Science</span>
             </label>
 
@@ -284,6 +304,7 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="engineering"
               />
               <span>Engineering</span>
@@ -299,6 +320,7 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="relationships"
               />
               <span>Relationships</span>
@@ -308,13 +330,14 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="faith_religion"
               />
               <span>Faith &amp; Religion</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="travel" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="travel" />
               <span>Travel</span>
             </label>
 
@@ -322,13 +345,14 @@ assets/css/ari-preference-settings.css
               <input
                 type="radio"
                 name="ariSpecialization"
+                data-ari-specialization-option
                 value="creative_writing"
               />
               <span>Creative Writing</span>
             </label>
 
             <label class="ari-specialization-option">
-              <input type="radio" name="ariSpecialization" value="custom" />
+              <input type="radio" name="ariSpecialization" data-ari-specialization-option value="custom" />
               <span>Custom Specialization</span>
             </label>
           </div>
@@ -539,24 +563,48 @@ assets/css/ari-preference-settings.css
     const STORAGE_KEY = "ari_preference_specialization";
     const DEFAULT_SPECIALIZATION = "default";
 
-    const presetSelect = document.getElementById("ari-preference-preset");
+    const presetSelect = document.getElementById(
+      "ari-preference-preset"
+    );
+
     const previewPrompt = document.getElementById(
       "ari-preference-preview-prompt"
     );
+
     const previewResponse = document.getElementById(
       "ari-preference-preview-response"
     );
+
     const previewButtons = Array.from(
-      document.querySelectorAll("[data-ari-preview-scenario]")
+      document.querySelectorAll(
+        "[data-ari-preview-scenario]"
+      )
     );
+
     const specializationInputs = Array.from(
-      document.querySelectorAll('input[name="ariSpecialization"]')
+      document.querySelectorAll(
+        "[data-ari-specialization-option]"
+      )
     );
-    const preferenceForm = document.getElementById("ari-preference-form");
-    const resetButton = document.getElementById("ari-preference-reset");
+
+    const specializationValueInput =
+      document.getElementById(
+        "ari-preference-specialization-value"
+      );
+
+    const preferenceForm = document.getElementById(
+      "ari-preference-form"
+    );
+
+    const resetButton = document.getElementById(
+      "ari-preference-reset"
+    );
 
     let activePreviewScenario = "motivation";
 
+    /*
+     * Keep your existing previewContent object here unchanged.
+     */
     const previewContent = {
       motivation: {
         prompt: "\"I skipped the gym today.\"",
@@ -698,17 +746,32 @@ assets/css/ari-preference-settings.css
     }
 
     function getSelectedPreset() {
-      return normalizePreset(presetSelect?.value || "default");
+      return normalizePreset(
+        presetSelect?.value || "default"
+      );
+    }
+
+    function getSelectedSpecialization() {
+      return (
+        specializationInputs.find(
+          (input) => input.checked
+        )?.value || DEFAULT_SPECIALIZATION
+      );
     }
 
     function updatePreview() {
-      if (!previewPrompt || !previewResponse) return;
+      if (!previewPrompt || !previewResponse) {
+        return;
+      }
 
       const scenario =
-        previewContent[activePreviewScenario] || previewContent.motivation;
+        previewContent[activePreviewScenario] ||
+        previewContent.motivation;
+
       const selectedPreset = getSelectedPreset();
 
       previewPrompt.textContent = scenario.prompt;
+
       previewResponse.textContent =
         scenario[selectedPreset] ||
         scenario.default;
@@ -716,12 +779,15 @@ assets/css/ari-preference-settings.css
 
     function selectPreviewScenario(button) {
       activePreviewScenario =
-        button.dataset.ariPreviewScenario || "motivation";
+        button.dataset.ariPreviewScenario ||
+        "motivation";
 
       previewButtons.forEach((candidate) => {
         candidate.setAttribute(
           "aria-pressed",
-          candidate === button ? "true" : "false"
+          candidate === button
+            ? "true"
+            : "false"
         );
       });
 
@@ -739,46 +805,91 @@ assets/css/ari-preference-settings.css
       }
     }
 
-    function restoreSpecialization() {
-      const storedValue = readStoredSpecialization();
-
-      const matchingInput = specializationInputs.find(
-        (input) => input.value === storedValue
+    function isValidSpecialization(value) {
+      return specializationInputs.some(
+        (input) => input.value === value
       );
-
-      const fallbackInput = specializationInputs.find(
-        (input) => input.value === DEFAULT_SPECIALIZATION
-      );
-
-      (matchingInput || fallbackInput)?.click();
     }
 
-    function saveSpecializationLocally() {
-      const selected = specializationInputs.find((input) => input.checked);
+    function synchronizeSpecialization(
+      value,
+      options = {}
+    ) {
+      const {
+        persist = true,
+        emit = true
+      } = options;
 
-      if (!selected) return;
+      const normalizedValue =
+        isValidSpecialization(value)
+          ? value
+          : DEFAULT_SPECIALIZATION;
 
-      try {
-        window.localStorage.setItem(STORAGE_KEY, selected.value);
-      } catch (_error) {
-        // Local visual preference persistence is optional.
+      specializationInputs.forEach((input) => {
+        input.checked =
+          input.value === normalizedValue;
+      });
+
+      if (specializationValueInput) {
+        specializationValueInput.value =
+          normalizedValue;
       }
+
+      if (persist) {
+        try {
+          window.localStorage.setItem(
+            STORAGE_KEY,
+            normalizedValue
+          );
+        } catch (_error) {
+          // Local persistence is only a UI fallback.
+        }
+      }
+
+      if (emit) {
+        preferenceForm?.dispatchEvent(
+          new CustomEvent(
+            "ari:preference-field-change",
+            {
+              bubbles: true,
+              detail: {
+                key: "specialization",
+                value: normalizedValue,
+                source:
+                  "ari-preference-settings-page"
+              }
+            }
+          )
+        );
+      }
+    }
+
+    function restoreSpecialization() {
+      synchronizeSpecialization(
+        readStoredSpecialization(),
+        {
+          persist: false,
+          emit: false
+        }
+      );
     }
 
     function resetSpecialization() {
-      const defaultInput = specializationInputs.find(
-        (input) => input.value === DEFAULT_SPECIALIZATION
-      );
-
-      if (defaultInput) {
-        defaultInput.checked = true;
-      }
-
       try {
-        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(
+          STORAGE_KEY
+        );
       } catch (_error) {
-        // Local visual preference persistence is optional.
+        // Local persistence is optional.
       }
+
+      synchronizeSpecialization(
+        DEFAULT_SPECIALIZATION,
+        {
+          persist: false,
+          emit: true
+        }
+      );
     }
 
     previewButtons.forEach((button) => {
@@ -787,29 +898,70 @@ assets/css/ari-preference-settings.css
       });
     });
 
-    presetSelect?.addEventListener("change", updatePreview);
+    presetSelect?.addEventListener(
+      "change",
+      updatePreview
+    );
 
     specializationInputs.forEach((input) => {
-      input.addEventListener("change", saveSpecializationLocally);
+      input.addEventListener("change", () => {
+        if (!input.checked) {
+          return;
+        }
+
+        synchronizeSpecialization(
+          input.value,
+          {
+            persist: true,
+            emit: true
+          }
+        );
+      });
     });
 
-    preferenceForm?.addEventListener("submit", saveSpecializationLocally);
+    preferenceForm?.addEventListener(
+      "submit",
+      () => {
+        synchronizeSpecialization(
+          getSelectedSpecialization(),
+          {
+            persist: true,
+            emit: false
+          }
+        );
+      }
+    );
 
-    resetButton?.addEventListener("click", () => {
-      resetSpecialization();
+    resetButton?.addEventListener(
+      "click",
+      () => {
+        resetSpecialization();
 
-      window.setTimeout(() => {
-        updatePreview();
-      }, 0);
-    });
+        window.setTimeout(
+          updatePreview,
+          0
+        );
+      }
+    );
 
-    document.addEventListener("DOMContentLoaded", () => {
+    function initialize() {
       restoreSpecialization();
       updatePreview();
-    });
+    }
 
-    restoreSpecialization();
-    updatePreview();
+    if (
+      document.readyState === "loading"
+    ) {
+      document.addEventListener(
+        "DOMContentLoaded",
+        initialize,
+        {
+          once: true
+        }
+      );
+    } else {
+      initialize();
+    }
   })();
 </script>
 
@@ -826,8 +978,10 @@ assets/css/ari-preference-settings.css
     const categoriesHost = document.getElementById("ari-preference-categories");
     const presetSelect = document.getElementById("ari-preference-preset");
     const specializationInputs = Array.from(
-      document.querySelectorAll('input[name="ariSpecialization"]')
-    );
+  document.querySelectorAll(
+    "[data-ari-specialization-option]"
+  )
+);
 
     let observer = null;
     let enhancementScheduled = false;
@@ -877,7 +1031,13 @@ assets/css/ari-preference-settings.css
     function categorySummary(panel) {
       const controls = Array.from(
         panel.querySelectorAll("select, input:checked")
-      ).filter((control) => control.name !== "ariSpecialization");
+      ).filter(
+  (control) =>
+    !control.matches(
+      "[data-ari-specialization-option]"
+    ) &&
+    control.name !== "specialization"
+);
 
       const values = controls
         .map((control) => {
