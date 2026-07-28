@@ -10,7 +10,7 @@
 
   <meta name="theme-color" content="#080d14" />
 
-  <title>ARI CONTROL CENTER</title>
+  <title>Personalize Ari</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 
@@ -55,22 +55,36 @@
   <main>
     <!--
     ============================================================
-    ARI CONTROL CENTER
-    Version: 4.3.0
+    ARI COMMUNICATION PREFERENCES
+    Version: 5.0.0
 
     Purpose:
-    Provide Ari's preference settings interface while keeping the
-    Ari User Preference Contract as the single source of truth.
+    Allow the user to personalize how Ari communicates.
 
-    Canonical preference behavior is owned by:
+    Scope:
+    - Tone
+    - Directness
+    - Humor
+    - Language
+    - Response length
+
+    These preferences affect expression only.
+
+    They must not alter:
+    - Reasoning
+    - Factual conclusions
+    - Safety classification
+    - Routing
+    - Tool selection
+    - Memory retrieval
+    - Topic access
+
+    Canonical behavior remains owned by:
     - Ari User Preference Contract
     - Ari User Preference Store
     - Ari Preference Resolver
     - Ari Preference Runtime
     - Ari Preference Settings Controller
-
-    This page provides structure and local preview behavior only.
-    It does not define canonical preference values or model guidance.
     ============================================================
     -->
 
@@ -85,7 +99,7 @@
 
       <nav
         class="ari-preference-settings__topbar"
-        aria-label="Ari Preferences navigation"
+        aria-label="Ari preferences navigation"
       >
         <a
           href="home.html"
@@ -117,17 +131,17 @@
       <header class="ari-preference-settings__header">
         <div>
           <p class="ari-preference-settings__eyebrow">
-            ARI CONTROL CENTER
+            PERSONALIZE ARI
           </p>
 
           <h1 id="ari-preference-settings-title">
-            Personalize Ari
+            Choose how Ari talks to you.
           </h1>
 
           <p class="ari-preference-settings__subtitle">
-            Choose how Ari communicates with you. Start with the
-            essentials, then open the advanced section when you want
-            more control.
+            These settings change Ari's wording and presentation.
+            They do not limit what Ari can understand, reason about,
+            or help you with.
           </p>
         </div>
 
@@ -152,7 +166,7 @@
           aria-hidden="true"
         ></span>
 
-        Loading your Ari preferences&hellip;
+        Loading your preferences&hellip;
       </div>
 
       <!-- =====================================================
@@ -166,288 +180,455 @@
         novalidate
       >
         <!-- =================================================
-             1. COMMUNICATION STYLE
+             1. TONE
         ================================================== -->
 
-        <section
-          class="ari-preference-panel ari-preference-settings__preset-card"
-          aria-labelledby="ari-communication-style-title"
+        <fieldset
+          class="ari-preference-panel ari-preference-choice-group"
+          data-preference-group="language.tone"
         >
-          <div class="ari-preference-panel__heading">
-            <div
-              class="ari-preference-panel__icon"
-              aria-hidden="true"
-            >
-              &#10022;
-            </div>
+          <legend class="ari-preference-panel__heading">
+            <span>
+              <span class="ari-preference-panel__kicker">
+                SPEAKING STYLE
+              </span>
 
-            <div>
-              <p class="ari-preference-panel__kicker">
-                CORE STYLE
-              </p>
+              <span class="ari-preference-panel__title">
+                Tone
+              </span>
 
-              <h2 id="ari-communication-style-title">
-                Communication Style
-              </h2>
+              <span class="ari-preference-panel__description">
+                Choose Ari's general speaking style.
+              </span>
+            </span>
+          </legend>
 
-              <p>
-                Choose Ari's overall communication approach.
-              </p>
-            </div>
-          </div>
+          <div
+            class="ari-preference-options"
+            role="radiogroup"
+            aria-label="Tone"
+          >
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.tone"
+                value="professional"
+                data-path="language.tone"
+              />
 
-          <div class="ari-preference-settings__preset-control">
-            <label for="ari-preference-preset">
-              Choose a style
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Professional
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Polished and formal.
+                </span>
+              </span>
             </label>
 
-            <select
-              id="ari-preference-preset"
-              name="activePreset"
-              aria-describedby="ari-preference-preset-description"
-            ></select>
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.tone"
+                value="natural"
+                data-path="language.tone"
+              />
 
-            <p id="ari-preference-preset-description">
-              Individual changes may create a custom version of the
-              selected style.
-            </p>
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Natural
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Clear and conversational.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.tone"
+                value="casual"
+                data-path="language.tone"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Casual
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Relaxed and informal.
+                </span>
+              </span>
+            </label>
           </div>
-        </section>
+        </fieldset>
 
         <!-- =================================================
-             2. HUMOR â CONTRACT-DRIVEN
+             2. DIRECTNESS
         ================================================== -->
 
-        <section
-          class="ari-preference-panel ari-preference-primary-choice"
-          aria-labelledby="ari-humor-title"
+        <fieldset
+          class="ari-preference-panel ari-preference-choice-group"
+          data-preference-group="language.directness"
         >
-          <div class="ari-preference-panel__heading">
-            <div
-              class="ari-preference-panel__icon"
-              aria-hidden="true"
-            >
-              &#9786;
-            </div>
+          <legend class="ari-preference-panel__heading">
+            <span>
+              <span class="ari-preference-panel__kicker">
+                DELIVERY
+              </span>
 
-            <div>
-              <p class="ari-preference-panel__kicker">
+              <span class="ari-preference-panel__title">
+                Directness
+              </span>
+
+              <span class="ari-preference-panel__description">
+                Choose how directly Ari gets to the point.
+              </span>
+            </span>
+          </legend>
+
+          <div
+            class="ari-preference-options"
+            role="radiogroup"
+            aria-label="Directness"
+          >
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.directness"
+                value="gentle"
+                data-path="language.directness"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Gentle
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Softer and more careful.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.directness"
+                value="balanced"
+                data-path="language.directness"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Balanced
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Clear without being harsh.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.directness"
+                value="blunt"
+                data-path="language.directness"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Blunt
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Straight to the point.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- =================================================
+             3. HUMOR
+        ================================================== -->
+
+        <fieldset
+          class="ari-preference-panel ari-preference-choice-group"
+          data-preference-group="language.humor"
+        >
+          <legend class="ari-preference-panel__heading">
+            <span>
+              <span class="ari-preference-panel__kicker">
                 PERSONALITY
-              </p>
+              </span>
 
-              <h2 id="ari-humor-title">
+              <span class="ari-preference-panel__title">
                 Humor
-              </h2>
+              </span>
 
-              <p>
-                Choose how often Ari should use jokes, playful comments,
-                or light sarcasm.
-              </p>
-            </div>
-          </div>
+              <span class="ari-preference-panel__description">
+                Choose how often Ari uses humor.
+              </span>
+            </span>
+          </legend>
 
-          <!--
-          The controller renders the canonical language.humor options here.
-          Multiple data aliases are included so this remains compatible with
-          contract-driven controller selector conventions.
-          -->
           <div
-            id="ari-preference-humor-control"
-            class="ari-preference-primary-control"
-            data-path="language.humor"
-            data-preference-path="language.humor"
-            data-primary-preference-path="language.humor"
-            data-ari-preference-path="language.humor"
-          ></div>
-        </section>
+            class="ari-preference-options"
+            role="radiogroup"
+            aria-label="Humor"
+          >
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.humor"
+                value="none"
+                data-path="language.humor"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  None
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Keep responses serious.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.humor"
+                value="occasional"
+                data-path="language.humor"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Occasional
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Use humor sometimes.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.humor"
+                value="frequent"
+                data-path="language.humor"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Frequent
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Use humor often.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
 
         <!-- =================================================
-             3. LANGUAGE â CONTRACT-DRIVEN
+             4. LANGUAGE
         ================================================== -->
 
-        <section
-          class="ari-preference-panel ari-preference-primary-choice"
-          aria-labelledby="ari-language-title"
+        <fieldset
+          class="ari-preference-panel ari-preference-choice-group"
+          data-preference-group="language.profanity"
         >
-          <div class="ari-preference-panel__heading">
-            <div
-              class="ari-preference-panel__icon"
-              aria-hidden="true"
-            >
-              A
-            </div>
-
-            <div>
-              <p class="ari-preference-panel__kicker">
+          <legend class="ari-preference-panel__heading">
+            <span>
+              <span class="ari-preference-panel__kicker">
                 WORD CHOICE
-              </p>
+              </span>
 
-              <h2 id="ari-language-title">
+              <span class="ari-preference-panel__title">
                 Language
-              </h2>
+              </span>
 
-              <p>
-                Choose how casual or explicit Ari may sound in its
-                normal voice.
-              </p>
-            </div>
-          </div>
+              <span class="ari-preference-panel__description">
+                Choose how Ari handles profanity.
+              </span>
+            </span>
+          </legend>
 
-          <!--
-          The controller renders the canonical language.profanity options here.
-          The HTML does not hard-code values such as clean, casual, adaptive,
-          or strong. Those values belong to the preference contract.
-          -->
           <div
-            id="ari-preference-language-control"
-            class="ari-preference-primary-control"
-            data-path="language.profanity"
-            data-preference-path="language.profanity"
-            data-primary-preference-path="language.profanity"
-            data-ari-preference-path="language.profanity"
-          ></div>
+            class="ari-preference-options"
+            role="radiogroup"
+            aria-label="Language"
+          >
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.profanity"
+                value="default"
+                data-path="language.profanity"
+              />
 
-          <p class="ari-preference-settings__section-note">
-            This controls Ari's normal speaking style. It does not
-            prevent Ari from defining, translating, quoting, or discussing
-            explicit language when you directly request it.
-          </p>
-        </section>
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Default
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Use Ari's standard language.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.profanity"
+                value="match_me"
+                data-path="language.profanity"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Match Me
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Match your use of profanity.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.profanity"
+                value="always_allowed"
+                data-path="language.profanity"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Always
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Profanity is always allowed.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
 
         <!-- =================================================
-             4. ADVANCED CONTRACT-DRIVEN SETTINGS
+             5. RESPONSE LENGTH
         ================================================== -->
 
-        <details class="ari-preference-panel ari-preference-advanced">
-          <summary class="ari-preference-panel__heading">
-            <div
-              class="ari-preference-panel__icon"
-              aria-hidden="true"
-            >
-              &#9881;
-            </div>
+        <fieldset
+          class="ari-preference-panel ari-preference-choice-group"
+          data-preference-group="language.detail"
+        >
+          <legend class="ari-preference-panel__heading">
+            <span>
+              <span class="ari-preference-panel__kicker">
+                RESPONSE SIZE
+              </span>
 
-            <div>
-              <p class="ari-preference-panel__kicker">
-                OPTIONAL
-              </p>
+              <span class="ari-preference-panel__title">
+                Response Length
+              </span>
 
-              <h2>
-                More Preferences
-              </h2>
+              <span class="ari-preference-panel__description">
+                Choose how much detail Ari usually provides.
+              </span>
+            </span>
+          </legend>
 
-              <p>
-                Adjust challenge level, honesty, roasting, detail,
-                support, and other advanced preferences.
-              </p>
-            </div>
-          </summary>
+          <div
+            class="ari-preference-options"
+            role="radiogroup"
+            aria-label="Response Length"
+          >
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.detail"
+                value="concise"
+                data-path="language.detail"
+              />
 
-          <div class="ari-preference-advanced__body">
-            <p class="ari-preference-settings__section-note">
-              Most users can leave these settings unchanged.
-            </p>
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Concise
+                </span>
 
-            <div
-              id="ari-preference-categories"
-              class="ari-preference-settings__categories"
-            ></div>
+                <span class="ari-preference-option__description">
+                  Keep answers brief.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.detail"
+                value="balanced"
+                data-path="language.detail"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Balanced
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Give enough useful detail.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.detail"
+                value="detailed"
+                data-path="language.detail"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Detailed
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Explain more thoroughly.
+                </span>
+              </span>
+            </label>
           </div>
-        </details>
+        </fieldset>
 
         <!-- =================================================
-             5. LOCAL PREVIEW
+             SCOPE NOTE
         ================================================== -->
 
-        <details class="ari-preference-panel ari-preference-preview">
-          <summary class="ari-preference-panel__heading">
-            <div
-              class="ari-preference-panel__icon ari-preference-panel__icon--ari"
-              aria-hidden="true"
-            >
-              A
-            </div>
-
-            <div>
-              <p class="ari-preference-panel__kicker">
-                LIVE EXAMPLE
-              </p>
-
-              <h2 id="ari-preference-preview-title">
-                Preview Ari
-              </h2>
-
-              <p>
-                See how the selected style, humor, and language may sound.
-              </p>
-            </div>
-          </summary>
-
-          <div class="ari-preference-preview__body">
-            <div
-              class="ari-preference-preview__scenarios"
-              role="group"
-              aria-label="Preview scenario"
-            >
-              <button
-                type="button"
-                class="ari-preference-preview__chip"
-                data-ari-preview-scenario="motivation"
-                aria-pressed="true"
-              >
-                Motivation
-              </button>
-
-              <button
-                type="button"
-                class="ari-preference-preview__chip"
-                data-ari-preview-scenario="learning"
-                aria-pressed="false"
-              >
-                Explanation
-              </button>
-
-              <button
-                type="button"
-                class="ari-preference-preview__chip"
-                data-ari-preview-scenario="support"
-                aria-pressed="false"
-              >
-                Support
-              </button>
-            </div>
-
-            <p
-              id="ari-preference-preview-prompt"
-              class="ari-preference-preview__prompt"
-            >
-              &ldquo;I skipped the gym today.&rdquo;
-            </p>
-
-            <div class="ari-preference-preview__message">
-              <div
-                class="ari-preference-preview__avatar"
-                aria-hidden="true"
-              >
-                A
-              </div>
-
-              <p
-                id="ari-preference-preview-response"
-                aria-live="polite"
-              >
-                Missing one workout will not erase your progress.
-                Reset tomorrow and get back into the routine.
-              </p>
-            </div>
-
-            <p class="ari-preference-preview__disclaimer">
-              Preview responses are local demonstrations. Actual responses
-              still depend on context, accuracy requirements, and safety
-              rules.
-            </p>
-          </div>
-        </details>
+        <p class="ari-preference-settings__scope-note">
+          <strong>These preferences affect expression only.</strong>
+          They do not change Ari's reasoning, factual conclusions,
+          safety decisions, available tools, memory retrieval, or
+          the subjects Ari can discuss.
+        </p>
 
         <!-- =================================================
              FORM ACTIONS
@@ -468,74 +649,11 @@
               class="ari-preference-button ari-preference-button--primary"
               type="submit"
             >
-              Save preferences
+              Save changes
             </button>
           </div>
         </div>
       </form>
-
-      <!-- =====================================================
-           CONSENT DIALOG
-      ====================================================== -->
-
-      <dialog
-        id="ari-preference-consent-dialog"
-        class="ari-preference-consent-dialog"
-        aria-labelledby="ari-preference-consent-title"
-      >
-        <form method="dialog">
-          <div class="ari-preference-consent-dialog__badge">
-            Confirmation
-          </div>
-
-          <h2 id="ari-preference-consent-title">
-            Confirm preference
-          </h2>
-
-          <p
-            id="ari-preference-consent-text"
-            class="ari-preference-consent-dialog__text"
-          ></p>
-
-          <div class="ari-preference-consent-dialog__safety">
-            This changes Ari's communication style only. It does not
-            disable factual standards, safety protections, crisis
-            handling, or medical and legal safeguards.
-          </div>
-
-          <label class="ari-preference-consent-dialog__check">
-            <input
-              id="ari-preference-consent-checkbox"
-              type="checkbox"
-            />
-
-            <span>
-              I understand this preference and want to enable it.
-            </span>
-          </label>
-
-          <div class="ari-preference-consent-dialog__actions">
-            <button
-              id="ari-preference-consent-cancel"
-              value="cancel"
-              type="submit"
-              class="ari-preference-button ari-preference-button--secondary"
-            >
-              Cancel
-            </button>
-
-            <button
-              id="ari-preference-consent-confirm"
-              value="confirm"
-              type="submit"
-              class="ari-preference-button ari-preference-button--primary"
-              disabled
-            >
-              Confirm
-            </button>
-          </div>
-        </form>
-      </dialog>
     </section>
   </main>
 
@@ -549,6 +667,9 @@
 
   <!-- =======================================================
        CANONICAL PREFERENCE DEPENDENCY ORDER
+
+       Versions remain unchanged until each corresponding file is
+       reviewed and updated.
   ======================================================== -->
 
   <script src="ari/profile/ari-user-preference-contract.js?v=2.1.0"></script>
@@ -556,230 +677,5 @@
   <script src="ari/profile/ari-preference-resolver.js?v=2.0.0"></script>
   <script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>
   <script src="ari/settings/ari-preference-settings-controller.js?v=1.1.0"></script>
-
-  <!-- =======================================================
-       LOCAL PREVIEW BEHAVIOR
-
-       This script reads currently selected controls for display only.
-       It does not persist, resolve, or send model instructions.
-  ======================================================== -->
-
-  <script>
-    (() => {
-      "use strict";
-
-      const presetSelect = document.getElementById(
-        "ari-preference-preset"
-      );
-
-      const previewPrompt = document.getElementById(
-        "ari-preference-preview-prompt"
-      );
-
-      const previewResponse = document.getElementById(
-        "ari-preference-preview-response"
-      );
-
-      const previewButtons = Array.from(
-        document.querySelectorAll(
-          "[data-ari-preview-scenario]"
-        )
-      );
-
-      let activeScenario = "motivation";
-
-      const previewContent = {
-        motivation: {
-          prompt: "\"I skipped the gym today.\"",
-          default:
-            "Missing one workout will not erase your progress. Reset tomorrow and get back into the routine."
-        },
-
-        learning: {
-          prompt: "\"Explain heart failure.\"",
-          default:
-            "Heart failure means the heart cannot pump or fill efficiently enough to meet the body's needs."
-        },
-
-        support: {
-          prompt: "\"I feel like I failed.\"",
-          default:
-            "A painful outcome can feel like failure, but it does not define your ability or what happens next."
-        }
-      };
-
-      function selectedControlValue(path, fallback) {
-        const escapedPath =
-          window.CSS?.escape
-            ? window.CSS.escape(path)
-            : path.replace(/"/g, '\\"');
-
-        const selected = document.querySelector(
-          `input[type="radio"][data-path="${escapedPath}"]:checked, ` +
-          `select[data-path="${escapedPath}"]`
-        );
-
-        return String(
-          selected?.value ||
-          fallback
-        )
-          .trim()
-          .toLowerCase();
-      }
-
-      function buildPreviewResponse() {
-        const scenario =
-          previewContent[activeScenario] ||
-          previewContent.motivation;
-
-        const preset =
-          String(
-            presetSelect?.value ||
-            "default"
-          ).toLowerCase();
-
-        const humor =
-          selectedControlValue(
-            "language.humor",
-            "light"
-          );
-
-        const profanity =
-          selectedControlValue(
-            "language.profanity",
-            "adaptive"
-          );
-
-        const additions = [];
-
-        if (
-          humor !== "none" &&
-          humor !== "off" &&
-          humor !== "disabled"
-        ) {
-          additions.push(
-            " A little humor may be added when it fits."
-          );
-        }
-
-        if (
-          profanity !== "clean" &&
-          profanity !== "none" &&
-          profanity !== "off" &&
-          profanity !== "disabled"
-        ) {
-          additions.push(
-            " Ari may also use natural profanity when the context calls for it."
-          );
-        }
-
-        if (
-          preset === "coach"
-        ) {
-          additions.push(
-            " The tone may be more direct and action-focused."
-          );
-        }
-
-        return (
-          scenario.default +
-          additions.join("")
-        ).trim();
-      }
-
-      function updatePreview() {
-        if (!previewPrompt || !previewResponse) {
-          return;
-        }
-
-        const scenario =
-          previewContent[activeScenario] ||
-          previewContent.motivation;
-
-        previewPrompt.textContent =
-          scenario.prompt;
-
-        previewResponse.textContent =
-          buildPreviewResponse();
-      }
-
-      function selectScenario(button) {
-        activeScenario =
-          button.dataset.ariPreviewScenario ||
-          "motivation";
-
-        previewButtons.forEach((candidate) => {
-          candidate.setAttribute(
-            "aria-pressed",
-            candidate === button
-              ? "true"
-              : "false"
-          );
-        });
-
-        updatePreview();
-      }
-
-      previewButtons.forEach((button) => {
-        button.addEventListener(
-          "click",
-          () => selectScenario(button)
-        );
-      });
-
-      document.addEventListener(
-        "change",
-        (event) => {
-          if (
-            event.target?.matches?.(
-              "#ari-preference-preset, " +
-              'input[data-path="language.humor"], ' +
-              'input[data-path="language.profanity"], ' +
-              'select[data-path="language.humor"], ' +
-              'select[data-path="language.profanity"]'
-            )
-          ) {
-            updatePreview();
-          }
-        }
-      );
-
-      const initializePreview = () => {
-        updatePreview();
-
-        const observer =
-          new MutationObserver(
-            updatePreview
-          );
-
-        const form =
-          document.getElementById(
-            "ari-preference-form"
-          );
-
-        if (form) {
-          observer.observe(
-            form,
-            {
-              childList: true,
-              subtree: true
-            }
-          );
-        }
-      };
-
-      if (document.readyState === "loading") {
-        document.addEventListener(
-          "DOMContentLoaded",
-          initializePreview,
-          {
-            once: true
-          }
-        );
-      } else {
-        initializePreview();
-      }
-    })();
-  </script>
 </body>
 </html>
