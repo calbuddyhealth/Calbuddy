@@ -2,83 +2,87 @@
 // Ari Preference Settings Controller
 //
 // Purpose:
-// Render the canonical contract-driven preference settings interface, promote
-// selected preferences into simplified radio-card controls, load the user's
-// stored record, collect explicit consent, save normalized overrides, and
-// refresh the runtime preference cache.
+// Load, populate, validate, save, and reset Ari's communication
+// preferences through the canonical preference store and runtime.
 //
-// V1.1.0 — Canonical Primary Controls / Unified Preference Collection
+// V2.0.0 — Communication Preferences Only
 //
 // Architectural flow:
 //
-// AriUserPreferenceContract
+// Static Semantic HTML Controls
 //      ↓
 // AriPreferenceSettingsController
 //      ↓
+// AriUserPreferenceContract Validation
+//      ↓
 // AriUserPreferenceStore
 //      ↓
-// AriPreferenceRuntime
+// AriPreferenceRuntime Refresh
+//
+// Supported communication preferences:
+// - language.tone
+// - language.directness
+// - language.humor
+// - language.profanity
+// - language.detail
 //
 // Responsibilities:
-// - Render preset options from the canonical contract.
-// - Render contract-declared primary preferences as radio cards.
-// - Render remaining preferences as advanced select controls.
-// - Load and populate stored preference overrides.
-// - Collect radio and select values through one canonical path.
-// - Enforce explicit consent for consent-gated values.
+// - Bind the five communication preference groups already present in HTML.
+// - Load the authenticated user's stored preference record.
+// - Populate each radio group from stored overrides or runtime defaults.
+// - Collect selected values by canonical preference path.
+// - Validate overrides through AriUserPreferenceContract.
 // - Save normalized overrides through AriUserPreferenceStore.
+// - Reset stored overrides through AriUserPreferenceStore.
 // - Refresh AriPreferenceRuntime after save and reset.
-// - Dispatch canonical preference lifecycle events.
+// - Dispatch preference lifecycle events.
+// - Expose concise controller diagnostics.
 //
 // Non-responsibilities:
-// - Does not define preference meaning or valid values.
+// - Does not render preference controls.
+// - Does not define preference meaning.
+// - Does not define valid preference values.
+// - Does not manage presets.
+// - Does not manage advanced preferences.
+// - Does not collect consent.
+// - Does not generate previews.
 // - Does not persist records independently.
 // - Does not resolve final runtime preferences.
-// - Does not own safety or restriction policy.
-// - Does not invent UI preferences outside the contract.
+// - Does not alter reasoning, routing, safety, retrieval, or tools.
 
 window.Ari = window.Ari || {};
 
 window.AriPreferenceSettingsController = {
-  version: "1.1.0",
+  version: "2.0.0",
   source: "ari-preference-settings-controller",
+
+  supportedPaths: Object.freeze([
+    "language.tone",
+    "language.directness",
+    "language.humor",
+    "language.profanity",
+    "language.detail"
+  ]),
 
   state: {
     initialized: false,
+    initializing: false,
     saving: false,
     eventsBound: false,
+    dirty: false,
 
     record: null,
-    uiSchema: null,
-
-    pendingConsent: null,
-    consentEvidence: {},
-
-    primaryPresentations: {},
-    primaryPaths: new Set()
+    initialSelections: {},
+    lastError: null
   },
 
   selectors: {
     root: "#ari-preference-settings",
     loading: "#ari-preference-loading",
     form: "#ari-preference-form",
-
-    preset: "#ari-preference-preset",
-
-    humor: "#ari-preference-humor",
-    language: "#ari-preference-language",
-
-    categories: "#ari-preference-categories",
-
     status: "#ari-preference-status",
     save: "#ari-preference-save",
-    reset: "#ari-preference-reset",
-
-    consentDialog: "#ari-preference-consent-dialog",
-    consentTitle: "#ari-preference-consent-title",
-    consentText: "#ari-preference-consent-text",
-    consentCheckbox: "#ari-preference-consent-checkbox",
-    consentConfirm: "#ari-preference-consent-confirm"
+    reset: "#ari-preference-reset"
   },
 
   /* =====================================================
@@ -87,7 +91,17 @@ window.AriPreferenceSettingsController = {
 
   async initialize() {
     if (this.state.initialized) {
-      return this.getState();
+      return {
+        ok: true,
+        state: this.getState()
+      };
+    }
+
+    if (this.state.initializing) {
+      return {
+        ok: false,
+        code: "preference_settings_initialization_in_progress"
+      };
     }
 
     const root = this.getElement("root");
@@ -99,29 +113,17 @@ window.AriPreferenceSettingsController = {
       };
     }
 
+    this.state.initializing = true;
+    this.state.lastError = null;
+
+    this.setLoading(true);
+    this.setStatus("");
+
     try {
-      const contract = this.requireContract();
+      this.requireContract();
       const store = this.requireStore();
 
-      const uiSchema = contract.getUiSchema();
-
-      if (
-        !uiSchema ||
-        typeof uiSchema !== "object"
-      ) {
-        throw new Error(
-          "AriUserPreferenceContract returned an invalid UI schema."
-        );
-      }
-
-      this.state.uiSchema = uiSchema;
-
-      this.restoreSessionConsent();
-      this.readPrimaryPresentations();
-
-      this.renderPresetOptions();
-      this.renderPrimaryPreferences();
-      this.renderCategories();
+      this.validateHtmlControls();
       this.bindEvents();
 
       const result = await store.read(
@@ -136,18 +138,22 @@ window.AriPreferenceSettingsController = {
         throw new Error(
           result?.error?.message ||
           result?.code ||
-          "Unable to read preferences."
+          "Unable to read Ari preferences."
         );
       }
 
       this.state.record =
-        result.record || {};
+        this.normalizeRecord(
+          result.record
+        );
 
       this.populateForm(
         this.state.record
       );
 
-      this.setLoading(false);
+      this.captureInitialSelections();
+      this.setDirty(false);
+
       this.state.initialized = true;
 
       window.dispatchEvent(
@@ -155,7 +161,11 @@ window.AriPreferenceSettingsController = {
           "ari:preference-settings-ready",
           {
             detail: {
+              source: this.source,
               controllerVersion: this.version,
+              supportedPaths: [
+                ...this.supportedPaths
+              ],
               record: this.clone(
                 this.state.record
               )
@@ -169,11 +179,12 @@ window.AriPreferenceSettingsController = {
         state: this.getState()
       };
     } catch (error) {
-      this.setLoading(false);
+      this.state.lastError =
+        this.serializeError(error);
 
       this.setStatus(
         error?.message ||
-        "Unable to load preferences.",
+        "Unable to load Ari preferences.",
         "error"
       );
 
@@ -187,570 +198,80 @@ window.AriPreferenceSettingsController = {
         code: "preference_settings_initialize_failed",
         error
       };
+    } finally {
+      this.state.initializing = false;
+      this.setLoading(false);
     }
   },
 
   /* =====================================================
-     PRIMARY PRESENTATION
+     HTML CONTROL VALIDATION
   ===================================================== */
 
-  readPrimaryPresentations() {
-    const presentation =
-      this.state.uiSchema?.presentation ||
-      this.requireContract()
-        .getUiPresentation?.() ||
-      {};
+  validateHtmlControls() {
+    const form =
+      this.getElement("form");
 
-    const primaryPreferences =
-      presentation?.primaryPreferences ||
-      {};
-
-    this.state.primaryPresentations =
-      this.clone(primaryPreferences) || {};
-
-    this.state.primaryPaths =
-      new Set(
-        Object.values(
-          primaryPreferences
-        )
-          .map(entry => entry?.path)
-          .filter(Boolean)
+    if (!form) {
+      throw new Error(
+        "Ari preference form is missing."
       );
-  },
+    }
 
-  getPreferenceDefinitionFromSchema(
-    category,
-    key
-  ) {
+    const missingPaths = [];
+
     for (
-      const categoryDefinition
-      of this.state.uiSchema?.categories || []
+      const path
+      of this.supportedPaths
     ) {
+      const controls =
+        this.getRadioGroupByPath(path);
+
       if (
-        categoryDefinition.id !== category
+        controls.length === 0
       ) {
+        missingPaths.push(path);
         continue;
       }
 
-      return (
-        categoryDefinition.preferences || []
-      ).find(
-        preference =>
-          preference.key === key
-      ) || null;
-    }
-
-    return null;
-  },
-
-  renderPrimaryPreferences() {
-    for (
-      const [presentationId, presentation]
-      of Object.entries(
-        this.state.primaryPresentations || {}
-      )
-    ) {
-      this.renderPrimaryPreference(
-        presentationId,
-        presentation
-      );
-    }
-  },
-
-  renderPrimaryPreference(
-    presentationId,
-    presentation
-  ) {
-    const host =
-      document.querySelector(
-        presentation.hostSelector ||
-        this.selectors[presentationId] ||
-        ""
-      );
-
-    if (!host) {
-      console.warn(
-        `ARI PREFERENCE SETTINGS: Primary host missing for ${presentationId}.`
-      );
-
-      return;
-    }
-
-    const preference =
-      this.getPreferenceDefinitionFromSchema(
-        presentation.category,
-        presentation.key
-      );
-
-    if (!preference) {
-      console.warn(
-        `ARI PREFERENCE SETTINGS: Contract preference missing for ${presentation.path}.`
-      );
-
-      host.innerHTML = "";
-      host.hidden = true;
-
-      return;
-    }
-
-    const requestedValues =
-      Array.isArray(
-        presentation.visibleValues
-      )
-        ? presentation.visibleValues
-        : [];
-
-    const visibleOptions =
-      requestedValues
-        .map(value =>
-          (preference.options || [])
-            .find(
-              option =>
-                option.value === value
-            )
-        )
-        .filter(Boolean);
-
-    host.innerHTML = "";
-    host.hidden = false;
-
-    const fieldset =
-      document.createElement(
-        "fieldset"
-      );
-
-    fieldset.className =
-      "ari-preference-choice-group";
-
-    fieldset.dataset.preferenceGroup =
-      presentationId;
-
-    fieldset.dataset.path =
-      preference.path;
-
-    const legend =
-      document.createElement(
-        "legend"
-      );
-
-    legend.className =
-      "sr-only";
-
-    legend.textContent =
-      presentation.label ||
-      preference.label ||
-      presentationId;
-
-    fieldset.appendChild(legend);
-
-    for (
-      const optionDefinition
-      of visibleOptions
-    ) {
-      fieldset.appendChild(
-        this.createPrimaryChoice({
-          presentationId,
-          preference,
-          optionDefinition
-        })
-      );
-    }
-
-    host.appendChild(fieldset);
-  },
-
-  createPrimaryChoice({
-    presentationId,
-    preference,
-    optionDefinition
-  }) {
-    const label =
-      document.createElement(
-        "label"
-      );
-
-    label.className =
-      "ari-preference-choice";
-
-    const input =
-      document.createElement(
-        "input"
-      );
-
-    input.type = "radio";
-    input.name =
-      `ari-primary-${presentationId}`;
-    input.value =
-      optionDefinition.value;
-
-    input.dataset.preferenceControl =
-      "true";
-    input.dataset.controlType =
-      "primary";
-    input.dataset.category =
-      preference.category;
-    input.dataset.key =
-      preference.key;
-    input.dataset.path =
-      preference.path;
-
-    input.dataset.consentRequired =
-      optionDefinition.consentRequired
-        ? "true"
-        : "false";
-
-    input.dataset.consentText =
-      optionDefinition.consentText ||
-      "";
-
-    input.dataset.warningLevel =
-      optionDefinition.warningLevel ||
-      "";
-
-    const copy =
-      document.createElement(
-        "span"
-      );
-
-    copy.className =
-      "ari-preference-choice__copy";
-
-    const title =
-      document.createElement(
-        "strong"
-      );
-
-    title.className =
-      "ari-preference-choice__title";
-
-    title.textContent =
-      optionDefinition.label ||
-      optionDefinition.value;
-
-    const description =
-      document.createElement(
-        "small"
-      );
-
-    description.className =
-      "ari-preference-choice__description";
-
-    description.textContent =
-      optionDefinition.description ||
-      "";
-
-    copy.append(
-      title,
-      description
-    );
-
-    label.append(
-      input,
-      copy
-    );
-
-    input.addEventListener(
-      "change",
-      event =>
-        this.handlePreferenceChange(
-          event
-        )
-    );
-
-    return label;
-  },
-
-  /* =====================================================
-     PRESET RENDERING
-  ===================================================== */
-
-  renderPresetOptions() {
-    const select =
-      this.getElement("preset");
-
-    if (!select) {
-      return;
-    }
-
-    select.innerHTML = "";
-
-    for (
-      const preset
-      of this.state.uiSchema?.presets || []
-    ) {
-      if (!preset?.id) {
-        continue;
-      }
-
-      const option =
-        document.createElement(
-          "option"
+      const groupNames =
+        new Set(
+          controls.map(
+            control =>
+              control.name
+          )
         );
 
-      option.value = preset.id;
+      if (
+        groupNames.size !== 1 ||
+        groupNames.has("")
+      ) {
+        throw new Error(
+          `Preference controls for ${path} must share one radio-group name.`
+        );
+      }
 
-      option.textContent =
-        preset.label ||
-        preset.id;
-
-      option.title =
-        preset.description ||
-        "";
-
-      select.appendChild(option);
+      for (
+        const control
+        of controls
+      ) {
+        if (
+          !control.value
+        ) {
+          throw new Error(
+            `Preference control for ${path} is missing a value.`
+          );
+        }
+      }
     }
 
     if (
-      !Array.from(
-        select.options
-      ).some(
-        option =>
-          option.value === "custom"
-      )
+      missingPaths.length > 0
     ) {
-      const custom =
-        document.createElement(
-          "option"
-        );
-
-      custom.value = "custom";
-      custom.textContent = "Custom";
-
-      select.appendChild(custom);
+      throw new Error(
+        `Missing communication preference controls: ${missingPaths.join(", ")}.`
+      );
     }
-  },
-
-  /* =====================================================
-     ADVANCED CATEGORY RENDERING
-  ===================================================== */
-
-  renderCategories() {
-    const container =
-      this.getElement(
-        "categories"
-      );
-
-    if (!container) {
-      return;
-    }
-
-    container.innerHTML = "";
-
-    for (
-      const category
-      of this.state.uiSchema?.categories || []
-    ) {
-      const advancedPreferences =
-        (category.preferences || [])
-          .filter(
-            preference =>
-              !this.state.primaryPaths
-                .has(preference.path)
-          );
-
-      if (
-        advancedPreferences.length === 0
-      ) {
-        continue;
-      }
-
-      const section =
-        document.createElement(
-          "section"
-        );
-
-      section.className =
-        "ari-preference-category";
-
-      const header =
-        document.createElement(
-          "header"
-        );
-
-      header.className =
-        "ari-preference-category__header";
-
-      const title =
-        document.createElement(
-          "h2"
-        );
-
-      title.textContent =
-        category.label ||
-        "Preferences";
-
-      const description =
-        document.createElement(
-          "p"
-        );
-
-      description.textContent =
-        category.description ||
-        "";
-
-      header.append(
-        title,
-        description
-      );
-
-      section.appendChild(header);
-
-      for (
-        const preference
-        of advancedPreferences
-      ) {
-        section.appendChild(
-          this.createPreferenceRow(
-            preference
-          )
-        );
-      }
-
-      container.appendChild(section);
-    }
-  },
-
-  createPreferenceRow(
-    preference
-  ) {
-    const row =
-      document.createElement(
-        "div"
-      );
-
-    row.className =
-      "ari-preference-row";
-
-    const copy =
-      document.createElement(
-        "div"
-      );
-
-    copy.className =
-      "ari-preference-row__copy";
-
-    const label =
-      document.createElement(
-        "label"
-      );
-
-    const selectId =
-      `ari-pref-${this.toSafeId(
-        preference.category
-      )}-${this.toSafeId(
-        preference.key
-      )}`;
-
-    label.className =
-      "ari-preference-row__label";
-
-    label.htmlFor = selectId;
-
-    label.textContent =
-      preference.label ||
-      preference.key;
-
-    const description =
-      document.createElement(
-        "p"
-      );
-
-    description.className =
-      "ari-preference-row__description";
-
-    description.textContent =
-      preference.description ||
-      "";
-
-    const consentNote =
-      document.createElement(
-        "small"
-      );
-
-    consentNote.className =
-      "ari-preference-row__consent";
-
-    consentNote.hidden = true;
-
-    consentNote.textContent =
-      "Explicit consent required.";
-
-    copy.append(
-      label,
-      description,
-      consentNote
-    );
-
-    const select =
-      document.createElement(
-        "select"
-      );
-
-    select.id = selectId;
-    select.name = preference.path;
-
-    select.dataset.preferenceControl =
-      "true";
-    select.dataset.controlType =
-      "advanced";
-    select.dataset.category =
-      preference.category;
-    select.dataset.key =
-      preference.key;
-    select.dataset.path =
-      preference.path;
-
-    for (
-      const optionDefinition
-      of preference.options || []
-    ) {
-      const option =
-        document.createElement(
-          "option"
-        );
-
-      option.value =
-        optionDefinition.value;
-
-      option.textContent =
-        optionDefinition.label ||
-        optionDefinition.value;
-
-      option.title =
-        optionDefinition.description ||
-        "";
-
-      option.dataset.consentRequired =
-        optionDefinition.consentRequired
-          ? "true"
-          : "false";
-
-      option.dataset.consentText =
-        optionDefinition.consentText ||
-        "";
-
-      option.dataset.warningLevel =
-        optionDefinition.warningLevel ||
-        "";
-
-      select.appendChild(option);
-    }
-
-    select.addEventListener(
-      "change",
-      event =>
-        this.handlePreferenceChange(
-          event,
-          consentNote
-        )
-    );
-
-    row.append(
-      copy,
-      select
-    );
-
-    return row;
   },
 
   /* =====================================================
@@ -758,147 +279,117 @@ window.AriPreferenceSettingsController = {
   ===================================================== */
 
   populateForm(record = {}) {
-    const preset =
-      this.getElement("preset");
-
-    if (preset) {
-      const requestedPreset =
-        record.activePreset ||
-        "default";
-
-      const optionExists =
-        Array.from(
-          preset.options
-        ).some(
-          option =>
-            option.value ===
-            requestedPreset
-        );
-
-      preset.value =
-        optionExists
-          ? requestedPreset
-          : "default";
-    }
-
     const overrides =
-      record.preferenceOverrides ||
-      {};
-
-    const controls =
-      this.getPreferenceControls();
-
-    const radioPaths =
-      new Set();
-
-    for (
-      const control
-      of controls
-    ) {
-      const category =
-        control.dataset.category;
-
-      const key =
-        control.dataset.key;
-
-      const savedValue =
-        overrides?.[category]?.[key] ||
-        "default";
-
-      if (
-        control.type === "radio"
-      ) {
-        control.checked =
-          control.value === savedValue;
-
-        radioPaths.add(
-          control.dataset.path
-        );
-      } else {
-        const optionExists =
-          Array.from(
-            control.options || []
-          ).some(
-            option =>
-              option.value ===
-              savedValue
-          );
-
-        control.value =
-          optionExists
-            ? savedValue
-            : "default";
-      }
-
-      control.dataset.previousValue =
-        savedValue;
-
-      this.updateConsentIndicator(
-        control
+      this.asPlainObject(
+        record.preferenceOverrides
       );
-    }
 
     for (
       const path
-      of radioPaths
+      of this.supportedPaths
     ) {
-      const group =
-        this.getRadioGroupByPath(
-          path
-        );
+      const {
+        category,
+        key
+      } = this.parsePath(path);
 
-      if (
-        group.some(
-          input =>
-            input.checked
-        )
-      ) {
-        continue;
-      }
+      const savedValue =
+        overrides?.[category]?.[key];
 
-      const runtimeValue =
+      const runtimeDefault =
         this.getRuntimeDefaultForPath(
           path
         );
 
-      const fallback =
-        group.find(
-          input =>
-            input.value === runtimeValue
-        ) ||
-        group.find(
-          input =>
-            input.value === "adaptive"
-        ) ||
-        group[0];
+      const selectedValue =
+        savedValue ??
+        runtimeDefault;
 
-      if (fallback) {
-        fallback.checked = true;
-
-        for (
-          const input
-          of group
-        ) {
-          input.dataset.previousValue =
-            fallback.value;
-        }
-      }
+      this.selectValueForPath(
+        path,
+        selectedValue
+      );
     }
   },
 
+  selectValueForPath(
+    path,
+    requestedValue
+  ) {
+    const group =
+      this.getRadioGroupByPath(path);
+
+    if (
+      group.length === 0
+    ) {
+      return null;
+    }
+
+    const normalizedValue =
+      String(
+        requestedValue ?? ""
+      ).trim();
+
+    const selected =
+      group.find(
+        input =>
+          input.value ===
+          normalizedValue
+      ) ||
+      group.find(
+        input =>
+          input.value ===
+          "default"
+      ) ||
+      group[0];
+
+    for (
+      const input
+      of group
+    ) {
+      input.checked =
+        input === selected;
+    }
+
+    return selected?.value || null;
+  },
+
   getRuntimeDefaultForPath(path) {
-    const [
+    const contract =
+      this.requireContract();
+
+    const {
       category,
       key
-    ] = String(path || "")
-      .split(".");
+    } = this.parsePath(path);
+
+    const runtimeDefaults =
+      typeof contract.getRuntimeDefaults ===
+      "function"
+        ? contract.getRuntimeDefaults()
+        : {};
+
+    const value =
+      runtimeDefaults?.[category]?.[key];
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      return value;
+    }
+
+    const group =
+      this.getRadioGroupByPath(path);
 
     return (
-      this.requireContract()
-        .getRuntimeDefaults?.()
-        ?.[category]
-        ?.[key] ||
-      "default"
+      group.find(
+        input =>
+          input.value === "default"
+      )?.value ||
+      group[0]?.value ||
+      null
     );
   },
 
@@ -919,23 +410,16 @@ window.AriPreferenceSettingsController = {
     const reset =
       this.getElement("reset");
 
-    const preset =
-      this.getElement("preset");
-
-    const consentCheckbox =
-      this.getElement(
-        "consentCheckbox"
-      );
-
-    const consentDialog =
-      this.getElement(
-        "consentDialog"
-      );
-
     form?.addEventListener(
       "submit",
       event =>
         this.handleSubmit(event)
+    );
+
+    form?.addEventListener(
+      "change",
+      event =>
+        this.handleFormChange(event)
     );
 
     reset?.addEventListener(
@@ -944,400 +428,50 @@ window.AriPreferenceSettingsController = {
         this.handleReset()
     );
 
-    preset?.addEventListener(
-      "change",
-      () => {
-        this.setStatus(
-          "Preset selected. Save to apply.",
-          "working"
-        );
-      }
-    );
-
-    consentCheckbox
-      ?.addEventListener(
-        "change",
-        () => {
-          const confirm =
-            this.getElement(
-              "consentConfirm"
-            );
-
-          if (confirm) {
-            confirm.disabled =
-              !consentCheckbox.checked;
-          }
-        }
-      );
-
-    consentDialog
-      ?.addEventListener(
-        "close",
-        () =>
-          this.handleConsentClose()
-      );
-
     this.state.eventsBound = true;
   },
 
-  /* =====================================================
-     PREFERENCE CHANGE AND CONSENT
-  ===================================================== */
-
-  handlePreferenceChange(
-    event,
-    consentNote = null
-  ) {
+  handleFormChange(event) {
     const control =
-      event.currentTarget;
-
-    if (!control) {
-      return;
-    }
-
-    if (
-      control.type === "radio" &&
-      !control.checked
-    ) {
-      return;
-    }
-
-    const metadata =
-      this.getSelectedOptionMetadata(
-        control
+      event.target?.closest?.(
+        'input[type="radio"][data-path]'
       );
 
-    if (consentNote) {
-      consentNote.hidden =
-        !metadata.consentRequired;
-    }
-
-    const path =
-      control.dataset.path;
-
-    const value =
-      control.value;
-
     if (
-      !metadata.consentRequired ||
-      this.hasConsent(
-        path,
-        value
+      !control ||
+      !control.checked ||
+      !this.supportedPaths.includes(
+        control.dataset.path
       )
     ) {
-      this.commitControlValue(
-        control,
-        value
-      );
-
-      this.setPresetToCustom();
-
-      this.setStatus(
-        "Preference changed. Save to apply.",
-        "working"
-      );
-
       return;
     }
 
-    this.state.pendingConsent = {
-      control,
-      path,
-      category:
-        control.dataset.category,
-      key:
-        control.dataset.key,
-      value,
-      previousValue:
-        control.dataset.previousValue ||
-        "default",
-      consentText:
-        metadata.consentText ||
-        "This option requires explicit consent.",
-      warningLevel:
-        metadata.warningLevel ||
-        "standard"
-    };
-
-    this.openConsentDialog();
-  },
-
-  getSelectedOptionMetadata(
-    control
-  ) {
-    if (
-      control.tagName === "SELECT"
-    ) {
-      const selected =
-        control.options[
-          control.selectedIndex
-        ];
-
-      return {
-        consentRequired:
-          selected?.dataset
-            ?.consentRequired ===
-          "true",
-        consentText:
-          selected?.dataset
-            ?.consentText ||
-          "",
-        warningLevel:
-          selected?.dataset
-            ?.warningLevel ||
-          ""
-      };
-    }
-
-    return {
-      consentRequired:
-        control.dataset
-          .consentRequired ===
-        "true",
-      consentText:
-        control.dataset
-          .consentText ||
-        "",
-      warningLevel:
-        control.dataset
-          .warningLevel ||
-        ""
-    };
-  },
-
-  openConsentDialog() {
-    const pending =
-      this.state.pendingConsent;
-
-    const dialog =
-      this.getElement(
-        "consentDialog"
-      );
-
-    if (
-      !pending ||
-      !dialog
-    ) {
-      return;
-    }
-
-    const title =
-      this.getElement(
-        "consentTitle"
-      );
-
-    const text =
-      this.getElement(
-        "consentText"
-      );
-
-    const checkbox =
-      this.getElement(
-        "consentCheckbox"
-      );
-
-    const confirm =
-      this.getElement(
-        "consentConfirm"
-      );
-
-    if (title) {
-      title.textContent =
-        pending.warningLevel === "high"
-          ? "Confirm sensitive preference"
-          : "Confirm preference";
-    }
-
-    if (text) {
-      text.textContent =
-        pending.consentText;
-    }
-
-    if (checkbox) {
-      checkbox.checked = false;
-    }
-
-    if (confirm) {
-      confirm.disabled = true;
-    }
-
-    if (
-      typeof dialog.showModal ===
-      "function"
-    ) {
-      dialog.showModal();
-    } else {
-      dialog.setAttribute(
-        "open",
-        ""
-      );
-    }
-  },
-
-  handleConsentClose() {
-    const pending =
-      this.state.pendingConsent;
-
-    const dialog =
-      this.getElement(
-        "consentDialog"
-      );
-
-    if (
-      !pending ||
-      !dialog
-    ) {
-      return;
-    }
-
-    if (
-      dialog.returnValue === "confirm"
-    ) {
-      this.grantConsent(
-        pending.path,
-        pending.value
-      );
-
-      this.commitControlValue(
-        pending.control,
-        pending.value
-      );
-
-      this.setPresetToCustom();
-
-      this.setStatus(
-        "Consent confirmed. Save to apply.",
-        "working"
-      );
-    } else {
-      this.restoreControlValue(
-        pending.control,
-        pending.previousValue
-      );
-    }
-
-    this.updateConsentIndicator(
-      pending.control
+    this.setDirty(
+      this.hasSelectionChanges()
     );
 
-    this.state.pendingConsent = null;
-  },
-
-  commitControlValue(
-    control,
-    value
-  ) {
-    if (
-      control.type === "radio"
-    ) {
-      for (
-        const candidate
-        of this.getRadioGroup(
-          control
-        )
-      ) {
-        candidate.dataset.previousValue =
-          value;
-      }
-
-      return;
-    }
-
-    control.dataset.previousValue =
-      value;
-
-    this.updateConsentIndicator(
-      control
+    this.setStatus(
+      "Changes not saved.",
+      "working"
     );
-  },
 
-  restoreControlValue(
-    control,
-    previousValue
-  ) {
-    if (
-      control.type !== "radio"
-    ) {
-      control.value =
-        previousValue ||
-        "default";
-
-      return;
-    }
-
-    const group =
-      this.getRadioGroup(
-        control
-      );
-
-    const fallback =
-      group.find(
-        candidate =>
-          candidate.value === previousValue
-      ) ||
-      group.find(
-        candidate =>
-          candidate.value === "adaptive"
-      ) ||
-      group[0];
-
-    for (
-      const candidate
-      of group
-    ) {
-      candidate.checked =
-        candidate === fallback;
-    }
-  },
-
-  updateConsentIndicator(
-    control
-  ) {
-    if (
-      control.tagName !== "SELECT"
-    ) {
-      return;
-    }
-
-    const row =
-      control.closest(
-        ".ari-preference-row"
-      );
-
-    const note =
-      row?.querySelector(
-        ".ari-preference-row__consent"
-      );
-
-    if (!note) {
-      return;
-    }
-
-    note.hidden =
-      !this.getSelectedOptionMetadata(
-        control
-      ).consentRequired;
-  },
-
-  setPresetToCustom() {
-    const preset =
-      this.getElement("preset");
-
-    if (!preset) {
-      return;
-    }
-
-    const customExists =
-      Array.from(
-        preset.options
-      ).some(
-        option =>
-          option.value === "custom"
-      );
-
-    if (customExists) {
-      preset.value = "custom";
-    }
+    window.dispatchEvent(
+      new CustomEvent(
+        "ari:preference-settings-changed",
+        {
+          detail: {
+            source: this.source,
+            path:
+              control.dataset.path,
+            value:
+              control.value,
+            selections:
+              this.collectSelections()
+          }
+        }
+      )
+    );
   },
 
   /* =====================================================
@@ -1345,15 +479,20 @@ window.AriPreferenceSettingsController = {
   ===================================================== */
 
   async handleSubmit(event) {
-    event.preventDefault();
+    event?.preventDefault?.();
 
     if (
       this.state.saving
     ) {
-      return;
+      return {
+        ok: false,
+        code: "preference_settings_save_in_progress"
+      };
     }
 
     this.state.saving = true;
+    this.state.lastError = null;
+
     this.setSaving(true);
 
     this.setStatus(
@@ -1371,11 +510,6 @@ window.AriPreferenceSettingsController = {
       const runtime =
         this.getRuntime();
 
-      const activePreset =
-        this.getElement("preset")
-          ?.value ||
-        "default";
-
       const rawOverrides =
         this.collectOverrides();
 
@@ -1388,24 +522,34 @@ window.AriPreferenceSettingsController = {
         throw new Error(
           validation?.warnings
             ?.join(", ") ||
-          "Invalid preference settings."
+          validation?.errors
+            ?.join(", ") ||
+          "The selected preferences are invalid."
         );
       }
 
-      this.assertRequiredConsent(
-        validation.normalized
-      );
+      const normalizedOverrides =
+        this.filterToSupportedOverrides(
+          validation.normalized || {}
+        );
+
+      const activePreset =
+        this.hasAnyOverrides(
+          normalizedOverrides
+        )
+          ? "custom"
+          : "default";
 
       const result =
         await store.save(
           null,
-          validation.normalized,
+          normalizedOverrides,
           {
             activePreset,
             schemaVersion:
               contract.schemaVersion,
             changeSource:
-              "settings_ui"
+              "communication_settings_ui"
           }
         );
 
@@ -1413,26 +557,25 @@ window.AriPreferenceSettingsController = {
         throw new Error(
           result?.error?.message ||
           result?.code ||
-          "Unable to save preferences."
+          "Unable to save Ari preferences."
         );
       }
 
       this.state.record =
-        result.record || {};
+        this.normalizeRecord(
+          result.record
+        );
 
-      if (
-        runtime &&
-        typeof runtime
-          .afterPreferenceSave ===
-          "function"
-      ) {
-        await runtime
-          .afterPreferenceSave();
-      }
+      await this.refreshRuntime(
+        runtime
+      );
 
       this.populateForm(
         this.state.record
       );
+
+      this.captureInitialSelections();
+      this.setDirty(false);
 
       this.setStatus(
         "Preferences saved.",
@@ -1447,17 +590,28 @@ window.AriPreferenceSettingsController = {
               source: this.source,
               controllerVersion:
                 this.version,
+              supportedPaths: [
+                ...this.supportedPaths
+              ],
               record:
                 this.clone(
                   this.state.record
-                ),
-              consentEvidence:
-                this.getConsentEvidence()
+                )
             }
           }
         )
       );
+
+      return {
+        ok: true,
+        record: this.clone(
+          this.state.record
+        )
+      };
     } catch (error) {
+      this.state.lastError =
+        this.serializeError(error);
+
       console.error(
         "ARI PREFERENCE SETTINGS SAVE FAILED:",
         error
@@ -1465,48 +619,114 @@ window.AriPreferenceSettingsController = {
 
       this.setStatus(
         error?.message ||
-        "Unable to save preferences.",
+        "Unable to save Ari preferences.",
         "error"
       );
+
+      return {
+        ok: false,
+        code: "preference_settings_save_failed",
+        error
+      };
     } finally {
       this.state.saving = false;
       this.setSaving(false);
     }
   },
 
+  collectSelections() {
+    const selections = {};
+
+    for (
+      const path
+      of this.supportedPaths
+    ) {
+      const selected =
+        this.getSelectedControlByPath(
+          path
+        );
+
+      if (selected) {
+        selections[path] =
+          selected.value;
+      }
+    }
+
+    return selections;
+  },
+
   collectOverrides() {
     const output = {};
 
     for (
-      const control
-      of this.getPreferenceControls()
+      const path
+      of this.supportedPaths
     ) {
+      const selected =
+        this.getSelectedControlByPath(
+          path
+        );
+
+      if (!selected) {
+        throw new Error(
+          `No value is selected for ${path}.`
+        );
+      }
+
+      const runtimeDefault =
+        String(
+          this.getRuntimeDefaultForPath(
+            path
+          ) ?? ""
+        );
+
+      const selectedValue =
+        String(
+          selected.value ?? ""
+        );
+
       if (
-        control.type === "radio" &&
-        !control.checked
+        !selectedValue ||
+        selectedValue ===
+          runtimeDefault
       ) {
         continue;
       }
+
+      const {
+        category,
+        key
+      } = this.parsePath(path);
+
+      output[category] =
+        output[category] || {};
+
+      output[category][key] =
+        selectedValue;
+    }
+
+    return output;
+  },
+
+  filterToSupportedOverrides(
+    overrides = {}
+  ) {
+    const output = {};
+
+    for (
+      const path
+      of this.supportedPaths
+    ) {
+      const {
+        category,
+        key
+      } = this.parsePath(path);
 
       const value =
-        control.value;
+        overrides?.[category]?.[key];
 
       if (
-        !value ||
-        value === "default"
-      ) {
-        continue;
-      }
-
-      const category =
-        control.dataset.category;
-
-      const key =
-        control.dataset.key;
-
-      if (
-        !category ||
-        !key
+        value === undefined
       ) {
         continue;
       }
@@ -1529,10 +749,15 @@ window.AriPreferenceSettingsController = {
     if (
       this.state.saving
     ) {
-      return;
+      return {
+        ok: false,
+        code: "preference_settings_save_in_progress"
+      };
     }
 
     this.state.saving = true;
+    this.state.lastError = null;
+
     this.setSaving(true);
 
     this.setStatus(
@@ -1554,7 +779,7 @@ window.AriPreferenceSettingsController = {
               null,
               {
                 changeSource:
-                  "settings_ui"
+                  "communication_settings_ui"
               }
             )
           : await store.save(
@@ -1564,7 +789,7 @@ window.AriPreferenceSettingsController = {
                 activePreset:
                   "default",
                 changeSource:
-                  "settings_ui"
+                  "communication_settings_ui"
               }
             );
 
@@ -1572,33 +797,30 @@ window.AriPreferenceSettingsController = {
         throw new Error(
           result?.error?.message ||
           result?.code ||
-          "Unable to reset preferences."
+          "Unable to reset Ari preferences."
         );
       }
 
-      this.clearSessionConsent();
-
       this.state.record =
-        result.record || {
-          activePreset:
-            "default",
-          preferenceOverrides:
-            {}
-        };
+        this.normalizeRecord(
+          result.record || {
+            activePreset:
+              "default",
+            preferenceOverrides:
+              {}
+          }
+        );
 
-      if (
-        runtime &&
-        typeof runtime
-          .afterPreferenceSave ===
-          "function"
-      ) {
-        await runtime
-          .afterPreferenceSave();
-      }
+      await this.refreshRuntime(
+        runtime
+      );
 
       this.populateForm(
         this.state.record
       );
+
+      this.captureInitialSelections();
+      this.setDirty(false);
 
       this.setStatus(
         "Preferences reset.",
@@ -1611,6 +833,8 @@ window.AriPreferenceSettingsController = {
           {
             detail: {
               source: this.source,
+              controllerVersion:
+                this.version,
               record:
                 this.clone(
                   this.state.record
@@ -1619,7 +843,17 @@ window.AriPreferenceSettingsController = {
           }
         )
       );
+
+      return {
+        ok: true,
+        record: this.clone(
+          this.state.record
+        )
+      };
     } catch (error) {
+      this.state.lastError =
+        this.serializeError(error);
+
       console.error(
         "ARI PREFERENCE SETTINGS RESET FAILED:",
         error
@@ -1627,9 +861,15 @@ window.AriPreferenceSettingsController = {
 
       this.setStatus(
         error?.message ||
-        "Unable to reset preferences.",
+        "Unable to reset Ari preferences.",
         "error"
       );
+
+      return {
+        ok: false,
+        code: "preference_settings_reset_failed",
+        error
+      };
     } finally {
       this.state.saving = false;
       this.setSaving(false);
@@ -1637,134 +877,81 @@ window.AriPreferenceSettingsController = {
   },
 
   /* =====================================================
-     CONSENT
+     RUNTIME REFRESH
   ===================================================== */
 
-  assertRequiredConsent(
-    overrides = {}
-  ) {
-    const contract =
-      this.requireContract();
+  async refreshRuntime(runtime) {
+    if (!runtime) {
+      return {
+        ok: true,
+        skipped: true,
+        reason:
+          "preference_runtime_not_loaded"
+      };
+    }
 
-    for (
-      const [category, values]
-      of Object.entries(
-        overrides
-      )
+    if (
+      typeof runtime.afterPreferenceSave ===
+      "function"
     ) {
-      for (
-        const [key, value]
-        of Object.entries(
-          values || {}
-        )
-      ) {
-        if (
-          contract.requiresConsent(
-            category,
-            key,
-            value
-          ) &&
-          !this.hasConsent(
-            `${category}.${key}`,
-            value
-          )
-        ) {
-          throw new Error(
-            `Consent is required for ${category}.${key}.`
-          );
-        }
-      }
+      return (
+        await runtime.afterPreferenceSave()
+      );
     }
-  },
 
-  grantConsent(
-    path,
-    value
-  ) {
-    this.state.consentEvidence[
-      path
-    ] = {
-      approved: true,
-      value,
-      grantedAt:
-        new Date().toISOString(),
-      source:
-        "settings_ui"
+    if (
+      typeof runtime.refresh ===
+      "function"
+    ) {
+      return (
+        await runtime.refresh()
+      );
+    }
+
+    return {
+      ok: true,
+      skipped: true,
+      reason:
+        "preference_runtime_refresh_unavailable"
     };
-
-    this.persistSessionConsent();
   },
 
-  hasConsent(
-    path,
-    value
-  ) {
-    const evidence =
-      this.state
-        .consentEvidence
-        ?.[path];
+  /* =====================================================
+     DIRTY STATE
+  ===================================================== */
 
-    return Boolean(
-      evidence?.approved === true &&
-      evidence.value === value
+  captureInitialSelections() {
+    this.state.initialSelections =
+      this.collectSelections();
+  },
+
+  hasSelectionChanges() {
+    const current =
+      this.collectSelections();
+
+    const initial =
+      this.state.initialSelections ||
+      {};
+
+    return this.supportedPaths.some(
+      path =>
+        current[path] !==
+        initial[path]
     );
   },
 
-  getConsentEvidence() {
-    return this.clone(
-      this.state.consentEvidence
-    );
-  },
+  setDirty(isDirty) {
+    this.state.dirty =
+      Boolean(isDirty);
 
-  persistSessionConsent() {
-    try {
-      sessionStorage.setItem(
-        "ari.preferenceConsent",
-        JSON.stringify(
-          this.state.consentEvidence
-        )
-      );
-    } catch {
-      // Consent remains available in controller memory.
-    }
-  },
+    const root =
+      this.getElement("root");
 
-  restoreSessionConsent() {
-    try {
-      const raw =
-        sessionStorage.getItem(
-          "ari.preferenceConsent"
-        );
-
-      if (!raw) {
-        return;
-      }
-
-      const parsed =
-        JSON.parse(raw);
-
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-      ) {
-        this.state.consentEvidence =
-          parsed;
-      }
-    } catch {
-      this.state.consentEvidence = {};
-    }
-  },
-
-  clearSessionConsent() {
-    this.state.consentEvidence = {};
-
-    try {
-      sessionStorage.removeItem(
-        "ari.preferenceConsent"
-      );
-    } catch {
-      // No further action required.
+    if (root) {
+      root.dataset.dirty =
+        this.state.dirty
+          ? "true"
+          : "false";
     }
   },
 
@@ -1773,24 +960,22 @@ window.AriPreferenceSettingsController = {
   ===================================================== */
 
   getPreferenceControls() {
-    return Array.from(
-      document.querySelectorAll(
-        "[data-preference-control='true'][data-path]"
-      )
-    );
-  },
+    const form =
+      this.getElement("form");
 
-  getRadioGroup(control) {
-    if (!control?.name) {
+    if (!form) {
       return [];
     }
 
     return Array.from(
-      document.querySelectorAll(
-        `input[type="radio"][name="${this.escapeSelectorValue(
-          control.name
-        )}"]`
+      form.querySelectorAll(
+        'input[type="radio"][data-path]'
       )
+    ).filter(
+      control =>
+        this.supportedPaths.includes(
+          control.dataset.path
+        )
     );
   },
 
@@ -1798,9 +983,20 @@ window.AriPreferenceSettingsController = {
     return this.getPreferenceControls()
       .filter(
         control =>
-          control.type === "radio" &&
-          control.dataset.path === path
+          control.dataset.path ===
+          path
       );
+  },
+
+  getSelectedControlByPath(path) {
+    return (
+      this.getRadioGroupByPath(path)
+        .find(
+          control =>
+            control.checked
+        ) ||
+      null
+    );
   },
 
   /* =====================================================
@@ -1821,7 +1017,7 @@ window.AriPreferenceSettingsController = {
 
     if (form) {
       form.hidden =
-        isLoading;
+        Boolean(isLoading);
     }
   },
 
@@ -1832,22 +1028,14 @@ window.AriPreferenceSettingsController = {
     const reset =
       this.getElement("reset");
 
-    const preset =
-      this.getElement("preset");
-
     if (save) {
       save.disabled =
-        isSaving;
+        Boolean(isSaving);
     }
 
     if (reset) {
       reset.disabled =
-        isSaving;
-    }
-
-    if (preset) {
-      preset.disabled =
-        isSaving;
+        Boolean(isSaving);
     }
 
     for (
@@ -1855,7 +1043,7 @@ window.AriPreferenceSettingsController = {
       of this.getPreferenceControls()
     ) {
       control.disabled =
-        isSaving;
+        Boolean(isSaving);
     }
   },
 
@@ -1897,15 +1085,6 @@ window.AriPreferenceSettingsController = {
     }
 
     if (
-      typeof contract.getUiSchema !==
-      "function"
-    ) {
-      throw new Error(
-        "AriUserPreferenceContract.getUiSchema is unavailable."
-      );
-    }
-
-    if (
       typeof contract.validateOverrides !==
       "function"
     ) {
@@ -1929,11 +1108,13 @@ window.AriPreferenceSettingsController = {
     }
 
     if (
-      typeof store.read !== "function" ||
-      typeof store.save !== "function"
+      typeof store.read !==
+      "function" ||
+      typeof store.save !==
+      "function"
     ) {
       throw new Error(
-        "AriUserPreferenceStore does not expose read and save."
+        "AriUserPreferenceStore must expose read and save."
       );
     }
 
@@ -1949,7 +1130,70 @@ window.AriPreferenceSettingsController = {
   },
 
   /* =====================================================
-     STATE AND UTILITIES
+     RECORD AND PATH UTILITIES
+  ===================================================== */
+
+  normalizeRecord(record) {
+    const normalized =
+      this.asPlainObject(record);
+
+    return {
+      ...normalized,
+      activePreset:
+        normalized.activePreset ||
+        "default",
+      preferenceOverrides:
+        this.asPlainObject(
+          normalized.preferenceOverrides
+        )
+    };
+  },
+
+  parsePath(path) {
+    const parts =
+      String(path || "")
+        .split(".")
+        .filter(Boolean);
+
+    if (
+      parts.length !== 2
+    ) {
+      throw new Error(
+        `Invalid preference path: ${path}.`
+      );
+    }
+
+    return {
+      category: parts[0],
+      key: parts[1]
+    };
+  },
+
+  hasAnyOverrides(overrides) {
+    return Object.values(
+      this.asPlainObject(overrides)
+    ).some(
+      category =>
+        Object.keys(
+          this.asPlainObject(category)
+        ).length > 0
+    );
+  },
+
+  asPlainObject(value) {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      return {};
+    }
+
+    return value;
+  },
+
+  /* =====================================================
+     STATE AND DIAGNOSTICS
   ===================================================== */
 
   getElement(key) {
@@ -1967,55 +1211,44 @@ window.AriPreferenceSettingsController = {
     return {
       initialized:
         this.state.initialized,
+      initializing:
+        this.state.initializing,
       saving:
         this.state.saving,
+      dirty:
+        this.state.dirty,
+      supportedPaths: [
+        ...this.supportedPaths
+      ],
+      selections:
+        this.collectSelections(),
+      initialSelections:
+        this.clone(
+          this.state.initialSelections
+        ),
       record:
         this.clone(
           this.state.record
         ),
-      primaryPresentations:
+      lastError:
         this.clone(
-          this.state.primaryPresentations
-        ),
-      consentEvidence:
-        this.getConsentEvidence()
+          this.state.lastError
+        )
     };
   },
 
-  toSafeId(value) {
-    return (
-      String(value || "preference")
-        .trim()
-        .toLowerCase()
-        .replace(
-          /[^a-z0-9_-]+/g,
-          "-"
-        )
-        .replace(
-          /^[-_]+|[-_]+$/g,
-          ""
-        ) ||
-      "preference"
-    );
-  },
-
-  escapeSelectorValue(value) {
-    if (
-      window.CSS &&
-      typeof window.CSS.escape ===
-      "function"
-    ) {
-      return window.CSS.escape(
-        String(value)
-      );
-    }
-
-    return String(
-      value || ""
-    ).replace(
-      /["\\]/g,
-      "\\$&"
-    );
+  serializeError(error) {
+    return {
+      name:
+        error?.name ||
+        "Error",
+      message:
+        error?.message ||
+        String(error || "Unknown error"),
+      stack:
+        error?.stack ||
+        null
+    };
   },
 
   clone(value) {
@@ -2054,6 +1287,9 @@ document.addEventListener(
         .AriPreferenceSettingsController
         .initialize();
     }
+  },
+  {
+    once: true
   }
 );
 
