@@ -124,12 +124,21 @@ window.AriRebirthAppBridge = {
     "ari/developer/ari-rebirth-developer-handoff-engine.js",
 
     // ===================================================
-    // EARLY PERCEPTION / ROUTING AUTHORITIES
-    // ===================================================
+// EARLY SAFETY / RESTRICTION AUTHORITIES
+// ===================================================
 
-    "ari/safety/ari-safety-context-gate.js",
-    "ari/observer-system/ari-observer-network.js",
+"ari/safety/ari-safety-context-gate.js",
 
+// Ari's only application-level restriction authority.
+// Must load after the Safety Gate and before preferences,
+// Situation Map, Triage, reasoning, and expression.
+"ari/governance/ari-restriction-governor.js?v=1.0.0",
+
+// ===================================================
+// EARLY PERCEPTION / ROUTING AUTHORITIES
+// ===================================================
+
+"ari/observer-system/ari-observer-network.js",
     // Deterministic evidence aggregation. This replaces semantic frame
     // construction inside Perception.
     "ari/perception/ari-evidence-builder.js",
@@ -148,7 +157,7 @@ window.AriRebirthAppBridge = {
 
 "ari/profile/ari-user-preference-contract.js?v=1.1.1",
 "ari/profile/ari-user-preference-store.js?v=1.0.1",
-"ari/profile/ari-preference-resolver.js?v=2.0.0",
+"ari/profile/ari-preference-resolver.js?v=2.1.0",
 "ari/profile/ari-preference-runtime.js?v=1.1.0",
 
     "ari/conversation/ari-turn-packet.js",
