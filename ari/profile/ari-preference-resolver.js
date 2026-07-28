@@ -4,10 +4,9 @@
 // Purpose:
 // Resolve Ari's application-owned defaults, active preset, persistent user
 // preference overrides, conversation-scoped overrides, current-turn overrides,
-// consent evidence, and binding response constraints into one canonical
-// preference packet.
+// and consent evidence into one canonical preference packet.
 //
-// V2.0.0 — Canonical Contract-Native Preference Resolution
+// V2.1.0 — Permissive Style / Restriction-Governor Alignment
 //
 // Architectural flow:
 //
@@ -20,8 +19,6 @@
 // Current-Turn Overrides
 //          +
 // Consent Evidence
-//          +
-// Binding Response Constraints
 //          ↓
 // Canonical Preference Resolver
 //          ↓
@@ -29,44 +26,47 @@
 //          ↓
 // Reasoning / Request Builder / Expression
 //
+// Restriction authority:
+// - Emergency safety belongs to Ari Restriction Governor / Safety Gate.
+// - Malicious or illegal operational assistance belongs to Ari Restriction
+//   Governor / Misuse Gate.
+// - Preference Resolver does not create response prohibitions.
+//
 // Responsibilities:
 // - Require and use the canonical Ari User Preference Contract.
 // - Read the active preset and persistent overrides from approved packets.
 // - Read conversation-scoped and current-turn preference overrides.
 // - Normalize and validate every preference layer.
 // - Merge layers in authoritative precedence order.
-// - enforce consent for consent-required preference values.
-// - Apply binding response constraints after advisory preference resolution.
+// - Enforce contract-defined consent where genuinely required.
 // - Produce model instructions and instruction text.
-// - Preserve field-level provenance and resolution diagnostics.
-// - Preserve explicit false values in constraint and consent packets.
-// - Avoid mutating any upstream packet.
+// - Preserve field-level provenance and diagnostics.
+// - Preserve explicit false values.
+// - Avoid mutating upstream packets.
 //
 // Non-responsibilities:
-// - Does not infer preferences from ordinary user language.
+// - Does not infer persistent preferences from ordinary user language.
 // - Does not decide whether a preference should be persisted.
 // - Does not read or write Supabase.
 // - Does not call OpenAI, tools, APIs, or external services.
 // - Does not generate user-facing responses.
-// - Does not override safety.
-// - Does not execute actions.
+// - Does not enforce emergency safety.
+// - Does not enforce cyber or illegal-operation restrictions.
+// - Does not prohibit profanity, humor, sarcasm, banter, or creative language.
 // - Does not mutate the canonical preference contract.
 
 window.Ari = window.Ari || {};
 
 window.AriPreferenceResolver = {
-  version: "2.0.0",
+  version: "2.1.0",
   schemaVersion: "2.0.0",
   source: "ari-preference-resolver",
   schema: "ari_canonical_preference_packet",
   authorityLevel: "canonical_preference_resolution",
 
-  /* =====================================================
-     PUBLIC ENTRY POINTS
-  ===================================================== */
-
   resolve(input = {}) {
     const warnings = [];
+
     const summary =
       this.isPlainObject(input?.summary)
         ? input.summary
@@ -76,19 +76,24 @@ window.AriPreferenceResolver = {
       this.requirePreferenceContract();
 
     const persistentResolution =
-      this.resolvePersistentPreferenceRecord(summary);
+      this.resolvePersistentPreferenceRecord(
+        summary
+      );
 
     const conversationResolution =
-      this.resolveConversationOverrides(summary);
+      this.resolveConversationOverrides(
+        summary
+      );
 
     const currentTurnResolution =
-      this.resolveCurrentTurnOverrides(summary);
+      this.resolveCurrentTurnOverrides(
+        summary
+      );
 
     const consentResolution =
-      this.resolveConsentEvidence(summary);
-
-    const constraintsResolution =
-      this.resolveBindingConstraints(summary);
+      this.resolveConsentEvidence(
+        summary
+      );
 
     const activePreset =
       this.resolveActivePreset({
@@ -100,7 +105,19 @@ window.AriPreferenceResolver = {
       });
 
     const preset =
-      contract.getPreset(activePreset);
+      contract.getPreset(
+        activePreset
+      );
+
+    const normalizedPreset =
+      this.normalizeLayer({
+        contract,
+        value:
+          preset?.overrides || {},
+        source:
+          `preset:${preset?.id || "default"}`,
+        warnings
+      });
 
     const normalizedPersistent =
       this.normalizeLayer({
@@ -138,20 +155,11 @@ window.AriPreferenceResolver = {
         warnings
       });
 
-    const normalizedPreset =
-      this.normalizeLayer({
-        contract,
-        value:
-          preset?.overrides || {},
-        source:
-          `preset:${preset?.id || "default"}`,
-        warnings
-      });
-
     const defaults =
       contract.getRuntimeDefaults();
 
     const provenance = {};
+
     let resolved =
       this.clone(defaults);
 
@@ -212,32 +220,23 @@ window.AriPreferenceResolver = {
         consentEvidence:
           consentResolution.value,
         runtimeDefaults: defaults,
-        presetOverrides:
-          normalizedPreset.normalized,
-        persistentOverrides:
-          normalizedPersistent.normalized,
-        conversationOverrides:
-          normalizedConversation.normalized,
-        currentTurnOverrides:
-          normalizedCurrentTurn.normalized,
         warnings
       });
 
     resolved =
       consentFiltered.resolvedPreferences;
 
-    const constrained =
-      this.applyBindingConstraints({
-        contract,
-        resolvedPreferences: resolved,
-        provenance,
-        constraints:
-          constraintsResolution.constraints,
-        warnings
-      });
-
-    resolved =
-      constrained.resolvedPreferences;
+    /*
+     * No response-control, routing, planner, triage, or generic safety
+     * packet may rewrite communication preferences here.
+     *
+     * Emergency and illegal-operation restrictions belong exclusively
+     * to the Restriction Governor.
+     */
+    const restrictionContext =
+      this.readRestrictionContext(
+        summary
+      );
 
     const modelInstructions =
       contract.buildModelInstructions(
@@ -249,7 +248,7 @@ window.AriPreferenceResolver = {
         resolved
       );
 
-    const overrideApplied =
+    const currentTurnOverrideApplied =
       this.hasKeys(
         normalizedCurrentTurn.normalized
       );
@@ -276,11 +275,18 @@ window.AriPreferenceResolver = {
       complete: true,
       ready: true,
 
-      schema: this.schema,
+      schema:
+        this.schema,
+
       schemaVersion:
         this.schemaVersion,
-      source: this.source,
-      version: this.version,
+
+      source:
+        this.source,
+
+      version:
+        this.version,
+
       authorityLevel:
         this.authorityLevel,
 
@@ -290,10 +296,15 @@ window.AriPreferenceResolver = {
       preset: {
         id:
           preset?.id || "default",
+
         label:
-          preset?.label || "Ari Default",
+          preset?.label ||
+          "Ari Default",
+
         description:
-          preset?.description || null,
+          preset?.description ||
+          null,
+
         applied:
           presetApplied
       },
@@ -361,17 +372,38 @@ window.AriPreferenceResolver = {
       },
 
       constraints: {
-        ...this.clone(
-          constraintsResolution
-            .constraints
-        ),
+        source: null,
+        applied: [],
 
-        source:
-          constraintsResolution.source,
+        forceProfessionalTone:
+          false,
 
-        applied:
-          constrained.appliedConstraints
+        profanityProhibited:
+          false,
+
+        humorProhibited:
+          false,
+
+        sarcasmProhibited:
+          false,
+
+        banterProhibited:
+          false,
+
+        maximumVerbosity:
+          null,
+
+        minimumFormality:
+          null,
+
+        maximumHumor:
+          null
       },
+
+      restrictionContext:
+        this.clone(
+          restrictionContext
+        ),
 
       resolution: {
         presetApplied,
@@ -382,14 +414,14 @@ window.AriPreferenceResolver = {
           conversationOverrideApplied,
 
         currentTurnOverridePresent:
-          overrideApplied,
+          currentTurnOverrideApplied,
 
         overrideApplied:
           conversationOverrideApplied ||
-          overrideApplied,
+          currentTurnOverrideApplied,
 
         effectiveSource:
-          overrideApplied
+          currentTurnOverrideApplied
             ? "current_turn_override"
             : conversationOverrideApplied
               ? "conversation_override"
@@ -412,14 +444,16 @@ window.AriPreferenceResolver = {
           consentResolution.source,
 
         constraintsSource:
-          constraintsResolution.source
+          null
       },
 
       diagnostics: {
         resolverRan: true,
         resolverReady: true,
+
         resolverVersion:
           this.version,
+
         resolverSource:
           this.source,
 
@@ -436,6 +470,12 @@ window.AriPreferenceResolver = {
           false,
 
         mutationPerformed:
+          false,
+
+        styleProhibitionPerformed:
+          false,
+
+        restrictionEnforcementPerformed:
           false,
 
         candidateCounts: {
@@ -456,8 +496,7 @@ window.AriPreferenceResolver = {
               .candidateCount,
 
           constraints:
-            constraintsResolution
-              .candidateCount
+            0
         },
 
         warningCount:
@@ -467,11 +506,17 @@ window.AriPreferenceResolver = {
       },
 
       authority: {
+        restrictionGovernorIsBinding:
+          true,
+
         safetyIsBinding:
           true,
 
-        responseConstraintsAreBinding:
+        illegalOperationBoundaryIsBinding:
           true,
+
+        responseConstraintsAreBinding:
+          false,
 
         persistentPreferencesAreAdvisory:
           true,
@@ -494,6 +539,9 @@ window.AriPreferenceResolver = {
         conversationOverridesPersisted:
           false,
 
+        mayCreateStyleProhibitions:
+          false,
+
         mayPersist:
           false,
 
@@ -510,9 +558,45 @@ window.AriPreferenceResolver = {
     return this.resolve(input);
   },
 
-  /* =====================================================
-     SOURCE RESOLUTION
-  ===================================================== */
+  readRestrictionContext(summary = {}) {
+    const governor =
+      this.firstObject([
+        summary.restrictionGovernor,
+        summary.restrictionGovernorResult,
+        summary.restrictionContext,
+        summary.applicationRestriction
+      ]);
+
+    return {
+      available:
+        Boolean(
+          governor &&
+          Object.keys(governor).length
+        ),
+
+      mode:
+        governor.mode ||
+        "normal",
+
+      normalResponseAllowed:
+        governor.normalResponseAllowed !==
+        false,
+
+      emergencySafetyActive:
+        governor.emergencySafetyActive ===
+        true,
+
+      maliciousOrIllegalOperationActive:
+        governor
+          .maliciousOrIllegalOperationActive ===
+        true,
+
+      authority:
+        governor.authorityLevel ||
+        governor.source ||
+        null
+    };
+  },
 
   resolvePersistentPreferenceRecord(
     summary = {}
@@ -648,9 +732,12 @@ window.AriPreferenceResolver = {
         return {
           source:
             candidate.source,
+
           record,
+
           value:
             record.preferenceOverrides,
+
           candidateCount
         };
       }
@@ -658,19 +745,26 @@ window.AriPreferenceResolver = {
 
     return {
       source: null,
+
       record: {
         activePreset:
           "default",
+
         preferenceOverrides:
           {},
+
         schemaVersion:
           null,
+
         revision:
           null,
+
         updatedAt:
           null
       },
+
       value: {},
+
       candidateCount
     };
   },
@@ -896,121 +990,6 @@ window.AriPreferenceResolver = {
     ]);
   },
 
-  resolveBindingConstraints(
-    summary = {}
-  ) {
-    const responseControl =
-      this.objectOrEmpty(
-        summary.responseControl
-      );
-
-    const routing =
-      this.objectOrEmpty(
-        summary.routingContract ||
-        summary.routing
-      );
-
-    const safety =
-      this.objectOrEmpty(
-        summary.safetyStagePacket ||
-        summary.safety
-      );
-
-    const constraints = {
-      forceProfessionalTone:
-        this.readBoolean([
-          responseControl
-            .forceProfessionalTone,
-          routing
-            .forceProfessionalTone,
-          safety
-            .forceProfessionalTone
-        ]),
-
-      profanityProhibited:
-        this.readBoolean([
-          responseControl
-            .profanityProhibited,
-          responseControl
-            .forbidProfanity,
-          routing
-            .profanityProhibited,
-          safety
-            .profanityProhibited
-        ]),
-
-      humorProhibited:
-        this.readBoolean([
-          responseControl
-            .humorProhibited,
-          responseControl
-            .forbidHumor,
-          routing
-            .humorProhibited,
-          safety
-            .humorProhibited
-        ]),
-
-      sarcasmProhibited:
-        this.readBoolean([
-          responseControl
-            .sarcasmProhibited,
-          routing
-            .sarcasmProhibited,
-          safety
-            .sarcasmProhibited
-        ]),
-
-      banterProhibited:
-        this.readBoolean([
-          responseControl
-            .banterProhibited,
-          routing
-            .banterProhibited,
-          safety
-            .banterProhibited
-        ]),
-
-      maximumVerbosity:
-        this.firstNonEmptyString([
-          responseControl
-            .maximumVerbosity,
-          routing
-            .maximumVerbosity
-        ]) ||
-        null,
-
-      minimumFormality:
-        this.firstNonEmptyString([
-          responseControl
-            .minimumFormality,
-          routing
-            .minimumFormality
-        ]) ||
-        null,
-
-      maximumHumor:
-        this.firstNonEmptyString([
-          responseControl
-            .maximumHumor,
-          routing
-            .maximumHumor
-        ]) ||
-        null
-    };
-
-    return {
-      constraints,
-      source:
-        this.hasMeaningfulConstraint(
-          constraints
-        )
-          ? "binding_response_constraints"
-          : null,
-      candidateCount: 3
-    };
-  },
-
   resolveMergedObject(
     candidates = []
   ) {
@@ -1050,15 +1029,13 @@ window.AriPreferenceResolver = {
         sources.length
           ? sources.join(" + ")
           : null,
+
       value:
         merged,
+
       candidateCount
     };
   },
-
-  /* =====================================================
-     NORMALIZATION AND LAYERING
-  ===================================================== */
 
   normalizeLayer({
     contract,
@@ -1085,10 +1062,12 @@ window.AriPreferenceResolver = {
     return {
       ok:
         result?.ok !== false,
+
       normalized:
         this.objectOrEmpty(
           result?.normalized
         ),
+
       warnings:
         this.arrayOrEmpty(
           result?.warnings
@@ -1172,14 +1151,11 @@ window.AriPreferenceResolver = {
       ) {
         provenance[
           `${category}.${key}`
-        ] = "runtime_default";
+        ] =
+          "runtime_default";
       }
     }
   },
-
-  /* =====================================================
-     CONSENT ENFORCEMENT
-  ===================================================== */
 
   enforceConsent({
     contract,
@@ -1235,13 +1211,17 @@ window.AriPreferenceResolver = {
         const path =
           `${category}.${key}`;
 
+        const originalSource =
+          provenance[path] ||
+          null;
+
         const fallback =
           runtimeDefaults
             ?.[category]
             ?.[key];
 
         if (
-          fallback &&
+          fallback !== undefined &&
           contract
             .isValidPreferenceValue(
               category,
@@ -1263,14 +1243,20 @@ window.AriPreferenceResolver = {
           path,
           category,
           key,
+
           requestedValue:
             value,
+
           fallbackValue:
-            fallback || null,
+            fallback ??
+            null,
+
           source:
-            provenance[path] || null,
+            originalSource,
+
           reason:
             "explicit_consent_missing",
+
           requirement:
             contract.getConsentRequirement(
               category,
@@ -1288,7 +1274,9 @@ window.AriPreferenceResolver = {
     return {
       resolvedPreferences:
         output,
+
       blockedPreferences,
+
       consentRequiredCount
     };
   },
@@ -1304,31 +1292,28 @@ window.AriPreferenceResolver = {
 
     const directValues = [
       consentEvidence?.[path],
+
       consentEvidence
         ?.[category]
         ?.[key],
+
       consentEvidence
         ?.preferences
         ?.[path],
+
       consentEvidence
         ?.preferences
         ?.[category]
         ?.[key]
     ];
 
-    for (
-      const evidence
-      of directValues
-    ) {
-      if (
-        evidence === true
-      ) {
+    for (const evidence of directValues) {
+      if (evidence === true) {
         return true;
       }
 
       if (
-        typeof evidence ===
-          "string" &&
+        typeof evidence === "string" &&
         (
           evidence === value ||
           evidence === "approved" ||
@@ -1339,9 +1324,7 @@ window.AriPreferenceResolver = {
       }
 
       if (
-        this.isPlainObject(
-          evidence
-        ) &&
+        this.isPlainObject(evidence) &&
         evidence.approved === true &&
         (
           !evidence.value ||
@@ -1375,327 +1358,6 @@ window.AriPreferenceResolver = {
     );
   },
 
-  /* =====================================================
-     BINDING CONSTRAINTS
-  ===================================================== */
-
-  applyBindingConstraints({
-    contract,
-    resolvedPreferences = {},
-    provenance = {},
-    constraints = {},
-    warnings = []
-  } = {}) {
-    const output =
-      this.clone(
-        resolvedPreferences
-      );
-
-    const appliedConstraints = [];
-
-    const setPreference = (
-      category,
-      key,
-      value,
-      constraint
-    ) => {
-      if (
-        !contract
-          .isValidPreferenceValue(
-            category,
-            key,
-            value
-          )
-      ) {
-        warnings.push(
-          `invalid_constraint_value:${category}.${key}:${value}`
-        );
-        return;
-      }
-
-      output[category] =
-        this.objectOrEmpty(
-          output[category]
-        );
-
-      output[category][key] =
-        value;
-
-      provenance[
-        `${category}.${key}`
-      ] = "binding_constraint";
-
-      appliedConstraints.push({
-        constraint,
-        path:
-          `${category}.${key}`,
-        value
-      });
-    };
-
-    if (
-      constraints
-        .forceProfessionalTone ===
-      true
-    ) {
-      setPreference(
-        "communication",
-        "formality",
-        "professional",
-        "forceProfessionalTone"
-      );
-    }
-
-    if (
-      constraints
-        .profanityProhibited ===
-      true
-    ) {
-      setPreference(
-        "language",
-        "profanity",
-        "never",
-        "profanityProhibited"
-      );
-    }
-
-    if (
-      constraints
-        .humorProhibited ===
-      true
-    ) {
-      setPreference(
-        "language",
-        "humor",
-        "none",
-        "humorProhibited"
-      );
-    }
-
-    if (
-      constraints
-        .sarcasmProhibited ===
-      true
-    ) {
-      setPreference(
-        "language",
-        "sarcasm",
-        "none",
-        "sarcasmProhibited"
-      );
-    }
-
-    if (
-      constraints
-        .banterProhibited ===
-      true
-    ) {
-      setPreference(
-        "language",
-        "banter",
-        "none",
-        "banterProhibited"
-      );
-    }
-
-    if (
-      constraints.maximumVerbosity
-    ) {
-      const current =
-        output
-          ?.response_structure
-          ?.verbosity;
-
-      const constrained =
-        this.minByRank({
-          current,
-          boundary:
-            constraints
-              .maximumVerbosity,
-          ranks: {
-            concise: 1,
-            moderate: 2,
-            adaptive: 3,
-            detailed: 4
-          }
-        });
-
-      if (constrained) {
-        setPreference(
-          "response_structure",
-          "verbosity",
-          constrained,
-          "maximumVerbosity"
-        );
-      }
-    }
-
-    if (
-      constraints.minimumFormality
-    ) {
-      const normalizedMinimum =
-        this.normalizeFormalityConstraint(
-          constraints
-            .minimumFormality
-        );
-
-      const current =
-        output
-          ?.communication
-          ?.formality;
-
-      const constrained =
-        this.maxByRank({
-          current,
-          boundary:
-            normalizedMinimum,
-          ranks: {
-            casual: 1,
-            conversational: 2,
-            technical: 3,
-            professional: 4
-          }
-        });
-
-      if (constrained) {
-        setPreference(
-          "communication",
-          "formality",
-          constrained,
-          "minimumFormality"
-        );
-      }
-    }
-
-    if (
-      constraints.maximumHumor
-    ) {
-      const current =
-        output
-          ?.language
-          ?.humor;
-
-      const constrained =
-        this.minByRank({
-          current,
-          boundary:
-            constraints
-              .maximumHumor,
-          ranks: {
-            none: 0,
-            occasional: 1,
-            frequent: 2,
-            edgy: 3
-          }
-        });
-
-      if (constrained) {
-        setPreference(
-          "language",
-          "humor",
-          constrained,
-          "maximumHumor"
-        );
-      }
-    }
-
-    return {
-      resolvedPreferences:
-        output,
-      appliedConstraints
-    };
-  },
-
-  normalizeFormalityConstraint(
-    value
-  ) {
-    const normalized =
-      String(value || "")
-        .trim()
-        .toLowerCase();
-
-    const aliases = {
-      low: "casual",
-      medium: "conversational",
-      high: "professional",
-      very_high: "professional",
-      formal: "professional"
-    };
-
-    return (
-      aliases[normalized] ||
-      normalized
-    );
-  },
-
-  minByRank({
-    current,
-    boundary,
-    ranks = {}
-  } = {}) {
-    if (!boundary) {
-      return current || null;
-    }
-
-    if (!current) {
-      return boundary;
-    }
-
-    const currentRank =
-      ranks[current];
-
-    const boundaryRank =
-      ranks[boundary];
-
-    if (
-      currentRank === undefined ||
-      boundaryRank === undefined
-    ) {
-      return boundary;
-    }
-
-    return currentRank <=
-      boundaryRank
-      ? current
-      : boundary;
-  },
-
-  maxByRank({
-    current,
-    boundary,
-    ranks = {}
-  } = {}) {
-    if (!boundary) {
-      return current || null;
-    }
-
-    if (!current) {
-      return boundary;
-    }
-
-    const currentRank =
-      ranks[current];
-
-    const boundaryRank =
-      ranks[boundary];
-
-    if (
-      currentRank === undefined ||
-      boundaryRank === undefined
-    ) {
-      return boundary;
-    }
-
-    return currentRank >=
-      boundaryRank
-      ? current
-      : boundary;
-  },
-
-  /* =====================================================
-     PRESET AND RECORD NORMALIZATION
-  ===================================================== */
-
   resolveActivePreset({
     contract,
     summary = {},
@@ -1706,10 +1368,13 @@ window.AriPreferenceResolver = {
       this.firstNonEmptyString([
         summary.activePreset,
         summary.preferencePreset,
+
         summary.preferenceStagePacket
           ?.activePreset,
+
         summary.preferencePacket
           ?.activePreset,
+
         persistentRecord
           ?.activePreset
       ]) ||
@@ -1774,10 +1439,6 @@ window.AriPreferenceResolver = {
     };
   },
 
-  /* =====================================================
-     VALIDATION
-  ===================================================== */
-
   validate() {
     let contractReady = false;
     let contractVersion = null;
@@ -1801,7 +1462,8 @@ window.AriPreferenceResolver = {
           "function";
 
       contractVersion =
-        contract.version || null;
+        contract.version ||
+        null;
     } catch {
       contractReady = false;
     }
@@ -1814,8 +1476,6 @@ window.AriPreferenceResolver = {
       typeof this.applyLayer ===
         "function" &&
       typeof this.enforceConsent ===
-        "function" &&
-      typeof this.applyBindingConstraints ===
         "function";
 
     return {
@@ -1864,14 +1524,13 @@ window.AriPreferenceResolver = {
       consentEnforcementSupported:
         true,
 
-      bindingConstraintsSupported:
+      bindingStyleConstraintsSupported:
+        false,
+
+      restrictionGovernorSupported:
         true
     };
   },
-
-  /* =====================================================
-     CONTRACT ACCESS
-  ===================================================== */
 
   getPreferenceContract() {
     return (
@@ -1895,15 +1554,23 @@ window.AriPreferenceResolver = {
     return contract;
   },
 
-  /* =====================================================
-     UTILITIES
-  ===================================================== */
+  firstObject(values = []) {
+    for (const value of values) {
+      if (
+        this.isPlainObject(value) &&
+        Object.keys(value).length
+      ) {
+        return value;
+      }
+    }
+
+    return {};
+  },
 
   isPlainObject(value) {
     return Boolean(
       value &&
-      typeof value ===
-        "object" &&
+      typeof value === "object" &&
       !Array.isArray(value)
     );
   },
@@ -1945,21 +1612,6 @@ window.AriPreferenceResolver = {
     }
 
     return "";
-  },
-
-  readBoolean(
-    values = []
-  ) {
-    for (const value of values) {
-      if (
-        typeof value ===
-          "boolean"
-      ) {
-        return value;
-      }
-    }
-
-    return undefined;
   },
 
   deepMerge(
@@ -2013,34 +1665,6 @@ window.AriPreferenceResolver = {
     } catch {
       return value;
     }
-  },
-
-  hasMeaningfulConstraint(
-    constraints = {}
-  ) {
-    return Boolean(
-      constraints
-        .forceProfessionalTone ===
-        true ||
-      constraints
-        .profanityProhibited ===
-        true ||
-      constraints
-        .humorProhibited ===
-        true ||
-      constraints
-        .sarcasmProhibited ===
-        true ||
-      constraints
-        .banterProhibited ===
-        true ||
-      constraints
-        .maximumVerbosity ||
-      constraints
-        .minimumFormality ||
-      constraints
-        .maximumHumor
-    );
   }
 };
 
