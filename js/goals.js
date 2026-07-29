@@ -1,4 +1,4 @@
-const GOALS_VERSION = "2.0.0";
+const GOALS_VERSION = "2.1.0";
 
 const goalInputs = [
   "age",
@@ -15,6 +15,8 @@ const goalInputs = [
   "medicalConditions"
 ];
 
+let dailyCalorieGoalSaveTimer = null;
+
 document.addEventListener("DOMContentLoaded", async () => {
   goalInputs.forEach((id) => {
     const element = document.getElementById(id);
@@ -24,8 +26,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     element.addEventListener("change", calculateGoals);
   });
 
-  document.getElementById("dietPreference")?.addEventListener("change", updateDietOtherUI);
-  document.getElementById("saveGoalsBtn")?.addEventListener("click", saveGoals);
+  document
+    .getElementById("dietPreference")
+    ?.addEventListener("change", updateDietOtherUI);
+
+  document
+    .getElementById("saveGoalsBtn")
+    ?.addEventListener("click", saveGoals);
+
+  const dailyCalorieGoalInput = document.getElementById(
+    "dailyCalorieGoalInput"
+  );
+
+  dailyCalorieGoalInput?.addEventListener("input", () => {
+    updateDailyCalorieGoalPreview();
+    scheduleDailyCalorieGoalSave();
+  });
+
+  dailyCalorieGoalInput?.addEventListener("change", () => {
+    saveDailyCalorieGoal();
+  });
 
   await loadSavedGoals();
   calculateGoals();
@@ -67,6 +87,18 @@ function setStatus(message = "", type = "") {
   }
 }
 
+function setDailyCalorieGoalStatus(message = "", type = "") {
+  const statusEl = document.getElementById("dailyCalorieGoalMessage");
+  if (!statusEl) return;
+
+  statusEl.textContent = message;
+  statusEl.classList.remove("error", "success");
+
+  if (type) {
+    statusEl.classList.add(type);
+  }
+}
+
 function toggleActivityGuide() {
   const guide = document.getElementById("activityGuide");
   if (!guide) return;
@@ -88,7 +120,7 @@ function updateHeightConversion(heightInches) {
   if (!conversion) return;
 
   if (!heightInches || heightInches <= 0) {
-    conversion.textContent = "Equivalent: —";
+    conversion.textContent = "Equivalent: â";
     return;
   }
 
@@ -137,12 +169,12 @@ function calculateGoals() {
   updateHeightConversion(heightInches);
 
   if (!age || !weightLbs || !heightInches || !activity) {
-    setText("calorieGoal", "— kcal");
-    setText("maintenanceBox", "—");
-    setText("bmiBox", "—");
-    setText("timeToGoal", "—");
-    setText("goalDate", "—");
-    setText("caloriesLeftText", "—");
+    setText("calorieGoal", "â kcal");
+    setText("maintenanceBox", "â");
+    setText("bmiBox", "â");
+    setText("timeToGoal", "â");
+    setText("goalDate", "â");
+    setText("caloriesLeftText", "â");
     return null;
   }
 
@@ -158,59 +190,63 @@ function calculateGoals() {
   }
 
   const maintenance = Math.round(bmr * activity);
-  let calorieGoal = maintenance;
+  let calculatedCalorieEstimate = maintenance;
 
   if (goalMode === "lose") {
-    calorieGoal = Math.round(maintenance - weeklyChange * 500);
+    calculatedCalorieEstimate = Math.round(
+      maintenance - weeklyChange * 500
+    );
   }
 
   if (goalMode === "gain") {
-    calorieGoal = Math.round(maintenance + weeklyChange * 500);
+    calculatedCalorieEstimate = Math.round(
+      maintenance + weeklyChange * 500
+    );
   }
 
-  setText("calorieGoal", `${calorieGoal} kcal`);
+  const dailyCalorieGoal = resolveDailyCalorieGoal(
+    calculatedCalorieEstimate
+  );
+
+  setText("calorieGoal", `${calculatedCalorieEstimate} kcal`);
   setText("maintenanceBox", `${maintenance} kcal`);
 
   const explanation = document.getElementById("goalExplanation");
 
   if (explanation) {
     if (goalMode === "lose") {
-      explanation.textContent = "This target helps create a calorie deficit for gradual weight loss.";
+      explanation.textContent =
+        "Maintenance and timeline estimates based on your current information and weight-loss goal.";
     } else if (goalMode === "gain") {
-      explanation.textContent = "This target helps create a calorie surplus for gradual weight gain.";
+      explanation.textContent =
+        "Maintenance and timeline estimates based on your current information and weight-gain goal.";
     } else {
-      explanation.textContent = "This target is estimated to help maintain your current weight.";
+      explanation.textContent =
+        "Maintenance estimates based on your current body information and activity level.";
     }
   }
 
-  const warningBox = document.getElementById("warningBox");
-
-  if (warningBox) {
-    if (
-      goalMode === "lose" &&
-      ((sex === "male" && calorieGoal < 1500) ||
-        (sex === "female" && calorieGoal < 1200))
-    ) {
-      warningBox.style.display = "block";
-    } else {
-      warningBox.style.display = "none";
-    }
-  }
+  updateCalorieWarning(dailyCalorieGoal, sex, goalMode);
 
   const bmi = (weightLbs / (heightInches * heightInches)) * 703;
-  const bmiText = `${bmi.toFixed(1)} — ${getBmiCategory(bmi)}`;
+  const bmiText = `${bmi.toFixed(1)} â ${getBmiCategory(bmi)}`;
 
   setText("bmiBox", bmiText);
   setText("progressBmi", bmiText);
 
-  const timeline = updateTimeAndDate(weightLbs, targetWeight, weeklyChange, goalMode);
+  const timeline = updateTimeAndDate(
+    weightLbs,
+    targetWeight,
+    weeklyChange,
+    goalMode
+  );
 
-  updateCaloriesMeter(calorieGoal);
+  updateCaloriesMeter(dailyCalorieGoal);
 
   updateProgressSummary({
     weightLbs,
     targetWeight,
-    calorieGoal,
+    dailyCalorieGoal,
     bmiText,
     timeline
   });
@@ -224,13 +260,175 @@ function calculateGoals() {
     goalMode,
     targetWeight,
     weeklyChange,
-    calorieGoal,
+    dailyCalorieGoal,
+    calculatedCalorieEstimate,
     maintenance,
     dietPreference: getValue("dietPreference"),
     dietOther: getValue("dietOther"),
     foodAllergies: getValue("foodAllergies"),
     medicalConditions: getValue("medicalConditions")
   };
+}
+
+function resolveDailyCalorieGoal(calculatedCalorieEstimate) {
+  const input = document.getElementById("dailyCalorieGoalInput");
+  const inputValue = parseDailyCalorieGoal(input?.value);
+
+  if (inputValue) {
+    return inputValue;
+  }
+
+  const savedValue = parseDailyCalorieGoal(
+    localStorage.getItem("calbuddyDailyCalorieGoal")
+  );
+
+  if (savedValue) {
+    if (input) {
+      input.value = savedValue;
+    }
+
+    return savedValue;
+  }
+
+  if (input && document.activeElement !== input) {
+    input.value = calculatedCalorieEstimate;
+  }
+
+  return calculatedCalorieEstimate;
+}
+
+function parseDailyCalorieGoal(value) {
+  const calories = Math.round(Number(value));
+
+  if (!Number.isFinite(calories)) {
+    return null;
+  }
+
+  if (calories < 800 || calories > 10000) {
+    return null;
+  }
+
+  return calories;
+}
+
+function updateDailyCalorieGoalPreview() {
+  const goal = parseDailyCalorieGoal(
+    document.getElementById("dailyCalorieGoalInput")?.value
+  );
+
+  if (!goal) {
+    setDailyCalorieGoalStatus(
+      "Enter a daily calorie goal between 800 and 10,000 kcal.",
+      "error"
+    );
+    return;
+  }
+
+  setDailyCalorieGoalStatus("");
+  updateCaloriesMeter(goal);
+
+  const calculated = calculateGoals();
+
+  if (calculated) {
+    updateCalorieWarning(goal, calculated.sex, calculated.goalMode);
+
+    updateProgressSummary({
+      weightLbs: calculated.weightLbs,
+      targetWeight: calculated.targetWeight,
+      dailyCalorieGoal: goal,
+      bmiText: document.getElementById("bmiBox")?.textContent || "â",
+      timeline: document.getElementById("timeToGoal")?.textContent || "â"
+    });
+  }
+}
+
+function scheduleDailyCalorieGoalSave() {
+  window.clearTimeout(dailyCalorieGoalSaveTimer);
+
+  dailyCalorieGoalSaveTimer = window.setTimeout(() => {
+    saveDailyCalorieGoal();
+  }, 700);
+}
+
+async function saveDailyCalorieGoal() {
+  const goal = parseDailyCalorieGoal(
+    document.getElementById("dailyCalorieGoalInput")?.value
+  );
+
+  if (!goal) {
+    setDailyCalorieGoalStatus(
+      "Enter a daily calorie goal between 800 and 10,000 kcal.",
+      "error"
+    );
+    return;
+  }
+
+  localStorage.setItem("calbuddyDailyCalorieGoal", String(goal));
+  updateStoredGoalsCalorieGoal(goal);
+  updateCaloriesMeter(goal);
+
+  const user = await getCurrentUser();
+
+  if (!user) {
+    setDailyCalorieGoalStatus(
+      `Daily calorie goal saved on this device: ${goal.toLocaleString()} kcal.`,
+      "success"
+    );
+    return;
+  }
+
+  const { error } = await window.calbuddySupabase
+    .from("profiles")
+    .update({
+      daily_calorie_goal: goal,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", user.id);
+
+  if (error) {
+    setDailyCalorieGoalStatus(
+      "Saved on this device, but the cloud profile did not update: " +
+        error.message,
+      "error"
+    );
+    return;
+  }
+
+  setDailyCalorieGoalStatus(
+    `Daily calorie goal saved: ${goal.toLocaleString()} kcal.`,
+    "success"
+  );
+}
+
+function updateStoredGoalsCalorieGoal(goal) {
+  let storedGoals = {};
+
+  try {
+    storedGoals = JSON.parse(
+      localStorage.getItem("calbuddyGoals") || "{}"
+    );
+  } catch (error) {
+    console.warn("Could not parse stored goals:", error.message);
+  }
+
+  storedGoals.calorieGoal = goal;
+
+  localStorage.setItem(
+    "calbuddyGoals",
+    JSON.stringify(storedGoals)
+  );
+}
+
+function updateCalorieWarning(dailyCalorieGoal, sex, goalMode) {
+  const warningBox = document.getElementById("warningBox");
+  if (!warningBox) return;
+
+  const isLowGoal =
+    goalMode === "lose" &&
+    ((sex === "male" && dailyCalorieGoal < 1500) ||
+      (sex === "female" && dailyCalorieGoal < 1200));
+
+  warningBox.style.display = isLowGoal ? "block" : "none";
 }
 
 function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) {
@@ -241,9 +439,9 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
   }
 
   if (!currentWeight || !targetWeight || !weeklyChange) {
-    setText("timeToGoal", "—");
-    setText("goalDate", "—");
-    return "—";
+    setText("timeToGoal", "â");
+    setText("goalDate", "â");
+    return "â";
   }
 
   let poundsToGoal;
@@ -256,7 +454,7 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
 
   if (poundsToGoal <= 0) {
     setText("timeToGoal", "Already at or past target");
-    setText("goalDate", "—");
+    setText("goalDate", "â");
     return "Already at or past target";
   }
 
@@ -264,7 +462,9 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
   const months = weeks / 4.345;
 
   const estimatedGoalDate = new Date();
-  estimatedGoalDate.setDate(estimatedGoalDate.getDate() + Math.round(weeks * 7));
+  estimatedGoalDate.setDate(
+    estimatedGoalDate.getDate() + Math.round(weeks * 7)
+  );
 
   const timeText = `${weeks.toFixed(1)} weeks (~${months.toFixed(1)} months)`;
   const dateText = estimatedGoalDate.toLocaleDateString(undefined, {
@@ -280,8 +480,14 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
 }
 
 function updateCaloriesMeter(goal) {
-  const consumed = Number(localStorage.getItem("calbuddyCaloriesConsumed") || 0);
-  const burned = Number(localStorage.getItem("calbuddyCaloriesBurned") || 0);
+  const consumed = Number(
+    localStorage.getItem("calbuddyCaloriesConsumed") || 0
+  );
+
+  const burned = Number(
+    localStorage.getItem("calbuddyCaloriesBurned") || 0
+  );
+
   const netConsumed = Math.max(consumed - burned, 0);
 
   const rawRemaining = goal - netConsumed;
@@ -302,8 +508,16 @@ function updateCaloriesMeter(goal) {
   if (card) {
     const percent = Math.round(percentLeft * 100);
 
-    card.style.setProperty("--calorie-left-percent", `${percent}%`);
-    card.classList.remove("calorie-low", "calorie-critical", "calorie-over");
+    card.style.setProperty(
+      "--calorie-left-percent",
+      `${percent}%`
+    );
+
+    card.classList.remove(
+      "calorie-low",
+      "calorie-critical",
+      "calorie-over"
+    );
 
     if (caloriesOver > 0) {
       card.classList.add("calorie-over");
@@ -323,43 +537,95 @@ function updateCaloriesMeter(goal) {
   }
 
   if (caloriesOver > 0) {
-    setText("caloriesLeftText", `+${caloriesOver.toLocaleString()}`);
-    if (label) label.textContent = "Calories Over";
+    setText(
+      "caloriesLeftText",
+      `+${caloriesOver.toLocaleString()}`
+    );
+
+    if (label) {
+      label.textContent = "Calories Over";
+    }
   } else {
-    setText("caloriesLeftText", caloriesLeft.toLocaleString());
-    if (label) label.textContent = "Calories Left";
+    setText(
+      "caloriesLeftText",
+      caloriesLeft.toLocaleString()
+    );
+
+    if (label) {
+      label.textContent = "Calories Left";
+    }
   }
 
-  setText("caloriesConsumedText", netConsumed.toLocaleString());
-  setText("dailyGoalText", goal.toLocaleString());
+  setText(
+    "caloriesConsumedText",
+    netConsumed.toLocaleString()
+  );
+
+  setText(
+    "dailyGoalText",
+    goal.toLocaleString()
+  );
 }
 
 function updateProgressSummary(summary = {}) {
-  const { weightLbs, targetWeight, calorieGoal, bmiText, timeline } = summary;
+  const {
+    weightLbs,
+    targetWeight,
+    dailyCalorieGoal,
+    bmiText,
+    timeline
+  } = summary;
 
-  setText("progressWeight", weightLbs ? `${weightLbs} lb` : "—");
-  setText("progressTargetWeight", targetWeight ? `${targetWeight} lb` : "—");
-  setText("progressBmi", bmiText || "—");
-  setText("progressCalories", calorieGoal ? `${calorieGoal} kcal/day` : "—");
-  setText("progressTimeline", timeline || "—");
+  setText(
+    "progressWeight",
+    weightLbs ? `${weightLbs} lb` : "â"
+  );
+
+  setText(
+    "progressTargetWeight",
+    targetWeight ? `${targetWeight} lb` : "â"
+  );
+
+  setText("progressBmi", bmiText || "â");
+
+  setText(
+    "progressCalories",
+    dailyCalorieGoal
+      ? `${dailyCalorieGoal} kcal/day`
+      : "â"
+  );
+
+  setText(
+    "progressTimeline",
+    timeline || "â"
+  );
 }
 
 function setText(id, value) {
   const element = document.getElementById(id);
-  if (element) element.textContent = value;
+
+  if (element) {
+    element.textContent = value;
+  }
 }
 
 function getValue(id) {
   const element = document.getElementById(id);
-  return element ? String(element.value || "").trim() : "";
-}
 
+  return element
+    ? String(element.value || "").trim()
+    : "";
+}
 
 async function saveGoals() {
   const calculated = calculateGoals();
 
-  if (!calculated || !calculated.calorieGoal) {
-    setStatus("Please complete your health goal information first.", "error");
+  if (!calculated || !calculated.dailyCalorieGoal) {
+    setStatus(
+      "Please complete your health goal information first.",
+      "error"
+    );
+
     return;
   }
 
@@ -372,15 +638,22 @@ async function saveGoals() {
     goalMode: calculated.goalMode,
     targetWeight: calculated.targetWeight,
     weeklyChange: calculated.weeklyChange,
-    calorieGoal: calculated.calorieGoal,
+    calorieGoal: calculated.dailyCalorieGoal,
     dietPreference: calculated.dietPreference,
     dietOther: calculated.dietOther,
     foodAllergies: calculated.foodAllergies,
     medicalConditions: calculated.medicalConditions
   };
 
-  localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
-  localStorage.setItem("calbuddyDailyCalorieGoal", calculated.calorieGoal);
+  localStorage.setItem(
+    "calbuddyGoals",
+    JSON.stringify(goals)
+  );
+
+  localStorage.setItem(
+    "calbuddyDailyCalorieGoal",
+    String(calculated.dailyCalorieGoal)
+  );
 
   const user = await getCurrentUser();
 
@@ -396,32 +669,53 @@ async function saveGoals() {
       goal: goals.goalMode,
       target_weight_lbs: Number(goals.targetWeight),
       weekly_weight_change_goal: Number(goals.weeklyChange),
-      daily_calorie_goal: Number(calculated.calorieGoal),
+      daily_calorie_goal: Number(calculated.dailyCalorieGoal),
       updated_at: new Date().toISOString()
     };
 
-    await trySaveOptionalHealthFields(profilePayload, goals);
+    await trySaveOptionalHealthFields(
+      profilePayload,
+      goals
+    );
 
     const { error } = await window.calbuddySupabase
       .from("profiles")
       .upsert(profilePayload, { onConflict: "id" });
 
     if (error) {
-      setStatus("Saved on this device, but cloud profile did not save: " + error.message, "error");
+      setStatus(
+        "Saved on this device, but cloud profile did not save: " +
+          error.message,
+        "error"
+      );
+
       return;
     }
 
-    setStatus(`Health goals saved. Daily target: ${calculated.calorieGoal} kcal`, "success");
+    setStatus(
+      `Health goals saved. Daily target: ${calculated.dailyCalorieGoal.toLocaleString()} kcal`,
+      "success"
+    );
   } else {
-    setStatus("Health goals saved on this device. Sign in to save them to your profile.", "success");
+    setStatus(
+      "Health goals saved on this device. Sign in to save them to your profile.",
+      "success"
+    );
   }
 }
 
 async function trySaveOptionalHealthFields(profilePayload, goals) {
-  profilePayload.diet_preference = goals.dietPreference || null;
-  profilePayload.diet_other = goals.dietOther || null;
-  profilePayload.food_allergies = goals.foodAllergies || null;
-  profilePayload.medical_conditions = goals.medicalConditions || null;
+  profilePayload.diet_preference =
+    goals.dietPreference || null;
+
+  profilePayload.diet_other =
+    goals.dietOther || null;
+
+  profilePayload.food_allergies =
+    goals.foodAllergies || null;
+
+  profilePayload.medical_conditions =
+    goals.medicalConditions || null;
 }
 
 async function loadSavedGoals() {
@@ -432,7 +726,7 @@ async function loadSavedGoals() {
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-.maybeSingle();
+      .maybeSingle();
 
     if (!error && data) {
       applyGoals({
@@ -451,10 +745,6 @@ async function loadSavedGoals() {
         medicalConditions: data.medical_conditions
       });
 
-      if (data.daily_calorie_goal) {
-        localStorage.setItem("calbuddyDailyCalorieGoal", data.daily_calorie_goal);
-      }
-
       calculateGoals();
       return;
     }
@@ -470,7 +760,10 @@ async function loadSavedGoals() {
   try {
     applyGoals(JSON.parse(savedGoals));
   } catch (error) {
-    console.warn("Could not parse saved goals:", error.message);
+    console.warn(
+      "Could not parse saved goals:",
+      error.message
+    );
   }
 
   calculateGoals();
@@ -483,43 +776,99 @@ function applyGoals(goals = {}) {
   setInputValue("height", goals.height || "69.8");
   setInputValue("activity", goals.activity || "1.55");
   setInputValue("goalMode", goals.goalMode || "lose");
-  setInputValue("targetWeight", goals.targetWeight || "175.0");
-  setInputValue("weeklyChange", goals.weeklyChange || "1");
-  setInputValue("dietPreference", goals.dietPreference || "none");
-  setInputValue("dietOther", goals.dietOther || "");
-  setInputValue("foodAllergies", goals.foodAllergies || "");
-  setInputValue("medicalConditions", goals.medicalConditions || "");
+  setInputValue(
+    "targetWeight",
+    goals.targetWeight || "175.0"
+  );
+  setInputValue(
+    "weeklyChange",
+    goals.weeklyChange || "1"
+  );
+  setInputValue(
+    "dietPreference",
+    goals.dietPreference || "none"
+  );
+  setInputValue(
+    "dietOther",
+    goals.dietOther || ""
+  );
+  setInputValue(
+    "foodAllergies",
+    goals.foodAllergies || ""
+  );
+  setInputValue(
+    "medicalConditions",
+    goals.medicalConditions || ""
+  );
+
+  const savedDailyCalorieGoal = parseDailyCalorieGoal(
+    goals.calorieGoal
+  );
+
+  if (savedDailyCalorieGoal) {
+    setInputValue(
+      "dailyCalorieGoalInput",
+      savedDailyCalorieGoal
+    );
+
+    localStorage.setItem(
+      "calbuddyDailyCalorieGoal",
+      String(savedDailyCalorieGoal)
+    );
+  }
 
   updateDietOtherUI();
-
-  if (goals.calorieGoal) {
-    localStorage.setItem("calbuddyDailyCalorieGoal", goals.calorieGoal);
-  }
 }
 
 function setInputValue(id, value) {
   const element = document.getElementById(id);
-  if (element) element.value = value;
+
+  if (element) {
+    element.value = value;
+  }
 }
 
 function logWeightQuick() {
-  const current = document.getElementById("weight")?.value || "";
-  const next = prompt("Enter today's weight:", current);
+  const current =
+    document.getElementById("weight")?.value || "";
+
+  const next = prompt(
+    "Enter today's weight:",
+    current
+  );
 
   if (!next) return;
 
   setInputValue("weight", next);
   calculateGoals();
-  setStatus("Weight updated. Press Save Health Goals to save it.", "");
+
+  setStatus(
+    "Weight updated. Press Save Health Goals to save it.",
+    ""
+  );
 }
 
 function logCaloriesBurnedQuick() {
-  const current = localStorage.getItem("calbuddyCaloriesBurned") || "0";
-  const burned = prompt("Calories burned today:", current);
+  const current =
+    localStorage.getItem("calbuddyCaloriesBurned") ||
+    "0";
+
+  const burned = prompt(
+    "Calories burned today:",
+    current
+  );
 
   if (burned === null) return;
 
-  localStorage.setItem("calbuddyCaloriesBurned", Number(burned) || 0);
+  localStorage.setItem(
+    "calbuddyCaloriesBurned",
+    Number(burned) || 0
+  );
+
   calculateGoals();
-  setStatus("Calories burned updated.", "success");
+
+  setStatus(
+    "Calories burned updated.",
+    "success"
+  );
 }
