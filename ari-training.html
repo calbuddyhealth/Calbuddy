@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#070b10" />
   <title>ARI Training | Performance Center</title>
   <meta name="description" content="ARI Training workout logging and performance center." />
@@ -11,6 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
+  <link rel="stylesheet" href="assets/css/header.css?v=2.0.0" />
+  <link rel="stylesheet" href="assets/css/animations.css?v=1.2.1" />
   <link rel="stylesheet" href="assets/css/ari-training.css?v=1.0.0" />
 </head>
 <body class="ari-training-page">
@@ -20,7 +22,7 @@
     <header class="ari-training-header" aria-label="ARI Training header">
       <div class="ari-training-header__inner">
         <a class="ari-training-back" href="my-goals.html" aria-label="Return to My Goals">
-          <span aria-hidden="true">â</span>
+          <span aria-hidden="true">&larr;</span>
           <span>Goals</span>
         </a>
 
@@ -82,7 +84,7 @@
 
           <article class="ari-performance-card">
             <p class="ari-performance-card__label">Calories Left</p>
-            <p class="ari-performance-card__value"><span id="trainingCaloriesLeft">â</span><span class="ari-performance-card__unit">kcal</span></p>
+            <p class="ari-performance-card__value"><span id="trainingCaloriesLeft">&mdash;</span><span class="ari-performance-card__unit">kcal</span></p>
             <p class="ari-performance-card__meta">Synced with your daily calorie goal</p>
           </article>
         </div>
@@ -213,7 +215,7 @@
     <div class="ari-workout-dialog__surface">
       <header class="ari-workout-dialog__header">
         <div><p class="ari-section-heading__eyebrow">Training Entry</p><h2 id="workoutDialogTitle">Log Workout</h2></div>
-        <button class="ari-dialog-close" id="closeWorkoutDialogButton" type="button" aria-label="Close workout form">Ã</button>
+        <button class="ari-dialog-close" id="closeWorkoutDialogButton" type="button" aria-label="Close workout form">&times;</button>
       </header>
 
       <form class="ari-workout-form" id="workoutForm" novalidate>
@@ -248,7 +250,7 @@
 
           <div class="ari-field">
             <label for="workoutDuration">Duration</label>
-            <output id="workoutDuration" for="workoutStartTime workoutEndTime">â</output>
+            <output id="workoutDuration" for="workoutStartTime workoutEndTime">&mdash;</output>
             <p class="ari-field-help">Calculated from the start and end times.</p>
           </div>
 
