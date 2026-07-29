@@ -64,7 +64,7 @@ main#ariApp.ari-v1-home {
   --ari-header-space: 92px;
   --ari-bottom-space: 138px;
 
-  --ari-hero-drop: clamp(20px, 3dvh, 40px);
+  --ari-hero-drop: clamp(8px, 1.5dvh, 20px);
   --ari-prompt-bottom: 148px;
 
   --ari-world-glow:
