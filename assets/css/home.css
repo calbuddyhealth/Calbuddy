@@ -1555,3 +1555,11 @@ main#ariApp.conversation-mode::before {
     transition: none;
   }
 }
+/* =====================================================
+   REMOVE ENVIRONMENT RINGS
+===================================================== */
+
+main#ariApp.ari-v1-home .ari-welcome::before,
+main#ariApp.ari-v1-home .ari-welcome::after {
+    display: none !important;
+}
