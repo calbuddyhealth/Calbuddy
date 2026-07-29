@@ -4,11 +4,13 @@
 // Purpose:
 // Own the browser-side workout logging experience for ari-training.html.
 //
-// V1.0.0 — Local Workout Runtime
+// V1.1.0 — Assisted Calorie Estimation
 //
 // Responsibilities:
 // - Load, normalize, validate, create, edit, and delete workout entries.
 // - Calculate workout duration from start and end times.
+// - Estimate active calories from workout type, intensity, duration, and weight.
+// - Allow a manual calorie value from a watch or exercise machine.
 // - Render today's performance, today's timeline, weekly output, and history.
 // - Publish today's burned-calorie total for the Goals page.
 // - Read the current daily calorie goal and consumed-calorie total.
@@ -16,22 +18,26 @@
 // - Expose a small public API for future integrations.
 //
 // Non-responsibilities:
-// - Does not connect to Apple Health, Fitbit, Garmin, GPS, or pedometers.
+// - Does not connect directly to Apple Health, Fitbit, Garmin, GPS, or pedometers.
 // - Does not diagnose health conditions or judge workout quality.
 // - Does not treat heart rate as a required field.
-// - Does not estimate calories automatically in Version 1.
-// - Does not sync to Supabase in Version 1.
+// - Does not claim calorie estimates are exact.
+// - Does not sync to Supabase in Version 1.1.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
 
   const STORAGE_KEYS = Object.freeze({
     workoutEntries: "calbuddyExerciseEntries",
     legacyBurnedCalories: "calbuddyCaloriesBurned",
     dailyCalorieGoal: "calbuddyDailyCalorieGoal",
-    caloriesConsumed: "calbuddyCaloriesConsumed"
+    caloriesConsumed: "calbuddyCaloriesConsumed",
+    currentWeight: "calbuddyCurrentWeight",
+    profileWeight: "calbuddyProfileWeight",
+    bodyWeight: "calbuddyBodyWeight",
+    userProfile: "calbuddyUserProfile"
   });
 
   const EVENT_NAMES = Object.freeze({
@@ -63,6 +69,65 @@
     custom: ""
   });
 
+  const INTENSITY_LABELS = Object.freeze({
+    light: "Light",
+    moderate: "Moderate",
+    vigorous: "Vigorous"
+  });
+
+  /*
+   * Approximate MET values by activity and effort.
+   * The runtime subtracts 1 resting MET so the estimate better represents
+   * active calories instead of total energy expenditure.
+   */
+  const WORKOUT_MET_VALUES = Object.freeze({
+    strength: Object.freeze({
+      light: 3.0,
+      moderate: 5.0,
+      vigorous: 6.5
+    }),
+    running: Object.freeze({
+      light: 6.0,
+      moderate: 8.3,
+      vigorous: 11.0
+    }),
+    walking: Object.freeze({
+      light: 2.8,
+      moderate: 4.3,
+      vigorous: 5.5
+    }),
+    "cardio-machine": Object.freeze({
+      light: 4.0,
+      moderate: 6.5,
+      vigorous: 9.0
+    }),
+    cycling: Object.freeze({
+      light: 4.0,
+      moderate: 7.0,
+      vigorous: 10.0
+    }),
+    swimming: Object.freeze({
+      light: 4.8,
+      moderate: 7.0,
+      vigorous: 9.8
+    }),
+    sports: Object.freeze({
+      light: 4.0,
+      moderate: 7.0,
+      vigorous: 10.0
+    }),
+    mobility: Object.freeze({
+      light: 2.5,
+      moderate: 3.3,
+      vigorous: 4.0
+    }),
+    custom: Object.freeze({
+      light: 3.0,
+      moderate: 5.0,
+      vigorous: 7.0
+    })
+  });
+
   const WEEKDAY_IDS = Object.freeze([
     "weeklyMondayValue",
     "weeklyTuesdayValue",
@@ -78,7 +143,8 @@
     entries: [],
     pendingDeleteId: null,
     activeDialogMode: "create",
-    lastFocusedElement: null
+    lastFocusedElement: null,
+    resolvedProfileWeight: null
   };
 
   const elements = {};
@@ -96,6 +162,7 @@
     getTodayEntries,
     getTodayBurnedCalories,
     getTodayWorkoutMinutes,
+    estimateCalories,
     createWorkout,
     updateWorkout,
     deleteWorkout,
@@ -127,7 +194,9 @@
       return;
     }
 
+    state.resolvedProfileWeight = readStoredBodyWeight();
     state.entries = loadWorkoutEntries();
+
     bindEvents();
     setCurrentDateDisplay();
     setDefaultWorkoutDate();
@@ -170,8 +239,14 @@
       "workoutDuration",
       "workoutStartTime",
       "workoutEndTime",
+      "workoutIntensity",
+      "workoutBodyWeight",
       "workoutAverageHeartRate",
       "workoutCaloriesBurned",
+      "workoutCalorieEstimatePanel",
+      "workoutEstimatedCalories",
+      "workoutCalorieEstimateMessage",
+      "workoutCalorieSource",
       "workoutNotes",
       "workoutNotesCount",
       "workoutFormMessage",
@@ -234,19 +309,34 @@
 
     elements.workoutForm.addEventListener("submit", handleWorkoutSubmit);
 
-    elements.workoutType?.addEventListener(
-      "change",
-      handleWorkoutTypeChange
-    );
+    elements.workoutType?.addEventListener("change", () => {
+      handleWorkoutTypeChange();
+      updateCalorieEstimate();
+    });
 
     elements.workoutStartTime?.addEventListener(
       "input",
-      updateDurationOutput
+      handleWorkoutTimingChange
     );
 
     elements.workoutEndTime?.addEventListener(
       "input",
-      updateDurationOutput
+      handleWorkoutTimingChange
+    );
+
+    elements.workoutIntensity?.addEventListener(
+      "change",
+      updateCalorieEstimate
+    );
+
+    elements.workoutBodyWeight?.addEventListener(
+      "input",
+      updateCalorieEstimate
+    );
+
+    elements.workoutCaloriesBurned?.addEventListener(
+      "input",
+      updateCalorieEstimate
     );
 
     elements.workoutNotes?.addEventListener(
@@ -411,7 +501,7 @@
       id: generateId(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      source: "manual"
+      source: "manual-entry"
     });
 
     if (!normalized) {
@@ -550,7 +640,10 @@
 
       setDefaultWorkoutDate();
       setDefaultWorkoutTimes();
+      setDefaultWorkoutIntensity();
+      setDefaultWorkoutWeight();
       updateDurationOutput();
+      updateCalorieEstimate();
     }
 
     if (typeof elements.workoutDialog.showModal === "function") {
@@ -593,7 +686,16 @@
     elements.workoutDuration.textContent = "—";
     elements.workoutNotesCount.textContent = "0";
     state.activeDialogMode = "create";
+
     setDefaultWorkoutDate();
+    setDefaultWorkoutIntensity();
+    setDefaultWorkoutWeight();
+    renderCalorieEstimateState({
+      calories: null,
+      source: "pending",
+      message:
+        "Select a workout type, duration, and intensity to generate an estimate."
+    });
   }
 
   function populateWorkoutForm(entry) {
@@ -603,13 +705,19 @@
     elements.workoutDate.value = entry.localDate;
     elements.workoutStartTime.value = entry.startTime;
     elements.workoutEndTime.value = entry.endTime;
+    elements.workoutIntensity.value = entry.intensity || "moderate";
+    elements.workoutBodyWeight.value = entry.bodyWeightPounds ?? "";
     elements.workoutAverageHeartRate.value =
       entry.averageHeartRate ?? "";
-    elements.workoutCaloriesBurned.value = entry.caloriesBurned;
+    elements.workoutCaloriesBurned.value =
+      entry.calorieSource === "manual"
+        ? entry.caloriesBurned
+        : "";
     elements.workoutNotes.value = entry.notes || "";
 
     updateDurationOutput();
     updateNotesCount();
+    updateCalorieEstimate();
   }
 
   function handleWorkoutTypeChange() {
@@ -630,6 +738,11 @@
         : type
           ? `Log ${getWorkoutTypeLabel(type)}`
           : "Log Workout";
+  }
+
+  function handleWorkoutTimingChange() {
+    updateDurationOutput();
+    updateCalorieEstimate();
   }
 
   function handleWorkoutSubmit(event) {
@@ -669,10 +782,14 @@
     const localDate = elements.workoutDate.value;
     const startTime = elements.workoutStartTime.value;
     const endTime = elements.workoutEndTime.value;
+    const intensity = elements.workoutIntensity.value.trim();
+    const bodyWeightPounds = parseOptionalNumber(
+      elements.workoutBodyWeight.value
+    );
     const averageHeartRate = parseOptionalInteger(
       elements.workoutAverageHeartRate.value
     );
-    const caloriesBurned = parseInteger(
+    const manualCalories = parseOptionalInteger(
       elements.workoutCaloriesBurned.value
     );
     const notes = elements.workoutNotes.value.trim();
@@ -738,6 +855,23 @@
       );
     }
 
+    if (!INTENSITY_LABELS[intensity]) {
+      return invalid(
+        "Select the workout intensity.",
+        elements.workoutIntensity
+      );
+    }
+
+    if (
+      bodyWeightPounds !== null &&
+      (bodyWeightPounds < 50 || bodyWeightPounds > 1000)
+    ) {
+      return invalid(
+        "Body weight must be between 50 and 1,000 lb.",
+        elements.workoutBodyWeight
+      );
+    }
+
     if (
       averageHeartRate !== null &&
       (averageHeartRate < 30 || averageHeartRate > 240)
@@ -749,13 +883,29 @@
     }
 
     if (
-      !Number.isFinite(caloriesBurned) ||
-      caloriesBurned < 1 ||
-      caloriesBurned > 10000
+      manualCalories !== null &&
+      (manualCalories < 1 || manualCalories > 10000)
     ) {
       return invalid(
-        "Calories burned must be between 1 and 10,000 kcal.",
+        "Manual calories must be between 1 and 10,000 kcal.",
         elements.workoutCaloriesBurned
+      );
+    }
+
+    const resolvedWeight =
+      bodyWeightPounds ?? state.resolvedProfileWeight;
+
+    const estimatedCalories = estimateCalories({
+      workoutType,
+      intensity,
+      durationMinutes,
+      bodyWeightPounds: resolvedWeight
+    });
+
+    if (manualCalories === null && estimatedCalories === null) {
+      return invalid(
+        "Enter your body weight so ARI can estimate calories, or enter a calorie value from your watch or exercise machine.",
+        elements.workoutBodyWeight
       );
     }
 
@@ -765,6 +915,11 @@
         elements.workoutNotes
       );
     }
+
+    const caloriesBurned =
+      manualCalories ?? estimatedCalories;
+    const calorieSource =
+      manualCalories !== null ? "manual" : "estimated";
 
     const dateTimes = buildWorkoutDateTimes({
       localDate,
@@ -783,10 +938,12 @@
         startedAt: dateTimes.startedAt,
         endedAt: dateTimes.endedAt,
         durationMinutes,
+        intensity,
+        bodyWeightPounds: resolvedWeight,
         averageHeartRate,
         caloriesBurned,
-        notes,
-        calorieSource: "manual"
+        calorieSource,
+        notes
       }
     };
   }
@@ -819,6 +976,158 @@
         : "—";
   }
 
+  function updateCalorieEstimate() {
+    const manualCalories = parseOptionalInteger(
+      elements.workoutCaloriesBurned?.value
+    );
+
+    if (manualCalories !== null) {
+      if (manualCalories >= 1 && manualCalories <= 10000) {
+        renderCalorieEstimateState({
+          calories: manualCalories,
+          source: "manual",
+          message:
+            "Your watch or exercise-machine value will replace ARI's estimate."
+        });
+      } else {
+        renderCalorieEstimateState({
+          calories: null,
+          source: "invalid",
+          message:
+            "Manual calories must be between 1 and 10,000 kcal."
+        });
+      }
+
+      return;
+    }
+
+    const workoutType = elements.workoutType?.value || "";
+    const intensity = elements.workoutIntensity?.value || "";
+    const startTime = elements.workoutStartTime?.value || "";
+    const endTime = elements.workoutEndTime?.value || "";
+    const enteredWeight = parseOptionalNumber(
+      elements.workoutBodyWeight?.value
+    );
+    const resolvedWeight =
+      enteredWeight ?? state.resolvedProfileWeight;
+    const durationMinutes = calculateDurationMinutes(
+      startTime,
+      endTime
+    );
+
+    if (!workoutType || !WORKOUT_TYPES[workoutType]) {
+      renderCalorieEstimateState({
+        calories: null,
+        source: "pending",
+        message: "Select a workout type to begin the estimate."
+      });
+      return;
+    }
+
+    if (!intensity || !INTENSITY_LABELS[intensity]) {
+      renderCalorieEstimateState({
+        calories: null,
+        source: "pending",
+        message: "Select an intensity level to continue."
+      });
+      return;
+    }
+
+    if (!startTime || !endTime || durationMinutes <= 0) {
+      renderCalorieEstimateState({
+        calories: null,
+        source: "pending",
+        message: "Enter a valid start and end time to calculate duration."
+      });
+      return;
+    }
+
+    if (
+      resolvedWeight === null ||
+      resolvedWeight < 50 ||
+      resolvedWeight > 1000
+    ) {
+      renderCalorieEstimateState({
+        calories: null,
+        source: "weight-required",
+        message:
+          "Enter your body weight so ARI can calculate an estimate."
+      });
+      return;
+    }
+
+    const estimatedCalories = estimateCalories({
+      workoutType,
+      intensity,
+      durationMinutes,
+      bodyWeightPounds: resolvedWeight
+    });
+
+    if (estimatedCalories === null) {
+      renderCalorieEstimateState({
+        calories: null,
+        source: "unavailable",
+        message:
+          "ARI could not calculate an estimate from the current details."
+      });
+      return;
+    }
+
+    const weightMessage =
+      enteredWeight === null && state.resolvedProfileWeight !== null
+        ? `Estimated using your saved weight of ${formatWeight(
+            state.resolvedProfileWeight
+          )} lb.`
+        : `Estimated using ${formatWeight(resolvedWeight)} lb.`;
+
+    renderCalorieEstimateState({
+      calories: estimatedCalories,
+      source: "estimated",
+      message:
+        `${weightMessage} Enter a watch or machine value above to override it.`
+    });
+  }
+
+  function renderCalorieEstimateState({
+    calories,
+    source,
+    message
+  }) {
+    if (elements.workoutEstimatedCalories) {
+      elements.workoutEstimatedCalories.textContent =
+        calories === null
+          ? "—"
+          : formatNumber(calories);
+    }
+
+    if (elements.workoutCalorieEstimateMessage) {
+      elements.workoutCalorieEstimateMessage.textContent = message;
+    }
+
+    if (elements.workoutCalorieSource) {
+      elements.workoutCalorieSource.dataset.source = source;
+      elements.workoutCalorieSource.textContent =
+        getCalorieSourceLabel(source);
+    }
+
+    if (elements.workoutCalorieEstimatePanel) {
+      elements.workoutCalorieEstimatePanel.dataset.source = source;
+    }
+  }
+
+  function getCalorieSourceLabel(source) {
+    const labels = {
+      pending: "Awaiting details",
+      manual: "Manual override",
+      estimated: "ARI estimate",
+      invalid: "Check value",
+      "weight-required": "Weight needed",
+      unavailable: "Unavailable"
+    };
+
+    return labels[source] || "Awaiting details";
+  }
+
   function updateNotesCount() {
     elements.workoutNotesCount.textContent = String(
       elements.workoutNotes.value.length
@@ -842,6 +1151,26 @@
     elements.workoutEndTime.value = formatTimeInput(roundedEnd);
   }
 
+  function setDefaultWorkoutIntensity() {
+    if (
+      elements.workoutIntensity &&
+      !elements.workoutIntensity.value
+    ) {
+      elements.workoutIntensity.value = "moderate";
+    }
+  }
+
+  function setDefaultWorkoutWeight() {
+    if (
+      elements.workoutBodyWeight &&
+      !elements.workoutBodyWeight.value &&
+      state.resolvedProfileWeight !== null
+    ) {
+      elements.workoutBodyWeight.value =
+        formatWeight(state.resolvedProfileWeight);
+    }
+  }
+
   function showFormMessage(message, type = "info") {
     elements.workoutFormMessage.textContent = message;
     elements.workoutFormMessage.dataset.type = type;
@@ -852,6 +1181,142 @@
     elements.workoutFormMessage.textContent = "";
     delete elements.workoutFormMessage.dataset.type;
     elements.workoutFormMessage.hidden = true;
+  }
+
+  /* =====================================================
+     CALORIE ESTIMATION
+  ===================================================== */
+
+  function estimateCalories({
+    workoutType,
+    intensity,
+    durationMinutes,
+    bodyWeightPounds
+  } = {}) {
+    const met = WORKOUT_MET_VALUES[workoutType]?.[intensity];
+    const duration = Number(durationMinutes);
+    const weightPounds = Number(bodyWeightPounds);
+
+    if (
+      !Number.isFinite(met) ||
+      !Number.isFinite(duration) ||
+      duration <= 0 ||
+      !Number.isFinite(weightPounds) ||
+      weightPounds <= 0
+    ) {
+      return null;
+    }
+
+    const weightKilograms = weightPounds / 2.2046226218;
+    const activeMet = Math.max(met - 1, 0.5);
+    const calories =
+      (activeMet * 3.5 * weightKilograms / 200) * duration;
+
+    if (!Number.isFinite(calories) || calories <= 0) {
+      return null;
+    }
+
+    return Math.max(1, Math.round(calories));
+  }
+
+  function readStoredBodyWeight() {
+    const directKeys = [
+      STORAGE_KEYS.currentWeight,
+      STORAGE_KEYS.profileWeight,
+      STORAGE_KEYS.bodyWeight
+    ];
+
+    for (const key of directKeys) {
+      const value = parseStoredWeight(localStorage.getItem(key));
+
+      if (value !== null) {
+        return value;
+      }
+    }
+
+    const profileRaw = localStorage.getItem(STORAGE_KEYS.userProfile);
+
+    if (profileRaw) {
+      try {
+        const profile = JSON.parse(profileRaw);
+        const candidates = [
+          profile?.weight,
+          profile?.weightLbs,
+          profile?.weightPounds,
+          profile?.currentWeight,
+          profile?.bodyWeight
+        ];
+
+        for (const candidate of candidates) {
+          const value = normalizeWeight(candidate);
+
+          if (value !== null) {
+            return value;
+          }
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  function parseStoredWeight(rawValue) {
+    if (rawValue === null || rawValue === undefined || rawValue === "") {
+      return null;
+    }
+
+    const direct = normalizeWeight(rawValue);
+
+    if (direct !== null) {
+      return direct;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue);
+
+      if (typeof parsed === "number" || typeof parsed === "string") {
+        return normalizeWeight(parsed);
+      }
+
+      if (parsed && typeof parsed === "object") {
+        const candidates = [
+          parsed.value,
+          parsed.weight,
+          parsed.weightLbs,
+          parsed.weightPounds,
+          parsed.currentWeight,
+          parsed.bodyWeight
+        ];
+
+        for (const candidate of candidates) {
+          const value = normalizeWeight(candidate);
+
+          if (value !== null) {
+            return value;
+          }
+        }
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  function normalizeWeight(value) {
+    const number = Number(value);
+
+    if (
+      !Number.isFinite(number) ||
+      number < 50 ||
+      number > 1000
+    ) {
+      return null;
+    }
+
+    return Math.round(number * 10) / 10;
   }
 
   /* =====================================================
@@ -907,6 +1372,7 @@
   ===================================================== */
 
   function refresh() {
+    state.resolvedProfileWeight = readStoredBodyWeight();
     state.entries = loadWorkoutEntries();
     setCurrentDateDisplay();
     renderAll();
@@ -986,6 +1452,7 @@
     const article = fragment.querySelector(".ari-training-entry");
 
     article.dataset.workoutId = entry.id;
+    article.dataset.calorieSource = entry.calorieSource;
 
     setText(
       article,
@@ -1012,6 +1479,34 @@
       ".ari-training-entry__duration",
       formatDuration(entry.durationMinutes)
     );
+
+    const calorieSource = article.querySelector(
+      ".ari-training-entry__calorie-source"
+    );
+
+    if (calorieSource) {
+      calorieSource.textContent =
+        entry.calorieSource === "estimated"
+          ? "ARI estimate"
+          : "Manual";
+      calorieSource.dataset.source = entry.calorieSource;
+      calorieSource.hidden = false;
+    }
+
+    const intensityGroup = article.querySelector(
+      ".ari-training-entry__intensity-group"
+    );
+
+    if (entry.intensity) {
+      intensityGroup?.removeAttribute("hidden");
+      setText(
+        article,
+        ".ari-training-entry__intensity",
+        getIntensityLabel(entry.intensity)
+      );
+    } else {
+      intensityGroup?.setAttribute("hidden", "");
+    }
 
     const heartRateGroup = article.querySelector(
       ".ari-training-entry__heart-rate-group"
@@ -1069,6 +1564,7 @@
     const article = document.createElement("article");
     article.className = "ari-training-entry";
     article.dataset.workoutId = entry.id;
+    article.dataset.calorieSource = entry.calorieSource;
 
     const content = document.createElement("div");
     content.className = "ari-training-entry__content";
@@ -1076,12 +1572,18 @@
     const title = document.createElement("h3");
     title.textContent = entry.workoutName;
 
+    const sourceLabel =
+      entry.calorieSource === "estimated"
+        ? "ARI estimate"
+        : "manual";
+
     const summary = document.createElement("p");
     summary.textContent =
       `${getWorkoutTypeLabel(entry.workoutType)} • ` +
+      `${getIntensityLabel(entry.intensity)} • ` +
       `${formatWorkoutTimeRange(entry)} • ` +
       `${formatDuration(entry.durationMinutes)} • ` +
-      `${formatNumber(entry.caloriesBurned)} kcal`;
+      `${formatNumber(entry.caloriesBurned)} kcal (${sourceLabel})`;
 
     const actions = document.createElement("div");
     actions.className = "ari-training-entry__actions";
@@ -1387,6 +1889,22 @@
       rawEntry.heartRate
     );
 
+    const intensity = normalizeIntensity(
+      rawEntry.intensity ??
+      rawEntry.workoutIntensity ??
+      "moderate"
+    );
+
+    const bodyWeightPounds = normalizeWeight(
+      rawEntry.bodyWeightPounds ??
+      rawEntry.bodyWeight ??
+      rawEntry.weightPounds ??
+      rawEntry.weight
+    );
+
+    const calorieSource =
+      normalizeCalorieSource(rawEntry.calorieSource);
+
     return {
       id: normalizeId(rawEntry.id) || generateId(),
       workoutType,
@@ -1401,13 +1919,15 @@
         normalizeIsoTimestamp(rawEntry.endedAt) ||
         dateTimes.endedAt,
       durationMinutes: Math.round(durationMinutes),
+      intensity,
+      bodyWeightPounds,
       averageHeartRate,
       caloriesBurned: Math.round(caloriesBurned),
-      calorieSource: normalizeText(
-        rawEntry.calorieSource || "manual"
-      ).slice(0, 40),
+      calorieSource,
       notes: normalizeText(rawEntry.notes).slice(0, 500),
-      source: normalizeText(rawEntry.source || "manual").slice(0, 40),
+      source: normalizeText(
+        rawEntry.source || "manual-entry"
+      ).slice(0, 40),
       createdAt:
         normalizeIsoTimestamp(rawEntry.createdAt) ||
         new Date().toISOString(),
@@ -1450,6 +1970,39 @@
     return aliases[normalized] || (
       WORKOUT_TYPES[normalized] ? normalized : ""
     );
+  }
+
+  function normalizeIntensity(value) {
+    const normalized = normalizeText(value).toLowerCase();
+
+    const aliases = {
+      easy: "light",
+      low: "light",
+      light: "light",
+      normal: "moderate",
+      medium: "moderate",
+      moderate: "moderate",
+      hard: "vigorous",
+      high: "vigorous",
+      intense: "vigorous",
+      vigorous: "vigorous"
+    };
+
+    return aliases[normalized] || "moderate";
+  }
+
+  function normalizeCalorieSource(value) {
+    const normalized = normalizeText(value).toLowerCase();
+
+    if (
+      normalized === "estimated" ||
+      normalized === "ari-estimated" ||
+      normalized === "ari estimate"
+    ) {
+      return "estimated";
+    }
+
+    return "manual";
   }
 
   /* =====================================================
@@ -1695,8 +2248,10 @@
     const timestampDifference =
       Date.parse(b.startedAt) - Date.parse(a.startedAt);
 
-    if (Number.isFinite(timestampDifference) &&
-        timestampDifference !== 0) {
+    if (
+      Number.isFinite(timestampDifference) &&
+      timestampDifference !== 0
+    ) {
       return timestampDifference;
     }
 
@@ -1780,6 +2335,10 @@
     return WORKOUT_TYPES[type] || "Workout";
   }
 
+  function getIntensityLabel(intensity) {
+    return INTENSITY_LABELS[intensity] || "Moderate";
+  }
+
   function getWeeklyActivityLabel(totalMinutes) {
     if (totalMinutes <= 0) {
       return "No activity recorded";
@@ -1854,13 +2413,14 @@
     }).format(Math.round(Number(value) || 0));
   }
 
-  function pluralize(count, singular, plural) {
-    return count === 1 ? singular : plural;
+  function formatWeight(value) {
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 1
+    }).format(Number(value));
   }
 
-  function parseInteger(value) {
-    const parsed = Number.parseInt(String(value), 10);
-    return Number.isFinite(parsed) ? parsed : NaN;
+  function pluralize(count, singular, plural) {
+    return count === 1 ? singular : plural;
   }
 
   function parseOptionalInteger(value) {
@@ -1871,6 +2431,17 @@
     }
 
     const parsed = Number.parseInt(normalized, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function parseOptionalNumber(value) {
+    const normalized = String(value ?? "").trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : null;
   }
 
