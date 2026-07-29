@@ -235,10 +235,10 @@ main#ariApp .ari-header-v4 .ari-brand-right {
 
   margin: 0;
   padding:
-    7px
-    4px
-    6px
-    18px;
+  8px
+  6px
+  7px
+  20px;
 
   overflow: visible;
 
@@ -339,7 +339,7 @@ main#ariApp .ari-header-v4 .ari-brand-title {
     system-ui,
     sans-serif;
 
-  font-size: clamp(30px, 8vw, 41px);
+  font-size: clamp(36px, 10vw, 50px);
   font-weight: 400;
   line-height: 0.94;
   letter-spacing: 0.055em;
@@ -405,7 +405,7 @@ main#ariApp .ari-header-v4 .ari-brand-subtitle {
 
   color: rgba(203, 255, 255, 0.92);
 
-  font-size: clamp(10px, 2.6vw, 13px);
+  font-size: clamp(12px, 3vw, 16px);
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: 0.20em;
@@ -1321,14 +1321,15 @@ main#ariApp:has(#ariInput:disabled)
   }
 
   main#ariApp .ari-header-v4 .ari-brand-title {
-    font-size: 27px;
+  font-size: 34px;
+}
     letter-spacing: 0.045em;
   }
 
   main#ariApp .ari-header-v4 .ari-brand-subtitle {
     margin-top: 3px;
 
-    font-size: 9.5px;
+    font-size: 11px;
     letter-spacing: 0.14em;
   }
 
