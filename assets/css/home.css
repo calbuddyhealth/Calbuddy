@@ -1556,10 +1556,11 @@ main#ariApp.conversation-mode::before {
   }
 }
 /* =====================================================
-   REMOVE ENVIRONMENT RINGS
+   REMOVE ENVIRONMENT RINGS AND PROMPT LINE
 ===================================================== */
 
 main#ariApp.ari-v1-home .ari-welcome::before,
-main#ariApp.ari-v1-home .ari-welcome::after {
-    display: none !important;
+main#ariApp.ari-v1-home .ari-welcome::after,
+main#ariApp .ari-welcome-prompt::before {
+  display: none !important;
 }
