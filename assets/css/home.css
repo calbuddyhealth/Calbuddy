@@ -1868,11 +1868,11 @@ main#ariApp.ari-v1-home .ari-welcome::before {
 
 @media (max-width: 430px) {
   main#ariApp.ari-v1-home {
-    --ari-nexus-width: 180vw;
+    --ari-nexus-width: 160vw;
   }
 
   main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -120px !important;
+    top: -100px !important;
 
     width: var(--ari-nexus-width) !important;
     max-width: none !important;
