@@ -1868,7 +1868,7 @@ main#ariApp.ari-v1-home .ari-welcome::before {
 
 @media (max-width: 430px) {
   main#ariApp.ari-v1-home {
-    --ari-nexus-width: 140vw;
+    --ari-nexus-width: 120vw;
   }
 
   main#ariApp.ari-v1-home .ari-welcome::before {
@@ -1881,6 +1881,6 @@ main#ariApp.ari-v1-home .ari-welcome::before {
     background-position: center top !important;
     background-size: 100% auto !important;
 
-    opacity: 0.70 !important;
+    opacity: 0.60 !important;
   }
 }
