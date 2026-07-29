@@ -498,29 +498,29 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
 
 function updateCaloriesMeter(goal) {
   const consumed = Number(
-    localStorage.getItem("calbuddyCaloriesConsumed") || 0
-  );
+  localStorage.getItem("calbuddyCaloriesConsumed") || 0
+);
 
-  const burned = Number(
-    localStorage.getItem("calbuddyCaloriesBurned") || 0
-  );
+const burned = Number(
+  localStorage.getItem("calbuddyCaloriesBurned") || 0
+);
 
-  const netConsumed = Math.max(consumed - burned, 0);
+const adjustedGoal = goal + burned;
 
-  const rawRemaining = goal - netConsumed;
-  const caloriesLeft = Math.max(rawRemaining, 0);
-  const caloriesOver = Math.max(netConsumed - goal, 0);
+const rawRemaining = adjustedGoal - consumed;
+const caloriesLeft = Math.max(rawRemaining, 0);
+const caloriesOver = Math.max(consumed - adjustedGoal, 0);
 
-  const card = document.getElementById("calorieStatusCard");
-  const label = document.getElementById("calorieStatusLabel");
+const card = document.getElementById("calorieStatusCard");
+const label = document.getElementById("calorieStatusLabel");
 
-  const percentLeft = goal
-    ? Math.max(0, Math.min(caloriesLeft / goal, 1))
-    : 1;
+const percentLeft = adjustedGoal
+  ? Math.max(0, Math.min(caloriesLeft / adjustedGoal, 1))
+  : 1;
 
-  const percentUsed = goal
-    ? Math.max(0, Math.min(netConsumed / goal, 1))
-    : 0;
+const percentUsed = adjustedGoal
+  ? Math.max(0, Math.min(consumed / adjustedGoal, 1))
+  : 0;
 
   if (card) {
     const percent = Math.round(percentLeft * 100);
@@ -574,14 +574,14 @@ function updateCaloriesMeter(goal) {
   }
 
   setText(
-    "caloriesConsumedText",
-    netConsumed.toLocaleString()
-  );
+  "caloriesConsumedText",
+  consumed.toLocaleString()
+);
 
-  setText(
-    "dailyGoalText",
-    goal.toLocaleString()
-  );
+setText(
+  "dailyGoalText",
+  adjustedGoal.toLocaleString()
+);
 }
 
 function updateProgressSummary(summary = {}) {
