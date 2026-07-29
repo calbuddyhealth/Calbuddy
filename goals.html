@@ -87,7 +87,7 @@
         </div>
 
         <p id="dailyCalorieGoalHint" class="ari-hint">
-          Not sure what to enter? Ask Ari for an AI daily calorie intake estimate.
+          Not sure what to enter? Ask Ari for an AI daily calorie intake estimate. Or, use recommended estimate found in Health Goal Summary.
         </p>
       </div>
 
@@ -250,12 +250,15 @@
     </div>
 
     <div id="warningBox" class="ari-warning">
-      This goal may be too aggressive. Consider a slower weekly goal.
-    </div>
+  This goal may be too aggressive. Consider a slower weekly goal.
+</div>
 
-    <p id="calorieGoal" hidden>— kcal</p>
+<div class="ari-result-grid">
 
-    <div class="ari-result-grid">
+  <div class="ari-stat-card">
+    <p class="ari-stat-label">Estimated Daily Calories</p>
+    <p id="calorieGoal" class="ari-stat-value">— kcal</p>
+  </div>
       <div class="ari-stat-card">
         <p class="ari-stat-label">Maintenance Calories</p>
         <p id="maintenanceBox" class="ari-stat-value">—</p>
