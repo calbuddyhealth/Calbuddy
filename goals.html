@@ -30,13 +30,33 @@
   <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
 </header>
 
-<div class="ari-tabs">
-  <button id="healthGoalsTab" class="ari-tab-btn active" type="button" onclick="showHealthTab('goals')">
-    Health Goals
+<div class="ari-tabs" aria-label="Health and fitness navigation">
+  <button
+    id="healthGoalsTab"
+    class="ari-tab-btn active"
+    type="button"
+    onclick="showHealthTab('goals')"
+  >
+    My Health Goals
   </button>
 
-  <button id="healthProgressTab" class="ari-tab-btn" type="button" onclick="showHealthTab('progress')">
-    Health Progress
+  <button
+    id="healthProgressTab"
+    class="ari-tab-btn"
+    type="button"
+    onclick="showHealthTab('progress')"
+  >
+    My Health Progress
+  </button>
+
+  <button
+    id="fitnessTab"
+    class="ari-tab-btn"
+    type="button"
+    onclick="window.location.href='ari-training.html'"
+    aria-label="Open My Fitness and ARI Training"
+  >
+    My Fitness
   </button>
 </div>
 
@@ -103,12 +123,28 @@
   <section class="ari-panel">
     <div class="ari-panel-header">
       <h3 class="ari-section-title">Daily Actions</h3>
-      <p class="ari-section-subtitle">Quick health actions. Later these can become beautiful modals and history logs.</p>
+      <p class="ari-section-subtitle">
+        Log your current weight or open ARI Training to record workouts, activities, and calories burned.
+      </p>
     </div>
 
     <div class="ari-form">
-      <button class="ari-secondary-action" type="button" onclick="logWeightQuick()">Log Weight</button>
-      <button class="ari-secondary-action" type="button" onclick="logCaloriesBurnedQuick()">Log Calories Burned</button>
+      <button
+        class="ari-secondary-action"
+        type="button"
+        onclick="logWeightQuick()"
+      >
+        Log Weight
+      </button>
+
+      <button
+        class="ari-secondary-action"
+        type="button"
+        onclick="window.location.href='ari-training.html'"
+        aria-label="Open ARI Training to log calories burned and activities"
+      >
+        ARI Training: Log Calories Burned / Activities
+      </button>
     </div>
   </section>
 
@@ -250,15 +286,15 @@
     </div>
 
     <div id="warningBox" class="ari-warning">
-  This goal may be too aggressive. Consider a slower weekly goal.
-</div>
+      This goal may be too aggressive. Consider a slower weekly goal.
+    </div>
 
-<div class="ari-result-grid">
+    <div class="ari-result-grid">
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Estimated Daily Calories</p>
+        <p id="calorieGoal" class="ari-stat-value">— kcal</p>
+      </div>
 
-  <div class="ari-stat-card">
-    <p class="ari-stat-label">Estimated Daily Calories</p>
-    <p id="calorieGoal" class="ari-stat-value">— kcal</p>
-  </div>
       <div class="ari-stat-card">
         <p class="ari-stat-label">Maintenance Calories</p>
         <p id="maintenanceBox" class="ari-stat-value">—</p>
@@ -323,7 +359,7 @@
 </section>
 
 <p class="ari-footer-note">
-  My Goals is a domain framework. Today it contains Health Goals. Tomorrow it can contain Mental Health, Financial, Career, and Learning goals.
+  My Goals is a domain framework. Today it contains Health Goals and ARI Training. Tomorrow it can contain Mental Health, Financial, Career, and Learning goals.
 </p>
 
 </main>
