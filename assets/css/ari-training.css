@@ -1,7 +1,7 @@
 /* =====================================================
    ARI TRAINING
    File: ari-training.css
-   Version: 1.0.0
+   Version: 1.1.0
 
    Purpose:
    - Present ARI Training as a premium mobile performance center
@@ -2270,5 +2270,508 @@ svg {
   .ari-training-entry__name,
   .ari-history-day__label {
     color: #000;
+  }
+}
+
+/* =====================================================
+   ARI TRAINING
+   Version 1.1.0 — CALORIE ESTIMATION PATCH
+
+   Additions:
+   - ARI calorie estimate panel
+   - Estimated/manual calorie source badges
+   - Workout intensity support
+   - Four-column workout metrics on larger screens
+   - Narrow-phone performance card protection
+===================================================== */
+
+
+/* =====================================================
+   PERFORMANCE CARD VALUE PROTECTION
+===================================================== */
+
+.ari-performance-grid,
+.ari-performance-card,
+.ari-performance-card__value,
+.ari-performance-card__meta {
+  min-width: 0;
+}
+
+.ari-performance-card__value {
+  max-width: 100%;
+  flex-wrap: wrap;
+  row-gap: 3px;
+  overflow: hidden;
+}
+
+.ari-performance-card__value > span:first-child {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ari-performance-card__unit {
+  flex: 0 0 auto;
+}
+
+.ari-performance-card__label,
+.ari-performance-card__meta {
+  overflow-wrap: anywhere;
+}
+
+
+/* =====================================================
+   ARI CALORIE ESTIMATE PANEL
+===================================================== */
+
+.ari-calorie-estimate {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 233, 255, 0.3);
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      circle at 0 0,
+      rgba(53, 233, 255, 0.12),
+      transparent 38%
+    ),
+    linear-gradient(
+      120deg,
+      rgba(53, 233, 255, 0.055),
+      transparent 46%
+    ),
+    rgba(3, 11, 16, 0.88);
+  box-shadow:
+    0 0 0 1px rgba(53, 233, 255, 0.04),
+    0 0 24px rgba(53, 233, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.ari-calorie-estimate::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(
+      110deg,
+      transparent 0 36%,
+      rgba(255, 255, 255, 0.045) 46%,
+      transparent 58%
+    );
+  opacity: 0.55;
+}
+
+.ari-calorie-estimate::after {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  left: 16px;
+  height: 2px;
+  border-radius: 999px;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(53, 233, 255, 0.9),
+    transparent
+  );
+  opacity: 0.5;
+}
+
+.ari-calorie-estimate__icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 52px;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(53, 233, 255, 0.42);
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(53, 233, 255, 0.19),
+      rgba(53, 233, 255, 0.035) 62%,
+      transparent 64%
+    ),
+    rgba(4, 14, 20, 0.94);
+  color: var(--ari-training-cyan-bright);
+  font-family: var(--ari-training-font-brand);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  box-shadow:
+    0 0 18px rgba(53, 233, 255, 0.16),
+    inset 0 0 13px rgba(53, 233, 255, 0.08);
+}
+
+.ari-calorie-estimate__content {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.ari-calorie-estimate__eyebrow {
+  margin: 0 0 4px;
+  color: var(--ari-training-text-soft);
+  font-family: var(--ari-training-font-display);
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.ari-calorie-estimate__content h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ari-training-cyan-bright);
+  font-family: var(--ari-training-font-display);
+  font-size: clamp(1.45rem, 6vw, 2.25rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-shadow:
+    0 0 12px rgba(53, 233, 255, 0.42),
+    0 0 28px rgba(53, 233, 255, 0.13);
+}
+
+.ari-calorie-estimate__unit {
+  color: var(--ari-training-text);
+  font-family: var(--ari-training-font-body);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+.ari-calorie-estimate__content > p:last-child {
+  max-width: 580px;
+  margin: 7px 0 0;
+  color: var(--ari-training-text-soft);
+  font-size: 0.7rem;
+  line-height: 1.48;
+}
+
+.ari-calorie-estimate__source {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border: 1px solid rgba(133, 178, 195, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ari-training-text-soft);
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+
+/* =====================================================
+   ESTIMATE STATES
+===================================================== */
+
+.ari-calorie-estimate[data-source="estimated"] {
+  border-color: rgba(53, 233, 255, 0.48);
+  box-shadow:
+    0 0 0 1px rgba(53, 233, 255, 0.08),
+    0 0 30px rgba(53, 233, 255, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ari-calorie-estimate__source[data-source="estimated"] {
+  border-color: rgba(53, 233, 255, 0.42);
+  background: rgba(53, 233, 255, 0.085);
+  color: var(--ari-training-cyan-bright);
+  box-shadow: 0 0 14px rgba(53, 233, 255, 0.08);
+}
+
+.ari-calorie-estimate[data-source="manual"] {
+  border-color: rgba(73, 231, 165, 0.42);
+  background:
+    radial-gradient(
+      circle at 0 0,
+      rgba(73, 231, 165, 0.1),
+      transparent 40%
+    ),
+    rgba(3, 11, 16, 0.9);
+}
+
+.ari-calorie-estimate[data-source="manual"]::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--ari-training-success),
+    transparent
+  );
+}
+
+.ari-calorie-estimate[data-source="manual"]
+.ari-calorie-estimate__content h3 {
+  color: var(--ari-training-success);
+  text-shadow:
+    0 0 12px rgba(73, 231, 165, 0.35),
+    0 0 26px rgba(73, 231, 165, 0.1);
+}
+
+.ari-calorie-estimate__source[data-source="manual"] {
+  border-color: rgba(73, 231, 165, 0.38);
+  background: rgba(73, 231, 165, 0.08);
+  color: var(--ari-training-success);
+}
+
+.ari-calorie-estimate[data-source="pending"] {
+  border-color: rgba(133, 178, 195, 0.2);
+  opacity: 0.86;
+}
+
+.ari-calorie-estimate__source[data-source="pending"] {
+  color: var(--ari-training-text-faint);
+}
+
+.ari-calorie-estimate[data-source="invalid"],
+.ari-calorie-estimate[data-source="weight-required"],
+.ari-calorie-estimate[data-source="unavailable"] {
+  border-color: rgba(255, 189, 89, 0.34);
+}
+
+.ari-calorie-estimate[data-source="invalid"]::after,
+.ari-calorie-estimate[data-source="weight-required"]::after,
+.ari-calorie-estimate[data-source="unavailable"]::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--ari-training-warning),
+    transparent
+  );
+}
+
+.ari-calorie-estimate__source[data-source="invalid"],
+.ari-calorie-estimate__source[data-source="weight-required"],
+.ari-calorie-estimate__source[data-source="unavailable"] {
+  border-color: rgba(255, 189, 89, 0.36);
+  background: rgba(255, 189, 89, 0.075);
+  color: var(--ari-training-warning);
+}
+
+
+/* =====================================================
+   SAVED WORKOUT CALORIE SOURCE
+===================================================== */
+
+.ari-training-entry__calorie-summary {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 5px;
+  min-width: 0;
+  text-align: right;
+}
+
+.ari-training-entry__calorie-source {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border: 1px solid rgba(133, 178, 195, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ari-training-text-faint);
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ari-training-entry__calorie-source[data-source="estimated"] {
+  border-color: rgba(53, 233, 255, 0.3);
+  background: rgba(53, 233, 255, 0.055);
+  color: var(--ari-training-cyan);
+}
+
+.ari-training-entry__calorie-source[data-source="manual"] {
+  border-color: rgba(73, 231, 165, 0.28);
+  background: rgba(73, 231, 165, 0.055);
+  color: var(--ari-training-success);
+}
+
+.ari-training-entry[data-calorie-source="manual"]
+.ari-training-entry__calories {
+  color: var(--ari-training-success);
+  text-shadow: 0 0 10px rgba(73, 231, 165, 0.2);
+}
+
+
+/* =====================================================
+   INTENSITY METRIC
+===================================================== */
+
+.ari-training-entry__intensity {
+  color: var(--ari-training-cyan-bright) !important;
+}
+
+
+/* =====================================================
+   FORM POLISH
+===================================================== */
+
+.ari-field input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.ari-field input:disabled,
+.ari-field select:disabled,
+.ari-field textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.ari-field input[aria-invalid="true"],
+.ari-field select[aria-invalid="true"],
+.ari-field textarea[aria-invalid="true"] {
+  border-color: rgba(255, 98, 117, 0.7);
+  box-shadow:
+    0 0 0 3px rgba(255, 98, 117, 0.08),
+    inset 0 1px 5px rgba(0, 0, 0, 0.26);
+}
+
+
+/* =====================================================
+   TABLET AND DESKTOP
+===================================================== */
+
+@media (min-width: 700px) {
+  .ari-training-entry__metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+
+/* =====================================================
+   SMALL PHONES
+===================================================== */
+
+@media (max-width: 520px) {
+  .ari-performance-card__value {
+    font-size: clamp(1.35rem, 7.8vw, 2rem);
+  }
+
+  .ari-performance-card__unit {
+    font-size: 0.63rem;
+  }
+
+  .ari-calorie-estimate {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .ari-calorie-estimate__icon {
+    width: 46px;
+  }
+
+  .ari-calorie-estimate__source {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .ari-training-entry__calorie-summary {
+    justify-items: start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 390px) {
+  .ari-performance-grid {
+    gap: 8px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .ari-performance-card {
+    min-height: 138px;
+    padding: 13px 10px;
+  }
+
+  .ari-performance-card::before {
+    width: 29px;
+    height: 29px;
+    margin-bottom: 8px;
+  }
+
+  .ari-performance-card__label {
+    font-size: 0.54rem;
+    letter-spacing: 0.035em;
+  }
+
+  .ari-performance-card__value {
+    gap: 4px;
+    font-size: clamp(1.2rem, 7.2vw, 1.72rem);
+  }
+
+  .ari-performance-card__meta {
+    margin-top: 6px;
+    font-size: 0.6rem;
+  }
+
+  .ari-calorie-estimate {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-calorie-estimate__icon {
+    width: 44px;
+  }
+
+  .ari-calorie-estimate__source {
+    grid-column: auto;
+  }
+
+  .ari-calorie-estimate__content h3 {
+    font-size: 1.55rem;
+  }
+
+  .ari-training-entry__header {
+    gap: 10px;
+  }
+
+  .ari-training-entry__calorie-summary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 340px) {
+  .ari-performance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-performance-card {
+    min-height: 132px;
+  }
+
+  .ari-workout-category-grid {
+    grid-template-columns: 1fr;
   }
 }
