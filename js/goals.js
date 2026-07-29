@@ -225,7 +225,7 @@ function calculateGoals() {
   updateCalorieWarning(dailyCalorieGoal, sex, goalMode);
 
   const bmi = (weightLbs / (heightInches * heightInches)) * 703;
-  const bmiText = `${bmi.toFixed(1)} â ${getBmiCategory(bmi)}`;
+  const bmiText = `${bmi.toFixed(1)} \u2014 ${getBmiCategory(bmi)}`;
 
   setText("bmiBox", bmiText);
   setText("progressBmi", bmiText);
