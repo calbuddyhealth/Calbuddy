@@ -1,4 +1,4 @@
-const GOALS_VERSION = "2.2.0";
+const GOALS_VERSION = "2.2.1";
 
 const goalInputs = [
   "age",
@@ -82,7 +82,6 @@ function showHealthTab(tab) {
   calculateGoals();
 }
 
-
 function setDailyCalorieGoalStatus(message = "", type = "") {
   const statusEl = document.getElementById("dailyCalorieGoalMessage");
   if (!statusEl) return;
@@ -116,7 +115,7 @@ function updateHeightConversion(heightInches) {
   if (!conversion) return;
 
   if (!heightInches || heightInches <= 0) {
-    conversion.textContent = "Equivalent: â";
+    conversion.textContent = "Equivalent: \u2014";
     return;
   }
 
@@ -165,12 +164,12 @@ function calculateGoals() {
   updateHeightConversion(heightInches);
 
   if (!age || !weightLbs || !heightInches || !activity) {
-    setText("calorieGoal", "â kcal");
-    setText("maintenanceBox", "â");
-    setText("bmiBox", "â");
-    setText("timeToGoal", "â");
-    setText("goalDate", "â");
-    setText("caloriesLeftText", "â");
+    setText("calorieGoal", "\u2014 kcal");
+    setText("maintenanceBox", "\u2014");
+    setText("bmiBox", "\u2014");
+    setText("timeToGoal", "\u2014");
+    setText("goalDate", "\u2014");
+    setText("caloriesLeftText", "\u2014");
     return null;
   }
 
@@ -332,8 +331,8 @@ function updateDailyCalorieGoalPreview() {
       weightLbs: calculated.weightLbs,
       targetWeight: calculated.targetWeight,
       dailyCalorieGoal: goal,
-      bmiText: document.getElementById("bmiBox")?.textContent || "â",
-      timeline: document.getElementById("timeToGoal")?.textContent || "â"
+      bmiText: document.getElementById("bmiBox")?.textContent || "\u2014",
+      timeline: document.getElementById("timeToGoal")?.textContent || "\u2014"
     });
   }
 }
@@ -457,9 +456,9 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
   }
 
   if (!currentWeight || !targetWeight || !weeklyChange) {
-    setText("timeToGoal", "â");
-    setText("goalDate", "â");
-    return "â";
+    setText("timeToGoal", "\u2014");
+    setText("goalDate", "\u2014");
+    return "\u2014";
   }
 
   let poundsToGoal;
@@ -472,7 +471,7 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
 
   if (poundsToGoal <= 0) {
     setText("timeToGoal", "Already at or past target");
-    setText("goalDate", "â");
+    setText("goalDate", "\u2014");
     return "Already at or past target";
   }
 
@@ -596,26 +595,26 @@ function updateProgressSummary(summary = {}) {
 
   setText(
     "progressWeight",
-    weightLbs ? `${weightLbs} lb` : "â"
+    weightLbs ? `${weightLbs} lb` : "\u2014"
   );
 
   setText(
     "progressTargetWeight",
-    targetWeight ? `${targetWeight} lb` : "â"
+    targetWeight ? `${targetWeight} lb` : "\u2014"
   );
 
-  setText("progressBmi", bmiText || "â");
+  setText("progressBmi", bmiText || "\u2014");
 
   setText(
     "progressCalories",
     dailyCalorieGoal
       ? `${dailyCalorieGoal} kcal/day`
-      : "â"
+      : "\u2014"
   );
 
   setText(
     "progressTimeline",
-    timeline || "â"
+    timeline || "\u2014"
   );
 }
 
