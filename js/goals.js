@@ -1,4 +1,4 @@
-const GOALS_VERSION = "2.1.0";
+const GOALS_VERSION = "2.2.0";
 
 const goalInputs = [
   "age",
@@ -15,24 +15,29 @@ const goalInputs = [
   "medicalConditions"
 ];
 
-let dailyCalorieGoalSaveTimer = null;
+let autoSaveTimer = null;
+let isLoadingGoals = true;
+let saveRequestSequence = 0;
 
 document.addEventListener("DOMContentLoaded", async () => {
   goalInputs.forEach((id) => {
     const element = document.getElementById(id);
     if (!element) return;
 
-    element.addEventListener("input", calculateGoals);
-    element.addEventListener("change", calculateGoals);
+    element.addEventListener("input", () => {
+      calculateGoals();
+      scheduleGoalsAutoSave();
+    });
+
+    element.addEventListener("change", () => {
+      calculateGoals();
+      scheduleGoalsAutoSave(150);
+    });
   });
 
   document
     .getElementById("dietPreference")
     ?.addEventListener("change", updateDietOtherUI);
-
-  document
-    .getElementById("saveGoalsBtn")
-    ?.addEventListener("click", saveGoals);
 
   const dailyCalorieGoalInput = document.getElementById(
     "dailyCalorieGoalInput"
@@ -40,14 +45,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   dailyCalorieGoalInput?.addEventListener("input", () => {
     updateDailyCalorieGoalPreview();
-    scheduleDailyCalorieGoalSave();
+    scheduleGoalsAutoSave();
   });
 
   dailyCalorieGoalInput?.addEventListener("change", () => {
-    saveDailyCalorieGoal();
+    updateDailyCalorieGoalPreview();
+    scheduleGoalsAutoSave(150);
   });
 
   await loadSavedGoals();
+  isLoadingGoals = false;
   calculateGoals();
 });
 
@@ -75,17 +82,6 @@ function showHealthTab(tab) {
   calculateGoals();
 }
 
-function setStatus(message = "", type = "") {
-  const statusEl = document.getElementById("saveMessage");
-  if (!statusEl) return;
-
-  statusEl.textContent = message;
-  statusEl.classList.remove("error", "success");
-
-  if (type) {
-    statusEl.classList.add(type);
-  }
-}
 
 function setDailyCalorieGoalStatus(message = "", type = "") {
   const statusEl = document.getElementById("dailyCalorieGoalMessage");
@@ -342,81 +338,103 @@ function updateDailyCalorieGoalPreview() {
   }
 }
 
-function scheduleDailyCalorieGoalSave() {
-  window.clearTimeout(dailyCalorieGoalSaveTimer);
+function scheduleGoalsAutoSave(delay = 700) {
+  if (isLoadingGoals) return;
 
-  dailyCalorieGoalSaveTimer = window.setTimeout(() => {
-    saveDailyCalorieGoal();
-  }, 700);
+  window.clearTimeout(autoSaveTimer);
+
+  autoSaveTimer = window.setTimeout(() => {
+    persistGoals();
+  }, delay);
 }
 
-async function saveDailyCalorieGoal() {
-  const goal = parseDailyCalorieGoal(
-    document.getElementById("dailyCalorieGoalInput")?.value
-  );
+async function persistGoals() {
+  if (isLoadingGoals) return;
 
-  if (!goal) {
-    setDailyCalorieGoalStatus(
-      "Enter a daily calorie goal between 800 and 10,000 kcal.",
-      "error"
-    );
+  const calculated = calculateGoals();
+
+  if (!calculated || !calculated.dailyCalorieGoal) {
     return;
   }
 
-  localStorage.setItem("calbuddyDailyCalorieGoal", String(goal));
-  updateStoredGoalsCalorieGoal(goal);
-  updateCaloriesMeter(goal);
+  const requestSequence = ++saveRequestSequence;
+
+  const goals = {
+    age: calculated.age,
+    sex: calculated.sex,
+    weight: calculated.weightLbs,
+    height: calculated.heightInches,
+    activity: calculated.activity,
+    goalMode: calculated.goalMode,
+    targetWeight: calculated.targetWeight,
+    weeklyChange: calculated.weeklyChange,
+    calorieGoal: calculated.dailyCalorieGoal,
+    dietPreference: calculated.dietPreference,
+    dietOther: calculated.dietOther,
+    foodAllergies: calculated.foodAllergies,
+    medicalConditions: calculated.medicalConditions
+  };
+
+  localStorage.setItem(
+    "calbuddyGoals",
+    JSON.stringify(goals)
+  );
+
+  localStorage.setItem(
+    "calbuddyDailyCalorieGoal",
+    String(calculated.dailyCalorieGoal)
+  );
 
   const user = await getCurrentUser();
 
   if (!user) {
-    setDailyCalorieGoalStatus(
-      `Daily calorie goal saved on this device: ${goal.toLocaleString()} kcal.`,
-      "success"
-    );
+    setDailyCalorieGoalStatus("");
     return;
   }
+
+  const profilePayload = {
+    id: user.id,
+    email: user.email || null,
+    age: Number(goals.age),
+    sex: goals.sex,
+    weight_lbs: Number(goals.weight),
+    height_in: Number(goals.height),
+    activity_level: String(goals.activity),
+    goal: goals.goalMode,
+    target_weight_lbs: Number(goals.targetWeight),
+    weekly_weight_change_goal: Number(goals.weeklyChange),
+    daily_calorie_goal: Number(goals.calorieGoal),
+    updated_at: new Date().toISOString()
+  };
+
+  await trySaveOptionalHealthFields(
+    profilePayload,
+    goals
+  );
 
   const { error } = await window.calbuddySupabase
     .from("profiles")
-    .update({
-      daily_calorie_goal: goal,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", user.id);
+    .upsert(profilePayload, { onConflict: "id" });
 
-  if (error) {
-    setDailyCalorieGoalStatus(
-      "Saved on this device, but the cloud profile did not update: " +
-        error.message,
-      "error"
-    );
+  if (requestSequence !== saveRequestSequence) {
     return;
   }
 
-  setDailyCalorieGoalStatus(
-    `Daily calorie goal saved: ${goal.toLocaleString()} kcal.`,
-    "success"
-  );
-}
-
-function updateStoredGoalsCalorieGoal(goal) {
-  let storedGoals = {};
-
-  try {
-    storedGoals = JSON.parse(
-      localStorage.getItem("calbuddyGoals") || "{}"
+  if (error) {
+    console.error(
+      "Goals autosave failed:",
+      error.message
     );
-  } catch (error) {
-    console.warn("Could not parse stored goals:", error.message);
+
+    setDailyCalorieGoalStatus(
+      "Saved on this device, but cloud sync failed.",
+      "error"
+    );
+
+    return;
   }
 
-  storedGoals.calorieGoal = goal;
-
-  localStorage.setItem(
-    "calbuddyGoals",
-    JSON.stringify(storedGoals)
-  );
+  setDailyCalorieGoalStatus("");
 }
 
 function updateCalorieWarning(dailyCalorieGoal, sex, goalMode) {
@@ -617,93 +635,6 @@ function getValue(id) {
     : "";
 }
 
-async function saveGoals() {
-  const calculated = calculateGoals();
-
-  if (!calculated || !calculated.dailyCalorieGoal) {
-    setStatus(
-      "Please complete your health goal information first.",
-      "error"
-    );
-
-    return;
-  }
-
-  const goals = {
-    age: calculated.age,
-    sex: calculated.sex,
-    weight: calculated.weightLbs,
-    height: calculated.heightInches,
-    activity: calculated.activity,
-    goalMode: calculated.goalMode,
-    targetWeight: calculated.targetWeight,
-    weeklyChange: calculated.weeklyChange,
-    calorieGoal: calculated.dailyCalorieGoal,
-    dietPreference: calculated.dietPreference,
-    dietOther: calculated.dietOther,
-    foodAllergies: calculated.foodAllergies,
-    medicalConditions: calculated.medicalConditions
-  };
-
-  localStorage.setItem(
-    "calbuddyGoals",
-    JSON.stringify(goals)
-  );
-
-  localStorage.setItem(
-    "calbuddyDailyCalorieGoal",
-    String(calculated.dailyCalorieGoal)
-  );
-
-  const user = await getCurrentUser();
-
-  if (user) {
-    const profilePayload = {
-      id: user.id,
-      email: user.email || null,
-      age: Number(goals.age),
-      sex: goals.sex,
-      weight_lbs: Number(goals.weight),
-      height_in: Number(goals.height),
-      activity_level: String(goals.activity),
-      goal: goals.goalMode,
-      target_weight_lbs: Number(goals.targetWeight),
-      weekly_weight_change_goal: Number(goals.weeklyChange),
-      daily_calorie_goal: Number(calculated.dailyCalorieGoal),
-      updated_at: new Date().toISOString()
-    };
-
-    await trySaveOptionalHealthFields(
-      profilePayload,
-      goals
-    );
-
-    const { error } = await window.calbuddySupabase
-      .from("profiles")
-      .upsert(profilePayload, { onConflict: "id" });
-
-    if (error) {
-      setStatus(
-        "Saved on this device, but cloud profile did not save: " +
-          error.message,
-        "error"
-      );
-
-      return;
-    }
-
-    setStatus(
-      `Health goals saved. Daily target: ${calculated.dailyCalorieGoal.toLocaleString()} kcal`,
-      "success"
-    );
-  } else {
-    setStatus(
-      "Health goals saved on this device. Sign in to save them to your profile.",
-      "success"
-    );
-  }
-}
-
 async function trySaveOptionalHealthFields(profilePayload, goals) {
   profilePayload.diet_preference =
     goals.dietPreference || null;
@@ -841,11 +772,7 @@ function logWeightQuick() {
 
   setInputValue("weight", next);
   calculateGoals();
-
-  setStatus(
-    "Weight updated. Press Save Health Goals to save it.",
-    ""
-  );
+  scheduleGoalsAutoSave(150);
 }
 
 function logCaloriesBurnedQuick() {
@@ -866,9 +793,4 @@ function logCaloriesBurnedQuick() {
   );
 
   calculateGoals();
-
-  setStatus(
-    "Calories burned updated.",
-    "success"
-  );
 }
