@@ -1861,3 +1861,26 @@ main#ariApp.ari-v1-home .ari-welcome::before {
     --ari-nexus-top: -72px;
   }
 }
+/* =====================================================
+   FINAL QUANTUM NEXUS COMPOSITION
+   Keep this as the last rule in home.css
+===================================================== */
+
+@media (max-width: 430px) {
+  main#ariApp.ari-v1-home {
+    --ari-nexus-width: 260vw;
+  }
+
+  main#ariApp.ari-v1-home .ari-welcome::before {
+    top: -210px !important;
+
+    width: var(--ari-nexus-width) !important;
+    max-width: none !important;
+    height: 145% !important;
+
+    background-position: center top !important;
+    background-size: 100% auto !important;
+
+    opacity: 0.82 !important;
+  }
+}
