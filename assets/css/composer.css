@@ -1567,5 +1567,5 @@ main#ariApp .ari-bottom-input::before {
 ===================================================== */
 
 main#ariApp.welcome-mode {
-  --ari-composer-bottom: 20px !important;
+  --ari-composer-bottom: 0px !important;
 }
