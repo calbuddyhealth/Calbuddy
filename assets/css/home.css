@@ -1556,11 +1556,231 @@ main#ariApp.conversation-mode::before {
   }
 }
 /* =====================================================
-   REMOVE ENVIRONMENT RINGS AND PROMPT LINE
+   ARI QUANTUM NEXUS ENVIRONMENT
+   Image:
+   assets/ari/ari-quantum-nexus.png
+
+   Layer order:
+   - Pitch-black space
+   - Stars / atmospheric dust
+   - Quantum Nexus environment
+   - Ari avatar
+   - Prompt / composer
 ===================================================== */
 
-main#ariApp.ari-v1-home .ari-welcome::before,
-main#ariApp.ari-v1-home .ari-welcome::after,
+
+/* =====================================================
+   FINAL HOME POSITIONING
+===================================================== */
+
+main#ariApp.ari-v1-home {
+  --ari-hero-drop: 0px !important;
+
+  background: #000;
+}
+
+body:has(main#ariApp.welcome-mode) {
+  background: #000;
+}
+
+
+/* =====================================================
+   CREATE LOCAL STACKING CONTEXT
+===================================================== */
+
+main#ariApp.ari-v1-home .ari-welcome {
+  isolation: isolate;
+}
+
+
+/* =====================================================
+   QUANTUM NEXUS BEHIND ARI
+===================================================== */
+
+main#ariApp.ari-v1-home .ari-welcome::before {
+  content: "";
+
+  display: block !important;
+
+  position: absolute;
+  z-index: 0;
+
+  top: 10px;
+  left: 50%;
+
+  width: min(165vw, 700px);
+  height: calc(100% - 70px);
+
+  background-image:
+    url("../ari/ari-quantum-nexus.png");
+
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: contain;
+
+  opacity: 0.76;
+
+  filter:
+    brightness(0.72)
+    contrast(1.12)
+    saturate(1.12);
+
+  transform:
+    translate3d(-50%, 0, 0)
+    scale(1);
+
+  transform-origin: center top;
+
+  -webkit-mask-image:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.90) 5%,
+      #000 15%,
+      #000 78%,
+      rgba(0, 0, 0, 0.78) 91%,
+      transparent 100%
+    );
+
+  mask-image:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.90) 5%,
+      #000 15%,
+      #000 78%,
+      rgba(0, 0, 0, 0.78) 91%,
+      transparent 100%
+    );
+
+  animation: none;
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
+   KEEP OLD PLATFORM REMOVED
+===================================================== */
+
+main#ariApp.ari-v1-home .ari-welcome::after {
+  display: none !important;
+}
+
+
+/* =====================================================
+   KEEP PROMPT ENERGY LINE REMOVED
+===================================================== */
+
 main#ariApp .ari-welcome-prompt::before {
   display: none !important;
+}
+
+
+/* =====================================================
+   GUARANTEE ARI REMAINS ABOVE THE ENVIRONMENT
+===================================================== */
+
+main#ariApp.welcome-mode
+  .ari-welcome
+  :is(
+    .ari-hero,
+    .ari-hero-shell,
+    .ari-welcome-avatar,
+    .ari-avatar-stage,
+    #ariHero,
+    #ariHeroShell
+  ) {
+  position: relative;
+  z-index: 4;
+}
+
+
+/* =====================================================
+   MOBILE ENVIRONMENT SCALE
+===================================================== */
+
+@media (max-width: 430px) {
+  main#ariApp.ari-v1-home .ari-welcome::before {
+    top: 18px;
+
+    width: 172vw;
+    height: calc(100% - 80px);
+
+    background-position: center top;
+
+    opacity: 0.72;
+  }
+}
+
+
+/* =====================================================
+   SHORT MOBILE VIEWPORTS
+===================================================== */
+
+@media (max-height: 760px) {
+  main#ariApp.ari-v1-home {
+    --ari-hero-drop: 0px !important;
+  }
+
+  main#ariApp.ari-v1-home .ari-welcome::before {
+    top: 6px;
+
+    width: 158vw;
+    height: calc(100% - 54px);
+
+    opacity: 0.68;
+  }
+}
+
+
+/* =====================================================
+   VERY SHORT MOBILE VIEWPORTS
+===================================================== */
+
+@media (max-height: 650px) {
+  main#ariApp.ari-v1-home {
+    --ari-hero-drop: 0px !important;
+  }
+
+  main#ariApp.ari-v1-home .ari-welcome::before {
+    top: 0;
+
+    width: 148vw;
+    height: calc(100% - 40px);
+
+    opacity: 0.64;
+  }
+}
+
+
+/* =====================================================
+   TABLET / DESKTOP ENVIRONMENT
+===================================================== */
+
+@media (min-width: 768px) {
+  main#ariApp.ari-v1-home {
+    --ari-hero-drop: 0px !important;
+  }
+
+  main#ariApp.ari-v1-home .ari-welcome::before {
+    top: 0;
+
+    width: 720px;
+    height: calc(100% - 60px);
+
+    opacity: 0.78;
+  }
+}
+
+
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  main#ariApp.ari-v1-home .ari-welcome::before {
+    animation: none;
+    transform: translate3d(-50%, 0, 0);
+  }
 }
