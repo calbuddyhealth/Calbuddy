@@ -1562,3 +1562,10 @@ main#ariApp.ari-keyboard-mode #ariInput {
 main#ariApp .ari-bottom-input::before {
   display: none !important;
 }
+/* =====================================================
+   DOCK COMPOSER AT BOTTOM
+===================================================== */
+
+main#ariApp.welcome-mode {
+  --ari-composer-bottom: 20px !important;
+}
