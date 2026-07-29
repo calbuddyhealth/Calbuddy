@@ -1555,3 +1555,10 @@ main#ariApp.ari-keyboard-mode #ariInput {
     transition: none;
   }
 }
+/* =====================================================
+   REMOVE COMPOSER PLATFORM DISC
+===================================================== */
+
+main#ariApp .ari-bottom-input::before {
+  display: none !important;
+}
