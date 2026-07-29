@@ -84,7 +84,7 @@ main#ariApp {
 
   --ari-composer-width: 430px;
   --ari-composer-radius: 34px;
-  --ari-composer-min-height: 112px;
+  --ari-composer-min-height: 136px;
 
   --ari-composer-edge:
     rgba(var(--ari-composer-cyan), 0.42);
@@ -281,9 +281,9 @@ main#ariApp .ari-input-shell {
   margin: 0;
 
   padding:
-    21px
+    24px
     16px
-    14px
+    18px
     22px;
 
   overflow: visible;
@@ -543,7 +543,7 @@ main#ariApp #ariInput {
 
   width: 100%;
   min-width: 0;
-  min-height: 76px;
+  min-height: 96px;
   max-height: 180px;
 
   margin: 0;
@@ -1273,7 +1273,7 @@ main#ariApp.ari-keyboard-mode #ariInput {
   main#ariApp {
     --ari-composer-bottom: 106px;
     --ari-composer-radius: 30px;
-    --ari-composer-min-height: 104px;
+    --ari-composer-min-height: 128px;
   }
 
   main#ariApp.ari-keyboard-mode,
@@ -1297,7 +1297,7 @@ main#ariApp.ari-keyboard-mode #ariInput {
   }
 
   main#ariApp #ariInput {
-    min-height: 70px;
+    min-height: 90px;
 
     font-size: 16px;
   }
@@ -1383,7 +1383,7 @@ main#ariApp.ari-keyboard-mode #ariInput {
 @media (max-height: 720px) {
   main#ariApp {
     --ari-composer-bottom: 102px;
-    --ari-composer-min-height: 102px;
+    --ari-composer-min-height: 124px;
   }
 
   main#ariApp.ari-keyboard-mode,
@@ -1397,14 +1397,14 @@ main#ariApp.ari-keyboard-mode #ariInput {
   }
 
   main#ariApp .ari-input-shell {
-    min-height: 100px;
+    min-height: 124px;
 
     padding-top: 18px;
     padding-bottom: 11px;
   }
 
   main#ariApp #ariInput {
-    min-height: 68px;
+    min-height: 88px;
   }
 }
 
