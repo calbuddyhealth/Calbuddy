@@ -1872,7 +1872,7 @@ main#ariApp.ari-v1-home .ari-welcome::before {
   }
 
   main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -250px !important;
+    top: -240px !important;
 
     width: var(--ari-nexus-width) !important;
     max-width: none !important;
