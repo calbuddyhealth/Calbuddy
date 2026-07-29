@@ -1415,3 +1415,1147 @@ body:has(.ari-goals-page)::before {
     transition: none;
   }
 }
+/* =====================================================
+   ARI GOALS
+   Version 1.1.0 — FUTURISTIC CLINICAL INTERFACE PATCH
+
+   Purpose:
+   - Convert Goals from dark command UI to bright clinical UI
+   - Preserve the existing layout, tabs, forms, and JavaScript
+   - Introduce white glass surfaces with cyan and purple accents
+   - Add restrained scientific symbols and biometric detailing
+===================================================== */
+
+
+/* =====================================================
+   CLINICAL DESIGN TOKENS
+===================================================== */
+
+body:has(.ari-goals-page) {
+  --ari-goals-white: #ffffff;
+  --ari-goals-surface: rgba(255, 255, 255, 0.86);
+  --ari-goals-surface-strong: rgba(255, 255, 255, 0.96);
+  --ari-goals-surface-soft: rgba(246, 251, 255, 0.88);
+
+  --ari-goals-navy: #10214b;
+  --ari-goals-navy-soft: #415174;
+  --ari-goals-muted: #71809d;
+  --ari-goals-faint: #98a5ba;
+
+  --ari-goals-cyan: #09cfea;
+  --ari-goals-cyan-bright: #00e2ff;
+  --ari-goals-cyan-soft: #dffbff;
+
+  --ari-goals-purple: #914cff;
+  --ari-goals-purple-bright: #b73cff;
+  --ari-goals-purple-soft: #f2eaff;
+
+  --ari-goals-green: #14b87a;
+  --ari-goals-yellow: #d9a400;
+  --ari-goals-red: #dc5364;
+
+  --ari-goals-border: rgba(51, 159, 226, 0.22);
+  --ari-goals-border-strong: rgba(0, 199, 234, 0.46);
+
+  --ari-goals-shadow:
+    0 18px 50px rgba(74, 112, 168, 0.11),
+    0 5px 18px rgba(74, 112, 168, 0.07);
+
+  --ari-goals-shadow-soft:
+    0 10px 28px rgba(74, 112, 168, 0.09);
+
+  --ari-goals-gradient:
+    linear-gradient(
+      125deg,
+      var(--ari-goals-cyan) 0%,
+      #4f9fff 48%,
+      var(--ari-goals-purple-bright) 100%
+    );
+}
+
+
+/* =====================================================
+   DOCUMENT AND CLINICAL BACKGROUND
+===================================================== */
+
+html:has(.ari-goals-page) {
+  background: #f8fcff;
+}
+
+body:has(.ari-goals-page) {
+  background:
+    radial-gradient(
+      circle at 12% 10%,
+      rgba(0, 217, 242, 0.11),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 90% 17%,
+      rgba(145, 76, 255, 0.09),
+      transparent 27%
+    ),
+    radial-gradient(
+      circle at 58% 62%,
+      rgba(78, 164, 255, 0.06),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #f8fcff 42%,
+      #f2f8ff 100%
+    );
+
+  color: var(--ari-goals-navy);
+}
+
+
+/* =====================================================
+   SCIENTIFIC AMBIENT GRID
+===================================================== */
+
+body:has(.ari-goals-page)::before {
+  background-image:
+    linear-gradient(
+      rgba(27, 182, 222, 0.055) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(27, 182, 222, 0.045) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle,
+      rgba(145, 76, 255, 0.11) 1px,
+      transparent 1.5px
+    );
+
+  background-size:
+    34px 34px,
+    34px 34px,
+    68px 68px;
+
+  background-position:
+    0 0,
+    0 0,
+    17px 17px;
+
+  opacity: 0.64;
+}
+
+
+/* =====================================================
+   PAGE SHELL
+===================================================== */
+
+.ari-goals-page {
+  isolation: isolate;
+}
+
+.ari-goals-page::before,
+.ari-goals-page::after {
+  position: fixed;
+  z-index: -1;
+
+  width: 190px;
+  height: 190px;
+
+  border-radius: 50%;
+
+  content: "";
+
+  pointer-events: none;
+
+  filter: blur(4px);
+}
+
+.ari-goals-page::before {
+  top: 120px;
+  left: -110px;
+
+  border: 1px solid rgba(0, 205, 236, 0.1);
+
+  background:
+    repeating-radial-gradient(
+      circle,
+      transparent 0 14px,
+      rgba(0, 205, 236, 0.055) 15px 16px
+    );
+}
+
+.ari-goals-page::after {
+  right: -118px;
+  bottom: 90px;
+
+  border: 1px solid rgba(145, 76, 255, 0.09);
+
+  background:
+    repeating-radial-gradient(
+      circle,
+      transparent 0 17px,
+      rgba(145, 76, 255, 0.045) 18px 19px
+    );
+}
+
+
+/* =====================================================
+   HEADER BRAND
+===================================================== */
+
+.ari-goals-header .ari-brand-title {
+  background:
+    linear-gradient(
+      115deg,
+      #09cfea 0%,
+      #28bce9 42%,
+      #944cff 100%
+    );
+
+  color: transparent;
+
+  text-shadow:
+    0 8px 22px rgba(21, 194, 227, 0.17);
+
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.ari-goals-header .ari-brand-subtitle {
+  color: var(--ari-goals-purple);
+
+  text-shadow:
+    0 4px 12px rgba(145, 76, 255, 0.16);
+}
+
+
+/* =====================================================
+   HEADER BUTTONS
+===================================================== */
+
+.ari-goals-page .ari-back-btn,
+.ari-goals-page .ari-mini-btn {
+  border-color: rgba(58, 143, 220, 0.22);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(244, 249, 255, 0.88)
+    );
+
+  color: var(--ari-goals-navy);
+
+  box-shadow:
+    0 10px 24px rgba(74, 112, 168, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-goals-page .ari-back-btn {
+  color: #0ba9df;
+}
+
+.ari-goals-page .ari-back-btn:not(:disabled):hover,
+.ari-goals-page .ari-mini-btn:not(:disabled):hover {
+  border-color: rgba(0, 205, 236, 0.5);
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #effbff
+    );
+
+  box-shadow:
+    0 12px 30px rgba(48, 151, 214, 0.16),
+    0 0 0 4px rgba(0, 205, 236, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-goals-page .ari-back-btn:focus-visible,
+.ari-goals-page .ari-mini-btn:focus-visible {
+  outline-color: var(--ari-goals-cyan);
+}
+
+
+/* =====================================================
+   PAGE HERO
+===================================================== */
+
+.ari-goals-page .ari-page-hero {
+  border-color: var(--ari-goals-border);
+
+  background:
+    radial-gradient(
+      circle at 10% 5%,
+      rgba(0, 213, 240, 0.12),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 94% 90%,
+      rgba(145, 76, 255, 0.09),
+      transparent 33%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(245, 250, 255, 0.88)
+    );
+
+  box-shadow:
+    var(--ari-goals-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-goals-page .ari-page-hero::before {
+  height: 2px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--ari-goals-cyan),
+      var(--ari-goals-purple),
+      transparent
+    );
+
+  box-shadow:
+    0 0 16px rgba(0, 205, 236, 0.22);
+}
+
+.ari-goals-page .ari-page-hero::after {
+  position: absolute;
+
+  right: 18px;
+  bottom: 14px;
+
+  width: 74px;
+  height: 74px;
+
+  border: 1px solid rgba(0, 205, 236, 0.12);
+  border-radius: 50%;
+
+  background:
+    repeating-radial-gradient(
+      circle,
+      transparent 0 8px,
+      rgba(0, 205, 236, 0.07) 9px 10px
+    );
+
+  content: "";
+
+  pointer-events: none;
+}
+
+.ari-goals-page .ari-page-kicker {
+  color: var(--ari-goals-cyan);
+
+  text-shadow: none;
+}
+
+.ari-goals-page .ari-page-title {
+  color: var(--ari-goals-navy);
+}
+
+.ari-goals-page .ari-page-description {
+  color: var(--ari-goals-muted);
+}
+
+
+/* =====================================================
+   GOALS TABS
+===================================================== */
+
+.ari-tab-btn {
+  border-color: rgba(58, 143, 220, 0.2);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(246, 250, 255, 0.9)
+    );
+
+  color: var(--ari-goals-navy);
+
+  box-shadow:
+    0 9px 25px rgba(74, 112, 168, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-tab-btn::before {
+  display: inline-grid;
+
+  width: 21px;
+  height: 21px;
+
+  margin-right: 7px;
+
+  place-items: center;
+
+  border: 1px solid rgba(0, 205, 236, 0.35);
+  border-radius: 50%;
+
+  color: var(--ari-goals-cyan);
+
+  content: "◎";
+
+  font-size: 0.66rem;
+  line-height: 1;
+
+  vertical-align: -1px;
+}
+
+.ari-tab-btn.active {
+  border-color: rgba(255, 255, 255, 0.68);
+
+  background:
+    linear-gradient(
+      125deg,
+      #06cfe9 0%,
+      #399bf4 48%,
+      #ad3bff 100%
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 13px 34px rgba(65, 139, 231, 0.23),
+    0 8px 24px rgba(145, 76, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.ari-tab-btn.active::before {
+  border-color: rgba(255, 255, 255, 0.7);
+
+  color: #ffffff;
+}
+
+.ari-tab-btn:not(:disabled):hover {
+  border-color: rgba(0, 205, 236, 0.5);
+}
+
+.ari-tab-btn:focus-visible {
+  outline-color: var(--ari-goals-cyan);
+}
+
+
+/* =====================================================
+   CALORIES LEFT BIOMETRIC CARD
+===================================================== */
+
+.ari-meter-card {
+  min-height: 218px;
+
+  border-color: rgba(0, 205, 236, 0.72);
+
+  background:
+    radial-gradient(
+      circle at 18% 54%,
+      rgba(0, 215, 242, 0.13),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 92% 16%,
+      rgba(145, 76, 255, 0.1),
+      transparent 32%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(244, 251, 255, 0.92)
+    );
+
+  color: var(--ari-goals-navy);
+
+  box-shadow:
+    0 0 0 4px rgba(0, 205, 236, 0.055),
+    0 18px 50px rgba(49, 142, 205, 0.16),
+    0 8px 28px rgba(145, 76, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-meter-card::before {
+  position: absolute;
+  z-index: 1;
+
+  top: 44px;
+  left: 20px;
+
+  width: 120px;
+  height: 120px;
+
+  border: 1px solid rgba(0, 205, 236, 0.16);
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0, 205, 236, 0.1) 0 3px,
+      transparent 4px
+    ),
+    repeating-radial-gradient(
+      circle,
+      transparent 0 12px,
+      rgba(0, 205, 236, 0.09) 13px 14px
+    );
+
+  content: "";
+
+  opacity: 0.82;
+
+  pointer-events: none;
+}
+
+.ari-meter-card::after {
+  inset: 9px;
+
+  border-color: rgba(47, 158, 218, 0.16);
+
+  background:
+    linear-gradient(
+      rgba(0, 205, 236, 0.03) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(0, 205, 236, 0.03) 1px,
+      transparent 1px
+    );
+
+  background-size: 22px 22px;
+}
+
+.ari-meter-card:not(:active):hover {
+  border-color: rgba(0, 213, 240, 0.98);
+
+  filter: brightness(1.015);
+
+  box-shadow:
+    0 0 0 5px rgba(0, 205, 236, 0.06),
+    0 23px 58px rgba(49, 142, 205, 0.19),
+    0 9px 30px rgba(145, 76, 255, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+
+/* =====================================================
+   BIOMETRIC SCAN DETAIL
+===================================================== */
+
+.ari-meter-label::before {
+  display: inline-grid;
+
+  width: 24px;
+  height: 24px;
+
+  margin-right: 8px;
+
+  place-items: center;
+
+  border: 1px solid rgba(0, 205, 236, 0.52);
+  border-radius: 50%;
+
+  content: "◎";
+
+  font-size: 0.72rem;
+
+  vertical-align: -2px;
+}
+
+.ari-calorie-led {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 205, 236, 0.35),
+      var(--ari-goals-cyan-bright),
+      #6d8dff,
+      var(--ari-goals-purple),
+      rgba(145, 76, 255, 0.35),
+      transparent
+    );
+
+  box-shadow:
+    0 0 8px rgba(0, 205, 236, 0.55),
+    0 0 18px rgba(0, 205, 236, 0.22);
+}
+
+
+/* =====================================================
+   CALORIE CARD CONTENT
+===================================================== */
+
+.ari-meter-label {
+  color: var(--ari-goals-cyan);
+
+  text-shadow: none;
+}
+
+.ari-meter-number {
+  background:
+    linear-gradient(
+      118deg,
+      #00cfe8 0%,
+      #31afea 42%,
+      #854cff 76%,
+      #b63cff 100%
+    );
+
+  color: transparent;
+
+  text-shadow:
+    0 10px 28px rgba(0, 192, 229, 0.14);
+
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.ari-meter-subtext {
+  color: var(--ari-goals-navy-soft);
+}
+
+.ari-log-intake-label {
+  padding: 8px 12px;
+
+  border: 1px solid rgba(0, 205, 236, 0.35);
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.76);
+
+  color: var(--ari-goals-cyan);
+
+  text-shadow: none;
+
+  box-shadow:
+    0 6px 16px rgba(51, 138, 196, 0.09);
+}
+
+
+/* =====================================================
+   CALORIE WARNING AND OVER STATES
+===================================================== */
+
+.ari-calorie-card.warning,
+.ari-calorie-card.is-warning {
+  border-color: rgba(217, 164, 0, 0.65);
+
+  box-shadow:
+    0 0 0 4px rgba(217, 164, 0, 0.055),
+    0 18px 46px rgba(217, 164, 0, 0.12);
+}
+
+.ari-calorie-card.over,
+.ari-calorie-card.is-over {
+  border-color: rgba(220, 83, 100, 0.65);
+
+  box-shadow:
+    0 0 0 4px rgba(220, 83, 100, 0.055),
+    0 18px 46px rgba(220, 83, 100, 0.12);
+}
+
+
+/* =====================================================
+   SHARED CLINICAL PANELS
+===================================================== */
+
+.ari-panel {
+  border-color: var(--ari-goals-border);
+
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      rgba(145, 76, 255, 0.065),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 0 100%,
+      rgba(0, 205, 236, 0.075),
+      transparent 32%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(245, 250, 255, 0.89)
+    );
+
+  box-shadow:
+    var(--ari-goals-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.ari-panel::before {
+  height: 2px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--ari-goals-cyan),
+      #5f91ff,
+      var(--ari-goals-purple),
+      transparent
+    );
+
+  opacity: 0.76;
+}
+
+.ari-panel::after {
+  position: absolute;
+
+  top: 18px;
+  right: 18px;
+
+  width: 44px;
+  height: 44px;
+
+  border: 1px solid rgba(0, 205, 236, 0.1);
+  border-radius: 50%;
+
+  background:
+    repeating-radial-gradient(
+      circle,
+      transparent 0 5px,
+      rgba(0, 205, 236, 0.055) 6px 7px
+    );
+
+  content: "";
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
+   PANEL HEADERS
+===================================================== */
+
+.ari-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  color: var(--ari-goals-cyan);
+}
+
+.ari-section-title::before {
+  display: inline-grid;
+
+  width: 25px;
+  height: 25px;
+
+  flex: 0 0 auto;
+
+  place-items: center;
+
+  border: 1px solid rgba(0, 205, 236, 0.4);
+  border-radius: 8px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(0, 205, 236, 0.08),
+      rgba(145, 76, 255, 0.06)
+    );
+
+  color: var(--ari-goals-purple);
+
+  content: "⬡";
+
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.ari-section-subtitle {
+  color: var(--ari-goals-muted);
+}
+
+
+/* =====================================================
+   LABELS AND HINTS
+===================================================== */
+
+.ari-label {
+  color: var(--ari-goals-navy);
+}
+
+.ari-label::before {
+  margin-right: 6px;
+
+  color: var(--ari-goals-cyan);
+
+  content: "◇";
+
+  font-size: 0.62rem;
+}
+
+.ari-hint {
+  color: var(--ari-goals-muted);
+}
+
+
+/* =====================================================
+   CLINICAL INPUTS
+===================================================== */
+
+.ari-input,
+.ari-select,
+.ari-textarea {
+  border-color: rgba(71, 146, 207, 0.24);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(244, 249, 255, 0.94)
+    );
+
+  color: var(--ari-goals-navy);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 5px 14px rgba(78, 111, 158, 0.055);
+}
+
+.ari-select {
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 50%,
+      var(--ari-goals-cyan) 50%
+    ),
+    linear-gradient(
+      135deg,
+      var(--ari-goals-cyan) 50%,
+      transparent 50%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(244, 249, 255, 0.94)
+    );
+}
+
+.ari-input::placeholder,
+.ari-textarea::placeholder {
+  color: rgba(113, 128, 157, 0.55);
+}
+
+.ari-input:focus,
+.ari-select:focus,
+.ari-textarea:focus {
+  border-color: rgba(0, 205, 236, 0.75);
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 4px rgba(0, 205, 236, 0.075),
+    0 8px 22px rgba(55, 144, 204, 0.11),
+    0 0 22px rgba(145, 76, 255, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-input:focus-visible,
+.ari-select:focus-visible,
+.ari-textarea:focus-visible {
+  outline-color: rgba(145, 76, 255, 0.22);
+}
+
+
+/* =====================================================
+   ACTION BUTTONS
+===================================================== */
+
+.ari-secondary-action {
+  border-color: rgba(74, 143, 204, 0.24);
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #f2f8ff
+    );
+
+  color: var(--ari-goals-navy);
+
+  box-shadow:
+    0 7px 18px rgba(70, 109, 159, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-primary-action {
+  border-color: rgba(255, 255, 255, 0.66);
+
+  background:
+    linear-gradient(
+      125deg,
+      #06cee9 0%,
+      #379bf4 48%,
+      #a63dff 100%
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 12px 28px rgba(43, 149, 219, 0.2),
+    0 8px 24px rgba(145, 76, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.ari-primary-action:not(:disabled):hover,
+.ari-secondary-action:not(:disabled):hover {
+  border-color: rgba(0, 205, 236, 0.52);
+
+  filter: brightness(1.025);
+}
+
+.ari-primary-action:focus-visible,
+.ari-secondary-action:focus-visible {
+  outline-color: var(--ari-goals-purple);
+}
+
+
+/* =====================================================
+   BIOMETRIC STAT CARDS
+===================================================== */
+
+.ari-stat-card {
+  position: relative;
+
+  overflow: hidden;
+
+  border-color: rgba(63, 145, 208, 0.2);
+
+  background:
+    radial-gradient(
+      circle at 100% 100%,
+      rgba(145, 76, 255, 0.075),
+      transparent 40%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(243, 249, 255, 0.94)
+    );
+
+  box-shadow:
+    0 9px 24px rgba(66, 107, 160, 0.085),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.ari-stat-card::before {
+  position: absolute;
+
+  top: 14px;
+  right: 14px;
+
+  width: 46px;
+  height: 46px;
+
+  border: 1px solid rgba(0, 205, 236, 0.12);
+  border-radius: 50%;
+
+  background:
+    repeating-radial-gradient(
+      circle,
+      transparent 0 5px,
+      rgba(0, 205, 236, 0.065) 6px 7px
+    );
+
+  content: "";
+
+  pointer-events: none;
+}
+
+.ari-stat-card::after {
+  position: absolute;
+
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  height: 2px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 205, 236, 0.74),
+      rgba(145, 76, 255, 0.54),
+      transparent
+    );
+
+  content: "";
+}
+
+.ari-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  color: var(--ari-goals-cyan);
+}
+
+.ari-stat-label::before {
+  display: inline-grid;
+
+  width: 19px;
+  height: 19px;
+
+  place-items: center;
+
+  border: 1px solid rgba(145, 76, 255, 0.3);
+  border-radius: 6px;
+
+  color: var(--ari-goals-purple);
+
+  content: "⌬";
+
+  font-size: 0.56rem;
+  line-height: 1;
+}
+
+.ari-stat-value {
+  position: relative;
+  z-index: 1;
+
+  color: var(--ari-goals-navy);
+
+  font-size: 1.22rem;
+}
+
+
+/* =====================================================
+   WARNING
+===================================================== */
+
+.ari-warning {
+  border-color: rgba(217, 164, 0, 0.28);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 250, 225, 0.96),
+      rgba(255, 247, 210, 0.84)
+    );
+
+  color: #755600;
+
+  box-shadow:
+    0 8px 18px rgba(180, 135, 0, 0.07);
+}
+
+
+/* =====================================================
+   STATUS MESSAGE
+===================================================== */
+
+.ari-status {
+  color: var(--ari-goals-muted);
+}
+
+.ari-status.success {
+  color: var(--ari-goals-green);
+}
+
+.ari-status.error {
+  color: var(--ari-goals-red);
+}
+
+
+/* =====================================================
+   FOOTER NOTE
+===================================================== */
+
+.ari-footer-note {
+  color: var(--ari-goals-muted);
+}
+
+
+/* =====================================================
+   MOBILE REFINEMENTS
+===================================================== */
+
+@media (max-width: 380px) {
+  .ari-meter-card {
+    min-height: 210px;
+  }
+
+  .ari-meter-card::before {
+    top: 48px;
+    left: 10px;
+
+    width: 96px;
+    height: 96px;
+
+    opacity: 0.56;
+  }
+
+  .ari-meter-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.17em;
+  }
+
+  .ari-meter-label::before {
+    width: 21px;
+    height: 21px;
+
+    margin-right: 5px;
+  }
+
+  .ari-meter-number {
+    font-size: clamp(2.7rem, 15vw, 4rem);
+  }
+
+  .ari-log-intake-label {
+    padding: 7px 10px;
+
+    font-size: 0.62rem;
+  }
+
+  .ari-section-title {
+    letter-spacing: 0.14em;
+  }
+
+  .ari-panel::after {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+
+/* =====================================================
+   TABLET / DESKTOP
+===================================================== */
+
+@media (min-width: 768px) {
+  .ari-goals-page {
+    width: min(600px, 100%);
+  }
+
+  .ari-meter-card {
+    min-height: 234px;
+  }
+
+  .ari-meter-card::before {
+    width: 144px;
+    height: 144px;
+  }
+
+  .ari-stat-card {
+    min-height: 128px;
+  }
+}
+
+
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .ari-calorie-led {
+    animation: none;
+  }
+}
