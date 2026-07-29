@@ -331,11 +331,15 @@ main#ariApp.conversation-mode {
    PERSPECTIVE GRID
 ===================================================== */
 
-main#ariApp.ari-v1-home > .ari-header-v4,
 main#ariApp.ari-v1-home > .ari-welcome,
 main#ariApp.ari-v1-home > .ari-conversation-shell {
   position: relative;
   z-index: 4;
+}
+
+main#ariApp.ari-v1-home > .ari-header-v4 {
+  position: relative;
+  z-index: 50;
 }
 
 main#ariApp.ari-v1-home .ari-welcome {
@@ -1603,7 +1607,7 @@ main#ariApp.ari-v1-home .ari-welcome::before {
   display: block !important;
 
   position: absolute;
-  z-index: 0;
+  z-index: -1;
 
   top: 10px;
   left: 50%;
