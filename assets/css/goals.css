@@ -2559,3 +2559,378 @@ body:has(.ari-goals-page)::before {
     animation: none;
   }
 }
+/* =====================================================
+   ARI GOALS
+   Version 1.1.1 — GLASS DEPTH PATCH
+===================================================== */
+
+
+/* =====================================================
+   GLASS TOKENS
+===================================================== */
+
+body:has(.ari-goals-page) {
+  --ari-glass-white: rgba(255, 255, 255, 0.56);
+  --ari-glass-white-strong: rgba(255, 255, 255, 0.7);
+  --ari-glass-white-soft: rgba(255, 255, 255, 0.42);
+
+  --ari-glass-border: rgba(255, 255, 255, 0.72);
+  --ari-glass-border-cyan: rgba(0, 207, 234, 0.28);
+  --ari-glass-border-purple: rgba(145, 76, 255, 0.2);
+
+  --ari-glass-shadow:
+    0 22px 55px rgba(56, 104, 162, 0.14),
+    0 8px 24px rgba(56, 104, 162, 0.09);
+
+  --ari-glass-inset:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(104, 165, 211, 0.08);
+}
+
+
+/* =====================================================
+   STRONGER BACKGROUND DEPTH
+===================================================== */
+
+body:has(.ari-goals-page) {
+  background:
+    radial-gradient(
+      circle at 12% 12%,
+      rgba(0, 213, 240, 0.18),
+      transparent 27%
+    ),
+    radial-gradient(
+      circle at 88% 22%,
+      rgba(145, 76, 255, 0.15),
+      transparent 29%
+    ),
+    radial-gradient(
+      circle at 44% 67%,
+      rgba(66, 153, 255, 0.11),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      #f9fdff 0%,
+      #eef8ff 52%,
+      #f8f4ff 100%
+    );
+}
+
+body:has(.ari-goals-page)::before {
+  opacity: 0.82;
+}
+
+
+/* =====================================================
+   UNIVERSAL GLASS SURFACES
+===================================================== */
+
+.ari-goals-page .ari-page-hero,
+.ari-goals-page .ari-panel,
+.ari-goals-page .ari-stat-card,
+.ari-goals-page .ari-tab-btn,
+.ari-goals-page .ari-back-btn,
+.ari-goals-page .ari-mini-btn {
+  border-color:
+    rgba(255, 255, 255, 0.74);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.7),
+      rgba(255, 255, 255, 0.38)
+    );
+
+  box-shadow:
+    var(--ari-glass-shadow),
+    var(--ari-glass-inset);
+
+  -webkit-backdrop-filter:
+    blur(24px)
+    saturate(155%)
+    brightness(1.04);
+
+  backdrop-filter:
+    blur(24px)
+    saturate(155%)
+    brightness(1.04);
+}
+
+
+/* =====================================================
+   GLASS EDGE REFLECTION
+===================================================== */
+
+.ari-goals-page .ari-page-hero,
+.ari-goals-page .ari-panel,
+.ari-goals-page .ari-stat-card,
+.ari-goals-page .ari-meter-card {
+  position: relative;
+}
+
+.ari-goals-page .ari-page-hero {
+  background:
+    radial-gradient(
+      circle at 8% 3%,
+      rgba(0, 221, 246, 0.14),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 94% 90%,
+      rgba(145, 76, 255, 0.12),
+      transparent 34%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.68),
+      rgba(255, 255, 255, 0.35)
+    );
+}
+
+.ari-goals-page .ari-panel {
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      rgba(145, 76, 255, 0.1),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 0 100%,
+      rgba(0, 205, 236, 0.11),
+      transparent 34%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.66),
+      rgba(255, 255, 255, 0.34)
+    );
+}
+
+
+/* =====================================================
+   CALORIE CARD — PREMIUM BIOMETRIC GLASS
+===================================================== */
+
+.ari-meter-card {
+  border-color: rgba(0, 211, 238, 0.76);
+
+  background:
+    radial-gradient(
+      circle at 18% 48%,
+      rgba(0, 215, 242, 0.17),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 92% 16%,
+      rgba(145, 76, 255, 0.14),
+      transparent 31%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.57),
+      rgba(255, 255, 255, 0.25)
+    );
+
+  box-shadow:
+    0 0 0 4px rgba(0, 205, 236, 0.055),
+    0 26px 60px rgba(39, 131, 195, 0.18),
+    0 12px 32px rgba(145, 76, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(0, 205, 236, 0.14);
+
+  -webkit-backdrop-filter:
+    blur(28px)
+    saturate(170%)
+    brightness(1.04);
+
+  backdrop-filter:
+    blur(28px)
+    saturate(170%)
+    brightness(1.04);
+}
+
+.ari-meter-card::after {
+  border-color: rgba(255, 255, 255, 0.64);
+
+  background:
+    linear-gradient(
+      rgba(0, 205, 236, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(0, 205, 236, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.42),
+      transparent 32%
+    );
+
+  background-size:
+    22px 22px,
+    22px 22px,
+    100% 100%;
+}
+
+
+/* =====================================================
+   GLASS TABS
+===================================================== */
+
+.ari-tab-btn {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.68),
+      rgba(255, 255, 255, 0.34)
+    );
+}
+
+.ari-tab-btn.active {
+  border-color: rgba(255, 255, 255, 0.78);
+
+  background:
+    linear-gradient(
+      125deg,
+      rgba(0, 207, 234, 0.88),
+      rgba(64, 145, 245, 0.86) 48%,
+      rgba(174, 59, 255, 0.88)
+    );
+
+  box-shadow:
+    0 18px 42px rgba(52, 139, 224, 0.25),
+    0 10px 30px rgba(145, 76, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.64),
+    inset 0 -1px 0 rgba(79, 52, 171, 0.16);
+
+  -webkit-backdrop-filter:
+    blur(20px)
+    saturate(170%);
+
+  backdrop-filter:
+    blur(20px)
+    saturate(170%);
+}
+
+
+/* =====================================================
+   GLASS INPUTS
+===================================================== */
+
+.ari-input,
+.ari-select,
+.ari-textarea {
+  border-color: rgba(255, 255, 255, 0.78);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.58),
+      rgba(245, 251, 255, 0.36)
+    );
+
+  box-shadow:
+    0 8px 22px rgba(60, 106, 157, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(85, 149, 199, 0.1);
+
+  -webkit-backdrop-filter:
+    blur(18px)
+    saturate(145%);
+
+  backdrop-filter:
+    blur(18px)
+    saturate(145%);
+}
+
+.ari-select {
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 50%,
+      var(--ari-goals-cyan) 50%
+    ),
+    linear-gradient(
+      135deg,
+      var(--ari-goals-cyan) 50%,
+      transparent 50%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.58),
+      rgba(245, 251, 255, 0.36)
+    );
+}
+
+
+/* =====================================================
+   GLASS STAT CARDS
+===================================================== */
+
+.ari-stat-card {
+  background:
+    radial-gradient(
+      circle at 100% 100%,
+      rgba(145, 76, 255, 0.1),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.62),
+      rgba(245, 251, 255, 0.32)
+    );
+}
+
+
+/* =====================================================
+   GLASS BUTTONS
+===================================================== */
+
+.ari-secondary-action {
+  border-color: rgba(255, 255, 255, 0.76);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.68),
+      rgba(244, 250, 255, 0.34)
+    );
+
+  box-shadow:
+    0 12px 28px rgba(62, 105, 156, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+
+  -webkit-backdrop-filter:
+    blur(18px)
+    saturate(150%);
+
+  backdrop-filter:
+    blur(18px)
+    saturate(150%);
+}
+
+
+/* =====================================================
+   EXTRA GLASS SHINE
+===================================================== */
+
+.ari-panel::before,
+.ari-goals-page .ari-page-hero::before {
+  height: 2px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.92),
+      var(--ari-goals-cyan),
+      rgba(145, 76, 255, 0.72),
+      rgba(255, 255, 255, 0.86),
+      transparent
+    );
+
+  opacity: 0.82;
+}
