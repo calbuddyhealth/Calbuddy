@@ -30,14 +30,6 @@
   <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
 </header>
 
-<section class="ari-page-hero">
-  <p class="ari-page-kicker">Goals Module</p>
-  <h2 class="ari-page-title">My Goals</h2>
-  <p class="ari-page-description">
-    Health is the first goal domain. Later this same system can expand into mental health, finances, learning, and more.
-  </p>
-</section>
-
 <div class="ari-tabs">
   <button id="healthGoalsTab" class="ari-tab-btn active" type="button" onclick="showHealthTab('goals')">
     Health Goals
@@ -66,6 +58,47 @@
 
     <span class="ari-log-intake-label">LOG INTAKE</span>
   </a>
+
+  <section class="ari-panel ari-daily-calorie-settings">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Daily Calorie Goal</h3>
+    </div>
+
+    <div class="ari-form">
+      <div class="ari-field">
+        <label class="ari-label" for="dailyCalorieGoalInput">
+          Total Daily Calories
+        </label>
+
+        <div class="ari-calorie-goal-input-row">
+          <input
+            id="dailyCalorieGoalInput"
+            class="ari-input"
+            type="number"
+            inputmode="numeric"
+            min="800"
+            max="10000"
+            step="10"
+            placeholder="Enter daily calories"
+            aria-describedby="dailyCalorieGoalHint"
+          />
+
+          <span class="ari-input-unit">kcal</span>
+        </div>
+
+        <p id="dailyCalorieGoalHint" class="ari-hint">
+          Not sure what to enter? Ask Ari for an AI daily calorie intake estimate.
+        </p>
+      </div>
+
+      <div
+        id="dailyCalorieGoalMessage"
+        class="ari-status"
+        role="status"
+        aria-live="polite"
+      ></div>
+    </div>
+  </section>
 
   <section class="ari-panel">
     <div class="ari-panel-header">
@@ -212,20 +245,17 @@
 
   <section class="ari-panel">
     <div class="ari-panel-header">
-      <h3 class="ari-section-title">Calculated Health Goal</h3>
-      <p id="goalExplanation" class="ari-section-subtitle">Auto-calculated from your health data and goal.</p>
+      <h3 class="ari-section-title">Health Goal Summary</h3>
+      <p id="goalExplanation" class="ari-section-subtitle">Estimates based on your current body information and health goals.</p>
     </div>
 
     <div id="warningBox" class="ari-warning">
       This goal may be too aggressive. Consider a slower weekly goal.
     </div>
 
-    <div class="ari-result-grid">
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Daily Calorie Goal</p>
-        <p id="calorieGoal" class="ari-stat-value">— kcal</p>
-      </div>
+    <p id="calorieGoal" hidden>— kcal</p>
 
+    <div class="ari-result-grid">
       <div class="ari-stat-card">
         <p class="ari-stat-label">Maintenance Calories</p>
         <p id="maintenanceBox" class="ari-stat-value">—</p>
