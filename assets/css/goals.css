@@ -1,7 +1,7 @@
 /* =====================================================
    ARI GOALS
    File: goals.css
-   Version: 1.0.0
+   Version: 1.1.2
 
    Purpose:
    - Style the My Goals page
@@ -2933,4 +2933,126 @@ body:has(.ari-goals-page)::before {
     );
 
   opacity: 0.82;
+}
+/* =====================================================
+   ARI GOALS
+   Version 1.1.2 — CALORIES LEFT PNG BACKGROUND
+===================================================== */
+
+.ari-meter-card {
+  min-height: 218px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.12)
+    ),
+    url("../images/ari-calories-left-tab.png")
+      center / cover
+      no-repeat;
+
+  border-color: rgba(0, 211, 238, 0.8);
+
+  box-shadow:
+    0 0 0 4px rgba(0, 205, 236, 0.055),
+    0 26px 60px rgba(39, 131, 195, 0.2),
+    0 12px 34px rgba(145, 76, 255, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 205, 236, 0.16);
+
+  -webkit-backdrop-filter:
+    blur(18px)
+    saturate(160%)
+    brightness(1.03);
+
+  backdrop-filter:
+    blur(18px)
+    saturate(160%)
+    brightness(1.03);
+}
+
+
+/* Remove the old CSS-generated scanner rings.
+   The PNG now supplies the card artwork. */
+
+.ari-meter-card::before {
+  display: none;
+}
+
+
+/* Keep the existing inner glass border and grid above the PNG. */
+
+.ari-meter-card::after {
+  z-index: 1;
+
+  border-color: rgba(255, 255, 255, 0.56);
+
+  background:
+    linear-gradient(
+      rgba(0, 205, 236, 0.028) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(0, 205, 236, 0.028) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.28),
+      transparent 34%
+    );
+
+  background-size:
+    22px 22px,
+    22px 22px,
+    100% 100%;
+}
+
+
+/* Keep card content above the PNG and glass overlays. */
+
+.ari-calorie-led,
+.ari-meter-label,
+.ari-meter-number,
+.ari-meter-subtext {
+  position: relative;
+  z-index: 3;
+}
+
+.ari-log-intake-label {
+  z-index: 3;
+}
+
+
+/* Improve readability over the artwork. */
+
+.ari-meter-label,
+.ari-meter-subtext {
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.8),
+    0 0 14px rgba(255, 255, 255, 0.65);
+}
+
+.ari-meter-number {
+  filter:
+    drop-shadow(0 4px 12px rgba(255, 255, 255, 0.72));
+}
+
+
+/* Slightly reposition the artwork on narrow phones. */
+
+@media (max-width: 380px) {
+  .ari-meter-card {
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.38),
+        rgba(255, 255, 255, 0.15)
+      ),
+      url("../images/ari-calories-left-tab.png")
+        center / cover
+        no-repeat;
+  }
 }
