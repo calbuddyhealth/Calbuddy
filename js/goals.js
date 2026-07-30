@@ -1,4 +1,4 @@
-const GOALS_VERSION = "2.2.1";
+const GOALS_VERSION = "2.2.2";
 
 const goalInputs = [
   "age",
@@ -43,15 +43,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     "dailyCalorieGoalInput"
   );
 
-  dailyCalorieGoalInput?.addEventListener("input", () => {
-    updateDailyCalorieGoalPreview();
-    scheduleGoalsAutoSave();
-  });
+  dailyCalorieGoalInput?.addEventListener(
+  "input",
+  () => {
+    const value = parseDailyCalorieGoal(
+      dailyCalorieGoalInput.value
+    );
 
-  dailyCalorieGoalInput?.addEventListener("change", () => {
     updateDailyCalorieGoalPreview();
-    scheduleGoalsAutoSave(150);
-  });
+
+    /*
+     * Do not autosave empty or partial input.
+     * Save only after it becomes a complete,
+     * valid calorie goal.
+     */
+    if (value !== null) {
+      scheduleGoalsAutoSave();
+    } else {
+      window.clearTimeout(autoSaveTimer);
+    }
+  }
+);
+
+dailyCalorieGoalInput?.addEventListener(
+  "change",
+  () => {
+    const value = parseDailyCalorieGoal(
+      dailyCalorieGoalInput.value
+    );
+
+    updateDailyCalorieGoalPreview();
+
+    if (value !== null) {
+      scheduleGoalsAutoSave(150);
+    }
+  }
+);
 
   await loadSavedGoals();
   isLoadingGoals = false;
@@ -266,27 +293,61 @@ function calculateGoals() {
 }
 
 function resolveDailyCalorieGoal(calculatedCalorieEstimate) {
-  const input = document.getElementById("dailyCalorieGoalInput");
-  const inputValue = parseDailyCalorieGoal(input?.value);
+  const input = document.getElementById(
+    "dailyCalorieGoalInput"
+  );
 
-  if (inputValue) {
+  const isActivelyEditing =
+    input &&
+    document.activeElement === input;
+
+  const inputValue = parseDailyCalorieGoal(
+    input?.value
+  );
+
+  /*
+   * A complete valid value entered by the user
+   * always becomes the active goal.
+   */
+  if (inputValue !== null) {
     return inputValue;
   }
 
   const savedValue = parseDailyCalorieGoal(
-    localStorage.getItem("calbuddyDailyCalorieGoal")
+    localStorage.getItem(
+      "calbuddyDailyCalorieGoal"
+    )
   );
 
-  if (savedValue) {
+  /*
+   * While the user is typing, do not replace an
+   * empty or incomplete draft with the saved value.
+   *
+   * We may still use the saved value internally so
+   * calculations remain stable.
+   */
+  if (isActivelyEditing) {
+    return savedValue ?? calculatedCalorieEstimate;
+  }
+
+  /*
+   * When the field is not being edited, restore the
+   * saved goal into the visible input.
+   */
+  if (savedValue !== null) {
     if (input) {
-      input.value = savedValue;
+      input.value = String(savedValue);
     }
 
     return savedValue;
   }
 
-  if (input && document.activeElement !== input) {
-    input.value = calculatedCalorieEstimate;
+  /*
+   * No manual goal has been saved yet, so use the
+   * calculated recommendation.
+   */
+  if (input) {
+    input.value = String(calculatedCalorieEstimate);
   }
 
   return calculatedCalorieEstimate;
