@@ -297,7 +297,7 @@ function setNutritionComposerBusy(isBusy) {
   if (button) {
     button.disabled = isBusy;
     button.setAttribute("aria-busy", String(isBusy));
-    button.textContent = isBusy ? "â¦" : "â¤";
+    button.textContent = isBusy ? "\u2026" : "\u27A4";
   }
 
   shell?.classList.toggle("thinking", isBusy);
@@ -618,12 +618,12 @@ function createTodayMealCard(meal) {
   const title = document.createElement("h3");
   title.textContent = meal.name || "Meal";
 
-  const meta = document.createElement("p");
-  meta.className = "nutrition-meal-meta";
-  meta.textContent = [
-    meal.category || "Meal",
-    formatMealTime(meal)
-  ].filter(Boolean).join(" â¢ ");
+const meta = document.createElement("p");
+meta.className = "nutrition-meal-meta";
+meta.textContent = [
+  meal.category || "Meal",
+  formatMealTime(meal)
+].filter(Boolean).join(" \u2022 ");
 
   titleGroup.append(title, meta);
 
@@ -634,12 +634,12 @@ function createTodayMealCard(meal) {
   heading.append(titleGroup, calories);
 
   const macros = document.createElement("p");
-  macros.className = "nutrition-meal-macros";
-  macros.textContent = [
-    `${roundMacro(readMealMacro(meal, "protein"))}g protein`,
-    `${roundMacro(readMealMacro(meal, "carbs"))}g carbs`,
-    `${roundMacro(readMealMacro(meal, "fat"))}g fat`
-  ].join(" â¢ ");
+macros.className = "nutrition-meal-macros";
+macros.textContent = [
+  `${roundMacro(readMealMacro(meal, "protein"))}g protein`,
+  `${roundMacro(readMealMacro(meal, "carbs"))}g carbs`,
+  `${roundMacro(readMealMacro(meal, "fat"))}g fat`
+].join(" \u2022 ");
 
   const actions = document.createElement("div");
   actions.className = "nutrition-meal-actions";
@@ -846,10 +846,10 @@ function renderRecentMeals() {
     name.textContent = meal.name || "Meal";
 
     const meta = document.createElement("p");
-    meta.textContent = [
-      `${Math.round(toNumber(meal.calories))} kcal`,
-      formatRecentMealDate(meal)
-    ].filter(Boolean).join(" â¢ ");
+meta.textContent = [
+  `${Math.round(toNumber(meal.calories))} kcal`,
+  formatRecentMealDate(meal)
+].filter(Boolean).join(" \u2022 ");
 
     text.append(name, meta);
     item.appendChild(text);
