@@ -1,4 +1,4 @@
-const GOALS_VERSION = "2.3.0";
+const GOALS_VERSION = "2.4.0";
 
 const goalInputs = [
   "age",
@@ -19,20 +19,19 @@ const goalInputs = [
 const MACRO_NUTRITION_STRATEGIES = Object.freeze({
   balance: Object.freeze({
     label: "Balance",
-    proteinPercent: 0.25,
-    carbohydratePercent: 0.45,
+    proteinMultiplier: 1.2,
     fatPercent: 0.30
   }),
+
   endurance: Object.freeze({
     label: "Endurance",
-    proteinPercent: 0.20,
-    carbohydratePercent: 0.55,
+    proteinMultiplier: 1.4,
     fatPercent: 0.25
   }),
+
   muscle_building: Object.freeze({
     label: "Muscle Building",
-    proteinPercent: 0.30,
-    carbohydratePercent: 0.45,
+    proteinMultiplier: 1.6,
     fatPercent: 0.25
   })
 });
@@ -302,6 +301,7 @@ function calculateGoals() {
 
   const nutritionTargets = calculateDailyNutritionTargets({
     dailyCalories: dailyCalorieGoal,
+    weightLbs,
     sex,
     strategy: macroNutritionStrategy
   });
@@ -347,41 +347,123 @@ function resolveMacroNutritionStrategy(value) {
 
 function calculateDailyNutritionTargets({
   dailyCalories,
+  weightLbs,
   sex,
   strategy
 }) {
-  const resolvedStrategy = resolveMacroNutritionStrategy(strategy);
-  const strategyConfig = MACRO_NUTRITION_STRATEGIES[resolvedStrategy];
-  const calories = Math.max(Math.round(Number(dailyCalories) || 0), 0);
+  const resolvedStrategy =
+    resolveMacroNutritionStrategy(strategy);
 
-  const proteinGrams = Math.round(
-    (calories * strategyConfig.proteinPercent) / 4
+  const strategyConfig =
+    MACRO_NUTRITION_STRATEGIES[resolvedStrategy];
+
+  const calories = Math.max(
+    Math.round(Number(dailyCalories) || 0),
+    0
   );
 
-  const carbohydrateGrams = Math.round(
-    (calories * strategyConfig.carbohydratePercent) / 4
+  const weightKg =
+    Math.max(Number(weightLbs) || 0, 0) / 2.20462;
+
+  /*
+   * Protein is calculated from body weight and the
+   * selected nutrition strategy:
+   *
+   * Balance:          1.2 g/kg
+   * Endurance:        1.4 g/kg
+   * Muscle Building:  1.6 g/kg
+   */
+  const weightBasedProteinGrams = Math.round(
+    weightKg * strategyConfig.proteinMultiplier
   );
 
+  /*
+   * Keep protein within 10% to 35% of the active
+   * daily calorie goal so the final macro plan
+   * remains internally valid.
+   */
+  const minimumProteinGrams = Math.ceil(
+    (calories * 0.10) / 4
+  );
+
+  const maximumProteinGrams = Math.floor(
+    (calories * 0.35) / 4
+  );
+
+  const proteinGrams =
+    calories > 0
+      ? Math.min(
+          Math.max(
+            weightBasedProteinGrams,
+            minimumProteinGrams
+          ),
+          maximumProteinGrams
+        )
+      : weightBasedProteinGrams;
+
+  /*
+   * Fat remains tied to the active calorie goal
+   * and selected strategy.
+   */
   const fatGrams = Math.round(
     (calories * strategyConfig.fatPercent) / 9
   );
 
-  const fiberGrams = Math.round((calories / 1000) * 14);
+  /*
+   * Carbohydrates receive the calories remaining
+   * after protein and fat are assigned.
+   */
+  const proteinCalories = proteinGrams * 4;
+  const fatCalories = fatGrams * 9;
+
+  const carbohydrateCalories = Math.max(
+    calories - proteinCalories - fatCalories,
+    0
+  );
+
+  const carbohydrateGrams = Math.round(
+    carbohydrateCalories / 4
+  );
+
+  const fiberGrams = Math.round(
+    (calories / 1000) * 14
+  );
 
   // Approximate daily fluids from drinking water and other beverages.
   // Food moisture is not included in this displayed hydration target.
   const hydrationOz = sex === "female" ? 74 : 101;
 
+  const proteinPercent =
+    calories > 0
+      ? Math.round(
+          (proteinCalories / calories) * 100
+        )
+      : 0;
+
+  const carbohydratePercent =
+    calories > 0
+      ? Math.round(
+          ((carbohydrateGrams * 4) / calories) * 100
+        )
+      : 0;
+
+  const fatPercent =
+    calories > 0
+      ? Math.round(
+          (fatCalories / calories) * 100
+        )
+      : 0;
+
   return {
     strategy: resolvedStrategy,
     strategyLabel: strategyConfig.label,
     calories,
+    proteinMultiplier:
+      strategyConfig.proteinMultiplier,
     macroPercentages: {
-      protein: Math.round(strategyConfig.proteinPercent * 100),
-      carbohydrates: Math.round(
-        strategyConfig.carbohydratePercent * 100
-      ),
-      fat: Math.round(strategyConfig.fatPercent * 100)
+      protein: proteinPercent,
+      carbohydrates: carbohydratePercent,
+      fat: fatPercent
     },
     proteinGrams,
     carbohydrateGrams,
@@ -389,7 +471,7 @@ function calculateDailyNutritionTargets({
     fiberGrams,
     hydrationOz,
     calculatedAt: new Date().toISOString(),
-    source: "goals-nutrition-targets-v2.3.0"
+    source: "goals-nutrition-targets-v2.4.0"
   };
 }
 
