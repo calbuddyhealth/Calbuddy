@@ -1,4 +1,4 @@
-const GOALS_VERSION = "2.2.2";
+const GOALS_VERSION = "2.3.0";
 
 const goalInputs = [
   "age",
@@ -9,11 +9,33 @@ const goalInputs = [
   "goalMode",
   "targetWeight",
   "weeklyChange",
+  "macroNutritionStrategy",
   "dietPreference",
   "dietOther",
   "foodAllergies",
   "medicalConditions"
 ];
+
+const MACRO_NUTRITION_STRATEGIES = Object.freeze({
+  balance: Object.freeze({
+    label: "Balance",
+    proteinPercent: 0.25,
+    carbohydratePercent: 0.45,
+    fatPercent: 0.30
+  }),
+  endurance: Object.freeze({
+    label: "Endurance",
+    proteinPercent: 0.20,
+    carbohydratePercent: 0.55,
+    fatPercent: 0.25
+  }),
+  muscle_building: Object.freeze({
+    label: "Muscle Building",
+    proteinPercent: 0.30,
+    carbohydratePercent: 0.45,
+    fatPercent: 0.25
+  })
+});
 
 let autoSaveTimer = null;
 let isLoadingGoals = true;
@@ -44,41 +66,41 @@ document.addEventListener("DOMContentLoaded", async () => {
   );
 
   dailyCalorieGoalInput?.addEventListener(
-  "input",
-  () => {
-    const value = parseDailyCalorieGoal(
-      dailyCalorieGoalInput.value
-    );
+    "input",
+    () => {
+      const value = parseDailyCalorieGoal(
+        dailyCalorieGoalInput.value
+      );
 
-    updateDailyCalorieGoalPreview();
+      updateDailyCalorieGoalPreview();
 
-    /*
-     * Do not autosave empty or partial input.
-     * Save only after it becomes a complete,
-     * valid calorie goal.
-     */
-    if (value !== null) {
-      scheduleGoalsAutoSave();
-    } else {
-      window.clearTimeout(autoSaveTimer);
+      /*
+       * Do not autosave empty or partial input.
+       * Save only after it becomes a complete,
+       * valid calorie goal.
+       */
+      if (value !== null) {
+        scheduleGoalsAutoSave();
+      } else {
+        window.clearTimeout(autoSaveTimer);
+      }
     }
-  }
-);
+  );
 
-dailyCalorieGoalInput?.addEventListener(
-  "change",
-  () => {
-    const value = parseDailyCalorieGoal(
-      dailyCalorieGoalInput.value
-    );
+  dailyCalorieGoalInput?.addEventListener(
+    "change",
+    () => {
+      const value = parseDailyCalorieGoal(
+        dailyCalorieGoalInput.value
+      );
 
-    updateDailyCalorieGoalPreview();
+      updateDailyCalorieGoalPreview();
 
-    if (value !== null) {
-      scheduleGoalsAutoSave(150);
+      if (value !== null) {
+        scheduleGoalsAutoSave(150);
+      }
     }
-  }
-);
+  );
 
   await loadSavedGoals();
   isLoadingGoals = false;
@@ -126,6 +148,17 @@ function toggleActivityGuide() {
   if (!guide) return;
 
   guide.style.display = guide.style.display === "block" ? "none" : "block";
+}
+
+function toggleMacroStrategyGuide() {
+  const guide = document.getElementById("macroStrategyGuide");
+  const button = document.getElementById("macroStrategyGuideButton");
+
+  if (!guide) return;
+
+  const willOpen = guide.style.display !== "block";
+  guide.style.display = willOpen ? "block" : "none";
+  button?.setAttribute("aria-expanded", String(willOpen));
 }
 
 function updateDietOtherUI() {
@@ -187,6 +220,9 @@ function calculateGoals() {
   const goalMode = document.getElementById("goalMode")?.value;
   const targetWeight = parseFloat(document.getElementById("targetWeight")?.value);
   const weeklyChange = parseFloat(document.getElementById("weeklyChange")?.value);
+  const macroNutritionStrategy = resolveMacroNutritionStrategy(
+    document.getElementById("macroNutritionStrategy")?.value
+  );
 
   updateHeightConversion(heightInches);
 
@@ -197,6 +233,7 @@ function calculateGoals() {
     setText("timeToGoal", "\u2014");
     setText("goalDate", "\u2014");
     setText("caloriesLeftText", "\u2014");
+    clearNutritionTargetPreview();
     return null;
   }
 
@@ -263,6 +300,14 @@ function calculateGoals() {
     goalMode
   );
 
+  const nutritionTargets = calculateDailyNutritionTargets({
+    dailyCalories: dailyCalorieGoal,
+    sex,
+    strategy: macroNutritionStrategy
+  });
+
+  updateNutritionTargetPreview(nutritionTargets);
+  cacheNutritionTargets(nutritionTargets);
   updateCaloriesMeter(dailyCalorieGoal);
 
   updateProgressSummary({
@@ -285,11 +330,104 @@ function calculateGoals() {
     dailyCalorieGoal,
     calculatedCalorieEstimate,
     maintenance,
+    macroNutritionStrategy,
+    nutritionTargets,
     dietPreference: getValue("dietPreference"),
     dietOther: getValue("dietOther"),
     foodAllergies: getValue("foodAllergies"),
     medicalConditions: getValue("medicalConditions")
   };
+}
+
+function resolveMacroNutritionStrategy(value) {
+  return MACRO_NUTRITION_STRATEGIES[value]
+    ? value
+    : "balance";
+}
+
+function calculateDailyNutritionTargets({
+  dailyCalories,
+  sex,
+  strategy
+}) {
+  const resolvedStrategy = resolveMacroNutritionStrategy(strategy);
+  const strategyConfig = MACRO_NUTRITION_STRATEGIES[resolvedStrategy];
+  const calories = Math.max(Math.round(Number(dailyCalories) || 0), 0);
+
+  const proteinGrams = Math.round(
+    (calories * strategyConfig.proteinPercent) / 4
+  );
+
+  const carbohydrateGrams = Math.round(
+    (calories * strategyConfig.carbohydratePercent) / 4
+  );
+
+  const fatGrams = Math.round(
+    (calories * strategyConfig.fatPercent) / 9
+  );
+
+  const fiberGrams = Math.round((calories / 1000) * 14);
+
+  // Approximate daily fluids from drinking water and other beverages.
+  // Food moisture is not included in this displayed hydration target.
+  const hydrationOz = sex === "female" ? 74 : 101;
+
+  return {
+    strategy: resolvedStrategy,
+    strategyLabel: strategyConfig.label,
+    calories,
+    macroPercentages: {
+      protein: Math.round(strategyConfig.proteinPercent * 100),
+      carbohydrates: Math.round(
+        strategyConfig.carbohydratePercent * 100
+      ),
+      fat: Math.round(strategyConfig.fatPercent * 100)
+    },
+    proteinGrams,
+    carbohydrateGrams,
+    fatGrams,
+    fiberGrams,
+    hydrationOz,
+    calculatedAt: new Date().toISOString(),
+    source: "goals-nutrition-targets-v2.3.0"
+  };
+}
+
+function updateNutritionTargetPreview(targets) {
+  if (!targets) {
+    clearNutritionTargetPreview();
+    return;
+  }
+
+  setText("macroStrategySummary", targets.strategyLabel);
+  setText("proteinTarget", `${targets.proteinGrams} g`);
+  setText("carbohydrateTarget", `${targets.carbohydrateGrams} g`);
+  setText("fatTarget", `${targets.fatGrams} g`);
+  setText("fiberTarget", `${targets.fiberGrams} g`);
+  setText("hydrationTarget", `${targets.hydrationOz} oz`);
+}
+
+function clearNutritionTargetPreview() {
+  setText("macroStrategySummary", "\u2014");
+  setText("proteinTarget", "\u2014");
+  setText("carbohydrateTarget", "\u2014");
+  setText("fatTarget", "\u2014");
+  setText("fiberTarget", "\u2014");
+  setText("hydrationTarget", "\u2014");
+}
+
+function cacheNutritionTargets(targets) {
+  if (!targets) return;
+
+  localStorage.setItem(
+    "calbuddyMacroNutritionStrategy",
+    targets.strategy
+  );
+
+  localStorage.setItem(
+    "calbuddyDailyNutritionTargets",
+    JSON.stringify(targets)
+  );
 }
 
 function resolveDailyCalorieGoal(calculatedCalorieEstimate) {
@@ -429,6 +567,7 @@ async function persistGoals() {
     targetWeight: calculated.targetWeight,
     weeklyChange: calculated.weeklyChange,
     calorieGoal: calculated.dailyCalorieGoal,
+    macroNutritionStrategy: calculated.macroNutritionStrategy,
     dietPreference: calculated.dietPreference,
     dietOther: calculated.dietOther,
     foodAllergies: calculated.foodAllergies,
@@ -444,6 +583,13 @@ async function persistGoals() {
     "calbuddyDailyCalorieGoal",
     String(calculated.dailyCalorieGoal)
   );
+
+  localStorage.setItem(
+    "calbuddyMacroNutritionStrategy",
+    calculated.macroNutritionStrategy
+  );
+
+  cacheNutritionTargets(calculated.nutritionTargets);
 
   const user = await getCurrentUser();
 
@@ -472,9 +618,7 @@ async function persistGoals() {
     goals
   );
 
-  const { error } = await window.calbuddySupabase
-    .from("profiles")
-    .upsert(profilePayload, { onConflict: "id" });
+  const { error } = await upsertGoalsProfile(profilePayload);
 
   if (requestSequence !== saveRequestSequence) {
     return;
@@ -495,6 +639,39 @@ async function persistGoals() {
   }
 
   setDailyCalorieGoalStatus("");
+}
+
+async function upsertGoalsProfile(profilePayload) {
+  const firstAttempt = await window.calbuddySupabase
+    .from("profiles")
+    .upsert(profilePayload, { onConflict: "id" });
+
+  if (
+    !firstAttempt.error ||
+    !isMissingColumnError(
+      firstAttempt.error,
+      "macro_nutrition_strategy"
+    )
+  ) {
+    return firstAttempt;
+  }
+
+  const fallbackPayload = { ...profilePayload };
+  delete fallbackPayload.macro_nutrition_strategy;
+
+  console.warn(
+    "profiles.macro_nutrition_strategy is not available yet. " +
+      "The strategy remains saved on this device."
+  );
+
+  return window.calbuddySupabase
+    .from("profiles")
+    .upsert(fallbackPayload, { onConflict: "id" });
+}
+
+function isMissingColumnError(error, columnName) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes(String(columnName).toLowerCase());
 }
 
 function updateCalorieWarning(dailyCalorieGoal, sex, goalMode) {
@@ -559,29 +736,29 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
 
 function updateCaloriesMeter(goal) {
   const consumed = Number(
-  localStorage.getItem("calbuddyCaloriesConsumed") || 0
-);
+    localStorage.getItem("calbuddyCaloriesConsumed") || 0
+  );
 
-const burned = Number(
-  localStorage.getItem("calbuddyCaloriesBurned") || 0
-);
+  const burned = Number(
+    localStorage.getItem("calbuddyCaloriesBurned") || 0
+  );
 
-const adjustedGoal = goal + burned;
+  const adjustedGoal = goal + burned;
 
-const rawRemaining = adjustedGoal - consumed;
-const caloriesLeft = Math.max(rawRemaining, 0);
-const caloriesOver = Math.max(consumed - adjustedGoal, 0);
+  const rawRemaining = adjustedGoal - consumed;
+  const caloriesLeft = Math.max(rawRemaining, 0);
+  const caloriesOver = Math.max(consumed - adjustedGoal, 0);
 
-const card = document.getElementById("calorieStatusCard");
-const label = document.getElementById("calorieStatusLabel");
+  const card = document.getElementById("calorieStatusCard");
+  const label = document.getElementById("calorieStatusLabel");
 
-const percentLeft = adjustedGoal
-  ? Math.max(0, Math.min(caloriesLeft / adjustedGoal, 1))
-  : 1;
+  const percentLeft = adjustedGoal
+    ? Math.max(0, Math.min(caloriesLeft / adjustedGoal, 1))
+    : 1;
 
-const percentUsed = adjustedGoal
-  ? Math.max(0, Math.min(consumed / adjustedGoal, 1))
-  : 0;
+  const percentUsed = adjustedGoal
+    ? Math.max(0, Math.min(consumed / adjustedGoal, 1))
+    : 0;
 
   if (card) {
     const percent = Math.round(percentLeft * 100);
@@ -635,14 +812,14 @@ const percentUsed = adjustedGoal
   }
 
   setText(
-  "caloriesConsumedText",
-  consumed.toLocaleString()
-);
+    "caloriesConsumedText",
+    consumed.toLocaleString()
+  );
 
-setText(
-  "dailyGoalText",
-  adjustedGoal.toLocaleString()
-);
+  setText(
+    "dailyGoalText",
+    adjustedGoal.toLocaleString()
+  );
 }
 
 function updateProgressSummary(summary = {}) {
@@ -707,9 +884,16 @@ async function trySaveOptionalHealthFields(profilePayload, goals) {
 
   profilePayload.medical_conditions =
     goals.medicalConditions || null;
+
+  profilePayload.macro_nutrition_strategy =
+    goals.macroNutritionStrategy || "balance";
 }
 
 async function loadSavedGoals() {
+  const locallySavedStrategy = resolveMacroNutritionStrategy(
+    localStorage.getItem("calbuddyMacroNutritionStrategy")
+  );
+
   const user = await getCurrentUser();
 
   if (user) {
@@ -730,6 +914,8 @@ async function loadSavedGoals() {
         targetWeight: data.target_weight_lbs,
         weeklyChange: data.weekly_weight_change_goal,
         calorieGoal: data.daily_calorie_goal,
+        macroNutritionStrategy:
+          data.macro_nutrition_strategy || locallySavedStrategy,
         dietPreference: data.diet_preference,
         dietOther: data.diet_other,
         foodAllergies: data.food_allergies,
@@ -744,12 +930,21 @@ async function loadSavedGoals() {
   const savedGoals = localStorage.getItem("calbuddyGoals");
 
   if (!savedGoals) {
+    applyGoals({
+      macroNutritionStrategy: locallySavedStrategy
+    });
     calculateGoals();
     return;
   }
 
   try {
-    applyGoals(JSON.parse(savedGoals));
+    const parsedGoals = JSON.parse(savedGoals);
+
+    applyGoals({
+      ...parsedGoals,
+      macroNutritionStrategy:
+        parsedGoals.macroNutritionStrategy || locallySavedStrategy
+    });
   } catch (error) {
     console.warn(
       "Could not parse saved goals:",
@@ -774,6 +969,12 @@ function applyGoals(goals = {}) {
   setInputValue(
     "weeklyChange",
     goals.weeklyChange || "1"
+  );
+  setInputValue(
+    "macroNutritionStrategy",
+    resolveMacroNutritionStrategy(
+      goals.macroNutritionStrategy
+    )
   );
   setInputValue(
     "dietPreference",
@@ -807,6 +1008,13 @@ function applyGoals(goals = {}) {
       String(savedDailyCalorieGoal)
     );
   }
+
+  localStorage.setItem(
+    "calbuddyMacroNutritionStrategy",
+    resolveMacroNutritionStrategy(
+      goals.macroNutritionStrategy
+    )
+  );
 
   updateDietOtherUI();
 }
