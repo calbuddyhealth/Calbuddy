@@ -233,6 +233,36 @@
         </select>
         <p id="goalModeHelper" class="ari-hint">For weight loss, this creates a calorie deficit.</p>
       </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="macroNutritionStrategy">Macro Nutrition Strategy</label>
+        <select id="macroNutritionStrategy" class="ari-select">
+          <option value="balance" selected>Balance</option>
+          <option value="endurance">Endurance</option>
+          <option value="muscle_building">Muscle Building</option>
+        </select>
+      </div>
+
+      <button
+        id="macroStrategyGuideButton"
+        class="ari-secondary-action"
+        type="button"
+        aria-expanded="false"
+        aria-controls="macroStrategyGuide"
+        onclick="toggleMacroStrategyGuide()"
+      >
+        What do these strategies mean?
+      </button>
+
+      <div
+        id="macroStrategyGuide"
+        class="ari-hint"
+        style="display:none; margin-top:14px;"
+      >
+        <p><strong>Balance:</strong> A general mix of protein, carbohydrates, and fat for everyday health and steady energy.</p>
+        <p><strong>Endurance:</strong> More carbohydrates to support longer workouts, sports, and sustained activity.</p>
+        <p><strong>Muscle Building:</strong> More protein to support strength training, muscle recovery, and growth.</p>
+      </div>
     </div>
   </section>
 
@@ -315,6 +345,42 @@
         <p id="goalDate" class="ari-stat-value">—</p>
       </div>
     </div>
+
+    <div class="ari-panel-header" style="margin-top:24px;">
+      <h3 class="ari-section-title">Daily Nutrition Targets</h3>
+    </div>
+
+    <div class="ari-result-grid">
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Strategy</p>
+        <p id="macroStrategySummary" class="ari-stat-value">Balance</p>
+      </div>
+
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Protein</p>
+        <p id="proteinTarget" class="ari-stat-value">—</p>
+      </div>
+
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Carbohydrates</p>
+        <p id="carbohydrateTarget" class="ari-stat-value">—</p>
+      </div>
+
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Fat</p>
+        <p id="fatTarget" class="ari-stat-value">—</p>
+      </div>
+
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Fiber</p>
+        <p id="fiberTarget" class="ari-stat-value">—</p>
+      </div>
+
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Hydration</p>
+        <p id="hydrationTarget" class="ari-stat-value">—</p>
+      </div>
+    </div>
   </section>
 </section>
 
@@ -367,6 +433,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js?v=8"></script>
 <script src="js/auth.js"></script>
-<script src="js/goals.js"></script>
+<script src="js/goals.js?v=2.3.0"></script>
 </body>
 </html>
