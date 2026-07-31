@@ -1344,3 +1344,1227 @@ document.addEventListener("DOMContentLoaded", async () => {
   await handlePendingCalBuddyMeal();
   await renderTodayIntake();
 });
+
+// =====================================================
+// ARI REBIRTH
+// Nutrition AI Meal Composer Patch
+// Version: 3.1.0
+//
+// INSTALLATION:
+// Append this entire block to the BOTTOM of js/nutrition.js.
+//
+// Purpose:
+// - Replace the local keyword estimator with CalBuddy.askAri()
+// - Ask Ari for a structured meal calorie/macro estimate
+// - Require user confirmation before logging
+// - Support both the newer estimate-card HTML and the older
+//   ariAiResult-only layout
+// =====================================================
+
+const NUTRITION_ARI_COMPOSER_VERSION = "3.1.0";
+
+let ariNutritionRequestBusy = false;
+let ariNutritionAbortController = null;
+let ariNutritionEstimateHistory = [];
+
+// -----------------------------------------------------
+// Composer request
+// -----------------------------------------------------
+
+window.analyzeWithAri = async function analyzeWithAri(event) {
+  event?.preventDefault?.();
+
+  if (ariNutritionRequestBusy) return;
+
+  const input = document.getElementById("ariNutritionInput");
+  const description = String(input?.value || "").trim();
+
+  if (!description) {
+    setNutritionAriMessage(
+      "Describe the meal, drink, ingredients, and portions first.",
+      "error"
+    );
+    input?.focus();
+    return;
+  }
+
+  /*
+   * Preserve the existing +350 / 350 calories shortcut.
+   * Exact manual calorie entries do not need an AI request.
+   */
+  const directCalories = parseDirectCalorieEntry(description);
+
+  if (directCalories !== null) {
+    estimatedMeal = {
+      name: "Manual calorie entry",
+      calories: directCalories,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+      fiber_g: 0,
+      serving_size: "Direct calorie entry",
+      category: selectedMealType || "Snack",
+      confidence: "exact",
+      assumptions: [],
+      original_description: description,
+      source: "direct_calorie_entry"
+    };
+
+    renderAriMealEstimate(estimatedMeal);
+    setStatusText("READY", "Review");
+    return;
+  }
+
+  if (!window.CalBuddy?.askAri) {
+    setStatusText("ARI OFFLINE", "Unavailable");
+    setNutritionAriMessage(
+      "The Ari bridge is not loaded on this page. Load the same CalBuddy/Ari bridge scripts used by home.html before js/nutrition.js.",
+      "error"
+    );
+    return;
+  }
+
+  ariNutritionRequestBusy = true;
+  ariNutritionAbortController = new AbortController();
+
+  setNutritionComposerBusy(true);
+  setStatusText("ARI ANALYZING", "Estimating");
+  hideAriMealEstimate();
+  setNutritionAriMessage("Ari is estimating the meal...", "thinking");
+
+  const requestMessage = buildNutritionEstimatePrompt(description);
+
+  ariNutritionEstimateHistory.push({
+    role: "user",
+    content: description
+  });
+
+  ariNutritionEstimateHistory =
+    ariNutritionEstimateHistory.slice(-6);
+
+  try {
+    const response = await window.CalBuddy.askAri({
+      message: requestMessage,
+      history: ariNutritionEstimateHistory,
+      appContext: {
+        domain: "nutrition",
+        page: "nutrition_console",
+        operation: "estimate_meal_nutrition",
+        requestedResult: "structured_meal_estimate",
+        selectedMealType: selectedMealType || null,
+        doNotLog: true
+      },
+      debugTiming: true,
+      signal: ariNutritionAbortController.signal
+    });
+
+    const parsedEstimate =
+      extractMealEstimateFromAriResponse(
+        response,
+        description
+      );
+
+    if (!parsedEstimate) {
+      const reply = String(
+        response?.reply ||
+        "Ari answered, but the response did not contain a usable calorie estimate."
+      ).trim();
+
+      setNutritionAriMessage(reply, "reply");
+      setStatusText("ARI ONLINE", "Listening");
+      return;
+    }
+
+    estimatedMeal = parsedEstimate;
+
+    renderAriMealEstimate(estimatedMeal);
+
+    ariNutritionEstimateHistory.push({
+      role: "assistant",
+      content: JSON.stringify({
+        name: estimatedMeal.name,
+        calories: estimatedMeal.calories,
+        protein_g: estimatedMeal.protein_g,
+        carbs_g: estimatedMeal.carbs_g,
+        fat_g: estimatedMeal.fat_g,
+        fiber_g: estimatedMeal.fiber_g
+      })
+    });
+
+    ariNutritionEstimateHistory =
+      ariNutritionEstimateHistory.slice(-6);
+
+    setStatusText("READY", "Review");
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      setNutritionAriMessage("Estimate stopped.", "reply");
+    } else {
+      console.error("Ari nutrition estimate failed:", error);
+
+      setNutritionAriMessage(
+        error?.message ||
+          "Ari could not estimate that meal. Try adding portions or ingredients.",
+        "error"
+      );
+    }
+
+    setStatusText("ARI ONLINE", "Listening");
+  } finally {
+    ariNutritionRequestBusy = false;
+    ariNutritionAbortController = null;
+    setNutritionComposerBusy(false);
+  }
+};
+
+// -----------------------------------------------------
+// Prompt contract
+// -----------------------------------------------------
+
+function buildNutritionEstimatePrompt(description) {
+  const category = selectedMealType || "Meal";
+
+  return [
+    "You are Ari operating inside the CalBuddy Nutrition Console.",
+    "Estimate the total nutrition for the user's described meal.",
+    "Do not log, save, or create a pending action.",
+    "Use reasonable standard portions only when the user omitted details.",
+    "When an estimate is uncertain, state the assumptions.",
+    "",
+    `Selected category: ${category}`,
+    `Meal description: ${description}`,
+    "",
+    "Return ONLY valid JSON using this exact shape:",
+    "{",
+    '  "mealName": "short meal name",',
+    '  "estimatedCalories": 0,',
+    '  "macros": {',
+    '    "proteinGrams": 0,',
+    '    "carbohydrateGrams": 0,',
+    '    "fatGrams": 0,',
+    '    "fiberGrams": 0',
+    "  },",
+    '  "servingSize": "brief serving summary",',
+    '  "category": "Breakfast, Lunch, Dinner, Snack, Drink, or Meal",',
+    '  "confidence": "high, medium, or low",',
+    '  "assumptions": ["assumption one"]',
+    "}",
+    "",
+    "Use numbers rather than strings for calories and macros."
+  ].join("\n");
+}
+
+// -----------------------------------------------------
+// Response extraction
+// -----------------------------------------------------
+
+function extractMealEstimateFromAriResponse(
+  response,
+  originalDescription
+) {
+  const candidates = [
+    response?.mealEstimate,
+    response?.nutritionEstimate,
+    response?.structuredResult,
+    response?.result,
+    response?.data,
+    response?.pendingAction,
+    parseJsonFromText(response?.reply)
+  ];
+
+  let bestCandidate = null;
+  let bestScore = -1;
+
+  candidates.forEach((candidate) => {
+    const found = findBestMealCandidate(candidate);
+
+    if (found && found.score > bestScore) {
+      bestCandidate = found.value;
+      bestScore = found.score;
+    }
+  });
+
+  let normalized = normalizeMealEstimate(
+    bestCandidate,
+    originalDescription
+  );
+
+  /*
+   * Ari may return a readable answer instead of JSON.
+   * Parse common calorie/macro labels as a fallback.
+   */
+  if (!normalized) {
+    normalized = parseMealEstimateFromReply(
+      response?.reply,
+      originalDescription
+    );
+  }
+
+  return normalized;
+}
+
+function findBestMealCandidate(value, depth = 0) {
+  if (
+    value === null ||
+    value === undefined ||
+    depth > 6
+  ) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const parsed = parseJsonFromText(value);
+
+    return parsed
+      ? findBestMealCandidate(parsed, depth + 1)
+      : null;
+  }
+
+  if (Array.isArray(value)) {
+    let best = null;
+
+    value.forEach((item) => {
+      const found = findBestMealCandidate(
+        item,
+        depth + 1
+      );
+
+      if (!best || (found && found.score > best.score)) {
+        best = found;
+      }
+    });
+
+    return best;
+  }
+
+  if (typeof value !== "object") {
+    return null;
+  }
+
+  let score = scoreMealCandidate(value);
+  let best = score > 0
+    ? { value, score }
+    : null;
+
+  Object.values(value).forEach((nestedValue) => {
+    const found = findBestMealCandidate(
+      nestedValue,
+      depth + 1
+    );
+
+    if (
+      found &&
+      (!best || found.score > best.score)
+    ) {
+      best = found;
+    }
+  });
+
+  return best;
+}
+
+function scoreMealCandidate(candidate) {
+  if (!candidate || typeof candidate !== "object") {
+    return 0;
+  }
+
+  const keys = Object.keys(candidate).map((key) =>
+    key.toLowerCase()
+  );
+
+  let score = 0;
+
+  if (
+    keys.some((key) =>
+      [
+        "estimatedcalories",
+        "totalcalories",
+        "calories",
+        "kcal"
+      ].includes(key)
+    )
+  ) {
+    score += 10;
+  }
+
+  if (
+    keys.some((key) =>
+      [
+        "mealname",
+        "name",
+        "title",
+        "foodname"
+      ].includes(key)
+    )
+  ) {
+    score += 3;
+  }
+
+  if (
+    keys.some((key) =>
+      [
+        "macros",
+        "nutrition",
+        "nutrients"
+      ].includes(key)
+    )
+  ) {
+    score += 5;
+  }
+
+  if (
+    keys.some((key) =>
+      key.includes("protein")
+    )
+  ) {
+    score += 2;
+  }
+
+  if (
+    keys.some((key) =>
+      key.includes("carb")
+    )
+  ) {
+    score += 2;
+  }
+
+  if (
+    keys.some((key) =>
+      key.includes("fat")
+    )
+  ) {
+    score += 2;
+  }
+
+  return score;
+}
+
+function normalizeMealEstimate(
+  candidate,
+  originalDescription
+) {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const macros =
+    candidate.macros ||
+    candidate.nutrition ||
+    candidate.nutrients ||
+    {};
+
+  const calories = readNumericValue(
+    candidate,
+    [
+      "estimatedCalories",
+      "totalCalories",
+      "calories",
+      "kcal",
+      "energy"
+    ]
+  );
+
+  if (!Number.isFinite(calories) || calories <= 0) {
+    return null;
+  }
+
+  const protein = firstFiniteNumber([
+    readNumericValue(candidate, [
+      "proteinGrams",
+      "protein_g",
+      "protein"
+    ]),
+    readNumericValue(macros, [
+      "proteinGrams",
+      "protein_g",
+      "protein"
+    ])
+  ]);
+
+  const carbs = firstFiniteNumber([
+    readNumericValue(candidate, [
+      "carbohydrateGrams",
+      "carbohydratesGrams",
+      "carbsGrams",
+      "carbs_g",
+      "carbs",
+      "carbohydrates"
+    ]),
+    readNumericValue(macros, [
+      "carbohydrateGrams",
+      "carbohydratesGrams",
+      "carbsGrams",
+      "carbs_g",
+      "carbs",
+      "carbohydrates"
+    ])
+  ]);
+
+  const fat = firstFiniteNumber([
+    readNumericValue(candidate, [
+      "fatGrams",
+      "fat_g",
+      "fat"
+    ]),
+    readNumericValue(macros, [
+      "fatGrams",
+      "fat_g",
+      "fat"
+    ])
+  ]);
+
+  const fiber = firstFiniteNumber([
+    readNumericValue(candidate, [
+      "fiberGrams",
+      "fibreGrams",
+      "fiber_g",
+      "fiber",
+      "fibre"
+    ]),
+    readNumericValue(macros, [
+      "fiberGrams",
+      "fibreGrams",
+      "fiber_g",
+      "fiber",
+      "fibre"
+    ])
+  ]);
+
+  const assumptions = normalizeStringArray(
+    candidate.assumptions ||
+    candidate.notes ||
+    candidate.estimatedAssumptions
+  );
+
+  const name =
+    readStringValue(candidate, [
+      "mealName",
+      "name",
+      "title",
+      "foodName"
+    ]) ||
+    createMealName(originalDescription);
+
+  const category =
+    normalizeMealCategory(
+      readStringValue(candidate, ["category"]) ||
+      selectedMealType ||
+      "Meal"
+    );
+
+  return {
+    name,
+    calories: Math.round(calories),
+    protein_g: roundMacro(protein),
+    carbs_g: roundMacro(carbs),
+    fat_g: roundMacro(fat),
+    fiber_g: roundMacro(fiber),
+    serving_size:
+      readStringValue(candidate, [
+        "servingSize",
+        "serving_size",
+        "portion",
+        "portionSize"
+      ]) ||
+      "Ari estimated meal",
+    category,
+    confidence:
+      normalizeConfidence(
+        readStringValue(candidate, ["confidence"])
+      ),
+    assumptions,
+    original_description: originalDescription,
+    source: "ari_meal_estimate"
+  };
+}
+
+function parseMealEstimateFromReply(
+  reply,
+  originalDescription
+) {
+  const text = String(reply || "").trim();
+
+  if (!text) return null;
+
+  const calories = matchNutritionNumber(text, [
+    /(?:total\s+)?calories?\s*(?:are|is|:|=|-)?\s*~?\s*(\d{2,5}(?:\.\d+)?)/i,
+    /(\d{2,5}(?:\.\d+)?)\s*(?:kcal|calories?)\b/i
+  ]);
+
+  if (!Number.isFinite(calories) || calories <= 0) {
+    return null;
+  }
+
+  return {
+    name: createMealName(originalDescription),
+    calories: Math.round(calories),
+    protein_g: roundMacro(
+      matchNutritionNumber(text, [
+        /protein\s*(?:is|:|=|-)?\s*~?\s*(\d+(?:\.\d+)?)\s*g/i,
+        /(\d+(?:\.\d+)?)\s*g\s*(?:of\s*)?protein/i
+      ])
+    ),
+    carbs_g: roundMacro(
+      matchNutritionNumber(text, [
+        /(?:carbs?|carbohydrates?)\s*(?:are|is|:|=|-)?\s*~?\s*(\d+(?:\.\d+)?)\s*g/i,
+        /(\d+(?:\.\d+)?)\s*g\s*(?:of\s*)?(?:carbs?|carbohydrates?)/i
+      ])
+    ),
+    fat_g: roundMacro(
+      matchNutritionNumber(text, [
+        /fat\s*(?:is|:|=|-)?\s*~?\s*(\d+(?:\.\d+)?)\s*g/i,
+        /(\d+(?:\.\d+)?)\s*g\s*(?:of\s*)?fat/i
+      ])
+    ),
+    fiber_g: roundMacro(
+      matchNutritionNumber(text, [
+        /fib(?:er|re)\s*(?:is|:|=|-)?\s*~?\s*(\d+(?:\.\d+)?)\s*g/i,
+        /(\d+(?:\.\d+)?)\s*g\s*(?:of\s*)?fib(?:er|re)/i
+      ])
+    ),
+    serving_size: "Ari estimated meal",
+    category: selectedMealType || "Meal",
+    confidence: "medium",
+    assumptions: [],
+    original_description: originalDescription,
+    source: "ari_reply_estimate"
+  };
+}
+
+function parseJsonFromText(value) {
+  const text = String(value || "").trim();
+
+  if (!text) return null;
+
+  const withoutFence = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  const attempts = [withoutFence];
+
+  const firstBrace = withoutFence.indexOf("{");
+  const lastBrace = withoutFence.lastIndexOf("}");
+
+  if (
+    firstBrace >= 0 &&
+    lastBrace > firstBrace
+  ) {
+    attempts.push(
+      withoutFence.slice(firstBrace, lastBrace + 1)
+    );
+  }
+
+  for (const attempt of attempts) {
+    try {
+      return JSON.parse(attempt);
+    } catch {
+      // Continue to the next candidate.
+    }
+  }
+
+  return null;
+}
+
+// -----------------------------------------------------
+// Estimate rendering
+// -----------------------------------------------------
+
+function renderAriMealEstimate(meal) {
+  const card =
+    document.getElementById("ariMealEstimateCard");
+
+  if (card) {
+    setTextContent(
+      "ariMealEstimateTitle",
+      meal.name || "Estimated Meal"
+    );
+
+    setTextContent(
+      "ariEstimatedCalories",
+      Math.round(meal.calories || 0)
+        .toLocaleString()
+    );
+
+    setTextContent(
+      "ariEstimatedProtein",
+      roundMacro(meal.protein_g)
+    );
+
+    setTextContent(
+      "ariEstimatedCarbs",
+      roundMacro(meal.carbs_g)
+    );
+
+    setTextContent(
+      "ariEstimatedFat",
+      roundMacro(meal.fat_g)
+    );
+
+    setTextContent(
+      "ariEstimatedFiber",
+      roundMacro(meal.fiber_g)
+    );
+
+    setTextContent(
+      "ariMealEstimateConfidence",
+      formatConfidenceLabel(meal.confidence)
+    );
+
+    renderEstimateAssumptions(meal.assumptions);
+
+    card.hidden = false;
+    card.classList.add("show");
+
+    setNutritionAriMessage(
+      "Review Ari's estimate before logging it.",
+      "reply"
+    );
+
+    requestAnimationFrame(() => {
+      card.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    });
+
+    return;
+  }
+
+  /*
+   * Backward-compatible result rendering for the
+   * original Nutrition HTML.
+   */
+  const result = document.getElementById("ariAiResult");
+
+  if (!result) return;
+
+  result.classList.add("show");
+  result.innerHTML = "";
+
+  const title = document.createElement("h3");
+  title.textContent = meal.name || "Estimated Meal";
+
+  const grid = document.createElement("div");
+  grid.className = "ari-estimate-grid";
+
+  [
+    ["Calories", `${Math.round(meal.calories)} kcal`],
+    ["Protein", `${roundMacro(meal.protein_g)} g`],
+    ["Carbs", `${roundMacro(meal.carbs_g)} g`],
+    ["Fat", `${roundMacro(meal.fat_g)} g`],
+    ["Fiber", `${roundMacro(meal.fiber_g)} g`]
+  ].forEach(([label, value]) => {
+    const box = document.createElement("div");
+    box.className = "ari-estimate-box";
+
+    const labelEl = document.createElement("span");
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement("strong");
+    valueEl.textContent = value;
+
+    box.append(labelEl, valueEl);
+    grid.appendChild(box);
+  });
+
+  const logButton = document.createElement("button");
+  logButton.className = "ari-primary-action";
+  logButton.type = "button";
+  logButton.textContent = "Log Meal";
+  logButton.addEventListener(
+    "click",
+    window.logAriEstimatedMeal
+  );
+
+  const editButton = document.createElement("button");
+  editButton.className = "ari-secondary-action";
+  editButton.type = "button";
+  editButton.textContent = "Edit Details";
+  editButton.addEventListener(
+    "click",
+    window.editAriEstimatedMeal
+  );
+
+  result.append(
+    title,
+    grid,
+    logButton,
+    editButton
+  );
+}
+
+function renderEstimateAssumptions(assumptions = []) {
+  const section = document.getElementById(
+    "ariMealEstimateAssumptions"
+  );
+
+  const list = document.getElementById(
+    "ariMealEstimateAssumptionsList"
+  );
+
+  if (!section || !list) return;
+
+  list.innerHTML = "";
+
+  if (!assumptions.length) {
+    section.hidden = true;
+    return;
+  }
+
+  assumptions.forEach((assumption) => {
+    const item = document.createElement("li");
+    item.textContent = assumption;
+    list.appendChild(item);
+  });
+
+  section.hidden = false;
+}
+
+function hideAriMealEstimate() {
+  const card =
+    document.getElementById("ariMealEstimateCard");
+
+  if (card) {
+    card.hidden = true;
+    card.classList.remove("show");
+  }
+
+  const result = document.getElementById("ariAiResult");
+
+  if (result) {
+    result.classList.remove(
+      "show",
+      "error",
+      "thinking",
+      "reply"
+    );
+    result.textContent = "";
+  }
+}
+
+// -----------------------------------------------------
+// Confirm / edit
+// -----------------------------------------------------
+
+window.logAriEstimatedMeal =
+  async function logAriEstimatedMeal() {
+    if (!estimatedMeal) return;
+
+    const button = document.getElementById(
+      "ariLogEstimatedMealButton"
+    );
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Logging...";
+    }
+
+    try {
+      await addToIntake({
+        name: estimatedMeal.name,
+        calories: estimatedMeal.calories,
+        category:
+          estimatedMeal.category ||
+          selectedMealType ||
+          "Meal",
+        protein_g: estimatedMeal.protein_g,
+        carbs_g: estimatedMeal.carbs_g,
+        fat_g: estimatedMeal.fat_g,
+        serving_size:
+          estimatedMeal.serving_size ||
+          "Ari estimated meal",
+        multiplier: 1
+      });
+
+      const input =
+        document.getElementById("ariNutritionInput");
+
+      if (input) input.value = "";
+
+      estimatedMeal = null;
+      hideAriMealEstimate();
+      setNutritionAriMessage(
+        "Meal logged. Today's totals were updated.",
+        "success"
+      );
+      setStatusText("ARI ONLINE", "Listening");
+    } catch (error) {
+      console.error("Could not log Ari estimate:", error);
+
+      setNutritionAriMessage(
+        error?.message ||
+          "The estimate could not be logged.",
+        "error"
+      );
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Log Meal";
+      }
+    }
+  };
+
+window.editAriEstimatedMeal =
+  function editAriEstimatedMeal() {
+    if (!estimatedMeal) return;
+
+    selectMode("calories");
+
+    setInputValueSafe(
+      "manualFoodName",
+      estimatedMeal.name || ""
+    );
+
+    setInputValueSafe(
+      "manualCalories",
+      estimatedMeal.calories || ""
+    );
+
+    setInputValueSafe(
+      "manualProtein",
+      estimatedMeal.protein_g || ""
+    );
+
+    setInputValueSafe(
+      "manualCarbs",
+      estimatedMeal.carbs_g || ""
+    );
+
+    setInputValueSafe(
+      "manualFat",
+      estimatedMeal.fat_g || ""
+    );
+
+    setInputValueSafe(
+      "manualServing",
+      estimatedMeal.serving_size ||
+        "Ari estimated meal"
+    );
+
+    setInputValueSafe(
+      "manualCategory",
+      normalizeMealCategory(
+        estimatedMeal.category ||
+        selectedMealType ||
+        "Snack"
+      )
+    );
+
+    document
+      .querySelector(".entry-panel")
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+  };
+
+/*
+ * Preserve compatibility with the original function
+ * names already used by nutrition.js.
+ */
+window.logAriEstimate =
+  window.logAriEstimatedMeal;
+
+window.editAriEstimate =
+  window.editAriEstimatedMeal;
+
+// -----------------------------------------------------
+// Composer UI
+// -----------------------------------------------------
+
+function setNutritionComposerBusy(isBusy) {
+  const input = document.getElementById(
+    "ariNutritionInput"
+  );
+
+  const button = document.getElementById(
+    "ariNutritionSendButton"
+  ) || document.querySelector(".ari-console-send");
+
+  const shell = document.querySelector(
+    ".ari-command-shell"
+  );
+
+  if (input) {
+    input.disabled = isBusy;
+  }
+
+  if (button) {
+    button.disabled = isBusy;
+    button.setAttribute(
+      "aria-busy",
+      String(isBusy)
+    );
+  }
+
+  shell?.classList.toggle(
+    "ari-composer-thinking",
+    isBusy
+  );
+}
+
+function setNutritionAriMessage(
+  message = "",
+  type = "reply"
+) {
+  const result = document.getElementById(
+    "ariAiResult"
+  );
+
+  if (!result) return;
+
+  result.classList.remove(
+    "error",
+    "thinking",
+    "reply",
+    "success"
+  );
+
+  if (type) {
+    result.classList.add(type);
+  }
+
+  result.textContent = message;
+  result.classList.toggle(
+    "show",
+    Boolean(message)
+  );
+}
+
+// -----------------------------------------------------
+// Utility helpers
+// -----------------------------------------------------
+
+function parseDirectCalorieEntry(value) {
+  const match = String(value || "")
+    .trim()
+    .match(
+      /^\+?\s*(\d{2,5})\s*(?:cal|calories|kcal)?$/i
+    );
+
+  if (!match) return null;
+
+  const calories = Number(match[1]);
+
+  return Number.isFinite(calories) &&
+    calories > 0
+      ? calories
+      : null;
+}
+
+function readNumericValue(object, keys = []) {
+  if (!object || typeof object !== "object") {
+    return NaN;
+  }
+
+  for (const key of keys) {
+    if (!(key in object)) continue;
+
+    const parsed = parseLooseNumber(object[key]);
+
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return NaN;
+}
+
+function readStringValue(object, keys = []) {
+  if (!object || typeof object !== "object") {
+    return "";
+  }
+
+  for (const key of keys) {
+    const value = object[key];
+
+    if (
+      typeof value === "string" &&
+      value.trim()
+    ) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function parseLooseNumber(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? value
+      : NaN;
+  }
+
+  const match = String(value || "")
+    .replace(/,/g, "")
+    .match(/-?\d+(?:\.\d+)?/);
+
+  return match
+    ? Number(match[0])
+    : NaN;
+}
+
+function firstFiniteNumber(values = []) {
+  const found = values.find((value) =>
+    Number.isFinite(value)
+  );
+
+  return Number.isFinite(found)
+    ? found
+    : 0;
+}
+
+function matchNutritionNumber(
+  text,
+  patterns = []
+) {
+  for (const pattern of patterns) {
+    const match = String(text || "").match(pattern);
+
+    if (match) {
+      const value = Number(match[1]);
+
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+  }
+
+  return 0;
+}
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(/\n|;|\u2022/)
+      .map((item) =>
+        item
+          .replace(/^[-*]\s*/, "")
+          .trim()
+      )
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+
+  return [];
+}
+
+function normalizeMealCategory(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  const categories = {
+    breakfast: "Breakfast",
+    lunch: "Lunch",
+    dinner: "Dinner",
+    snack: "Snack",
+    drink: "Drink",
+    beverage: "Drink",
+    meal: "Meal"
+  };
+
+  return categories[normalized] ||
+    selectedMealType ||
+    "Meal";
+}
+
+function normalizeConfidence(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  return ["high", "medium", "low", "exact"]
+    .includes(normalized)
+      ? normalized
+      : "medium";
+}
+
+function formatConfidenceLabel(value) {
+  const confidence =
+    normalizeConfidence(value);
+
+  if (confidence === "exact") {
+    return "Exact entry";
+  }
+
+  return `${confidence[0].toUpperCase()}${confidence.slice(1)} confidence`;
+}
+
+function createMealName(description) {
+  const clean = String(description || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!clean) return "Estimated Meal";
+
+  return clean.length > 64
+    ? `${clean.slice(0, 61)}...`
+    : clean;
+}
+
+function setTextContent(id, value) {
+  const element = document.getElementById(id);
+
+  if (element) {
+    element.textContent = String(value ?? "");
+  }
+}
+
+function setInputValueSafe(id, value) {
+  const element = document.getElementById(id);
+
+  if (element) {
+    element.value = value;
+  }
+}
+
+// -----------------------------------------------------
+// Keyboard and form support
+// -----------------------------------------------------
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById(
+    "ariNutritionComposer"
+  );
+
+  /*
+   * The newer HTML already has an inline submit
+   * handler. Add one only when it is missing.
+   */
+  if (
+    form &&
+    !form.getAttribute("onsubmit")
+  ) {
+    form.addEventListener(
+      "submit",
+      window.analyzeWithAri
+    );
+  }
+
+  const input = document.getElementById(
+    "ariNutritionInput"
+  );
+
+  /*
+   * In the original HTML, Enter sends and
+   * Shift+Enter creates a new line.
+   */
+  input?.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      window.analyzeWithAri(event);
+    }
+  });
+});
