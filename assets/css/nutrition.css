@@ -1131,3 +1131,197 @@ body::after {
   width: 44px;
   min-width: 44px;
 }
+/* =====================================================
+   ARI NUTRITION AI MEAL ESTIMATE
+   Append to assets/css/nutrition.css
+===================================================== */
+
+.ari-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.ari-composer-hint {
+  margin: 10px 4px 0;
+  color: rgba(219, 255, 214, 0.62);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.ari-command-shell.ari-composer-thinking {
+  box-shadow:
+    0 0 22px rgba(143, 255, 85, 0.22),
+    inset 0 0 22px rgba(143, 255, 85, 0.08);
+}
+
+.ari-console-send:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.ari-ai-result.show {
+  display: block;
+}
+
+.ari-ai-result.thinking {
+  opacity: 0.76;
+}
+
+.ari-ai-result.error {
+  color: #ffd0d0;
+}
+
+.ari-ai-result.success {
+  color: #caffb8;
+}
+
+.ari-meal-estimate-card {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid rgba(143, 255, 85, 0.36);
+  border-radius: 26px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 28, 22, 0.96),
+      rgba(3, 15, 18, 0.98)
+    );
+  box-shadow:
+    0 0 30px rgba(102, 255, 81, 0.12),
+    inset 0 0 28px rgba(102, 255, 81, 0.04);
+}
+
+.ari-meal-estimate-card[hidden] {
+  display: none;
+}
+
+.ari-meal-estimate-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ari-meal-estimate-eyebrow {
+  margin: 0 0 8px;
+  color: #aaff76;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.ari-meal-estimate-header h2 {
+  margin: 0;
+  color: #f4fff2;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(1.15rem, 5vw, 1.55rem);
+}
+
+.ari-confidence-badge {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid rgba(143, 255, 85, 0.32);
+  border-radius: 999px;
+  color: #caffb8;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.64rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ari-meal-estimate-calories {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(123, 255, 91, 0.07);
+}
+
+.ari-meal-estimate-calories span {
+  color: rgba(229, 255, 224, 0.68);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.78rem;
+}
+
+.ari-meal-estimate-calories strong {
+  color: #f8fff6;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(1.25rem, 6vw, 1.8rem);
+}
+
+.ari-meal-estimate-macros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ari-meal-estimate-macros > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(143, 255, 85, 0.18);
+  border-radius: 16px;
+  background: rgba(0, 10, 18, 0.56);
+}
+
+.ari-meal-estimate-macros span {
+  color: rgba(229, 255, 224, 0.6);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.68rem;
+}
+
+.ari-meal-estimate-macros strong {
+  color: #efffec;
+  font-family: "Orbitron", sans-serif;
+  font-size: 1rem;
+}
+
+.ari-meal-estimate-assumptions {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(143, 255, 85, 0.045);
+}
+
+.ari-meal-estimate-assumptions ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: rgba(234, 255, 229, 0.72);
+  line-height: 1.55;
+}
+
+.ari-meal-estimate-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+@media (max-width: 430px) {
+  .ari-meal-estimate-card {
+    padding: 18px;
+  }
+
+  .ari-meal-estimate-header {
+    flex-direction: column;
+  }
+
+  .ari-meal-estimate-actions {
+    grid-template-columns: 1fr;
+  }
+}
