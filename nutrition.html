@@ -312,8 +312,17 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script src="supabase-config.js?v=10"></script>
 <script src="js/auth.js"></script>
-<script src="js/nutrition.js"></script>
+
+<!-- Full Ari Rebirth runtime entry point -->
+<script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
+
+<!-- Shared CalBuddy brain used by the homepage -->
+<script src="calbuddy-core.js?v=3.6.1"></script>
+
+<!-- Nutrition page behavior must load last -->
+<script src="js/nutrition.js?v=3.1.0"></script>
 </body>
 </html>
