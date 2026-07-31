@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: nutrition.js
-// Version: 3.0.0
+// Version: 3.0.1
 // Purpose:
 //   Nutrition Console behavior for ARI Rebirth.
 //
