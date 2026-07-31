@@ -32,7 +32,7 @@
   <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
 </header>
 
-<section class="ari-console">
+<section class="ari-console" aria-labelledby="ariNutritionComposerTitle">
   <div class="ari-console-header">
     <div class="ari-console-status">
       <span class="ari-status-dot"></span>
@@ -43,16 +43,127 @@
   </div>
 
   <div class="ari-command-shell">
-    <div class="ari-console-input-row">
-      <textarea id="ariNutritionInput" placeholder="I had two tacos and a Coke..."></textarea>
+    <form
+      id="ariNutritionComposer"
+      class="ari-console-input-row"
+      onsubmit="analyzeWithAri(event)"
+    >
+      <label
+        id="ariNutritionComposerTitle"
+        class="ari-visually-hidden"
+        for="ariNutritionInput"
+      >
+        Ask Ari to estimate a meal
+      </label>
 
-      <button class="ari-console-send" type="button" onclick="analyzeWithAri()" aria-label="Analyze with Ari">
-        <span>➤</span>
+      <textarea
+        id="ariNutritionInput"
+        name="mealDescription"
+        placeholder="Describe your meal, drink, ingredients, and portions..."
+        rows="3"
+        maxlength="1200"
+        autocomplete="off"
+        enterkeyhint="send"
+        aria-describedby="ariNutritionInputHint"
+      ></textarea>
+
+      <button
+        id="ariNutritionSendButton"
+        class="ari-console-send"
+        type="submit"
+        aria-label="Ask Ari to estimate this meal"
+      >
+        <span aria-hidden="true">➤</span>
       </button>
-    </div>
+    </form>
+
+    <p id="ariNutritionInputHint" class="ari-composer-hint">
+      Example: 2 eggs, 2 slices of toast with butter, and a protein shake.
+    </p>
   </div>
 
-  <div id="ariAiResult" class="ari-ai-result"></div>
+  <div
+    id="ariAiResult"
+    class="ari-ai-result"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  ></div>
+
+  <section
+    id="ariMealEstimateCard"
+    class="ari-meal-estimate-card"
+    aria-labelledby="ariMealEstimateTitle"
+    hidden
+  >
+    <div class="ari-meal-estimate-header">
+      <div>
+        <p class="ari-meal-estimate-eyebrow">ARI ESTIMATE</p>
+        <h2 id="ariMealEstimateTitle">Estimated Meal</h2>
+      </div>
+
+      <span id="ariMealEstimateConfidence" class="ari-confidence-badge">
+        Estimate
+      </span>
+    </div>
+
+    <div class="ari-meal-estimate-calories">
+      <span>Total Calories</span>
+      <strong>
+        <span id="ariEstimatedCalories">—</span> kcal
+      </strong>
+    </div>
+
+    <div class="ari-meal-estimate-macros">
+      <div>
+        <span>Protein</span>
+        <strong><span id="ariEstimatedProtein">—</span> g</strong>
+      </div>
+
+      <div>
+        <span>Carbs</span>
+        <strong><span id="ariEstimatedCarbs">—</span> g</strong>
+      </div>
+
+      <div>
+        <span>Fat</span>
+        <strong><span id="ariEstimatedFat">—</span> g</strong>
+      </div>
+
+      <div>
+        <span>Fiber</span>
+        <strong><span id="ariEstimatedFiber">—</span> g</strong>
+      </div>
+    </div>
+
+    <div
+      id="ariMealEstimateAssumptions"
+      class="ari-meal-estimate-assumptions"
+      hidden
+    >
+      <p class="ari-stat-label">Assumptions</p>
+      <ul id="ariMealEstimateAssumptionsList"></ul>
+    </div>
+
+    <div class="ari-meal-estimate-actions">
+      <button
+        id="ariLogEstimatedMealButton"
+        class="ari-primary-action"
+        type="button"
+        onclick="logAriEstimatedMeal()"
+      >
+        Log Meal
+      </button>
+
+      <button
+        class="ari-secondary-action"
+        type="button"
+        onclick="editAriEstimatedMeal()"
+      >
+        Edit Details
+      </button>
+    </div>
+  </section>
 </section>
 
 <section class="ari-mode-panel">
