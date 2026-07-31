@@ -1371,151 +1371,292 @@ let ariNutritionEstimateHistory = [];
 // Composer request
 // -----------------------------------------------------
 
-window.analyzeWithAri = async function analyzeWithAri(event) {
-  event?.preventDefault?.();
+window.analyzeWithAri =
+  async function analyzeWithAri(event) {
+    event?.preventDefault?.();
 
-  if (ariNutritionRequestBusy) return;
-
-  const input = document.getElementById("ariNutritionInput");
-  const description = String(input?.value || "").trim();
-
-  if (!description) {
-    setNutritionAriMessage(
-      "Describe the meal, drink, ingredients, and portions first.",
-      "error"
-    );
-    input?.focus();
-    return;
-  }
-
-  /*
-   * Preserve the existing +350 / 350 calories shortcut.
-   * Exact manual calorie entries do not need an AI request.
-   */
-  const directCalories = parseDirectCalorieEntry(description);
-
-  if (directCalories !== null) {
-    estimatedMeal = {
-      name: "Manual calorie entry",
-      calories: directCalories,
-      protein_g: 0,
-      carbs_g: 0,
-      fat_g: 0,
-      fiber_g: 0,
-      serving_size: "Direct calorie entry",
-      category: selectedMealType || "Snack",
-      confidence: "exact",
-      assumptions: [],
-      original_description: description,
-      source: "direct_calorie_entry"
-    };
-
-    renderAriMealEstimate(estimatedMeal);
-    setStatusText("READY", "Review");
-    return;
-  }
-
-  if (!window.CalBuddy?.askAri) {
-    setStatusText("ARI OFFLINE", "Unavailable");
-    setNutritionAriMessage(
-      "The Ari bridge is not loaded on this page. Load the same CalBuddy/Ari bridge scripts used by home.html before js/nutrition.js.",
-      "error"
-    );
-    return;
-  }
-
-  ariNutritionRequestBusy = true;
-  ariNutritionAbortController = new AbortController();
-
-  setNutritionComposerBusy(true);
-  setStatusText("ARI ANALYZING", "Estimating");
-  hideAriMealEstimate();
-  setNutritionAriMessage("Ari is estimating the meal...", "thinking");
-
-  const requestMessage = buildNutritionEstimatePrompt(description);
-
-  ariNutritionEstimateHistory.push({
-    role: "user",
-    content: description
-  });
-
-  ariNutritionEstimateHistory =
-    ariNutritionEstimateHistory.slice(-6);
-
-  try {
-    const response = await window.CalBuddy.askAri({
-      message: requestMessage,
-      history: ariNutritionEstimateHistory,
-      appContext: {
-        domain: "nutrition",
-        page: "nutrition_console",
-        operation: "estimate_meal_nutrition",
-        requestedResult: "structured_meal_estimate",
-        selectedMealType: selectedMealType || null,
-        doNotLog: true
-      },
-      debugTiming: true,
-      signal: ariNutritionAbortController.signal
-    });
-
-    const parsedEstimate =
-      extractMealEstimateFromAriResponse(
-        response,
-        description
-      );
-
-    if (!parsedEstimate) {
-      const reply = String(
-        response?.reply ||
-        "Ari answered, but the response did not contain a usable calorie estimate."
-      ).trim();
-
-      setNutritionAriMessage(reply, "reply");
-      setStatusText("ARI ONLINE", "Listening");
+    if (ariNutritionRequestBusy) {
       return;
     }
 
-    estimatedMeal = parsedEstimate;
+    const input =
+      document.getElementById(
+        "ariNutritionInput"
+      );
 
-    renderAriMealEstimate(estimatedMeal);
+    const description =
+      String(
+        input?.value ||
+        ""
+      ).trim();
+
+    if (!description) {
+      setNutritionAriMessage(
+        "Ask Ari something about nutrition, food, meals, or meal planning.",
+        "error"
+      );
+
+      input?.focus();
+      return;
+    }
+
+    /*
+     * Preserve the direct +350 calorie shortcut.
+     * This is an application shortcut, not an AI request.
+     */
+    const directCalories =
+      parseDirectCalorieEntry(
+        description
+      );
+
+    if (directCalories !== null) {
+      estimatedMeal = {
+        name:
+          "Manual calorie entry",
+
+        calories:
+          directCalories,
+
+        protein_g:
+          0,
+
+        carbs_g:
+          0,
+
+        fat_g:
+          0,
+
+        fiber_g:
+          0,
+
+        serving_size:
+          "Direct calorie entry",
+
+        category:
+          selectedMealType ||
+          "Snack",
+
+        confidence:
+          "exact",
+
+        assumptions:
+          [],
+
+        original_description:
+          description,
+
+        source:
+          "direct_calorie_entry"
+      };
+
+      renderAriMealEstimate(
+        estimatedMeal
+      );
+
+      setStatusText(
+        "READY",
+        "Review"
+      );
+
+      return;
+    }
+
+    if (
+      typeof window.CalBuddy
+        ?.askAri !==
+      "function"
+    ) {
+      setStatusText(
+        "ARI OFFLINE",
+        "Unavailable"
+      );
+
+      setNutritionAriMessage(
+        "Ari is not loaded on this page. Check the App Bridge and CalBuddy Core script tags.",
+        "error"
+      );
+
+      return;
+    }
+
+    ariNutritionRequestBusy =
+      true;
+
+    setNutritionComposerBusy(
+      true
+    );
+
+    setStatusText(
+      "ARI THINKING",
+      "Thinking"
+    );
+
+    hideAriMealEstimate();
+
+    setNutritionAriMessage(
+      "Ari is thinking...",
+      "thinking"
+    );
 
     ariNutritionEstimateHistory.push({
-      role: "assistant",
-      content: JSON.stringify({
-        name: estimatedMeal.name,
-        calories: estimatedMeal.calories,
-        protein_g: estimatedMeal.protein_g,
-        carbs_g: estimatedMeal.carbs_g,
-        fat_g: estimatedMeal.fat_g,
-        fiber_g: estimatedMeal.fiber_g
-      })
+      role:
+        "user",
+
+      content:
+        description
     });
 
     ariNutritionEstimateHistory =
-      ariNutritionEstimateHistory.slice(-6);
+      ariNutritionEstimateHistory.slice(
+        -12
+      );
 
-    setStatusText("READY", "Review");
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      setNutritionAriMessage("Estimate stopped.", "reply");
-    } else {
-      console.error("Ari nutrition estimate failed:", error);
+    try {
+      /*
+       * Send the user's real message through the exact
+       * shared Ari entry point used by the homepage.
+       *
+       * Do not replace it with a calorie-estimation prompt.
+       * This allows conversation, coaching, meal plans,
+       * food questions, and meal estimates.
+       */
+      const response =
+        await window.CalBuddy.askAri({
+          message:
+            description,
+
+          history:
+            ariNutritionEstimateHistory,
+
+          debugTiming:
+            true
+        });
+
+      const reply =
+        String(
+          response?.reply ||
+          "I’m here, but I didn’t receive a complete response."
+        ).trim();
+
+      ariNutritionEstimateHistory.push({
+        role:
+          "assistant",
+
+        content:
+          reply
+      });
+
+      ariNutritionEstimateHistory =
+        ariNutritionEstimateHistory.slice(
+          -12
+        );
+
+      /*
+       * Only render a meal card when the response contains
+       * an explicitly structured meal estimate.
+       *
+       * Do not scrape calorie numbers from normal replies,
+       * because meal plans contain many calorie values.
+       */
+      const selectedApplicationOperation =
+        response
+          ?.applicationOperation ||
+        response
+          ?.selectedApplicationOperation ||
+        null;
+
+      const applicationEstimate =
+        selectedApplicationOperation ===
+          "estimate_meal_nutrition"
+          ? response
+              ?.applicationResult ||
+            null
+          : null;
+
+      const explicitEstimate =
+        response?.mealEstimate ||
+        response?.nutritionEstimate ||
+        applicationEstimate ||
+        null;
+
+      let parsedEstimate =
+        null;
+
+      if (explicitEstimate) {
+        const found =
+          findBestMealCandidate(
+            explicitEstimate
+          );
+
+        parsedEstimate =
+          normalizeMealEstimate(
+            found?.value ||
+              explicitEstimate,
+
+            description
+          );
+      }
+
+      if (parsedEstimate) {
+        estimatedMeal =
+          parsedEstimate;
+
+        renderAriMealEstimate(
+          estimatedMeal
+        );
+
+        /*
+         * renderAriMealEstimate currently writes a generic
+         * review message. Restore Ari's actual reply here.
+         */
+        setNutritionAriMessage(
+          reply,
+          "reply"
+        );
+
+        setStatusText(
+          "READY",
+          "Review"
+        );
+      } else {
+        estimatedMeal =
+          null;
+
+        setNutritionAriMessage(
+          reply,
+          "reply"
+        );
+
+        setStatusText(
+          "ARI ONLINE",
+          "Listening"
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Nutrition Ari request failed:",
+        error
+      );
 
       setNutritionAriMessage(
         error?.message ||
-          "Ari could not estimate that meal. Try adding portions or ingredients.",
+          "Ari could not complete that request.",
         "error"
       );
+
+      setStatusText(
+        "ARI ONLINE",
+        "Listening"
+      );
+    } finally {
+      ariNutritionRequestBusy =
+        false;
+
+      setNutritionComposerBusy(
+        false
+      );
     }
-
-    setStatusText("ARI ONLINE", "Listening");
-  } finally {
-    ariNutritionRequestBusy = false;
-    ariNutritionAbortController = null;
-    setNutritionComposerBusy(false);
-  }
-};
-
+  };
 // -----------------------------------------------------
 // Prompt contract
 // -----------------------------------------------------
@@ -1588,16 +1729,15 @@ function extractMealEstimateFromAriResponse(
     originalDescription
   );
 
-  /*
-   * Ari may return a readable answer instead of JSON.
-   * Parse common calorie/macro labels as a fallback.
-   */
-  if (!normalized) {
-    normalized = parseMealEstimateFromReply(
-      response?.reply,
-      originalDescription
-    );
-  }
+/*
+ * Do not scrape calorie numbers from ordinary replies.
+ *
+ * Meal plans may contain several different calorie values,
+ * and must not become one false meal-estimate card.
+ */
+if (!normalized) {
+  return null;
+}
 
   return normalized;
 }
