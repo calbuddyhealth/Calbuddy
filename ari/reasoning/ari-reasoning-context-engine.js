@@ -349,19 +349,56 @@ restrictionContext:
       return input.canonicalReasoningRequest;
     }
 
-    if (
-      this.isPlainObject(
-        input.request
-      )
-    ) {
-      return input.request;
-    }
+    /*
+ * A complete canonical request may itself contain a nested
+ * `request` object representing the current turn. Preserve
+ * the complete request when canonical runtime fields exist.
+ */
+if (
+  this.isPlainObject(input) &&
+  (
+    this.isPlainObject(
+      input.appContext
+    ) ||
+    this.isPlainObject(
+      input.semanticContext
+    ) ||
+    this.isPlainObject(
+      input.semanticFrame
+    ) ||
+    this.isPlainObject(
+      input.operationContract
+    ) ||
+    this.isPlainObject(
+      input.outputContract
+    ) ||
+    this.isPlainObject(
+      input.runtimePolicy
+    ) ||
+    this.isPlainObject(
+      input.turn
+    ) ||
+    this.nonEmptyString(
+      input.userMessage
+    )
+  )
+) {
+  return input;
+}
 
-    if (
-      this.isPlainObject(input)
-    ) {
-      return input;
-    }
+if (
+  this.isPlainObject(
+    input.request
+  )
+) {
+  return input.request;
+}
+
+if (
+  this.isPlainObject(input)
+) {
+  return input;
+}
 
     return {};
   },
