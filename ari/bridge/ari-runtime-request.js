@@ -5,7 +5,7 @@
 // Build the canonical Ari Rebirth runtime request consumed by the existing
 // five-layer pipeline while preserving all current compatibility aliases.
 //
-// V1.0.0 — Current Pipeline Compatibility / Canonical Turn Authority
+// V1.0.1 — Current Pipeline Compatibility / Canonical Turn Authority
 //
 // Architectural flow:
 //
@@ -47,7 +47,7 @@
 window.Ari = window.Ari || {};
 
 window.AriRuntimeRequest = {
-  version: "1.0.0",
+  version: "1.0.1",
   schemaVersion: "2.0.0",
   source: "ari-runtime-request",
   authorityLevel: "canonical_runtime_request_construction",
@@ -440,18 +440,29 @@ window.AriRuntimeRequest = {
   ===================================================== */
 
   buildAppContext({
-    options = {},
-    source = "calbuddy-health",
-    externalEvidence = {}
-  } = {}) {
-    const history =
+  options = {},
+  source = "calbuddy-health",
+  externalEvidence = {}
+} = {}) {
+  const suppliedAppContext =
+    this.normalizeOptionalObject(
+      options.appContext
+    ) || {};
+
+  const history =
       this.normalizeHistory(
         options.history
       );
 
     return {
-      schema:
-        "ari_app_context",
+  /*
+   * Preserve application-provided context while allowing
+   * the canonical fields below to remain authoritative.
+   */
+  ...suppliedAppContext,
+
+  schema:
+    "ari_app_context",
 
       schemaVersion:
         this.schemaVersion,
@@ -462,10 +473,55 @@ window.AriRuntimeRequest = {
         "rebirth-only",
 
       page:
-        this.cleanText(
-          options.page
-        ) ||
-        "unknown",
+  this.cleanText(
+    suppliedAppContext.page ||
+    options.page
+  ) ||
+  "unknown",
+
+domain:
+  this.normalizeIdentifier(
+    suppliedAppContext.domain ||
+    options.domain
+  ) ||
+  "general",
+
+operation:
+  this.normalizeIdentifier(
+    suppliedAppContext.operation ||
+    options.operation
+  ) ||
+  null,
+
+requestedResult:
+  this.normalizeIdentifier(
+    suppliedAppContext.requestedResult ||
+    options.requestedResult
+  ) ||
+  null,
+
+selectedMealType:
+  this.cleanText(
+    suppliedAppContext.selectedMealType ||
+    options.selectedMealType
+  ) ||
+  null,
+
+doNotLog:
+  suppliedAppContext.doNotLog ===
+    true ||
+  options.doNotLog ===
+    true,
+
+readOnly:
+  suppliedAppContext.readOnly ===
+    true ||
+  suppliedAppContext.doNotLog ===
+    true ||
+  options.readOnly ===
+    true ||
+  options.doNotLog ===
+    true,
 
       debugTiming:
         options.debugTiming ===
