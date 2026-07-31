@@ -3056,3 +3056,65 @@ body:has(.ari-goals-page)::before {
         no-repeat;
   }
 }
+/* =====================================================
+   DAILY NUTRITION TARGETS — SINGLE UNIFIED CARD
+   Append this block to assets/css/goals.css
+===================================================== */
+
+.ari-nutrition-targets-card {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ari-nutrition-strategy-row {
+  padding: 24px;
+  border-bottom: 1px solid rgba(84, 213, 229, 0.18);
+}
+
+.ari-nutrition-strategy-row .ari-stat-label,
+.ari-nutrition-strategy-row .ari-stat-value,
+.ari-nutrition-target-row .ari-stat-label,
+.ari-nutrition-target-row .ari-stat-value {
+  margin: 0;
+}
+
+.ari-nutrition-strategy-row .ari-stat-value {
+  margin-top: 10px;
+}
+
+.ari-nutrition-target-list {
+  display: block;
+}
+
+.ari-nutrition-target-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 74px;
+  padding: 18px 24px;
+  border-bottom: 1px solid rgba(84, 213, 229, 0.14);
+}
+
+.ari-nutrition-target-row:last-child {
+  border-bottom: 0;
+}
+
+.ari-nutrition-target-row .ari-stat-label {
+  min-width: 0;
+}
+
+.ari-nutrition-target-row .ari-stat-value {
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: clamp(1.2rem, 5vw, 1.65rem);
+}
+
+@media (max-width: 420px) {
+  .ari-nutrition-strategy-row,
+  .ari-nutrition-target-row {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
