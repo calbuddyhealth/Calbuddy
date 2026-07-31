@@ -5,7 +5,7 @@
 // Select, trim, and package the canonical Ari reasoning request into one
 // lean cognitive context packet for the OpenAI reasoning invocation.
 //
-// V2.2.0 — Canonical Preference Context Alignment
+// V2.3.0 — Application Operation Contract Context Integration
 //
 // Architectural flow:
 //
@@ -45,9 +45,9 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningContextEngine = {
-  version: "2.2.0",
+  version: "2.3.0",
 
-  schemaVersion: "2.2.0",
+  schemaVersion: "2.3.0",
 
   source: "ari-reasoning-context-engine",
 
@@ -166,11 +166,16 @@ window.AriReasoningContextEngine = {
             ),
 
           routing:
-            this.selectRoutingContext(
-              canonicalRequest
-            ),
+  this.selectRoutingContext(
+    canonicalRequest
+  ),
 
-          safety:
+applicationOperationContext:
+  this.selectApplicationOperationContext(
+    canonicalRequest
+  ),
+
+safety:
             this.selectSafetyContext(
               canonicalRequest
             ),
@@ -1885,22 +1890,235 @@ selectRestrictionContext(request = {}) {
   };
 },
 
+/* =====================================================
+   APPLICATION OPERATION CONTEXT
+===================================================== */
+
+getApplicationOperationRegistry() {
+  return (
+    window.AriApplicationOperationRegistry ||
+    window.Ari
+      ?.applicationOperationRegistry ||
+    null
+  );
+},
+
+readApplicationContext(request = {}) {
+  return this.firstObject([
+    request.appContext,
+    request.applicationContext,
+
+    request.runtimeContext
+      ?.appContext,
+
+    request.runtimeRequest
+      ?.appContext,
+
+    request.requestEnvelope
+      ?.appContext,
+
+    request.canonicalRequest
+      ?.appContext
+  ]);
+},
+
+selectApplicationOperationContext(
+  request = {}
+) {
+  const appContext =
+    this.readApplicationContext(
+      request
+    );
+
+  if (!this.hasKeys(appContext)) {
+    return {};
+  }
+
+  const registry =
+    this.getApplicationOperationRegistry();
+
+  if (
+    !registry ||
+    typeof registry.resolveAppContext !==
+      "function"
+  ) {
+    return {};
+  }
+
+  const resolved =
+    registry.resolveAppContext(
+      appContext
+    );
+
+  if (
+    resolved.recognized !==
+      true
+  ) {
+    return {};
+  }
+
+  const contract =
+    this.normalizeObject(
+      resolved.contract
+    );
+
+  return this.removeEmptyValues({
+    schema:
+      "ari_application_operation_context",
+
+    schemaVersion:
+      registry.schemaVersion ||
+      "1.0.0",
+
+    source:
+      registry.source ||
+      "ari-application-operation-registry",
+
+    recognized:
+      true,
+
+    applicationOperation:
+      resolved.operation,
+
+    cognitiveOperation:
+      resolved.cognitiveOperation,
+
+    domain:
+      resolved.domain,
+
+    requestedResult:
+      resolved.requestedResult,
+
+    requestKind:
+      contract.requestKind,
+
+    page:
+      appContext.page,
+
+    selectedMealType:
+      appContext.selectedMealType,
+
+    constraints:
+      resolved.constraints,
+
+    resultContract:
+      contract.resultContract,
+
+    authority:
+      "trusted_application_operation_contract"
+  });
+},
+
   /* =====================================================
      CONTRACTS
   ===================================================== */
 
   selectOutputContract(request = {}) {
-    return this.firstObject([
+  const existingContract =
+    this.firstObject([
       request.outputContract,
       request.responseSchema
     ]);
-  },
 
-  selectOperationContract(request = {}) {
-    return this.normalizeObject(
+  const applicationOperation =
+    this.selectApplicationOperationContext(
+      request
+    );
+
+  if (
+    !this.hasKeys(
+      applicationOperation
+    )
+  ) {
+    return existingContract;
+  }
+
+  return this.removeEmptyValues({
+    ...existingContract,
+
+    applicationOperation:
+      applicationOperation
+        .applicationOperation,
+
+    requestedResult:
+      existingContract
+        .requestedResult ||
+      applicationOperation
+        .requestedResult,
+
+    structuredResultRequired:
+      this.hasKeys(
+        applicationOperation
+          .resultContract
+      )
+        ? true
+        : undefined,
+
+    applicationResultContract:
+      applicationOperation
+        .resultContract,
+
+    applicationConstraints:
+      applicationOperation
+        .constraints,
+
+    authority:
+      existingContract.authority ||
+      "application_operation_output_contract"
+  });
+},
+
+selectOperationContract(request = {}) {
+  const existingContract =
+    this.normalizeObject(
       request.operationContract
     );
-  },
+
+  const applicationOperation =
+    this.selectApplicationOperationContext(
+      request
+    );
+
+  if (
+    !this.hasKeys(
+      applicationOperation
+    )
+  ) {
+    return existingContract;
+  }
+
+  return this.removeEmptyValues({
+    ...existingContract,
+
+    applicationOperation:
+      applicationOperation
+        .applicationOperation,
+
+    mappedCognitiveOperation:
+      applicationOperation
+        .cognitiveOperation,
+
+    applicationDomain:
+      applicationOperation
+        .domain,
+
+    requestedResult:
+      applicationOperation
+        .requestedResult,
+
+    requestKind:
+      applicationOperation
+        .requestKind,
+
+    applicationConstraints:
+      applicationOperation
+        .constraints,
+
+    applicationOperationSource:
+      applicationOperation
+        .source
+  });
+},
 
   selectInstructions(request = {}) {
   return this.uniqueStrings([
@@ -2194,11 +2412,16 @@ selectRestrictionContext(request = {}) {
         ),
 
       routing:
-        this.hasKeys(
-          packet.routing
-        ),
+  this.hasKeys(
+    packet.routing
+  ),
 
-      safety:
+applicationOperationContext:
+  this.hasKeys(
+    packet.applicationOperationContext
+  ),
+
+safety:
         this.hasKeys(
           packet.safety
         ),
@@ -2803,6 +3026,9 @@ normalizeStringArray(value) {
       "resolveLimits",
       "selectSemanticContext",
       "selectRoutingContext",
+      "getApplicationOperationRegistry",
+"readApplicationContext",
+"selectApplicationOperationContext",
       "selectSafetyContext",
       "selectContinuityContext",
       "selectSituationContext",
