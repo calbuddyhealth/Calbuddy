@@ -4,18 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>ARI Nutrition Intelligence</title>
+<title>RE Nutrition Intelligence</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link
+  href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap"
+  rel="stylesheet"
+>
 
 <link rel="stylesheet" href="assets/css/base.css">
 <link rel="stylesheet" href="assets/css/animations.css">
 <link rel="stylesheet" href="assets/css/nutrition.css">
 <link rel="stylesheet" href="assets/css/composer.css">
-
 </head>
 
 <body>
@@ -28,39 +30,35 @@ HEADER
 
 <header class="ari-nutrition-header">
 
-    <button
-        class="ari-back-btn"
-        type="button"
-        onclick="goBack()">
+  <button
+    class="ari-back-btn"
+    type="button"
+    onclick="goBack()"
+    aria-label="Go back"
+  >
+    ←
+  </button>
 
-        ←
+  <div class="ari-brand">
 
-    </button>
+    <h1 class="ari-brand-title">
+      RE
+    </h1>
 
-    <div class="ari-brand">
+    <p class="ari-brand-subtitle">
+      Nutrition Intelligence
+    </p>
 
-        <h1 class="ari-brand-title">
+  </div>
 
-            ARI
-
-        </h1>
-
-        <p class="ari-brand-subtitle">
-
-            Nutrition Intelligence
-
-        </p>
-
-    </div>
-
-    <button
-        class="ari-home-btn"
-        type="button"
-        onclick="goHome()">
-
-        Home
-
-    </button>
+  <button
+    class="ari-home-btn"
+    type="button"
+    onclick="goHome()"
+    aria-label="Go home"
+  >
+    Home
+  </button>
 
 </header>
 
@@ -68,66 +66,50 @@ HEADER
 ASK ARI
 ========================================== -->
 
-<section
-class="ari-panel"
-id="askAriSection">
+<section class="ari-panel" id="askAriSection">
 
-    <div class="ari-panel-header">
+  <div class="ari-panel-header">
 
-        <h2>
+    <h2>
+      Ask Ari
+    </h2>
 
-            Ask Ari
+    <p>
+      Ask anything about nutrition, meal planning, calories,
+      macros, supplements, or healthy eating.
+    </p>
 
-        </h2>
+  </div>
 
-        <p>
-
-            Ask anything about nutrition,
-            meal planning,
-            calories,
-            macros,
-            supplements,
-            or healthy eating.
-
-        </p>
-
-    </div>
-
-    <div
+  <div
     id="ariMessages"
-    class="ari-thread">
+    class="ari-thread"
+    aria-live="polite"
+  ></div>
+
+  <div class="ari-bottom-input">
+
+    <div class="ari-input-shell">
+
+      <textarea
+        id="ariInput"
+        rows="1"
+        placeholder="Ask Ari about nutrition..."
+        aria-label="Ask Ari about nutrition"
+      ></textarea>
+
+      <button
+        id="ariSendBtn"
+        class="ari-send-btn"
+        type="button"
+        aria-label="Send message"
+      >
+        ➤
+      </button>
 
     </div>
 
-    <div class="ari-bottom-input">
-
-        <div class="ari-input-shell">
-
-            <textarea
-
-                id="ariInput"
-
-                rows="1"
-
-                placeholder="Ask Ari about nutrition..."
-
-            ></textarea>
-
-            <button
-
-                id="ariSendBtn"
-
-                class="ari-send-btn"
-
-                type="button">
-
-                ➤
-
-            </button>
-
-        </div>
-
-    </div>
+  </div>
 
 </section>
 
@@ -135,76 +117,85 @@ id="askAriSection">
 MANUAL ENTRY
 ========================================== -->
 
-<section
-class="ari-panel"
-id="manualEntrySection">
+<section class="ari-panel" id="manualEntrySection">
 
-    <div class="ari-panel-header">
+  <div class="ari-panel-header">
 
-        <h2>
+    <h2>
+      Manual Entry
+    </h2>
 
-            Manual Entry
+  </div>
 
-        </h2>
+  <div class="ari-form">
 
-    </div>
+    <input
+      id="mealName"
+      type="text"
+      placeholder="Food Name"
+      autocomplete="off"
+    >
 
-    <div class="ari-form">
+    <input
+      id="mealCalories"
+      type="number"
+      min="0"
+      step="1"
+      placeholder="Calories"
+      inputmode="decimal"
+    >
 
-        <input
-        id="mealName"
-        type="text"
-        placeholder="Food Name">
+    <details class="ari-advanced-nutrition">
 
-        <input
-        id="mealCalories"
+      <summary>
+        Advanced Nutrition
+      </summary>
+
+      <input
+        id="mealProtein"
         type="number"
-        placeholder="Calories">
+        min="0"
+        step="0.1"
+        placeholder="Protein"
+        inputmode="decimal"
+      >
 
-        <details>
+      <input
+        id="mealCarbs"
+        type="number"
+        min="0"
+        step="0.1"
+        placeholder="Carbs"
+        inputmode="decimal"
+      >
 
-            <summary>
+      <input
+        id="mealFat"
+        type="number"
+        min="0"
+        step="0.1"
+        placeholder="Fat"
+        inputmode="decimal"
+      >
 
-                Advanced Nutrition
+      <select id="mealType" aria-label="Meal type">
+        <option>Breakfast</option>
+        <option>Lunch</option>
+        <option>Dinner</option>
+        <option>Snack</option>
+        <option>Drink</option>
+      </select>
 
-            </summary>
+    </details>
 
-            <input
-            id="mealProtein"
-            type="number"
-            placeholder="Protein">
+    <button
+      id="saveMealBtn"
+      type="button"
+    >
+      Save Meal
+    </button>
 
-            <input
-            id="mealCarbs"
-            type="number"
-            placeholder="Carbs">
-
-            <input
-            id="mealFat"
-            type="number"
-            placeholder="Fat">
-
-            <select
-            id="mealType">
-
-                <option>Breakfast</option>
-                <option>Lunch</option>
-                <option>Dinner</option>
-                <option>Snack</option>
-                <option>Drink</option>
-
-            </select>
-
-        </details>
-
-        <button
-        id="saveMealBtn">
-
-            Save Meal
-
-        </button>
-
-    </div>
+  </div>
 
 </section>
 
@@ -212,20 +203,13 @@ id="manualEntrySection">
 TODAY'S MEALS
 ========================================== -->
 
-<details
-class="ari-panel"
-id="todayMealsSection">
+<details class="ari-panel" id="todayMealsSection">
 
-    <summary>
+  <summary>
+    Today's Meals
+  </summary>
 
-        Today's Meals
-
-    </summary>
-
-    <div
-    id="todayMealList">
-
-    </div>
+  <div id="todayMealList"></div>
 
 </details>
 
@@ -233,74 +217,31 @@ id="todayMealsSection">
 TODAY'S NUTRITION
 ========================================== -->
 
-<details
-class="ari-panel"
-id="todayNutritionSection">
+<details class="ari-panel" id="todayNutritionSection">
 
-    <summary>
+  <summary>
+    Today's Nutrition
+  </summary>
 
-        Today's Nutrition
+  <div class="nutrition-summary">
 
-    </summary>
-
-    <div
-    class="nutrition-summary">
-
-        <div id="totalCalories">
-
-            Calories
-
-        </div>
-
-        <div id="totalProtein">
-
-            Protein
-
-        </div>
-
-        <div id="totalCarbs">
-
-            Carbs
-
-        </div>
-
-        <div id="totalFat">
-
-            Fat
-
-        </div>
-
-        <div id="fiberTotal">
-
-            Fiber
-
-        </div>
-
-        <div id="vitaminCTotal">
-
-            Vitamin C
-
-        </div>
-
-        <div id="ironTotal">
-
-            Iron
-
-        </div>
-
-        <div id="calciumTotal">
-
-            Calcium
-
-        </div>
-
-        <div id="potassiumTotal">
-
-            Potassium
-
-        </div>
-
+    <div id="totalCalories">
+      Calories
     </div>
+
+    <div id="totalProtein">
+      Protein
+    </div>
+
+    <div id="totalCarbs">
+      Carbs
+    </div>
+
+    <div id="totalFat">
+      Fat
+    </div>
+
+  </div>
 
 </details>
 
@@ -308,24 +249,17 @@ id="todayNutritionSection">
 RECENT MEALS
 ========================================== -->
 
-<section
-class="ari-panel"
-id="recentMealsSection">
+<section class="ari-panel" id="recentMealsSection">
 
-    <div class="ari-panel-header">
+  <div class="ari-panel-header">
 
-        <h2>
+    <h2>
+      Recent Meals
+    </h2>
 
-            Recent Meals
+  </div>
 
-        </h2>
-
-    </div>
-
-    <div
-    id="recentMealList">
-
-    </div>
+  <div id="recentMealList"></div>
 
 </section>
 
@@ -333,15 +267,17 @@ id="recentMealsSection">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="supabase-config.js"></script>
+<script src="supabase-config.js?v=10"></script>
+<script src="js/auth.js?v=1"></script>
 
-<script src="js/auth.js"></script>
+<!-- Shared CalBuddy entry point -->
+<script src="calbuddy-core.js?v=3.6.1"></script>
 
-<script src="ari/ari-rebirth-app-bridge.js"></script>
+<!-- ARI Rebirth runtime -->
+<script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
 
-<script src="calbuddy-core.js"></script>
-
-<script src="js/nutrition.js"></script>
+<!-- Nutrition page behavior must load last -->
+<script src="js/nutrition.js?v=4.0.1"></script>
 
 </body>
 </html>
