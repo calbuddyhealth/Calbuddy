@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.5.0 — Shared Execution Trace Boundary Integration
+// V2.5.1 — Application Operation Registry Integration
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.5.0",
-  schemaVersion: "2.5.0",
+  version: "2.5.1",
+  schemaVersion: "2.5.1",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -85,6 +85,7 @@ window.AriRebirthAppBridge = {
     "ari/system/ari-loader.js",
 "ari/system/ari-authority.js",
 "ari/contracts/ari-operation-registry.js",
+"ari/contracts/ari-application-operation-registry.js?v=1.0.0",
 
     // ===================================================
     // APPLICATION RUNTIME BOUNDARY SERVICES
@@ -2147,6 +2148,22 @@ recordRuntimeDependencies(
           : "window.Ari.operationRegistry"
     },
 
+{
+  name:
+    "application_operation_registry",
+
+  instance:
+    this.getApplicationOperationRegistry(),
+
+  requiredMethod:
+    "resolveAppContext",
+
+  resolvedFrom:
+    window.AriApplicationOperationRegistry
+      ? "window.AriApplicationOperationRegistry"
+      : "window.Ari.applicationOperationRegistry"
+},
+
     {
       name:
         "reasoning_client",
@@ -2350,6 +2367,15 @@ readLoaderDiagnostic(
       null
     );
   },
+
+getApplicationOperationRegistry() {
+  return (
+    window.AriApplicationOperationRegistry ||
+    window.Ari
+      ?.applicationOperationRegistry ||
+    null
+  );
+},
 
   getEvidenceBuilder() {
     return (
@@ -2939,6 +2965,11 @@ traceId:
             this.getOperationRegistry()
               ?.version ||
             null,
+
+applicationOperationRegistry:
+  this.getApplicationOperationRegistry()
+    ?.version ||
+  null,
 
           evidenceBuilder:
             this.getEvidenceBuilder()
@@ -3677,6 +3708,9 @@ getRuntimeAvailability() {
   const executionTraceService =
   this.getExecutionTraceService();
   
+  const applicationOperationRegistry =
+  this.getApplicationOperationRegistry();
+  
   const requestService =
     window.AriRuntimeRequest ||
     window.Ari
@@ -3743,7 +3777,11 @@ getRuntimeAvailability() {
     typeof executionTraceService.exportForLab ===
       "function"
   ),
-    
+    applicationOperationRegistryResolve:
+  typeof applicationOperationRegistry
+    ?.resolveAppContext ===
+  "function", 
+  
     runtimeRequestBuild:
       typeof requestService
         ?.build ===
@@ -3843,6 +3881,13 @@ getRuntimeAvailability() {
               requestService
             )
           : [],
+
+applicationOperationRegistry:
+  applicationOperationRegistry
+    ? Object.keys(
+        applicationOperationRegistry
+      )
+    : [],
 
       runtimeReadiness:
         readinessService
@@ -4243,6 +4288,9 @@ const executionTraceService =
     const operationRegistry =
       this.getOperationRegistry();
 
+const applicationOperationRegistry =
+  this.getApplicationOperationRegistry();
+
     const evidenceBuilder =
       this.getEvidenceBuilder();
 
@@ -4351,6 +4399,17 @@ if (
         "AriOperationRegistry_not_ready"
       );
     }
+
+if (
+  !applicationOperationRegistry ||
+  typeof applicationOperationRegistry
+    .resolveAppContext !==
+    "function"
+) {
+  warnings.push(
+    "AriApplicationOperationRegistry_not_ready"
+  );
+}
 
     if (
       !evidenceBuilder ||
@@ -4511,6 +4570,14 @@ if (
             typeof operationRegistry.getOperation ===
               "function"
           ),
+
+applicationOperationRegistryRegistered:
+  Boolean(
+    applicationOperationRegistry &&
+    typeof applicationOperationRegistry
+      .resolveAppContext ===
+      "function"
+  ),
 
         evidenceBuilderRegistered:
           Boolean(
