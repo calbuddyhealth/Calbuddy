@@ -1,333 +1,347 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Nutrition Console - ARI Rebirth</title>
+<title>ARI Nutrition Intelligence</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
 <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="assets/css/animations.css" />
-<link rel="stylesheet" href="assets/css/nutrition.css" />
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/animations.css">
+<link rel="stylesheet" href="assets/css/nutrition.css">
+<link rel="stylesheet" href="assets/css/composer.css">
+
 </head>
 
 <body>
-<main class="ari-nutrition-page">
+
+<main class="ari-nutrition-page" id="ariNutritionApp">
+
+<!-- ==========================================
+HEADER
+========================================== -->
 
 <header class="ari-nutrition-header">
-  <button class="ari-back-btn" type="button" onclick="goBack()">←</button>
 
-  <div class="ari-brand-mark" aria-label="ARI Nutrition Intelligence">
-    <div class="ari-brand-title-row">
-      <span class="ari-salad-mark">🥬</span>
-      <h1 class="ari-brand-title">ARI</h1>
+    <button
+        class="ari-back-btn"
+        type="button"
+        onclick="goBack()">
+
+        ←
+
+    </button>
+
+    <div class="ari-brand">
+
+        <h1 class="ari-brand-title">
+
+            ARI
+
+        </h1>
+
+        <p class="ari-brand-subtitle">
+
+            Nutrition Intelligence
+
+        </p>
+
     </div>
-    <p class="ari-brand-subtitle">Nutrition Intelligence</p>
-  </div>
 
-  <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
+    <button
+        class="ari-home-btn"
+        type="button"
+        onclick="goHome()">
+
+        Home
+
+    </button>
+
 </header>
 
-<section class="ari-console" aria-labelledby="ariNutritionComposerTitle">
-  <div class="ari-console-header">
-    <div class="ari-console-status">
-      <span class="ari-status-dot"></span>
-      <span id="ariNutritionStatus">ARI ONLINE</span>
-    </div>
+<!-- ==========================================
+ASK ARI
+========================================== -->
 
-    <div id="ariReadyPill" class="ari-ready-pill">Listening</div>
-  </div>
+<section
+class="ari-panel"
+id="askAriSection">
 
-  <div class="ari-command-shell">
-    <form
-      id="ariNutritionComposer"
-      class="ari-console-input-row"
-      onsubmit="analyzeWithAri(event)"
-    >
-      <label
-        id="ariNutritionComposerTitle"
-        class="ari-visually-hidden"
-        for="ariNutritionInput"
-      >
-        Ask Ari about nutrition, meals, or meal planning
-      </label>
+    <div class="ari-panel-header">
 
-      <textarea
-        id="ariNutritionInput"
-        name="mealDescription"
-        placeholder="Ask Ari about meal plans, nutrition, food choices, or what you ate..."
-        rows="3"
-        maxlength="1200"
-        autocomplete="off"
-        enterkeyhint="send"
-        aria-describedby="ariNutritionInputHint"
-      ></textarea>
+        <h2>
 
-      <button
-        id="ariNutritionSendButton"
-        class="ari-console-send"
-        type="submit"
-        aria-label="Send message to Ari"
-      >
-        <span aria-hidden="true">➤</span>
-      </button>
-    </form>
+            Ask Ari
 
-    <p id="ariNutritionInputHint" class="ari-composer-hint">
-      Example: Build me a high-protein meal plan for tomorrow.
-    </p>
-  </div>
+        </h2>
 
-  <div
-    id="ariAiResult"
-    class="ari-ai-result"
-    role="status"
-    aria-live="polite"
-    aria-atomic="true"
-  ></div>
+        <p>
 
-  <section
-    id="ariMealEstimateCard"
-    class="ari-meal-estimate-card"
-    aria-labelledby="ariMealEstimateTitle"
-    hidden
-  >
-    <div class="ari-meal-estimate-header">
-      <div>
-        <p class="ari-meal-estimate-eyebrow">ARI ESTIMATE</p>
-        <h2 id="ariMealEstimateTitle">Estimated Meal</h2>
-      </div>
+            Ask anything about nutrition,
+            meal planning,
+            calories,
+            macros,
+            supplements,
+            or healthy eating.
 
-      <span id="ariMealEstimateConfidence" class="ari-confidence-badge">
-        Estimate
-      </span>
-    </div>
+        </p>
 
-    <div class="ari-meal-estimate-calories">
-      <span>Total Calories</span>
-      <strong>
-        <span id="ariEstimatedCalories">—</span> kcal
-      </strong>
-    </div>
-
-    <div class="ari-meal-estimate-macros">
-      <div>
-        <span>Protein</span>
-        <strong><span id="ariEstimatedProtein">—</span> g</strong>
-      </div>
-
-      <div>
-        <span>Carbs</span>
-        <strong><span id="ariEstimatedCarbs">—</span> g</strong>
-      </div>
-
-      <div>
-        <span>Fat</span>
-        <strong><span id="ariEstimatedFat">—</span> g</strong>
-      </div>
-
-      <div>
-        <span>Fiber</span>
-        <strong><span id="ariEstimatedFiber">—</span> g</strong>
-      </div>
     </div>
 
     <div
-      id="ariMealEstimateAssumptions"
-      class="ari-meal-estimate-assumptions"
-      hidden
-    >
-      <p class="ari-stat-label">Assumptions</p>
-      <ul id="ariMealEstimateAssumptionsList"></ul>
+    id="ariMessages"
+    class="ari-thread">
+
     </div>
 
-    <div class="ari-meal-estimate-actions">
-      <button
-        id="ariLogEstimatedMealButton"
-        class="ari-primary-action"
-        type="button"
-        onclick="logAriEstimatedMeal()"
-      >
-        Log Meal
-      </button>
+    <div class="ari-bottom-input">
 
-      <button
-        class="ari-secondary-action"
-        type="button"
-        onclick="editAriEstimatedMeal()"
-      >
-        Edit Details
-      </button>
+        <div class="ari-input-shell">
+
+            <textarea
+
+                id="ariInput"
+
+                rows="1"
+
+                placeholder="Ask Ari about nutrition..."
+
+            ></textarea>
+
+            <button
+
+                id="ariSendBtn"
+
+                class="ari-send-btn"
+
+                type="button">
+
+                ➤
+
+            </button>
+
+        </div>
+
     </div>
-  </section>
+
 </section>
 
-<section class="ari-mode-panel">
-  <p class="ari-mode-title">Quick Actions</p>
+<!-- ==========================================
+MANUAL ENTRY
+========================================== -->
 
-  <div class="ari-mode-chips">
-    <button class="ari-mode-chip" id="mealTab" type="button" onclick="selectMode('meal')">
-      🍽 Meal
-      <small>Add food</small>
-    </button>
+<section
+class="ari-panel"
+id="manualEntrySection">
 
-    <button class="ari-mode-chip" id="drinkTab" type="button" onclick="selectMode('drink')">
-      🥤 Drink
-      <small>Add drink</small>
-    </button>
+    <div class="ari-panel-header">
 
-    <button class="ari-mode-chip" id="calorieTab" type="button" onclick="selectMode('calories')">
-      ＋ Calories
-      <small>Manual</small>
-    </button>
-  </div>
+        <h2>
 
-  <div id="mealOptions" class="ari-meal-type">
-    <button type="button" onclick="selectMealType('Breakfast')">Breakfast</button>
-    <button type="button" onclick="selectMealType('Lunch')">Lunch</button>
-    <button type="button" onclick="selectMealType('Dinner')">Dinner</button>
-    <button type="button" onclick="selectMealType('Snack')">Snack</button>
-  </div>
+            Manual Entry
+
+        </h2>
+
+    </div>
+
+    <div class="ari-form">
+
+        <input
+        id="mealName"
+        type="text"
+        placeholder="Food Name">
+
+        <input
+        id="mealCalories"
+        type="number"
+        placeholder="Calories">
+
+        <details>
+
+            <summary>
+
+                Advanced Nutrition
+
+            </summary>
+
+            <input
+            id="mealProtein"
+            type="number"
+            placeholder="Protein">
+
+            <input
+            id="mealCarbs"
+            type="number"
+            placeholder="Carbs">
+
+            <input
+            id="mealFat"
+            type="number"
+            placeholder="Fat">
+
+            <select
+            id="mealType">
+
+                <option>Breakfast</option>
+                <option>Lunch</option>
+                <option>Dinner</option>
+                <option>Snack</option>
+                <option>Drink</option>
+
+            </select>
+
+        </details>
+
+        <button
+        id="saveMealBtn">
+
+            Save Meal
+
+        </button>
+
+    </div>
+
 </section>
 
-<section class="ari-panel entry-panel">
-  <div class="ari-panel-header">
-    <h3 class="ari-section-title">Manual Entry</h3>
-    <p class="ari-section-subtitle">Meal and drink searches, or manual calorie entry, appear here only when needed.</p>
-  </div>
+<!-- ==========================================
+TODAY'S MEALS
+========================================== -->
 
-  <div class="ari-form">
-    <div id="searchSection" class="search-section">
-      <div class="ari-field">
-        <label id="searchLabel" class="ari-label">Search food</label>
-        <input id="foodSearchInput" class="ari-input" type="text" placeholder="Type food item" />
-      </div>
+<details
+class="ari-panel"
+id="todayMealsSection">
 
-      <button
-    class="ari-primary-action"
-    type="button"
-    onclick="analyzeWithAri(event)">
-    Ask Ari
-</button>
+    <summary>
+
+        Today's Meals
+
+    </summary>
+
+    <div
+    id="todayMealList">
+
     </div>
 
-    <div id="manualSection" class="manual-section">
-      <div class="ari-field">
-        <label class="ari-label">Food / Item Name</label>
-        <input id="manualFoodName" class="ari-input" type="text" placeholder="Example: homemade pasta" />
-      </div>
+</details>
 
-      <div class="ari-field">
-        <label class="ari-label">Calories</label>
-        <input id="manualCalories" class="ari-input" type="number" step="1" placeholder="Example: 650" />
-      </div>
+<!-- ==========================================
+TODAY'S NUTRITION
+========================================== -->
 
-      <div class="ari-field">
-        <label class="ari-label">Protein (g)</label>
-        <input id="manualProtein" class="ari-input" type="number" step="0.1" placeholder="Optional" />
-      </div>
+<details
+class="ari-panel"
+id="todayNutritionSection">
 
-      <div class="ari-field">
-        <label class="ari-label">Carbs (g)</label>
-        <input id="manualCarbs" class="ari-input" type="number" step="0.1" placeholder="Optional" />
-      </div>
+    <summary>
 
-      <div class="ari-field">
-        <label class="ari-label">Fat (g)</label>
-        <input id="manualFat" class="ari-input" type="number" step="0.1" placeholder="Optional" />
-      </div>
+        Today's Nutrition
 
-      <div class="ari-field">
-        <label class="ari-label">Serving Size</label>
-        <input id="manualServing" class="ari-input" type="text" placeholder="Example: 1 bowl, 8 oz, 100 g" />
-      </div>
+    </summary>
 
-      <div class="ari-field">
-        <label class="ari-label">Category</label>
-        <select id="manualCategory" class="ari-select">
-          <option value="Breakfast">Breakfast</option>
-          <option value="Lunch">Lunch</option>
-          <option value="Dinner">Dinner</option>
-          <option value="Snack">Snack</option>
-          <option value="Drink">Drink</option>
-        </select>
-      </div>
+    <div
+    class="nutrition-summary">
 
-      <button class="ari-primary-action" type="button" onclick="saveManualCalories()">Save Intake</button>
+        <div id="totalCalories">
+
+            Calories
+
+        </div>
+
+        <div id="totalProtein">
+
+            Protein
+
+        </div>
+
+        <div id="totalCarbs">
+
+            Carbs
+
+        </div>
+
+        <div id="totalFat">
+
+            Fat
+
+        </div>
+
+        <div id="fiberTotal">
+
+            Fiber
+
+        </div>
+
+        <div id="vitaminCTotal">
+
+            Vitamin C
+
+        </div>
+
+        <div id="ironTotal">
+
+            Iron
+
+        </div>
+
+        <div id="calciumTotal">
+
+            Calcium
+
+        </div>
+
+        <div id="potassiumTotal">
+
+            Potassium
+
+        </div>
+
     </div>
 
-    <div id="results"></div>
-    <div id="successMessage" class="success-message"></div>
-  </div>
-</section>
+</details>
 
-<section class="intake-list">
-  <h3>Today’s Nutrition</h3>
-  <p class="window-note" id="windowNote">Reset window loading...</p>
-  <div id="todayIntakeItems"></div>
+<!-- ==========================================
+RECENT MEALS
+========================================== -->
 
-  <div class="nutrition-total-grid">
-    <div class="nutrition-total-box">
-      <span>Calories</span>
-      <strong><span id="totalConsumedText">0</span> kcal</strong>
+<section
+class="ari-panel"
+id="recentMealsSection">
+
+    <div class="ari-panel-header">
+
+        <h2>
+
+            Recent Meals
+
+        </h2>
+
     </div>
 
-    <div class="nutrition-total-box">
-      <span>Protein</span>
-      <strong><span id="totalProteinText">0</span> g</strong>
+    <div
+    id="recentMealList">
+
     </div>
 
-    <div class="nutrition-total-box">
-      <span>Carbs</span>
-      <strong><span id="totalCarbsText">0</span> g</strong>
-    </div>
-
-    <div class="nutrition-total-box">
-      <span>Fat</span>
-      <strong><span id="totalFatText">0</span> g</strong>
-    </div>
-  </div>
-</section>
-
-<section class="ari-panel">
-  <div class="ari-panel-header">
-    <h3 class="ari-section-title">Recent & Saved</h3>
-    <p class="ari-section-subtitle">History and favorites stay tucked away until you need them.</p>
-  </div>
-
-  <div class="ari-form">
-    <button class="ari-secondary-action" type="button" onclick="toggleHistory()">History</button>
-    <button class="ari-secondary-action" type="button" onclick="toggleFavorites()">Favorites</button>
-    <button class="ari-secondary-action" type="button" onclick="repeatPreviousWindow()">Repeat Previous Reset Window</button>
-
-    <div id="historySection" class="history-section">
-      <div id="historyItems"></div>
-    </div>
-
-    <div id="favoritesSection" class="favorites-section">
-      <div id="favoriteItems"></div>
-    </div>
-  </div>
 </section>
 
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="supabase-config.js?v=10"></script>
+<script src="supabase-config.js"></script>
+
 <script src="js/auth.js"></script>
 
-<!-- Full Ari Rebirth runtime entry point -->
-<script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
+<script src="ari/ari-rebirth-app-bridge.js"></script>
 
-<!-- Shared CalBuddy brain used by the homepage -->
-<script src="calbuddy-core.js?v=3.6.1"></script>
+<script src="calbuddy-core.js"></script>
 
-<!-- Nutrition page behavior must load last -->
-<script src="js/nutrition.js?v=3.1.0"></script>
+<script src="js/nutrition.js"></script>
+
 </body>
 </html>
