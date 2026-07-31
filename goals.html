@@ -12,7 +12,7 @@
 
 <link rel="stylesheet" href="assets/css/base.css?v=16">
 <link rel="stylesheet" href="assets/css/animations.css?v=16">
-<link rel="stylesheet" href="assets/css/goals.css?v=1">
+<link rel="stylesheet" href="assets/css/goals.css?v=2">
 
 </head>
 
@@ -350,35 +350,39 @@
       <h3 class="ari-section-title">Daily Nutrition Targets</h3>
     </div>
 
-    <div class="ari-result-grid">
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Strategy</p>
-        <p id="macroStrategySummary" class="ari-stat-value">Balance</p>
+    <div class="ari-stat-card ari-nutrition-targets-card">
+      <div class="ari-nutrition-strategy-row">
+        <div>
+          <p class="ari-stat-label">Strategy</p>
+          <p id="macroStrategySummary" class="ari-stat-value">Balance</p>
+        </div>
       </div>
 
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Protein</p>
-        <p id="proteinTarget" class="ari-stat-value">—</p>
-      </div>
+      <div class="ari-nutrition-target-list">
+        <div class="ari-nutrition-target-row">
+          <p class="ari-stat-label">Protein</p>
+          <p id="proteinTarget" class="ari-stat-value">—</p>
+        </div>
 
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Carbohydrates</p>
-        <p id="carbohydrateTarget" class="ari-stat-value">—</p>
-      </div>
+        <div class="ari-nutrition-target-row">
+          <p class="ari-stat-label">Carbohydrates</p>
+          <p id="carbohydrateTarget" class="ari-stat-value">—</p>
+        </div>
 
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Fat</p>
-        <p id="fatTarget" class="ari-stat-value">—</p>
-      </div>
+        <div class="ari-nutrition-target-row">
+          <p class="ari-stat-label">Fat</p>
+          <p id="fatTarget" class="ari-stat-value">—</p>
+        </div>
 
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Fiber</p>
-        <p id="fiberTarget" class="ari-stat-value">—</p>
-      </div>
+        <div class="ari-nutrition-target-row">
+          <p class="ari-stat-label">Fiber</p>
+          <p id="fiberTarget" class="ari-stat-value">—</p>
+        </div>
 
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Hydration</p>
-        <p id="hydrationTarget" class="ari-stat-value">—</p>
+        <div class="ari-nutrition-target-row">
+          <p class="ari-stat-label">Hydration</p>
+          <p id="hydrationTarget" class="ari-stat-value">—</p>
+        </div>
       </div>
     </div>
   </section>
@@ -433,6 +437,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js?v=8"></script>
 <script src="js/auth.js"></script>
-<script src="js/goals.js?v=2.3.0"></script>
+<script src="js/goals.js?v=2.4.0"></script>
 </body>
 </html>
