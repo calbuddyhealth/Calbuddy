@@ -999,37 +999,31 @@ main#ariNutritionApp > details.ari-panel > summary::-webkit-details-marker {
 }
 
 main#ariNutritionApp > details.ari-panel > summary::after {
-  content: "+";
+  content: "";
 
-  display: grid;
-  place-items: center;
-
-  width: 34px;
-  height: 34px;
+  width: 10px;
+  height: 10px;
   flex: 0 0 auto;
+  margin-right: 5px;
 
-  border: 1px solid var(--nutrition-border);
-  border-radius: 12px;
+  border-right: 2px solid var(--nutrition-lime);
+  border-bottom: 2px solid var(--nutrition-lime);
 
-  background: rgba(126, 255, 177, 0.05);
-  color: var(--nutrition-lime);
+  transform: rotate(45deg);
 
-  font-family: "Orbitron", sans-serif;
-  font-size: 1.15rem;
+  filter:
+    drop-shadow(0 0 5px rgba(157, 255, 115, 0.45));
 
   transition:
-    transform 180ms ease,
-    background 180ms ease,
-    border-color 180ms ease;
+    transform 220ms ease,
+    filter 220ms ease;
 }
 
 main#ariNutritionApp > details.ari-panel[open] > summary::after {
-  content: "−";
+  transform: rotate(225deg);
 
-  transform: rotate(180deg);
-
-  border-color: rgba(157, 255, 115, 0.42);
-  background: rgba(157, 255, 115, 0.09);
+  filter:
+    drop-shadow(0 0 8px rgba(157, 255, 115, 0.7));
 }
 
 main#ariNutritionApp > details.ari-panel[open] > summary {
@@ -1037,7 +1031,8 @@ main#ariNutritionApp > details.ari-panel[open] > summary {
 }
 
 main#ariNutritionApp #todayMealList,
-main#ariNutritionApp #todayNutritionSection .nutrition-summary {
+main#ariNutritionApp #todayNutritionSection .nutrition-summary,
+main#ariNutritionApp #recentMealList {
   position: relative;
   z-index: 1;
 
@@ -1246,6 +1241,8 @@ main#ariNutritionApp #recentMealList {
 
   display: grid;
   gap: 10px;
+
+  padding: 18px 20px 22px;
 }
 
 main#ariNutritionApp .nutrition-recent-meal {
