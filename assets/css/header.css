@@ -1590,7 +1590,8 @@ main#ariNutritionApp .ari-nutrition-header {
    * Give the PNG enough vertical room to display
    * its complete aspect ratio instead of slicing it.
    */
-  min-height: 230px;
+  height: 150px;
+min-height: 150px;
 
   margin:
     -8px
@@ -1917,16 +1918,17 @@ main#ariNutritionApp .ari-nutrition-header .ari-home-btn:active {
 @media (max-width: 390px) {
 
   main#ariNutritionApp .ari-nutrition-header {
-    grid-template-columns:
-      58px
-      minmax(0, 1fr)
-      58px;
+  grid-template-columns:
+    58px
+    minmax(0, 1fr)
+    58px;
 
-    min-height: 210px;
+  height: 150px;
+  min-height: 150px;
 
-    padding-right: 10px;
-    padding-left: 10px;
-  }
+  padding-right: 10px;
+  padding-left: 10px;
+}
 
   main#ariNutritionApp
     .ari-nutrition-header
