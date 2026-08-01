@@ -1624,15 +1624,14 @@ main#ariNutritionApp .ari-nutrition-header::before {
   background-repeat: no-repeat;
 
   /*
-   * CONTAIN is important.
-   * It prevents the console from being cropped.
+   * Make the retro console span the full header width.
+   * Height follows the PNG's natural aspect ratio.
    */
-  background-size: contain;
-  background-position: center;
+  background-size: 100% auto;
+  background-position: center top;
 
   pointer-events: none;
 }
-
 
 /* =====================================================
    LIVE CRT CENTER DISPLAY
