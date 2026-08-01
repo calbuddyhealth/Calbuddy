@@ -1628,7 +1628,7 @@ main#ariNutritionApp .ari-nutrition-header::before {
    * Height follows the PNG's natural aspect ratio.
    */
   background-size: 100% auto;
-  background-position: center -75px;
+  background-position: center -80px;
 
   pointer-events: none;
 }
