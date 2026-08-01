@@ -285,22 +285,72 @@ function setNutritionComposerBusy(isBusy) {
 
   const input = getElement("ariInput");
   const button = getElement("ariSendBtn");
-  const shell = document.querySelector(".ari-input-shell");
+
+  const shell =
+    document.querySelector("#askAriSection .ari-input-shell");
+
+  const sendIcon =
+    button?.querySelector(".ari-send-icon");
+
+  const sendLabel =
+    button?.querySelector(".ari-send-label");
+
+  const transmissionReady =
+    document.querySelector(".ari-transmission-ready");
+
+  const liveIndicator =
+    document.querySelector(".ari-live-indicator span:last-child");
 
   if (input) {
     input.disabled = isBusy;
+
     input.placeholder = isBusy
-      ? "Ari is thinking..."
-      : "Ask Ari about nutrition...";
+      ? "Receiving Ari transmission..."
+      : "Enter your question...";
   }
 
   if (button) {
     button.disabled = isBusy;
-    button.setAttribute("aria-busy", String(isBusy));
-    button.textContent = isBusy ? "\u2026" : "\u27A4";
+
+    button.setAttribute(
+      "aria-busy",
+      String(isBusy)
+    );
+
+    button.setAttribute(
+      "aria-label",
+      isBusy
+        ? "Receiving transmission from Ari"
+        : "Transmit message to Ari"
+    );
   }
 
-  shell?.classList.toggle("thinking", isBusy);
+  if (sendIcon) {
+    sendIcon.textContent =
+      isBusy ? "●" : "▶";
+  }
+
+  if (sendLabel) {
+    sendLabel.textContent =
+      isBusy ? "RECEIVING" : "TRANSMIT";
+  }
+
+  if (transmissionReady) {
+    transmissionReady.textContent =
+      isBusy ? "SIGNAL ACTIVE" : "READY";
+  }
+
+  if (liveIndicator) {
+    liveIndicator.textContent =
+      isBusy
+        ? "RECEIVING SIGNAL"
+        : "NOW BROADCASTING";
+  }
+
+  shell?.classList.toggle(
+    "thinking",
+    isBusy
+  );
 
   if (!isBusy) {
     input?.focus();
