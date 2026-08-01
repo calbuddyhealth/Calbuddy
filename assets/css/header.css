@@ -1322,9 +1322,8 @@ main#ariApp:has(#ariInput:disabled)
 
   main#ariApp .ari-header-v4 .ari-brand-title {
   font-size: 34px;
+  letter-spacing: 0.045em;
 }
-    letter-spacing: 0.045em;
-  }
 
   main#ariApp .ari-header-v4 .ari-brand-subtitle {
     margin-top: 3px;
@@ -1556,5 +1555,368 @@ main#ariApp:has(#ariInput:disabled)
   main#ariApp .ari-header-v4 .ari-menu-toggle span,
   main#ariApp .ari-header-v4 .ari-brand-title {
     transition: none;
+  }
+}
+/* =====================================================
+   NUTRITION RETRO CONSOLE HEADER
+   Scope: #ariNutritionApp only
+
+   Asset:
+   assets/nutrition/nutrition-retro-console.png
+===================================================== */
+
+main#ariNutritionApp .ari-nutrition-header {
+  position: relative;
+  isolation: isolate;
+  z-index: 20;
+
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  align-items: center;
+  gap: 6px;
+
+  width: 100%;
+  min-height: 118px;
+
+  margin: 0 0 20px;
+  padding: 12px 6px;
+
+  overflow: visible;
+
+  background-image:
+    url("../nutrition/nutrition-retro-console.png");
+
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+
+/* =====================================================
+   NUTRITION HEADER BRAND / CRT DISPLAY
+===================================================== */
+
+main#ariNutritionApp .ari-nutrition-header .ari-brand {
+  position: relative;
+  z-index: 2;
+
+  grid-column: 2;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+
+  text-align: center;
+
+  pointer-events: none;
+}
+
+
+/* =====================================================
+   NUTRITION HEADER — ARI
+===================================================== */
+
+main#ariNutritionApp .ari-nutrition-header .ari-brand-title {
+  margin: 0;
+
+  color: #caff9e;
+
+  font-family:
+    "Audiowide",
+    "Orbitron",
+    system-ui,
+    sans-serif;
+
+  font-size: clamp(1.65rem, 7vw, 2.45rem);
+  font-weight: 400;
+  line-height: 0.92;
+  letter-spacing: 0.08em;
+
+  text-shadow:
+    0 0 3px rgba(230, 255, 210, 0.95),
+    0 0 7px rgba(157, 255, 115, 0.90),
+    0 0 15px rgba(53, 232, 140, 0.62),
+    0 0 30px rgba(53, 232, 140, 0.28);
+
+  animation:
+    nutritionCrtPowerOn 900ms ease-out both,
+    nutritionCrtFlicker 8s linear 1.2s infinite;
+}
+
+
+/* =====================================================
+   NUTRITION HEADER — SUBTITLE
+===================================================== */
+
+main#ariNutritionApp .ari-nutrition-header .ari-brand-subtitle {
+  margin: 7px 0 0;
+
+  color: rgba(185, 255, 155, 0.88);
+
+  font-family:
+    "Orbitron",
+    system-ui,
+    sans-serif;
+
+  font-size: clamp(0.42rem, 1.8vw, 0.62rem);
+  font-weight: 800;
+  line-height: 1.2;
+
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  text-shadow:
+    0 0 3px rgba(200, 255, 175, 0.72),
+    0 0 8px rgba(157, 255, 115, 0.55),
+    0 0 16px rgba(53, 232, 140, 0.28);
+
+  opacity: 0.9;
+
+  animation:
+    nutritionCrtPowerOn 1.05s ease-out both,
+    nutritionCrtSubtitlePulse 5.8s ease-in-out 1.2s infinite;
+}
+
+
+/* =====================================================
+   NUTRITION HEADER NAVIGATION
+===================================================== */
+
+main#ariNutritionApp .ari-nutrition-header .ari-back-btn,
+main#ariNutritionApp .ari-nutrition-header .ari-home-btn {
+  position: relative;
+  z-index: 4;
+
+  min-width: 48px;
+  min-height: 44px;
+
+  padding: 0 8px;
+
+  border: 1px solid rgba(157, 255, 115, 0.24);
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(17, 58, 39, 0.86),
+      rgba(3, 20, 14, 0.94)
+    );
+
+  color: #eaffdf;
+
+  font-family:
+    "Orbitron",
+    system-ui,
+    sans-serif;
+
+  font-weight: 700;
+
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  cursor: pointer;
+
+  transition:
+    transform 150ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+main#ariNutritionApp .ari-nutrition-header .ari-back-btn {
+  grid-column: 1;
+  justify-self: start;
+
+  font-size: 1.15rem;
+}
+
+main#ariNutritionApp .ari-nutrition-header .ari-home-btn {
+  grid-column: 3;
+  justify-self: end;
+
+  font-size: 0.6rem;
+}
+
+main#ariNutritionApp .ari-nutrition-header .ari-back-btn:hover,
+main#ariNutritionApp .ari-nutrition-header .ari-home-btn:hover {
+  border-color: rgba(157, 255, 115, 0.55);
+
+  filter: brightness(1.12);
+
+  box-shadow:
+    0 0 16px rgba(157, 255, 115, 0.15),
+    0 8px 20px rgba(0, 0, 0, 0.24);
+}
+
+main#ariNutritionApp .ari-nutrition-header .ari-back-btn:active,
+main#ariNutritionApp .ari-nutrition-header .ari-home-btn:active {
+  transform: scale(0.94);
+}
+
+
+/* =====================================================
+   NUTRITION CRT POWER ON
+===================================================== */
+
+@keyframes nutritionCrtPowerOn {
+  0% {
+    opacity: 0;
+    filter: brightness(3);
+    transform: scaleY(0.05);
+  }
+
+  18% {
+    opacity: 1;
+    filter: brightness(2.2);
+    transform: scaleY(0.08);
+  }
+
+  35% {
+    filter: brightness(1.8);
+    transform: scaleY(1.06);
+  }
+
+  55% {
+    opacity: 0.72;
+    filter: brightness(0.8);
+  }
+
+  72% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+    transform: scaleY(1);
+  }
+}
+
+
+/* =====================================================
+   NUTRITION CRT RANDOM-STYLE FLICKER
+===================================================== */
+
+@keyframes nutritionCrtFlicker {
+  0%,
+  17%,
+  19%,
+  43%,
+  45%,
+  72%,
+  74%,
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+
+  18% {
+    opacity: 0.68;
+    filter: brightness(0.72);
+  }
+
+  44% {
+    opacity: 0.84;
+    filter: brightness(1.35);
+  }
+
+  73% {
+    opacity: 0.52;
+    filter: brightness(0.65);
+  }
+
+  73.4% {
+    opacity: 1;
+    filter: brightness(1.6);
+  }
+}
+
+
+/* =====================================================
+   NUTRITION CRT SUBTITLE PULSE
+===================================================== */
+
+@keyframes nutritionCrtSubtitlePulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    filter: brightness(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.18);
+  }
+}
+
+
+/* =====================================================
+   NUTRITION HEADER — SMALL MOBILE
+===================================================== */
+
+@media (max-width: 390px) {
+  main#ariNutritionApp .ari-nutrition-header {
+    grid-template-columns: 50px minmax(0, 1fr) 50px;
+
+    min-height: 104px;
+
+    gap: 3px;
+    padding-right: 3px;
+    padding-left: 3px;
+  }
+
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-brand-title {
+    font-size: 1.7rem;
+  }
+
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-brand-subtitle {
+    margin-top: 5px;
+
+    font-size: 0.42rem;
+    letter-spacing: 0.09em;
+  }
+
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-back-btn,
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-home-btn {
+    min-width: 44px;
+    min-height: 40px;
+
+    padding: 0 6px;
+  }
+
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-home-btn {
+    font-size: 0.53rem;
+  }
+}
+
+
+/* =====================================================
+   NUTRITION HEADER — REDUCED MOTION
+===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-brand-title,
+  main#ariNutritionApp
+    .ari-nutrition-header
+    .ari-brand-subtitle {
+    animation: none;
   }
 }
