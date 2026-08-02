@@ -327,7 +327,7 @@ function setNutritionComposerBusy(isBusy) {
 
   if (sendIcon) {
     sendIcon.textContent =
-      isBusy ? "●" : "▶";
+      isBusy ? "●" : "◈";
   }
 
   if (sendLabel) {
