@@ -1711,7 +1711,7 @@ main#ariNutritionApp .ari-nutrition-header .ari-brand-subtitle {
     system-ui,
     sans-serif;
 
-  font-size: clamp(0.43rem, 1.8vw, 0.62rem);
+  font-size: clamp(0.56rem, 2.35vw, 0.78rem);
   font-weight: 800;
   line-height: 1;
 
@@ -1934,19 +1934,19 @@ main#ariNutritionApp .ari-nutrition-header .ari-home-btn:active {
 }
 
   main#ariNutritionApp
-    .ari-nutrition-header
-    .ari-brand-title {
-    font-size: 1.8rem;
-  }
+  .ari-nutrition-header
+  .ari-brand-title {
+  font-size: 2.15rem;
+}
 
-  main#ariNutritionApp
-    .ari-nutrition-header
-    .ari-brand-subtitle {
-    margin-top: 5px;
+main#ariNutritionApp
+  .ari-nutrition-header
+  .ari-brand-subtitle {
+  margin-top: 6px;
 
-    font-size: 0.43rem;
-    letter-spacing: 0.09em;
-  }
+  font-size: 0.57rem;
+  letter-spacing: 0.09em;
+}
 
   main#ariNutritionApp
     .ari-nutrition-header
