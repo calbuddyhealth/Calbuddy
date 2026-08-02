@@ -2000,23 +2000,46 @@ main#ariNutritionApp #manualEntrySection {
   border-color:
     rgba(255, 194, 76, 0.31);
 
-  background:
+  /*
+    Layer order:
+    1. Amber atmospheric glow
+    2. Dark readability treatment
+    3. Food photography
+  */
+
+  background-image:
     radial-gradient(
       circle at 50% -15%,
-      rgba(255, 193, 72, 0.085),
-      transparent 35%
+      rgba(255, 193, 72, 0.13),
+      transparent 38%
     ),
     linear-gradient(
-      150deg,
-      rgba(47, 39, 16, 0.93),
-      rgba(11, 18, 10, 0.985) 46%,
-      rgba(4, 11, 7, 0.99)
-    );
+      180deg,
+      rgba(20, 16, 5, 0.38) 0%,
+      rgba(6, 13, 7, 0.62) 45%,
+      rgba(3, 10, 6, 0.88) 100%
+    ),
+    url("../nutrition/nutrition-manual-food-bg.png");
+
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat;
+
+  background-position:
+    center,
+    center,
+    center center;
+
+  background-size:
+    cover,
+    cover,
+    cover;
 
   box-shadow:
     0 20px 45px rgba(0, 0, 0, 0.4),
-    0 0 26px rgba(255, 190, 66, 0.035),
-    inset 0 1px 0 rgba(255, 229, 171, 0.055);
+    0 0 26px rgba(255, 190, 66, 0.055),
+    inset 0 1px 0 rgba(255, 229, 171, 0.075);
 }
 
 
