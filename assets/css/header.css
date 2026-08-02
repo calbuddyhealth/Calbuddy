@@ -1570,7 +1570,7 @@ main#ariApp:has(#ariInput:disabled)
    HEADER CONTAINER
 ===================================================== */
 
-main#ariNutritionApp .ari-nutrition-header {
+main#ariNutritionApp.ari-nutrition-page .ari-nutrition-header {
   position: relative;
   isolation: isolate;
   z-index: 20;
@@ -1604,6 +1604,9 @@ min-height: 165px;
     12px;
 
   overflow: visible;
+  
+  /* Fine tune the complete console */
+  transform: translateX(-5px);
 }
 
 
@@ -1677,7 +1680,7 @@ main#ariNutritionApp .ari-nutrition-header .ari-brand-title {
     system-ui,
     sans-serif;
 
-  font-size: clamp(1.7rem, 7vw, 2.55rem);
+  font-size: clamp(2.05rem, 8.5vw, 3rem);
   font-weight: 400;
   line-height: 0.92;
   letter-spacing: 0.08em;
