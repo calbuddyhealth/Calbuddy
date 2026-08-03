@@ -1,19 +1,18 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodOtherVegetables.js
-// Version: 1.0.0
+// Version: 1.1.0
 //
 // Purpose:
 //   Offline culinary-vegetable reference data that
 //   does not belong in Leafy, Cruciferous, Root,
-//   or Starchy vegetable modules.
+//   Starchy, Pepper, or Dried Chile modules.
 //
 // Collection:
 //   AriFoodVegetables
 //
 // Coverage:
 //   - Tomato + tomatillo
-//   - Green and red bell pepper
 //   - Onion, garlic, scallion, leek
 //   - Cucumber
 //   - Zucchini + spaghetti squash
@@ -46,20 +45,19 @@
 (function initializeAriFoodOtherVegetables(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const MODULE_NAME = "AriFoodOtherVegetables";
   const VERIFIED_AT = "2026-08-03";
 
   const SOURCE_POLICY = Object.freeze(
     {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "verifiedAt": "2026-08-03",
   "runtimeInternetRequired": false,
   "categoryBoundary": {
     "ownedByThisModule": [
       "tomatoes",
       "tomatillos",
-      "bell peppers",
       "onions",
       "garlic",
       "green onions / scallions",
@@ -117,6 +115,30 @@
         "corn",
         "green peas",
         "plantains"
+      ],
+      "peppers": [
+        "green bell pepper",
+        "red bell pepper",
+        "yellow bell pepper",
+        "orange bell pepper",
+        "jalapeno",
+        "poblano",
+        "serrano",
+        "banana / Hungarian wax pepper",
+        "generic hot chiles"
+      ],
+      "driedChiles": [
+        "ancho",
+        "guajillo",
+        "pasilla / chile negro",
+        "chile de arbol",
+        "chipotle",
+        "morita",
+        "cascabel",
+        "puya",
+        "California / Anaheim chile",
+        "New Mexico chile",
+        "mulato"
       ]
     }
   },
@@ -129,9 +151,9 @@
     "Keep raw and cooked states separate when USDA provides materially distinct references.",
     "Do not add oil, butter, cheese, cream, dressing, sauce, broth, breading, salt, or sugar to plain records.",
     "Steamed aliases may map to plain boiled references only when no added fat or sauce is implied.",
-    "Botanical fruits such as tomato, pepper, cucumber, squash, eggplant, and okra remain in the vegetable collection because ARI follows culinary food logging.",
+    "Botanical fruits such as tomato, cucumber, squash, eggplant, and okra remain in this culinary vegetable module because ARI follows real-world food logging.",
     "Mushrooms remain in this module as culinary vegetables while metadata explicitly notes that they are fungi.",
-    "Do not duplicate foods owned by Leafy, Cruciferous, Root, or Starchy vegetable modules.",
+    "Do not duplicate foods owned by Leafy, Cruciferous, Root, Starchy, Pepper, or Dried Chile modules.",
     "No runtime internet connection is required."
   ]
 }
@@ -158,7 +180,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "tomato",
       "tomato",
       "raw"
     ],
@@ -249,7 +270,6 @@
       "vegetable",
       "other-vegetable",
       "tomatillo",
-      "tomatillo",
       "raw"
     ],
     "popularity": 90,
@@ -320,190 +340,6 @@
     }
   },
   {
-    "id": "vegetable-bell-pepper-green-raw",
-    "name": "Green Bell Pepper",
-    "displayName": "Green Bell Pepper â Raw",
-    "category": "vegetable",
-    "state": "raw",
-    "preparation": "raw",
-    "aliases": [
-      "green bell pepper",
-      "green pepper",
-      "bell pepper green",
-      "raw green pepper",
-      "capsicum green"
-    ],
-    "tags": [
-      "vegetable",
-      "other-vegetable",
-      "bell-pepper-green",
-      "pepper",
-      "bell-pepper",
-      "green",
-      "raw"
-    ],
-    "popularity": 100,
-    "nutritionBasis": {
-      "type": "weight",
-      "amount": 100,
-      "unit": "g",
-      "grams": 100
-    },
-    "nutrition": {
-      "calories": 20,
-      "protein": 0.86,
-      "carbs": 4.64,
-      "fat": 0.17,
-      "fiber": 1.7,
-      "sodium": 3,
-      "potassium": 175,
-      "saturatedFat": 0.058
-    },
-    "servings": [
-      {
-        "id": "1-oz",
-        "label": "1 oz",
-        "amount": 1,
-        "unit": "oz",
-        "grams": 28.3495,
-        "isDefault": true
-      },
-      {
-        "id": "100-g",
-        "label": "100 g",
-        "amount": 100,
-        "unit": "g",
-        "grams": 100,
-        "isDefault": false
-      }
-    ],
-    "source": "AriFoodOtherVegetables",
-    "verified": true,
-    "metadata": {
-      "foodFamily": "other-vegetable",
-      "vegetableType": "bell-pepper-green",
-      "dataVerifiedAt": "2026-08-03",
-      "confidence": "high",
-      "referenceBasis": "100 g edible portion",
-      "sourceProvenance": {
-        "provider": "USDA Agricultural Research Service",
-        "database": "FoodData Central",
-        "dataset": "SR Legacy",
-        "sourceDescription": "Peppers, sweet, green, raw",
-        "verifiedAt": "2026-08-03",
-        "release": "April 2018 (final)",
-        "fdcId": 170427
-      },
-      "verifiedNutrients": [
-        "calories",
-        "protein",
-        "carbs",
-        "fat",
-        "fiber",
-        "sodium",
-        "potassium",
-        "saturatedFat"
-      ],
-      "offlineReference": true,
-      "brandSpecific": false,
-      "culinaryClassification": "vegetable",
-      "botanicalNote": "Botanically a fruit; classified here by common culinary use.",
-      "notes": "Plain unbranded culinary vegetable reference. Added oil, butter, dressing, cheese, salt, sauce, broth, breading, sugar, cream, or other recipe ingredients are not included."
-    }
-  },
-  {
-    "id": "vegetable-bell-pepper-red-raw",
-    "name": "Red Bell Pepper",
-    "displayName": "Red Bell Pepper â Raw",
-    "category": "vegetable",
-    "state": "raw",
-    "preparation": "raw",
-    "aliases": [
-      "red bell pepper",
-      "red pepper",
-      "bell pepper red",
-      "raw red pepper",
-      "capsicum red"
-    ],
-    "tags": [
-      "vegetable",
-      "other-vegetable",
-      "bell-pepper-red",
-      "pepper",
-      "bell-pepper",
-      "red",
-      "raw"
-    ],
-    "popularity": 100,
-    "nutritionBasis": {
-      "type": "weight",
-      "amount": 100,
-      "unit": "g",
-      "grams": 100
-    },
-    "nutrition": {
-      "calories": 31,
-      "protein": 0.99,
-      "carbs": 6.03,
-      "fat": 0.3,
-      "fiber": 2.1,
-      "sodium": 4,
-      "potassium": 211,
-      "saturatedFat": 0.027
-    },
-    "servings": [
-      {
-        "id": "1-oz",
-        "label": "1 oz",
-        "amount": 1,
-        "unit": "oz",
-        "grams": 28.3495,
-        "isDefault": true
-      },
-      {
-        "id": "100-g",
-        "label": "100 g",
-        "amount": 100,
-        "unit": "g",
-        "grams": 100,
-        "isDefault": false
-      }
-    ],
-    "source": "AriFoodOtherVegetables",
-    "verified": true,
-    "metadata": {
-      "foodFamily": "other-vegetable",
-      "vegetableType": "bell-pepper-red",
-      "dataVerifiedAt": "2026-08-03",
-      "confidence": "high",
-      "referenceBasis": "100 g edible portion",
-      "sourceProvenance": {
-        "provider": "USDA Agricultural Research Service",
-        "database": "FoodData Central",
-        "dataset": "SR Legacy",
-        "sourceDescription": "Peppers, sweet, red, raw",
-        "verifiedAt": "2026-08-03",
-        "release": "April 2018 (final)",
-        "fdcId": 170429
-      },
-      "verifiedNutrients": [
-        "calories",
-        "protein",
-        "carbs",
-        "fat",
-        "fiber",
-        "sodium",
-        "potassium",
-        "saturatedFat"
-      ],
-      "offlineReference": true,
-      "brandSpecific": false,
-      "culinaryClassification": "vegetable",
-      "botanicalNote": "Botanically a fruit; classified here by common culinary use.",
-      "notes": "Plain unbranded culinary vegetable reference. Added oil, butter, dressing, cheese, salt, sauce, broth, breading, sugar, cream, or other recipe ingredients are not included."
-    }
-  },
-  {
     "id": "vegetable-onion-raw",
     "name": "Onion",
     "displayName": "Onion â Raw",
@@ -521,7 +357,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "onion",
       "onion",
       "allium",
       "raw"
@@ -612,7 +447,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "garlic",
       "garlic",
       "allium",
       "raw"
@@ -705,7 +539,6 @@
       "vegetable",
       "other-vegetable",
       "green-onion",
-      "green-onion",
       "scallion",
       "allium",
       "raw"
@@ -795,7 +628,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "leek",
       "leek",
       "allium",
       "raw"
@@ -887,7 +719,6 @@
       "vegetable",
       "other-vegetable",
       "cucumber",
-      "cucumber",
       "raw",
       "with-peel"
     ],
@@ -977,7 +808,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "zucchini",
       "zucchini",
       "summer-squash",
       "raw"
@@ -1149,7 +979,6 @@
       "vegetable",
       "other-vegetable",
       "eggplant",
-      "eggplant",
       "aubergine",
       "raw"
     ],
@@ -1239,7 +1068,6 @@
       "vegetable",
       "other-vegetable",
       "asparagus",
-      "asparagus",
       "green",
       "raw"
     ],
@@ -1328,7 +1156,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "asparagus",
       "asparagus",
       "cooked",
       "boiled",
@@ -1420,7 +1247,6 @@
       "vegetable",
       "other-vegetable",
       "celery",
-      "celery",
       "raw"
     ],
     "popularity": 99,
@@ -1510,7 +1336,6 @@
       "vegetable",
       "other-vegetable",
       "green-beans",
-      "green-beans",
       "string-beans",
       "raw"
     ],
@@ -1599,7 +1424,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "green-beans",
       "green-beans",
       "string-beans",
       "cooked",
@@ -1692,7 +1516,6 @@
       "vegetable",
       "other-vegetable",
       "okra",
-      "okra",
       "raw"
     ],
     "popularity": 91,
@@ -1779,7 +1602,6 @@
     "tags": [
       "vegetable",
       "other-vegetable",
-      "okra",
       "okra",
       "cooked",
       "boiled",
@@ -2136,7 +1958,6 @@
       "vegetable",
       "other-vegetable",
       "fennel",
-      "fennel",
       "fennel-bulb",
       "raw"
     ],
@@ -2321,7 +2142,6 @@
       groups: [
         "tomato",
         "tomatillo",
-        "bell-pepper",
         "onion",
         "garlic",
         "green-onion",
