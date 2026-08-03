@@ -1,7 +1,7 @@
 // =====================================================
-// ARI REBIRTH 
+// ARI REBIRTH
 // File: AriFoodGrains.js
-// Version: 1.0.0
+// Version: 1.1.0
 //
 // Purpose:
 //   Collection controller for ARI Nutrition grain
@@ -16,8 +16,10 @@
 //   ├── AriFoodPasta
 //   ├── AriFoodBread
 //   ├── AriFoodOats
-//   ├── AriFoodCereals
-//   └── AriFoodOtherGrains
+//   ├── AriFoodOtherGrains
+//   ├── AriFoodCerealBrands
+//   ├── AriFoodCerealBrands2
+//   └── AriFoodOatBrands
 //
 // Responsibilities:
 //   - Define the expected grain-data modules.
@@ -39,7 +41,7 @@
 (function initializeAriFoodGrains(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const COLLECTION_ID = "grains";
   const COLLECTION_NAME = "AriFoodGrains";
 
@@ -48,8 +50,10 @@
     "AriFoodPasta",
     "AriFoodBread",
     "AriFoodOats",
-    "AriFoodCereals",
-    "AriFoodOtherGrains"
+    "AriFoodOtherGrains",
+    "AriFoodCerealBrands",
+    "AriFoodCerealBrands2",
+    "AriFoodOatBrands"
   ]);
 
   const moduleState = new Map();
@@ -461,6 +465,31 @@
     );
   }
 
+  function resetAllModules() {
+    for (const moduleName of EXPECTED_MODULES) {
+      moduleState.set(
+        moduleName,
+        createInitialModuleState(
+          moduleName
+        )
+      );
+    }
+
+    readyEventEmitted = false;
+
+    dispatch(
+      "ari:food-grains-reset",
+      {
+        version: VERSION,
+        collectionId: COLLECTION_ID,
+        collectionName: COLLECTION_NAME,
+        status: getStatus()
+      }
+    );
+
+    return getStatus();
+  }
+
   function getRegistryCoverage() {
     const registry =
       global.AriFoodRegistry;
@@ -529,12 +558,33 @@
     };
   }
 
+  function getRegistryCoverageMap() {
+    const coverage =
+      getRegistryCoverage();
+
+    if (!coverage.available) {
+      return null;
+    }
+
+    return Object.fromEntries(
+      coverage.modules.map(
+        entry => [
+          entry.module,
+          entry.count
+        ]
+      )
+    );
+  }
+
   function healthCheck() {
     const status =
       getStatus();
 
     const failedModules =
       getFailedModules();
+
+    const pendingModules =
+      getPendingModules();
 
     const registryCoverage =
       getRegistryCoverage();
@@ -572,6 +622,32 @@
       );
     }
 
+    if (
+      status.ready &&
+      registryCoverage.available
+    ) {
+      const emptyLoadedModules =
+        registryCoverage.modules.filter(
+          entry => {
+            const module =
+              moduleState.get(
+                entry.module
+              );
+
+            return (
+              module?.status === "loaded" &&
+              entry.count === 0
+            );
+          }
+        );
+
+      if (emptyLoadedModules.length > 0) {
+        issues.push(
+          `${emptyLoadedModules.length} loaded grain module(s) have zero visible registry records.`
+        );
+      }
+    }
+
     return {
       ok:
         issues.length === 0,
@@ -580,6 +656,16 @@
         status.ready,
 
       status,
+
+      pendingModules:
+        pendingModules.map(
+          module => module.name
+        ),
+
+      failedModules:
+        failedModules.map(
+          module => module.name
+        ),
 
       registryCoverage,
 
@@ -612,6 +698,9 @@
       registryCoverage:
         getRegistryCoverage(),
 
+      registryCoverageMap:
+        getRegistryCoverageMap(),
+
       health:
         healthCheck()
     };
@@ -634,7 +723,9 @@
 
       markModuleLoaded,
       markModuleFailed,
+
       resetModule,
+      resetAllModules,
 
       getModule,
       getModules,
@@ -649,6 +740,7 @@
       isReady,
 
       getRegistryCoverage,
+      getRegistryCoverageMap,
 
       healthCheck,
       getDiagnostics
@@ -660,10 +752,13 @@
       version: VERSION,
       collectionId: COLLECTION_ID,
       collectionName: COLLECTION_NAME,
+
       expectedModules: [
         ...EXPECTED_MODULES
       ],
-      status: getStatus()
+
+      status:
+        getStatus()
     }
   );
 
