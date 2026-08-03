@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodVegetables.js
-// Version: 1.0.0
+// Version: 1.1.0
 //
 // Purpose:
 //   Collection controller for ARI Nutrition vegetable
@@ -16,7 +16,9 @@
 //   ├── AriFoodCruciferousVegetables
 //   ├── AriFoodRootVegetables
 //   ├── AriFoodStarchyVegetables
-//   └── AriFoodOtherVegetables
+//   ├── AriFoodOtherVegetables
+//   ├── AriFoodPeppers
+//   └── AriFoodDriedChiles
 //
 // Responsibilities:
 //   - Define the expected vegetable-data modules.
@@ -38,7 +40,7 @@
 (function initializeAriFoodVegetables(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const COLLECTION_ID = "vegetables";
   const COLLECTION_NAME = "AriFoodVegetables";
 
@@ -47,7 +49,9 @@
     "AriFoodCruciferousVegetables",
     "AriFoodRootVegetables",
     "AriFoodStarchyVegetables",
-    "AriFoodOtherVegetables"
+    "AriFoodOtherVegetables",
+    "AriFoodPeppers",
+    "AriFoodDriedChiles"
   ]);
 
   const moduleState = new Map();
