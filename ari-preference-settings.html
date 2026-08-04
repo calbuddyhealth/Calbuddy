@@ -56,19 +56,24 @@
     <!--
     ============================================================
     ARI COMMUNICATION PREFERENCES
-    Version: 5.0.0
+    Version: 5.1.0
 
     Purpose:
     Allow the user to personalize how Ari communicates.
+
+    HTML AUTHORITY:
+    This page is the canonical user-facing definition of the
+    communication preferences exposed in Personalize Ari.
 
     Scope:
     - Tone
     - Directness
     - Humor
     - Language
+    - Explanation type
     - Response length
 
-    These preferences affect expression only.
+    These preferences affect expression and presentation only.
 
     They must not alter:
     - Reasoning
@@ -79,11 +84,29 @@
     - Memory retrieval
     - Topic access
 
+    Preference architecture:
+
+    ari-preference-settings.html
+             ↓
+    js/ari-preference-settings-controller.js
+             ↓
+    Ari User Preference Contract
+             ↓
+    Ari User Preference Store
+             ↓
+    Supabase
+             ↓
+    Ari Preference Resolver
+             ↓
+    Ari Preference Runtime
+
     Canonical behavior remains owned by:
     - Ari User Preference Contract
     - Ari User Preference Store
     - Ari Preference Resolver
     - Ari Preference Runtime
+
+    Page behavior remains owned by:
     - Ari Preference Settings Controller
     ============================================================
     -->
@@ -233,6 +256,8 @@
                 name="language.tone"
                 value="natural"
                 data-path="language.tone"
+                data-default="true"
+                checked
               />
 
               <span class="ari-preference-option__content">
@@ -321,6 +346,8 @@
                 name="language.directness"
                 value="balanced"
                 data-path="language.directness"
+                data-default="true"
+                checked
               />
 
               <span class="ari-preference-option__content">
@@ -409,6 +436,8 @@
                 name="language.humor"
                 value="occasional"
                 data-path="language.humor"
+                data-default="true"
+                checked
               />
 
               <span class="ari-preference-option__content">
@@ -478,6 +507,8 @@
                 name="language.profanity"
                 value="default"
                 data-path="language.profanity"
+                data-default="true"
+                checked
               />
 
               <span class="ari-preference-option__content">
@@ -532,7 +563,97 @@
         </fieldset>
 
         <!-- =================================================
-             5. RESPONSE LENGTH
+             5. EXPLANATION TYPE
+        ================================================== -->
+
+        <fieldset
+          class="ari-preference-panel ari-preference-choice-group"
+          data-preference-group="language.complexity"
+        >
+          <legend class="ari-preference-panel__heading">
+            <span>
+              <span class="ari-preference-panel__kicker">
+                UNDERSTANDING
+              </span>
+
+              <span class="ari-preference-panel__title">
+                Explanation Type
+              </span>
+
+              <span class="ari-preference-panel__description">
+                Choose how simple or advanced Ari's explanations should be.
+              </span>
+            </span>
+          </legend>
+
+          <div
+            class="ari-preference-options"
+            role="radiogroup"
+            aria-label="Explanation Type"
+          >
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.complexity"
+                value="simple"
+                data-path="language.complexity"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Simple
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Use plain language and explain unfamiliar terms.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.complexity"
+                value="balanced"
+                data-path="language.complexity"
+                data-default="true"
+                checked
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Balanced
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Keep explanations clear while using normal terminology.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.complexity"
+                value="advanced"
+                data-path="language.complexity"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Advanced
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Use more technical language with less basic explanation.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- =================================================
+             6. RESPONSE LENGTH
         ================================================== -->
 
         <fieldset
@@ -585,6 +706,8 @@
                 name="language.detail"
                 value="balanced"
                 data-path="language.detail"
+                data-default="true"
+                checked
               />
 
               <span class="ari-preference-option__content">
@@ -625,6 +748,7 @@
 
         <p class="ari-preference-settings__scope-note">
           <strong>These preferences affect expression only.</strong>
+          They change how Ari communicates and explains information.
           They do not change Ari's reasoning, factual conclusions,
           safety decisions, available tools, memory retrieval, or
           the subjects Ari can discuss.
@@ -668,14 +792,17 @@
   <!-- =======================================================
        CANONICAL PREFERENCE DEPENDENCY ORDER
 
-       Versions remain unchanged until each corresponding file is
-       reviewed and updated.
+       HTML defines the user-facing preference experience.
+       The page controller implements the HTML.
+       Deeper Ari modules validate, persist, resolve, and apply it.
   ======================================================== -->
 
   <script src="ari/profile/ari-user-preference-contract.js?v=2.1.0"></script>
   <script src="ari/profile/ari-user-preference-store.js?v=1.0.0"></script>
   <script src="ari/profile/ari-preference-resolver.js?v=2.0.0"></script>
   <script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>
-  <script src="ari/settings/ari-preference-settings-controller.js?v=1.1.0"></script>
+
+  <!-- Page-specific controller -->
+  <script src="js/ari-preference-settings-controller.js?v=3.0.0"></script>
 </body>
 </html>
