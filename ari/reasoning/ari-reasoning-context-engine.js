@@ -370,6 +370,9 @@ if (
       input.semanticFrame
     ) ||
     this.isPlainObject(
+  input.preferenceContext
+) ||
+    this.isPlainObject(
       input.operationContract
     ) ||
     this.isPlainObject(
@@ -2136,36 +2139,45 @@ selectPreferenceContext(
       preferenceContext
     );
 
+  const behavioralPreferenceContext =
+    preferenceContextPresent &&
+    (
+      preferenceContext
+        .executeSelectedCommunicationStyle ===
+        true ||
+
+      preferenceContext
+        .selectedStyleMustBeObservable ===
+        true ||
+
+      preferenceContext
+        .executionMode ===
+        "behavioral" ||
+
+      this.nonEmptyString(
+        preferenceContext
+          .instructionText
+      )
+    );
+
   const suppliedAuthority =
     this.pickFields(
       request.authority,
       [
         "communicationPreferencesAreBindingWithinSafety",
-
         "communicationPreferencesAreBindingWithinStyleScope",
-
         "communicationPreferencesAreAdvisory",
-
         "selectedCommunicationBehaviorShouldBeExecuted",
-
         "preserveCommunicationInstructionStrength",
-
         "mayPlanResponse",
-
         "mayDraftResponse",
-
         "mustProduceDraftResponse",
-
         "draftResponseIsAuthoritative"
       ]
     );
 
   return {
     ...suppliedAuthority,
-
-    // =================================================
-    // DETERMINISTIC AUTHORITY
-    // =================================================
 
     safetyIsBinding:
       true,
@@ -2185,45 +2197,27 @@ selectPreferenceContext(
     stylePreferencesAreNotSafetyRules:
       true,
 
-    // =================================================
-    // V3 COMMUNICATION AUTHORITY
-    // =================================================
-
     communicationPreferencesPresent:
       preferenceContextPresent,
 
-    /*
-     * Communication settings are binding only within
-     * communication / presentation scope.
-     */
     communicationPreferencesAreBindingWithinStyleScope:
-      preferenceContextPresent,
+      behavioralPreferenceContext,
 
-    /*
-     * Compatibility alias for existing downstream code.
-     *
-     * "Within safety" means they remain subordinate to
-     * deterministic safety, not that they are optional.
-     */
     communicationPreferencesAreBindingWithinSafety:
-      preferenceContextPresent,
+      behavioralPreferenceContext,
 
     communicationPreferencesAreAdvisory:
       preferenceContextPresent
-        ? false
+        ? !behavioralPreferenceContext
         : undefined,
 
     selectedCommunicationBehaviorShouldBeExecuted:
-      preferenceContextPresent
-        ? (
-            preferenceContext
-              .executeSelectedCommunicationStyle !==
-              false
-          )
+      behavioralPreferenceContext
+        ? true
         : undefined,
 
     selectedStyleMustBeObservable:
-      preferenceContextPresent
+      behavioralPreferenceContext
         ? (
             preferenceContext
               .selectedStyleMustBeObservable ===
@@ -2232,22 +2226,18 @@ selectPreferenceContext(
         : undefined,
 
     preserveCommunicationInstructionStrength:
-      preferenceContextPresent
+      behavioralPreferenceContext
         ? (
             preferenceContext
-              .preserveInstructionStrength !==
-            false
+              .preserveInstructionStrength ===
+            true
           )
         : undefined,
 
     mayRewriteCommunicationBehaviorAsPermission:
-      preferenceContextPresent
+      behavioralPreferenceContext
         ? false
         : undefined,
-
-    // =================================================
-    // RESPONSE AUTHORITY
-    // =================================================
 
     mayPlanResponse:
       true,
@@ -2260,10 +2250,6 @@ selectPreferenceContext(
 
     draftResponseIsAuthoritative:
       true,
-
-    // =================================================
-    // PROHIBITED AUTHORITY
-    // =================================================
 
     mayExecuteActions:
       false,
