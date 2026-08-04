@@ -348,7 +348,10 @@ async function sendAriMessage() {
 
   input.value = "";
 
-  autoResizeNutritionInput();
+input.blur();
+dismissNutritionKeyboard();
+
+autoResizeNutritionInput();
 
   addConversationMessage(
     message,
@@ -622,12 +625,7 @@ function setNutritionComposerBusy(
     "thinking",
     isBusy
   );
-
-  if (!isBusy) {
-    input?.focus();
-  }
 }
-
 
 function autoResizeNutritionInput() {
   const input =
@@ -1452,6 +1450,9 @@ function selectManualDatabaseFood(
       canonicalFood.name ||
       "";
   }
+
+nameInput?.blur();
+dismissNutritionKeyboard();
 
   closeManualFoodSearchResults();
 
@@ -2397,7 +2398,9 @@ async function saveManualMeal() {
 
     clearManualMealForm();
 
-    updateManualFormMode();
+dismissNutritionKeyboard();
+
+updateManualFormMode();
 
     showNutritionNotice(
       saveResult.savedToCloud
@@ -4670,6 +4673,7 @@ function getElement(
 }
 
 
+
 function toNumber(
   value,
   fallback = 0
@@ -5139,7 +5143,30 @@ function formatFoodToken(
     )
     .join(" ");
 }
+// =====================================================
+// MOBILE KEYBOARD
+// =====================================================
 
+function dismissNutritionKeyboard() {
+  const activeElement =
+    document.activeElement;
+
+  if (!activeElement) {
+    return;
+  }
+
+  const tagName =
+    activeElement.tagName
+      ?.toLowerCase();
+
+  if (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select"
+  ) {
+    activeElement.blur();
+  }
+}
 
 // =====================================================
 // PUBLIC DIAGNOSTIC SURFACE
