@@ -1,13 +1,17 @@
 // =====================================================
 // ARI REBIRTH
 // File: nutrition.js
-// Version: 4.1.0
+// Version: 4.2.0
 // Purpose:
 //   Functional controller for the Nutrition page.
 //
 // Features:
 //   - Ask Ari conversation using CalBuddy.askAri()
-//   - Manual meal entry
+//   - ARI food database search for manual meal entry
+//   - Food autocomplete using AriFoodSearch
+//   - Serving/unit selection using AriFoodCalculator
+//   - Automatic calorie/macronutrient calculation
+//   - Manual/custom-food fallback when no database food is selected
 //   - User-selectable meal date and time
 //   - Edit existing meals from Today's Meals
 //   - Supabase meal saving/updating with local fallback
@@ -16,67 +20,146 @@
 //   - Recent meals
 //   - User-configured nutrition reset window
 //
+// Food architecture:
+//
+//   ARI Food Data Modules
+//          ↓
+//   AriFoodRegistry
+//          ↓
+//   AriFoodSearch
+//          ↓
+//   AriFoodCalculator
+//          ↓
+//   nutrition.js
+//          ↓
+//   Nutrition Manual Entry
+//
+// Manual-entry modes:
+//
+//   DATABASE MODE
+//     Search → select food → choose amount/serving →
+//     calculate nutrition automatically.
+//
+//   CUSTOM MODE
+//     Type any food name and manually enter calories/macros.
+//
 // Removed by design:
 //   - USDA search
 //   - Keyword-based meal estimation
 //   - Favorites
 //   - Repeat meal
 //   - Micronutrient summaries
+//   - AI-driven automatic meal logging
+// =====================================================
+
+
+// =====================================================
+// STATE
 // =====================================================
 
 const nutritionState = {
   chatHistory: [],
+
   mealsToday: [],
   recentMeals: [],
+
   totals: {
     calories: 0,
     protein: 0,
     carbs: 0,
     fat: 0
   },
+
   ariBusy: false,
   savingMeal: false,
   editingMeal: null,
+
   currentUser: null,
-  currentWindow: null
+  currentWindow: null,
+
+  // -----------------------------------------------------
+  // Manual food database state
+  // -----------------------------------------------------
+
+  selectedFood: null,
+  foodSearchResults: [],
+  foodSearchActiveIndex: -1,
+  selectedMeasurement: null,
+  foodCalculation: null,
+
+  foodSystem: {
+    registryReady: false,
+    searchReady: false,
+    calculatorReady: false,
+    foodCount: 0
+  }
 };
 
-const NUTRITION_LOCAL_MEALS_KEY = "calbuddyMeals";
-const NUTRITION_CHAT_HISTORY_LIMIT = 10;
-const NUTRITION_RECENT_MEAL_LIMIT = 12;
+
+const NUTRITION_LOCAL_MEALS_KEY =
+  "calbuddyMeals";
+
+const NUTRITION_CHAT_HISTORY_LIMIT =
+  10;
+
+const NUTRITION_RECENT_MEAL_LIMIT =
+  12;
+
+const NUTRITION_FOOD_SEARCH_LIMIT =
+  8;
+
+const NUTRITION_FOOD_SEARCH_DEBOUNCE_MS =
+  120;
+
+let nutritionFoodSearchTimer = null;
+
 
 // =====================================================
 // INITIALIZATION
 // =====================================================
 
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    bindNutritionNavigation();
-    bindNutritionComposer();
-    bindManualMealEntry();
+document.addEventListener(
+  "DOMContentLoaded",
+  async () => {
+    try {
+      bindNutritionNavigation();
+      bindNutritionComposer();
+      bindManualMealEntry();
 
-    setManualMealDateTimeDefaults();
+      initializeNutritionFoodSystem();
 
-    await setupNutritionAuth();
+      setManualMealDateTimeDefaults();
 
-    nutritionState.currentUser = await getNutritionUser();
-    nutritionState.currentWindow = await getNutritionWindow();
+      await setupNutritionAuth();
 
-    await refreshNutritionPage();
-  } catch (error) {
-    console.error("[ARI NUTRITION INIT ERROR]", error);
+      nutritionState.currentUser =
+        await getNutritionUser();
 
-    showNutritionNotice(
-      error?.message || "The Nutrition page could not finish loading.",
-      "error"
-    );
+      nutritionState.currentWindow =
+        await getNutritionWindow();
+
+      await refreshNutritionPage();
+    } catch (error) {
+      console.error(
+        "[ARI NUTRITION INIT ERROR]",
+        error
+      );
+
+      showNutritionNotice(
+        error?.message ||
+          "The Nutrition page could not finish loading.",
+        "error"
+      );
+    }
   }
-});
+);
+
 
 async function refreshNutritionPage() {
   await loadTodayMeals();
   await loadRecentMeals();
 }
+
 
 // =====================================================
 // NAVIGATION
@@ -87,49 +170,74 @@ function bindNutritionNavigation() {
   window.goHome = goHome;
 }
 
+
 function goBack() {
   if (window.history.length > 1) {
     window.history.back();
     return;
   }
 
-  window.location.replace("home.html");
+  window.location.replace(
+    "home.html"
+  );
 }
 
+
 function goHome() {
-  window.location.replace("home.html");
+  window.location.replace(
+    "home.html"
+  );
 }
+
 
 // =====================================================
 // AUTHENTICATION
 // =====================================================
 
 async function setupNutritionAuth() {
-  if (typeof window.requireAuth === "function") {
+  if (
+    typeof window.requireAuth ===
+    "function"
+  ) {
     await window.requireAuth();
     return;
   }
 
-  if (!window.calbuddySupabase) return;
+  if (!window.calbuddySupabase) {
+    return;
+  }
 
-  const { data, error } =
-    await window.calbuddySupabase.auth.getSession();
+  const {
+    data,
+    error
+  } =
+    await window
+      .calbuddySupabase
+      .auth
+      .getSession();
 
   if (error) {
     console.warn(
       "Nutrition auth session lookup failed:",
       error.message
     );
+
     return;
   }
 
   if (!data?.session) {
-    window.location.replace("signin.html");
+    window.location.replace(
+      "signin.html"
+    );
   }
 }
 
+
 async function getNutritionUser() {
-  if (typeof window.getCurrentUser === "function") {
+  if (
+    typeof window.getCurrentUser ===
+    "function"
+  ) {
     try {
       return await window.getCurrentUser();
     } catch (error) {
@@ -140,25 +248,47 @@ async function getNutritionUser() {
     }
   }
 
-  if (!window.calbuddySupabase) return null;
+  if (!window.calbuddySupabase) {
+    return null;
+  }
 
-  const { data, error } =
-    await window.calbuddySupabase.auth.getSession();
+  const {
+    data,
+    error
+  } =
+    await window
+      .calbuddySupabase
+      .auth
+      .getSession();
 
-  if (error || !data?.session) return null;
+  if (
+    error ||
+    !data?.session
+  ) {
+    return null;
+  }
 
   return data.session.user;
 }
+
 
 // =====================================================
 // ASK ARI COMPOSER
 // =====================================================
 
 function bindNutritionComposer() {
-  const input = getElement("ariInput");
-  const button = getElement("ariSendBtn");
+  const input =
+    getElement("ariInput");
 
-  if (!input || !button) return;
+  const button =
+    getElement("ariSendBtn");
+
+  if (
+    !input ||
+    !button
+  ) {
+    return;
+  }
 
   button.addEventListener(
     "click",
@@ -184,14 +314,25 @@ function bindNutritionComposer() {
   );
 }
 
+
 async function sendAriMessage() {
-  if (nutritionState.ariBusy) return;
+  if (nutritionState.ariBusy) {
+    return;
+  }
 
-  const input = getElement("ariInput");
-  if (!input) return;
+  const input =
+    getElement("ariInput");
 
-  const message = input.value.trim();
-  if (!message) return;
+  if (!input) {
+    return;
+  }
+
+  const message =
+    input.value.trim();
+
+  if (!message) {
+    return;
+  }
 
   if (
     typeof window.CalBuddy?.askAri !==
@@ -201,10 +342,12 @@ async function sendAriMessage() {
       "Ari is not available on this page. Check that calbuddy-core.js and the ARI App Bridge loaded correctly.",
       "ari"
     );
+
     return;
   }
 
   input.value = "";
+
   autoResizeNutritionInput();
 
   addConversationMessage(
@@ -231,23 +374,27 @@ async function sendAriMessage() {
     const result =
       await window.CalBuddy.askAri({
         message,
+
         history:
           nutritionState.chatHistory,
+
         appContext: {
           page: "nutrition",
           currentPage: "nutrition"
         },
+
         debugTiming: true
       });
 
     thinkingMessage?.remove();
 
-    const reply = String(
-      result?.reply ||
-      result?.text ||
-      result?.message ||
-      "I couldn't generate a complete response."
-    ).trim();
+    const reply =
+      String(
+        result?.reply ||
+        result?.text ||
+        result?.message ||
+        "I couldn't generate a complete response."
+      ).trim();
 
     addConversationMessage(
       reply,
@@ -276,6 +423,7 @@ async function sendAriMessage() {
   }
 }
 
+
 function addConversationMessage(
   text,
   sender = "ari"
@@ -283,10 +431,14 @@ function addConversationMessage(
   const thread =
     getElement("ariMessages");
 
-  if (!thread) return null;
+  if (!thread) {
+    return null;
+  }
 
   const message =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   message.className =
     `ari-message ${
@@ -296,7 +448,9 @@ function addConversationMessage(
     }`;
 
   const label =
-    document.createElement("span");
+    document.createElement(
+      "span"
+    );
 
   label.className =
     "ari-message-label";
@@ -307,7 +461,9 @@ function addConversationMessage(
       : "Ari";
 
   const body =
-    document.createElement("p");
+    document.createElement(
+      "p"
+    );
 
   body.textContent =
     String(text || "");
@@ -320,17 +476,22 @@ function addConversationMessage(
     body
   );
 
-  thread.appendChild(message);
+  thread.appendChild(
+    message
+  );
 
-  requestAnimationFrame(() => {
-    message.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest"
-    });
-  });
+  requestAnimationFrame(
+    () => {
+      message.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }
+  );
 
   return message;
 }
+
 
 function addThinkingMessage() {
   const message =
@@ -339,10 +500,14 @@ function addThinkingMessage() {
       "ari"
     );
 
-  if (!message) return null;
+  if (!message) {
+    return null;
+  }
 
   const body =
-    message.querySelector("p");
+    message.querySelector(
+      "p"
+    );
 
   if (body) {
     body.innerHTML = `
@@ -359,6 +524,7 @@ function addThinkingMessage() {
 
   return message;
 }
+
 
 function setNutritionComposerBusy(
   isBusy
@@ -398,7 +564,8 @@ function setNutritionComposerBusy(
     );
 
   if (input) {
-    input.disabled = isBusy;
+    input.disabled =
+      isBusy;
 
     input.placeholder =
       isBusy
@@ -407,7 +574,8 @@ function setNutritionComposerBusy(
   }
 
   if (button) {
-    button.disabled = isBusy;
+    button.disabled =
+      isBusy;
 
     button.setAttribute(
       "aria-busy",
@@ -425,8 +593,8 @@ function setNutritionComposerBusy(
   if (sendIcon) {
     sendIcon.textContent =
       isBusy
-        ? "â"
-        : "â";
+        ? "●"
+        : "◈";
   }
 
   if (sendLabel) {
@@ -460,13 +628,17 @@ function setNutritionComposerBusy(
   }
 }
 
+
 function autoResizeNutritionInput() {
   const input =
     getElement("ariInput");
 
-  if (!input) return;
+  if (!input) {
+    return;
+  }
 
-  input.style.height = "auto";
+  input.style.height =
+    "auto";
 
   input.style.height =
     `${Math.min(
@@ -475,21 +647,1636 @@ function autoResizeNutritionInput() {
     )}px`;
 }
 
+
 // =====================================================
-// MANUAL MEAL ENTRY
+// ARI FOOD SYSTEM
+// =====================================================
+
+function initializeNutritionFoodSystem() {
+  refreshNutritionFoodSystemStatus();
+
+  /*
+   * The page remains fully usable in custom/manual mode
+   * if one of these systems is unavailable.
+   */
+  if (
+    !nutritionState
+      .foodSystem
+      .searchReady ||
+    !nutritionState
+      .foodSystem
+      .calculatorReady
+  ) {
+    setManualFoodSystemStatus(
+      "MANUAL MODE",
+      "offline"
+    );
+
+    return;
+  }
+
+  if (
+    nutritionState
+      .foodSystem
+      .foodCount <= 0
+  ) {
+    setManualFoodSystemStatus(
+      "DATABASE EMPTY",
+      "warning"
+    );
+
+    return;
+  }
+
+  setManualFoodSystemStatus(
+    `${nutritionState.foodSystem.foodCount} FOODS ONLINE`,
+    "ready"
+  );
+}
+
+
+function refreshNutritionFoodSystemStatus() {
+  const registry =
+    window.AriFoodRegistry;
+
+  const search =
+    window.AriFoodSearch;
+
+  const calculator =
+    window.AriFoodCalculator;
+
+  nutritionState.foodSystem = {
+    registryReady:
+      Boolean(
+        registry &&
+        typeof registry.getById ===
+          "function"
+      ),
+
+    searchReady:
+      Boolean(
+        search &&
+        typeof search.suggest ===
+          "function"
+      ),
+
+    calculatorReady:
+      Boolean(
+        calculator &&
+        typeof calculator.calculate ===
+          "function" &&
+        typeof calculator.calculateServing ===
+          "function"
+      ),
+
+    foodCount:
+      typeof registry?.count ===
+      "function"
+        ? registry.count()
+        : 0
+  };
+
+  return {
+    ...nutritionState.foodSystem
+  };
+}
+
+
+function setManualFoodSystemStatus(
+  text,
+  stateName = "ready"
+) {
+  const container =
+    getElement(
+      "manualFoodSystemStatus"
+    );
+
+  const textElement =
+    getElement(
+      "manualFoodSystemStatusText"
+    );
+
+  if (textElement) {
+    textElement.textContent =
+      String(text || "");
+  } else if (container) {
+    const spans =
+      container.querySelectorAll(
+        "span"
+      );
+
+    if (spans.length > 1) {
+      spans[
+        spans.length - 1
+      ].textContent =
+        String(text || "");
+    }
+  }
+
+  if (container) {
+    container.dataset.state =
+      stateName;
+  }
+}
+
+
+// =====================================================
+// MANUAL MEAL ENTRY — BINDING
 // =====================================================
 
 function bindManualMealEntry() {
   const button =
     getElement("saveMealBtn");
 
-  if (!button) return;
+  const nameInput =
+    getElement("mealName");
 
-  button.addEventListener(
-    "click",
-    saveManualMeal
+  const quantityInput =
+    getElement(
+      "mealQuantity"
+    );
+
+  const unitSelect =
+    getElement("mealUnit");
+
+  const clearButton =
+    getElement(
+      "clearSelectedFoodBtn"
+    );
+
+  if (button) {
+    button.addEventListener(
+      "click",
+      saveManualMeal
+    );
+  }
+
+  if (nameInput) {
+    nameInput.addEventListener(
+      "input",
+      handleManualFoodSearchInput
+    );
+
+    nameInput.addEventListener(
+      "keydown",
+      handleManualFoodSearchKeydown
+    );
+
+    nameInput.addEventListener(
+      "focus",
+      () => {
+        if (
+          nameInput.value.trim() &&
+          !nutritionState.selectedFood
+        ) {
+          scheduleManualFoodSearch();
+        }
+      }
+    );
+  }
+
+  if (quantityInput) {
+    quantityInput.addEventListener(
+      "input",
+      calculateSelectedFoodNutrition
+    );
+
+    quantityInput.addEventListener(
+      "change",
+      calculateSelectedFoodNutrition
+    );
+  }
+
+  if (unitSelect) {
+    unitSelect.addEventListener(
+      "change",
+      () => {
+        nutritionState.selectedMeasurement =
+          unitSelect.value ||
+          null;
+
+        calculateSelectedFoodNutrition();
+      }
+    );
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener(
+      "click",
+      () => {
+        clearSelectedDatabaseFood({
+          keepName: false,
+          focusName: true
+        });
+      }
+    );
+  }
+
+  document.addEventListener(
+    "pointerdown",
+    handleFoodSearchOutsidePointer
   );
 }
+
+
+// =====================================================
+// MANUAL FOOD SEARCH
+// =====================================================
+
+function handleManualFoodSearchInput() {
+  const input =
+    getElement("mealName");
+
+  if (!input) {
+    return;
+  }
+
+  /*
+   * If the user edits the text after selecting a database
+   * food, return to custom/search mode. This prevents stale
+   * database nutrition from remaining attached to a new name.
+   */
+  if (nutritionState.selectedFood) {
+    const selectedName =
+      String(
+        nutritionState
+          .selectedFood
+          .displayName ||
+        nutritionState
+          .selectedFood
+          .name ||
+        ""
+      ).trim();
+
+    if (
+      input.value.trim() !==
+      selectedName
+    ) {
+      clearSelectedDatabaseFood({
+        keepName: true,
+        focusName: false
+      });
+    }
+  }
+
+  scheduleManualFoodSearch();
+}
+
+
+function scheduleManualFoodSearch() {
+  window.clearTimeout(
+    nutritionFoodSearchTimer
+  );
+
+  nutritionFoodSearchTimer =
+    window.setTimeout(
+      runManualFoodSearch,
+      NUTRITION_FOOD_SEARCH_DEBOUNCE_MS
+    );
+}
+
+
+function runManualFoodSearch() {
+  const input =
+    getElement("mealName");
+
+  if (!input) {
+    return;
+  }
+
+  const query =
+    input.value.trim();
+
+  if (
+    !query ||
+    nutritionState.selectedFood
+  ) {
+    closeManualFoodSearchResults();
+    return;
+  }
+
+  refreshNutritionFoodSystemStatus();
+
+  if (
+    !nutritionState
+      .foodSystem
+      .searchReady
+  ) {
+    closeManualFoodSearchResults();
+    return;
+  }
+
+  let results = [];
+
+  try {
+    results =
+      window.AriFoodSearch.suggest(
+        query,
+        {
+          limit:
+            NUTRITION_FOOD_SEARCH_LIMIT
+        }
+      );
+  } catch (error) {
+    console.warn(
+      "[ARI NUTRITION FOOD SEARCH ERROR]",
+      error
+    );
+
+    closeManualFoodSearchResults();
+
+    return;
+  }
+
+  nutritionState.foodSearchResults =
+    Array.isArray(results)
+      ? results
+      : [];
+
+  nutritionState.foodSearchActiveIndex =
+    -1;
+
+  renderManualFoodSearchResults();
+}
+
+
+function renderManualFoodSearchResults() {
+  const container =
+    getElement(
+      "mealFoodResults"
+    );
+
+  const input =
+    getElement("mealName");
+
+  if (
+    !container ||
+    !input
+  ) {
+    return;
+  }
+
+  container.replaceChildren();
+
+  const results =
+    nutritionState
+      .foodSearchResults;
+
+  if (!results.length) {
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+    empty.className =
+      "ari-food-search-empty";
+
+    empty.textContent =
+      "No database match. You can still enter this food manually.";
+
+    container.appendChild(
+      empty
+    );
+
+    container.hidden =
+      false;
+
+    input.setAttribute(
+      "aria-expanded",
+      "true"
+    );
+
+    return;
+  }
+
+  results.forEach(
+    (food, index) => {
+      const option =
+        document.createElement(
+          "button"
+        );
+
+      option.type =
+        "button";
+
+      option.className =
+        "ari-food-search-result";
+
+      option.id =
+        `mealFoodResult-${index}`;
+
+      option.setAttribute(
+        "role",
+        "option"
+      );
+
+      option.setAttribute(
+        "aria-selected",
+        "false"
+      );
+
+      option.dataset.index =
+        String(index);
+
+      const primary =
+        document.createElement(
+          "strong"
+        );
+
+      primary.className =
+        "ari-food-search-result-name";
+
+      primary.textContent =
+        food.displayName ||
+        food.name ||
+        "Food";
+
+      const secondary =
+        document.createElement(
+          "span"
+        );
+
+      secondary.className =
+        "ari-food-search-result-meta";
+
+      secondary.textContent =
+        buildFoodSearchResultMeta(
+          food
+        );
+
+      option.append(
+        primary,
+        secondary
+      );
+
+      option.addEventListener(
+        "click",
+        () => {
+          selectManualDatabaseFood(
+            food
+          );
+        }
+      );
+
+      option.addEventListener(
+        "pointerenter",
+        () => {
+          setFoodSearchActiveIndex(
+            index
+          );
+        }
+      );
+
+      container.appendChild(
+        option
+      );
+    }
+  );
+
+  container.hidden = false;
+
+  input.setAttribute(
+    "aria-expanded",
+    "true"
+  );
+}
+
+
+function buildFoodSearchResultMeta(
+  food
+) {
+  const parts = [];
+
+  if (food.brand) {
+    parts.push(
+      food.brand
+    );
+  } else if (food.restaurant) {
+    parts.push(
+      food.restaurant
+    );
+  }
+
+  if (food.category) {
+    parts.push(
+      formatFoodToken(
+        food.category
+      )
+    );
+  }
+
+  if (food.preparation) {
+    parts.push(
+      formatFoodToken(
+        food.preparation
+      )
+    );
+  }
+
+  return parts.join(
+    " • "
+  );
+}
+
+
+function handleManualFoodSearchKeydown(
+  event
+) {
+  const results =
+    nutritionState
+      .foodSearchResults;
+
+  const container =
+    getElement(
+      "mealFoodResults"
+    );
+
+  const isOpen =
+    Boolean(
+      container &&
+      !container.hidden
+    );
+
+  if (
+    event.key === "Escape"
+  ) {
+    closeManualFoodSearchResults();
+    return;
+  }
+
+  if (
+    !isOpen ||
+    !results.length
+  ) {
+    return;
+  }
+
+  if (
+    event.key === "ArrowDown"
+  ) {
+    event.preventDefault();
+
+    const next =
+      nutritionState
+        .foodSearchActiveIndex + 1;
+
+    setFoodSearchActiveIndex(
+      next >= results.length
+        ? 0
+        : next
+    );
+
+    return;
+  }
+
+  if (
+    event.key === "ArrowUp"
+  ) {
+    event.preventDefault();
+
+    const previous =
+      nutritionState
+        .foodSearchActiveIndex - 1;
+
+    setFoodSearchActiveIndex(
+      previous < 0
+        ? results.length - 1
+        : previous
+    );
+
+    return;
+  }
+
+  if (
+    event.key === "Enter" &&
+    nutritionState
+      .foodSearchActiveIndex >= 0
+  ) {
+    event.preventDefault();
+
+    const selected =
+      results[
+        nutritionState
+          .foodSearchActiveIndex
+      ];
+
+    if (selected) {
+      selectManualDatabaseFood(
+        selected
+      );
+    }
+  }
+}
+
+
+function setFoodSearchActiveIndex(
+  index
+) {
+  const container =
+    getElement(
+      "mealFoodResults"
+    );
+
+  const input =
+    getElement("mealName");
+
+  const results =
+    nutritionState
+      .foodSearchResults;
+
+  if (
+    !container ||
+    !results.length
+  ) {
+    nutritionState.foodSearchActiveIndex =
+      -1;
+
+    return;
+  }
+
+  const normalizedIndex =
+    Math.max(
+      0,
+      Math.min(
+        results.length - 1,
+        Number(index) || 0
+      )
+    );
+
+  nutritionState.foodSearchActiveIndex =
+    normalizedIndex;
+
+  const options =
+    container.querySelectorAll(
+      '[role="option"]'
+    );
+
+  options.forEach(
+    (option, optionIndex) => {
+      const active =
+        optionIndex ===
+        normalizedIndex;
+
+      option.classList.toggle(
+        "active",
+        active
+      );
+
+      option.setAttribute(
+        "aria-selected",
+        String(active)
+      );
+
+      if (active) {
+        input?.setAttribute(
+          "aria-activedescendant",
+          option.id
+        );
+
+        option.scrollIntoView({
+          block: "nearest"
+        });
+      }
+    }
+  );
+}
+
+
+function handleFoodSearchOutsidePointer(
+  event
+) {
+  const shell =
+    getElement(
+      "mealFoodSearchShell"
+    );
+
+  if (!shell) {
+    return;
+  }
+
+  if (
+    !shell.contains(
+      event.target
+    )
+  ) {
+    closeManualFoodSearchResults();
+  }
+}
+
+
+function closeManualFoodSearchResults() {
+  const container =
+    getElement(
+      "mealFoodResults"
+    );
+
+  const input =
+    getElement("mealName");
+
+  if (container) {
+    container.hidden =
+      true;
+
+    container.replaceChildren();
+  }
+
+  if (input) {
+    input.setAttribute(
+      "aria-expanded",
+      "false"
+    );
+
+    input.removeAttribute(
+      "aria-activedescendant"
+    );
+  }
+
+  nutritionState.foodSearchResults =
+    [];
+
+  nutritionState.foodSearchActiveIndex =
+    -1;
+}
+
+
+// =====================================================
+// DATABASE FOOD SELECTION
+// =====================================================
+
+function selectManualDatabaseFood(
+  food
+) {
+  if (!food?.id) {
+    return;
+  }
+
+  const registry =
+    window.AriFoodRegistry;
+
+  /*
+   * Re-hydrate from Registry so the selected object is the
+   * canonical calculator-ready food record.
+   */
+  const canonicalFood =
+    typeof registry?.getById ===
+    "function"
+      ? registry.getById(
+          food.id
+        )
+      : food;
+
+  if (!canonicalFood) {
+    showNutritionNotice(
+      "That food could not be loaded from the ARI food registry.",
+      "error"
+    );
+
+    return;
+  }
+
+  nutritionState.selectedFood =
+    canonicalFood;
+
+  nutritionState.foodCalculation =
+    null;
+
+  nutritionState.selectedMeasurement =
+    null;
+
+  const nameInput =
+    getElement("mealName");
+
+  if (nameInput) {
+    nameInput.value =
+      canonicalFood.displayName ||
+      canonicalFood.name ||
+      "";
+  }
+
+  closeManualFoodSearchResults();
+
+  renderSelectedDatabaseFood();
+  populateManualMeasurementOptions();
+  setDatabaseNutritionFieldsLocked(true);
+
+  calculateSelectedFoodNutrition();
+}
+
+
+function renderSelectedDatabaseFood() {
+  const selected =
+    nutritionState
+      .selectedFood;
+
+  const container =
+    getElement(
+      "mealFoodSelection"
+    );
+
+  const name =
+    getElement(
+      "mealSelectedFoodName"
+    );
+
+  const meta =
+    getElement(
+      "mealSelectedFoodMeta"
+    );
+
+  const measurementControls =
+    getElement(
+      "mealMeasurementControls"
+    );
+
+  if (!selected) {
+    if (container) {
+      container.hidden =
+        true;
+    }
+
+    if (measurementControls) {
+      measurementControls.hidden =
+        true;
+    }
+
+    return;
+  }
+
+  if (name) {
+    name.textContent =
+      selected.displayName ||
+      selected.name ||
+      "Selected food";
+  }
+
+  if (meta) {
+    const parts = [];
+
+    if (selected.brand) {
+      parts.push(
+        selected.brand
+      );
+    } else if (
+      selected.restaurant
+    ) {
+      parts.push(
+        selected.restaurant
+      );
+    }
+
+    if (selected.category) {
+      parts.push(
+        formatFoodToken(
+          selected.category
+        )
+      );
+    }
+
+    if (selected.verified) {
+      parts.push(
+        "Verified"
+      );
+    }
+
+    meta.textContent =
+      parts.join(
+        " • "
+      );
+  }
+
+  if (container) {
+    container.hidden =
+      false;
+  }
+
+  if (measurementControls) {
+    measurementControls.hidden =
+      false;
+  }
+}
+
+
+function clearSelectedDatabaseFood(
+  options = {}
+) {
+  const keepName =
+    options.keepName === true;
+
+  const focusName =
+    options.focusName === true;
+
+  nutritionState.selectedFood =
+    null;
+
+  nutritionState.selectedMeasurement =
+    null;
+
+  nutritionState.foodCalculation =
+    null;
+
+  nutritionState.foodSearchResults =
+    [];
+
+  nutritionState.foodSearchActiveIndex =
+    -1;
+
+  const nameInput =
+    getElement("mealName");
+
+  const quantityInput =
+    getElement(
+      "mealQuantity"
+    );
+
+  const unitSelect =
+    getElement("mealUnit");
+
+  const selectedContainer =
+    getElement(
+      "mealFoodSelection"
+    );
+
+  const measurementControls =
+    getElement(
+      "mealMeasurementControls"
+    );
+
+  if (
+    nameInput &&
+    !keepName
+  ) {
+    nameInput.value =
+      "";
+  }
+
+  if (quantityInput) {
+    quantityInput.value =
+      "1";
+  }
+
+  if (unitSelect) {
+    unitSelect.replaceChildren();
+  }
+
+  if (selectedContainer) {
+    selectedContainer.hidden =
+      true;
+  }
+
+  if (measurementControls) {
+    measurementControls.hidden =
+      true;
+  }
+
+  closeManualFoodSearchResults();
+
+  clearMealCalculationStatus();
+  setDatabaseNutritionFieldsLocked(false);
+
+  /*
+   * When explicitly clearing a database selection, clear
+   * its calculated nutrition so stale values are not saved
+   * as a custom entry by accident.
+   */
+  clearNutritionValueFields();
+
+  if (focusName) {
+    window.setTimeout(
+      () => {
+        nameInput?.focus();
+      },
+      0
+    );
+  }
+}
+
+
+// =====================================================
+// SERVING / UNIT OPTIONS
+// =====================================================
+
+function populateManualMeasurementOptions() {
+  const food =
+    nutritionState
+      .selectedFood;
+
+  const select =
+    getElement("mealUnit");
+
+  if (
+    !food ||
+    !select
+  ) {
+    return;
+  }
+
+  select.replaceChildren();
+
+  const calculator =
+    window.AriFoodCalculator;
+
+  const servings =
+    typeof calculator
+      ?.getAvailableServings ===
+      "function"
+      ? calculator
+          .getAvailableServings(
+            food.id
+          )
+      : [];
+
+  const units =
+    typeof calculator
+      ?.getAvailableUnits ===
+      "function"
+      ? calculator
+          .getAvailableUnits(
+            food.id
+          )
+      : [];
+
+  const normalizedServings =
+    Array.isArray(servings)
+      ? servings
+      : [];
+
+  const normalizedUnits =
+    Array.isArray(units)
+      ? units
+      : [];
+
+  let defaultValue = "";
+
+  // -----------------------------------------------------
+  // Convenience servings
+  // -----------------------------------------------------
+
+  if (
+    normalizedServings.length
+  ) {
+    const servingGroup =
+      document.createElement(
+        "optgroup"
+      );
+
+    servingGroup.label =
+      "Common Servings";
+
+    normalizedServings
+      .forEach(
+        (serving) => {
+          if (!serving?.id) {
+            return;
+          }
+
+          const option =
+            document.createElement(
+              "option"
+            );
+
+          option.value =
+            `serving:${serving.id}`;
+
+          option.textContent =
+            serving.label ||
+            `${serving.amount || 1} ${serving.unit || "serving"}`;
+
+          servingGroup.appendChild(
+            option
+          );
+
+          if (
+            !defaultValue ||
+            serving.isDefault === true
+          ) {
+            if (
+              serving.isDefault ===
+              true
+            ) {
+              defaultValue =
+                option.value;
+            } else if (
+              !defaultValue
+            ) {
+              defaultValue =
+                option.value;
+            }
+          }
+        }
+      );
+
+    if (
+      servingGroup.children.length
+    ) {
+      select.appendChild(
+        servingGroup
+      );
+    }
+  }
+
+  // -----------------------------------------------------
+  // Direct measurement units
+  // -----------------------------------------------------
+
+  const directUnits =
+    normalizedUnits.filter(
+      Boolean
+    );
+
+  if (directUnits.length) {
+    const unitGroup =
+      document.createElement(
+        "optgroup"
+      );
+
+    unitGroup.label =
+      "Measure By";
+
+    directUnits.forEach(
+      (unit) => {
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value =
+          `unit:${unit}`;
+
+        option.textContent =
+          formatMeasurementUnit(
+            unit
+          );
+
+        unitGroup.appendChild(
+          option
+        );
+
+        if (!defaultValue) {
+          defaultValue =
+            option.value;
+        }
+      }
+    );
+
+    select.appendChild(
+      unitGroup
+    );
+  }
+
+  if (!select.options.length) {
+    const option =
+      document.createElement(
+        "option"
+      );
+
+    option.value = "";
+
+    option.textContent =
+      "No supported serving";
+
+    option.disabled = true;
+
+    option.selected = true;
+
+    select.appendChild(
+      option
+    );
+
+    nutritionState.selectedMeasurement =
+      null;
+
+    return;
+  }
+
+  select.value =
+    defaultValue ||
+    select.options[0].value;
+
+  nutritionState.selectedMeasurement =
+    select.value;
+}
+
+
+function parseMeasurementSelection(
+  value
+) {
+  const raw =
+    String(value || "");
+
+  const separatorIndex =
+    raw.indexOf(":");
+
+  if (separatorIndex === -1) {
+    return {
+      type: null,
+      value: ""
+    };
+  }
+
+  return {
+    type:
+      raw.slice(
+        0,
+        separatorIndex
+      ),
+
+    value:
+      raw.slice(
+        separatorIndex + 1
+      )
+  };
+}
+
+
+function formatMeasurementUnit(
+  unit
+) {
+  const labels = {
+    g: "grams (g)",
+    kg: "kilograms (kg)",
+    oz: "ounces (oz)",
+    lb: "pounds (lb)",
+
+    ml: "milliliters (mL)",
+    l: "liters (L)",
+    tsp: "teaspoons (tsp)",
+    tbsp: "tablespoons (tbsp)",
+    "fl-oz": "fluid ounces (fl oz)",
+    cup: "cups",
+    pint: "pints",
+    quart: "quarts",
+    gallon: "gallons",
+
+    serving: "servings"
+  };
+
+  return (
+    labels[unit] ||
+    formatFoodToken(unit)
+  );
+}
+
+
+// =====================================================
+// FOOD CALCULATION
+// =====================================================
+
+function calculateSelectedFoodNutrition() {
+  const food =
+    nutritionState
+      .selectedFood;
+
+  if (!food) {
+    return null;
+  }
+
+  const calculator =
+    window.AriFoodCalculator;
+
+  if (
+    !calculator ||
+    typeof calculator.calculate !==
+      "function"
+  ) {
+    setMealCalculationStatus(
+      "ARI food calculator is unavailable. You can clear the database selection and enter nutrition manually.",
+      "error"
+    );
+
+    nutritionState.foodCalculation =
+      null;
+
+    return null;
+  }
+
+  const quantityInput =
+    getElement(
+      "mealQuantity"
+    );
+
+  const unitSelect =
+    getElement("mealUnit");
+
+  const quantity =
+    Number(
+      quantityInput?.value
+    );
+
+  if (
+    !Number.isFinite(quantity) ||
+    quantity <= 0
+  ) {
+    nutritionState.foodCalculation =
+      null;
+
+    clearNutritionValueFields();
+
+    setMealCalculationStatus(
+      "Enter an amount greater than zero.",
+      "error"
+    );
+
+    return null;
+  }
+
+  const selection =
+    parseMeasurementSelection(
+      unitSelect?.value ||
+      nutritionState
+        .selectedMeasurement
+    );
+
+  if (
+    !selection.type ||
+    !selection.value
+  ) {
+    nutritionState.foodCalculation =
+      null;
+
+    clearNutritionValueFields();
+
+    setMealCalculationStatus(
+      "Choose a valid serving or measurement unit.",
+      "error"
+    );
+
+    return null;
+  }
+
+  let result = null;
+
+  try {
+    if (
+      selection.type ===
+      "serving"
+    ) {
+      result =
+        calculator.calculateServing(
+          food.id,
+          selection.value,
+          quantity
+        );
+    } else if (
+      selection.type ===
+      "unit"
+    ) {
+      result =
+        calculator.calculate(
+          food.id,
+          quantity,
+          selection.value
+        );
+    }
+  } catch (error) {
+    console.error(
+      "[ARI NUTRITION CALCULATION ERROR]",
+      error
+    );
+
+    result = {
+      ok: false,
+
+      error: {
+        code:
+          "calculation_exception",
+
+        message:
+          error?.message ||
+          "Nutrition calculation failed."
+      }
+    };
+  }
+
+  nutritionState.foodCalculation =
+    result;
+
+  nutritionState.selectedMeasurement =
+    unitSelect?.value ||
+    null;
+
+  if (!result?.ok) {
+    clearNutritionValueFields();
+
+    setMealCalculationStatus(
+      result?.error?.message ||
+        "This serving could not be calculated.",
+      "error"
+    );
+
+    return result;
+  }
+
+  applyFoodCalculationToForm(
+    result
+  );
+
+  setMealCalculationStatus(
+    buildFoodCalculationStatus(
+      result
+    ),
+    "success"
+  );
+
+  return result;
+}
+
+
+function applyFoodCalculationToForm(
+  result
+) {
+  const nutrition =
+    result?.nutrition;
+
+  if (!nutrition) {
+    return;
+  }
+
+  setInputValue(
+    "mealCalories",
+    roundDisplayCalories(
+      nutrition.calories
+    )
+  );
+
+  setInputValue(
+    "mealProtein",
+    roundMacro(
+      nutrition.protein
+    )
+  );
+
+  setInputValue(
+    "mealCarbs",
+    roundMacro(
+      nutrition.carbs
+    )
+  );
+
+  setInputValue(
+    "mealFat",
+    roundMacro(
+      nutrition.fat
+    )
+  );
+}
+
+
+function buildFoodCalculationStatus(
+  result
+) {
+  const pieces = [];
+
+  if (
+    result?.resolved?.grams !==
+      null &&
+    result?.resolved?.grams !==
+      undefined
+  ) {
+    pieces.push(
+      `${result.resolved.grams} g`
+    );
+  }
+
+  if (
+    result?.resolved?.milliliters !==
+      null &&
+    result?.resolved?.milliliters !==
+      undefined
+  ) {
+    pieces.push(
+      `${result.resolved.milliliters} mL`
+    );
+  }
+
+  pieces.push(
+    `${roundDisplayCalories(
+      result?.nutrition?.calories
+    )} kcal`
+  );
+
+  pieces.push(
+    `${roundMacro(
+      result?.nutrition?.protein
+    )}g protein`
+  );
+
+  pieces.push(
+    `${roundMacro(
+      result?.nutrition?.carbs
+    )}g carbs`
+  );
+
+  pieces.push(
+    `${roundMacro(
+      result?.nutrition?.fat
+    )}g fat`
+  );
+
+  return pieces.join(
+    " • "
+  );
+}
+
+
+function setMealCalculationStatus(
+  message,
+  type = "info"
+) {
+  const status =
+    getElement(
+      "mealCalculationStatus"
+    );
+
+  if (!status) {
+    return;
+  }
+
+  status.textContent =
+    String(message || "");
+
+  status.dataset.type =
+    type;
+
+  status.hidden =
+    !message;
+}
+
+
+function clearMealCalculationStatus() {
+  const status =
+    getElement(
+      "mealCalculationStatus"
+    );
+
+  if (!status) {
+    return;
+  }
+
+  status.textContent = "";
+  status.hidden = true;
+
+  delete status.dataset.type;
+}
+
+
+function setDatabaseNutritionFieldsLocked(
+  locked
+) {
+  [
+    "mealCalories",
+    "mealProtein",
+    "mealCarbs",
+    "mealFat"
+  ].forEach(
+    (id) => {
+      const input =
+        getElement(id);
+
+      if (!input) {
+        return;
+      }
+
+      input.readOnly =
+        locked === true;
+
+      input.classList.toggle(
+        "ari-database-calculated-field",
+        locked === true
+      );
+
+      input.setAttribute(
+        "aria-readonly",
+        String(
+          locked === true
+        )
+      );
+    }
+  );
+}
+
+
+function clearNutritionValueFields() {
+  [
+    "mealCalories",
+    "mealProtein",
+    "mealCarbs",
+    "mealFat"
+  ].forEach(
+    (id) => {
+      const input =
+        getElement(id);
+
+      if (input) {
+        input.value = "";
+      }
+    }
+  );
+}
+
+
+// =====================================================
+// MANUAL MEAL DATE / TIME
+// =====================================================
 
 function setManualMealDateTimeDefaults(
   date = new Date()
@@ -517,11 +2304,37 @@ function setManualMealDateTimeDefaults(
   }
 }
 
+
+// =====================================================
+// SAVE MANUAL MEAL
+// =====================================================
+
 async function saveManualMeal() {
   if (
     nutritionState.savingMeal
   ) {
     return;
+  }
+
+  /*
+   * Recalculate immediately before save so the persisted
+   * nutrition always reflects the current amount/unit.
+   */
+  if (
+    nutritionState.selectedFood
+  ) {
+    const calculation =
+      calculateSelectedFoodNutrition();
+
+    if (!calculation?.ok) {
+      showNutritionNotice(
+        calculation?.error?.message ||
+          "Select a valid serving before saving this food.",
+        "error"
+      );
+
+      return;
+    }
   }
 
   const meal =
@@ -535,10 +2348,12 @@ async function saveManualMeal() {
       validationError,
       "error"
     );
+
     return;
   }
 
-  nutritionState.savingMeal = true;
+  nutritionState.savingMeal =
+    true;
 
   setManualSaveBusy(true);
 
@@ -617,76 +2432,141 @@ async function saveManualMeal() {
   }
 }
 
+
 function readManualMealForm() {
+  const calculation =
+    nutritionState
+      .foodCalculation;
+
   return {
-    name: String(
-      getElement(
-        "mealName",
-        "manualFoodName"
-      )?.value || ""
-    ).trim(),
+    name:
+      String(
+        getElement(
+          "mealName",
+          "manualFoodName"
+        )?.value ||
+        ""
+      ).trim(),
 
-    calories: toNumber(
-      getElement(
-        "mealCalories",
-        "manualCalories"
-      )?.value
-    ),
+    calories:
+      readOptionalNumberInput(
+        getElement(
+          "mealCalories",
+          "manualCalories"
+        )
+      ),
 
-    protein_g: toNumber(
-      getElement(
-        "mealProtein",
-        "manualProtein"
-      )?.value
-    ),
+    protein_g:
+      readOptionalNumberInput(
+        getElement(
+          "mealProtein",
+          "manualProtein"
+        ),
+        0
+      ),
 
-    carbs_g: toNumber(
-      getElement(
-        "mealCarbs",
-        "manualCarbs"
-      )?.value
-    ),
+    carbs_g:
+      readOptionalNumberInput(
+        getElement(
+          "mealCarbs",
+          "manualCarbs"
+        ),
+        0
+      ),
 
-    fat_g: toNumber(
-      getElement(
-        "mealFat",
-        "manualFat"
-      )?.value
-    ),
+    fat_g:
+      readOptionalNumberInput(
+        getElement(
+          "mealFat",
+          "manualFat"
+        ),
+        0
+      ),
 
-    category: String(
-      getElement(
-        "mealType",
-        "manualCategory"
-      )?.value || "Meal"
-    ).trim(),
+    category:
+      String(
+        getElement(
+          "mealType",
+          "manualCategory"
+        )?.value ||
+        "Meal"
+      ).trim(),
 
-    date: String(
-      getElement(
-        "mealDate"
-      )?.value || ""
-    ).trim(),
+    date:
+      String(
+        getElement(
+          "mealDate"
+        )?.value ||
+        ""
+      ).trim(),
 
-    time: String(
-      getElement(
-        "mealTime"
-      )?.value || ""
-    ).trim()
+    time:
+      String(
+        getElement(
+          "mealTime"
+        )?.value ||
+        ""
+      ).trim(),
+
+    databaseFoodId:
+      nutritionState
+        .selectedFood
+        ?.id ||
+      null,
+
+    databaseFood:
+      Boolean(
+        nutritionState
+          .selectedFood
+      ),
+
+    servingSize:
+      buildSavedServingDescription(
+        calculation
+      ),
+
+    multiplier:
+      calculation?.ok
+        ? toNumber(
+            calculation
+              ?.resolved
+              ?.multiplier,
+            1
+          )
+        : 1
   };
 }
 
-function validateManualMeal(meal) {
+
+function validateManualMeal(
+  meal
+) {
   if (!meal.name) {
     return "Enter a food or meal name.";
   }
 
+  /*
+   * Zero-calorie foods are valid.
+   *
+   * Blank calories remain NaN because readOptionalNumberInput
+   * does not coerce an empty field to zero.
+   */
   if (
     !Number.isFinite(
       meal.calories
     ) ||
-    meal.calories <= 0
+    meal.calories < 0
   ) {
-    return "Enter a calorie amount greater than zero.";
+    return "Enter a calorie amount of zero or greater.";
+  }
+
+  if (
+    nutritionState.selectedFood &&
+    !nutritionState
+      .foodCalculation
+      ?.ok
+  ) {
+    return "Choose a valid amount and serving for the selected database food.";
   }
 
   const macroValues = [
@@ -705,22 +2585,23 @@ function validateManualMeal(meal) {
     return "Protein, carbs, and fat cannot be negative.";
   }
 
-  /*
-   * Date/time validation only becomes required
-   * when the new fields exist in the HTML.
-   * This keeps the controller safe during deployment.
-   */
   const dateInput =
     getElement("mealDate");
 
   const timeInput =
     getElement("mealTime");
 
-  if (dateInput && !meal.date) {
+  if (
+    dateInput &&
+    !meal.date
+  ) {
     return "Select the date for this meal.";
   }
 
-  if (timeInput && !meal.time) {
+  if (
+    timeInput &&
+    !meal.time
+  ) {
     return "Select the time for this meal.";
   }
 
@@ -738,7 +2619,10 @@ function validateManualMeal(meal) {
   return "";
 }
 
-function buildMealRecord(meal) {
+
+function buildMealRecord(
+  meal
+) {
   const selectedDateTime =
     createLocalDateTime(
       meal.date,
@@ -750,7 +2634,8 @@ function buildMealRecord(meal) {
     new Date();
 
   return {
-    name: meal.name,
+    name:
+      meal.name,
 
     calories:
       Math.round(
@@ -782,18 +2667,83 @@ function buildMealRecord(meal) {
       ),
 
     serving_size:
+      meal.servingSize ||
       "Manual entry",
 
-    multiplier: 1,
+    multiplier:
+      Number.isFinite(
+        meal.multiplier
+      )
+        ? meal.multiplier
+        : 1,
 
-    is_favorite: false,
+    is_favorite:
+      false,
 
     created_at:
       mealDateTime.toISOString()
   };
 }
 
-async function saveMealRecord(record) {
+
+function buildSavedServingDescription(
+  calculation
+) {
+  if (!calculation?.ok) {
+    return "Manual entry";
+  }
+
+  if (
+    calculation.requested
+      ?.servingLabel
+  ) {
+    const quantity =
+      toNumber(
+        calculation
+          .requested
+          .quantity,
+        1
+      );
+
+    return quantity === 1
+      ? calculation
+          .requested
+          .servingLabel
+      : `${quantity} × ${
+          calculation
+            .requested
+            .servingLabel
+        }`;
+  }
+
+  const amount =
+    calculation
+      .requested
+      ?.amount;
+
+  const unit =
+    calculation
+      .requested
+      ?.unit;
+
+  if (
+    amount !== undefined &&
+    unit
+  ) {
+    return `${amount} ${unit}`;
+  }
+
+  return "Database serving";
+}
+
+
+// =====================================================
+// SAVE / UPDATE STORAGE
+// =====================================================
+
+async function saveMealRecord(
+  record
+) {
   const user =
     nutritionState.currentUser;
 
@@ -822,9 +2772,12 @@ async function saveMealRecord(record) {
       return {
         meal: {
           ...data,
-          source: "supabase"
+          source:
+            "supabase"
         },
-        savedToCloud: true
+
+        savedToCloud:
+          true
       };
     }
 
@@ -836,13 +2789,19 @@ async function saveMealRecord(record) {
   }
 
   const localMeal =
-    saveMealLocally(record);
+    saveMealLocally(
+      record
+    );
 
   return {
-    meal: localMeal,
-    savedToCloud: false
+    meal:
+      localMeal,
+
+    savedToCloud:
+      false
   };
 }
+
 
 async function updateMealRecord(
   existingMeal,
@@ -902,12 +2861,16 @@ async function updateMealRecord(
         );
 
     if (
-      nutritionState.currentUser?.id
+      nutritionState
+        .currentUser
+        ?.id
     ) {
       query =
         query.eq(
           "user_id",
-          nutritionState.currentUser.id
+          nutritionState
+            .currentUser
+            .id
         );
     }
 
@@ -926,9 +2889,12 @@ async function updateMealRecord(
     return {
       meal: {
         ...data,
-        source: "supabase"
+        source:
+          "supabase"
       },
-      savedToCloud: true
+
+      savedToCloud:
+        true
     };
   }
 
@@ -939,7 +2905,9 @@ async function updateMealRecord(
     meals.findIndex(
       (meal) =>
         String(meal.id) ===
-        String(existingMeal.id)
+        String(
+          existingMeal.id
+        )
     );
 
   if (index === -1) {
@@ -951,19 +2919,31 @@ async function updateMealRecord(
   meals[index] = {
     ...meals[index],
     ...record,
-    id: meals[index].id,
-    source: "local"
+
+    id:
+      meals[index].id,
+
+    source:
+      "local"
   };
 
-  writeLocalMeals(meals);
+  writeLocalMeals(
+    meals
+  );
 
   return {
-    meal: meals[index],
-    savedToCloud: false
+    meal:
+      meals[index],
+
+    savedToCloud:
+      false
   };
 }
 
-function saveMealLocally(record) {
+
+function saveMealLocally(
+  record
+) {
   const meals =
     readLocalMeals();
 
@@ -977,17 +2957,42 @@ function saveMealLocally(record) {
 
     ...record,
 
-    source: "local"
+    source:
+      "local"
   };
 
-  meals.push(localMeal);
+  meals.push(
+    localMeal
+  );
 
-  writeLocalMeals(meals);
+  writeLocalMeals(
+    meals
+  );
 
   return localMeal;
 }
 
+
+// =====================================================
+// CLEAR / RESET MANUAL FORM
+// =====================================================
+
 function clearManualMealForm() {
+  nutritionState.selectedFood =
+    null;
+
+  nutritionState.selectedMeasurement =
+    null;
+
+  nutritionState.foodCalculation =
+    null;
+
+  nutritionState.foodSearchResults =
+    [];
+
+  nutritionState.foodSearchActiveIndex =
+    -1;
+
   [
     "mealName",
     "manualFoodName",
@@ -999,14 +3004,64 @@ function clearManualMealForm() {
     "manualCarbs",
     "mealFat",
     "manualFat"
-  ].forEach((id) => {
-    const element =
-      document.getElementById(id);
+  ].forEach(
+    (id) => {
+      const element =
+        document.getElementById(
+          id
+        );
 
-    if (element) {
-      element.value = "";
+      if (element) {
+        element.value =
+          "";
+      }
     }
-  });
+  );
+
+  const quantityInput =
+    getElement(
+      "mealQuantity"
+    );
+
+  if (quantityInput) {
+    quantityInput.value =
+      "1";
+  }
+
+  const unitSelect =
+    getElement("mealUnit");
+
+  if (unitSelect) {
+    unitSelect.replaceChildren();
+  }
+
+  const selectedFoodContainer =
+    getElement(
+      "mealFoodSelection"
+    );
+
+  if (selectedFoodContainer) {
+    selectedFoodContainer.hidden =
+      true;
+  }
+
+  const measurementControls =
+    getElement(
+      "mealMeasurementControls"
+    );
+
+  if (measurementControls) {
+    measurementControls.hidden =
+      true;
+  }
+
+  closeManualFoodSearchResults();
+
+  clearMealCalculationStatus();
+
+  setDatabaseNutritionFieldsLocked(
+    false
+  );
 
   const mealType =
     getElement(
@@ -1026,15 +3081,22 @@ function clearManualMealForm() {
     getElement("mealTime");
 
   if (dateInput) {
-    dateInput.value = "";
+    dateInput.value =
+      "";
   }
 
   if (timeInput) {
-    timeInput.value = "";
+    timeInput.value =
+      "";
   }
 
   setManualMealDateTimeDefaults();
 }
+
+
+// =====================================================
+// SAVE BUTTON MODE
+// =====================================================
 
 function getSaveMealButtonParts() {
   const button =
@@ -1049,13 +3111,17 @@ function getSaveMealButtonParts() {
   }
 
   const icon =
-    getElement("saveMealIcon") ||
+    getElement(
+      "saveMealIcon"
+    ) ||
     button.querySelector(
       "span:first-child"
     );
 
   const label =
-    getElement("saveMealLabel") ||
+    getElement(
+      "saveMealLabel"
+    ) ||
     button.querySelector(
       "span:last-child"
     );
@@ -1067,7 +3133,10 @@ function getSaveMealButtonParts() {
   };
 }
 
-function setManualSaveBusy(isBusy) {
+
+function setManualSaveBusy(
+  isBusy
+) {
   const {
     button,
     icon,
@@ -1075,9 +3144,12 @@ function setManualSaveBusy(isBusy) {
   } =
     getSaveMealButtonParts();
 
-  if (!button) return;
+  if (!button) {
+    return;
+  }
 
-  button.disabled = isBusy;
+  button.disabled =
+    isBusy;
 
   button.setAttribute(
     "aria-busy",
@@ -1086,12 +3158,14 @@ function setManualSaveBusy(isBusy) {
 
   if (isBusy) {
     if (icon) {
-      icon.textContent = "â";
+      icon.textContent =
+        "●";
     }
 
     if (label) {
       label.textContent =
-        nutritionState.editingMeal
+        nutritionState
+          .editingMeal
           ? "UPDATING..."
           : "SAVING...";
     }
@@ -1102,6 +3176,7 @@ function setManualSaveBusy(isBusy) {
   updateManualFormMode();
 }
 
+
 function updateManualFormMode() {
   const {
     button,
@@ -1110,11 +3185,14 @@ function updateManualFormMode() {
   } =
     getSaveMealButtonParts();
 
-  if (!button) return;
+  if (!button) {
+    return;
+  }
 
   const isEditing =
     Boolean(
-      nutritionState.editingMeal
+      nutritionState
+        .editingMeal
     );
 
   button.classList.toggle(
@@ -1132,7 +3210,7 @@ function updateManualFormMode() {
   if (icon) {
     icon.textContent =
       isEditing
-        ? "â"
+        ? "◇"
         : "+";
   }
 
@@ -1144,6 +3222,7 @@ function updateManualFormMode() {
   }
 }
 
+
 // =====================================================
 // TODAY'S MEALS
 // =====================================================
@@ -1154,12 +3233,14 @@ async function loadTodayMeals() {
 
   const cloudMeals =
     await getCloudMealsInWindow(
-      nutritionState.currentWindow
+      nutritionState
+        .currentWindow
     );
 
   const localMeals =
     getLocalMealsInWindow(
-      nutritionState.currentWindow
+      nutritionState
+        .currentWindow
     );
 
   nutritionState.mealsToday =
@@ -1174,6 +3255,7 @@ async function loadTodayMeals() {
   renderTodayMeals();
   renderTodayNutrition();
 }
+
 
 async function getCloudMealsInWindow(
   windowInfo
@@ -1202,11 +3284,15 @@ async function getCloudMealsInWindow(
       )
       .gte(
         "created_at",
-        windowInfo.start.toISOString()
+        windowInfo
+          .start
+          .toISOString()
       )
       .lt(
         "created_at",
-        windowInfo.end.toISOString()
+        windowInfo
+          .end
+          .toISOString()
       )
       .order(
         "created_at",
@@ -1226,11 +3312,15 @@ async function getCloudMealsInWindow(
 
   return (
     data || []
-  ).map((meal) => ({
-    ...meal,
-    source: "supabase"
-  }));
+  ).map(
+    (meal) => ({
+      ...meal,
+      source:
+        "supabase"
+    })
+  );
 }
+
 
 function getLocalMealsInWindow(
   windowInfo
@@ -1240,22 +3330,30 @@ function getLocalMealsInWindow(
   }
 
   return readLocalMeals()
-    .filter((meal) => {
-      const createdAt =
-        getMealDate(meal);
+    .filter(
+      (meal) => {
+        const createdAt =
+          getMealDate(
+            meal
+          );
 
-      return (
-        createdAt >=
-          windowInfo.start &&
-        createdAt <
-          windowInfo.end
-      );
-    })
-    .map((meal) => ({
-      ...meal,
-      source: "local"
-    }));
+        return (
+          createdAt >=
+            windowInfo.start &&
+          createdAt <
+            windowInfo.end
+        );
+      }
+    )
+    .map(
+      (meal) => ({
+        ...meal,
+        source:
+          "local"
+      })
+    );
 }
+
 
 function renderTodayMeals() {
   const container =
@@ -1265,7 +3363,9 @@ function renderTodayMeals() {
       "todayIntakeItems"
     );
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   container.replaceChildren();
 
@@ -1275,7 +3375,9 @@ function renderTodayMeals() {
       .length
   ) {
     const empty =
-      document.createElement("p");
+      document.createElement(
+        "p"
+      );
 
     empty.className =
       "nutrition-empty-state";
@@ -1292,16 +3394,21 @@ function renderTodayMeals() {
 
   nutritionState
     .mealsToday
-    .forEach((meal) => {
-      container.appendChild(
-        createTodayMealCard(
-          meal
-        )
-      );
-    });
+    .forEach(
+      (meal) => {
+        container.appendChild(
+          createTodayMealCard(
+            meal
+          )
+        );
+      }
+    );
 }
 
-function createTodayMealCard(meal) {
+
+function createTodayMealCard(
+  meal
+) {
   const card =
     document.createElement(
       "article"
@@ -1311,35 +3418,56 @@ function createTodayMealCard(meal) {
     "nutrition-meal-card";
 
   card.dataset.mealId =
-    String(meal.id || "");
+    String(
+      meal.id || ""
+    );
 
   const heading =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   heading.className =
     "nutrition-meal-card-header";
 
   const titleGroup =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   const title =
-    document.createElement("h3");
+    document.createElement(
+      "h3"
+    );
 
   title.textContent =
-    meal.name || "Meal";
+    meal.name ||
+    "Meal";
 
   const meta =
-    document.createElement("p");
+    document.createElement(
+      "p"
+    );
 
   meta.className =
     "nutrition-meal-meta";
 
   meta.textContent = [
-    meal.category || "Meal",
-    formatMealTime(meal)
+    meal.category ||
+      "Meal",
+
+    meal.serving_size &&
+    meal.serving_size !==
+      "Manual entry"
+      ? meal.serving_size
+      : "",
+
+    formatMealTime(
+      meal
+    )
   ]
     .filter(Boolean)
-    .join(" \u2022 ");
+    .join(" • ");
 
   titleGroup.append(
     title,
@@ -1367,7 +3495,9 @@ function createTodayMealCard(meal) {
   );
 
   const macros =
-    document.createElement("p");
+    document.createElement(
+      "p"
+    );
 
   macros.className =
     "nutrition-meal-macros";
@@ -1393,10 +3523,12 @@ function createTodayMealCard(meal) {
         "fat"
       )
     )}g fat`
-  ].join(" \u2022 ");
+  ].join(" • ");
 
   const actions =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   actions.className =
     "nutrition-meal-actions";
@@ -1417,7 +3549,11 @@ function createTodayMealCard(meal) {
 
   editButton.addEventListener(
     "click",
-    () => beginMealEdit(meal)
+    () => {
+      beginMealEdit(
+        meal
+      );
+    }
   );
 
   const deleteButton =
@@ -1436,7 +3572,11 @@ function createTodayMealCard(meal) {
 
   deleteButton.addEventListener(
     "click",
-    () => deleteMeal(meal)
+    () => {
+      deleteMeal(
+        meal
+      );
+    }
   );
 
   actions.append(
@@ -1453,14 +3593,38 @@ function createTodayMealCard(meal) {
   return card;
 }
 
-function beginMealEdit(meal) {
-  if (!meal) return;
+
+// =====================================================
+// EDIT MEAL
+// =====================================================
+
+function beginMealEdit(
+  meal
+) {
+  if (!meal) {
+    return;
+  }
+
+  /*
+   * Existing meal records do not currently persist a food
+   * registry ID. Editing therefore opens in custom/manual
+   * mode using the nutrition values already saved.
+   *
+   * This preserves backward compatibility with the current
+   * Supabase schema and all previously logged meals.
+   */
+  clearSelectedDatabaseFood({
+    keepName: true,
+    focusName: false
+  });
 
   nutritionState.editingMeal =
     meal;
 
   const mealDate =
-    getMealDate(meal);
+    getMealDate(
+      meal
+    );
 
   const nameInput =
     getElement(
@@ -1506,7 +3670,8 @@ function beginMealEdit(meal) {
 
   if (nameInput) {
     nameInput.value =
-      meal.name || "";
+      meal.name ||
+      "";
   }
 
   if (caloriesInput) {
@@ -1555,7 +3720,8 @@ function beginMealEdit(meal) {
 
     const hasCategory =
       Array.from(
-        categoryInput.options || []
+        categoryInput.options ||
+        []
       ).some(
         (option) =>
           option.value ===
@@ -1571,7 +3737,8 @@ function beginMealEdit(meal) {
   }
 
   if (
-    mealDate.getTime() !== 0
+    mealDate.getTime() !==
+    0
   ) {
     if (dateInput) {
       dateInput.value =
@@ -1596,7 +3763,8 @@ function beginMealEdit(meal) {
     );
 
   if (advancedSection) {
-    advancedSection.open = true;
+    advancedSection.open =
+      true;
   }
 
   updateManualFormMode();
@@ -1611,13 +3779,25 @@ function beginMealEdit(meal) {
     block: "start"
   });
 
-  window.setTimeout(() => {
-    nameInput?.focus();
-  }, 350);
+  window.setTimeout(
+    () => {
+      nameInput?.focus();
+    },
+    350
+  );
 }
 
-async function deleteMeal(meal) {
-  if (!meal?.id) return;
+
+// =====================================================
+// DELETE MEAL
+// =====================================================
+
+async function deleteMeal(
+  meal
+) {
+  if (!meal?.id) {
+    return;
+  }
 
   const deleteConfirmed =
     window.confirm(
@@ -1648,7 +3828,8 @@ async function deleteMeal(meal) {
 
       if (
         nutritionState
-          .currentUser?.id
+          .currentUser
+          ?.id
       ) {
         query =
           query.eq(
@@ -1659,7 +3840,9 @@ async function deleteMeal(meal) {
           );
       }
 
-      const { error } =
+      const {
+        error
+      } =
         await query;
 
       if (error) {
@@ -1670,11 +3853,17 @@ async function deleteMeal(meal) {
         readLocalMeals()
           .filter(
             (item) =>
-              String(item.id) !==
-              String(meal.id)
+              String(
+                item.id
+              ) !==
+              String(
+                meal.id
+              )
           );
 
-      writeLocalMeals(meals);
+      writeLocalMeals(
+        meals
+      );
     }
 
     if (
@@ -1713,6 +3902,7 @@ async function deleteMeal(meal) {
     );
   }
 }
+
 
 // =====================================================
 // TODAY'S NUTRITION
@@ -1772,6 +3962,7 @@ function calculateNutritionTotals() {
   );
 }
 
+
 function renderTodayNutrition() {
   updateNutritionMetric(
     [
@@ -1830,6 +4021,7 @@ function renderTodayNutrition() {
   );
 }
 
+
 function updateNutritionMetric(
   ids,
   label,
@@ -1838,7 +4030,9 @@ function updateNutritionMetric(
   const element =
     getElement(...ids);
 
-  if (!element) return;
+  if (!element) {
+    return;
+  }
 
   const tagName =
     element.tagName
@@ -1849,7 +4043,9 @@ function updateNutritionMetric(
       "strong",
       "span",
       "output"
-    ].includes(tagName)
+    ].includes(
+      tagName
+    )
   ) {
     element.textContent =
       value;
@@ -1893,6 +4089,7 @@ function updateNutritionMetric(
   );
 }
 
+
 // =====================================================
 // RECENT MEALS
 // =====================================================
@@ -1919,6 +4116,7 @@ async function loadRecentMeals() {
 
   renderRecentMeals();
 }
+
 
 async function getRecentCloudMeals() {
   const user =
@@ -1963,11 +4161,15 @@ async function getRecentCloudMeals() {
 
   return (
     data || []
-  ).map((meal) => ({
-    ...meal,
-    source: "supabase"
-  }));
+  ).map(
+    (meal) => ({
+      ...meal,
+      source:
+        "supabase"
+    })
+  );
 }
+
 
 function renderRecentMeals() {
   const container =
@@ -1976,7 +4178,9 @@ function renderRecentMeals() {
       "recentMealsList"
     );
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   container.replaceChildren();
 
@@ -1986,7 +4190,9 @@ function renderRecentMeals() {
       .length
   ) {
     const empty =
-      document.createElement("p");
+      document.createElement(
+        "p"
+      );
 
     empty.className =
       "nutrition-empty-state";
@@ -2003,59 +4209,65 @@ function renderRecentMeals() {
 
   nutritionState
     .recentMeals
-    .forEach((meal) => {
-      const item =
-        document.createElement(
-          "article"
-        );
+    .forEach(
+      (meal) => {
+        const item =
+          document.createElement(
+            "article"
+          );
 
-      item.className =
-        "nutrition-recent-meal";
+        item.className =
+          "nutrition-recent-meal";
 
-      const text =
-        document.createElement(
-          "div"
-        );
+        const text =
+          document.createElement(
+            "div"
+          );
 
-      const name =
-        document.createElement(
-          "strong"
-        );
+        const name =
+          document.createElement(
+            "strong"
+          );
 
-      name.textContent =
-        meal.name || "Meal";
+        name.textContent =
+          meal.name ||
+          "Meal";
 
-      const meta =
-        document.createElement(
-          "p"
-        );
+        const meta =
+          document.createElement(
+            "p"
+          );
 
-      meta.textContent = [
-        `${Math.round(
-          toNumber(
-            meal.calories
+        meta.textContent = [
+          `${Math.round(
+            toNumber(
+              meal.calories
+            )
+          )} kcal`,
+
+          formatRecentMealDate(
+            meal
           )
-        )} kcal`,
+        ]
+          .filter(Boolean)
+          .join(" • ");
 
-        formatRecentMealDate(
-          meal
-        )
-      ]
-        .filter(Boolean)
-        .join(" \u2022 ");
+        text.append(
+          name,
+          meta
+        );
 
-      text.append(
-        name,
-        meta
-      );
+        item.appendChild(
+          text
+        );
 
-      item.appendChild(text);
-
-      container.appendChild(
-        item
-      );
-    });
+        container.appendChild(
+          item
+        );
+      }
+    );
 }
+
 
 // =====================================================
 // RESET WINDOW
@@ -2148,7 +4360,7 @@ async function getResetTime() {
           "AM"
       };
     } catch {
-      // Fall through to the default reset time.
+      // Fall through to default reset time.
     }
   }
 
@@ -2158,6 +4370,7 @@ async function getResetTime() {
     ampm: "AM"
   };
 }
+
 
 async function getNutritionWindow() {
   const reset =
@@ -2177,7 +4390,9 @@ async function getNutritionWindow() {
 
   start.setHours(
     resetHour24,
-    toNumber(reset.minute),
+    toNumber(
+      reset.minute
+    ),
     0,
     0
   );
@@ -2198,10 +4413,14 @@ async function getNutritionWindow() {
   return {
     start,
     end,
+
     nutritionDate:
-      formatLocalDate(start)
+      formatLocalDate(
+        start
+      )
   };
 }
+
 
 function convertTo24Hour(
   hour,
@@ -2212,7 +4431,8 @@ function convertTo24Hour(
 
   const cleanAmPm =
     String(
-      ampm || "AM"
+      ampm ||
+      "AM"
     ).toUpperCase();
 
   if (
@@ -2232,6 +4452,7 @@ function convertTo24Hour(
   return cleanHour;
 }
 
+
 function getNutritionDateForTimestamp(
   date
 ) {
@@ -2246,15 +4467,6 @@ function getNutritionDateForTimestamp(
     );
   }
 
-  /*
-   * currentWindow.start already contains the user's
-   * configured local reset hour/minute.
-   *
-   * Example:
-   * reset = 4:00 AM
-   * selected meal = Aug 2 at 2:00 AM
-   * nutrition_date = Aug 1
-   */
   const resetStart =
     nutritionState
       .currentWindow
@@ -2296,6 +4508,7 @@ function getNutritionDateForTimestamp(
   );
 }
 
+
 // =====================================================
 // LOCAL STORAGE
 // =====================================================
@@ -2306,7 +4519,8 @@ function readLocalMeals() {
       JSON.parse(
         localStorage.getItem(
           NUTRITION_LOCAL_MEALS_KEY
-        ) || "[]"
+        ) ||
+        "[]"
       );
 
     return Array.isArray(
@@ -2319,16 +4533,22 @@ function readLocalMeals() {
   }
 }
 
-function writeLocalMeals(meals) {
+
+function writeLocalMeals(
+  meals
+) {
   localStorage.setItem(
     NUTRITION_LOCAL_MEALS_KEY,
     JSON.stringify(
-      Array.isArray(meals)
+      Array.isArray(
+        meals
+      )
         ? meals
         : []
     )
   );
 }
+
 
 // =====================================================
 // NOTICES
@@ -2341,10 +4561,14 @@ function showNutritionNotice(
   const notice =
     ensureNutritionNotice();
 
-  if (!notice) return;
+  if (!notice) {
+    return;
+  }
 
   notice.textContent =
-    String(message || "");
+    String(
+      message || ""
+    );
 
   notice.dataset.type =
     type;
@@ -2364,12 +4588,14 @@ function showNutritionNotice(
     showNutritionNotice.timeoutId =
       window.setTimeout(
         () => {
-          notice.hidden = true;
+          notice.hidden =
+            true;
         },
         5000
       );
   }
 }
+
 
 function ensureNutritionNotice() {
   let notice =
@@ -2391,7 +4617,9 @@ function ensureNutritionNotice() {
   }
 
   notice =
-    document.createElement("p");
+    document.createElement(
+      "p"
+    );
 
   notice.id =
     "nutritionPageNotice";
@@ -2409,7 +4637,8 @@ function ensureNutritionNotice() {
     "polite"
   );
 
-  notice.hidden = true;
+  notice.hidden =
+    true;
 
   manualSection.appendChild(
     notice
@@ -2418,14 +4647,19 @@ function ensureNutritionNotice() {
   return notice;
 }
 
+
 // =====================================================
-// UTILITIES
+// GENERAL UTILITIES
 // =====================================================
 
-function getElement(...ids) {
+function getElement(
+  ...ids
+) {
   for (const id of ids) {
     const element =
-      document.getElementById(id);
+      document.getElementById(
+        id
+      );
 
     if (element) {
       return element;
@@ -2434,6 +4668,7 @@ function getElement(...ids) {
 
   return null;
 }
+
 
 function toNumber(
   value,
@@ -2449,13 +4684,77 @@ function toNumber(
     : fallback;
 }
 
-function roundMacro(value) {
+
+function readOptionalNumberInput(
+  input,
+  fallback = Number.NaN
+) {
+  if (!input) {
+    return fallback;
+  }
+
+  const raw =
+    String(
+      input.value ?? ""
+    ).trim();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  const number =
+    Number(raw);
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : fallback;
+}
+
+
+function setInputValue(
+  id,
+  value
+) {
+  const input =
+    getElement(id);
+
+  if (!input) {
+    return;
+  }
+
+  input.value =
+    value === null ||
+    value === undefined
+      ? ""
+      : String(value);
+}
+
+
+function roundMacro(
+  value
+) {
   return (
     Math.round(
-      toNumber(value) * 10
-    ) / 10
+      toNumber(value) *
+      10
+    ) /
+    10
   );
 }
+
+
+function roundDisplayCalories(
+  value
+) {
+  return (
+    Math.round(
+      toNumber(value)
+    )
+  );
+}
+
 
 function readMealMacro(
   meal,
@@ -2482,7 +4781,8 @@ function readMealMacro(
 
   for (
     const key of
-    aliases[macroName] || []
+    aliases[macroName] ||
+    []
   ) {
     if (
       meal?.[key] !==
@@ -2499,7 +4799,10 @@ function readMealMacro(
   return 0;
 }
 
-function getMealDate(meal) {
+
+function getMealDate(
+  meal
+) {
   const rawDate =
     meal?.created_at ||
     meal?.createdAt ||
@@ -2507,7 +4810,9 @@ function getMealDate(meal) {
     meal?.nutrition_date;
 
   const date =
-    new Date(rawDate);
+    new Date(
+      rawDate
+    );
 
   return Number.isNaN(
     date.getTime()
@@ -2516,12 +4821,18 @@ function getMealDate(meal) {
     : date;
 }
 
-function formatMealTime(meal) {
+
+function formatMealTime(
+  meal
+) {
   const date =
-    getMealDate(meal);
+    getMealDate(
+      meal
+    );
 
   if (
-    date.getTime() === 0
+    date.getTime() ===
+    0
   ) {
     return "";
   }
@@ -2535,12 +4846,18 @@ function formatMealTime(meal) {
   );
 }
 
-function formatRecentMealDate(meal) {
+
+function formatRecentMealDate(
+  meal
+) {
   const date =
-    getMealDate(meal);
+    getMealDate(
+      meal
+    );
 
   if (
-    date.getTime() === 0
+    date.getTime() ===
+    0
   ) {
     return "";
   }
@@ -2556,36 +4873,55 @@ function formatRecentMealDate(meal) {
   );
 }
 
-function formatLocalDate(date) {
+
+function formatLocalDate(
+  date
+) {
   const year =
     date.getFullYear();
 
   const month =
     String(
       date.getMonth() + 1
-    ).padStart(2, "0");
+    ).padStart(
+      2,
+      "0"
+    );
 
   const day =
     String(
       date.getDate()
-    ).padStart(2, "0");
+    ).padStart(
+      2,
+      "0"
+    );
 
   return `${year}-${month}-${day}`;
 }
 
-function formatLocalTimeInput(date) {
+
+function formatLocalTimeInput(
+  date
+) {
   const hours =
     String(
       date.getHours()
-    ).padStart(2, "0");
+    ).padStart(
+      2,
+      "0"
+    );
 
   const minutes =
     String(
       date.getMinutes()
-    ).padStart(2, "0");
+    ).padStart(
+      2,
+      "0"
+    );
 
   return `${hours}:${minutes}`;
 }
+
 
 function createLocalDateTime(
   dateValue,
@@ -2609,8 +4945,10 @@ function createLocalDateTime(
       .map(Number);
 
   if (
-    dateParts.length !== 3 ||
-    timeParts.length < 2
+    dateParts.length !==
+      3 ||
+    timeParts.length <
+      2
   ) {
     return null;
   }
@@ -2629,11 +4967,21 @@ function createLocalDateTime(
     timeParts;
 
   if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    !Number.isInteger(day) ||
-    !Number.isInteger(hour) ||
-    !Number.isInteger(minute)
+    !Number.isInteger(
+      year
+    ) ||
+    !Number.isInteger(
+      month
+    ) ||
+    !Number.isInteger(
+      day
+    ) ||
+    !Number.isInteger(
+      hour
+    ) ||
+    !Number.isInteger(
+      minute
+    )
   ) {
     return null;
   }
@@ -2670,10 +5018,6 @@ function createLocalDateTime(
     return null;
   }
 
-  /*
-   * Reject normalized invalid dates such as
-   * February 31.
-   */
   if (
     date.getFullYear() !==
       year ||
@@ -2692,44 +5036,58 @@ function createLocalDateTime(
   return date;
 }
 
+
 function mergeMealCollections(
   ...collections
 ) {
   const merged = [];
-  const seen = new Set();
+  const seen =
+    new Set();
 
   collections
     .flat()
-    .forEach((meal) => {
-      if (!meal) return;
+    .forEach(
+      (meal) => {
+        if (!meal) {
+          return;
+        }
 
-      const key = [
-        meal.source ||
-          "unknown",
+        const key = [
+          meal.source ||
+            "unknown",
 
-        meal.id ||
-          "no-id",
+          meal.id ||
+            "no-id",
 
-        meal.created_at ||
-          meal.createdAt ||
-          "no-date",
+          meal.created_at ||
+            meal.createdAt ||
+            "no-date",
 
-        meal.name ||
-          "no-name"
-      ].join("|");
+          meal.name ||
+            "no-name"
+        ].join("|");
 
-      if (
-        seen.has(key)
-      ) {
-        return;
+        if (
+          seen.has(
+            key
+          )
+        ) {
+          return;
+        }
+
+        seen.add(
+          key
+        );
+
+        merged.push(
+          meal
+        );
       }
-
-      seen.add(key);
-      merged.push(meal);
-    });
+    );
 
   return merged;
 }
+
 
 function compareMealsOldestFirst(
   a,
@@ -2741,6 +5099,7 @@ function compareMealsOldestFirst(
   );
 }
 
+
 function compareMealsNewestFirst(
   a,
   b
@@ -2751,12 +5110,44 @@ function compareMealsNewestFirst(
   );
 }
 
+
+function formatFoodToken(
+  value
+) {
+  const text =
+    String(
+      value || ""
+    )
+      .replace(
+        /[-_]+/g,
+        " "
+      )
+      .trim();
+
+  if (!text) {
+    return "";
+  }
+
+  return text
+    .split(/\s+/)
+    .map(
+      (word) =>
+        word.charAt(0)
+          .toUpperCase() +
+        word.slice(1)
+          .toLowerCase()
+    )
+    .join(" ");
+}
+
+
 // =====================================================
 // PUBLIC DIAGNOSTIC SURFACE
 // =====================================================
 
 window.AriNutritionPage = {
-  version: "4.1.0",
+  version:
+    "4.2.0",
 
   refresh:
     refreshNutritionPage,
@@ -2768,6 +5159,22 @@ window.AriNutritionPage = {
   beginMealEdit,
 
   deleteMeal,
+
+  // Food database surfaces
+  searchFood:
+    runManualFoodSearch,
+
+  selectFood:
+    selectManualDatabaseFood,
+
+  clearSelectedFood:
+    clearSelectedDatabaseFood,
+
+  calculateSelectedFood:
+    calculateSelectedFoodNutrition,
+
+  refreshFoodSystemStatus:
+    refreshNutritionFoodSystemStatus,
 
   getState() {
     return {
@@ -2791,6 +5198,34 @@ window.AriNutritionPage = {
       totals: {
         ...nutritionState
           .totals
+      },
+
+      selectedFood:
+        nutritionState
+          .selectedFood
+          ? {
+              ...nutritionState
+                .selectedFood
+            }
+          : null,
+
+      foodSearchResults: [
+        ...nutritionState
+          .foodSearchResults
+      ],
+
+      foodCalculation:
+        nutritionState
+          .foodCalculation
+          ? {
+              ...nutritionState
+                .foodCalculation
+            }
+          : null,
+
+      foodSystem: {
+        ...nutritionState
+          .foodSystem
       },
 
       editingMeal:
