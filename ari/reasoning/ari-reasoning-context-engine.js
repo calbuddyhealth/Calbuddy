@@ -5,7 +5,7 @@
 // Select, trim, and package the canonical Ari reasoning request into one
 // lean cognitive context packet for the OpenAI reasoning invocation.
 //
-// V2.3.0 — Application Operation Contract Context Integration
+// V2.4.0 — V3 Preference Guidance Preservation
 //
 // Architectural flow:
 //
@@ -45,9 +45,9 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningContextEngine = {
-  version: "2.3.0",
+  version: "2.4.0",
 
-  schemaVersion: "2.3.0",
+  schemaVersion: "2.4.0",
 
   source: "ari-reasoning-context-engine",
 
@@ -145,6 +145,11 @@ window.AriReasoningContextEngine = {
           mode
         });
 
+const preferenceContext =
+  this.selectPreferenceContext(
+    canonicalRequest
+  );
+
       const cognitivePacket =
         this.removeEmptyValues({
           schema: this.packetSchema,
@@ -240,10 +245,7 @@ restrictionContext:
                 )
               : {},
 
-          preferenceContext:
-  this.selectPreferenceContext(
-    canonicalRequest
-  ),
+          preferenceContext,
 
           responseControl:
             this.selectResponseControl(
@@ -251,9 +253,10 @@ restrictionContext:
             ),
 
           authority:
-            this.selectAuthorityContext(
-              canonicalRequest
-            ),
+  this.selectAuthorityContext(
+    canonicalRequest,
+    preferenceContext
+  ),
 
           outputContract:
             this.selectOutputContract(
@@ -1710,119 +1713,377 @@ selectRestrictionContext(request = {}) {
   },
 
   /* =====================================================
-     PREFERENCES
-  ===================================================== */
+   PREFERENCES
+===================================================== */
 
-  selectPreferenceContext(request = {}) {
-  const preferences =
-    this.mergeObjects([
-      request.preferenceResolutionPacket,
-      request.resolvedPreferencePacket,
-      request.preferences,
-      request.preferenceContext,
+/*
+ * Preference architecture:
+ *
+ * AriReasoningContextEngine does NOT resolve preferences.
+ *
+ * It accepts already-resolved communication guidance from
+ * the canonical reasoning request and preserves that guidance
+ * in cognitivePacket.preferenceContext.
+ *
+ * Preferred V3 source:
+ *
+ * canonicalRequest.preferenceContext
+ *
+ * produced upstream by:
+ *
+ * AriPreferenceRuntime.getOpenAIGuidanceForRequest(...)
+ *
+ * This engine MUST NOT weaken, translate, or rebuild the
+ * model-ready communication instructions.
+ */
 
-      request.deterministicContext
-        ?.preferences,
+readPreferenceContext(
+  request = {}
+) {
+  const candidates = [
+    request.preferenceContext,
 
-      request.deterministicContext
-        ?.preferenceContext
-    ]);
+    request.preferenceGuidance,
 
-  if (!this.hasKeys(preferences)) {
+    request.openAIGuidance,
+
+    request.preferenceResolutionPacket,
+
+    request.resolvedPreferencePacket,
+
+    request.deterministicContext
+      ?.preferenceContext,
+
+    request.deterministicContext
+      ?.preferences,
+
+    /*
+     * Legacy fallback.
+     *
+     * Kept temporarily while the upstream reasoning engine
+     * migrates fully to V3.
+     */
+    request.preferences
+  ];
+
+  for (
+    const candidate
+    of candidates
+  ) {
+    if (
+      !this.isPlainObject(
+        candidate
+      ) ||
+      !this.hasKeys(
+        candidate
+      )
+    ) {
+      continue;
+    }
+
+    /*
+     * Some callers may wrap the runtime guidance.
+     *
+     * Unwrap only known transport wrappers.
+     * Do not modify the actual guidance inside.
+     */
+    const nestedGuidance =
+      this.firstObject([
+        candidate.openAIGuidance,
+
+        candidate.guidance,
+
+        candidate.runtimeGuidance
+      ]);
+
+    if (
+      this.hasKeys(
+        nestedGuidance
+      )
+    ) {
+      return nestedGuidance;
+    }
+
+    return candidate;
+  }
+
+  return {};
+},
+
+selectPreferenceContext(
+  request = {}
+) {
+  const guidance =
+    this.readPreferenceContext(
+      request
+    );
+
+  // ===================================================
+  // V3 RESOLVED GUIDANCE
+  // ===================================================
+
+  if (
+    this.hasKeys(
+      guidance
+    )
+  ) {
+    const resolvedPreferences =
+      this.firstObject([
+        guidance.resolvedPreferences,
+
+        guidance.userPreferences,
+
+        guidance.preferences
+      ]);
+
+    const styleExecution =
+      this.firstObject([
+        guidance.styleExecution,
+
+        guidance.communicationStyleExecution
+      ]);
+
+    const modelInstructions =
+      this.firstArray([
+        guidance.modelInstructions,
+
+        guidance.preferenceInstructions
+      ]);
+
+    const instructionText =
+      this.firstString([
+        guidance.instructionText,
+
+        guidance.modelInstructionText,
+
+        guidance.preferenceInstructionText
+      ]);
+
+    const authorityLevel =
+      this.firstString([
+        guidance.authorityLevel,
+
+        typeof guidance.authority ===
+          "string"
+          ? guidance.authority
+          : null
+      ]);
+
     return this.removeEmptyValues({
-      resolvedPreferences:
+      ready:
+        guidance.ready,
+
+      complete:
+        guidance.complete,
+
+      success:
+        guidance.success,
+
+      source:
+        guidance.source,
+
+      runtimeSource:
+        guidance.runtimeSource,
+
+      version:
+        guidance.version,
+
+      schemaVersion:
+        guidance.schemaVersion,
+
+      activePreset:
+        guidance.activePreset,
+
+      // ===============================================
+      // FINAL RESOLVED VALUES
+      // ===============================================
+
+      resolvedPreferences,
+
+      // ===============================================
+      // MODEL-READY INSTRUCTIONS
+      //
+      // CRITICAL:
+      // Preserve exact upstream wording.
+      // ===============================================
+
+      modelInstructions,
+
+      instructionText,
+
+      // ===============================================
+      // STYLE EXECUTION
+      // ===============================================
+
+      styleExecution,
+
+      executionMode:
+        guidance.executionMode,
+
+      authorityLevel,
+
+      // ===============================================
+      // EXECUTION FLAGS
+      //
+      // Preserve false values as well as true values.
+      // ===============================================
+
+      preferencesArePermissionsOnly:
+        guidance.preferencesArePermissionsOnly,
+
+      selectedStyleMustBeObservable:
+        guidance.selectedStyleMustBeObservable,
+
+      neutralFallbackDiscouraged:
+        guidance.neutralFallbackDiscouraged,
+
+      executeSelectedCommunicationStyle:
+        guidance.executeSelectedCommunicationStyle,
+
+      preserveInstructionStrength:
+        guidance.preserveInstructionStrength,
+
+      doNotRewriteBehaviorAsPermission:
+        guidance.doNotRewriteBehaviorAsPermission,
+
+      // ===============================================
+      // PROVENANCE / RESOLUTION
+      // ===============================================
+
+      provenance:
         this.firstObject([
-          request.resolvedPreferences,
-          request.userPreferences,
-          request.communicationPreferences,
-          request.stylePreferences
+          guidance.provenance,
+
+          guidance.preferenceProvenance
+        ]),
+
+      resolution:
+        guidance.resolution ||
+        null,
+
+      restrictionContext:
+        this.firstObject([
+          guidance.restrictionContext
+        ]),
+
+      warnings:
+        Array.isArray(
+          guidance.warnings
+        )
+          ? guidance.warnings
+          : [],
+
+      // ===============================================
+      // COMPATIBILITY / DIAGNOSTIC FIELDS
+      // ===============================================
+
+      currentTurnOverride:
+        this.firstObject([
+          guidance.currentTurnOverride,
+
+          guidance.currentTurnOverrides
         ]),
 
       responseStyle:
         this.firstObject([
-          request.responseStyle,
-          request.responseControl
-            ?.responseStyle
+          guidance.responseStyle
         ]),
 
-      currentTurnOverride:
-        this.firstObject([
-          request.currentTurnOverride,
-          request.styleOverride,
-          request.responseControl
-            ?.styleOverride
-        ]),
-
+      /*
+       * Always explicit:
+       *
+       * communication preferences are not safety policy.
+       */
       preferencesAreSafetyRestrictions:
         false
     });
   }
 
+  // ===================================================
+  // LEGACY FALLBACK
+  //
+  // Allows the pipeline to continue operating while
+  // AriReasoningEngine is being migrated.
+  //
+  // This fallback does NOT manufacture instruction text.
+  // ===================================================
+
+  const resolvedPreferences =
+    this.firstObject([
+      request.resolvedPreferences,
+
+      request.userPreferences,
+
+      request.communicationPreferences,
+
+      request.stylePreferences
+    ]);
+
+  const responseStyle =
+    this.firstObject([
+      request.responseStyle,
+
+      request.responseControl
+        ?.responseStyle
+    ]);
+
+  const currentTurnOverride =
+    this.firstObject([
+      request.currentTurnOverride,
+
+      request.styleOverride,
+
+      request.responseControl
+        ?.styleOverride
+    ]);
+
+  const instructionText =
+    this.firstString([
+      request.preferenceInstructionText,
+
+      request.communicationInstructionText
+    ]);
+
+  const modelInstructions =
+    this.firstArray([
+      request.preferenceModelInstructions,
+
+      request.communicationModelInstructions
+    ]);
+
+  if (
+    !this.hasKeys(
+      resolvedPreferences
+    ) &&
+    !this.hasKeys(
+      responseStyle
+    ) &&
+    !this.hasKeys(
+      currentTurnOverride
+    ) &&
+    !instructionText &&
+    modelInstructions.length ===
+      0
+  ) {
+    return {};
+  }
+
   return this.removeEmptyValues({
-    ready:
-      preferences.ready,
+    source:
+      "legacy_preference_context_fallback",
 
-    complete:
-      preferences.complete,
+    resolvedPreferences,
 
-    activePreset:
-      preferences.activePreset,
+    modelInstructions,
 
-    resolvedPreferences:
-      this.firstObject([
-        preferences.resolvedPreferences,
-        preferences.userPreferences,
-        preferences.preferences
-      ]),
+    instructionText,
 
-    modelInstructions:
-      this.firstArray([
-        preferences.modelInstructions,
-        preferences.instructions
-      ]),
+    responseStyle,
 
-    instructionText:
-      this.firstString([
-        preferences.instructionText,
-        preferences.modelInstructionText,
-        preferences.preferenceInstructionText
-      ]),
-
-    provenance:
-      this.firstObject([
-        preferences.provenance,
-        preferences.preferenceProvenance
-      ]),
-
-    responseStyle:
-      this.firstObject([
-        preferences.responseStyle,
-        request.responseStyle
-      ]),
-
-    currentTurnOverride:
-      this.firstObject([
-        preferences.currentTurnOverride,
-        preferences.currentTurnOverrides,
-        preferences.styleOverride
-      ]),
-
-    authority:
-      preferences.authority ||
-      "adaptive_style_guidance",
-
-    resolution:
-      preferences.resolution ||
-      null,
-
-    warnings:
-      preferences.warnings,
+    currentTurnOverride,
 
     preferencesAreSafetyRestrictions:
-      false,
-
-    explicitCurrentTurnRequestMayGuideStyle:
-      true
+      false
   });
 },
 
@@ -1857,22 +2118,54 @@ selectRestrictionContext(request = {}) {
      AUTHORITY
   ===================================================== */
 
-  selectAuthorityContext(request = {}) {
+  selectAuthorityContext(
+  request = {},
+  suppliedPreferenceContext = null
+) {
+  const preferenceContext =
+    this.isPlainObject(
+      suppliedPreferenceContext
+    )
+      ? suppliedPreferenceContext
+      : this.selectPreferenceContext(
+          request
+        );
+
+  const preferenceContextPresent =
+    this.hasKeys(
+      preferenceContext
+    );
+
   const suppliedAuthority =
     this.pickFields(
       request.authority,
       [
         "communicationPreferencesAreBindingWithinSafety",
+
+        "communicationPreferencesAreBindingWithinStyleScope",
+
         "communicationPreferencesAreAdvisory",
+
+        "selectedCommunicationBehaviorShouldBeExecuted",
+
+        "preserveCommunicationInstructionStrength",
+
         "mayPlanResponse",
+
         "mayDraftResponse",
+
         "mustProduceDraftResponse",
+
         "draftResponseIsAuthoritative"
       ]
     );
 
   return {
     ...suppliedAuthority,
+
+    // =================================================
+    // DETERMINISTIC AUTHORITY
+    // =================================================
 
     safetyIsBinding:
       true,
@@ -1892,6 +2185,70 @@ selectRestrictionContext(request = {}) {
     stylePreferencesAreNotSafetyRules:
       true,
 
+    // =================================================
+    // V3 COMMUNICATION AUTHORITY
+    // =================================================
+
+    communicationPreferencesPresent:
+      preferenceContextPresent,
+
+    /*
+     * Communication settings are binding only within
+     * communication / presentation scope.
+     */
+    communicationPreferencesAreBindingWithinStyleScope:
+      preferenceContextPresent,
+
+    /*
+     * Compatibility alias for existing downstream code.
+     *
+     * "Within safety" means they remain subordinate to
+     * deterministic safety, not that they are optional.
+     */
+    communicationPreferencesAreBindingWithinSafety:
+      preferenceContextPresent,
+
+    communicationPreferencesAreAdvisory:
+      preferenceContextPresent
+        ? false
+        : undefined,
+
+    selectedCommunicationBehaviorShouldBeExecuted:
+      preferenceContextPresent
+        ? (
+            preferenceContext
+              .executeSelectedCommunicationStyle !==
+              false
+          )
+        : undefined,
+
+    selectedStyleMustBeObservable:
+      preferenceContextPresent
+        ? (
+            preferenceContext
+              .selectedStyleMustBeObservable ===
+            true
+          )
+        : undefined,
+
+    preserveCommunicationInstructionStrength:
+      preferenceContextPresent
+        ? (
+            preferenceContext
+              .preserveInstructionStrength !==
+            false
+          )
+        : undefined,
+
+    mayRewriteCommunicationBehaviorAsPermission:
+      preferenceContextPresent
+        ? false
+        : undefined,
+
+    // =================================================
+    // RESPONSE AUTHORITY
+    // =================================================
+
     mayPlanResponse:
       true,
 
@@ -1903,6 +2260,10 @@ selectRestrictionContext(request = {}) {
 
     draftResponseIsAuthoritative:
       true,
+
+    // =================================================
+    // PROHIBITED AUTHORITY
+    // =================================================
 
     mayExecuteActions:
       false,
@@ -1926,7 +2287,6 @@ selectRestrictionContext(request = {}) {
       false
   };
 },
-
 /* =====================================================
    APPLICATION OPERATION CONTEXT
 ===================================================== */
@@ -2376,6 +2736,29 @@ selectOperationContract(request = {}) {
           ) / 10
         : 0;
 
+const preferenceContext =
+  this.normalizeObject(
+    packet.preferenceContext
+  );
+
+const resolvedPreferences =
+  this.normalizeObject(
+    preferenceContext
+      .resolvedPreferences
+  );
+
+const styleExecution =
+  this.normalizeObject(
+    preferenceContext
+      .styleExecution
+  );
+
+const preferenceInstructionText =
+  this.firstString([
+    preferenceContext
+      .instructionText
+  ]);
+
     return {
       source:
         this.source,
@@ -2428,7 +2811,97 @@ selectOperationContract(request = {}) {
 
       limits:
         { ...limits },
+preferenceTransport: {
+  present:
+    this.hasKeys(
+      preferenceContext
+    ),
 
+  ready:
+    preferenceContext.ready ===
+    true,
+
+  source:
+    preferenceContext.source ||
+    null,
+
+  runtimeSource:
+    preferenceContext.runtimeSource ||
+    null,
+
+  version:
+    preferenceContext.version ||
+    null,
+
+  schemaVersion:
+    preferenceContext.schemaVersion ||
+    null,
+
+  resolvedPreferencesPresent:
+    this.hasKeys(
+      resolvedPreferences
+    ),
+
+  instructionTextPresent:
+    Boolean(
+      preferenceInstructionText
+    ),
+
+  instructionTextCharacters:
+    preferenceInstructionText
+      .length,
+
+  modelInstructionCount:
+    Array.isArray(
+      preferenceContext
+        .modelInstructions
+    )
+      ? preferenceContext
+          .modelInstructions
+          .length
+      : 0,
+
+  executionMode:
+    preferenceContext.executionMode ||
+    null,
+
+  preferencesArePermissionsOnly:
+    preferenceContext
+      .preferencesArePermissionsOnly ??
+    null,
+
+  selectedStyleMustBeObservable:
+    preferenceContext
+      .selectedStyleMustBeObservable ===
+    true,
+
+  executeSelectedCommunicationStyle:
+    preferenceContext
+      .executeSelectedCommunicationStyle ===
+    true,
+
+  preserveInstructionStrength:
+    preferenceContext
+      .preserveInstructionStrength ===
+    true,
+
+  frequentHumorActive:
+    resolvedPreferences
+      ?.language
+      ?.humor ===
+    "frequent",
+
+  alwaysProfanityActive:
+    resolvedPreferences
+      ?.language
+      ?.profanity ===
+    "always_allowed",
+
+  personalityBoostActive:
+    styleExecution
+      ?.humorProfanityPersonalityBoostActive ===
+    true
+},
       included:
         this.buildIncludedMap(
           packet
@@ -3074,6 +3547,7 @@ normalizeStringArray(value) {
       "selectEvidenceContext",
       "selectKnowledgeContext",
       "selectDeveloperContext",
+      "readPreferenceContext",
       "selectPreferenceContext",
       "selectResponseControl",
       "selectAuthorityContext",
@@ -3120,7 +3594,17 @@ normalizeStringArray(value) {
 
       packetSchema:
         this.packetSchema,
+preferenceContextTransportSupported:
+  true,
 
+preferenceResolutionPerformed:
+  false,
+
+preferenceRuntimeCalledDirectly:
+  false,
+
+v3PreferenceGuidancePreservationSupported:
+  true,
       missingMethods
     };
   }
