@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: nutrition.js
-// Version: 4.2.0
+// Version: 4.2.1
 // Purpose:
 //   Functional controller for the Nutrition page.
 //
@@ -348,10 +348,10 @@ async function sendAriMessage() {
 
   input.value = "";
 
-input.blur();
-dismissNutritionKeyboard();
+  input.blur();
+  dismissNutritionKeyboard();
 
-autoResizeNutritionInput();
+  autoResizeNutritionInput();
 
   addConversationMessage(
     message,
@@ -625,7 +625,12 @@ function setNutritionComposerBusy(
     "thinking",
     isBusy
   );
+
+  if (!isBusy) {
+    input?.focus();
+  }
 }
+
 
 function autoResizeNutritionInput() {
   const input =
@@ -896,15 +901,15 @@ function handleManualFoodSearchInput() {
    */
   if (nutritionState.selectedFood) {
     const selectedName =
-  cleanNutritionDisplayText(
-    nutritionState
-      .selectedFood
-      .displayName ||
-    nutritionState
-      .selectedFood
-      .name ||
-    ""
-  );
+      cleanNutritionDisplayText(
+        nutritionState
+          .selectedFood
+          .displayName ||
+        nutritionState
+          .selectedFood
+          .name ||
+        ""
+      );
 
     if (
       input.value.trim() !==
@@ -1085,11 +1090,11 @@ function renderManualFoodSearchResults() {
         "ari-food-search-result-name";
 
       primary.textContent =
-  cleanNutritionDisplayText(
-    food.displayName ||
-    food.name ||
-    "Food"
-  );
+        cleanNutritionDisplayText(
+          food.displayName ||
+          food.name ||
+          "Food"
+        );
 
       const secondary =
         document.createElement(
@@ -1100,11 +1105,11 @@ function renderManualFoodSearchResults() {
         "ari-food-search-result-meta";
 
       secondary.textContent =
-  cleanNutritionDisplayText(
-    buildFoodSearchResultMeta(
-      food
-    )
-  );
+        cleanNutritionDisplayText(
+          buildFoodSearchResultMeta(
+            food
+          )
+        );
 
       option.append(
         primary,
@@ -1449,16 +1454,16 @@ function selectManualDatabaseFood(
     getElement("mealName");
 
   if (nameInput) {
-  nameInput.value =
-    cleanNutritionDisplayText(
-      canonicalFood.displayName ||
-      canonicalFood.name ||
-      ""
-    );
-}
+    nameInput.value =
+      cleanNutritionDisplayText(
+        canonicalFood.displayName ||
+        canonicalFood.name ||
+        ""
+      );
+  }
 
-nameInput?.blur();
-dismissNutritionKeyboard();
+  nameInput?.blur();
+  dismissNutritionKeyboard();
 
   closeManualFoodSearchResults();
 
@@ -1510,13 +1515,13 @@ function renderSelectedDatabaseFood() {
   }
 
   if (name) {
-  name.textContent =
-    cleanNutritionDisplayText(
-      selected.displayName ||
-      selected.name ||
-      "Selected food"
-    );
-}
+    name.textContent =
+      cleanNutritionDisplayText(
+        selected.displayName ||
+        selected.name ||
+        "Selected food"
+      );
+  }
 
   if (meta) {
     const parts = [];
@@ -1548,11 +1553,11 @@ function renderSelectedDatabaseFood() {
     }
 
     meta.textContent =
-  cleanNutritionDisplayText(
-    parts.join(
-      " • "
-    )
-  );
+      cleanNutritionDisplayText(
+        parts.join(
+          " • "
+        )
+      );
   }
 
   if (container) {
@@ -1749,8 +1754,10 @@ function populateManualMeasurementOptions() {
             `serving:${serving.id}`;
 
           option.textContent =
-            serving.label ||
-            `${serving.amount || 1} ${serving.unit || "serving"}`;
+            cleanNutritionDisplayText(
+              serving.label ||
+              `${serving.amount || 1} ${serving.unit || "serving"}`
+            );
 
           servingGroup.appendChild(
             option
@@ -2408,9 +2415,9 @@ async function saveManualMeal() {
 
     clearManualMealForm();
 
-dismissNutritionKeyboard();
+    dismissNutritionKeyboard();
 
-updateManualFormMode();
+    updateManualFormMode();
 
     showNutritionNotice(
       saveResult.savedToCloud
@@ -4683,7 +4690,6 @@ function getElement(
 }
 
 
-
 function toNumber(
   value,
   fallback = 0
@@ -5154,10 +5160,12 @@ function formatFoodToken(
     .join(" ");
 }
 
+
 // =====================================================
 // NUTRITION DISPLAY TEXT CLEANER
-// Repairs common UTF-8 / Windows-1252 mojibake.
-// Does not modify the canonical food record.
+// Repairs common UTF-8 / Latin-1 / Windows-1252
+// mojibake at the presentation layer only.
+// Does not modify canonical food records in AriFoodRegistry.
 // =====================================================
 
 function cleanNutritionDisplayText(
@@ -5166,54 +5174,113 @@ function cleanNutritionDisplayText(
   return String(
     value ?? ""
   )
-    // Em dash: â€”
+    // Em dash decoded through Latin-1 / C1 controls.
+    .replace(
+      /\u00E2\u0080\u0094/g,
+      " - "
+    )
+
+    // En dash decoded through Latin-1 / C1 controls.
+    .replace(
+      /\u00E2\u0080\u0093/g,
+      " - "
+    )
+
+    // Curly apostrophes decoded through Latin-1.
+    .replace(
+      /\u00E2\u0080\u0099/g,
+      "'"
+    )
+    .replace(
+      /\u00E2\u0080\u0098/g,
+      "'"
+    )
+
+    // Curly quotation marks decoded through Latin-1.
+    .replace(
+      /\u00E2\u0080\u009C/g,
+      '"'
+    )
+    .replace(
+      /\u00E2\u0080\u009D/g,
+      '"'
+    )
+
+    // Bullet decoded through Latin-1.
+    .replace(
+      /\u00E2\u0080\u00A2/g,
+      " • "
+    )
+
+    // Ellipsis decoded through Latin-1.
+    .replace(
+      /\u00E2\u0080\u00A6/g,
+      "..."
+    )
+
+    // Em dash decoded through Windows-1252.
     .replace(
       /\u00E2\u20AC\u201D/g,
       " - "
     )
 
-    // En dash: â€“
+    // En dash decoded through Windows-1252.
     .replace(
       /\u00E2\u20AC\u201C/g,
       " - "
     )
 
-    // Curly apostrophe: â€™
+    // Curly apostrophe decoded through Windows-1252.
     .replace(
       /\u00E2\u20AC\u2122/g,
       "'"
     )
 
-    // Left curly quote: â€œ
+    // Curly quote decoded through Windows-1252.
     .replace(
       /\u00E2\u20AC\u0153/g,
       '"'
     )
 
-    // Bullet: â€¢
+    // Bullet decoded through Windows-1252.
     .replace(
       /\u00E2\u20AC\u00A2/g,
       " • "
     )
 
-    // Multiplication sign: Ã—
+    // Multiplication sign decoded through Windows-1252.
     .replace(
       /\u00C3\u2014/g,
       " x "
     )
 
-    // Non-breaking-space corruption
+    // Multiplication sign decoded through Latin-1/C1.
+    .replace(
+      /\u00C3\u0097/g,
+      " x "
+    )
+
+    // Non-breaking-space corruption.
     .replace(
       /\u00C2\u00A0/g,
       " "
     )
 
-    // Stray Â
+    // Stray Â.
     .replace(
       /\u00C2/g,
       ""
     )
 
+    // Catch remaining malformed UTF-8 punctuation beginning
+    // with â followed by C1 control bytes. These are what can
+    // appear as the â + block/grid glyphs on iOS Safari.
+    .replace(
+      /\u00E2[\u0080-\u009F]{1,2}/g,
+      " "
+    )
+
+    // Collapse spacing created by the repairs.
     .replace(
       /\s+/g,
       " "
@@ -5221,6 +5288,7 @@ function cleanNutritionDisplayText(
 
     .trim();
 }
+
 
 // =====================================================
 // MOBILE KEYBOARD
@@ -5247,13 +5315,14 @@ function dismissNutritionKeyboard() {
   }
 }
 
+
 // =====================================================
 // PUBLIC DIAGNOSTIC SURFACE
 // =====================================================
 
 window.AriNutritionPage = {
   version:
-    "4.2.0",
+    "4.2.1",
 
   refresh:
     refreshNutritionPage,
