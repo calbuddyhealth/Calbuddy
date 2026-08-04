@@ -896,15 +896,15 @@ function handleManualFoodSearchInput() {
    */
   if (nutritionState.selectedFood) {
     const selectedName =
-      String(
-        nutritionState
-          .selectedFood
-          .displayName ||
-        nutritionState
-          .selectedFood
-          .name ||
-        ""
-      ).trim();
+  cleanNutritionDisplayText(
+    nutritionState
+      .selectedFood
+      .displayName ||
+    nutritionState
+      .selectedFood
+      .name ||
+    ""
+  );
 
     if (
       input.value.trim() !==
@@ -1085,9 +1085,11 @@ function renderManualFoodSearchResults() {
         "ari-food-search-result-name";
 
       primary.textContent =
-        food.displayName ||
-        food.name ||
-        "Food";
+  cleanNutritionDisplayText(
+    food.displayName ||
+    food.name ||
+    "Food"
+  );
 
       const secondary =
         document.createElement(
@@ -1098,9 +1100,11 @@ function renderManualFoodSearchResults() {
         "ari-food-search-result-meta";
 
       secondary.textContent =
-        buildFoodSearchResultMeta(
-          food
-        );
+  cleanNutritionDisplayText(
+    buildFoodSearchResultMeta(
+      food
+    )
+  );
 
       option.append(
         primary,
@@ -1445,11 +1449,13 @@ function selectManualDatabaseFood(
     getElement("mealName");
 
   if (nameInput) {
-    nameInput.value =
+  nameInput.value =
+    cleanNutritionDisplayText(
       canonicalFood.displayName ||
       canonicalFood.name ||
-      "";
-  }
+      ""
+    );
+}
 
 nameInput?.blur();
 dismissNutritionKeyboard();
@@ -1504,11 +1510,13 @@ function renderSelectedDatabaseFood() {
   }
 
   if (name) {
-    name.textContent =
+  name.textContent =
+    cleanNutritionDisplayText(
       selected.displayName ||
       selected.name ||
-      "Selected food";
-  }
+      "Selected food"
+    );
+}
 
   if (meta) {
     const parts = [];
@@ -1540,9 +1548,11 @@ function renderSelectedDatabaseFood() {
     }
 
     meta.textContent =
-      parts.join(
-        " • "
-      );
+  cleanNutritionDisplayText(
+    parts.join(
+      " • "
+    )
+  );
   }
 
   if (container) {
@@ -5143,6 +5153,75 @@ function formatFoodToken(
     )
     .join(" ");
 }
+
+// =====================================================
+// NUTRITION DISPLAY TEXT CLEANER
+// Repairs common UTF-8 / Windows-1252 mojibake.
+// Does not modify the canonical food record.
+// =====================================================
+
+function cleanNutritionDisplayText(
+  value
+) {
+  return String(
+    value ?? ""
+  )
+    // Em dash: â€”
+    .replace(
+      /\u00E2\u20AC\u201D/g,
+      " - "
+    )
+
+    // En dash: â€“
+    .replace(
+      /\u00E2\u20AC\u201C/g,
+      " - "
+    )
+
+    // Curly apostrophe: â€™
+    .replace(
+      /\u00E2\u20AC\u2122/g,
+      "'"
+    )
+
+    // Left curly quote: â€œ
+    .replace(
+      /\u00E2\u20AC\u0153/g,
+      '"'
+    )
+
+    // Bullet: â€¢
+    .replace(
+      /\u00E2\u20AC\u00A2/g,
+      " • "
+    )
+
+    // Multiplication sign: Ã—
+    .replace(
+      /\u00C3\u2014/g,
+      " x "
+    )
+
+    // Non-breaking-space corruption
+    .replace(
+      /\u00C2\u00A0/g,
+      " "
+    )
+
+    // Stray Â
+    .replace(
+      /\u00C2/g,
+      ""
+    )
+
+    .replace(
+      /\s+/g,
+      " "
+    )
+
+    .trim();
+}
+
 // =====================================================
 // MOBILE KEYBOARD
 // =====================================================
