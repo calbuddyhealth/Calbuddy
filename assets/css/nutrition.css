@@ -4005,3 +4005,17 @@ button:focus-visible {
   }
 
 }
+
+/* =====================================================
+   IOS INPUT ZOOM FIX
+===================================================== */
+
+@media (max-width: 768px) {
+
+  #ariNutritionApp input,
+  #ariNutritionApp textarea,
+  #ariNutritionApp select {
+    font-size: 16px !important;
+  }
+
+}
