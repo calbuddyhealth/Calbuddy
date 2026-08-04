@@ -4019,3 +4019,58 @@ button:focus-visible {
   }
 
 }
+/* =====================================================
+   CLEAN TEXT RENDERING FOR DATA / INPUT UI
+===================================================== */
+
+#ariNutritionApp input,
+#ariNutritionApp select,
+#ariNutritionApp textarea,
+#ariNutritionApp button,
+#ariNutritionApp .ari-food-search-result-name,
+#ariNutritionApp .ari-food-search-result-meta,
+#ariNutritionApp #mealSelectedFoodName,
+#ariNutritionApp #mealSelectedFoodMeta,
+#ariNutritionApp #mealCalculationStatus,
+#ariNutritionApp .nutrition-meal-meta,
+#ariNutritionApp .nutrition-meal-macros,
+#ariNutritionApp .nutrition-empty-state,
+#ariNutritionApp .nutrition-page-notice,
+#ariNutritionApp .ari-manual-field-label,
+#ariNutritionApp .ari-manual-subtext {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  font-variant-ligatures: none !important;
+}
+
+/* Keep the futuristic font only for major titles */
+#ariNutritionApp h1,
+#ariNutritionApp h2,
+#ariNutritionApp h3,
+#ariNutritionApp .ari-panel-title,
+#ariNutritionApp .ari-section-title,
+#ariNutritionApp .ari-brand-title {
+  font-family: "Orbitron", "Audiowide", sans-serif;
+}
+/* =====================================================
+   IOS SAFARI COLOR / FILTER CLEANUP
+===================================================== */
+
+#ariNutritionApp,
+#ariNutritionApp * {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#ariNutritionApp #mealFoodSelection,
+#ariNutritionApp #mealCalculationStatus,
+#ariNutritionApp .nutrition-meal-card,
+#ariNutritionApp .ari-food-search-result,
+#ariNutritionApp input,
+#ariNutritionApp select,
+#ariNutritionApp textarea {
+  mix-blend-mode: normal !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
