@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodSpirits.js
-// Version: 1.0.0
+// Version: 1.1.0
 //
 // Purpose:
 //   Collection controller for ARI Nutrition's alcoholic
@@ -16,6 +16,9 @@
 //   - Beer
 //   - Wine
 //   - Distilled liquor / spirits
+//   - Hard seltzer
+//   - Canned / premixed cocktails
+//   - Malt alcoholic beverages
 //   - Cocktails / mixed drinks
 //
 // Important taxonomy note:
@@ -23,6 +26,14 @@
 //   distilled alcohol only. ARI deliberately uses Spirits
 //   as the broader application category for all alcoholic
 //   drinks.
+//
+// Architecture:
+//   BRAND FIRST.
+//
+//   AriFoodSpiritsCore is the only generic fallback module.
+//   Runtime alcohol coverage should primarily come from
+//   branded product modules because that is how users most
+//   often encounter alcoholic drinks.
 //
 // Responsibilities:
 //   - Track expected Spirits child modules.
@@ -45,6 +56,9 @@
 //   - Beer: 12 fl oz / 355 mL
 //   - Wine: 5 fl oz / 148 mL
 //   - Liquor: 1.5 fl oz / 44 mL
+//   - Hard seltzer: 12 fl oz / 355 mL
+//   - Malt beverage: exact package/container serving
+//   - Canned cocktail: exact package/container serving
 //   - Cocktail: exact recipe/container serving
 //
 // Alcohol metadata contract for child records:
@@ -62,34 +76,44 @@
 (function initializeAriFoodSpirits(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const COLLECTION_ID = "spirits";
   const COLLECTION_NAME = "AriFoodSpirits";
 
+  // =====================================================
+  // EXPECTED MODULES
+  //
+  // Brand-first architecture:
+  //   - One generic fallback module.
+  //   - Branded modules provide primary runtime coverage.
+  //
+  // Do not add AriFoodBeer, AriFoodWine, AriFoodLiquor,
+  // or AriFoodCocktails generic modules. Their fallback
+  // role is owned by AriFoodSpiritsCore.
+  // =====================================================
+
   const EXPECTED_MODULES = Object.freeze([
     "AriFoodSpiritsCore",
-    "AriFoodBeer",
-    "AriFoodWine",
-    "AriFoodLiquor",
-    "AriFoodCocktails",
     "AriFoodBeerBrands",
     "AriFoodWineBrands",
     "AriFoodLiquorBrands",
+    "AriFoodHardSeltzerBrands",
+    "AriFoodCannedCocktailBrands",
+    "AriFoodMaltBeverageBrands",
     "AriFoodCocktailBrands"
   ]);
 
   const GENERIC_MODULES = Object.freeze([
-    "AriFoodSpiritsCore",
-    "AriFoodBeer",
-    "AriFoodWine",
-    "AriFoodLiquor",
-    "AriFoodCocktails"
+    "AriFoodSpiritsCore"
   ]);
 
   const BRAND_MODULES = Object.freeze([
     "AriFoodBeerBrands",
     "AriFoodWineBrands",
     "AriFoodLiquorBrands",
+    "AriFoodHardSeltzerBrands",
+    "AriFoodCannedCocktailBrands",
+    "AriFoodMaltBeverageBrands",
     "AriFoodCocktailBrands"
   ]);
 
@@ -156,14 +180,19 @@
     moduleState.clear();
 
     for (const moduleName of EXPECTED_MODULES) {
-      moduleState.set(moduleName, createModuleState(moduleName));
+      moduleState.set(
+        moduleName,
+        createModuleState(moduleName)
+      );
     }
   }
 
   initializeModuleState();
 
   function isExpectedModule(moduleName) {
-    return moduleState.has(String(moduleName || "").trim());
+    return moduleState.has(
+      String(moduleName || "").trim()
+    );
   }
 
   function normalizeModuleResult(result = {}) {
@@ -172,30 +201,46 @@
       replaced: Number(result.replaced) || 0,
       rejected: Number(result.rejected) || 0,
       duplicates: Number(result.duplicates) || 0,
-      metadata: result.metadata ? clone(result.metadata) : null
+      metadata: result.metadata
+        ? clone(result.metadata)
+        : null
     };
   }
 
   function getModule(moduleName) {
-    const normalized = String(moduleName || "").trim();
-    const state = moduleState.get(normalized);
-    return state ? clone(state) : null;
+    const normalized =
+      String(moduleName || "").trim();
+
+    const state =
+      moduleState.get(normalized);
+
+    return state
+      ? clone(state)
+      : null;
   }
 
   function getModules() {
-    return Array.from(moduleState.values()).map(clone);
+    return Array.from(
+      moduleState.values()
+    ).map(clone);
   }
 
   function getLoadedModules() {
-    return getModules().filter(module => module.status === "loaded");
+    return getModules().filter(
+      module => module.status === "loaded"
+    );
   }
 
   function getPendingModules() {
-    return getModules().filter(module => module.status === "pending");
+    return getModules().filter(
+      module => module.status === "pending"
+    );
   }
 
   function getFailedModules() {
-    return getModules().filter(module => module.status === "failed");
+    return getModules().filter(
+      module => module.status === "failed"
+    );
   }
 
   function getTotals() {
@@ -219,10 +264,17 @@
         totals.pendingModules += 1;
       }
 
-      totals.registered += Number(state.registered) || 0;
-      totals.replaced += Number(state.replaced) || 0;
-      totals.rejected += Number(state.rejected) || 0;
-      totals.duplicates += Number(state.duplicates) || 0;
+      totals.registered +=
+        Number(state.registered) || 0;
+
+      totals.replaced +=
+        Number(state.replaced) || 0;
+
+      totals.rejected +=
+        Number(state.rejected) || 0;
+
+      totals.duplicates +=
+        Number(state.duplicates) || 0;
     }
 
     return totals;
@@ -232,7 +284,8 @@
     const totals = getTotals();
 
     return (
-      totals.loadedModules === totals.expectedModules &&
+      totals.loadedModules ===
+        totals.expectedModules &&
       totals.failedModules === 0
     );
   }
@@ -256,23 +309,33 @@
   }
 
   function maybeEmitReady() {
-    if (readyEventEmitted || !isReady()) {
+    if (
+      readyEventEmitted ||
+      !isReady()
+    ) {
       return;
     }
 
     readyEventEmitted = true;
 
-    emitEvent("ari:food-spirits-ready", {
-      version: VERSION,
-      collectionId: COLLECTION_ID,
-      collectionName: COLLECTION_NAME,
-      totals: getTotals(),
-      modules: getModules()
-    });
+    emitEvent(
+      "ari:food-spirits-ready",
+      {
+        version: VERSION,
+        collectionId: COLLECTION_ID,
+        collectionName: COLLECTION_NAME,
+        totals: getTotals(),
+        modules: getModules()
+      }
+    );
   }
 
-  function markModuleLoaded(moduleName, result = {}) {
-    const normalized = String(moduleName || "").trim();
+  function markModuleLoaded(
+    moduleName,
+    result = {}
+  ) {
+    const normalized =
+      String(moduleName || "").trim();
 
     if (!isExpectedModule(normalized)) {
       console.warn(
@@ -281,37 +344,56 @@
       return false;
     }
 
-    const normalizedResult = normalizeModuleResult(result);
-    const current = moduleState.get(normalized);
+    const normalizedResult =
+      normalizeModuleResult(result);
+
+    const current =
+      moduleState.get(normalized);
 
     const next = {
       ...current,
       status: "loaded",
-      registered: normalizedResult.registered,
-      replaced: normalizedResult.replaced,
-      rejected: normalizedResult.rejected,
-      duplicates: normalizedResult.duplicates,
-      metadata: normalizedResult.metadata,
+      registered:
+        normalizedResult.registered,
+      replaced:
+        normalizedResult.replaced,
+      rejected:
+        normalizedResult.rejected,
+      duplicates:
+        normalizedResult.duplicates,
+      metadata:
+        normalizedResult.metadata,
       loadedAt: nowIso(),
       failedAt: null,
       error: null
     };
 
-    moduleState.set(normalized, next);
+    moduleState.set(
+      normalized,
+      next
+    );
 
-    emitEvent("ari:food-spirits-module-update", {
-      action: "loaded",
-      module: clone(next),
-      totals: getTotals(),
-      status: getStatus()
-    });
+    emitEvent(
+      "ari:food-spirits-module-update",
+      {
+        action: "loaded",
+        module: clone(next),
+        totals: getTotals(),
+        status: getStatus()
+      }
+    );
 
     maybeEmitReady();
     return true;
   }
 
-  function markModuleFailed(moduleName, error, metadata = null) {
-    const normalized = String(moduleName || "").trim();
+  function markModuleFailed(
+    moduleName,
+    error,
+    metadata = null
+  ) {
+    const normalized =
+      String(moduleName || "").trim();
 
     if (!isExpectedModule(normalized)) {
       console.warn(
@@ -320,11 +402,16 @@
       return false;
     }
 
-    const current = moduleState.get(normalized);
+    const current =
+      moduleState.get(normalized);
+
     const message =
       error instanceof Error
         ? error.message
-        : String(error || "Unknown module failure");
+        : String(
+            error ||
+            "Unknown module failure"
+          );
 
     const next = {
       ...current,
@@ -332,37 +419,54 @@
       failedAt: nowIso(),
       loadedAt: null,
       error: message,
-      metadata: metadata ? clone(metadata) : current.metadata
+      metadata: metadata
+        ? clone(metadata)
+        : current.metadata
     };
 
-    moduleState.set(normalized, next);
+    moduleState.set(
+      normalized,
+      next
+    );
+
     readyEventEmitted = false;
 
-    emitEvent("ari:food-spirits-module-update", {
-      action: "failed",
-      module: clone(next),
-      totals: getTotals(),
-      status: getStatus()
-    });
+    emitEvent(
+      "ari:food-spirits-module-update",
+      {
+        action: "failed",
+        module: clone(next),
+        totals: getTotals(),
+        status: getStatus()
+      }
+    );
 
     return true;
   }
 
   function resetModule(moduleName) {
-    const normalized = String(moduleName || "").trim();
+    const normalized =
+      String(moduleName || "").trim();
 
     if (!isExpectedModule(normalized)) {
       return false;
     }
 
-    moduleState.set(normalized, createModuleState(normalized));
+    moduleState.set(
+      normalized,
+      createModuleState(normalized)
+    );
+
     readyEventEmitted = false;
 
-    emitEvent("ari:food-spirits-reset", {
-      scope: "module",
-      moduleName: normalized,
-      totals: getTotals()
-    });
+    emitEvent(
+      "ari:food-spirits-reset",
+      {
+        scope: "module",
+        moduleName: normalized,
+        totals: getTotals()
+      }
+    );
 
     return true;
   }
@@ -372,32 +476,48 @@
     initializedAt = nowIso();
     readyEventEmitted = false;
 
-    emitEvent("ari:food-spirits-reset", {
-      scope: "collection",
-      totals: getTotals()
-    });
+    emitEvent(
+      "ari:food-spirits-reset",
+      {
+        scope: "collection",
+        totals: getTotals()
+      }
+    );
 
     return true;
   }
 
   function getRegistryCoverage() {
-    const registry = global.AriFoodRegistry;
+    const registry =
+      global.AriFoodRegistry;
 
-    if (!registry || typeof registry.getBySource !== "function") {
+    if (
+      !registry ||
+      typeof registry.getBySource !==
+        "function"
+    ) {
       return null;
     }
 
     const coverage = {};
 
-    for (const moduleName of EXPECTED_MODULES) {
+    for (
+      const moduleName of
+      EXPECTED_MODULES
+    ) {
       try {
-        const records = registry.getBySource(moduleName, {
-          includeDisabled: true
-        });
+        const records =
+          registry.getBySource(
+            moduleName,
+            {
+              includeDisabled: true
+            }
+          );
 
-        coverage[moduleName] = Array.isArray(records)
-          ? records.length
-          : 0;
+        coverage[moduleName] =
+          Array.isArray(records)
+            ? records.length
+            : 0;
       } catch (error) {
         coverage[moduleName] = null;
       }
@@ -407,56 +527,84 @@
   }
 
   function getRegistryCoverageMap() {
-    const coverage = getRegistryCoverage();
-    return coverage ? new Map(Object.entries(coverage)) : null;
+    const coverage =
+      getRegistryCoverage();
+
+    return coverage
+      ? new Map(
+          Object.entries(coverage)
+        )
+      : null;
   }
 
   function healthCheck() {
     const issues = [];
     const totals = getTotals();
-    const registry = global.AriFoodRegistry;
+    const registry =
+      global.AriFoodRegistry;
 
-    if (!registry || typeof registry.registerMany !== "function") {
+    if (
+      !registry ||
+      typeof registry.registerMany !==
+        "function"
+    ) {
       issues.push({
         code: "registry_unavailable",
         severity: "error",
-        message: "AriFoodRegistry is unavailable."
+        message:
+          "AriFoodRegistry is unavailable."
       });
     }
 
-    for (const state of moduleState.values()) {
-      if (state.status === "failed") {
+    for (
+      const state of
+      moduleState.values()
+    ) {
+      if (
+        state.status === "failed"
+      ) {
         issues.push({
           code: "module_failed",
           severity: "error",
           module: state.moduleName,
-          message: state.error || "Module failed."
+          message:
+            state.error ||
+            "Module failed."
         });
       }
     }
 
-    const coverage = getRegistryCoverage();
+    const coverage =
+      getRegistryCoverage();
 
     if (
-      totals.loadedModules === totals.expectedModules &&
+      totals.loadedModules ===
+        totals.expectedModules &&
       totals.registered === 0
     ) {
       issues.push({
-        code: "all_loaded_zero_records",
+        code:
+          "all_loaded_zero_records",
         severity: "warning",
-        message: "All Spirits modules report loaded but registration total is zero."
+        message:
+          "All Spirits modules report loaded but registration total is zero."
       });
     }
 
     if (coverage) {
-      for (const state of moduleState.values()) {
+      for (
+        const state of
+        moduleState.values()
+      ) {
         if (
           state.status === "loaded" &&
-          coverage[state.moduleName] === 0 &&
+          coverage[state.moduleName] ===
+            0 &&
           Number(state.registered) > 0
         ) {
           issues.push({
-            code: "loaded_module_not_visible_in_registry",
+            code:
+              "loaded_module_not_visible_in_registry",
             severity: "warning",
             module: state.moduleName,
             message:
@@ -467,7 +615,10 @@
     }
 
     return {
-      ok: !issues.some(issue => issue.severity === "error"),
+      ok: !issues.some(
+        issue =>
+          issue.severity === "error"
+      ),
       status: getStatus(),
       ready: isReady(),
       totals,
@@ -485,80 +636,147 @@
       status: getStatus(),
       ready: isReady(),
 
-      taxonomy: {
-        umbrellaMeaning: "ARI top-level category for alcoholic drinks",
-        conventionalTerminologyNote:
-          "Outside ARI, spirits usually means distilled alcohol only.",
-        separateFromAriFoodBeverages: true
+      architecture: {
+        strategy: "brand-first",
+        genericFallbackModule:
+          "AriFoodSpiritsCore",
+        genericChildModulesRequired:
+          false
       },
 
-      canonicalBasis: clone(CANONICAL_BASIS),
-      alcoholMetadataContract: clone(ALCOHOL_METADATA_CONTRACT),
+      taxonomy: {
+        umbrellaMeaning:
+          "ARI top-level category for alcoholic drinks",
 
-      expectedModules: [...EXPECTED_MODULES],
-      genericModules: [...GENERIC_MODULES],
-      brandModules: [...BRAND_MODULES],
+        conventionalTerminologyNote:
+          "Outside ARI, spirits usually means distilled alcohol only.",
 
-      totals: getTotals(),
-      modules: getModules(),
-      registryCoverage: getRegistryCoverage(),
-      health: healthCheck()
+        separateFromAriFoodBeverages:
+          true
+      },
+
+      canonicalBasis:
+        clone(CANONICAL_BASIS),
+
+      alcoholMetadataContract:
+        clone(
+          ALCOHOL_METADATA_CONTRACT
+        ),
+
+      expectedModules:
+        [...EXPECTED_MODULES],
+
+      genericModules:
+        [...GENERIC_MODULES],
+
+      brandModules:
+        [...BRAND_MODULES],
+
+      totals:
+        getTotals(),
+
+      modules:
+        getModules(),
+
+      registryCoverage:
+        getRegistryCoverage(),
+
+      health:
+        healthCheck()
     };
   }
 
-  global.AriFoodSpirits = Object.freeze({
-    VERSION,
-    COLLECTION_ID,
-    COLLECTION_NAME,
+  global.AriFoodSpirits =
+    Object.freeze({
+      VERSION,
+      COLLECTION_ID,
+      COLLECTION_NAME,
 
-    EXPECTED_MODULES: [...EXPECTED_MODULES],
-    GENERIC_MODULES: [...GENERIC_MODULES],
-    BRAND_MODULES: [...BRAND_MODULES],
-    CANONICAL_BASIS: clone(CANONICAL_BASIS),
-    ALCOHOL_METADATA_CONTRACT: clone(ALCOHOL_METADATA_CONTRACT),
+      EXPECTED_MODULES:
+        [...EXPECTED_MODULES],
 
-    isExpectedModule,
-    markModuleLoaded,
-    markModuleFailed,
-    resetModule,
-    resetAllModules,
+      GENERIC_MODULES:
+        [...GENERIC_MODULES],
 
-    getModule,
-    getModules,
-    getLoadedModules,
-    getPendingModules,
-    getFailedModules,
+      BRAND_MODULES:
+        [...BRAND_MODULES],
 
-    getStatus,
-    getTotals,
-    isReady,
+      CANONICAL_BASIS:
+        clone(CANONICAL_BASIS),
 
-    getRegistryCoverage,
-    getRegistryCoverageMap,
+      ALCOHOL_METADATA_CONTRACT:
+        clone(
+          ALCOHOL_METADATA_CONTRACT
+        ),
 
-    getGenericModuleNames() {
-      return [...GENERIC_MODULES];
-    },
+      isExpectedModule,
+      markModuleLoaded,
+      markModuleFailed,
+      resetModule,
+      resetAllModules,
 
-    getBrandModuleNames() {
-      return [...BRAND_MODULES];
-    },
+      getModule,
+      getModules,
+      getLoadedModules,
+      getPendingModules,
+      getFailedModules,
 
-    healthCheck,
-    getDiagnostics
-  });
+      getStatus,
+      getTotals,
+      isReady,
 
-  emitEvent("ari:food-spirits-initialized", {
-    version: VERSION,
-    collectionId: COLLECTION_ID,
-    collectionName: COLLECTION_NAME,
-    expectedModules: [...EXPECTED_MODULES],
-    canonicalBasis: clone(CANONICAL_BASIS),
-    separateFromAriFoodBeverages: true
-  });
+      getRegistryCoverage,
+      getRegistryCoverageMap,
+
+      getGenericModuleNames() {
+        return [
+          ...GENERIC_MODULES
+        ];
+      },
+
+      getBrandModuleNames() {
+        return [
+          ...BRAND_MODULES
+        ];
+      },
+
+      healthCheck,
+      getDiagnostics
+    });
+
+  emitEvent(
+    "ari:food-spirits-initialized",
+    {
+      version: VERSION,
+      collectionId: COLLECTION_ID,
+      collectionName:
+        COLLECTION_NAME,
+
+      expectedModules:
+        [...EXPECTED_MODULES],
+
+      genericModules:
+        [...GENERIC_MODULES],
+
+      brandModules:
+        [...BRAND_MODULES],
+
+      canonicalBasis:
+        clone(CANONICAL_BASIS),
+
+      architecture: {
+        strategy: "brand-first",
+        genericFallbackModule:
+          "AriFoodSpiritsCore"
+      },
+
+      separateFromAriFoodBeverages:
+        true
+    }
+  );
 
   console.info(
-    `[ARI Nutrition] ${COLLECTION_NAME} v${VERSION} initialized with ${EXPECTED_MODULES.length} expected modules.`
+    `[ARI Nutrition] ${COLLECTION_NAME} v${VERSION} initialized with ${EXPECTED_MODULES.length} expected modules (${BRAND_MODULES.length} branded + ${GENERIC_MODULES.length} generic fallback).`
   );
 
 })(
