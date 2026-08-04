@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodRegistry.js
-// Version: 2.0.0
+// Version: 2.0.1
 //
 // Purpose:
 //   Canonical food knowledge registry for ARI Nutrition.
@@ -34,16 +34,18 @@
 //   Milk:
 //     149 calories per 1 cup
 //
-//   AriFoodCalculator will later use the basis plus
-//   gram / volume / unit equivalents to calculate
-//   arbitrary servings such as:
+//   AriFoodCalculator uses the basis plus gram / volume /
+//   unit equivalents to calculate arbitrary servings.
 //
-//     6 oz chicken
-//     143 g broccoli
-//     0.5 lb steak
-//     2 pizza slices
-//     3 eggs
-//     1.5 cups milk
+// V2.0.1:
+//   - Accept nutrition.sodiumMg as an alias for sodium.
+//   - Accept nutrition.potassiumMg as an alias for potassium.
+//   - Accept nutrition.cholesterolMg as an alias for cholesterol.
+//   - Preserve convenience servings that define grams or
+//     milliliters but omit an explicit unit.
+//   - Missing serving units with a valid gram/mL equivalent
+//     normalize to the custom unit "serving".
+//   - Keeps compatibility with existing v2.0 food modules.
 //
 // Responsibilities:
 //   - Register canonical food records.
@@ -65,7 +67,6 @@
 // Non-responsibilities:
 //   - Does not perform food autocomplete ranking.
 //   - Does not calculate arbitrary serving nutrition.
-//   - Does not convert 6 oz into calories.
 //   - Does not estimate unknown foods.
 //   - Does not save meals.
 //   - Does not access Supabase.
@@ -79,7 +80,7 @@
   // VERSION
   // =====================================================
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.0.1";
   const SCHEMA_VERSION = "2.0";
 
 
@@ -219,7 +220,10 @@
 
     pints: "pint",
     quarts: "quart",
-    gallons: "gallon"
+    gallons: "gallon",
+
+    // Generic convenience serving
+    servings: "serving"
   });
 
 
@@ -301,6 +305,20 @@
     }
 
     return number;
+  }
+
+  function firstDefined(...values) {
+    for (const value of values) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+      ) {
+        return value;
+      }
+    }
+
+    return undefined;
   }
 
   function normalizeText(value) {
@@ -558,6 +576,45 @@
         ? rawNutrition
         : {};
 
+    /*
+     * V2.0.1 compatibility:
+     *
+     * Older/core records may use:
+     *   sodium
+     *   potassium
+     *   cholesterol
+     *
+     * Newer data modules may use explicit unit names:
+     *   sodiumMg
+     *   potassiumMg
+     *   cholesterolMg
+     *
+     * The canonical Registry representation remains:
+     *   sodium
+     *   potassium
+     *   cholesterol
+     *
+     * These values represent milligrams.
+     */
+
+    const sodium =
+      firstDefined(
+        nutrition.sodium,
+        nutrition.sodiumMg
+      );
+
+    const potassium =
+      firstDefined(
+        nutrition.potassium,
+        nutrition.potassiumMg
+      );
+
+    const cholesterol =
+      firstDefined(
+        nutrition.cholesterol,
+        nutrition.cholesterolMg
+      );
+
     return {
       calories:
         nonNegativeNumber(
@@ -601,17 +658,17 @@
 
       cholesterol:
         nonNegativeNumber(
-          nutrition.cholesterol
+          cholesterol
         ),
 
       sodium:
         nonNegativeNumber(
-          nutrition.sodium
+          sodium
         ),
 
       potassium:
         nonNegativeNumber(
-          nutrition.potassium
+          potassium
         )
     };
   }
@@ -721,14 +778,19 @@
         1
       );
 
-    const unit =
-      normalizeUnit(
-        rawServing.unit
-      );
-
-    if (!unit) {
-      return null;
-    }
+    /*
+     * Read gram/mL equivalents before deciding whether
+     * the serving is valid. This allows data modules to
+     * define:
+     *
+     * {
+     *   label: "About 11 chips (28 g)",
+     *   grams: 28,
+     *   isDefault: true
+     * }
+     *
+     * without also having to provide unit: "serving".
+     */
 
     let grams =
       positiveNumber(
@@ -739,6 +801,33 @@
       positiveNumber(
         rawServing.milliliters
       );
+
+    let unit =
+      normalizeUnit(
+        rawServing.unit
+      );
+
+    /*
+     * V2.0.1 compatibility:
+     *
+     * If the record has a real gram or mL equivalent but
+     * omitted its custom unit, preserve it as one generic
+     * "serving" rather than discarding the serving.
+     */
+
+    if (
+      !unit &&
+      (
+        grams !== null ||
+        milliliters !== null
+      )
+    ) {
+      unit = "serving";
+    }
+
+    if (!unit) {
+      return null;
+    }
 
     const dimension =
       getUnitDimension(unit);
