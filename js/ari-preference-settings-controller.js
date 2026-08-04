@@ -1,1301 +1,1399 @@
-// js/ari-preference-settings-controller.js
-// Ari Preference Settings Controller
+// =====================================================
+// ARI REBIRTH
+// File: js/ari-preference-settings-controller.js
+// Version: 3.0.0
 //
 // Purpose:
-// Load, populate, validate, save, and reset Ari's communication
-// preferences through the canonical preference store and runtime.
+//   Page controller for ari-preference-settings.html.
 //
-// V2.0.0 — Communication Preferences Only
+// Architecture:
 //
-// Architectural flow:
+//   ari-preference-settings.html
+//            ↓
+//   AriPreferenceSettingsController
+//            ↓
+//   AriUserPreferenceContract
+//            ↓
+//   AriUserPreferenceStore
+//            ↓
+//   Supabase
+//            ↓
+//   AriPreferenceResolver
+//            ↓
+//   AriPreferenceRuntime
 //
-// Static Semantic HTML Controls
-//      ↓
-// AriPreferenceSettingsController
-//      ↓
-// AriUserPreferenceContract Validation
-//      ↓
-// AriUserPreferenceStore
-//      ↓
-// AriPreferenceRuntime Refresh
+// Design authority:
+//   The HTML page defines:
+//   - Which preference groups exist
+//   - Which values are selectable
+//   - Which value is the default
 //
-// Supported communication preferences:
-// - language.tone
-// - language.directness
-// - language.humor
-// - language.profanity
-// - language.detail
+// This controller does NOT:
+//   - Render preference controls
+//   - Invent preference categories
+//   - Define Ari's personality instructions
+//   - Define reasoning behavior
+//   - Define safety behavior
+//   - Define tool behavior
+//   - Define memory behavior
 //
 // Responsibilities:
-// - Bind the five communication preference groups already present in HTML.
-// - Load the authenticated user's stored preference record.
-// - Populate each radio group from stored overrides or runtime defaults.
-// - Collect selected values by canonical preference path.
-// - Validate overrides through AriUserPreferenceContract.
-// - Save normalized overrides through AriUserPreferenceStore.
-// - Reset stored overrides through AriUserPreferenceStore.
-// - Refresh AriPreferenceRuntime after save and reset.
-// - Dispatch preference lifecycle events.
-// - Expose concise controller diagnostics.
+//   - Discover the static HTML preference schema
+//   - Validate the page structure
+//   - Load persisted preferences
+//   - Populate the form
+//   - Collect explicit user selections
+//   - Save selections through AriUserPreferenceStore
+//   - Reset selections to HTML-defined defaults
+//   - Refresh AriPreferenceRuntime after persistence
+//   - Expose diagnostics for Ari Lab / browser console
 //
-// Non-responsibilities:
-// - Does not render preference controls.
-// - Does not define preference meaning.
-// - Does not define valid preference values.
-// - Does not manage presets.
-// - Does not manage advanced preferences.
-// - Does not collect consent.
-// - Does not generate previews.
-// - Does not persist records independently.
-// - Does not resolve final runtime preferences.
-// - Does not alter reasoning, routing, safety, retrieval, or tools.
+// IMPORTANT:
+//   This controller represents the new preference schema.
+//
+//   Required preference contract:
+//     AriUserPreferenceContract V3.0.0
+//
+//   Saving is intentionally blocked when an older preference
+//   contract is loaded. This prevents an incompatible legacy
+//   contract from normalizing the new preferences into {}.
+// =====================================================
 
-window.Ari = window.Ari || {};
+(() => {
+  "use strict";
 
-window.AriPreferenceSettingsController = {
-  version: "2.0.0",
-  source: "ari-preference-settings-controller",
+  // =====================================================
+  // CONSTANTS
+  // =====================================================
 
-  supportedPaths: Object.freeze([
+  const CONTROLLER_VERSION = "3.0.0";
+  const REQUIRED_CONTRACT_VERSION = "3.0.0";
+
+  const DOM_IDS = Object.freeze({
+    root: "ari-preference-settings",
+    form: "ari-preference-form",
+    loading: "ari-preference-loading",
+    status: "ari-preference-status",
+    save: "ari-preference-save",
+    reset: "ari-preference-reset"
+  });
+
+  const EXPECTED_PATHS = Object.freeze([
     "language.tone",
     "language.directness",
     "language.humor",
     "language.profanity",
+    "language.complexity",
     "language.detail"
-  ]),
+  ]);
 
-  state: {
-    initialized: false,
-    initializing: false,
-    saving: false,
-    eventsBound: false,
-    dirty: false,
+  // =====================================================
+  // CONTROLLER
+  // =====================================================
 
-    record: null,
-    initialSelections: {},
-    lastError: null
-  },
+  const AriPreferenceSettingsController = {
+    version: CONTROLLER_VERSION,
+    requiredContractVersion: REQUIRED_CONTRACT_VERSION,
 
-  selectors: {
-    root: "#ari-preference-settings",
-    loading: "#ari-preference-loading",
-    form: "#ari-preference-form",
-    status: "#ari-preference-status",
-    save: "#ari-preference-save",
-    reset: "#ari-preference-reset"
-  },
+    state: {
+      initialized: false,
+      initializing: false,
+      busy: false,
+      dirty: false,
 
-  /* =====================================================
-     INITIALIZATION
-  ===================================================== */
+      htmlSchema: null,
+      loadedRecord: null,
+      loadedPreferences: null,
 
-  async initialize() {
-    if (this.state.initialized) {
-      return {
-        ok: true,
-        state: this.getState()
-      };
-    }
+      lastSavedPreferences: null,
+      lastError: null
+    },
 
-    if (this.state.initializing) {
-      return {
-        ok: false,
-        code: "preference_settings_initialization_in_progress"
-      };
-    }
+    // ===================================================
+    // INITIALIZATION
+    // ===================================================
 
-    const root = this.getElement("root");
-
-    if (!root) {
-      return {
-        ok: false,
-        code: "preference_settings_root_missing"
-      };
-    }
-
-    this.state.initializing = true;
-    this.state.lastError = null;
-
-    this.setLoading(true);
-    this.setStatus("");
-
-    try {
-      this.requireContract();
-      const store = this.requireStore();
-
-      this.validateHtmlControls();
-      this.bindEvents();
-
-      const result = await store.read(
-        null,
-        {
-          createIfMissing: true,
-          useCache: true
-        }
-      );
-
-      if (!result?.ok) {
-        throw new Error(
-          result?.error?.message ||
-          result?.code ||
-          "Unable to read Ari preferences."
-        );
+    async initialize() {
+      if (this.state.initialized || this.state.initializing) {
+        return;
       }
 
-      this.state.record =
-        this.normalizeRecord(
-          result.record
+      this.state.initializing = true;
+      this.state.lastError = null;
+
+      try {
+        this.assertPageStructure();
+
+        this.state.htmlSchema = this.readHtmlSchema();
+
+        this.bindEvents();
+
+        this.showLoading(true);
+        this.showForm(false);
+        this.clearStatus();
+
+        this.applyHtmlDefaults();
+
+        await this.loadPreferences();
+
+        this.showForm(true);
+        this.showLoading(false);
+
+        this.state.initialized = true;
+        this.state.dirty = false;
+
+        this.updateActionState();
+
+        console.info(
+          `ARI PREFERENCE SETTINGS CONTROLLER LOADED: ${this.version}`
         );
 
-      this.populateForm(
-        this.state.record
-      );
+        console.info(
+          "ARI PREFERENCE HTML SCHEMA:",
+          this.clone(this.state.htmlSchema)
+        );
+      } catch (error) {
+        this.handleError(
+          "initialize",
+          error,
+          "Ari could not load your preference settings."
+        );
 
-      this.captureInitialSelections();
-      this.setDirty(false);
-
-      this.state.initialized = true;
-
-      window.dispatchEvent(
-        new CustomEvent(
-          "ari:preference-settings-ready",
-          {
-            detail: {
-              source: this.source,
-              controllerVersion: this.version,
-              supportedPaths: [
-                ...this.supportedPaths
-              ],
-              record: this.clone(
-                this.state.record
-              )
-            }
-          }
-        )
-      );
-
-      return {
-        ok: true,
-        state: this.getState()
-      };
-    } catch (error) {
-      this.state.lastError =
-        this.serializeError(error);
-
-      this.setStatus(
-        error?.message ||
-        "Unable to load Ari preferences.",
-        "error"
-      );
-
-      console.error(
-        "ARI PREFERENCE SETTINGS INITIALIZATION FAILED:",
-        error
-      );
-
-      return {
-        ok: false,
-        code: "preference_settings_initialize_failed",
-        error
-      };
-    } finally {
-      this.state.initializing = false;
-      this.setLoading(false);
-    }
-  },
-
-  /* =====================================================
-     HTML CONTROL VALIDATION
-  ===================================================== */
-
-  validateHtmlControls() {
-    const form =
-      this.getElement("form");
-
-    if (!form) {
-      throw new Error(
-        "Ari preference form is missing."
-      );
-    }
-
-    const missingPaths = [];
-
-    for (
-      const path
-      of this.supportedPaths
-    ) {
-      const controls =
-        this.getRadioGroupByPath(path);
-
-      if (
-        controls.length === 0
-      ) {
-        missingPaths.push(path);
-        continue;
+        this.showLoading(false);
+        this.showForm(true);
+      } finally {
+        this.state.initializing = false;
       }
+    },
 
-      const groupNames =
-        new Set(
-          controls.map(
-            control =>
-              control.name
-          )
-        );
+    // ===================================================
+    // PAGE STRUCTURE
+    // ===================================================
 
-      if (
-        groupNames.size !== 1 ||
-        groupNames.has("")
-      ) {
-        throw new Error(
-          `Preference controls for ${path} must share one radio-group name.`
-        );
-      }
+    assertPageStructure() {
+      const requiredIds = [
+        DOM_IDS.root,
+        DOM_IDS.form,
+        DOM_IDS.loading,
+        DOM_IDS.status,
+        DOM_IDS.save,
+        DOM_IDS.reset
+      ];
 
-      for (
-        const control
-        of controls
-      ) {
-        if (
-          !control.value
-        ) {
+      for (const id of requiredIds) {
+        if (!document.getElementById(id)) {
           throw new Error(
-            `Preference control for ${path} is missing a value.`
+            `Preference settings page is missing required element #${id}.`
           );
         }
       }
-    }
 
-    if (
-      missingPaths.length > 0
-    ) {
-      throw new Error(
-        `Missing communication preference controls: ${missingPaths.join(", ")}.`
-      );
-    }
-  },
+      const groups = this.getPreferenceGroups();
 
-  /* =====================================================
-     FORM POPULATION
-  ===================================================== */
+      if (!groups.length) {
+        throw new Error(
+          "No preference groups were found in the HTML."
+        );
+      }
 
-  populateForm(record = {}) {
-    const overrides =
-      this.asPlainObject(
-        record.preferenceOverrides
+      const discoveredPaths = groups.map((group) =>
+        String(group.dataset.preferenceGroup || "").trim()
       );
 
-    for (
-      const path
-      of this.supportedPaths
-    ) {
-      const {
-        category,
-        key
-      } = this.parsePath(path);
+      for (const expectedPath of EXPECTED_PATHS) {
+        if (!discoveredPaths.includes(expectedPath)) {
+          throw new Error(
+            `Missing expected preference group: ${expectedPath}`
+          );
+        }
+      }
 
-      const savedValue =
-        overrides?.[category]?.[key];
+      const unexpectedPaths = discoveredPaths.filter(
+        (path) => !EXPECTED_PATHS.includes(path)
+      );
 
-      const runtimeDefault =
-        this.getRuntimeDefaultForPath(
-          path
+      if (unexpectedPaths.length) {
+        console.warn(
+          "ARI Preference Settings found additional HTML preference groups:",
+          unexpectedPaths
+        );
+      }
+    },
+
+    readHtmlSchema() {
+      const schema = {};
+
+      for (const group of this.getPreferenceGroups()) {
+        const path = String(
+          group.dataset.preferenceGroup || ""
+        ).trim();
+
+        if (!path) {
+          throw new Error(
+            "A preference fieldset is missing data-preference-group."
+          );
+        }
+
+        const controls = Array.from(
+          group.querySelectorAll(
+            'input[type="radio"][data-path]'
+          )
         );
 
-      const selectedValue =
-        savedValue ??
-        runtimeDefault;
+        if (!controls.length) {
+          throw new Error(
+            `Preference group ${path} has no radio controls.`
+          );
+        }
 
-      this.selectValueForPath(
-        path,
-        selectedValue
-      );
-    }
-  },
+        const values = [];
+        const defaults = [];
 
-  selectValueForPath(
-    path,
-    requestedValue
-  ) {
-    const group =
-      this.getRadioGroupByPath(path);
+        for (const control of controls) {
+          const controlPath = String(
+            control.dataset.path || ""
+          ).trim();
 
-    if (
-      group.length === 0
-    ) {
-      return null;
-    }
+          const controlName = String(
+            control.name || ""
+          ).trim();
 
-    const normalizedValue =
-      String(
-        requestedValue ?? ""
-      ).trim();
+          const value = String(
+            control.value || ""
+          ).trim();
 
-    const selected =
-      group.find(
-        input =>
-          input.value ===
-          normalizedValue
-      ) ||
-      group.find(
-        input =>
-          input.value ===
-          "default"
-      ) ||
-      group[0];
+          if (controlPath !== path) {
+            throw new Error(
+              `Preference control path mismatch in ${path}. Found ${controlPath}.`
+            );
+          }
 
-    for (
-      const input
-      of group
-    ) {
-      input.checked =
-        input === selected;
-    }
+          if (controlName !== path) {
+            throw new Error(
+              `Preference control name mismatch in ${path}. Found ${controlName}.`
+            );
+          }
 
-    return selected?.value || null;
-  },
+          if (!value) {
+            throw new Error(
+              `Preference group ${path} contains an empty value.`
+            );
+          }
 
-  getRuntimeDefaultForPath(path) {
-    const contract =
-      this.requireContract();
+          if (values.includes(value)) {
+            throw new Error(
+              `Preference group ${path} contains duplicate value "${value}".`
+            );
+          }
 
-    const {
-      category,
-      key
-    } = this.parsePath(path);
+          values.push(value);
 
-    const runtimeDefaults =
-      typeof contract.getRuntimeDefaults ===
-      "function"
-        ? contract.getRuntimeDefaults()
-        : {};
-
-    const value =
-      runtimeDefaults?.[category]?.[key];
-
-    if (
-      value !== undefined &&
-      value !== null &&
-      value !== ""
-    ) {
-      return value;
-    }
-
-    const group =
-      this.getRadioGroupByPath(path);
-
-    return (
-      group.find(
-        input =>
-          input.value === "default"
-      )?.value ||
-      group[0]?.value ||
-      null
-    );
-  },
-
-  /* =====================================================
-     EVENTS
-  ===================================================== */
-
-  bindEvents() {
-    if (
-      this.state.eventsBound
-    ) {
-      return;
-    }
-
-    const form =
-      this.getElement("form");
-
-    const reset =
-      this.getElement("reset");
-
-    form?.addEventListener(
-      "submit",
-      event =>
-        this.handleSubmit(event)
-    );
-
-    form?.addEventListener(
-      "change",
-      event =>
-        this.handleFormChange(event)
-    );
-
-    reset?.addEventListener(
-      "click",
-      () =>
-        this.handleReset()
-    );
-
-    this.state.eventsBound = true;
-  },
-
-  handleFormChange(event) {
-    const control =
-      event.target?.closest?.(
-        'input[type="radio"][data-path]'
-      );
-
-    if (
-      !control ||
-      !control.checked ||
-      !this.supportedPaths.includes(
-        control.dataset.path
-      )
-    ) {
-      return;
-    }
-
-    this.setDirty(
-      this.hasSelectionChanges()
-    );
-
-    this.setStatus(
-      "Changes not saved.",
-      "working"
-    );
-
-    window.dispatchEvent(
-      new CustomEvent(
-        "ari:preference-settings-changed",
-        {
-          detail: {
-            source: this.source,
-            path:
-              control.dataset.path,
-            value:
-              control.value,
-            selections:
-              this.collectSelections()
+          if (control.dataset.default === "true") {
+            defaults.push(value);
           }
         }
-      )
-    );
-  },
 
-  /* =====================================================
-     SAVE
-  ===================================================== */
+        if (defaults.length !== 1) {
+          throw new Error(
+            `Preference group ${path} must contain exactly one data-default="true" control.`
+          );
+        }
 
-  async handleSubmit(event) {
-    event?.preventDefault?.();
-
-    if (
-      this.state.saving
-    ) {
-      return {
-        ok: false,
-        code: "preference_settings_save_in_progress"
-      };
-    }
-
-    this.state.saving = true;
-    this.state.lastError = null;
-
-    this.setSaving(true);
-
-    this.setStatus(
-      "Saving preferences…",
-      "working"
-    );
-
-    try {
-      const contract =
-        this.requireContract();
-
-      const store =
-        this.requireStore();
-
-      const runtime =
-        this.getRuntime();
-
-      const rawOverrides =
-        this.collectOverrides();
-
-      const validation =
-        contract.validateOverrides(
-          rawOverrides
-        );
-
-      if (!validation?.ok) {
-        throw new Error(
-          validation?.warnings
-            ?.join(", ") ||
-          validation?.errors
-            ?.join(", ") ||
-          "The selected preferences are invalid."
-        );
+        schema[path] = Object.freeze({
+          path,
+          values: Object.freeze([...values]),
+          defaultValue: defaults[0]
+        });
       }
 
-      const normalizedOverrides =
-        this.filterToSupportedOverrides(
-          validation.normalized || {}
-        );
+      return Object.freeze(schema);
+    },
 
-      const activePreset =
-        this.hasAnyOverrides(
-          normalizedOverrides
-        )
-          ? "custom"
-          : "default";
+    // ===================================================
+    // DOM HELPERS
+    // ===================================================
 
-      const result =
-        await store.save(
-          null,
-          normalizedOverrides,
-          {
-            activePreset,
-            schemaVersion:
-              contract.schemaVersion,
-            changeSource:
-              "communication_settings_ui"
-          }
-        );
+    getElement(key) {
+      const id = DOM_IDS[key];
 
-      if (!result?.ok) {
-        throw new Error(
-          result?.error?.message ||
-          result?.code ||
-          "Unable to save Ari preferences."
-        );
+      if (!id) {
+        return null;
       }
 
-      this.state.record =
-        this.normalizeRecord(
-          result.record
-        );
+      return document.getElementById(id);
+    },
 
-      await this.refreshRuntime(
-        runtime
-      );
+    getPreferenceGroups() {
+      const form = this.getElement("form");
 
-      this.populateForm(
-        this.state.record
-      );
+      if (!form) {
+        return [];
+      }
 
-      this.captureInitialSelections();
-      this.setDirty(false);
-
-      this.setStatus(
-        "Preferences saved.",
-        "success"
-      );
-
-      window.dispatchEvent(
-        new CustomEvent(
-          "ari:preferences-updated",
-          {
-            detail: {
-              source: this.source,
-              controllerVersion:
-                this.version,
-              supportedPaths: [
-                ...this.supportedPaths
-              ],
-              record:
-                this.clone(
-                  this.state.record
-                )
-            }
-          }
+      return Array.from(
+        form.querySelectorAll(
+          "fieldset[data-preference-group]"
         )
       );
+    },
 
-      return {
-        ok: true,
-        record: this.clone(
-          this.state.record
-        )
-      };
-    } catch (error) {
-      this.state.lastError =
-        this.serializeError(error);
+    getPreferenceControls() {
+      const form = this.getElement("form");
 
-      console.error(
-        "ARI PREFERENCE SETTINGS SAVE FAILED:",
-        error
-      );
-
-      this.setStatus(
-        error?.message ||
-        "Unable to save Ari preferences.",
-        "error"
-      );
-
-      return {
-        ok: false,
-        code: "preference_settings_save_failed",
-        error
-      };
-    } finally {
-      this.state.saving = false;
-      this.setSaving(false);
-    }
-  },
-
-  collectSelections() {
-    const selections = {};
-
-    for (
-      const path
-      of this.supportedPaths
-    ) {
-      const selected =
-        this.getSelectedControlByPath(
-          path
-        );
-
-      if (selected) {
-        selections[path] =
-          selected.value;
-      }
-    }
-
-    return selections;
-  },
-
-  collectOverrides() {
-    const output = {};
-
-    for (
-      const path
-      of this.supportedPaths
-    ) {
-      const selected =
-        this.getSelectedControlByPath(
-          path
-        );
-
-      if (!selected) {
-        throw new Error(
-          `No value is selected for ${path}.`
-        );
+      if (!form) {
+        return [];
       }
 
-      const runtimeDefault =
-        String(
-          this.getRuntimeDefaultForPath(
-            path
-          ) ?? ""
-        );
-
-      const selectedValue =
-        String(
-          selected.value ?? ""
-        );
-
-      if (
-        !selectedValue ||
-        selectedValue ===
-          runtimeDefault
-      ) {
-        continue;
-      }
-
-      const {
-        category,
-        key
-      } = this.parsePath(path);
-
-      output[category] =
-        output[category] || {};
-
-      output[category][key] =
-        selectedValue;
-    }
-
-    return output;
-  },
-
-  filterToSupportedOverrides(
-    overrides = {}
-  ) {
-    const output = {};
-
-    for (
-      const path
-      of this.supportedPaths
-    ) {
-      const {
-        category,
-        key
-      } = this.parsePath(path);
-
-      const value =
-        overrides?.[category]?.[key];
-
-      if (
-        value === undefined
-      ) {
-        continue;
-      }
-
-      output[category] =
-        output[category] || {};
-
-      output[category][key] =
-        value;
-    }
-
-    return output;
-  },
-
-  /* =====================================================
-     RESET
-  ===================================================== */
-
-  async handleReset() {
-    if (
-      this.state.saving
-    ) {
-      return {
-        ok: false,
-        code: "preference_settings_save_in_progress"
-      };
-    }
-
-    this.state.saving = true;
-    this.state.lastError = null;
-
-    this.setSaving(true);
-
-    this.setStatus(
-      "Resetting preferences…",
-      "working"
-    );
-
-    try {
-      const store =
-        this.requireStore();
-
-      const runtime =
-        this.getRuntime();
-
-      const result =
-        typeof store.resetAll ===
-        "function"
-          ? await store.resetAll(
-              null,
-              {
-                changeSource:
-                  "communication_settings_ui"
-              }
-            )
-          : await store.save(
-              null,
-              {},
-              {
-                activePreset:
-                  "default",
-                changeSource:
-                  "communication_settings_ui"
-              }
-            );
-
-      if (!result?.ok) {
-        throw new Error(
-          result?.error?.message ||
-          result?.code ||
-          "Unable to reset Ari preferences."
-        );
-      }
-
-      this.state.record =
-        this.normalizeRecord(
-          result.record || {
-            activePreset:
-              "default",
-            preferenceOverrides:
-              {}
-          }
-        );
-
-      await this.refreshRuntime(
-        runtime
-      );
-
-      this.populateForm(
-        this.state.record
-      );
-
-      this.captureInitialSelections();
-      this.setDirty(false);
-
-      this.setStatus(
-        "Preferences reset.",
-        "success"
-      );
-
-      window.dispatchEvent(
-        new CustomEvent(
-          "ari:preferences-reset",
-          {
-            detail: {
-              source: this.source,
-              controllerVersion:
-                this.version,
-              record:
-                this.clone(
-                  this.state.record
-                )
-            }
-          }
+      return Array.from(
+        form.querySelectorAll(
+          'input[type="radio"][data-path]'
         )
       );
+    },
 
-      return {
-        ok: true,
-        record: this.clone(
-          this.state.record
-        )
-      };
-    } catch (error) {
-      this.state.lastError =
-        this.serializeError(error);
-
-      console.error(
-        "ARI PREFERENCE SETTINGS RESET FAILED:",
-        error
+    getControlsForPath(path) {
+      return this.getPreferenceControls().filter(
+        (control) => control.dataset.path === path
       );
+    },
 
-      this.setStatus(
-        error?.message ||
-        "Unable to reset Ari preferences.",
-        "error"
-      );
-
-      return {
-        ok: false,
-        code: "preference_settings_reset_failed",
-        error
-      };
-    } finally {
-      this.state.saving = false;
-      this.setSaving(false);
-    }
-  },
-
-  /* =====================================================
-     RUNTIME REFRESH
-  ===================================================== */
-
-  async refreshRuntime(runtime) {
-    if (!runtime) {
-      return {
-        ok: true,
-        skipped: true,
-        reason:
-          "preference_runtime_not_loaded"
-      };
-    }
-
-    if (
-      typeof runtime.afterPreferenceSave ===
-      "function"
-    ) {
+    getSelectedControl(path) {
       return (
-        await runtime.afterPreferenceSave()
+        this.getControlsForPath(path).find(
+          (control) => control.checked
+        ) || null
       );
-    }
+    },
 
-    if (
-      typeof runtime.refresh ===
-      "function"
-    ) {
-      return (
-        await runtime.refresh()
+    // ===================================================
+    // EVENTS
+    // ===================================================
+
+    bindEvents() {
+      const form = this.getElement("form");
+      const resetButton = this.getElement("reset");
+
+      if (!form || !resetButton) {
+        throw new Error(
+          "Preference settings form actions are unavailable."
+        );
+      }
+
+      form.addEventListener(
+        "submit",
+        this.handleSubmit.bind(this)
       );
-    }
 
-    return {
-      ok: true,
-      skipped: true,
-      reason:
-        "preference_runtime_refresh_unavailable"
-    };
-  },
-
-  /* =====================================================
-     DIRTY STATE
-  ===================================================== */
-
-  captureInitialSelections() {
-    this.state.initialSelections =
-      this.collectSelections();
-  },
-
-  hasSelectionChanges() {
-    const current =
-      this.collectSelections();
-
-    const initial =
-      this.state.initialSelections ||
-      {};
-
-    return this.supportedPaths.some(
-      path =>
-        current[path] !==
-        initial[path]
-    );
-  },
-
-  setDirty(isDirty) {
-    this.state.dirty =
-      Boolean(isDirty);
-
-    const root =
-      this.getElement("root");
-
-    if (root) {
-      root.dataset.dirty =
-        this.state.dirty
-          ? "true"
-          : "false";
-    }
-  },
-
-  /* =====================================================
-     CONTROL ACCESS
-  ===================================================== */
-
-  getPreferenceControls() {
-    const form =
-      this.getElement("form");
-
-    if (!form) {
-      return [];
-    }
-
-    return Array.from(
-      form.querySelectorAll(
-        'input[type="radio"][data-path]'
-      )
-    ).filter(
-      control =>
-        this.supportedPaths.includes(
-          control.dataset.path
-        )
-    );
-  },
-
-  getRadioGroupByPath(path) {
-    return this.getPreferenceControls()
-      .filter(
-        control =>
-          control.dataset.path ===
-          path
+      resetButton.addEventListener(
+        "click",
+        this.handleReset.bind(this)
       );
-  },
 
-  getSelectedControlByPath(path) {
-    return (
-      this.getRadioGroupByPath(path)
-        .find(
-          control =>
-            control.checked
-        ) ||
-      null
-    );
-  },
+      for (const control of this.getPreferenceControls()) {
+        control.addEventListener(
+          "change",
+          this.handlePreferenceChange.bind(this)
+        );
+      }
+    },
 
-  /* =====================================================
-     UI STATE
-  ===================================================== */
+    handlePreferenceChange() {
+      if (this.state.busy) {
+        return;
+      }
 
-  setLoading(isLoading) {
-    const loading =
-      this.getElement("loading");
+      this.state.dirty = true;
 
-    const form =
-      this.getElement("form");
-
-    if (loading) {
-      loading.hidden =
-        !isLoading;
-    }
-
-    if (form) {
-      form.hidden =
-        Boolean(isLoading);
-    }
-  },
-
-  setSaving(isSaving) {
-    const save =
-      this.getElement("save");
-
-    const reset =
-      this.getElement("reset");
-
-    if (save) {
-      save.disabled =
-        Boolean(isSaving);
-    }
-
-    if (reset) {
-      reset.disabled =
-        Boolean(isSaving);
-    }
-
-    for (
-      const control
-      of this.getPreferenceControls()
-    ) {
-      control.disabled =
-        Boolean(isSaving);
-    }
-  },
-
-  setStatus(
-    message = "",
-    state = ""
-  ) {
-    const status =
-      this.getElement("status");
-
-    if (!status) {
-      return;
-    }
-
-    status.textContent =
-      message;
-
-    if (state) {
-      status.dataset.state =
-        state;
-    } else {
-      delete status.dataset.state;
-    }
-  },
-
-  /* =====================================================
-     DEPENDENCIES
-  ===================================================== */
-
-  requireContract() {
-    const contract =
-      window.AriUserPreferenceContract ||
-      window.Ari?.userPreferenceContract;
-
-    if (!contract) {
-      throw new Error(
-        "AriUserPreferenceContract is not loaded."
+      this.setStatus(
+        "Changes not saved yet.",
+        "pending"
       );
-    }
 
-    if (
-      typeof contract.validateOverrides !==
-      "function"
-    ) {
-      throw new Error(
-        "AriUserPreferenceContract.validateOverrides is unavailable."
-      );
-    }
+      this.updateActionState();
+    },
 
-    return contract;
-  },
+    async handleSubmit(event) {
+      event.preventDefault();
 
-  requireStore() {
-    const store =
-      window.AriUserPreferenceStore ||
-      window.Ari?.userPreferenceStore;
+      if (this.state.busy) {
+        return;
+      }
 
-    if (!store) {
-      throw new Error(
-        "AriUserPreferenceStore is not loaded."
-      );
-    }
+      await this.savePreferences();
+    },
 
-    if (
-      typeof store.read !==
-      "function" ||
-      typeof store.save !==
-      "function"
-    ) {
-      throw new Error(
-        "AriUserPreferenceStore must expose read and save."
-      );
-    }
+    async handleReset(event) {
+      event.preventDefault();
 
-    return store;
-  },
+      if (this.state.busy) {
+        return;
+      }
 
-  getRuntime() {
-    return (
-      window.AriPreferenceRuntime ||
-      window.Ari?.preferenceRuntime ||
-      null
-    );
-  },
+      await this.resetPreferences();
+    },
 
-  /* =====================================================
-     RECORD AND PATH UTILITIES
-  ===================================================== */
+    // ===================================================
+    // LOADING
+    // ===================================================
 
-  normalizeRecord(record) {
-    const normalized =
-      this.asPlainObject(record);
+    async loadPreferences() {
+      const store = this.getStore();
 
-    return {
-      ...normalized,
-      activePreset:
-        normalized.activePreset ||
-        "default",
-      preferenceOverrides:
-        this.asPlainObject(
-          normalized.preferenceOverrides
-        )
-    };
-  },
+      if (!store || typeof store.read !== "function") {
+        throw new Error(
+          "AriUserPreferenceStore.read() is unavailable."
+        );
+      }
 
-  parsePath(path) {
-    const parts =
-      String(path || "")
-        .split(".")
-        .filter(Boolean);
+      try {
+        const record = await store.read();
 
-    if (
-      parts.length !== 2
-    ) {
-      throw new Error(
-        `Invalid preference path: ${path}.`
-      );
-    }
+        this.state.loadedRecord = record || null;
 
-    return {
-      category: parts[0],
-      key: parts[1]
-    };
-  },
+        const savedPreferences =
+          this.extractPreferencesFromRecord(record);
 
-  hasAnyOverrides(overrides) {
-    return Object.values(
-      this.asPlainObject(overrides)
-    ).some(
-      category =>
-        Object.keys(
-          this.asPlainObject(category)
-        ).length > 0
-    );
-  },
+        this.state.loadedPreferences =
+          this.clone(savedPreferences);
 
-  asPlainObject(value) {
-    if (
-      !value ||
-      typeof value !== "object" ||
-      Array.isArray(value)
-    ) {
+        if (this.hasOwnPreferenceValues(savedPreferences)) {
+          this.populateForm(savedPreferences);
+        } else {
+          this.applyHtmlDefaults();
+        }
+
+        this.state.lastSavedPreferences =
+          this.collectOverrides();
+
+        this.state.dirty = false;
+
+        this.clearStatus();
+
+        return record;
+      } catch (error) {
+        // Keep HTML defaults visible even if persistence
+        // temporarily cannot be read.
+        this.applyHtmlDefaults();
+
+        throw error;
+      }
+    },
+
+    extractPreferencesFromRecord(record) {
+      if (!record || typeof record !== "object") {
+        return {};
+      }
+
+      const candidates = [
+        record.preferenceOverrides,
+        record.preference_overrides,
+        record.preferences,
+        record.overrides
+      ];
+
+      for (const candidate of candidates) {
+        if (
+          candidate &&
+          typeof candidate === "object" &&
+          !Array.isArray(candidate)
+        ) {
+          return this.clone(candidate);
+        }
+      }
+
       return {};
-    }
+    },
 
-    return value;
-  },
+    // ===================================================
+    // FORM POPULATION
+    // ===================================================
 
-  /* =====================================================
-     STATE AND DIAGNOSTICS
-  ===================================================== */
+    populateForm(preferences = {}) {
+      const schema = this.requireHtmlSchema();
 
-  getElement(key) {
-    const selector =
-      this.selectors[key];
+      for (const [path, definition] of Object.entries(schema)) {
+        const savedValue = this.getPath(
+          preferences,
+          path
+        );
 
-    return selector
-      ? document.querySelector(
-          selector
-        )
-      : null;
-  },
+        const valueToApply =
+          definition.values.includes(savedValue)
+            ? savedValue
+            : definition.defaultValue;
 
-  getState() {
-    return {
-      initialized:
-        this.state.initialized,
-      initializing:
-        this.state.initializing,
-      saving:
-        this.state.saving,
-      dirty:
-        this.state.dirty,
-      supportedPaths: [
-        ...this.supportedPaths
-      ],
-      selections:
-        this.collectSelections(),
-      initialSelections:
-        this.clone(
-          this.state.initialSelections
-        ),
-      record:
-        this.clone(
-          this.state.record
-        ),
-      lastError:
-        this.clone(
-          this.state.lastError
-        )
-    };
-  },
+        this.selectValue(
+          path,
+          valueToApply
+        );
+      }
 
-  serializeError(error) {
-    return {
-      name:
-        error?.name ||
-        "Error",
-      message:
-        error?.message ||
-        String(error || "Unknown error"),
-      stack:
-        error?.stack ||
-        null
-    };
-  },
+      this.updateActionState();
+    },
 
-  clone(value) {
-    if (
-      value === undefined
-    ) {
-      return undefined;
-    }
+    applyHtmlDefaults() {
+      const schema =
+        this.state.htmlSchema || this.readHtmlSchema();
 
-    try {
-      return JSON.parse(
-        JSON.stringify(value)
+      for (const [path, definition] of Object.entries(schema)) {
+        this.selectValue(
+          path,
+          definition.defaultValue
+        );
+      }
+
+      this.updateActionState();
+    },
+
+    selectValue(path, value) {
+      const controls = this.getControlsForPath(path);
+
+      if (!controls.length) {
+        throw new Error(
+          `No controls found for preference ${path}.`
+        );
+      }
+
+      const target = controls.find(
+        (control) => control.value === value
       );
-    } catch {
-      return value;
+
+      if (!target) {
+        throw new Error(
+          `Invalid UI value "${value}" for preference ${path}.`
+        );
+      }
+
+      for (const control of controls) {
+        control.checked = control === target;
+      }
+    },
+
+    // ===================================================
+    // COLLECTION
+    // ===================================================
+
+    collectOverrides() {
+      const schema = this.requireHtmlSchema();
+      const preferences = {};
+
+      for (const path of Object.keys(schema)) {
+        const selected = this.getSelectedControl(path);
+
+        if (!selected) {
+          throw new Error(
+            `No selection exists for preference ${path}.`
+          );
+        }
+
+        const value = String(
+          selected.value || ""
+        ).trim();
+
+        if (!schema[path].values.includes(value)) {
+          throw new Error(
+            `Selected value "${value}" is invalid for ${path}.`
+          );
+        }
+
+        this.setPath(
+          preferences,
+          path,
+          value
+        );
+      }
+
+      return preferences;
+    },
+
+    collectPreferences() {
+      return this.collectOverrides();
+    },
+
+    collectDefaults() {
+      const schema = this.requireHtmlSchema();
+      const defaults = {};
+
+      for (const [path, definition] of Object.entries(schema)) {
+        this.setPath(
+          defaults,
+          path,
+          definition.defaultValue
+        );
+      }
+
+      return defaults;
+    },
+
+    // ===================================================
+    // VALIDATION
+    // ===================================================
+
+    validateAgainstHtml(preferences) {
+      const schema = this.requireHtmlSchema();
+      const errors = [];
+
+      for (const [path, definition] of Object.entries(schema)) {
+        const value = this.getPath(
+          preferences,
+          path
+        );
+
+        if (typeof value !== "string") {
+          errors.push(
+            `${path} is missing.`
+          );
+
+          continue;
+        }
+
+        if (!definition.values.includes(value)) {
+          errors.push(
+            `${path} contains unsupported value "${value}".`
+          );
+        }
+      }
+
+      return {
+        ok: errors.length === 0,
+        errors
+      };
+    },
+
+    assertContractReadyForSave() {
+      const contract = this.getContract();
+
+      if (!contract) {
+        throw new Error(
+          "AriUserPreferenceContract is unavailable."
+        );
+      }
+
+      const contractVersion = String(
+        contract.schemaVersion ||
+        contract.version ||
+        ""
+      ).trim();
+
+      if (contractVersion !== REQUIRED_CONTRACT_VERSION) {
+        throw new Error(
+          [
+            "Preference saving is temporarily blocked because",
+            `the page controller requires AriUserPreferenceContract ${REQUIRED_CONTRACT_VERSION},`,
+            `but ${contractVersion || "an unknown version"} is currently loaded.`,
+            "Update the preference contract before saving."
+          ].join(" ")
+        );
+      }
+
+      return contract;
+    },
+
+    validateAgainstContract(preferences) {
+      const contract = this.assertContractReadyForSave();
+
+      if (typeof contract.validateOverrides !== "function") {
+        throw new Error(
+          "AriUserPreferenceContract.validateOverrides() is unavailable."
+        );
+      }
+
+      const result =
+        contract.validateOverrides(preferences);
+
+      if (result === true) {
+        return {
+          ok: true,
+          errors: []
+        };
+      }
+
+      if (result === false) {
+        return {
+          ok: false,
+          errors: [
+            "The preference contract rejected the selected preferences."
+          ]
+        };
+      }
+
+      if (
+        result &&
+        typeof result === "object"
+      ) {
+        const explicitErrors = Array.isArray(result.errors)
+          ? result.errors
+          : [];
+
+        const warnings = Array.isArray(result.warnings)
+          ? result.warnings
+          : [];
+
+        if (result.ok === false) {
+          return {
+            ok: false,
+            errors:
+              explicitErrors.length
+                ? explicitErrors
+                : warnings.length
+                  ? warnings
+                  : [
+                      "The preference contract rejected the selected preferences."
+                    ]
+          };
+        }
+
+        if (
+          explicitErrors.length ||
+          (
+            result.ok !== true &&
+            warnings.length
+          )
+        ) {
+          return {
+            ok: false,
+            errors: [
+              ...explicitErrors,
+              ...warnings
+            ]
+          };
+        }
+
+        return {
+          ok: true,
+          errors: []
+        };
+      }
+
+      return {
+        ok: true,
+        errors: []
+      };
+    },
+
+    // ===================================================
+    // SAVE
+    // ===================================================
+
+    async savePreferences() {
+      if (this.state.busy) {
+        return null;
+      }
+
+      this.setBusy(true);
+      this.state.lastError = null;
+
+      try {
+        const preferences =
+          this.collectOverrides();
+
+        const htmlValidation =
+          this.validateAgainstHtml(preferences);
+
+        if (!htmlValidation.ok) {
+          throw new Error(
+            htmlValidation.errors.join(" ")
+          );
+        }
+
+        const contractValidation =
+          this.validateAgainstContract(preferences);
+
+        if (!contractValidation.ok) {
+          throw new Error(
+            contractValidation.errors.join(" ")
+          );
+        }
+
+        const store = this.getStore();
+
+        if (!store || typeof store.save !== "function") {
+          throw new Error(
+            "AriUserPreferenceStore.save() is unavailable."
+          );
+        }
+
+        this.setStatus(
+          "Saving changes…",
+          "saving"
+        );
+
+        const savedRecord =
+          await store.save(
+            null,
+            preferences,
+            {
+              activePreset: "custom",
+              schemaVersion: REQUIRED_CONTRACT_VERSION,
+              changeSource: "settings_ui"
+            }
+          );
+
+        this.state.loadedRecord =
+          savedRecord || this.state.loadedRecord;
+
+        this.state.loadedPreferences =
+          this.clone(preferences);
+
+        this.state.lastSavedPreferences =
+          this.clone(preferences);
+
+        this.state.dirty = false;
+
+        await this.refreshRuntime();
+
+        this.setStatus(
+          "Preferences saved.",
+          "success"
+        );
+
+        this.updateActionState();
+
+        console.info(
+          "ARI PREFERENCES SAVED:",
+          this.clone(preferences)
+        );
+
+        return savedRecord;
+      } catch (error) {
+        this.handleError(
+          "savePreferences",
+          error,
+          error?.message ||
+            "Ari could not save your preferences."
+        );
+
+        return null;
+      } finally {
+        this.setBusy(false);
+      }
+    },
+
+    // ===================================================
+    // RESET
+    // ===================================================
+
+    async resetPreferences() {
+      if (this.state.busy) {
+        return null;
+      }
+
+      this.setBusy(true);
+      this.state.lastError = null;
+
+      try {
+        const defaults =
+          this.collectDefaults();
+
+        this.applyHtmlDefaults();
+
+        const htmlValidation =
+          this.validateAgainstHtml(defaults);
+
+        if (!htmlValidation.ok) {
+          throw new Error(
+            htmlValidation.errors.join(" ")
+          );
+        }
+
+        const contractValidation =
+          this.validateAgainstContract(defaults);
+
+        if (!contractValidation.ok) {
+          throw new Error(
+            contractValidation.errors.join(" ")
+          );
+        }
+
+        const store = this.getStore();
+
+        if (!store || typeof store.save !== "function") {
+          throw new Error(
+            "AriUserPreferenceStore.save() is unavailable."
+          );
+        }
+
+        this.setStatus(
+          "Resetting preferences…",
+          "saving"
+        );
+
+        // New architecture:
+        // Store the explicit HTML defaults rather than
+        // collapsing the record back into an ambiguous {}.
+        const savedRecord =
+          await store.save(
+            null,
+            defaults,
+            {
+              activePreset: "default",
+              schemaVersion: REQUIRED_CONTRACT_VERSION,
+              changeSource: "reset"
+            }
+          );
+
+        this.state.loadedRecord =
+          savedRecord || this.state.loadedRecord;
+
+        this.state.loadedPreferences =
+          this.clone(defaults);
+
+        this.state.lastSavedPreferences =
+          this.clone(defaults);
+
+        this.state.dirty = false;
+
+        await this.refreshRuntime();
+
+        this.setStatus(
+          "Preferences reset to defaults.",
+          "success"
+        );
+
+        this.updateActionState();
+
+        console.info(
+          "ARI PREFERENCES RESET:",
+          this.clone(defaults)
+        );
+
+        return savedRecord;
+      } catch (error) {
+        this.handleError(
+          "resetPreferences",
+          error,
+          error?.message ||
+            "Ari could not reset your preferences."
+        );
+
+        return null;
+      } finally {
+        this.setBusy(false);
+      }
+    },
+
+    // ===================================================
+    // RUNTIME REFRESH
+    // ===================================================
+
+    async refreshRuntime() {
+      const runtime = this.getRuntime();
+
+      if (!runtime) {
+        console.warn(
+          "AriPreferenceRuntime is unavailable. Preferences were saved, but runtime refresh was skipped."
+        );
+
+        return null;
+      }
+
+      try {
+        if (typeof runtime.refresh === "function") {
+          return await runtime.refresh();
+        }
+
+        if (typeof runtime.initialize === "function") {
+          return await runtime.initialize();
+        }
+
+        console.warn(
+          "AriPreferenceRuntime has no refresh() or initialize() method."
+        );
+
+        return null;
+      } catch (error) {
+        // Persistence succeeded. Runtime refresh failure should
+        // not falsely report that the database save failed.
+        console.error(
+          "ARI PREFERENCE RUNTIME REFRESH FAILED:",
+          error
+        );
+
+        return null;
+      }
+    },
+
+    // ===================================================
+    // DEPENDENCY RESOLUTION
+    // ===================================================
+
+    getContract() {
+      return (
+        window.AriUserPreferenceContract ||
+        window.Ari?.userPreferenceContract ||
+        window.Ari?.preferenceContract ||
+        null
+      );
+    },
+
+    getStore() {
+      return (
+        window.AriUserPreferenceStore ||
+        window.Ari?.userPreferenceStore ||
+        window.Ari?.preferenceStore ||
+        null
+      );
+    },
+
+    getRuntime() {
+      return (
+        window.AriPreferenceRuntime ||
+        window.Ari?.preferenceRuntime ||
+        null
+      );
+    },
+
+    // ===================================================
+    // UI STATE
+    // ===================================================
+
+    setBusy(isBusy) {
+      this.state.busy = Boolean(isBusy);
+
+      const form = this.getElement("form");
+
+      if (form) {
+        form.setAttribute(
+          "aria-busy",
+          this.state.busy ? "true" : "false"
+        );
+      }
+
+      this.updateActionState();
+    },
+
+    updateActionState() {
+      const saveButton = this.getElement("save");
+      const resetButton = this.getElement("reset");
+
+      if (saveButton) {
+        saveButton.disabled =
+          this.state.busy;
+      }
+
+      if (resetButton) {
+        resetButton.disabled =
+          this.state.busy;
+      }
+
+      for (const control of this.getPreferenceControls()) {
+        control.disabled =
+          this.state.busy;
+      }
+    },
+
+    showLoading(show) {
+      const loading = this.getElement("loading");
+
+      if (!loading) {
+        return;
+      }
+
+      loading.hidden = !show;
+    },
+
+    showForm(show) {
+      const form = this.getElement("form");
+
+      if (!form) {
+        return;
+      }
+
+      form.hidden = !show;
+    },
+
+    setStatus(message, type = "info") {
+      const status = this.getElement("status");
+
+      if (!status) {
+        return;
+      }
+
+      status.textContent =
+        String(message || "");
+
+      status.dataset.statusType =
+        String(type || "info");
+    },
+
+    clearStatus() {
+      const status = this.getElement("status");
+
+      if (!status) {
+        return;
+      }
+
+      status.textContent = "";
+      delete status.dataset.statusType;
+    },
+
+    // ===================================================
+    // ERROR HANDLING
+    // ===================================================
+
+    handleError(context, error, userMessage) {
+      this.state.lastError = {
+        context,
+        message:
+          error?.message ||
+          String(error || "Unknown error"),
+        timestamp: new Date().toISOString()
+      };
+
+      console.error(
+        `ARI PREFERENCE SETTINGS ERROR [${context}]:`,
+        error
+      );
+
+      this.setStatus(
+        userMessage ||
+          "Something went wrong with Ari's preferences.",
+        "error"
+      );
+    },
+
+    // ===================================================
+    // OBJECT PATH HELPERS
+    // ===================================================
+
+    getPath(source, path) {
+      if (
+        !source ||
+        typeof source !== "object" ||
+        typeof path !== "string"
+      ) {
+        return undefined;
+      }
+
+      const segments =
+        path.split(".").filter(Boolean);
+
+      let cursor = source;
+
+      for (const segment of segments) {
+        if (
+          cursor === null ||
+          cursor === undefined ||
+          typeof cursor !== "object"
+        ) {
+          return undefined;
+        }
+
+        cursor = cursor[segment];
+      }
+
+      return cursor;
+    },
+
+    setPath(target, path, value) {
+      if (
+        !target ||
+        typeof target !== "object" ||
+        typeof path !== "string"
+      ) {
+        return target;
+      }
+
+      const segments =
+        path.split(".").filter(Boolean);
+
+      if (!segments.length) {
+        return target;
+      }
+
+      let cursor = target;
+
+      for (
+        let index = 0;
+        index < segments.length - 1;
+        index += 1
+      ) {
+        const segment = segments[index];
+
+        if (
+          !cursor[segment] ||
+          typeof cursor[segment] !== "object" ||
+          Array.isArray(cursor[segment])
+        ) {
+          cursor[segment] = {};
+        }
+
+        cursor = cursor[segment];
+      }
+
+      cursor[segments[segments.length - 1]] =
+        value;
+
+      return target;
+    },
+
+    // ===================================================
+    // UTILITIES
+    // ===================================================
+
+    requireHtmlSchema() {
+      if (!this.state.htmlSchema) {
+        this.state.htmlSchema =
+          this.readHtmlSchema();
+      }
+
+      return this.state.htmlSchema;
+    },
+
+    hasOwnPreferenceValues(preferences) {
+      if (
+        !preferences ||
+        typeof preferences !== "object"
+      ) {
+        return false;
+      }
+
+      const schema = this.requireHtmlSchema();
+
+      return Object.keys(schema).some(
+        (path) =>
+          typeof this.getPath(
+            preferences,
+            path
+          ) === "string"
+      );
+    },
+
+    clone(value) {
+      if (
+        value === undefined ||
+        value === null
+      ) {
+        return value;
+      }
+
+      try {
+        return structuredClone(value);
+      } catch (_error) {
+        return JSON.parse(
+          JSON.stringify(value)
+        );
+      }
+    },
+
+    // ===================================================
+    // DIAGNOSTICS
+    // ===================================================
+
+    getDiagnostics() {
+      const currentPreferences = (() => {
+        try {
+          return this.collectOverrides();
+        } catch (_error) {
+          return null;
+        }
+      })();
+
+      const contract = this.getContract();
+      const store = this.getStore();
+      const runtime = this.getRuntime();
+
+      return {
+        controllerVersion: this.version,
+        requiredContractVersion:
+          this.requiredContractVersion,
+
+        initialized: this.state.initialized,
+        busy: this.state.busy,
+        dirty: this.state.dirty,
+
+        preferenceGroupCount:
+          this.getPreferenceGroups().length,
+
+        preferenceControlCount:
+          this.getPreferenceControls().length,
+
+        htmlSchema:
+          this.clone(this.state.htmlSchema),
+
+        currentPreferences:
+          this.clone(currentPreferences),
+
+        loadedPreferences:
+          this.clone(this.state.loadedPreferences),
+
+        lastSavedPreferences:
+          this.clone(this.state.lastSavedPreferences),
+
+        contract: {
+          available: Boolean(contract),
+          version:
+            contract?.schemaVersion ||
+            contract?.version ||
+            null,
+
+          compatible:
+            Boolean(
+              contract &&
+              String(
+                contract.schemaVersion ||
+                contract.version ||
+                ""
+              ) === REQUIRED_CONTRACT_VERSION
+            )
+        },
+
+        store: {
+          available: Boolean(store),
+          canRead:
+            typeof store?.read === "function",
+          canSave:
+            typeof store?.save === "function"
+        },
+
+        runtime: {
+          available: Boolean(runtime),
+          canRefresh:
+            typeof runtime?.refresh === "function",
+          canInitialize:
+            typeof runtime?.initialize === "function"
+        },
+
+        lastError:
+          this.clone(this.state.lastError)
+      };
     }
+  };
+
+  // =====================================================
+  // GLOBAL EXPORTS
+  // =====================================================
+
+  window.AriPreferenceSettingsController =
+    AriPreferenceSettingsController;
+
+  window.Ari = window.Ari || {};
+
+  window.Ari.preferenceSettingsController =
+    AriPreferenceSettingsController;
+
+  // =====================================================
+  // AUTO INITIALIZATION
+  // =====================================================
+
+  const boot = () => {
+    AriPreferenceSettingsController
+      .initialize()
+      .catch((error) => {
+        console.error(
+          "ARI PREFERENCE SETTINGS BOOT FAILED:",
+          error
+        );
+      });
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      boot,
+      { once: true }
+    );
+  } else {
+    boot();
   }
-};
-
-window.Ari.preferenceSettingsController =
-  window.AriPreferenceSettingsController;
-
-/* =====================================================
-   STARTUP
-===================================================== */
-
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
-    if (
-      document.querySelector(
-        "#ari-preference-settings"
-      )
-    ) {
-      window
-        .AriPreferenceSettingsController
-        .initialize();
-    }
-  },
-  {
-    once: true
-  }
-);
-
-console.log(
-  "ARI PREFERENCE SETTINGS CONTROLLER LOADED:",
-  window
-    .AriPreferenceSettingsController
-    ?.version
-);
+})();
