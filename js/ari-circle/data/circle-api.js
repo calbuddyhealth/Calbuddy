@@ -1,6 +1,6 @@
 // js/ari-circle/data/circle-api.js
 // ARI Circle
-// V1.2.0
+// V1.3.0
 //
 // Backend contract:
 //   ARI Circle Supabase Schema V1.0.1
@@ -42,7 +42,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const SOURCE = "ari-circle/data/circle-api";
 
 const DEFAULT_TABLES = Object.freeze({
@@ -1284,6 +1284,110 @@ const CircleApi = {
     );
 
     return data || null;
+  },
+
+  async getPendingConnectionRequests(
+    userId
+  ) {
+    const id =
+      normalizeId(
+        userId
+      );
+
+    if (!id) {
+      return [];
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      data: rows,
+      error
+    } =
+      await client
+        .from(
+          this.table(
+            "connections"
+          )
+        )
+        .select("*")
+        .eq(
+          "status",
+          "pending"
+        )
+        .or(
+          `requester_user_id.eq.${id},addressee_user_id.eq.${id}`
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              false
+          }
+        );
+
+    throwIfError(
+      error,
+      "Could not load Circle requests."
+    );
+
+    const requests =
+      asArray(
+        rows
+      );
+
+    const userIds =
+      uniqueIds(
+        requests.flatMap(
+          row => [
+            row.requester_user_id,
+            row.addressee_user_id
+          ]
+        )
+      );
+
+    const profiles =
+      await this.getProfilesByIds(
+        userIds
+      );
+
+    const profileMap =
+      mapProfileById(
+        profiles
+      );
+
+    return requests.map(
+      row => ({
+        ...row,
+
+        /*
+         * ConnectionRequests uses neutral sender/receiver names while
+         * the backend stores requester/addressee.
+         */
+        sender_user_id:
+          row.requester_user_id,
+
+        receiver_user_id:
+          row.addressee_user_id,
+
+        senderProfile:
+          profileMap.get(
+            normalizeId(
+              row.requester_user_id
+            )
+          ) ||
+          null,
+
+        receiverProfile:
+          profileMap.get(
+            normalizeId(
+              row.addressee_user_id
+            )
+          ) ||
+          null
+      })
+    );
   },
 
   async createConnectionRequest({
