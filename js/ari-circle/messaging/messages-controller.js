@@ -1,6 +1,6 @@
 // js/ari-circle/messaging/messages-controller.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
 //
 // Purpose:
 // - Own ARI Circle messaging entry points.
@@ -10,29 +10,19 @@
 // - Route messaging intent to conversations.js or message-requests.js.
 // - Keep messaging permissions and UI state coordinated.
 //
+// V1.0.1:
+// - Accepted Circle connections now resolve to DIRECT messaging unless
+//   the profile explicitly has messaging disabled with "nobody".
+// - Non-connections with "request" still use the message-request flow.
+// - "circle_only" remains unavailable to non-connections.
+// - "nobody" always disables messaging.
+//
 // This module does NOT:
 // - Query or write to Supabase directly.
 // - Store individual messages.
 // - Render a full conversation thread.
 // - Manage message request records.
 // - Subscribe to realtime message channels.
-//
-// Future module responsibilities:
-//
-//   messages-controller.js
-//     -> messaging entry point / routing
-//
-//   conversations.js
-//     -> direct-message threads and messages
-//
-//   message-requests.js
-//     -> first-contact / pending message requests
-//
-//   data/circle-api.js
-//     -> persistence
-//
-//   data/circle-realtime.js
-//     -> realtime delivery
 //
 // CircleStore remains the client-side state authority.
 
@@ -41,21 +31,14 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/messaging/messages-controller";
 
 const MESSAGE_ACCESS = Object.freeze({
-  DIRECT:
-    "direct",
-
-  REQUEST:
-    "request",
-
-  CIRCLE_ONLY:
-    "circle_only",
-
-  NOBODY:
-    "nobody"
+  DIRECT: "direct",
+  REQUEST: "request",
+  CIRCLE_ONLY: "circle_only",
+  NOBODY: "nobody"
 });
 
 const VALID_MESSAGE_ACCESS =
@@ -118,8 +101,7 @@ function getConnectionStatus(connection) {
 }
 
 function clampUnreadCount(value) {
-  const number =
-    Number(value);
+  const number = Number(value);
 
   if (
     !Number.isFinite(number) ||
@@ -135,38 +117,23 @@ function clampUnreadCount(value) {
 }
 
 const MessagesController = {
-  version:
-    VERSION,
-
-  source:
-    SOURCE,
+  version: VERSION,
+  source: SOURCE,
 
   state: {
-    initialized:
-      false,
-
-    busy:
-      false,
-
-    unsubscribers:
-      []
+    initialized: false,
+    busy: false,
+    unsubscribers: []
   },
 
   dom: {
-    inboxButton:
-      null,
-
-    profileMessageButton:
-      null,
-
-    unreadBadge:
-      null
+    inboxButton: null,
+    profileMessageButton: null,
+    unreadBadge: null
   },
 
   init() {
-    if (
-      this.state.initialized
-    ) {
+    if (this.state.initialized) {
       return this.getDiagnostics();
     }
 
@@ -178,8 +145,7 @@ const MessagesController = {
       CircleStore.getState()
     );
 
-    this.state.initialized =
-      true;
+    this.state.initialized = true;
 
     return this.getDiagnostics();
   },
@@ -205,16 +171,14 @@ const MessagesController = {
     this.state.unsubscribers.push(
       CircleEvents.onAction(
         "open-messages",
-        () =>
-          this.openInbox()
+        () => this.openInbox()
       )
     );
 
     this.state.unsubscribers.push(
       CircleEvents.onAction(
         "message",
-        () =>
-          this.startProfileMessage()
+        () => this.startProfileMessage()
       )
     );
   },
@@ -224,9 +188,7 @@ const MessagesController = {
       CircleStore.subscribe(
         (state, change) => {
           const keys =
-            Array.isArray(
-              change?.keys
-            )
+            Array.isArray(change?.keys)
               ? change.keys
               : [];
 
@@ -249,40 +211,27 @@ const MessagesController = {
 
   render(state) {
     this.renderUnreadBadge(
-      state?.messaging
-        ?.unreadCount
+      state?.messaging?.unreadCount
     );
 
     this.renderProfileMessageAction({
-      context:
-        state?.context,
-
-      profile:
-        state?.profile,
-
-      connection:
-        state?.connection
+      context: state?.context,
+      profile: state?.profile,
+      connection: state?.connection
     });
   },
 
   renderUnreadBadge(value) {
     const count =
-      clampUnreadCount(
-        value
-      );
+      clampUnreadCount(value);
 
-    if (
-      !this.dom.unreadBadge
-    ) {
+    if (!this.dom.unreadBadge) {
       return;
     }
 
     if (count <= 0) {
-      this.dom.unreadBadge.hidden =
-        true;
-
-      this.dom.unreadBadge.textContent =
-        "";
+      this.dom.unreadBadge.hidden = true;
+      this.dom.unreadBadge.textContent = "";
 
       this.dom.inboxButton
         ?.removeAttribute(
@@ -298,9 +247,7 @@ const MessagesController = {
       return;
     }
 
-    this.dom.unreadBadge.hidden =
-      false;
-
+    this.dom.unreadBadge.hidden = false;
     this.dom.unreadBadge.textContent =
       count > 99
         ? "99+"
@@ -326,14 +273,10 @@ const MessagesController = {
     }
 
     const profileUserId =
-      getProfileUserId(
-        profile
-      );
+      getProfileUserId(profile);
 
     const connectionStatus =
-      getConnectionStatus(
-        connection
-      );
+      getConnectionStatus(connection);
 
     const access =
       this.resolveProfileMessageAccess(
@@ -341,41 +284,27 @@ const MessagesController = {
         connection
       );
 
-    button.dataset.messageAccess =
-      access;
+    button.dataset.messageAccess = access;
 
     if (
       context?.isGuest ||
       !context?.isAuthenticated
     ) {
-      button.disabled =
-        true;
-
+      button.disabled = true;
       button.textContent =
         "Sign in to Message";
-
       return;
     }
 
-    if (
-      context?.isOwner
-    ) {
-      button.disabled =
-        true;
-
-      button.textContent =
-        "Message";
-
+    if (context?.isOwner) {
+      button.disabled = true;
+      button.textContent = "Message";
       return;
     }
 
     if (!profileUserId) {
-      button.disabled =
-        true;
-
-      button.textContent =
-        "Message";
-
+      button.disabled = true;
+      button.textContent = "Message";
       return;
     }
 
@@ -383,12 +312,8 @@ const MessagesController = {
       connectionStatus ===
       "blocked"
     ) {
-      button.disabled =
-        true;
-
-      button.textContent =
-        "Message";
-
+      button.disabled = true;
+      button.textContent = "Message";
       return;
     }
 
@@ -396,27 +321,21 @@ const MessagesController = {
       access ===
       MESSAGE_ACCESS.NOBODY
     ) {
-      button.disabled =
-        true;
-
+      button.disabled = true;
       button.textContent =
         "Messages Off";
-
       return;
     }
 
     if (
       access ===
-      MESSAGE_ACCESS.CIRCLE_ONLY &&
+        MESSAGE_ACCESS.CIRCLE_ONLY &&
       connectionStatus !==
         "connected"
     ) {
-      button.disabled =
-        true;
-
+      button.disabled = true;
       button.textContent =
         "Circle Only";
-
       return;
     }
 
@@ -424,10 +343,7 @@ const MessagesController = {
       this.state.busy;
 
     button.textContent =
-      access ===
-      MESSAGE_ACCESS.REQUEST
-        ? "Message"
-        : "Message";
+      "Message";
   },
 
   resolveProfileMessageAccess(
@@ -446,12 +362,25 @@ const MessagesController = {
         rawAccess
       );
 
-    if (
-      access ===
-      MESSAGE_ACCESS.CIRCLE_ONLY &&
+    const connectionStatus =
       getConnectionStatus(
         connection
-      ) === "connected"
+      );
+
+    /*
+     * V1.0.1:
+     * Accepted Circle friends use direct messaging unless the recipient
+     * explicitly disabled messaging entirely.
+     *
+     * This fixes accepted friends whose profile still has the default
+     * "request" visibility being incorrectly sent through first-contact
+     * message-request logic.
+     */
+    if (
+      connectionStatus ===
+        "connected" &&
+      access !==
+        MESSAGE_ACCESS.NOBODY
     ) {
       return MESSAGE_ACCESS.DIRECT;
     }
@@ -465,9 +394,7 @@ const MessagesController = {
         "context"
       );
 
-    if (
-      !context?.isAuthenticated
-    ) {
+    if (!context?.isAuthenticated) {
       CircleEvents.showToast(
         "Sign in to open your messages."
       );
@@ -475,10 +402,6 @@ const MessagesController = {
       return false;
     }
 
-    /*
-     * conversations.js will listen for this event and own
-     * whichever inbox/thread UI we build.
-     */
     CircleEvents.emit(
       "circle:open-messages",
       {
@@ -498,18 +421,12 @@ const MessagesController = {
     const state =
       CircleStore.getState();
 
-    const context =
-      state.context;
-
-    const profile =
-      state.profile;
-
+    const context = state.context;
+    const profile = state.profile;
     const connection =
       state.connection || {};
 
-    if (
-      !context?.isAuthenticated
-    ) {
+    if (!context?.isAuthenticated) {
       CircleEvents.showToast(
         "Sign in to send messages."
       );
@@ -517,16 +434,12 @@ const MessagesController = {
       return false;
     }
 
-    if (
-      context?.isOwner
-    ) {
+    if (context?.isOwner) {
       return false;
     }
 
     const profileUserId =
-      getProfileUserId(
-        profile
-      );
+      getProfileUserId(profile);
 
     if (!profileUserId) {
       CircleEvents.showToast(
@@ -569,14 +482,12 @@ const MessagesController = {
         CircleEvents.showToast(
           `${getDisplayName(profile)} only accepts messages from people in their Circle.`
         );
-
         return false;
 
       case MESSAGE_ACCESS.NOBODY:
         CircleEvents.showToast(
           `${getDisplayName(profile)} is not accepting messages.`
         );
-
         return false;
 
       default:
@@ -591,9 +502,7 @@ const MessagesController = {
       );
 
     const recipientUserId =
-      getProfileUserId(
-        profile
-      );
+      getProfileUserId(profile);
 
     if (
       !context?.viewerUserId ||
@@ -602,12 +511,6 @@ const MessagesController = {
       return false;
     }
 
-    /*
-     * conversations.js will:
-     * - look for an existing direct conversation
-     * - create one if needed
-     * - open the thread
-     */
     CircleEvents.emit(
       "circle:conversation-requested",
       {
@@ -630,9 +533,7 @@ const MessagesController = {
       );
 
     const recipientUserId =
-      getProfileUserId(
-        profile
-      );
+      getProfileUserId(profile);
 
     if (
       !context?.viewerUserId ||
@@ -641,13 +542,6 @@ const MessagesController = {
       return false;
     }
 
-    /*
-     * message-requests.js will own:
-     * - checking for an existing request
-     * - composing first contact
-     * - creating the request
-     * - accepted / declined request state
-     */
     CircleEvents.emit(
       "circle:message-request-composer",
       {
@@ -665,13 +559,10 @@ const MessagesController = {
 
   setUnreadCount(value) {
     const count =
-      clampUnreadCount(
-        value
-      );
+      clampUnreadCount(value);
 
     CircleStore.setMessagingState({
-      unreadCount:
-        count
+      unreadCount: count
     });
 
     return count;
@@ -820,14 +711,9 @@ const MessagesController = {
       }
     }
 
-    this.state.unsubscribers =
-      [];
-
-    this.state.initialized =
-      false;
-
-    this.state.busy =
-      false;
+    this.state.unsubscribers = [];
+    this.state.initialized = false;
+    this.state.busy = false;
   },
 
   getDiagnostics() {
