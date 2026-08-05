@@ -1065,7 +1065,7 @@
   <script src="js/auth.js"></script>
 
   <!-- ===========================================================
-       ARI CIRCLE BOOT DIAGNOSTIC
+       ARI CIRCLE BOOT DIAGNOSTIC V1.2.2
        Temporary but safe to leave in place.
 
        If index.js or one of its imported modules fails before
@@ -1131,8 +1131,48 @@
               event.message ||
               "Unknown JavaScript error";
 
+            const file =
+              event.filename ||
+              "";
+
+            const line =
+              Number(event.lineno) ||
+              0;
+
+            const column =
+              Number(event.colno) ||
+              0;
+
+            let location =
+              "";
+
+            if (file) {
+              const shortFile =
+                file.split("/")
+                  .slice(-4)
+                  .join("/");
+
+              location =
+                " â " +
+                shortFile;
+
+              if (line) {
+                location +=
+                  ":" +
+                  line;
+
+                if (column) {
+                  location +=
+                    ":" +
+                    column;
+                }
+              }
+            }
+
             showBootError(
-              "ARI Circle JavaScript error: " + message
+              "ARI Circle JavaScript error: " +
+              message +
+              location
             );
           }
         },
