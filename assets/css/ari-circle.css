@@ -1885,3 +1885,175 @@ body.ari-circle-page [hidden] {
 /* ==========================================================================
    END ARI CIRCLE CSS V1.1.1
    ========================================================================== */
+
+/* =========================================================
+   ARI CIRCLE HEADER BRAND PATCH
+   - All caps
+   - Pale cyan glow
+   - Unique retro-futuristic font
+   - Two converging circles icon
+========================================================= */
+
+.circle-header {
+  background:
+    linear-gradient(
+      180deg,
+      #274d79 0%,
+      #17365b 48%,
+      #0b1830 100%
+    );
+  border-bottom: 3px solid #47e9ff;
+  box-shadow:
+    inset 0 -1px 0 rgba(255,255,255,0.18),
+    0 6px 18px rgba(0, 255, 255, 0.18);
+}
+
+.circle-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  text-decoration: none;
+}
+
+/* If you add a dedicated text span class */
+.circle-header__brand-text,
+/* If you keep the current plain second span */
+.circle-header__brand > span:last-child {
+  position: relative;
+  display: inline-block;
+  font-family: "Audiowide", "Orbitron", sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #bff8ff;
+  text-shadow:
+    0 0 2px rgba(255,255,255,0.7),
+    0 0 8px rgba(92, 244, 255, 0.9),
+    0 0 18px rgba(0, 234, 255, 0.45);
+}
+
+/* Optional subtle “glow plate” behind the text */
+.circle-header__brand > span:last-child::after,
+.circle-header__brand-text::after {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 65%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(126, 244, 255, 0.18) 0%,
+      rgba(126, 244, 255, 0.07) 45%,
+      transparent 85%
+    );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* =========================================================
+   TWO CONVERGING CIRCLES LOGO
+========================================================= */
+
+.circle-header__brand-mark {
+  position: relative;
+  width: 56px;
+  height: 44px;
+  min-width: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #07233e;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+}
+
+/* Left circle */
+.circle-header__brand-mark::before,
+/* Right circle */
+.circle-header__brand-mark::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background:
+    radial-gradient(
+      circle at 35% 30%,
+      #f7ffff 0%,
+      #d9fbff 28%,
+      #91f3ff 65%,
+      #4fe8ff 100%
+    );
+  border: 2px solid rgba(205, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(0, 23, 47, 0.28),
+    0 0 10px rgba(71, 233, 255, 0.65),
+    0 0 20px rgba(71, 233, 255, 0.28);
+}
+
+/* overlap them */
+.circle-header__brand-mark::before {
+  left: 2px;
+}
+
+.circle-header__brand-mark::after {
+  right: 2px;
+}
+
+/* center the "A" above the overlapping circles */
+.circle-header__brand-mark {
+  z-index: 1;
+}
+
+.circle-header__brand-mark {
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.45),
+    0 0 6px rgba(255,255,255,0.35);
+}
+
+/* Make the actual A sit on top cleanly */
+.circle-header__brand-mark {
+  color: #082640;
+}
+
+/* =========================================================
+   Small mobile tuning
+========================================================= */
+
+@media (max-width: 480px) {
+  .circle-header__brand {
+    gap: 10px;
+  }
+
+  .circle-header__brand-text,
+  .circle-header__brand > span:last-child {
+    font-size: 1.35rem;
+    letter-spacing: 0.10em;
+  }
+
+  .circle-header__brand-mark {
+    width: 50px;
+    height: 40px;
+    min-width: 50px;
+  }
+
+  .circle-header__brand-mark::before,
+  .circle-header__brand-mark::after {
+    width: 30px;
+    height: 30px;
+  }
+}
