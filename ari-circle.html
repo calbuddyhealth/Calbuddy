@@ -279,16 +279,30 @@
             </h2>
           </div>
 
-          <button
-            id="circle-edit-top-button"
-            class="circle-text-button"
-            type="button"
-            data-circle-action="edit-top-circle"
-            data-owner-only
-            hidden
-          >
-            Edit
-          </button>
+          <div class="circle-section-actions">
+            <button
+              id="circle-find-friends-button"
+              class="circle-text-button"
+              type="button"
+              data-circle-action="find-friends"
+              data-owner-only
+              hidden
+            >
+              <span aria-hidden="true">&#128101;&#128269;</span>
+              <span>Find Friends</span>
+            </button>
+
+            <button
+              id="circle-edit-top-button"
+              class="circle-text-button"
+              type="button"
+              data-circle-action="edit-top-circle"
+              data-owner-only
+              hidden
+            >
+              Edit
+            </button>
+          </div>
         </header>
 
         <div
@@ -361,11 +375,10 @@
         <form
           id="circle-love-form"
           class="circle-love__form"
-          data-visitor-only
           hidden
         >
           <label class="sr-only" for="circle-love-input">
-            Leave a public message on this profile
+            Leave a public comment or photo on this profile
           </label>
 
           <textarea
@@ -376,8 +389,47 @@
             placeholder="Say something&hellip;"
           ></textarea>
 
+          <input
+            id="circle-love-photo-input"
+            type="file"
+            accept="image/*"
+            hidden
+          />
+
+          <div
+            id="circle-love-photo-preview"
+            class="circle-love__photo-preview"
+            hidden
+          >
+            <img
+              id="circle-love-photo-preview-image"
+              src=""
+              alt="Selected photo preview"
+            />
+
+            <button
+              id="circle-love-photo-remove"
+              class="circle-text-button"
+              type="button"
+              data-circle-action="remove-love-photo"
+            >
+              Remove Photo
+            </button>
+          </div>
+
           <div class="circle-love__form-footer">
-            <span id="circle-love-counter">0 / 280</span>
+            <div class="circle-love__composer-actions">
+              <button
+                id="circle-love-photo-button"
+                class="circle-button circle-button--secondary circle-button--small"
+                type="button"
+                data-circle-action="choose-love-photo"
+              >
+                &#128247; Add Photo
+              </button>
+
+              <span id="circle-love-counter">0 / 280</span>
+            </div>
 
             <button
               id="circle-love-submit"
@@ -392,10 +444,8 @@
         <p
           id="circle-love-owner-note"
           class="circle-section-note"
-          data-owner-only
-          hidden
         >
-          Public messages people leave on your Circle appear here.
+          Anyone signed into ARI can leave a comment, a photo, or both.
         </p>
 
         <div
@@ -618,6 +668,93 @@
       </button>
     </div>
 
+    <dialog
+      id="circle-people-discovery"
+      class="circle-dialog circle-discovery-dialog"
+    >
+      <div class="circle-dialog__panel">
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">DISCOVER PEOPLE</p>
+            <h2>&#128101;&#128269; Find Friends</h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close Find Friends"
+            data-circle-action="close-people-discovery"
+          >
+            &times;
+          </button>
+        </header>
+
+        <form
+          id="circle-friend-search-form"
+          class="circle-discovery-search"
+          role="search"
+        >
+          <label
+            class="sr-only"
+            for="circle-friend-search-input"
+          >
+            Search by name or handle
+          </label>
+
+          <input
+            id="circle-friend-search-input"
+            name="friendSearch"
+            type="search"
+            maxlength="80"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="Search name or @handle"
+          />
+
+          <button
+            id="circle-friend-search-submit"
+            class="circle-button circle-button--primary circle-button--small"
+            type="submit"
+          >
+            Search
+          </button>
+        </form>
+
+        <p
+          id="circle-discovery-status"
+          class="circle-section-note"
+          role="status"
+          aria-live="polite"
+        >
+          Find new people to add to your Circle.
+        </p>
+
+        <div
+          id="circle-discovery-list"
+          class="circle-discovery-list"
+          aria-live="polite"
+        ></div>
+
+        <div
+          id="circle-discovery-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No people found. Try another search.</p>
+        </div>
+
+        <button
+          id="circle-discovery-refresh-button"
+          class="circle-section-link"
+          type="button"
+          data-circle-action="refresh-people-discovery"
+        >
+          &#128101;&#128269; Show 20 More
+        </button>
+      </div>
+    </dialog>
+
     <dialog id="circle-top-editor" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
@@ -786,6 +923,58 @@
       hidden
     ></div>
 
+    <template id="circle-discovery-user-template">
+      <article class="circle-discovery-user">
+        <button
+          class="circle-discovery-user__profile"
+          type="button"
+          data-circle-action="open-discovery-profile"
+        >
+          <span class="circle-discovery-user__avatar-wrap">
+            <img
+              class="circle-discovery-user__avatar"
+              src=""
+              alt=""
+              hidden
+            />
+            <span
+              class="circle-discovery-user__avatar-fallback"
+              aria-hidden="true"
+            ></span>
+          </span>
+        </button>
+
+        <div class="circle-discovery-user__body">
+          <button
+            class="circle-discovery-user__name"
+            type="button"
+            data-circle-action="open-discovery-profile"
+          ></button>
+
+          <p class="circle-discovery-user__handle"></p>
+          <p class="circle-discovery-user__bio" hidden></p>
+
+          <div class="circle-discovery-user__actions">
+            <button
+              class="circle-button circle-button--secondary circle-button--small"
+              type="button"
+              data-circle-action="open-discovery-profile"
+            >
+              View Profile
+            </button>
+
+            <button
+              class="circle-button circle-button--primary circle-button--small circle-discovery-user__add"
+              type="button"
+              data-circle-action="add-discovery-friend"
+            >
+              Add to Circle
+            </button>
+          </div>
+        </div>
+      </article>
+    </template>
+
     <template id="circle-top-member-template">
       <button
         class="circle-top-member"
@@ -836,6 +1025,13 @@
           </div>
 
           <p class="circle-love-item__text"></p>
+
+          <img
+            class="circle-love-item__photo"
+            src=""
+            alt=""
+            hidden
+          />
         </div>
 
         <button
@@ -870,7 +1066,7 @@
 
   <script
     type="module"
-    src="js/ari-circle/index.js?v=1.1.1"
+    src="js/ari-circle/index.js?v=1.2.0"
   ></script>
 </body>
 </html>
