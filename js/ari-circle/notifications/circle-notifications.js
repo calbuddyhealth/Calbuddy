@@ -1,41 +1,26 @@
 // js/ari-circle/notifications/circle-notifications.js
 // ARI Circle
-// V1.0.0
+// V1.1.0
 //
 // Purpose:
-// - Own the ARI Circle notification collection.
-// - Render the header notification badge.
-// - Normalize Circle notification records.
-// - Mark notifications read/unread.
+// - Own the ARI Circle notification collection and unread badge.
+// - Render the notification center dialog.
 // - Route notification actions to the correct feature module.
-// - Provide one notification entry point for connection requests,
-//   message requests, comments, messages, and Circle activity.
+// - Let incoming Circle requests be accepted/declined from notifications.
+// - Keep Supabase access out of the UI layer.
 //
-// This module does NOT:
-// - Query or write to Supabase directly.
-// - Render a full notification center UI yet.
-// - Own connection request state.
-// - Own message request state.
-// - Own private conversation state.
+// Persistence:
+//   CircleNotifications -> CircleEvents -> circle-api.js
 //
-// Future persistence flow:
-//   circle-notifications.js
-//        -> CircleEvents
-//        -> data/circle-api.js
-//
-// Future realtime flow:
-//   data/circle-realtime.js
-//        -> CircleNotifications.addNotification(...)
-//
-// CircleStore holds notification summary state.
-// This module owns the detailed local notification collection.
+// Request lifecycle:
+//   notification action -> ConnectionRequests -> CircleEvents -> circle-api.js
 
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const SOURCE = "ari-circle/notifications/circle-notifications";
 
 const NOTIFICATION_TYPES = Object.freeze({
@@ -117,29 +102,26 @@ function normalizeNotification(notification) {
     return null;
   }
 
-  const type =
-    normalizeNotificationType(
-      notification.type
-    );
-
-  const title =
-    normalizeString(
-      notification.title
-    ) ||
-    "ARI Circle";
-
-  const body =
-    normalizeString(
-      notification.body ||
-      notification.message ||
-      notification.text
-    );
-
   return Object.freeze({
     id,
-    type,
-    title,
-    body,
+
+    type:
+      normalizeNotificationType(
+        notification.type
+      ),
+
+    title:
+      normalizeString(
+        notification.title
+      ) ||
+      "ARI Circle",
+
+    body:
+      normalizeString(
+        notification.body ||
+        notification.message ||
+        notification.text
+      ),
 
     actorUserId:
       normalizeString(
@@ -168,7 +150,8 @@ function normalizeNotification(notification) {
     requestId:
       normalizeString(
         notification.request_id ||
-        notification.requestId
+        notification.requestId ||
+        notification.data?.connection_id
       ),
 
     conversationId:
@@ -191,8 +174,8 @@ function normalizeNotification(notification) {
 
     read:
       Boolean(
-        notification.read ||
-        notification.is_read ||
+        notification.read ??
+        notification.is_read ??
         notification.isRead
       ),
 
@@ -243,6 +226,121 @@ function clampUnreadCount(value) {
   );
 }
 
+function getInitials(notification) {
+  const value =
+    normalizeString(
+      notification?.actorDisplayName
+    ) ||
+    normalizeString(
+      notification?.actorHandle
+    ) ||
+    "A";
+
+  const words =
+    value
+      .replace(/^@/, "")
+      .split(/\s+/)
+      .filter(Boolean);
+
+  if (!words.length) {
+    return "A";
+  }
+
+  if (words.length === 1) {
+    return words[0]
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
+  return (
+    words[0][0] +
+    words[words.length - 1][0]
+  ).toUpperCase();
+}
+
+function formatTime(value) {
+  const timestamp =
+    new Date(value)
+      .getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  const delta =
+    Date.now() -
+    timestamp;
+
+  const minute =
+    60 * 1000;
+
+  const hour =
+    60 * minute;
+
+  const day =
+    24 * hour;
+
+  if (delta < minute) {
+    return "now";
+  }
+
+  if (delta < hour) {
+    return `${Math.max(
+      1,
+      Math.floor(delta / minute)
+    )}m`;
+  }
+
+  if (delta < day) {
+    return `${Math.floor(
+      delta / hour
+    )}h`;
+  }
+
+  if (delta < 7 * day) {
+    return `${Math.floor(
+      delta / day
+    )}d`;
+  }
+
+  return new Date(value)
+    .toLocaleDateString(
+      undefined,
+      {
+        month:
+          "short",
+
+        day:
+          "numeric"
+      }
+    );
+}
+
+function getNotificationLabel(type) {
+  switch (type) {
+    case NOTIFICATION_TYPES.CONNECTION_REQUEST:
+      return "CIRCLE REQUEST";
+
+    case NOTIFICATION_TYPES.CONNECTION_ACCEPTED:
+      return "CIRCLE UPDATE";
+
+    case NOTIFICATION_TYPES.MESSAGE_REQUEST:
+      return "MESSAGE REQUEST";
+
+    case NOTIFICATION_TYPES.MESSAGE:
+      return "MESSAGE";
+
+    case NOTIFICATION_TYPES.LOVE:
+      return "PROFILE LOVE";
+
+    case NOTIFICATION_TYPES.PROFILE:
+      return "PROFILE";
+
+    default:
+      return "SYSTEM";
+  }
+}
+
 const CircleNotifications = {
   version:
     VERSION,
@@ -260,6 +358,9 @@ const CircleNotifications = {
     panelOpen:
       false,
 
+    resolvedRequests:
+      new Map(),
+
     unsubscribers:
       []
   },
@@ -269,6 +370,18 @@ const CircleNotifications = {
       null,
 
     badge:
+      null,
+
+    dialog:
+      null,
+
+    list:
+      null,
+
+    empty:
+      null,
+
+    markAll:
       null
   },
 
@@ -282,12 +395,15 @@ const CircleNotifications = {
     this.cacheDom();
     this.bindActions();
     this.bindStore();
+    this.bindDomainEvents();
 
     this.renderBadge(
       CircleStore.get(
         "notifications.unreadCount"
       )
     );
+
+    this.renderPanel();
 
     this.state.initialized =
       true;
@@ -305,6 +421,26 @@ const CircleNotifications = {
       document.getElementById(
         "circle-notification-badge"
       );
+
+    this.dom.dialog =
+      document.getElementById(
+        "circle-notifications-dialog"
+      );
+
+    this.dom.list =
+      document.getElementById(
+        "circle-notifications-list"
+      );
+
+    this.dom.empty =
+      document.getElementById(
+        "circle-notifications-empty"
+      );
+
+    this.dom.markAll =
+      document.getElementById(
+        "circle-notifications-mark-all"
+      );
   },
 
   bindActions() {
@@ -313,6 +449,44 @@ const CircleNotifications = {
         "open-notifications",
         () =>
           this.openNotifications()
+      )
+    );
+
+    this.state.unsubscribers.push(
+      CircleEvents.onAction(
+        "close-notifications",
+        () =>
+          this.closeNotifications()
+      )
+    );
+
+    this.state.unsubscribers.push(
+      CircleEvents.onAction(
+        "mark-all-notifications-read",
+        () => {
+          this.markAllRead();
+          this.renderPanel();
+        }
+      )
+    );
+
+    this.state.unsubscribers.push(
+      CircleEvents.onAction(
+        "open-circle-notification",
+        payload => {
+          const notificationId =
+            normalizeString(
+              payload?.trigger
+                ?.dataset
+                ?.notificationId
+            );
+
+          if (notificationId) {
+            this.activate(
+              notificationId
+            );
+          }
+        }
       )
     );
   },
@@ -347,6 +521,61 @@ const CircleNotifications = {
     );
   },
 
+  bindDomainEvents() {
+    this.state.unsubscribers.push(
+      CircleEvents.on(
+        "circle:incoming-request-resolved",
+        payload => {
+          const detail =
+            payload?.detail ||
+            {};
+
+          const requestId =
+            normalizeString(
+              detail?.requestId ||
+              detail?.request?.id
+            );
+
+          if (!requestId) {
+            return;
+          }
+
+          const action =
+            normalizeString(
+              detail?.action
+            ) ||
+            "resolved";
+
+          this.state
+            .resolvedRequests
+            .set(
+              requestId,
+              action
+            );
+
+          for (
+            const item
+            of this.state.items
+          ) {
+            if (
+              item.type ===
+                NOTIFICATION_TYPES
+                  .CONNECTION_REQUEST &&
+              item.requestId ===
+                requestId
+            ) {
+              this.markRead(
+                item.id
+              );
+            }
+          }
+
+          this.renderPanel();
+        }
+      )
+    );
+  },
+
   setNotifications(
     notifications = []
   ) {
@@ -371,6 +600,7 @@ const CircleNotifications = {
         : [];
 
     this.syncUnreadCount();
+    this.renderPanel();
 
     return this.getNotifications();
   },
@@ -429,6 +659,7 @@ const CircleNotifications = {
       ];
 
     this.syncUnreadCount();
+    this.renderPanel();
 
     CircleEvents.emit(
       EVENT_NAMES.NOTIFICATIONS_CHANGED,
@@ -475,6 +706,7 @@ const CircleNotifications = {
 
     if (changed) {
       this.syncUnreadCount();
+      this.renderPanel();
 
       CircleEvents.emit(
         EVENT_NAMES.NOTIFICATIONS_CHANGED,
@@ -533,6 +765,7 @@ const CircleNotifications = {
     }
 
     this.syncUnreadCount();
+    this.renderPanel();
 
     if (
       options.persist !==
@@ -595,6 +828,7 @@ const CircleNotifications = {
     }
 
     this.syncUnreadCount();
+    this.renderPanel();
 
     if (
       options.persist !==
@@ -648,6 +882,7 @@ const CircleNotifications = {
       );
 
     this.syncUnreadCount();
+    this.renderPanel();
 
     if (
       options.persist !==
@@ -733,6 +968,382 @@ const CircleNotifications = {
       );
   },
 
+  renderPanel() {
+    const list =
+      this.dom.list;
+
+    if (!list) {
+      return;
+    }
+
+    list.textContent =
+      "";
+
+    const notifications =
+      this.state.items;
+
+    this.dom.empty &&
+      (
+        this.dom.empty.hidden =
+          notifications.length >
+          0
+      );
+
+    if (this.dom.markAll) {
+      this.dom.markAll.disabled =
+        !notifications.some(
+          item =>
+            !item.read
+        );
+    }
+
+    for (
+      const notification
+      of notifications
+    ) {
+      list.appendChild(
+        this.createNotificationElement(
+          notification
+        )
+      );
+    }
+  },
+
+  createNotificationElement(
+    notification
+  ) {
+    const article =
+      document.createElement(
+        "article"
+      );
+
+    article.className =
+      "circle-notification-item";
+
+    article.dataset.read =
+      notification.read
+        ? "true"
+        : "false";
+
+    article.dataset.type =
+      notification.type;
+
+    const avatar =
+      document.createElement(
+        notification.actorUserId
+          ? "button"
+          : "div"
+      );
+
+    avatar.className =
+      "circle-notification-item__avatar";
+
+    if (
+      notification.actorUserId
+    ) {
+      avatar.type =
+        "button";
+
+      avatar.dataset.circleAction =
+        "open-profile";
+
+      avatar.dataset.userId =
+        notification.actorUserId;
+
+      if (
+        notification.actorHandle
+      ) {
+        avatar.dataset.handle =
+          notification.actorHandle;
+      }
+
+      avatar.setAttribute(
+        "aria-label",
+        `View ${
+          notification.actorDisplayName ||
+          "profile"
+        }`
+      );
+    }
+
+    if (
+      notification.actorAvatarUrl
+    ) {
+      const image =
+        document.createElement(
+          "img"
+        );
+
+      image.src =
+        notification.actorAvatarUrl;
+
+      image.alt =
+        "";
+
+      avatar.appendChild(
+        image
+      );
+    } else {
+      const fallback =
+        document.createElement(
+          "span"
+        );
+
+      fallback.textContent =
+        getInitials(
+          notification
+        );
+
+      avatar.appendChild(
+        fallback
+      );
+    }
+
+    const body =
+      document.createElement(
+        "div"
+      );
+
+    body.className =
+      "circle-notification-item__body";
+
+    const meta =
+      document.createElement(
+        "div"
+      );
+
+    meta.className =
+      "circle-notification-item__meta";
+
+    const type =
+      document.createElement(
+        "span"
+      );
+
+    type.className =
+      "circle-notification-item__type";
+
+    type.textContent =
+      getNotificationLabel(
+        notification.type
+      );
+
+    const time =
+      document.createElement(
+        "time"
+      );
+
+    time.className =
+      "circle-notification-item__time";
+
+    time.dateTime =
+      notification.createdAt;
+
+    time.textContent =
+      formatTime(
+        notification.createdAt
+      );
+
+    meta.append(
+      type,
+      time
+    );
+
+    const title =
+      document.createElement(
+        "button"
+      );
+
+    title.type =
+      "button";
+
+    title.className =
+      "circle-notification-item__title";
+
+    title.dataset.circleAction =
+      "open-circle-notification";
+
+    title.dataset.notificationId =
+      notification.id;
+
+    title.textContent =
+      notification.title;
+
+    const text =
+      document.createElement(
+        "p"
+      );
+
+    text.className =
+      "circle-notification-item__text";
+
+    text.textContent =
+      notification.body ||
+      "";
+
+    body.append(
+      meta,
+      title
+    );
+
+    if (
+      notification.body
+    ) {
+      body.appendChild(
+        text
+      );
+    }
+
+    const actions =
+      document.createElement(
+        "div"
+      );
+
+    actions.className =
+      "circle-notification-item__actions";
+
+    const resolvedAction =
+      notification.requestId
+        ? this.state
+            .resolvedRequests
+            .get(
+              notification.requestId
+            )
+        : null;
+
+    if (
+      notification.type ===
+        NOTIFICATION_TYPES
+          .CONNECTION_REQUEST &&
+      notification.requestId &&
+      !resolvedAction
+    ) {
+      const view =
+        document.createElement(
+          "button"
+        );
+
+      view.type =
+        "button";
+
+      view.className =
+        "circle-button circle-button--secondary circle-button--small";
+
+      view.dataset.circleAction =
+        "open-incoming-request";
+
+      view.dataset.requestId =
+        notification.requestId;
+
+      view.textContent =
+        "View Request";
+
+      const decline =
+        document.createElement(
+          "button"
+        );
+
+      decline.type =
+        "button";
+
+      decline.className =
+        "circle-button circle-button--secondary circle-button--small";
+
+      decline.dataset.circleAction =
+        "decline-incoming-request";
+
+      decline.dataset.requestId =
+        notification.requestId;
+
+      decline.textContent =
+        "Decline";
+
+      const accept =
+        document.createElement(
+          "button"
+        );
+
+      accept.type =
+        "button";
+
+      accept.className =
+        "circle-button circle-button--primary circle-button--small";
+
+      accept.dataset.circleAction =
+        "accept-incoming-request";
+
+      accept.dataset.requestId =
+        notification.requestId;
+
+      accept.textContent =
+        "Accept";
+
+      actions.append(
+        view,
+        decline,
+        accept
+      );
+    } else if (
+      resolvedAction
+    ) {
+      const status =
+        document.createElement(
+          "span"
+        );
+
+      status.className =
+        "circle-notification-item__resolved";
+
+      status.textContent =
+        resolvedAction ===
+          "accepted"
+          ? "Accepted"
+          : resolvedAction ===
+              "declined"
+            ? "Declined"
+            : "Handled";
+
+      actions.appendChild(
+        status
+      );
+    } else {
+      const open =
+        document.createElement(
+          "button"
+        );
+
+      open.type =
+        "button";
+
+      open.className =
+        "circle-button circle-button--secondary circle-button--small";
+
+      open.dataset.circleAction =
+        "open-circle-notification";
+
+      open.dataset.notificationId =
+        notification.id;
+
+      open.textContent =
+        "Open";
+
+      actions.appendChild(
+        open
+      );
+    }
+
+    body.appendChild(
+      actions
+    );
+
+    article.append(
+      avatar,
+      body
+    );
+
+    return article;
+  },
+
   openNotifications() {
     const context =
       CircleStore.get(
@@ -753,9 +1364,52 @@ const CircleNotifications = {
       true;
 
     /*
-     * A future notification center UI can listen for this event.
-     * We keep the controller usable before that UI exists.
+     * Notifications live inside the overflow menu. Once selected,
+     * close that menu so it is not waiting behind the modal.
      */
+    const profileMenu =
+      document.getElementById(
+        "circle-profile-menu"
+      );
+
+    const profileMenuButton =
+      document.getElementById(
+        "circle-profile-menu-button"
+      );
+
+    if (profileMenu) {
+      profileMenu.hidden =
+        true;
+    }
+
+    profileMenuButton
+      ?.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+
+    this.renderPanel();
+
+    const dialog =
+      this.dom.dialog;
+
+    if (
+      dialog &&
+      !dialog.open
+    ) {
+      if (
+        typeof dialog.showModal ===
+          "function"
+      ) {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute(
+          "open",
+          ""
+        );
+      }
+    }
+
     CircleEvents.emit(
       "circle:notifications-opened",
       {
@@ -774,13 +1428,32 @@ const CircleNotifications = {
 
   closeNotifications() {
     if (
-      !this.state.panelOpen
+      !this.state.panelOpen &&
+      !this.dom.dialog?.open
     ) {
       return false;
     }
 
     this.state.panelOpen =
       false;
+
+    const dialog =
+      this.dom.dialog;
+
+    if (
+      dialog?.open
+    ) {
+      if (
+        typeof dialog.close ===
+          "function"
+      ) {
+        dialog.close();
+      } else {
+        dialog.removeAttribute(
+          "open"
+        );
+      }
+    }
 
     CircleEvents.emit(
       "circle:notifications-closed",
@@ -810,8 +1483,10 @@ const CircleNotifications = {
       notification.type
     ) {
       case NOTIFICATION_TYPES.CONNECTION_REQUEST:
+        this.closeNotifications();
+
         CircleEvents.emit(
-          "circle:notification-open-connection-request",
+          "circle:open-incoming-request",
           {
             notification,
 
@@ -932,6 +1607,31 @@ const CircleNotifications = {
       }
     );
 
+    const url =
+      new URL(
+        "ari-circle.html",
+        window.location.href
+      );
+
+    if (handle) {
+      url.searchParams.set(
+        "handle",
+        handle.replace(
+          /^@+/,
+          ""
+        )
+      );
+    } else {
+      url.searchParams.set(
+        "user",
+        userId
+      );
+    }
+
+    window.location.assign(
+      url.href
+    );
+
     return true;
   },
 
@@ -953,10 +1653,16 @@ const CircleNotifications = {
     this.state.panelOpen =
       false;
 
+    this.state
+      .resolvedRequests
+      .clear();
+
     CircleStore.setNotificationsState({
       unreadCount:
         0
     });
+
+    this.renderPanel();
   },
 
   destroy() {
@@ -977,6 +1683,7 @@ const CircleNotifications = {
     this.state.unsubscribers =
       [];
 
+    this.closeNotifications();
     this.clear();
 
     this.state.initialized =
@@ -1016,6 +1723,16 @@ const CircleNotifications = {
       badgeFound:
         Boolean(
           this.dom.badge
+        ),
+
+      dialogFound:
+        Boolean(
+          this.dom.dialog
+        ),
+
+      listFound:
+        Boolean(
+          this.dom.list
         )
     };
   }
