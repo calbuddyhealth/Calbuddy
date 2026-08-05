@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0b0f" />
+  <title>ARI Circle</title>
+  <link rel="stylesheet" href="assets/css/base.css?v=16" />
+  <link rel="stylesheet" href="assets/css/header.css?v=17" />
+  <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.0.0" />
+</head>
+<body class="ari-circle-page">
+  <div class="ari-circle-shell">
+    <header class="ari-circle-topbar">
+      <a class="ari-circle-brand" href="#" aria-label="ARI Circle home">
+        <span class="ari-circle-brand__mark">A</span>
+        <span>ARI Circle</span>
+      </a>
+      <div class="ari-circle-topbar__actions">
+        <button class="ari-circle-icon-button" id="ari-circle-messages-button" type="button" aria-label="Messages">💬</button>
+        <button class="ari-circle-icon-button" id="ari-circle-notifications-button" type="button" aria-label="Notifications">🔔</button>
+        <button class="ari-circle-icon-button" type="button" aria-label="More options">•••</button>
+      </div>
+    </header>
+
+    <main class="ari-circle-profile" id="ari-circle-profile">
+      <section class="ari-circle-hero" aria-labelledby="ari-circle-display-name">
+        <div class="ari-circle-cover">
+          <img id="ari-circle-cover-image" class="ari-circle-cover__image" alt="" src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80" />
+          <button class="ari-circle-cover__edit" id="ari-circle-edit-cover" type="button" aria-label="Change background image">📷</button>
+          <input id="ari-circle-cover-input" type="file" accept="image/*" hidden />
+        </div>
+
+        <div class="ari-circle-hero__body">
+          <div class="ari-circle-avatar-wrap">
+            <button class="ari-circle-avatar-button" id="ari-circle-avatar-button" type="button" aria-label="Change profile photo">
+              <img id="ari-circle-avatar" class="ari-circle-avatar" alt="Profile photo" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80" />
+              <span class="ari-circle-presence-dot ari-circle-presence-dot--online" aria-hidden="true"></span>
+            </button>
+            <input id="ari-circle-avatar-input" type="file" accept="image/*" hidden />
+          </div>
+
+          <h1 id="ari-circle-display-name" class="ari-circle-display-name">Jose Rodriguez</h1>
+          <p class="ari-circle-handle">@jose</p>
+          <p class="ari-circle-presence"><span class="ari-circle-presence__indicator"></span>Online</p>
+          <p class="ari-circle-bio">Just figuring shit out.</p>
+
+          <div class="ari-circle-profile-actions">
+            <button class="ari-circle-button ari-circle-button--secondary" id="ari-circle-message-profile" type="button">Message</button>
+            <button class="ari-circle-button ari-circle-button--primary" id="ari-circle-add-to-circle" type="button" data-state="none">Add to Circle</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="ari-circle-card ari-circle-card--top-circle" aria-labelledby="ari-circle-top-circle-title">
+        <div class="ari-circle-section-heading">
+          <div>
+            <p class="ari-circle-eyebrow">FEATURED CONNECTIONS</p>
+            <h2 id="ari-circle-top-circle-title">Top Circle · <span id="ari-circle-top-count">6</span></h2>
+          </div>
+          <button class="ari-circle-text-button" id="ari-circle-edit-top" type="button">Edit</button>
+        </div>
+
+        <div id="ari-circle-top-circle" class="ari-circle-orbit ari-circle-orbit--six" aria-label="Top Circle">
+          <button class="ari-circle-orbit-person ari-circle-orbit-person--1" type="button" data-person="Emily">
+            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--online"></span></span><span class="ari-circle-orbit-name">Emily</span>
+          </button>
+          <button class="ari-circle-orbit-person ari-circle-orbit-person--2" type="button" data-person="Mike">
+            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--offline"></span></span><span class="ari-circle-orbit-name">Mike</span>
+          </button>
+          <button class="ari-circle-orbit-person ari-circle-orbit-person--3" type="button" data-person="Sarah">
+            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--online"></span></span><span class="ari-circle-orbit-name">Sarah</span>
+          </button>
+          <button class="ari-circle-orbit-person ari-circle-orbit-person--4" type="button" data-person="Alex">
+            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--offline"></span></span><span class="ari-circle-orbit-name">Alex</span>
+          </button>
+          <button class="ari-circle-orbit-person ari-circle-orbit-person--5" type="button" data-person="Maya">
+            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--online"></span></span><span class="ari-circle-orbit-name">Maya</span>
+          </button>
+          <button class="ari-circle-orbit-person ari-circle-orbit-person--6" type="button" data-person="Chris">
+            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--offline"></span></span><span class="ari-circle-orbit-name">Chris</span>
+          </button>
+          <div class="ari-circle-orbit-center" aria-hidden="true">
+            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80" alt="" />
+            <span>YOU</span>
+          </div>
+        </div>
+
+        <button class="ari-circle-full-width-link" type="button">View Entire Circle →</button>
+      </section>
+
+      <section class="ari-circle-card" aria-labelledby="ari-circle-love-title">
+        <div class="ari-circle-section-heading">
+          <div><p class="ari-circle-eyebrow">PROFILE COMMENTS</p><h2 id="ari-circle-love-title">Leave Some Love ❤️</h2></div>
+        </div>
+        <form class="ari-circle-love-form" id="ari-circle-love-form">
+          <label class="sr-only" for="ari-circle-love-input">Leave a public profile comment</label>
+          <textarea id="ari-circle-love-input" maxlength="280" rows="3" placeholder="Say something..."></textarea>
+          <div class="ari-circle-love-form__footer">
+            <span id="ari-circle-love-count">0 / 280</span>
+            <button class="ari-circle-button ari-circle-button--primary ari-circle-button--small" type="submit">Leave Love</button>
+          </div>
+        </form>
+        <div class="ari-circle-comments" id="ari-circle-comments">
+          <article class="ari-circle-comment">
+            <img class="ari-circle-comment__avatar" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80" alt="" />
+            <div class="ari-circle-comment__body"><div class="ari-circle-comment__meta"><strong>Emily</strong><span>2h</span></div><p>Stopping by to show some love ❤️</p></div>
+            <button class="ari-circle-comment__more" type="button" aria-label="Comment options">•••</button>
+          </article>
+          <article class="ari-circle-comment">
+            <img class="ari-circle-comment__avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80" alt="" />
+            <div class="ari-circle-comment__body"><div class="ari-circle-comment__meta"><strong>Mike</strong><span>Yesterday</span></div><p>Your background is sick 😂</p></div>
+            <button class="ari-circle-comment__more" type="button" aria-label="Comment options">•••</button>
+          </article>
+        </div>
+        <button class="ari-circle-full-width-link" type="button">View More →</button>
+      </section>
+
+      <section class="ari-circle-card" aria-labelledby="ari-circle-about-title">
+        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">A LITTLE CONTEXT</p><h2 id="ari-circle-about-title">About Me</h2></div></div>
+        <dl class="ari-circle-facts">
+          <div class="ari-circle-fact"><dt>📍 Lives in</dt><dd>Los Angeles, California</dd></div>
+          <div class="ari-circle-fact"><dt>🎂 Birthday</dt><dd>June 12</dd></div>
+          <div class="ari-circle-fact"><dt>🎯 Goal</dt><dd>Build something people actually love using.</dd></div>
+          <div class="ari-circle-fact"><dt>🪣 Bucket List</dt><dd>Spend a spring in Japan.</dd></div>
+        </dl>
+      </section>
+
+      <section class="ari-circle-card" aria-labelledby="ari-circle-interests-title">
+        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">FAVORITES</p><h2 id="ari-circle-interests-title">Things I’m Into</h2></div></div>
+        <dl class="ari-circle-facts">
+          <div class="ari-circle-fact"><dt>🎵 Favorite Song</dt><dd>Not selected yet</dd></div>
+          <div class="ari-circle-fact"><dt>🍕 Favorite Food</dt><dd>Tacos</dd></div>
+          <div class="ari-circle-fact"><dt>🎬 Favorite Movie</dt><dd>Interstellar</dd></div>
+          <div class="ari-circle-fact"><dt>🎨 Favorite Hobby</dt><dd>Building weird tech projects</dd></div>
+        </dl>
+      </section>
+
+      <section class="ari-circle-card" aria-labelledby="ari-circle-ice-title">
+        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">CONVERSATION STARTERS</p><h2 id="ari-circle-ice-title">Break the Ice</h2></div></div>
+        <div class="ari-circle-prompts">
+          <article class="ari-circle-prompt"><h3>💬 Ask me about...</h3><p>Why I keep building things at 2 AM.</p></article>
+          <article class="ari-circle-prompt"><h3>🔥 Current obsession...</h3><p>Making software feel less like software.</p></article>
+          <article class="ari-circle-prompt"><h3>✈️ Dream trip...</h3><p>Japan during cherry blossom season.</p></article>
+          <article class="ari-circle-prompt"><h3>😂 Best way to make me laugh...</h3><p>Commit to the joke. Cowardice ruins comedy.</p></article>
+          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🍿 My comfort show/movie...</h3><p>Anything I can quote irresponsibly often.</p></article>
+          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🎤 Song I know every word to...</h3><p>Ask me when I’m less likely to embarrass myself.</p></article>
+          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🤔 Unpopular opinion...</h3><p>Breakfast food is better after dark.</p></article>
+          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🎯 Something I want to learn...</h3><p>Another language without abandoning it after three weeks.</p></article>
+          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>👀 Weirdly good at...</h3><p>Finding the one setting that broke everything.</p></article>
+          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🌙 Perfect night looks like...</h3><p>Good food, no alarm tomorrow, phone on silent.</p></article>
+        </div>
+        <button class="ari-circle-full-width-link" id="ari-circle-toggle-prompts" type="button" aria-expanded="false">Show All ↓</button>
+      </section>
+
+      <section class="ari-circle-card ari-circle-card--details" aria-labelledby="ari-circle-details-title">
+        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">PROFILE</p><h2 id="ari-circle-details-title">Circle Details</h2></div></div>
+        <div class="ari-circle-stats">
+          <div><strong>38</strong><span>In Circle</span></div>
+          <div><strong>6</strong><span>Mutual</span></div>
+          <div><strong>May ’26</strong><span>Joined</span></div>
+        </div>
+      </section>
+    </main>
+
+    <dialog class="ari-circle-dialog" id="ari-circle-top-dialog">
+      <form method="dialog" class="ari-circle-dialog__panel">
+        <div class="ari-circle-dialog__header"><div><p class="ari-circle-eyebrow">FEATURED CONNECTIONS</p><h2>Edit Top Circle</h2></div><button class="ari-circle-icon-button" value="cancel" aria-label="Close">✕</button></div>
+        <fieldset class="ari-circle-choice">
+          <legend>How many people?</legend>
+          <label><input type="radio" name="topCircleCount" value="4" /><span>Top 4</span></label>
+          <label><input type="radio" name="topCircleCount" value="6" checked /><span>Top 6</span></label>
+        </fieldset>
+        <p class="ari-circle-dialog__hint">Connection selection and drag-to-reorder will be wired to Supabase later.</p>
+        <button class="ari-circle-button ari-circle-button--primary ari-circle-button--full" id="ari-circle-save-top" value="default">Save Top Circle</button>
+      </form>
+    </dialog>
+
+    <dialog class="ari-circle-dialog" id="ari-circle-message-dialog">
+      <form method="dialog" class="ari-circle-dialog__panel">
+        <div class="ari-circle-dialog__header"><div><p class="ari-circle-eyebrow">PRIVATE MESSAGE</p><h2>Message Jose</h2></div><button class="ari-circle-icon-button" value="cancel" aria-label="Close">✕</button></div>
+        <textarea id="ari-circle-message-input" rows="5" maxlength="1000" placeholder="Write a private message..."></textarea>
+        <button class="ari-circle-button ari-circle-button--primary ari-circle-button--full" id="ari-circle-send-message" value="default">Send Message</button>
+        <p class="ari-circle-dialog__hint">Prototype only — this does not send to Supabase yet.</p>
+      </form>
+    </dialog>
+
+    <div class="ari-circle-toast" id="ari-circle-toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <script src="js/ari-circle.js?v=1.0.0"></script>
+</body>
+</html>
