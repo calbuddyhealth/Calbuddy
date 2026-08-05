@@ -1,135 +1,153 @@
 /* ==========================================================================
-   ARI Circle
-   File: ari-circle.css
-   Version: 1.1.1
+   ARI CIRCLE — ANALOG FUTURE
+   V2.0.0
 
-   Theme:
-   - Retro early-MySpace / early social web
-   - Dark navy shell
-   - Cyan LED borders and accents
-   - More white content areas for readability
-   - Mobile-first
+   Design idea:
+   "The personal internet of 2086, designed with the physical instincts of 1986."
+
+   This is a FULL replacement stylesheet for ari-circle.html.
+   It intentionally avoids generic cyberpunk / SaaS glassmorphism.
    ========================================================================== */
 
 :root {
-  --circle-bg: #06111f;
-  --circle-bg-top: #0b1b31;
-  --circle-bg-deep: #030b14;
+  --ari-void: #070c13;
+  --ari-void-2: #0b141c;
+  --ari-panel: #111d24;
+  --ari-panel-2: #172730;
 
-  --circle-navy: #0f2747;
-  --circle-navy-2: #17385f;
-  --circle-navy-3: #1d466f;
+  --ari-paper: #f1eee5;
+  --ari-paper-2: #fbf8ef;
+  --ari-paper-3: #ddd8ca;
 
-  --circle-cyan: #00d7f2;
-  --circle-cyan-bright: #46e8ff;
-  --circle-cyan-soft: #dffbff;
-  --circle-cyan-pale: #f0fdff;
-  --circle-cyan-dark: #007b91;
+  --ari-ink: #10181d;
+  --ari-ink-soft: #3c4b51;
+  --ari-line: #65767b;
+  --ari-line-soft: rgba(16, 24, 29, 0.18);
 
-  --circle-white: #ffffff;
-  --circle-white-soft: #f8fbfd;
-  --circle-white-blue: #f2f9fc;
+  --ari-phosphor: #8ef4e8;
+  --ari-phosphor-strong: #3ee6d3;
+  --ari-amber: #ffba72;
+  --ari-lime: #c6ee76;
+  --ari-danger: #ff7e74;
 
-  --circle-ink: #14202a;
-  --circle-ink-soft: #43515d;
-  --circle-ink-muted: #75838d;
+  --ari-white: #ffffff;
+  --ari-black: #030609;
 
-  --circle-border: #9eb2c0;
-  --circle-border-soft: #cbd7df;
-  --circle-border-cyan: #4fd6e9;
+  --ari-shell: 720px;
+  --ari-gap: 14px;
+  --ari-radius: 18px;
+  --ari-radius-small: 8px;
 
-  --circle-online: #22c965;
-  --circle-away: #e0aa30;
-  --circle-offline: #9ba5ad;
+  --ari-display: "Audiowide", "Orbitron", Arial, sans-serif;
+  --ari-tech: "Orbitron", "Arial Narrow", Arial, sans-serif;
+  --ari-body: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --ari-mono: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", "Courier New", monospace;
 
-  --circle-radius: 5px;
-  --circle-radius-small: 3px;
-  --circle-max-width: 740px;
+  --ari-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    7px 7px 0 rgba(0, 0, 0, 0.24);
 
-  --circle-shadow:
-    0 5px 16px rgba(0, 0, 0, 0.24);
+  --ari-control-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 3px 0 rgba(0, 0, 0, 0.38);
 
-  --circle-led:
-    0 0 0 1px rgba(0, 215, 242, 0.42),
-    0 0 8px rgba(0, 215, 242, 0.18),
-    0 0 18px rgba(0, 215, 242, 0.08);
+  --ari-safe-top: max(10px, env(safe-area-inset-top));
+  --ari-safe-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 
 /* ==========================================================================
-   BASE
+   RESET / PAGE
    ========================================================================== */
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
 html {
-  background: var(--circle-bg);
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+  min-height: 100%;
+  background: var(--ari-void);
+  color-scheme: dark;
 }
 
 body.ari-circle-page {
-  margin: 0;
   min-height: 100vh;
-
-  color: var(--circle-ink);
-
-  font-family:
-    Verdana,
-    Tahoma,
-    Arial,
-    sans-serif;
-  font-size: 14px;
-  line-height: 1.45;
-
+  margin: 0;
+  color: var(--ari-paper);
+  font-family: var(--ari-body);
   background:
     radial-gradient(
-      circle at 50% 0%,
-      rgba(0, 215, 242, 0.10) 0%,
-      rgba(0, 215, 242, 0.03) 22%,
-      transparent 38%
+      circle at 50% -15%,
+      rgba(142, 244, 232, 0.12),
+      transparent 34rem
     ),
-    repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.012) 0,
-      rgba(255, 255, 255, 0.012) 2px,
-      transparent 2px,
-      transparent 7px
+    radial-gradient(
+      circle at 8% 34%,
+      rgba(255, 186, 114, 0.045),
+      transparent 20rem
     ),
     linear-gradient(
-      180deg,
-      var(--circle-bg-top) 0,
-      var(--circle-bg) 220px,
-      var(--circle-bg-deep) 100%
-    );
+      rgba(142, 244, 232, 0.025) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(142, 244, 232, 0.025) 1px,
+      transparent 1px
+    ),
+    var(--ari-void);
+  background-size:
+    auto,
+    auto,
+    28px 28px,
+    28px 28px,
+    auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-body.ari-circle-page img {
-  display: block;
-  max-width: 100%;
+body.ari-circle-page *,
+body.ari-circle-page *::before,
+body.ari-circle-page *::after {
+  box-sizing: border-box;
 }
 
 body.ari-circle-page button,
 body.ari-circle-page input,
-body.ari-circle-page textarea,
-body.ari-circle-page select {
+body.ari-circle-page textarea {
   font: inherit;
 }
 
-body.ari-circle-page button {
-  cursor: pointer;
-}
-
+body.ari-circle-page button,
 body.ari-circle-page a {
-  color: var(--circle-cyan-dark);
+  -webkit-tap-highlight-color: transparent;
 }
 
 body.ari-circle-page [hidden] {
   display: none !important;
+}
+
+.ari-circle-shell {
+  position: relative;
+  width: min(100%, var(--ari-shell));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding:
+    0
+    10px
+    calc(36px + var(--ari-safe-bottom));
+}
+
+.ari-circle {
+  display: grid;
+  gap: var(--ari-gap);
+  padding-top: 10px;
+}
+
+
+/* ==========================================================================
+   ACCESSIBILITY / FOCUS
+   ========================================================================== */
+
+body.ari-circle-page :focus-visible {
+  outline: 3px solid var(--ari-amber);
+  outline-offset: 3px;
 }
 
 .sr-only {
@@ -146,443 +164,612 @@ body.ari-circle-page [hidden] {
 
 
 /* ==========================================================================
-   SHELL
-   ========================================================================== */
-
-.ari-circle-shell {
-  width: min(100%, var(--circle-max-width));
-  min-height: 100vh;
-  margin: 0 auto;
-  padding-bottom: calc(28px + env(safe-area-inset-bottom));
-}
-
-.ari-circle {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-}
-
-
-/* ==========================================================================
-   HEADER
+   HEADER — CONTROL DECK
    ========================================================================== */
 
 .circle-header {
   position: sticky;
   top: 0;
-  z-index: 50;
-
-  min-height: 56px;
-  padding:
-    calc(8px + env(safe-area-inset-top))
-    10px
-    8px;
-
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-
+  gap: 8px;
+  min-height: calc(60px + var(--ari-safe-top));
+  padding:
+    var(--ari-safe-top)
+    8px
+    9px;
+  margin: 0 -10px;
   background:
     linear-gradient(
       180deg,
-      #214d78 0%,
-      #17385f 45%,
-      #0f2747 100%
+      rgba(7, 12, 19, 0.98),
+      rgba(7, 12, 19, 0.94)
     );
-
-  border-bottom: 3px solid var(--circle-cyan);
-
+  border-bottom:
+    1px solid rgba(142, 244, 232, 0.58);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.14),
-    0 3px 10px rgba(0,0,0,.32);
+    0 2px 0 rgba(255, 255, 255, 0.035),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+.circle-header::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 3px;
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(142, 244, 232, 0.26) 14%,
+      rgba(255, 186, 114, 0.32) 50%,
+      rgba(142, 244, 232, 0.26) 86%,
+      transparent
+    );
+  pointer-events: none;
+}
+
+.circle-header__left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.circle-back-button,
+.circle-icon-button {
+  position: relative;
+  isolation: isolate;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(142, 244, 232, 0.65);
+  border-radius: 7px;
+  color: var(--ari-paper);
+  background:
+    linear-gradient(
+      180deg,
+      #172630,
+      #0b141b
+    );
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 3px 0 #03080c;
+  text-decoration: none;
+}
+
+.circle-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 84px;
+  padding: 0 10px;
+  color: var(--ari-phosphor);
+  font-family: var(--ari-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.circle-back-button > span {
+  font-size: 1.08rem;
+  line-height: 1;
+}
+
+.circle-back-button::after {
+  content: "BACK";
+}
+
+.circle-back-button::before,
+.circle-icon-button::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4px;
+  border:
+    1px solid rgba(255, 255, 255, 0.045);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.circle-back-button:active,
+.circle-icon-button:active,
+.circle-button:active,
+.circle-text-button:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 1px 0 #03080c;
 }
 
 .circle-header__brand {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-
-  color: #fff;
-  text-decoration: none;
-
-  font-family:
-    "Courier New",
-    Courier,
-    monospace;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: .02em;
-
-  text-shadow: 0 1px 0 rgba(0,0,0,.35);
-}
-
-.circle-header__brand:hover {
+  color: inherit;
   text-decoration: none;
 }
 
 .circle-header__brand-mark {
-  width: 31px;
+  position: relative;
+  flex: 0 0 43px;
+  width: 43px;
   height: 31px;
+}
 
-  display: inline-grid;
-  place-items: center;
+.circle-header__brand-mark::before,
+.circle-header__brand-mark::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  width: 27px;
+  height: 27px;
+  border:
+    1.5px solid var(--ari-phosphor);
+  border-radius: 50%;
+}
 
-  color: #06212c;
-
-  background:
-    linear-gradient(
-      180deg,
-      #f3feff 0%,
-      #a8f6ff 52%,
-      #4be8ff 100%
-    );
-
-  border: 1px solid #c8fbff;
-  border-radius: 4px;
-
-  font-family:
-    Georgia,
-    "Times New Roman",
-    serif;
-  font-size: 17px;
-  font-weight: 900;
-
+.circle-header__brand-mark::before {
+  left: 1px;
   box-shadow:
-    0 0 0 1px rgba(0,215,242,.35),
-    0 0 12px rgba(0,215,242,.16);
+    -2px 0 0 rgba(255, 186, 114, 0.15);
+}
+
+.circle-header__brand-mark::after {
+  right: 1px;
+  border-color: rgba(142, 244, 232, 0.72);
+  box-shadow:
+    2px 0 0 rgba(142, 244, 232, 0.08);
+}
+
+.circle-header__brand-text {
+  color: var(--ari-paper);
+  font-family: var(--ari-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: none;
 }
 
 .circle-header__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  flex: 0 0 auto;
 }
 
 .circle-icon-button {
-  position: relative;
-
-  width: 35px;
-  height: 34px;
-  padding: 0;
-
   display: inline-grid;
   place-items: center;
-
-  color: #062832;
-
-  background:
-    linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #dffbff 52%,
-      #9df3ff 100%
-    );
-
-  border: 1px solid #aeeefa;
-  border-radius: 4px;
-
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 1px 2px rgba(0,0,0,.16),
-    0 0 9px rgba(0,215,242,.10);
+  padding: 0;
+  font-size: 1.12rem;
+  cursor: pointer;
 }
 
-.circle-icon-button:hover {
-  filter: brightness(1.04);
-}
-
-.circle-icon-button:active {
-  transform: translateY(1px);
+.circle-icon-button > span[aria-hidden="true"] {
+  line-height: 1;
 }
 
 .circle-action-badge {
   position: absolute;
   top: -5px;
   right: -5px;
-
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-
+  min-width: 18px;
+  height: 18px;
   display: inline-grid;
   place-items: center;
-
-  color: #fff;
-  background: #008dab;
-
-  border: 2px solid #fff;
+  padding: 0 4px;
+  border: 2px solid var(--ari-void);
   border-radius: 999px;
+  color: var(--ari-black);
+  background: var(--ari-amber);
+  font-family: var(--ari-mono);
+  font-size: 0.62rem;
+  font-weight: 900;
+}
 
-  font-size: 9px;
-  font-weight: 800;
+/*
+   Notification badge lives inside the overflow menu now.
+   Modern Safari supports :has(), so the overflow control still gets
+   a tiny signal lamp without needing another JS-owned badge element.
+*/
+body.ari-circle-page:has(#circle-notification-badge:not([hidden]))
+  #circle-profile-menu-button::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ari-amber);
+  box-shadow: 0 0 0 2px var(--ari-void);
 }
 
 
 /* ==========================================================================
-   STATUS
+   PAGE STATUS
    ========================================================================== */
 
 .circle-page-status {
-  width: calc(100% - 24px);
-  margin: 12px auto;
-  padding: 10px 12px;
+  position: relative;
+  margin: 18px 0 8px;
+  padding: 15px 16px 15px 44px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 244, 232, 0.48);
+  border-radius: 8px;
+  color: var(--ari-phosphor);
+  background: var(--ari-panel);
+  font-family: var(--ari-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  letter-spacing: 0.03em;
+}
 
-  color: var(--circle-ink-soft);
-  background: var(--circle-white);
+.circle-page-status::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      currentColor 0 2px,
+      transparent 3px
+    );
+}
 
-  border: 2px solid var(--circle-border);
-  border-left: 5px solid var(--circle-cyan);
-  border-radius: var(--circle-radius);
-
-  box-shadow:
-    var(--circle-shadow),
-    var(--circle-led);
-
-  font-size: 12px;
-  font-weight: 700;
+.circle-page-status[data-state="error"] {
+  color: var(--ari-danger);
+  border-color: rgba(255, 126, 116, 0.58);
 }
 
 
 /* ==========================================================================
-   SHARED RETRO MODULE
+   SHARED HARDWARE CARD SYSTEM
    ========================================================================== */
 
-.circle-card,
-.circle-profile {
+.circle-profile,
+.circle-card {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
+  border: 1px solid #6d797b;
+  border-radius: var(--ari-radius);
+  color: var(--ari-ink);
+  background:
+    linear-gradient(
+      180deg,
+      var(--ari-paper-2),
+      var(--ari-paper)
+    );
+  box-shadow: var(--ari-shadow);
+}
 
-  background: var(--circle-white);
+.circle-card::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  bottom: 9px;
+  width: 26px;
+  height: 10px;
+  border-right: 2px solid rgba(16, 24, 29, 0.32);
+  border-bottom: 2px solid rgba(16, 24, 29, 0.32);
+  pointer-events: none;
+}
 
-  border: 2px solid var(--circle-border);
-  border-radius: var(--circle-radius);
+.circle-card::after {
+  position: absolute;
+  z-index: 1;
+  right: 14px;
+  bottom: 12px;
+  color: rgba(16, 24, 29, 0.17);
+  font-family: var(--ari-tech);
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  line-height: 1;
+  pointer-events: none;
+}
 
-  box-shadow:
-    var(--circle-shadow),
-    var(--circle-led);
+#circle-top::after {
+  content: "02";
+}
+
+#circle-love::after {
+  content: "03";
+}
+
+#circle-about::after {
+  content: "04";
+}
+
+#circle-interests::after {
+  content: "05";
+}
+
+#circle-icebreakers::after {
+  content: "06";
+}
+
+#circle-details::after {
+  content: "07";
 }
 
 .circle-section-header {
-  min-height: 44px;
-  padding: 7px 10px;
-
+  position: relative;
+  z-index: 3;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-
-  color: #fff;
-
+  gap: 12px;
+  padding: 13px 14px 12px;
+  color: var(--ari-paper);
   background:
     linear-gradient(
-      180deg,
-      #245782 0%,
-      #183e67 49%,
-      #102c4e 100%
+      104deg,
+      #0c161d 0%,
+      #14252b 62%,
+      #102027 100%
     );
-
-  border-bottom: 2px solid var(--circle-cyan);
-
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.16);
+  border-bottom: 1px solid rgba(142, 244, 232, 0.4);
 }
 
-.circle-section-header h2 {
-  margin: 1px 0 0;
-
-  color: #fff;
-
-  font-family:
-    Tahoma,
-    Verdana,
-    Arial,
-    sans-serif;
-  font-size: 17px;
-  line-height: 1.15;
-  font-weight: 800;
-
-  text-shadow: 0 1px 0 rgba(0,0,0,.28);
+.circle-section-header::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 4px;
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--ari-phosphor),
+      rgba(142, 244, 232, 0.06) 72%
+    );
 }
 
 .circle-section-eyebrow {
+  margin: 0 0 4px;
+  color: var(--ari-amber);
+  font-family: var(--ari-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.circle-section-header h2 {
   margin: 0;
-
-  color: #b9f5ff;
-
-  font-size: 9px;
-  line-height: 1;
+  color: var(--ari-paper);
+  font-family: var(--ari-tech);
+  font-size: 1.08rem;
   font-weight: 800;
-  letter-spacing: .14em;
+  letter-spacing: 0.055em;
+  line-height: 1.18;
+  text-transform: uppercase;
 }
 
-.circle-text-button {
-  min-height: 28px;
-  padding: 4px 8px;
-
-  color: #062832;
-
-  background:
-    linear-gradient(
-      180deg,
-      #fff 0%,
-      #dffbff 55%,
-      #a2f3ff 100%
-    );
-
-  border: 1px solid #8cdcea;
-  border-radius: 3px;
-
-  font-size: 10px;
-  font-weight: 800;
-
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 1px 1px rgba(0,0,0,.12);
-}
-
-.circle-section-link {
-  width: 100%;
-  min-height: 36px;
-  padding: 8px 10px;
-
-  color: var(--circle-cyan-dark);
-  background:
-    linear-gradient(
-      180deg,
-      #ffffff 0%,
-      var(--circle-cyan-pale) 100%
-    );
-
-  border: 0;
-  border-top: 1px solid #abe5ee;
-
-  text-align: center;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.circle-section-link:hover {
-  color: #005a6b;
-  background: #e9fbfe;
+.circle-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .circle-section-note {
+  position: relative;
+  z-index: 2;
+  margin: 12px 14px;
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.circle-empty-state {
+  position: relative;
+  z-index: 2;
+  margin: 12px 14px;
+  padding: 18px 14px;
+  border: 1px dashed rgba(16, 24, 29, 0.28);
+  border-radius: 8px;
+  color: var(--ari-ink-soft);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(16, 24, 29, 0.035),
+      transparent
+    );
+  text-align: center;
+}
+
+.circle-empty-state p {
   margin: 0;
-  padding: 10px 12px;
+}
 
-  color: var(--circle-ink-soft);
-  background: var(--circle-white-soft);
-
-  border-bottom: 1px solid var(--circle-border-soft);
-
-  font-size: 11px;
+.circle-section-link {
+  position: relative;
+  z-index: 3;
+  display: block;
+  width: calc(100% - 28px);
+  min-height: 44px;
+  margin: 12px 14px 14px;
+  padding: 0 12px;
+  border: 1px solid rgba(16, 24, 29, 0.38);
+  border-radius: 5px;
+  color: var(--ari-ink);
+  background:
+    linear-gradient(
+      180deg,
+      #fbf8ef,
+      #ddd8ca
+    );
+  box-shadow:
+    0 2px 0 rgba(255, 255, 255, 0.75) inset,
+    0 3px 0 rgba(16, 24, 29, 0.24);
+  font-family: var(--ari-mono);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 
 /* ==========================================================================
-   BUTTONS
+   BUTTON SYSTEM
    ========================================================================== */
 
-.circle-button {
-  min-height: 34px;
-  padding: 6px 12px;
-
-  border-radius: 3px;
-
-  font-size: 11px;
-  font-weight: 800;
-
-  transition:
-    transform 100ms ease,
-    filter 100ms ease,
-    box-shadow 100ms ease;
+.circle-button,
+.circle-text-button {
+  min-height: 44px;
+  border: 1px solid rgba(16, 24, 29, 0.64);
+  border-radius: 6px;
+  cursor: pointer;
 }
 
-.circle-button:active {
-  transform: translateY(1px);
+.circle-button {
+  padding: 0 14px;
+  color: var(--ari-ink);
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff,
+      #d9d6ca
+    );
+  box-shadow: var(--ari-control-shadow);
+  font-family: var(--ari-mono);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
 }
 
 .circle-button--primary {
-  color: #062832;
-
+  border-color: #1f827b;
   background:
     linear-gradient(
       180deg,
-      #ffffff 0%,
-      #c8f9ff 45%,
-      #5fe7fb 100%
+      #b4fff5,
+      #72d9cd
     );
-
-  border: 1px solid #75d7e6;
-
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 1px 2px rgba(0,0,0,.16),
-    0 0 10px rgba(0,215,242,.09);
-}
-
-.circle-button--primary:hover {
-  filter: brightness(1.04);
 }
 
 .circle-button--secondary {
-  color: #fff;
-
   background:
     linear-gradient(
       180deg,
-      #254f76 0%,
-      #17385f 50%,
-      #102b4c 100%
+      #fffdf6,
+      #d9d5c9
     );
-
-  border: 1px solid #3c6f94;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.12),
-    0 1px 2px rgba(0,0,0,.16);
 }
 
 .circle-button--small {
-  min-height: 30px;
-  padding: 5px 9px;
+  min-height: 38px;
+  padding-inline: 11px;
+  font-size: 0.68rem;
 }
 
 .circle-button--full {
   width: 100%;
 }
 
+.circle-button:disabled,
+.circle-text-button:disabled,
+.circle-section-link:disabled {
+  opacity: 0.48;
+  cursor: default;
+  transform: none;
+}
+
+.circle-text-button {
+  min-height: 34px;
+  padding: 0 9px;
+  border-color: rgba(142, 244, 232, 0.46);
+  color: var(--ari-phosphor);
+  background: #101c22;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 2px 0 rgba(0, 0, 0, 0.42);
+  font-family: var(--ari-mono);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 
 /* ==========================================================================
-   PROFILE HERO
+   PROFILE HERO — IDENTITY MODULE
    ========================================================================== */
+
+.circle-profile {
+  overflow: visible;
+}
 
 .circle-profile__cover {
   position: relative;
-
-  height: clamp(145px, 38vw, 210px);
+  height: 218px;
   overflow: hidden;
-
+  border-radius:
+    calc(var(--ari-radius) - 1px)
+    calc(var(--ari-radius) - 1px)
+    0
+    0;
   background:
-    repeating-linear-gradient(
-      135deg,
-      rgba(0,215,242,.06) 0,
-      rgba(0,215,242,.06) 8px,
-      transparent 8px,
-      transparent 16px
-    ),
     linear-gradient(
-      135deg,
-      #17385f,
-      #0f2747 54%,
-      #091b32
+      125deg,
+      #193037,
+      #091218 62%,
+      #173238
     );
+}
 
-  border-bottom: 4px solid var(--circle-cyan);
+.circle-profile__cover::before,
+.circle-profile__cover::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.circle-profile__cover::before {
+  inset: 0;
+  background:
+    linear-gradient(
+      rgba(255, 255, 255, 0.045) 1px,
+      transparent 1px
+    );
+  background-size: 100% 5px;
+  mix-blend-mode: soft-light;
+}
+
+.circle-profile__cover::after {
+  top: 11px;
+  right: 11px;
+  width: 26px;
+  height: 26px;
+  border-top: 2px solid var(--ari-phosphor);
+  border-right: 2px solid var(--ari-phosphor);
+  opacity: 0.72;
 }
 
 .circle-profile__cover-image,
@@ -592,104 +779,129 @@ body.ari-circle-page [hidden] {
 }
 
 .circle-profile__cover-image {
+  display: block;
   object-fit: cover;
 }
 
 .circle-profile__cover-fallback {
   background:
     radial-gradient(
-      circle at 15% 22%,
-      rgba(70,232,255,.22),
-      transparent 28%
+      circle at 28% 34%,
+      rgba(142, 244, 232, 0.25),
+      transparent 18%
     ),
     radial-gradient(
-      circle at 82% 76%,
-      rgba(0,215,242,.13),
-      transparent 32%
+      circle at 72% 61%,
+      rgba(255, 186, 114, 0.15),
+      transparent 20%
     ),
     linear-gradient(
       135deg,
-      #1b416b,
-      #112d4e
+      #172830,
+      #081116
     );
-}
-
-.circle-profile__cover::after {
-  content: "";
-
-  position: absolute;
-  inset: auto 0 0;
-
-  height: 44px;
-
-  background:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgba(0,0,0,.25)
-    );
-
-  pointer-events: none;
 }
 
 .circle-profile__cover-edit {
   position: absolute;
-  z-index: 3;
-  right: 9px;
-  bottom: 9px;
-
-  min-width: 36px;
-  min-height: 32px;
-
-  color: #062832;
-  background: #fff;
-
-  border: 1px solid #7ecfdd;
-  border-radius: 3px;
-
+  z-index: 4;
+  right: 12px;
+  bottom: 12px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(142, 244, 232, 0.72);
+  border-radius: 6px;
+  color: var(--ari-phosphor);
+  background: rgba(7, 12, 19, 0.9);
   box-shadow:
-    0 0 8px rgba(0,215,242,.12);
+    0 2px 0 rgba(0, 0, 0, 0.4);
 }
 
 .circle-profile__body {
   position: relative;
-
-  min-height: 145px;
-  padding: 48px 12px 13px 112px;
-
+  min-height: 194px;
+  padding:
+    22px
+    16px
+    20px
+    136px;
+  overflow: hidden;
+  border-radius:
+    0
+    0
+    calc(var(--ari-radius) - 1px)
+    calc(var(--ari-radius) - 1px);
   background:
     linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #f6fbfd 100%
-    );
+      90deg,
+      rgba(16, 24, 29, 0.035) 1px,
+      transparent 1px
+    ),
+    var(--ari-paper-2);
+  background-size: 22px 100%, auto;
+}
 
-  text-align: left;
+.circle-profile__body::after {
+  content: "01 / IDENTITY";
+  position: absolute;
+  right: 12px;
+  bottom: 9px;
+  color: rgba(16, 24, 29, 0.22);
+  font-family: var(--ari-mono);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
 }
 
 .circle-profile__avatar-wrap {
   position: absolute;
-  top: -43px;
-  left: 14px;
+  z-index: 5;
+  top: 24px;
+  left: 18px;
 }
 
 .circle-profile__avatar-button {
   position: relative;
-
-  width: 86px;
-  height: 86px;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 100px;
   padding: 0;
   overflow: hidden;
-
-  background: #fff;
-
-  border: 3px solid #fff;
-  border-radius: 5px;
-
+  border:
+    2px solid var(--ari-ink);
+  border-radius: 12px;
+  color: var(--ari-ink);
+  background: var(--ari-paper-3);
   box-shadow:
-    0 0 0 2px var(--circle-cyan),
-    0 3px 8px rgba(0,0,0,.24),
-    0 0 14px rgba(0,215,242,.15);
+    0 0 0 4px var(--ari-paper-2),
+    0 0 0 5px rgba(16, 24, 29, 0.45),
+    7px 7px 0 rgba(16, 24, 29, 0.2);
+  cursor: pointer;
+}
+
+.circle-profile__avatar-button::before,
+.circle-profile__avatar-button::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.circle-profile__avatar-button::before {
+  top: 5px;
+  left: 5px;
+  border-top: 2px solid var(--ari-phosphor-strong);
+  border-left: 2px solid var(--ari-phosphor-strong);
+}
+
+.circle-profile__avatar-button::after {
+  right: 5px;
+  bottom: 5px;
+  border-right: 2px solid var(--ari-amber);
+  border-bottom: 2px solid var(--ari-amber);
 }
 
 .circle-profile__avatar,
@@ -699,196 +911,169 @@ body.ari-circle-page [hidden] {
 }
 
 .circle-profile__avatar {
+  display: block;
   object-fit: cover;
 }
 
 .circle-profile__avatar-fallback {
   display: grid;
   place-items: center;
-
-  color: #07323c;
-
+  color: var(--ari-ink);
+  font-family: var(--ari-display);
+  font-size: 2.2rem;
   background:
     linear-gradient(
-      180deg,
-      #fff 0%,
-      #dffbff 54%,
-      #92f1ff 100%
+      135deg,
+      #c3fff7,
+      #f0eadb 58%,
+      #ffd1a3
     );
-
-  font-size: 28px;
-  font-weight: 900;
 }
 
-.circle-presence-dot,
-.circle-presence-indicator {
-  display: inline-block;
-
-  width: 9px;
-  height: 9px;
-
-  background: var(--circle-offline);
-
-  border: 1px solid rgba(0,0,0,.18);
+.circle-presence-dot {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--ari-paper-2);
   border-radius: 50%;
-}
-
-.circle-presence-dot[data-status="online"],
-.circle-presence-indicator[data-status="online"],
-.circle-presence-dot--online {
-  background: var(--circle-online);
-}
-
-.circle-presence-dot[data-status="away"],
-.circle-presence-indicator[data-status="away"],
-.circle-presence-dot--away {
-  background: var(--circle-away);
-}
-
-.circle-presence-dot[data-status="offline"],
-.circle-presence-indicator[data-status="offline"],
-.circle-presence-dot--offline {
-  background: var(--circle-offline);
+  background: var(--ari-lime);
+  box-shadow:
+    0 0 0 1px var(--ari-ink);
 }
 
 #circle-avatar-presence {
   position: absolute;
-  right: 2px;
-  bottom: 4px;
-
+  z-index: 5;
+  right: 6px;
+  bottom: 6px;
   width: 14px;
   height: 14px;
-
-  border: 3px solid #fff;
 }
 
 .circle-profile__name {
+  max-width: 100%;
   margin: 0;
-
-  color: var(--circle-ink);
-
-  font-family:
-    Tahoma,
-    Verdana,
-    Arial,
-    sans-serif;
-  font-size: clamp(23px, 6.5vw, 30px);
-  line-height: 1.08;
-  font-weight: 900;
+  color: var(--ari-ink);
+  font-family: var(--ari-tech);
+  font-size: clamp(1.55rem, 7vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .circle-profile__handle {
-  margin: 3px 0 0;
-
-  color: var(--circle-cyan-dark);
-
-  font-size: 12px;
+  margin: 5px 0 0;
+  color: #39746f;
+  font-family: var(--ari-mono);
+  font-size: 0.79rem;
   font-weight: 800;
-
-  text-decoration: underline;
-  text-decoration-color: #8fdce8;
-  text-underline-offset: 2px;
 }
 
 .circle-profile__presence {
-  width: fit-content;
-  margin: 6px 0 0;
-  padding: 2px 7px;
-
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
+  margin: 9px 0 0;
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
 
-  color: #48616e;
-  background: #f2f8fa;
-
-  border: 1px solid #bfd7df;
-  border-radius: 999px;
-
-  font-size: 10px;
-  font-weight: 700;
+.circle-presence-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ari-lime);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 29, 0.7);
 }
 
 .circle-profile__bio {
-  max-width: 520px;
-  margin: 9px 0 0;
-
-  color: var(--circle-ink-soft);
-
-  font-size: 12px;
-  line-height: 1.5;
+  max-width: 42ch;
+  margin: 10px 0 0;
+  color: var(--ari-ink);
+  font-size: 0.88rem;
+  line-height: 1.48;
 }
 
 .circle-profile__actions {
-  margin-top: 10px;
-
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-}
-
-.circle-profile__actions .circle-button {
-  min-width: 108px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 
 /* ==========================================================================
-   TOP CIRCLE
+   TOP CIRCLE — SOCIAL ORBIT
    ========================================================================== */
 
 .circle-top__orbit {
   position: relative;
-
-  min-height: 315px;
-
+  z-index: 2;
+  height: 338px;
+  margin: 0;
+  overflow: hidden;
   background:
     radial-gradient(
       circle at center,
-      rgba(0,215,242,.08) 0 19%,
-      transparent 20%
-    ),
-    repeating-radial-gradient(
-      circle at center,
-      transparent 0 86px,
-      rgba(0,157,181,.16) 87px 88px,
-      transparent 89px 118px
+      transparent 0 70px,
+      rgba(16, 24, 29, 0.12) 71px 72px,
+      transparent 73px 111px,
+      rgba(62, 230, 211, 0.16) 112px 113px,
+      transparent 114px
     ),
     linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #f5fbfd 100%
+      90deg,
+      transparent 49.7%,
+      rgba(16, 24, 29, 0.08) 50%,
+      transparent 50.3%
+    ),
+    linear-gradient(
+      transparent 49.7%,
+      rgba(16, 24, 29, 0.08) 50%,
+      transparent 50.3%
     );
+}
 
-  border-bottom: 1px solid var(--circle-border-soft);
+.circle-top__orbit::before {
+  content: "ORBIT / LOCAL";
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  color: rgba(16, 24, 29, 0.42);
+  font-family: var(--ari-mono);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
 }
 
 .circle-top__center {
   position: absolute;
-  z-index: 2;
-
-  left: 50%;
+  z-index: 4;
   top: 50%;
-
-  width: 92px;
-
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  width: 104px;
   transform: translate(-50%, -50%);
-
-  text-align: center;
 }
 
 .circle-top__center-avatar,
 .circle-top__center-fallback {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto;
-
-  border: 3px solid #fff;
-  border-radius: 5px;
-
+  width: 76px;
+  height: 76px;
+  border: 2px solid var(--ari-ink);
+  border-radius: 50%;
+  background: var(--ari-paper-2);
   box-shadow:
-    0 0 0 2px var(--circle-cyan),
-    0 2px 5px rgba(0,0,0,.16),
-    0 0 12px rgba(0,215,242,.11);
+    0 0 0 5px var(--ari-paper),
+    0 0 0 6px rgba(16, 24, 29, 0.34);
 }
 
 .circle-top__center-avatar {
@@ -898,29 +1083,20 @@ body.ari-circle-page [hidden] {
 .circle-top__center-fallback {
   display: grid;
   place-items: center;
-
-  color: #07323c;
-
-  background:
-    linear-gradient(
-      180deg,
-      #fff,
-      #d9faff
-    );
-
-  font-size: 24px;
-  font-weight: 900;
+  font-family: var(--ari-display);
+  font-size: 1.6rem;
 }
 
 .circle-top__center-label {
-  display: block;
-
-  margin-top: 7px;
-
-  color: var(--circle-ink-soft);
-
-  font-size: 10px;
-  font-weight: 800;
+  max-width: 104px;
+  color: var(--ari-ink);
+  font-family: var(--ari-mono);
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .circle-top__members {
@@ -930,222 +1106,258 @@ body.ari-circle-page [hidden] {
 
 .circle-top-member {
   position: absolute;
-
-  width: 76px;
+  z-index: 5;
+  width: 88px;
   padding: 0;
-
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-
-  color: var(--circle-cyan-dark);
-  background: transparent;
-
   border: 0;
-
+  color: var(--ari-ink);
+  background: transparent;
   text-align: center;
+  cursor: pointer;
 }
 
-.circle-top-member:nth-child(1),
-.circle-top-member[data-position="0"] {
-  left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
+.circle-top-member:nth-child(1) {
+  top: 28px;
+  left: calc(50% - 44px);
 }
 
-.circle-top-member:nth-child(2),
-.circle-top-member[data-position="1"] {
-  right: 14px;
-  top: 68px;
+.circle-top-member:nth-child(2) {
+  top: 90px;
+  right: 26px;
 }
 
-.circle-top-member:nth-child(3),
-.circle-top-member[data-position="2"] {
-  right: 24px;
-  bottom: 35px;
+.circle-top-member:nth-child(3) {
+  right: 50px;
+  bottom: 28px;
 }
 
-.circle-top-member:nth-child(4),
-.circle-top-member[data-position="3"] {
-  left: 50%;
-  bottom: 7px;
-  transform: translateX(-50%);
+.circle-top-member:nth-child(4) {
+  bottom: 28px;
+  left: 50px;
 }
 
-.circle-top-member:nth-child(5),
-.circle-top-member[data-position="4"] {
-  left: 24px;
-  bottom: 35px;
+.circle-top-member:nth-child(5) {
+  top: 90px;
+  left: 26px;
 }
 
-.circle-top-member:nth-child(6),
-.circle-top-member[data-position="5"] {
-  left: 14px;
-  top: 68px;
+.circle-top-member:nth-child(6) {
+  right: 28px;
+  bottom: 118px;
 }
 
 .circle-top-member__avatar-wrap {
   position: relative;
-
-  width: 56px;
-  height: 56px;
+  display: block;
+  width: 61px;
+  height: 61px;
+  margin: 0 auto 6px;
 }
 
 .circle-top-member__avatar {
-  width: 56px;
-  height: 56px;
-
+  width: 61px;
+  height: 61px;
+  display: block;
   object-fit: cover;
-
-  background: #edf9fc;
-
-  border: 2px solid #fff;
-  border-radius: 5px;
-
+  border: 1px solid var(--ari-ink);
+  border-radius: 50%;
+  background: var(--ari-paper-3);
   box-shadow:
-    0 0 0 2px var(--circle-cyan),
-    0 2px 4px rgba(0,0,0,.13),
-    0 0 10px rgba(0,215,242,.10);
+    0 0 0 3px var(--ari-paper-2),
+    0 0 0 4px rgba(16, 24, 29, 0.25);
 }
 
 .circle-top-member__presence {
   position: absolute;
-  right: -1px;
-  bottom: 1px;
-
-  width: 13px;
-  height: 13px;
-
-  border: 3px solid #fff;
+  right: -2px;
+  bottom: 0;
 }
 
 .circle-top-member__name {
-  width: 76px;
+  display: block;
   overflow: hidden;
-
-  color: var(--circle-cyan-dark);
-
-  font-size: 9px;
-  line-height: 1.2;
-  font-weight: 800;
-
-  text-decoration: underline;
-  text-underline-offset: 2px;
-
+  color: var(--ari-ink);
+  font-family: var(--ari-mono);
+  font-size: 0.63rem;
+  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 
 /* ==========================================================================
-   EMPTY STATES
-   ========================================================================== */
-
-.circle-empty-state {
-  padding: 15px 12px;
-
-  color: var(--circle-ink-muted);
-  background: var(--circle-white-soft);
-
-  border-top: 1px dashed var(--circle-border);
-
-  text-align: center;
-
-  font-size: 11px;
-}
-
-.circle-empty-state p {
-  margin: 0;
-}
-
-
-/* ==========================================================================
-   LEAVE SOME LOVE
+   LEAVE SOME LOVE — PUBLIC CHANNEL
    ========================================================================== */
 
 .circle-love__form {
+  position: relative;
+  z-index: 3;
+  margin: 14px;
   padding: 12px;
-
+  border: 1px solid rgba(16, 24, 29, 0.38);
+  border-radius: 8px;
   background:
     linear-gradient(
       180deg,
-      #ffffff 0%,
-      #f8fcfd 100%
+      #fcfaf3,
+      #e7e2d5
     );
-
-  border-bottom: 1px solid var(--circle-border-soft);
-}
-
-.circle-love__form textarea {
-  width: 100%;
-  min-height: 86px;
-  padding: 9px 10px;
-
-  color: var(--circle-ink);
-  background: #fff;
-
-  border: 2px inset #d6dde2;
-  border-radius: 2px;
-
   box-shadow:
-    inset 1px 1px 2px rgba(0,0,0,.06);
-
-  resize: vertical;
-
-  font-size: 11px;
+    4px 4px 0 rgba(16, 24, 29, 0.13);
 }
 
-.circle-love__form textarea:focus {
-  outline: 2px solid rgba(0,215,242,.22);
-  border-color: var(--circle-cyan-dark);
+.circle-love__form::before {
+  content: "PUBLIC CHANNEL / TX";
+  display: block;
+  margin-bottom: 8px;
+  color: #47726e;
+  font-family: var(--ari-mono);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+}
+
+#circle-love-input,
+#circle-friend-search-input,
+.circle-editor-field__input,
+.circle-dialog input[type="text"],
+.circle-dialog input[type="search"],
+.circle-dialog textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(16, 24, 29, 0.52);
+  border-radius: 5px;
+  color: var(--ari-ink);
+  background:
+    linear-gradient(
+      180deg,
+      #fffef9,
+      #f3efe5
+    );
+  box-shadow:
+    0 2px 0 rgba(16, 24, 29, 0.08) inset;
+  font-size: 16px;
+}
+
+#circle-love-input {
+  min-height: 92px;
+  padding: 11px 12px;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 .circle-love__form-footer {
-  margin-top: 7px;
-
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.circle-love__composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
 }
 
 #circle-love-counter {
-  color: var(--circle-ink-muted);
-  font-size: 10px;
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+
+.circle-love__photo-preview {
+  position: relative;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed rgba(16, 24, 29, 0.42);
+  border-radius: 6px;
+  background: #dcd8cc;
+}
+
+#circle-love-photo-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 340px;
+  object-fit: cover;
+  border: 1px solid var(--ari-ink);
+  border-radius: 3px;
+}
+
+#circle-love-photo-remove {
+  margin-top: 8px;
 }
 
 .circle-love__list {
+  position: relative;
+  z-index: 3;
   display: grid;
+  gap: 9px;
+  padding: 0 14px;
 }
 
 .circle-love-item {
   position: relative;
-
-  padding: 10px 38px 10px 10px;
-
   display: grid;
-  grid-template-columns: 44px minmax(0,1fr);
-  gap: 9px;
-
-  background: #fff;
-
-  border-bottom: 1px dotted #aebec7;
+  grid-template-columns: 46px minmax(0, 1fr) 32px;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid rgba(16, 24, 29, 0.26);
+  border-radius: 7px;
+  background:
+    linear-gradient(
+      180deg,
+      #fffef9,
+      #ece8dd
+    );
 }
 
-.circle-love-item:nth-child(even) {
-  background: #f8fcfd;
+.circle-love-item::before {
+  content: "";
+  position: absolute;
+  left: 58px;
+  right: 9px;
+  top: 0;
+  height: 2px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--ari-phosphor-strong),
+      transparent 72%
+    );
+  opacity: 0.55;
+}
+
+.circle-love-item__profile,
+.circle-love-item__name,
+.circle-love-item__more {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
 }
 
 .circle-love-item__profile {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   padding: 0;
   overflow: hidden;
+  border:
+    1px solid rgba(16, 24, 29, 0.58);
+  border-radius: 5px;
+  background: var(--ari-paper-3);
+}
 
-  background: #eef4f7;
-
-  border: 1px solid var(--circle-border);
-  border-radius: 3px;
+.circle-love-item__profile[data-initials]::before {
+  content: attr(data-initials);
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--ari-tech);
+  font-weight: 800;
 }
 
 .circle-love-item__avatar {
@@ -1166,482 +1378,544 @@ body.ari-circle-page [hidden] {
 }
 
 .circle-love-item__name {
-  min-width: 0;
   padding: 0;
-  overflow: hidden;
-
-  color: var(--circle-cyan-dark);
-  background: transparent;
-
-  border: 0;
-
-  text-align: left;
-
-  font-size: 11px;
+  color: var(--ari-ink);
+  font-family: var(--ari-tech);
+  font-size: 0.77rem;
   font-weight: 800;
-
-  text-decoration: underline;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: left;
 }
 
 .circle-love-item__time {
-  color: var(--circle-ink-muted);
-  font-size: 9px;
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.58rem;
+  white-space: nowrap;
 }
 
 .circle-love-item__text {
-  margin: 5px 0 0;
-
-  color: var(--circle-ink);
-
-  font-size: 11px;
-  line-height: 1.45;
-
+  margin: 6px 0 0;
+  color: var(--ari-ink);
+  font-size: 0.84rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
+.circle-love-item__photo {
+  display: block;
+  width: 100%;
+  max-height: 460px;
+  margin-top: 9px;
+  object-fit: cover;
+  border: 1px solid rgba(16, 24, 29, 0.65);
+  border-radius: 4px;
+  background: #d6d2c8;
+  box-shadow:
+    4px 4px 0 rgba(16, 24, 29, 0.15);
+}
+
 .circle-love-item__more {
-  position: absolute;
-  top: 7px;
-  right: 6px;
-
-  width: 28px;
-  height: 25px;
+  align-self: start;
+  width: 32px;
+  min-height: 32px;
   padding: 0;
-
-  color: var(--circle-cyan-dark);
-  background: transparent;
-
-  border: 0;
+  color: var(--ari-ink-soft);
+  font-size: 0.95rem;
 }
 
 
 /* ==========================================================================
-   ABOUT / FAVORITES
+   FACTS / ABOUT / INTERESTS
    ========================================================================== */
 
 .circle-facts {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 0;
   margin: 0;
+  padding: 6px 14px 16px;
 }
 
 .circle-fact {
-  min-height: 46px;
-
   display: grid;
-  grid-template-columns: minmax(112px, 38%) minmax(0,1fr);
-
-  border-bottom: 1px solid var(--circle-border-soft);
+  grid-template-columns: minmax(122px, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(16, 24, 29, 0.14);
 }
 
 .circle-fact:last-child {
   border-bottom: 0;
 }
 
-.circle-fact dt,
+.circle-fact dt {
+  color: #4d6d6b;
+  font-family: var(--ari-mono);
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .circle-fact dd {
   margin: 0;
-  padding: 9px 10px;
-}
-
-.circle-fact dt {
-  color: #0c6273;
-
-  background:
-    linear-gradient(
-      90deg,
-      #e7faff,
-      #f3fcfe
-    );
-
-  border-right: 1px solid #bee7ee;
-
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.circle-fact dd {
-  color: var(--circle-ink);
-  background: #fff;
-
-  font-size: 11px;
-  line-height: 1.45;
-
+  color: var(--ari-ink);
+  font-size: 0.84rem;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 
 /* ==========================================================================
-   BREAK THE ICE
+   ICEBREAKERS
    ========================================================================== */
 
 .circle-icebreakers {
-  padding: 10px;
-
+  position: relative;
+  z-index: 3;
   display: grid;
-  gap: 7px;
-
-  background: #fff;
+  gap: 9px;
+  padding: 14px;
 }
 
 .circle-icebreaker {
-  overflow: hidden;
+  position: relative;
+  padding: 12px 12px 12px 15px;
+  border: 1px solid rgba(16, 24, 29, 0.26);
+  border-radius: 6px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(142, 244, 232, 0.1),
+      transparent 36%
+    ),
+    #fffdf6;
+}
 
-  background: #fff;
-
-  border: 1px solid #9fdce7;
-  border-radius: 3px;
-
-  box-shadow:
-    0 0 8px rgba(0,215,242,.05);
+.circle-icebreaker::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 6px;
+  width: 2px;
+  background:
+    linear-gradient(
+      var(--ari-phosphor-strong),
+      var(--ari-amber)
+    );
 }
 
 .circle-icebreaker__prompt {
   margin: 0;
-  padding: 7px 9px;
-
-  color: #066c7e;
-
-  background:
-    linear-gradient(
-      180deg,
-      #e9fbfe 0%,
-      #d7f7fb 100%
-    );
-
-  border-bottom: 1px solid #a8dfe8;
-
-  font-size: 10px;
-  line-height: 1.25;
-  font-weight: 800;
+  color: #3a6663;
+  font-family: var(--ari-mono);
+  font-size: 0.67rem;
+  font-weight: 900;
+  line-height: 1.35;
 }
 
 .circle-icebreaker__answer {
-  margin: 0;
-  padding: 9px;
-
-  color: var(--circle-ink);
-  background: #fff;
-
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-
-/* ==========================================================================
-   DETAILS
-   ========================================================================== */
-
-.circle-details__stats {
-  display: grid;
-  grid-template-columns: repeat(3,1fr);
-
-  padding: 10px;
-  gap: 8px;
-
-  background: #fff;
-}
-
-.circle-stat {
-  min-width: 0;
-  padding: 12px 7px;
-
-  text-align: center;
-
-  background:
-    linear-gradient(
-      180deg,
-      #f6fdff,
-      #ebfafd
-    );
-
-  border: 1px solid #b9dfe6;
-  border-radius: 3px;
-}
-
-.circle-stat strong {
-  display: block;
-
-  color: #0a7184;
-
-  font-size: 18px;
-  line-height: 1;
-  font-weight: 900;
-}
-
-.circle-stat span {
-  display: block;
-  margin-top: 5px;
-
-  color: var(--circle-ink-muted);
-
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-
-
-/* ==========================================================================
-   MENU
-   ========================================================================== */
-
-.circle-menu {
-  position: fixed;
-  z-index: 80;
-
-  top: calc(57px + env(safe-area-inset-top));
-  right: 10px;
-
-  width: min(220px, calc(100vw - 20px));
-  overflow: hidden;
-
-  background: #fff;
-
-  border: 2px solid var(--circle-border);
-  border-top: 3px solid var(--circle-cyan);
-  border-radius: 4px;
-
-  box-shadow:
-    0 10px 25px rgba(0,0,0,.34),
-    var(--circle-led);
-}
-
-.circle-menu button {
-  width: 100%;
-  min-height: 39px;
-  padding: 9px 11px;
-
-  display: block;
-
-  color: var(--circle-ink);
-  background: #fff;
-
-  border: 0;
-  border-bottom: 1px solid var(--circle-border-soft);
-
-  text-align: left;
-
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.circle-menu button:last-child {
-  border-bottom: 0;
-}
-
-.circle-menu button:hover {
-  color: var(--circle-cyan-dark);
-  background: var(--circle-cyan-pale);
-}
-
-
-/* ==========================================================================
-   DIALOGS
-   ========================================================================== */
-
-.circle-dialog {
-  width: min(94vw, 580px);
-  max-height: min(88vh, 760px);
-  padding: 0;
-  overflow: hidden;
-
-  color: var(--circle-ink);
-  background: #fff;
-
-  border: 2px solid var(--circle-border);
-  border-top: 3px solid var(--circle-cyan);
-  border-radius: 5px;
-
-  box-shadow:
-    0 20px 42px rgba(0,0,0,.46),
-    0 0 18px rgba(0,215,242,.13);
-}
-
-.circle-dialog::backdrop {
-  background: rgba(0,8,17,.70);
-  backdrop-filter: blur(2px);
-}
-
-.circle-dialog__panel {
-  max-height: min(88vh,760px);
-  overflow: auto;
-
-  background: #fff;
-}
-
-.circle-dialog__header {
-  position: sticky;
-  z-index: 2;
-  top: 0;
-
-  min-height: 48px;
-  padding: 8px 9px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-
-  color: #fff;
-
-  background:
-    linear-gradient(
-      180deg,
-      #245782,
-      #17385f 52%,
-      #102c4e
-    );
-
-  border-bottom: 2px solid var(--circle-cyan);
-}
-
-.circle-dialog__header h2 {
-  margin: 1px 0 0;
-
-  color: #fff;
-
-  font-size: 16px;
-}
-
-.circle-dialog__actions {
-  padding: 12px;
-
-  display: grid;
-  grid-template-columns: repeat(2,minmax(0,1fr));
-  gap: 8px;
-}
-
-#circle-connection-dialog-text,
-#circle-safety-dialog-text {
-  margin: 0;
-  padding: 14px 12px;
-
-  color: var(--circle-ink-soft);
-
-  font-size: 12px;
+  margin: 6px 0 0;
+  color: var(--ari-ink);
+  font-size: 0.86rem;
   line-height: 1.5;
 }
 
 
 /* ==========================================================================
-   EDITORS
+   CIRCLE DETAILS
    ========================================================================== */
 
-.circle-editor-fields {
-  padding: 12px;
-
+.circle-details__stats {
+  position: relative;
+  z-index: 3;
   display: grid;
-  gap: 11px;
-
-  background: #fff;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin: 0;
+  background: rgba(16, 24, 29, 0.18);
 }
 
-.circle-editor-field {
-  display: grid;
-  gap: 5px;
+.circle-stat {
+  min-width: 0;
+  padding: 18px 8px 20px;
+  background:
+    linear-gradient(
+      180deg,
+      #fffdf6,
+      #e7e2d6
+    );
+  text-align: center;
 }
 
-.circle-editor-field__label {
-  color: #085d6c;
-
-  font-size: 10px;
-  font-weight: 800;
+.circle-stat strong {
+  display: block;
+  color: var(--ari-ink);
+  font-family: var(--ari-tech);
+  font-size: 1.45rem;
+  line-height: 1;
 }
 
-.circle-editor-field__input,
-.circle-editor-field input,
-.circle-editor-field textarea,
-.circle-editor-field select {
-  width: 100%;
-  min-height: 38px;
-  padding: 8px 9px;
+.circle-stat span {
+  display: block;
+  margin-top: 7px;
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
-  color: var(--circle-ink);
-  background: #fff;
 
-  border: 1px solid var(--circle-border);
-  border-radius: 2px;
+/* ==========================================================================
+   OVERFLOW MENU
+   ========================================================================== */
 
+.circle-menu {
+  position: fixed;
+  z-index: 180;
+  top: calc(var(--ari-safe-top) + 53px);
+  right:
+    max(
+      10px,
+      calc((100vw - var(--ari-shell)) / 2 + 10px)
+    );
+  width: min(250px, calc(100vw - 20px));
+  padding: 7px;
+  border: 1px solid rgba(142, 244, 232, 0.62);
+  border-radius: 8px;
+  color: var(--ari-paper);
+  background:
+    linear-gradient(
+      180deg,
+      #17252c,
+      #091117
+    );
   box-shadow:
-    inset 1px 1px 2px rgba(0,0,0,.06);
+    8px 8px 0 rgba(0, 0, 0, 0.34),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
 }
 
-.circle-editor-field textarea {
-  min-height: 82px;
-  resize: vertical;
+.circle-menu::before {
+  content: "UTILITY / PROFILE";
+  display: block;
+  padding: 6px 8px 8px;
+  color: var(--ari-amber);
+  border-bottom: 1px solid rgba(142, 244, 232, 0.2);
+  font-family: var(--ari-mono);
+  font-size: 0.54rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
 }
 
-.circle-editor-field__input:focus,
-.circle-editor-field input:focus,
-.circle-editor-field textarea:focus,
-.circle-editor-field select:focus {
-  outline: 2px solid rgba(0,215,242,.20);
-  border-color: var(--circle-cyan-dark);
+.circle-menu > button {
+  position: relative;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  color: var(--ari-paper);
+  background: transparent;
+  font-family: var(--ari-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
 }
 
-#circle-profile-save-button {
-  width: calc(100% - 24px);
-  margin: 0 12px 14px;
+.circle-menu > button:last-child {
+  border-bottom: 0;
+}
+
+.circle-menu > button:active {
+  background: rgba(142, 244, 232, 0.08);
+}
+
+.circle-menu .circle-action-badge {
+  position: static;
+  margin-left: auto;
+  border-color: #0b141a;
+}
+
+#circle-block-user-button,
+#circle-report-user-button {
+  color: #ffc4bf;
+}
+
+
+/* ==========================================================================
+   DIALOG SYSTEM
+   ========================================================================== */
+
+.circle-dialog {
+  width: min(620px, calc(100vw - 20px));
+  max-height: calc(100dvh - 30px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(142, 244, 232, 0.68);
+  border-radius: 12px;
+  color: var(--ari-ink);
+  background: var(--ari-paper);
+  box-shadow:
+    12px 12px 0 rgba(0, 0, 0, 0.34);
+}
+
+.circle-dialog::backdrop {
+  background:
+    rgba(2, 6, 9, 0.84);
+}
+
+.circle-dialog__panel {
+  max-height: calc(100dvh - 30px);
+  overflow: auto;
+  padding: 0 14px 15px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(16, 24, 29, 0.025) 1px,
+      transparent 1px
+    ),
+    var(--ari-paper);
+  background-size: 24px 100%, auto;
+}
+
+.circle-dialog__header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -14px 14px;
+  padding: 14px;
+  color: var(--ari-paper);
+  background:
+    linear-gradient(
+      110deg,
+      #0b151b,
+      #17292e
+    );
+  border-bottom: 1px solid rgba(142, 244, 232, 0.48);
+}
+
+.circle-dialog__header h2 {
+  margin: 0;
+  color: var(--ari-paper);
+  font-family: var(--ari-tech);
+  font-size: 1.12rem;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.circle-dialog__header .circle-icon-button {
+  flex: 0 0 44px;
+}
+
+.circle-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .circle-choice-group {
-  margin: 0;
-  padding: 11px 12px;
-
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-
-  background: #fff;
-
-  border: 0;
-  border-bottom: 1px solid var(--circle-border-soft);
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(16, 24, 29, 0.25);
+  border-radius: 7px;
 }
 
 .circle-choice-group legend {
-  width: 100%;
-  margin-bottom: 3px;
-
-  color: #085d6c;
-
-  font-size: 10px;
-  font-weight: 800;
+  padding: 0 5px;
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .circle-choice-group label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
+  min-height: 40px;
+  margin-right: 16px;
+  font-family: var(--ari-mono);
+  font-size: 0.72rem;
 }
+
+
+/* ==========================================================================
+   FIND FRIENDS
+   ========================================================================== */
+
+.circle-discovery-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#circle-friend-search-input {
+  padding: 0 11px;
+}
+
+.circle-discovery-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.circle-discovery-user {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 11px;
+  padding: 10px;
+  border: 1px solid rgba(16, 24, 29, 0.24);
+  border-radius: 7px;
+  background:
+    linear-gradient(
+      180deg,
+      #fffef9,
+      #eae5da
+    );
+}
+
+.circle-discovery-user__profile,
+.circle-discovery-user__name {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.circle-discovery-user__avatar-wrap {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 24, 29, 0.64);
+  border-radius: 6px;
+  background: var(--ari-paper-3);
+  box-shadow:
+    3px 3px 0 rgba(16, 24, 29, 0.16);
+}
+
+.circle-discovery-user__avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.circle-discovery-user__avatar-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--ari-ink);
+  font-family: var(--ari-tech);
+  font-size: 1.3rem;
+  font-weight: 800;
+  background:
+    linear-gradient(
+      135deg,
+      #bdfff7,
+      #f0eadb
+    );
+}
+
+.circle-discovery-user__body {
+  min-width: 0;
+}
+
+.circle-discovery-user__name {
+  max-width: 100%;
+  color: var(--ari-ink);
+  font-family: var(--ari-tech);
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.circle-discovery-user__handle {
+  margin: 3px 0 0;
+  color: #47726e;
+  font-family: var(--ari-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.circle-discovery-user__bio {
+  margin: 7px 0 0;
+  color: var(--ari-ink-soft);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.circle-discovery-user__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+
+/* ==========================================================================
+   TOP CIRCLE EDITOR
+   ========================================================================== */
 
 .circle-top-editor__list {
-  padding: 10px;
-
   display: grid;
-  gap: 7px;
-
-  background: #fff;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
-.circle-top-editor__item {
-  min-height: 53px;
-  padding: 7px 8px;
-
-  display: flex;
-  align-items: center;
-  gap: 9px;
-
-  background: var(--circle-white-soft);
-
-  border: 1px solid var(--circle-border);
-  border-radius: 3px;
+.circle-top-editor__list > * {
+  border: 1px solid rgba(16, 24, 29, 0.2);
+  border-radius: 6px;
+  background: #fffdf6;
 }
 
-#circle-top-save-button {
-  width: calc(100% - 20px);
-  margin: 0 10px 12px;
+
+/* ==========================================================================
+   PROFILE EDITOR
+   ========================================================================== */
+
+.circle-editor-fields {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.circle-editor-field {
+  display: grid;
+  gap: 6px;
+}
+
+.circle-editor-field__label {
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.circle-editor-field__input {
+  padding: 0 11px;
 }
 
 
@@ -1651,221 +1925,223 @@ body.ari-circle-page [hidden] {
 
 .circle-toast {
   position: fixed;
-  z-index: 110;
-
+  z-index: 300;
   left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-
-  width: min(92vw,430px);
-  padding: 11px 13px;
-
+  bottom: calc(18px + var(--ari-safe-bottom));
+  width: min(440px, calc(100vw - 24px));
+  padding: 12px 14px;
   transform: translateX(-50%);
-
-  color: #fff;
-
-  background:
-    linear-gradient(
-      180deg,
-      #204d78,
-      #11304f
-    );
-
-  border: 1px solid #4fcfe4;
-  border-left: 5px solid var(--circle-cyan);
-  border-radius: 4px;
-
+  border: 1px solid rgba(142, 244, 232, 0.7);
+  border-radius: 7px;
+  color: var(--ari-paper);
+  background: #0b151b;
   box-shadow:
-    0 10px 24px rgba(0,0,0,.34),
-    0 0 14px rgba(0,215,242,.13);
+    7px 7px 0 rgba(0, 0, 0, 0.34);
+  font-family: var(--ari-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
 
-  font-size: 11px;
-  font-weight: 700;
+.circle-toast[data-type="error"] {
+  border-color: rgba(255, 126, 116, 0.72);
 }
 
 
 /* ==========================================================================
-   FOCUS
+   SMALLER PHONES
    ========================================================================== */
 
-.circle-icon-button:focus-visible,
-.circle-button:focus-visible,
-.circle-text-button:focus-visible,
-.circle-section-link:focus-visible,
-.circle-top-member:focus-visible,
-.circle-love-item__profile:focus-visible,
-.circle-love-item__name:focus-visible,
-.circle-love-item__more:focus-visible {
-  outline: 3px solid rgba(0,215,242,.33);
-  outline-offset: 2px;
-}
-
-
-/* ==========================================================================
-   SMALL PHONES
-   ========================================================================== */
-
-@media (max-width: 390px) {
-  .ari-circle {
-    padding: 9px;
-    gap: 9px;
-  }
-
-  .circle-header {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .circle-header__brand {
-    font-size: 16px;
-  }
-
-  .circle-header__brand-mark {
-    width: 28px;
-    height: 28px;
-  }
-
-  .circle-icon-button {
-    width: 33px;
-    height: 32px;
-  }
-
-  .circle-profile__cover {
-    height: 142px;
-  }
-
-  .circle-profile__body {
-    min-height: 0;
-    padding:
-      47px
-      10px
-      12px;
-  }
-
-  .circle-profile__avatar-wrap {
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .circle-profile__name,
-  .circle-profile__handle,
-  .circle-profile__bio {
-    text-align: center;
-  }
-
-  .circle-profile__presence {
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .circle-profile__actions {
-    justify-content: center;
-  }
-
-  .circle-top__orbit {
-    min-height: 300px;
-  }
-
-  .circle-top-member {
-    width: 69px;
-  }
-
-  .circle-top-member:nth-child(2),
-  .circle-top-member[data-position="1"] {
-    right: 7px;
-  }
-
-  .circle-top-member:nth-child(3),
-  .circle-top-member[data-position="2"] {
-    right: 12px;
-  }
-
-  .circle-top-member:nth-child(5),
-  .circle-top-member[data-position="4"] {
-    left: 12px;
-  }
-
-  .circle-top-member:nth-child(6),
-  .circle-top-member[data-position="5"] {
-    left: 7px;
-  }
-
-  .circle-top-member__name {
-    width: 69px;
-  }
-
-  .circle-fact {
-    grid-template-columns: 103px minmax(0,1fr);
-  }
-
-  .circle-fact dt,
-  .circle-fact dd {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-}
-
-
-/* ==========================================================================
-   TABLET / DESKTOP
-   ========================================================================== */
-
-@media (min-width: 700px) {
-  body.ari-circle-page {
-    padding: 18px 0 36px;
+@media (max-width: 520px) {
+  :root {
+    --ari-gap: 11px;
   }
 
   .ari-circle-shell {
-    border-left: 1px solid #31506d;
-    border-right: 1px solid #31506d;
+    padding-inline: 8px;
+  }
 
-    box-shadow:
-      0 12px 40px rgba(0,0,0,.28);
+  .circle-header {
+    margin-inline: -8px;
+    padding-inline: 7px;
+  }
+
+  .circle-back-button {
+    min-width: 77px;
+    padding-inline: 8px;
+    font-size: 0.67rem;
+  }
+
+  .circle-header__brand {
+    gap: 6px;
+  }
+
+  .circle-header__brand-mark {
+    flex-basis: 37px;
+    width: 37px;
+    height: 28px;
+  }
+
+  .circle-header__brand-mark::before,
+  .circle-header__brand-mark::after {
+    width: 24px;
+    height: 24px;
+  }
+
+  .circle-header__brand-text {
+    font-size: 0.86rem;
+    letter-spacing: 0.075em;
+  }
+
+  .circle-header__actions {
+    gap: 5px;
+  }
+
+  .circle-icon-button {
+    min-width: 42px;
+    min-height: 42px;
   }
 
   .circle-profile__cover {
-    height: 245px;
+    height: 194px;
+  }
+
+  .circle-profile__body {
+    min-height: 188px;
+    padding:
+      20px
+      12px
+      18px
+      125px;
+  }
+
+  .circle-profile__avatar-wrap {
+    left: 15px;
+  }
+
+  .circle-profile__avatar-button {
+    width: 92px;
+    height: 92px;
+  }
+
+  .circle-profile__name {
+    font-size: clamp(1.38rem, 7.4vw, 1.9rem);
   }
 
   .circle-top__orbit {
-    min-height: 380px;
+    height: 326px;
   }
 
-  .circle-top-member:nth-child(1),
-  .circle-top-member[data-position="0"] {
-    top: 21px;
+  .circle-top-member:nth-child(2) {
+    right: 12px;
   }
 
-  .circle-top-member:nth-child(2),
-  .circle-top-member[data-position="1"] {
-    right: 92px;
-    top: 75px;
+  .circle-top-member:nth-child(3) {
+    right: 34px;
   }
 
-  .circle-top-member:nth-child(3),
-  .circle-top-member[data-position="2"] {
-    right: 101px;
-    bottom: 50px;
+  .circle-top-member:nth-child(4) {
+    left: 34px;
   }
 
-  .circle-top-member:nth-child(4),
-  .circle-top-member[data-position="3"] {
-    bottom: 15px;
+  .circle-top-member:nth-child(5) {
+    left: 12px;
   }
 
-  .circle-top-member:nth-child(5),
-  .circle-top-member[data-position="4"] {
-    left: 101px;
-    bottom: 50px;
+  .circle-love__form-footer {
+    align-items: flex-end;
   }
 
-  .circle-top-member:nth-child(6),
-  .circle-top-member[data-position="5"] {
-    left: 92px;
-    top: 75px;
+  .circle-love__composer-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
   }
 
   .circle-fact {
-    grid-template-columns: 190px minmax(0,1fr);
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
+
+
+@media (max-width: 390px) {
+  .circle-back-button {
+    min-width: 72px;
+    gap: 4px;
+    padding-inline: 6px;
+  }
+
+  .circle-header__brand-mark {
+    flex-basis: 32px;
+    width: 32px;
+  }
+
+  .circle-header__brand-mark::before,
+  .circle-header__brand-mark::after {
+    width: 21px;
+    height: 21px;
+    top: 4px;
+  }
+
+  .circle-header__brand-text {
+    font-size: 0.76rem;
+    letter-spacing: 0.05em;
+  }
+
+  .circle-icon-button {
+    min-width: 40px;
+    width: 40px;
+  }
+
+  .circle-profile__body {
+    padding-left: 116px;
+  }
+
+  .circle-profile__avatar-button {
+    width: 84px;
+    height: 84px;
+  }
+
+  .circle-section-header {
+    gap: 8px;
+  }
+
+  .circle-section-header h2 {
+    font-size: 0.98rem;
+  }
+
+  .circle-text-button {
+    padding-inline: 7px;
+    font-size: 0.61rem;
+  }
+
+  #circle-find-friends-button > span:last-child {
+    display: none;
+  }
+
+  .circle-top-member {
+    width: 78px;
+  }
+
+  .circle-top-member__avatar-wrap,
+  .circle-top-member__avatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .circle-discovery-search {
+    grid-template-columns: 1fr;
+  }
+
+  .circle-love-item {
+    grid-template-columns: 42px minmax(0, 1fr) 28px;
+    gap: 8px;
+  }
+
+  .circle-love-item__profile {
+    width: 42px;
+    height: 42px;
   }
 }
 
@@ -1874,615 +2150,20 @@ body.ari-circle-page [hidden] {
    REDUCED MOTION
    ========================================================================== */
 
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: no-preference) {
+  .circle-back-button,
+  .circle-icon-button,
   .circle-button,
-  .circle-icon-button {
-    transition: none;
+  .circle-text-button,
+  .circle-section-link,
+  .circle-top-member {
+    transition:
+      transform 120ms ease,
+      border-color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .circle-top-member:active {
+    transform: scale(0.97);
   }
 }
-
-
-/* ==========================================================================
-   END ARI CIRCLE CSS V1.1.1
-   ========================================================================== */
-
-/* =========================================================
-   ARI CIRCLE HEADER BRAND PATCH
-   - All caps
-   - Pale cyan glow
-   - Unique retro-futuristic font
-   - Two converging circles icon
-========================================================= */
-
-.circle-header {
-  background:
-    linear-gradient(
-      180deg,
-      #274d79 0%,
-      #17365b 48%,
-      #0b1830 100%
-    );
-  border-bottom: 3px solid #47e9ff;
-  box-shadow:
-    inset 0 -1px 0 rgba(255,255,255,0.18),
-    0 6px 18px rgba(0, 255, 255, 0.18);
-}
-
-.circle-header__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  position: relative;
-  text-decoration: none;
-}
-
-/* If you add a dedicated text span class */
-.circle-header__brand-text,
-/* If you keep the current plain second span */
-.circle-header__brand > span:last-child {
-  position: relative;
-  display: inline-block;
-  font-family: "Audiowide", "Orbitron", sans-serif;
-  font-size: 1.6rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #bff8ff;
-  text-shadow:
-    0 0 2px rgba(255,255,255,0.7),
-    0 0 8px rgba(92, 244, 255, 0.9),
-    0 0 18px rgba(0, 234, 255, 0.45);
-}
-
-/* Optional subtle “glow plate” behind the text */
-.circle-header__brand > span:last-child::after,
-.circle-header__brand-text::after {
-  content: "";
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  top: 50%;
-  height: 65%;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background:
-    radial-gradient(
-      circle at center,
-      rgba(126, 244, 255, 0.18) 0%,
-      rgba(126, 244, 255, 0.07) 45%,
-      transparent 85%
-    );
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* =========================================================
-   TWO CONVERGING CIRCLES LOGO
-========================================================= */
-
-.circle-header__brand-mark {
-  position: relative;
-  width: 56px;
-  height: 44px;
-  min-width: 56px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Orbitron", sans-serif;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #07233e;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  overflow: visible;
-}
-
-/* Left circle */
-.circle-header__brand-mark::before,
-/* Right circle */
-.circle-header__brand-mark::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  transform: translateY(-50%);
-  background:
-    radial-gradient(
-      circle at 35% 30%,
-      #f7ffff 0%,
-      #d9fbff 28%,
-      #91f3ff 65%,
-      #4fe8ff 100%
-    );
-  border: 2px solid rgba(205, 255, 255, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(0, 23, 47, 0.28),
-    0 0 10px rgba(71, 233, 255, 0.65),
-    0 0 20px rgba(71, 233, 255, 0.28);
-}
-
-/* overlap them */
-.circle-header__brand-mark::before {
-  left: 2px;
-}
-
-.circle-header__brand-mark::after {
-  right: 2px;
-}
-
-/* center the "A" above the overlapping circles */
-.circle-header__brand-mark {
-  z-index: 1;
-}
-
-.circle-header__brand-mark {
-  text-shadow:
-    0 1px 0 rgba(255,255,255,0.45),
-    0 0 6px rgba(255,255,255,0.35);
-}
-
-/* Make the actual A sit on top cleanly */
-.circle-header__brand-mark {
-  color: #082640;
-}
-
-/* =========================================================
-   Small mobile tuning
-========================================================= */
-
-@media (max-width: 480px) {
-  .circle-header__brand {
-    gap: 10px;
-  }
-
-  .circle-header__brand-text,
-  .circle-header__brand > span:last-child {
-    font-size: 1.35rem;
-    letter-spacing: 0.10em;
-  }
-
-  .circle-header__brand-mark {
-    width: 50px;
-    height: 40px;
-    min-width: 50px;
-  }
-
-  .circle-header__brand-mark::before,
-  .circle-header__brand-mark::after {
-    width: 30px;
-    height: 30px;
-  }
-}
-/* ==========================================================================
-   ARI CIRCLE — CRISP BRAND HEADER
-   V1.1.2
-
-   Append to the bottom of assets/css/ari-circle.css
-   Keeps the cyan LED effect on the logo/header while making the
-   ARI CIRCLE wordmark sharp and readable instead of blurry.
-   ========================================================================== */
-
-.circle-header__brand {
-  gap: 11px;
-}
-
-
-/* ==========================================================================
-   CRISP PALE-CYAN WORDMARK
-   ========================================================================== */
-
-.circle-header__brand-text {
-  position: relative;
-
-  display: inline-block;
-
-  color: #d9fbff;
-
-  font-family:
-    "Audiowide",
-    "Orbitron",
-    Verdana,
-    sans-serif;
-
-  font-size: 1.28rem;
-  font-weight: 700;
-  line-height: 1;
-
-  letter-spacing: 0.085em;
-  text-transform: uppercase;
-
-  /*
-   * Keep the letters sharp.
-   * No large blur radius and no stacked neon glow.
-   */
-  text-shadow:
-    0 1px 0 rgba(0, 35, 50, 0.78),
-    0 0 1px rgba(109, 238, 255, 0.38);
-
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: geometricPrecision;
-
-  white-space: nowrap;
-}
-
-
-/* Remove any previous glow plate behind the text. */
-.circle-header__brand-text::after {
-  content: none !important;
-}
-
-
-/* ==========================================================================
-   TWO CONVERGING CIRCLES
-   Glow belongs here instead of on the letters.
-   ========================================================================== */
-
-.circle-header__brand-mark {
-  position: relative;
-
-  width: 49px;
-  min-width: 49px;
-  height: 38px;
-
-  display: inline-grid;
-  place-items: center;
-
-  overflow: visible;
-
-  color: transparent;
-  background: transparent;
-
-  border: 0;
-  border-radius: 0;
-
-  box-shadow: none;
-}
-
-.circle-header__brand-mark::before,
-.circle-header__brand-mark::after {
-  content: "";
-
-  position: absolute;
-  top: 50%;
-
-  width: 31px;
-  height: 31px;
-
-  transform: translateY(-50%);
-
-  background:
-    linear-gradient(
-      180deg,
-      rgba(247, 254, 255, 0.98) 0%,
-      rgba(193, 248, 255, 0.96) 42%,
-      rgba(72, 229, 249, 0.94) 100%
-    );
-
-  border: 2px solid #bff9ff;
-  border-radius: 50%;
-
-  box-shadow:
-    0 0 0 1px rgba(0, 93, 113, 0.42),
-    0 0 7px rgba(0, 215, 242, 0.32);
-}
-
-.circle-header__brand-mark::before {
-  left: 1px;
-}
-
-.circle-header__brand-mark::after {
-  right: 1px;
-}
-
-
-/* Actual A above the converging circles. */
-.circle-header__brand-letter {
-  position: relative;
-  z-index: 2;
-
-  display: inline-block;
-
-  color: #073345;
-
-  font-family:
-    "Orbitron",
-    Verdana,
-    sans-serif;
-
-  font-size: 0.98rem;
-  font-weight: 800;
-  line-height: 1;
-
-  letter-spacing: 0;
-
-  text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.75);
-
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-
-/* ==========================================================================
-   HEADER CONTRAST
-   ========================================================================== */
-
-.circle-header {
-  border-bottom-color: #36e4fa;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.13),
-    0 3px 10px rgba(0, 0, 0, 0.32),
-    0 0 10px rgba(0, 215, 242, 0.09);
-}
-
-
-/* ==========================================================================
-   MOBILE
-   ========================================================================== */
-
-@media (max-width: 480px) {
-  .circle-header__brand {
-    gap: 9px;
-  }
-
-  .circle-header__brand-text {
-    font-size: 1.12rem;
-    letter-spacing: 0.07em;
-  }
-
-  .circle-header__brand-mark {
-    width: 44px;
-    min-width: 44px;
-    height: 35px;
-  }
-
-  .circle-header__brand-mark::before,
-  .circle-header__brand-mark::after {
-    width: 28px;
-    height: 28px;
-  }
-
-  .circle-header__brand-letter {
-    font-size: 0.88rem;
-  }
-}
-
-
-/* ==========================================================================
-   VERY SMALL PHONES
-   ========================================================================== */
-
-@media (max-width: 360px) {
-  .circle-header__brand-text {
-    font-size: 1rem;
-    letter-spacing: 0.055em;
-  }
-
-  .circle-header__brand {
-    gap: 7px;
-  }
-}
-/* ==========================================================================
-   ARI CIRCLE — PROFILE HERO BALANCE PATCH
-   V1.1.3
-
-   Append to the bottom of assets/css/ari-circle.css
-
-   Goal:
-   - Move profile photo farther down into the white area
-   - Move name / handle / status / bio / actions to the right
-   - Split the hero's white space more evenly
-   - Keep mobile layout readable
-   ========================================================================== */
-
-
-/* ==========================================================================
-   MOBILE PROFILE HERO — LEFT PHOTO / RIGHT INFO
-   ========================================================================== */
-
-@media (max-width: 640px) {
-
-  .circle-profile__body {
-    position: relative;
-
-    min-height: 190px;
-
-    /* left column reserved for profile image */
-    padding:
-      22px
-      14px
-      18px
-      128px;
-
-    background:
-      linear-gradient(
-        180deg,
-        #ffffff 0%,
-        #f7fcfd 100%
-      );
-
-    text-align: left;
-  }
-
-
-  /* Move avatar down into the white profile area. */
-  .circle-profile__avatar-wrap {
-    top: 24px;
-    left: 18px;
-
-    transform: none;
-  }
-
-
-  .circle-profile__avatar-button {
-    width: 92px;
-    height: 92px;
-
-    border-radius: 6px;
-  }
-
-
-  /* Keep profile text firmly on the right side. */
-  .circle-profile__name {
-    margin: 0;
-
-    text-align: left;
-
-    font-size: 28px;
-    line-height: 1.05;
-  }
-
-
-  .circle-profile__handle {
-    margin-top: 4px;
-
-    text-align: left;
-  }
-
-
-  .circle-profile__presence {
-    margin:
-      7px
-      0
-      0;
-
-    margin-left: 0;
-    margin-right: 0;
-  }
-
-
-  .circle-profile__bio {
-    margin-top: 9px;
-
-    text-align: left;
-  }
-
-
-  .circle-profile__actions {
-    margin-top: 11px;
-
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 7px;
-  }
-
-
-  #circle-owner-actions {
-    display: flex;
-    justify-content: flex-start;
-  }
-
-
-  #circle-owner-actions .circle-button {
-    width: auto;
-    min-width: 116px;
-  }
-
-
-  .circle-profile__actions .circle-button {
-    width: auto;
-    min-width: 108px;
-  }
-}
-
-
-/* ==========================================================================
-   SMALLER IPHONES
-   ========================================================================== */
-
-@media (max-width: 390px) {
-
-  .circle-profile__body {
-    min-height: 184px;
-
-    padding:
-      21px
-      10px
-      16px
-      119px;
-  }
-
-
-  .circle-profile__avatar-wrap {
-    top: 25px;
-    left: 15px;
-
-    transform: none;
-  }
-
-
-  .circle-profile__avatar-button {
-    width: 86px;
-    height: 86px;
-  }
-
-
-  .circle-profile__name {
-    font-size: 25px;
-  }
-
-
-  .circle-profile__bio {
-    font-size: 11px;
-  }
-
-
-  .circle-profile__actions {
-    display: flex;
-    justify-content: flex-start;
-  }
-
-
-  #circle-owner-actions {
-    display: flex;
-  }
-}
-
-
-/* ==========================================================================
-   VERY SMALL PHONES
-   ========================================================================== */
-
-@media (max-width: 350px) {
-
-  .circle-profile__body {
-    min-height: 178px;
-
-    padding-left: 108px;
-  }
-
-
-  .circle-profile__avatar-wrap {
-    left: 12px;
-  }
-
-
-  .circle-profile__avatar-button {
-    width: 78px;
-    height: 78px;
-  }
-
-
-  .circle-profile__name {
-    font-size: 22px;
-  }
-
-
-  .circle-profile__actions .circle-button,
-  #circle-owner-actions .circle-button {
-    min-width: 100px;
-  }
-}
-
-
-/* ==========================================================================
-   END PROFILE HERO BALANCE PATCH V1.1.3
-   ========================================================================== */
