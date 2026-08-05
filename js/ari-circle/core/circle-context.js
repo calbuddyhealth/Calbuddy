@@ -1,6 +1,6 @@
 // js/ari-circle/core/circle-context.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
 //
 // Purpose:
 // - Resolve who is viewing ARI Circle.
@@ -18,7 +18,7 @@
 // Authentication identity is injected by the caller once our auth/data
 // layer is connected.
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/core/circle-context";
 
 const VALID_PROFILE_REF_TYPES = new Set([
@@ -150,7 +150,7 @@ const CircleContext = {
    */
   resolve(options = {}) {
     const url =
-      this.#resolveUrl(
+      this._resolveUrl(
         options.url
       );
 
@@ -337,7 +337,7 @@ const CircleContext = {
     };
   },
 
-  #resolveUrl(value) {
+  _resolveUrl(value) {
     if (value instanceof URL) {
       return new URL(
         value.href
