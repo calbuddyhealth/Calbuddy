@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.3.2
+// V1.3.3
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -8,7 +8,7 @@
 //
 //   <script
 //     type="module"
-//     src="js/ari-circle/index.js?v=1.3.2">
+//     src="js/ari-circle/index.js?v=1.3.3">
 //   </script>
 //
 // All ARI Circle feature modules are imported here.
@@ -39,14 +39,17 @@
 //
 // This file does not create a duplicate Supabase client.
 //
-// V1.3.2:
+// V1.3.3:
 // - Loads accepted Circle connections through CircleApi.getAcceptedConnections().
 // - Resolves all accepted friend profiles for Top Circle editor choices.
 // - Keeps incoming and outgoing pending requests loaded separately.
 // - Returns accepted connections from loadViewerData().
 // - Imports and initializes CircleMembers V1.0.0.
 // - Wires data-circle-action="view-entire-circle" to the full Circle manager.
-// - Adds CircleMembers cleanup and diagnostics.
+// - Uses MessagesController V1.0.1.
+// - Uses Conversations V1.0.1.
+// - Imports and initializes ConversationView V1.0.0.
+// - Adds ConversationView cleanup and diagnostics.
 // - Uses CircleApi V1.3.1.
 
 import CircleContext from "./core/circle-context.js";
@@ -67,8 +70,9 @@ import PeopleDiscovery from "./connections/people-discovery.js";
 
 import LeaveSomeLove from "./comments/leave-some-love.js";
 
-import MessagesController from "./messaging/messages-controller.js";
-import Conversations from "./messaging/conversations.js";
+import MessagesController from "./messaging/messages-controller.js?v=1.0.1";
+import Conversations from "./messaging/conversations.js?v=1.0.1";
+import ConversationView from "./messaging/conversation-view.js?v=1.0.0";
 import MessageRequests from "./messaging/message-requests.js";
 
 import PresenceController from "./presence/presence-controller.js";
@@ -80,7 +84,7 @@ import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.3.2";
+const VERSION = "1.3.3";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -403,6 +407,7 @@ const AriCircleApp = {
 
     MessagesController,
     Conversations,
+    ConversationView,
     MessageRequests,
 
     PresenceController,
@@ -689,6 +694,7 @@ const AriCircleApp = {
 
       MessagesController,
       Conversations,
+      ConversationView,
       MessageRequests,
 
       PresenceController,
@@ -1446,13 +1452,9 @@ const AriCircleApp = {
     }
 
     /*
-     * V1.3.1:
-     * Accepted-Circle membership is now loadable through CircleApi.
+     * Accepted-Circle membership is loadable through CircleApi.
      * Refresh viewer-level data when a relationship changes so the
      * Top Circle editor immediately gains/removes accepted members.
-     *
-     * This intentionally reuses the existing loader instead of creating
-     * a second accepted-connection state authority in index.js.
      */
     const relationshipBelongsToViewer =
       requesterUserId ===
@@ -1943,6 +1945,7 @@ const AriCircleApp = {
       PresenceController,
 
       MessageRequests,
+      ConversationView,
       Conversations,
       MessagesController,
 
@@ -2081,6 +2084,10 @@ const AriCircleApp = {
 
         conversations:
           Conversations
+            .getDiagnostics?.(),
+
+        conversationView:
+          ConversationView
             .getDiagnostics?.(),
 
         messageRequests:
