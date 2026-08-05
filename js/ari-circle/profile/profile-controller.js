@@ -1,11 +1,12 @@
 // js/ari-circle/profile/profile-controller.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
 //
 // Purpose:
 // - Coordinate profile-level UI behavior.
 // - Apply owner / visitor visibility rules from CircleStore context.
-// - Handle profile menu, edit-profile, avatar, share, and open-profile actions.
+// - Handle profile menu, edit-profile, share, and open-profile actions.
+// - Avatar file selection is owned exclusively by media/profile-media.js.
 // - Provide a clean entry point for profile data loaded by circle-api.js.
 //
 // This module does NOT:
@@ -29,7 +30,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/profile/profile-controller";
 
 function normalizeString(value) {
@@ -120,16 +121,6 @@ const ProfileController = {
         "circle-profile-editor"
       );
 
-    this.dom.avatarButton =
-      document.getElementById(
-        "circle-avatar-button"
-      );
-
-    this.dom.avatarInput =
-      document.getElementById(
-        "circle-avatar-input"
-      );
-
     this.refreshScopedElements();
   },
 
@@ -186,14 +177,6 @@ const ProfileController = {
         "share-profile",
         () =>
           this.shareProfile()
-      )
-    );
-
-    this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "avatar",
-        () =>
-          this.handleAvatarAction()
       )
     );
 
@@ -497,22 +480,6 @@ const ProfileController = {
     if (this.dom.editor.open) {
       this.dom.editor.close();
     }
-
-    return true;
-  },
-
-  handleAvatarAction() {
-    const context =
-      CircleStore.get(
-        "context"
-      );
-
-    if (!context?.isOwner) {
-      return false;
-    }
-
-    this.dom.avatarInput
-      ?.click();
 
     return true;
   },
