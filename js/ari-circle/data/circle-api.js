@@ -1,6 +1,6 @@
 // js/ari-circle/data/circle-api.js
 // ARI Circle
-// V1.1.1
+// V1.1.2
 //
 // Backend contract:
 //   ARI Circle Supabase Schema V1.0.1
@@ -13,6 +13,8 @@
 //   conversations, messages, message requests, notifications,
 //   and profile media.
 // - Use the protected direct-conversation RPC from schema V1.0.1.
+// - Automatically create the authenticated user's starter Circle profile
+//   on first visit when their own Circle does not exist yet.
 // - Listen for persistence events emitted by ARI Circle feature modules.
 //
 // This module intentionally does NOT create a Supabase client.
@@ -40,7 +42,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.1.1";
+const VERSION = "1.1.2";
 const SOURCE = "ari-circle/data/circle-api";
 
 const DEFAULT_TABLES = Object.freeze({
@@ -471,6 +473,191 @@ function extractStoragePathFromPublicUrl(
   }
 }
 
+
+function sanitizeStarterHandle(value) {
+  const normalized =
+    normalizeString(
+      value
+    )
+      ?.replace(/^@+/, "")
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9._]+/g,
+        "_"
+      )
+      .replace(
+        /[._]{2,}/g,
+        "_"
+      )
+      .replace(
+        /^[._]+|[._]+$/g,
+        ""
+      );
+
+  if (!normalized) {
+    return null;
+  }
+
+  let handle =
+    normalized;
+
+  if (handle.length < 3) {
+    handle =
+      `ari_${handle}`;
+  }
+
+  return handle
+    .slice(
+      0,
+      30
+    )
+    .replace(
+      /[._]+$/g,
+      ""
+    ) || null;
+}
+
+function buildStarterDisplayName(user) {
+  const metadata =
+    user?.user_metadata &&
+    typeof user.user_metadata ===
+      "object"
+      ? user.user_metadata
+      : {};
+
+  const emailName =
+    normalizeString(
+      user?.email
+    )
+      ?.split("@")[0]
+      ?.replace(
+        /[._-]+/g,
+        " "
+      );
+
+  const candidate =
+    normalizeString(
+      metadata.display_name ||
+      metadata.displayName ||
+      metadata.full_name ||
+      metadata.fullName ||
+      metadata.name ||
+      metadata.preferred_username ||
+      metadata.username ||
+      metadata.user_name ||
+      emailName
+    ) ||
+    "ARI User";
+
+  return candidate
+    .slice(
+      0,
+      60
+    )
+    .trim() ||
+    "ARI User";
+}
+
+function buildStarterHandleCandidates(
+  user,
+  preferredHandle = null
+) {
+  const metadata =
+    user?.user_metadata &&
+    typeof user.user_metadata ===
+      "object"
+      ? user.user_metadata
+      : {};
+
+  const userId =
+    normalizeId(
+      user?.id
+    );
+
+  const compactId =
+    userId
+      ?.replace(
+        /-/g,
+        ""
+      ) ||
+    "";
+
+  const shortId =
+    compactId.slice(
+      0,
+      8
+    ) ||
+    Math.random()
+      .toString(36)
+      .slice(2, 10);
+
+  const emailLocal =
+    normalizeString(
+      user?.email
+    )
+      ?.split("@")[0];
+
+  const rawCandidates = [
+    preferredHandle,
+    metadata.handle,
+    metadata.username,
+    metadata.user_name,
+    metadata.preferred_username,
+    emailLocal,
+    `ari_${shortId}`
+  ];
+
+  const baseCandidates =
+    [
+      ...new Set(
+        rawCandidates
+          .map(
+            sanitizeStarterHandle
+          )
+          .filter(Boolean)
+      )
+    ];
+
+  const withFallback =
+    baseCandidates.length
+      ? baseCandidates
+      : [
+          `ari_${shortId}`
+        ];
+
+  const suffixed =
+    withFallback.map(
+      base => {
+        const suffix =
+          `_${shortId.slice(0, 6)}`;
+
+        const maxBaseLength =
+          30 -
+          suffix.length;
+
+        return sanitizeStarterHandle(
+          `${base.slice(
+            0,
+            maxBaseLength
+          )}${suffix}`
+        );
+      }
+    );
+
+  return [
+    ...new Set(
+      [
+        ...withFallback,
+        ...suffixed,
+        sanitizeStarterHandle(
+          `ari_${shortId}`
+        )
+      ]
+        .filter(Boolean)
+    )
+  ];
+}
+
 const CircleApi = {
   version:
     VERSION,
@@ -588,7 +775,7 @@ const CircleApi = {
     return rpcName;
   },
 
-  async getAuthenticatedUserId() {
+  async getAuthenticatedUser() {
     const client =
       this.getClient();
 
@@ -612,8 +799,190 @@ const CircleApi = {
       "Could not verify the signed-in user."
     );
 
+    return data?.user ||
+      null;
+  },
+
+  async getAuthenticatedUserId() {
+    const user =
+      await this
+        .getAuthenticatedUser();
+
     return normalizeId(
-      data?.user?.id
+      user?.id
+    );
+  },
+
+  async ensureOwnProfile({
+    userId = null,
+    preferredHandle = null
+  } = {}) {
+    const authenticatedUser =
+      await this
+        .getAuthenticatedUser();
+
+    const authenticatedUserId =
+      normalizeId(
+        authenticatedUser?.id
+      );
+
+    const requestedUserId =
+      normalizeId(
+        userId
+      ) ||
+      authenticatedUserId;
+
+    if (
+      !authenticatedUserId ||
+      !requestedUserId
+    ) {
+      throw new Error(
+        "You must be signed in to create an ARI Circle."
+      );
+    }
+
+    if (
+      requestedUserId !==
+      authenticatedUserId
+    ) {
+      throw new Error(
+        "A starter Circle can only be created for the signed-in user."
+      );
+    }
+
+    const existing =
+      await this
+        .getProfileByUserId(
+          authenticatedUserId
+        );
+
+    if (existing) {
+      return existing;
+    }
+
+    const displayName =
+      buildStarterDisplayName(
+        authenticatedUser
+      );
+
+    const handleCandidates =
+      buildStarterHandleCandidates(
+        authenticatedUser,
+        preferredHandle
+      );
+
+    const client =
+      this.getClient();
+
+    for (
+      const handle
+      of handleCandidates
+    ) {
+      const row = {
+        user_id:
+          authenticatedUserId,
+
+        display_name:
+          displayName,
+
+        handle,
+
+        bio:
+          null,
+
+        location:
+          null,
+
+        birthday:
+          null,
+
+        goal:
+          null,
+
+        bucket_list:
+          null,
+
+        favorite_song:
+          null,
+
+        favorite_food:
+          null,
+
+        favorite_movie:
+          null,
+
+        favorite_hobby:
+          null,
+
+        icebreakers:
+          {},
+
+        avatar_url:
+          null,
+
+        cover_url:
+          null,
+
+        top_circle_limit:
+          6,
+
+        messaging_visibility:
+          "request",
+
+        presence_visible:
+          true
+      };
+
+      const {
+        data,
+        error
+      } =
+        await client
+          .from(
+            this.table(
+              "profiles"
+            )
+          )
+          .insert(row)
+          .select("*")
+          .single();
+
+      if (!error) {
+        return data;
+      }
+
+      /*
+       * 23505 = unique_violation.
+       *
+       * Two useful cases:
+       * - another tab created this user's profile at the same time;
+       * - the proposed @handle already belongs to somebody else.
+       */
+      if (
+        error.code ===
+        "23505"
+      ) {
+        const racedProfile =
+          await this
+            .getProfileByUserId(
+              authenticatedUserId
+            );
+
+        if (racedProfile) {
+          return racedProfile;
+        }
+
+        continue;
+      }
+
+      throwIfError(
+        error,
+        "Could not create your ARI Circle."
+      );
+    }
+
+    throw new Error(
+      "Could not generate an available ARI Circle handle."
     );
   },
 
@@ -4091,6 +4460,9 @@ const CircleApi = {
 
       schemaContract:
         "ARI Circle Supabase V1.0.1 + Block Patch V1.0.2",
+
+      firstRunProfileCreation:
+        true,
 
       clientConfigured:
         Boolean(
