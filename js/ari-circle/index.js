@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.1.1
+// V1.2.0
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -51,6 +51,7 @@ import ProfileEditor from "./profile/profile-editor.js";
 import ConnectionsController from "./connections/connections-controller.js";
 import ConnectionRequests from "./connections/connection-requests.js";
 import TopCircle from "./connections/top-circle.js";
+import PeopleDiscovery from "./connections/people-discovery.js";
 
 import LeaveSomeLove from "./comments/leave-some-love.js";
 
@@ -67,7 +68,7 @@ import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.1.1";
+const VERSION = "1.2.0";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -620,6 +621,7 @@ const AriCircleApp = {
       ConnectionsController,
       ConnectionRequests,
       TopCircle,
+      PeopleDiscovery,
 
       LeaveSomeLove,
 
@@ -1719,6 +1721,7 @@ const AriCircleApp = {
 
       LeaveSomeLove,
 
+      PeopleDiscovery,
       TopCircle,
       ConnectionRequests,
       ConnectionsController,
@@ -1825,6 +1828,10 @@ const AriCircleApp = {
 
         topCircle:
           TopCircle
+            .getDiagnostics?.(),
+
+        peopleDiscovery:
+          PeopleDiscovery
             .getDiagnostics?.(),
 
         love:
