@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 
   <!-- ARI Circle page styles -->
-  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.1.2" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.1.3" />
 </head>
 
 <body class="ari-circle-page">
@@ -34,19 +34,29 @@
          - messaging/messages-controller.js
     ========================================================== -->
     <header id="circle-header" class="circle-header">
-      <a
-        class="circle-header__brand"
-        href="ari-circle.html"
-        aria-label="ARI CIRCLE"
-      >
-        <!-- Two converging circles are drawn entirely by CSS. -->
-        <span
-          class="circle-header__brand-mark"
-          aria-hidden="true"
-        ></span>
+      <div class="circle-header__left">
+        <a
+          class="circle-back-button"
+          href="home.html"
+          aria-label="Back to Home"
+        >
+          <span aria-hidden="true">&larr;</span>
+        </a>
 
-        <span class="circle-header__brand-text">ARI CIRCLE</span>
-      </a>
+        <a
+          class="circle-header__brand"
+          href="ari-circle.html"
+          aria-label="ARI CIRCLE"
+        >
+          <!-- Two converging circles are drawn entirely by CSS. -->
+          <span
+            class="circle-header__brand-mark"
+            aria-hidden="true"
+          ></span>
+
+          <span class="circle-header__brand-text">ARI CIRCLE</span>
+        </a>
+      </div>
 
       <nav class="circle-header__actions" aria-label="ARI Circle actions">
         <button
