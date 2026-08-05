@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 
   <!-- ARI Circle page styles -->
-  <link rel="stylesheet" href="assets/css/ari-circle.css?v=2.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=2.0.1" />
 </head>
 
 <body class="ari-circle-page">
@@ -670,6 +670,58 @@
     </div>
 
     <dialog
+      id="circle-notifications-dialog"
+      class="circle-dialog circle-notifications-dialog"
+    >
+      <div class="circle-dialog__panel">
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">INCOMING SIGNALS</p>
+            <h2>Notifications</h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close Notifications"
+            data-circle-action="close-notifications"
+          >
+            &times;
+          </button>
+        </header>
+
+        <div class="circle-notifications-toolbar">
+          <p class="circle-section-note">
+            Circle requests, messages, and profile activity show up here.
+          </p>
+
+          <button
+            id="circle-notifications-mark-all"
+            class="circle-text-button"
+            type="button"
+            data-circle-action="mark-all-notifications-read"
+          >
+            Mark all read
+          </button>
+        </div>
+
+        <div
+          id="circle-notifications-list"
+          class="circle-notifications-list"
+          aria-live="polite"
+        ></div>
+
+        <div
+          id="circle-notifications-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No notifications yet.</p>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog
       id="circle-people-discovery"
       class="circle-dialog circle-discovery-dialog"
     >
@@ -838,6 +890,91 @@
           Save Changes
         </button>
       </form>
+    </dialog>
+
+    <dialog id="circle-request-dialog" class="circle-dialog circle-request-dialog">
+      <div class="circle-dialog__panel">
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">INCOMING CONNECTION</p>
+            <h2>Circle Request</h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close Circle Request"
+            data-circle-action="close-incoming-request"
+          >
+            &times;
+          </button>
+        </header>
+
+        <div class="circle-request-person">
+          <div class="circle-request-person__avatar">
+            <img
+              id="circle-request-avatar"
+              src=""
+              alt=""
+              hidden
+            />
+
+            <span
+              id="circle-request-avatar-fallback"
+              aria-hidden="true"
+            >
+              A
+            </span>
+          </div>
+
+          <div class="circle-request-person__identity">
+            <strong id="circle-request-name">
+              ARI user
+            </strong>
+
+            <span
+              id="circle-request-handle"
+              hidden
+            ></span>
+          </div>
+        </div>
+
+        <p
+          id="circle-request-text"
+          class="circle-request-text"
+        >
+          Someone wants to join your Circle.
+        </p>
+
+        <div class="circle-request-actions">
+          <button
+            id="circle-request-view-profile"
+            class="circle-button circle-button--secondary"
+            type="button"
+            data-circle-action="open-profile"
+          >
+            View Profile
+          </button>
+
+          <button
+            id="circle-request-decline"
+            class="circle-button circle-button--secondary"
+            type="button"
+            data-circle-action="decline-incoming-request"
+          >
+            Decline
+          </button>
+
+          <button
+            id="circle-request-accept"
+            class="circle-button circle-button--primary"
+            type="button"
+            data-circle-action="accept-incoming-request"
+          >
+            Accept
+          </button>
+        </div>
+      </div>
     </dialog>
 
     <dialog id="circle-connection-dialog" class="circle-dialog">
@@ -1248,7 +1385,7 @@
   <script
     id="ari-circle-module-entry"
     type="module"
-    src="js/ari-circle/index.js?v=1.2.0"
+    src="js/ari-circle/index.js?v=1.3.0"
     onerror="window.__ariCircleShowBootError && window.__ariCircleShowBootError('ARI Circle module graph failed to load. Check index.js and its imports.')"
   ></script>
 </body>
