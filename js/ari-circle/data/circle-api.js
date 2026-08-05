@@ -1,6 +1,6 @@
 // js/ari-circle/data/circle-api.js
 // ARI Circle
-// V1.1.2
+// V1.2.0
 //
 // Backend contract:
 //   ARI Circle Supabase Schema V1.0.1
@@ -42,7 +42,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.1.2";
+const VERSION = "1.2.0";
 const SOURCE = "ari-circle/data/circle-api";
 
 const DEFAULT_TABLES = Object.freeze({
@@ -90,7 +90,10 @@ const DEFAULT_RPCS = Object.freeze({
     "ari_circle_block_user",
 
   unblockUser:
-    "ari_circle_unblock_user"
+    "ari_circle_unblock_user",
+
+  discoverPeople:
+    "ari_circle_discover_people"
 });
 
 const CONNECTION_BACKEND_STATES =
@@ -1186,6 +1189,54 @@ const CircleApi = {
     return data;
   },
 
+  async discoverPeople({
+    query = "",
+    limit = 20
+  } = {}) {
+    const client =
+      this.getClient();
+
+    const normalizedLimit =
+      Math.max(
+        1,
+        Math.min(
+          20,
+          normalizeInteger(
+            limit,
+            20
+          )
+        )
+      );
+
+    const {
+      data,
+      error
+    } =
+      await client.rpc(
+        this.rpc(
+          "discoverPeople"
+        ),
+        {
+          search_text:
+            normalizeString(
+              query
+            ),
+
+          result_limit:
+            normalizedLimit
+        }
+      );
+
+    throwIfError(
+      error,
+      "Could not discover ARI Circle users."
+    );
+
+    return asArray(
+      data
+    );
+  },
+
   async getConnection(
     viewerUserId,
     profileUserId
@@ -1902,7 +1953,9 @@ const CircleApi = {
   async createLove({
     profileUserId,
     authorUserId,
-    text
+    text,
+    imageUrl = null,
+    imagePath = null
   } = {}) {
     const profileId =
       normalizeId(
@@ -1919,13 +1972,26 @@ const CircleApi = {
         text
       );
 
+    const normalizedImageUrl =
+      normalizeString(
+        imageUrl
+      );
+
+    const normalizedImagePath =
+      normalizeString(
+        imagePath
+      );
+
     if (
       !profileId ||
       !authorId ||
-      !body
+      (
+        !body &&
+        !normalizedImageUrl
+      )
     ) {
       throw new Error(
-        "Profile, author, and comment text are required."
+        "A profile, author, and comment or photo are required."
       );
     }
 
@@ -1950,10 +2016,18 @@ const CircleApi = {
             authorId,
 
           body:
-            body.slice(
-              0,
-              280
-            )
+            body
+              ? body.slice(
+                  0,
+                  280
+                )
+              : null,
+
+          image_url:
+            normalizedImageUrl,
+
+          image_path:
+            normalizedImagePath
         })
         .select("*")
         .single();
@@ -1965,6 +2039,115 @@ const CircleApi = {
 
     return data;
   },
+
+  async uploadLovePhoto({
+    profileUserId,
+    authorUserId,
+    file
+  } = {}) {
+    const profileId =
+      normalizeId(
+        profileUserId
+      );
+
+    const authorId =
+      normalizeId(
+        authorUserId
+      );
+
+    if (
+      !profileId ||
+      !authorId ||
+      !file
+    ) {
+      throw new Error(
+        "Valid Leave Some Love photo information is required."
+      );
+    }
+
+    const authenticatedUserId =
+      await this
+        .getAuthenticatedUserId();
+
+    if (
+      !authenticatedUserId ||
+      authenticatedUserId !==
+        authorId
+    ) {
+      throw new Error(
+        "You can only upload your own Leave Some Love photos."
+      );
+    }
+
+    const client =
+      this.getClient();
+
+    const bucket =
+      this.bucket(
+        "profileMedia"
+      );
+
+    const fileName =
+      createSafeFileName(
+        file.name ||
+        "love-photo.jpg"
+      );
+
+    const path =
+      `${authorId}/love/${profileId}/${Date.now()}-${fileName}`;
+
+    const {
+      error: uploadError
+    } =
+      await client
+        .storage
+        .from(bucket)
+        .upload(
+          path,
+          file,
+          {
+            cacheControl:
+              "3600",
+
+            upsert:
+              false,
+
+            contentType:
+              file.type ||
+              "image/jpeg"
+          }
+        );
+
+    throwIfError(
+      uploadError,
+      "Could not upload Leave Some Love photo."
+    );
+
+    const {
+      data: publicData
+    } =
+      client
+        .storage
+        .from(bucket)
+        .getPublicUrl(path);
+
+    const publicUrl =
+      normalizeString(
+        publicData?.publicUrl
+      );
+
+    if (!publicUrl) {
+      throw new Error(
+        "Photo uploaded but no public URL was returned."
+      );
+    }
+
+    return {
+      publicUrl,
+      path
+    };
+  },
+
 
   async deleteLove(
     commentId
@@ -1982,6 +2165,30 @@ const CircleApi = {
 
     const client =
       this.getClient();
+
+    const {
+      data: existing,
+      error: readError
+    } =
+      await client
+        .from(
+          this.table(
+            "love"
+          )
+        )
+        .select(
+          "id,image_path"
+        )
+        .eq(
+          "id",
+          id
+        )
+        .maybeSingle();
+
+    throwIfError(
+      readError,
+      "Could not read profile comment."
+    );
 
     const {
       error
@@ -2003,8 +2210,37 @@ const CircleApi = {
       "Could not remove profile comment."
     );
 
+    const imagePath =
+      normalizeString(
+        existing?.image_path
+      );
+
+    if (imagePath) {
+      const {
+        error: storageError
+      } =
+        await client
+          .storage
+          .from(
+            this.bucket(
+              "profileMedia"
+            )
+          )
+          .remove([
+            imagePath
+          ]);
+
+      if (storageError) {
+        console.warn(
+          "ARI Circle comment was removed but photo cleanup failed.",
+          storageError
+        );
+      }
+    }
+
     return true;
   },
+
 
   async getConversationById(
     conversationId
@@ -3271,6 +3507,16 @@ const CircleApi = {
     );
 
     on(
+      EVENT_NAMES.PEOPLE_DISCOVERY_QUERY,
+      this.handlePeopleDiscoveryQuery
+    );
+
+    on(
+      EVENT_NAMES.PEOPLE_DISCOVERY_REQUESTED,
+      this.handlePeopleDiscoveryRequestPersist
+    );
+
+    on(
       EVENT_NAMES.TOP_CIRCLE_CHANGED,
       this.handleTopCirclePersist
     );
@@ -3351,6 +3597,149 @@ const CircleApi = {
       "circle:profile-media-remove",
       this.handleProfileMediaRemovePersist
     );
+  },
+
+  async handlePeopleDiscoveryQuery(
+    detail
+  ) {
+    const requestId =
+      normalizeString(
+        detail?.requestId
+      );
+
+    try {
+      const users =
+        await this
+          .discoverPeople({
+            query:
+              detail?.query,
+
+            limit:
+              detail?.limit
+          });
+
+      CircleEvents.emit(
+        EVENT_NAMES
+          .PEOPLE_DISCOVERY_RESULTS,
+        {
+          requestId,
+
+          query:
+            normalizeString(
+              detail?.query
+            ) ||
+            "",
+
+          users
+        }
+      );
+    } catch (error) {
+      CircleEvents.emit(
+        EVENT_NAMES
+          .PEOPLE_DISCOVERY_RESULTS,
+        {
+          requestId,
+
+          users:
+            [],
+
+          error:
+            normalizeString(
+              error?.message
+            ) ||
+            "Could not load people."
+        }
+      );
+
+      CircleEvents.reportError(
+        error,
+        {
+          message:
+            "Could not find ARI Circle users."
+        }
+      );
+    }
+  },
+
+  async handlePeopleDiscoveryRequestPersist(
+    detail
+  ) {
+    if (!detail?.persist) {
+      return;
+    }
+
+    const targetUserId =
+      normalizeId(
+        detail?.targetUserId
+      );
+
+    if (!targetUserId) {
+      return;
+    }
+
+    try {
+      const requesterUserId =
+        await this
+          .getAuthenticatedUserId();
+
+      const saved =
+        await this
+          .createConnectionRequest({
+            requesterUserId,
+
+            addresseeUserId:
+              targetUserId
+          });
+
+      CircleEvents.emit(
+        EVENT_NAMES
+          .PEOPLE_DISCOVERY_REQUEST_SAVED,
+        {
+          localRequestId:
+            normalizeString(
+              detail?.localRequestId
+            ),
+
+          targetUserId,
+
+          success:
+            true,
+
+          connection:
+            saved
+        }
+      );
+    } catch (error) {
+      CircleEvents.emit(
+        EVENT_NAMES
+          .PEOPLE_DISCOVERY_REQUEST_SAVED,
+        {
+          localRequestId:
+            normalizeString(
+              detail?.localRequestId
+            ),
+
+          targetUserId,
+
+          success:
+            false,
+
+          error:
+            normalizeString(
+              error?.message
+            ) ||
+            "Could not send Circle request."
+        }
+      );
+
+      CircleEvents.reportError(
+        error,
+        {
+          message:
+            "Could not send Circle request."
+        }
+      );
+    }
   },
 
   async handleProfilePersist(
@@ -3861,9 +4250,32 @@ const CircleApi = {
       return;
     }
 
+    const comment =
+      detail.comment;
+
+    const localId =
+      normalizeId(
+        comment.id
+      );
+
+    let uploadedPhoto =
+      null;
+
     try {
-      const comment =
-        detail.comment;
+      if (detail?.imageFile) {
+        uploadedPhoto =
+          await this
+            .uploadLovePhoto({
+              profileUserId:
+                comment.profileUserId,
+
+              authorUserId:
+                comment.authorUserId,
+
+              file:
+                detail.imageFile
+            });
+      }
 
       const saved =
         await this.createLove({
@@ -3874,7 +4286,17 @@ const CircleApi = {
             comment.authorUserId,
 
           text:
-            comment.text
+            comment.text,
+
+          imageUrl:
+            uploadedPhoto
+              ?.publicUrl ||
+            null,
+
+          imagePath:
+            uploadedPhoto
+              ?.path ||
+            null
         });
 
       const love =
@@ -3888,13 +4310,27 @@ const CircleApi = {
         )
           .map(
             item =>
-              item.id ===
-              comment.id
+              normalizeId(
+                item.id
+              ) ===
+              localId
                 ? {
                     ...item,
 
                     id:
                       saved.id,
+
+                    text:
+                      saved.body ||
+                      "",
+
+                    imageUrl:
+                      saved.image_url ||
+                      null,
+
+                    imagePath:
+                      saved.image_path ||
+                      null,
 
                     createdAt:
                       saved.created_at ||
@@ -3907,16 +4343,72 @@ const CircleApi = {
         ...love,
         items
       });
+
+      CircleEvents.emit(
+        EVENT_NAMES
+          .LOVE_PERSISTED,
+        {
+          localId,
+
+          success:
+            true,
+
+          comment:
+            saved
+        }
+      );
     } catch (error) {
+      /*
+       * If the photo uploaded but the comment insert failed, clean up
+       * the unattached object best-effort.
+       */
+      if (
+        uploadedPhoto?.path
+      ) {
+        try {
+          await this
+            .getClient()
+            .storage
+            .from(
+              this.bucket(
+                "profileMedia"
+              )
+            )
+            .remove([
+              uploadedPhoto.path
+            ]);
+        } catch {
+          // Best-effort cleanup.
+        }
+      }
+
+      CircleEvents.emit(
+        EVENT_NAMES
+          .LOVE_PERSISTED,
+        {
+          localId,
+
+          success:
+            false,
+
+          error:
+            normalizeString(
+              error?.message
+            ) ||
+            "Could not save profile post."
+        }
+      );
+
       CircleEvents.reportError(
         error,
         {
           message:
-            "Could not save profile comment."
+            "Could not save profile post."
         }
       );
     }
   },
+
 
   async handleLoveDeletedPersist(
     detail
@@ -4496,3 +4988,4 @@ export {
 };
 
 export default CircleApi;
+=
