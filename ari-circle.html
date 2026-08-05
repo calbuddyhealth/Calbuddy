@@ -3,9 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#c5162e" />
+  <meta name="theme-color" content="#0b1b31" />
 
-  <title>ARI Circle</title>
+  <title>ARI CIRCLE</title>
+
+  <!-- ARI Circle brand fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@500;700;800&display=swap"
+    rel="stylesheet"
+  />
 
   <!-- Shared ARI styles -->
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
@@ -13,7 +21,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 
   <!-- ARI Circle page styles -->
-  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.0.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.1.1" />
 </head>
 
 <body class="ari-circle-page">
@@ -27,13 +35,16 @@
     ========================================================== -->
     <header id="circle-header" class="circle-header">
       <a
-  class="circle-header__brand"
-  href="ari-circle.html"
-  aria-label="ARI Circle"
->
-  <span class="circle-header__brand-mark" aria-hidden="true">A</span>
-  <span class="circle-header__brand-text">ARI CIRCLE</span>
-</a>
+        class="circle-header__brand"
+        href="ari-circle.html"
+        aria-label="ARI CIRCLE"
+      >
+        <span class="circle-header__brand-mark" aria-hidden="true">
+          <span class="circle-header__brand-letter">A</span>
+        </span>
+
+        <span class="circle-header__brand-text">ARI CIRCLE</span>
+      </a>
 
       <nav class="circle-header__actions" aria-label="ARI Circle actions">
         <button
@@ -213,7 +224,6 @@
             hidden
           ></p>
 
-          <!-- Visitor controls are enabled by circle-context.js -->
           <div
             id="circle-visitor-actions"
             class="circle-profile__actions"
@@ -239,7 +249,6 @@
             </button>
           </div>
 
-          <!-- Owner controls are enabled by circle-context.js -->
           <div
             id="circle-owner-actions"
             class="circle-profile__actions"
@@ -258,13 +267,7 @@
         </div>
       </section>
 
-      <!-- =======================================================
-           TOP CIRCLE
-           JS owners:
-           - connections/top-circle.js
-           - connections/connections-controller.js
-           - presence/presence-controller.js
-      ======================================================== -->
+      <!-- TOP CIRCLE -->
       <section
         id="circle-top"
         class="circle-card circle-top"
@@ -346,12 +349,7 @@
         </button>
       </section>
 
-      <!-- =======================================================
-           LEAVE SOME LOVE
-           This intentionally comes immediately after Top Circle.
-           JS owner:
-           - comments/leave-some-love.js
-      ======================================================== -->
+      <!-- LEAVE SOME LOVE -->
       <section
         id="circle-love"
         class="circle-card circle-love"
@@ -429,12 +427,7 @@
         </button>
       </section>
 
-      <!-- =======================================================
-           ABOUT ME
-           JS owners:
-           - profile/profile-renderer.js
-           - profile/profile-editor.js
-      ======================================================== -->
+      <!-- ABOUT ME -->
       <section
         id="circle-about"
         class="circle-card"
@@ -448,58 +441,33 @@
         </header>
 
         <dl class="circle-facts">
-          <div
-            id="circle-about-location-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-about-location-row" class="circle-fact" hidden>
             <dt>&#128205; Lives in</dt>
             <dd id="circle-about-location"></dd>
           </div>
 
-          <div
-            id="circle-about-birthday-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-about-birthday-row" class="circle-fact" hidden>
             <dt>&#127874; Birthday</dt>
             <dd id="circle-about-birthday"></dd>
           </div>
 
-          <div
-            id="circle-about-goal-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-about-goal-row" class="circle-fact" hidden>
             <dt>&#127919; Goal</dt>
             <dd id="circle-about-goal"></dd>
           </div>
 
-          <div
-            id="circle-about-bucket-list-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-about-bucket-list-row" class="circle-fact" hidden>
             <dt>&#129699; Bucket List</dt>
             <dd id="circle-about-bucket-list"></dd>
           </div>
         </dl>
 
-        <div
-          id="circle-about-empty"
-          class="circle-empty-state"
-          hidden
-        >
+        <div id="circle-about-empty" class="circle-empty-state" hidden>
           <p>No About Me details yet.</p>
         </div>
       </section>
 
-      <!-- =======================================================
-           THINGS I'M INTO
-           JS owners:
-           - profile/profile-renderer.js
-           - profile/profile-editor.js
-      ======================================================== -->
+      <!-- THINGS I'M INTO -->
       <section
         id="circle-interests"
         class="circle-card"
@@ -513,58 +481,33 @@
         </header>
 
         <dl class="circle-facts">
-          <div
-            id="circle-interest-song-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-interest-song-row" class="circle-fact" hidden>
             <dt>&#127925; Favorite Song</dt>
             <dd id="circle-interest-song"></dd>
           </div>
 
-          <div
-            id="circle-interest-food-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-interest-food-row" class="circle-fact" hidden>
             <dt>&#127829; Favorite Food</dt>
             <dd id="circle-interest-food"></dd>
           </div>
 
-          <div
-            id="circle-interest-movie-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-interest-movie-row" class="circle-fact" hidden>
             <dt>&#127916; Favorite Movie</dt>
             <dd id="circle-interest-movie"></dd>
           </div>
 
-          <div
-            id="circle-interest-hobby-row"
-            class="circle-fact"
-            hidden
-          >
+          <div id="circle-interest-hobby-row" class="circle-fact" hidden>
             <dt>&#127912; Favorite Hobby</dt>
             <dd id="circle-interest-hobby"></dd>
           </div>
         </dl>
 
-        <div
-          id="circle-interests-empty"
-          class="circle-empty-state"
-          hidden
-        >
+        <div id="circle-interests-empty" class="circle-empty-state" hidden>
           <p>No favorites shared yet.</p>
         </div>
       </section>
 
-      <!-- =======================================================
-           BREAK THE ICE
-           JS owners:
-           - profile/profile-renderer.js
-           - profile/profile-editor.js
-      ======================================================== -->
+      <!-- BREAK THE ICE -->
       <section
         id="circle-icebreakers"
         class="circle-card"
@@ -602,12 +545,7 @@
         </button>
       </section>
 
-      <!-- =======================================================
-           CIRCLE DETAILS
-           JS owners:
-           - profile/profile-renderer.js
-           - connections/connections-controller.js
-      ======================================================== -->
+      <!-- CIRCLE DETAILS -->
       <section
         id="circle-details"
         class="circle-card circle-details"
@@ -639,11 +577,7 @@
       </section>
     </main>
 
-    <!-- =========================================================
-         PROFILE MENU
-         JS owner:
-         - profile/profile-controller.js
-    ========================================================== -->
+    <!-- PROFILE MENU -->
     <div
       id="circle-profile-menu"
       class="circle-menu"
@@ -693,15 +627,8 @@
       </button>
     </div>
 
-    <!-- =========================================================
-         DIALOG: EDIT TOP CIRCLE
-         JS owner:
-         - connections/top-circle.js
-    ========================================================== -->
-    <dialog
-      id="circle-top-editor"
-      class="circle-dialog"
-    >
+    <!-- DIALOG: EDIT TOP CIRCLE -->
+    <dialog id="circle-top-editor" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
           <div>
@@ -723,20 +650,12 @@
           <legend>Show</legend>
 
           <label>
-            <input
-              type="radio"
-              name="circleTopCount"
-              value="4"
-            />
+            <input type="radio" name="circleTopCount" value="4" />
             <span>Top 4</span>
           </label>
 
           <label>
-            <input
-              type="radio"
-              name="circleTopCount"
-              value="6"
-            />
+            <input type="radio" name="circleTopCount" value="6" />
             <span>Top 6</span>
           </label>
         </fieldset>
@@ -757,15 +676,8 @@
       </div>
     </dialog>
 
-    <!-- =========================================================
-         DIALOG: PROFILE EDITOR
-         JS owner:
-         - profile/profile-editor.js
-    ========================================================== -->
-    <dialog
-      id="circle-profile-editor"
-      class="circle-dialog"
-    >
+    <!-- DIALOG: PROFILE EDITOR -->
+    <dialog id="circle-profile-editor" class="circle-dialog">
       <form
         id="circle-profile-editor-form"
         class="circle-dialog__panel"
@@ -801,16 +713,8 @@
       </form>
     </dialog>
 
-    <!-- =========================================================
-         DIALOG: CONNECTION REQUEST
-         JS owners:
-         - connections/connections-controller.js
-         - connections/connection-requests.js
-    ========================================================== -->
-    <dialog
-      id="circle-connection-dialog"
-      class="circle-dialog"
-    >
+    <!-- DIALOG: CONNECTION REQUEST -->
+    <dialog id="circle-connection-dialog" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
           <div>
@@ -846,15 +750,8 @@
       </div>
     </dialog>
 
-    <!-- =========================================================
-         DIALOG: REPORT / BLOCK
-         JS owner:
-         - connections/connections-controller.js
-    ========================================================== -->
-    <dialog
-      id="circle-safety-dialog"
-      class="circle-dialog"
-    >
+    <!-- DIALOG: REPORT / BLOCK -->
+    <dialog id="circle-safety-dialog" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
           <div>
@@ -894,11 +791,6 @@
       </div>
     </dialog>
 
-    <!-- =========================================================
-         TOAST / NON-BLOCKING FEEDBACK
-         JS owner:
-         - core/circle-events.js
-    ========================================================== -->
     <div
       id="circle-toast"
       class="circle-toast"
@@ -907,12 +799,7 @@
       hidden
     ></div>
 
-    <!-- =========================================================
-         RENDER TEMPLATES
-         Controllers/renderers clone these instead of building
-         giant HTML strings in JavaScript.
-    ========================================================== -->
-
+    <!-- RENDER TEMPLATES -->
     <template id="circle-top-member-template">
       <button
         class="circle-top-member"
@@ -991,62 +878,6 @@
     </template>
   </div>
 
-  <!-- ===========================================================
-       ARI CIRCLE JAVASCRIPT ARCHITECTURE
-
-       The HTML loads ONE module entry point:
-         js/ari-circle/index.js
-
-       index.js will import the domain modules below:
-
-       js/ari-circle/
-       |-- index.js
-       |
-       |-- core/
-       |   |-- circle-context.js
-       |   |-- circle-store.js
-       |   `-- circle-events.js
-       |
-       |-- profile/
-       |   |-- profile-controller.js
-       |   |-- profile-renderer.js
-       |   `-- profile-editor.js
-       |
-       |-- connections/
-       |   |-- connections-controller.js
-       |   |-- connection-requests.js
-       |   `-- top-circle.js
-       |
-       |-- comments/
-       |   `-- leave-some-love.js
-       |
-       |-- messaging/
-       |   |-- messages-controller.js
-       |   |-- conversations.js
-       |   `-- message-requests.js
-       |
-       |-- presence/
-       |   `-- presence-controller.js
-       |
-       |-- media/
-       |   `-- profile-media.js
-       |
-       |-- notifications/
-       |   `-- circle-notifications.js
-       |
-       `-- data/
-           |-- circle-api.js
-           `-- circle-realtime.js
-
-       We deliberately do NOT add a separate <script> tag for every
-       module. index.js is the authority and imports only what the
-       page needs, preventing duplicate initialization and keeping
-       the dependency pathway explicit.
-  ============================================================ -->
-
-  <!-- Existing ARI Supabase/auth bootstrap.
-       These load before the ARI Circle module so index.js can
-       discover the same authenticated Supabase client used by Home. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="js/auth.js"></script>
