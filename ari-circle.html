@@ -346,117 +346,117 @@
       </section>
 
       <section
-        id="circle-love"
-        class="circle-card circle-love"
-        aria-labelledby="circle-love-title"
+  id="circle-love"
+  class="circle-card circle-love"
+  aria-labelledby="circle-love-title"
+>
+  <header class="circle-section-header">
+    <div>
+      <p class="circle-section-eyebrow">PROFILE WALL</p>
+      <h2 id="circle-love-title">Post on Wall</h2>
+    </div>
+  </header>
+
+  <form
+    id="circle-love-form"
+    class="circle-love__form"
+    hidden
+  >
+    <label class="sr-only" for="circle-love-input">
+      Post a public comment or photo on this profile
+    </label>
+
+    <textarea
+      id="circle-love-input"
+      name="love"
+      rows="3"
+      maxlength="280"
+      placeholder="Write something on their wall&hellip;"
+    ></textarea>
+
+    <input
+      id="circle-love-photo-input"
+      type="file"
+      accept="image/*"
+      hidden
+    />
+
+    <div
+      id="circle-love-photo-preview"
+      class="circle-love__photo-preview"
+      hidden
+    >
+      <img
+        id="circle-love-photo-preview-image"
+        src=""
+        alt="Selected photo preview"
+      />
+
+      <button
+        id="circle-love-photo-remove"
+        class="circle-text-button"
+        type="button"
+        data-circle-action="remove-love-photo"
       >
-        <header class="circle-section-header">
-          <div>
-            <p class="circle-section-eyebrow">PROFILE COMMENTS</p>
-            <h2 id="circle-love-title">Leave Some Love &#10084;&#65039;</h2>
-          </div>
-        </header>
+        Remove Photo
+      </button>
+    </div>
 
-        <form
-          id="circle-love-form"
-          class="circle-love__form"
-          hidden
-        >
-          <label class="sr-only" for="circle-love-input">
-            Leave a public comment or photo on this profile
-          </label>
-
-          <textarea
-            id="circle-love-input"
-            name="love"
-            rows="3"
-            maxlength="280"
-            placeholder="Say something&hellip;"
-          ></textarea>
-
-          <input
-            id="circle-love-photo-input"
-            type="file"
-            accept="image/*"
-            hidden
-          />
-
-          <div
-            id="circle-love-photo-preview"
-            class="circle-love__photo-preview"
-            hidden
-          >
-            <img
-              id="circle-love-photo-preview-image"
-              src=""
-              alt="Selected photo preview"
-            />
-
-            <button
-              id="circle-love-photo-remove"
-              class="circle-text-button"
-              type="button"
-              data-circle-action="remove-love-photo"
-            >
-              Remove Photo
-            </button>
-          </div>
-
-          <div class="circle-love__form-footer">
-            <div class="circle-love__composer-actions">
-              <button
-                id="circle-love-photo-button"
-                class="circle-button circle-button--secondary circle-button--small"
-                type="button"
-                data-circle-action="choose-love-photo"
-              >
-                &#128247; Add Photo
-              </button>
-
-              <span id="circle-love-counter">0 / 280</span>
-            </div>
-
-            <button
-              id="circle-love-submit"
-              class="circle-button circle-button--primary circle-button--small"
-              type="submit"
-            >
-              Leave Love
-            </button>
-          </div>
-        </form>
-
-        <p
-          id="circle-love-owner-note"
-          class="circle-section-note"
-        >
-          Anyone signed into ARI can leave a comment, a photo, or both.
-        </p>
-
-        <div
-          id="circle-love-list"
-          class="circle-love__list"
-          aria-live="polite"
-        ></div>
-
-        <div
-          id="circle-love-empty"
-          class="circle-empty-state"
-          hidden
-        >
-          <p>No love yet. Somebody has to be first.</p>
-        </div>
-
+    <div class="circle-love__form-footer">
+      <div class="circle-love__composer-actions">
         <button
-          id="circle-love-more-button"
-          class="circle-section-link"
+          id="circle-love-photo-button"
+          class="circle-button circle-button--secondary circle-button--small"
           type="button"
-          data-circle-action="view-more-love"
-          hidden
+          data-circle-action="choose-love-photo"
         >
-          View More &rarr;
+          &#128247; Add Photo
         </button>
-      </section>
+
+        <span id="circle-love-counter">0 / 280</span>
+      </div>
+
+      <button
+        id="circle-love-submit"
+        class="circle-button circle-button--primary circle-button--small"
+        type="submit"
+      >
+        Post
+      </button>
+    </div>
+  </form>
+
+  <p
+    id="circle-love-owner-note"
+    class="circle-section-note"
+  >
+    Anyone signed into ARI can post a comment, a photo, or both.
+  </p>
+
+  <div
+    id="circle-love-list"
+    class="circle-love__list"
+    aria-live="polite"
+  ></div>
+
+  <div
+    id="circle-love-empty"
+    class="circle-empty-state"
+    hidden
+  >
+    <p>No wall posts yet. Be the first to post.</p>
+  </div>
+
+  <button
+    id="circle-love-more-button"
+    class="circle-section-link"
+    type="button"
+    data-circle-action="view-more-love"
+    hidden
+  >
+    View More &rarr;
+  </button>
+</section>
 
       <section
         id="circle-about"
