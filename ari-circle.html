@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1b31" />
+  <meta name="theme-color" content="#070c13" />
 
   <title>ARI CIRCLE</title>
 
@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 
   <!-- ARI Circle page styles -->
-  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.1.3" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=2.0.0" />
 </head>
 
 <body class="ari-circle-page">
@@ -69,21 +69,6 @@
           <span aria-hidden="true">&#128172;</span>
           <span
             id="circle-message-badge"
-            class="circle-action-badge"
-            hidden
-          ></span>
-        </button>
-
-        <button
-          id="circle-notifications-button"
-          class="circle-icon-button"
-          type="button"
-          aria-label="Notifications"
-          data-circle-action="open-notifications"
-        >
-          <span aria-hidden="true">&#128276;</span>
-          <span
-            id="circle-notification-badge"
             class="circle-action-badge"
             hidden
           ></span>
@@ -625,6 +610,22 @@
       role="menu"
       hidden
     >
+      <button
+        id="circle-notifications-button"
+        class="circle-menu__notification"
+        type="button"
+        role="menuitem"
+        data-circle-action="open-notifications"
+      >
+        <span aria-hidden="true">&#9673;</span>
+        <span>Notifications</span>
+        <span
+          id="circle-notification-badge"
+          class="circle-action-badge"
+          hidden
+        ></span>
+      </button>
+
       <button
         id="circle-share-profile-button"
         type="button"
