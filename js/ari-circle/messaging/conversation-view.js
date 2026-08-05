@@ -1,6 +1,13 @@
 // js/ari-circle/messaging/conversation-view.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
+//
+// V1.0.1:
+// - Fixes the mobile chat composer being pushed below the visible viewport.
+// - Makes the dialog use the safe mobile viewport instead of overflowing behind Safari chrome.
+// - Keeps the message composer pinned inside the visible chat panel.
+// - Adds safe-area padding for iPhone home indicator / browser controls.
+// - Keeps the message list independently scrollable so the composer stays reachable.
 //
 // Purpose:
 // - Render the visible ARI Circle messaging interface.
@@ -20,15 +27,15 @@
 // Flow:
 //
 //   Profile MESSAGE button
-//          ↓
+//          â
 //   MessagesController
-//          ↓
+//          â
 //   Conversations
-//          ↓
+//          â
 //   circle:conversation-opened
-//          ↓
+//          â
 //   ConversationView
-//          ↓
+//          â
 //   Visible chat dialog
 //
 // Requires:
@@ -42,7 +49,7 @@ import CircleEvents from "../core/circle-events.js";
 import Conversations from "./conversations.js?v=1.0.1";
 import CircleApi from "../data/circle-api.js?v=1.3.1";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/messaging/conversation-view";
 
 function normalizeString(value) {
@@ -592,10 +599,16 @@ const ConversationView = {
       "circle-conversation-view-styles";
 
     style.textContent = `
+      .circle-conversation-view {
+        box-sizing: border-box;
+      }
+
       .circle-conversation-view__panel {
+        box-sizing: border-box;
         width: min(100%, 760px);
-        height: min(90dvh, 900px);
-        max-height: min(90dvh, 900px);
+        height: min(calc(100dvh - 24px), 900px);
+        max-height: min(calc(100dvh - 24px), 900px);
+        min-height: 0;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -638,6 +651,7 @@ const ConversationView = {
       .circle-conversation-thread {
         min-height: 0;
         flex: 1 1 auto;
+        overflow: hidden;
       }
 
       .circle-conversation-inbox__list {
@@ -738,10 +752,12 @@ const ConversationView = {
       }
 
       .circle-conversation-thread__messages {
-        flex: 1 1 auto;
+        flex: 1 1 0;
         min-height: 0;
         overflow-y: auto;
+        overflow-x: hidden;
         overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
         padding: 6px 2px 14px;
       }
 
@@ -792,38 +808,104 @@ const ConversationView = {
       }
 
       .circle-conversation-composer {
+        position: relative;
+        z-index: 4;
         flex: 0 0 auto;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
         align-items: end;
-        padding-top: 10px;
+        margin: 0;
+        padding: 10px 0 0;
         border-top: 1px solid rgba(255,255,255,0.08);
+        background: inherit;
       }
 
       .circle-conversation-composer textarea {
+        display: block;
         width: 100%;
-        min-height: 44px;
+        min-width: 0;
+        min-height: 48px;
         max-height: 132px;
+        margin: 0;
         resize: none;
         border-radius: 14px;
         box-sizing: border-box;
       }
 
       .circle-conversation-composer button {
-        min-height: 44px;
+        min-height: 48px;
+        margin: 0;
+        align-self: end;
       }
 
       @media (max-width: 520px) {
         .circle-conversation-view {
+          position: fixed;
+          inset: 0;
+          box-sizing: border-box;
+          width: 100vw;
+          max-width: none;
+          height: 100svh;
+          max-height: 100svh;
+          margin: 0;
           padding: 0;
+          border: 0;
+          overflow: hidden;
+          background: transparent;
         }
 
         .circle-conversation-view__panel {
+          box-sizing: border-box;
           width: 100%;
-          height: 100dvh;
-          max-height: 100dvh;
+          max-width: none;
+          height: 100svh;
+          max-height: 100svh;
+          min-height: 0;
+          margin: 0;
+          overflow: hidden;
           border-radius: 0;
+          padding-top: max(12px, env(safe-area-inset-top));
+          padding-right: max(14px, env(safe-area-inset-right));
+          padding-bottom: max(12px, env(safe-area-inset-bottom));
+          padding-left: max(14px, env(safe-area-inset-left));
+        }
+
+        .circle-conversation-view__header {
+          flex: 0 0 auto;
+        }
+
+        .circle-conversation-view__status {
+          flex: 0 0 auto;
+        }
+
+        .circle-conversation-thread {
+          min-height: 0;
+          overflow: hidden;
+        }
+
+        .circle-conversation-thread__messages {
+          min-height: 0;
+          padding-bottom: 12px;
+        }
+
+        .circle-conversation-composer {
+          position: sticky;
+          bottom: 0;
+          z-index: 10;
+          flex: 0 0 auto;
+          padding-top: 10px;
+          padding-bottom: max(2px, env(safe-area-inset-bottom));
+          background: inherit;
+        }
+
+        .circle-conversation-composer textarea {
+          min-height: 50px;
+          font-size: 16px;
+        }
+
+        .circle-conversation-composer button {
+          min-height: 50px;
         }
 
         .circle-message-bubble {
@@ -1570,7 +1652,7 @@ const ConversationView = {
                     ${
                       mine &&
                       status === "sending"
-                        ? " · Sending"
+                        ? " Â· Sending"
                         : ""
                     }
                   </span>
