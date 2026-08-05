@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 
   <!-- ARI Circle page styles -->
-  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.1.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.1.2" />
 </head>
 
 <body class="ari-circle-page">
@@ -39,9 +39,11 @@
         href="ari-circle.html"
         aria-label="ARI CIRCLE"
       >
-        <span class="circle-header__brand-mark" aria-hidden="true">
-          <span class="circle-header__brand-letter">A</span>
-        </span>
+        <!-- Two converging circles are drawn entirely by CSS. -->
+        <span
+          class="circle-header__brand-mark"
+          aria-hidden="true"
+        ></span>
 
         <span class="circle-header__brand-text">ARI CIRCLE</span>
       </a>
@@ -91,10 +93,6 @@
       </nav>
     </header>
 
-    <!-- =========================================================
-         PAGE STATUS
-         Used by index.js / circle-context.js while the page boots.
-    ========================================================== -->
     <div
       id="circle-page-status"
       class="circle-page-status"
@@ -106,16 +104,6 @@
 
     <main id="ari-circle" class="ari-circle" hidden>
 
-      <!-- =======================================================
-           PROFILE HERO
-           JS owners:
-           - profile/profile-controller.js
-           - profile/profile-renderer.js
-           - profile/profile-editor.js
-           - media/profile-media.js
-           - presence/presence-controller.js
-           - connections/connections-controller.js
-      ======================================================== -->
       <section
         id="circle-profile"
         class="circle-profile"
@@ -267,7 +255,6 @@
         </div>
       </section>
 
-      <!-- TOP CIRCLE -->
       <section
         id="circle-top"
         class="circle-card circle-top"
@@ -349,7 +336,6 @@
         </button>
       </section>
 
-      <!-- LEAVE SOME LOVE -->
       <section
         id="circle-love"
         class="circle-card circle-love"
@@ -427,7 +413,6 @@
         </button>
       </section>
 
-      <!-- ABOUT ME -->
       <section
         id="circle-about"
         class="circle-card"
@@ -467,7 +452,6 @@
         </div>
       </section>
 
-      <!-- THINGS I'M INTO -->
       <section
         id="circle-interests"
         class="circle-card"
@@ -507,7 +491,6 @@
         </div>
       </section>
 
-      <!-- BREAK THE ICE -->
       <section
         id="circle-icebreakers"
         class="circle-card"
@@ -545,7 +528,6 @@
         </button>
       </section>
 
-      <!-- CIRCLE DETAILS -->
       <section
         id="circle-details"
         class="circle-card circle-details"
@@ -577,7 +559,6 @@
       </section>
     </main>
 
-    <!-- PROFILE MENU -->
     <div
       id="circle-profile-menu"
       class="circle-menu"
@@ -627,7 +608,6 @@
       </button>
     </div>
 
-    <!-- DIALOG: EDIT TOP CIRCLE -->
     <dialog id="circle-top-editor" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
@@ -676,7 +656,6 @@
       </div>
     </dialog>
 
-    <!-- DIALOG: PROFILE EDITOR -->
     <dialog id="circle-profile-editor" class="circle-dialog">
       <form
         id="circle-profile-editor-form"
@@ -713,7 +692,6 @@
       </form>
     </dialog>
 
-    <!-- DIALOG: CONNECTION REQUEST -->
     <dialog id="circle-connection-dialog" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
@@ -750,7 +728,6 @@
       </div>
     </dialog>
 
-    <!-- DIALOG: REPORT / BLOCK -->
     <dialog id="circle-safety-dialog" class="circle-dialog">
       <div class="circle-dialog__panel">
         <header class="circle-dialog__header">
@@ -799,7 +776,6 @@
       hidden
     ></div>
 
-    <!-- RENDER TEMPLATES -->
     <template id="circle-top-member-template">
       <button
         class="circle-top-member"
