@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.1.0
+// V1.1.1
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -20,7 +20,7 @@
 //   4. CircleStore
 //   5. CircleApi / CircleRealtime configuration
 //   6. Feature modules
-//   7. Initial Circle data
+//   7. Initial Circle data / first-run owner profile creation
 //   8. Realtime bridges + subscriptions
 //
 // Supabase is injected rather than created here.
@@ -67,7 +67,7 @@ import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.1.0";
+const VERSION = "1.1.1";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -729,18 +729,95 @@ const AriCircleApp = {
       };
     }
 
-    const bundle =
+    let activeContext =
+      context;
+
+    let bundle =
       await CircleApi
         .loadCircleBundle({
           viewerUserId:
-            context.viewerUserId,
+            activeContext.viewerUserId,
 
           profileUserId:
-            context.profileUserId,
+            activeContext.profileUserId,
 
           profileHandle:
-            context.profileHandle
+            activeContext.profileHandle
         });
+
+    /*
+     * First-run owner flow:
+     *
+     * Bare ari-circle.html means "open my Circle".
+     * If the signed-in user's profile row does not exist yet,
+     * create a safe starter profile and continue booting.
+     *
+     * Explicit ?user= / ?handle= visitor routes NEVER auto-create.
+     */
+    const shouldCreateOwnProfile =
+      Boolean(
+        !bundle?.profile &&
+        activeContext.isAuthenticated &&
+        activeContext.isOwner &&
+        !activeContext.hasExplicitProfileTarget &&
+        activeContext.viewerUserId &&
+        activeContext.profileUserId ===
+          activeContext.viewerUserId
+      );
+
+    if (shouldCreateOwnProfile) {
+      this.setStatus(
+        "Creating your ARI Circle..."
+      );
+
+      const starterProfile =
+        await CircleApi
+          .ensureOwnProfile({
+            userId:
+              activeContext.viewerUserId,
+
+            preferredHandle:
+              activeContext.viewerHandle
+          });
+
+      this.state.viewerHandle =
+        normalizeHandle(
+          starterProfile?.handle
+        ) ||
+        this.state.viewerHandle;
+
+      activeContext =
+        CircleContext.resolve({
+          viewerUserId:
+            activeContext.viewerUserId,
+
+          viewerHandle:
+            this.state.viewerHandle,
+
+          resolvedProfileUserId:
+            starterProfile.user_id,
+
+          resolvedProfileHandle:
+            starterProfile.handle
+        });
+
+      CircleStore.setContext(
+        activeContext
+      );
+
+      bundle =
+        await CircleApi
+          .loadCircleBundle({
+            viewerUserId:
+              activeContext.viewerUserId,
+
+            profileUserId:
+              starterProfile.user_id,
+
+            profileHandle:
+              starterProfile.handle
+          });
+    }
 
     if (!bundle?.profile) {
       return {
@@ -759,10 +836,12 @@ const AriCircleApp = {
     const finalContext =
       CircleContext.resolve({
         viewerUserId:
-          context.viewerUserId,
+          activeContext.viewerUserId,
 
         viewerHandle:
-          context.viewerHandle,
+          this.state.viewerHandle ||
+          activeContext.viewerHandle ||
+          bundle.profile.handle,
 
         resolvedProfileUserId:
           bundle.profile.user_id,
