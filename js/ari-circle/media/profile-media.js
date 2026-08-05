@@ -1,6 +1,6 @@
 // js/ari-circle/media/profile-media.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
 //
 // Purpose:
 // - Own profile avatar and background image selection.
@@ -38,7 +38,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/media/profile-media";
 
 const MEDIA_TYPES = Object.freeze({
@@ -133,6 +133,26 @@ function normalizeMediaType(value) {
   }
 
   return null;
+}
+
+function getEventDetail(payload) {
+  if (
+    payload?.detail &&
+    typeof payload.detail ===
+      "object"
+  ) {
+    return payload.detail;
+  }
+
+  if (
+    payload &&
+    typeof payload ===
+      "object"
+  ) {
+    return payload;
+  }
+
+  return {};
 }
 
 function createFileName(
@@ -261,6 +281,7 @@ const ProfileMedia = {
     this.cacheDom();
     this.bindActions();
     this.bindInputs();
+    this.bindPersistenceFeedback();
 
     this.state.initialized =
       true;
@@ -354,6 +375,81 @@ const ProfileMedia = {
             event
           )
       );
+  },
+
+  bindPersistenceFeedback() {
+    const on =
+      (
+        eventName,
+        handler
+      ) => {
+        const unsubscribe =
+          CircleEvents.on(
+            eventName,
+            payload =>
+              handler.call(
+                this,
+                getEventDetail(
+                  payload
+                )
+              )
+          );
+
+        this.state.unsubscribers.push(
+          unsubscribe
+        );
+      };
+
+    on(
+      "circle:profile-media-uploaded",
+      detail => {
+        const type =
+          normalizeMediaType(
+            detail?.mediaType
+          );
+
+        const publicUrl =
+          normalizeString(
+            detail?.publicUrl
+          );
+
+        if (
+          !type ||
+          !publicUrl
+        ) {
+          return;
+        }
+
+        this.commitMediaUrl(
+          type,
+          publicUrl
+        );
+
+        CircleEvents.showToast(
+          type === MEDIA_TYPES.AVATAR
+            ? "Profile photo updated."
+            : "Background updated."
+        );
+      }
+    );
+
+    on(
+      "circle:profile-media-removed",
+      detail => {
+        const type =
+          normalizeMediaType(
+            detail?.mediaType
+          );
+
+        if (!type) {
+          return;
+        }
+
+        this.clearMedia(
+          type
+        );
+      }
+    );
   },
 
   canEdit() {
@@ -484,6 +580,15 @@ const ProfileMedia = {
       true
     );
 
+    /*
+     * Show the selected photo immediately. This makes the avatar
+     * respond as soon as the user leaves the iPhone photo picker.
+     */
+    this.previewFile(
+      type,
+      file
+    );
+
     try {
       const optimizedFile =
         await this.optimizeImage(
@@ -496,6 +601,9 @@ const ProfileMedia = {
         optimizedFile
       );
 
+      /*
+       * Preview the exact optimized file that will be persisted.
+       */
       this.previewFile(
         type,
         optimizedFile
@@ -527,11 +635,32 @@ const ProfileMedia = {
       );
 
       CircleEvents.showToast(
-        `${type === MEDIA_TYPES.AVATAR ? "Profile photo" : "Background"} ready to upload.`
+        type === MEDIA_TYPES.AVATAR
+          ? "Uploading profile photo..."
+          : "Uploading background..."
       );
 
       return optimizedFile;
     } catch (error) {
+      /*
+       * Force the renderer back to the persisted profile if image
+       * processing fails, so an unsaved preview does not linger.
+       */
+      const profile =
+        CircleStore.get(
+          "profile"
+        );
+
+      if (profile) {
+        CircleStore.setProfile({
+          ...profile
+        });
+      }
+
+      this.clearPreviewUrl(
+        type
+      );
+
       CircleEvents.reportError(
         error,
         {
@@ -630,35 +759,23 @@ const ProfileMedia = {
       MEDIA_CONFIG[type];
 
     /*
-     * createImageBitmap has broad modern-browser support and
-     * avoids manually keeping an <img> element around.
-     *
-     * HEIC/HEIF decoding depends on browser support. If the
-     * browser cannot decode it, we surface a clean error instead
-     * of silently uploading an unusable file.
+     * Use a normal HTMLImageElement as the primary decoder.
+     * Safari/iPhone photo-library images are more reliable through
+     * this path than through createImageBitmap().
      */
-    let bitmap =
-      null;
-
-    try {
-      bitmap =
-        await createImageBitmap(
-          file
-        );
-    } catch {
-      throw new Error(
-        "This device could not read that image format. Try JPG, PNG, or WebP."
+    const source =
+      await this.loadImageSource(
+        file
       );
-    }
 
     try {
       const dimensions =
         this.calculateDimensions({
           width:
-            bitmap.width,
+            source.width,
 
           height:
-            bitmap.height,
+            source.height,
 
           maxWidth:
             config.maxWidth,
@@ -700,27 +817,30 @@ const ProfileMedia = {
         "high";
 
       context.drawImage(
-        bitmap,
+        source.image,
         0,
         0,
         dimensions.width,
         dimensions.height
       );
 
+      let outputType =
+        config.outputType;
+
       let quality =
         config.quality;
 
       let blob =
-        await this.canvasToBlob(
+        await this.canvasToBlobWithFallback(
           canvas,
-          config.outputType,
+          outputType,
           quality
         );
 
-      /*
-       * Reduce JPEG/WebP quality gradually if the result is still
-       * larger than our preferred upload target.
-       */
+      outputType =
+        blob.type ||
+        outputType;
+
       while (
         blob.size >
           config.outputMaxBytes &&
@@ -731,11 +851,15 @@ const ProfileMedia = {
           0.06;
 
         blob =
-          await this.canvasToBlob(
+          await this.canvasToBlobWithFallback(
             canvas,
-            config.outputType,
+            outputType,
             quality
           );
+
+        outputType =
+          blob.type ||
+          outputType;
       }
 
       return new File(
@@ -744,20 +868,142 @@ const ProfileMedia = {
         ],
         createFileName(
           type,
-          blob.type ||
-          config.outputType
+          outputType
         ),
         {
           type:
-            blob.type ||
-            config.outputType,
+            outputType,
 
           lastModified:
             Date.now()
         }
       );
     } finally {
-      bitmap.close?.();
+      source.close();
+    }
+  },
+
+  loadImageSource(
+    file
+  ) {
+    return new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        const url =
+          URL.createObjectURL(
+            file
+          );
+
+        const image =
+          new Image();
+
+        image.decoding =
+          "async";
+
+        image.onload =
+          () => {
+            const width =
+              image.naturalWidth ||
+              image.width;
+
+            const height =
+              image.naturalHeight ||
+              image.height;
+
+            if (
+              !width ||
+              !height
+            ) {
+              URL.revokeObjectURL(
+                url
+              );
+
+              reject(
+                new Error(
+                  "The selected image has invalid dimensions."
+                )
+              );
+
+              return;
+            }
+
+            resolve({
+              image,
+              width,
+              height,
+
+              close() {
+                URL.revokeObjectURL(
+                  url
+                );
+
+                image.onload =
+                  null;
+
+                image.onerror =
+                  null;
+
+                image.src =
+                  "";
+              }
+            });
+          };
+
+        image.onerror =
+          () => {
+            URL.revokeObjectURL(
+              url
+            );
+
+            reject(
+              new Error(
+                "This device could not read that image. Try another photo or use JPG, PNG, or WebP."
+              )
+            );
+          };
+
+        image.src =
+          url;
+      }
+    );
+  },
+
+  async canvasToBlobWithFallback(
+    canvas,
+    preferredType,
+    quality
+  ) {
+    try {
+      return await this.canvasToBlob(
+        canvas,
+        preferredType,
+        quality
+      );
+    } catch (error) {
+      /*
+       * Safari can decode an image but still fail to encode WebP
+       * through canvas.toBlob(). JPEG is the safe fallback.
+       */
+      if (
+        preferredType !==
+        "image/jpeg"
+      ) {
+        return this.canvasToBlob(
+          canvas,
+          "image/jpeg",
+          Math.min(
+            0.90,
+            Math.max(
+              0.62,
+              quality
+            )
+          )
+        );
+      }
+
+      throw error;
     }
   },
 
