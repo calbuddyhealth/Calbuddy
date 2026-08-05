@@ -1,6 +1,6 @@
 // js/ari-circle/comments/leave-some-love.js
 // ARI Circle
-// V1.0.0
+// V1.1.0
 //
 // Purpose:
 // - Own the public "Leave Some Love" profile comments feature.
@@ -33,11 +33,14 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const SOURCE = "ari-circle/comments/leave-some-love";
 
 const MAX_LENGTH = 280;
 const INITIAL_VISIBLE_COUNT = 4;
+const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
+const LOVE_PHOTO_MAX_DIMENSION = 1600;
+const LOVE_PHOTO_QUALITY = 0.86;
 
 function normalizeString(value) {
   if (typeof value !== "string") {
@@ -81,7 +84,18 @@ function normalizeComment(comment) {
       comment.message
     );
 
-  if (!text) {
+  const imageUrl =
+    normalizeString(
+      comment.image_url ||
+      comment.imageUrl ||
+      comment.photo_url ||
+      comment.photoUrl
+    );
+
+  if (
+    !text &&
+    !imageUrl
+  ) {
     return null;
   }
 
@@ -147,9 +161,19 @@ function normalizeComment(comment) {
       ),
 
     text:
-      text.slice(
-        0,
-        MAX_LENGTH
+      text
+        ? text.slice(
+            0,
+            MAX_LENGTH
+          )
+        : "",
+
+    imageUrl,
+
+    imagePath:
+      normalizeString(
+        comment.image_path ||
+        comment.imagePath
       ),
 
     createdAt:
@@ -284,6 +308,15 @@ const LeaveSomeLove = {
     submitting:
       false,
 
+    photoFile:
+      null,
+
+    composerPreviewUrl:
+      null,
+
+    pendingPreviewUrls:
+      new Map(),
+
     unsubscribers:
       []
   },
@@ -299,6 +332,21 @@ const LeaveSomeLove = {
       null,
 
     submit:
+      null,
+
+    photoButton:
+      null,
+
+    photoInput:
+      null,
+
+    photoPreview:
+      null,
+
+    photoPreviewImage:
+      null,
+
+    photoRemove:
       null,
 
     list:
@@ -358,6 +406,31 @@ const LeaveSomeLove = {
         "circle-love-submit"
       );
 
+    this.dom.photoButton =
+      document.getElementById(
+        "circle-love-photo-button"
+      );
+
+    this.dom.photoInput =
+      document.getElementById(
+        "circle-love-photo-input"
+      );
+
+    this.dom.photoPreview =
+      document.getElementById(
+        "circle-love-photo-preview"
+      );
+
+    this.dom.photoPreviewImage =
+      document.getElementById(
+        "circle-love-photo-preview-image"
+      );
+
+    this.dom.photoRemove =
+      document.getElementById(
+        "circle-love-photo-remove"
+      );
+
     this.dom.list =
       document.getElementById(
         "circle-love-list"
@@ -387,6 +460,15 @@ const LeaveSomeLove = {
           this.updateCounter()
       );
 
+    this.dom.photoInput
+      ?.addEventListener(
+        "change",
+        event =>
+          this.handlePhotoSelected(
+            event
+          )
+      );
+
     this.dom.form
       ?.addEventListener(
         "submit",
@@ -410,6 +492,37 @@ const LeaveSomeLove = {
         payload =>
           this.handleCommentOptions(
             payload
+          )
+      )
+    );
+
+    this.state.unsubscribers.push(
+      CircleEvents.onAction(
+        "choose-love-photo",
+        () =>
+          this.dom.photoInput
+            ?.click()
+      )
+    );
+
+    this.state.unsubscribers.push(
+      CircleEvents.onAction(
+        "remove-love-photo",
+        () =>
+          this.clearComposerPhoto()
+      )
+    );
+
+    this.state.unsubscribers.push(
+      CircleEvents.on(
+        EVENT_NAMES.LOVE_PERSISTED,
+        payload =>
+          this.handleLovePersisted(
+            payload?.detail &&
+            typeof payload.detail ===
+              "object"
+              ? payload.detail
+              : payload
           )
       )
     );
@@ -567,7 +680,6 @@ const LeaveSomeLove = {
     ) {
       const canPost =
         Boolean(
-          context?.isVisitor &&
           context?.isAuthenticated
         );
 
@@ -669,6 +781,11 @@ const LeaveSomeLove = {
         ".circle-love-item__text"
       );
 
+    const photo =
+      node.querySelector(
+        ".circle-love-item__photo"
+      );
+
     const more =
       node.querySelector(
         ".circle-love-item__more"
@@ -750,7 +867,33 @@ const LeaveSomeLove = {
 
     if (text) {
       text.textContent =
-        comment.text;
+        comment.text || "";
+
+      text.hidden =
+        !comment.text;
+    }
+
+    if (photo) {
+      if (comment.imageUrl) {
+        photo.src =
+          comment.imageUrl;
+
+        photo.alt =
+          `${comment.authorDisplayName} shared photo`;
+
+        photo.hidden =
+          false;
+      } else {
+        photo.removeAttribute(
+          "src"
+        );
+
+        photo.alt =
+          "";
+
+        photo.hidden =
+          true;
+      }
     }
 
     if (more) {
@@ -787,6 +930,376 @@ const LeaveSomeLove = {
     }
 
     return node;
+  },
+
+  handlePhotoSelected(event) {
+    const file =
+      event?.target
+        ?.files
+        ?.[0] ||
+      null;
+
+    if (!file) {
+      return;
+    }
+
+    this.preparePhoto(
+      file
+    );
+  },
+
+  async preparePhoto(file) {
+    if (
+      !file?.type
+        ?.startsWith(
+          "image/"
+        )
+    ) {
+      CircleEvents.showToast(
+        "Choose an image file."
+      );
+
+      this.resetPhotoInput();
+
+      return;
+    }
+
+    if (
+      Number(file.size) >
+      MAX_PHOTO_BYTES
+    ) {
+      CircleEvents.showToast(
+        "That photo is too large. Keep it under 12 MB."
+      );
+
+      this.resetPhotoInput();
+
+      return;
+    }
+
+    try {
+      const optimized =
+        await this.optimizePhoto(
+          file
+        );
+
+      this.clearComposerPhoto();
+
+      this.state.photoFile =
+        optimized;
+
+      this.state.composerPreviewUrl =
+        URL.createObjectURL(
+          optimized
+        );
+
+      if (
+        this.dom.photoPreviewImage
+      ) {
+        this.dom.photoPreviewImage.src =
+          this.state
+            .composerPreviewUrl;
+      }
+
+      if (
+        this.dom.photoPreview
+      ) {
+        this.dom.photoPreview.hidden =
+          false;
+      }
+    } catch (error) {
+      CircleEvents.reportError(
+        error,
+        {
+          message:
+            "Could not prepare that photo."
+        }
+      );
+    } finally {
+      this.resetPhotoInput();
+    }
+  },
+
+  optimizePhoto(file) {
+    return new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        const sourceUrl =
+          URL.createObjectURL(
+            file
+          );
+
+        const image =
+          new Image();
+
+        image.decoding =
+          "async";
+
+        image.onload =
+          () => {
+            try {
+              const width =
+                image.naturalWidth ||
+                image.width;
+
+              const height =
+                image.naturalHeight ||
+                image.height;
+
+              if (
+                !width ||
+                !height
+              ) {
+                throw new Error(
+                  "The selected photo has invalid dimensions."
+                );
+              }
+
+              const scale =
+                Math.min(
+                  1,
+                  LOVE_PHOTO_MAX_DIMENSION /
+                    Math.max(
+                      width,
+                      height
+                    )
+                );
+
+              const outputWidth =
+                Math.max(
+                  1,
+                  Math.round(
+                    width *
+                    scale
+                  )
+                );
+
+              const outputHeight =
+                Math.max(
+                  1,
+                  Math.round(
+                    height *
+                    scale
+                  )
+                );
+
+              const canvas =
+                document.createElement(
+                  "canvas"
+                );
+
+              canvas.width =
+                outputWidth;
+
+              canvas.height =
+                outputHeight;
+
+              const context =
+                canvas.getContext(
+                  "2d",
+                  {
+                    alpha:
+                      false
+                  }
+                );
+
+              if (!context) {
+                throw new Error(
+                  "Photo processing is unavailable."
+                );
+              }
+
+              context.imageSmoothingEnabled =
+                true;
+
+              context.imageSmoothingQuality =
+                "high";
+
+              context.drawImage(
+                image,
+                0,
+                0,
+                outputWidth,
+                outputHeight
+              );
+
+              canvas.toBlob(
+                blob => {
+                  URL.revokeObjectURL(
+                    sourceUrl
+                  );
+
+                  image.src =
+                    "";
+
+                  if (!blob) {
+                    reject(
+                      new Error(
+                        "The photo could not be converted."
+                      )
+                    );
+
+                    return;
+                  }
+
+                  resolve(
+                    new File(
+                      [
+                        blob
+                      ],
+                      `love-photo-${Date.now()}.jpg`,
+                      {
+                        type:
+                          "image/jpeg",
+
+                        lastModified:
+                          Date.now()
+                      }
+                    )
+                  );
+                },
+                "image/jpeg",
+                LOVE_PHOTO_QUALITY
+              );
+            } catch (error) {
+              URL.revokeObjectURL(
+                sourceUrl
+              );
+
+              reject(error);
+            }
+          };
+
+        image.onerror =
+          () => {
+            URL.revokeObjectURL(
+              sourceUrl
+            );
+
+            reject(
+              new Error(
+                "This device could not read that photo."
+              )
+            );
+          };
+
+        image.src =
+          sourceUrl;
+      }
+    );
+  },
+
+  clearComposerPhoto() {
+    if (
+      this.state
+        .composerPreviewUrl
+    ) {
+      URL.revokeObjectURL(
+        this.state
+          .composerPreviewUrl
+      );
+    }
+
+    this.state.photoFile =
+      null;
+
+    this.state.composerPreviewUrl =
+      null;
+
+    if (
+      this.dom.photoPreviewImage
+    ) {
+      this.dom.photoPreviewImage
+        .removeAttribute(
+          "src"
+        );
+    }
+
+    if (
+      this.dom.photoPreview
+    ) {
+      this.dom.photoPreview.hidden =
+        true;
+    }
+
+    this.resetPhotoInput();
+  },
+
+  resetPhotoInput() {
+    if (
+      this.dom.photoInput
+    ) {
+      this.dom.photoInput.value =
+        "";
+    }
+  },
+
+  handleLovePersisted(detail) {
+    const localId =
+      normalizeString(
+        detail?.localId
+      );
+
+    if (!localId) {
+      return;
+    }
+
+    const previewUrl =
+      this.state
+        .pendingPreviewUrls
+        .get(
+          localId
+        );
+
+    if (previewUrl) {
+      URL.revokeObjectURL(
+        previewUrl
+      );
+
+      this.state
+        .pendingPreviewUrls
+        .delete(
+          localId
+        );
+    }
+
+    if (
+      detail?.success !==
+      false
+    ) {
+      return;
+    }
+
+    const love =
+      CircleStore.get(
+        "love"
+      ) || {};
+
+    CircleStore.setLoveState({
+      ...love,
+
+      items:
+        normalizeComments(
+          love.items
+        )
+          .filter(
+            item =>
+              item.id !==
+              localId
+          ),
+
+      total:
+        Math.max(
+          0,
+          (
+            Number(
+              love.total
+            ) || 1
+          ) - 1
+        )
+    });
   },
 
   updateCounter() {
@@ -831,32 +1344,46 @@ const LeaveSomeLove = {
       return;
     }
 
-    if (!context?.isVisitor) {
-      return;
-    }
-
     const text =
       normalizeString(
         this.dom.input
           ?.value
       );
 
-    if (!text) {
+    const imageFile =
+      this.state.photoFile;
+
+    if (
+      !text &&
+      !imageFile
+    ) {
       CircleEvents.showToast(
-        "Write something first."
+        "Write something or add a photo first."
       );
 
       return;
     }
 
     if (
+      text &&
       text.length >
-      MAX_LENGTH
+        MAX_LENGTH
     ) {
       CircleEvents.showToast(
         `Keep it under ${MAX_LENGTH} characters.`
       );
 
+      return;
+    }
+
+    const profileUserId =
+      normalizeString(
+        profile?.user_id ||
+        profile?.userId ||
+        profile?.id
+      );
+
+    if (!profileUserId) {
       return;
     }
 
@@ -868,19 +1395,25 @@ const LeaveSomeLove = {
     try {
       const authorProfile =
         context.viewerProfile ||
-        {};
+        (
+          context.isOwner
+            ? profile
+            : {}
+        );
+
+      const localId =
+        createLocalId();
+
+      const optimisticImageUrl =
+        this.state
+          .composerPreviewUrl;
 
       const comment =
         normalizeComment({
           id:
-            createLocalId(),
+            localId,
 
-          profileUserId:
-            normalizeString(
-              profile?.user_id ||
-              profile?.userId ||
-              profile?.id
-            ),
+          profileUserId,
 
           authorUserId:
             context.viewerUserId,
@@ -906,7 +1439,11 @@ const LeaveSomeLove = {
               authorProfile.avatarUrl
             ),
 
-          text,
+          text:
+            text || "",
+
+          imageUrl:
+            optimisticImageUrl,
 
           createdAt:
             new Date()
@@ -915,6 +1452,33 @@ const LeaveSomeLove = {
           canDelete:
             true
         });
+
+      if (!comment) {
+        throw new Error(
+          "Could not build the post."
+        );
+      }
+
+      if (
+        optimisticImageUrl
+      ) {
+        this.state
+          .pendingPreviewUrls
+          .set(
+            localId,
+            optimisticImageUrl
+          );
+      }
+
+      /*
+       * Transfer ownership of the preview URL to the pending post so
+       * clearComposerPhoto() will not revoke it prematurely.
+       */
+      this.state.composerPreviewUrl =
+        null;
+
+      this.state.photoFile =
+        null;
 
       const love =
         CircleStore.get(
@@ -926,15 +1490,12 @@ const LeaveSomeLove = {
           love.items
         );
 
-      const nextItems =
-        [
-          comment,
-          ...currentItems
-        ];
-
       CircleStore.setLoveState({
         items:
-          nextItems,
+          [
+            comment,
+            ...currentItems
+          ],
 
         total:
           Math.max(
@@ -957,6 +1518,9 @@ const LeaveSomeLove = {
         EVENT_NAMES.LOVE_CREATED,
         {
           comment,
+
+          imageFile,
+
           persist:
             true
         }
@@ -969,17 +1533,36 @@ const LeaveSomeLove = {
           "";
       }
 
+      if (
+        this.dom.photoPreview
+      ) {
+        this.dom.photoPreview.hidden =
+          true;
+      }
+
+      if (
+        this.dom.photoPreviewImage
+      ) {
+        this.dom.photoPreviewImage
+          .removeAttribute(
+            "src"
+          );
+      }
+
+      this.resetPhotoInput();
       this.updateCounter();
 
       CircleEvents.showToast(
-        "Love posted."
+        imageFile
+          ? "Love posted. Uploading photo..."
+          : "Love posted."
       );
     } catch (error) {
       CircleEvents.reportError(
         error,
         {
           message:
-            "Could not post your message."
+            "Could not post your love."
         }
       );
     } finally {
@@ -1223,6 +1806,13 @@ const LeaveSomeLove = {
       this.dom.input.disabled =
         Boolean(isSubmitting);
     }
+
+    if (
+      this.dom.photoButton
+    ) {
+      this.dom.photoButton.disabled =
+        Boolean(isSubmitting);
+    }
   },
 
   destroy() {
@@ -1251,6 +1841,27 @@ const LeaveSomeLove = {
 
     this.state.submitting =
       false;
+
+    this.clearComposerPhoto();
+
+    for (
+      const previewUrl
+      of this.state
+        .pendingPreviewUrls
+        .values()
+    ) {
+      try {
+        URL.revokeObjectURL(
+          previewUrl
+        );
+      } catch {
+        // Best-effort cleanup.
+      }
+    }
+
+    this.state
+      .pendingPreviewUrls
+      .clear();
   },
 
   getDiagnostics() {
