@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
 
   <!-- ARI Circle page styles -->
-  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.0.1" />
 </head>
 
 <body class="ari-circle-page">
@@ -1043,9 +1043,16 @@
        page needs, preventing duplicate initialization and keeping
        the dependency pathway explicit.
   ============================================================ -->
+  <!-- Existing ARI Supabase/auth bootstrap.
+       These must load before the ARI Circle module so index.js can
+       discover the same authenticated Supabase client used by Home. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+
   <script
     type="module"
-    src="js/ari-circle/index.js?v=1.0.0"
+    src="js/ari-circle/index.js?v=1.1.0"
   ></script>
 </body>
 </html>
