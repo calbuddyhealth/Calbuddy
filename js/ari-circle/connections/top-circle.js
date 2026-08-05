@@ -1,6 +1,6 @@
 // js/ari-circle/connections/top-circle.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
 //
 // Purpose:
 // - Own the Top Circle feature.
@@ -9,6 +9,10 @@
 // - Let the owner select and reorder featured Circle connections.
 // - Write Top Circle state into CircleStore.
 // - Emit TOP_CIRCLE_CHANGED for the future persistence layer.
+//
+// V1.0.1:
+// - Fixes corrupted UTF-8 symbols in the Top Circle count and reorder controls.
+// - Uses Unicode escape sequences so deployment/encoding cannot corrupt them.
 //
 // This module does NOT:
 // - Query Supabase.
@@ -35,7 +39,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/connections/top-circle";
 
 const TOP_CIRCLE_LIMITS =
@@ -599,7 +603,7 @@ const TopCircle = {
     ) {
       this.dom.count.textContent =
         members.length
-          ? ` Â· ${members.length}`
+          ? ` \u00B7 ${members.length}`
           : "";
     }
 
@@ -1331,7 +1335,7 @@ const TopCircle = {
         "button";
 
       up.textContent =
-        "â";
+        "\u2191";
 
       up.dataset.topCircleMove =
         "up";
@@ -1356,7 +1360,7 @@ const TopCircle = {
         "button";
 
       down.textContent =
-        "â";
+        "\u2193";
 
       down.dataset.topCircleMove =
         "down";
