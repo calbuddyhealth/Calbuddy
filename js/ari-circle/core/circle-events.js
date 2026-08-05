@@ -1,6 +1,6 @@
 // js/ari-circle/core/circle-events.js
 // ARI Circle
-// V1.0.0
+// V1.1.0
 //
 // Purpose:
 // - Central event bus for ARI Circle feature modules.
@@ -18,7 +18,7 @@
 // CircleStore = current state authority.
 // CircleEvents = communication/event authority.
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const SOURCE = "ari-circle/core/circle-events";
 
 const EVENT_NAMES = Object.freeze({
@@ -55,8 +55,23 @@ const EVENT_NAMES = Object.freeze({
   TOP_CIRCLE_CHANGED:
     "circle:top-circle-changed",
 
+  PEOPLE_DISCOVERY_QUERY:
+    "circle:people-discovery-query",
+
+  PEOPLE_DISCOVERY_RESULTS:
+    "circle:people-discovery-results",
+
+  PEOPLE_DISCOVERY_REQUESTED:
+    "circle:people-discovery-requested",
+
+  PEOPLE_DISCOVERY_REQUEST_SAVED:
+    "circle:people-discovery-request-saved",
+
   LOVE_CREATED:
     "circle:love-created",
+
+  LOVE_PERSISTED:
+    "circle:love-persisted",
 
   LOVE_DELETED:
     "circle:love-deleted",
