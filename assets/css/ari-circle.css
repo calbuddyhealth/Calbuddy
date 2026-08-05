@@ -1,6 +1,6 @@
 /* ==========================================================================
    ARI CIRCLE — ANALOG FUTURE
-   V2.0.0
+   V2.0.1
 
    Design idea:
    "The personal internet of 2086, designed with the physical instincts of 1986."
@@ -2165,5 +2165,298 @@ body.ari-circle-page:has(#circle-notification-badge:not([hidden]))
 
   .circle-top-member:active {
     transform: scale(0.97);
+  }
+}
+
+
+/* ==========================================================================
+   NOTIFICATION CENTER / FRIEND REQUEST INBOX
+   V2.0.1
+   ========================================================================== */
+
+.circle-notifications-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -2px 0 12px;
+}
+
+.circle-notifications-toolbar .circle-section-note {
+  margin:
+    0;
+}
+
+.circle-notifications-list {
+  display: grid;
+  gap: 9px;
+  padding-bottom: 4px;
+}
+
+.circle-notification-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 11px;
+  padding: 11px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 24, 29, 0.26);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      180deg,
+      #fffef9,
+      #e9e4d8
+    );
+}
+
+.circle-notification-item[data-read="false"] {
+  border-color: rgba(31, 130, 123, 0.58);
+  box-shadow:
+    0 0 0 2px rgba(142, 244, 232, 0.12) inset;
+}
+
+.circle-notification-item[data-read="false"]::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ari-amber);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 29, 0.55);
+}
+
+.circle-notification-item__avatar {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(16, 24, 29, 0.62);
+  border-radius: 7px;
+  color: var(--ari-ink);
+  background:
+    linear-gradient(
+      135deg,
+      #c3fff7,
+      #efe9da
+    );
+  box-shadow:
+    3px 3px 0 rgba(16, 24, 29, 0.14);
+  font-family: var(--ari-tech);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+button.circle-notification-item__avatar {
+  cursor: pointer;
+}
+
+.circle-notification-item__avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.circle-notification-item__body {
+  min-width: 0;
+}
+
+.circle-notification-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 11px;
+}
+
+.circle-notification-item__type {
+  color: #46736e;
+  font-family: var(--ari-mono);
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.circle-notification-item__time {
+  color: var(--ari-ink-soft);
+  font-family: var(--ari-mono);
+  font-size: 0.57rem;
+  white-space: nowrap;
+}
+
+.circle-notification-item__title {
+  display: block;
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+  color: var(--ari-ink);
+  background: transparent;
+  font-family: var(--ari-tech);
+  font-size: 0.84rem;
+  font-weight: 900;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.circle-notification-item__text {
+  margin: 5px 0 0;
+  color: var(--ari-ink-soft);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.circle-notification-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.circle-notification-item__resolved {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(31, 130, 123, 0.34);
+  border-radius: 5px;
+  color: #386863;
+  background: rgba(142, 244, 232, 0.12);
+  font-family: var(--ari-mono);
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+
+/* ==========================================================================
+   INCOMING CIRCLE REQUEST DIALOG
+   ========================================================================== */
+
+.circle-request-person {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 6px 0 16px;
+  padding: 12px;
+  border: 1px solid rgba(16, 24, 29, 0.26);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      180deg,
+      #fffef9,
+      #eae5da
+    );
+}
+
+.circle-request-person__avatar {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(16, 24, 29, 0.66);
+  border-radius: 9px;
+  color: var(--ari-ink);
+  background:
+    linear-gradient(
+      135deg,
+      #bafff6,
+      #f0eadb 62%,
+      #ffd5ac
+    );
+  box-shadow:
+    4px 4px 0 rgba(16, 24, 29, 0.15);
+  font-family: var(--ari-tech);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.circle-request-person__avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.circle-request-person__identity {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.circle-request-person__identity strong {
+  color: var(--ari-ink);
+  font-family: var(--ari-tech);
+  font-size: 1.03rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.circle-request-person__identity span {
+  color: #47726e;
+  font-family: var(--ari-mono);
+  font-size: 0.69rem;
+  font-weight: 800;
+}
+
+.circle-request-text {
+  margin: 0;
+  padding: 13px;
+  border-left: 3px solid var(--ari-phosphor-strong);
+  color: var(--ari-ink);
+  background: rgba(142, 244, 232, 0.075);
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+
+.circle-request-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 520px) {
+  .circle-notifications-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .circle-notifications-toolbar .circle-text-button {
+    align-self: flex-start;
+  }
+
+  .circle-request-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #circle-request-view-profile {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 390px) {
+  .circle-notification-item {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 9px;
+    padding: 9px;
+  }
+
+  .circle-notification-item__avatar {
+    width: 46px;
+    height: 46px;
+  }
+
+  .circle-notification-item__actions .circle-button {
+    flex: 1 1 auto;
   }
 }
