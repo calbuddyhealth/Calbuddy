@@ -3,192 +3,1049 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0b0f" />
+  <meta name="theme-color" content="#09090d" />
+
   <title>ARI Circle</title>
+
+  <!-- Shared ARI styles -->
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/header.css?v=17" />
   <link rel="stylesheet" href="assets/css/nav-menu.css?v=16" />
+
+  <!-- ARI Circle page styles -->
   <link rel="stylesheet" href="assets/css/ari-circle.css?v=1.0.0" />
 </head>
+
 <body class="ari-circle-page">
   <div class="ari-circle-shell">
-    <header class="ari-circle-topbar">
-      <a class="ari-circle-brand" href="#" aria-label="ARI Circle home">
-        <span class="ari-circle-brand__mark">A</span>
+
+    <!-- =========================================================
+         ARI CIRCLE HEADER
+         JS owners:
+         - notifications/circle-notifications.js
+         - messaging/messages-controller.js
+    ========================================================== -->
+    <header id="circle-header" class="circle-header">
+      <a
+        class="circle-header__brand"
+        href="ari-circle.html"
+        aria-label="ARI Circle"
+      >
+        <span class="circle-header__brand-mark" aria-hidden="true">A</span>
         <span>ARI Circle</span>
       </a>
-      <div class="ari-circle-topbar__actions">
-        <button class="ari-circle-icon-button" id="ari-circle-messages-button" type="button" aria-label="Messages">💬</button>
-        <button class="ari-circle-icon-button" id="ari-circle-notifications-button" type="button" aria-label="Notifications">🔔</button>
-        <button class="ari-circle-icon-button" type="button" aria-label="More options">•••</button>
-      </div>
+
+      <nav class="circle-header__actions" aria-label="ARI Circle actions">
+        <button
+          id="circle-messages-button"
+          class="circle-icon-button"
+          type="button"
+          aria-label="Messages"
+          data-circle-action="open-messages"
+        >
+          <span aria-hidden="true">ð¬</span>
+          <span
+            id="circle-message-badge"
+            class="circle-action-badge"
+            hidden
+          ></span>
+        </button>
+
+        <button
+          id="circle-notifications-button"
+          class="circle-icon-button"
+          type="button"
+          aria-label="Notifications"
+          data-circle-action="open-notifications"
+        >
+          <span aria-hidden="true">ð</span>
+          <span
+            id="circle-notification-badge"
+            class="circle-action-badge"
+            hidden
+          ></span>
+        </button>
+
+        <button
+          id="circle-profile-menu-button"
+          class="circle-icon-button"
+          type="button"
+          aria-label="Profile options"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          data-circle-action="open-profile-menu"
+        >
+          <span aria-hidden="true">â¢â¢â¢</span>
+        </button>
+      </nav>
     </header>
 
-    <main class="ari-circle-profile" id="ari-circle-profile">
-      <section class="ari-circle-hero" aria-labelledby="ari-circle-display-name">
-        <div class="ari-circle-cover">
-          <img id="ari-circle-cover-image" class="ari-circle-cover__image" alt="" src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80" />
-          <button class="ari-circle-cover__edit" id="ari-circle-edit-cover" type="button" aria-label="Change background image">📷</button>
-          <input id="ari-circle-cover-input" type="file" accept="image/*" hidden />
+    <!-- =========================================================
+         PAGE STATUS
+         Used by index.js / circle-context.js while the page boots.
+    ========================================================== -->
+    <div
+      id="circle-page-status"
+      class="circle-page-status"
+      role="status"
+      aria-live="polite"
+    >
+      <span id="circle-page-status-text">Loading ARI Circleâ¦</span>
+    </div>
+
+    <main id="ari-circle" class="ari-circle" hidden>
+
+      <!-- =======================================================
+           PROFILE HERO
+           JS owners:
+           - profile/profile-controller.js
+           - profile/profile-renderer.js
+           - profile/profile-editor.js
+           - media/profile-media.js
+           - presence/presence-controller.js
+           - connections/connections-controller.js
+      ======================================================== -->
+      <section
+        id="circle-profile"
+        class="circle-profile"
+        aria-labelledby="circle-display-name"
+      >
+        <div id="circle-cover" class="circle-profile__cover">
+          <img
+            id="circle-cover-image"
+            class="circle-profile__cover-image"
+            src=""
+            alt=""
+            hidden
+          />
+
+          <div
+            id="circle-cover-fallback"
+            class="circle-profile__cover-fallback"
+            aria-hidden="true"
+          ></div>
+
+          <button
+            id="circle-edit-cover-button"
+            class="circle-profile__cover-edit"
+            type="button"
+            aria-label="Change background image"
+            data-circle-action="edit-cover"
+            data-owner-only
+            hidden
+          >
+            <span aria-hidden="true">ð·</span>
+          </button>
+
+          <input
+            id="circle-cover-input"
+            type="file"
+            accept="image/*"
+            data-circle-input="cover"
+            hidden
+          />
         </div>
 
-        <div class="ari-circle-hero__body">
-          <div class="ari-circle-avatar-wrap">
-            <button class="ari-circle-avatar-button" id="ari-circle-avatar-button" type="button" aria-label="Change profile photo">
-              <img id="ari-circle-avatar" class="ari-circle-avatar" alt="Profile photo" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80" />
-              <span class="ari-circle-presence-dot ari-circle-presence-dot--online" aria-hidden="true"></span>
+        <div class="circle-profile__body">
+          <div class="circle-profile__avatar-wrap">
+            <button
+              id="circle-avatar-button"
+              class="circle-profile__avatar-button"
+              type="button"
+              aria-label="Profile photo"
+              data-circle-action="avatar"
+            >
+              <img
+                id="circle-avatar-image"
+                class="circle-profile__avatar"
+                src=""
+                alt=""
+                hidden
+              />
+
+              <span
+                id="circle-avatar-fallback"
+                class="circle-profile__avatar-fallback"
+                aria-hidden="true"
+              >
+                A
+              </span>
+
+              <span
+                id="circle-avatar-presence"
+                class="circle-presence-dot"
+                aria-hidden="true"
+                hidden
+              ></span>
             </button>
-            <input id="ari-circle-avatar-input" type="file" accept="image/*" hidden />
+
+            <input
+              id="circle-avatar-input"
+              type="file"
+              accept="image/*"
+              data-circle-input="avatar"
+              hidden
+            />
           </div>
 
-          <h1 id="ari-circle-display-name" class="ari-circle-display-name">Jose Rodriguez</h1>
-          <p class="ari-circle-handle">@jose</p>
-          <p class="ari-circle-presence"><span class="ari-circle-presence__indicator"></span>Online</p>
-          <p class="ari-circle-bio">Just figuring shit out.</p>
+          <h1 id="circle-display-name" class="circle-profile__name">
+            ARI Circle
+          </h1>
 
-          <div class="ari-circle-profile-actions">
-            <button class="ari-circle-button ari-circle-button--secondary" id="ari-circle-message-profile" type="button">Message</button>
-            <button class="ari-circle-button ari-circle-button--primary" id="ari-circle-add-to-circle" type="button" data-state="none">Add to Circle</button>
+          <p id="circle-handle" class="circle-profile__handle"></p>
+
+          <p
+            id="circle-presence"
+            class="circle-profile__presence"
+            hidden
+          >
+            <span
+              id="circle-presence-indicator"
+              class="circle-presence-indicator"
+              aria-hidden="true"
+            ></span>
+            <span id="circle-presence-text"></span>
+          </p>
+
+          <p
+            id="circle-bio"
+            class="circle-profile__bio"
+            hidden
+          ></p>
+
+          <!-- Visitor controls are enabled by circle-context.js -->
+          <div
+            id="circle-visitor-actions"
+            class="circle-profile__actions"
+            data-visitor-only
+            hidden
+          >
+            <button
+              id="circle-message-action"
+              class="circle-button circle-button--secondary"
+              type="button"
+              data-circle-action="message"
+            >
+              Message
+            </button>
+
+            <button
+              id="circle-connection-action"
+              class="circle-button circle-button--primary"
+              type="button"
+              data-circle-action="connection"
+            >
+              Add to Circle
+            </button>
+          </div>
+
+          <!-- Owner controls are enabled by circle-context.js -->
+          <div
+            id="circle-owner-actions"
+            class="circle-profile__actions"
+            data-owner-only
+            hidden
+          >
+            <button
+              id="circle-edit-profile-action"
+              class="circle-button circle-button--primary"
+              type="button"
+              data-circle-action="edit-profile"
+            >
+              Edit Circle
+            </button>
           </div>
         </div>
       </section>
 
-      <section class="ari-circle-card ari-circle-card--top-circle" aria-labelledby="ari-circle-top-circle-title">
-        <div class="ari-circle-section-heading">
+      <!-- =======================================================
+           TOP CIRCLE
+           JS owners:
+           - connections/top-circle.js
+           - connections/connections-controller.js
+           - presence/presence-controller.js
+      ======================================================== -->
+      <section
+        id="circle-top"
+        class="circle-card circle-top"
+        aria-labelledby="circle-top-title"
+      >
+        <header class="circle-section-header">
           <div>
-            <p class="ari-circle-eyebrow">FEATURED CONNECTIONS</p>
-            <h2 id="ari-circle-top-circle-title">Top Circle · <span id="ari-circle-top-count">6</span></h2>
+            <p class="circle-section-eyebrow">FEATURED CONNECTIONS</p>
+            <h2 id="circle-top-title">
+              Top Circle
+              <span id="circle-top-count" aria-label="Top Circle count"></span>
+            </h2>
           </div>
-          <button class="ari-circle-text-button" id="ari-circle-edit-top" type="button">Edit</button>
+
+          <button
+            id="circle-edit-top-button"
+            class="circle-text-button"
+            type="button"
+            data-circle-action="edit-top-circle"
+            data-owner-only
+            hidden
+          >
+            Edit
+          </button>
+        </header>
+
+        <div
+          id="circle-top-orbit"
+          class="circle-top__orbit"
+          aria-live="polite"
+        >
+          <div
+            id="circle-top-center"
+            class="circle-top__center"
+          >
+            <img
+              id="circle-top-owner-avatar"
+              class="circle-top__center-avatar"
+              src=""
+              alt=""
+              hidden
+            />
+
+            <span
+              id="circle-top-owner-fallback"
+              class="circle-top__center-fallback"
+              aria-hidden="true"
+            >
+              A
+            </span>
+
+            <span
+              id="circle-top-owner-label"
+              class="circle-top__center-label"
+            ></span>
+          </div>
+
+          <div
+            id="circle-top-members"
+            class="circle-top__members"
+          ></div>
         </div>
 
-        <div id="ari-circle-top-circle" class="ari-circle-orbit ari-circle-orbit--six" aria-label="Top Circle">
-          <button class="ari-circle-orbit-person ari-circle-orbit-person--1" type="button" data-person="Emily">
-            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--online"></span></span><span class="ari-circle-orbit-name">Emily</span>
-          </button>
-          <button class="ari-circle-orbit-person ari-circle-orbit-person--2" type="button" data-person="Mike">
-            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--offline"></span></span><span class="ari-circle-orbit-name">Mike</span>
-          </button>
-          <button class="ari-circle-orbit-person ari-circle-orbit-person--3" type="button" data-person="Sarah">
-            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--online"></span></span><span class="ari-circle-orbit-name">Sarah</span>
-          </button>
-          <button class="ari-circle-orbit-person ari-circle-orbit-person--4" type="button" data-person="Alex">
-            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--offline"></span></span><span class="ari-circle-orbit-name">Alex</span>
-          </button>
-          <button class="ari-circle-orbit-person ari-circle-orbit-person--5" type="button" data-person="Maya">
-            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--online"></span></span><span class="ari-circle-orbit-name">Maya</span>
-          </button>
-          <button class="ari-circle-orbit-person ari-circle-orbit-person--6" type="button" data-person="Chris">
-            <span class="ari-circle-orbit-avatar"><img src="https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=crop&w=200&q=80" alt="" /><span class="ari-circle-presence-dot ari-circle-presence-dot--offline"></span></span><span class="ari-circle-orbit-name">Chris</span>
-          </button>
-          <div class="ari-circle-orbit-center" aria-hidden="true">
-            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80" alt="" />
-            <span>YOU</span>
-          </div>
+        <div
+          id="circle-top-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No featured Circle members yet.</p>
         </div>
 
-        <button class="ari-circle-full-width-link" type="button">View Entire Circle →</button>
+        <button
+          id="circle-view-all-button"
+          class="circle-section-link"
+          type="button"
+          data-circle-action="view-entire-circle"
+        >
+          View Entire Circle â
+        </button>
       </section>
 
-      <section class="ari-circle-card" aria-labelledby="ari-circle-love-title">
-        <div class="ari-circle-section-heading">
-          <div><p class="ari-circle-eyebrow">PROFILE COMMENTS</p><h2 id="ari-circle-love-title">Leave Some Love ❤️</h2></div>
-        </div>
-        <form class="ari-circle-love-form" id="ari-circle-love-form">
-          <label class="sr-only" for="ari-circle-love-input">Leave a public profile comment</label>
-          <textarea id="ari-circle-love-input" maxlength="280" rows="3" placeholder="Say something..."></textarea>
-          <div class="ari-circle-love-form__footer">
-            <span id="ari-circle-love-count">0 / 280</span>
-            <button class="ari-circle-button ari-circle-button--primary ari-circle-button--small" type="submit">Leave Love</button>
+      <!-- =======================================================
+           LEAVE SOME LOVE
+           This intentionally comes immediately after Top Circle.
+           JS owner:
+           - comments/leave-some-love.js
+      ======================================================== -->
+      <section
+        id="circle-love"
+        class="circle-card circle-love"
+        aria-labelledby="circle-love-title"
+      >
+        <header class="circle-section-header">
+          <div>
+            <p class="circle-section-eyebrow">PROFILE COMMENTS</p>
+            <h2 id="circle-love-title">Leave Some Love â¤ï¸</h2>
+          </div>
+        </header>
+
+        <form
+          id="circle-love-form"
+          class="circle-love__form"
+          data-visitor-only
+          hidden
+        >
+          <label class="sr-only" for="circle-love-input">
+            Leave a public message on this profile
+          </label>
+
+          <textarea
+            id="circle-love-input"
+            name="love"
+            rows="3"
+            maxlength="280"
+            placeholder="Say somethingâ¦"
+          ></textarea>
+
+          <div class="circle-love__form-footer">
+            <span id="circle-love-counter">0 / 280</span>
+
+            <button
+              id="circle-love-submit"
+              class="circle-button circle-button--primary circle-button--small"
+              type="submit"
+            >
+              Leave Love
+            </button>
           </div>
         </form>
-        <div class="ari-circle-comments" id="ari-circle-comments">
-          <article class="ari-circle-comment">
-            <img class="ari-circle-comment__avatar" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80" alt="" />
-            <div class="ari-circle-comment__body"><div class="ari-circle-comment__meta"><strong>Emily</strong><span>2h</span></div><p>Stopping by to show some love ❤️</p></div>
-            <button class="ari-circle-comment__more" type="button" aria-label="Comment options">•••</button>
-          </article>
-          <article class="ari-circle-comment">
-            <img class="ari-circle-comment__avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80" alt="" />
-            <div class="ari-circle-comment__body"><div class="ari-circle-comment__meta"><strong>Mike</strong><span>Yesterday</span></div><p>Your background is sick 😂</p></div>
-            <button class="ari-circle-comment__more" type="button" aria-label="Comment options">•••</button>
-          </article>
+
+        <p
+          id="circle-love-owner-note"
+          class="circle-section-note"
+          data-owner-only
+          hidden
+        >
+          Public messages people leave on your Circle appear here.
+        </p>
+
+        <div
+          id="circle-love-list"
+          class="circle-love__list"
+          aria-live="polite"
+        ></div>
+
+        <div
+          id="circle-love-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No love yet. Somebody has to be first.</p>
         </div>
-        <button class="ari-circle-full-width-link" type="button">View More →</button>
+
+        <button
+          id="circle-love-more-button"
+          class="circle-section-link"
+          type="button"
+          data-circle-action="view-more-love"
+          hidden
+        >
+          View More â
+        </button>
       </section>
 
-      <section class="ari-circle-card" aria-labelledby="ari-circle-about-title">
-        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">A LITTLE CONTEXT</p><h2 id="ari-circle-about-title">About Me</h2></div></div>
-        <dl class="ari-circle-facts">
-          <div class="ari-circle-fact"><dt>📍 Lives in</dt><dd>Los Angeles, California</dd></div>
-          <div class="ari-circle-fact"><dt>🎂 Birthday</dt><dd>June 12</dd></div>
-          <div class="ari-circle-fact"><dt>🎯 Goal</dt><dd>Build something people actually love using.</dd></div>
-          <div class="ari-circle-fact"><dt>🪣 Bucket List</dt><dd>Spend a spring in Japan.</dd></div>
+      <!-- =======================================================
+           ABOUT ME
+           JS owners:
+           - profile/profile-renderer.js
+           - profile/profile-editor.js
+      ======================================================== -->
+      <section
+        id="circle-about"
+        class="circle-card"
+        aria-labelledby="circle-about-title"
+      >
+        <header class="circle-section-header">
+          <div>
+            <p class="circle-section-eyebrow">A LITTLE CONTEXT</p>
+            <h2 id="circle-about-title">About Me</h2>
+          </div>
+        </header>
+
+        <dl class="circle-facts">
+          <div
+            id="circle-about-location-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ð Lives in</dt>
+            <dd id="circle-about-location"></dd>
+          </div>
+
+          <div
+            id="circle-about-birthday-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ð Birthday</dt>
+            <dd id="circle-about-birthday"></dd>
+          </div>
+
+          <div
+            id="circle-about-goal-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ð¯ Goal</dt>
+            <dd id="circle-about-goal"></dd>
+          </div>
+
+          <div
+            id="circle-about-bucket-list-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ðª£ Bucket List</dt>
+            <dd id="circle-about-bucket-list"></dd>
+          </div>
         </dl>
-      </section>
 
-      <section class="ari-circle-card" aria-labelledby="ari-circle-interests-title">
-        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">FAVORITES</p><h2 id="ari-circle-interests-title">Things I’m Into</h2></div></div>
-        <dl class="ari-circle-facts">
-          <div class="ari-circle-fact"><dt>🎵 Favorite Song</dt><dd>Not selected yet</dd></div>
-          <div class="ari-circle-fact"><dt>🍕 Favorite Food</dt><dd>Tacos</dd></div>
-          <div class="ari-circle-fact"><dt>🎬 Favorite Movie</dt><dd>Interstellar</dd></div>
-          <div class="ari-circle-fact"><dt>🎨 Favorite Hobby</dt><dd>Building weird tech projects</dd></div>
-        </dl>
-      </section>
-
-      <section class="ari-circle-card" aria-labelledby="ari-circle-ice-title">
-        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">CONVERSATION STARTERS</p><h2 id="ari-circle-ice-title">Break the Ice</h2></div></div>
-        <div class="ari-circle-prompts">
-          <article class="ari-circle-prompt"><h3>💬 Ask me about...</h3><p>Why I keep building things at 2 AM.</p></article>
-          <article class="ari-circle-prompt"><h3>🔥 Current obsession...</h3><p>Making software feel less like software.</p></article>
-          <article class="ari-circle-prompt"><h3>✈️ Dream trip...</h3><p>Japan during cherry blossom season.</p></article>
-          <article class="ari-circle-prompt"><h3>😂 Best way to make me laugh...</h3><p>Commit to the joke. Cowardice ruins comedy.</p></article>
-          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🍿 My comfort show/movie...</h3><p>Anything I can quote irresponsibly often.</p></article>
-          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🎤 Song I know every word to...</h3><p>Ask me when I’m less likely to embarrass myself.</p></article>
-          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🤔 Unpopular opinion...</h3><p>Breakfast food is better after dark.</p></article>
-          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🎯 Something I want to learn...</h3><p>Another language without abandoning it after three weeks.</p></article>
-          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>👀 Weirdly good at...</h3><p>Finding the one setting that broke everything.</p></article>
-          <article class="ari-circle-prompt ari-circle-prompt--extra" hidden><h3>🌙 Perfect night looks like...</h3><p>Good food, no alarm tomorrow, phone on silent.</p></article>
+        <div
+          id="circle-about-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No About Me details yet.</p>
         </div>
-        <button class="ari-circle-full-width-link" id="ari-circle-toggle-prompts" type="button" aria-expanded="false">Show All ↓</button>
       </section>
 
-      <section class="ari-circle-card ari-circle-card--details" aria-labelledby="ari-circle-details-title">
-        <div class="ari-circle-section-heading"><div><p class="ari-circle-eyebrow">PROFILE</p><h2 id="ari-circle-details-title">Circle Details</h2></div></div>
-        <div class="ari-circle-stats">
-          <div><strong>38</strong><span>In Circle</span></div>
-          <div><strong>6</strong><span>Mutual</span></div>
-          <div><strong>May ’26</strong><span>Joined</span></div>
+      <!-- =======================================================
+           THINGS I'M INTO
+           JS owners:
+           - profile/profile-renderer.js
+           - profile/profile-editor.js
+      ======================================================== -->
+      <section
+        id="circle-interests"
+        class="circle-card"
+        aria-labelledby="circle-interests-title"
+      >
+        <header class="circle-section-header">
+          <div>
+            <p class="circle-section-eyebrow">FAVORITES</p>
+            <h2 id="circle-interests-title">Things Iâm Into</h2>
+          </div>
+        </header>
+
+        <dl class="circle-facts">
+          <div
+            id="circle-interest-song-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ðµ Favorite Song</dt>
+            <dd id="circle-interest-song"></dd>
+          </div>
+
+          <div
+            id="circle-interest-food-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ð Favorite Food</dt>
+            <dd id="circle-interest-food"></dd>
+          </div>
+
+          <div
+            id="circle-interest-movie-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ð¬ Favorite Movie</dt>
+            <dd id="circle-interest-movie"></dd>
+          </div>
+
+          <div
+            id="circle-interest-hobby-row"
+            class="circle-fact"
+            hidden
+          >
+            <dt>ð¨ Favorite Hobby</dt>
+            <dd id="circle-interest-hobby"></dd>
+          </div>
+        </dl>
+
+        <div
+          id="circle-interests-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No favorites shared yet.</p>
+        </div>
+      </section>
+
+      <!-- =======================================================
+           BREAK THE ICE
+           JS owners:
+           - profile/profile-renderer.js
+           - profile/profile-editor.js
+      ======================================================== -->
+      <section
+        id="circle-icebreakers"
+        class="circle-card"
+        aria-labelledby="circle-icebreakers-title"
+      >
+        <header class="circle-section-header">
+          <div>
+            <p class="circle-section-eyebrow">CONVERSATION STARTERS</p>
+            <h2 id="circle-icebreakers-title">Break the Ice</h2>
+          </div>
+        </header>
+
+        <div
+          id="circle-icebreaker-list"
+          class="circle-icebreakers"
+        ></div>
+
+        <div
+          id="circle-icebreakers-empty"
+          class="circle-empty-state"
+          hidden
+        >
+          <p>No icebreakers selected yet.</p>
+        </div>
+
+        <button
+          id="circle-icebreakers-toggle"
+          class="circle-section-link"
+          type="button"
+          aria-expanded="false"
+          data-circle-action="toggle-icebreakers"
+          hidden
+        >
+          Show All â
+        </button>
+      </section>
+
+      <!-- =======================================================
+           CIRCLE DETAILS
+           JS owners:
+           - profile/profile-renderer.js
+           - connections/connections-controller.js
+      ======================================================== -->
+      <section
+        id="circle-details"
+        class="circle-card circle-details"
+        aria-labelledby="circle-details-title"
+      >
+        <header class="circle-section-header">
+          <div>
+            <p class="circle-section-eyebrow">PROFILE</p>
+            <h2 id="circle-details-title">Circle Details</h2>
+          </div>
+        </header>
+
+        <div class="circle-details__stats">
+          <div class="circle-stat">
+            <strong id="circle-detail-count">0</strong>
+            <span>In Circle</span>
+          </div>
+
+          <div class="circle-stat">
+            <strong id="circle-detail-mutual">0</strong>
+            <span>Mutual</span>
+          </div>
+
+          <div class="circle-stat">
+            <strong id="circle-detail-joined">â</strong>
+            <span>Joined</span>
+          </div>
         </div>
       </section>
     </main>
 
-    <dialog class="ari-circle-dialog" id="ari-circle-top-dialog">
-      <form method="dialog" class="ari-circle-dialog__panel">
-        <div class="ari-circle-dialog__header"><div><p class="ari-circle-eyebrow">FEATURED CONNECTIONS</p><h2>Edit Top Circle</h2></div><button class="ari-circle-icon-button" value="cancel" aria-label="Close">✕</button></div>
-        <fieldset class="ari-circle-choice">
-          <legend>How many people?</legend>
-          <label><input type="radio" name="topCircleCount" value="4" /><span>Top 4</span></label>
-          <label><input type="radio" name="topCircleCount" value="6" checked /><span>Top 6</span></label>
+    <!-- =========================================================
+         PROFILE MENU
+         JS owner:
+         - profile/profile-controller.js
+    ========================================================== -->
+    <div
+      id="circle-profile-menu"
+      class="circle-menu"
+      role="menu"
+      hidden
+    >
+      <button
+        id="circle-share-profile-button"
+        type="button"
+        role="menuitem"
+        data-circle-action="share-profile"
+      >
+        Share Circle
+      </button>
+
+      <button
+        id="circle-remove-connection-button"
+        type="button"
+        role="menuitem"
+        data-circle-action="remove-connection"
+        data-connected-only
+        hidden
+      >
+        Remove from Circle
+      </button>
+
+      <button
+        id="circle-block-user-button"
+        type="button"
+        role="menuitem"
+        data-circle-action="block-user"
+        data-visitor-only
+        hidden
+      >
+        Block
+      </button>
+
+      <button
+        id="circle-report-user-button"
+        type="button"
+        role="menuitem"
+        data-circle-action="report-user"
+        data-visitor-only
+        hidden
+      >
+        Report
+      </button>
+    </div>
+
+    <!-- =========================================================
+         DIALOG: EDIT TOP CIRCLE
+         JS owner:
+         - connections/top-circle.js
+    ========================================================== -->
+    <dialog
+      id="circle-top-editor"
+      class="circle-dialog"
+    >
+      <div class="circle-dialog__panel">
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">FEATURED CONNECTIONS</p>
+            <h2>Edit Top Circle</h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close"
+            data-circle-action="close-top-editor"
+          >
+            â
+          </button>
+        </header>
+
+        <fieldset class="circle-choice-group">
+          <legend>Show</legend>
+
+          <label>
+            <input
+              type="radio"
+              name="circleTopCount"
+              value="4"
+            />
+            <span>Top 4</span>
+          </label>
+
+          <label>
+            <input
+              type="radio"
+              name="circleTopCount"
+              value="6"
+            />
+            <span>Top 6</span>
+          </label>
         </fieldset>
-        <p class="ari-circle-dialog__hint">Connection selection and drag-to-reorder will be wired to Supabase later.</p>
-        <button class="ari-circle-button ari-circle-button--primary ari-circle-button--full" id="ari-circle-save-top" value="default">Save Top Circle</button>
+
+        <div
+          id="circle-top-editor-list"
+          class="circle-top-editor__list"
+        ></div>
+
+        <button
+          id="circle-top-save-button"
+          class="circle-button circle-button--primary circle-button--full"
+          type="button"
+          data-circle-action="save-top-circle"
+        >
+          Save Top Circle
+        </button>
+      </div>
+    </dialog>
+
+    <!-- =========================================================
+         DIALOG: PROFILE EDITOR
+         JS owner:
+         - profile/profile-editor.js
+    ========================================================== -->
+    <dialog
+      id="circle-profile-editor"
+      class="circle-dialog"
+    >
+      <form
+        id="circle-profile-editor-form"
+        class="circle-dialog__panel"
+      >
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">YOUR PROFILE</p>
+            <h2>Edit Circle</h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close"
+            data-circle-action="close-profile-editor"
+          >
+            â
+          </button>
+        </header>
+
+        <div
+          id="circle-profile-editor-fields"
+          class="circle-editor-fields"
+        ></div>
+
+        <button
+          id="circle-profile-save-button"
+          class="circle-button circle-button--primary circle-button--full"
+          type="submit"
+        >
+          Save Changes
+        </button>
       </form>
     </dialog>
 
-    <dialog class="ari-circle-dialog" id="ari-circle-message-dialog">
-      <form method="dialog" class="ari-circle-dialog__panel">
-        <div class="ari-circle-dialog__header"><div><p class="ari-circle-eyebrow">PRIVATE MESSAGE</p><h2>Message Jose</h2></div><button class="ari-circle-icon-button" value="cancel" aria-label="Close">✕</button></div>
-        <textarea id="ari-circle-message-input" rows="5" maxlength="1000" placeholder="Write a private message..."></textarea>
-        <button class="ari-circle-button ari-circle-button--primary ari-circle-button--full" id="ari-circle-send-message" value="default">Send Message</button>
-        <p class="ari-circle-dialog__hint">Prototype only — this does not send to Supabase yet.</p>
-      </form>
+    <!-- =========================================================
+         DIALOG: CONNECTION REQUEST
+         JS owners:
+         - connections/connections-controller.js
+         - connections/connection-requests.js
+    ========================================================== -->
+    <dialog
+      id="circle-connection-dialog"
+      class="circle-dialog"
+    >
+      <div class="circle-dialog__panel">
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">ARI CIRCLE</p>
+            <h2 id="circle-connection-dialog-title">Circle Request</h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close"
+            data-circle-action="close-connection-dialog"
+          >
+            â
+          </button>
+        </header>
+
+        <p id="circle-connection-dialog-text"></p>
+
+        <div class="circle-dialog__actions">
+          <button
+            id="circle-connection-dialog-secondary"
+            class="circle-button circle-button--secondary"
+            type="button"
+          ></button>
+
+          <button
+            id="circle-connection-dialog-primary"
+            class="circle-button circle-button--primary"
+            type="button"
+          ></button>
+        </div>
+      </div>
     </dialog>
 
-    <div class="ari-circle-toast" id="ari-circle-toast" role="status" aria-live="polite" hidden></div>
+    <!-- =========================================================
+         DIALOG: REPORT / BLOCK
+         JS owner:
+         - connections/connections-controller.js
+    ========================================================== -->
+    <dialog
+      id="circle-safety-dialog"
+      class="circle-dialog"
+    >
+      <div class="circle-dialog__panel">
+        <header class="circle-dialog__header">
+          <div>
+            <p class="circle-section-eyebrow">PROFILE OPTIONS</p>
+            <h2 id="circle-safety-dialog-title"></h2>
+          </div>
+
+          <button
+            class="circle-icon-button"
+            type="button"
+            aria-label="Close"
+            data-circle-action="close-safety-dialog"
+          >
+            â
+          </button>
+        </header>
+
+        <p id="circle-safety-dialog-text"></p>
+
+        <div class="circle-dialog__actions">
+          <button
+            id="circle-safety-cancel"
+            class="circle-button circle-button--secondary"
+            type="button"
+          >
+            Cancel
+          </button>
+
+          <button
+            id="circle-safety-confirm"
+            class="circle-button circle-button--primary"
+            type="button"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- =========================================================
+         TOAST / NON-BLOCKING FEEDBACK
+         JS owner:
+         - core/circle-events.js
+    ========================================================== -->
+    <div
+      id="circle-toast"
+      class="circle-toast"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+
+    <!-- =========================================================
+         RENDER TEMPLATES
+         Controllers/renderers clone these instead of building
+         giant HTML strings in JavaScript.
+    ========================================================== -->
+
+    <template id="circle-top-member-template">
+      <button
+        class="circle-top-member"
+        type="button"
+        data-circle-action="open-profile"
+      >
+        <span class="circle-top-member__avatar-wrap">
+          <img
+            class="circle-top-member__avatar"
+            src=""
+            alt=""
+          />
+
+          <span
+            class="circle-top-member__presence circle-presence-dot"
+            aria-hidden="true"
+            hidden
+          ></span>
+        </span>
+
+        <span class="circle-top-member__name"></span>
+      </button>
+    </template>
+
+    <template id="circle-love-item-template">
+      <article class="circle-love-item">
+        <button
+          class="circle-love-item__profile"
+          type="button"
+          data-circle-action="open-profile"
+        >
+          <img
+            class="circle-love-item__avatar"
+            src=""
+            alt=""
+          />
+        </button>
+
+        <div class="circle-love-item__body">
+          <div class="circle-love-item__meta">
+            <button
+              class="circle-love-item__name"
+              type="button"
+              data-circle-action="open-profile"
+            ></button>
+
+            <time class="circle-love-item__time"></time>
+          </div>
+
+          <p class="circle-love-item__text"></p>
+        </div>
+
+        <button
+          class="circle-love-item__more"
+          type="button"
+          aria-label="Comment options"
+          data-circle-action="love-options"
+        >
+          â¢â¢â¢
+        </button>
+      </article>
+    </template>
+
+    <template id="circle-icebreaker-template">
+      <article class="circle-icebreaker">
+        <h3 class="circle-icebreaker__prompt"></h3>
+        <p class="circle-icebreaker__answer"></p>
+      </article>
+    </template>
+
+    <template id="circle-editor-field-template">
+      <label class="circle-editor-field">
+        <span class="circle-editor-field__label"></span>
+        <input class="circle-editor-field__input" type="text" />
+      </label>
+    </template>
   </div>
 
-  <script src="js/ari-circle.js?v=1.0.0"></script>
+  <!-- ===========================================================
+       ARI CIRCLE JAVASCRIPT ARCHITECTURE
+
+       The HTML loads ONE module entry point:
+         js/ari-circle/index.js
+
+       index.js will import the domain modules below:
+
+       js/ari-circle/
+       |-- index.js
+       |
+       |-- core/
+       |   |-- circle-context.js
+       |   |-- circle-store.js
+       |   `-- circle-events.js
+       |
+       |-- profile/
+       |   |-- profile-controller.js
+       |   |-- profile-renderer.js
+       |   `-- profile-editor.js
+       |
+       |-- connections/
+       |   |-- connections-controller.js
+       |   |-- connection-requests.js
+       |   `-- top-circle.js
+       |
+       |-- comments/
+       |   `-- leave-some-love.js
+       |
+       |-- messaging/
+       |   |-- messages-controller.js
+       |   |-- conversations.js
+       |   `-- message-requests.js
+       |
+       |-- presence/
+       |   `-- presence-controller.js
+       |
+       |-- media/
+       |   `-- profile-media.js
+       |
+       |-- notifications/
+       |   `-- circle-notifications.js
+       |
+       `-- data/
+           |-- circle-api.js
+           `-- circle-realtime.js
+
+       We deliberately do NOT add a separate <script> tag for every
+       module. index.js is the authority and imports only what the
+       page needs, preventing duplicate initialization and keeping
+       the dependency pathway explicit.
+  ============================================================ -->
+  <script
+    type="module"
+    src="js/ari-circle/index.js?v=1.0.0"
+  ></script>
 </body>
 </html>
