@@ -1,10 +1,17 @@
 <!-- =====================================================
 ARI REBIRTH
 File: signin.html
-Version: 1.1.2 
+Version: 1.1.3
 
 Purpose:
-  Sign-in, account creation, verification, and boot flow.
+  Sign-in, account creation, email verification instructions,
+  and normal ARI boot flow.
+
+Email confirmation behavior:
+  - Signup sends a confirmation email.
+  - Confirmation redirects to /email-confirmed.html.
+  - Confirmation does NOT auto-login the user.
+  - User returns to /signin.html and signs in manually.
 
 Dependencies:
   - /assets/css/animations.css
@@ -29,6 +36,19 @@ Dependencies:
   <style>
     .ari-auth-body .hidden {
       display: none !important;
+    }
+
+    /*
+      Makes the verification return link behave like the existing
+      primary auth button even if auth.css was originally written
+      with <button> elements in mind.
+    */
+    .ari-auth-return-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      text-decoration: none;
     }
   </style>
 
@@ -234,6 +254,10 @@ Dependencies:
 
     <!-- =================================================
          EMAIL VERIFICATION
+
+         This is now informational only.
+         signin.js should NOT poll for a new session or automatically
+         initialize ARI after email confirmation.
     ================================================== -->
 
     <section
@@ -252,11 +276,11 @@ Dependencies:
         </h1>
 
         <p class="ari-auth-subtitle">
-          Waiting for verification
+          Confirmation required
           <span
             class="ari-terminal-cursor"
             aria-hidden="true"
-          >█</span>
+          >â</span>
         </p>
       </div>
 
@@ -265,12 +289,23 @@ Dependencies:
         class="ari-auth-message"
         role="status"
       >
-        We sent a verification link. Once verified, Ari will initialize automatically.
+        We sent you a verification link. Open it to confirm your email.
+        After confirmation, return to ARI and sign in with your email and password.
       </p>
+
+      <a
+        class="ari-auth-main-btn ari-auth-return-link"
+        href="/signin.html"
+      >
+        RETURN TO SIGN IN
+      </a>
     </section>
 
     <!-- =================================================
          INITIALIZATION TERMINAL
+
+         This remains for the normal signed-in ARI boot flow.
+         It should run only after a successful manual sign-in.
     ================================================== -->
 
     <section
@@ -319,8 +354,15 @@ Dependencies:
     defer
   ></script>
 
-<script src="/js/auth.js?v=12" defer></script>
-<script src="/js/signin.js?v=12" defer></script>
+  <script
+    src="/js/auth.js?v=13"
+    defer
+  ></script>
+
+  <script
+    src="/js/signin.js?v=12"
+    defer
+  ></script>
 
 </body>
 </html>
