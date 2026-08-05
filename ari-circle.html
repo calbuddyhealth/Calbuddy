@@ -36,12 +36,28 @@
     <header id="circle-header" class="circle-header">
       <div class="circle-header__left">
         <a
-          class="circle-back-button"
-          href="home.html"
-          aria-label="Back to Home"
-        >
-          <span aria-hidden="true">&larr;</span>
-        </a>
+  class="circle-back-button"
+  href="home.html"
+  aria-label="Go back"
+  onclick="
+    event.preventDefault();
+
+    try {
+      if (
+        document.referrer &&
+        new URL(document.referrer).origin === window.location.origin
+      ) {
+        window.history.back();
+      } else {
+        window.location.href = 'home.html';
+      }
+    } catch {
+      window.location.href = 'home.html';
+    }
+  "
+>
+  <span aria-hidden="true">&larr;</span>
+</a>
 
         <a
           class="circle-header__brand"
