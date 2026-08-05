@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.2.0
+// V1.3.0
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -49,7 +49,7 @@ import ProfileRenderer from "./profile/profile-renderer.js";
 import ProfileEditor from "./profile/profile-editor.js";
 
 import ConnectionsController from "./connections/connections-controller.js";
-import ConnectionRequests from "./connections/connection-requests.js";
+import ConnectionRequests from "./connections/connection-requests.js?v=1.1.0";
 import TopCircle from "./connections/top-circle.js";
 import PeopleDiscovery from "./connections/people-discovery.js";
 
@@ -61,14 +61,14 @@ import MessageRequests from "./messaging/message-requests.js";
 
 import PresenceController from "./presence/presence-controller.js";
 import ProfileMedia from "./media/profile-media.js";
-import CircleNotifications from "./notifications/circle-notifications.js";
+import CircleNotifications from "./notifications/circle-notifications.js?v=1.1.0";
 
-import CircleApi from "./data/circle-api.js";
+import CircleApi from "./data/circle-api.js?v=1.3.0";
 import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -337,6 +337,7 @@ const AriCircleApp = {
     ConnectionsController,
     ConnectionRequests,
     TopCircle,
+    PeopleDiscovery,
 
     LeaveSomeLove,
 
@@ -970,7 +971,8 @@ const AriCircleApp = {
 
     const [
       conversationsResult,
-      notificationsResult
+      notificationsResult,
+      connectionRequestsResult
     ] =
       await Promise.allSettled([
         CircleApi.getConversations(
@@ -983,13 +985,20 @@ const AriCircleApp = {
 
           limit:
             50
-        })
+        }),
+
+        CircleApi.getPendingConnectionRequests(
+          id
+        )
       ]);
 
     let conversations =
       [];
 
     let notifications =
+      [];
+
+    let connectionRequests =
       [];
 
     if (
@@ -1029,9 +1038,52 @@ const AriCircleApp = {
       );
     }
 
+    if (
+      connectionRequestsResult.status ===
+      "fulfilled"
+    ) {
+      connectionRequests =
+        connectionRequestsResult.value ||
+        [];
+
+      const incoming =
+        connectionRequests.filter(
+          request =>
+            normalizeId(
+              request.addressee_user_id ||
+              request.receiver_user_id
+            ) === id
+        );
+
+      const outgoing =
+        connectionRequests.filter(
+          request =>
+            normalizeId(
+              request.requester_user_id ||
+              request.sender_user_id
+            ) === id
+        );
+
+      ConnectionRequests
+        .setIncomingRequests(
+          incoming
+        );
+
+      ConnectionRequests
+        .setOutgoingRequests(
+          outgoing
+        );
+    } else {
+      console.warn(
+        "ARI Circle requests did not load.",
+        connectionRequestsResult.reason
+      );
+    }
+
     return {
       conversations,
-      notifications
+      notifications,
+      connectionRequests
     };
   },
 
@@ -1233,10 +1285,7 @@ const AriCircleApp = {
         context?.profileUserId
       );
 
-    if (
-      !viewerUserId ||
-      !profileUserId
-    ) {
+    if (!viewerUserId) {
       return;
     }
 
@@ -1249,6 +1298,56 @@ const AriCircleApp = {
       normalizeId(
         row.addressee_user_id
       );
+
+    const requestId =
+      normalizeId(
+        row.id
+      );
+
+    /*
+     * Keep the viewer's request inbox live no matter which profile
+     * is currently open.
+     */
+    if (requestId) {
+      if (
+        detail.eventType ===
+          "DELETE" ||
+        normalizeString(
+          row.status
+        ) !==
+          "pending"
+      ) {
+        ConnectionRequests
+          .removeIncomingRequest(
+            requestId
+          );
+
+        ConnectionRequests
+          .removeOutgoingRequest(
+            requestId
+          );
+      } else if (
+        addresseeUserId ===
+          viewerUserId
+      ) {
+        ConnectionRequests
+          .addIncomingRequest(
+            row
+          );
+      } else if (
+        requesterUserId ===
+          viewerUserId
+      ) {
+        ConnectionRequests
+          .addOutgoingRequest(
+            row
+          );
+      }
+    }
+
+    if (!profileUserId) {
+      return;
+    }
 
     const belongsToCurrentPair =
       (
