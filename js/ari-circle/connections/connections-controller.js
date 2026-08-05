@@ -1,6 +1,6 @@
 // js/ari-circle/connections/connections-controller.js
 // ARI Circle
-// V1.0.0
+// V1.0.1
 //
 // Purpose:
 // - Own the connection relationship UI for the profile being viewed.
@@ -9,6 +9,11 @@
 // - Remove an existing Circle connection.
 // - Coordinate block/report confirmation dialogs.
 // - Emit connection events for the future data layer.
+//
+// V1.0.1:
+// - Fixes corrupted UTF-8 checkmark text in connection buttons.
+// - "Requested â" is now "Requested ✓".
+// - "In Your Circle â" is now "In Your Circle ✓".
 //
 // This module does NOT:
 // - Query or write to Supabase.
@@ -34,7 +39,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "ari-circle/connections/connections-controller";
 
 const CONNECTION_STATES = Object.freeze({
@@ -434,7 +439,7 @@ const ConnectionsController = {
     switch (status) {
       case CONNECTION_STATES.OUTGOING_PENDING:
         button.textContent =
-          "Requested â";
+          "Requested ✓";
         break;
 
       case CONNECTION_STATES.INCOMING_PENDING:
@@ -444,7 +449,7 @@ const ConnectionsController = {
 
       case CONNECTION_STATES.CONNECTED:
         button.textContent =
-          "In Your Circle â";
+          "In Your Circle ✓";
         break;
 
       case CONNECTION_STATES.BLOCKED:
