@@ -811,7 +811,7 @@
         <header class="circle-dialog__header">
           <div>
             <p class="circle-section-eyebrow">YOUR PROFILE</p>
-            <h2>Edit Circle</h2>
+            <h2>Edit Profile</h2>
           </div>
 
           <button
@@ -1064,9 +1064,151 @@
   <script src="supabase-config.js"></script>
   <script src="js/auth.js"></script>
 
+  <!-- ===========================================================
+       ARI CIRCLE BOOT DIAGNOSTIC
+       Temporary but safe to leave in place.
+
+       If index.js or one of its imported modules fails before
+       AriCircleApp.boot() can update the page, this changes the
+       loading message instead of leaving "Loading ARI Circle..."
+       on screen forever.
+  ============================================================ -->
+  <script>
+    (() => {
+      const STATUS_ID = "circle-page-status";
+      const STATUS_TEXT_ID = "circle-page-status-text";
+      const MAIN_ID = "ari-circle";
+
+      function showBootError(message) {
+        const status = document.getElementById(STATUS_ID);
+        const statusText = document.getElementById(STATUS_TEXT_ID);
+
+        if (status) {
+          status.hidden = false;
+          status.dataset.state = "error";
+        }
+
+        if (statusText) {
+          statusText.textContent =
+            message ||
+            "ARI Circle JavaScript failed before the app could start.";
+        }
+
+        console.error(
+          "ARI Circle boot diagnostic:",
+          message
+        );
+      }
+
+      window.__ariCircleShowBootError = showBootError;
+
+      window.addEventListener(
+        "error",
+        event => {
+          const target = event.target;
+
+          if (
+            target &&
+            target.tagName === "SCRIPT"
+          ) {
+            const src =
+              target.getAttribute("src") ||
+              "unknown script";
+
+            showBootError(
+              "ARI Circle script failed to load: " + src
+            );
+
+            return;
+          }
+
+          if (
+            event.error ||
+            event.message
+          ) {
+            const message =
+              event.error?.message ||
+              event.message ||
+              "Unknown JavaScript error";
+
+            showBootError(
+              "ARI Circle JavaScript error: " + message
+            );
+          }
+        },
+        true
+      );
+
+      window.addEventListener(
+        "unhandledrejection",
+        event => {
+          const reason =
+            event.reason;
+
+          const message =
+            reason?.message ||
+            String(
+              reason ||
+              "Unknown promise rejection"
+            );
+
+          showBootError(
+            "ARI Circle startup error: " + message
+          );
+        }
+      );
+
+      /*
+       * If nothing reports ready and the main page is still hidden
+       * after 10 seconds, surface that explicitly.
+       */
+      const watchdog =
+        window.setTimeout(
+          () => {
+            const main =
+              document.getElementById(
+                MAIN_ID
+              );
+
+            const statusText =
+              document.getElementById(
+                STATUS_TEXT_ID
+              );
+
+            if (
+              main?.hidden &&
+              statusText?.textContent
+                ?.includes(
+                  "Loading ARI Circle"
+                )
+            ) {
+              showBootError(
+                "ARI Circle startup timed out before the app became ready."
+              );
+            }
+          },
+          10000
+        );
+
+      document.addEventListener(
+        "circle:app-ready",
+        () => {
+          window.clearTimeout(
+            watchdog
+          );
+        },
+        {
+          once: true
+        }
+      );
+    })();
+  </script>
+
   <script
+    id="ari-circle-module-entry"
     type="module"
     src="js/ari-circle/index.js?v=1.2.0"
+    onerror="window.__ariCircleShowBootError && window.__ariCircleShowBootError('ARI Circle module graph failed to load. Check index.js and its imports.')"
   ></script>
 </body>
 </html>
