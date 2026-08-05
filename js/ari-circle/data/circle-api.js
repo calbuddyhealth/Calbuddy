@@ -1,6 +1,6 @@
 // js/ari-circle/data/circle-api.js
 // ARI Circle
-// V1.3.0
+// V1.3.1
 //
 // Backend contract:
 //   ARI Circle Supabase Schema V1.0.1
@@ -12,6 +12,7 @@
 // - Load and persist profiles, connections, Top Circle, comments,
 //   conversations, messages, message requests, notifications,
 //   and profile media.
+// - Load the signed-in user's full accepted Circle with resolved profiles.
 // - Use the protected direct-conversation RPC from schema V1.0.1.
 // - Automatically create the authenticated user's starter Circle profile
 //   on first visit when their own Circle does not exist yet.
@@ -28,13 +29,13 @@
 // Data flow:
 //
 //   UI / feature modules
-//          ↓
+//          â
 //      CircleStore
-//          ↓
+//          â
 //      CircleEvents
-//          ↓
+//          â
 //      circle-api.js
-//          ↓
+//          â
 //        Supabase
 
 import CircleStore from "../core/circle-store.js";
@@ -42,7 +43,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 const SOURCE = "ari-circle/data/circle-api";
 
 const DEFAULT_TABLES = Object.freeze({
@@ -1388,6 +1389,140 @@ const CircleApi = {
           null
       })
     );
+  },
+
+  /*
+   * V1.3.1
+   * Load every accepted relationship that belongs to one user and resolve
+   * the OTHER person's ARI Circle profile.
+   *
+   * A user can be either requester_user_id or addressee_user_id in an
+   * accepted relationship, so both sides must be queried.
+   */
+  async getAcceptedConnections(
+    userId
+  ) {
+    const id =
+      normalizeId(
+        userId
+      );
+
+    if (!id) {
+      return [];
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      data: rows,
+      error
+    } =
+      await client
+        .from(
+          this.table(
+            "connections"
+          )
+        )
+        .select("*")
+        .eq(
+          "status",
+          "accepted"
+        )
+        .or(
+          `requester_user_id.eq.${id},addressee_user_id.eq.${id}`
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              false
+          }
+        );
+
+    throwIfError(
+      error,
+      "Could not load your Circle."
+    );
+
+    const connections =
+      asArray(
+        rows
+      );
+
+    if (!connections.length) {
+      return [];
+    }
+
+    const otherUserIds =
+      uniqueIds(
+        connections.map(
+          row => {
+            const requesterId =
+              normalizeId(
+                row.requester_user_id
+              );
+
+            const addresseeId =
+              normalizeId(
+                row.addressee_user_id
+              );
+
+            return requesterId === id
+              ? addresseeId
+              : requesterId;
+          }
+        )
+      );
+
+    const profiles =
+      await this.getProfilesByIds(
+        otherUserIds
+      );
+
+    const profileMap =
+      mapProfileById(
+        profiles
+      );
+
+    return connections
+      .map(
+        row => {
+          const requesterId =
+            normalizeId(
+              row.requester_user_id
+            );
+
+          const addresseeId =
+            normalizeId(
+              row.addressee_user_id
+            );
+
+          const friendUserId =
+            requesterId === id
+              ? addresseeId
+              : requesterId;
+
+          return {
+            ...row,
+
+            friend_user_id:
+              friendUserId,
+
+            friendProfile:
+              profileMap.get(
+                friendUserId
+              ) ||
+              null
+          };
+        }
+      )
+      .filter(
+        row =>
+          Boolean(
+            row.friend_user_id
+          )
+      );
   },
 
   async createConnectionRequest({
@@ -5058,6 +5193,9 @@ const CircleApi = {
         "ARI Circle Supabase V1.0.1 + Block Patch V1.0.2",
 
       firstRunProfileCreation:
+        true,
+
+      acceptedConnectionsLoader:
         true,
 
       clientConfigured:
