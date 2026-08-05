@@ -1,23 +1,26 @@
 // js/ari-circle/data/circle-api.js
 // ARI Circle
-// V1.0.0
+// V1.1.0
+//
+// Backend contract:
+//   ARI Circle Supabase Schema V1.0.1
 //
 // Purpose:
 // - Be the single Supabase/data boundary for ARI Circle.
 // - Keep Supabase table/storage calls out of UI and feature modules.
-// - Load Circle profile data.
-// - Persist profile edits, connections, Top Circle, comments,
+// - Load and persist profiles, connections, Top Circle, comments,
 //   conversations, messages, message requests, notifications,
 //   and profile media.
-// - Listen for persistence events emitted by feature modules.
+// - Use the protected direct-conversation RPC from schema V1.0.1.
+// - Listen for persistence events emitted by ARI Circle feature modules.
 //
-// This module intentionally does NOT import a specific Supabase bootstrap
-// file. The existing Ari Supabase client should be injected:
+// This module intentionally does NOT create a Supabase client.
 //
-//   import CircleApi from "./data/circle-api.js";
-//   CircleApi.configure({ client: supabase });
+// Configure it with Ari's existing client:
 //
-// That keeps ARI Circle portable and avoids duplicate Supabase clients.
+//   CircleApi.configure({
+//     client: supabase
+//   });
 //
 // Data flow:
 //
@@ -30,16 +33,13 @@
 //      circle-api.js
 //          ↓
 //        Supabase
-//
-// Table names are centralized below so schema names can change without
-// touching the rest of the ARI Circle frontend.
 
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const SOURCE = "ari-circle/data/circle-api";
 
 const DEFAULT_TABLES = Object.freeze({
@@ -76,6 +76,30 @@ const DEFAULT_BUCKETS = Object.freeze({
     "ari-circle-media"
 });
 
+const DEFAULT_RPCS = Object.freeze({
+  createDirectConversation:
+    "ari_circle_create_direct_conversation",
+
+  findDirectConversation:
+    "ari_circle_find_direct_conversation"
+});
+
+const CONNECTION_BACKEND_STATES =
+  new Set([
+    "pending",
+    "accepted",
+    "declined",
+    "blocked"
+  ]);
+
+const MESSAGE_REQUEST_STATES =
+  new Set([
+    "pending",
+    "accepted",
+    "declined",
+    "canceled"
+  ]);
+
 function normalizeString(value) {
   if (typeof value !== "string") {
     return null;
@@ -104,9 +128,57 @@ function normalizeHandle(value) {
 }
 
 function normalizeId(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
   return normalizeString(
-    String(value ?? "")
+    String(value)
   );
+}
+
+function normalizeInteger(
+  value,
+  fallback = 0
+) {
+  const parsed =
+    Number.parseInt(
+      value,
+      10
+    );
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : fallback;
+}
+
+function normalizeTopCircleLimit(value) {
+  return Number(value) === 4
+    ? 4
+    : 6;
+}
+
+function getEventDetail(payload) {
+  if (
+    payload?.detail &&
+    typeof payload.detail ===
+      "object"
+  ) {
+    return payload.detail;
+  }
+
+  if (
+    payload &&
+    typeof payload ===
+      "object"
+  ) {
+    return payload;
+  }
+
+  return {};
 }
 
 function assertClient(client) {
@@ -117,7 +189,10 @@ function assertClient(client) {
   }
 }
 
-function throwIfError(error, fallbackMessage) {
+function throwIfError(
+  error,
+  fallbackMessage
+) {
   if (!error) {
     return;
   }
@@ -137,6 +212,14 @@ function throwIfError(error, fallbackMessage) {
 
   wrapped.code =
     error.code ||
+    null;
+
+  wrapped.details =
+    error.details ||
+    null;
+
+  wrapped.hint =
+    error.hint ||
     null;
 
   throw wrapped;
@@ -170,7 +253,20 @@ function asArray(value) {
     : [];
 }
 
-function toProfileRow(profile, ownerUserId) {
+function uniqueIds(values) {
+  return [
+    ...new Set(
+      asArray(values)
+        .map(normalizeId)
+        .filter(Boolean)
+    )
+  ];
+}
+
+function toProfileRow(
+  profile,
+  ownerUserId
+) {
   const userId =
     normalizeId(
       ownerUserId ||
@@ -255,7 +351,10 @@ function toProfileRow(profile, ownerUserId) {
     icebreakers:
       profile?.icebreakers &&
       typeof profile.icebreakers ===
-        "object"
+        "object" &&
+      !Array.isArray(
+        profile.icebreakers
+      )
         ? profile.icebreakers
         : {},
 
@@ -271,13 +370,98 @@ function toProfileRow(profile, ownerUserId) {
         profile?.coverUrl
       ),
 
+    top_circle_limit:
+      normalizeTopCircleLimit(
+        profile?.top_circle_limit ||
+        profile?.topCircleLimit
+      ),
+
     messaging_visibility:
       normalizeString(
         profile?.messaging_visibility ||
         profile?.messagingVisibility
       ) ||
-      "request"
+      "request",
+
+    presence_visible:
+      profile?.presence_visible ??
+      profile?.presenceVisible ??
+      true
   };
+}
+
+function mapProfileById(
+  profiles
+) {
+  const map =
+    new Map();
+
+  for (
+    const profile
+    of asArray(profiles)
+  ) {
+    const userId =
+      normalizeId(
+        profile?.user_id
+      );
+
+    if (userId) {
+      map.set(
+        userId,
+        profile
+      );
+    }
+  }
+
+  return map;
+}
+
+function extractStoragePathFromPublicUrl(
+  publicUrl,
+  bucketName
+) {
+  const url =
+    normalizeString(
+      publicUrl
+    );
+
+  const bucket =
+    normalizeString(
+      bucketName
+    );
+
+  if (
+    !url ||
+    !bucket
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      new URL(url);
+
+    const marker =
+      `/storage/v1/object/public/${bucket}/`;
+
+    const index =
+      parsed.pathname.indexOf(
+        marker
+      );
+
+    if (index < 0) {
+      return null;
+    }
+
+    return decodeURIComponent(
+      parsed.pathname.slice(
+        index +
+        marker.length
+      )
+    );
+  } catch {
+    return null;
+  }
 }
 
 const CircleApi = {
@@ -302,6 +486,10 @@ const CircleApi = {
       ...DEFAULT_BUCKETS
     },
 
+    rpcs: {
+      ...DEFAULT_RPCS
+    },
+
     unsubscribers:
       []
   },
@@ -309,7 +497,8 @@ const CircleApi = {
   configure({
     client,
     tables = {},
-    buckets = {}
+    buckets = {},
+    rpcs = {}
   } = {}) {
     assertClient(client);
 
@@ -324,6 +513,11 @@ const CircleApi = {
     this.state.buckets = {
       ...DEFAULT_BUCKETS,
       ...buckets
+    };
+
+    this.state.rpcs = {
+      ...DEFAULT_RPCS,
+      ...rpcs
     };
 
     this.state.configured =
@@ -372,11 +566,96 @@ const CircleApi = {
     return bucketName;
   },
 
+  rpc(name) {
+    const rpcName =
+      this.state.rpcs[
+        name
+      ];
+
+    if (!rpcName) {
+      throw new Error(
+        `Unknown ARI Circle RPC: ${name}`
+      );
+    }
+
+    return rpcName;
+  },
+
+  async getAuthenticatedUserId() {
+    const client =
+      this.getClient();
+
+    if (
+      !client.auth ||
+      typeof client.auth.getUser !==
+        "function"
+    ) {
+      return null;
+    }
+
+    const {
+      data,
+      error
+    } =
+      await client.auth
+        .getUser();
+
+    throwIfError(
+      error,
+      "Could not verify the signed-in user."
+    );
+
+    return normalizeId(
+      data?.user?.id
+    );
+  },
+
+  async getProfilesByIds(
+    userIds
+  ) {
+    const ids =
+      uniqueIds(
+        userIds
+      );
+
+    if (!ids.length) {
+      return [];
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.table(
+            "profiles"
+          )
+        )
+        .select("*")
+        .in(
+          "user_id",
+          ids
+        );
+
+    throwIfError(
+      error,
+      "Could not load ARI Circle profiles."
+    );
+
+    return asArray(data);
+  },
+
   async getProfileByUserId(
     userId
   ) {
     const id =
-      normalizeId(userId);
+      normalizeId(
+        userId
+      );
 
     if (!id) {
       return null;
@@ -470,9 +749,7 @@ const CircleApi = {
         handle
       );
 
-    if (
-      normalizedHandle
-    ) {
+    if (normalizedHandle) {
       return this.getProfileByHandle(
         normalizedHandle
       );
@@ -495,6 +772,15 @@ const CircleApi = {
         profile,
         ownerUserId
       );
+
+    if (
+      !row.display_name ||
+      !row.handle
+    ) {
+      throw new Error(
+        "Display name and @handle are required before a Circle profile can be saved."
+      );
+    }
 
     const {
       data,
@@ -549,10 +835,6 @@ const CircleApi = {
     const client =
       this.getClient();
 
-    /*
-     * Relationship rows are stored as requester -> addressee.
-     * We need either direction for the currently viewed profile.
-     */
     const {
       data,
       error
@@ -623,7 +905,10 @@ const CircleApi = {
             addresseeId,
 
           status:
-            "pending"
+            "pending",
+
+          blocked_by_user_id:
+            null
         })
         .select("*")
         .single();
@@ -648,19 +933,48 @@ const CircleApi = {
     const nextStatus =
       normalizeString(
         status
-      );
+      )
+        ?.toLowerCase();
 
     if (
       !id ||
-      !nextStatus
+      !nextStatus ||
+      !CONNECTION_BACKEND_STATES
+        .has(nextStatus)
     ) {
       throw new Error(
-        "Connection ID and status are required."
+        "A valid connection ID and status are required."
       );
     }
 
     const client =
       this.getClient();
+
+    const patch = {
+      status:
+        nextStatus
+    };
+
+    if (
+      nextStatus ===
+      "blocked"
+    ) {
+      const blockerId =
+        await this
+          .getAuthenticatedUserId();
+
+      if (!blockerId) {
+        throw new Error(
+          "You must be signed in to block a profile."
+        );
+      }
+
+      patch.blocked_by_user_id =
+        blockerId;
+    } else {
+      patch.blocked_by_user_id =
+        null;
+    }
 
     const {
       data,
@@ -672,10 +986,7 @@ const CircleApi = {
             "connections"
           )
         )
-        .update({
-          status:
-            nextStatus
-        })
+        .update(patch)
         .eq(
           "id",
           id
@@ -747,7 +1058,7 @@ const CircleApi = {
       this.getClient();
 
     const {
-      data,
+      data: rows,
       error
     } =
       await client
@@ -756,15 +1067,9 @@ const CircleApi = {
             "topCircle"
           )
         )
-        .select(`
-          id,
-          owner_user_id,
-          member_user_id,
-          position,
-          member:ari_circle_profiles!member_user_id (
-            *
-          )
-        `)
+        .select(
+          "id, owner_user_id, member_user_id, position, created_at"
+        )
         .eq(
           "owner_user_id",
           ownerId
@@ -782,11 +1087,47 @@ const CircleApi = {
       "Could not load Top Circle."
     );
 
-    return asArray(data);
+    const cleanRows =
+      asArray(rows);
+
+    const memberIds =
+      cleanRows
+        .map(
+          row =>
+            normalizeId(
+              row.member_user_id
+            )
+        )
+        .filter(Boolean);
+
+    const profiles =
+      await this.getProfilesByIds(
+        memberIds
+      );
+
+    const profileMap =
+      mapProfileById(
+        profiles
+      );
+
+    return cleanRows.map(
+      row => ({
+        ...row,
+
+        member:
+          profileMap.get(
+            normalizeId(
+              row.member_user_id
+            )
+          ) ||
+          null
+      })
+    );
   },
 
   async saveTopCircle({
     ownerUserId,
+    limit = 6,
     members
   } = {}) {
     const ownerId =
@@ -800,8 +1141,93 @@ const CircleApi = {
       );
     }
 
+    const selectedLimit =
+      normalizeTopCircleLimit(
+        limit
+      );
+
+    const normalizedMembers =
+      asArray(members)
+        .map(
+          (
+            member,
+            index
+          ) => {
+            const memberId =
+              normalizeId(
+                member?.user_id ||
+                member?.userId ||
+                member?.id
+              );
+
+            if (!memberId) {
+              return null;
+            }
+
+            const requestedPosition =
+              normalizeInteger(
+                member?.position,
+                index
+              );
+
+            return {
+              owner_user_id:
+                ownerId,
+
+              member_user_id:
+                memberId,
+
+              position:
+                requestedPosition
+            };
+          }
+        )
+        .filter(Boolean)
+        .slice(
+          0,
+          selectedLimit
+        )
+        .map(
+          (
+            row,
+            index
+          ) => ({
+            ...row,
+
+            position:
+              index
+          })
+        );
+
     const client =
       this.getClient();
+
+    /*
+     * Schema V1.0.1 explicitly stores Top 4 vs Top 6 on the profile.
+     * Save that first so the Top Circle limit trigger sees the new value.
+     */
+    const {
+      error: profileError
+    } =
+      await client
+        .from(
+          this.table(
+            "profiles"
+          )
+        )
+        .update({
+          top_circle_limit:
+            selectedLimit
+        })
+        .eq(
+          "user_id",
+          ownerId
+        );
+
+    throwIfError(
+      profileError,
+      "Could not save the Top Circle size."
+    );
 
     const table =
       this.table(
@@ -824,47 +1250,9 @@ const CircleApi = {
       "Could not update Top Circle."
     );
 
-    const rows =
-      asArray(members)
-        .map(
-          (
-            member,
-            index
-          ) => {
-            const memberId =
-              normalizeId(
-                member?.user_id ||
-                member?.userId ||
-                member?.id
-              );
-
-            if (!memberId) {
-              return null;
-            }
-
-            return {
-              owner_user_id:
-                ownerId,
-
-              member_user_id:
-                memberId,
-
-              position:
-                Number.isFinite(
-                  Number(
-                    member?.position
-                  )
-                )
-                  ? Number(
-                      member.position
-                    )
-                  : index
-            };
-          }
-        )
-        .filter(Boolean);
-
-    if (!rows.length) {
+    if (
+      !normalizedMembers.length
+    ) {
       return [];
     }
 
@@ -874,7 +1262,9 @@ const CircleApi = {
     } =
       await client
         .from(table)
-        .insert(rows)
+        .insert(
+          normalizedMembers
+        )
         .select("*");
 
     throwIfError(
@@ -909,7 +1299,10 @@ const CircleApi = {
     const start =
       Math.max(
         0,
-        Number(offset) || 0
+        normalizeInteger(
+          offset,
+          0
+        )
       );
 
     const size =
@@ -917,7 +1310,10 @@ const CircleApi = {
         100,
         Math.max(
           1,
-          Number(limit) || 20
+          normalizeInteger(
+            limit,
+            20
+          )
         )
       );
 
@@ -938,15 +1334,7 @@ const CircleApi = {
           )
         )
         .select(
-          `
-            *,
-            author:ari_circle_profiles!author_user_id (
-              user_id,
-              display_name,
-              handle,
-              avatar_url
-            )
-          `,
+          "*",
           {
             count:
               "exact"
@@ -973,16 +1361,53 @@ const CircleApi = {
       "Could not load profile comments."
     );
 
-    const items =
+    const rows =
       asArray(data);
 
+    const authorIds =
+      uniqueIds(
+        rows.map(
+          row =>
+            row.author_user_id
+        )
+      );
+
+    const profiles =
+      await this.getProfilesByIds(
+        authorIds
+      );
+
+    const profileMap =
+      mapProfileById(
+        profiles
+      );
+
+    const items =
+      rows.map(
+        row => ({
+          ...row,
+
+          author:
+            profileMap.get(
+              normalizeId(
+                row.author_user_id
+              )
+            ) ||
+            null
+        })
+      );
+
     const total =
-      Number(count) ||
-      items.length;
+      Number.isFinite(
+        Number(count)
+      )
+        ? Number(count)
+        : items.length;
 
     return {
       items,
       total,
+
       hasMore:
         start +
         items.length <
@@ -1097,6 +1522,82 @@ const CircleApi = {
     return true;
   },
 
+  async getConversationById(
+    conversationId
+  ) {
+    const id =
+      normalizeId(
+        conversationId
+      );
+
+    if (!id) {
+      return null;
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      data: conversation,
+      error
+    } =
+      await client
+        .from(
+          this.table(
+            "conversations"
+          )
+        )
+        .select("*")
+        .eq(
+          "id",
+          id
+        )
+        .maybeSingle();
+
+    throwIfError(
+      error,
+      "Could not load conversation."
+    );
+
+    if (!conversation) {
+      return null;
+    }
+
+    const userIds =
+      uniqueIds([
+        conversation.direct_user_a,
+        conversation.direct_user_b
+      ]);
+
+    const profiles =
+      await this.getProfilesByIds(
+        userIds
+      );
+
+    const profileMap =
+      mapProfileById(
+        profiles
+      );
+
+    return {
+      ...conversation,
+
+      members:
+        userIds.map(
+          userId => ({
+            user_id:
+              userId,
+
+            profile:
+              profileMap.get(
+                userId
+              ) ||
+              null
+          })
+        )
+    };
+  },
+
   async getConversations(
     userId
   ) {
@@ -1113,48 +1614,7 @@ const CircleApi = {
       this.getClient();
 
     const {
-      data: memberships,
-      error: membershipError
-    } =
-      await client
-        .from(
-          this.table(
-            "conversationMembers"
-          )
-        )
-        .select(
-          "conversation_id"
-        )
-        .eq(
-          "user_id",
-          id
-        );
-
-    throwIfError(
-      membershipError,
-      "Could not load conversations."
-    );
-
-    const conversationIds =
-      asArray(
-        memberships
-      )
-        .map(
-          row =>
-            normalizeId(
-              row.conversation_id
-            )
-        )
-        .filter(Boolean);
-
-    if (
-      !conversationIds.length
-    ) {
-      return [];
-    }
-
-    const {
-      data,
+      data: conversations,
       error
     } =
       await client
@@ -1163,21 +1623,9 @@ const CircleApi = {
             "conversations"
           )
         )
-        .select(`
-          *,
-          members:ari_conversation_members (
-            user_id,
-            profile:ari_circle_profiles!user_id (
-              user_id,
-              display_name,
-              handle,
-              avatar_url
-            )
-          )
-        `)
-        .in(
-          "id",
-          conversationIds
+        .select("*")
+        .or(
+          `direct_user_a.eq.${id},direct_user_b.eq.${id}`
         )
         .order(
           "updated_at",
@@ -1192,77 +1640,51 @@ const CircleApi = {
       "Could not load conversations."
     );
 
-    return asArray(data);
-  },
-
-  async createDirectConversation({
-    userA,
-    userB
-  } = {}) {
-    const first =
-      normalizeId(
-        userA
+    const rows =
+      asArray(
+        conversations
       );
 
-    const second =
-      normalizeId(
-        userB
-      );
-
-    if (
-      !first ||
-      !second ||
-      first === second
-    ) {
-      throw new Error(
-        "A direct conversation requires two different users."
-      );
+    if (!rows.length) {
+      return [];
     }
 
-    const client =
-      this.getClient();
+    const profileIds =
+      uniqueIds(
+        rows.flatMap(
+          conversation => [
+            conversation
+              .direct_user_a,
 
-    const {
-      data: conversation,
-      error: conversationError
-    } =
-      await client
-        .from(
-          this.table(
-            "conversations"
-          )
+            conversation
+              .direct_user_b
+          ]
         )
-        .insert({
-          type:
-            "direct"
-        })
-        .select("*")
-        .single();
+      );
 
-    throwIfError(
-      conversationError,
-      "Could not create conversation."
-    );
+    const profiles =
+      await this.getProfilesByIds(
+        profileIds
+      );
 
-    const rows = [
-      {
-        conversation_id:
-          conversation.id,
+    const profileMap =
+      mapProfileById(
+        profiles
+      );
 
-        user_id:
-          first
-      },
-      {
-        conversation_id:
-          conversation.id,
-
-        user_id:
-          second
-      }
-    ];
+    const conversationIds =
+      rows
+        .map(
+          conversation =>
+            normalizeId(
+              conversation.id
+            )
+        )
+        .filter(Boolean);
 
     const {
-      error: membersError
+      data: ownMemberships,
+      error: membershipsError
     } =
       await client
         .from(
@@ -1270,14 +1692,279 @@ const CircleApi = {
             "conversationMembers"
           )
         )
-        .insert(rows);
+        .select(
+          "conversation_id, user_id, joined_at, last_read_at"
+        )
+        .eq(
+          "user_id",
+          id
+        )
+        .in(
+          "conversation_id",
+          conversationIds
+        );
 
     throwIfError(
-      membersError,
-      "Could not create conversation members."
+      membershipsError,
+      "Could not load conversation read state."
     );
 
-    return conversation;
+    const membershipMap =
+      new Map(
+        asArray(
+          ownMemberships
+        )
+          .map(
+            membership => [
+              normalizeId(
+                membership
+                  .conversation_id
+              ),
+              membership
+            ]
+          )
+      );
+
+    return rows.map(
+      conversation => {
+        const userIds =
+          uniqueIds([
+            conversation
+              .direct_user_a,
+
+            conversation
+              .direct_user_b
+          ]);
+
+        return {
+          ...conversation,
+
+          membership:
+            membershipMap.get(
+              normalizeId(
+                conversation.id
+              )
+            ) ||
+            null,
+
+          members:
+            userIds.map(
+              memberUserId => ({
+                user_id:
+                  memberUserId,
+
+                profile:
+                  profileMap.get(
+                    memberUserId
+                  ) ||
+                  null
+              })
+            )
+        };
+      }
+    );
+  },
+
+  async findDirectConversation(
+    otherUserId
+  ) {
+    const otherId =
+      normalizeId(
+        otherUserId
+      );
+
+    if (!otherId) {
+      return null;
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      data,
+      error
+    } =
+      await client.rpc(
+        this.rpc(
+          "findDirectConversation"
+        ),
+        {
+          other_user_id:
+            otherId
+        }
+      );
+
+    throwIfError(
+      error,
+      "Could not find direct conversation."
+    );
+
+    return normalizeId(
+      data
+    );
+  },
+
+  async createDirectConversation({
+    otherUserId = null,
+    userA = null,
+    userB = null
+  } = {}) {
+    const callerId =
+      await this
+        .getAuthenticatedUserId();
+
+    if (!callerId) {
+      throw new Error(
+        "You must be signed in to start a conversation."
+      );
+    }
+
+    let otherId =
+      normalizeId(
+        otherUserId
+      );
+
+    /*
+     * Backward-compatible support for the original
+     * createDirectConversation({ userA, userB }) API.
+     */
+    if (!otherId) {
+      const first =
+        normalizeId(
+          userA
+        );
+
+      const second =
+        normalizeId(
+          userB
+        );
+
+      if (
+        first === callerId
+      ) {
+        otherId =
+          second;
+      } else if (
+        second === callerId
+      ) {
+        otherId =
+          first;
+      }
+    }
+
+    if (
+      !otherId ||
+      otherId === callerId
+    ) {
+      throw new Error(
+        "A direct conversation requires another user."
+      );
+    }
+
+    const client =
+      this.getClient();
+
+    /*
+     * Schema V1.0.1 blocks direct INSERTs into ari_conversations.
+     * All new direct threads MUST go through this protected RPC.
+     *
+     * The RPC:
+     * - prevents duplicates
+     * - checks blocking
+     * - checks recipient messaging_visibility
+     * - recognizes accepted message requests
+     * - creates both membership rows
+     */
+    const {
+      data: conversationId,
+      error
+    } =
+      await client.rpc(
+        this.rpc(
+          "createDirectConversation"
+        ),
+        {
+          other_user_id:
+            otherId
+        }
+      );
+
+    throwIfError(
+      error,
+      "Could not start this conversation."
+    );
+
+    const id =
+      normalizeId(
+        conversationId
+      );
+
+    if (!id) {
+      throw new Error(
+        "Conversation was created but no conversation ID was returned."
+      );
+    }
+
+    return this.getConversationById(
+      id
+    );
+  },
+
+  async markConversationRead(
+    conversationId,
+    userId = null
+  ) {
+    const conversation =
+      normalizeId(
+        conversationId
+      );
+
+    const memberId =
+      normalizeId(
+        userId
+      ) ||
+      await this
+        .getAuthenticatedUserId();
+
+    if (
+      !conversation ||
+      !memberId
+    ) {
+      return false;
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      error
+    } =
+      await client
+        .from(
+          this.table(
+            "conversationMembers"
+          )
+        )
+        .update({
+          last_read_at:
+            new Date()
+              .toISOString()
+        })
+        .eq(
+          "conversation_id",
+          conversation
+        )
+        .eq(
+          "user_id",
+          memberId
+        );
+
+    throwIfError(
+      error,
+      "Could not update conversation read state."
+    );
+
+    return true;
   },
 
   async getMessages({
@@ -1321,7 +2008,10 @@ const CircleApi = {
             100,
             Math.max(
               1,
-              Number(limit) || 50
+              normalizeInteger(
+                limit,
+                50
+              )
             )
           )
         );
@@ -1418,27 +2108,11 @@ const CircleApi = {
       "Could not send message."
     );
 
-    await client
-      .from(
-        this.table(
-          "conversations"
-        )
-      )
-      .update({
-        updated_at:
-          new Date()
-            .toISOString(),
-
-        last_message_at:
-          data.created_at ||
-          new Date()
-            .toISOString()
-      })
-      .eq(
-        "id",
-        conversation
-      );
-
+    /*
+     * Do NOT update ari_conversations from the client.
+     * Schema V1.0.1's message trigger updates
+     * last_message_at / updated_at server-side.
+     */
     return data;
   },
 
@@ -1524,14 +2198,18 @@ const CircleApi = {
     const nextStatus =
       normalizeString(
         status
-      );
+      )
+        ?.toLowerCase();
 
     if (
       !id ||
-      !nextStatus
+      !nextStatus ||
+      !MESSAGE_REQUEST_STATES
+        .has(nextStatus) ||
+      nextStatus === "pending"
     ) {
       throw new Error(
-        "Message request ID and status are required."
+        "A valid message request ID and transition are required."
       );
     }
 
@@ -1610,7 +2288,10 @@ const CircleApi = {
             100,
             Math.max(
               1,
-              Number(limit) || 50
+              normalizeInteger(
+                limit,
+                50
+              )
             )
           )
         );
@@ -1714,7 +2395,7 @@ const CircleApi = {
     ownerUserId,
     mediaType,
     file,
-    upsert = true
+    upsert = false
   } = {}) {
     const ownerId =
       normalizeId(
@@ -1816,6 +2497,7 @@ const CircleApi = {
           this.table(
             "profiles"
           )
+        )
         .update({
           [column]:
             publicUrl
@@ -1836,6 +2518,127 @@ const CircleApi = {
       path,
       publicUrl,
       profile
+    };
+  },
+
+  async removeProfileMedia({
+    ownerUserId,
+    mediaType,
+    currentUrl = null
+  } = {}) {
+    const ownerId =
+      normalizeId(
+        ownerUserId
+      );
+
+    const type =
+      normalizeString(
+        mediaType
+      )
+        ?.toLowerCase();
+
+    if (
+      !ownerId ||
+      (
+        type !== "avatar" &&
+        type !== "cover"
+      )
+    ) {
+      throw new Error(
+        "Valid profile media removal information is required."
+      );
+    }
+
+    const client =
+      this.getClient();
+
+    const column =
+      type === "avatar"
+        ? "avatar_url"
+        : "cover_url";
+
+    let mediaUrl =
+      normalizeString(
+        currentUrl
+      );
+
+    if (!mediaUrl) {
+      const profile =
+        await this
+          .getProfileByUserId(
+            ownerId
+          );
+
+      mediaUrl =
+        normalizeString(
+          profile?.[column]
+        );
+    }
+
+    const bucket =
+      this.bucket(
+        "profileMedia"
+      );
+
+    const storagePath =
+      extractStoragePathFromPublicUrl(
+        mediaUrl,
+        bucket
+      );
+
+    /*
+     * Clear the profile first so a stale/broken image never remains
+     * attached if Storage deletion itself fails.
+     */
+    const {
+      data: profile,
+      error: profileError
+    } =
+      await client
+        .from(
+          this.table(
+            "profiles"
+          )
+        )
+        .update({
+          [column]:
+            null
+        })
+        .eq(
+          "user_id",
+          ownerId
+        )
+        .select("*")
+        .single();
+
+    throwIfError(
+      profileError,
+      "Could not remove the profile image."
+    );
+
+    if (storagePath) {
+      const {
+        error: storageError
+      } =
+        await client
+          .storage
+          .from(bucket)
+          .remove([
+            storagePath
+          ]);
+
+      if (storageError) {
+        console.warn(
+          "ARI Circle profile URL was cleared but old storage object cleanup failed.",
+          storageError
+        );
+      }
+    }
+
+    return {
+      profile,
+      removedPath:
+        storagePath
     };
   },
 
@@ -1916,176 +2719,160 @@ const CircleApi = {
       return;
     }
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.PROFILE_UPDATED,
-        event =>
-          this.handleProfilePersist(
-            event?.detail
-          )
-      )
+    const on =
+      (
+        eventName,
+        handler
+      ) => {
+        const unsubscribe =
+          CircleEvents.on(
+            eventName,
+            payload =>
+              handler.call(
+                this,
+                getEventDetail(
+                  payload
+                )
+              )
+          );
+
+        this.state
+          .unsubscribers
+          .push(
+            unsubscribe
+          );
+      };
+
+    on(
+      EVENT_NAMES.PROFILE_UPDATED,
+      this.handleProfilePersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.CONNECTION_REQUESTED,
-        event =>
-          this.handleConnectionRequestedPersist(
-            event?.detail
-          )
-      )
+    on(
+      EVENT_NAMES.CONNECTION_REQUESTED,
+      this.handleConnectionRequestedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.CONNECTION_ACCEPTED,
-        event =>
-          this.handleConnectionStatusPersist(
-            event?.detail,
-            "accepted"
-          )
-      )
+    on(
+      EVENT_NAMES.CONNECTION_ACCEPTED,
+      detail =>
+        this.handleConnectionStatusPersist(
+          detail,
+          "accepted"
+        )
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.CONNECTION_DECLINED,
-        event =>
-          this.handleConnectionStatusPersist(
-            event?.detail,
-            "declined"
-          )
-      )
+    on(
+      EVENT_NAMES.CONNECTION_DECLINED,
+      detail =>
+        this.handleConnectionStatusPersist(
+          detail,
+          "declined"
+        )
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.CONNECTION_REMOVED,
-        event =>
-          this.handleConnectionRemovedPersist(
-            event?.detail
-          )
-      )
+    on(
+      EVENT_NAMES.CONNECTION_REMOVED,
+      this.handleConnectionRemovedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.TOP_CIRCLE_CHANGED,
-        event =>
-          this.handleTopCirclePersist(
-            event?.detail
-          )
-      )
+    /*
+     * CONNECTION_CHANGED is intentionally used only for actions that do
+     * not have a dedicated event name: cancel outgoing request and block.
+     * Accept/decline have dedicated listeners above, avoiding duplicates.
+     */
+    on(
+      EVENT_NAMES.CONNECTION_CHANGED,
+      this.handleConnectionChangedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.LOVE_CREATED,
-        event =>
-          this.handleLoveCreatedPersist(
-            event?.detail
-          )
-      )
+    on(
+      EVENT_NAMES.TOP_CIRCLE_CHANGED,
+      this.handleTopCirclePersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.LOVE_DELETED,
-        event =>
-          this.handleLoveDeletedPersist(
-            event?.detail
-          )
-      )
+    on(
+      EVENT_NAMES.LOVE_CREATED,
+      this.handleLoveCreatedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        EVENT_NAMES.MESSAGE_SENT,
-        event =>
-          this.handleMessageSentPersist(
-            event?.detail
-          )
-      )
+    on(
+      EVENT_NAMES.LOVE_DELETED,
+      this.handleLoveDeletedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:message-request-created",
-        event =>
-          this.handleMessageRequestCreatedPersist(
-            event?.detail
-          )
-      )
+    on(
+      "circle:conversation-created",
+      this.handleConversationCreatedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:message-request-accepted",
-        event =>
-          this.handleMessageRequestStatusPersist(
-            event?.detail,
-            "accepted"
-          )
-      )
+    on(
+      EVENT_NAMES.MESSAGE_SENT,
+      this.handleMessageSentPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:message-request-declined",
-        event =>
-          this.handleMessageRequestStatusPersist(
-            event?.detail,
-            "declined"
-          )
-      )
+    on(
+      "circle:message-request-created",
+      this.handleMessageRequestCreatedPersist
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:message-request-canceled",
-        event =>
-          this.handleMessageRequestStatusPersist(
-            event?.detail,
-            "canceled"
-          )
-      )
+    on(
+      "circle:message-request-accepted",
+      detail =>
+        this.handleMessageRequestStatusPersist(
+          detail,
+          "accepted"
+        )
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:notification-read",
-        event =>
-          this.handleNotificationReadPersist(
-            event?.detail
-          )
-      )
+    on(
+      "circle:message-request-declined",
+      detail =>
+        this.handleMessageRequestStatusPersist(
+          detail,
+          "declined"
+        )
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:notifications-all-read",
-        () =>
-          this.handleAllNotificationsReadPersist()
-      )
+    on(
+      "circle:message-request-canceled",
+      detail =>
+        this.handleMessageRequestStatusPersist(
+          detail,
+          "canceled"
+        )
     );
 
-    this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:profile-media-ready",
-        event =>
-          this.handleProfileMediaPersist(
-            event?.detail
-          )
-      )
+    on(
+      "circle:notification-read",
+      this.handleNotificationReadPersist
+    );
+
+    on(
+      "circle:notification-unread",
+      this.handleNotificationUnreadPersist
+    );
+
+    on(
+      "circle:notifications-all-read",
+      this.handleAllNotificationsReadPersist
+    );
+
+    on(
+      "circle:profile-media-ready",
+      this.handleProfileMediaPersist
+    );
+
+    on(
+      "circle:profile-media-remove",
+      this.handleProfileMediaRemovePersist
     );
   },
 
   async handleProfilePersist(
     detail
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2124,9 +2911,7 @@ const CircleApi = {
   async handleConnectionRequestedPersist(
     detail
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2153,6 +2938,9 @@ const CircleApi = {
         });
 
       CircleStore.setConnection({
+        id:
+          saved.id,
+
         status:
           "outgoing_pending",
 
@@ -2183,9 +2971,7 @@ const CircleApi = {
     detail,
     status
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2193,7 +2979,9 @@ const CircleApi = {
       normalizeId(
         detail?.request?.id ||
         detail?.requestId ||
-        detail?.connection?.requestId
+        detail?.connection
+          ?.requestId ||
+        detail?.connection?.id
       );
 
     if (!requestId) {
@@ -2201,10 +2989,60 @@ const CircleApi = {
     }
 
     try {
-      await this.updateConnectionStatus(
-        requestId,
-        status
-      );
+      const saved =
+        await this
+          .updateConnectionStatus(
+            requestId,
+            status
+          );
+
+      if (
+        status ===
+        "accepted"
+      ) {
+        CircleStore.setConnection({
+          id:
+            saved?.id ||
+            requestId,
+
+          status:
+            "connected",
+
+          requestId:
+            saved?.id ||
+            requestId,
+
+          requestedByUserId:
+            saved
+              ?.requester_user_id ||
+            null,
+
+          pendingPersistence:
+            false
+        });
+      }
+
+      if (
+        status ===
+        "declined"
+      ) {
+        CircleStore.setConnection({
+          status:
+            "none",
+
+          id:
+            null,
+
+          requestId:
+            null,
+
+          requestedByUserId:
+            null,
+
+          pendingPersistence:
+            false
+        });
+      }
     } catch (error) {
       CircleEvents.reportError(
         error,
@@ -2219,16 +3057,15 @@ const CircleApi = {
   async handleConnectionRemovedPersist(
     detail
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
     const id =
       normalizeId(
         detail?.previous?.id ||
-        detail?.previous?.requestId ||
+        detail?.previous
+          ?.requestId ||
         detail?.connectionId
       );
 
@@ -2251,12 +3088,131 @@ const CircleApi = {
     }
   },
 
+  async handleConnectionChangedPersist(
+    detail
+  ) {
+    if (!detail?.persist) {
+      return;
+    }
+
+    const action =
+      normalizeString(
+        detail?.action
+      )
+        ?.toLowerCase();
+
+    if (
+      action ===
+      "cancel-request"
+    ) {
+      const id =
+        normalizeId(
+          detail?.request?.id ||
+          detail?.previous?.id ||
+          detail?.previous
+            ?.requestId ||
+          detail?.connection
+            ?.requestId
+        );
+
+      if (!id) {
+        return;
+      }
+
+      try {
+        await this.deleteConnection(
+          id
+        );
+      } catch (error) {
+        CircleEvents.reportError(
+          error,
+          {
+            message:
+              "Could not cancel Circle request."
+          }
+        );
+      }
+
+      return;
+    }
+
+    if (
+      action === "block"
+    ) {
+      const current =
+        CircleStore.get(
+          "connection"
+        ) || {};
+
+      const id =
+        normalizeId(
+          detail?.connection?.id ||
+          detail?.connection
+            ?.requestId ||
+          current.id ||
+          current.requestId
+        );
+
+      if (!id) {
+        /*
+         * Schema V1.0.1 only persists blocks by converting an existing
+         * relationship row to status=blocked. A later schema patch should
+         * add a block RPC for profiles with no existing relationship.
+         */
+        CircleEvents.reportError(
+          new Error(
+            "A persistent block requires an existing Circle relationship in schema V1.0.1."
+          ),
+          {
+            message:
+              "This block could not be saved yet."
+          }
+        );
+
+        return;
+      }
+
+      try {
+        const saved =
+          await this
+            .updateConnectionStatus(
+              id,
+              "blocked"
+            );
+
+        CircleStore.setConnection({
+          ...current,
+
+          id:
+            saved?.id ||
+            id,
+
+          requestId:
+            saved?.id ||
+            id,
+
+          status:
+            "blocked",
+
+          pendingPersistence:
+            false
+        });
+      } catch (error) {
+        CircleEvents.reportError(
+          error,
+          {
+            message:
+              "Could not block this profile."
+          }
+        );
+      }
+    }
+  },
+
   async handleTopCirclePersist(
     detail
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2266,15 +3222,42 @@ const CircleApi = {
           "context"
         );
 
-      await this.saveTopCircle({
-        ownerUserId:
-          context?.viewerUserId,
+      const topCircle =
+        detail?.topCircle ||
+        CircleStore.get(
+          "topCircle"
+        ) ||
+        {};
 
-        members:
-          detail?.topCircle
-            ?.members ||
-          []
-      });
+      const rows =
+        await this.saveTopCircle({
+          ownerUserId:
+            context?.viewerUserId,
+
+          limit:
+            topCircle.limit,
+
+          members:
+            topCircle.members
+        });
+
+      const profile =
+        CircleStore.get(
+          "profile"
+        );
+
+      if (profile) {
+        CircleStore.setProfile({
+          ...profile,
+
+          top_circle_limit:
+            normalizeTopCircleLimit(
+              topCircle.limit
+            )
+        });
+      }
+
+      return rows;
     } catch (error) {
       CircleEvents.reportError(
         error,
@@ -2283,6 +3266,8 @@ const CircleApi = {
             "Could not save Top Circle."
         }
       );
+
+      return null;
     }
   },
 
@@ -2312,9 +3297,6 @@ const CircleApi = {
             comment.text
         });
 
-      /*
-       * Replace optimistic local ID with the backend row if possible.
-       */
       const love =
         CircleStore.get(
           "love"
@@ -2330,8 +3312,10 @@ const CircleApi = {
               comment.id
                 ? {
                     ...item,
+
                     id:
                       saved.id,
+
                     createdAt:
                       saved.created_at ||
                       item.createdAt
@@ -2357,9 +3341,7 @@ const CircleApi = {
   async handleLoveDeletedPersist(
     detail
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2387,6 +3369,84 @@ const CircleApi = {
     }
   },
 
+  async handleConversationCreatedPersist(
+    detail
+  ) {
+    if (
+      !detail?.persist ||
+      !detail?.conversation
+    ) {
+      return;
+    }
+
+    const localConversation =
+      detail.conversation;
+
+    const context =
+      CircleStore.get(
+        "context"
+      );
+
+    const viewerUserId =
+      normalizeId(
+        context?.viewerUserId
+      );
+
+    const memberIds =
+      uniqueIds(
+        asArray(
+          localConversation.members
+        )
+          .map(
+            member =>
+              member?.userId ||
+              member?.user_id ||
+              member?.id
+          )
+      );
+
+    const otherUserId =
+      memberIds.find(
+        id =>
+          id !==
+          viewerUserId
+      );
+
+    if (
+      !viewerUserId ||
+      !otherUserId
+    ) {
+      return;
+    }
+
+    try {
+      const persisted =
+        await this
+          .createDirectConversation({
+            otherUserId
+          });
+
+      CircleEvents.emit(
+        "circle:conversation-persisted",
+        {
+          localConversationId:
+            localConversation.id,
+
+          conversation:
+            persisted
+        }
+      );
+    } catch (error) {
+      CircleEvents.reportError(
+        error,
+        {
+          message:
+            "Could not start this conversation."
+        }
+      );
+    }
+  },
+
   async handleMessageSentPersist(
     detail
   ) {
@@ -2401,16 +3461,28 @@ const CircleApi = {
       const message =
         detail.message;
 
-      await this.sendMessage({
-        conversationId:
-          message.conversationId,
+      const saved =
+        await this.sendMessage({
+          conversationId:
+            message.conversationId,
 
-        senderUserId:
-          message.senderUserId,
+          senderUserId:
+            message.senderUserId,
 
-        body:
-          message.body
-      });
+          body:
+            message.body
+        });
+
+      CircleEvents.emit(
+        "circle:message-persisted",
+        {
+          localMessageId:
+            message.id,
+
+          message:
+            saved
+        }
+      );
     } catch (error) {
       CircleEvents.reportError(
         error,
@@ -2436,16 +3508,29 @@ const CircleApi = {
       const request =
         detail.request;
 
-      await this.createMessageRequest({
-        senderUserId:
-          request.senderUserId,
+      const saved =
+        await this
+          .createMessageRequest({
+            senderUserId:
+              request.senderUserId,
 
-        receiverUserId:
-          request.receiverUserId,
+            receiverUserId:
+              request.receiverUserId,
 
-        message:
-          request.message
-      });
+            message:
+              request.message
+          });
+
+      CircleEvents.emit(
+        "circle:message-request-persisted",
+        {
+          localRequestId:
+            request.id,
+
+          request:
+            saved
+        }
+      );
     } catch (error) {
       CircleEvents.reportError(
         error,
@@ -2461,9 +3546,7 @@ const CircleApi = {
     detail,
     status
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2477,9 +3560,68 @@ const CircleApi = {
     }
 
     try {
-      await this.updateMessageRequest(
-        id,
-        status
+      const savedRequest =
+        await this.updateMessageRequest(
+          id,
+          status
+        );
+
+      let conversation =
+        null;
+
+      /*
+       * Schema V1.0.1 creates a direct conversation automatically when
+       * the receiver accepts a message request.
+       */
+      if (
+        status ===
+        "accepted"
+      ) {
+        const callerId =
+          await this
+            .getAuthenticatedUserId();
+
+        const otherUserId =
+          normalizeId(
+            savedRequest
+              ?.sender_user_id
+          ) === callerId
+            ? normalizeId(
+                savedRequest
+                  ?.receiver_user_id
+              )
+            : normalizeId(
+                savedRequest
+                  ?.sender_user_id
+              );
+
+        if (otherUserId) {
+          const conversationId =
+            await this
+              .findDirectConversation(
+                otherUserId
+              );
+
+          if (conversationId) {
+            conversation =
+              await this
+                .getConversationById(
+                  conversationId
+                );
+          }
+        }
+      }
+
+      CircleEvents.emit(
+        "circle:message-request-status-persisted",
+        {
+          status,
+
+          request:
+            savedRequest,
+
+          conversation
+        }
       );
     } catch (error) {
       CircleEvents.reportError(
@@ -2495,9 +3637,7 @@ const CircleApi = {
   async handleNotificationReadPersist(
     detail
   ) {
-    if (
-      !detail?.persist
-    ) {
+    if (!detail?.persist) {
       return;
     }
 
@@ -2505,6 +3645,29 @@ const CircleApi = {
       await this.markNotificationRead(
         detail.notificationId,
         true
+      );
+    } catch (error) {
+      CircleEvents.reportError(
+        error,
+        {
+          message:
+            "Could not update notification."
+        }
+      );
+    }
+  },
+
+  async handleNotificationUnreadPersist(
+    detail
+  ) {
+    if (!detail?.persist) {
+      return;
+    }
+
+    try {
+      await this.markNotificationRead(
+        detail.notificationId,
+        false
       );
     } catch (error) {
       CircleEvents.reportError(
@@ -2603,6 +3766,82 @@ const CircleApi = {
     }
   },
 
+  async handleProfileMediaRemovePersist(
+    detail
+  ) {
+    if (!detail?.persist) {
+      return;
+    }
+
+    try {
+      const context =
+        CircleStore.get(
+          "context"
+        );
+
+      const profile =
+        CircleStore.get(
+          "profile"
+        ) ||
+        {};
+
+      const type =
+        normalizeString(
+          detail.mediaType
+        )
+          ?.toLowerCase();
+
+      const currentUrl =
+        type === "avatar"
+          ? (
+              profile.avatar_url ||
+              profile.avatarUrl
+            )
+          : (
+              profile.cover_url ||
+              profile.coverUrl
+            );
+
+      const result =
+        await this
+          .removeProfileMedia({
+            ownerUserId:
+              context?.viewerUserId,
+
+            mediaType:
+              type,
+
+            currentUrl
+          });
+
+      CircleStore.setProfile(
+        result.profile
+      );
+
+      CircleEvents.emit(
+        "circle:profile-media-removed",
+        {
+          mediaType:
+            type,
+
+          profile:
+            result.profile,
+
+          removedPath:
+            result.removedPath
+        }
+      );
+    } catch (error) {
+      CircleEvents.reportError(
+        error,
+        {
+          message:
+            "Could not remove profile image."
+        }
+      );
+    }
+  },
+
   destroy() {
     for (
       const unsubscribe
@@ -2639,6 +3878,9 @@ const CircleApi = {
       version:
         this.version,
 
+      schemaContract:
+        "ARI Circle Supabase V1.0.1",
+
       clientConfigured:
         Boolean(
           this.state.client
@@ -2652,6 +3894,10 @@ const CircleApi = {
         ...this.state.buckets
       },
 
+      rpcs: {
+        ...this.state.rpcs
+      },
+
       persistenceListeners:
         this.state.unsubscribers
           .length
@@ -2662,7 +3908,8 @@ const CircleApi = {
 export {
   CircleApi,
   DEFAULT_TABLES,
-  DEFAULT_BUCKETS
+  DEFAULT_BUCKETS,
+  DEFAULT_RPCS
 };
 
 export default CircleApi;
