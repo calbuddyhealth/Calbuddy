@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.3.3
+// V1.3.4
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -8,7 +8,7 @@
 //
 //   <script
 //     type="module"
-//     src="js/ari-circle/index.js?v=1.3.3">
+//     src="js/ari-circle/index.js?v=1.3.4">
 //   </script>
 //
 // All ARI Circle feature modules are imported here.
@@ -39,18 +39,19 @@
 //
 // This file does not create a duplicate Supabase client.
 //
-// V1.3.3:
-// - Loads accepted Circle connections through CircleApi.getAcceptedConnections().
-// - Resolves all accepted friend profiles for Top Circle editor choices.
-// - Keeps incoming and outgoing pending requests loaded separately.
-// - Returns accepted connections from loadViewerData().
-// - Imports and initializes CircleMembers V1.0.0.
-// - Wires data-circle-action="view-entire-circle" to the full Circle manager.
+// V1.3.4:
+// - Adds context-aware ARI Circle header navigation.
+// - On the signed-in user's own Circle, the left button becomes Home and links to home.html.
+// - On another user's Circle, the left button becomes Back and links to ari-circle.html.
+// - Uses ARI Circle's own profile routing instead of browser history.
+// - Uses ConnectionsController V1.0.1.
+// - Uses TopCircle V1.0.1.
 // - Uses MessagesController V1.0.1.
 // - Uses Conversations V1.0.1.
-// - Imports and initializes ConversationView V1.0.0.
-// - Adds ConversationView cleanup and diagnostics.
+// - Uses ConversationView V1.0.1.
 // - Uses CircleApi V1.3.1.
+// - Retains accepted Circle loading, Circle Members, requests, notifications,
+//   messaging, realtime, Top Circle, profile wall, and profile data behavior.
 
 import CircleContext from "./core/circle-context.js";
 import CircleStore from "./core/circle-store.js";
@@ -62,17 +63,17 @@ import ProfileController from "./profile/profile-controller.js";
 import ProfileRenderer from "./profile/profile-renderer.js";
 import ProfileEditor from "./profile/profile-editor.js";
 
-import ConnectionsController from "./connections/connections-controller.js";
+import ConnectionsController from "./connections/connections-controller.js?v=1.0.1";
 import ConnectionRequests from "./connections/connection-requests.js?v=1.1.0";
 import CircleMembers from "./connections/circle-members.js?v=1.0.0";
-import TopCircle from "./connections/top-circle.js";
+import TopCircle from "./connections/top-circle.js?v=1.0.1";
 import PeopleDiscovery from "./connections/people-discovery.js";
 
 import LeaveSomeLove from "./comments/leave-some-love.js";
 
 import MessagesController from "./messaging/messages-controller.js?v=1.0.1";
 import Conversations from "./messaging/conversations.js?v=1.0.1";
-import ConversationView from "./messaging/conversation-view.js?v=1.0.0";
+import ConversationView from "./messaging/conversation-view.js?v=1.0.1";
 import MessageRequests from "./messaging/message-requests.js";
 
 import PresenceController from "./presence/presence-controller.js";
@@ -84,7 +85,7 @@ import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.3.3";
+const VERSION = "1.3.4";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -385,6 +386,12 @@ const AriCircleApp = {
       null,
 
     statusText:
+      null,
+
+    backButton:
+      null,
+
+    backButtonIcon:
       null
   },
 
@@ -482,6 +489,116 @@ const AriCircleApp = {
       document.getElementById(
         "circle-page-status-text"
       );
+
+    /*
+     * Prefer explicit IDs, but keep class-based fallbacks so this remains
+     * compatible with the existing ARI Circle header markup.
+     */
+    this.dom.backButton =
+      document.getElementById(
+        "circle-back-button"
+      ) ||
+      document.querySelector(
+        ".circle-back-button"
+      );
+
+    this.dom.backButtonIcon =
+      document.getElementById(
+        "circle-back-button-icon"
+      ) ||
+      this.dom.backButton
+        ?.querySelector(
+          "span"
+        ) ||
+      null;
+  },
+
+  updateHeaderNavigation(
+    context
+  ) {
+    const button =
+      this.dom.backButton ||
+      document.getElementById(
+        "circle-back-button"
+      ) ||
+      document.querySelector(
+        ".circle-back-button"
+      );
+
+    if (!button) {
+      return false;
+    }
+
+    const icon =
+      this.dom.backButtonIcon ||
+      document.getElementById(
+        "circle-back-button-icon"
+      ) ||
+      button.querySelector(
+        "span"
+      );
+
+    /*
+     * Own Circle:
+     *   left header control is Home -> home.html
+     *
+     * Visitor Circle:
+     *   left header control is Back -> bare ari-circle.html,
+     *   which is the same destination used by the ARI CIRCLE brand mark.
+     *
+     * This deliberately does NOT use window.history.back().
+     */
+    if (context?.isOwner) {
+      button.setAttribute(
+        "href",
+        "home.html"
+      );
+
+      button.setAttribute(
+        "aria-label",
+        "Back to Home"
+      );
+
+      button.setAttribute(
+        "title",
+        "Home"
+      );
+
+      button.dataset.circleNavigation =
+        "home";
+
+      if (icon) {
+        icon.textContent =
+          "\u2302";
+      }
+
+      return true;
+    }
+
+    button.setAttribute(
+      "href",
+      "ari-circle.html"
+    );
+
+    button.setAttribute(
+      "aria-label",
+      "Back to My ARI Circle"
+    );
+
+    button.setAttribute(
+      "title",
+      "My ARI Circle"
+    );
+
+    button.dataset.circleNavigation =
+      "my-circle";
+
+    if (icon) {
+      icon.textContent =
+        "\u2190";
+    }
+
+    return true;
   },
 
   setStatus(
@@ -875,6 +992,10 @@ const AriCircleApp = {
         activeContext
       );
 
+      this.updateHeaderNavigation(
+        activeContext
+      );
+
       bundle =
         await CircleApi
           .loadCircleBundle({
@@ -921,6 +1042,10 @@ const AriCircleApp = {
       });
 
     CircleStore.setContext(
+      finalContext
+    );
+
+    this.updateHeaderNavigation(
       finalContext
     );
 
@@ -1654,6 +1779,10 @@ const AriCircleApp = {
         });
 
       CircleStore.initialize(
+        context
+      );
+
+      this.updateHeaderNavigation(
         context
       );
 
