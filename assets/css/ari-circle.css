@@ -2057,3 +2057,214 @@ body.ari-circle-page [hidden] {
     height: 30px;
   }
 }
+/* ==========================================================================
+   ARI CIRCLE — CRISP BRAND HEADER
+   V1.1.2
+
+   Append to the bottom of assets/css/ari-circle.css
+   Keeps the cyan LED effect on the logo/header while making the
+   ARI CIRCLE wordmark sharp and readable instead of blurry.
+   ========================================================================== */
+
+.circle-header__brand {
+  gap: 11px;
+}
+
+
+/* ==========================================================================
+   CRISP PALE-CYAN WORDMARK
+   ========================================================================== */
+
+.circle-header__brand-text {
+  position: relative;
+
+  display: inline-block;
+
+  color: #d9fbff;
+
+  font-family:
+    "Audiowide",
+    "Orbitron",
+    Verdana,
+    sans-serif;
+
+  font-size: 1.28rem;
+  font-weight: 700;
+  line-height: 1;
+
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+
+  /*
+   * Keep the letters sharp.
+   * No large blur radius and no stacked neon glow.
+   */
+  text-shadow:
+    0 1px 0 rgba(0, 35, 50, 0.78),
+    0 0 1px rgba(109, 238, 255, 0.38);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+
+  white-space: nowrap;
+}
+
+
+/* Remove any previous glow plate behind the text. */
+.circle-header__brand-text::after {
+  content: none !important;
+}
+
+
+/* ==========================================================================
+   TWO CONVERGING CIRCLES
+   Glow belongs here instead of on the letters.
+   ========================================================================== */
+
+.circle-header__brand-mark {
+  position: relative;
+
+  width: 49px;
+  min-width: 49px;
+  height: 38px;
+
+  display: inline-grid;
+  place-items: center;
+
+  overflow: visible;
+
+  color: transparent;
+  background: transparent;
+
+  border: 0;
+  border-radius: 0;
+
+  box-shadow: none;
+}
+
+.circle-header__brand-mark::before,
+.circle-header__brand-mark::after {
+  content: "";
+
+  position: absolute;
+  top: 50%;
+
+  width: 31px;
+  height: 31px;
+
+  transform: translateY(-50%);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(247, 254, 255, 0.98) 0%,
+      rgba(193, 248, 255, 0.96) 42%,
+      rgba(72, 229, 249, 0.94) 100%
+    );
+
+  border: 2px solid #bff9ff;
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 1px rgba(0, 93, 113, 0.42),
+    0 0 7px rgba(0, 215, 242, 0.32);
+}
+
+.circle-header__brand-mark::before {
+  left: 1px;
+}
+
+.circle-header__brand-mark::after {
+  right: 1px;
+}
+
+
+/* Actual A above the converging circles. */
+.circle-header__brand-letter {
+  position: relative;
+  z-index: 2;
+
+  display: inline-block;
+
+  color: #073345;
+
+  font-family:
+    "Orbitron",
+    Verdana,
+    sans-serif;
+
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1;
+
+  letter-spacing: 0;
+
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+/* ==========================================================================
+   HEADER CONTRAST
+   ========================================================================== */
+
+.circle-header {
+  border-bottom-color: #36e4fa;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    0 3px 10px rgba(0, 0, 0, 0.32),
+    0 0 10px rgba(0, 215, 242, 0.09);
+}
+
+
+/* ==========================================================================
+   MOBILE
+   ========================================================================== */
+
+@media (max-width: 480px) {
+  .circle-header__brand {
+    gap: 9px;
+  }
+
+  .circle-header__brand-text {
+    font-size: 1.12rem;
+    letter-spacing: 0.07em;
+  }
+
+  .circle-header__brand-mark {
+    width: 44px;
+    min-width: 44px;
+    height: 35px;
+  }
+
+  .circle-header__brand-mark::before,
+  .circle-header__brand-mark::after {
+    width: 28px;
+    height: 28px;
+  }
+
+  .circle-header__brand-letter {
+    font-size: 0.88rem;
+  }
+}
+
+
+/* ==========================================================================
+   VERY SMALL PHONES
+   ========================================================================== */
+
+@media (max-width: 360px) {
+  .circle-header__brand-text {
+    font-size: 1rem;
+    letter-spacing: 0.055em;
+  }
+
+  .circle-header__brand {
+    gap: 7px;
+  }
+}
