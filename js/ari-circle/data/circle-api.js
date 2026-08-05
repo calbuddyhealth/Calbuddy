@@ -1,9 +1,10 @@
 // js/ari-circle/data/circle-api.js
 // ARI Circle
-// V1.1.0
+// V1.1.1
 //
 // Backend contract:
 //   ARI Circle Supabase Schema V1.0.1
+//   ARI Circle Block User Patch V1.0.2
 //
 // Purpose:
 // - Be the single Supabase/data boundary for ARI Circle.
@@ -39,7 +40,7 @@ import CircleEvents, {
   EVENT_NAMES
 } from "../core/circle-events.js";
 
-const VERSION = "1.1.0";
+const VERSION = "1.1.1";
 const SOURCE = "ari-circle/data/circle-api";
 
 const DEFAULT_TABLES = Object.freeze({
@@ -81,7 +82,13 @@ const DEFAULT_RPCS = Object.freeze({
     "ari_circle_create_direct_conversation",
 
   findDirectConversation:
-    "ari_circle_find_direct_conversation"
+    "ari_circle_find_direct_conversation",
+
+  blockUser:
+    "ari_circle_block_user",
+
+  unblockUser:
+    "ari_circle_unblock_user"
 });
 
 const CONNECTION_BACKEND_STATES =
@@ -1040,6 +1047,114 @@ const CircleApi = {
     );
 
     return true;
+  },
+
+  async blockUser(
+    targetUserId
+  ) {
+    const targetId =
+      normalizeId(
+        targetUserId
+      );
+
+    if (!targetId) {
+      throw new Error(
+        "Target user ID is required."
+      );
+    }
+
+    const client =
+      this.getClient();
+
+    /*
+     * Block Patch V1.0.2:
+     * - creates a blocked relationship if none exists
+     * - reuses an existing pending/accepted relationship
+     * - remains idempotent if already blocked
+     * - cleans stale connection-request notifications
+     */
+    const {
+      data,
+      error
+    } =
+      await client.rpc(
+        this.rpc(
+          "blockUser"
+        ),
+        {
+          target_user_id:
+            targetId
+        }
+      );
+
+    throwIfError(
+      error,
+      "Could not block this profile."
+    );
+
+    const relationshipId =
+      normalizeId(
+        data
+      );
+
+    if (!relationshipId) {
+      throw new Error(
+        "Profile was blocked but no relationship ID was returned."
+      );
+    }
+
+    return {
+      id:
+        relationshipId,
+
+      requestId:
+        relationshipId,
+
+      status:
+        "blocked",
+
+      targetUserId:
+        targetId
+    };
+  },
+
+  async unblockUser(
+    targetUserId
+  ) {
+    const targetId =
+      normalizeId(
+        targetUserId
+      );
+
+    if (!targetId) {
+      throw new Error(
+        "Target user ID is required."
+      );
+    }
+
+    const client =
+      this.getClient();
+
+    const {
+      data,
+      error
+    } =
+      await client.rpc(
+        this.rpc(
+          "unblockUser"
+        ),
+        {
+          target_user_id:
+            targetId
+        }
+      );
+
+    throwIfError(
+      error,
+      "Could not unblock this profile."
+    );
+
+    return Boolean(data);
   },
 
   async getTopCircle(
@@ -3139,33 +3254,42 @@ const CircleApi = {
     if (
       action === "block"
     ) {
+      const context =
+        CircleStore.get(
+          "context"
+        );
+
+      const profile =
+        CircleStore.get(
+          "profile"
+        ) || {};
+
       const current =
         CircleStore.get(
           "connection"
         ) || {};
 
-      const id =
+      const targetUserId =
         normalizeId(
-          detail?.connection?.id ||
+          detail?.targetUserId ||
+          detail?.userId ||
+          detail?.profileUserId ||
           detail?.connection
-            ?.requestId ||
-          current.id ||
-          current.requestId
+            ?.targetUserId ||
+          context?.profileUserId ||
+          profile?.user_id ||
+          profile?.userId ||
+          profile?.id
         );
 
-      if (!id) {
-        /*
-         * Schema V1.0.1 only persists blocks by converting an existing
-         * relationship row to status=blocked. A later schema patch should
-         * add a block RPC for profiles with no existing relationship.
-         */
+      if (!targetUserId) {
         CircleEvents.reportError(
           new Error(
-            "A persistent block requires an existing Circle relationship in schema V1.0.1."
+            "Could not resolve the profile to block."
           ),
           {
             message:
-              "This block could not be saved yet."
+              "Could not block this profile."
           }
         );
 
@@ -3174,35 +3298,122 @@ const CircleApi = {
 
       try {
         const saved =
-          await this
-            .updateConnectionStatus(
-              id,
-              "blocked"
-            );
+          await this.blockUser(
+            targetUserId
+          );
 
         CircleStore.setConnection({
           ...current,
 
-          id:
-            saved?.id ||
-            id,
+          ...saved,
 
-          requestId:
-            saved?.id ||
-            id,
-
-          status:
-            "blocked",
+          requestedByUserId:
+            current
+              .requestedByUserId ||
+            null,
 
           pendingPersistence:
             false
         });
+
+        CircleEvents.emit(
+          "circle:user-blocked",
+          {
+            targetUserId,
+
+            connection:
+              CircleStore.get(
+                "connection"
+              )
+          }
+        );
       } catch (error) {
         CircleEvents.reportError(
           error,
           {
             message:
               "Could not block this profile."
+          }
+        );
+      }
+
+      return;
+    }
+
+    if (
+      action === "unblock"
+    ) {
+      const context =
+        CircleStore.get(
+          "context"
+        );
+
+      const profile =
+        CircleStore.get(
+          "profile"
+        ) || {};
+
+      const targetUserId =
+        normalizeId(
+          detail?.targetUserId ||
+          detail?.userId ||
+          detail?.profileUserId ||
+          context?.profileUserId ||
+          profile?.user_id ||
+          profile?.userId ||
+          profile?.id
+        );
+
+      if (!targetUserId) {
+        CircleEvents.reportError(
+          new Error(
+            "Could not resolve the profile to unblock."
+          ),
+          {
+            message:
+              "Could not unblock this profile."
+          }
+        );
+
+        return;
+      }
+
+      try {
+        await this.unblockUser(
+          targetUserId
+        );
+
+        CircleStore.setConnection({
+          id:
+            null,
+
+          status:
+            "none",
+
+          requestId:
+            null,
+
+          requestedByUserId:
+            null,
+
+          targetUserId,
+
+          pendingPersistence:
+            false
+        });
+
+        CircleEvents.emit(
+          "circle:user-unblocked",
+          {
+            targetUserId
+          }
+        );
+      } catch (error) {
+        CircleEvents.reportError(
+          error,
+          {
+            message:
+              "Could not unblock this profile."
           }
         );
       }
@@ -3879,7 +4090,7 @@ const CircleApi = {
         this.version,
 
       schemaContract:
-        "ARI Circle Supabase V1.0.1",
+        "ARI Circle Supabase V1.0.1 + Block Patch V1.0.2",
 
       clientConfigured:
         Boolean(
