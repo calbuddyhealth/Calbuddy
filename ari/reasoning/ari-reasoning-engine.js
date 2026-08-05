@@ -7,7 +7,7 @@
 // user-facing draft for downstream semantic validation, response planning,
 // final composition, and delivery.
 //
-// V10.3.0 — Lean Cognitive Context Integration
+// V10.4.0 — V3 Preference Runtime Integration
 //
 // Architectural flow:
 //
@@ -85,14 +85,14 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "10.3.0",
+  version: "10.4.0",
   source: "ari-reasoning-engine",
 
   requestSchema:
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "2.1.1",
+    "2.2.0",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
@@ -118,15 +118,35 @@ window.AriReasoningEngine = {
    * The canonical reasoning request remains the complete,
    * authoritative internal request owned by Ari.
    */
-  const reasoningRequest =
-    this.resolveReasoningRequest(
-      summary
-    );
+  let reasoningRequest =
+  this.resolveReasoningRequest(
+    summary
+  );
 
-  const requestValidation =
-    this.validateReasoningRequest(
-      reasoningRequest
-    );
+/*
+ * Hydrate the canonical reasoning request with the
+ * authenticated user's resolved communication guidance
+ * before validation and before context selection.
+ *
+ * Preference failure is non-fatal because preferences
+ * control expression, not reasoning availability.
+ */
+const preferenceStage =
+  await this.resolvePreferenceGuidanceForRequest({
+    summary,
+    reasoningRequest
+  });
+
+reasoningRequest =
+  this.attachResolvedPreferenceGuidance({
+    reasoningRequest,
+    preferenceStage
+  });
+
+const requestValidation =
+  this.validateReasoningRequest(
+    reasoningRequest
+  );
 
   if (
     requestValidation.valid !==
@@ -487,10 +507,55 @@ window.AriReasoningEngine = {
         {},
 
       preferenceContextAvailable:
-        reasoningRequest
-          .preferenceContext
-          ?.available ===
-        true,
+  this.hasKeys(
+    reasoningRequest
+      .preferenceContext
+  ),
+
+preferenceInstructionTextPresent:
+  Boolean(
+    this.firstNonEmptyString([
+      reasoningRequest
+        .preferenceContext
+        ?.instructionText,
+
+      reasoningRequest
+        .preferenceContext
+        ?.modelInstructionText,
+
+      reasoningRequest
+        .preferenceContext
+        ?.preferenceInstructionText
+    ])
+  ),
+
+resolvedPreferencesPresent:
+  this.hasKeys(
+    reasoningRequest
+      .preferenceContext
+      ?.resolvedPreferences
+  ),
+
+selectedStyleMustBeObservable:
+  reasoningRequest
+    .preferenceContext
+    ?.selectedStyleMustBeObservable ===
+  true,
+
+preferenceExecutionMode:
+  reasoningRequest
+    .preferenceContext
+    ?.executionMode ||
+  null,
+
+preferenceRuntimeSource:
+  reasoningRequest
+    .preferenceContext
+    ?.runtimeSource ||
+  null,
+
+preferenceStage:
+  preferenceStage,
 
       preferenceContextReady:
         reasoningRequest
@@ -513,12 +578,17 @@ window.AriReasoningEngine = {
         ),
 
       currentTurnOverrideKeys:
-        Object.keys(
-          reasoningRequest
-            .preferenceContext
-            ?.currentTurnOverride ||
-          {}
-        ),
+  Object.keys(
+    reasoningRequest
+      .preferenceContext
+      ?.currentTurnOverrides ||
+
+    reasoningRequest
+      .preferenceContext
+      ?.currentTurnOverride ||
+
+    {}
+  ),
 
       userPreferencesSource:
         reasoningRequest
@@ -1561,6 +1631,636 @@ preferenceContext: {
         null
     };
   },
+
+/* =====================================================
+   V3 PREFERENCE RUNTIME INTEGRATION
+===================================================== */
+
+/*
+ * Preference ownership:
+ *
+ * AriUserPreferenceStore
+ *   → persistence
+ *
+ * AriPreferenceResolver
+ *   → resolution
+ *
+ * AriPreferenceRuntime
+ *   → runtime access
+ *
+ * AriReasoningEngine
+ *   → obtains finished guidance
+ *
+ * AriReasoningContextEngine
+ *   → packages guidance
+ *
+ * AriOpenAIReasoningClient
+ *   → transports guidance
+ *
+ * This Reasoning Engine MUST NOT:
+ * - read Supabase directly
+ * - resolve preference values itself
+ * - rewrite model-ready preference instructions
+ * - weaken behavioral instructions into permissions
+ */
+
+resolvePreferenceRuntime() {
+  return (
+    window.AriPreferenceRuntime ||
+    window.Ari
+      ?.preferenceRuntime ||
+    null
+  );
+},
+
+hasUsablePreferenceGuidance(
+  guidance = {}
+) {
+  if (
+    !this.isPlainObject(
+      guidance
+    )
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    this.hasKeys(
+      guidance.resolvedPreferences
+    ) ||
+
+    this.firstNonEmptyString([
+      guidance.instructionText,
+      guidance.modelInstructionText,
+      guidance.preferenceInstructionText
+    ]) ||
+
+    this.arrayOrEmpty(
+      guidance.modelInstructions
+    ).length > 0
+  );
+},
+
+isBehavioralPreferenceGuidance(
+  guidance = {}
+) {
+  if (
+    !this.hasUsablePreferenceGuidance(
+      guidance
+    )
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    guidance
+      .executeSelectedCommunicationStyle ===
+      true ||
+
+    guidance
+      .selectedStyleMustBeObservable ===
+      true ||
+
+    guidance.executionMode ===
+      "behavioral" ||
+
+    this.firstNonEmptyString([
+      guidance.instructionText,
+      guidance.modelInstructionText,
+      guidance.preferenceInstructionText
+    ])
+  );
+},
+
+buildPreferenceRuntimeRequest({
+  summary = {},
+  reasoningRequest = {}
+} = {}) {
+  const existingPreferenceContext =
+    this.objectOrEmpty(
+      reasoningRequest
+        .preferenceContext
+    );
+
+  const conversationResolution =
+    this.resolveFirstObject([
+      [
+        "preferenceContext.conversationOverrides",
+
+        existingPreferenceContext
+          .conversationOverrides
+      ],
+
+      [
+        "reasoningRequest.conversationPreferenceOverrides",
+
+        reasoningRequest
+          .conversationPreferenceOverrides
+      ],
+
+      [
+        "reasoningRequest.conversation.preferenceOverrides",
+
+        reasoningRequest
+          .conversation
+          ?.preferenceOverrides
+      ],
+
+      [
+        "summary.conversationPreferenceOverrides",
+
+        summary
+          .conversationPreferenceOverrides
+      ]
+    ]);
+
+  const currentTurnResolution =
+    this.resolveFirstObject([
+      [
+        "preferenceContext.currentTurnOverrides",
+
+        existingPreferenceContext
+          .currentTurnOverrides
+      ],
+
+      [
+        "preferenceContext.currentTurnOverride",
+
+        existingPreferenceContext
+          .currentTurnOverride
+      ],
+
+      [
+        "reasoningRequest.currentTurnPreferenceOverrides",
+
+        reasoningRequest
+          .currentTurnPreferenceOverrides
+      ],
+
+      [
+        "reasoningRequest.responseControl.preferenceOverrides",
+
+        reasoningRequest
+          .responseControl
+          ?.preferenceOverrides
+      ],
+
+      [
+        "summary.currentTurnPreferenceOverrides",
+
+        summary
+          .currentTurnPreferenceOverrides
+      ]
+    ]);
+
+  return {
+    request: {
+      original:
+        reasoningRequest
+          .request
+          ?.original ||
+        reasoningRequest
+          .originalUserMessage ||
+        null,
+
+      effective:
+        reasoningRequest
+          .request
+          ?.effective ||
+        reasoningRequest
+          .resolvedUserQuestion ||
+        null,
+
+      turnId:
+        reasoningRequest.turnId ||
+        null
+    },
+
+    conversationOverrides:
+      this.objectOrEmpty(
+        conversationResolution.value
+      ),
+
+    currentTurnOverrides:
+      this.objectOrEmpty(
+        currentTurnResolution.value
+      )
+  };
+},
+
+async resolvePreferenceGuidanceForRequest({
+  summary = {},
+  reasoningRequest = {}
+} = {}) {
+  const runtime =
+    this.resolvePreferenceRuntime();
+
+  const suppliedGuidance =
+    this.objectOrEmpty(
+      reasoningRequest
+        .preferenceContext ||
+      summary.preferenceContext
+    );
+
+  const startedAt =
+    Date.now();
+
+  if (!runtime) {
+    return {
+      available:
+        false,
+
+      attempted:
+        false,
+
+      succeeded:
+        false,
+
+      runtimeSource:
+        null,
+
+      runtimeVersion:
+        null,
+
+      method:
+        null,
+
+      requestAware:
+        false,
+
+      guidance:
+        suppliedGuidance,
+
+      guidanceAttached:
+        this.hasUsablePreferenceGuidance(
+          suppliedGuidance
+        ),
+
+      suppliedFallbackUsed:
+        this.hasUsablePreferenceGuidance(
+          suppliedGuidance
+        ),
+
+      error:
+        "AriPreferenceRuntime is not loaded.",
+
+      durationMs:
+        Date.now() -
+        startedAt
+    };
+  }
+
+  try {
+    let guidance = {};
+    let method = null;
+    let requestAware = false;
+
+    /*
+     * Preferred future V3 API.
+     *
+     * When the runtime exposes this method it can resolve
+     * persistent + conversation + current-turn layers for
+     * this exact reasoning request.
+     */
+    if (
+      typeof runtime
+        .getOpenAIGuidanceForRequest ===
+      "function"
+    ) {
+      method =
+        "getOpenAIGuidanceForRequest";
+
+      requestAware =
+        true;
+
+      guidance =
+        await runtime
+          .getOpenAIGuidanceForRequest(
+            this.buildPreferenceRuntimeRequest({
+              summary,
+              reasoningRequest
+            })
+          );
+    } else {
+      /*
+       * Current runtime compatibility path.
+       *
+       * V1.1.0 currently exposes:
+       *
+       * ensureReady()
+       * getOpenAIGuidance()
+       */
+      if (
+        typeof runtime.ensureReady ===
+        "function"
+      ) {
+        await runtime.ensureReady();
+      } else if (
+        typeof runtime.initialize ===
+        "function"
+      ) {
+        await runtime.initialize();
+      } else if (
+        typeof runtime.refresh ===
+        "function"
+      ) {
+        await runtime.refresh();
+      }
+
+      if (
+        typeof runtime
+          .getOpenAIGuidance ===
+        "function"
+      ) {
+        method =
+          "getOpenAIGuidance";
+
+        guidance =
+          runtime
+            .getOpenAIGuidance();
+      } else if (
+        typeof runtime.getPacket ===
+        "function"
+      ) {
+        method =
+          "getPacket";
+
+        guidance =
+          runtime.getPacket();
+      }
+    }
+
+    const normalizedGuidance =
+      this.objectOrEmpty(
+        guidance
+      );
+
+    const runtimeGuidanceUsable =
+      this.hasUsablePreferenceGuidance(
+        normalizedGuidance
+      );
+
+    const suppliedGuidanceUsable =
+      this.hasUsablePreferenceGuidance(
+        suppliedGuidance
+      );
+
+    const selectedGuidance =
+      runtimeGuidanceUsable
+        ? normalizedGuidance
+        : suppliedGuidanceUsable
+          ? suppliedGuidance
+          : {};
+
+    return {
+      available:
+        true,
+
+      attempted:
+        true,
+
+      succeeded:
+        runtimeGuidanceUsable,
+
+      runtimeSource:
+        runtime.source ||
+        "ari-preference-runtime",
+
+      runtimeVersion:
+        runtime.version ||
+        null,
+
+      method,
+
+      requestAware,
+
+      guidance:
+        selectedGuidance,
+
+      guidanceAttached:
+        this.hasUsablePreferenceGuidance(
+          selectedGuidance
+        ),
+
+      runtimeGuidanceUsed:
+        runtimeGuidanceUsable,
+
+      suppliedFallbackUsed:
+        !runtimeGuidanceUsable &&
+        suppliedGuidanceUsable,
+
+      instructionTextPresent:
+        Boolean(
+          this.firstNonEmptyString([
+            selectedGuidance
+              .instructionText,
+
+            selectedGuidance
+              .modelInstructionText,
+
+            selectedGuidance
+              .preferenceInstructionText
+          ])
+        ),
+
+      resolvedPreferencesPresent:
+        this.hasKeys(
+          selectedGuidance
+            .resolvedPreferences
+        ),
+
+      behavioral:
+        this.isBehavioralPreferenceGuidance(
+          selectedGuidance
+        ),
+
+      diagnostics:
+        typeof runtime
+          .getDiagnostics ===
+          "function"
+            ? runtime.getDiagnostics()
+            : null,
+
+      error:
+        runtimeGuidanceUsable
+          ? null
+          : "Preference runtime did not provide usable OpenAI guidance.",
+
+      durationMs:
+        Date.now() -
+        startedAt
+    };
+  } catch (error) {
+    return {
+      available:
+        true,
+
+      attempted:
+        true,
+
+      succeeded:
+        false,
+
+      runtimeSource:
+        runtime.source ||
+        "ari-preference-runtime",
+
+      runtimeVersion:
+        runtime.version ||
+        null,
+
+      method:
+        null,
+
+      requestAware:
+        false,
+
+      guidance:
+        suppliedGuidance,
+
+      guidanceAttached:
+        this.hasUsablePreferenceGuidance(
+          suppliedGuidance
+        ),
+
+      runtimeGuidanceUsed:
+        false,
+
+      suppliedFallbackUsed:
+        this.hasUsablePreferenceGuidance(
+          suppliedGuidance
+        ),
+
+      behavioral:
+        this.isBehavioralPreferenceGuidance(
+          suppliedGuidance
+        ),
+
+      error:
+        error instanceof Error
+          ? error.message
+          : String(
+              error ||
+              "Preference runtime resolution failed."
+            ),
+
+      durationMs:
+        Date.now() -
+        startedAt
+    };
+  }
+},
+
+attachResolvedPreferenceGuidance({
+  reasoningRequest = {},
+  preferenceStage = {}
+} = {}) {
+  const existingContext =
+    this.objectOrEmpty(
+      reasoningRequest
+        .preferenceContext
+    );
+
+  const resolvedGuidance =
+    this.objectOrEmpty(
+      preferenceStage.guidance
+    );
+
+  if (
+    !this.hasUsablePreferenceGuidance(
+      resolvedGuidance
+    )
+  ) {
+    return reasoningRequest;
+  }
+
+  /*
+   * Runtime guidance is already resolved.
+   *
+   * Do NOT reconstruct resolvedPreferences.
+   * Do NOT rebuild instructionText.
+   * Do NOT translate values.
+   */
+  const preferenceContext = {
+    ...existingContext,
+    ...resolvedGuidance,
+
+    available:
+      true,
+
+    runtimeSource:
+      resolvedGuidance
+        .runtimeSource ||
+      preferenceStage
+        .runtimeSource ||
+      resolvedGuidance
+        .source ||
+      existingContext
+        .runtimeSource ||
+      null
+  };
+
+  const behavioral =
+    this.isBehavioralPreferenceGuidance(
+      preferenceContext
+    );
+
+  return {
+    ...reasoningRequest,
+
+    preferenceContext,
+
+    authority: {
+      ...this.objectOrEmpty(
+        reasoningRequest.authority
+      ),
+
+      communicationPreferencesPresent:
+        true,
+
+      communicationPreferencesAreBindingWithinStyleScope:
+        behavioral,
+
+      communicationPreferencesAreBindingWithinSafety:
+        behavioral,
+
+      communicationPreferencesAreAdvisory:
+        behavioral
+          ? false
+          : reasoningRequest
+              .authority
+              ?.communicationPreferencesAreAdvisory,
+
+      selectedCommunicationBehaviorShouldBeExecuted:
+        behavioral
+          ? true
+          : undefined,
+
+      selectedStyleMustBeObservable:
+        behavioral
+          ? (
+              preferenceContext
+                .selectedStyleMustBeObservable ===
+              true
+            )
+          : undefined,
+
+      preserveCommunicationInstructionStrength:
+        behavioral
+          ? (
+              preferenceContext
+                .preserveInstructionStrength !==
+              false
+            )
+          : undefined,
+
+      mayRewriteCommunicationBehaviorAsPermission:
+        behavioral
+          ? false
+          : undefined
+    }
+  };
+},
 
   /* =====================================================
      COMMUNICATION STYLE CONTEXT
@@ -2972,23 +3672,29 @@ buildContextSelectionDiagnostic({
 
       "Resolve meaning by considering the current turn, recent conversation, continuity evidence, memory, knowledge evidence, situation, understanding signals, and developer evidence together.",
 
-      "Apply supplied userPreferences and responseStyle when they do not conflict with safety or explicit response constraints.",
+      "When cognitivePacket.preferenceContext is present, use its resolvedPreferences, modelInstructions, instructionText, execution flags, and provenance as Ari's resolved communication guidance.",
 
-      "Current-turn responseStyle overrides persistent userPreferences.",
+"Treat resolved communication preferences as active behavioral instructions within communication and presentation scope, not merely as permission.",
 
-      "Communication style controls tone, directness, warmth, humor, formality, verbosity, personality, and ordinary profanity.",
+"Do not weaken an active communication instruction into optional wording such as 'may', 'allowed', 'permitted', 'when it fits', or similar language unless the supplied preference instruction itself is explicitly optional.",
 
-      "Do not treat a request for ordinary profanity, bluntness, humor, teasing, or casual language as a safety violation by itself.",
+"When preferenceContext.selectedStyleMustBeObservable is true, the selected communication style must be clearly noticeable in the user-facing draft.",
 
-      "Do not produce a generic respectful-language refusal merely because ordinary profanity was requested or allowed.",
+"When preferenceContext.executeSelectedCommunicationStyle is true, actively execute the selected style instead of falling back to a neutral assistant voice.",
 
-      "Use permitted profanity naturally and proportionately. Do not force profanity into every response.",
+"When preferenceContext.preserveInstructionStrength is true, preserve the behavioral strength of the supplied preference instructions.",
 
-      "Do not use style preferences to justify slurs, threats, hateful degradation, abusive harassment, or unsafe content.",
+"When preferenceContext.doNotRewriteBehaviorAsPermission is true, do not reinterpret an active behavioral instruction as mere permission.",
 
-      "Do not claim communication preferences were saved or persisted.",
+"Use the precedence and provenance already resolved inside preferenceContext. Do not independently re-resolve communication preferences.",
 
-      "Record the style actually used in responseRequirements.styleApplied when practical.",
+"Communication preferences control expression and presentation only. They do not alter factual conclusions, evidence standards, tool authority, or binding deterministic safety requirements.",
+
+"Profanity, humor, teasing, bluntness, casual language, or irreverent wording are not safety violations merely because they are strong or informal.",
+
+"Do not claim communication preferences were saved or persisted unless an authorized persistence layer explicitly reports that operation as completed.",
+
+"Record the communication style actually used in responseRequirements.styleApplied when practical.",
 
       "The semanticFrame.operation field is a closed canonical vocabulary.",
 
@@ -3206,6 +3912,46 @@ buildContextSelectionDiagnostic({
         "response_style_not_supplied"
       );
     }
+
+if (
+  !this.hasKeys(
+    request.preferenceContext
+  )
+) {
+  warnings.push(
+    "preference_context_not_supplied"
+  );
+} else {
+  if (
+    !this.hasUsablePreferenceGuidance(
+      request.preferenceContext
+    )
+  ) {
+    warnings.push(
+      "preference_context_has_no_usable_guidance"
+    );
+  }
+
+  if (
+    this.isBehavioralPreferenceGuidance(
+      request.preferenceContext
+    ) &&
+    !this.firstNonEmptyString([
+      request.preferenceContext
+        .instructionText,
+
+      request.preferenceContext
+        .modelInstructionText,
+
+      request.preferenceContext
+        .preferenceInstructionText
+    ])
+  ) {
+    warnings.push(
+      "behavioral_preference_context_missing_instruction_text"
+    );
+  }
+}
 
     const operationRegistry =
       this.getOperationRegistry();
@@ -5435,30 +6181,98 @@ const resolvedContextEngine =
       );
 
     const structurallyValid =
-      typeof this.reason ===
-        "function" &&
-      typeof this.create ===
-        "function" &&
-      typeof this.resolveStyleContext ===
-        "function" &&
-      typeof this.normalizeCommunicationPreferences ===
-        "function" &&
-      typeof this.resolveModelInvoker ===
-        "function" &&
-      typeof this.validateAndNormalizeResult ===
-        "function" &&
-        typeof this.resolveContextEngine ===
-  "function" &&
-typeof this.validateContextResult ===
-  "function" &&
-typeof this.buildContextSelectionDiagnostic ===
-  "function" &&
-      typeof this.normalizeSemanticFrame ===
-        "function";
+  typeof this.reason ===
+    "function" &&
+
+  typeof this.create ===
+    "function" &&
+
+  typeof this.resolveStyleContext ===
+    "function" &&
+
+  typeof this.normalizeCommunicationPreferences ===
+    "function" &&
+
+  // V3 preference runtime integration
+  typeof this.resolvePreferenceRuntime ===
+    "function" &&
+
+  typeof this.hasUsablePreferenceGuidance ===
+    "function" &&
+
+  typeof this.isBehavioralPreferenceGuidance ===
+    "function" &&
+
+  typeof this.buildPreferenceRuntimeRequest ===
+    "function" &&
+
+  typeof this.resolvePreferenceGuidanceForRequest ===
+    "function" &&
+
+  typeof this.attachResolvedPreferenceGuidance ===
+    "function" &&
+
+  typeof this.resolveModelInvoker ===
+    "function" &&
+
+  typeof this.validateAndNormalizeResult ===
+    "function" &&
+
+  typeof this.resolveContextEngine ===
+    "function" &&
+
+  typeof this.validateContextResult ===
+    "function" &&
+
+  typeof this.buildContextSelectionDiagnostic ===
+    "function" &&
+
+  typeof this.normalizeSemanticFrame ===
+    "function";
+
+const preferenceRuntime =
+  this.resolvePreferenceRuntime();
 
     return {
       valid:
         structurallyValid,
+
+preferenceRuntimeAvailable:
+  Boolean(
+    preferenceRuntime
+  ),
+
+preferenceRuntimeSource:
+  preferenceRuntime
+    ?.source ||
+  null,
+
+preferenceRuntimeVersion:
+  preferenceRuntime
+    ?.version ||
+  null,
+
+preferenceRuntimeIntegrationSupported:
+  true,
+
+requestAwarePreferenceRuntimeSupported:
+  typeof preferenceRuntime
+    ?.getOpenAIGuidanceForRequest ===
+  "function",
+
+legacyPreferenceRuntimeFallbackSupported:
+  typeof preferenceRuntime
+    ?.getOpenAIGuidance ===
+  "function",
+
+preferenceResolutionPerformedByReasoningEngine:
+  false,
+
+preferencePersistencePerformedByReasoningEngine:
+  false,
+
+preferenceInstructionRewritingPerformed:
+  false,
 
       ready:
   structurallyValid &&
