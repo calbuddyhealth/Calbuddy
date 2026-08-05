@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.3.0
+// V1.3.1
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -8,7 +8,7 @@
 //
 //   <script
 //     type="module"
-//     src="js/ari-circle/index.js?v=1.1.0">
+//     src="js/ari-circle/index.js?v=1.3.1">
 //   </script>
 //
 // All ARI Circle feature modules are imported here.
@@ -21,7 +21,8 @@
 //   5. CircleApi / CircleRealtime configuration
 //   6. Feature modules
 //   7. Initial Circle data / first-run owner profile creation
-//   8. Realtime bridges + subscriptions
+//   8. Viewer-level conversations, notifications, requests, accepted Circle
+//   9. Realtime bridges + subscriptions
 //
 // Supabase is injected rather than created here.
 // Preferred explicit integration:
@@ -37,6 +38,13 @@
 //   });
 //
 // This file does not create a duplicate Supabase client.
+//
+// V1.3.1:
+// - Loads accepted Circle connections through CircleApi.getAcceptedConnections().
+// - Resolves all accepted friend profiles for Top Circle editor choices.
+// - Keeps incoming and outgoing pending requests loaded separately.
+// - Returns accepted connections from loadViewerData().
+// - Uses CircleApi V1.3.1.
 
 import CircleContext from "./core/circle-context.js";
 import CircleStore from "./core/circle-store.js";
@@ -63,12 +71,12 @@ import PresenceController from "./presence/presence-controller.js";
 import ProfileMedia from "./media/profile-media.js";
 import CircleNotifications from "./notifications/circle-notifications.js?v=1.1.0";
 
-import CircleApi from "./data/circle-api.js?v=1.3.0";
+import CircleApi from "./data/circle-api.js?v=1.3.1";
 import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -174,6 +182,53 @@ function mapTopCircleRows(rows) {
         Number(a.position) -
         Number(b.position)
     );
+}
+
+function mapAcceptedConnectionProfiles(
+  connections
+) {
+  if (!Array.isArray(connections)) {
+    return [];
+  }
+
+  const seen =
+    new Set();
+
+  return connections
+    .map(
+      connection => {
+        const profile =
+          connection?.friendProfile &&
+          typeof connection.friendProfile ===
+            "object"
+            ? connection.friendProfile
+            : null;
+
+        const userId =
+          normalizeId(
+            profile?.user_id ||
+            profile?.userId ||
+            connection?.friend_user_id ||
+            profile?.id
+          );
+
+        if (
+          !profile ||
+          !userId ||
+          seen.has(userId)
+        ) {
+          return null;
+        }
+
+        seen.add(userId);
+
+        return {
+          ...profile,
+          userId
+        };
+      }
+    )
+    .filter(Boolean);
 }
 
 function normalizeConnectionRow(
@@ -889,8 +944,9 @@ const AriCircleApp = {
     });
 
     /*
-     * Until the "entire Circle" loader is added to circle-api.js,
-     * the saved Top Circle members are still valid editor choices.
+     * Seed the Top Circle editor with the currently saved members.
+     * loadViewerData() replaces this with the viewer's entire accepted
+     * Circle once accepted relationships finish loading.
      */
     TopCircle.setAvailableMembers(
       topMembers
@@ -965,14 +1021,17 @@ const AriCircleApp = {
     if (!id) {
       return {
         conversations: [],
-        notifications: []
+        notifications: [],
+        connectionRequests: [],
+        connections: []
       };
     }
 
     const [
       conversationsResult,
       notificationsResult,
-      connectionRequestsResult
+      connectionRequestsResult,
+      connectionsResult
     ] =
       await Promise.allSettled([
         CircleApi.getConversations(
@@ -989,6 +1048,10 @@ const AriCircleApp = {
 
         CircleApi.getPendingConnectionRequests(
           id
+        ),
+
+        CircleApi.getAcceptedConnections(
+          id
         )
       ]);
 
@@ -999,6 +1062,9 @@ const AriCircleApp = {
       [];
 
     let connectionRequests =
+      [];
+
+    let connections =
       [];
 
     if (
@@ -1080,10 +1146,38 @@ const AriCircleApp = {
       );
     }
 
+    if (
+      connectionsResult.status ===
+      "fulfilled"
+    ) {
+      connections =
+        connectionsResult.value ||
+        [];
+
+      /*
+       * The Top Circle editor should be able to choose from every
+       * accepted Circle member, not only people already featured.
+       */
+      const availableMembers =
+        mapAcceptedConnectionProfiles(
+          connections
+        );
+
+      TopCircle.setAvailableMembers(
+        availableMembers
+      );
+    } else {
+      console.warn(
+        "ARI Circle accepted connections did not load.",
+        connectionsResult.reason
+      );
+    }
+
     return {
       conversations,
       notifications,
-      connectionRequests
+      connectionRequests,
+      connections
     };
   },
 
@@ -1343,6 +1437,34 @@ const AriCircleApp = {
             row
           );
       }
+    }
+
+    /*
+     * V1.3.1:
+     * Accepted-Circle membership is now loadable through CircleApi.
+     * Refresh viewer-level data when a relationship changes so the
+     * Top Circle editor immediately gains/removes accepted members.
+     *
+     * This intentionally reuses the existing loader instead of creating
+     * a second accepted-connection state authority in index.js.
+     */
+    const relationshipBelongsToViewer =
+      requesterUserId ===
+        viewerUserId ||
+      addresseeUserId ===
+        viewerUserId;
+
+    if (relationshipBelongsToViewer) {
+      this.loadViewerData(
+        viewerUserId
+      ).catch(
+        error => {
+          console.warn(
+            "ARI Circle viewer connection data did not refresh.",
+            error
+          );
+        }
+      );
     }
 
     if (!profileUserId) {
@@ -1889,6 +2011,11 @@ const AriCircleApp = {
         Boolean(
           this.state.client
         ),
+
+      acceptedConnectionsLoader:
+        typeof CircleApi
+          .getAcceptedConnections ===
+          "function",
 
       context:
         CircleContext
