@@ -3,6 +3,12 @@
 // File: auth.js
 // Purpose:
 //   Shared Supabase auth helpers for ARI Rebirth.
+//
+// V1.0.0
+// Email confirmation handoff:
+// - New account confirmation redirects to email-confirmed.html.
+// - email-confirmed.html intentionally does NOT initialize Supabase.
+// - The user returns to ARI and signs in manually after confirmation.
 // =====================================================
 
 async function createUserProfile(user, displayName = "") {
@@ -51,8 +57,24 @@ async function signUpUser(email, password, displayName = "") {
     email: cleanEmail,
     password: cleanPassword,
     options: {
+      /*
+       * IMPORTANT:
+       *
+       * Do NOT redirect email confirmation back into signin.html or any
+       * page that initializes the Supabase client.
+       *
+       * Supabase confirms the email first, then redirects here.
+       * email-confirmed.html does not initialize Supabase, so the returned
+       * auth payload is never consumed into ARI's browser session.
+       *
+       * Result:
+       *   1. User confirms email.
+       *   2. Confirmation page says thank you.
+       *   3. User returns to ARI manually.
+       *   4. User signs in normally with email + password.
+       */
       emailRedirectTo:
-        `${window.location.origin}/signin.html?verified=1`,
+        `${window.location.origin}/email-confirmed.html`,
 
       data: {
         display_name: cleanDisplayName
