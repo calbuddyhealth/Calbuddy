@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.3.1
+// V1.3.2
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -8,7 +8,7 @@
 //
 //   <script
 //     type="module"
-//     src="js/ari-circle/index.js?v=1.3.1">
+//     src="js/ari-circle/index.js?v=1.3.2">
 //   </script>
 //
 // All ARI Circle feature modules are imported here.
@@ -39,11 +39,14 @@
 //
 // This file does not create a duplicate Supabase client.
 //
-// V1.3.1:
+// V1.3.2:
 // - Loads accepted Circle connections through CircleApi.getAcceptedConnections().
 // - Resolves all accepted friend profiles for Top Circle editor choices.
 // - Keeps incoming and outgoing pending requests loaded separately.
 // - Returns accepted connections from loadViewerData().
+// - Imports and initializes CircleMembers V1.0.0.
+// - Wires data-circle-action="view-entire-circle" to the full Circle manager.
+// - Adds CircleMembers cleanup and diagnostics.
 // - Uses CircleApi V1.3.1.
 
 import CircleContext from "./core/circle-context.js";
@@ -58,6 +61,7 @@ import ProfileEditor from "./profile/profile-editor.js";
 
 import ConnectionsController from "./connections/connections-controller.js";
 import ConnectionRequests from "./connections/connection-requests.js?v=1.1.0";
+import CircleMembers from "./connections/circle-members.js?v=1.0.0";
 import TopCircle from "./connections/top-circle.js";
 import PeopleDiscovery from "./connections/people-discovery.js";
 
@@ -76,7 +80,7 @@ import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.3.1";
+const VERSION = "1.3.2";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
@@ -391,6 +395,7 @@ const AriCircleApp = {
 
     ConnectionsController,
     ConnectionRequests,
+    CircleMembers,
     TopCircle,
     PeopleDiscovery,
 
@@ -676,6 +681,7 @@ const AriCircleApp = {
 
       ConnectionsController,
       ConnectionRequests,
+      CircleMembers,
       TopCircle,
       PeopleDiscovery,
 
@@ -1944,6 +1950,7 @@ const AriCircleApp = {
 
       PeopleDiscovery,
       TopCircle,
+      CircleMembers,
       ConnectionRequests,
       ConnectionsController,
 
@@ -2050,6 +2057,10 @@ const AriCircleApp = {
 
         connectionRequests:
           ConnectionRequests
+            .getDiagnostics?.(),
+
+        circleMembers:
+          CircleMembers
             .getDiagnostics?.(),
 
         topCircle:
