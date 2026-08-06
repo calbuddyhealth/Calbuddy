@@ -1,2628 +1,3434 @@
-// js/ari-training.js
-// ARI Training
-//
+// =====================================================
+// ARI REBIRTH
+// File: js/ari-training.js
+// Version: 2.1.0
 // Purpose:
-// Own the browser-side workout logging experience for ari-training.html.
+//   Summary + execution controller for ari-training.html.
 //
-// V1.1.0 — Assisted Calorie Estimation
+// V2.0.0 architecture:
+//   - ari-training.html is no longer a manual workout logger.
+//   - Loads the user's current weekly workout plan.
+//   - Shows today's training overview.
+//   - Shows Monday-Sunday weekly plan summary.
+//   - Lets users check off individual prescribed sets.
+//   - Automatically marks a training day COMPLETE when all
+//     required work for that day is complete.
+//   - Shows estimated calories for each completed set/activity.
+//   - Tracks current-month training history.
+//   - Monthly history view starts fresh on the 1st of each month.
+//   - Training calories NEVER modify Nutrition calories left.
 //
-// Responsibilities:
-// - Load, normalize, validate, create, edit, and delete workout entries.
-// - Calculate workout duration from start and end times.
-// - Estimate active calories from workout type, intensity, duration, and weight.
-// - Allow a manual calorie value from a watch or exercise machine.
-// - Render today's performance, today's timeline, weekly output, and history.
-// - Publish today's burned-calorie total for the Goals page.
-// - Read the current daily calorie goal and consumed-calorie total.
-// - Preserve workout records in localStorage.
-// - Expose a small public API for future integrations.
-//
-// Non-responsibilities:
-// - Does not connect directly to Apple Health, Fitbit, Garmin, GPS, or pedometers.
-// - Does not diagnose health conditions or judge workout quality.
-// - Does not treat heart rate as a required field.
-// - Does not claim calorie estimates are exact.
-// - Does not sync to Supabase in Version 1.1.
+// Data:
+//   workout-plan-controller.js      -> plan definition
+//   workout-progress-store.js       -> completion state
+//   exercise-registry.js            -> exercise metadata
+//   calorie-calculator.js           -> calorie estimation
+// =====================================================
 
-(() => {
-  "use strict";
+import WorkoutPlanController
+  from "./training/workout-plan-controller.js";
 
-  const VERSION = "1.1.0";
+import WorkoutProgressStore
+  from "./training/workout-progress-store.js";
 
-  const STORAGE_KEYS = Object.freeze({
-    workoutEntries: "calbuddyExerciseEntries",
-    legacyBurnedCalories: "calbuddyCaloriesBurned",
-    dailyCalorieGoal: "calbuddyDailyCalorieGoal",
-    caloriesConsumed: "calbuddyCaloriesConsumed",
-    currentWeight: "calbuddyCurrentWeight",
-    profileWeight: "calbuddyProfileWeight",
-    bodyWeight: "calbuddyBodyWeight",
-    userProfile: "calbuddyUserProfile"
-  });
+import ExerciseRegistry
+  from "./training/exercises/exercise-registry.js";
 
-  const EVENT_NAMES = Object.freeze({
-    workoutsChanged: "ari:training-workouts-changed",
-    caloriesBurnedChanged: "ari:calories-burned-changed"
-  });
+import CalorieCalculator
+  from "./training/energy/calorie-calculator.js";
 
-  const WORKOUT_TYPES = Object.freeze({
-    strength: "Strength Training",
-    running: "Running",
-    walking: "Walking",
-    "cardio-machine": "Cardio Machine",
-    cycling: "Cycling",
-    swimming: "Swimming",
-    sports: "Sports",
-    mobility: "Yoga / Pilates / Mobility",
-    custom: "Custom Workout"
-  });
+import HeartRateIntensity
+  from "./training/energy/heart-rate-intensity.js";
 
-  const DEFAULT_WORKOUT_NAMES = Object.freeze({
-    strength: "Strength Training",
-    running: "Run",
-    walking: "Walk",
-    "cardio-machine": "Cardio Session",
-    cycling: "Cycling",
-    swimming: "Swimming",
-    sports: "Sports",
-    mobility: "Mobility Session",
-    custom: ""
-  });
+const VERSION = "2.1.0";
+const SOURCE = "js/ari-training";
 
-  const INTENSITY_LABELS = Object.freeze({
-    light: "Light",
-    moderate: "Moderate",
-    vigorous: "Vigorous"
-  });
+const DAYS = Object.freeze([
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday"
+]);
 
-  /*
-   * Approximate MET values by activity and effort.
-   * The runtime subtracts 1 resting MET so the estimate better represents
-   * active calories instead of total energy expenditure.
-   */
-  const WORKOUT_MET_VALUES = Object.freeze({
-    strength: Object.freeze({
-      light: 3.0,
-      moderate: 5.0,
-      vigorous: 6.5
-    }),
-    running: Object.freeze({
-      light: 6.0,
-      moderate: 8.3,
-      vigorous: 11.0
-    }),
-    walking: Object.freeze({
-      light: 2.8,
-      moderate: 4.3,
-      vigorous: 5.5
-    }),
-    "cardio-machine": Object.freeze({
-      light: 4.0,
-      moderate: 6.5,
-      vigorous: 9.0
-    }),
-    cycling: Object.freeze({
-      light: 4.0,
-      moderate: 7.0,
-      vigorous: 10.0
-    }),
-    swimming: Object.freeze({
-      light: 4.8,
-      moderate: 7.0,
-      vigorous: 9.8
-    }),
-    sports: Object.freeze({
-      light: 4.0,
-      moderate: 7.0,
-      vigorous: 10.0
-    }),
-    mobility: Object.freeze({
-      light: 2.5,
-      moderate: 3.3,
-      vigorous: 4.0
-    }),
-    custom: Object.freeze({
-      light: 3.0,
-      moderate: 5.0,
-      vigorous: 7.0
-    })
-  });
+const DAY_LABELS = Object.freeze({
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday"
+});
 
-  const WEEKDAY_IDS = Object.freeze([
-    "weeklyMondayValue",
-    "weeklyTuesdayValue",
-    "weeklyWednesdayValue",
-    "weeklyThursdayValue",
-    "weeklyFridayValue",
-    "weeklySaturdayValue",
-    "weeklySundayValue"
-  ]);
+const state = {
+  initialized: false,
+  currentDay: null,
+  currentMonthKey: null,
+  plan: null,
 
-  const state = {
-    initialized: false,
-    entries: [],
-    pendingDeleteId: null,
-    activeDialogMode: "create",
-    lastFocusedElement: null,
-    resolvedProfileWeight: null
-  };
+  profileAge: null,
+  profileWeightLb: null,
+  profileRestingHeartRate: null,
+  profileEstimatedMaxHeartRate: null,
+  profileConfirmedMaxHeartRate: null,
+  profileEffectiveMaxHeartRate: null,
+  profileMaxHeartRateSource: null,
 
-  const elements = {};
+  averageWorkoutHeartRate: null,
+  heartRateIntensity: null,
 
-  /* =====================================================
-     PUBLIC RUNTIME
-  ===================================================== */
+  unsubscribePlan: null,
+  unsubscribeProgress: null
+};
 
-  const AriTrainingRuntime = {
-    version: VERSION,
+const elements = {};
 
-    initialize,
-    refresh,
-    getWorkoutEntries,
-    getTodayEntries,
-    getTodayBurnedCalories,
-    getTodayWorkoutMinutes,
-    estimateCalories,
-    createWorkout,
-    updateWorkout,
-    deleteWorkout,
-    openWorkoutDialog,
-    closeWorkoutDialog
-  };
+/* =====================================================
+   INITIALIZATION
+===================================================== */
 
-  window.Ari = window.Ari || {};
-  window.Ari.Training = AriTrainingRuntime;
-  window.AriTrainingRuntime = AriTrainingRuntime;
-
-  /* =====================================================
-     INITIALIZATION
-  ===================================================== */
-
-  function initialize() {
-    if (state.initialized) {
-      refresh();
-      return;
-    }
-
-    cacheElements();
-
-    if (!elements.workoutForm || !elements.workoutDialog) {
-      console.error(
-        "[ARI Training] Required HTML elements are missing. " +
-        "Confirm ari-training.html matches ari-training.js."
-      );
-      return;
-    }
-
-    state.resolvedProfileWeight = readStoredBodyWeight();
-    state.entries = loadWorkoutEntries();
-
-    bindEvents();
-    setCurrentDateDisplay();
-    setDefaultWorkoutDate();
-    renderAll();
-
-    state.initialized = true;
-
-    console.info(`[ARI Training] Runtime initialized. Version ${VERSION}.`);
+async function initialize() {
+  if (state.initialized) {
+    await refresh();
+    return;
   }
 
-  function cacheElements() {
-    const ids = [
-      "trainingMenuButton",
-      "trainingMenu",
-      "trainingCurrentDate",
-      "trainingCaloriesBurned",
-      "trainingWorkoutTime",
-      "trainingWorkoutCount",
-      "trainingCaloriesLeft",
-      "openGenericWorkoutButton",
-      "todayWorkoutList",
-      "todayWorkoutEmptyState",
-      "emptyStateLogWorkoutButton",
-      "weeklyDateRange",
-      "weeklyCaloriesBurned",
-      "weeklyWorkoutTime",
-      "weeklyWorkoutCount",
-      "weeklyPerformanceChart",
-      "weeklyActivityLabel",
-      "workoutHistoryList",
-      "workoutHistoryEmptyState",
-      "workoutDialog",
-      "workoutDialogTitle",
-      "closeWorkoutDialogButton",
-      "workoutForm",
-      "workoutEntryId",
-      "workoutType",
-      "workoutName",
-      "workoutDate",
-      "workoutDuration",
-      "workoutStartTime",
-      "workoutEndTime",
-      "workoutIntensity",
-      "workoutBodyWeight",
-      "workoutAverageHeartRate",
-      "workoutCaloriesBurned",
-      "workoutCalorieEstimatePanel",
-      "workoutEstimatedCalories",
-      "workoutCalorieEstimateMessage",
-      "workoutCalorieSource",
-      "workoutNotes",
-      "workoutNotesCount",
-      "workoutFormMessage",
-      "cancelWorkoutButton",
-      "deleteWorkoutDialog",
-      "cancelDeleteWorkoutButton",
-      "confirmDeleteWorkoutButton",
-      "workoutEntryTemplate",
-      "historyDayTemplate"
-    ];
+  cacheElements();
+  bindEvents();
 
-    for (const id of ids) {
-      elements[id] = document.getElementById(id);
-    }
+  setCurrentDateDisplay();
 
-    elements.categoryButtons = Array.from(
-      document.querySelectorAll("[data-workout-type]")
-    );
+  state.currentDay =
+    getCurrentWeekdayId();
 
-    elements.weeklyValueElements = WEEKDAY_IDS.map((id) =>
-      document.getElementById(id)
-    );
+  state.currentMonthKey =
+    getMonthKey();
+
+  await loadTrainingProfile();
+
+  loadStoredAverageHeartRate();
+
+  WorkoutProgressStore.hydrate();
+
+  await WorkoutPlanController.init();
+
+  state.plan =
+    WorkoutPlanController.getPlan();
+
+  syncProgressWithPlan();
+
+  state.unsubscribePlan =
+    WorkoutPlanController.subscribe(() => {
+      state.plan =
+        WorkoutPlanController.getPlan();
+
+      syncProgressWithPlan();
+      renderAll();
+    });
+
+  state.unsubscribeProgress =
+    WorkoutProgressStore.subscribe(() => {
+      renderAll();
+    });
+
+  renderAll();
+
+  state.initialized =
+    true;
+
+  publishGlobal();
+
+  console.info(
+    `[ARI Training] Summary runtime initialized. Version ${VERSION}.`
+  );
+}
+
+function cacheElements() {
+  const ids = [
+    "trainingMenuButton",
+    "trainingMenu",
+    "trainingCurrentDate",
+
+    "trainingCaloriesBurned",
+    "trainingWorkoutTime",
+    "trainingWorkoutCount",
+    "trainingSetsCompleted",
+
+    "trainingProfilePanel",
+    "trainingProfileSource",
+    "trainingProfileWeight",
+    "trainingProfileRestingHeartRate",
+    "trainingProfileMaxHeartRate",
+    "trainingProfileMaxHeartRateSource",
+    "trainingAverageHeartRate",
+    "trainingHeartRateIntensity",
+    "trainingHeartRateIntensityLabel",
+    "trainingHeartRateIntensityDetail",
+
+    "todayPlannedWorkout",
+    "todayPlannedWorkoutTitle",
+    "todayPlannedWorkoutStatus",
+    "todayPlannedWorkoutSummary",
+    "todayPlannedWorkoutProgress",
+    "todayCompletedSets",
+    "todayRequiredSets",
+
+    "weeklyCompletedDays",
+    "weeklyScheduledDays",
+    "weeklyCompletedSets",
+    "weeklyRequiredSets",
+    "weeklyTrainingCalories",
+    "weeklyPlanList",
+    "weeklyPlanEmpty",
+
+    "monthlyHistoryPanel",
+    "trainingHistoryMonthLabel",
+    "monthlyWorkoutCount",
+    "monthlyCaloriesBurned",
+    "monthlyCompletedWorkouts",
+    "monthlyTrainingTime",
+    "monthlyCaloriesTotal",
+    "monthlySetsCompleted",
+    "monthlyHistoryList",
+    "monthlyHistoryEmptyState",
+
+    "weeklyPlanDayTemplate",
+    "plannedExerciseTemplate",
+    "plannedSetTemplate",
+    "monthlyHistoryDayTemplate",
+    "monthlyHistoryWorkoutTemplate"
+  ];
+
+  for (const id of ids) {
+    elements[id] =
+      document.getElementById(id);
   }
+}
 
-  function bindEvents() {
-    elements.trainingMenuButton?.addEventListener(
+function bindEvents() {
+  elements.trainingMenuButton
+    ?.addEventListener(
       "click",
       toggleTrainingMenu
     );
 
-    elements.trainingMenu?.addEventListener("click", (event) => {
-      if (event.target.closest("a")) {
-        closeTrainingMenu();
+  elements.trainingMenu
+    ?.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target.closest("a")
+        ) {
+          closeTrainingMenu();
+        }
       }
-    });
+    );
 
-    for (const button of elements.categoryButtons) {
-      button.addEventListener("click", () => {
-        openWorkoutDialog(button.dataset.workoutType || "");
-      });
-    }
-
-    elements.openGenericWorkoutButton?.addEventListener("click", () => {
-      openWorkoutDialog("");
-    });
-
-    elements.emptyStateLogWorkoutButton?.addEventListener("click", () => {
-      scrollToWorkoutCategories();
-    });
-
-    elements.closeWorkoutDialogButton?.addEventListener(
+  elements.weeklyPlanList
+    ?.addEventListener(
       "click",
-      closeWorkoutDialog
+      handleWeeklyPlanClick
     );
 
-    elements.cancelWorkoutButton?.addEventListener(
-      "click",
-      closeWorkoutDialog
-    );
-
-    elements.workoutForm.addEventListener("submit", handleWorkoutSubmit);
-
-    elements.workoutType?.addEventListener("change", () => {
-      handleWorkoutTypeChange();
-      updateCalorieEstimate();
-    });
-
-    elements.workoutStartTime?.addEventListener(
-      "input",
-      handleWorkoutTimingChange
-    );
-
-    elements.workoutEndTime?.addEventListener(
-      "input",
-      handleWorkoutTimingChange
-    );
-
-    elements.workoutIntensity?.addEventListener(
+  elements.weeklyPlanList
+    ?.addEventListener(
       "change",
-      updateCalorieEstimate
+      handleWeeklyPlanChange
     );
 
-    elements.workoutBodyWeight?.addEventListener(
+  elements.trainingAverageHeartRate
+    ?.addEventListener(
       "input",
-      updateCalorieEstimate
+      handleAverageHeartRateChange
     );
 
-    elements.workoutCaloriesBurned?.addEventListener(
-      "input",
-      updateCalorieEstimate
+  elements.trainingAverageHeartRate
+    ?.addEventListener(
+      "change",
+      handleAverageHeartRateChange
     );
 
-    elements.workoutNotes?.addEventListener(
-      "input",
-      updateNotesCount
-    );
+  window.addEventListener(
+    "focus",
+    refresh
+  );
 
-    elements.todayWorkoutList?.addEventListener(
-      "click",
-      handleWorkoutEntryAction
-    );
+  window.addEventListener(
+    "storage",
+    () => {
+      refresh();
+    }
+  );
 
-    elements.workoutHistoryList?.addEventListener(
-      "click",
-      handleWorkoutEntryAction
-    );
-
-    elements.cancelDeleteWorkoutButton?.addEventListener(
-      "click",
-      closeDeleteDialog
-    );
-
-    elements.confirmDeleteWorkoutButton?.addEventListener(
-      "click",
-      confirmPendingDelete
-    );
-
-    elements.workoutDialog.addEventListener("click", (event) => {
-      if (event.target === elements.workoutDialog) {
-        closeWorkoutDialog();
-      }
-    });
-
-    elements.deleteWorkoutDialog?.addEventListener("click", (event) => {
-      if (event.target === elements.deleteWorkoutDialog) {
-        closeDeleteDialog();
-      }
-    });
-
-    elements.workoutDialog.addEventListener("cancel", (event) => {
-      event.preventDefault();
-      closeWorkoutDialog();
-    });
-
-    elements.deleteWorkoutDialog?.addEventListener("cancel", (event) => {
-      event.preventDefault();
-      closeDeleteDialog();
-    });
-
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("focus", refresh);
-
-    document.addEventListener("visibilitychange", () => {
+  document.addEventListener(
+    "visibilitychange",
+    () => {
       if (!document.hidden) {
         refresh();
       }
-    });
+    }
+  );
+}
+
+/* =====================================================
+   PLAN + PROGRESS
+===================================================== */
+
+function syncProgressWithPlan() {
+  const plan =
+    state.plan;
+
+  if (
+    !plan ||
+    !plan.week
+  ) {
+    return;
   }
 
-  /* =====================================================
-     STORAGE
-  ===================================================== */
+  const weekKey =
+    getCurrentWeekKey();
 
-  function loadWorkoutEntries() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.workoutEntries);
+  /*
+   * Progress is week-specific.
+   * Starting a new calendar week gives the new week's plan
+   * a fresh execution state.
+   */
+  WorkoutProgressStore.setPlanContext({
+    planKey:
+      plan.planId ||
+      plan.metadata
+        ?.sourceTemplateId ||
+      "local-plan",
 
-      if (!raw) {
-        return [];
-      }
+    weekKey,
 
-      const parsed = JSON.parse(raw);
+    resetIfChanged:
+      true
+  });
 
-      if (!Array.isArray(parsed)) {
-        console.warn(
-          "[ARI Training] Stored workout data was not an array and was ignored."
-        );
-        return [];
-      }
-
-      return parsed
-        .map(normalizeWorkoutEntry)
-        .filter(Boolean)
-        .sort(sortEntriesNewestFirst);
-    } catch (error) {
-      console.error("[ARI Training] Unable to read workout entries.", error);
-      return [];
-    }
-  }
-
-  function saveWorkoutEntries() {
-    state.entries.sort(sortEntriesNewestFirst);
-
-    try {
-      localStorage.setItem(
-        STORAGE_KEYS.workoutEntries,
-        JSON.stringify(state.entries)
-      );
-    } catch (error) {
-      console.error("[ARI Training] Unable to save workout entries.", error);
-      showFormMessage(
-        "Your workout could not be saved on this device.",
-        "error"
-      );
-      return false;
-    }
-
-    publishWorkoutTotals();
-    return true;
-  }
-
-  function publishWorkoutTotals() {
-    const burnedToday = getTodayBurnedCalories();
-
-    try {
-      localStorage.setItem(
-        STORAGE_KEYS.legacyBurnedCalories,
-        String(burnedToday)
-      );
-    } catch (error) {
-      console.warn(
-        "[ARI Training] Unable to publish today's burned-calorie total.",
-        error
-      );
-    }
-
-    const detail = {
-      source: "ari-training",
-      version: VERSION,
-      localDate: getLocalDateKey(),
-      caloriesBurned: burnedToday,
-      workoutMinutes: getTodayWorkoutMinutes(),
-      workoutCount: getTodayEntries().length
-    };
-
-    window.dispatchEvent(
-      new CustomEvent(EVENT_NAMES.workoutsChanged, { detail })
+  WorkoutProgressStore
+    .syncWeekWithPlan(
+      plan.week
     );
+}
 
-    window.dispatchEvent(
-      new CustomEvent(EVENT_NAMES.caloriesBurnedChanged, { detail })
+async function refresh() {
+  state.currentDay =
+    getCurrentWeekdayId();
+
+  state.currentMonthKey =
+    getMonthKey();
+
+  await loadTrainingProfile();
+
+  loadStoredAverageHeartRate();
+
+  try {
+    await WorkoutPlanController.load();
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Workout plan refresh failed.",
+      error
     );
   }
 
-  function handleStorageChange(event) {
-    const relevantKeys = new Set(Object.values(STORAGE_KEYS));
-
-    if (event.key && !relevantKeys.has(event.key)) {
-      return;
-    }
-
-    refresh();
-  }
-
-  /* =====================================================
-     WORKOUT CRUD
-  ===================================================== */
-
-  function createWorkout(workoutInput) {
-    const normalized = normalizeWorkoutEntry({
-      ...workoutInput,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      source: "manual-entry"
-    });
-
-    if (!normalized) {
-      throw new Error("Workout entry could not be normalized.");
-    }
-
-    state.entries.push(normalized);
-
-    if (!saveWorkoutEntries()) {
-      state.entries = state.entries.filter(
-        (entry) => entry.id !== normalized.id
-      );
-      return null;
-    }
-
-    renderAll();
-    return cloneEntry(normalized);
-  }
-
-  function updateWorkout(entryId, workoutInput) {
-    const index = state.entries.findIndex(
-      (entry) => entry.id === entryId
-    );
-
-    if (index < 0) {
-      return null;
-    }
-
-    const current = state.entries[index];
-
-    const normalized = normalizeWorkoutEntry({
-      ...current,
-      ...workoutInput,
-      id: current.id,
-      createdAt: current.createdAt,
-      updatedAt: new Date().toISOString()
-    });
-
-    if (!normalized) {
-      throw new Error("Workout entry could not be normalized.");
-    }
-
-    state.entries[index] = normalized;
-
-    if (!saveWorkoutEntries()) {
-      state.entries[index] = current;
-      return null;
-    }
-
-    renderAll();
-    return cloneEntry(normalized);
-  }
-
-  function deleteWorkout(entryId) {
-    const index = state.entries.findIndex(
-      (entry) => entry.id === entryId
-    );
-
-    if (index < 0) {
-      return false;
-    }
-
-    const [removed] = state.entries.splice(index, 1);
-
-    if (!saveWorkoutEntries()) {
-      state.entries.splice(index, 0, removed);
-      return false;
-    }
-
-    renderAll();
-    return true;
-  }
-
-  function getWorkoutEntries() {
-    return state.entries.map(cloneEntry);
-  }
-
-  function getTodayEntries(referenceDate = new Date()) {
-    const todayKey = getLocalDateKey(referenceDate);
-
-    return state.entries
-      .filter((entry) => entry.localDate === todayKey)
-      .sort(sortEntriesNewestFirst)
-      .map(cloneEntry);
-  }
-
-  function getTodayBurnedCalories(referenceDate = new Date()) {
-    return sum(
-      getTodayEntries(referenceDate),
-      (entry) => entry.caloriesBurned
-    );
-  }
-
-  function getTodayWorkoutMinutes(referenceDate = new Date()) {
-    return sum(
-      getTodayEntries(referenceDate),
-      (entry) => entry.durationMinutes
-    );
-  }
-
-  /* =====================================================
-     FORM AND DIALOG
-  ===================================================== */
-
-  function openWorkoutDialog(workoutType = "", entryId = null) {
-    state.lastFocusedElement =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-
-    resetWorkoutForm();
-    hideFormMessage();
-
-    if (entryId) {
-      const entry = state.entries.find((item) => item.id === entryId);
-
-      if (!entry) {
-        return;
-      }
-
-      state.activeDialogMode = "edit";
-      populateWorkoutForm(entry);
-      elements.workoutDialogTitle.textContent = "Edit Workout";
-    } else {
-      state.activeDialogMode = "create";
-      elements.workoutDialogTitle.textContent = workoutType
-        ? `Log ${getWorkoutTypeLabel(workoutType)}`
-        : "Log Workout";
-
-      elements.workoutType.value = workoutType;
-
-      if (workoutType) {
-        elements.workoutName.value =
-          DEFAULT_WORKOUT_NAMES[workoutType] || "";
-      }
-
-      setDefaultWorkoutDate();
-      setDefaultWorkoutTimes();
-      setDefaultWorkoutIntensity();
-      setDefaultWorkoutWeight();
-      updateDurationOutput();
-      updateCalorieEstimate();
-    }
-
-    if (typeof elements.workoutDialog.showModal === "function") {
-      elements.workoutDialog.showModal();
-    } else {
-      elements.workoutDialog.setAttribute("open", "");
-    }
-
-    requestAnimationFrame(() => {
-      if (workoutType && elements.workoutName) {
-        elements.workoutName.focus();
-        elements.workoutName.select();
-      } else {
-        elements.workoutType?.focus();
-      }
-    });
-  }
-
-  function closeWorkoutDialog() {
-    hideFormMessage();
-
-    if (elements.workoutDialog.open) {
-      elements.workoutDialog.close();
-    } else {
-      elements.workoutDialog.removeAttribute("open");
-    }
-
-    resetWorkoutForm();
-
-    if (state.lastFocusedElement?.isConnected) {
-      state.lastFocusedElement.focus();
-    }
-
-    state.lastFocusedElement = null;
-  }
-
-  function resetWorkoutForm() {
-    elements.workoutForm.reset();
-    elements.workoutEntryId.value = "";
-    elements.workoutDuration.textContent = "—";
-    elements.workoutNotesCount.textContent = "0";
-    state.activeDialogMode = "create";
-
-    setDefaultWorkoutDate();
-    setDefaultWorkoutIntensity();
-    setDefaultWorkoutWeight();
-    renderCalorieEstimateState({
-      calories: null,
-      source: "pending",
-      message:
-        "Select a workout type, duration, and intensity to generate an estimate."
-    });
-  }
-
-  function populateWorkoutForm(entry) {
-    elements.workoutEntryId.value = entry.id;
-    elements.workoutType.value = entry.workoutType;
-    elements.workoutName.value = entry.workoutName;
-    elements.workoutDate.value = entry.localDate;
-    elements.workoutStartTime.value = entry.startTime;
-    elements.workoutEndTime.value = entry.endTime;
-    elements.workoutIntensity.value = entry.intensity || "moderate";
-    elements.workoutBodyWeight.value = entry.bodyWeightPounds ?? "";
-    elements.workoutAverageHeartRate.value =
-      entry.averageHeartRate ?? "";
-    elements.workoutCaloriesBurned.value =
-      entry.calorieSource === "manual"
-        ? entry.caloriesBurned
-        : "";
-    elements.workoutNotes.value = entry.notes || "";
-
-    updateDurationOutput();
-    updateNotesCount();
-    updateCalorieEstimate();
-  }
-
-  function handleWorkoutTypeChange() {
-    const type = elements.workoutType.value;
-    const currentName = elements.workoutName.value.trim();
-    const knownDefaultNames = new Set(
-      Object.values(DEFAULT_WORKOUT_NAMES).filter(Boolean)
-    );
-
-    if (!currentName || knownDefaultNames.has(currentName)) {
-      elements.workoutName.value =
-        DEFAULT_WORKOUT_NAMES[type] || "";
-    }
-
-    elements.workoutDialogTitle.textContent =
-      state.activeDialogMode === "edit"
-        ? "Edit Workout"
-        : type
-          ? `Log ${getWorkoutTypeLabel(type)}`
-          : "Log Workout";
-  }
-
-  function handleWorkoutTimingChange() {
-    updateDurationOutput();
-    updateCalorieEstimate();
-  }
-
-  function handleWorkoutSubmit(event) {
-    event.preventDefault();
-    hideFormMessage();
-
-    const formResult = readAndValidateWorkoutForm();
-
-    if (!formResult.ok) {
-      showFormMessage(formResult.message, "error");
-      formResult.field?.focus();
-      return;
-    }
-
-    let savedEntry;
-
-    if (state.activeDialogMode === "edit") {
-      savedEntry = updateWorkout(
-        elements.workoutEntryId.value,
-        formResult.value
-      );
-    } else {
-      savedEntry = createWorkout(formResult.value);
-    }
-
-    if (!savedEntry) {
-      return;
-    }
-
-    closeWorkoutDialog();
-    scrollToTodayTraining();
-  }
-
-  function readAndValidateWorkoutForm() {
-    const workoutType = elements.workoutType.value.trim();
-    const workoutName = elements.workoutName.value.trim();
-    const localDate = elements.workoutDate.value;
-    const startTime = elements.workoutStartTime.value;
-    const endTime = elements.workoutEndTime.value;
-    const intensity = elements.workoutIntensity.value.trim();
-    const bodyWeightPounds = parseOptionalNumber(
-      elements.workoutBodyWeight.value
-    );
-    const averageHeartRate = parseOptionalInteger(
-      elements.workoutAverageHeartRate.value
-    );
-    const manualCalories = parseOptionalInteger(
-      elements.workoutCaloriesBurned.value
-    );
-    const notes = elements.workoutNotes.value.trim();
-
-    if (!WORKOUT_TYPES[workoutType]) {
-      return invalid(
-        "Select a workout type.",
-        elements.workoutType
-      );
-    }
-
-    if (!workoutName) {
-      return invalid(
-        "Enter a name for this workout.",
-        elements.workoutName
-      );
-    }
-
-    if (workoutName.length > 80) {
-      return invalid(
-        "Workout names must be 80 characters or fewer.",
-        elements.workoutName
-      );
-    }
-
-    if (!isValidDateKey(localDate)) {
-      return invalid(
-        "Choose a valid workout date.",
-        elements.workoutDate
-      );
-    }
-
-    if (!isValidTimeValue(startTime)) {
-      return invalid(
-        "Enter a valid start time.",
-        elements.workoutStartTime
-      );
-    }
-
-    if (!isValidTimeValue(endTime)) {
-      return invalid(
-        "Enter a valid end time.",
-        elements.workoutEndTime
-      );
-    }
-
-    const durationMinutes = calculateDurationMinutes(
-      startTime,
-      endTime
-    );
-
-    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-      return invalid(
-        "The workout duration must be greater than zero.",
-        elements.workoutEndTime
-      );
-    }
-
-    if (durationMinutes > 24 * 60) {
-      return invalid(
-        "A workout cannot be longer than 24 hours.",
-        elements.workoutEndTime
-      );
-    }
-
-    if (!INTENSITY_LABELS[intensity]) {
-      return invalid(
-        "Select the workout intensity.",
-        elements.workoutIntensity
-      );
-    }
-
-    if (
-      bodyWeightPounds !== null &&
-      (bodyWeightPounds < 50 || bodyWeightPounds > 1000)
-    ) {
-      return invalid(
-        "Body weight must be between 50 and 1,000 lb.",
-        elements.workoutBodyWeight
-      );
-    }
-
-    if (
-      averageHeartRate !== null &&
-      (averageHeartRate < 30 || averageHeartRate > 240)
-    ) {
-      return invalid(
-        "Average heart rate must be between 30 and 240 bpm.",
-        elements.workoutAverageHeartRate
-      );
-    }
-
-    if (
-      manualCalories !== null &&
-      (manualCalories < 1 || manualCalories > 10000)
-    ) {
-      return invalid(
-        "Manual calories must be between 1 and 10,000 kcal.",
-        elements.workoutCaloriesBurned
-      );
-    }
-
-    const resolvedWeight =
-      bodyWeightPounds ?? state.resolvedProfileWeight;
-
-    const estimatedCalories = estimateCalories({
-      workoutType,
-      intensity,
-      durationMinutes,
-      bodyWeightPounds: resolvedWeight
-    });
-
-    if (manualCalories === null && estimatedCalories === null) {
-      return invalid(
-        "Enter your body weight so ARI can estimate calories, or enter a calorie value from your watch or exercise machine.",
-        elements.workoutBodyWeight
-      );
-    }
-
-    if (notes.length > 500) {
-      return invalid(
-        "Workout notes must be 500 characters or fewer.",
-        elements.workoutNotes
-      );
-    }
-
-    const caloriesBurned =
-      manualCalories ?? estimatedCalories;
-    const calorieSource =
-      manualCalories !== null ? "manual" : "estimated";
-
-    const dateTimes = buildWorkoutDateTimes({
-      localDate,
-      startTime,
-      endTime
-    });
-
-    return {
-      ok: true,
-      value: {
-        workoutType,
-        workoutName,
-        localDate,
-        startTime,
-        endTime,
-        startedAt: dateTimes.startedAt,
-        endedAt: dateTimes.endedAt,
-        durationMinutes,
-        intensity,
-        bodyWeightPounds: resolvedWeight,
-        averageHeartRate,
-        caloriesBurned,
-        calorieSource,
-        notes
-      }
-    };
-  }
-
-  function invalid(message, field) {
-    return {
-      ok: false,
-      message,
-      field
-    };
-  }
-
-  function updateDurationOutput() {
-    const startTime = elements.workoutStartTime.value;
-    const endTime = elements.workoutEndTime.value;
-
-    if (!startTime || !endTime) {
-      elements.workoutDuration.textContent = "—";
-      return;
-    }
-
-    const durationMinutes = calculateDurationMinutes(
-      startTime,
-      endTime
-    );
-
-    elements.workoutDuration.textContent =
-      durationMinutes > 0
-        ? formatDuration(durationMinutes)
-        : "—";
-  }
-
-  function updateCalorieEstimate() {
-    const manualCalories = parseOptionalInteger(
-      elements.workoutCaloriesBurned?.value
-    );
-
-    if (manualCalories !== null) {
-      if (manualCalories >= 1 && manualCalories <= 10000) {
-        renderCalorieEstimateState({
-          calories: manualCalories,
-          source: "manual",
-          message:
-            "Your watch or exercise-machine value will replace ARI's estimate."
-        });
-      } else {
-        renderCalorieEstimateState({
-          calories: null,
-          source: "invalid",
-          message:
-            "Manual calories must be between 1 and 10,000 kcal."
-        });
-      }
-
-      return;
-    }
-
-    const workoutType = elements.workoutType?.value || "";
-    const intensity = elements.workoutIntensity?.value || "";
-    const startTime = elements.workoutStartTime?.value || "";
-    const endTime = elements.workoutEndTime?.value || "";
-    const enteredWeight = parseOptionalNumber(
-      elements.workoutBodyWeight?.value
-    );
-    const resolvedWeight =
-      enteredWeight ?? state.resolvedProfileWeight;
-    const durationMinutes = calculateDurationMinutes(
-      startTime,
-      endTime
-    );
-
-    if (!workoutType || !WORKOUT_TYPES[workoutType]) {
-      renderCalorieEstimateState({
-        calories: null,
-        source: "pending",
-        message: "Select a workout type to begin the estimate."
-      });
-      return;
-    }
-
-    if (!intensity || !INTENSITY_LABELS[intensity]) {
-      renderCalorieEstimateState({
-        calories: null,
-        source: "pending",
-        message: "Select an intensity level to continue."
-      });
-      return;
-    }
-
-    if (!startTime || !endTime || durationMinutes <= 0) {
-      renderCalorieEstimateState({
-        calories: null,
-        source: "pending",
-        message: "Enter a valid start and end time to calculate duration."
-      });
-      return;
-    }
-
-    if (
-      resolvedWeight === null ||
-      resolvedWeight < 50 ||
-      resolvedWeight > 1000
-    ) {
-      renderCalorieEstimateState({
-        calories: null,
-        source: "weight-required",
-        message:
-          "Enter your body weight so ARI can calculate an estimate."
-      });
-      return;
-    }
-
-    const estimatedCalories = estimateCalories({
-      workoutType,
-      intensity,
-      durationMinutes,
-      bodyWeightPounds: resolvedWeight
-    });
-
-    if (estimatedCalories === null) {
-      renderCalorieEstimateState({
-        calories: null,
-        source: "unavailable",
-        message:
-          "ARI could not calculate an estimate from the current details."
-      });
-      return;
-    }
-
-    const weightMessage =
-      enteredWeight === null && state.resolvedProfileWeight !== null
-        ? `Estimated using your saved weight of ${formatWeight(
-            state.resolvedProfileWeight
-          )} lb.`
-        : `Estimated using ${formatWeight(resolvedWeight)} lb.`;
-
-    renderCalorieEstimateState({
-      calories: estimatedCalories,
-      source: "estimated",
-      message:
-        `${weightMessage} Enter a watch or machine value above to override it.`
-    });
-  }
-
-  function renderCalorieEstimateState({
-    calories,
-    source,
-    message
-  }) {
-    if (elements.workoutEstimatedCalories) {
-      elements.workoutEstimatedCalories.textContent =
-        calories === null
-          ? "—"
-          : formatNumber(calories);
-    }
-
-    if (elements.workoutCalorieEstimateMessage) {
-      elements.workoutCalorieEstimateMessage.textContent = message;
-    }
-
-    if (elements.workoutCalorieSource) {
-      elements.workoutCalorieSource.dataset.source = source;
-      elements.workoutCalorieSource.textContent =
-        getCalorieSourceLabel(source);
-    }
-
-    if (elements.workoutCalorieEstimatePanel) {
-      elements.workoutCalorieEstimatePanel.dataset.source = source;
-    }
-  }
-
-  function getCalorieSourceLabel(source) {
-    const labels = {
-      pending: "Awaiting details",
-      manual: "Manual override",
-      estimated: "ARI estimate",
-      invalid: "Check value",
-      "weight-required": "Weight needed",
-      unavailable: "Unavailable"
-    };
-
-    return labels[source] || "Awaiting details";
-  }
-
-  function updateNotesCount() {
-    elements.workoutNotesCount.textContent = String(
-      elements.workoutNotes.value.length
-    );
-  }
-
-  function setDefaultWorkoutDate() {
-    if (elements.workoutDate && !elements.workoutDate.value) {
-      elements.workoutDate.value = getLocalDateKey();
-    }
-  }
-
-  function setDefaultWorkoutTimes() {
-    const now = new Date();
-    const roundedEnd = roundDateToNearestMinutes(now, 5);
-    const roundedStart = new Date(
-      roundedEnd.getTime() - 60 * 60 * 1000
-    );
-
-    elements.workoutStartTime.value = formatTimeInput(roundedStart);
-    elements.workoutEndTime.value = formatTimeInput(roundedEnd);
-  }
-
-  function setDefaultWorkoutIntensity() {
-    if (
-      elements.workoutIntensity &&
-      !elements.workoutIntensity.value
-    ) {
-      elements.workoutIntensity.value = "moderate";
-    }
-  }
-
-  function setDefaultWorkoutWeight() {
-    if (
-      elements.workoutBodyWeight &&
-      !elements.workoutBodyWeight.value &&
-      state.resolvedProfileWeight !== null
-    ) {
-      elements.workoutBodyWeight.value =
-        formatWeight(state.resolvedProfileWeight);
-    }
-  }
-
-  function showFormMessage(message, type = "info") {
-    elements.workoutFormMessage.textContent = message;
-    elements.workoutFormMessage.dataset.type = type;
-    elements.workoutFormMessage.hidden = false;
-  }
-
-  function hideFormMessage() {
-    elements.workoutFormMessage.textContent = "";
-    delete elements.workoutFormMessage.dataset.type;
-    elements.workoutFormMessage.hidden = true;
-  }
-
-  /* =====================================================
-     CALORIE ESTIMATION
-  ===================================================== */
-
-  function estimateCalories({
-    workoutType,
-    intensity,
-    durationMinutes,
-    bodyWeightPounds
-  } = {}) {
-    const met = WORKOUT_MET_VALUES[workoutType]?.[intensity];
-    const duration = Number(durationMinutes);
-    const weightPounds = Number(bodyWeightPounds);
-
-    if (
-      !Number.isFinite(met) ||
-      !Number.isFinite(duration) ||
-      duration <= 0 ||
-      !Number.isFinite(weightPounds) ||
-      weightPounds <= 0
-    ) {
-      return null;
-    }
-
-    const weightKilograms = weightPounds / 2.2046226218;
-    const activeMet = Math.max(met - 1, 0.5);
-    const calories =
-      (activeMet * 3.5 * weightKilograms / 200) * duration;
-
-    if (!Number.isFinite(calories) || calories <= 0) {
-      return null;
-    }
-
-    return Math.max(1, Math.round(calories));
-  }
-
-  function readStoredBodyWeight() {
-    const directKeys = [
-      STORAGE_KEYS.currentWeight,
-      STORAGE_KEYS.profileWeight,
-      STORAGE_KEYS.bodyWeight
-    ];
-
-    for (const key of directKeys) {
-      const value = parseStoredWeight(localStorage.getItem(key));
-
-      if (value !== null) {
-        return value;
-      }
-    }
-
-    const profileRaw = localStorage.getItem(STORAGE_KEYS.userProfile);
-
-    if (profileRaw) {
-      try {
-        const profile = JSON.parse(profileRaw);
-        const candidates = [
-          profile?.weight,
-          profile?.weightLbs,
-          profile?.weightPounds,
-          profile?.currentWeight,
-          profile?.bodyWeight
-        ];
-
-        for (const candidate of candidates) {
-          const value = normalizeWeight(candidate);
-
-          if (value !== null) {
-            return value;
-          }
-        }
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
-  }
-
-  function parseStoredWeight(rawValue) {
-    if (rawValue === null || rawValue === undefined || rawValue === "") {
-      return null;
-    }
-
-    const direct = normalizeWeight(rawValue);
-
-    if (direct !== null) {
-      return direct;
-    }
-
-    try {
-      const parsed = JSON.parse(rawValue);
-
-      if (typeof parsed === "number" || typeof parsed === "string") {
-        return normalizeWeight(parsed);
-      }
-
-      if (parsed && typeof parsed === "object") {
-        const candidates = [
-          parsed.value,
-          parsed.weight,
-          parsed.weightLbs,
-          parsed.weightPounds,
-          parsed.currentWeight,
-          parsed.bodyWeight
-        ];
-
-        for (const candidate of candidates) {
-          const value = normalizeWeight(candidate);
-
-          if (value !== null) {
-            return value;
-          }
-        }
-      }
-    } catch {
-      return null;
-    }
-
-    return null;
-  }
-
-  function normalizeWeight(value) {
-    const number = Number(value);
-
-    if (
-      !Number.isFinite(number) ||
-      number < 50 ||
-      number > 1000
-    ) {
-      return null;
-    }
-
-    return Math.round(number * 10) / 10;
-  }
-
-  /* =====================================================
-     DELETE CONFIRMATION
-  ===================================================== */
-
-  function requestDeleteWorkout(entryId) {
-    const entry = state.entries.find((item) => item.id === entryId);
-
-    if (!entry) {
-      return;
-    }
-
-    state.pendingDeleteId = entryId;
-
-    const title = document.getElementById("deleteWorkoutDialogTitle");
-
-    if (title) {
-      title.textContent = `Delete ${entry.workoutName}?`;
-    }
-
-    if (typeof elements.deleteWorkoutDialog.showModal === "function") {
-      elements.deleteWorkoutDialog.showModal();
-    } else {
-      elements.deleteWorkoutDialog.setAttribute("open", "");
-    }
-
-    elements.cancelDeleteWorkoutButton?.focus();
-  }
-
-  function confirmPendingDelete() {
-    if (!state.pendingDeleteId) {
-      closeDeleteDialog();
-      return;
-    }
-
-    deleteWorkout(state.pendingDeleteId);
-    closeDeleteDialog();
-  }
-
-  function closeDeleteDialog() {
-    state.pendingDeleteId = null;
-
-    if (elements.deleteWorkoutDialog?.open) {
-      elements.deleteWorkoutDialog.close();
-    } else {
-      elements.deleteWorkoutDialog?.removeAttribute("open");
-    }
-  }
-
-  /* =====================================================
-     RENDERING
-  ===================================================== */
-
-  function refresh() {
-    state.resolvedProfileWeight = readStoredBodyWeight();
-    state.entries = loadWorkoutEntries();
-    setCurrentDateDisplay();
-    renderAll();
-  }
-
-  function renderAll() {
-    renderTodayPerformance();
-    renderTodayWorkoutList();
-    renderWeeklyPerformance();
-    renderWorkoutHistory();
-    publishWorkoutTotals();
-  }
-
-  function renderTodayPerformance() {
-    const todayEntries = getTodayEntries();
-    const caloriesBurned = sum(
-      todayEntries,
-      (entry) => entry.caloriesBurned
-    );
-    const workoutMinutes = sum(
-      todayEntries,
-      (entry) => entry.durationMinutes
-    );
-
-    elements.trainingCaloriesBurned.textContent =
-      formatNumber(caloriesBurned);
-    elements.trainingWorkoutTime.textContent =
-      formatDuration(workoutMinutes);
-    elements.trainingWorkoutCount.textContent =
-      String(todayEntries.length);
-
-    const caloriesLeft = calculateCaloriesLeft(caloriesBurned);
-
-    elements.trainingCaloriesLeft.textContent =
-      caloriesLeft === null
-        ? "—"
-        : formatNumber(Math.max(caloriesLeft, 0));
-
-    const card = elements.trainingCaloriesLeft.closest(
-      ".ari-performance-card"
-    );
-
-    if (card) {
-      card.dataset.status =
-        caloriesLeft === null
-          ? "unknown"
-          : caloriesLeft < 0
-            ? "over"
-            : "available";
-    }
-  }
-
-  function renderTodayWorkoutList() {
-    const todayEntries = getTodayEntries();
-
-    elements.todayWorkoutList.replaceChildren();
-
-    for (const entry of todayEntries) {
-      elements.todayWorkoutList.appendChild(
-        createWorkoutEntryElement(entry)
-      );
-    }
-
-    const hasEntries = todayEntries.length > 0;
-    elements.todayWorkoutEmptyState.hidden = hasEntries;
-    elements.todayWorkoutList.hidden = !hasEntries;
-  }
-
-  function createWorkoutEntryElement(entry) {
-    const template = elements.workoutEntryTemplate;
-
-    if (!template?.content) {
-      return createFallbackWorkoutEntry(entry);
-    }
-
-    const fragment = template.content.cloneNode(true);
-    const article = fragment.querySelector(".ari-training-entry");
-
-    article.dataset.workoutId = entry.id;
-    article.dataset.calorieSource = entry.calorieSource;
-
-    setText(
-      article,
-      ".ari-training-entry__type",
-      getWorkoutTypeLabel(entry.workoutType)
-    );
-    setText(
-      article,
-      ".ari-training-entry__name",
-      entry.workoutName
-    );
-    setText(
-      article,
-      ".ari-training-entry__calories",
-      `${formatNumber(entry.caloriesBurned)} kcal`
-    );
-    setText(
-      article,
-      ".ari-training-entry__time",
-      formatWorkoutTimeRange(entry)
-    );
-    setText(
-      article,
-      ".ari-training-entry__duration",
-      formatDuration(entry.durationMinutes)
-    );
-
-    const calorieSource = article.querySelector(
-      ".ari-training-entry__calorie-source"
-    );
-
-    if (calorieSource) {
-      calorieSource.textContent =
-        entry.calorieSource === "estimated"
-          ? "ARI estimate"
-          : "Manual";
-      calorieSource.dataset.source = entry.calorieSource;
-      calorieSource.hidden = false;
-    }
-
-    const intensityGroup = article.querySelector(
-      ".ari-training-entry__intensity-group"
-    );
-
-    if (entry.intensity) {
-      intensityGroup?.removeAttribute("hidden");
-      setText(
-        article,
-        ".ari-training-entry__intensity",
-        getIntensityLabel(entry.intensity)
-      );
-    } else {
-      intensityGroup?.setAttribute("hidden", "");
-    }
-
-    const heartRateGroup = article.querySelector(
-      ".ari-training-entry__heart-rate-group"
-    );
-
-    if (entry.averageHeartRate === null) {
-      heartRateGroup?.setAttribute("hidden", "");
-    } else {
-      heartRateGroup?.removeAttribute("hidden");
-      setText(
-        article,
-        ".ari-training-entry__heart-rate",
-        `${entry.averageHeartRate} bpm`
-      );
-    }
-
-    const notes = article.querySelector(
-      ".ari-training-entry__notes"
-    );
-
-    if (notes && entry.notes) {
-      notes.textContent = entry.notes;
-      notes.hidden = false;
-    }
-
-    const editButton = article.querySelector(
-      ".ari-entry-action--edit"
-    );
-    const deleteButton = article.querySelector(
-      ".ari-entry-action--delete"
-    );
-
-    if (editButton) {
-      editButton.dataset.action = "edit";
-      editButton.dataset.workoutId = entry.id;
-      editButton.setAttribute(
-        "aria-label",
-        `Edit ${entry.workoutName}`
-      );
-    }
-
-    if (deleteButton) {
-      deleteButton.dataset.action = "delete";
-      deleteButton.dataset.workoutId = entry.id;
-      deleteButton.setAttribute(
-        "aria-label",
-        `Delete ${entry.workoutName}`
-      );
-    }
-
-    return fragment;
-  }
-
-  function createFallbackWorkoutEntry(entry) {
-    const article = document.createElement("article");
-    article.className = "ari-training-entry";
-    article.dataset.workoutId = entry.id;
-    article.dataset.calorieSource = entry.calorieSource;
-
-    const content = document.createElement("div");
-    content.className = "ari-training-entry__content";
-
-    const title = document.createElement("h3");
-    title.textContent = entry.workoutName;
-
-    const sourceLabel =
-      entry.calorieSource === "estimated"
-        ? "ARI estimate"
-        : "manual";
-
-    const summary = document.createElement("p");
-    summary.textContent =
-      `${getWorkoutTypeLabel(entry.workoutType)} • ` +
-      `${getIntensityLabel(entry.intensity)} • ` +
-      `${formatWorkoutTimeRange(entry)} • ` +
-      `${formatDuration(entry.durationMinutes)} • ` +
-      `${formatNumber(entry.caloriesBurned)} kcal (${sourceLabel})`;
-
-    const actions = document.createElement("div");
-    actions.className = "ari-training-entry__actions";
-
-    actions.append(
-      createEntryActionButton("edit", entry),
-      createEntryActionButton("delete", entry)
-    );
-
-    content.append(title, summary, actions);
-    article.append(content);
-
-    return article;
-  }
-
-  function renderWeeklyPerformance() {
-    const week = getCurrentWeekRange();
-    const weeklyEntries = state.entries.filter((entry) =>
-      isDateKeyWithinRange(entry.localDate, week.startKey, week.endKey)
-    );
-
-    const calories = sum(
-      weeklyEntries,
-      (entry) => entry.caloriesBurned
-    );
-    const minutes = sum(
-      weeklyEntries,
-      (entry) => entry.durationMinutes
-    );
-
-    elements.weeklyDateRange.textContent = formatWeekRange(week);
-    elements.weeklyCaloriesBurned.textContent =
-      `${formatNumber(calories)} kcal`;
-    elements.weeklyWorkoutTime.textContent =
-      formatDuration(minutes);
-    elements.weeklyWorkoutCount.textContent =
-      String(weeklyEntries.length);
-
-    const dayTotals = Array(7).fill(0);
-
-    for (const entry of weeklyEntries) {
-      const dayIndex = getMondayBasedDayIndex(entry.localDate);
-
-      if (dayIndex >= 0 && dayIndex < 7) {
-        dayTotals[dayIndex] += entry.durationMinutes;
-      }
-    }
-
-    const maxMinutes = Math.max(...dayTotals, 1);
-    const chartDays = Array.from(
-      elements.weeklyPerformanceChart.querySelectorAll(
-        ".ari-weekly-chart__day"
-      )
-    );
-
-    chartDays.forEach((dayElement, index) => {
-      const minutesForDay = dayTotals[index];
-      const percentage =
-        minutesForDay > 0
-          ? Math.max((minutesForDay / maxMinutes) * 100, 8)
-          : 0;
-      const bar = dayElement.querySelector(
-        ".ari-weekly-chart__bar"
+  state.plan =
+    WorkoutPlanController.getPlan();
+
+  WorkoutProgressStore.hydrate();
+
+  syncProgressWithPlan();
+
+  setCurrentDateDisplay();
+  renderAll();
+}
+
+/* =====================================================
+   RENDER ALL
+===================================================== */
+
+function renderAll() {
+  renderTrainingProfile();
+  renderOverview();
+  renderTodayPlan();
+  renderWeeklyPlan();
+  renderMonthlyHistory();
+}
+
+/* =====================================================
+   OVERVIEW
+===================================================== */
+
+function renderOverview() {
+  const todaySummary =
+    WorkoutProgressStore
+      .getDaySummary(
+        state.currentDay
       );
 
-      bar?.style.setProperty(
-        "--bar-level",
-        `${percentage.toFixed(1)}%`
-      );
+  const todayDay =
+    state.plan
+      ?.week
+      ?.[state.currentDay];
 
-      dayElement.dataset.minutes = String(minutesForDay);
-      dayElement.setAttribute(
-        "aria-label",
-        `${dayElement.dataset.weekday}: ${formatDuration(minutesForDay)}`
-      );
-
-      if (elements.weeklyValueElements[index]) {
-        elements.weeklyValueElements[index].textContent =
-          formatDuration(minutesForDay);
-      }
-    });
-
-    elements.weeklyActivityLabel.textContent =
-      getWeeklyActivityLabel(minutes);
-  }
-
-  function renderWorkoutHistory() {
-    const groups = groupEntriesByDate(state.entries);
-
-    elements.workoutHistoryList.replaceChildren();
-
-    for (const group of groups) {
-      elements.workoutHistoryList.appendChild(
-        createHistoryDayElement(group)
-      );
-    }
-
-    const hasHistory = groups.length > 0;
-    elements.workoutHistoryEmptyState.hidden = hasHistory;
-    elements.workoutHistoryList.hidden = !hasHistory;
-  }
-
-  function createHistoryDayElement(group) {
-    const template = elements.historyDayTemplate;
-
-    if (!template?.content) {
-      return createFallbackHistoryDay(group);
-    }
-
-    const fragment = template.content.cloneNode(true);
-    const details = fragment.querySelector(".ari-history-day");
-
-    details.dataset.localDate = group.localDate;
-
-    setText(
-      details,
-      ".ari-history-day__label",
-      getRelativeDateLabel(group.localDate)
-    );
-    setText(
-      details,
-      ".ari-history-day__date",
-      formatDateKey(group.localDate, {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      })
-    );
-    setText(
-      details,
-      ".ari-history-day__sessions",
-      `${group.entries.length} ${pluralize(
-        group.entries.length,
-        "workout",
-        "workouts"
-      )}`
-    );
-    setText(
-      details,
-      ".ari-history-day__calories",
-      `${formatNumber(
-        sum(group.entries, (entry) => entry.caloriesBurned)
-      )} kcal`
+  const todayMinutes =
+    estimateCompletedTrainingMinutes(
+      todayDay,
+      state.currentDay
     );
 
-    if (group.localDate === getLocalDateKey()) {
-      details.open = true;
-    }
-
-    const entriesContainer = details.querySelector(
-      ".ari-history-day__entries"
-    );
-
-    for (const entry of group.entries) {
-      entriesContainer.appendChild(
-        createWorkoutEntryElement(entry)
-      );
-    }
-
-    return fragment;
-  }
-
-  function createFallbackHistoryDay(group) {
-    const details = document.createElement("details");
-    details.className = "ari-history-day";
-    details.dataset.localDate = group.localDate;
-
-    const summary = document.createElement("summary");
-    summary.textContent =
-      `${getRelativeDateLabel(group.localDate)} — ` +
-      `${group.entries.length} ${pluralize(
-        group.entries.length,
-        "workout",
-        "workouts"
-      )}`;
-
-    const container = document.createElement("div");
-
-    for (const entry of group.entries) {
-      container.appendChild(createWorkoutEntryElement(entry));
-    }
-
-    details.append(summary, container);
-    return details;
-  }
-
-  function handleWorkoutEntryAction(event) {
-    const button = event.target.closest("[data-action]");
-
-    if (!button) {
-      return;
-    }
-
-    const entryId = button.dataset.workoutId;
-    const action = button.dataset.action;
-
-    if (!entryId) {
-      return;
-    }
-
-    if (action === "edit") {
-      const entry = state.entries.find((item) => item.id === entryId);
-
-      if (entry) {
-        openWorkoutDialog(entry.workoutType, entryId);
-      }
-    }
-
-    if (action === "delete") {
-      requestDeleteWorkout(entryId);
-    }
-  }
-
-  /* =====================================================
-     GOALS INTEGRATION
-  ===================================================== */
-
-  function calculateCaloriesLeft(caloriesBurnedToday) {
-    const goal = parseStoredNumber(
-      localStorage.getItem(STORAGE_KEYS.dailyCalorieGoal)
-    );
-    const consumed = parseStoredNumber(
-      localStorage.getItem(STORAGE_KEYS.caloriesConsumed)
-    );
-
-    if (goal === null) {
-      return null;
-    }
-
-    return Math.round(
-      goal + caloriesBurnedToday - (consumed ?? 0)
-    );
-  }
-
-  /* =====================================================
-     NORMALIZATION
-  ===================================================== */
-
-  function normalizeWorkoutEntry(rawEntry) {
-    if (!rawEntry || typeof rawEntry !== "object") {
-      return null;
-    }
-
-    const workoutType = normalizeWorkoutType(
-      rawEntry.workoutType ?? rawEntry.type
-    );
-    const localDate =
-      normalizeDateKey(
-        rawEntry.localDate ??
-        rawEntry.date ??
-        rawEntry.workoutDate
-      ) || inferDateKeyFromTimestamp(rawEntry.startedAt);
-    const startTime =
-      normalizeTimeValue(
-        rawEntry.startTime ??
-        extractLocalTime(rawEntry.startedAt)
-      );
-    const endTime =
-      normalizeTimeValue(
-        rawEntry.endTime ??
-        extractLocalTime(rawEntry.endedAt)
-      );
-
-    if (!workoutType || !localDate || !startTime || !endTime) {
-      return null;
-    }
-
-    const durationMinutes =
-      positiveIntegerOrNull(rawEntry.durationMinutes) ??
-      calculateDurationMinutes(startTime, endTime);
-
-    const caloriesBurned = positiveIntegerOrNull(
-      rawEntry.caloriesBurned ??
-      rawEntry.calories ??
-      rawEntry.activeCalories
-    );
-
-    if (
-      !Number.isFinite(durationMinutes) ||
-      durationMinutes <= 0 ||
-      !Number.isFinite(caloriesBurned) ||
-      caloriesBurned <= 0
-    ) {
-      return null;
-    }
-
-    const dateTimes = buildWorkoutDateTimes({
-      localDate,
-      startTime,
-      endTime
-    });
-
-    const workoutName =
-      normalizeText(
-        rawEntry.workoutName ??
-        rawEntry.name ??
-        DEFAULT_WORKOUT_NAMES[workoutType] ??
-        WORKOUT_TYPES[workoutType]
-      ).slice(0, 80) || WORKOUT_TYPES[workoutType];
-
-    const averageHeartRate = normalizeHeartRate(
-      rawEntry.averageHeartRate ??
-      rawEntry.heartRate
-    );
-
-    const intensity = normalizeIntensity(
-      rawEntry.intensity ??
-      rawEntry.workoutIntensity ??
-      "moderate"
-    );
-
-    const bodyWeightPounds = normalizeWeight(
-      rawEntry.bodyWeightPounds ??
-      rawEntry.bodyWeight ??
-      rawEntry.weightPounds ??
-      rawEntry.weight
-    );
-
-    const calorieSource =
-      normalizeCalorieSource(rawEntry.calorieSource);
-
-    return {
-      id: normalizeId(rawEntry.id) || generateId(),
-      workoutType,
-      workoutName,
-      localDate,
-      startTime,
-      endTime,
-      startedAt:
-        normalizeIsoTimestamp(rawEntry.startedAt) ||
-        dateTimes.startedAt,
-      endedAt:
-        normalizeIsoTimestamp(rawEntry.endedAt) ||
-        dateTimes.endedAt,
-      durationMinutes: Math.round(durationMinutes),
-      intensity,
-      bodyWeightPounds,
-      averageHeartRate,
-      caloriesBurned: Math.round(caloriesBurned),
-      calorieSource,
-      notes: normalizeText(rawEntry.notes).slice(0, 500),
-      source: normalizeText(
-        rawEntry.source || "manual-entry"
-      ).slice(0, 40),
-      createdAt:
-        normalizeIsoTimestamp(rawEntry.createdAt) ||
-        new Date().toISOString(),
-      updatedAt:
-        normalizeIsoTimestamp(rawEntry.updatedAt) ||
-        normalizeIsoTimestamp(rawEntry.createdAt) ||
-        new Date().toISOString()
-    };
-  }
-
-  function normalizeWorkoutType(value) {
-    const normalized = normalizeText(value).toLowerCase();
-
-    const aliases = {
-      strength: "strength",
-      weights: "strength",
-      weightlifting: "strength",
-      "strength training": "strength",
-      running: "running",
-      run: "running",
-      walking: "walking",
-      walk: "walking",
-      cardio: "cardio-machine",
-      "cardio machine": "cardio-machine",
-      "cardio-machine": "cardio-machine",
-      cycling: "cycling",
-      biking: "cycling",
-      bike: "cycling",
-      swimming: "swimming",
-      swim: "swimming",
-      sports: "sports",
-      sport: "sports",
-      mobility: "mobility",
-      yoga: "mobility",
-      pilates: "mobility",
-      custom: "custom",
-      other: "custom"
-    };
-
-    return aliases[normalized] || (
-      WORKOUT_TYPES[normalized] ? normalized : ""
-    );
-  }
-
-  function normalizeIntensity(value) {
-    const normalized = normalizeText(value).toLowerCase();
-
-    const aliases = {
-      easy: "light",
-      low: "light",
-      light: "light",
-      normal: "moderate",
-      medium: "moderate",
-      moderate: "moderate",
-      hard: "vigorous",
-      high: "vigorous",
-      intense: "vigorous",
-      vigorous: "vigorous"
-    };
-
-    return aliases[normalized] || "moderate";
-  }
-
-  function normalizeCalorieSource(value) {
-    const normalized = normalizeText(value).toLowerCase();
-
-    if (
-      normalized === "estimated" ||
-      normalized === "ari-estimated" ||
-      normalized === "ari estimate"
-    ) {
-      return "estimated";
-    }
-
-    return "manual";
-  }
-
-  /* =====================================================
-     DATE AND TIME
-  ===================================================== */
-
-  function calculateDurationMinutes(startTime, endTime) {
-    if (
-      !isValidTimeValue(startTime) ||
-      !isValidTimeValue(endTime)
-    ) {
-      return 0;
-    }
-
-    const startMinutes = timeValueToMinutes(startTime);
-    let endMinutes = timeValueToMinutes(endTime);
-
-    if (endMinutes <= startMinutes) {
-      endMinutes += 24 * 60;
-    }
-
-    return endMinutes - startMinutes;
-  }
-
-  function buildWorkoutDateTimes({
-    localDate,
-    startTime,
-    endTime
-  }) {
-    const start = dateFromDateKeyAndTime(localDate, startTime);
-    const end = dateFromDateKeyAndTime(localDate, endTime);
-
-    if (end <= start) {
-      end.setDate(end.getDate() + 1);
-    }
-
-    return {
-      startedAt: start.toISOString(),
-      endedAt: end.toISOString()
-    };
-  }
-
-  function setCurrentDateDisplay() {
-    const today = new Date();
-
-    elements.trainingCurrentDate.dateTime =
-      getLocalDateKey(today);
-    elements.trainingCurrentDate.textContent =
-      new Intl.DateTimeFormat("en-US", {
-        weekday: "long",
-        month: "short",
-        day: "numeric"
-      }).format(today);
-  }
-
-  function getCurrentWeekRange(referenceDate = new Date()) {
-    const start = new Date(
-      referenceDate.getFullYear(),
-      referenceDate.getMonth(),
-      referenceDate.getDate()
-    );
-    const day = start.getDay();
-    const daysSinceMonday = day === 0 ? 6 : day - 1;
-
-    start.setDate(start.getDate() - daysSinceMonday);
-
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-
-    return {
-      start,
-      end,
-      startKey: getLocalDateKey(start),
-      endKey: getLocalDateKey(end)
-    };
-  }
-
-  function getMondayBasedDayIndex(dateKey) {
-    const date = dateFromDateKey(dateKey);
-    const day = date.getDay();
-
-    return day === 0 ? 6 : day - 1;
-  }
-
-  function getLocalDateKey(date = new Date()) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  }
-
-  function dateFromDateKey(dateKey) {
-    const [year, month, day] = dateKey
-      .split("-")
-      .map(Number);
-
-    return new Date(year, month - 1, day);
-  }
-
-  function dateFromDateKeyAndTime(dateKey, timeValue) {
-    const [year, month, day] = dateKey
-      .split("-")
-      .map(Number);
-    const [hours, minutes] = timeValue
-      .split(":")
-      .map(Number);
-
-    return new Date(
-      year,
-      month - 1,
-      day,
-      hours,
-      minutes,
-      0,
+  const todayWorkoutCount =
+    todaySummary?.status ===
+      "complete"
+      ? 1
+      : 0;
+
+  setText(
+    elements.trainingCaloriesBurned,
+    formatNumber(
+      todaySummary
+        ?.estimatedCalories ||
       0
+    )
+  );
+
+  setText(
+    elements.trainingWorkoutTime,
+    formatDuration(
+      todayMinutes
+    )
+  );
+
+  setText(
+    elements.trainingWorkoutCount,
+    String(
+      todayWorkoutCount
+    )
+  );
+
+  setText(
+    elements.trainingSetsCompleted,
+    String(
+      todaySummary
+        ?.completedSets ||
+      countCompletedSingleActivities(
+        state.currentDay
+      )
+    )
+  );
+}
+
+function renderTodayPlan() {
+  const day =
+    state.plan
+      ?.week
+      ?.[state.currentDay];
+
+  const summary =
+    WorkoutProgressStore
+      .getDaySummary(
+        state.currentDay
+      );
+
+  if (!day) {
+    setText(
+      elements.todayPlannedWorkoutTitle,
+      "No workout scheduled"
     );
+
+    setText(
+      elements.todayPlannedWorkoutSummary,
+      "Your scheduled training for today will appear here."
+    );
+
+    setDayStatusElement(
+      elements.todayPlannedWorkoutStatus,
+      "not_started"
+    );
+
+    setText(
+      elements.todayCompletedSets,
+      "0"
+    );
+
+    setText(
+      elements.todayRequiredSets,
+      "0"
+    );
+
+    return;
   }
 
-  function getRelativeDateLabel(dateKey) {
-    const today = dateFromDateKey(getLocalDateKey());
-    const target = dateFromDateKey(dateKey);
-    const difference = Math.round(
-      (today - target) / 86400000
+  setText(
+    elements.todayPlannedWorkoutTitle,
+    day.title ||
+    DAY_LABELS[
+      state.currentDay
+    ]
+  );
+
+  if (
+    day.type ===
+      "off"
+  ) {
+    setText(
+      elements.todayPlannedWorkoutSummary,
+      "Scheduled recovery day."
     );
 
-    if (difference === 0) {
-      return "Today";
+    setDayStatusElement(
+      elements.todayPlannedWorkoutStatus,
+      "rest"
+    );
+
+    setText(
+      elements.todayCompletedSets,
+      "0"
+    );
+
+    setText(
+      elements.todayRequiredSets,
+      "0"
+    );
+
+    return;
+  }
+
+  const exerciseCount =
+    day.exercises
+      ?.length ||
+    0;
+
+  setText(
+    elements.todayPlannedWorkoutSummary,
+    `${exerciseCount} ${pluralize(exerciseCount, "exercise", "exercises")} scheduled.`
+  );
+
+  setDayStatusElement(
+    elements.todayPlannedWorkoutStatus,
+    summary?.status ||
+    "not_started"
+  );
+
+  setText(
+    elements.todayCompletedSets,
+    String(
+      summary?.completedSets ||
+      0
+    )
+  );
+
+  setText(
+    elements.todayRequiredSets,
+    String(
+      summary?.requiredSets ||
+      0
+    )
+  );
+}
+
+/* =====================================================
+   WEEKLY PLAN
+===================================================== */
+
+function renderWeeklyPlan() {
+  if (
+    !elements.weeklyPlanList
+  ) {
+    return;
+  }
+
+  elements.weeklyPlanList
+    .replaceChildren();
+
+  const week =
+    state.plan?.week;
+
+  if (!week) {
+    setHidden(
+      elements.weeklyPlanEmpty,
+      false
+    );
+
+    renderWeeklyTotals();
+    return;
+  }
+
+  const hasAnyPlan =
+    DAYS.some(
+      day =>
+        week[day]
+    );
+
+  setHidden(
+    elements.weeklyPlanEmpty,
+    hasAnyPlan
+  );
+
+  for (
+    const day
+    of DAYS
+  ) {
+    const dayState =
+      week[day];
+
+    if (!dayState) {
+      continue;
     }
 
-    if (difference === 1) {
-      return "Yesterday";
-    }
-
-    if (difference > 1 && difference < 7) {
-      return new Intl.DateTimeFormat("en-US", {
-        weekday: "long"
-      }).format(target);
-    }
-
-    return new Intl.DateTimeFormat("en-US", {
-      month: "long",
-      day: "numeric"
-    }).format(target);
-  }
-
-  function formatWeekRange(week) {
-    const sameMonth =
-      week.start.getMonth() === week.end.getMonth();
-
-    if (sameMonth) {
-      const month = new Intl.DateTimeFormat("en-US", {
-        month: "short"
-      }).format(week.start);
-
-      return `${month} ${week.start.getDate()}–${week.end.getDate()}`;
-    }
-
-    const start = new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric"
-    }).format(week.start);
-    const end = new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric"
-    }).format(week.end);
-
-    return `${start}–${end}`;
-  }
-
-  function formatWorkoutTimeRange(entry) {
-    return (
-      `${formatClockTime(entry.startTime)}–` +
-      `${formatClockTime(entry.endTime)}`
-    );
-  }
-
-  function formatClockTime(timeValue) {
-    const [hours, minutes] = timeValue
-      .split(":")
-      .map(Number);
-    const date = new Date(2000, 0, 1, hours, minutes);
-
-    return new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      minute: "2-digit"
-    }).format(date);
-  }
-
-  function formatTimeInput(date) {
-    return (
-      `${String(date.getHours()).padStart(2, "0")}:` +
-      `${String(date.getMinutes()).padStart(2, "0")}`
-    );
-  }
-
-  function formatDateKey(dateKey, options) {
-    return new Intl.DateTimeFormat(
-      "en-US",
-      options
-    ).format(dateFromDateKey(dateKey));
-  }
-
-  function roundDateToNearestMinutes(date, interval) {
-    const rounded = new Date(date);
-    const milliseconds = interval * 60 * 1000;
-
-    rounded.setTime(
-      Math.round(rounded.getTime() / milliseconds) *
-      milliseconds
-    );
-    rounded.setSeconds(0, 0);
-
-    return rounded;
-  }
-
-  /* =====================================================
-     GROUPING AND SORTING
-  ===================================================== */
-
-  function groupEntriesByDate(entries) {
-    const groups = new Map();
-
-    for (const entry of entries) {
-      if (!groups.has(entry.localDate)) {
-        groups.set(entry.localDate, []);
-      }
-
-      groups.get(entry.localDate).push(cloneEntry(entry));
-    }
-
-    return Array.from(groups.entries())
-      .map(([localDate, groupedEntries]) => ({
-        localDate,
-        entries: groupedEntries.sort(sortEntriesNewestFirst)
-      }))
-      .sort((a, b) =>
-        b.localDate.localeCompare(a.localDate)
+    elements.weeklyPlanList
+      .appendChild(
+        createWeeklyDayElement(
+          day,
+          dayState
+        )
       );
   }
 
-  function sortEntriesNewestFirst(a, b) {
-    const timestampDifference =
-      Date.parse(b.startedAt) - Date.parse(a.startedAt);
+  renderWeeklyTotals();
+}
 
-    if (
-      Number.isFinite(timestampDifference) &&
-      timestampDifference !== 0
-    ) {
-      return timestampDifference;
-    }
+function renderWeeklyTotals() {
+  const weekSummary =
+    WorkoutProgressStore
+      .getWeekSummary();
 
-    return (
-      `${b.localDate}T${b.startTime}`.localeCompare(
-        `${a.localDate}T${a.startTime}`
-      )
+  const scheduledDays =
+    DAYS.filter(
+      day =>
+        state.plan
+          ?.week
+          ?.[day]
+          ?.type !==
+            "off"
+    ).length;
+
+  setText(
+    elements.weeklyCompletedDays,
+    String(
+      weekSummary
+        ?.completeDays ||
+      0
+    )
+  );
+
+  setText(
+    elements.weeklyScheduledDays,
+    String(
+      scheduledDays
+    )
+  );
+
+  setText(
+    elements.weeklyCompletedSets,
+    String(
+      weekSummary
+        ?.completedSets ||
+      0
+    )
+  );
+
+  setText(
+    elements.weeklyRequiredSets,
+    String(
+      weekSummary
+        ?.requiredSets ||
+      0
+    )
+  );
+
+  setText(
+    elements.weeklyTrainingCalories,
+    formatNumber(
+      weekSummary
+        ?.estimatedCalories ||
+      0
+    )
+  );
+}
+
+function createWeeklyDayElement(
+  day,
+  dayState
+) {
+  const template =
+    elements
+      .weeklyPlanDayTemplate;
+
+  if (
+    !template?.content
+  ) {
+    return createFallbackDay(
+      day,
+      dayState
     );
   }
 
-  /* =====================================================
-     UI HELPERS
-  ===================================================== */
+  const fragment =
+    template.content
+      .cloneNode(true);
 
-  function toggleTrainingMenu() {
-    const isOpen =
-      elements.trainingMenuButton.getAttribute(
-        "aria-expanded"
-      ) === "true";
+  const article =
+    fragment.querySelector(
+      ".ari-weekly-plan-day"
+    );
 
-    if (isOpen) {
-      closeTrainingMenu();
-      return;
-    }
+  const button =
+    fragment.querySelector(
+      ".ari-weekly-plan-day__header"
+    );
 
-    elements.trainingMenu.hidden = false;
-    elements.trainingMenuButton.setAttribute(
+  const body =
+    fragment.querySelector(
+      ".ari-weekly-plan-day__body"
+    );
+
+  const exerciseList =
+    fragment.querySelector(
+      ".ari-weekly-plan-day__exercise-list"
+    );
+
+  const summary =
+    WorkoutProgressStore
+      .getDaySummary(day);
+
+  article.dataset.day =
+    day;
+
+  article.dataset.status =
+    dayState.type ===
+      "off"
+      ? "rest"
+      : summary?.status ||
+        "not_started";
+
+  button.dataset.action =
+    "toggle-day";
+
+  button.dataset.day =
+    day;
+
+  setTextWithin(
+    article,
+    ".ari-weekly-plan-day__weekday",
+    DAY_LABELS[day]
+  );
+
+  setTextWithin(
+    article,
+    ".ari-weekly-plan-day__title",
+    dayState.title ||
+    (
+      dayState.type ===
+        "off"
+        ? "Off Day"
+        : "Workout"
+    )
+  );
+
+  setTextWithin(
+    article,
+    ".ari-weekly-plan-day__calories",
+    `${formatNumber(summary?.estimatedCalories || 0)} kcal`
+  );
+
+  setTextWithin(
+    article,
+    ".ari-weekly-plan-day__status",
+    getStatusLabel(
+      dayState.type ===
+        "off"
+        ? "rest"
+        : summary?.status
+    )
+  );
+
+  if (
+    dayState.type ===
+      "off"
+  ) {
+    body.hidden =
+      true;
+
+    button.disabled =
+      true;
+
+    setTextWithin(
+      article,
+      ".ari-weekly-plan-day__set-progress",
+      "Recovery day"
+    );
+
+    setTextWithin(
+      article,
+      ".ari-weekly-plan-day__calorie-total",
+      "0 kcal"
+    );
+
+    return fragment;
+  }
+
+  for (
+    const exerciseEntry
+    of dayState.exercises ||
+    []
+  ) {
+    exerciseList
+      ?.appendChild(
+        createPlannedExerciseElement(
+          day,
+          exerciseEntry
+        )
+      );
+  }
+
+  setTextWithin(
+    article,
+    ".ari-weekly-plan-day__set-progress",
+    `${summary?.completedSets || 0}/${summary?.requiredSets || 0} sets`
+  );
+
+  setTextWithin(
+    article,
+    ".ari-weekly-plan-day__calorie-total",
+    `${formatNumber(summary?.estimatedCalories || 0)} kcal burned`
+  );
+
+  /*
+   * Today's day opens automatically.
+   */
+  if (
+    day ===
+      state.currentDay
+  ) {
+    body.hidden =
+      false;
+
+    button.setAttribute(
       "aria-expanded",
       "true"
     );
   }
 
-  function closeTrainingMenu() {
-    elements.trainingMenu.hidden = true;
-    elements.trainingMenuButton.setAttribute(
-      "aria-expanded",
-      "false"
+  return fragment;
+}
+
+function createFallbackDay(
+  day,
+  dayState
+) {
+  const article =
+    document.createElement(
+      "article"
+    );
+
+  article.className =
+    "ari-weekly-plan-day";
+
+  const summary =
+    WorkoutProgressStore
+      .getDaySummary(day);
+
+  article.textContent =
+    `${DAY_LABELS[day]} â ${dayState.title || "Workout"} â ${getStatusLabel(summary?.status)}`;
+
+  return article;
+}
+
+/* =====================================================
+   EXERCISES + SETS
+===================================================== */
+
+function createPlannedExerciseElement(
+  day,
+  exerciseEntry
+) {
+  const exercise =
+    ExerciseRegistry.get(
+      exerciseEntry.exerciseId
+    );
+
+  const template =
+    elements
+      .plannedExerciseTemplate;
+
+  if (
+    !template?.content
+  ) {
+    return document.createTextNode(
+      exercise?.name ||
+      exerciseEntry.exerciseId ||
+      "Exercise"
     );
   }
 
-  function scrollToWorkoutCategories() {
-    document.getElementById("logWorkout")?.scrollIntoView({
-      behavior: prefersReducedMotion() ? "auto" : "smooth",
-      block: "start"
-    });
+  const fragment =
+    template.content
+      .cloneNode(true);
 
-    elements.categoryButtons[0]?.focus({
-      preventScroll: true
-    });
-  }
+  const article =
+    fragment.querySelector(
+      ".ari-planned-exercise"
+    );
 
-  function scrollToTodayTraining() {
-    document.getElementById("todayTraining")?.scrollIntoView({
-      behavior: prefersReducedMotion() ? "auto" : "smooth",
-      block: "start"
-    });
-  }
+  const setContainer =
+    fragment.querySelector(
+      ".ari-planned-exercise__sets"
+    );
 
-  function setText(root, selector, value) {
-    const target = root.querySelector(selector);
+  const singleLabel =
+    fragment.querySelector(
+      ".ari-planned-exercise__single-complete"
+    );
 
-    if (target) {
-      target.textContent = value;
-    }
-  }
+  article.dataset.day =
+    day;
 
-  function createEntryActionButton(action, entry) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className =
-      `ari-entry-action ari-entry-action--${action}`;
-    button.dataset.action = action;
-    button.dataset.workoutId = entry.id;
-    button.textContent =
-      action === "edit" ? "Edit" : "Delete";
+  article.dataset.exerciseId =
+    exerciseEntry.exerciseId;
 
-    return button;
-  }
+  setTextWithin(
+    article,
+    ".ari-planned-exercise__type",
+    getExerciseTypeLabel(
+      exercise
+    )
+  );
 
-  function getWorkoutTypeLabel(type) {
-    return WORKOUT_TYPES[type] || "Workout";
-  }
+  setTextWithin(
+    article,
+    ".ari-planned-exercise__name",
+    exercise?.name ||
+    titleFromId(
+      exerciseEntry.exerciseId
+    )
+  );
 
-  function getIntensityLabel(intensity) {
-    return INTENSITY_LABELS[intensity] || "Moderate";
-  }
+  setTextWithin(
+    article,
+    ".ari-planned-exercise__prescription",
+    getExercisePrescription(
+      exerciseEntry
+    )
+  );
 
-  function getWeeklyActivityLabel(totalMinutes) {
-    if (totalMinutes <= 0) {
-      return "No activity recorded";
-    }
+  const progress =
+    WorkoutProgressStore
+      .getExerciseProgress(
+        day,
+        exerciseEntry.exerciseId
+      );
 
-    if (totalMinutes < 75) {
-      return "Light training week";
-    }
+  const requiredSets =
+    Number(
+      exerciseEntry.sets
+    );
 
-    if (totalMinutes < 150) {
-      return "Building activity";
-    }
+  if (
+    Number.isInteger(
+      requiredSets
+    ) &&
+    requiredSets > 0
+  ) {
+    singleLabel.hidden =
+      true;
 
-    if (totalMinutes < 300) {
-      return "Active training week";
-    }
-
-    return "High-volume training week";
-  }
-
-  /* =====================================================
-     GENERAL UTILITIES
-  ===================================================== */
-
-  function generateId() {
-    if (
-      window.crypto &&
-      typeof window.crypto.randomUUID === "function"
+    for (
+      let setNumber = 1;
+      setNumber <=
+        requiredSets;
+      setNumber += 1
     ) {
-      return window.crypto.randomUUID();
+      setContainer
+        .appendChild(
+          createSetElement({
+            day,
+            exerciseEntry,
+            exercise,
+            setNumber,
+            requiredSets,
+            progress
+          })
+        );
     }
+  } else {
+    setContainer
+      .replaceChildren();
 
-    return (
-      `workout-${Date.now()}-` +
-      Math.random().toString(16).slice(2)
+    singleLabel.hidden =
+      false;
+
+    const checkbox =
+      singleLabel.querySelector(
+        ".ari-planned-exercise__complete-checkbox"
+      );
+
+    const singleCalories =
+      singleLabel.querySelector(
+        ".ari-planned-exercise__single-calories"
+      );
+
+    checkbox.dataset.day =
+      day;
+
+    checkbox.dataset.exerciseId =
+      exerciseEntry.exerciseId;
+
+    checkbox.dataset.action =
+      "complete-activity";
+
+    checkbox.checked =
+      Boolean(
+        progress?.completed
+      );
+
+    const estimatedCalories =
+      progress?.completed
+        ? progress
+            .estimatedCalories ||
+          0
+        : estimateActivityCalories(
+            exerciseEntry,
+            exercise
+          );
+
+    singleCalories.textContent =
+      `${formatNumber(estimatedCalories)} kcal`;
+  }
+
+  const exerciseSummary =
+    WorkoutProgressStore
+      .getExerciseSummary(
+        day,
+        exerciseEntry.exerciseId
+      );
+
+  setTextWithin(
+    article,
+    ".ari-planned-exercise__calories",
+    `${formatNumber(exerciseSummary?.estimatedCalories || 0)} kcal`
+  );
+
+  return fragment;
+}
+
+function createSetElement({
+  day,
+  exerciseEntry,
+  exercise,
+  setNumber,
+  requiredSets,
+  progress
+}) {
+  const template =
+    elements
+      .plannedSetTemplate;
+
+  const fragment =
+    template.content
+      .cloneNode(true);
+
+  const label =
+    fragment.querySelector(
+      ".ari-planned-set"
     );
-  }
 
-  function cloneEntry(entry) {
-    return { ...entry };
-  }
-
-  function sum(items, selector) {
-    return items.reduce((total, item) => {
-      const value = Number(selector(item));
-      return total + (Number.isFinite(value) ? value : 0);
-    }, 0);
-  }
-
-  function formatDuration(totalMinutes) {
-    const minutes = Math.max(
-      0,
-      Math.round(Number(totalMinutes) || 0)
+  const checkbox =
+    fragment.querySelector(
+      ".ari-planned-set__checkbox"
     );
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
 
-    if (hours === 0) {
-      return `${remainingMinutes}m`;
-    }
+  const setRecord =
+    normalizeProgressSetRecord(
+      progress
+        ?.completedSets
+        ?.[String(setNumber)]
+    );
 
-    if (remainingMinutes === 0) {
-      return `${hours}h`;
-    }
+  const estimatedSetCalories =
+    setRecord.completed
+      ? setRecord
+          .estimatedCalories
+      : estimateSetCalories({
+          exerciseEntry,
+          exercise,
+          requiredSets
+        });
 
-    return `${hours}h ${remainingMinutes}m`;
-  }
+  label.dataset.day =
+    day;
 
-  function formatNumber(value) {
-    return new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 0
-    }).format(Math.round(Number(value) || 0));
-  }
+  label.dataset.exerciseId =
+    exerciseEntry.exerciseId;
 
-  function formatWeight(value) {
-    return new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 1
-    }).format(Number(value));
-  }
+  label.dataset.setNumber =
+    String(
+      setNumber
+    );
 
-  function pluralize(count, singular, plural) {
-    return count === 1 ? singular : plural;
-  }
+  checkbox.dataset.action =
+    "complete-set";
 
-  function parseOptionalInteger(value) {
-    const normalized = String(value ?? "").trim();
+  checkbox.dataset.day =
+    day;
 
-    if (!normalized) {
-      return null;
-    }
+  checkbox.dataset.exerciseId =
+    exerciseEntry.exerciseId;
 
-    const parsed = Number.parseInt(normalized, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
+  checkbox.dataset.setNumber =
+    String(
+      setNumber
+    );
 
-  function parseOptionalNumber(value) {
-    const normalized = String(value ?? "").trim();
+  checkbox.dataset.requiredSets =
+    String(
+      requiredSets
+    );
 
-    if (!normalized) {
-      return null;
-    }
+  checkbox.dataset.estimatedCalories =
+    String(
+      estimatedSetCalories
+    );
 
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
+  checkbox.checked =
+    Boolean(
+      setRecord.completed
+    );
 
-  function parseStoredNumber(value) {
-    if (value === null || value === undefined || value === "") {
-      return null;
-    }
+  setTextWithin(
+    label,
+    ".ari-planned-set__label",
+    `Set ${setNumber}`
+  );
 
-    try {
-      const direct = Number(value);
+  setTextWithin(
+    label,
+    ".ari-planned-set__prescription",
+    getSetPrescription(
+      exerciseEntry
+    )
+  );
 
-      if (Number.isFinite(direct)) {
-        return direct;
-      }
+  setTextWithin(
+    label,
+    ".ari-planned-set__calories",
+    `${formatNumber(estimatedSetCalories)} kcal`
+  );
 
-      const parsed = JSON.parse(value);
+  return fragment;
+}
 
-      if (typeof parsed === "number" && Number.isFinite(parsed)) {
-        return parsed;
-      }
+/* =====================================================
+   TRAINING PROFILE / HEART RATE
+===================================================== */
 
-      if (parsed && typeof parsed === "object") {
-        const candidates = [
-          parsed.value,
-          parsed.calories,
-          parsed.goal,
-          parsed.dailyCalorieGoal,
-          parsed.consumed
-        ];
+async function loadTrainingProfile() {
+  const local =
+    readLocalTrainingProfile();
 
-        for (const candidate of candidates) {
-          const number = Number(candidate);
+  let cloud =
+    null;
 
-          if (Number.isFinite(number)) {
-            return number;
-          }
+  try {
+    if (
+      window.calbuddySupabase &&
+      typeof window.calbuddySupabase
+        .from === "function"
+    ) {
+      const authResult =
+        await window.calbuddySupabase
+          .auth
+          ?.getUser?.();
+
+      const user =
+        authResult
+          ?.data
+          ?.user;
+
+      if (user?.id) {
+        const {
+          data,
+          error
+        } =
+          await window.calbuddySupabase
+            .from("profiles")
+            .select(
+              "age, weight_lbs, resting_heart_rate, confirmed_max_heart_rate"
+            )
+            .eq(
+              "id",
+              user.id
+            )
+            .maybeSingle();
+
+        if (!error && data) {
+          cloud =
+            data;
         }
       }
-    } catch {
-      return null;
     }
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Could not load training profile from Supabase.",
+      error
+    );
+  }
+
+  state.profileAge =
+    normalizeAge(
+      cloud?.age ??
+      local.age
+    );
+
+  state.profileWeightLb =
+    normalizeWeight(
+      cloud?.weight_lbs ??
+      local.weightLb
+    );
+
+  state.profileRestingHeartRate =
+    normalizeHeartRate(
+      cloud
+        ?.resting_heart_rate ??
+      local
+        .restingHeartRate
+    );
+
+  state.profileConfirmedMaxHeartRate =
+    normalizeHeartRate(
+      cloud
+        ?.confirmed_max_heart_rate ??
+      local
+        .confirmedMaxHeartRate
+    );
+
+  state.profileEstimatedMaxHeartRate =
+    HeartRateIntensity
+      .estimateMaxHeartRate({
+        age:
+          state.profileAge
+      });
+
+  state.profileEffectiveMaxHeartRate =
+    state.profileConfirmedMaxHeartRate ??
+    state.profileEstimatedMaxHeartRate;
+
+  state.profileMaxHeartRateSource =
+    state.profileConfirmedMaxHeartRate
+      ? "confirmed"
+      : state.profileEstimatedMaxHeartRate
+        ? "estimated"
+        : null;
+
+  recalculateHeartRateIntensity();
+
+  return {
+    age:
+      state.profileAge,
+
+    weightLb:
+      state.profileWeightLb,
+
+    restingHeartRate:
+      state.profileRestingHeartRate,
+
+    estimatedMaxHeartRate:
+      state.profileEstimatedMaxHeartRate,
+
+    confirmedMaxHeartRate:
+      state.profileConfirmedMaxHeartRate,
+
+    effectiveMaxHeartRate:
+      state.profileEffectiveMaxHeartRate,
+
+    maxHeartRateSource:
+      state.profileMaxHeartRateSource
+  };
+}
+
+function readLocalTrainingProfile() {
+  const goals =
+    readStoredJson(
+      "calbuddyGoals"
+    ) ||
+    {};
+
+  return {
+    age:
+      localStorage.getItem(
+        "calbuddyAge"
+      ) ??
+      goals.age,
+
+    weightLb:
+      localStorage.getItem(
+        "calbuddyCurrentWeight"
+      ) ??
+      goals.weight,
+
+    restingHeartRate:
+      localStorage.getItem(
+        "calbuddyRestingHeartRate"
+      ) ??
+      goals.restingHeartRate,
+
+    confirmedMaxHeartRate:
+      localStorage.getItem(
+        "calbuddyConfirmedMaxHeartRate"
+      ) ??
+      goals.confirmedMaxHeartRate
+  };
+}
+
+function renderTrainingProfile() {
+  setText(
+    elements.trainingProfileWeight,
+    state.profileWeightLb
+      ? `${formatProfileNumber(state.profileWeightLb)} lb`
+      : "\u2014"
+  );
+
+  setText(
+    elements.trainingProfileRestingHeartRate,
+    state.profileRestingHeartRate
+      ? `${Math.round(state.profileRestingHeartRate)} bpm`
+      : "\u2014"
+  );
+
+  setText(
+    elements.trainingProfileMaxHeartRate,
+    state.profileEffectiveMaxHeartRate
+      ? `${Math.round(state.profileEffectiveMaxHeartRate)} bpm`
+      : "\u2014"
+  );
+
+  setText(
+    elements.trainingProfileMaxHeartRateSource,
+    state.profileMaxHeartRateSource ===
+      "confirmed"
+      ? "Confirmed max"
+      : state.profileMaxHeartRateSource ===
+          "estimated"
+        ? "Estimated from age"
+        : "No max HR available"
+  );
+
+  if (
+    elements.trainingAverageHeartRate &&
+    document.activeElement !==
+      elements.trainingAverageHeartRate
+  ) {
+    elements.trainingAverageHeartRate.value =
+      state.averageWorkoutHeartRate ??
+      "";
+  }
+
+  renderHeartRateIntensity();
+}
+
+function handleAverageHeartRateChange() {
+  const value =
+    normalizeHeartRate(
+      elements
+        .trainingAverageHeartRate
+        ?.value
+    );
+
+  state.averageWorkoutHeartRate =
+    value;
+
+  persistAverageHeartRate();
+
+  recalculateHeartRateIntensity();
+
+  renderAll();
+}
+
+function recalculateHeartRateIntensity() {
+  if (
+    !state.averageWorkoutHeartRate ||
+    !state.profileAge ||
+    !state.profileEffectiveMaxHeartRate
+  ) {
+    state.heartRateIntensity =
+      null;
 
     return null;
   }
 
-  function normalizeText(value) {
-    return typeof value === "string"
-      ? value.trim()
-      : value == null
-        ? ""
-        : String(value).trim();
-  }
+  state.heartRateIntensity =
+    HeartRateIntensity.classify({
+      age:
+        state.profileAge,
 
-  function normalizeId(value) {
-    const id = normalizeText(value);
-    return id.length <= 120 ? id : "";
-  }
+      heartRate:
+        state.averageWorkoutHeartRate,
 
-  function positiveIntegerOrNull(value) {
-    const number = Number(value);
+      restingHeartRate:
+        state.profileRestingHeartRate,
 
-    if (!Number.isFinite(number) || number <= 0) {
-      return null;
-    }
+      maxHeartRate:
+        state.profileEffectiveMaxHeartRate,
 
-    return Math.round(number);
-  }
+      preferHeartRateReserve:
+        Boolean(
+          state.profileRestingHeartRate
+        )
+    });
 
-  function normalizeHeartRate(value) {
-    if (value === null || value === undefined || value === "") {
-      return null;
-    }
+  return state.heartRateIntensity;
+}
 
-    const heartRate = Number(value);
+function renderHeartRateIntensity() {
+  const result =
+    state.heartRateIntensity;
 
+  if (!result) {
     if (
-      !Number.isFinite(heartRate) ||
-      heartRate < 30 ||
-      heartRate > 240
+      elements.trainingHeartRateIntensity
     ) {
-      return null;
+      elements.trainingHeartRateIntensity
+        .dataset
+        .intensity =
+          "unknown";
     }
 
-    return Math.round(heartRate);
-  }
-
-  function normalizeDateKey(value) {
-    const dateKey = normalizeText(value);
-    return isValidDateKey(dateKey) ? dateKey : "";
-  }
-
-  function normalizeTimeValue(value) {
-    const time = normalizeText(value);
-
-    if (/^\d{2}:\d{2}:\d{2}/.test(time)) {
-      return time.slice(0, 5);
-    }
-
-    return isValidTimeValue(time) ? time : "";
-  }
-
-  function normalizeIsoTimestamp(value) {
-    const timestamp = normalizeText(value);
-
-    if (!timestamp || !Number.isFinite(Date.parse(timestamp))) {
-      return "";
-    }
-
-    return new Date(timestamp).toISOString();
-  }
-
-  function inferDateKeyFromTimestamp(timestamp) {
-    const parsed = new Date(timestamp);
-
-    return Number.isNaN(parsed.getTime())
-      ? ""
-      : getLocalDateKey(parsed);
-  }
-
-  function extractLocalTime(timestamp) {
-    const parsed = new Date(timestamp);
-
-    return Number.isNaN(parsed.getTime())
-      ? ""
-      : formatTimeInput(parsed);
-  }
-
-  function isValidDateKey(value) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return false;
-    }
-
-    const date = dateFromDateKey(value);
-
-    return (
-      !Number.isNaN(date.getTime()) &&
-      getLocalDateKey(date) === value
+    setText(
+      elements.trainingHeartRateIntensityLabel,
+      state.averageWorkoutHeartRate
+        ? "More profile data needed"
+        : "Waiting for workout heart rate"
     );
-  }
 
-  function isValidTimeValue(value) {
-    if (!/^\d{2}:\d{2}$/.test(value)) {
-      return false;
-    }
-
-    const [hours, minutes] = value.split(":").map(Number);
-
-    return (
-      hours >= 0 &&
-      hours <= 23 &&
-      minutes >= 0 &&
-      minutes <= 59
+    setText(
+      elements.trainingHeartRateIntensityDetail,
+      state.averageWorkoutHeartRate
+        ? "ARI needs age and a usable maximum heart rate to classify intensity."
+        : "Enter today's average workout heart rate to classify training intensity."
     );
+
+    return;
   }
 
-  function timeValueToMinutes(value) {
-    const [hours, minutes] = value.split(":").map(Number);
-    return hours * 60 + minutes;
+  const summary =
+    HeartRateIntensity
+      .getZoneSummary(
+        result
+      );
+
+  if (
+    elements.trainingHeartRateIntensity
+  ) {
+    elements.trainingHeartRateIntensity
+      .dataset
+      .intensity =
+        summary
+          ?.intensityId ||
+        "unknown";
   }
 
-  function isDateKeyWithinRange(dateKey, startKey, endKey) {
-    return dateKey >= startKey && dateKey <= endKey;
-  }
+  setText(
+    elements.trainingHeartRateIntensityLabel,
+    summary?.label ||
+    "Unknown"
+  );
 
-  function prefersReducedMotion() {
-    return window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-  }
+  const methodLabel =
+    result.method ===
+      HeartRateIntensity
+        .methods
+        .HEART_RATE_RESERVE
+      ? "heart-rate reserve"
+      : "percent of max heart rate";
 
-  /* =====================================================
-     STARTUP
-  ===================================================== */
+  setText(
+    elements.trainingHeartRateIntensityDetail,
+    `${Math.round(result.heartRate)} bpm Â· ${result.percentDisplay}% by ${methodLabel}`
+  );
+}
 
-  if (document.readyState === "loading") {
-    document.addEventListener(
-      "DOMContentLoaded",
-      initialize,
-      { once: true }
+function getResolvedCalorieIntensity(
+  fallback =
+    "moderate"
+) {
+  const fromHeartRate =
+    HeartRateIntensity
+      .toCalorieIntensity(
+        state
+          .heartRateIntensity
+          ?.intensityId
+      );
+
+  return (
+    fromHeartRate ||
+    fallback ||
+    "moderate"
+  );
+}
+
+function getAverageHeartRateStorageKey() {
+  return (
+    "ari_training_average_hr_" +
+    `${getCurrentWeekKey()}_` +
+    `${state.currentDay || getCurrentWeekdayId()}`
+  );
+}
+
+function loadStoredAverageHeartRate() {
+  state.averageWorkoutHeartRate =
+    normalizeHeartRate(
+      localStorage.getItem(
+        getAverageHeartRateStorageKey()
+      )
+    );
+
+  recalculateHeartRateIntensity();
+}
+
+function persistAverageHeartRate() {
+  const key =
+    getAverageHeartRateStorageKey();
+
+  if (
+    state.averageWorkoutHeartRate
+  ) {
+    localStorage.setItem(
+      key,
+      String(
+        state.averageWorkoutHeartRate
+      )
     );
   } else {
-    initialize();
+    localStorage.removeItem(
+      key
+    );
   }
-})();
+}
+
+function readStoredJson(
+  key
+) {
+  try {
+    const raw =
+      localStorage.getItem(
+        key
+      );
+
+    return raw
+      ? JSON.parse(raw)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAge(
+  value
+) {
+  const number =
+    Number(value);
+
+  return (
+    Number.isFinite(number) &&
+    number >= 10 &&
+    number <= 120
+  )
+    ? number
+    : null;
+}
+
+function normalizeHeartRate(
+  value
+) {
+  const number =
+    Number(value);
+
+  return (
+    Number.isFinite(number) &&
+    number >= 30 &&
+    number <= 240
+  )
+    ? Math.round(number)
+    : null;
+}
+
+function formatProfileNumber(
+  value
+) {
+  return new Intl
+    .NumberFormat(
+      "en-US",
+      {
+        maximumFractionDigits:
+          1
+      }
+    )
+    .format(
+      Number(value)
+    );
+}
+
+/* =====================================================
+   CALORIE ESTIMATION
+===================================================== */
+
+function estimateSetCalories({
+  exerciseEntry,
+  exercise,
+  requiredSets
+}) {
+  const weightLb =
+    state.profileWeightLb;
+
+  if (!weightLb) {
+    return 0;
+  }
+
+  /*
+   * Strength exercises usually do not have per-set duration.
+   * For display purposes ARI assigns an estimated active block
+   * duration to each set. This is an estimate, not measurement.
+   *
+   * Users can later replace this with wearable-derived energy.
+   */
+  const minutesPerSet =
+    Number(
+      exerciseEntry
+        .minutesPerSet
+    ) > 0
+      ? Number(
+          exerciseEntry
+            .minutesPerSet
+        )
+      : 2.5;
+
+  const intensity =
+    getResolvedCalorieIntensity(
+      exerciseEntry.intensity ||
+      "moderate"
+    );
+
+  const estimate =
+    CalorieCalculator
+      .estimateStrengthSession({
+        intensity,
+        weightLb,
+        durationMinutes:
+          minutesPerSet
+      });
+
+  if (
+    estimate
+      ?.roundedCalories
+  ) {
+    return Math.max(
+      1,
+      estimate.roundedCalories
+    );
+  }
+
+  /*
+   * Fallback if the exercise has a duration-based energy activity.
+   */
+  const activityEstimate =
+    WorkoutPlanController
+      .estimateExerciseCalories({
+        exerciseId:
+          exercise?.id ||
+          exerciseEntry
+            .exerciseId,
+
+        durationMinutes:
+          minutesPerSet,
+
+        weightLb,
+
+        intensity
+      });
+
+  return Math.max(
+    0,
+    Math.round(
+      activityEstimate
+        ?.roundedCalories ||
+      0
+    )
+  );
+}
+
+function estimateActivityCalories(
+  exerciseEntry,
+  exercise
+) {
+  const weightLb =
+    state.profileWeightLb;
+
+  if (!weightLb) {
+    return 0;
+  }
+
+  const durationMinutes =
+    Number(
+      exerciseEntry
+        .durationMinutes
+    ) > 0
+      ? Number(
+          exerciseEntry
+            .durationMinutes
+        )
+      : 30;
+
+  const estimate =
+    WorkoutPlanController
+      .estimateExerciseCalories({
+        exerciseId:
+          exercise?.id ||
+          exerciseEntry
+            .exerciseId,
+
+        durationMinutes,
+
+        weightLb,
+
+        intensity:
+          getResolvedCalorieIntensity(
+            exerciseEntry
+              .intensity ||
+            "moderate"
+          )
+      });
+
+  return Math.max(
+    0,
+    Math.round(
+      estimate
+        ?.roundedCalories ||
+      0
+    )
+  );
+}
+
+/* =====================================================
+   CHECKBOX / COMPLETION EVENTS
+===================================================== */
+
+function handleWeeklyPlanChange(
+  event
+) {
+  const checkbox =
+    event.target;
+
+  if (
+    !(checkbox instanceof HTMLInputElement) ||
+    checkbox.type !==
+      "checkbox"
+  ) {
+    return;
+  }
+
+  const action =
+    checkbox.dataset
+      .action;
+
+  if (
+    action ===
+      "complete-set"
+  ) {
+    const day =
+      checkbox.dataset.day;
+
+    const exerciseId =
+      checkbox.dataset
+        .exerciseId;
+
+    const setNumber =
+      Number(
+        checkbox.dataset
+          .setNumber
+      );
+
+    const requiredSets =
+      Number(
+        checkbox.dataset
+          .requiredSets
+      );
+
+    const estimatedCalories =
+      Number(
+        checkbox.dataset
+          .estimatedCalories
+      );
+
+    WorkoutProgressStore
+      .setSetCompleted({
+        day,
+        exerciseId,
+        setNumber,
+        requiredSets,
+
+        completed:
+          checkbox.checked,
+
+        estimatedCalories:
+          checkbox.checked
+            ? estimatedCalories
+            : 0
+      });
+
+    finalizeDayCompletion(
+      day
+    );
+
+    return;
+  }
+
+  if (
+    action ===
+      "complete-activity"
+  ) {
+    const day =
+      checkbox.dataset.day;
+
+    const exerciseId =
+      checkbox.dataset
+        .exerciseId;
+
+    const dayEntry =
+      state.plan
+        ?.week
+        ?.[day];
+
+    const exerciseEntry =
+      dayEntry
+        ?.exercises
+        ?.find(
+          item =>
+            item.exerciseId ===
+            exerciseId
+        );
+
+    const exercise =
+      ExerciseRegistry.get(
+        exerciseId
+      );
+
+    const estimatedCalories =
+      estimateActivityCalories(
+        exerciseEntry ||
+        {
+          exerciseId
+        },
+        exercise
+      );
+
+    WorkoutProgressStore
+      .setExerciseCompleted({
+        day,
+        exerciseId,
+
+        completed:
+          checkbox.checked,
+
+        estimatedCalories:
+          checkbox.checked
+            ? estimatedCalories
+            : 0
+      });
+
+    finalizeDayCompletion(
+      day
+    );
+  }
+}
+
+function finalizeDayCompletion(
+  day
+) {
+  const dayState =
+    state.plan
+      ?.week
+      ?.[day];
+
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    return;
+  }
+
+  const definitions =
+    (
+      dayState.exercises ||
+      []
+    )
+      .map(
+        entry => {
+          const sets =
+            Number(
+              entry.sets
+            );
+
+          return {
+            exerciseId:
+              entry.exerciseId,
+
+            requiredSets:
+              Number.isInteger(sets) &&
+              sets > 0
+                ? sets
+                : null,
+
+            completionMode:
+              Number.isInteger(sets) &&
+              sets > 0
+                ? "sets"
+                : "single"
+          };
+        }
+      );
+
+  WorkoutProgressStore
+    .recalculateDayCompletion(
+      day,
+      definitions
+    );
+}
+
+function handleWeeklyPlanClick(
+  event
+) {
+  const button =
+    event.target.closest(
+      '[data-action="toggle-day"]'
+    );
+
+  if (!button) {
+    return;
+  }
+
+  const article =
+    button.closest(
+      ".ari-weekly-plan-day"
+    );
+
+  const body =
+    article
+      ?.querySelector(
+        ".ari-weekly-plan-day__body"
+      );
+
+  if (!body) {
+    return;
+  }
+
+  const expanding =
+    body.hidden;
+
+  body.hidden =
+    !expanding;
+
+  button.setAttribute(
+    "aria-expanded",
+    expanding
+      ? "true"
+      : "false"
+  );
+}
+
+/* =====================================================
+   MONTHLY HISTORY
+===================================================== */
+
+function renderMonthlyHistory() {
+  const monthKey =
+    getMonthKey();
+
+  const monthLabel =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        month:
+          "long",
+        year:
+          "numeric"
+      }
+    ).format(
+      new Date()
+    );
+
+  setText(
+    elements.trainingHistoryMonthLabel,
+    monthLabel
+  );
+
+  const records =
+    buildCurrentMonthHistory(
+      monthKey
+    );
+
+  const workoutCount =
+    records.length;
+
+  const calories =
+    records.reduce(
+      (
+        total,
+        record
+      ) =>
+        total +
+        record.calories,
+      0
+    );
+
+  const sets =
+    records.reduce(
+      (
+        total,
+        record
+      ) =>
+        total +
+        record.completedSets,
+      0
+    );
+
+  const minutes =
+    records.reduce(
+      (
+        total,
+        record
+      ) =>
+        total +
+        record.minutes,
+      0
+    );
+
+  setText(
+    elements.monthlyWorkoutCount,
+    String(
+      workoutCount
+    )
+  );
+
+  setText(
+    elements.monthlyCaloriesBurned,
+    formatNumber(
+      calories
+    )
+  );
+
+  setText(
+    elements.monthlyCompletedWorkouts,
+    String(
+      workoutCount
+    )
+  );
+
+  setText(
+    elements.monthlyTrainingTime,
+    formatDuration(
+      minutes
+    )
+  );
+
+  setText(
+    elements.monthlyCaloriesTotal,
+    formatNumber(
+      calories
+    )
+  );
+
+  setText(
+    elements.monthlySetsCompleted,
+    String(
+      sets
+    )
+  );
+
+  if (
+    !elements.monthlyHistoryList
+  ) {
+    return;
+  }
+
+  elements.monthlyHistoryList
+    .replaceChildren();
+
+  const grouped =
+    groupHistoryByDate(
+      records
+    );
+
+  for (
+    const group
+    of grouped
+  ) {
+    elements.monthlyHistoryList
+      .appendChild(
+        createHistoryDayElement(
+          group
+        )
+      );
+  }
+
+  setHidden(
+    elements.monthlyHistoryEmptyState,
+    grouped.length > 0
+  );
+}
+
+function buildCurrentMonthHistory(
+  monthKey
+) {
+  const records =
+    readMonthlyHistoryArchive()
+      .filter(
+        record =>
+          record.monthKey ===
+          monthKey
+      );
+
+  /*
+   * Add current week's completed days. Existing archive records
+   * win by date+day so repeated renders do not duplicate entries.
+   */
+  const currentWeek =
+    getCurrentWeekDates();
+
+  for (
+    const day
+    of DAYS
+  ) {
+    const summary =
+      WorkoutProgressStore
+        .getDaySummary(day);
+
+    const planDay =
+      state.plan
+        ?.week
+        ?.[day];
+
+    if (
+      !planDay ||
+      planDay.type ===
+        "off" ||
+      summary?.status !==
+        "complete"
+    ) {
+      continue;
+    }
+
+    const dateKey =
+      currentWeek[day];
+
+    if (
+      !dateKey ||
+      !dateKey.startsWith(
+        monthKey
+      )
+    ) {
+      continue;
+    }
+
+    const id =
+      `${dateKey}:${day}`;
+
+    const existing =
+      records.find(
+        item =>
+          item.id === id
+      );
+
+    const record = {
+      id,
+      monthKey,
+      localDate:
+        dateKey,
+      day,
+      title:
+        planDay.title ||
+        DAY_LABELS[day],
+      completedSets:
+        summary
+          .completedSets ||
+        0,
+      calories:
+        summary
+          .estimatedCalories ||
+        0,
+      minutes:
+        estimateCompletedTrainingMinutes(
+          planDay,
+          day
+        ),
+      completedAt:
+        summary
+          .completedAt ||
+        new Date()
+          .toISOString()
+    };
+
+    if (existing) {
+      Object.assign(
+        existing,
+        record
+      );
+    } else {
+      records.push(
+        record
+      );
+    }
+  }
+
+  writeMonthlyHistoryArchive(
+    records
+  );
+
+  return records
+    .sort(
+      (a, b) =>
+        b.localDate
+          .localeCompare(
+            a.localDate
+          )
+    );
+}
+
+function readMonthlyHistoryArchive() {
+  try {
+    const raw =
+      localStorage.getItem(
+        "ari_training_monthly_history_v1"
+      );
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed =
+      JSON.parse(
+        raw
+      );
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeMonthlyHistoryArchive(
+  currentMonthRecords
+) {
+  try {
+    const all =
+      readMonthlyHistoryArchive();
+
+    const otherMonths =
+      all.filter(
+        record =>
+          record.monthKey !==
+          state.currentMonthKey
+      );
+
+    localStorage.setItem(
+      "ari_training_monthly_history_v1",
+      JSON.stringify([
+        ...otherMonths,
+        ...currentMonthRecords
+      ])
+    );
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Monthly history could not persist.",
+      error
+    );
+  }
+}
+
+function groupHistoryByDate(
+  records
+) {
+  const map =
+    new Map();
+
+  for (
+    const record
+    of records
+  ) {
+    if (
+      !map.has(
+        record.localDate
+      )
+    ) {
+      map.set(
+        record.localDate,
+        []
+      );
+    }
+
+    map.get(
+      record.localDate
+    ).push(
+      record
+    );
+  }
+
+  return Array.from(
+    map.entries()
+  )
+    .map(
+      (
+        [
+          localDate,
+          entries
+        ]
+      ) => ({
+        localDate,
+        entries
+      })
+    )
+    .sort(
+      (a, b) =>
+        b.localDate
+          .localeCompare(
+            a.localDate
+          )
+    );
+}
+
+function createHistoryDayElement(
+  group
+) {
+  const template =
+    elements
+      .monthlyHistoryDayTemplate;
+
+  if (
+    !template?.content
+  ) {
+    return document
+      .createTextNode(
+        group.localDate
+      );
+  }
+
+  const fragment =
+    template.content
+      .cloneNode(true);
+
+  const details =
+    fragment.querySelector(
+      ".ari-history-day"
+    );
+
+  const totalCalories =
+    group.entries.reduce(
+      (
+        total,
+        record
+      ) =>
+        total +
+        record.calories,
+      0
+    );
+
+  setTextWithin(
+    details,
+    ".ari-history-day__label",
+    getRelativeDateLabel(
+      group.localDate
+    )
+  );
+
+  setTextWithin(
+    details,
+    ".ari-history-day__date",
+    formatDateKey(
+      group.localDate
+    )
+  );
+
+  setTextWithin(
+    details,
+    ".ari-history-day__sessions",
+    `${group.entries.length} ${pluralize(group.entries.length, "workout", "workouts")}`
+  );
+
+  setTextWithin(
+    details,
+    ".ari-history-day__calories",
+    `${formatNumber(totalCalories)} kcal`
+  );
+
+  const entriesContainer =
+    details.querySelector(
+      ".ari-history-day__entries"
+    );
+
+  for (
+    const record
+    of group.entries
+  ) {
+    entriesContainer
+      ?.appendChild(
+        createHistoryWorkoutElement(
+          record
+        )
+      );
+  }
+
+  return fragment;
+}
+
+function createHistoryWorkoutElement(
+  record
+) {
+  const template =
+    elements
+      .monthlyHistoryWorkoutTemplate;
+
+  if (
+    !template?.content
+  ) {
+    return document
+      .createTextNode(
+        record.title
+      );
+  }
+
+  const fragment =
+    template.content
+      .cloneNode(true);
+
+  const article =
+    fragment.querySelector(
+      ".ari-history-workout"
+    );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__type",
+    "COMPLETED"
+  );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__name",
+    record.title
+  );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__sets",
+    `${record.completedSets} sets`
+  );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__duration",
+    formatDuration(
+      record.minutes
+    )
+  );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__calories",
+    `${formatNumber(record.calories)} kcal`
+  );
+
+  return fragment;
+}
+
+/* =====================================================
+   TIME / MONTH / WEEK HELPERS
+===================================================== */
+
+function getCurrentWeekdayId() {
+  const day =
+    new Date().getDay();
+
+  return [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday"
+  ][day];
+}
+
+function getCurrentWeekKey() {
+  const dates =
+    getCurrentWeekDates();
+
+  return dates.monday;
+}
+
+function getCurrentWeekDates() {
+  const now =
+    new Date();
+
+  const start =
+    new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+  const day =
+    start.getDay();
+
+  const offset =
+    day === 0
+      ? 6
+      : day - 1;
+
+  start.setDate(
+    start.getDate() -
+    offset
+  );
+
+  const result = {};
+
+  DAYS.forEach(
+    (
+      weekday,
+      index
+    ) => {
+      const date =
+        new Date(
+          start
+        );
+
+      date.setDate(
+        start.getDate() +
+        index
+      );
+
+      result[weekday] =
+        getLocalDateKey(
+          date
+        );
+    }
+  );
+
+  return result;
+}
+
+function getMonthKey(
+  date = new Date()
+) {
+  return (
+    `${date.getFullYear()}-` +
+    `${String(date.getMonth() + 1).padStart(2, "0")}`
+  );
+}
+
+function getLocalDateKey(
+  date = new Date()
+) {
+  return (
+    `${date.getFullYear()}-` +
+    `${String(date.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(date.getDate()).padStart(2, "0")}`
+  );
+}
+
+function setCurrentDateDisplay() {
+  if (
+    !elements.trainingCurrentDate
+  ) {
+    return;
+  }
+
+  const now =
+    new Date();
+
+  elements.trainingCurrentDate
+    .dateTime =
+      getLocalDateKey(
+        now
+      );
+
+  elements.trainingCurrentDate
+    .textContent =
+      new Intl.DateTimeFormat(
+        "en-US",
+        {
+          weekday:
+            "long",
+          month:
+            "short",
+          day:
+            "numeric"
+        }
+      ).format(
+        now
+      );
+}
+
+/* =====================================================
+   TRAINING TIME ESTIMATION
+===================================================== */
+
+function estimateCompletedTrainingMinutes(
+  dayState,
+  day
+) {
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    return 0;
+  }
+
+  let minutes =
+    0;
+
+  for (
+    const entry
+    of dayState.exercises ||
+    []
+  ) {
+    const progress =
+      WorkoutProgressStore
+        .getExerciseProgress(
+          day,
+          entry.exerciseId
+        );
+
+    const sets =
+      Number(
+        entry.sets
+      );
+
+    if (
+      Number.isInteger(
+        sets
+      ) &&
+      sets > 0
+    ) {
+      const minutesPerSet =
+        Number(
+          entry.minutesPerSet
+        ) > 0
+          ? Number(
+              entry.minutesPerSet
+            )
+          : 2.5;
+
+      let completedSets =
+        0;
+
+      for (
+        let setNumber = 1;
+        setNumber <=
+          sets;
+        setNumber += 1
+      ) {
+        const record =
+          normalizeProgressSetRecord(
+            progress
+              ?.completedSets
+              ?.[String(setNumber)]
+          );
+
+        if (
+          record.completed
+        ) {
+          completedSets +=
+            1;
+        }
+      }
+
+      minutes +=
+        completedSets *
+        minutesPerSet;
+
+      continue;
+    }
+
+    if (
+      progress?.completed
+    ) {
+      minutes +=
+        Number(
+          entry.durationMinutes
+        ) > 0
+          ? Number(
+              entry.durationMinutes
+            )
+          : 30;
+    }
+  }
+
+  return Math.round(
+    minutes
+  );
+}
+
+function countCompletedSingleActivities(
+  day
+) {
+  const dayState =
+    state.plan
+      ?.week
+      ?.[day];
+
+  if (!dayState) {
+    return 0;
+  }
+
+  return (
+    dayState.exercises ||
+    []
+  ).reduce(
+    (
+      total,
+      entry
+    ) => {
+      const sets =
+        Number(
+          entry.sets
+        );
+
+      if (
+        Number.isInteger(
+          sets
+        ) &&
+        sets > 0
+      ) {
+        return total;
+      }
+
+      const progress =
+        WorkoutProgressStore
+          .getExerciseProgress(
+            day,
+            entry.exerciseId
+          );
+
+      return total +
+        (
+          progress?.completed
+            ? 1
+            : 0
+        );
+    },
+    0
+  );
+}
+
+/* =====================================================
+   BODY WEIGHT
+===================================================== */
+
+function readStoredBodyWeight() {
+  const directKeys = [
+    "calbuddyCurrentWeight",
+    "calbuddyProfileWeight",
+    "calbuddyBodyWeight"
+  ];
+
+  for (
+    const key
+    of directKeys
+  ) {
+    const value =
+      normalizeWeight(
+        localStorage.getItem(
+          key
+        )
+      );
+
+    if (
+      value !==
+        null
+    ) {
+      return value;
+    }
+  }
+
+  try {
+    const profile =
+      JSON.parse(
+        localStorage.getItem(
+          "calbuddyUserProfile"
+        ) ||
+        "null"
+      );
+
+    const candidates = [
+      profile?.weight,
+      profile?.weightLbs,
+      profile?.weightPounds,
+      profile?.currentWeight,
+      profile?.bodyWeight
+    ];
+
+    for (
+      const candidate
+      of candidates
+    ) {
+      const value =
+        normalizeWeight(
+          candidate
+        );
+
+      if (
+        value !==
+          null
+      ) {
+        return value;
+      }
+    }
+  } catch {
+    // Ignore malformed legacy profile data.
+  }
+
+  return null;
+}
+
+function normalizeWeight(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const direct =
+    Number(
+      value
+    );
+
+  if (
+    Number.isFinite(
+      direct
+    ) &&
+    direct >= 50 &&
+    direct <= 1000
+  ) {
+    return Math.round(
+      direct * 10
+    ) / 10;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(
+        value
+      );
+
+    if (
+      parsed &&
+      typeof parsed ===
+        "object"
+    ) {
+      const candidates = [
+        parsed.value,
+        parsed.weight,
+        parsed.weightLbs,
+        parsed.weightPounds,
+        parsed.currentWeight,
+        parsed.bodyWeight
+      ];
+
+      for (
+        const candidate
+        of candidates
+      ) {
+        const number =
+          Number(
+            candidate
+          );
+
+        if (
+          Number.isFinite(
+            number
+          ) &&
+          number >= 50 &&
+          number <= 1000
+        ) {
+          return Math.round(
+            number * 10
+          ) / 10;
+        }
+      }
+    }
+  } catch {
+    // Ignore.
+  }
+
+  return null;
+}
+
+/* =====================================================
+   UI HELPERS
+===================================================== */
+
+function toggleTrainingMenu() {
+  if (
+    !elements.trainingMenu ||
+    !elements.trainingMenuButton
+  ) {
+    return;
+  }
+
+  const open =
+    elements
+      .trainingMenuButton
+      .getAttribute(
+        "aria-expanded"
+      ) ===
+      "true";
+
+  if (open) {
+    closeTrainingMenu();
+    return;
+  }
+
+  elements.trainingMenu.hidden =
+    false;
+
+  elements.trainingMenuButton
+    .setAttribute(
+      "aria-expanded",
+      "true"
+    );
+}
+
+function closeTrainingMenu() {
+  if (
+    !elements.trainingMenu ||
+    !elements.trainingMenuButton
+  ) {
+    return;
+  }
+
+  elements.trainingMenu.hidden =
+    true;
+
+  elements.trainingMenuButton
+    .setAttribute(
+      "aria-expanded",
+      "false"
+    );
+}
+
+function setDayStatusElement(
+  element,
+  status
+) {
+  if (!element) {
+    return;
+  }
+
+  const normalized =
+    status ||
+    "not_started";
+
+  element.dataset.status =
+    normalized;
+
+  element.textContent =
+    getStatusLabel(
+      normalized
+    );
+}
+
+function getStatusLabel(
+  status
+) {
+  switch (
+    status
+  ) {
+    case "complete":
+      return "COMPLETE";
+
+    case "in_progress":
+      return "IN PROGRESS";
+
+    case "rest":
+      return "REST";
+
+    default:
+      return "NOT STARTED";
+  }
+}
+
+function getExerciseTypeLabel(
+  exercise
+) {
+  const type =
+    exercise
+      ?.exerciseTypes
+      ?.[0] ||
+    exercise
+      ?.category;
+
+  return type
+    ? titleFromId(
+        type
+      )
+    : "Exercise";
+}
+
+function getExercisePrescription(
+  entry
+) {
+  const pieces = [];
+
+  if (
+    Number(entry.sets) > 0
+  ) {
+    pieces.push(
+      `${entry.sets} sets`
+    );
+  }
+
+  if (
+    Number(entry.reps) > 0
+  ) {
+    pieces.push(
+      `${entry.reps} reps`
+    );
+  }
+
+  if (
+    Number(
+      entry.durationMinutes
+    ) > 0
+  ) {
+    pieces.push(
+      `${entry.durationMinutes} min`
+    );
+  }
+
+  if (
+    Number(
+      entry.durationSeconds
+    ) > 0
+  ) {
+    pieces.push(
+      `${entry.durationSeconds} sec`
+    );
+  }
+
+  if (
+    Number(
+      entry.distance
+    ) > 0
+  ) {
+    pieces.push(
+      `${entry.distance} distance`
+    );
+  }
+
+  return pieces.join(
+    " Â· "
+  ) ||
+  "Complete activity";
+}
+
+function getSetPrescription(
+  entry
+) {
+  const pieces = [];
+
+  if (
+    Number(entry.reps) > 0
+  ) {
+    pieces.push(
+      `${entry.reps} reps`
+    );
+  }
+
+  if (
+    Number(
+      entry.weight
+    ) > 0
+  ) {
+    pieces.push(
+      `${entry.weight} lb`
+    );
+  }
+
+  if (
+    Number(
+      entry.added_weight
+    ) > 0
+  ) {
+    pieces.push(
+      `+${entry.added_weight} lb`
+    );
+  }
+
+  if (
+    Number(
+      entry.durationSeconds
+    ) > 0
+  ) {
+    pieces.push(
+      `${entry.durationSeconds} sec`
+    );
+  }
+
+  return pieces.join(
+    " Â· "
+  );
+}
+
+function normalizeProgressSetRecord(
+  value
+) {
+  if (
+    typeof value ===
+      "boolean"
+  ) {
+    return {
+      completed:
+        value,
+      estimatedCalories:
+        0
+    };
+  }
+
+  if (
+    value &&
+    typeof value ===
+      "object"
+  ) {
+    return {
+      completed:
+        Boolean(
+          value.completed
+        ),
+
+      estimatedCalories:
+        Number(
+          value.estimatedCalories
+        ) || 0
+    };
+  }
+
+  return {
+    completed:
+      false,
+    estimatedCalories:
+      0
+  };
+}
+
+function setText(
+  element,
+  value
+) {
+  if (element) {
+    element.textContent =
+      value;
+  }
+}
+
+function setTextWithin(
+  root,
+  selector,
+  value
+) {
+  root
+    ?.querySelector(
+      selector
+    )
+    ?.replaceChildren(
+      document
+        .createTextNode(
+          value
+        )
+    );
+}
+
+function setHidden(
+  element,
+  hidden
+) {
+  if (element) {
+    element.hidden =
+      hidden;
+  }
+}
+
+function titleFromId(
+  value
+) {
+  return String(
+    value ||
+    ""
+  )
+    .replace(
+      /[_-]+/g,
+      " "
+    )
+    .replace(
+      /\b\w/g,
+      char =>
+        char.toUpperCase()
+    );
+}
+
+function formatNumber(
+  value
+) {
+  return new Intl
+    .NumberFormat(
+      "en-US",
+      {
+        maximumFractionDigits:
+          0
+      }
+    )
+    .format(
+      Math.round(
+        Number(value) ||
+        0
+      )
+    );
+}
+
+function formatDuration(
+  totalMinutes
+) {
+  const minutes =
+    Math.max(
+      0,
+      Math.round(
+        Number(
+          totalMinutes
+        ) ||
+        0
+      )
+    );
+
+  const hours =
+    Math.floor(
+      minutes / 60
+    );
+
+  const remainder =
+    minutes % 60;
+
+  if (hours === 0) {
+    return `${remainder}m`;
+  }
+
+  if (
+    remainder === 0
+  ) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${remainder}m`;
+}
+
+function pluralize(
+  count,
+  singular,
+  plural
+) {
+  return count === 1
+    ? singular
+    : plural;
+}
+
+function formatDateKey(
+  dateKey
+) {
+  const [
+    year,
+    month,
+    day
+  ] =
+    dateKey
+      .split("-")
+      .map(Number);
+
+  return new Intl
+    .DateTimeFormat(
+      "en-US",
+      {
+        month:
+          "short",
+        day:
+          "numeric",
+        year:
+          "numeric"
+      }
+    )
+    .format(
+      new Date(
+        year,
+        month - 1,
+        day
+      )
+    );
+}
+
+function getRelativeDateLabel(
+  dateKey
+) {
+  const today =
+    getLocalDateKey();
+
+  if (
+    dateKey === today
+  ) {
+    return "Today";
+  }
+
+  const [
+    year,
+    month,
+    day
+  ] =
+    dateKey
+      .split("-")
+      .map(Number);
+
+  return new Intl
+    .DateTimeFormat(
+      "en-US",
+      {
+        weekday:
+          "long"
+      }
+    )
+    .format(
+      new Date(
+        year,
+        month - 1,
+        day
+      )
+    );
+}
+
+/* =====================================================
+   GLOBAL API
+===================================================== */
+
+function publishGlobal() {
+  const runtime = {
+    version:
+      VERSION,
+
+    source:
+      SOURCE,
+
+    initialize,
+
+    refresh,
+
+    getPlan:
+      () =>
+        state.plan,
+
+    getProgress:
+      () =>
+        WorkoutProgressStore
+          .getState(),
+
+    getTodaySummary:
+      () =>
+        WorkoutProgressStore
+          .getDaySummary(
+            state.currentDay
+          ),
+
+    getWeekSummary:
+      () =>
+        WorkoutProgressStore
+          .getWeekSummary(),
+
+    getCurrentMonthHistory:
+      () =>
+        buildCurrentMonthHistory(
+          state.currentMonthKey
+        ),
+
+    getTrainingProfile:
+      () => ({
+        age:
+          state.profileAge,
+
+        weightLb:
+          state.profileWeightLb,
+
+        restingHeartRate:
+          state.profileRestingHeartRate,
+
+        estimatedMaxHeartRate:
+          state.profileEstimatedMaxHeartRate,
+
+        confirmedMaxHeartRate:
+          state.profileConfirmedMaxHeartRate,
+
+        effectiveMaxHeartRate:
+          state.profileEffectiveMaxHeartRate,
+
+        maxHeartRateSource:
+          state.profileMaxHeartRateSource,
+
+        averageWorkoutHeartRate:
+          state.averageWorkoutHeartRate,
+
+        heartRateIntensity:
+          state.heartRateIntensity
+      })
+  };
+
+  window.Ari =
+    window.Ari ||
+    {};
+
+  window.Ari.Training =
+    runtime;
+
+  window.AriTrainingRuntime =
+    runtime;
+}
+
+/* =====================================================
+   STARTUP
+===================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initialize,
+    {
+      once:
+        true
+    }
+  );
+} else {
+  initialize();
+}
+
+export {
+  VERSION,
+  SOURCE,
+  initialize,
+  refresh
+};
