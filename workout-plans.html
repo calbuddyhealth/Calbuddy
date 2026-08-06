@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070c13" />
+
+  <title>Workout Plans - ARI Training</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="assets/css/base.css?v=16" />
+  <link rel="stylesheet" href="assets/css/animations.css?v=16" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=1.0.0" />
+</head>
+
+<body class="ari-workout-plans-page">
+  <main id="workoutPlansApp" class="workout-plans-shell">
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+    <header class="workout-plans-header">
+      <button
+        id="workoutPlansBackButton"
+        class="workout-plans-header__back"
+        type="button"
+        aria-label="Back to ARI Training"
+      >
+        &larr;
+      </button>
+
+      <div class="workout-plans-header__brand">
+        <p class="workout-plans-header__eyebrow">ARI TRAINING</p>
+        <h1>Workout Plans</h1>
+      </div>
+
+      <button
+        id="workoutPlansSaveButton"
+        class="workout-plans-header__save"
+        type="button"
+      >
+        Save
+      </button>
+    </header>
+
+    <!-- =====================================================
+         STATUS
+    ====================================================== -->
+    <div
+      id="workoutPlansStatus"
+      class="workout-plans-status"
+      role="status"
+      aria-live="polite"
+    >
+      Loading your training system&hellip;
+    </div>
+
+    <!-- =====================================================
+         PLAN OVERVIEW
+    ====================================================== -->
+    <section class="workout-plan-overview" aria-labelledby="workoutPlanName">
+      <div class="workout-plan-overview__identity">
+        <p class="workout-section-eyebrow">CURRENT PROGRAM</p>
+
+        <input
+          id="workoutPlanName"
+          class="workout-plan-name"
+          type="text"
+          maxlength="120"
+          value="My Weekly Plan"
+          aria-label="Workout plan name"
+        />
+
+        <p id="workoutPlanGoalSummary" class="workout-plan-overview__goal">
+          Choose a fitness goal to personalize your training.
+        </p>
+      </div>
+
+      <div class="workout-plan-overview__stats">
+        <div class="workout-overview-stat">
+          <strong id="workoutDaysCount">0</strong>
+          <span>Training Days</span>
+        </div>
+
+        <div class="workout-overview-stat">
+          <strong id="workoutOffDaysCount">7</strong>
+          <span>Off Days</span>
+        </div>
+
+        <div class="workout-overview-stat">
+          <strong id="workoutExerciseCount">0</strong>
+          <span>Exercises</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         MAIN NAVIGATION
+    ====================================================== -->
+    <nav class="workout-plans-tabs" aria-label="Workout planning sections">
+      <button
+        id="workoutTabWeek"
+        class="workout-plans-tab active"
+        type="button"
+        data-workout-tab="week"
+        aria-selected="true"
+      >
+        My Week
+      </button>
+
+      <button
+        id="workoutTabTemplates"
+        class="workout-plans-tab"
+        type="button"
+        data-workout-tab="templates"
+        aria-selected="false"
+      >
+        Templates
+      </button>
+
+      <button
+        id="workoutTabCustom"
+        class="workout-plans-tab"
+        type="button"
+        data-workout-tab="custom"
+        aria-selected="false"
+      >
+        Build Custom
+      </button>
+
+      <button
+        id="workoutTabLibrary"
+        class="workout-plans-tab"
+        type="button"
+        data-workout-tab="library"
+        aria-selected="false"
+      >
+        Exercise Library
+      </button>
+    </nav>
+
+    <!-- =====================================================
+         MY WEEK
+    ====================================================== -->
+    <section
+      id="workoutPanelWeek"
+      class="workout-plans-panel active"
+      data-workout-panel="week"
+    >
+      <header class="workout-section-header">
+        <div>
+          <p class="workout-section-eyebrow">7-DAY TRAINING SYSTEM</p>
+          <h2>My Week</h2>
+          <p>
+            Build your week around training days, recovery, and scheduled off days.
+          </p>
+        </div>
+      </header>
+
+      <div id="workoutWeekGrid" class="workout-week-grid">
+        <!-- Rendered by js/workout-plans.js -->
+      </div>
+    </section>
+
+    <!-- =====================================================
+         TEMPLATES
+    ====================================================== -->
+    <section
+      id="workoutPanelTemplates"
+      class="workout-plans-panel"
+      data-workout-panel="templates"
+      hidden
+    >
+      <header class="workout-section-header">
+        <div>
+          <p class="workout-section-eyebrow">START WITH A SYSTEM</p>
+          <h2>Suggested Templates</h2>
+          <p>
+            Choose a starting program, then customize every day and exercise.
+          </p>
+        </div>
+      </header>
+
+      <div class="workout-filter-row">
+        <label class="workout-filter">
+          <span>Goal</span>
+          <select id="workoutTemplateGoalFilter">
+            <option value="">All Goals</option>
+          </select>
+        </label>
+
+        <label class="workout-filter">
+          <span>Days / Week</span>
+          <select id="workoutTemplateDaysFilter">
+            <option value="">Any</option>
+            <option value="2">2 Days</option>
+            <option value="3">3 Days</option>
+            <option value="4">4 Days</option>
+            <option value="5">5 Days</option>
+            <option value="6">6 Days</option>
+            <option value="7">7 Days</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="workoutTemplateList" class="workout-template-grid">
+        <!-- Rendered by js/workout-plans.js -->
+      </div>
+
+      <div id="workoutTemplateEmpty" class="workout-empty-state" hidden>
+        No templates match those filters.
+      </div>
+    </section>
+
+    <!-- =====================================================
+         BUILD CUSTOM
+    ====================================================== -->
+    <section
+      id="workoutPanelCustom"
+      class="workout-plans-panel"
+      data-workout-panel="custom"
+      hidden
+    >
+      <header class="workout-section-header">
+        <div>
+          <p class="workout-section-eyebrow">BUILD YOUR OWN PROGRAM</p>
+          <h2>Build Custom</h2>
+          <p>
+            Choose your goal, then assign familiar training focuses such as
+            Chest Day, Leg Day, Upper Body, Full Body, Cardio, or Off Day.
+          </p>
+        </div>
+      </header>
+
+      <section class="workout-builder-card">
+        <label class="workout-builder-field">
+          <span>Primary Fitness Goal</span>
+          <select id="workoutPrimaryGoal">
+            <option value="">Choose a goal</option>
+          </select>
+        </label>
+
+        <div>
+          <p class="workout-builder-label">Secondary Goals</p>
+          <div id="workoutSecondaryGoals" class="workout-choice-grid"></div>
+        </div>
+      </section>
+
+      <section class="workout-builder-card">
+        <div class="workout-builder-card__header">
+          <div>
+            <p class="workout-section-eyebrow">WEEK STRUCTURE</p>
+            <h3>Choose Each Day</h3>
+          </div>
+        </div>
+
+        <div id="workoutCustomWeek" class="workout-custom-week">
+          <!-- Rendered by js/workout-plans.js -->
+        </div>
+      </section>
+    </section>
+
+    <!-- =====================================================
+         EXERCISE LIBRARY
+    ====================================================== -->
+    <section
+      id="workoutPanelLibrary"
+      class="workout-plans-panel"
+      data-workout-panel="library"
+      hidden
+    >
+      <header class="workout-section-header">
+        <div>
+          <p class="workout-section-eyebrow">MOVEMENT DATABASE</p>
+          <h2>Exercise Library</h2>
+          <p>
+            Explore selectable exercises by body part, movement, training type,
+            equipment, and fitness goal.
+          </p>
+        </div>
+      </header>
+
+      <form id="exerciseLibrarySearchForm" class="exercise-library-search" role="search">
+        <label class="sr-only" for="exerciseLibrarySearch">
+          Search exercises
+        </label>
+
+        <input
+          id="exerciseLibrarySearch"
+          type="search"
+          maxlength="100"
+          autocomplete="off"
+          placeholder="Search exercises..."
+        />
+
+        <button type="submit">Search</button>
+      </form>
+
+      <div class="exercise-library-filters">
+        <label class="workout-filter">
+          <span>Body Part</span>
+          <select id="exerciseBodyPartFilter">
+            <option value="">All Body Parts</option>
+          </select>
+        </label>
+
+        <label class="workout-filter">
+          <span>Movement</span>
+          <select id="exerciseMovementFilter">
+            <option value="">All Movements</option>
+          </select>
+        </label>
+
+        <label class="workout-filter">
+          <span>Exercise Type</span>
+          <select id="exerciseTypeFilter">
+            <option value="">All Types</option>
+          </select>
+        </label>
+
+        <label class="workout-filter">
+          <span>Equipment</span>
+          <select id="exerciseEquipmentFilter">
+            <option value="">All Equipment</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="exerciseLibraryList" class="exercise-library-grid">
+        <!-- Rendered by js/workout-plans.js -->
+      </div>
+
+      <div id="exerciseLibraryEmpty" class="workout-empty-state" hidden>
+        No exercises match your filters.
+      </div>
+    </section>
+
+    <!-- =====================================================
+         DAY EDITOR
+    ====================================================== -->
+    <dialog id="workoutDayEditor" class="workout-dialog">
+      <div class="workout-dialog__panel">
+        <header class="workout-dialog__header">
+          <div>
+            <p class="workout-section-eyebrow">EDIT TRAINING DAY</p>
+            <h2 id="workoutDayEditorTitle">Monday</h2>
+          </div>
+
+          <button
+            type="button"
+            class="workout-dialog__close"
+            data-workout-action="close-day-editor"
+            aria-label="Close day editor"
+          >
+            &times;
+          </button>
+        </header>
+
+        <label class="workout-builder-field">
+          <span>Day Type</span>
+          <select id="workoutDayType">
+            <option value="workout">Workout</option>
+            <option value="recovery">Active Recovery</option>
+            <option value="off">Off Day</option>
+          </select>
+        </label>
+
+        <label class="workout-builder-field">
+          <span>Training Focus</span>
+          <select id="workoutDayFocus">
+            <option value="">Choose focus</option>
+          </select>
+        </label>
+
+        <label class="workout-builder-field">
+          <span>Day Name</span>
+          <input
+            id="workoutDayTitle"
+            type="text"
+            maxlength="80"
+            placeholder="Example: Chest Day"
+          />
+        </label>
+
+        <div id="workoutDayExerciseSection">
+          <div class="workout-builder-card__header">
+            <div>
+              <p class="workout-section-eyebrow">SELECTED EXERCISES</p>
+              <h3>Exercises</h3>
+            </div>
+
+            <button
+              id="workoutAddExerciseButton"
+              type="button"
+              data-workout-action="open-exercise-picker"
+            >
+              + Add Exercise
+            </button>
+          </div>
+
+          <div id="workoutDayExerciseList" class="workout-day-exercises"></div>
+
+          <div id="workoutDayExerciseEmpty" class="workout-empty-state">
+            No exercises selected yet.
+          </div>
+        </div>
+
+        <button
+          id="workoutDayDoneButton"
+          class="workout-primary-action"
+          type="button"
+          data-workout-action="close-day-editor"
+        >
+          Done
+        </button>
+      </div>
+    </dialog>
+
+    <!-- =====================================================
+         EXERCISE PICKER
+    ====================================================== -->
+    <dialog id="workoutExercisePicker" class="workout-dialog">
+      <div class="workout-dialog__panel">
+        <header class="workout-dialog__header">
+          <div>
+            <p class="workout-section-eyebrow">EXERCISE LIBRARY</p>
+            <h2>Add Exercise</h2>
+          </div>
+
+          <button
+            type="button"
+            class="workout-dialog__close"
+            data-workout-action="close-exercise-picker"
+            aria-label="Close exercise picker"
+          >
+            &times;
+          </button>
+        </header>
+
+        <p id="workoutExercisePickerContext">
+          Recommended exercises for this training day.
+        </p>
+
+        <input
+          id="workoutExercisePickerSearch"
+          type="search"
+          maxlength="100"
+          placeholder="Search exercise library..."
+        />
+
+        <div id="workoutExercisePickerList" class="exercise-library-grid"></div>
+      </div>
+    </dialog>
+
+    <!-- =====================================================
+         EXERCISE DETAIL / ILLUSTRATION VIEW
+    ====================================================== -->
+    <dialog id="exerciseDetailDialog" class="workout-dialog exercise-detail-dialog">
+      <div class="workout-dialog__panel">
+        <header class="workout-dialog__header">
+          <div>
+            <p id="exerciseDetailType" class="workout-section-eyebrow">EXERCISE</p>
+            <h2 id="exerciseDetailName">Exercise</h2>
+          </div>
+
+          <button
+            type="button"
+            class="workout-dialog__close"
+            data-workout-action="close-exercise-detail"
+            aria-label="Close exercise details"
+          >
+            &times;
+          </button>
+        </header>
+
+        <div class="exercise-detail-visuals">
+          <figure id="exerciseAnatomyFigure" class="exercise-detail-figure" hidden>
+            <img id="exerciseAnatomyImage" src="" alt="" />
+            <figcaption>Anatomy</figcaption>
+          </figure>
+
+          <figure id="exerciseMovementFigure" class="exercise-detail-figure" hidden>
+            <img id="exerciseMovementImage" src="" alt="" />
+            <figcaption>Movement</figcaption>
+          </figure>
+
+          <div id="exerciseVisualPlaceholder" class="exercise-visual-placeholder">
+            Exercise illustrations will appear here when assets are available.
+          </div>
+        </div>
+
+        <section class="exercise-detail-section">
+          <h3>How to Perform</h3>
+          <ol id="exerciseInstructionList"></ol>
+        </section>
+
+        <section class="exercise-detail-section">
+          <h3>Muscles</h3>
+          <div id="exerciseMuscleList" class="exercise-muscle-list"></div>
+        </section>
+
+        <section class="exercise-detail-section">
+          <h3>Movement</h3>
+          <div id="exerciseMovementSummary"></div>
+        </section>
+
+        <section class="exercise-detail-section">
+          <h3>Form Cues</h3>
+          <ul id="exerciseFormCueList"></ul>
+        </section>
+
+        <section id="exerciseCaloriesSection" class="exercise-detail-section" hidden>
+          <h3>Estimated Calories</h3>
+          <p id="exerciseCaloriesEstimate"></p>
+        </section>
+
+        <button
+          id="exerciseDetailAddButton"
+          class="workout-primary-action"
+          type="button"
+          data-workout-action="add-detail-exercise"
+          hidden
+        >
+          Add to Workout
+        </button>
+      </div>
+    </dialog>
+
+    <!-- =====================================================
+         TEMPLATES
+    ====================================================== -->
+    <template id="workoutDayCardTemplate">
+      <article class="workout-day-card">
+        <button
+          class="workout-day-card__button"
+          type="button"
+          data-workout-action="edit-day"
+        >
+          <div class="workout-day-card__header">
+            <span class="workout-day-card__day"></span>
+            <span class="workout-day-card__type"></span>
+          </div>
+
+          <h3 class="workout-day-card__title"></h3>
+          <p class="workout-day-card__summary"></p>
+          <span class="workout-day-card__open">Edit &rarr;</span>
+        </button>
+      </article>
+    </template>
+
+    <template id="workoutTemplateCardTemplate">
+      <article class="workout-template-card">
+        <div class="workout-template-card__body">
+          <p class="workout-template-card__eyebrow"></p>
+          <h3 class="workout-template-card__name"></h3>
+          <p class="workout-template-card__description"></p>
+          <div class="workout-template-card__meta"></div>
+        </div>
+
+        <button
+          class="workout-template-card__apply"
+          type="button"
+          data-workout-action="apply-template"
+        >
+          Use Template
+        </button>
+      </article>
+    </template>
+
+    <template id="exerciseCardTemplate">
+      <article class="exercise-library-card">
+        <button
+          class="exercise-library-card__open"
+          type="button"
+          data-workout-action="open-exercise-detail"
+        >
+          <div class="exercise-library-card__visual">
+            <img class="exercise-library-card__image" src="" alt="" hidden />
+            <span class="exercise-library-card__placeholder" aria-hidden="true">
+              ARI
+            </span>
+          </div>
+
+          <div class="exercise-library-card__body">
+            <p class="exercise-library-card__type"></p>
+            <h3 class="exercise-library-card__name"></h3>
+            <p class="exercise-library-card__muscles"></p>
+          </div>
+        </button>
+
+        <button
+          class="exercise-library-card__add"
+          type="button"
+          data-workout-action="add-exercise"
+          hidden
+        >
+          + Add
+        </button>
+      </article>
+    </template>
+
+    <template id="workoutExerciseRowTemplate">
+      <article class="workout-exercise-row">
+        <button
+          class="workout-exercise-row__open"
+          type="button"
+          data-workout-action="open-exercise-detail"
+        >
+          <strong class="workout-exercise-row__name"></strong>
+          <span class="workout-exercise-row__muscles"></span>
+        </button>
+
+        <div class="workout-exercise-row__prescription">
+          <label>
+            <span>Sets</span>
+            <input
+              class="workout-exercise-sets"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              max="20"
+            />
+          </label>
+
+          <label>
+            <span>Reps</span>
+            <input
+              class="workout-exercise-reps"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              max="100"
+            />
+          </label>
+
+          <label>
+            <span>Weight</span>
+            <input
+              class="workout-exercise-weight"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.5"
+            />
+          </label>
+        </div>
+
+        <button
+          class="workout-exercise-row__remove"
+          type="button"
+          data-workout-action="remove-exercise"
+          aria-label="Remove exercise"
+        >
+          &times;
+        </button>
+      </article>
+    </template>
+
+    <div
+      id="workoutPlansToast"
+      class="workout-plans-toast"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+
+  <script
+    type="module"
+    src="js/workout-plans.js?v=1.0.0"
+  ></script>
+</body>
+</html>
