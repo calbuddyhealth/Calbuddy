@@ -1,0 +1,1223 @@
+/* =====================================================
+   ARI REBIRTH
+   File: assets/css/workout-plans.css
+   Version: 1.0.0
+   Purpose:
+   - Visual system for workout-plans.html
+   - Futuristic ARI Training command-center aesthetic
+   - Mobile-first seven-day workout planning
+===================================================== */
+
+:root {
+  --wp-bg: #070c13;
+  --wp-bg-soft: rgba(9, 18, 28, 0.92);
+  --wp-panel: rgba(10, 23, 34, 0.82);
+  --wp-panel-strong: rgba(9, 28, 41, 0.96);
+  --wp-border: rgba(104, 231, 255, 0.22);
+  --wp-border-strong: rgba(104, 231, 255, 0.54);
+  --wp-text: #f3fbff;
+  --wp-muted: #94a9b6;
+  --wp-dim: #647885;
+  --wp-accent: #6de8ff;
+  --wp-accent-soft: rgba(109, 232, 255, 0.14);
+  --wp-accent-glow: 0 0 24px rgba(109, 232, 255, 0.24);
+  --wp-danger: #ff7e8a;
+  --wp-success: #8fffc7;
+  --wp-radius-lg: 24px;
+  --wp-radius-md: 18px;
+  --wp-radius-sm: 12px;
+  --wp-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(50, 183, 214, 0.16), transparent 36%),
+    linear-gradient(180deg, #07111a 0%, #05090f 48%, #03070b 100%);
+  color: var(--wp-text);
+}
+
+body.ari-workout-plans-page {
+  font-family: "Orbitron", system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+body.ari-workout-plans-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(109, 232, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(109, 232, 255, 0.016) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.8), transparent 80%);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button,
+select,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* =====================================================
+   PAGE SHELL
+===================================================== */
+
+.workout-plans-shell {
+  width: min(1180px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding:
+    max(14px, env(safe-area-inset-top))
+    16px
+    calc(40px + env(safe-area-inset-bottom));
+  position: relative;
+  z-index: 1;
+}
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.workout-plans-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 74px;
+  margin-bottom: 16px;
+  padding: 10px 4px;
+}
+
+.workout-plans-header__back,
+.workout-plans-header__save {
+  border: 1px solid var(--wp-border);
+  background:
+    linear-gradient(180deg, rgba(18, 39, 53, 0.9), rgba(8, 18, 26, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 0 20px rgba(0,0,0,.18);
+  cursor: pointer;
+}
+
+.workout-plans-header__back {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  font-size: 1.25rem;
+}
+
+.workout-plans-header__save {
+  min-width: 78px;
+  min-height: 42px;
+  border-radius: 14px;
+  color: var(--wp-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workout-plans-header__back:active,
+.workout-plans-header__save:active,
+.workout-plans-tab:active,
+.workout-primary-action:active {
+  transform: translateY(1px);
+}
+
+.workout-plans-header__brand {
+  min-width: 0;
+  text-align: center;
+}
+
+.workout-plans-header__eyebrow,
+.workout-section-eyebrow {
+  margin: 0 0 5px;
+  color: var(--wp-accent);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.workout-plans-header__brand h1 {
+  margin: 0;
+  font-family: "Audiowide", sans-serif;
+  font-size: clamp(1.15rem, 5vw, 1.65rem);
+  letter-spacing: 0.03em;
+}
+
+/* =====================================================
+   STATUS
+===================================================== */
+
+.workout-plans-status {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--wp-border);
+  border-radius: 14px;
+  background: rgba(10, 23, 34, 0.72);
+  color: var(--wp-muted);
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+.workout-plans-status[data-state="error"] {
+  border-color: rgba(255, 126, 138, 0.42);
+  color: #ffc4cb;
+}
+
+/* =====================================================
+   OVERVIEW
+===================================================== */
+
+.workout-plan-overview {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid var(--wp-border-strong);
+  border-radius: var(--wp-radius-lg);
+  background:
+    linear-gradient(145deg, rgba(16, 38, 52, 0.93), rgba(6, 16, 24, 0.96));
+  box-shadow: var(--wp-shadow), var(--wp-accent-glow);
+}
+
+.workout-plan-overview::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -55% 30%;
+  height: 180px;
+  background: radial-gradient(circle, rgba(109, 232, 255, 0.16), transparent 66%);
+  pointer-events: none;
+}
+
+.workout-plan-overview__identity {
+  position: relative;
+  z-index: 1;
+}
+
+.workout-plan-name {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--wp-text);
+  font-family: "Audiowide", sans-serif;
+  font-size: clamp(1.35rem, 5vw, 2rem);
+  letter-spacing: 0.01em;
+}
+
+.workout-plan-name:focus {
+  text-shadow: 0 0 18px rgba(109, 232, 255, 0.35);
+}
+
+.workout-plan-overview__goal {
+  margin: 9px 0 0;
+  color: var(--wp-muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.workout-plan-overview__stats {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.workout-overview-stat {
+  padding: 12px 8px;
+  border: 1px solid rgba(109, 232, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.022);
+  text-align: center;
+}
+
+.workout-overview-stat strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--wp-accent);
+  font-size: 1.2rem;
+}
+
+.workout-overview-stat span {
+  color: var(--wp-muted);
+  font-size: 0.58rem;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* =====================================================
+   TABS
+===================================================== */
+
+.workout-plans-tabs {
+  display: flex;
+  gap: 9px;
+  margin-bottom: 22px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.workout-plans-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workout-plans-tab {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(109, 232, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(8, 19, 28, 0.84);
+  color: var(--wp-muted);
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workout-plans-tab.active {
+  border-color: var(--wp-border-strong);
+  background: linear-gradient(180deg, rgba(27, 73, 91, 0.68), rgba(8, 26, 37, 0.94));
+  color: #fff;
+  box-shadow: var(--wp-accent-glow);
+}
+
+/* =====================================================
+   PANELS / HEADERS
+===================================================== */
+
+.workout-plans-panel {
+  animation: wpPanelIn 220ms ease-out;
+}
+
+@keyframes wpPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.workout-section-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.workout-section-header h2,
+.workout-builder-card__header h3,
+.exercise-detail-section h3 {
+  margin: 0;
+  font-family: "Audiowide", sans-serif;
+  font-weight: 400;
+}
+
+.workout-section-header h2 {
+  font-size: 1.25rem;
+}
+
+.workout-section-header p:not(.workout-section-eyebrow) {
+  margin: 8px 0 0;
+  max-width: 760px;
+  color: var(--wp-muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+/* =====================================================
+   WEEK
+===================================================== */
+
+.workout-week-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.workout-day-card {
+  position: relative;
+}
+
+.workout-day-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--wp-accent);
+  box-shadow: 0 0 12px rgba(109,232,255,.55);
+  z-index: 2;
+}
+
+.workout-day-card[data-type="off"]::before {
+  background: #536572;
+  box-shadow: none;
+}
+
+.workout-day-card[data-type="recovery"]::before {
+  background: #90dfbe;
+  box-shadow: 0 0 12px rgba(144,223,190,.35);
+}
+
+.workout-day-card__button {
+  width: 100%;
+  padding: 17px 18px 17px 22px;
+  border: 1px solid var(--wp-border);
+  border-radius: var(--wp-radius-md);
+  background:
+    linear-gradient(180deg, rgba(12, 29, 42, 0.91), rgba(6, 15, 23, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workout-day-card[data-type="off"] .workout-day-card__button {
+  opacity: .7;
+  border-color: rgba(124, 143, 154, 0.16);
+}
+
+.workout-day-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.workout-day-card__day {
+  color: var(--wp-muted);
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.workout-day-card__type {
+  padding: 5px 8px;
+  border: 1px solid rgba(109,232,255,.18);
+  border-radius: 999px;
+  color: var(--wp-accent);
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.workout-day-card[data-type="off"] .workout-day-card__type {
+  color: #8ea0ab;
+  border-color: rgba(142,160,171,.17);
+}
+
+.workout-day-card[data-type="recovery"] .workout-day-card__type {
+  color: var(--wp-success);
+}
+
+.workout-day-card__title {
+  margin: 12px 0 7px;
+  font-family: "Audiowide", sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.workout-day-card__summary {
+  margin: 0;
+  color: var(--wp-muted);
+  font-size: .7rem;
+}
+
+.workout-day-card__open {
+  display: block;
+  margin-top: 13px;
+  color: var(--wp-accent);
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+/* =====================================================
+   FILTERS / BUILDER
+===================================================== */
+
+.workout-filter-row,
+.exercise-library-filters {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.workout-filter-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.exercise-library-filters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workout-filter,
+.workout-builder-field,
+.workout-exercise-metric {
+  display: grid;
+  gap: 7px;
+}
+
+.workout-filter span,
+.workout-builder-field > span,
+.workout-builder-label,
+.workout-exercise-metric span {
+  color: var(--wp-muted);
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.workout-filter select,
+.workout-builder-field select,
+.workout-builder-field input,
+.exercise-library-search input,
+#workoutExercisePickerSearch,
+.workout-exercise-metric input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(109,232,255,.18);
+  border-radius: 13px;
+  background: rgba(5, 15, 23, .92);
+  color: var(--wp-text);
+  outline: none;
+}
+
+.workout-filter select,
+.workout-builder-field select,
+.workout-builder-field input,
+#workoutExercisePickerSearch {
+  padding: 0 12px;
+}
+
+.workout-filter select:focus,
+.workout-builder-field select:focus,
+.workout-builder-field input:focus,
+.exercise-library-search input:focus,
+#workoutExercisePickerSearch:focus,
+.workout-exercise-metric input:focus {
+  border-color: rgba(109,232,255,.65);
+  box-shadow: 0 0 0 3px rgba(109,232,255,.08);
+}
+
+.workout-builder-card {
+  margin-bottom: 14px;
+  padding: 17px;
+  border: 1px solid var(--wp-border);
+  border-radius: var(--wp-radius-md);
+  background: rgba(8, 20, 30, .82);
+}
+
+.workout-builder-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.workout-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workout-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workout-choice span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(109,232,255,.15);
+  border-radius: 999px;
+  color: var(--wp-muted);
+  background: rgba(255,255,255,.02);
+  cursor: pointer;
+  font-size: .65rem;
+}
+
+.workout-choice input:checked + span {
+  color: #fff;
+  border-color: var(--wp-border-strong);
+  background: var(--wp-accent-soft);
+  box-shadow: var(--wp-accent-glow);
+}
+
+.workout-custom-week {
+  display: grid;
+  gap: 9px;
+}
+
+.workout-custom-day {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(145px, .9fr) auto;
+  gap: 9px;
+  align-items: center;
+  padding: 11px;
+  border: 1px solid rgba(109,232,255,.13);
+  border-radius: 14px;
+  background: rgba(255,255,255,.018);
+}
+
+.workout-custom-day__identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workout-custom-day__identity strong {
+  font-size: .68rem;
+  text-transform: uppercase;
+}
+
+.workout-custom-day__identity span {
+  overflow: hidden;
+  color: var(--wp-muted);
+  font-size: .61rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workout-custom-day select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid rgba(109,232,255,.15);
+  border-radius: 11px;
+  background: rgba(4,13,20,.9);
+  color: var(--wp-text);
+}
+
+.workout-custom-day button,
+#workoutAddExerciseButton {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(109,232,255,.26);
+  border-radius: 11px;
+  background: rgba(109,232,255,.08);
+  color: var(--wp-accent);
+  cursor: pointer;
+  font-size: .62rem;
+  font-weight: 800;
+}
+
+/* =====================================================
+   TEMPLATE CARDS
+===================================================== */
+
+.workout-template-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.workout-template-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--wp-border);
+  border-radius: var(--wp-radius-md);
+  background:
+    linear-gradient(180deg, rgba(10, 27, 39, .92), rgba(5, 15, 23, .97));
+}
+
+.workout-template-card__eyebrow {
+  margin: 0 0 7px;
+  color: var(--wp-accent);
+  font-size: .55rem;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.workout-template-card__name {
+  margin: 0;
+  font-family: "Audiowide", sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.workout-template-card__description {
+  margin: 8px 0 0;
+  color: var(--wp-muted);
+  font-size: .7rem;
+  line-height: 1.65;
+}
+
+.workout-template-card__meta {
+  margin-top: 12px;
+  color: #d5f9ff;
+  font-size: .62rem;
+}
+
+.workout-template-card__apply,
+.workout-primary-action {
+  min-height: 46px;
+  border: 1px solid var(--wp-border-strong);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(36, 104, 128, .42), rgba(9, 39, 53, .82));
+  color: #fff;
+  box-shadow: var(--wp-accent-glow);
+  cursor: pointer;
+  font-weight: 800;
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* =====================================================
+   EXERCISE LIBRARY
+===================================================== */
+
+.exercise-library-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.exercise-library-search input {
+  padding: 0 13px;
+}
+
+.exercise-library-search button {
+  min-width: 86px;
+  border: 1px solid var(--wp-border-strong);
+  border-radius: 13px;
+  background: rgba(109,232,255,.1);
+  color: var(--wp-accent);
+  cursor: pointer;
+  font-size: .64rem;
+  font-weight: 800;
+}
+
+.exercise-library-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.exercise-library-card {
+  overflow: hidden;
+  border: 1px solid rgba(109,232,255,.16);
+  border-radius: 16px;
+  background: rgba(7, 19, 28, .9);
+}
+
+.exercise-library-card__open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.exercise-library-card__visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1.2 / 1;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(109,232,255,.13), transparent 44%),
+    linear-gradient(180deg, rgba(14, 34, 47, .94), rgba(6, 16, 24, .94));
+  border-bottom: 1px solid rgba(109,232,255,.1);
+}
+
+.exercise-library-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.exercise-library-card__placeholder {
+  color: rgba(109,232,255,.3);
+  font-family: "Audiowide", sans-serif;
+  font-size: 1.45rem;
+  letter-spacing: .12em;
+}
+
+.exercise-library-card__body {
+  padding: 12px;
+}
+
+.exercise-library-card__type {
+  margin: 0 0 6px;
+  color: var(--wp-accent);
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.exercise-library-card__name {
+  margin: 0;
+  font-family: "Audiowide", sans-serif;
+  font-size: .78rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.exercise-library-card__muscles {
+  margin: 7px 0 0;
+  color: var(--wp-muted);
+  font-size: .58rem;
+  line-height: 1.5;
+}
+
+.exercise-library-card__add {
+  width: calc(100% - 20px);
+  min-height: 36px;
+  margin: 0 10px 10px;
+  border: 1px solid rgba(109,232,255,.25);
+  border-radius: 10px;
+  background: rgba(109,232,255,.08);
+  color: var(--wp-accent);
+  cursor: pointer;
+  font-size: .61rem;
+  font-weight: 800;
+}
+
+.workout-empty-state {
+  padding: 22px 16px;
+  border: 1px dashed rgba(109,232,255,.18);
+  border-radius: 14px;
+  color: var(--wp-dim);
+  text-align: center;
+  font-size: .7rem;
+}
+
+/* =====================================================
+   DIALOGS
+===================================================== */
+
+.workout-dialog {
+  width: min(720px, calc(100vw - 18px));
+  max-height: min(90svh, 900px);
+  padding: 0;
+  border: 1px solid rgba(109,232,255,.3);
+  border-radius: 22px;
+  background: #08121b;
+  color: var(--wp-text);
+  box-shadow: 0 28px 90px rgba(0,0,0,.6), 0 0 50px rgba(109,232,255,.09);
+}
+
+.workout-dialog::backdrop {
+  background: rgba(0, 5, 10, .78);
+  backdrop-filter: blur(8px);
+}
+
+.workout-dialog__panel {
+  max-height: min(90svh, 900px);
+  overflow-y: auto;
+  padding: 18px;
+  overscroll-behavior: contain;
+}
+
+.workout-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.workout-dialog__header h2 {
+  margin: 0;
+  font-family: "Audiowide", sans-serif;
+  font-size: 1.08rem;
+  font-weight: 400;
+}
+
+.workout-dialog__close {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(109,232,255,.18);
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+  color: var(--wp-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+#workoutDayEditor .workout-builder-field,
+#workoutExercisePickerSearch {
+  margin-bottom: 12px;
+}
+
+/* =====================================================
+   DAY EXERCISES
+===================================================== */
+
+.workout-day-exercises {
+  display: grid;
+  gap: 9px;
+}
+
+.workout-exercise-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(109,232,255,.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.018);
+}
+
+.workout-exercise-row__open {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workout-exercise-row__open strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: .72rem;
+}
+
+.workout-exercise-row__open span {
+  display: block;
+  color: var(--wp-muted);
+  font-size: .57rem;
+  line-height: 1.4;
+}
+
+.workout-exercise-row__prescription {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.workout-exercise-metric input {
+  min-height: 38px;
+  padding: 0 8px;
+}
+
+.workout-exercise-row__remove {
+  align-self: start;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255,126,138,.2);
+  border-radius: 10px;
+  background: rgba(255,126,138,.05);
+  color: var(--wp-danger);
+  cursor: pointer;
+}
+
+/* =====================================================
+   EXERCISE DETAILS
+===================================================== */
+
+.exercise-detail-visuals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.exercise-detail-figure,
+.exercise-visual-placeholder {
+  min-height: 180px;
+  margin: 0;
+  border: 1px solid rgba(109,232,255,.14);
+  border-radius: 15px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle, rgba(109,232,255,.08), transparent 55%),
+    rgba(255,255,255,.015);
+}
+
+.exercise-detail-figure img {
+  width: 100%;
+  height: 210px;
+  object-fit: contain;
+  display: block;
+}
+
+.exercise-detail-figure figcaption {
+  padding: 8px;
+  border-top: 1px solid rgba(109,232,255,.1);
+  color: var(--wp-muted);
+  font-size: .58rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.exercise-visual-placeholder {
+  grid-column: 1 / -1;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  color: var(--wp-dim);
+  font-size: .68rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.exercise-detail-section {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(109,232,255,.11);
+  border-radius: 14px;
+  background: rgba(255,255,255,.016);
+}
+
+.exercise-detail-section h3 {
+  margin-bottom: 10px;
+  font-size: .8rem;
+}
+
+.exercise-detail-section p,
+.exercise-detail-section li,
+.exercise-muscle-list {
+  color: var(--wp-muted);
+  font-size: .68rem;
+  line-height: 1.65;
+}
+
+.exercise-detail-section ol,
+.exercise-detail-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.exercise-muscle-list {
+  display: grid;
+  gap: 6px;
+}
+
+.exercise-muscle-list p {
+  margin: 0;
+}
+
+/* =====================================================
+   TOAST
+===================================================== */
+
+.workout-plans-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 50;
+  width: min(420px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  padding: 12px 14px;
+  border: 1px solid rgba(143,255,199,.3);
+  border-radius: 13px;
+  background: rgba(7, 25, 23, .96);
+  color: var(--wp-success);
+  box-shadow: 0 16px 40px rgba(0,0,0,.42);
+  font-size: .68rem;
+  text-align: center;
+}
+
+.workout-plans-toast[data-state="error"] {
+  border-color: rgba(255,126,138,.32);
+  background: rgba(35, 10, 14, .96);
+  color: #ffc1c8;
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (min-width: 720px) {
+  .workout-plans-shell {
+    padding-inline: 24px;
+  }
+
+  .workout-week-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workout-template-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .exercise-library-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .exercise-library-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .workout-week-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workout-week-grid .workout-day-card:first-child {
+    grid-column: span 2;
+  }
+
+  .exercise-library-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .workout-plan-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 30px;
+  }
+
+  .workout-plan-overview__stats {
+    min-width: 390px;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .workout-plans-shell {
+    padding-inline: 12px;
+  }
+
+  .workout-plans-header {
+    gap: 9px;
+  }
+
+  .workout-plans-header__back {
+    width: 42px;
+    height: 42px;
+  }
+
+  .workout-plans-header__save {
+    min-width: 66px;
+    padding-inline: 10px;
+  }
+
+  .workout-plan-overview {
+    padding: 17px;
+  }
+
+  .workout-plan-overview__stats {
+    gap: 7px;
+  }
+
+  .workout-overview-stat {
+    padding-inline: 5px;
+  }
+
+  .workout-filter-row,
+  .exercise-library-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .exercise-library-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .exercise-library-card__visual {
+    aspect-ratio: 1 / .82;
+  }
+
+  .workout-custom-day {
+    grid-template-columns: 1fr auto;
+  }
+
+  .workout-custom-day select {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .workout-custom-day button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .exercise-detail-visuals {
+    grid-template-columns: 1fr;
+  }
+
+  .exercise-detail-figure,
+  .exercise-visual-placeholder {
+    grid-column: 1;
+  }
+
+  .workout-exercise-row__prescription {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
+  .exercise-library-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-plan-overview__stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
