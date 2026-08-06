@@ -1,10 +1,50 @@
-const GOALS_VERSION = "2.4.0";
+// =====================================================
+// ARI REBIRTH
+// File: js/goals.js
+// Version: 2.5.1
+//
+// Purpose:
+//   Health-goals controller for goals.html.
+//
+// V2.5.1 changes:
+//   - Calories burned are displayed separately from Calories Left.
+//   - Calories burned NEVER increase the user's food allowance.
+//   - Calories Left = Daily Calorie Goal - Calories Consumed.
+//   - Adds Resting Heart Rate support.
+//   - Calculates an age-based Estimated Max Heart Rate.
+//   - Supports an optional Confirmed Max Heart Rate override.
+//   - Saves age, weight, resting HR, estimated max HR, and confirmed
+//     max HR locally so ARI Training can reuse them automatically.
+//   - Reads today's completed training calories from
+//     workout-progress-store.js.
+//   - Removes manual calories-burned logging from Goals.
+// =====================================================
+
+const GOALS_VERSION = "2.5.1";
+
+const STORAGE_KEYS = Object.freeze({
+  goals: "calbuddyGoals",
+  dailyCalorieGoal: "calbuddyDailyCalorieGoal",
+  caloriesConsumed: "calbuddyCaloriesConsumed",
+  macroNutritionStrategy: "calbuddyMacroNutritionStrategy",
+  dailyNutritionTargets: "calbuddyDailyNutritionTargets",
+
+  currentWeight: "calbuddyCurrentWeight",
+  age: "calbuddyAge",
+  restingHeartRate: "calbuddyRestingHeartRate",
+  estimatedMaxHeartRate: "calbuddyEstimatedMaxHeartRate",
+  confirmedMaxHeartRate: "calbuddyConfirmedMaxHeartRate",
+
+  workoutProgress: "ari_training_workout_progress_v1"
+});
 
 const goalInputs = [
   "age",
   "sex",
   "weight",
   "height",
+  "restingHeartRate",
+  "confirmedMaxHeartRate",
   "activity",
   "goalMode",
   "targetWeight",
@@ -40,6 +80,10 @@ let autoSaveTimer = null;
 let isLoadingGoals = true;
 let saveRequestSequence = 0;
 
+/* =====================================================
+   STARTUP
+===================================================== */
+
 document.addEventListener("DOMContentLoaded", async () => {
   goalInputs.forEach((id) => {
     const element = document.getElementById(id);
@@ -60,51 +104,78 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("dietPreference")
     ?.addEventListener("change", updateDietOtherUI);
 
-  const dailyCalorieGoalInput = document.getElementById(
-    "dailyCalorieGoalInput"
-  );
+  document
+    .getElementById("confirmedMaxHeartRateToggle")
+    ?.addEventListener("click", toggleConfirmedMaxHeartRate);
 
-  dailyCalorieGoalInput?.addEventListener(
-    "input",
-    () => {
-      const value = parseDailyCalorieGoal(
-        dailyCalorieGoalInput.value
-      );
+  document
+    .getElementById("clearConfirmedMaxHeartRateButton")
+    ?.addEventListener("click", clearConfirmedMaxHeartRate);
 
-      updateDailyCalorieGoalPreview();
+  const dailyCalorieGoalInput =
+    document.getElementById("dailyCalorieGoalInput");
 
-      /*
-       * Do not autosave empty or partial input.
-       * Save only after it becomes a complete,
-       * valid calorie goal.
-       */
-      if (value !== null) {
-        scheduleGoalsAutoSave();
-      } else {
-        window.clearTimeout(autoSaveTimer);
-      }
+  dailyCalorieGoalInput?.addEventListener("input", () => {
+    const value = parseDailyCalorieGoal(
+      dailyCalorieGoalInput.value
+    );
+
+    updateDailyCalorieGoalPreview();
+
+    if (value !== null) {
+      scheduleGoalsAutoSave();
+    } else {
+      window.clearTimeout(autoSaveTimer);
     }
-  );
+  });
 
-  dailyCalorieGoalInput?.addEventListener(
-    "change",
-    () => {
-      const value = parseDailyCalorieGoal(
-        dailyCalorieGoalInput.value
-      );
+  dailyCalorieGoalInput?.addEventListener("change", () => {
+    const value = parseDailyCalorieGoal(
+      dailyCalorieGoalInput.value
+    );
 
-      updateDailyCalorieGoalPreview();
+    updateDailyCalorieGoalPreview();
 
-      if (value !== null) {
-        scheduleGoalsAutoSave(150);
-      }
+    if (value !== null) {
+      scheduleGoalsAutoSave(150);
     }
-  );
+  });
+
+  window.addEventListener("storage", (event) => {
+    const relevantKeys = new Set([
+      STORAGE_KEYS.caloriesConsumed,
+      STORAGE_KEYS.workoutProgress
+    ]);
+
+    if (!event.key || relevantKeys.has(event.key)) {
+      calculateGoals();
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    calculateGoals();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      calculateGoals();
+    }
+  });
 
   await loadSavedGoals();
+
   isLoadingGoals = false;
+
   calculateGoals();
+
+  console.info(
+    `[ARI Goals] Runtime initialized. Version ${GOALS_VERSION}.`
+  );
 });
+
+/* =====================================================
+   NAVIGATION
+===================================================== */
 
 function goBack() {
   if (window.history.length > 1) {
@@ -122,16 +193,33 @@ function goHome() {
 function showHealthTab(tab) {
   const isGoals = tab === "goals";
 
-  document.getElementById("healthGoalsTab")?.classList.toggle("active", isGoals);
-  document.getElementById("healthProgressTab")?.classList.toggle("active", !isGoals);
-  document.getElementById("healthGoalsPanel")?.classList.toggle("active", isGoals);
-  document.getElementById("healthProgressPanel")?.classList.toggle("active", !isGoals);
+  document
+    .getElementById("healthGoalsTab")
+    ?.classList.toggle("active", isGoals);
+
+  document
+    .getElementById("healthProgressTab")
+    ?.classList.toggle("active", !isGoals);
+
+  document
+    .getElementById("healthGoalsPanel")
+    ?.classList.toggle("active", isGoals);
+
+  document
+    .getElementById("healthProgressPanel")
+    ?.classList.toggle("active", !isGoals);
 
   calculateGoals();
 }
 
+/* =====================================================
+   BASIC UI
+===================================================== */
+
 function setDailyCalorieGoalStatus(message = "", type = "") {
-  const statusEl = document.getElementById("dailyCalorieGoalMessage");
+  const statusEl =
+    document.getElementById("dailyCalorieGoalMessage");
+
   if (!statusEl) return;
 
   statusEl.textContent = message;
@@ -143,34 +231,57 @@ function setDailyCalorieGoalStatus(message = "", type = "") {
 }
 
 function toggleActivityGuide() {
-  const guide = document.getElementById("activityGuide");
+  const guide =
+    document.getElementById("activityGuide");
+
   if (!guide) return;
 
-  guide.style.display = guide.style.display === "block" ? "none" : "block";
+  guide.style.display =
+    guide.style.display === "block"
+      ? "none"
+      : "block";
 }
 
 function toggleMacroStrategyGuide() {
-  const guide = document.getElementById("macroStrategyGuide");
-  const button = document.getElementById("macroStrategyGuideButton");
+  const guide =
+    document.getElementById("macroStrategyGuide");
+
+  const button =
+    document.getElementById("macroStrategyGuideButton");
 
   if (!guide) return;
 
-  const willOpen = guide.style.display !== "block";
-  guide.style.display = willOpen ? "block" : "none";
-  button?.setAttribute("aria-expanded", String(willOpen));
+  const willOpen =
+    guide.style.display !== "block";
+
+  guide.style.display =
+    willOpen ? "block" : "none";
+
+  button?.setAttribute(
+    "aria-expanded",
+    String(willOpen)
+  );
 }
 
 function updateDietOtherUI() {
-  const preference = document.getElementById("dietPreference")?.value;
-  const group = document.getElementById("dietOtherGroup");
+  const preference =
+    document.getElementById("dietPreference")?.value;
+
+  const group =
+    document.getElementById("dietOtherGroup");
 
   if (!group) return;
 
-  group.style.display = preference === "other" ? "block" : "none";
+  group.style.display =
+    preference === "other"
+      ? "block"
+      : "none";
 }
 
 function updateHeightConversion(heightInches) {
-  const conversion = document.getElementById("heightConversion");
+  const conversion =
+    document.getElementById("heightConversion");
+
   if (!conversion) return;
 
   if (!heightInches || heightInches <= 0) {
@@ -178,11 +289,235 @@ function updateHeightConversion(heightInches) {
     return;
   }
 
-  const feet = Math.floor(heightInches / 12);
-  const inches = (heightInches - feet * 12).toFixed(1);
+  const feet =
+    Math.floor(heightInches / 12);
 
-  conversion.textContent = `Equivalent: ${feet} ft ${inches} in`;
+  const inches =
+    (heightInches - feet * 12).toFixed(1);
+
+  conversion.textContent =
+    `Equivalent: ${feet} ft ${inches} in`;
 }
+
+/* =====================================================
+   HEART RATE PROFILE
+===================================================== */
+
+function estimateMaxHeartRate(age) {
+  const resolvedAge =
+    Number(age);
+
+  if (
+    !Number.isFinite(resolvedAge) ||
+    resolvedAge < 10 ||
+    resolvedAge > 120
+  ) {
+    return null;
+  }
+
+  /*
+   * Keep this aligned with:
+   * js/training/energy/heart-rate-intensity.js
+   *
+   * ARI default:
+   * Estimated Max HR = 220 - age
+   */
+  return Math.round(
+    220 - resolvedAge
+  );
+}
+
+function parseRestingHeartRate(value) {
+  const bpm =
+    Math.round(Number(value));
+
+  if (
+    !Number.isFinite(bpm) ||
+    bpm < 30 ||
+    bpm > 220
+  ) {
+    return null;
+  }
+
+  return bpm;
+}
+
+function parseConfirmedMaxHeartRate(value) {
+  const bpm =
+    Math.round(Number(value));
+
+  if (
+    !Number.isFinite(bpm) ||
+    bpm < 80 ||
+    bpm > 260
+  ) {
+    return null;
+  }
+
+  return bpm;
+}
+
+function getHeartRateProfile(age) {
+  const restingHeartRate =
+    parseRestingHeartRate(
+      document.getElementById("restingHeartRate")?.value
+    );
+
+  const estimatedMaxHeartRate =
+    estimateMaxHeartRate(age);
+
+  const confirmedMaxHeartRate =
+    parseConfirmedMaxHeartRate(
+      document.getElementById("confirmedMaxHeartRate")?.value
+    );
+
+  const effectiveMaxHeartRate =
+    confirmedMaxHeartRate ??
+    estimatedMaxHeartRate;
+
+  return {
+    restingHeartRate,
+    estimatedMaxHeartRate,
+    confirmedMaxHeartRate,
+    effectiveMaxHeartRate,
+
+    maxHeartRateSource:
+      confirmedMaxHeartRate !== null
+        ? "confirmed"
+        : estimatedMaxHeartRate !== null
+          ? "estimated"
+          : null
+  };
+}
+
+function updateHeartRateUI(age) {
+  const profile =
+    getHeartRateProfile(age);
+
+  const estimatedEl =
+    document.getElementById("estimatedMaxHeartRate");
+
+  const sourceEl =
+    document.getElementById("maxHeartRateSource");
+
+  const statusEl =
+    document.getElementById("effectiveMaxHeartRateStatus");
+
+  const confirmedGroup =
+    document.getElementById("confirmedMaxHeartRateGroup");
+
+  const confirmedToggle =
+    document.getElementById("confirmedMaxHeartRateToggle");
+
+  if (estimatedEl) {
+    estimatedEl.textContent =
+      profile.estimatedMaxHeartRate !== null
+        ? `${profile.estimatedMaxHeartRate} bpm`
+        : "\u2014 bpm";
+  }
+
+  if (sourceEl) {
+    sourceEl.textContent =
+      profile.estimatedMaxHeartRate !== null
+        ? "Age-based estimate used unless you enter a confirmed maximum."
+        : "Enter a valid age so ARI can estimate your maximum heart rate.";
+  }
+
+  if (profile.confirmedMaxHeartRate !== null) {
+    if (confirmedGroup) {
+      confirmedGroup.hidden = false;
+    }
+
+    confirmedToggle?.setAttribute(
+      "aria-expanded",
+      "true"
+    );
+
+    if (statusEl) {
+      statusEl.textContent =
+        `ARI Training will use your confirmed max heart rate of ${profile.confirmedMaxHeartRate} bpm.`;
+
+      statusEl.classList.remove("error");
+      statusEl.classList.add("success");
+    }
+  } else {
+    if (statusEl) {
+      statusEl.classList.remove(
+        "error",
+        "success"
+      );
+
+      statusEl.textContent =
+        profile.estimatedMaxHeartRate !== null
+          ? `ARI Training will use the estimated max of ${profile.estimatedMaxHeartRate} bpm unless you provide a confirmed value.`
+          : "";
+    }
+  }
+
+  return profile;
+}
+
+function toggleConfirmedMaxHeartRate() {
+  const group =
+    document.getElementById("confirmedMaxHeartRateGroup");
+
+  const button =
+    document.getElementById("confirmedMaxHeartRateToggle");
+
+  if (!group) return;
+
+  const willOpen =
+    group.hidden;
+
+  group.hidden =
+    !willOpen;
+
+  button?.setAttribute(
+    "aria-expanded",
+    String(willOpen)
+  );
+
+  if (willOpen) {
+    document
+      .getElementById("confirmedMaxHeartRate")
+      ?.focus();
+  }
+}
+
+function clearConfirmedMaxHeartRate() {
+  const input =
+    document.getElementById("confirmedMaxHeartRate");
+
+  const group =
+    document.getElementById("confirmedMaxHeartRateGroup");
+
+  const button =
+    document.getElementById("confirmedMaxHeartRateToggle");
+
+  if (input) {
+    input.value = "";
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEYS.confirmedMaxHeartRate
+  );
+
+  if (group) {
+    group.hidden = true;
+  }
+
+  button?.setAttribute(
+    "aria-expanded",
+    "false"
+  );
+
+  calculateGoals();
+  scheduleGoalsAutoSave(150);
+}
+
+/* =====================================================
+   GOAL CALCULATIONS
+===================================================== */
 
 function getBmiCategory(bmi) {
   if (bmi < 18.5) return "Below healthy range";
@@ -192,18 +527,28 @@ function getBmiCategory(bmi) {
 }
 
 function updateGoalModeUI() {
-  const goalMode = document.getElementById("goalMode")?.value;
-  const weeklyGroup = document.getElementById("weeklyChangeGroup");
-  const helper = document.getElementById("goalModeHelper");
+  const goalMode =
+    document.getElementById("goalMode")?.value;
+
+  const weeklyGroup =
+    document.getElementById("weeklyChangeGroup");
+
+  const helper =
+    document.getElementById("goalModeHelper");
 
   if (!goalMode || !weeklyGroup || !helper) return;
 
-  weeklyGroup.style.display = goalMode === "maintain" ? "none" : "block";
+  weeklyGroup.style.display =
+    goalMode === "maintain"
+      ? "none"
+      : "block";
 
   if (goalMode === "lose") {
-    helper.textContent = "For weight loss, this creates a calorie deficit.";
+    helper.textContent =
+      "For weight loss, this creates a calorie deficit.";
   } else if (goalMode === "gain") {
-    helper.textContent = "For weight gain, this creates a calorie surplus.";
+    helper.textContent =
+      "For weight gain, this creates a calorie surplus.";
   }
 }
 
@@ -211,19 +556,51 @@ function calculateGoals() {
   updateGoalModeUI();
   updateDietOtherUI();
 
-  const age = parseFloat(document.getElementById("age")?.value);
-  const sex = document.getElementById("sex")?.value;
-  const weightLbs = parseFloat(document.getElementById("weight")?.value);
-  const heightInches = parseFloat(document.getElementById("height")?.value);
-  const activity = parseFloat(document.getElementById("activity")?.value);
-  const goalMode = document.getElementById("goalMode")?.value;
-  const targetWeight = parseFloat(document.getElementById("targetWeight")?.value);
-  const weeklyChange = parseFloat(document.getElementById("weeklyChange")?.value);
-  const macroNutritionStrategy = resolveMacroNutritionStrategy(
-    document.getElementById("macroNutritionStrategy")?.value
-  );
+  const age =
+    parseFloat(
+      document.getElementById("age")?.value
+    );
+
+  const sex =
+    document.getElementById("sex")?.value;
+
+  const weightLbs =
+    parseFloat(
+      document.getElementById("weight")?.value
+    );
+
+  const heightInches =
+    parseFloat(
+      document.getElementById("height")?.value
+    );
+
+  const activity =
+    parseFloat(
+      document.getElementById("activity")?.value
+    );
+
+  const goalMode =
+    document.getElementById("goalMode")?.value;
+
+  const targetWeight =
+    parseFloat(
+      document.getElementById("targetWeight")?.value
+    );
+
+  const weeklyChange =
+    parseFloat(
+      document.getElementById("weeklyChange")?.value
+    );
+
+  const macroNutritionStrategy =
+    resolveMacroNutritionStrategy(
+      document.getElementById("macroNutritionStrategy")?.value
+    );
 
   updateHeightConversion(heightInches);
+
+  const heartRateProfile =
+    updateHeartRateUI(age);
 
   if (!age || !weightLbs || !heightInches || !activity) {
     setText("calorieGoal", "\u2014 kcal");
@@ -232,44 +609,76 @@ function calculateGoals() {
     setText("timeToGoal", "\u2014");
     setText("goalDate", "\u2014");
     setText("caloriesLeftText", "\u2014");
+
+    updateCaloriesBurnedDisplay();
     clearNutritionTargetPreview();
+
     return null;
   }
 
-  const weightKg = weightLbs / 2.20462;
-  const heightCm = heightInches * 2.54;
+  const weightKg =
+    weightLbs / 2.20462;
+
+  const heightCm =
+    heightInches * 2.54;
 
   let bmr;
 
   if (sex === "male") {
-    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+    bmr =
+      10 * weightKg +
+      6.25 * heightCm -
+      5 * age +
+      5;
   } else {
-    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+    bmr =
+      10 * weightKg +
+      6.25 * heightCm -
+      5 * age -
+      161;
   }
 
-  const maintenance = Math.round(bmr * activity);
-  let calculatedCalorieEstimate = maintenance;
+  const maintenance =
+    Math.round(
+      bmr * activity
+    );
+
+  let calculatedCalorieEstimate =
+    maintenance;
 
   if (goalMode === "lose") {
-    calculatedCalorieEstimate = Math.round(
-      maintenance - weeklyChange * 500
-    );
+    calculatedCalorieEstimate =
+      Math.round(
+        maintenance -
+        weeklyChange * 500
+      );
   }
 
   if (goalMode === "gain") {
-    calculatedCalorieEstimate = Math.round(
-      maintenance + weeklyChange * 500
-    );
+    calculatedCalorieEstimate =
+      Math.round(
+        maintenance +
+        weeklyChange * 500
+      );
   }
 
-  const dailyCalorieGoal = resolveDailyCalorieGoal(
-    calculatedCalorieEstimate
+  const dailyCalorieGoal =
+    resolveDailyCalorieGoal(
+      calculatedCalorieEstimate
+    );
+
+  setText(
+    "calorieGoal",
+    `${calculatedCalorieEstimate} kcal`
   );
 
-  setText("calorieGoal", `${calculatedCalorieEstimate} kcal`);
-  setText("maintenanceBox", `${maintenance} kcal`);
+  setText(
+    "maintenanceBox",
+    `${maintenance} kcal`
+  );
 
-  const explanation = document.getElementById("goalExplanation");
+  const explanation =
+    document.getElementById("goalExplanation");
 
   if (explanation) {
     if (goalMode === "lose") {
@@ -284,31 +693,54 @@ function calculateGoals() {
     }
   }
 
-  updateCalorieWarning(dailyCalorieGoal, sex, goalMode);
+  updateCalorieWarning(
+    dailyCalorieGoal,
+    sex,
+    goalMode
+  );
 
-  const bmi = (weightLbs / (heightInches * heightInches)) * 703;
-  const bmiText = `${bmi.toFixed(1)} \u2014 ${getBmiCategory(bmi)}`;
+  const bmi =
+    (
+      weightLbs /
+      (
+        heightInches *
+        heightInches
+      )
+    ) * 703;
+
+  const bmiText =
+    `${bmi.toFixed(1)} \u2014 ${getBmiCategory(bmi)}`;
 
   setText("bmiBox", bmiText);
   setText("progressBmi", bmiText);
 
-  const timeline = updateTimeAndDate(
-    weightLbs,
-    targetWeight,
-    weeklyChange,
-    goalMode
+  const timeline =
+    updateTimeAndDate(
+      weightLbs,
+      targetWeight,
+      weeklyChange,
+      goalMode
+    );
+
+  const nutritionTargets =
+    calculateDailyNutritionTargets({
+      dailyCalories: dailyCalorieGoal,
+      weightLbs,
+      sex,
+      strategy: macroNutritionStrategy
+    });
+
+  updateNutritionTargetPreview(
+    nutritionTargets
   );
 
-  const nutritionTargets = calculateDailyNutritionTargets({
-    dailyCalories: dailyCalorieGoal,
-    weightLbs,
-    sex,
-    strategy: macroNutritionStrategy
-  });
+  cacheNutritionTargets(
+    nutritionTargets
+  );
 
-  updateNutritionTargetPreview(nutritionTargets);
-  cacheNutritionTargets(nutritionTargets);
-  updateCaloriesMeter(dailyCalorieGoal);
+  updateCaloriesMeter(
+    dailyCalorieGoal
+  );
 
   updateProgressSummary({
     weightLbs,
@@ -332,12 +764,39 @@ function calculateGoals() {
     maintenance,
     macroNutritionStrategy,
     nutritionTargets,
-    dietPreference: getValue("dietPreference"),
-    dietOther: getValue("dietOther"),
-    foodAllergies: getValue("foodAllergies"),
-    medicalConditions: getValue("medicalConditions")
+
+    restingHeartRate:
+      heartRateProfile.restingHeartRate,
+
+    estimatedMaxHeartRate:
+      heartRateProfile.estimatedMaxHeartRate,
+
+    confirmedMaxHeartRate:
+      heartRateProfile.confirmedMaxHeartRate,
+
+    effectiveMaxHeartRate:
+      heartRateProfile.effectiveMaxHeartRate,
+
+    maxHeartRateSource:
+      heartRateProfile.maxHeartRateSource,
+
+    dietPreference:
+      getValue("dietPreference"),
+
+    dietOther:
+      getValue("dietOther"),
+
+    foodAllergies:
+      getValue("foodAllergies"),
+
+    medicalConditions:
+      getValue("medicalConditions")
   };
 }
+
+/* =====================================================
+   NUTRITION TARGETS
+===================================================== */
 
 function resolveMacroNutritionStrategy(value) {
   return MACRO_NUTRITION_STRATEGIES[value]
@@ -357,38 +816,30 @@ function calculateDailyNutritionTargets({
   const strategyConfig =
     MACRO_NUTRITION_STRATEGIES[resolvedStrategy];
 
-  const calories = Math.max(
-    Math.round(Number(dailyCalories) || 0),
-    0
-  );
+  const calories =
+    Math.max(
+      Math.round(Number(dailyCalories) || 0),
+      0
+    );
 
   const weightKg =
     Math.max(Number(weightLbs) || 0, 0) / 2.20462;
 
-  /*
-   * Protein is calculated from body weight and the
-   * selected nutrition strategy:
-   *
-   * Balance:          1.2 g/kg
-   * Endurance:        1.4 g/kg
-   * Muscle Building:  1.6 g/kg
-   */
-  const weightBasedProteinGrams = Math.round(
-    weightKg * strategyConfig.proteinMultiplier
-  );
+  const weightBasedProteinGrams =
+    Math.round(
+      weightKg *
+      strategyConfig.proteinMultiplier
+    );
 
-  /*
-   * Keep protein within 10% to 35% of the active
-   * daily calorie goal so the final macro plan
-   * remains internally valid.
-   */
-  const minimumProteinGrams = Math.ceil(
-    (calories * 0.10) / 4
-  );
+  const minimumProteinGrams =
+    Math.ceil(
+      (calories * 0.10) / 4
+    );
 
-  const maximumProteinGrams = Math.floor(
-    (calories * 0.35) / 4
-  );
+  const maximumProteinGrams =
+    Math.floor(
+      (calories * 0.35) / 4
+    );
 
   const proteinGrams =
     calories > 0
@@ -401,37 +852,39 @@ function calculateDailyNutritionTargets({
         )
       : weightBasedProteinGrams;
 
-  /*
-   * Fat remains tied to the active calorie goal
-   * and selected strategy.
-   */
-  const fatGrams = Math.round(
-    (calories * strategyConfig.fatPercent) / 9
-  );
+  const fatGrams =
+    Math.round(
+      (calories * strategyConfig.fatPercent) / 9
+    );
 
-  /*
-   * Carbohydrates receive the calories remaining
-   * after protein and fat are assigned.
-   */
-  const proteinCalories = proteinGrams * 4;
-  const fatCalories = fatGrams * 9;
+  const proteinCalories =
+    proteinGrams * 4;
 
-  const carbohydrateCalories = Math.max(
-    calories - proteinCalories - fatCalories,
-    0
-  );
+  const fatCalories =
+    fatGrams * 9;
 
-  const carbohydrateGrams = Math.round(
-    carbohydrateCalories / 4
-  );
+  const carbohydrateCalories =
+    Math.max(
+      calories -
+      proteinCalories -
+      fatCalories,
+      0
+    );
 
-  const fiberGrams = Math.round(
-    (calories / 1000) * 14
-  );
+  const carbohydrateGrams =
+    Math.round(
+      carbohydrateCalories / 4
+    );
 
-  // Approximate daily fluids from drinking water and other beverages.
-  // Food moisture is not included in this displayed hydration target.
-  const hydrationOz = sex === "female" ? 74 : 101;
+  const fiberGrams =
+    Math.round(
+      (calories / 1000) * 14
+    );
+
+  const hydrationOz =
+    sex === "female"
+      ? 74
+      : 101;
 
   const proteinPercent =
     calories > 0
@@ -458,20 +911,27 @@ function calculateDailyNutritionTargets({
     strategy: resolvedStrategy,
     strategyLabel: strategyConfig.label,
     calories,
+
     proteinMultiplier:
       strategyConfig.proteinMultiplier,
+
     macroPercentages: {
       protein: proteinPercent,
       carbohydrates: carbohydratePercent,
       fat: fatPercent
     },
+
     proteinGrams,
     carbohydrateGrams,
     fatGrams,
     fiberGrams,
     hydrationOz,
-    calculatedAt: new Date().toISOString(),
-    source: "goals-nutrition-targets-v2.4.0"
+
+    calculatedAt:
+      new Date().toISOString(),
+
+    source:
+      "goals-nutrition-targets-v2.5.1"
   };
 }
 
@@ -481,12 +941,35 @@ function updateNutritionTargetPreview(targets) {
     return;
   }
 
-  setText("macroStrategySummary", targets.strategyLabel);
-  setText("proteinTarget", `${targets.proteinGrams} g`);
-  setText("carbohydrateTarget", `${targets.carbohydrateGrams} g`);
-  setText("fatTarget", `${targets.fatGrams} g`);
-  setText("fiberTarget", `${targets.fiberGrams} g`);
-  setText("hydrationTarget", `${targets.hydrationOz} oz`);
+  setText(
+    "macroStrategySummary",
+    targets.strategyLabel
+  );
+
+  setText(
+    "proteinTarget",
+    `${targets.proteinGrams} g`
+  );
+
+  setText(
+    "carbohydrateTarget",
+    `${targets.carbohydrateGrams} g`
+  );
+
+  setText(
+    "fatTarget",
+    `${targets.fatGrams} g`
+  );
+
+  setText(
+    "fiberTarget",
+    `${targets.fiberGrams} g`
+  );
+
+  setText(
+    "hydrationTarget",
+    `${targets.hydrationOz} oz`
+  );
 }
 
 function clearNutritionTargetPreview() {
@@ -502,79 +985,73 @@ function cacheNutritionTargets(targets) {
   if (!targets) return;
 
   localStorage.setItem(
-    "calbuddyMacroNutritionStrategy",
+    STORAGE_KEYS.macroNutritionStrategy,
     targets.strategy
   );
 
   localStorage.setItem(
-    "calbuddyDailyNutritionTargets",
+    STORAGE_KEYS.dailyNutritionTargets,
     JSON.stringify(targets)
   );
 }
 
-function resolveDailyCalorieGoal(calculatedCalorieEstimate) {
-  const input = document.getElementById(
-    "dailyCalorieGoalInput"
-  );
+/* =====================================================
+   DAILY CALORIE GOAL
+===================================================== */
+
+function resolveDailyCalorieGoal(
+  calculatedCalorieEstimate
+) {
+  const input =
+    document.getElementById("dailyCalorieGoalInput");
 
   const isActivelyEditing =
     input &&
     document.activeElement === input;
 
-  const inputValue = parseDailyCalorieGoal(
-    input?.value
-  );
+  const inputValue =
+    parseDailyCalorieGoal(
+      input?.value
+    );
 
-  /*
-   * A complete valid value entered by the user
-   * always becomes the active goal.
-   */
   if (inputValue !== null) {
     return inputValue;
   }
 
-  const savedValue = parseDailyCalorieGoal(
-    localStorage.getItem(
-      "calbuddyDailyCalorieGoal"
-    )
-  );
+  const savedValue =
+    parseDailyCalorieGoal(
+      localStorage.getItem(
+        STORAGE_KEYS.dailyCalorieGoal
+      )
+    );
 
-  /*
-   * While the user is typing, do not replace an
-   * empty or incomplete draft with the saved value.
-   *
-   * We may still use the saved value internally so
-   * calculations remain stable.
-   */
   if (isActivelyEditing) {
-    return savedValue ?? calculatedCalorieEstimate;
+    return (
+      savedValue ??
+      calculatedCalorieEstimate
+    );
   }
 
-  /*
-   * When the field is not being edited, restore the
-   * saved goal into the visible input.
-   */
   if (savedValue !== null) {
     if (input) {
-      input.value = String(savedValue);
+      input.value =
+        String(savedValue);
     }
 
     return savedValue;
   }
 
-  /*
-   * No manual goal has been saved yet, so use the
-   * calculated recommendation.
-   */
   if (input) {
-    input.value = String(calculatedCalorieEstimate);
+    input.value =
+      String(calculatedCalorieEstimate);
   }
 
   return calculatedCalorieEstimate;
 }
 
 function parseDailyCalorieGoal(value) {
-  const calories = Math.round(Number(value));
+  const calories =
+    Math.round(Number(value));
 
   if (!Number.isFinite(calories)) {
     return null;
@@ -588,98 +1065,166 @@ function parseDailyCalorieGoal(value) {
 }
 
 function updateDailyCalorieGoalPreview() {
-  const goal = parseDailyCalorieGoal(
-    document.getElementById("dailyCalorieGoalInput")?.value
-  );
+  const goal =
+    parseDailyCalorieGoal(
+      document.getElementById(
+        "dailyCalorieGoalInput"
+      )?.value
+    );
 
   if (!goal) {
     setDailyCalorieGoalStatus(
       "Enter a daily calorie goal between 800 and 10,000 kcal.",
       "error"
     );
+
     return;
   }
 
   setDailyCalorieGoalStatus("");
   updateCaloriesMeter(goal);
 
-  const calculated = calculateGoals();
+  const calculated =
+    calculateGoals();
 
   if (calculated) {
-    updateCalorieWarning(goal, calculated.sex, calculated.goalMode);
+    updateCalorieWarning(
+      goal,
+      calculated.sex,
+      calculated.goalMode
+    );
 
     updateProgressSummary({
-      weightLbs: calculated.weightLbs,
-      targetWeight: calculated.targetWeight,
-      dailyCalorieGoal: goal,
-      bmiText: document.getElementById("bmiBox")?.textContent || "\u2014",
-      timeline: document.getElementById("timeToGoal")?.textContent || "\u2014"
+      weightLbs:
+        calculated.weightLbs,
+
+      targetWeight:
+        calculated.targetWeight,
+
+      dailyCalorieGoal:
+        goal,
+
+      bmiText:
+        document.getElementById("bmiBox")?.textContent ||
+        "\u2014",
+
+      timeline:
+        document.getElementById("timeToGoal")?.textContent ||
+        "\u2014"
     });
   }
 }
+
+/* =====================================================
+   AUTOSAVE
+===================================================== */
 
 function scheduleGoalsAutoSave(delay = 700) {
   if (isLoadingGoals) return;
 
   window.clearTimeout(autoSaveTimer);
 
-  autoSaveTimer = window.setTimeout(() => {
-    persistGoals();
-  }, delay);
+  autoSaveTimer =
+    window.setTimeout(() => {
+      persistGoals();
+    }, delay);
 }
 
 async function persistGoals() {
   if (isLoadingGoals) return;
 
-  const calculated = calculateGoals();
+  const calculated =
+    calculateGoals();
 
-  if (!calculated || !calculated.dailyCalorieGoal) {
+  if (
+    !calculated ||
+    !calculated.dailyCalorieGoal
+  ) {
     return;
   }
 
-  const requestSequence = ++saveRequestSequence;
+  const requestSequence =
+    ++saveRequestSequence;
 
   const goals = {
     age: calculated.age,
     sex: calculated.sex,
     weight: calculated.weightLbs,
     height: calculated.heightInches,
+
+    restingHeartRate:
+      calculated.restingHeartRate,
+
+    estimatedMaxHeartRate:
+      calculated.estimatedMaxHeartRate,
+
+    confirmedMaxHeartRate:
+      calculated.confirmedMaxHeartRate,
+
+    effectiveMaxHeartRate:
+      calculated.effectiveMaxHeartRate,
+
+    maxHeartRateSource:
+      calculated.maxHeartRateSource,
+
     activity: calculated.activity,
     goalMode: calculated.goalMode,
     targetWeight: calculated.targetWeight,
     weeklyChange: calculated.weeklyChange,
     calorieGoal: calculated.dailyCalorieGoal,
-    macroNutritionStrategy: calculated.macroNutritionStrategy,
-    dietPreference: calculated.dietPreference,
-    dietOther: calculated.dietOther,
-    foodAllergies: calculated.foodAllergies,
-    medicalConditions: calculated.medicalConditions
+
+    macroNutritionStrategy:
+      calculated.macroNutritionStrategy,
+
+    dietPreference:
+      calculated.dietPreference,
+
+    dietOther:
+      calculated.dietOther,
+
+    foodAllergies:
+      calculated.foodAllergies,
+
+    medicalConditions:
+      calculated.medicalConditions
   };
 
   localStorage.setItem(
-    "calbuddyGoals",
+    STORAGE_KEYS.goals,
     JSON.stringify(goals)
   );
 
   localStorage.setItem(
-    "calbuddyDailyCalorieGoal",
+    STORAGE_KEYS.dailyCalorieGoal,
     String(calculated.dailyCalorieGoal)
   );
 
   localStorage.setItem(
-    "calbuddyMacroNutritionStrategy",
+    STORAGE_KEYS.macroNutritionStrategy,
     calculated.macroNutritionStrategy
   );
 
-  cacheNutritionTargets(calculated.nutritionTargets);
+  cacheTrainingProfileLocally(
+    calculated
+  );
 
-  const user = await getCurrentUser();
+  cacheNutritionTargets(
+    calculated.nutritionTargets
+  );
+
+  const user =
+    await getCurrentUser();
 
   if (!user) {
     setDailyCalorieGoalStatus("");
     return;
   }
 
+  /*
+   * Heart-rate values stay in the ARI local training profile
+   * for now so this remains compatible with the current
+   * Supabase profiles schema.
+   */
   const profilePayload = {
     id: user.id,
     email: user.email || null,
@@ -690,9 +1235,15 @@ async function persistGoals() {
     activity_level: String(goals.activity),
     goal: goals.goalMode,
     target_weight_lbs: Number(goals.targetWeight),
-    weekly_weight_change_goal: Number(goals.weeklyChange),
-    daily_calorie_goal: Number(goals.calorieGoal),
-    updated_at: new Date().toISOString()
+
+    weekly_weight_change_goal:
+      Number(goals.weeklyChange),
+
+    daily_calorie_goal:
+      Number(goals.calorieGoal),
+
+    updated_at:
+      new Date().toISOString()
   };
 
   await trySaveOptionalHealthFields(
@@ -700,9 +1251,15 @@ async function persistGoals() {
     goals
   );
 
-  const { error } = await upsertGoalsProfile(profilePayload);
+  const { error } =
+    await upsertGoalsProfile(
+      profilePayload
+    );
 
-  if (requestSequence !== saveRequestSequence) {
+  if (
+    requestSequence !==
+    saveRequestSequence
+  ) {
     return;
   }
 
@@ -723,10 +1280,71 @@ async function persistGoals() {
   setDailyCalorieGoalStatus("");
 }
 
+function cacheTrainingProfileLocally(calculated) {
+  if (
+    Number.isFinite(
+      Number(calculated.age)
+    )
+  ) {
+    localStorage.setItem(
+      STORAGE_KEYS.age,
+      String(calculated.age)
+    );
+  }
+
+  if (
+    Number.isFinite(
+      Number(calculated.weightLbs)
+    )
+  ) {
+    localStorage.setItem(
+      STORAGE_KEYS.currentWeight,
+      String(calculated.weightLbs)
+    );
+  }
+
+  if (calculated.restingHeartRate !== null) {
+    localStorage.setItem(
+      STORAGE_KEYS.restingHeartRate,
+      String(calculated.restingHeartRate)
+    );
+  } else {
+    localStorage.removeItem(
+      STORAGE_KEYS.restingHeartRate
+    );
+  }
+
+  if (calculated.estimatedMaxHeartRate !== null) {
+    localStorage.setItem(
+      STORAGE_KEYS.estimatedMaxHeartRate,
+      String(calculated.estimatedMaxHeartRate)
+    );
+  } else {
+    localStorage.removeItem(
+      STORAGE_KEYS.estimatedMaxHeartRate
+    );
+  }
+
+  if (calculated.confirmedMaxHeartRate !== null) {
+    localStorage.setItem(
+      STORAGE_KEYS.confirmedMaxHeartRate,
+      String(calculated.confirmedMaxHeartRate)
+    );
+  } else {
+    localStorage.removeItem(
+      STORAGE_KEYS.confirmedMaxHeartRate
+    );
+  }
+}
+
 async function upsertGoalsProfile(profilePayload) {
-  const firstAttempt = await window.calbuddySupabase
-    .from("profiles")
-    .upsert(profilePayload, { onConflict: "id" });
+  const firstAttempt =
+    await window.calbuddySupabase
+      .from("profiles")
+      .upsert(
+        profilePayload,
+        { onConflict: "id" }
+      );
 
   if (
     !firstAttempt.error ||
@@ -738,40 +1356,87 @@ async function upsertGoalsProfile(profilePayload) {
     return firstAttempt;
   }
 
-  const fallbackPayload = { ...profilePayload };
-  delete fallbackPayload.macro_nutrition_strategy;
+  const fallbackPayload = {
+    ...profilePayload
+  };
+
+  delete fallbackPayload
+    .macro_nutrition_strategy;
 
   console.warn(
     "profiles.macro_nutrition_strategy is not available yet. " +
-      "The strategy remains saved on this device."
+    "The strategy remains saved on this device."
   );
 
   return window.calbuddySupabase
     .from("profiles")
-    .upsert(fallbackPayload, { onConflict: "id" });
+    .upsert(
+      fallbackPayload,
+      { onConflict: "id" }
+    );
 }
 
 function isMissingColumnError(error, columnName) {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes(String(columnName).toLowerCase());
+  const message =
+    String(error?.message || "")
+      .toLowerCase();
+
+  return message.includes(
+    String(columnName)
+      .toLowerCase()
+  );
 }
 
-function updateCalorieWarning(dailyCalorieGoal, sex, goalMode) {
-  const warningBox = document.getElementById("warningBox");
+/* =====================================================
+   WARNINGS / TIMELINE
+===================================================== */
+
+function updateCalorieWarning(
+  dailyCalorieGoal,
+  sex,
+  goalMode
+) {
+  const warningBox =
+    document.getElementById("warningBox");
+
   if (!warningBox) return;
 
   const isLowGoal =
     goalMode === "lose" &&
-    ((sex === "male" && dailyCalorieGoal < 1500) ||
-      (sex === "female" && dailyCalorieGoal < 1200));
+    (
+      (
+        sex === "male" &&
+        dailyCalorieGoal < 1500
+      ) ||
+      (
+        sex === "female" &&
+        dailyCalorieGoal < 1200
+      )
+    );
 
-  warningBox.style.display = isLowGoal ? "block" : "none";
+  warningBox.style.display =
+    isLowGoal
+      ? "block"
+      : "none";
 }
 
-function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) {
+function updateTimeAndDate(
+  currentWeight,
+  targetWeight,
+  weeklyChange,
+  goalMode
+) {
   if (goalMode === "maintain") {
-    setText("timeToGoal", "Maintaining current weight");
-    setText("goalDate", "Not applicable");
+    setText(
+      "timeToGoal",
+      "Maintaining current weight"
+    );
+
+    setText(
+      "goalDate",
+      "Not applicable"
+    );
+
     return "Maintaining current weight";
   }
 
@@ -784,31 +1449,53 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
   let poundsToGoal;
 
   if (goalMode === "lose") {
-    poundsToGoal = currentWeight - targetWeight;
+    poundsToGoal =
+      currentWeight -
+      targetWeight;
   } else {
-    poundsToGoal = targetWeight - currentWeight;
+    poundsToGoal =
+      targetWeight -
+      currentWeight;
   }
 
   if (poundsToGoal <= 0) {
-    setText("timeToGoal", "Already at or past target");
+    setText(
+      "timeToGoal",
+      "Already at or past target"
+    );
+
     setText("goalDate", "\u2014");
+
     return "Already at or past target";
   }
 
-  const weeks = poundsToGoal / weeklyChange;
-  const months = weeks / 4.345;
+  const weeks =
+    poundsToGoal /
+    weeklyChange;
 
-  const estimatedGoalDate = new Date();
+  const months =
+    weeks / 4.345;
+
+  const estimatedGoalDate =
+    new Date();
+
   estimatedGoalDate.setDate(
-    estimatedGoalDate.getDate() + Math.round(weeks * 7)
+    estimatedGoalDate.getDate() +
+    Math.round(weeks * 7)
   );
 
-  const timeText = `${weeks.toFixed(1)} weeks (~${months.toFixed(1)} months)`;
-  const dateText = estimatedGoalDate.toLocaleDateString(undefined, {
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  });
+  const timeText =
+    `${weeks.toFixed(1)} weeks (~${months.toFixed(1)} months)`;
+
+  const dateText =
+    estimatedGoalDate.toLocaleDateString(
+      undefined,
+      {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      }
+    );
 
   setText("timeToGoal", timeText);
   setText("goalDate", dateText);
@@ -816,34 +1503,72 @@ function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) 
   return timeText;
 }
 
+/* =====================================================
+   CALORIES LEFT + BURNED DISPLAY
+===================================================== */
+
 function updateCaloriesMeter(goal) {
-  const consumed = Number(
-    localStorage.getItem("calbuddyCaloriesConsumed") || 0
-  );
+  const consumed =
+    readStoredNumber(
+      STORAGE_KEYS.caloriesConsumed
+    ) || 0;
 
-  const burned = Number(
-    localStorage.getItem("calbuddyCaloriesBurned") || 0
-  );
+  /*
+   * IMPORTANT:
+   *
+   * Exercise calories DO NOT change this equation.
+   *
+   * Calories Left =
+   * Daily Calorie Goal - Calories Consumed
+   */
+  const rawRemaining =
+    goal - consumed;
 
-  const adjustedGoal = goal + burned;
+  const caloriesLeft =
+    Math.max(
+      rawRemaining,
+      0
+    );
 
-  const rawRemaining = adjustedGoal - consumed;
-  const caloriesLeft = Math.max(rawRemaining, 0);
-  const caloriesOver = Math.max(consumed - adjustedGoal, 0);
+  const caloriesOver =
+    Math.max(
+      consumed - goal,
+      0
+    );
 
-  const card = document.getElementById("calorieStatusCard");
-  const label = document.getElementById("calorieStatusLabel");
+  const card =
+    document.getElementById("calorieStatusCard");
 
-  const percentLeft = adjustedGoal
-    ? Math.max(0, Math.min(caloriesLeft / adjustedGoal, 1))
-    : 1;
+  const label =
+    document.getElementById("calorieStatusLabel");
 
-  const percentUsed = adjustedGoal
-    ? Math.max(0, Math.min(consumed / adjustedGoal, 1))
-    : 0;
+  const percentLeft =
+    goal
+      ? Math.max(
+          0,
+          Math.min(
+            caloriesLeft / goal,
+            1
+          )
+        )
+      : 1;
+
+  const percentUsed =
+    goal
+      ? Math.max(
+          0,
+          Math.min(
+            consumed / goal,
+            1
+          )
+        )
+      : 0;
 
   if (card) {
-    const percent = Math.round(percentLeft * 100);
+    const percent =
+      Math.round(
+        percentLeft * 100
+      );
 
     card.style.setProperty(
       "--calorie-left-percent",
@@ -857,19 +1582,47 @@ function updateCaloriesMeter(goal) {
     );
 
     if (caloriesOver > 0) {
-      card.classList.add("calorie-over");
-      card.style.setProperty("--calorie-left-percent", "100%");
-      card.style.setProperty("--calorie-flicker-speed", ".55s");
+      card.classList.add(
+        "calorie-over"
+      );
+
+      card.style.setProperty(
+        "--calorie-left-percent",
+        "100%"
+      );
+
+      card.style.setProperty(
+        "--calorie-flicker-speed",
+        ".55s"
+      );
     } else if (percentUsed >= 0.90) {
-      card.classList.add("calorie-critical");
-      card.style.setProperty("--calorie-flicker-speed", ".7s");
+      card.classList.add(
+        "calorie-critical"
+      );
+
+      card.style.setProperty(
+        "--calorie-flicker-speed",
+        ".7s"
+      );
     } else if (percentUsed >= 0.75) {
-      card.classList.add("calorie-low");
-      card.style.setProperty("--calorie-flicker-speed", "1.6s");
+      card.classList.add(
+        "calorie-low"
+      );
+
+      card.style.setProperty(
+        "--calorie-flicker-speed",
+        "1.6s"
+      );
     } else if (percentUsed >= 0.50) {
-      card.style.setProperty("--calorie-flicker-speed", "2.4s");
+      card.style.setProperty(
+        "--calorie-flicker-speed",
+        "2.4s"
+      );
     } else {
-      card.style.setProperty("--calorie-flicker-speed", "4s");
+      card.style.setProperty(
+        "--calorie-flicker-speed",
+        "4s"
+      );
     }
   }
 
@@ -880,7 +1633,8 @@ function updateCaloriesMeter(goal) {
     );
 
     if (label) {
-      label.textContent = "Calories Over";
+      label.textContent =
+        "Calories Over";
     }
   } else {
     setText(
@@ -889,7 +1643,8 @@ function updateCaloriesMeter(goal) {
     );
 
     if (label) {
-      label.textContent = "Calories Left";
+      label.textContent =
+        "Calories Left";
     }
   }
 
@@ -898,11 +1653,263 @@ function updateCaloriesMeter(goal) {
     consumed.toLocaleString()
   );
 
+  /*
+   * Show the actual configured food goal.
+   * Do not show an exercise-adjusted goal.
+   */
   setText(
     "dailyGoalText",
-    adjustedGoal.toLocaleString()
+    Number(goal).toLocaleString()
   );
+
+  updateCaloriesBurnedDisplay();
 }
+
+function updateCaloriesBurnedDisplay() {
+  const burned =
+    readTrainingCaloriesBurnedToday();
+
+  setText(
+    "caloriesBurnedText",
+    Math.round(burned).toLocaleString()
+  );
+
+  return burned;
+}
+
+function readTrainingCaloriesBurnedToday() {
+  try {
+    const raw =
+      localStorage.getItem(
+        STORAGE_KEYS.workoutProgress
+      );
+
+    if (!raw) {
+      return 0;
+    }
+
+    const parsed =
+      JSON.parse(raw);
+
+    /*
+     * Do not display a stale weekday from a previous week.
+     */
+    const expectedWeekKey =
+      getCurrentWeekKey();
+
+    if (
+      parsed?.weekKey &&
+      parsed.weekKey !== expectedWeekKey
+    ) {
+      return 0;
+    }
+
+    const day =
+      getCurrentWeekdayId();
+
+    const exercises =
+      parsed?.days?.[day]
+        ?.exercises;
+
+    if (
+      !exercises ||
+      typeof exercises !== "object"
+    ) {
+      return 0;
+    }
+
+    let total = 0;
+
+    for (
+      const progress
+      of Object.values(exercises)
+    ) {
+      if (
+        !progress ||
+        typeof progress !== "object"
+      ) {
+        continue;
+      }
+
+      const direct =
+        Number(
+          progress.estimatedCalories
+        );
+
+      if (
+        Number.isFinite(direct) &&
+        direct > 0
+      ) {
+        total += direct;
+        continue;
+      }
+
+      /*
+       * Backward-compatible fallback for set-level records.
+       */
+      const completedSets =
+        progress.completedSets;
+
+      if (
+        !completedSets ||
+        typeof completedSets !== "object"
+      ) {
+        continue;
+      }
+
+      for (
+        const setRecord
+        of Object.values(completedSets)
+      ) {
+        if (
+          !setRecord ||
+          typeof setRecord !== "object" ||
+          !setRecord.completed
+        ) {
+          continue;
+        }
+
+        const calories =
+          Number(
+            setRecord.estimatedCalories
+          );
+
+        if (
+          Number.isFinite(calories) &&
+          calories > 0
+        ) {
+          total += calories;
+        }
+      }
+    }
+
+    return Math.max(total, 0);
+  } catch (error) {
+    console.warn(
+      "Could not read ARI Training calories:",
+      error
+    );
+
+    return 0;
+  }
+}
+
+function getCurrentWeekdayId() {
+  return [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday"
+  ][new Date().getDay()];
+}
+
+function getCurrentWeekKey() {
+  const now =
+    new Date();
+
+  const monday =
+    new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+  const day =
+    monday.getDay();
+
+  const daysSinceMonday =
+    day === 0
+      ? 6
+      : day - 1;
+
+  monday.setDate(
+    monday.getDate() -
+    daysSinceMonday
+  );
+
+  return getLocalDateKey(monday);
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year =
+    date.getFullYear();
+
+  const month =
+    String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+  const day =
+    String(
+      date.getDate()
+    ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function readStoredNumber(key) {
+  const raw =
+    localStorage.getItem(key);
+
+  if (
+    raw === null ||
+    raw === ""
+  ) {
+    return null;
+  }
+
+  const direct =
+    Number(raw);
+
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(raw);
+
+    if (
+      typeof parsed === "number" &&
+      Number.isFinite(parsed)
+    ) {
+      return parsed;
+    }
+
+    if (
+      parsed &&
+      typeof parsed === "object"
+    ) {
+      const candidates = [
+        parsed.value,
+        parsed.calories,
+        parsed.goal,
+        parsed.dailyCalorieGoal,
+        parsed.consumed
+      ];
+
+      for (const candidate of candidates) {
+        const number =
+          Number(candidate);
+
+        if (Number.isFinite(number)) {
+          return number;
+        }
+      }
+    }
+  } catch {
+    // Ignore malformed storage values.
+  }
+
+  return null;
+}
+
+/* =====================================================
+   PROGRESS SUMMARY
+===================================================== */
 
 function updateProgressSummary(summary = {}) {
   const {
@@ -915,15 +1922,22 @@ function updateProgressSummary(summary = {}) {
 
   setText(
     "progressWeight",
-    weightLbs ? `${weightLbs} lb` : "\u2014"
+    weightLbs
+      ? `${weightLbs} lb`
+      : "\u2014"
   );
 
   setText(
     "progressTargetWeight",
-    targetWeight ? `${targetWeight} lb` : "\u2014"
+    targetWeight
+      ? `${targetWeight} lb`
+      : "\u2014"
   );
 
-  setText("progressBmi", bmiText || "\u2014");
+  setText(
+    "progressBmi",
+    bmiText || "\u2014"
+  );
 
   setText(
     "progressCalories",
@@ -938,23 +1952,14 @@ function updateProgressSummary(summary = {}) {
   );
 }
 
-function setText(id, value) {
-  const element = document.getElementById(id);
+/* =====================================================
+   CLOUD / LOCAL LOAD
+===================================================== */
 
-  if (element) {
-    element.textContent = value;
-  }
-}
-
-function getValue(id) {
-  const element = document.getElementById(id);
-
-  return element
-    ? String(element.value || "").trim()
-    : "";
-}
-
-async function trySaveOptionalHealthFields(profilePayload, goals) {
+async function trySaveOptionalHealthFields(
+  profilePayload,
+  goals
+) {
   profilePayload.diet_preference =
     goals.dietPreference || null;
 
@@ -972,36 +1977,77 @@ async function trySaveOptionalHealthFields(profilePayload, goals) {
 }
 
 async function loadSavedGoals() {
-  const locallySavedStrategy = resolveMacroNutritionStrategy(
-    localStorage.getItem("calbuddyMacroNutritionStrategy")
-  );
+  const locallySavedStrategy =
+    resolveMacroNutritionStrategy(
+      localStorage.getItem(
+        STORAGE_KEYS.macroNutritionStrategy
+      )
+    );
 
-  const user = await getCurrentUser();
+  const localTrainingProfile =
+    readLocalTrainingProfile();
+
+  const user =
+    await getCurrentUser();
 
   if (user) {
-    const { data, error } = await window.calbuddySupabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data, error } =
+      await window.calbuddySupabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
 
     if (!error && data) {
       applyGoals({
-        age: data.age,
-        sex: data.sex,
-        weight: data.weight_lbs,
-        height: data.height_in,
-        activity: data.activity_level,
-        goalMode: data.goal,
-        targetWeight: data.target_weight_lbs,
-        weeklyChange: data.weekly_weight_change_goal,
-        calorieGoal: data.daily_calorie_goal,
+        age:
+          data.age,
+
+        sex:
+          data.sex,
+
+        weight:
+          data.weight_lbs,
+
+        height:
+          data.height_in,
+
+        activity:
+          data.activity_level,
+
+        goalMode:
+          data.goal,
+
+        targetWeight:
+          data.target_weight_lbs,
+
+        weeklyChange:
+          data.weekly_weight_change_goal,
+
+        calorieGoal:
+          data.daily_calorie_goal,
+
         macroNutritionStrategy:
-          data.macro_nutrition_strategy || locallySavedStrategy,
-        dietPreference: data.diet_preference,
-        dietOther: data.diet_other,
-        foodAllergies: data.food_allergies,
-        medicalConditions: data.medical_conditions
+          data.macro_nutrition_strategy ||
+          locallySavedStrategy,
+
+        dietPreference:
+          data.diet_preference,
+
+        dietOther:
+          data.diet_other,
+
+        foodAllergies:
+          data.food_allergies,
+
+        medicalConditions:
+          data.medical_conditions,
+
+        restingHeartRate:
+          localTrainingProfile.restingHeartRate,
+
+        confirmedMaxHeartRate:
+          localTrainingProfile.confirmedMaxHeartRate
       });
 
       calculateGoals();
@@ -1009,23 +2055,45 @@ async function loadSavedGoals() {
     }
   }
 
-  const savedGoals = localStorage.getItem("calbuddyGoals");
+  const savedGoals =
+    localStorage.getItem(
+      STORAGE_KEYS.goals
+    );
 
   if (!savedGoals) {
     applyGoals({
-      macroNutritionStrategy: locallySavedStrategy
+      macroNutritionStrategy:
+        locallySavedStrategy,
+
+      restingHeartRate:
+        localTrainingProfile.restingHeartRate,
+
+      confirmedMaxHeartRate:
+        localTrainingProfile.confirmedMaxHeartRate
     });
+
     calculateGoals();
     return;
   }
 
   try {
-    const parsedGoals = JSON.parse(savedGoals);
+    const parsedGoals =
+      JSON.parse(savedGoals);
 
     applyGoals({
       ...parsedGoals,
+
       macroNutritionStrategy:
-        parsedGoals.macroNutritionStrategy || locallySavedStrategy
+        parsedGoals.macroNutritionStrategy ||
+        locallySavedStrategy,
+
+      restingHeartRate:
+        parsedGoals.restingHeartRate ??
+        localTrainingProfile.restingHeartRate,
+
+      confirmedMaxHeartRate:
+        parsedGoals.confirmedMaxHeartRate ??
+        localTrainingProfile.confirmedMaxHeartRate
     });
   } catch (error) {
     console.warn(
@@ -1037,47 +2105,140 @@ async function loadSavedGoals() {
   calculateGoals();
 }
 
+function readLocalTrainingProfile() {
+  return {
+    restingHeartRate:
+      parseRestingHeartRate(
+        localStorage.getItem(
+          STORAGE_KEYS.restingHeartRate
+        )
+      ),
+
+    confirmedMaxHeartRate:
+      parseConfirmedMaxHeartRate(
+        localStorage.getItem(
+          STORAGE_KEYS.confirmedMaxHeartRate
+        )
+      )
+  };
+}
+
 function applyGoals(goals = {}) {
-  setInputValue("age", goals.age || "34");
-  setInputValue("sex", goals.sex || "male");
-  setInputValue("weight", goals.weight || "185.2");
-  setInputValue("height", goals.height || "69.8");
-  setInputValue("activity", goals.activity || "1.55");
-  setInputValue("goalMode", goals.goalMode || "lose");
+  setInputValue(
+    "age",
+    goals.age || "34"
+  );
+
+  setInputValue(
+    "sex",
+    goals.sex || "male"
+  );
+
+  setInputValue(
+    "weight",
+    goals.weight || "185.2"
+  );
+
+  setInputValue(
+    "height",
+    goals.height || "69.8"
+  );
+
+  setInputValue(
+    "restingHeartRate",
+    goals.restingHeartRate || ""
+  );
+
+  setInputValue(
+    "confirmedMaxHeartRate",
+    goals.confirmedMaxHeartRate || ""
+  );
+
+  setInputValue(
+    "activity",
+    goals.activity || "1.55"
+  );
+
+  setInputValue(
+    "goalMode",
+    goals.goalMode || "lose"
+  );
+
   setInputValue(
     "targetWeight",
     goals.targetWeight || "175.0"
   );
+
   setInputValue(
     "weeklyChange",
     goals.weeklyChange || "1"
   );
+
   setInputValue(
     "macroNutritionStrategy",
     resolveMacroNutritionStrategy(
       goals.macroNutritionStrategy
     )
   );
+
   setInputValue(
     "dietPreference",
     goals.dietPreference || "none"
   );
+
   setInputValue(
     "dietOther",
     goals.dietOther || ""
   );
+
   setInputValue(
     "foodAllergies",
     goals.foodAllergies || ""
   );
+
   setInputValue(
     "medicalConditions",
     goals.medicalConditions || ""
   );
 
-  const savedDailyCalorieGoal = parseDailyCalorieGoal(
-    goals.calorieGoal
-  );
+  const confirmedGroup =
+    document.getElementById(
+      "confirmedMaxHeartRateGroup"
+    );
+
+  const confirmedToggle =
+    document.getElementById(
+      "confirmedMaxHeartRateToggle"
+    );
+
+  if (
+    parseConfirmedMaxHeartRate(
+      goals.confirmedMaxHeartRate
+    ) !== null
+  ) {
+    if (confirmedGroup) {
+      confirmedGroup.hidden = false;
+    }
+
+    confirmedToggle?.setAttribute(
+      "aria-expanded",
+      "true"
+    );
+  } else {
+    if (confirmedGroup) {
+      confirmedGroup.hidden = true;
+    }
+
+    confirmedToggle?.setAttribute(
+      "aria-expanded",
+      "false"
+    );
+  }
+
+  const savedDailyCalorieGoal =
+    parseDailyCalorieGoal(
+      goals.calorieGoal
+    );
 
   if (savedDailyCalorieGoal) {
     setInputValue(
@@ -1086,13 +2247,13 @@ function applyGoals(goals = {}) {
     );
 
     localStorage.setItem(
-      "calbuddyDailyCalorieGoal",
+      STORAGE_KEYS.dailyCalorieGoal,
       String(savedDailyCalorieGoal)
     );
   }
 
   localStorage.setItem(
-    "calbuddyMacroNutritionStrategy",
+    STORAGE_KEYS.macroNutritionStrategy,
     resolveMacroNutritionStrategy(
       goals.macroNutritionStrategy
     )
@@ -1101,8 +2262,31 @@ function applyGoals(goals = {}) {
   updateDietOtherUI();
 }
 
+/* =====================================================
+   BASIC HELPERS
+===================================================== */
+
+function setText(id, value) {
+  const element =
+    document.getElementById(id);
+
+  if (element) {
+    element.textContent = value;
+  }
+}
+
+function getValue(id) {
+  const element =
+    document.getElementById(id);
+
+  return element
+    ? String(element.value || "").trim()
+    : "";
+}
+
 function setInputValue(id, value) {
-  const element = document.getElementById(id);
+  const element =
+    document.getElementById(id);
 
   if (element) {
     element.value = value;
@@ -1113,34 +2297,19 @@ function logWeightQuick() {
   const current =
     document.getElementById("weight")?.value || "";
 
-  const next = prompt(
-    "Enter today's weight:",
-    current
-  );
+  const next =
+    prompt(
+      "Enter today's weight:",
+      current
+    );
 
   if (!next) return;
 
-  setInputValue("weight", next);
+  setInputValue(
+    "weight",
+    next
+  );
+
   calculateGoals();
   scheduleGoalsAutoSave(150);
-}
-
-function logCaloriesBurnedQuick() {
-  const current =
-    localStorage.getItem("calbuddyCaloriesBurned") ||
-    "0";
-
-  const burned = prompt(
-    "Calories burned today:",
-    current
-  );
-
-  if (burned === null) return;
-
-  localStorage.setItem(
-    "calbuddyCaloriesBurned",
-    Number(burned) || 0
-  );
-
-  calculateGoals();
 }
