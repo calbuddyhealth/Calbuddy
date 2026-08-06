@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/goals.js
-// Version: 2.5.1
+// Version: 2.5.2
 //
 // Purpose:
 //   Health-goals controller for goals.html.
@@ -20,7 +20,7 @@
 //   - Removes manual calories-burned logging from Goals.
 // =====================================================
 
-const GOALS_VERSION = "2.5.1";
+const GOALS_VERSION = "2.5.2";
 
 const STORAGE_KEYS = Object.freeze({
   goals: "calbuddyGoals",
@@ -931,7 +931,7 @@ function calculateDailyNutritionTargets({
       new Date().toISOString(),
 
     source:
-      "goals-nutrition-targets-v2.5.1"
+      "goals-nutrition-targets-v2.5.2"
   };
 }
 
@@ -1221,9 +1221,9 @@ async function persistGoals() {
   }
 
   /*
-   * Heart-rate values stay in the ARI local training profile
-   * for now so this remains compatible with the current
-   * Supabase profiles schema.
+   * Heart-rate profile fields now persist to Supabase.
+   * Estimated max HR is still calculated from age rather
+   * than stored as a database column.
    */
   const profilePayload = {
     id: user.id,
@@ -1241,6 +1241,16 @@ async function persistGoals() {
 
     daily_calorie_goal:
       Number(goals.calorieGoal),
+
+    resting_heart_rate:
+      goals.restingHeartRate !== null
+        ? Number(goals.restingHeartRate)
+        : null,
+
+    confirmed_max_heart_rate:
+      goals.confirmedMaxHeartRate !== null
+        ? Number(goals.confirmedMaxHeartRate)
+        : null,
 
     updated_at:
       new Date().toISOString()
@@ -1338,42 +1348,69 @@ function cacheTrainingProfileLocally(calculated) {
 }
 
 async function upsertGoalsProfile(profilePayload) {
-  const firstAttempt =
-    await window.calbuddySupabase
-      .from("profiles")
-      .upsert(
-        profilePayload,
-        { onConflict: "id" }
-      );
-
-  if (
-    !firstAttempt.error ||
-    !isMissingColumnError(
-      firstAttempt.error,
-      "macro_nutrition_strategy"
-    )
-  ) {
-    return firstAttempt;
-  }
-
-  const fallbackPayload = {
+  let payload = {
     ...profilePayload
   };
 
-  delete fallbackPayload
-    .macro_nutrition_strategy;
+  const optionalColumns = [
+    "macro_nutrition_strategy",
+    "resting_heart_rate",
+    "confirmed_max_heart_rate"
+  ];
 
-  console.warn(
-    "profiles.macro_nutrition_strategy is not available yet. " +
-    "The strategy remains saved on this device."
-  );
+  for (
+    let attempt = 0;
+    attempt <= optionalColumns.length;
+    attempt += 1
+  ) {
+    const result =
+      await window.calbuddySupabase
+        .from("profiles")
+        .upsert(
+          payload,
+          { onConflict: "id" }
+        );
 
-  return window.calbuddySupabase
-    .from("profiles")
-    .upsert(
-      fallbackPayload,
-      { onConflict: "id" }
+    if (!result.error) {
+      return result;
+    }
+
+    const missingColumn =
+      optionalColumns.find(
+        columnName =>
+          Object.prototype.hasOwnProperty.call(
+            payload,
+            columnName
+          ) &&
+          isMissingColumnError(
+            result.error,
+            columnName
+          )
+      );
+
+    if (!missingColumn) {
+      return result;
+    }
+
+    console.warn(
+      `profiles.${missingColumn} is not available yet. ` +
+      "That value remains saved on this device."
     );
+
+    payload = {
+      ...payload
+    };
+
+    delete payload[
+      missingColumn
+    ];
+  }
+
+  return {
+    error: new Error(
+      "Goals profile could not be saved after optional-column fallbacks."
+    )
+  };
 }
 
 function isMissingColumnError(error, columnName) {
@@ -2044,9 +2081,11 @@ async function loadSavedGoals() {
           data.medical_conditions,
 
         restingHeartRate:
+          data.resting_heart_rate ??
           localTrainingProfile.restingHeartRate,
 
         confirmedMaxHeartRate:
+          data.confirmed_max_heart_rate ??
           localTrainingProfile.confirmedMaxHeartRate
       });
 
