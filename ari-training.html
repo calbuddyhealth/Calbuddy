@@ -35,7 +35,7 @@
 
   <link
     rel="stylesheet"
-    href="assets/css/ari-training.css?v=2.1.0"
+    href="assets/css/ari-training.css?v=3.1.0"
   />
 </head>
 
@@ -240,73 +240,14 @@
             </p>
           </article>
         </div>
-
-        <!-- =================================================
-             TODAY'S PLAN
-        ================================================== -->
-        <article
-          class="ari-training-today-plan"
-          id="todayPlannedWorkout"
-        >
-          <div class="ari-training-today-plan__header">
-            <div>
-              <p class="ari-section-heading__eyebrow">
-                Today's Plan
-              </p>
-
-              <h3 id="todayPlannedWorkoutTitle">
-                No workout scheduled
-              </h3>
-            </div>
-
-            <span
-              class="ari-training-day-status"
-              id="todayPlannedWorkoutStatus"
-              data-status="not_started"
-            >
-              NOT STARTED
-            </span>
-          </div>
-
-          <p
-            class="ari-training-today-plan__summary"
-            id="todayPlannedWorkoutSummary"
-          >
-            Your scheduled training for today will appear here.
-          </p>
-
-          <div
-            class="ari-training-today-plan__progress"
-            id="todayPlannedWorkoutProgress"
-          >
-            <span id="todayCompletedSets">
-              0
-            </span>
-            /
-            <span id="todayRequiredSets">
-              0
-            </span>
-            sets complete
-          </div>
-
-          <a
-            class="ari-primary-button ari-training-today-plan__open"
-            href="#weeklyPlanSummary"
-          >
-            View Today's Workout
-          </a>
-        </article>
-
-
         <!-- =================================================
              TRAINING PROFILE / HEART RATE
         ================================================== -->
-        <article
+        <details
           class="ari-training-profile"
           id="trainingProfilePanel"
-          aria-labelledby="trainingProfileTitle"
         >
-          <div class="ari-training-profile__header">
+          <summary class="ari-training-profile__summary">
             <div>
               <p class="ari-section-heading__eyebrow">
                 Training Profile
@@ -315,128 +256,62 @@
               <h3 id="trainingProfileTitle">
                 Heart-Rate Guided Intensity
               </h3>
+
+              <p class="ari-training-profile__summary-note">
+                Weight, resting heart rate, and max heart rate
+              </p>
             </div>
 
-            <span
-              class="ari-training-profile__source"
-              id="trainingProfileSource"
-            >
-              Goals Profile
-            </span>
-          </div>
+            <div class="ari-training-profile__summary-action">
+              <span
+                class="ari-training-profile__source"
+                id="trainingProfileSource"
+              >
+                Goals Profile
+              </span>
 
-          <div class="ari-training-profile__grid">
-            <div class="ari-training-profile__metric">
-              <span>Body Weight</span>
-              <strong id="trainingProfileWeight">&mdash;</strong>
+              <span
+                class="ari-training-profile__chevron"
+                aria-hidden="true"
+              >
+                &#9662;
+              </span>
+            </div>
+          </summary>
+
+          <div class="ari-training-profile__body">
+            <div class="ari-training-profile__grid">
+              <div class="ari-training-profile__metric">
+                <span>Body Weight</span>
+                <strong id="trainingProfileWeight">&mdash;</strong>
+              </div>
+
+              <div class="ari-training-profile__metric">
+                <span>Resting Heart Rate</span>
+                <strong id="trainingProfileRestingHeartRate">&mdash;</strong>
+              </div>
+
+              <div class="ari-training-profile__metric">
+                <span>Maximum Heart Rate</span>
+                <strong id="trainingProfileMaxHeartRate">&mdash;</strong>
+                <small id="trainingProfileMaxHeartRateSource">
+                  Estimated from age
+                </small>
+              </div>
             </div>
 
-            <div class="ari-training-profile__metric">
-              <span>Resting Heart Rate</span>
-              <strong id="trainingProfileRestingHeartRate">&mdash;</strong>
-            </div>
-
-            <div class="ari-training-profile__metric">
-              <span>Maximum Heart Rate</span>
-              <strong id="trainingProfileMaxHeartRate">&mdash;</strong>
-              <small id="trainingProfileMaxHeartRateSource">
-                Estimated from age
-              </small>
-            </div>
-          </div>
-
-          <div class="ari-field ari-training-profile__workout-hr">
-            <label for="trainingAverageHeartRate">
-              Average Heart Rate for Today's Workout
-            </label>
-
-            <div class="ari-input-with-unit">
-              <input
-                id="trainingAverageHeartRate"
-                name="trainingAverageHeartRate"
-                type="number"
-                inputmode="numeric"
-                min="30"
-                max="240"
-                step="1"
-                placeholder="Example: 138"
-                aria-describedby="trainingAverageHeartRateHelp"
-              />
-              <span>bpm</span>
-            </div>
-
-            <p
-              class="ari-field-help"
-              id="trainingAverageHeartRateHelp"
-            >
-              ARI uses this with your resting and maximum heart rate
-              to estimate today's training intensity. Leave it blank
-              if you do not know your average heart rate.
+            <p class="ari-field-help ari-training-profile__help">
+              These values come from My Health Goals. Each scheduled
+              workout day below has its own Average Workout Heart Rate
+              field so ARI can determine that day's intensity.
             </p>
           </div>
-
-          <div
-            class="ari-training-profile__intensity"
-            id="trainingHeartRateIntensity"
-            data-intensity="unknown"
-            aria-live="polite"
-          >
-            <span>ARI Intensity</span>
-            <strong id="trainingHeartRateIntensityLabel">
-              Waiting for workout heart rate
-            </strong>
-            <small id="trainingHeartRateIntensityDetail">
-              Your saved profile values will auto-populate from Goals.
-            </small>
-          </div>
-        </article>
+        </details>
 
         <p class="ari-training-calorie-note">
           Calories burned are shown as training performance data only.
           They do not increase or change your Nutrition calories left.
         </p>
-      </section>
-
-
-      <!-- ===================================================
-           PLAN WEEKLY WORKOUT
-      ==================================================== -->
-      <section
-        class="ari-training-section ari-training-plan-launcher"
-        id="planWeeklyWorkout"
-        aria-labelledby="planWeeklyWorkoutTitle"
-      >
-        <a
-          class="ari-training-plan-tab"
-          href="workout-plans.html"
-          aria-labelledby="planWeeklyWorkoutTitle"
-        >
-          <div class="ari-training-plan-tab__icon" aria-hidden="true">
-            7D
-          </div>
-
-          <div class="ari-training-plan-tab__content">
-            <p class="ari-section-heading__eyebrow">
-              Training Planner
-            </p>
-
-            <h2 id="planWeeklyWorkoutTitle">
-              Plan Weekly Workout
-            </h2>
-
-            <p>
-              Build your seven-day schedule, choose a template,
-              customize training days, or browse the Exercise Library.
-            </p>
-          </div>
-
-          <span
-            class="ari-training-plan-tab__arrow"
-            aria-hidden="true"
-          >
-            &rarr;
-          </span>
-        </a>
       </section>
 
 
@@ -690,6 +565,57 @@
         class="ari-weekly-plan-day__body"
         hidden
       >
+        <div class="ari-weekly-plan-day__heart-rate">
+          <div class="ari-weekly-plan-day__heart-rate-heading">
+            <div>
+              <p class="ari-section-heading__eyebrow">
+                Workout Intensity
+              </p>
+
+              <h4>Average Workout Heart Rate</h4>
+            </div>
+
+            <span
+              class="ari-weekly-plan-day__intensity-pill"
+              data-intensity="unknown"
+            >
+              Waiting for HR
+            </span>
+          </div>
+
+          <div class="ari-weekly-plan-day__heart-rate-grid">
+            <label class="ari-field">
+              <span class="ari-weekly-plan-day__heart-rate-label">
+                Average Heart Rate
+              </span>
+
+              <div class="ari-input-with-unit">
+                <input
+                  class="ari-day-average-heart-rate"
+                  type="number"
+                  inputmode="numeric"
+                  min="30"
+                  max="240"
+                  step="1"
+                  placeholder="Example: 138"
+                />
+
+                <span>bpm</span>
+              </div>
+            </label>
+
+            <div class="ari-weekly-plan-day__intensity-result">
+              <span>ARI Intensity</span>
+              <strong class="ari-weekly-plan-day__intensity-label">
+                Waiting for workout heart rate
+              </strong>
+              <small class="ari-weekly-plan-day__intensity-detail">
+                Enter the average heart rate for this workout.
+              </small>
+            </div>
+          </div>
+        </div>
+
         <div class="ari-weekly-plan-day__exercise-list"></div>
 
         <div class="ari-weekly-plan-day__footer">
@@ -835,7 +761,7 @@
 
   <script
     type="module"
-    src="js/ari-training.js?v=2.1.0"
+    src="js/ari-training.js?v=2.2.0"
   ></script>
 </body>
 </html>
