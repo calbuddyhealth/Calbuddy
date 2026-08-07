@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 2.0.1
+// Version: 2.0.2
 // Purpose:
 //   Page controller for workout-plans.html.
 //
@@ -34,7 +34,7 @@ import Muscles from "./training/anatomy/muscles.js";
 import MovementPatterns from "./training/movements/movement-patterns.js";
 import ExerciseTypes from "./training/movements/exercise-types.js";
 
-const VERSION = "2.0.1";
+const VERSION = "2.0.2";
 const SOURCE = "js/workout-plans";
 
 const DAYS = Object.freeze([
@@ -2372,7 +2372,7 @@ async function finishDayEditor() {
       false;
 
     dom.workoutDayDoneButton.textContent =
-      "Done";
+      "Save Exercises / Exit";
   }
 
   closeDialog(
