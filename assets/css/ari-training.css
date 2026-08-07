@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/ari-training.css
-   Version: 3.0.0
+   Version: 3.1.0
 
    Purpose:
    Complete visual redesign for the ARI Training
@@ -1293,5 +1293,231 @@ summary:focus-visible {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+}
+
+
+/* =====================================================
+   V3.1.0 ORGANIZATION UPDATE
+
+   - Today's Plan card removed.
+   - Training Planner launcher removed.
+   - Heart-rate profile is collapsible.
+   - Each non-rest workout day owns its own Average HR.
+===================================================== */
+
+.ari-training-profile {
+  margin-top: 18px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ari-training-profile__summary {
+  min-height: 92px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.ari-training-profile__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ari-training-profile__summary h3 {
+  margin: 0;
+  font-family: "Audiowide", sans-serif;
+  font-size: 1.02rem;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.ari-training-profile__summary-note {
+  margin: 7px 0 0;
+  color: var(--ari-training-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.ari-training-profile__summary-action {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ari-training-profile__chevron {
+  color: var(--ari-training-cyan);
+  font-size: 1rem;
+  transition: transform 180ms ease;
+}
+
+.ari-training-profile[open]
+  .ari-training-profile__chevron {
+  transform: rotate(180deg);
+}
+
+.ari-training-profile__body {
+  padding: 0 20px 20px;
+  border-top: 1px solid rgba(92, 231, 255, 0.09);
+}
+
+.ari-training-profile__body
+  .ari-training-profile__grid {
+  padding-top: 18px;
+}
+
+.ari-training-profile__help {
+  margin-top: 14px;
+}
+
+.ari-weekly-plan-day__heart-rate {
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid rgba(92, 231, 255, 0.13);
+  border-radius: 15px;
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(100, 168, 255, 0.08),
+      transparent 48%
+    ),
+    rgba(92, 231, 255, 0.025);
+}
+
+.ari-weekly-plan-day__heart-rate-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ari-weekly-plan-day__heart-rate-heading h4 {
+  margin: 0;
+  color: var(--ari-training-text);
+  font-size: 0.95rem;
+}
+
+.ari-weekly-plan-day__intensity-pill {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--ari-training-text-muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ari-weekly-plan-day__intensity-pill[data-intensity="very_light"],
+.ari-weekly-plan-day__intensity-pill[data-intensity="light"] {
+  color: var(--ari-training-green);
+  border-color: rgba(111, 255, 194, 0.22);
+}
+
+.ari-weekly-plan-day__intensity-pill[data-intensity="moderate"] {
+  color: var(--ari-training-cyan);
+  border-color: rgba(92, 231, 255, 0.26);
+}
+
+.ari-weekly-plan-day__intensity-pill[data-intensity="vigorous"],
+.ari-weekly-plan-day__intensity-pill[data-intensity="near_maximal"],
+.ari-weekly-plan-day__intensity-pill[data-intensity="maximal"] {
+  color: #c7a8ff;
+  border-color: rgba(155, 108, 255, 0.28);
+}
+
+.ari-weekly-plan-day__heart-rate-grid {
+  margin-top: 13px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.ari-weekly-plan-day__heart-rate-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ari-training-text-soft);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.ari-weekly-plan-day__intensity-result {
+  min-width: 0;
+  padding: 12px 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border-left: 2px solid rgba(92, 231, 255, 0.30);
+  border-radius: 10px;
+  background: rgba(2, 9, 13, 0.44);
+}
+
+.ari-weekly-plan-day__intensity-result > span {
+  color: var(--ari-training-text-muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.ari-weekly-plan-day__intensity-result strong {
+  color: var(--ari-training-cyan-soft);
+  font-size: 0.88rem;
+}
+
+.ari-weekly-plan-day__intensity-result small {
+  color: var(--ari-training-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.ari-weekly-plan-day__exercise-list {
+  margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+  .ari-training-profile__summary {
+    min-height: 84px;
+    padding: 16px;
+  }
+
+  .ari-training-profile__body {
+    padding: 0 16px 16px;
+  }
+
+  .ari-training-profile__source {
+    display: none;
+  }
+
+  .ari-weekly-plan-day__heart-rate-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ari-weekly-plan-day__heart-rate {
+    padding: 13px;
+  }
+
+  .ari-weekly-plan-day__heart-rate-heading {
+    align-items: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .ari-weekly-plan-day__heart-rate-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ari-weekly-plan-day__intensity-pill {
+    align-self: flex-start;
   }
 }
