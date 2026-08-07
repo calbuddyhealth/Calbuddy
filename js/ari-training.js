@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 2.2.1
+// Version: 2.2.2
 // Purpose:
 //   Summary + execution controller for ari-training.html.
 //
@@ -42,7 +42,7 @@ import CalorieCalculator
 import HeartRateIntensity
   from "./training/energy/heart-rate-intensity.js";
 
-const VERSION = "2.2.1";
+const VERSION = "2.2.2";
 const SOURCE = "js/ari-training";
 
 const DAYS = Object.freeze([
@@ -81,6 +81,13 @@ const state = {
 
   averageWorkoutHeartRates: {},
   heartRateIntensities: {},
+
+  /*
+   * UI-only state.
+   * Keeps workout days open while progress updates trigger
+   * a full weekly-plan re-render.
+   */
+  expandedDays: new Set(),
 
   unsubscribePlan: null,
   unsubscribeProgress: null
@@ -678,15 +685,21 @@ function createWeeklyDayElement(
   );
 
   /*
-   * Every workout day starts collapsed.
-   * The user chooses which day to expand.
+   * Workout days start collapsed. Once opened, the current
+   * open/closed state is preserved across checkbox/calorie
+   * re-renders so completing a set does not collapse the day.
    */
+  const isExpanded =
+    state.expandedDays.has(day);
+
   body.hidden =
-    true;
+    !isExpanded;
 
   button.setAttribute(
     "aria-expanded",
-    "false"
+    isExpanded
+      ? "true"
+      : "false"
   );
 
   return fragment;
@@ -1934,6 +1947,9 @@ function handleWeeklyPlanClick(
     return;
   }
 
+  const day =
+    button.dataset.day;
+
   const expanding =
     body.hidden;
 
@@ -1946,6 +1962,19 @@ function handleWeeklyPlanClick(
       ? "true"
       : "false"
   );
+
+  /*
+   * Preserve the user's expanded-day choice in memory.
+   * Progress-store updates can re-render the entire week,
+   * and this keeps the active workout open.
+   */
+  if (day) {
+    if (expanding) {
+      state.expandedDays.add(day);
+    } else {
+      state.expandedDays.delete(day);
+    }
+  }
 }
 
 /* =====================================================
