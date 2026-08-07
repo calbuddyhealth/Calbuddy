@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/workout-plans.css
-   Version: 2.0.1
+   Version: 2.0.2
    Purpose:
    Clean mobile-first Workout Plans UI.
 ===================================================== */
@@ -712,4 +712,148 @@ button {
   .exercise-detail-visuals {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* =====================================================
+   V2.0.2 â EXPANDED EXERCISE CONTRAST
+   Collapsed = ARI dark.
+   Expanded header = water blue.
+   Expanded prescription body = icy white.
+===================================================== */
+
+:root {
+  --wp-exercise-water: #8eeaff;
+  --wp-exercise-water-deep: #69d9f4;
+  --wp-exercise-ice: #eef9fc;
+  --wp-exercise-ice-soft: #f7fcfd;
+  --wp-exercise-ink: #07141b;
+  --wp-exercise-ink-soft: #40545f;
+}
+
+/* Collapsed cards stay integrated with the dark ARI page. */
+.workout-exercise-row {
+  overflow: hidden;
+  background: var(--wp-surface);
+  transition:
+    border-color .16s ease,
+    box-shadow .16s ease;
+}
+
+.workout-exercise-row[data-expanded="false"] {
+  border-color: var(--wp-border);
+  background: var(--wp-surface);
+}
+
+.workout-exercise-row[data-expanded="false"]
+.workout-exercise-row__summary {
+  background: transparent;
+  color: var(--wp-text);
+}
+
+.workout-exercise-row[data-expanded="false"]
+.workout-exercise-row__summary-copy span {
+  color: var(--wp-muted);
+}
+
+/* Water-blue identity header while an exercise is being edited. */
+.workout-exercise-row[data-expanded="true"] {
+  border-color: rgba(142, 234, 255, .82);
+  box-shadow:
+    0 0 0 1px rgba(142, 234, 255, .14),
+    0 12px 30px rgba(0, 0, 0, .16);
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__summary {
+  background:
+    linear-gradient(
+      135deg,
+      var(--wp-exercise-water),
+      #baf4ff
+    );
+  color: var(--wp-exercise-ink);
+  border-bottom: 1px solid rgba(7, 20, 27, .12);
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__summary-copy strong {
+  color: var(--wp-exercise-ink);
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__summary-copy span {
+  color: var(--wp-exercise-ink-soft);
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__chevron {
+  color: var(--wp-exercise-ink);
+}
+
+/* Icy-white prescription panel. */
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__body {
+  padding: 14px;
+  border-top: 0;
+  background:
+    linear-gradient(
+      180deg,
+      var(--wp-exercise-ice-soft),
+      var(--wp-exercise-ice)
+    );
+  color: var(--wp-exercise-ink);
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__prescription {
+  padding-top: 0;
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-metric {
+  color: #263a45;
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-metric span {
+  color: #263a45;
+  font-weight: 800;
+}
+
+/* Keep fields crisp against the white panel instead of blending into it. */
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-metric input {
+  min-height: 52px;
+  border: 1px solid rgba(19, 112, 135, .34);
+  background: #ffffff;
+  color: var(--wp-exercise-ink);
+  box-shadow: none;
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-metric input:focus {
+  border-color: var(--wp-exercise-water-deep);
+  outline: 2px solid rgba(105, 217, 244, .22);
+  outline-offset: 1px;
+}
+
+/* Actions belong visually to the light editing panel. */
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__detail {
+  border-color: rgba(16, 112, 137, .36);
+  background: rgba(105, 217, 244, .09);
+  color: #086e87;
+}
+
+.workout-exercise-row[data-expanded="true"]
+.workout-exercise-row__remove {
+  border-color: rgba(184, 61, 85, .28);
+  background: rgba(184, 61, 85, .06);
+  color: #a92d47;
+}
+
+/* Make the final action unmistakable. */
+#workoutDayDoneButton {
+  letter-spacing: .01em;
 }
