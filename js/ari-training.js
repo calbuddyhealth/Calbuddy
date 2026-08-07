@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 2.1.0
+// Version: 2.2.0
 // Purpose:
 //   Summary + execution controller for ari-training.html.
 //
@@ -10,6 +10,8 @@
 //   - Loads the user's current weekly workout plan.
 //   - Shows today's training overview.
 //   - Shows Monday-Sunday weekly plan summary.
+//   - Stores an average workout heart rate separately for each training day.
+//   - Uses each day's heart rate to resolve that day's workout intensity.
 //   - Lets users check off individual prescribed sets.
 //   - Automatically marks a training day COMPLETE when all
 //     required work for that day is complete.
@@ -40,7 +42,7 @@ import CalorieCalculator
 import HeartRateIntensity
   from "./training/energy/heart-rate-intensity.js";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const SOURCE = "js/ari-training";
 
 const DAYS = Object.freeze([
@@ -77,8 +79,8 @@ const state = {
   profileEffectiveMaxHeartRate: null,
   profileMaxHeartRateSource: null,
 
-  averageWorkoutHeartRate: null,
-  heartRateIntensity: null,
+  averageWorkoutHeartRates: {},
+  heartRateIntensities: {},
 
   unsubscribePlan: null,
   unsubscribeProgress: null
@@ -109,7 +111,7 @@ async function initialize() {
 
   await loadTrainingProfile();
 
-  loadStoredAverageHeartRate();
+  loadStoredAverageHeartRates();
 
   WorkoutProgressStore.hydrate();
 
@@ -163,18 +165,7 @@ function cacheElements() {
     "trainingProfileRestingHeartRate",
     "trainingProfileMaxHeartRate",
     "trainingProfileMaxHeartRateSource",
-    "trainingAverageHeartRate",
-    "trainingHeartRateIntensity",
-    "trainingHeartRateIntensityLabel",
-    "trainingHeartRateIntensityDetail",
 
-    "todayPlannedWorkout",
-    "todayPlannedWorkoutTitle",
-    "todayPlannedWorkoutStatus",
-    "todayPlannedWorkoutSummary",
-    "todayPlannedWorkoutProgress",
-    "todayCompletedSets",
-    "todayRequiredSets",
 
     "weeklyCompletedDays",
     "weeklyScheduledDays",
@@ -237,18 +228,6 @@ function bindEvents() {
     ?.addEventListener(
       "change",
       handleWeeklyPlanChange
-    );
-
-  elements.trainingAverageHeartRate
-    ?.addEventListener(
-      "input",
-      handleAverageHeartRateChange
-    );
-
-  elements.trainingAverageHeartRate
-    ?.addEventListener(
-      "change",
-      handleAverageHeartRateChange
     );
 
   window.addEventListener(
@@ -324,7 +303,7 @@ async function refresh() {
 
   await loadTrainingProfile();
 
-  loadStoredAverageHeartRate();
+  loadStoredAverageHeartRates();
 
   try {
     await WorkoutPlanController.load();
@@ -353,7 +332,6 @@ async function refresh() {
 function renderAll() {
   renderTrainingProfile();
   renderOverview();
-  renderTodayPlan();
   renderWeeklyPlan();
   renderMonthlyHistory();
 }
@@ -417,115 +395,6 @@ function renderOverview() {
       countCompletedSingleActivities(
         state.currentDay
       )
-    )
-  );
-}
-
-function renderTodayPlan() {
-  const day =
-    state.plan
-      ?.week
-      ?.[state.currentDay];
-
-  const summary =
-    WorkoutProgressStore
-      .getDaySummary(
-        state.currentDay
-      );
-
-  if (!day) {
-    setText(
-      elements.todayPlannedWorkoutTitle,
-      "No workout scheduled"
-    );
-
-    setText(
-      elements.todayPlannedWorkoutSummary,
-      "Your scheduled training for today will appear here."
-    );
-
-    setDayStatusElement(
-      elements.todayPlannedWorkoutStatus,
-      "not_started"
-    );
-
-    setText(
-      elements.todayCompletedSets,
-      "0"
-    );
-
-    setText(
-      elements.todayRequiredSets,
-      "0"
-    );
-
-    return;
-  }
-
-  setText(
-    elements.todayPlannedWorkoutTitle,
-    day.title ||
-    DAY_LABELS[
-      state.currentDay
-    ]
-  );
-
-  if (
-    day.type ===
-      "off"
-  ) {
-    setText(
-      elements.todayPlannedWorkoutSummary,
-      "Scheduled recovery day."
-    );
-
-    setDayStatusElement(
-      elements.todayPlannedWorkoutStatus,
-      "rest"
-    );
-
-    setText(
-      elements.todayCompletedSets,
-      "0"
-    );
-
-    setText(
-      elements.todayRequiredSets,
-      "0"
-    );
-
-    return;
-  }
-
-  const exerciseCount =
-    day.exercises
-      ?.length ||
-    0;
-
-  setText(
-    elements.todayPlannedWorkoutSummary,
-    `${exerciseCount} ${pluralize(exerciseCount, "exercise", "exercises")} scheduled.`
-  );
-
-  setDayStatusElement(
-    elements.todayPlannedWorkoutStatus,
-    summary?.status ||
-    "not_started"
-  );
-
-  setText(
-    elements.todayCompletedSets,
-    String(
-      summary?.completedSets ||
-      0
-    )
-  );
-
-  setText(
-    elements.todayRequiredSets,
-    String(
-      summary?.requiredSets ||
-      0
     )
   );
 }
@@ -756,6 +625,12 @@ function createWeeklyDayElement(
     button.disabled =
       true;
 
+    article
+      .querySelector(
+        ".ari-weekly-plan-day__heart-rate"
+      )
+      ?.remove();
+
     setTextWithin(
       article,
       ".ari-weekly-plan-day__set-progress",
@@ -770,6 +645,11 @@ function createWeeklyDayElement(
 
     return fragment;
   }
+
+  configureDayHeartRateUI(
+    article,
+    day
+  );
 
   for (
     const exerciseEntry
@@ -992,7 +872,8 @@ function createPlannedExerciseElement(
           0
         : estimateActivityCalories(
             exerciseEntry,
-            exercise
+            exercise,
+            day
           );
 
     singleCalories.textContent =
@@ -1053,6 +934,7 @@ function createSetElement({
       ? setRecord
           .estimatedCalories
       : estimateSetCalories({
+          day,
           exerciseEntry,
           exercise,
           requiredSets
@@ -1315,57 +1197,118 @@ function renderTrainingProfile() {
         ? "Estimated from age"
         : "No max HR available"
   );
-
-  if (
-    elements.trainingAverageHeartRate &&
-    document.activeElement !==
-      elements.trainingAverageHeartRate
-  ) {
-    elements.trainingAverageHeartRate.value =
-      state.averageWorkoutHeartRate ??
-      "";
-  }
-
-  renderHeartRateIntensity();
 }
 
-function handleAverageHeartRateChange() {
-  const value =
-    normalizeHeartRate(
-      elements
-        .trainingAverageHeartRate
-        ?.value
+function configureDayHeartRateUI(
+  article,
+  day
+) {
+  const input =
+    article.querySelector(
+      ".ari-day-average-heart-rate"
     );
 
-  state.averageWorkoutHeartRate =
+  const pill =
+    article.querySelector(
+      ".ari-weekly-plan-day__intensity-pill"
+    );
+
+  const label =
+    article.querySelector(
+      ".ari-weekly-plan-day__intensity-label"
+    );
+
+  const detail =
+    article.querySelector(
+      ".ari-weekly-plan-day__intensity-detail"
+    );
+
+  if (input) {
+    input.dataset.day =
+      day;
+
+    input.value =
+      state.averageWorkoutHeartRates[
+        day
+      ] ?? "";
+  }
+
+  const result =
+    getDayHeartRateIntensity(
+      day
+    );
+
+  renderDayHeartRateIntensity({
+    result,
+    pill,
+    label,
+    detail
+  });
+}
+
+function handleDayAverageHeartRateChange(
+  input
+) {
+  const day =
+    input.dataset.day;
+
+  if (
+    !DAYS.includes(day)
+  ) {
+    return;
+  }
+
+  const value =
+    normalizeHeartRate(
+      input.value
+    );
+
+  state.averageWorkoutHeartRates[
+    day
+  ] =
     value;
 
-  persistAverageHeartRate();
+  persistAverageHeartRate(
+    day
+  );
 
-  recalculateHeartRateIntensity();
+  recalculateHeartRateIntensity(
+    day
+  );
 
   renderAll();
 }
 
-function recalculateHeartRateIntensity() {
+function recalculateHeartRateIntensity(
+  day
+) {
+  const averageWorkoutHeartRate =
+    state.averageWorkoutHeartRates[
+      day
+    ];
+
   if (
-    !state.averageWorkoutHeartRate ||
+    !averageWorkoutHeartRate ||
     !state.profileAge ||
     !state.profileEffectiveMaxHeartRate
   ) {
-    state.heartRateIntensity =
+    state.heartRateIntensities[
+      day
+    ] =
       null;
 
     return null;
   }
 
-  state.heartRateIntensity =
+  state.heartRateIntensities[
+    day
+  ] =
     HeartRateIntensity.classify({
       age:
         state.profileAge,
 
       heartRate:
-        state.averageWorkoutHeartRate,
+        averageWorkoutHeartRate,
 
       restingHeartRate:
         state.profileRestingHeartRate,
@@ -1379,36 +1322,55 @@ function recalculateHeartRateIntensity() {
         )
     });
 
-  return state.heartRateIntensity;
+  return state.heartRateIntensities[
+    day
+  ];
 }
 
-function renderHeartRateIntensity() {
-  const result =
-    state.heartRateIntensity;
+function getDayHeartRateIntensity(
+  day
+) {
+  if (
+    !Object.prototype
+      .hasOwnProperty.call(
+        state.heartRateIntensities,
+        day
+      )
+  ) {
+    recalculateHeartRateIntensity(
+      day
+    );
+  }
 
+  return state.heartRateIntensities[
+    day
+  ] || null;
+}
+
+function renderDayHeartRateIntensity({
+  result,
+  pill,
+  label,
+  detail
+}) {
   if (!result) {
-    if (
-      elements.trainingHeartRateIntensity
-    ) {
-      elements.trainingHeartRateIntensity
-        .dataset
-        .intensity =
-          "unknown";
+    if (pill) {
+      pill.dataset.intensity =
+        "unknown";
+
+      pill.textContent =
+        "Waiting for HR";
     }
 
-    setText(
-      elements.trainingHeartRateIntensityLabel,
-      state.averageWorkoutHeartRate
-        ? "More profile data needed"
-        : "Waiting for workout heart rate"
-    );
+    if (label) {
+      label.textContent =
+        "Waiting for workout heart rate";
+    }
 
-    setText(
-      elements.trainingHeartRateIntensityDetail,
-      state.averageWorkoutHeartRate
-        ? "ARI needs age and a usable maximum heart rate to classify intensity."
-        : "Enter today's average workout heart rate to classify training intensity."
-    );
+    if (detail) {
+      detail.textContent =
+        "Enter the average heart rate for this workout.";
+    }
 
     return;
   }
@@ -1419,22 +1381,21 @@ function renderHeartRateIntensity() {
         result
       );
 
-  if (
-    elements.trainingHeartRateIntensity
-  ) {
-    elements.trainingHeartRateIntensity
-      .dataset
-      .intensity =
-        summary
-          ?.intensityId ||
-        "unknown";
+  if (pill) {
+    pill.dataset.intensity =
+      summary?.intensityId ||
+      "unknown";
+
+    pill.textContent =
+      summary?.label ||
+      "Unknown";
   }
 
-  setText(
-    elements.trainingHeartRateIntensityLabel,
-    summary?.label ||
-    "Unknown"
-  );
+  if (label) {
+    label.textContent =
+      summary?.label ||
+      "Unknown";
+  }
 
   const methodLabel =
     result.method ===
@@ -1444,21 +1405,28 @@ function renderHeartRateIntensity() {
       ? "heart-rate reserve"
       : "percent of max heart rate";
 
-  setText(
-    elements.trainingHeartRateIntensityDetail,
-    `${Math.round(result.heartRate)} bpm Â· ${result.percentDisplay}% by ${methodLabel}`
-  );
+  if (detail) {
+    detail.textContent =
+      `${Math.round(result.heartRate)} bpm \u00B7 ` +
+      `${result.percentDisplay}% by ${methodLabel}`;
+  }
 }
 
 function getResolvedCalorieIntensity(
   fallback =
-    "moderate"
+    "moderate",
+  day =
+    state.currentDay
 ) {
+  const result =
+    getDayHeartRateIntensity(
+      day
+    );
+
   const fromHeartRate =
     HeartRateIntensity
       .toCalorieIntensity(
-        state
-          .heartRateIntensity
+        result
           ?.intensityId
       );
 
@@ -1469,37 +1437,61 @@ function getResolvedCalorieIntensity(
   );
 }
 
-function getAverageHeartRateStorageKey() {
+function getAverageHeartRateStorageKey(
+  day
+) {
   return (
     "ari_training_average_hr_" +
     `${getCurrentWeekKey()}_` +
-    `${state.currentDay || getCurrentWeekdayId()}`
+    `${day}`
   );
 }
 
-function loadStoredAverageHeartRate() {
-  state.averageWorkoutHeartRate =
-    normalizeHeartRate(
-      localStorage.getItem(
-        getAverageHeartRateStorageKey()
-      )
-    );
+function loadStoredAverageHeartRates() {
+  state.averageWorkoutHeartRates =
+    {};
 
-  recalculateHeartRateIntensity();
+  state.heartRateIntensities =
+    {};
+
+  for (
+    const day
+    of DAYS
+  ) {
+    state.averageWorkoutHeartRates[
+      day
+    ] =
+      normalizeHeartRate(
+        localStorage.getItem(
+          getAverageHeartRateStorageKey(
+            day
+          )
+        )
+      );
+
+    recalculateHeartRateIntensity(
+      day
+    );
+  }
 }
 
-function persistAverageHeartRate() {
+function persistAverageHeartRate(
+  day
+) {
   const key =
-    getAverageHeartRateStorageKey();
+    getAverageHeartRateStorageKey(
+      day
+    );
 
-  if (
-    state.averageWorkoutHeartRate
-  ) {
+  const value =
+    state.averageWorkoutHeartRates[
+      day
+    ];
+
+  if (value) {
     localStorage.setItem(
       key,
-      String(
-        state.averageWorkoutHeartRate
-      )
+      String(value)
     );
   } else {
     localStorage.removeItem(
@@ -1576,6 +1568,7 @@ function formatProfileNumber(
 ===================================================== */
 
 function estimateSetCalories({
+  day,
   exerciseEntry,
   exercise,
   requiredSets
@@ -1608,7 +1601,8 @@ function estimateSetCalories({
   const intensity =
     getResolvedCalorieIntensity(
       exerciseEntry.intensity ||
-      "moderate"
+      "moderate",
+      day
     );
 
   const estimate =
@@ -1661,7 +1655,8 @@ function estimateSetCalories({
 
 function estimateActivityCalories(
   exerciseEntry,
-  exercise
+  exercise,
+  day
 ) {
   const weightLb =
     state.profileWeightLb;
@@ -1697,7 +1692,8 @@ function estimateActivityCalories(
           getResolvedCalorieIntensity(
             exerciseEntry
               .intensity ||
-            "moderate"
+            "moderate",
+            day
           )
       });
 
@@ -1718,8 +1714,24 @@ function estimateActivityCalories(
 function handleWeeklyPlanChange(
   event
 ) {
-  const checkbox =
+  const target =
     event.target;
+
+  if (
+    target instanceof HTMLInputElement &&
+    target.classList.contains(
+      "ari-day-average-heart-rate"
+    )
+  ) {
+    handleDayAverageHeartRateChange(
+      target
+    );
+
+    return;
+  }
+
+  const checkbox =
+    target;
 
   if (
     !(checkbox instanceof HTMLInputElement) ||
@@ -1821,7 +1833,8 @@ function handleWeeklyPlanChange(
         {
           exerciseId
         },
-        exercise
+        exercise,
+        day
       );
 
     WorkoutProgressStore
@@ -3387,11 +3400,13 @@ function publishGlobal() {
         maxHeartRateSource:
           state.profileMaxHeartRateSource,
 
-        averageWorkoutHeartRate:
-          state.averageWorkoutHeartRate,
+        averageWorkoutHeartRates: {
+          ...state.averageWorkoutHeartRates
+        },
 
-        heartRateIntensity:
-          state.heartRateIntensity
+        heartRateIntensities: {
+          ...state.heartRateIntensities
+        }
       })
   };
 
