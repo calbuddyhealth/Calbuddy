@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 1.1.0
+// Version: 2.0.0
 // Purpose:
 //   Page controller for workout-plans.html.
 //
@@ -34,7 +34,7 @@ import Muscles from "./training/anatomy/muscles.js";
 import MovementPatterns from "./training/movements/movement-patterns.js";
 import ExerciseTypes from "./training/movements/exercise-types.js";
 
-const VERSION = "1.1.0";
+const VERSION = "2.0.0";
 const SOURCE = "js/workout-plans";
 
 const DAYS = Object.freeze([
@@ -65,21 +65,12 @@ function cacheDom() {
   const ids = [
     "workoutPlansApp",
     "workoutPlansBackButton",
-    "workoutPlansSaveButton",
     "workoutPlansStatus",
-    "workoutPlanName",
-    "workoutPlanGoalSummary",
-    "workoutDaysCount",
-    "workoutOffDaysCount",
-    "workoutExerciseCount",
     "workoutWeekGrid",
     "workoutTemplateGoalFilter",
     "workoutTemplateDaysFilter",
     "workoutTemplateList",
     "workoutTemplateEmpty",
-    "workoutPrimaryGoal",
-    "workoutSecondaryGoals",
-    "workoutCustomWeek",
     "exerciseLibrarySearchForm",
     "exerciseLibrarySearch",
     "exerciseBodyPartFilter",
@@ -265,7 +256,6 @@ function setActiveTab(tab) {
   const allowed = [
     "week",
     "templates",
-    "custom",
     "library"
   ];
 
@@ -1201,6 +1191,94 @@ function makeMetricInput({
   return wrapper;
 }
 
+function getExercisePrescriptionSummary(
+  exercise,
+  entry
+) {
+  const parts = [];
+
+  if (
+    Number(entry.sets) > 0 &&
+    Number(entry.reps) > 0
+  ) {
+    parts.push(
+      `${entry.sets} sets \u00D7 ${entry.reps} reps`
+    );
+  } else if (
+    Number(entry.sets) > 0
+  ) {
+    parts.push(
+      `${entry.sets} sets`
+    );
+  } else if (
+    Number(entry.reps) > 0
+  ) {
+    parts.push(
+      `${entry.reps} reps`
+    );
+  }
+
+  if (
+    Number(entry.weight) > 0
+  ) {
+    parts.push(
+      `${entry.weight} lb`
+    );
+  }
+
+  if (
+    Number(entry.added_weight) > 0
+  ) {
+    parts.push(
+      `${entry.added_weight} lb`
+    );
+  }
+
+  if (
+    Number(entry.durationMinutes) > 0
+  ) {
+    parts.push(
+      `${entry.durationMinutes} min`
+    );
+  }
+
+  if (
+    Number(entry.durationSeconds) > 0
+  ) {
+    parts.push(
+      `${entry.durationSeconds} sec`
+    );
+  }
+
+  if (
+    Number(entry.rounds) > 0
+  ) {
+    parts.push(
+      `${entry.rounds} rounds`
+    );
+  }
+
+  return parts.length
+    ? parts.join(" \u00B7 ")
+    : (
+        (
+          exercise.primaryMuscles ||
+          []
+        )
+          .map(
+            getMuscleLabel
+          )
+          .slice(
+            0,
+            2
+          )
+          .join(
+            " \u00B7 "
+          ) ||
+        "Tap to set workout details"
+      );
+}
+
 function renderDayExercises() {
   if (
     !state.activeDay ||
@@ -1211,236 +1289,463 @@ function renderDayExercises() {
 
   const dayState =
     WorkoutPlanController
-      .getDay(state.activeDay);
+      .getDay(
+        state.activeDay
+      );
 
   const entries =
-    dayState?.exercises || [];
+    dayState?.exercises ||
+    [];
 
-  dom.workoutDayExerciseList.innerHTML = "";
+  dom.workoutDayExerciseList.innerHTML =
+    "";
 
-  if (dom.workoutDayExerciseEmpty) {
+  if (
+    dom.workoutDayExerciseEmpty
+  ) {
     dom.workoutDayExerciseEmpty.hidden =
       entries.length > 0;
   }
 
   entries.forEach(
-    (entry, index) => {
+    (
+      entry,
+      index
+    ) => {
       const exercise =
         ExerciseRegistry.get(
           entry.exerciseId
         );
 
-      if (!exercise) return;
+      if (!exercise) {
+        return;
+      }
+
+      const expanded =
+        state.expandedExerciseIndex ===
+        index;
 
       const row =
-        document.createElement("article");
+        document.createElement(
+          "article"
+        );
 
       row.className =
         "workout-exercise-row";
+
       row.dataset.exerciseIndex =
         String(index);
+
       row.dataset.exerciseId =
         exercise.id;
 
-      const open =
-        document.createElement("button");
+      row.dataset.expanded =
+        expanded
+          ? "true"
+          : "false";
 
-      open.type = "button";
-      open.className =
-        "workout-exercise-row__open";
-      open.dataset.workoutAction =
-        "open-exercise-detail";
-      open.dataset.exerciseId =
-        exercise.id;
+      const summary =
+        document.createElement(
+          "button"
+        );
+
+      summary.type =
+        "button";
+
+      summary.className =
+        "workout-exercise-row__summary";
+
+      summary.dataset.workoutAction =
+        "toggle-exercise-row";
+
+      summary.dataset.exerciseIndex =
+        String(index);
+
+      summary.setAttribute(
+        "aria-expanded",
+        expanded
+          ? "true"
+          : "false"
+      );
+
+      const copy =
+        document.createElement(
+          "span"
+        );
+
+      copy.className =
+        "workout-exercise-row__summary-copy";
 
       const strong =
-        document.createElement("strong");
+        document.createElement(
+          "strong"
+        );
 
       strong.textContent =
         exercise.name;
 
-      const muscleText =
-        document.createElement("span");
+      const sub =
+        document.createElement(
+          "span"
+        );
 
-      muscleText.textContent =
-        (exercise.primaryMuscles || [])
-          .map(getMuscleLabel)
-          .join(" \u00B7 ");
+      sub.textContent =
+        getExercisePrescriptionSummary(
+          exercise,
+          entry
+        );
 
-      open.append(strong, muscleText);
+      copy.append(
+        strong,
+        sub
+      );
+
+      const chevron =
+        document.createElement(
+          "span"
+        );
+
+      chevron.className =
+        "workout-exercise-row__chevron";
+
+      chevron.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+      chevron.textContent =
+        "\u25BC";
+
+      summary.append(
+        copy,
+        chevron
+      );
+
+      const body =
+        document.createElement(
+          "div"
+        );
+
+      body.className =
+        "workout-exercise-row__body";
+
+      body.hidden =
+        !expanded;
 
       const metrics =
-        document.createElement("div");
+        document.createElement(
+          "div"
+        );
 
       metrics.className =
         "workout-exercise-row__prescription";
 
       const fields =
-        exercise.logging?.fields || [];
+        exercise.logging
+          ?.fields ||
+        [];
 
-      if (fields.includes("sets")) {
+      if (
+        fields.includes(
+          "sets"
+        )
+      ) {
         metrics.appendChild(
           makeMetricInput({
-            label: "Sets",
-            field: "sets",
-            value: entry.sets ?? "",
-            min: 1,
-            max: 20,
-            step: 1,
-            inputMode: "numeric"
-          })
-        );
-      }
-
-      if (fields.includes("reps")) {
-        metrics.appendChild(
-          makeMetricInput({
-            label: "Reps",
-            field: "reps",
-            value: entry.reps ?? "",
-            min: 1,
-            max: 200,
-            step: 1,
-            inputMode: "numeric"
+            label:
+              "Sets",
+            field:
+              "sets",
+            value:
+              entry.sets ??
+              "",
+            min:
+              1,
+            max:
+              20,
+            step:
+              1,
+            inputMode:
+              "numeric"
           })
         );
       }
 
       if (
-        fields.includes("weight") ||
-        fields.includes("added_weight")
+        fields.includes(
+          "reps"
+        )
       ) {
         metrics.appendChild(
           makeMetricInput({
-            label: "Weight",
+            label:
+              "Reps",
             field:
-              fields.includes("weight")
+              "reps",
+            value:
+              entry.reps ??
+              "",
+            min:
+              1,
+            max:
+              200,
+            step:
+              1,
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "weight"
+        ) ||
+        fields.includes(
+          "added_weight"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Weight",
+            field:
+              fields.includes(
+                "weight"
+              )
                 ? "weight"
                 : "added_weight",
             value:
               entry.weight ??
               entry.added_weight ??
               "",
-            min: 0,
-            step: 0.5
+            min:
+              0,
+            step:
+              0.5
           })
         );
       }
 
       if (
-        fields.includes("duration_minutes")
+        fields.includes(
+          "duration_minutes"
+        )
       ) {
         metrics.appendChild(
           makeMetricInput({
-            label: "Minutes",
-            field: "durationMinutes",
+            label:
+              "Minutes",
+            field:
+              "durationMinutes",
             value:
-              entry.durationMinutes ?? "",
-            min: 1,
-            max: 600,
-            step: 1,
-            inputMode: "numeric"
+              entry.durationMinutes ??
+              "",
+            min:
+              1,
+            max:
+              600,
+            step:
+              1,
+            inputMode:
+              "numeric"
           })
         );
       }
 
       if (
-        fields.includes("duration_seconds")
+        fields.includes(
+          "duration_seconds"
+        )
       ) {
         metrics.appendChild(
           makeMetricInput({
-            label: "Seconds",
-            field: "durationSeconds",
+            label:
+              "Seconds",
+            field:
+              "durationSeconds",
             value:
-              entry.durationSeconds ?? "",
-            min: 1,
-            max: 3600,
-            step: 1,
-            inputMode: "numeric"
-          })
-        );
-      }
-
-      if (fields.includes("distance")) {
-        metrics.appendChild(
-          makeMetricInput({
-            label: "Distance",
-            field: "distance",
-            value:
-              entry.distance ?? "",
-            min: 0,
-            step: 0.1
-          })
-        );
-      }
-
-      if (fields.includes("rounds")) {
-        metrics.appendChild(
-          makeMetricInput({
-            label: "Rounds",
-            field: "rounds",
-            value:
-              entry.rounds ?? "",
-            min: 1,
-            max: 100,
-            step: 1,
-            inputMode: "numeric"
+              entry.durationSeconds ??
+              "",
+            min:
+              1,
+            max:
+              3600,
+            step:
+              1,
+            inputMode:
+              "numeric"
           })
         );
       }
 
       if (
-        fields.includes("work_seconds")
+        fields.includes(
+          "distance"
+        )
       ) {
         metrics.appendChild(
           makeMetricInput({
-            label: "Work sec",
-            field: "workSeconds",
+            label:
+              "Distance",
+            field:
+              "distance",
             value:
-              entry.workSeconds ?? "",
-            min: 1,
-            max: 3600,
-            step: 1,
-            inputMode: "numeric"
+              entry.distance ??
+              "",
+            min:
+              0,
+            step:
+              0.1
           })
         );
       }
 
       if (
-        fields.includes("rest_seconds")
+        fields.includes(
+          "rounds"
+        )
       ) {
         metrics.appendChild(
           makeMetricInput({
-            label: "Rest sec",
-            field: "restSeconds",
+            label:
+              "Rounds",
+            field:
+              "rounds",
             value:
-              entry.restSeconds ?? "",
-            min: 0,
-            max: 3600,
-            step: 1,
-            inputMode: "numeric"
+              entry.rounds ??
+              "",
+            min:
+              1,
+            max:
+              100,
+            step:
+              1,
+            inputMode:
+              "numeric"
           })
         );
       }
+
+      if (
+        fields.includes(
+          "work_seconds"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Work sec",
+            field:
+              "workSeconds",
+            value:
+              entry.workSeconds ??
+              "",
+            min:
+              1,
+            max:
+              3600,
+            step:
+              1,
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "rest_seconds"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Rest sec",
+            field:
+              "restSeconds",
+            value:
+              entry.restSeconds ??
+              "",
+            min:
+              0,
+            max:
+              3600,
+            step:
+              1,
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      const actions =
+        document.createElement(
+          "div"
+        );
+
+      actions.className =
+        "workout-exercise-row__actions";
+
+      const detail =
+        document.createElement(
+          "button"
+        );
+
+      detail.type =
+        "button";
+
+      detail.className =
+        "workout-exercise-row__detail";
+
+      detail.dataset.workoutAction =
+        "open-exercise-detail";
+
+      detail.dataset.exerciseId =
+        exercise.id;
+
+      detail.textContent =
+        "View Exercise";
 
       const remove =
-        document.createElement("button");
+        document.createElement(
+          "button"
+        );
 
-      remove.type = "button";
+      remove.type =
+        "button";
+
       remove.className =
         "workout-exercise-row__remove";
+
       remove.dataset.workoutAction =
         "remove-exercise";
+
       remove.dataset.exerciseIndex =
         String(index);
-      remove.setAttribute(
-        "aria-label",
-        `Remove ${exercise.name}`
-      );
-      remove.textContent = "\u00D7";
 
-      row.append(open, metrics, remove);
-      dom.workoutDayExerciseList.appendChild(row);
+      remove.textContent =
+        "Remove";
+
+      actions.append(
+        detail,
+        remove
+      );
+
+      body.append(
+        metrics,
+        actions
+      );
+
+      row.append(
+        summary,
+        body
+      );
+
+      dom.workoutDayExerciseList
+        .appendChild(
+          row
+        );
     }
   );
 }
@@ -1723,13 +2028,19 @@ function openExerciseDetail(
   openDialog(dom.exerciseDetailDialog);
 }
 
-function addExerciseToActiveDay(exerciseId) {
-  if (!state.activeDay) {
+function addExerciseToActiveDay(
+  exerciseId
+) {
+  if (
+    !state.activeDay
+  ) {
     return false;
   }
 
   const exercise =
-    ExerciseRegistry.get(exerciseId);
+    ExerciseRegistry.get(
+      exerciseId
+    );
 
   if (!exercise) {
     return false;
@@ -1737,7 +2048,9 @@ function addExerciseToActiveDay(exerciseId) {
 
   const dayState =
     WorkoutPlanController
-      .getDay(state.activeDay);
+      .getDay(
+        state.activeDay
+      );
 
   const focus =
     WorkoutFocuses.get(
@@ -1746,7 +2059,8 @@ function addExerciseToActiveDay(exerciseId) {
 
   if (
     focus &&
-    focus.id !== "custom" &&
+    focus.id !==
+      "custom" &&
     !exerciseMatchesFocus(
       exercise,
       focus
@@ -1754,7 +2068,10 @@ function addExerciseToActiveDay(exerciseId) {
   ) {
     showToast(
       `${exercise.name} does not match the selected Training Focus.`,
-      { error: true }
+      {
+        error:
+          true
+      }
     );
 
     return false;
@@ -1763,34 +2080,55 @@ function addExerciseToActiveDay(exerciseId) {
   const defaults = {};
 
   const fields =
-    exercise.logging?.fields || [];
+    exercise.logging
+      ?.fields ||
+    [];
 
-  if (fields.includes("sets")) {
-    defaults.sets = 3;
-  }
-
-  if (fields.includes("reps")) {
-    defaults.reps = 10;
+  if (
+    fields.includes(
+      "sets"
+    )
+  ) {
+    defaults.sets =
+      3;
   }
 
   if (
-    fields.includes("duration_minutes")
+    fields.includes(
+      "reps"
+    )
   ) {
-    defaults.durationMinutes = 30;
+    defaults.reps =
+      10;
   }
 
   if (
-    fields.includes("duration_seconds")
+    fields.includes(
+      "duration_minutes"
+    )
   ) {
-    defaults.durationSeconds = 30;
+    defaults.durationMinutes =
+      30;
+  }
+
+  if (
+    fields.includes(
+      "duration_seconds"
+    )
+  ) {
+    defaults.durationSeconds =
+      30;
   }
 
   if (
     exercise.energyProfile
       ?.intensityOptions
-      ?.includes("moderate")
+      ?.includes(
+        "moderate"
+      )
   ) {
-    defaults.intensity = "moderate";
+    defaults.intensity =
+      "moderate";
   }
 
   const added =
@@ -1801,17 +2139,67 @@ function addExerciseToActiveDay(exerciseId) {
         defaults
       );
 
-  if (added) {
-    renderAll();
-    renderDayExercises();
-    scheduleAutosave();
-
-    showToast(
-      `${exercise.name} added.`
-    );
+  if (!added) {
+    return false;
   }
 
-  return added;
+  const updatedDay =
+    WorkoutPlanController
+      .getDay(
+        state.activeDay
+      );
+
+  state.expandedExerciseIndex =
+    Math.max(
+      (
+        updatedDay
+          ?.exercises
+          ?.length ||
+        1
+      ) - 1,
+      0
+    );
+
+  closeDialog(
+    dom.workoutExercisePicker
+  );
+
+  renderWeek();
+  renderDayExercises();
+
+  scheduleAutosave();
+
+  showToast(
+    `${exercise.name} added.`
+  );
+
+  requestAnimationFrame(
+    () => {
+      const row =
+        dom.workoutDayExerciseList
+          ?.querySelector(
+            `[data-exercise-index="${state.expandedExerciseIndex}"]`
+          );
+
+      row?.scrollIntoView({
+        behavior:
+          "smooth",
+        block:
+          "nearest"
+      });
+
+      row
+        ?.querySelector(
+          "input"
+        )
+        ?.focus({
+          preventScroll:
+            true
+        });
+    }
+  );
+
+  return true;
 }
 
 function updateDayFromEditor() {
@@ -1940,8 +2328,75 @@ async function savePlan({
   }
 }
 
+async function saveNow() {
+  window.clearTimeout(
+    state.autosaveTimer
+  );
+
+  try {
+    return await WorkoutPlanController
+      .save({
+        remote:
+          true
+      });
+  } catch (error) {
+    console.error(
+      "Workout plan save failed.",
+      error
+    );
+
+    return false;
+  }
+}
+
+async function finishDayEditor() {
+  updateDayFromEditor();
+
+  if (
+    dom.workoutDayDoneButton
+  ) {
+    dom.workoutDayDoneButton.disabled =
+      true;
+
+    dom.workoutDayDoneButton.textContent =
+      "Saving...";
+  }
+
+  const success =
+    await saveNow();
+
+  if (
+    dom.workoutDayDoneButton
+  ) {
+    dom.workoutDayDoneButton.disabled =
+      false;
+
+    dom.workoutDayDoneButton.textContent =
+      "Done";
+  }
+
+  closeDialog(
+    dom.workoutDayEditor
+  );
+
+  state.expandedExerciseIndex =
+    null;
+
+  setActiveTab(
+    "week"
+  );
+
+  renderWeek();
+
+  showToast(
+    success
+      ? "Workout day saved."
+      : "Saved on this device. Cloud sync is unavailable."
+  );
+}
+
+
 function renderAll() {
-  renderOverview();
   renderWeek();
 
   if (state.activeTab === "templates") {
@@ -2151,47 +2606,6 @@ function handleChange(event) {
   }
 
   if (
-    target.matches(
-      '[data-workout-action="secondary-goal"]'
-    )
-  ) {
-    const selected =
-      Array.from(
-        dom.workoutSecondaryGoals
-          .querySelectorAll(
-            'input[type="checkbox"]:checked'
-          )
-      )
-        .map(input => input.value);
-
-    WorkoutPlanController
-      .setSecondaryGoals(selected);
-
-    renderOverview();
-    scheduleAutosave();
-    return;
-  }
-
-  if (
-    target.matches(
-      '[data-workout-action="custom-day-focus"]'
-    )
-  ) {
-    const day =
-      target.dataset.day;
-
-    WorkoutPlanController
-      .setDayFocus(
-        day,
-        target.value
-      );
-
-    renderAll();
-    scheduleAutosave();
-    return;
-  }
-
-  if (
     target === dom.workoutDayType ||
     target === dom.workoutDayFocus
   ) {
@@ -2270,7 +2684,6 @@ function handleInput(event) {
 
       renderOverview();
       renderWeek();
-      renderCustomBuilder();
       scheduleAutosave();
     }
 
@@ -2321,14 +2734,6 @@ function bindEvents() {
       () => {
         window.location.href =
           "ari-training.html";
-      }
-    );
-
-  dom.workoutPlansSaveButton
-    ?.addEventListener(
-      "click",
-      () => {
-        savePlan();
       }
     );
 
@@ -2387,7 +2792,7 @@ async function boot() {
       WorkoutPlanController
         .subscribe(
           () => {
-            renderOverview();
+            renderWeek();
           }
         );
 
