@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 2.2.0
+// Version: 2.2.1
 // Purpose:
 //   Summary + execution controller for ari-training.html.
 //
@@ -42,7 +42,7 @@ import CalorieCalculator
 import HeartRateIntensity
   from "./training/energy/heart-rate-intensity.js";
 
-const VERSION = "2.2.0";
+const VERSION = "2.2.1";
 const SOURCE = "js/ari-training";
 
 const DAYS = Object.freeze([
@@ -678,20 +678,16 @@ function createWeeklyDayElement(
   );
 
   /*
-   * Today's day opens automatically.
+   * Every workout day starts collapsed.
+   * The user chooses which day to expand.
    */
-  if (
-    day ===
-      state.currentDay
-  ) {
-    body.hidden =
-      false;
+  body.hidden =
+    true;
 
-    button.setAttribute(
-      "aria-expanded",
-      "true"
-    );
-  }
+  button.setAttribute(
+    "aria-expanded",
+    "false"
+  );
 
   return fragment;
 }
