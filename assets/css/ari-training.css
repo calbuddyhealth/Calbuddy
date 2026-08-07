@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/ari-training.css
-   Version: 3.1.0
+   Version: 3.2.0
 
    Purpose:
    Complete visual redesign for the ARI Training
@@ -1519,5 +1519,272 @@ summary:focus-visible {
 
   .ari-weekly-plan-day__intensity-pill {
     align-self: flex-start;
+  }
+}
+
+
+/* =====================================================
+   V3.2.0 CONTRAST UPDATE
+
+   Design rules:
+   - Collapsed workout-day rows stay dark.
+   - Expanded exercise/workout cards become white.
+   - Average-heart-rate panel becomes heart red.
+   - Day headers remain part of the dark ARI Training shell.
+===================================================== */
+
+
+/* -----------------------------------------------------
+   COLLAPSED / DAY SHELL
+----------------------------------------------------- */
+
+.ari-weekly-plan-day {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(7, 19, 25, 0.98),
+      rgba(3, 11, 16, 0.98)
+    );
+  border-color: rgba(92, 231, 255, 0.16);
+}
+
+.ari-weekly-plan-day__header {
+  background: transparent;
+  color: var(--ari-training-text);
+}
+
+.ari-weekly-plan-day__body {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(4, 14, 19, 0.98),
+      rgba(4, 12, 17, 0.98)
+    );
+}
+
+
+/* -----------------------------------------------------
+   HEART-RATE PANEL â RED / HEART VISUAL
+----------------------------------------------------- */
+
+.ari-weekly-plan-day__heart-rate {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 91, 112, 0.44);
+  background:
+    radial-gradient(
+      circle at 92% 8%,
+      rgba(255, 87, 111, 0.25),
+      transparent 34%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(84, 13, 25, 0.96),
+      rgba(42, 8, 16, 0.98)
+    );
+  box-shadow:
+    inset 0 0 28px rgba(255, 73, 102, 0.06),
+    0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.ari-weekly-plan-day__heart-rate::after {
+  content: "â¥";
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  z-index: 0;
+  color: rgba(255, 112, 131, 0.13);
+  font-size: clamp(3rem, 12vw, 5.6rem);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.ari-weekly-plan-day__heart-rate > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-section-heading__eyebrow {
+  color: #ff8fa2;
+}
+
+.ari-weekly-plan-day__heart-rate-heading h4,
+.ari-weekly-plan-day__heart-rate-label {
+  color: #fff6f7;
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-input-with-unit input {
+  border-color: rgba(255, 126, 145, 0.50);
+  background: rgba(20, 4, 8, 0.82);
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-input-with-unit input::placeholder {
+  color: rgba(255, 232, 236, 0.54);
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-input-with-unit span {
+  color: #ffb3bf;
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-weekly-plan-day__intensity-result {
+  border-left-color: rgba(255, 120, 140, 0.78);
+  background: rgba(24, 4, 9, 0.58);
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-weekly-plan-day__intensity-result > span {
+  color: rgba(255, 211, 218, 0.70);
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-weekly-plan-day__intensity-result strong {
+  color: #ffd7dd;
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-weekly-plan-day__intensity-result small {
+  color: rgba(255, 225, 230, 0.66);
+}
+
+.ari-weekly-plan-day__heart-rate
+  .ari-weekly-plan-day__intensity-pill {
+  color: #ffd7dd;
+  border-color: rgba(255, 133, 151, 0.35);
+  background: rgba(36, 4, 11, 0.60);
+}
+
+
+/* -----------------------------------------------------
+   EXPANDED WORKOUT / EXERCISE CARDS â WHITE
+----------------------------------------------------- */
+
+.ari-weekly-plan-day__exercise-list {
+  gap: 14px;
+}
+
+.ari-planned-exercise {
+  border: 1px solid rgba(9, 36, 46, 0.12);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(245, 250, 252, 0.99)
+    );
+  color: #0b1a21;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.ari-planned-exercise__type {
+  color: #0a9fba;
+}
+
+.ari-planned-exercise__name {
+  color: #07151c;
+}
+
+.ari-planned-exercise__prescription {
+  color: #61727c;
+}
+
+.ari-planned-exercise__calories {
+  color: #087f95;
+}
+
+
+/* -----------------------------------------------------
+   SET ROWS INSIDE WHITE WORKOUT CARDS
+----------------------------------------------------- */
+
+.ari-planned-set__control,
+.ari-planned-exercise__complete-control {
+  border-color: rgba(8, 56, 69, 0.13);
+  background: #edf4f7;
+  color: #0b1a21;
+}
+
+.ari-planned-set__check,
+.ari-planned-exercise__check {
+  border-color: rgba(8, 91, 108, 0.38);
+  background: #ffffff;
+}
+
+.ari-planned-set__label,
+.ari-planned-exercise__complete-label {
+  color: #0b1a21;
+}
+
+.ari-planned-set__prescription {
+  color: #667983;
+}
+
+.ari-planned-set__calories,
+.ari-planned-exercise__single-calories {
+  color: #087f95;
+  font-weight: 800;
+}
+
+.ari-planned-set__checkbox:checked
+  + .ari-planned-set__control,
+.ari-planned-exercise__complete-checkbox:checked
+  + .ari-planned-exercise__complete-control {
+  border-color: rgba(12, 157, 112, 0.34);
+  background: #e5f8f0;
+}
+
+.ari-planned-set__checkbox:checked
+  + .ari-planned-set__control
+  .ari-planned-set__check,
+.ari-planned-exercise__complete-checkbox:checked
+  + .ari-planned-exercise__complete-control
+  .ari-planned-exercise__check {
+  color: #ffffff;
+  border-color: #0eaf7c;
+  background: #0eaf7c;
+}
+
+
+/* -----------------------------------------------------
+   KEEP DAY FOOTER DARK
+----------------------------------------------------- */
+
+.ari-weekly-plan-day__footer {
+  color: var(--ari-training-text-muted);
+  border-top-color: rgba(92, 231, 255, 0.09);
+}
+
+
+/* -----------------------------------------------------
+   MOBILE REFINEMENTS
+----------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .ari-weekly-plan-day__body {
+    padding:
+      0
+      12px
+      14px;
+  }
+
+  .ari-weekly-plan-day__heart-rate {
+    margin-top: 14px;
+    border-radius: 16px;
+  }
+
+  .ari-planned-exercise {
+    border-radius: 17px;
+  }
+
+  .ari-planned-set__control,
+  .ari-planned-exercise__complete-control {
+    border-radius: 13px;
   }
 }
