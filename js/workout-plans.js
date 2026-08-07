@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 2.0.0
+// Version: 2.0.1
 // Purpose:
 //   Page controller for workout-plans.html.
 //
@@ -34,7 +34,7 @@ import Muscles from "./training/anatomy/muscles.js";
 import MovementPatterns from "./training/movements/movement-patterns.js";
 import ExerciseTypes from "./training/movements/exercise-types.js";
 
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
 const SOURCE = "js/workout-plans";
 
 const DAYS = Object.freeze([
@@ -2403,9 +2403,6 @@ function renderAll() {
     renderTemplates();
   }
 
-  if (state.activeTab === "custom") {
-    renderCustomBuilder();
-  }
 
   if (state.activeTab === "library") {
     renderExerciseLibrary();
@@ -2448,6 +2445,29 @@ function handleClick(event) {
     case "close-day-editor":
       closeDialog(dom.workoutDayEditor);
       break;
+
+    case "done-day":
+      finishDayEditor();
+      break;
+
+    case "toggle-exercise-row": {
+      const index =
+        Number(
+          actionNode.dataset.exerciseIndex ??
+          actionNode.closest("[data-exercise-index]")?.dataset?.exerciseIndex
+        );
+
+      if (Number.isInteger(index)) {
+        state.expandedExerciseIndex =
+          state.expandedExerciseIndex === index
+            ? null
+            : index;
+
+        renderDayExercises();
+      }
+
+      break;
+    }
 
     case "open-exercise-picker":
       openExercisePicker();
