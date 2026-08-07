@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/workout-plans.css
-   Version: 1.0.0
+   Version: 2.0.0
    Purpose:
    - Visual system for workout-plans.html
    - Futuristic ARI Training command-center aesthetic
@@ -1219,5 +1219,140 @@ input {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+
+/* =====================================================
+   V2.0.0 SIMPLIFIED WORKOUT PLANNER
+===================================================== */
+
+.workout-plans-header {
+  grid-template-columns: auto 1fr 46px;
+}
+
+.workout-plans-header__spacer {
+  width: 46px;
+  height: 46px;
+}
+
+.workout-plans-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workout-plans-tab {
+  min-width: 0;
+}
+
+.workout-section-header > div > p:last-child {
+  margin-bottom: 0;
+}
+
+.workout-exercise-row {
+  padding: 0;
+  overflow: hidden;
+}
+
+.workout-exercise-row__summary {
+  width: 100%;
+  min-height: 72px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--wp-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workout-exercise-row__summary-copy {
+  min-width: 0;
+}
+
+.workout-exercise-row__summary-copy strong,
+.workout-exercise-row__summary-copy span {
+  display: block;
+}
+
+.workout-exercise-row__summary-copy strong {
+  font-size: 0.92rem;
+}
+
+.workout-exercise-row__summary-copy span {
+  margin-top: 5px;
+  color: var(--wp-muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.workout-exercise-row__chevron {
+  color: var(--wp-accent);
+  transition: transform 160ms ease;
+}
+
+.workout-exercise-row[data-expanded="true"]
+  .workout-exercise-row__chevron {
+  transform: rotate(180deg);
+}
+
+.workout-exercise-row__body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(109, 232, 255, 0.10);
+}
+
+.workout-exercise-row__body
+  .workout-exercise-row__prescription {
+  padding-top: 12px;
+}
+
+.workout-exercise-row__actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workout-exercise-row__detail,
+.workout-exercise-row__remove {
+  min-height: 40px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.workout-exercise-row__detail {
+  border: 1px solid var(--wp-border);
+  background: transparent;
+  color: var(--wp-accent);
+}
+
+.workout-exercise-row__remove {
+  border: 1px solid rgba(255, 126, 138, 0.28);
+  background: rgba(255, 126, 138, 0.07);
+  color: #ff9ca7;
+}
+
+#workoutDayDoneButton {
+  width: 100%;
+  margin-top: 16px;
+}
+
+@media (max-width: 560px) {
+  .workout-plans-tabs {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .workout-plans-tab {
+    padding-inline: 5px;
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+  }
+
+  .workout-exercise-row__prescription {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
