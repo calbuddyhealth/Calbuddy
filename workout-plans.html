@@ -16,7 +16,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=2.0.0" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -39,14 +39,7 @@
         <p class="workout-plans-header__eyebrow">ARI TRAINING</p>
         <h1>Workout Plans</h1>
       </div>
-
-      <button
-        id="workoutPlansSaveButton"
-        class="workout-plans-header__save"
-        type="button"
-      >
-        Save
-      </button>
+      <span class="workout-plans-header__spacer" aria-hidden="true"></span>
     </header>
 
     <!-- =====================================================
@@ -60,45 +53,6 @@
     >
       Loading your training system&hellip;
     </div>
-
-    <!-- =====================================================
-         PLAN OVERVIEW
-    ====================================================== -->
-    <section class="workout-plan-overview" aria-labelledby="workoutPlanName">
-      <div class="workout-plan-overview__identity">
-        <p class="workout-section-eyebrow">CURRENT PROGRAM</p>
-
-        <input
-          id="workoutPlanName"
-          class="workout-plan-name"
-          type="text"
-          maxlength="120"
-          value="My Weekly Plan"
-          aria-label="Workout plan name"
-        />
-
-        <p id="workoutPlanGoalSummary" class="workout-plan-overview__goal">
-          Choose a fitness goal to personalize your training.
-        </p>
-      </div>
-
-      <div class="workout-plan-overview__stats">
-        <div class="workout-overview-stat">
-          <strong id="workoutDaysCount">0</strong>
-          <span>Training Days</span>
-        </div>
-
-        <div class="workout-overview-stat">
-          <strong id="workoutOffDaysCount">7</strong>
-          <span>Off Days</span>
-        </div>
-
-        <div class="workout-overview-stat">
-          <strong id="workoutExerciseCount">0</strong>
-          <span>Exercises</span>
-        </div>
-      </div>
-    </section>
 
     <!-- =====================================================
          MAIN NAVIGATION
@@ -125,16 +79,6 @@
       </button>
 
       <button
-        id="workoutTabCustom"
-        class="workout-plans-tab"
-        type="button"
-        data-workout-tab="custom"
-        aria-selected="false"
-      >
-        Build Custom
-      </button>
-
-      <button
         id="workoutTabLibrary"
         class="workout-plans-tab"
         type="button"
@@ -155,10 +99,10 @@
     >
       <header class="workout-section-header">
         <div>
-          <p class="workout-section-eyebrow">7-DAY TRAINING SYSTEM</p>
+          <p class="workout-section-eyebrow">YOUR SCHEDULE</p>
           <h2>My Week</h2>
           <p>
-            Build your week around training days, recovery, and scheduled off days.
+            Tap a day to set its focus and exercises.
           </p>
         </div>
       </header>
@@ -179,10 +123,10 @@
     >
       <header class="workout-section-header">
         <div>
-          <p class="workout-section-eyebrow">START WITH A SYSTEM</p>
-          <h2>Suggested Templates</h2>
+          <p class="workout-section-eyebrow">QUICK START</p>
+          <h2>Templates</h2>
           <p>
-            Choose a starting program, then customize every day and exercise.
+            Choose a plan, then edit any day.
           </p>
         </div>
       </header>
@@ -216,54 +160,6 @@
       <div id="workoutTemplateEmpty" class="workout-empty-state" hidden>
         No templates match those filters.
       </div>
-    </section>
-
-    <!-- =====================================================
-         BUILD CUSTOM
-    ====================================================== -->
-    <section
-      id="workoutPanelCustom"
-      class="workout-plans-panel"
-      data-workout-panel="custom"
-      hidden
-    >
-      <header class="workout-section-header">
-        <div>
-          <p class="workout-section-eyebrow">BUILD YOUR OWN PROGRAM</p>
-          <h2>Build Custom</h2>
-          <p>
-            Choose your goal, then assign familiar training focuses such as
-            Chest Day, Leg Day, Upper Body, Full Body, Cardio, or Off Day.
-          </p>
-        </div>
-      </header>
-
-      <section class="workout-builder-card">
-        <label class="workout-builder-field">
-          <span>Primary Fitness Goal</span>
-          <select id="workoutPrimaryGoal">
-            <option value="">Choose a goal</option>
-          </select>
-        </label>
-
-        <div>
-          <p class="workout-builder-label">Secondary Goals</p>
-          <div id="workoutSecondaryGoals" class="workout-choice-grid"></div>
-        </div>
-      </section>
-
-      <section class="workout-builder-card">
-        <div class="workout-builder-card__header">
-          <div>
-            <p class="workout-section-eyebrow">WEEK STRUCTURE</p>
-            <h3>Choose Each Day</h3>
-          </div>
-        </div>
-
-        <div id="workoutCustomWeek" class="workout-custom-week">
-          <!-- Rendered by js/workout-plans.js -->
-        </div>
-      </section>
     </section>
 
     <!-- =====================================================
@@ -415,7 +311,7 @@
           id="workoutDayDoneButton"
           class="workout-primary-action"
           type="button"
-          data-workout-action="close-day-editor"
+          data-workout-action="done-day"
         >
           Done
         </button>
@@ -677,7 +573,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=1.0.0"
+    src="js/workout-plans.js?v=2.0.0"
   ></script>
 </body>
 </html>
