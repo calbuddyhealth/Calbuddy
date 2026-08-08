@@ -1,35 +1,20 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.1.1
+// Version: 4.2.0
 // Purpose:
 //   Calendar-first ARI Training controller.
 //
-// V4.1.0 improvements:
-//   - Hardened Start Workout flow with immediate visual feedback.
-//   - Prevents double-starts and restores an existing open session.
-//   - Clear visible runtime errors instead of a "dead" button.
-//   - Supabase remains source of truth for active/completed sessions.
-//   - Local cache protects the live workout UI across refreshes.
-//   - First planned exercise becomes CURRENT after session creation.
-//   - Fixed ad-hoc workout picker opening order.
-//   - Avoids a rest timer after the final required work is complete.
-//   - Safer async selected-day rendering to prevent stale date renders.
-//   - Better calendar completion cache and date rollover handling.
-//   - Cleaner logging for troubleshooting without exposing UI internals.
-//
-// Existing modules:
-//   workout-plan-controller.js
-//   workout-progress-store.js
-//   exercise-registry.js
-//   calorie-calculator.js
-//   heart-rate-intensity.js
-//
-// Supabase tables:
-//   ari_workout_sessions
-//   ari_workout_session_exercises
-//   ari_workout_session_sets
-//   ari_workout_heart_rate_readings
+// V4.2.0:
+//   - Uses workout-session-api.js V2.0.0 for workout-session
+//     Supabase persistence.
+//   - Preserves the working V4.1.1 calendar-first UI.
+//   - Preserves local refresh protection/offline workout mode.
+//   - Preserves planned workouts, quick workouts, Train Again,
+//     pause/resume, current exercise, Do Later, skip, rest timer,
+//     manual HR, finish review, calories, performance/history,
+//     and profile drawers.
+//   - Fixes corrupted symbols.
 // =====================================================
 
 import WorkoutPlanController
@@ -37,6 +22,9 @@ import WorkoutPlanController
 
 import WorkoutProgressStore
   from "./training/workout-progress-store.js";
+
+import WorkoutSessionApi
+  from "./training/workout-session-api.js";
 
 import ExerciseRegistry
   from "./training/exercises/exercise-registry.js";
@@ -47,7 +35,8 @@ import CalorieCalculator
 import HeartRateIntensity
   from "./training/energy/heart-rate-intensity.js";
 
-const VERSION = "4.1.1";
+
+const VERSION = "4.2.0";
 const SOURCE = "js/ari-training";
 
 const DAYS = Object.freeze([
@@ -71,12 +60,21 @@ const OPEN_SESSION_STATUSES = Object.freeze([
 ]);
 
 const DEFAULT_REST_SECONDS = 90;
-const LOCAL_SESSION_CACHE_KEY = "ari_training_active_session_cache_v3";
-const LOCAL_SELECTED_DATE_KEY = "ari_training_selected_date_v1";
-const LOCAL_COMPLETED_CACHE_KEY = "ari_training_completed_sessions_v2";
+
+const LOCAL_SESSION_CACHE_KEY =
+  "ari_training_active_session_cache_v3";
+
+const LOCAL_SELECTED_DATE_KEY =
+  "ari_training_selected_date_v1";
+
+const LOCAL_COMPLETED_CACHE_KEY =
+  "ari_training_completed_sessions_v2";
+
 
 const state = {
   initialized: false,
+  initializing: false,
+
   user: null,
   plan: null,
 
@@ -99,7 +97,6 @@ const state = {
 
   saving: false,
   currentDrawer: null,
-
   selectedDayRenderToken: 0,
 
   sessionTimerId: null,
@@ -112,61 +109,98 @@ const state = {
 
 const elements = {};
 
+
 /* =====================================================
    INITIALIZATION
 ===================================================== */
 
 async function initialize() {
+  if (state.initializing) return;
+
   if (state.initialized) {
     await refresh();
     return;
   }
 
-  cacheElements();
-  bindEvents();
-
-  state.todayDateKey = getLocalDateKey();
-  state.selectedDateKey = restoreSelectedDate() || state.todayDateKey;
-  state.calendarMonthDate = dateFromKey(state.selectedDateKey) || new Date();
-
-  await resolveCurrentUser();
-  await loadTrainingProfile();
-
-  WorkoutProgressStore.hydrate();
+  state.initializing = true;
 
   try {
-    await WorkoutPlanController.init();
-  } catch (error) {
-    console.error("[ARI Training] Plan initialization failed.", error);
-  }
+    cacheElements();
+    bindEvents();
 
-  state.plan = WorkoutPlanController.getPlan();
-  syncProgressWithPlan();
+    try {
+      WorkoutSessionApi.configure();
+    } catch (error) {
+      console.warn(
+        "[ARI Training] Session API unavailable; local mode remains available.",
+        error
+      );
+    }
 
-  state.unsubscribePlan = WorkoutPlanController.subscribe(() => {
+    state.todayDateKey = getLocalDateKey();
+    state.selectedDateKey =
+      restoreSelectedDate() || state.todayDateKey;
+
+    state.calendarMonthDate =
+      dateFromKey(state.selectedDateKey) || new Date();
+
+    await resolveCurrentUser();
+    await loadTrainingProfile();
+
+    WorkoutProgressStore.hydrate();
+
+    try {
+      await WorkoutPlanController.init();
+    } catch (error) {
+      console.error(
+        "[ARI Training] Plan initialization failed.",
+        error
+      );
+    }
+
     state.plan = WorkoutPlanController.getPlan();
     syncProgressWithPlan();
-    renderCalendar();
-    void renderSelectedDay();
-  });
 
-  state.unsubscribeProgress = WorkoutProgressStore.subscribe(() => {
-    renderCalendar();
-    void renderSelectedDay();
-  });
+    state.unsubscribePlan =
+      WorkoutPlanController.subscribe(() => {
+        state.plan = WorkoutPlanController.getPlan();
+        syncProgressWithPlan();
+        renderCalendar();
+        void renderSelectedDay();
+      });
 
-  await restoreOpenSession();
+    state.unsubscribeProgress =
+      WorkoutProgressStore.subscribe(() => {
+        renderCalendar();
+        void renderSelectedDay();
+      });
 
-  state.initialized = true;
+    await restoreOpenSession();
 
-  startRuntimeTimers();
-  renderAll();
-  publishGlobal();
+    state.initialized = true;
 
-  console.info(
-    `[ARI Training] Runtime initialized. Version ${VERSION}.`
-  );
+    startRuntimeTimers();
+    renderAll();
+    publishGlobal();
+
+    console.info(
+      `[ARI Training] Runtime initialized. Version ${VERSION}.`
+    );
+  } catch (error) {
+    console.error(
+      "[ARI Training] Initialization failed.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(error, "Training could not finish loading."),
+      "error"
+    );
+  } finally {
+    state.initializing = false;
+  }
 }
+
 
 function cacheElements() {
   const ids = [
@@ -300,61 +334,135 @@ function cacheElements() {
   }
 }
 
+
 function bindEvents() {
-  elements.trainingMenuButton?.addEventListener("click", toggleTrainingMenu);
-  elements.trainingMenu?.addEventListener("click", handleTrainingMenuClick);
+  elements.trainingMenuButton
+    ?.addEventListener("click", toggleTrainingMenu);
 
-  elements.trainingDateTrigger?.addEventListener("click", toggleCalendar);
-  elements.trainingTodayShortcut?.addEventListener("click", selectToday);
-  elements.trainingPreviousMonthButton?.addEventListener("click", () => moveCalendarMonth(-1));
-  elements.trainingNextMonthButton?.addEventListener("click", () => moveCalendarMonth(1));
-  elements.trainingWeekStrip?.addEventListener("click", handleCalendarDateClick);
-  elements.trainingCalendarGrid?.addEventListener("click", handleCalendarDateClick);
+  elements.trainingMenu
+    ?.addEventListener("click", handleTrainingMenuClick);
 
-  elements.startTodayWorkoutButton?.addEventListener("click", startSelectedPlannedWorkout);
-  elements.startUnplannedWorkoutButton?.addEventListener("click", startAdHocWorkout);
-  elements.trainOnRestDayButton?.addEventListener("click", startAdHocWorkout);
-  elements.trainAgainButton?.addEventListener("click", startTrainAgainWorkout);
+  elements.trainingDateTrigger
+    ?.addEventListener("click", toggleCalendar);
 
-  elements.pauseTodayWorkoutButton?.addEventListener("click", togglePauseResume);
-  elements.todayCurrentExerciseSets?.addEventListener("click", handleLiveSetClick);
-  elements.todayExerciseList?.addEventListener("click", handleSessionExerciseQueueClick);
-  elements.doCurrentExerciseLaterButton?.addEventListener("click", doCurrentExerciseLater);
-  elements.skipCurrentExerciseButton?.addEventListener("click", skipCurrentExercise);
+  elements.trainingTodayShortcut
+    ?.addEventListener("click", selectToday);
 
-  elements.logWorkoutHeartRateButton?.addEventListener("click", openHeartRateEntry);
-  elements.closeHeartRateEntryButton?.addEventListener("click", closeHeartRateEntry);
-  elements.saveWorkoutHeartRateButton?.addEventListener("click", saveHeartRateReading);
-  elements.workoutHeartRateInput?.addEventListener("keydown", event => {
-    if (event.key === "Enter") {
-      void saveHeartRateReading();
-    }
-  });
-  elements.skipRestButton?.addEventListener("click", skipRest);
+  elements.trainingPreviousMonthButton
+    ?.addEventListener("click", () => moveCalendarMonth(-1));
 
-  elements.addExerciseToSessionButton?.addEventListener("click", openExercisePicker);
-  elements.closeSessionExercisePickerButton?.addEventListener("click", closeExercisePicker);
-  elements.sessionExerciseSearchInput?.addEventListener("input", handleExerciseSearch);
-  elements.sessionExerciseSearchResults?.addEventListener("click", handleExerciseSearchResultClick);
+  elements.trainingNextMonthButton
+    ?.addEventListener("click", () => moveCalendarMonth(1));
 
-  elements.finishTodayWorkoutButton?.addEventListener("click", openFinishWorkoutPanel);
-  elements.returnToWorkoutButton?.addEventListener("click", returnToLiveWorkout);
-  elements.saveCompletedWorkoutButton?.addEventListener("click", saveCompletedWorkout);
-  elements.finalAverageHeartRateInput?.addEventListener("input", renderFinalCalorieEstimate);
-  elements.finalPeakHeartRateInput?.addEventListener("input", renderFinalCalorieEstimate);
+  elements.trainingWeekStrip
+    ?.addEventListener("click", handleCalendarDateClick);
 
-  document.querySelectorAll('input[name="workoutIntensity"]').forEach(input => {
-    input.addEventListener("change", renderFinalCalorieEstimate);
-  });
+  elements.trainingCalendarGrid
+    ?.addEventListener("click", handleCalendarDateClick);
 
-  document.querySelectorAll("[data-close-training-drawer]").forEach(button => {
-    button.addEventListener("click", closeTrainingDrawer);
-  });
+  elements.startTodayWorkoutButton
+    ?.addEventListener("click", startSelectedPlannedWorkout);
 
-  elements.trainingOverlay?.addEventListener("click", closeTrainingDrawer);
+  elements.startUnplannedWorkoutButton
+    ?.addEventListener("click", startAdHocWorkout);
 
-  window.addEventListener("focus", () => void refresh());
-  window.addEventListener("online", () => void refresh());
+  elements.trainOnRestDayButton
+    ?.addEventListener("click", startAdHocWorkout);
+
+  elements.trainAgainButton
+    ?.addEventListener("click", startTrainAgainWorkout);
+
+  elements.pauseTodayWorkoutButton
+    ?.addEventListener("click", togglePauseResume);
+
+  elements.todayCurrentExerciseSets
+    ?.addEventListener("click", handleLiveSetClick);
+
+  elements.todayExerciseList
+    ?.addEventListener("click", handleSessionExerciseQueueClick);
+
+  elements.doCurrentExerciseLaterButton
+    ?.addEventListener("click", doCurrentExerciseLater);
+
+  elements.skipCurrentExerciseButton
+    ?.addEventListener("click", skipCurrentExercise);
+
+  elements.logWorkoutHeartRateButton
+    ?.addEventListener("click", openHeartRateEntry);
+
+  elements.closeHeartRateEntryButton
+    ?.addEventListener("click", closeHeartRateEntry);
+
+  elements.saveWorkoutHeartRateButton
+    ?.addEventListener("click", saveHeartRateReading);
+
+  elements.workoutHeartRateInput
+    ?.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        void saveHeartRateReading();
+      }
+    });
+
+  elements.skipRestButton
+    ?.addEventListener("click", skipRest);
+
+  elements.addExerciseToSessionButton
+    ?.addEventListener("click", openExercisePicker);
+
+  elements.closeSessionExercisePickerButton
+    ?.addEventListener("click", closeExercisePicker);
+
+  elements.sessionExerciseSearchInput
+    ?.addEventListener("input", handleExerciseSearch);
+
+  elements.sessionExerciseSearchResults
+    ?.addEventListener("click", handleExerciseSearchResultClick);
+
+  elements.finishTodayWorkoutButton
+    ?.addEventListener("click", openFinishWorkoutPanel);
+
+  elements.returnToWorkoutButton
+    ?.addEventListener("click", returnToLiveWorkout);
+
+  elements.saveCompletedWorkoutButton
+    ?.addEventListener("click", saveCompletedWorkout);
+
+  elements.finalAverageHeartRateInput
+    ?.addEventListener("input", renderFinalCalorieEstimate);
+
+  elements.finalPeakHeartRateInput
+    ?.addEventListener("input", renderFinalCalorieEstimate);
+
+  document
+    .querySelectorAll('input[name="workoutIntensity"]')
+    .forEach(input => {
+      input.addEventListener(
+        "change",
+        renderFinalCalorieEstimate
+      );
+    });
+
+  document
+    .querySelectorAll("[data-close-training-drawer]")
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        closeTrainingDrawer
+      );
+    });
+
+  elements.trainingOverlay
+    ?.addEventListener("click", closeTrainingDrawer);
+
+  window.addEventListener(
+    "focus",
+    () => void refresh()
+  );
+
+  window.addEventListener(
+    "online",
+    () => void refresh()
+  );
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
@@ -363,44 +471,41 @@ function bindEvents() {
   });
 }
 
+
 /* =====================================================
-   USER / SUPABASE
+   USER / CLOUD
 ===================================================== */
 
 function getSupabase() {
   if (
-    window.calbuddySupabase &&
-    typeof window.calbuddySupabase.from === "function"
+    globalThis.calbuddySupabase &&
+    typeof globalThis.calbuddySupabase.from === "function"
   ) {
-    return window.calbuddySupabase;
+    return globalThis.calbuddySupabase;
   }
 
-  return null;
+  return WorkoutSessionApi.findClient?.() || null;
 }
+
 
 async function resolveCurrentUser() {
   state.user = null;
 
-  const client = getSupabase();
-
-  if (!client?.auth?.getUser) {
-    return null;
-  }
-
   try {
-    const { data, error } = await client.auth.getUser();
+    state.user =
+      await WorkoutSessionApi.getAuthenticatedUser();
 
-    if (error) {
-      throw error;
-    }
-
-    state.user = data?.user || null;
     return state.user;
   } catch (error) {
-    console.warn("[ARI Training] Could not resolve current user.", error);
+    console.warn(
+      "[ARI Training] Auth unavailable; local workout mode enabled.",
+      error
+    );
+
     return null;
   }
 }
+
 
 function isLocalSession() {
   return Boolean(
@@ -409,8 +514,9 @@ function isLocalSession() {
   );
 }
 
+
 /* =====================================================
-   REFRESH / RENDER
+   REFRESH / PLAN SYNC
 ===================================================== */
 
 async function refresh() {
@@ -435,7 +541,10 @@ async function refresh() {
   try {
     await WorkoutPlanController.load();
   } catch (error) {
-    console.warn("[ARI Training] Workout plan refresh failed.", error);
+    console.warn(
+      "[ARI Training] Workout plan refresh failed.",
+      error
+    );
   }
 
   state.plan = WorkoutPlanController.getPlan();
@@ -448,6 +557,7 @@ async function refresh() {
   renderAll();
 }
 
+
 function renderAll() {
   renderCalendar();
   void renderSelectedDay();
@@ -456,24 +566,28 @@ function renderAll() {
   void renderHistory();
 }
 
+
 function syncProgressWithPlan() {
   const plan = state.plan;
 
-  if (!plan?.week) {
-    return;
-  }
+  if (!plan?.week) return;
 
   WorkoutProgressStore.setPlanContext({
     planKey:
       plan.planId ||
       plan.metadata?.sourceTemplateId ||
       "local-plan",
-    weekKey: getCurrentWeekMondayKey(),
-    resetIfChanged: true
+
+    weekKey:
+      getCurrentWeekMondayKey(),
+
+    resetIfChanged:
+      true
   });
 
   WorkoutProgressStore.syncWeekWithPlan(plan.week);
 }
+
 
 /* =====================================================
    CALENDAR
@@ -485,16 +599,27 @@ function renderCalendar() {
   renderMonthCalendar();
 }
 
+
 function renderDateTrigger() {
-  const isToday = state.selectedDateKey === state.todayDateKey;
+  const isToday =
+    state.selectedDateKey === state.todayDateKey;
 
   setText(
     elements.trainingDateTriggerLabel,
-    isToday ? "Today" : formatCompactSelectedDate(state.selectedDateKey)
+    isToday
+      ? "Today"
+      : formatCompactSelectedDate(state.selectedDateKey)
   );
 
-  setHidden(elements.trainingTodayShortcut, isToday);
-  setHidden(elements.trainingCalendarPanel, !state.calendarOpen);
+  setHidden(
+    elements.trainingTodayShortcut,
+    isToday
+  );
+
+  setHidden(
+    elements.trainingCalendarPanel,
+    !state.calendarOpen
+  );
 
   elements.trainingDateTrigger?.setAttribute(
     "aria-expanded",
@@ -502,19 +627,23 @@ function renderDateTrigger() {
   );
 }
 
+
 function toggleCalendar() {
   state.calendarOpen = !state.calendarOpen;
 
   if (state.calendarOpen) {
-    state.calendarMonthDate = dateFromKey(state.selectedDateKey) || new Date();
+    state.calendarMonthDate =
+      dateFromKey(state.selectedDateKey) || new Date();
   }
 
   renderCalendar();
 }
 
+
 function selectToday() {
   selectDate(state.todayDateKey);
 }
+
 
 function moveCalendarMonth(offset) {
   const base = state.calendarMonthDate || new Date();
@@ -528,24 +657,29 @@ function moveCalendarMonth(offset) {
   renderMonthCalendar();
 }
 
+
 function renderWeekStrip() {
   const container = elements.trainingWeekStrip;
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   container.replaceChildren();
 
-  const selectedDate = dateFromKey(state.selectedDateKey) || new Date();
+  const selectedDate =
+    dateFromKey(state.selectedDateKey) || new Date();
+
   const weekStart = getSundayStart(selectedDate);
 
   for (let index = 0; index < 7; index += 1) {
     const date = addDays(weekStart, index);
     const dateKey = getLocalDateKey(date);
-    container.appendChild(createWeekStripDay(date, dateKey, index));
+
+    container.appendChild(
+      createWeekStripDay(date, dateKey, index)
+    );
   }
 }
+
 
 function createWeekStripDay(date, dateKey, index) {
   const template = elements.trainingWeekDayTemplate;
@@ -553,36 +687,62 @@ function createWeekStripDay(date, dateKey, index) {
 
   if (template?.content) {
     const fragment = template.content.cloneNode(true);
-    button = fragment.querySelector(".ari-training-week-day");
 
-    setTextWithin(button, ".ari-training-week-day__weekday", DAY_SHORT_LABELS[index]);
-    setTextWithin(button, ".ari-training-week-day__date", String(date.getDate()));
+    button = fragment.querySelector(
+      ".ari-training-week-day"
+    );
+
+    setTextWithin(
+      button,
+      ".ari-training-week-day__weekday",
+      DAY_SHORT_LABELS[index]
+    );
+
+    setTextWithin(
+      button,
+      ".ari-training-week-day__date",
+      String(date.getDate())
+    );
   } else {
     button = document.createElement("button");
     button.type = "button";
     button.className = "ari-training-week-day";
-    button.textContent = `${DAY_SHORT_LABELS[index]} ${date.getDate()}`;
+    button.textContent =
+      `${DAY_SHORT_LABELS[index]} ${date.getDate()}`;
   }
 
   button.dataset.date = dateKey;
   button.dataset.status = getCalendarDateStatus(dateKey);
-  button.classList.toggle("is-selected", dateKey === state.selectedDateKey);
-  button.classList.toggle("is-today", dateKey === state.todayDateKey);
-  button.setAttribute("aria-label", buildCalendarDateAriaLabel(dateKey));
+
+  button.classList.toggle(
+    "is-selected",
+    dateKey === state.selectedDateKey
+  );
+
+  button.classList.toggle(
+    "is-today",
+    dateKey === state.todayDateKey
+  );
+
+  button.setAttribute(
+    "aria-label",
+    buildCalendarDateAriaLabel(dateKey)
+  );
 
   return button;
 }
 
+
 function renderMonthCalendar() {
   const container = elements.trainingCalendarGrid;
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   container.replaceChildren();
 
-  const monthDate = state.calendarMonthDate || new Date();
+  const monthDate =
+    state.calendarMonthDate || new Date();
+
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
 
@@ -599,9 +759,13 @@ function renderMonthCalendar() {
 
   for (let index = 0; index < 42; index += 1) {
     const date = addDays(gridStart, index);
-    container.appendChild(createMonthCalendarDay(date, month));
+
+    container.appendChild(
+      createMonthCalendarDay(date, month)
+    );
   }
 }
+
 
 function createMonthCalendarDay(date, visibleMonth) {
   const dateKey = getLocalDateKey(date);
@@ -610,8 +774,16 @@ function createMonthCalendarDay(date, visibleMonth) {
 
   if (template?.content) {
     const fragment = template.content.cloneNode(true);
-    button = fragment.querySelector(".ari-training-calendar-day");
-    setTextWithin(button, ".ari-training-calendar-day__number", String(date.getDate()));
+
+    button = fragment.querySelector(
+      ".ari-training-calendar-day"
+    );
+
+    setTextWithin(
+      button,
+      ".ari-training-calendar-day__number",
+      String(date.getDate())
+    );
   } else {
     button = document.createElement("button");
     button.type = "button";
@@ -621,56 +793,82 @@ function createMonthCalendarDay(date, visibleMonth) {
 
   button.dataset.date = dateKey;
   button.dataset.status = getCalendarDateStatus(dateKey);
-  button.classList.toggle("is-selected", dateKey === state.selectedDateKey);
-  button.classList.toggle("is-today", dateKey === state.todayDateKey);
-  button.classList.toggle("is-outside-month", date.getMonth() !== visibleMonth);
-  button.setAttribute("aria-label", buildCalendarDateAriaLabel(dateKey));
+
+  button.classList.toggle(
+    "is-selected",
+    dateKey === state.selectedDateKey
+  );
+
+  button.classList.toggle(
+    "is-today",
+    dateKey === state.todayDateKey
+  );
+
+  button.classList.toggle(
+    "is-outside-month",
+    date.getMonth() !== visibleMonth
+  );
+
+  button.setAttribute(
+    "aria-label",
+    buildCalendarDateAriaLabel(dateKey)
+  );
 
   return button;
 }
 
-function handleCalendarDateClick(event) {
-  const button = event.target.closest("[data-date]");
 
-  if (!button?.dataset.date) {
-    return;
-  }
+function handleCalendarDateClick(event) {
+  const button =
+    event.target.closest("[data-date]");
+
+  if (!button?.dataset.date) return;
 
   selectDate(button.dataset.date);
 }
 
+
 function selectDate(dateKey) {
-  if (!isDateKey(dateKey)) {
-    return;
-  }
+  if (!isDateKey(dateKey)) return;
 
   if (
     state.activeSession &&
-    OPEN_SESSION_STATUSES.includes(state.activeSession.status)
+    OPEN_SESSION_STATUSES.includes(
+      state.activeSession.status
+    )
   ) {
     state.selectedDateKey =
-      state.activeSession.local_date || state.selectedDateKey;
+      state.activeSession.local_date ||
+      state.selectedDateKey;
 
     renderAll();
     return;
   }
 
   state.selectedDateKey = dateKey;
-  state.calendarMonthDate = dateFromKey(dateKey) || new Date();
+
+  state.calendarMonthDate =
+    dateFromKey(dateKey) || new Date();
+
   state.calendarOpen = false;
 
   persistSelectedDate();
   renderCalendar();
+
   void renderSelectedDay();
 }
+
 
 function getCalendarDateStatus(dateKey) {
   if (getCachedCompletedSessionForDate(dateKey)) {
     return "complete";
   }
 
-  const weekday = weekdayIdFromDateKey(dateKey);
-  const dayState = state.plan?.week?.[weekday];
+  const weekday =
+    weekdayIdFromDateKey(dateKey);
+
+  const dayState =
+    state.plan?.week?.[weekday];
 
   if (dayState?.type === "off") {
     return "rest";
@@ -678,6 +876,7 @@ function getCalendarDateStatus(dateKey) {
 
   return dayState ? "planned" : "empty";
 }
+
 
 /* =====================================================
    SELECTED DAY
@@ -688,7 +887,9 @@ async function renderSelectedDay() {
 
   if (
     state.activeSession &&
-    OPEN_SESSION_STATUSES.includes(state.activeSession.status)
+    OPEN_SESSION_STATUSES.includes(
+      state.activeSession.status
+    )
   ) {
     renderLiveSession();
     return;
@@ -697,7 +898,9 @@ async function renderSelectedDay() {
   hidePrimaryDayStates();
 
   const dateKey = state.selectedDateKey;
-  const completed = await getCompletedSessionForDate(dateKey);
+
+  const completed =
+    await getCompletedSessionForDate(dateKey);
 
   if (
     token !== state.selectedDayRenderToken ||
@@ -711,8 +914,11 @@ async function renderSelectedDay() {
     return;
   }
 
-  const weekday = weekdayIdFromDateKey(dateKey);
-  const dayState = state.plan?.week?.[weekday];
+  const weekday =
+    weekdayIdFromDateKey(dateKey);
+
+  const dayState =
+    state.plan?.week?.[weekday];
 
   if (dayState?.type === "off") {
     renderRestDay(dayState);
@@ -727,6 +933,7 @@ async function renderSelectedDay() {
   renderPlannedDay(dayState);
 }
 
+
 function hidePrimaryDayStates() {
   setHidden(elements.todaysTrainingDayView, true);
   setHidden(elements.todaysTrainingEmpty, true);
@@ -737,8 +944,12 @@ function hidePrimaryDayStates() {
   setHidden(elements.sessionExercisePicker, true);
 }
 
+
 function renderPlannedDay(dayState) {
-  setHidden(elements.todaysTrainingDayView, false);
+  setHidden(
+    elements.todaysTrainingDayView,
+    false
+  );
 
   setText(
     elements.todaysTrainingEyebrow,
@@ -748,128 +959,179 @@ function renderPlannedDay(dayState) {
   );
 
   setSelectedDayDateText();
-  setText(elements.todaysTrainingType, "Scheduled Workout");
-  setText(elements.todaysTrainingTitle, dayState.title || "Workout");
-  setText(elements.todaysTrainingMeta, buildWorkoutMeta(dayState));
+
+  setText(
+    elements.todaysTrainingType,
+    "Scheduled Workout"
+  );
+
+  setText(
+    elements.todaysTrainingTitle,
+    dayState.title || "Workout"
+  );
+
+  setText(
+    elements.todaysTrainingMeta,
+    buildWorkoutMeta(dayState)
+  );
+
   setDayStatus("not_started");
-  renderSelectedDayExercisePreview(dayState.exercises || []);
+
+  renderSelectedDayExercisePreview(
+    dayState.exercises || []
+  );
 
   if (elements.startTodayWorkoutButton) {
     elements.startTodayWorkoutButton.disabled = false;
-    elements.startTodayWorkoutButton.textContent = "Start Workout";
+    elements.startTodayWorkoutButton.textContent =
+      "Start Workout";
   }
 }
+
 
 function renderEmptyDay() {
   setHidden(elements.todaysTrainingEmpty, false);
 }
 
+
 function renderRestDay(dayState) {
   setHidden(elements.todaysTrainingRestDay, false);
-  setText(elements.restDayTitle, dayState.title || "Rest & Recover");
-  setText(elements.restDayMessage, "Recovery is part of the program.");
+
+  setText(
+    elements.restDayTitle,
+    dayState.title || "Rest & Recover"
+  );
+
+  setText(
+    elements.restDayMessage,
+    "Recovery is part of the program."
+  );
 }
 
-function renderCompletedDay(session) {
-  setHidden(elements.todaysTrainingCompletedDay, false);
 
-  setText(elements.completedDayWorkoutName, session.title || "Workout");
+function renderCompletedDay(session) {
+  setHidden(
+    elements.todaysTrainingCompletedDay,
+    false
+  );
+
+  setText(
+    elements.completedDayWorkoutName,
+    session.title || "Workout"
+  );
+
   setText(
     elements.completedDayDuration,
-    formatDurationSeconds(session.duration_seconds || 0)
+    formatDurationSeconds(
+      session.duration_seconds || 0
+    )
   );
-  setText(elements.completedDaySets, String(session.completed_sets || 0));
+
+  setText(
+    elements.completedDaySets,
+    String(session.completed_sets || 0)
+  );
+
   setText(
     elements.completedDayCalories,
     `${formatNumber(session.estimated_calories || 0)} kcal`
   );
 }
 
-function setSelectedDayDateText() {
-  if (!elements.todaysTrainingDate) {
-    return;
-  }
 
-  elements.todaysTrainingDate.dateTime = state.selectedDateKey;
-  elements.todaysTrainingDate.textContent = formatLongDate(state.selectedDateKey);
+function setSelectedDayDateText() {
+  if (!elements.todaysTrainingDate) return;
+
+  elements.todaysTrainingDate.dateTime =
+    state.selectedDateKey;
+
+  elements.todaysTrainingDate.textContent =
+    formatLongDate(state.selectedDateKey);
 }
+
 
 function setDayStatus(status) {
-  if (!elements.todaysTrainingStatus) {
-    return;
-  }
+  if (!elements.todaysTrainingStatus) return;
 
-  elements.todaysTrainingStatus.dataset.status = status;
-  elements.todaysTrainingStatus.textContent = getStatusLabel(status);
+  elements.todaysTrainingStatus.dataset.status =
+    status;
+
+  elements.todaysTrainingStatus.textContent =
+    getStatusLabel(status);
 }
 
-function renderSelectedDayExercisePreview(exerciseEntries) {
-  const container = elements.todaysTrainingExercisePreview;
 
-  if (!container) {
-    return;
-  }
+function renderSelectedDayExercisePreview(
+  exerciseEntries
+) {
+  const container =
+    elements.todaysTrainingExercisePreview;
+
+  if (!container) return;
 
   container.replaceChildren();
 
   for (const entry of exerciseEntries) {
-    const exercise = ExerciseRegistry.get(entry.exerciseId);
-    const template = elements.trainingDayExercisePreviewTemplate;
+    const exercise =
+      ExerciseRegistry.get(entry.exerciseId);
 
-    if (template?.content) {
-      const fragment = template.content.cloneNode(true);
-      const root = fragment.querySelector(".ari-training-day-exercise-preview");
+    const template =
+      elements.trainingDayExercisePreviewTemplate;
 
-      setTextWithin(
-        root,
-        ".ari-training-day-exercise-preview__name",
-        exercise?.name || titleFromId(entry.exerciseId)
-      );
-      setTextWithin(
-        root,
-        ".ari-training-day-exercise-preview__prescription",
-        getShortPrescription(entry)
+    if (!template?.content) continue;
+
+    const fragment =
+      template.content.cloneNode(true);
+
+    const root =
+      fragment.querySelector(
+        ".ari-training-day-exercise-preview"
       );
 
-      container.appendChild(fragment);
-    }
+    setTextWithin(
+      root,
+      ".ari-training-day-exercise-preview__name",
+      exercise?.name ||
+      titleFromId(entry.exerciseId)
+    );
+
+    setTextWithin(
+      root,
+      ".ari-training-day-exercise-preview__prescription",
+      getShortPrescription(entry)
+    );
+
+    container.appendChild(fragment);
   }
 }
 
+
 /* =====================================================
-   START WORKOUT - HARDENED V4.1
+   START / REPEAT WORKOUTS
 ===================================================== */
 
 async function startSelectedPlannedWorkout() {
-  const button = elements.startTodayWorkoutButton;
+  const button =
+    elements.startTodayWorkoutButton;
 
-  if (state.saving) {
-    return;
-  }
+  if (state.saving) return;
 
-  const weekday = weekdayIdFromDateKey(state.selectedDateKey);
-  const dayState = state.plan?.week?.[weekday];
+  const weekday =
+    weekdayIdFromDateKey(state.selectedDateKey);
+
+  const dayState =
+    state.plan?.week?.[weekday];
 
   if (!dayState || dayState.type === "off") {
-    console.warn("[ARI Training] No planned workout found for selected date.", {
-      selectedDate: state.selectedDateKey,
-      weekday,
-      dayState
-    });
-
-    showTrainingMessage("No workout is scheduled for this day.", "warning");
+    showTrainingMessage(
+      "No workout is scheduled for this day.",
+      "warning"
+    );
     return;
   }
 
   state.saving = true;
   setButtonBusy(button, true, "Starting...");
-
-  console.info("[ARI Training] Start requested.", {
-    selectedDate: state.selectedDateKey,
-    weekday,
-    title: dayState.title || "Workout",
-    exerciseCount: dayState.exercises?.length || 0
-  });
 
   try {
     if (!state.user?.id) {
@@ -882,35 +1144,238 @@ async function startSelectedPlannedWorkout() {
       await hydrateFullSession(existing.id);
 
       state.selectedDateKey =
-        existing.local_date || state.selectedDateKey;
+        existing.local_date ||
+        state.selectedDateKey;
 
       persistSelectedDate();
       renderAll();
 
-      showTrainingMessage("Workout resumed.", "success");
+      showTrainingMessage(
+        "Workout resumed.",
+        "success"
+      );
+
       return;
     }
 
-    const session = await createWorkoutSession({
-      source: "planned",
-      title: dayState.title || "Workout",
-      localDate: state.selectedDateKey,
-      weekday,
-      planId: getPlanReference()
-    });
+    const session =
+      await createWorkoutSession({
+        source: "planned",
+        title: dayState.title || "Workout",
+        localDate: state.selectedDateKey,
+        weekday,
+        planId: getPlanReference()
+      });
 
     if (!session?.id) {
-      throw new Error("Workout session creation returned no session ID.");
+      throw new Error(
+        "Workout session creation returned no session ID."
+      );
     }
 
-    // Enter live mode immediately so the tap never feels ignored.
     state.activeSession = {
       ...session,
       exercises: session.exercises || [],
-      heartRateReadings: session.heartRateReadings || []
+      heartRateReadings:
+        session.heartRateReadings || []
     };
 
     state.currentExerciseId = null;
+
+    persistLocalSessionCache();
+
+    // Immediate visual response.
+    renderLiveSession();
+
+    await seedPlannedSessionExercises(
+      session,
+      dayState.exercises || []
+    );
+
+    if (!String(session.id).startsWith("local_")) {
+      await hydrateFullSession(session.id);
+    }
+
+    const firstExercise =
+      getOrderedSessionExercises().find(
+        exercise => exercise.status === "pending"
+      );
+
+    if (firstExercise) {
+      await setCurrentExercise(firstExercise);
+    } else {
+      state.currentExerciseId =
+        resolveCurrentExerciseId(
+          state.activeSession?.exercises || []
+        );
+    }
+
+    persistLocalSessionCache();
+    renderAll();
+  } catch (error) {
+    console.error(
+      "[ARI Training] START FAILED:",
+      error
+    );
+
+    if (
+      state.activeSession &&
+      OPEN_SESSION_STATUSES.includes(
+        state.activeSession.status
+      )
+    ) {
+      persistLocalSessionCache();
+      renderLiveSession();
+
+      showTrainingMessage(
+        "Workout opened, but cloud sync had a problem. Your session is still on this device.",
+        "warning"
+      );
+    } else {
+      showTrainingMessage(
+        readableError(
+          error,
+          "Workout couldn't start. Tap Start Workout to try again."
+        ),
+        "error"
+      );
+    }
+  } finally {
+    state.saving = false;
+
+    setButtonBusy(
+      button,
+      false,
+      "Start Workout"
+    );
+  }
+}
+
+
+async function startAdHocWorkout() {
+  if (state.saving) return;
+
+  state.saving = true;
+
+  try {
+    const existing = await fetchOpenSession();
+
+    if (existing?.id) {
+      await hydrateFullSession(existing.id);
+      renderAll();
+      openExercisePicker();
+      return;
+    }
+
+    const session =
+      await createWorkoutSession({
+        source: "ad_hoc",
+        title: "Quick Workout",
+        localDate: state.selectedDateKey,
+        weekday:
+          weekdayIdFromDateKey(
+            state.selectedDateKey
+          ),
+        planId: null
+      });
+
+    if (!session?.id) {
+      throw new Error(
+        "Quick workout session could not be created."
+      );
+    }
+
+    state.activeSession = {
+      ...session,
+      exercises: session.exercises || [],
+      heartRateReadings:
+        session.heartRateReadings || []
+    };
+
+    persistLocalSessionCache();
+
+    if (!String(session.id).startsWith("local_")) {
+      await hydrateFullSession(session.id);
+    }
+
+    renderAll();
+    openExercisePicker();
+  } catch (error) {
+    console.error(
+      "[ARI Training] Could not start quick workout.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Quick workout couldn't start."
+      ),
+      "error"
+    );
+  } finally {
+    state.saving = false;
+  }
+}
+
+
+async function startTrainAgainWorkout() {
+  if (state.saving) return;
+
+  const weekday =
+    weekdayIdFromDateKey(state.selectedDateKey);
+
+  const dayState =
+    state.plan?.week?.[weekday];
+
+  if (dayState && dayState.type !== "off") {
+    await startRepeatFromPlan(dayState, weekday);
+    return;
+  }
+
+  const completed =
+    await getCompletedSessionForDate(
+      state.selectedDateKey
+    );
+
+  if (completed) {
+    await startRepeatFromCompletedSession(
+      completed
+    );
+  }
+}
+
+
+async function startRepeatFromPlan(
+  dayState,
+  weekday
+) {
+  state.saving = true;
+
+  try {
+    const existing = await fetchOpenSession();
+
+    if (existing?.id) {
+      await hydrateFullSession(existing.id);
+      renderAll();
+      return;
+    }
+
+    const session =
+      await createWorkoutSession({
+        source: "repeat",
+        title: dayState.title || "Workout",
+        localDate: state.selectedDateKey,
+        weekday,
+        planId: getPlanReference()
+      });
+
+    state.activeSession = {
+      ...session,
+      exercises: [],
+      heartRateReadings: []
+    };
+
     persistLocalSessionCache();
     renderLiveSession();
 
@@ -923,100 +1388,27 @@ async function startSelectedPlannedWorkout() {
       await hydrateFullSession(session.id);
     }
 
-    const firstExercise = getOrderedSessionExercises().find(
-      exercise => exercise.status === "pending"
+    const first =
+      getOrderedSessionExercises().find(
+        item => item.status === "pending"
+      );
+
+    if (first) {
+      await setCurrentExercise(first);
+    }
+
+    renderAll();
+  } catch (error) {
+    console.error(
+      "[ARI Training] Train Again failed.",
+      error
     );
 
-    if (firstExercise) {
-      await setCurrentExercise(firstExercise);
-    } else {
-      state.currentExerciseId = resolveCurrentExerciseId(
-        state.activeSession?.exercises || []
-      );
-    }
-
-    persistLocalSessionCache();
-    renderAll();
-
-    console.info("[ARI Training] Workout started successfully.", {
-      sessionId: state.activeSession?.id,
-      currentExerciseId: state.currentExerciseId
-    });
-  } catch (error) {
-    console.error("[ARI Training] START FAILED:", error);
-
-    // If a partial session exists locally, keep it available rather than
-    // pretending nothing happened.
-    if (
-      state.activeSession &&
-      OPEN_SESSION_STATUSES.includes(state.activeSession.status)
-    ) {
-      persistLocalSessionCache();
-      renderLiveSession();
-      showTrainingMessage(
-        "Workout opened, but cloud sync had a problem. Your session is still on this device.",
-        "warning"
-      );
-    } else {
-      showTrainingMessage(
-        readableError(error, "Workout couldn't start. Tap Start Workout to try again."),
-        "error"
-      );
-    }
-  } finally {
-    state.saving = false;
-    setButtonBusy(button, false, "Start Workout");
-  }
-}
-
-async function startAdHocWorkout() {
-  if (state.saving) {
-    return;
-  }
-
-  state.saving = true;
-
-  try {
-    const existing = await fetchOpenSession();
-
-    if (existing?.id) {
-      await hydrateFullSession(existing.id);
-      renderAll();
-      openExercisePicker();
-      return;
-    }
-
-    const session = await createWorkoutSession({
-      source: "ad_hoc",
-      title: "Quick Workout",
-      localDate: state.selectedDateKey,
-      weekday: weekdayIdFromDateKey(state.selectedDateKey),
-      planId: null
-    });
-
-    if (!session?.id) {
-      throw new Error("Quick workout session could not be created.");
-    }
-
-    state.activeSession = {
-      ...session,
-      exercises: session.exercises || [],
-      heartRateReadings: session.heartRateReadings || []
-    };
-
-    persistLocalSessionCache();
-
-    if (!String(session.id).startsWith("local_")) {
-      await hydrateFullSession(session.id);
-    }
-
-    // Render first, then open the picker. renderAll() hides picker panels.
-    renderAll();
-    openExercisePicker();
-  } catch (error) {
-    console.error("[ARI Training] Could not start quick workout.", error);
     showTrainingMessage(
-      readableError(error, "Quick workout couldn't start."),
+      readableError(
+        error,
+        "Train Again couldn't start."
+      ),
       "error"
     );
   } finally {
@@ -1024,45 +1416,26 @@ async function startAdHocWorkout() {
   }
 }
 
-async function startTrainAgainWorkout() {
-  if (state.saving) {
-    return;
-  }
 
-  const weekday = weekdayIdFromDateKey(state.selectedDateKey);
-  const dayState = state.plan?.week?.[weekday];
+async function startRepeatFromCompletedSession(
+  completed
+) {
+  if (!completed?.id) return;
 
-  if (dayState && dayState.type !== "off") {
-    await startRepeatFromPlan(dayState, weekday);
-    return;
-  }
-
-  const completed = await getCompletedSessionForDate(state.selectedDateKey);
-
-  if (completed) {
-    await startRepeatFromCompletedSession(completed);
-  }
-}
-
-async function startRepeatFromPlan(dayState, weekday) {
   state.saving = true;
 
   try {
-    const existing = await fetchOpenSession();
-
-    if (existing?.id) {
-      await hydrateFullSession(existing.id);
-      renderAll();
-      return;
-    }
-
-    const session = await createWorkoutSession({
-      source: "repeat",
-      title: dayState.title || "Workout",
-      localDate: state.selectedDateKey,
-      weekday,
-      planId: getPlanReference()
-    });
+    const session =
+      await createWorkoutSession({
+        source: "repeat",
+        title: completed.title || "Workout",
+        localDate: state.selectedDateKey,
+        weekday:
+          weekdayIdFromDateKey(
+            state.selectedDateKey
+          ),
+        planId: completed.plan_id || null
+      });
 
     state.activeSession = {
       ...session,
@@ -1071,67 +1444,22 @@ async function startRepeatFromPlan(dayState, weekday) {
     };
 
     persistLocalSessionCache();
-    renderLiveSession();
 
-    await seedPlannedSessionExercises(session, dayState.exercises || []);
-
-    if (!String(session.id).startsWith("local_")) {
-      await hydrateFullSession(session.id);
-    }
-
-    const first = getOrderedSessionExercises().find(item => item.status === "pending");
-    if (first) {
-      await setCurrentExercise(first);
-    }
-
-    renderAll();
-  } catch (error) {
-    console.error("[ARI Training] Train Again failed.", error);
-    showTrainingMessage(readableError(error, "Train Again couldn't start."), "error");
-  } finally {
-    state.saving = false;
-  }
-}
-
-async function startRepeatFromCompletedSession(completed) {
-  const client = getSupabase();
-
-  if (!completed?.id) {
-    return;
-  }
-
-  state.saving = true;
-
-  try {
-    const session = await createWorkoutSession({
-      source: "repeat",
-      title: completed.title || "Workout",
-      localDate: state.selectedDateKey,
-      weekday: weekdayIdFromDateKey(state.selectedDateKey),
-      planId: completed.plan_id || null
-    });
-
-    state.activeSession = {
-      ...session,
-      exercises: [],
-      heartRateReadings: []
-    };
-
-    if (!client || String(completed.id).startsWith("local_")) {
+    if (
+      isLocalSession() ||
+      String(completed.id).startsWith("local_")
+    ) {
       renderAll();
       openExercisePicker();
       return;
     }
 
-    const { data: previousExercises, error } = await client
-      .from("ari_workout_session_exercises")
-      .select("*")
-      .eq("session_id", completed.id)
-      .order("sort_order", { ascending: true });
-
-    if (error) {
-      throw error;
-    }
+    const previousExercises =
+      await WorkoutSessionApi
+        .getExercisesForCompletedSession({
+          sessionId: completed.id,
+          userId: state.user.id
+        });
 
     for (const previous of previousExercises || []) {
       await createSessionExercise({
@@ -1145,25 +1473,41 @@ async function startRepeatFromCompletedSession(completed) {
         plannedSets: previous.planned_sets,
         plannedReps: previous.planned_reps,
         plannedWeight: previous.planned_weight,
-        plannedDurationSeconds: previous.planned_duration_seconds
+        plannedDurationSeconds:
+          previous.planned_duration_seconds
       });
     }
 
     await hydrateFullSession(session.id);
 
-    const first = getOrderedSessionExercises().find(item => item.status === "pending");
+    const first =
+      getOrderedSessionExercises().find(
+        item => item.status === "pending"
+      );
+
     if (first) {
       await setCurrentExercise(first);
     }
 
     renderAll();
   } catch (error) {
-    console.error("[ARI Training] Could not repeat completed workout.", error);
-    showTrainingMessage(readableError(error, "Repeat workout couldn't start."), "error");
+    console.error(
+      "[ARI Training] Could not repeat completed workout.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Repeat workout couldn't start."
+      ),
+      "error"
+    );
   } finally {
     state.saving = false;
   }
 }
+
 
 /* =====================================================
    SESSION CREATION / HYDRATION
@@ -1176,12 +1520,14 @@ async function createWorkoutSession({
   weekday,
   planId
 }) {
-  const client = getSupabase();
-
-  if (!client || !state.user?.id) {
+  if (!state.user?.id) {
     const localSession = {
-      id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      user_id: state.user?.id || "local",
+      id:
+        `local_${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
+
+      user_id: "local",
       plan_id: planId,
       local_date: localDate,
       timezone: getUserTimeZone(),
@@ -1205,25 +1551,22 @@ async function createWorkoutSession({
 
     state.activeSession = localSession;
     persistLocalSessionCache();
+
     return localSession;
   }
 
-  const { data, error } = await client
-    .from("ari_workout_sessions")
-    .insert({
-      user_id: state.user.id,
-      plan_id: planId,
-      local_date: localDate,
+  try {
+    return await WorkoutSessionApi.createSession({
+      userId: state.user.id,
+      planId,
+      localDate,
       timezone: getUserTimeZone(),
-      planned_weekday: weekday,
+      plannedWeekday: weekday,
       title,
       source,
       status: "active"
-    })
-    .select()
-    .single();
-
-  if (error) {
+    });
+  } catch (error) {
     const existing = await fetchOpenSession();
 
     if (existing?.id) {
@@ -1232,35 +1575,52 @@ async function createWorkoutSession({
 
     throw error;
   }
-
-  return data;
 }
 
-async function seedPlannedSessionExercises(session, exerciseEntries) {
-  if (!session) {
-    return;
-  }
 
-  for (let index = 0; index < exerciseEntries.length; index += 1) {
+async function seedPlannedSessionExercises(
+  session,
+  exerciseEntries
+) {
+  if (!session) return;
+
+  for (
+    let index = 0;
+    index < exerciseEntries.length;
+    index += 1
+  ) {
     const entry = exerciseEntries[index];
-    const exercise = ExerciseRegistry.get(entry.exerciseId);
-    const plannedSets = normalizeRequiredSets(entry);
+
+    const exercise =
+      ExerciseRegistry.get(entry.exerciseId);
+
+    const plannedSets =
+      normalizeRequiredSets(entry);
 
     await createSessionExercise({
       sessionId: session.id,
       exerciseId: entry.exerciseId,
-      exerciseName: exercise?.name || titleFromId(entry.exerciseId),
-      exerciseType: getExerciseTypeLabel(exercise),
+      exerciseName:
+        exercise?.name ||
+        titleFromId(entry.exerciseId),
+      exerciseType:
+        getExerciseTypeLabel(exercise),
       source: "planned",
       sortOrder: index,
-      completionMode: plannedSets > 0 ? "sets" : "single",
-      plannedSets: plannedSets > 0 ? plannedSets : null,
-      plannedReps: normalizePositiveInteger(entry.reps),
-      plannedWeight: resolvePlannedWeight(entry),
-      plannedDurationSeconds: getPlannedDurationSeconds(entry)
+      completionMode:
+        plannedSets > 0 ? "sets" : "single",
+      plannedSets:
+        plannedSets > 0 ? plannedSets : null,
+      plannedReps:
+        normalizePositiveInteger(entry.reps),
+      plannedWeight:
+        resolvePlannedWeight(entry),
+      plannedDurationSeconds:
+        getPlannedDurationSeconds(entry)
     });
   }
 }
+
 
 async function createSessionExercise({
   sessionId,
@@ -1275,11 +1635,15 @@ async function createSessionExercise({
   plannedWeight,
   plannedDurationSeconds
 }) {
-  const client = getSupabase();
-
-  if (!client || String(sessionId).startsWith("local_")) {
+  if (
+    !state.user?.id ||
+    String(sessionId).startsWith("local_")
+  ) {
     const exercise = {
-      id: `local_ex_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id:
+        `local_ex_${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
       session_id: sessionId,
       exercise_id: exerciseId,
       exercise_name: exerciseName,
@@ -1291,17 +1655,28 @@ async function createSessionExercise({
       planned_sets: plannedSets,
       planned_reps: plannedReps,
       planned_weight: plannedWeight,
-      planned_duration_seconds: plannedDurationSeconds,
+      planned_duration_seconds:
+        plannedDurationSeconds,
       actual_duration_seconds: null,
       estimated_calories: 0,
       completed_at: null,
       sets: []
     };
 
-    if (completionMode === "sets" && plannedSets) {
-      for (let setNumber = 1; setNumber <= plannedSets; setNumber += 1) {
+    if (
+      completionMode === "sets" &&
+      plannedSets
+    ) {
+      for (
+        let setNumber = 1;
+        setNumber <= plannedSets;
+        setNumber += 1
+      ) {
         exercise.sets.push({
-          id: `local_set_${Date.now()}_${setNumber}_${Math.random().toString(36).slice(2, 6)}`,
+          id:
+            `local_set_${Date.now()}_${setNumber}_${Math.random()
+              .toString(36)
+              .slice(2, 6)}`,
           set_number: setNumber,
           planned_reps: plannedReps,
           planned_weight: plannedWeight,
@@ -1316,68 +1691,41 @@ async function createSessionExercise({
 
     state.activeSession?.exercises?.push(exercise);
     persistLocalSessionCache();
+
     return exercise;
   }
 
-  const { data: exerciseRow, error } = await client
-    .from("ari_workout_session_exercises")
-    .insert({
-      session_id: sessionId,
-      user_id: state.user.id,
-      exercise_id: exerciseId,
-      exercise_name: exerciseName,
-      exercise_type: exerciseType,
-      sort_order: sortOrder,
-      source,
-      status: "pending",
-      completion_mode: completionMode,
-      planned_sets: plannedSets,
-      planned_reps: plannedReps,
-      planned_weight: plannedWeight,
-      planned_duration_seconds: plannedDurationSeconds
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  if (completionMode === "sets" && plannedSets) {
-    const rows = [];
-
-    for (let setNumber = 1; setNumber <= plannedSets; setNumber += 1) {
-      rows.push({
-        session_id: sessionId,
-        session_exercise_id: exerciseRow.id,
-        user_id: state.user.id,
-        set_number: setNumber,
-        planned_reps: plannedReps,
-        planned_weight: plannedWeight,
-        actual_reps: null,
-        actual_weight: plannedWeight,
-        completed: false,
-        estimated_calories: 0
-      });
-    }
-
-    const { error: setError } = await client
-      .from("ari_workout_session_sets")
-      .insert(rows);
-
-    if (setError) {
-      throw setError;
-    }
-  }
-
-  return exerciseRow;
+  return WorkoutSessionApi.createExerciseWithSets({
+    sessionId,
+    userId: state.user.id,
+    exerciseId,
+    exerciseName,
+    exerciseType,
+    sortOrder,
+    source:
+      source === "planned"
+        ? "planned"
+        : "ad_hoc",
+    status: "pending",
+    completionMode,
+    plannedSets,
+    plannedReps,
+    plannedWeight,
+    plannedDurationSeconds,
+    estimatedCalories: 0
+  });
 }
 
-async function restoreOpenSession({ preserveCurrent = false } = {}) {
+
+async function restoreOpenSession({
+  preserveCurrent = false
+} = {}) {
   if (
     preserveCurrent &&
     state.activeSession &&
-    OPEN_SESSION_STATUSES.includes(state.activeSession.status)
+    OPEN_SESSION_STATUSES.includes(
+      state.activeSession.status
+    )
   ) {
     return state.activeSession;
   }
@@ -1386,108 +1734,88 @@ async function restoreOpenSession({ preserveCurrent = false } = {}) {
 
   if (open?.id) {
     await hydrateFullSession(open.id);
-    state.selectedDateKey = open.local_date || state.selectedDateKey;
+
+    state.selectedDateKey =
+      open.local_date || state.selectedDateKey;
+
     persistSelectedDate();
+
     return state.activeSession;
   }
 
   return restoreLocalSessionCache();
 }
 
+
 async function fetchOpenSession() {
-  const client = getSupabase();
+  if (!state.user?.id) return null;
 
-  if (!client || !state.user?.id) {
+  try {
+    return await WorkoutSessionApi.getOpenSession({
+      userId: state.user.id
+    });
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Open session query failed.",
+      error
+    );
+
     return null;
   }
-
-  const { data, error } = await client
-    .from("ari_workout_sessions")
-    .select("*")
-    .eq("user_id", state.user.id)
-    .in("status", OPEN_SESSION_STATUSES)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("[ARI Training] Open session query failed.", error);
-    return null;
-  }
-
-  return data;
 }
 
-async function hydrateFullSession(sessionId) {
-  const client = getSupabase();
 
-  if (!client || String(sessionId).startsWith("local_")) {
+async function hydrateFullSession(sessionId) {
+  if (
+    !state.user?.id ||
+    String(sessionId).startsWith("local_")
+  ) {
     restoreLocalSessionCache();
     return state.activeSession;
   }
 
-  const [sessionResult, exercisesResult, setsResult, hrResult] =
-    await Promise.all([
-      client
-        .from("ari_workout_sessions")
-        .select("*")
-        .eq("id", sessionId)
-        .single(),
+  const fullSession =
+    await WorkoutSessionApi.getFullSession({
+      sessionId,
+      userId: state.user.id
+    });
 
-      client
-        .from("ari_workout_session_exercises")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("sort_order", { ascending: true }),
+  if (!fullSession) return null;
 
-      client
-        .from("ari_workout_session_sets")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("set_number", { ascending: true }),
+  state.activeSession = fullSession;
 
-      client
-        .from("ari_workout_heart_rate_readings")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("recorded_at", { ascending: true })
-    ]);
-
-  if (sessionResult.error) throw sessionResult.error;
-  if (exercisesResult.error) throw exercisesResult.error;
-  if (setsResult.error) throw setsResult.error;
-  if (hrResult.error) throw hrResult.error;
-
-  const exercises = exercisesResult.data || [];
-  const sets = setsResult.data || [];
-
-  for (const exercise of exercises) {
-    exercise.sets = sets.filter(
-      set => set.session_exercise_id === exercise.id
+  state.currentExerciseId =
+    resolveCurrentExerciseId(
+      fullSession.exercises || []
     );
-  }
 
-  state.activeSession = {
-    ...sessionResult.data,
-    exercises,
-    heartRateReadings: hrResult.data || []
-  };
-
-  state.currentExerciseId = resolveCurrentExerciseId(exercises);
   restoreRestState();
   persistLocalSessionCache();
 
   return state.activeSession;
 }
 
+
 function resolveCurrentExerciseId(exercises) {
   return (
-    exercises.find(item => item.status === "current")?.id ||
-    exercises.find(item => item.status === "pending")?.id ||
-    exercises.find(item => item.status !== "completed" && item.status !== "skipped")?.id ||
+    exercises.find(
+      item => item.status === "current"
+    )?.id ||
+
+    exercises.find(
+      item => item.status === "pending"
+    )?.id ||
+
+    exercises.find(
+      item =>
+        item.status !== "completed" &&
+        item.status !== "skipped"
+    )?.id ||
+
     null
   );
 }
+
 
 /* =====================================================
    LIVE SESSION
@@ -1496,18 +1824,25 @@ function resolveCurrentExerciseId(exercises) {
 function renderLiveSession() {
   const session = state.activeSession;
 
-  if (!session) {
-    return;
-  }
+  if (!session) return;
 
   hidePrimaryDayStates();
-  setHidden(elements.todaysTrainingSession, false);
 
-  setText(elements.liveSessionWorkoutName, session.title || "Workout");
+  setHidden(
+    elements.todaysTrainingSession,
+    false
+  );
+
+  setText(
+    elements.liveSessionWorkoutName,
+    session.title || "Workout"
+  );
 
   if (elements.pauseTodayWorkoutButton) {
     elements.pauseTodayWorkoutButton.textContent =
-      session.status === "paused" ? "Resume" : "Pause";
+      session.status === "paused"
+        ? "Resume"
+        : "Pause";
   }
 
   renderLiveProgress();
@@ -1516,12 +1851,15 @@ function renderLiveSession() {
   renderRestTimer();
 }
 
+
 function renderLiveProgress() {
   const stats = getLiveSessionSetStats();
 
   setText(
     elements.todaySessionElapsed,
-    formatElapsedClock(getElapsedSessionSeconds())
+    formatElapsedClock(
+      getElapsedSessionSeconds()
+    )
   );
 
   setText(
@@ -1530,39 +1868,64 @@ function renderLiveProgress() {
   );
 
   if (elements.todaySessionProgressFill) {
-    const percent = stats.required > 0
-      ? Math.min(100, (stats.completed / stats.required) * 100)
-      : 0;
+    const percent =
+      stats.required > 0
+        ? Math.min(
+            100,
+            (stats.completed / stats.required) * 100
+          )
+        : 0;
 
-    elements.todaySessionProgressFill.style.width = `${percent}%`;
+    elements.todaySessionProgressFill.style.width =
+      `${percent}%`;
   }
 }
+
 
 function renderCurrentExercise() {
   const exercise = getCurrentSessionExercise();
 
   if (!exercise) {
-    setText(elements.todayCurrentExerciseName, "Workout Ready to Finish");
+    setText(
+      elements.todayCurrentExerciseName,
+      "Workout Ready to Finish"
+    );
+
     setText(
       elements.todayCurrentExercisePrescription,
       "All remaining exercises are complete or skipped."
     );
-    setText(elements.todayCurrentExercisePosition, "â");
-    elements.todayCurrentExerciseSets?.replaceChildren();
+
+    setText(
+      elements.todayCurrentExercisePosition,
+      "â"
+    );
+
+    elements.todayCurrentExerciseSets
+      ?.replaceChildren();
+
     return;
   }
 
-  setText(elements.todayCurrentExerciseName, exercise.exercise_name || "Exercise");
+  setText(
+    elements.todayCurrentExerciseName,
+    exercise.exercise_name || "Exercise"
+  );
+
   setText(
     elements.todayCurrentExercisePrescription,
     getSessionExercisePrescription(exercise)
   );
 
-  const activeExercises = getOrderedSessionExercises().filter(
-    item => item.status !== "skipped"
-  );
+  const activeExercises =
+    getOrderedSessionExercises().filter(
+      item => item.status !== "skipped"
+    );
 
-  const position = activeExercises.findIndex(item => item.id === exercise.id);
+  const position =
+    activeExercises.findIndex(
+      item => item.id === exercise.id
+    );
 
   setText(
     elements.todayCurrentExercisePosition,
@@ -1572,74 +1935,138 @@ function renderCurrentExercise() {
   renderCurrentExerciseSets(exercise);
 }
 
-function renderCurrentExerciseSets(exercise) {
-  const container = elements.todayCurrentExerciseSets;
 
-  if (!container) {
-    return;
-  }
+function renderCurrentExerciseSets(exercise) {
+  const container =
+    elements.todayCurrentExerciseSets;
+
+  if (!container) return;
 
   container.replaceChildren();
 
   if (exercise.completion_mode === "single") {
-    const button = document.createElement("button");
+    const button =
+      document.createElement("button");
+
     button.type = "button";
     button.className = "ari-primary-button";
-    button.dataset.action = "complete-single-activity";
-    button.dataset.exerciseId = exercise.id;
+
+    button.dataset.action =
+      "complete-single-activity";
+
+    button.dataset.exerciseId =
+      exercise.id;
+
     button.textContent =
-      exercise.status === "completed" ? "Activity Complete" : "Complete Activity";
-    button.disabled = exercise.status === "completed";
+      exercise.status === "completed"
+        ? "Activity Complete"
+        : "Complete Activity";
+
+    button.disabled =
+      exercise.status === "completed";
+
     container.appendChild(button);
     return;
   }
 
   for (const set of exercise.sets || []) {
-    container.appendChild(createLiveSetElement(exercise, set));
+    container.appendChild(
+      createLiveSetElement(exercise, set)
+    );
   }
 }
 
+
 function createLiveSetElement(exercise, set) {
-  const template = elements.todayWorkoutSetTemplate;
+  const template =
+    elements.todayWorkoutSetTemplate;
 
   if (!template?.content) {
-    const fallback = document.createElement("button");
+    const fallback =
+      document.createElement("button");
+
     fallback.type = "button";
-    fallback.dataset.action = "complete-live-set";
+
+    fallback.dataset.action =
+      "complete-live-set";
+
     fallback.dataset.setId = set.id;
     fallback.dataset.exerciseId = exercise.id;
-    fallback.textContent = `Complete Set ${set.set_number}`;
+
+    fallback.textContent =
+      `Complete Set ${set.set_number}`;
+
     return fallback;
   }
 
-  const fragment = template.content.cloneNode(true);
-  const root = fragment.querySelector(".ari-live-set");
-  const weightInput = root.querySelector(".ari-live-set__weight");
-  const repsInput = root.querySelector(".ari-live-set__reps");
-  const completeButton = root.querySelector(".ari-live-set__complete");
+  const fragment =
+    template.content.cloneNode(true);
+
+  const root =
+    fragment.querySelector(".ari-live-set");
+
+  if (!root) return fragment;
+
+  const weightInput =
+    root.querySelector(".ari-live-set__weight");
+
+  const repsInput =
+    root.querySelector(".ari-live-set__reps");
+
+  const completeButton =
+    root.querySelector(".ari-live-set__complete");
 
   root.dataset.setId = set.id;
-  root.dataset.status = set.completed ? "complete" : "not_started";
+  root.dataset.status =
+    set.completed ? "complete" : "not_started";
 
-  setTextWithin(root, ".ari-live-set__label", `Set ${set.set_number}`);
-  setTextWithin(root, ".ari-live-set__target", buildSetTarget(set));
+  setTextWithin(
+    root,
+    ".ari-live-set__label",
+    `Set ${set.set_number}`
+  );
+
+  setTextWithin(
+    root,
+    ".ari-live-set__target",
+    buildSetTarget(set)
+  );
 
   if (weightInput) {
-    weightInput.value = set.actual_weight ?? set.planned_weight ?? "";
-    weightInput.disabled = Boolean(set.completed);
+    weightInput.value =
+      set.actual_weight ??
+      set.planned_weight ??
+      "";
+
+    weightInput.disabled =
+      Boolean(set.completed);
   }
 
   if (repsInput) {
-    repsInput.value = set.actual_reps ?? set.planned_reps ?? "";
-    repsInput.disabled = Boolean(set.completed);
+    repsInput.value =
+      set.actual_reps ??
+      set.planned_reps ??
+      "";
+
+    repsInput.disabled =
+      Boolean(set.completed);
   }
 
   if (completeButton) {
-    completeButton.dataset.action = "complete-live-set";
+    completeButton.dataset.action =
+      "complete-live-set";
+
     completeButton.dataset.setId = set.id;
-    completeButton.dataset.exerciseId = exercise.id;
-    completeButton.textContent = set.completed ? "Set Complete" : "Complete Set";
-    completeButton.disabled = Boolean(set.completed);
+    completeButton.dataset.exerciseId =
+      exercise.id;
+
+    completeButton.textContent =
+      set.completed
+        ? "Set Complete"
+        : "Complete Set";
+
+    completeButton.disabled =
+      Boolean(set.completed);
   }
 
   if (set.completed) {
@@ -1649,22 +2076,28 @@ function createLiveSetElement(exercise, set) {
   return fragment;
 }
 
-async function handleLiveSetClick(event) {
-  const button = event.target.closest("[data-action]");
 
-  if (!button) {
-    return;
-  }
+async function handleLiveSetClick(event) {
+  const button =
+    event.target.closest("[data-action]");
+
+  if (!button) return;
 
   if (button.dataset.action === "complete-live-set") {
     await completeLiveSet(button);
     return;
   }
 
-  if (button.dataset.action === "complete-single-activity") {
-    await completeSingleActivity(button.dataset.exerciseId);
+  if (
+    button.dataset.action ===
+      "complete-single-activity"
+  ) {
+    await completeSingleActivity(
+      button.dataset.exerciseId
+    );
   }
 }
+
 
 async function completeLiveSet(button) {
   const session = state.activeSession;
@@ -1673,24 +2106,44 @@ async function completeLiveSet(button) {
     return;
   }
 
-  const exercise = getSessionExerciseById(button.dataset.exerciseId);
-  const set = exercise?.sets?.find(
-    item => String(item.id) === String(button.dataset.setId)
-  );
+  const exercise =
+    getSessionExerciseById(
+      button.dataset.exerciseId
+    );
+
+  const set =
+    exercise?.sets?.find(
+      item =>
+        String(item.id) ===
+        String(button.dataset.setId)
+    );
 
   if (!exercise || !set || set.completed) {
     return;
   }
 
-  const root = button.closest(".ari-live-set");
-  const actualWeight = normalizeNonNegativeNumber(
-    root?.querySelector(".ari-live-set__weight")?.value
-  );
-  const actualReps = normalizeNonNegativeInteger(
-    root?.querySelector(".ari-live-set__reps")?.value
-  );
-  const estimatedCalories = estimateSetCalories(exercise);
-  const completedAt = new Date().toISOString();
+  const root =
+    button.closest(".ari-live-set");
+
+  const actualWeight =
+    normalizeNonNegativeNumber(
+      root
+        ?.querySelector(".ari-live-set__weight")
+        ?.value
+    );
+
+  const actualReps =
+    normalizeNonNegativeInteger(
+      root
+        ?.querySelector(".ari-live-set__reps")
+        ?.value
+    );
+
+  const estimatedCalories =
+    estimateSetCalories(exercise);
+
+  const completedAt =
+    new Date().toISOString();
 
   if (isLocalSession()) {
     Object.assign(set, {
@@ -1701,56 +2154,80 @@ async function completeLiveSet(button) {
       estimated_calories: estimatedCalories
     });
   } else {
-    const client = getSupabase();
-    const { error } = await client
-      .from("ari_workout_session_sets")
-      .update({
-        actual_weight: actualWeight,
-        actual_reps: actualReps,
-        completed: true,
-        completed_at: completedAt,
-        estimated_calories: estimatedCalories
-      })
-      .eq("id", set.id)
-      .eq("user_id", state.user.id);
+    try {
+      const updated =
+        await WorkoutSessionApi.completeSet({
+          setId: set.id,
+          userId: state.user.id,
+          actualWeight,
+          actualReps,
+          estimatedCalories,
+          completedAt
+        });
 
-    if (error) {
-      console.error("[ARI Training] Set completion failed.", error);
-      showTrainingMessage(readableError(error, "Set couldn't be saved."), "error");
+      Object.assign(
+        set,
+        updated || {
+          actual_weight: actualWeight,
+          actual_reps: actualReps,
+          completed: true,
+          completed_at: completedAt,
+          estimated_calories: estimatedCalories
+        }
+      );
+    } catch (error) {
+      console.error(
+        "[ARI Training] Set completion failed.",
+        error
+      );
+
+      showTrainingMessage(
+        readableError(
+          error,
+          "Set couldn't be saved."
+        ),
+        "error"
+      );
+
       return;
     }
-
-    Object.assign(set, {
-      actual_weight: actualWeight,
-      actual_reps: actualReps,
-      completed: true,
-      completed_at: completedAt,
-      estimated_calories: estimatedCalories
-    });
   }
 
   await updateExerciseCompletionState(exercise);
-  await syncWeeklyProgressFromSessionExercise(exercise);
+
+  await syncWeeklyProgressFromSessionExercise(
+    exercise
+  );
 
   if (hasRemainingIncompleteWork()) {
     startRestTimer(DEFAULT_REST_SECONDS);
   } else {
     skipRest();
-    showTrainingMessage("All planned work is complete. Finish when you're ready.", "success");
+
+    showTrainingMessage(
+      "All planned work is complete. Finish when you're ready.",
+      "success"
+    );
   }
 
   persistLocalSessionCache();
   renderLiveSession();
 }
 
-async function completeSingleActivity(exerciseId) {
-  const exercise = getSessionExerciseById(exerciseId);
 
-  if (!exercise || exercise.status === "completed") {
+async function completeSingleActivity(exerciseId) {
+  const exercise =
+    getSessionExerciseById(exerciseId);
+
+  if (
+    !exercise ||
+    exercise.status === "completed"
+  ) {
     return;
   }
 
-  const calories = estimateSingleActivityCalories(exercise);
+  const calories =
+    estimateSingleActivityCalories(exercise);
 
   await updateSessionExercise({
     exercise,
@@ -1761,32 +2238,45 @@ async function completeSingleActivity(exerciseId) {
     }
   });
 
-  await syncWeeklyProgressFromSessionExercise(exercise);
+  await syncWeeklyProgressFromSessionExercise(
+    exercise
+  );
+
   await chooseNextExercise();
 
   if (!hasRemainingIncompleteWork()) {
-    showTrainingMessage("Workout work complete. Finish when you're ready.", "success");
+    showTrainingMessage(
+      "Workout work complete. Finish when you're ready.",
+      "success"
+    );
   }
 
   renderLiveSession();
 }
 
-async function updateExerciseCompletionState(exercise) {
+
+async function updateExerciseCompletionState(
+  exercise
+) {
   if (exercise.completion_mode !== "sets") {
     return;
   }
 
   const sets = exercise.sets || [];
-  const complete = sets.length > 0 && sets.every(set => set.completed);
 
-  if (!complete) {
-    return;
-  }
+  const complete =
+    sets.length > 0 &&
+    sets.every(set => set.completed);
 
-  const calories = sets.reduce(
-    (total, set) => total + (Number(set.estimated_calories) || 0),
-    0
-  );
+  if (!complete) return;
+
+  const calories =
+    sets.reduce(
+      (total, set) =>
+        total +
+        (Number(set.estimated_calories) || 0),
+      0
+    );
 
   await updateSessionExercise({
     exercise,
@@ -1800,22 +2290,24 @@ async function updateExerciseCompletionState(exercise) {
   await chooseNextExercise();
 }
 
+
 function hasRemainingIncompleteWork() {
   return getOrderedSessionExercises().some(
-    exercise => exercise.status === "pending" || exercise.status === "current"
+    exercise =>
+      exercise.status === "pending" ||
+      exercise.status === "current"
   );
 }
 
+
 /* =====================================================
-   EXERCISE ORDER / DO LATER / SKIP
+   DO LATER / SKIP / QUEUE
 ===================================================== */
 
 async function doCurrentExerciseLater() {
   const current = getCurrentSessionExercise();
 
-  if (!current) {
-    return;
-  }
+  if (!current) return;
 
   if (current.status === "current") {
     await updateSessionExercise({
@@ -1824,32 +2316,41 @@ async function doCurrentExerciseLater() {
     });
   }
 
-  await chooseNextExercise({ excludeId: current.id });
+  await chooseNextExercise({
+    excludeId: current.id
+  });
+
   renderLiveSession();
 }
+
 
 async function skipCurrentExercise() {
   const current = getCurrentSessionExercise();
 
-  if (!current) {
-    return;
-  }
+  if (!current) return;
 
   await updateSessionExercise({
     exercise: current,
     patch: { status: "skipped" }
   });
 
-  await chooseNextExercise({ excludeId: current.id });
+  await chooseNextExercise({
+    excludeId: current.id
+  });
+
   renderLiveSession();
 }
 
-async function chooseNextExercise({ excludeId = null } = {}) {
-  const next = getOrderedSessionExercises().find(
-    exercise =>
-      exercise.id !== excludeId &&
-      exercise.status === "pending"
-  );
+
+async function chooseNextExercise({
+  excludeId = null
+} = {}) {
+  const next =
+    getOrderedSessionExercises().find(
+      exercise =>
+        exercise.id !== excludeId &&
+        exercise.status === "pending"
+    );
 
   if (!next) {
     state.currentExerciseId = null;
@@ -1860,10 +2361,9 @@ async function chooseNextExercise({ excludeId = null } = {}) {
   await setCurrentExercise(next);
 }
 
+
 async function setCurrentExercise(exercise) {
-  if (!exercise) {
-    return;
-  }
+  if (!exercise) return;
 
   const current = getCurrentSessionExercise();
 
@@ -1889,6 +2389,7 @@ async function setCurrentExercise(exercise) {
   persistLocalSessionCache();
 }
 
+
 function renderSessionExerciseQueue() {
   const container = elements.todayExerciseList;
 
@@ -1899,29 +2400,46 @@ function renderSessionExerciseQueue() {
   container.replaceChildren();
 
   for (const exercise of getOrderedSessionExercises()) {
-    container.appendChild(createSessionExerciseQueueRow(exercise));
+    container.appendChild(
+      createSessionExerciseQueueRow(exercise)
+    );
   }
 }
 
+
 function createSessionExerciseQueueRow(exercise) {
-  const template = elements.todayWorkoutExerciseTemplate;
+  const template =
+    elements.todayWorkoutExerciseTemplate;
+
   let button;
 
   if (template?.content) {
-    const fragment = template.content.cloneNode(true);
-    button = fragment.querySelector(".ari-session-exercise-row");
+    const fragment =
+      template.content.cloneNode(true);
 
-    setTextWithin(button, ".ari-session-exercise-row__name", exercise.exercise_name);
+    button =
+      fragment.querySelector(
+        ".ari-session-exercise-row"
+      );
+
+    setTextWithin(
+      button,
+      ".ari-session-exercise-row__name",
+      exercise.exercise_name
+    );
+
     setTextWithin(
       button,
       ".ari-session-exercise-row__prescription",
       getSessionExercisePrescription(exercise)
     );
+
     setTextWithin(
       button,
       ".ari-session-exercise-row__status",
       getExerciseStateIcon(exercise.status)
     );
+
     setTextWithin(
       button,
       ".ari-session-exercise-row__meta",
@@ -1931,7 +2449,9 @@ function createSessionExerciseQueueRow(exercise) {
     button = document.createElement("button");
     button.type = "button";
     button.className = "ari-session-exercise-row";
-    button.textContent = `${exercise.exercise_name} \u00B7 ${getExerciseStateLabel(exercise.status)}`;
+
+    button.textContent =
+      `${exercise.exercise_name} Â· ${getExerciseStateLabel(exercise.status)}`;
   }
 
   button.dataset.exerciseId = exercise.id;
@@ -1941,14 +2461,21 @@ function createSessionExerciseQueueRow(exercise) {
   return button;
 }
 
-async function handleSessionExerciseQueueClick(event) {
-  const button = event.target.closest('[data-action="select-session-exercise"]');
 
-  if (!button) {
-    return;
-  }
+async function handleSessionExerciseQueueClick(
+  event
+) {
+  const button =
+    event.target.closest(
+      '[data-action="select-session-exercise"]'
+    );
 
-  const exercise = getSessionExerciseById(button.dataset.exerciseId);
+  if (!button) return;
+
+  const exercise =
+    getSessionExerciseById(
+      button.dataset.exerciseId
+    );
 
   if (
     !exercise ||
@@ -1962,12 +2489,15 @@ async function handleSessionExerciseQueueClick(event) {
   renderLiveSession();
 }
 
-async function updateSessionExercise({ exercise, patch }) {
-  if (!exercise) {
-    return;
-  }
+
+async function updateSessionExercise({
+  exercise,
+  patch
+}) {
+  if (!exercise) return;
 
   const previous = { ...exercise };
+
   Object.assign(exercise, patch);
 
   if (isLocalSession()) {
@@ -1975,29 +2505,47 @@ async function updateSessionExercise({ exercise, patch }) {
     return;
   }
 
-  const client = getSupabase();
-  const { error } = await client
-    .from("ari_workout_session_exercises")
-    .update(patch)
-    .eq("id", exercise.id)
-    .eq("user_id", state.user.id);
+  try {
+    const updated =
+      await WorkoutSessionApi.updateExercise({
+        exerciseRowId: exercise.id,
+        userId: state.user.id,
+        patch
+      });
 
-  if (error) {
+    if (updated) {
+      Object.assign(exercise, updated);
+    }
+  } catch (error) {
     Object.assign(exercise, previous);
-    console.error("[ARI Training] Exercise update failed.", error);
-    showTrainingMessage(readableError(error, "Exercise update couldn't be saved."), "error");
-    return;
+
+    console.error(
+      "[ARI Training] Exercise update failed.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Exercise update couldn't be saved."
+      ),
+      "error"
+    );
   }
 
   persistLocalSessionCache();
 }
+
 
 /* =====================================================
    ADD EXERCISE
 ===================================================== */
 
 function openExercisePicker() {
-  setHidden(elements.sessionExercisePicker, false);
+  setHidden(
+    elements.sessionExercisePicker,
+    false
+  );
 
   if (elements.sessionExerciseSearchInput) {
     elements.sessionExerciseSearchInput.value = "";
@@ -2010,59 +2558,73 @@ function openExercisePicker() {
   }, 30);
 }
 
+
 function closeExercisePicker() {
-  setHidden(elements.sessionExercisePicker, true);
+  setHidden(
+    elements.sessionExercisePicker,
+    true
+  );
 }
+
 
 function handleExerciseSearch(event) {
   renderExerciseSearchResults(event.target.value);
 }
 
-function renderExerciseSearchResults(query) {
-  const container = elements.sessionExerciseSearchResults;
 
-  if (!container) {
-    return;
-  }
+function renderExerciseSearchResults(query) {
+  const container =
+    elements.sessionExerciseSearchResults;
+
+  if (!container) return;
 
   container.replaceChildren();
 
   for (const exercise of searchExercises(query).slice(0, 30)) {
-    container.appendChild(createExerciseSearchResult(exercise));
+    container.appendChild(
+      createExerciseSearchResult(exercise)
+    );
   }
 }
 
+
 function searchExercises(query) {
-  const normalized = String(query || "").trim().toLowerCase();
+  const normalized =
+    String(query || "")
+      .trim()
+      .toLowerCase();
 
   try {
     if (typeof ExerciseRegistry.search === "function") {
-      const result = ExerciseRegistry.search(normalized);
+      const result =
+        ExerciseRegistry.search(normalized);
+
       if (Array.isArray(result)) {
         return result;
       }
     }
   } catch {
-    // Continue to getAll fallback.
+    // Continue to fallback.
   }
 
   let collection = [];
 
-  try {
-    if (typeof ExerciseRegistry.getAll === "function") {
-      collection = ExerciseRegistry.getAll() || [];
+  if (Array.isArray(ExerciseRegistry.all)) {
+    collection = ExerciseRegistry.all;
+  } else {
+    try {
+      if (typeof ExerciseRegistry.getAll === "function") {
+        collection =
+          ExerciseRegistry.getAll() || [];
+      }
+    } catch {
+      collection = [];
     }
-  } catch {
-    collection = [];
   }
 
-  if (!Array.isArray(collection)) {
-    return [];
-  }
+  if (!Array.isArray(collection)) return [];
 
-  if (!normalized) {
-    return collection;
-  }
+  if (!normalized) return collection;
 
   return collection.filter(exercise => {
     const haystack = [
@@ -2070,7 +2632,9 @@ function searchExercises(query) {
       exercise?.id,
       exercise?.category,
       ...(exercise?.exerciseTypes || []),
-      ...(exercise?.muscles || []),
+      ...(exercise?.bodyParts || []),
+      ...(exercise?.primaryMuscles || []),
+      ...(exercise?.secondaryMuscles || []),
       ...(exercise?.equipment || [])
     ]
       .filter(Boolean)
@@ -2081,19 +2645,28 @@ function searchExercises(query) {
   });
 }
 
+
 function createExerciseSearchResult(exercise) {
-  const template = elements.sessionExerciseSearchResultTemplate;
+  const template =
+    elements.sessionExerciseSearchResultTemplate;
+
   let button;
 
   if (template?.content) {
-    const fragment = template.content.cloneNode(true);
-    button = fragment.querySelector(".ari-session-exercise-search-result");
+    const fragment =
+      template.content.cloneNode(true);
+
+    button =
+      fragment.querySelector(
+        ".ari-session-exercise-search-result"
+      );
 
     setTextWithin(
       button,
       ".ari-session-exercise-search-result__name",
       exercise.name || titleFromId(exercise.id)
     );
+
     setTextWithin(
       button,
       ".ari-session-exercise-search-result__type",
@@ -2102,7 +2675,8 @@ function createExerciseSearchResult(exercise) {
   } else {
     button = document.createElement("button");
     button.type = "button";
-    button.textContent = exercise.name || exercise.id;
+    button.textContent =
+      exercise.name || exercise.id;
   }
 
   button.dataset.exerciseId = exercise.id;
@@ -2111,66 +2685,87 @@ function createExerciseSearchResult(exercise) {
   return button;
 }
 
-async function handleExerciseSearchResultClick(event) {
-  const button = event.target.closest('[data-action="add-session-exercise"]');
 
-  if (!button) {
-    return;
-  }
+async function handleExerciseSearchResultClick(
+  event
+) {
+  const button =
+    event.target.closest(
+      '[data-action="add-session-exercise"]'
+    );
 
-  const exercise = ExerciseRegistry.get(button.dataset.exerciseId);
+  if (!button) return;
 
-  if (!exercise) {
-    return;
-  }
+  const exercise =
+    ExerciseRegistry.get(
+      button.dataset.exerciseId
+    );
+
+  if (!exercise) return;
 
   await addExerciseToActiveSession(exercise);
+
   closeExercisePicker();
   renderLiveSession();
 }
 
+
 async function addExerciseToActiveSession(exercise) {
   const session = state.activeSession;
 
-  if (!session) {
-    return;
-  }
+  if (!session) return;
 
-  const defaultPrescription = getDefaultAdHocPrescription(exercise);
+  const defaultPrescription =
+    getDefaultAdHocPrescription(exercise);
 
   await createSessionExercise({
     sessionId: session.id,
     exerciseId: exercise.id,
-    exerciseName: exercise.name || titleFromId(exercise.id),
-    exerciseType: getExerciseTypeLabel(exercise),
+    exerciseName:
+      exercise.name || titleFromId(exercise.id),
+    exerciseType:
+      getExerciseTypeLabel(exercise),
     source: "ad_hoc",
-    sortOrder: session.exercises?.length || 0,
-    completionMode: defaultPrescription.completionMode,
-    plannedSets: defaultPrescription.plannedSets,
-    plannedReps: defaultPrescription.plannedReps,
+    sortOrder:
+      session.exercises?.length || 0,
+    completionMode:
+      defaultPrescription.completionMode,
+    plannedSets:
+      defaultPrescription.plannedSets,
+    plannedReps:
+      defaultPrescription.plannedReps,
     plannedWeight: null,
-    plannedDurationSeconds: defaultPrescription.plannedDurationSeconds
+    plannedDurationSeconds:
+      defaultPrescription.plannedDurationSeconds
   });
 
   if (!isLocalSession()) {
     await hydrateFullSession(session.id);
   }
 
-  const newest = getOrderedSessionExercises().at(-1);
+  const newest =
+    getOrderedSessionExercises().at(-1);
 
   if (!state.currentExerciseId && newest) {
     await setCurrentExercise(newest);
   }
 
-  showTrainingMessage(`${exercise.name || "Exercise"} added to today's workout.`, "success");
+  showTrainingMessage(
+    `${exercise.name || "Exercise"} added to today's workout.`,
+    "success"
+  );
 }
 
+
 function getDefaultAdHocPrescription(exercise) {
-  const text = `${getExerciseTypeLabel(exercise)} ${exercise?.category || ""} ${exercise?.name || ""}`
-    .toLowerCase();
+  const text =
+    `${getExerciseTypeLabel(exercise)} ${exercise?.category || ""} ${exercise?.name || ""}`
+      .toLowerCase();
 
   const likelyCardio =
-    /cardio|run|walk|treadmill|bike|cycling|rowing|elliptical|swim/.test(text);
+    /cardio|run|walk|treadmill|bike|cycling|rowing|elliptical|swim/.test(
+      text
+    );
 
   if (likelyCardio) {
     return {
@@ -2189,45 +2784,73 @@ function getDefaultAdHocPrescription(exercise) {
   };
 }
 
+
 /* =====================================================
    REST TIMER
 ===================================================== */
 
-function startRestTimer(seconds = DEFAULT_REST_SECONDS) {
+function startRestTimer(
+  seconds = DEFAULT_REST_SECONDS
+) {
   state.rest = {
-    endsAt: Date.now() + Math.max(0, Number(seconds) || DEFAULT_REST_SECONDS) * 1000
+    endsAt:
+      Date.now() +
+      Math.max(
+        0,
+        Number(seconds) || DEFAULT_REST_SECONDS
+      ) *
+      1000
   };
 
   persistLocalSessionCache();
   renderRestTimer();
   clearRestInterval();
 
-  state.restTimerId = window.setInterval(renderRestTimer, 250);
+  state.restTimerId =
+    window.setInterval(renderRestTimer, 250);
 }
+
 
 function renderRestTimer() {
   if (!state.rest?.endsAt) {
-    setHidden(elements.todayWorkoutRestPanel, true);
+    setHidden(
+      elements.todayWorkoutRestPanel,
+      true
+    );
     return;
   }
 
-  const remaining = state.rest.endsAt - Date.now();
+  const remaining =
+    state.rest.endsAt - Date.now();
 
   if (remaining <= 0) {
     skipRest();
     return;
   }
 
-  setHidden(elements.todayWorkoutRestPanel, false);
-  setText(elements.todayWorkoutRestTimer, formatCountdown(remaining));
+  setHidden(
+    elements.todayWorkoutRestPanel,
+    false
+  );
+
+  setText(
+    elements.todayWorkoutRestTimer,
+    formatCountdown(remaining)
+  );
 }
+
 
 function skipRest() {
   state.rest = null;
   clearRestInterval();
   persistLocalSessionCache();
-  setHidden(elements.todayWorkoutRestPanel, true);
+
+  setHidden(
+    elements.todayWorkoutRestPanel,
+    true
+  );
 }
+
 
 function clearRestInterval() {
   if (state.restTimerId) {
@@ -2236,46 +2859,62 @@ function clearRestInterval() {
   }
 }
 
+
 function restoreRestState() {
-  const cached = readStoredJson(LOCAL_SESSION_CACHE_KEY);
+  const cached =
+    readStoredJson(LOCAL_SESSION_CACHE_KEY);
+
   const rest = cached?.rest;
 
   if (rest?.endsAt && rest.endsAt > Date.now()) {
     state.rest = rest;
     clearRestInterval();
-    state.restTimerId = window.setInterval(renderRestTimer, 250);
+
+    state.restTimerId =
+      window.setInterval(renderRestTimer, 250);
   } else {
     state.rest = null;
   }
 }
+
 
 /* =====================================================
    HEART RATE
 ===================================================== */
 
 function openHeartRateEntry() {
-  setHidden(elements.workoutHeartRateEntry, false);
+  setHidden(
+    elements.workoutHeartRateEntry,
+    false
+  );
 
   window.setTimeout(() => {
     elements.workoutHeartRateInput?.focus();
   }, 30);
 }
 
+
 function closeHeartRateEntry() {
-  setHidden(elements.workoutHeartRateEntry, true);
+  setHidden(
+    elements.workoutHeartRateEntry,
+    true
+  );
 
   if (elements.workoutHeartRateInput) {
     elements.workoutHeartRateInput.value = "";
   }
 }
 
+
 async function saveHeartRateReading() {
   const session = state.activeSession;
-  const bpm = normalizeHeartRate(elements.workoutHeartRateInput?.value);
 
-  if (!session || !bpm) {
-    return;
-  }
+  const bpm =
+    normalizeHeartRate(
+      elements.workoutHeartRateInput?.value
+    );
+
+  if (!session || !bpm) return;
 
   const reading = {
     id: `local_hr_${Date.now()}`,
@@ -2287,35 +2926,53 @@ async function saveHeartRateReading() {
   };
 
   if (isLocalSession()) {
-    session.heartRateReadings = session.heartRateReadings || [];
+    session.heartRateReadings =
+      session.heartRateReadings || [];
+
     session.heartRateReadings.push(reading);
   } else {
-    const client = getSupabase();
-    const { data, error } = await client
-      .from("ari_workout_heart_rate_readings")
-      .insert({
-        session_id: session.id,
-        user_id: state.user.id,
-        bpm,
-        elapsed_seconds: getElapsedSessionSeconds(),
-        source: "manual"
-      })
-      .select()
-      .single();
+    try {
+      const saved =
+        await WorkoutSessionApi.addHeartRateReading({
+          sessionId: session.id,
+          userId: state.user.id,
+          bpm,
+          elapsedSeconds:
+            getElapsedSessionSeconds(),
+          source: "manual"
+        });
 
-    if (error) {
-      console.error("[ARI Training] Heart-rate save failed.", error);
-      showTrainingMessage(readableError(error, "Heart rate couldn't be saved."), "error");
+      session.heartRateReadings =
+        session.heartRateReadings || [];
+
+      session.heartRateReadings.push(saved);
+    } catch (error) {
+      console.error(
+        "[ARI Training] Heart-rate save failed.",
+        error
+      );
+
+      showTrainingMessage(
+        readableError(
+          error,
+          "Heart rate couldn't be saved."
+        ),
+        "error"
+      );
+
       return;
     }
-
-    session.heartRateReadings.push(data);
   }
 
   closeHeartRateEntry();
   persistLocalSessionCache();
-  showTrainingMessage(`â¥ ${bpm} BPM saved`, "success");
+
+  showTrainingMessage(
+    `â¥ ${bpm} BPM saved`,
+    "success"
+  );
 }
+
 
 /* =====================================================
    PAUSE / RESUME
@@ -2328,6 +2985,7 @@ async function togglePauseResume() {
     await pauseWorkout();
   }
 }
+
 
 async function pauseWorkout() {
   if (state.activeSession?.status !== "active") {
@@ -2342,6 +3000,7 @@ async function pauseWorkout() {
   renderLiveSession();
 }
 
+
 async function resumeWorkout() {
   const session = state.activeSession;
 
@@ -2349,66 +3008,89 @@ async function resumeWorkout() {
     return;
   }
 
-  const pausedAtMs = Date.parse(session.paused_at);
-  const previousSeconds = Number(session.paused_duration_seconds) || 0;
-  const addedSeconds = Number.isFinite(pausedAtMs)
-    ? Math.max(0, Math.round((Date.now() - pausedAtMs) / 1000))
-    : 0;
+  const pausedAtMs =
+    Date.parse(session.paused_at);
+
+  const previousSeconds =
+    Number(session.paused_duration_seconds) || 0;
+
+  const addedSeconds =
+    Number.isFinite(pausedAtMs)
+      ? Math.max(
+          0,
+          Math.round(
+            (Date.now() - pausedAtMs) / 1000
+          )
+        )
+      : 0;
 
   await updateSession({
     status: "active",
     paused_at: null,
-    paused_duration_seconds: previousSeconds + addedSeconds
+    paused_duration_seconds:
+      previousSeconds + addedSeconds
   });
 
   renderLiveSession();
 }
 
+
 async function updateSession(patch) {
   const session = state.activeSession;
 
-  if (!session) {
-    return;
-  }
+  if (!session) return null;
 
   const previous = { ...session };
+
   Object.assign(session, patch);
 
   if (isLocalSession()) {
     persistLocalSessionCache();
-    return;
+    return session;
   }
 
-  const client = getSupabase();
-  const { error } = await client
-    .from("ari_workout_sessions")
-    .update(patch)
-    .eq("id", session.id)
-    .eq("user_id", state.user.id);
+  try {
+    const updated =
+      await WorkoutSessionApi.updateSession({
+        sessionId: session.id,
+        userId: state.user.id,
+        patch
+      });
 
-  if (error) {
+    if (updated) {
+      Object.assign(session, updated);
+    }
+  } catch (error) {
     Object.assign(session, previous);
-    console.error("[ARI Training] Session update failed.", error);
+
+    console.error(
+      "[ARI Training] Session update failed.",
+      error
+    );
+
     throw error;
   }
 
   persistLocalSessionCache();
+
+  return session;
 }
+
 
 /* =====================================================
    FINISH WORKOUT
 ===================================================== */
 
 async function openFinishWorkoutPanel() {
-  if (!state.activeSession) {
-    return;
-  }
+  if (!state.activeSession) return;
 
   if (state.activeSession.status === "paused") {
     await resumeWorkout();
   }
 
-  await updateSession({ status: "finishing" });
+  await updateSession({
+    status: "finishing"
+  });
 
   setHidden(elements.todaysTrainingSession, true);
   setHidden(elements.workoutCompletePanel, false);
@@ -2416,109 +3098,182 @@ async function openFinishWorkoutPanel() {
   const stats = getLiveSessionSetStats();
   const hrStats = getHeartRateStats();
 
-  setText(elements.workoutCompleteName, state.activeSession.title || "Workout");
+  setText(
+    elements.workoutCompleteName,
+    state.activeSession.title || "Workout"
+  );
+
   setText(
     elements.workoutCompleteDuration,
-    formatDurationSeconds(getElapsedSessionSeconds())
+    formatDurationSeconds(
+      getElapsedSessionSeconds()
+    )
   );
-  setText(elements.workoutCompleteSets, String(stats.completed));
+
+  setText(
+    elements.workoutCompleteSets,
+    String(stats.completed)
+  );
+
   setText(
     elements.workoutCompleteAverageHeartRate,
-    hrStats.average ? `${hrStats.average} bpm` : "\u2014"
+    hrStats.average
+      ? `${hrStats.average} bpm`
+      : "â"
   );
 
   if (elements.finalAverageHeartRateInput) {
     elements.finalAverageHeartRateInput.value =
-      state.activeSession.average_heart_rate ?? hrStats.average ?? "";
+      state.activeSession.average_heart_rate ??
+      hrStats.average ??
+      "";
   }
 
   if (elements.finalPeakHeartRateInput) {
     elements.finalPeakHeartRateInput.value =
-      state.activeSession.peak_heart_rate ?? hrStats.peak ?? "";
+      state.activeSession.peak_heart_rate ??
+      hrStats.peak ??
+      "";
   }
 
   renderAddedExerciseSummary();
   renderFinalCalorieEstimate();
 }
 
+
 async function returnToLiveWorkout() {
   if (state.activeSession?.status === "finishing") {
-    await updateSession({ status: "active" });
+    await updateSession({
+      status: "active"
+    });
   }
 
   setHidden(elements.workoutCompletePanel, true);
   renderLiveSession();
 }
 
+
 function renderFinalCalorieEstimate() {
-  if (!state.activeSession) {
-    return;
-  }
+  if (!state.activeSession) return;
 
-  const result = calculateFinalWorkoutEstimate();
+  const result =
+    calculateFinalWorkoutEstimate();
 
-  setText(elements.workoutCompleteCalories, formatNumber(result.calories));
-  setText(elements.workoutCalorieCalculationNote, result.note);
+  setText(
+    elements.workoutCompleteCalories,
+    formatNumber(result.calories)
+  );
+
+  setText(
+    elements.workoutCalorieCalculationNote,
+    result.note
+  );
 }
+
 
 function calculateFinalWorkoutEstimate() {
   const selectedIntensity =
-    document.querySelector('input[name="workoutIntensity"]:checked')?.value ||
+    document.querySelector(
+      'input[name="workoutIntensity"]:checked'
+    )?.value ||
     "moderate";
 
-  const enteredAverageHr = normalizeHeartRate(
-    elements.finalAverageHeartRateInput?.value
-  );
+  const enteredAverageHr =
+    normalizeHeartRate(
+      elements.finalAverageHeartRateInput?.value
+    );
 
   const recorded = getHeartRateStats();
-  const averageHr = enteredAverageHr || recorded.average || null;
 
-  let resolvedIntensity = normalizeCalorieIntensity(selectedIntensity);
+  const averageHr =
+    enteredAverageHr ||
+    recorded.average ||
+    null;
+
+  let resolvedIntensity =
+    normalizeCalorieIntensity(
+      selectedIntensity
+    );
+
   let hrClassification = null;
 
-  if (averageHr && state.profileEffectiveMaxHeartRate) {
-    hrClassification = HeartRateIntensity.classify({
-      age: state.profileAge,
-      heartRate: averageHr,
-      restingHeartRate: state.profileRestingHeartRate,
-      maxHeartRate: state.profileEffectiveMaxHeartRate,
-      preferHeartRateReserve: Boolean(state.profileRestingHeartRate)
-    });
+  if (
+    averageHr &&
+    state.profileEffectiveMaxHeartRate
+  ) {
+    hrClassification =
+      HeartRateIntensity.classify({
+        age: state.profileAge,
+        heartRate: averageHr,
+        restingHeartRate:
+          state.profileRestingHeartRate,
+        maxHeartRate:
+          state.profileEffectiveMaxHeartRate,
+        preferHeartRateReserve:
+          Boolean(
+            state.profileRestingHeartRate
+          )
+      });
 
-    const mapped = HeartRateIntensity.toCalorieIntensity(
-      hrClassification?.intensityId
-    );
+    const mapped =
+      HeartRateIntensity.toCalorieIntensity(
+        hrClassification?.intensityId
+      );
 
     if (mapped) {
       resolvedIntensity = mapped;
     }
   }
 
-  const durationMinutes = Math.max(1, getElapsedSessionSeconds() / 60);
+  const durationMinutes =
+    Math.max(
+      1,
+      getElapsedSessionSeconds() / 60
+    );
+
   const weightLb = state.profileWeightLb;
 
   if (!weightLb) {
     return {
-      calories: estimateCompletedExerciseCalories(resolvedIntensity),
+      calories:
+        estimateCompletedExerciseCalories(
+          resolvedIntensity
+        ),
       selectedIntensity,
       resolvedIntensity,
       averageHr,
       hrClassification,
-      note: "Body weight is unavailable, so ARI is using completed exercise estimates."
+      note:
+        "Body weight is unavailable, so ARI is using completed exercise estimates."
     };
   }
 
-  const strengthEstimate = CalorieCalculator.estimateStrengthSession({
-    intensity: resolvedIntensity,
-    weightLb,
-    durationMinutes
-  });
+  const strengthEstimate =
+    CalorieCalculator.estimateStrengthSession({
+      intensity: resolvedIntensity,
+      weightLb,
+      durationMinutes
+    });
 
-  const sessionCalories = Number(strengthEstimate?.roundedCalories) || 0;
-  const exerciseCalories = estimateCompletedExerciseCalories(resolvedIntensity);
+  const sessionCalories =
+    Number(
+      strengthEstimate?.roundedCalories
+    ) || 0;
+
+  const exerciseCalories =
+    estimateCompletedExerciseCalories(
+      resolvedIntensity
+    );
 
   return {
-    calories: Math.round(Math.max(sessionCalories, exerciseCalories, 0)),
+    calories:
+      Math.round(
+        Math.max(
+          sessionCalories,
+          exerciseCalories,
+          0
+        )
+      ),
     selectedIntensity,
     resolvedIntensity,
     averageHr,
@@ -2530,43 +3285,89 @@ function calculateFinalWorkoutEstimate() {
   };
 }
 
+
 async function saveCompletedWorkout() {
   const session = state.activeSession;
 
-  if (!session || state.saving) {
-    return;
-  }
+  if (!session || state.saving) return;
 
   state.saving = true;
-  setButtonBusy(elements.saveCompletedWorkoutButton, true, "Saving...");
+
+  setButtonBusy(
+    elements.saveCompletedWorkoutButton,
+    true,
+    "Saving..."
+  );
 
   try {
-    const estimate = calculateFinalWorkoutEstimate();
+    const estimate =
+      calculateFinalWorkoutEstimate();
+
     const hrStats = getHeartRateStats();
 
     const finalAverageHr =
-      normalizeHeartRate(elements.finalAverageHeartRateInput?.value) ||
+      normalizeHeartRate(
+        elements.finalAverageHeartRateInput?.value
+      ) ||
       hrStats.average ||
       null;
 
     const finalPeakHr =
-      normalizeHeartRate(elements.finalPeakHeartRateInput?.value) ||
+      normalizeHeartRate(
+        elements.finalPeakHeartRateInput?.value
+      ) ||
       hrStats.peak ||
       null;
 
-    const durationSeconds = Math.max(1, Math.round(getElapsedSessionSeconds()));
+    const durationSeconds =
+      Math.max(
+        1,
+        Math.round(getElapsedSessionSeconds())
+      );
+
     const stats = getLiveSessionSetStats();
 
-    await updateSession({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      duration_seconds: durationSeconds,
-      selected_intensity: estimate.selectedIntensity,
-      resolved_intensity: estimate.resolvedIntensity,
-      average_heart_rate: finalAverageHr,
-      peak_heart_rate: finalPeakHr,
-      estimated_calories: estimate.calories
-    });
+    if (isLocalSession()) {
+      await updateSession({
+        status: "completed",
+        completed_at:
+          new Date().toISOString(),
+        duration_seconds: durationSeconds,
+        selected_intensity:
+          estimate.selectedIntensity,
+        resolved_intensity:
+          estimate.resolvedIntensity,
+        average_heart_rate:
+          finalAverageHr,
+        peak_heart_rate:
+          finalPeakHr,
+        estimated_calories:
+          estimate.calories
+      });
+    } else {
+      const completed =
+        await WorkoutSessionApi.completeSession({
+          sessionId: session.id,
+          userId: state.user.id,
+          durationSeconds,
+          selectedIntensity:
+            estimate.selectedIntensity,
+          resolvedIntensity:
+            estimate.resolvedIntensity,
+          averageHeartRate:
+            finalAverageHr,
+          peakHeartRate:
+            finalPeakHr,
+          estimatedCalories:
+            estimate.calories,
+          completedAt:
+            new Date().toISOString()
+        });
+
+      if (completed) {
+        Object.assign(session, completed);
+      }
+    }
 
     cacheCompletedSessionLocally({
       ...session,
@@ -2577,13 +3378,16 @@ async function saveCompletedWorkout() {
 
     clearRestInterval();
     state.rest = null;
+
     clearLocalSessionCache();
 
     const completedDate = session.local_date;
 
     state.activeSession = null;
     state.currentExerciseId = null;
-    state.selectedDateKey = completedDate || state.selectedDateKey;
+
+    state.selectedDateKey =
+      completedDate || state.selectedDateKey;
 
     persistSelectedDate();
 
@@ -2592,21 +3396,42 @@ async function saveCompletedWorkout() {
     await renderPerformance();
     await renderHistory();
 
-    showTrainingMessage("Workout saved.", "success");
+    showTrainingMessage(
+      "Workout saved.",
+      "success"
+    );
   } catch (error) {
-    console.error("[ARI Training] Workout completion failed.", error);
-    showTrainingMessage(readableError(error, "Workout couldn't be saved."), "error");
+    console.error(
+      "[ARI Training] Workout completion failed.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Workout couldn't be saved."
+      ),
+      "error"
+    );
   } finally {
     state.saving = false;
-    setButtonBusy(elements.saveCompletedWorkoutButton, false, "Finish & Save");
+
+    setButtonBusy(
+      elements.saveCompletedWorkoutButton,
+      false,
+      "Finish & Save"
+    );
   }
 }
+
 
 /* =====================================================
    WEEKLY PROGRESS SYNC
 ===================================================== */
 
-async function syncWeeklyProgressFromSessionExercise(exercise) {
+async function syncWeeklyProgressFromSessionExercise(
+  exercise
+) {
   const session = state.activeSession;
 
   if (
@@ -2619,16 +3444,18 @@ async function syncWeeklyProgressFromSessionExercise(exercise) {
 
   const weekday = session.planned_weekday;
 
-  if (!DAYS.includes(weekday)) {
-    return;
-  }
+  if (!DAYS.includes(weekday)) return;
 
   if (exercise.completion_mode === "single") {
     WorkoutProgressStore.setExerciseCompleted({
       day: weekday,
       exerciseId: exercise.exercise_id,
-      completed: exercise.status === "completed",
-      estimatedCalories: Number(exercise.estimated_calories) || 0
+      completed:
+        exercise.status === "completed",
+      estimatedCalories:
+        Number(
+          exercise.estimated_calories
+        ) || 0
     });
 
     finalizeWeeklyDayCompletion(weekday);
@@ -2642,271 +3469,378 @@ async function syncWeeklyProgressFromSessionExercise(exercise) {
       setNumber: set.set_number,
       requiredSets: exercise.planned_sets,
       completed: Boolean(set.completed),
-      estimatedCalories: Number(set.estimated_calories) || 0
+      estimatedCalories:
+        Number(set.estimated_calories) || 0
     });
   }
 
   finalizeWeeklyDayCompletion(weekday);
 }
 
+
 async function syncCompletedSessionToWeeklyProgress() {
   const session = state.activeSession;
 
-  if (!session) {
-    return;
-  }
+  if (!session) return;
 
   for (const exercise of session.exercises || []) {
-    await syncWeeklyProgressFromSessionExercise(exercise);
+    await syncWeeklyProgressFromSessionExercise(
+      exercise
+    );
   }
 }
 
+
 function finalizeWeeklyDayCompletion(day) {
-  const dayState = state.plan?.week?.[day];
+  const dayState =
+    state.plan?.week?.[day];
 
   if (!dayState || dayState.type === "off") {
     return;
   }
 
-  const definitions = (dayState.exercises || []).map(entry => {
-    const sets = Number(entry.sets);
-    const hasSets = Number.isInteger(sets) && sets > 0;
+  const definitions =
+    (dayState.exercises || []).map(entry => {
+      const sets = Number(entry.sets);
 
-    return {
-      exerciseId: entry.exerciseId,
-      requiredSets: hasSets ? sets : null,
-      completionMode: hasSets ? "sets" : "single"
-    };
-  });
+      const hasSets =
+        Number.isInteger(sets) && sets > 0;
 
-  WorkoutProgressStore.recalculateDayCompletion(day, definitions);
+      return {
+        exerciseId: entry.exerciseId,
+        requiredSets:
+          hasSets ? sets : null,
+        completionMode:
+          hasSets ? "sets" : "single"
+      };
+    });
+
+  WorkoutProgressStore.recalculateDayCompletion(
+    day,
+    definitions
+  );
 }
+
 
 /* =====================================================
    PERFORMANCE / HISTORY
 ===================================================== */
 
 async function renderPerformance() {
-  const records = await fetchCompletedSessionsForDate(state.todayDateKey);
+  const records =
+    await fetchCompletedSessionsForDate(
+      state.todayDateKey
+    );
 
-  const calories = records.reduce(
-    (total, record) => total + (Number(record.estimated_calories) || 0),
-    0
-  );
-  const durationSeconds = records.reduce(
-    (total, record) => total + (Number(record.duration_seconds) || 0),
-    0
-  );
-  const completedSets = records.reduce(
-    (total, record) => total + (Number(record.completed_sets) || 0),
-    0
+  const calories =
+    records.reduce(
+      (total, record) =>
+        total +
+        (Number(record.estimated_calories) || 0),
+      0
+    );
+
+  const durationSeconds =
+    records.reduce(
+      (total, record) =>
+        total +
+        (Number(record.duration_seconds) || 0),
+      0
+    );
+
+  const completedSets =
+    records.reduce(
+      (total, record) =>
+        total +
+        (Number(record.completed_sets) || 0),
+      0
+    );
+
+  setText(
+    elements.trainingCaloriesBurned,
+    formatNumber(calories)
   );
 
-  setText(elements.trainingCaloriesBurned, formatNumber(calories));
-  setText(elements.trainingWorkoutTime, formatDurationSeconds(durationSeconds));
-  setText(elements.trainingWorkoutCount, String(records.length));
-  setText(elements.trainingSetsCompleted, String(completedSets));
+  setText(
+    elements.trainingWorkoutTime,
+    formatDurationSeconds(durationSeconds)
+  );
 
-  const hrRecords = records.filter(record => normalizeHeartRate(record.average_heart_rate));
+  setText(
+    elements.trainingWorkoutCount,
+    String(records.length)
+  );
+
+  setText(
+    elements.trainingSetsCompleted,
+    String(completedSets)
+  );
+
+  const hrRecords =
+    records.filter(record =>
+      normalizeHeartRate(
+        record.average_heart_rate
+      )
+    );
 
   if (hrRecords.length === 0) {
-    setHidden(elements.trainingHeartRatePerformance, true);
+    setHidden(
+      elements.trainingHeartRatePerformance,
+      true
+    );
     return;
   }
 
-  const average = Math.round(
-    hrRecords.reduce(
-      (total, record) => total + Number(record.average_heart_rate),
-      0
-    ) / hrRecords.length
-  );
-  const peak = Math.max(
-    ...hrRecords.map(record =>
-      Number(record.peak_heart_rate || record.average_heart_rate)
-    )
-  );
+  const average =
+    Math.round(
+      hrRecords.reduce(
+        (total, record) =>
+          total +
+          Number(record.average_heart_rate),
+        0
+      ) /
+      hrRecords.length
+    );
+
+  const peak =
+    Math.max(
+      ...hrRecords.map(record =>
+        Number(
+          record.peak_heart_rate ||
+          record.average_heart_rate
+        )
+      )
+    );
+
   const latest = hrRecords[0];
 
-  setHidden(elements.trainingHeartRatePerformance, false);
-  setText(elements.trainingAverageHeartRate, `${average} bpm`);
-  setText(elements.trainingPeakHeartRate, `${peak} bpm`);
+  setHidden(
+    elements.trainingHeartRatePerformance,
+    false
+  );
+
+  setText(
+    elements.trainingAverageHeartRate,
+    `${average} bpm`
+  );
+
+  setText(
+    elements.trainingPeakHeartRate,
+    `${peak} bpm`
+  );
+
   setText(
     elements.trainingIntensityLabel,
-    titleFromId(latest.resolved_intensity || latest.selected_intensity || "moderate")
+    titleFromId(
+      latest.resolved_intensity ||
+      latest.selected_intensity ||
+      "moderate"
+    )
   );
 }
 
+
 async function renderHistory() {
-  const records = await fetchCurrentMonthCompletedSessions();
+  const records =
+    await fetchCurrentMonthCompletedSessions();
 
   setText(
     elements.trainingHistoryMonthLabel,
     new Intl.DateTimeFormat("en-US", {
       month: "long",
       year: "numeric"
-    }).format(dateFromKey(state.todayDateKey) || new Date())
+    }).format(
+      dateFromKey(state.todayDateKey) ||
+      new Date()
+    )
   );
 
-  const calories = records.reduce(
-    (total, record) => total + (Number(record.estimated_calories) || 0),
-    0
-  );
-  const durationSeconds = records.reduce(
-    (total, record) => total + (Number(record.duration_seconds) || 0),
-    0
-  );
-  const sets = records.reduce(
-    (total, record) => total + (Number(record.completed_sets) || 0),
-    0
+  const calories =
+    records.reduce(
+      (total, record) =>
+        total +
+        (Number(record.estimated_calories) || 0),
+      0
+    );
+
+  const durationSeconds =
+    records.reduce(
+      (total, record) =>
+        total +
+        (Number(record.duration_seconds) || 0),
+      0
+    );
+
+  const sets =
+    records.reduce(
+      (total, record) =>
+        total +
+        (Number(record.completed_sets) || 0),
+      0
+    );
+
+  setText(
+    elements.monthlyWorkoutCount,
+    String(records.length)
   );
 
-  setText(elements.monthlyWorkoutCount, String(records.length));
-  setText(elements.monthlyCaloriesBurned, formatNumber(calories));
-  setText(elements.monthlyCompletedWorkouts, String(records.length));
-  setText(elements.monthlyTrainingTime, formatDurationSeconds(durationSeconds));
-  setText(elements.monthlyCaloriesTotal, formatNumber(calories));
-  setText(elements.monthlySetsCompleted, String(sets));
+  setText(
+    elements.monthlyCaloriesBurned,
+    formatNumber(calories)
+  );
 
-  const container = elements.monthlyHistoryList;
+  setText(
+    elements.monthlyCompletedWorkouts,
+    String(records.length)
+  );
 
-  if (!container) {
-    return;
-  }
+  setText(
+    elements.monthlyTrainingTime,
+    formatDurationSeconds(durationSeconds)
+  );
+
+  setText(
+    elements.monthlyCaloriesTotal,
+    formatNumber(calories)
+  );
+
+  setText(
+    elements.monthlySetsCompleted,
+    String(sets)
+  );
+
+  const container =
+    elements.monthlyHistoryList;
+
+  if (!container) return;
 
   container.replaceChildren();
 
-  const grouped = groupSessionsByDate(records);
+  const grouped =
+    groupSessionsByDate(records);
 
   for (const group of grouped) {
-    container.appendChild(createHistoryDayElement(group));
+    container.appendChild(
+      createHistoryDayElement(group)
+    );
   }
 
-  setHidden(elements.monthlyHistoryEmptyState, grouped.length > 0);
+  setHidden(
+    elements.monthlyHistoryEmptyState,
+    grouped.length > 0
+  );
 }
+
 
 async function getCompletedSessionForDate(dateKey) {
-  const cached = getCachedCompletedSessionForDate(dateKey);
-  const client = getSupabase();
+  const cached =
+    getCachedCompletedSessionForDate(dateKey);
 
-  if (!client || !state.user?.id) {
+  if (!state.user?.id) {
     return cached;
   }
 
-  const { data, error } = await client
-    .from("ari_workout_sessions")
-    .select("*")
-    .eq("user_id", state.user.id)
-    .eq("local_date", dateKey)
-    .eq("status", "completed")
-    .order("completed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const data =
+      await WorkoutSessionApi
+        .getCompletedSessionForDate({
+          dateKey,
+          userId: state.user.id
+        });
 
-  if (error) {
-    console.warn("[ARI Training] Completed session query failed.", error);
+    if (!data) return cached;
+
+    cacheCompletedSessionLocally(data);
+
+    return data;
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Completed session query failed.",
+      error
+    );
+
     return cached;
   }
-
-  if (!data) {
-    return cached;
-  }
-
-  const result = {
-    ...data,
-    completed_sets: await countCompletedSetsForSession(data.id)
-  };
-
-  cacheCompletedSessionLocally(result);
-  return result;
 }
 
-async function fetchCompletedSessionsForDate(dateKey) {
-  const client = getSupabase();
 
-  if (!client || !state.user?.id) {
+async function fetchCompletedSessionsForDate(
+  dateKey
+) {
+  if (!state.user?.id) {
     return getCachedCompletedSessions().filter(
       record => record.local_date === dateKey
     );
   }
 
-  const { data, error } = await client
-    .from("ari_workout_sessions")
-    .select("*")
-    .eq("user_id", state.user.id)
-    .eq("local_date", dateKey)
-    .eq("status", "completed")
-    .order("completed_at", { ascending: false });
+  try {
+    const records =
+      await WorkoutSessionApi
+        .getCompletedSessionsForDate({
+          dateKey,
+          userId: state.user.id
+        });
 
-  if (error) {
-    console.warn("[ARI Training] Daily completed session query failed.", error);
-    return [];
+    for (const record of records) {
+      cacheCompletedSessionLocally(record);
+    }
+
+    return records;
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Daily history query failed.",
+      error
+    );
+
+    return getCachedCompletedSessions().filter(
+      record => record.local_date === dateKey
+    );
   }
-
-  return enrichSessionsWithCompletedSets(data || []);
 }
 
-async function fetchCurrentMonthCompletedSessions() {
-  const start = getMonthStartKey(state.todayDateKey);
-  const end = getMonthEndKey(state.todayDateKey);
-  const client = getSupabase();
 
-  if (!client || !state.user?.id) {
+async function fetchCurrentMonthCompletedSessions() {
+  const start =
+    getMonthStartKey(state.todayDateKey);
+
+  const end =
+    getMonthEndKey(state.todayDateKey);
+
+  if (!state.user?.id) {
     return getCachedCompletedSessions().filter(
-      record => record.local_date >= start && record.local_date <= end
+      record =>
+        record.local_date >= start &&
+        record.local_date <= end
     );
   }
 
-  const { data, error } = await client
-    .from("ari_workout_sessions")
-    .select("*")
-    .eq("user_id", state.user.id)
-    .eq("status", "completed")
-    .gte("local_date", start)
-    .lte("local_date", end)
-    .order("completed_at", { ascending: false });
+  try {
+    const records =
+      await WorkoutSessionApi
+        .getCompletedSessionsForMonth({
+          dateKey: state.todayDateKey,
+          userId: state.user.id
+        });
 
-  if (error) {
-    console.warn("[ARI Training] History query failed.", error);
-    return [];
+    for (const record of records) {
+      cacheCompletedSessionLocally(record);
+    }
+
+    return records;
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Monthly history query failed.",
+      error
+    );
+
+    return getCachedCompletedSessions().filter(
+      record =>
+        record.local_date >= start &&
+        record.local_date <= end
+    );
   }
-
-  const records = await enrichSessionsWithCompletedSets(data || []);
-
-  for (const record of records) {
-    cacheCompletedSessionLocally(record);
-  }
-
-  return records;
 }
 
-async function enrichSessionsWithCompletedSets(sessions) {
-  const output = [];
-
-  for (const session of sessions) {
-    output.push({
-      ...session,
-      completed_sets: await countCompletedSetsForSession(session.id)
-    });
-  }
-
-  return output;
-}
-
-async function countCompletedSetsForSession(sessionId) {
-  const client = getSupabase();
-
-  if (!client || String(sessionId).startsWith("local_")) {
-    return 0;
-  }
-
-  const { count, error } = await client
-    .from("ari_workout_session_sets")
-    .select("id", { count: "exact", head: true })
-    .eq("session_id", sessionId)
-    .eq("completed", true);
-
-  return error ? 0 : count || 0;
-}
 
 function groupSessionsByDate(records) {
   const map = new Map();
@@ -2920,64 +3854,124 @@ function groupSessionsByDate(records) {
   }
 
   return Array.from(map.entries())
-    .map(([localDate, entries]) => ({ localDate, entries }))
-    .sort((a, b) => b.localDate.localeCompare(a.localDate));
+    .map(([localDate, entries]) => ({
+      localDate,
+      entries
+    }))
+    .sort(
+      (a, b) =>
+        b.localDate.localeCompare(a.localDate)
+    );
 }
 
+
 function createHistoryDayElement(group) {
-  const template = elements.monthlyHistoryDayTemplate;
+  const template =
+    elements.monthlyHistoryDayTemplate;
 
   if (!template?.content) {
-    return document.createTextNode(group.localDate);
+    return document.createTextNode(
+      group.localDate
+    );
   }
 
-  const fragment = template.content.cloneNode(true);
-  const details = fragment.querySelector(".ari-history-day");
-  const calories = group.entries.reduce(
-    (total, record) => total + (Number(record.estimated_calories) || 0),
-    0
+  const fragment =
+    template.content.cloneNode(true);
+
+  const details =
+    fragment.querySelector(".ari-history-day");
+
+  const calories =
+    group.entries.reduce(
+      (total, record) =>
+        total +
+        (Number(record.estimated_calories) || 0),
+      0
+    );
+
+  setTextWithin(
+    details,
+    ".ari-history-day__label",
+    getRelativeDateLabel(group.localDate)
   );
 
-  setTextWithin(details, ".ari-history-day__label", getRelativeDateLabel(group.localDate));
-  setTextWithin(details, ".ari-history-day__date", formatLongDate(group.localDate));
+  setTextWithin(
+    details,
+    ".ari-history-day__date",
+    formatLongDate(group.localDate)
+  );
+
   setTextWithin(
     details,
     ".ari-history-day__sessions",
     `${group.entries.length} ${pluralize(group.entries.length, "workout", "workouts")}`
   );
+
   setTextWithin(
     details,
     ".ari-history-day__calories",
     `${formatNumber(calories)} kcal`
   );
 
-  const container = details.querySelector(".ari-history-day__entries");
+  const container =
+    details?.querySelector(
+      ".ari-history-day__entries"
+    );
 
   for (const record of group.entries) {
-    container?.appendChild(createHistoryWorkoutElement(record));
+    container?.appendChild(
+      createHistoryWorkoutElement(record)
+    );
   }
 
   return fragment;
 }
 
+
 function createHistoryWorkoutElement(record) {
-  const template = elements.monthlyHistoryWorkoutTemplate;
+  const template =
+    elements.monthlyHistoryWorkoutTemplate;
 
   if (!template?.content) {
-    return document.createTextNode(record.title || "Workout");
+    return document.createTextNode(
+      record.title || "Workout"
+    );
   }
 
-  const fragment = template.content.cloneNode(true);
-  const article = fragment.querySelector(".ari-history-workout");
+  const fragment =
+    template.content.cloneNode(true);
 
-  setTextWithin(article, ".ari-history-workout__type", "COMPLETED");
-  setTextWithin(article, ".ari-history-workout__name", record.title || "Workout");
-  setTextWithin(article, ".ari-history-workout__sets", `${record.completed_sets || 0} sets`);
+  const article =
+    fragment.querySelector(
+      ".ari-history-workout"
+    );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__type",
+    "COMPLETED"
+  );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__name",
+    record.title || "Workout"
+  );
+
+  setTextWithin(
+    article,
+    ".ari-history-workout__sets",
+    `${record.completed_sets || 0} sets`
+  );
+
   setTextWithin(
     article,
     ".ari-history-workout__duration",
-    formatDurationSeconds(record.duration_seconds || 0)
+    formatDurationSeconds(
+      record.duration_seconds || 0
+    )
   );
+
   setTextWithin(
     article,
     ".ari-history-workout__calories",
@@ -2987,69 +3981,100 @@ function createHistoryWorkoutElement(record) {
   return fragment;
 }
 
+
 /* =====================================================
    PROFILE
 ===================================================== */
 
 async function loadTrainingProfile() {
   const local = readLocalTrainingProfile();
+
   let cloud = null;
 
   try {
     const client = getSupabase();
 
     if (client && state.user?.id) {
-      const { data, error } = await client
-        .from("profiles")
-        .select("age, weight_lbs, resting_heart_rate, confirmed_max_heart_rate")
-        .eq("id", state.user.id)
-        .maybeSingle();
+      const { data, error } =
+        await client
+          .from("profiles")
+          .select(
+            "age, weight_lbs, resting_heart_rate, confirmed_max_heart_rate"
+          )
+          .eq("id", state.user.id)
+          .maybeSingle();
 
       if (!error && data) {
         cloud = data;
       }
     }
   } catch (error) {
-    console.warn("[ARI Training] Training profile cloud load failed.", error);
+    console.warn(
+      "[ARI Training] Training profile cloud load failed.",
+      error
+    );
   }
 
-  state.profileAge = normalizeAge(cloud?.age ?? local.age);
-  state.profileWeightLb = normalizeWeight(cloud?.weight_lbs ?? local.weightLb);
-  state.profileRestingHeartRate = normalizeHeartRate(
-    cloud?.resting_heart_rate ?? local.restingHeartRate
-  );
-  state.profileConfirmedMaxHeartRate = normalizeHeartRate(
-    cloud?.confirmed_max_heart_rate ?? local.confirmedMaxHeartRate
-  );
-  state.profileEstimatedMaxHeartRate = HeartRateIntensity.estimateMaxHeartRate({
-    age: state.profileAge
-  });
+  state.profileAge =
+    normalizeAge(cloud?.age ?? local.age);
+
+  state.profileWeightLb =
+    normalizeWeight(
+      cloud?.weight_lbs ?? local.weightLb
+    );
+
+  state.profileRestingHeartRate =
+    normalizeHeartRate(
+      cloud?.resting_heart_rate ??
+      local.restingHeartRate
+    );
+
+  state.profileConfirmedMaxHeartRate =
+    normalizeHeartRate(
+      cloud?.confirmed_max_heart_rate ??
+      local.confirmedMaxHeartRate
+    );
+
+  state.profileEstimatedMaxHeartRate =
+    HeartRateIntensity.estimateMaxHeartRate({
+      age: state.profileAge
+    });
+
   state.profileEffectiveMaxHeartRate =
-    state.profileConfirmedMaxHeartRate ?? state.profileEstimatedMaxHeartRate;
-  state.profileMaxHeartRateSource = state.profileConfirmedMaxHeartRate
-    ? "confirmed"
-    : state.profileEstimatedMaxHeartRate
-      ? "estimated"
-      : null;
+    state.profileConfirmedMaxHeartRate ??
+    state.profileEstimatedMaxHeartRate;
+
+  state.profileMaxHeartRateSource =
+    state.profileConfirmedMaxHeartRate
+      ? "confirmed"
+      : state.profileEstimatedMaxHeartRate
+        ? "estimated"
+        : null;
 }
+
 
 function renderTrainingProfile() {
   setText(
     elements.trainingProfileWeight,
-    state.profileWeightLb ? `${formatProfileNumber(state.profileWeightLb)} lb` : "\u2014"
+    state.profileWeightLb
+      ? `${formatProfileNumber(state.profileWeightLb)} lb`
+      : "â"
   );
+
   setText(
     elements.trainingProfileRestingHeartRate,
     state.profileRestingHeartRate
       ? `${Math.round(state.profileRestingHeartRate)} bpm`
-      : "\u2014"
+      : "â"
   );
+
   setText(
     elements.trainingProfileMaxHeartRate,
     state.profileEffectiveMaxHeartRate
       ? `${Math.round(state.profileEffectiveMaxHeartRate)} bpm`
-      : "\u2014"
+      : "â"
   );
+
   setText(
     elements.trainingProfileMaxHeartRateSource,
     state.profileMaxHeartRateSource === "confirmed"
@@ -3060,18 +4085,36 @@ function renderTrainingProfile() {
   );
 }
 
+
 function readLocalTrainingProfile() {
-  const goals = readStoredJson("calbuddyGoals") || {};
+  const goals =
+    readStoredJson("calbuddyGoals") || {};
 
   return {
-    age: localStorage.getItem("calbuddyAge") ?? goals.age,
-    weightLb: localStorage.getItem("calbuddyCurrentWeight") ?? goals.weight,
+    age:
+      localStorage.getItem("calbuddyAge") ??
+      goals.age,
+
+    weightLb:
+      localStorage.getItem(
+        "calbuddyCurrentWeight"
+      ) ??
+      goals.weight,
+
     restingHeartRate:
-      localStorage.getItem("calbuddyRestingHeartRate") ?? goals.restingHeartRate,
+      localStorage.getItem(
+        "calbuddyRestingHeartRate"
+      ) ??
+      goals.restingHeartRate,
+
     confirmedMaxHeartRate:
-      localStorage.getItem("calbuddyConfirmedMaxHeartRate") ?? goals.confirmedMaxHeartRate
+      localStorage.getItem(
+        "calbuddyConfirmedMaxHeartRate"
+      ) ??
+      goals.confirmedMaxHeartRate
   };
 }
+
 
 /* =====================================================
    DRAWERS / MENU
@@ -3085,53 +4128,74 @@ function handleTrainingMenuClick(event) {
     return;
   }
 
-  const button = event.target.closest("[data-training-panel]");
+  const button =
+    event.target.closest(
+      "[data-training-panel]"
+    );
 
-  if (!button) {
-    return;
-  }
+  if (!button) return;
 
   closeTrainingMenu();
-  openTrainingDrawer(button.dataset.trainingPanel);
+
+  openTrainingDrawer(
+    button.dataset.trainingPanel
+  );
 }
+
 
 function openTrainingDrawer(type) {
   closeTrainingDrawer();
 
   const map = {
-    performance: elements.trainingPerformanceDrawer,
-    history: elements.trainingHistoryDrawer,
-    profile: elements.trainingProfileDrawer
+    performance:
+      elements.trainingPerformanceDrawer,
+    history:
+      elements.trainingHistoryDrawer,
+    profile:
+      elements.trainingProfileDrawer
   };
 
   const drawer = map[type];
 
-  if (!drawer) {
-    return;
-  }
+  if (!drawer) return;
 
   state.currentDrawer = type;
+
   setHidden(elements.trainingOverlay, false);
   setHidden(drawer, false);
-  document.body.classList.add("ari-training-drawer-open");
+
+  document.body.classList.add(
+    "ari-training-drawer-open"
+  );
 }
+
 
 function closeTrainingDrawer() {
   setHidden(elements.trainingOverlay, true);
   setHidden(elements.trainingPerformanceDrawer, true);
   setHidden(elements.trainingHistoryDrawer, true);
   setHidden(elements.trainingProfileDrawer, true);
-  document.body.classList.remove("ari-training-drawer-open");
+
+  document.body.classList.remove(
+    "ari-training-drawer-open"
+  );
+
   state.currentDrawer = null;
 }
 
+
 function toggleTrainingMenu() {
-  if (!elements.trainingMenu || !elements.trainingMenuButton) {
+  if (
+    !elements.trainingMenu ||
+    !elements.trainingMenuButton
+  ) {
     return;
   }
 
   const open =
-    elements.trainingMenuButton.getAttribute("aria-expanded") === "true";
+    elements.trainingMenuButton.getAttribute(
+      "aria-expanded"
+    ) === "true";
 
   if (open) {
     closeTrainingMenu();
@@ -3139,17 +4203,30 @@ function toggleTrainingMenu() {
   }
 
   elements.trainingMenu.hidden = false;
-  elements.trainingMenuButton.setAttribute("aria-expanded", "true");
+
+  elements.trainingMenuButton.setAttribute(
+    "aria-expanded",
+    "true"
+  );
 }
 
+
 function closeTrainingMenu() {
-  if (!elements.trainingMenu || !elements.trainingMenuButton) {
+  if (
+    !elements.trainingMenu ||
+    !elements.trainingMenuButton
+  ) {
     return;
   }
 
   elements.trainingMenu.hidden = true;
-  elements.trainingMenuButton.setAttribute("aria-expanded", "false");
+
+  elements.trainingMenuButton.setAttribute(
+    "aria-expanded",
+    "false"
+  );
 }
+
 
 /* =====================================================
    LIVE STATS / CALORIES
@@ -3159,7 +4236,10 @@ function getLiveSessionSetStats() {
   const session = state.activeSession;
 
   if (!session) {
-    return { completed: 0, required: 0 };
+    return {
+      completed: 0,
+      required: 0
+    };
   }
 
   let completed = 0;
@@ -3171,83 +4251,134 @@ function getLiveSessionSetStats() {
     }
 
     if (exercise.completion_mode === "sets") {
-      required += Number(exercise.planned_sets) || exercise.sets?.length || 0;
-      completed += exercise.sets?.filter(set => set.completed).length || 0;
+      required +=
+        Number(exercise.planned_sets) ||
+        exercise.sets?.length ||
+        0;
+
+      completed +=
+        exercise.sets?.filter(
+          set => set.completed
+        ).length ||
+        0;
     } else {
       required += 1;
+
       if (exercise.status === "completed") {
         completed += 1;
       }
     }
   }
 
-  return { completed, required };
+  return {
+    completed,
+    required
+  };
 }
 
+
 function getHeartRateStats() {
-  const values = (state.activeSession?.heartRateReadings || [])
-    .map(item => normalizeHeartRate(item.bpm))
-    .filter(Boolean);
+  const values =
+    (state.activeSession?.heartRateReadings || [])
+      .map(item =>
+        normalizeHeartRate(item.bpm)
+      )
+      .filter(Boolean);
 
   if (values.length === 0) {
-    return { count: 0, average: null, peak: null };
+    return {
+      count: 0,
+      average: null,
+      peak: null
+    };
   }
 
   return {
     count: values.length,
-    average: Math.round(values.reduce((total, value) => total + value, 0) / values.length),
+
+    average:
+      Math.round(
+        values.reduce(
+          (total, value) =>
+            total + value,
+          0
+        ) /
+        values.length
+      ),
+
     peak: Math.max(...values)
   };
 }
 
-function estimateSetCalories(exercise, intensity = "moderate") {
+
+function estimateSetCalories(
+  exercise,
+  intensity = "moderate"
+) {
   const weightLb = state.profileWeightLb;
 
-  if (!weightLb) {
-    return 0;
-  }
+  if (!weightLb) return 0;
 
-  const estimate = CalorieCalculator.estimateStrengthSession({
-    intensity: normalizeCalorieIntensity(intensity),
-    weightLb,
-    durationMinutes: 2.5
-  });
+  const estimate =
+    CalorieCalculator.estimateStrengthSession({
+      intensity:
+        normalizeCalorieIntensity(intensity),
+      weightLb,
+      durationMinutes: 2.5
+    });
 
-  return Math.max(0, Math.round(Number(estimate?.roundedCalories) || 0));
-}
-
-function estimateSingleActivityCalories(exercise, intensity = "moderate") {
-  const weightLb = state.profileWeightLb;
-
-  if (!weightLb) {
-    return 0;
-  }
-
-  const durationMinutes = Math.max(
-    1,
-    (
-      Number(exercise.actual_duration_seconds) ||
-      Number(exercise.planned_duration_seconds) ||
-      1800
-    ) / 60
+  return Math.max(
+    0,
+    Math.round(
+      Number(estimate?.roundedCalories) || 0
+    )
   );
-
-  const estimate = WorkoutPlanController.estimateExerciseCalories({
-    exerciseId: exercise.exercise_id,
-    durationMinutes,
-    weightLb,
-    intensity: normalizeCalorieIntensity(intensity)
-  });
-
-  return Math.max(0, Math.round(Number(estimate?.roundedCalories) || 0));
 }
 
-function estimateCompletedExerciseCalories(intensity = "moderate") {
+
+function estimateSingleActivityCalories(
+  exercise,
+  intensity = "moderate"
+) {
+  const weightLb = state.profileWeightLb;
+
+  if (!weightLb) return 0;
+
+  const durationMinutes =
+    Math.max(
+      1,
+      (
+        Number(exercise.actual_duration_seconds) ||
+        Number(exercise.planned_duration_seconds) ||
+        1800
+      ) /
+      60
+    );
+
+  const estimate =
+    WorkoutPlanController.estimateExerciseCalories({
+      exerciseId: exercise.exercise_id,
+      durationMinutes,
+      weightLb,
+      intensity:
+        normalizeCalorieIntensity(intensity)
+    });
+
+  return Math.max(
+    0,
+    Math.round(
+      Number(estimate?.roundedCalories) || 0
+    )
+  );
+}
+
+
+function estimateCompletedExerciseCalories(
+  intensity = "moderate"
+) {
   const session = state.activeSession;
 
-  if (!session) {
-    return 0;
-  }
+  if (!session) return 0;
 
   let total = 0;
 
@@ -3257,45 +4388,61 @@ function estimateCompletedExerciseCalories(intensity = "moderate") {
     }
 
     if (exercise.completion_mode === "sets") {
-      total += (exercise.sets || [])
-        .filter(set => set.completed)
-        .reduce(
-          (sum, set) =>
-            sum +
-            (
-              Number(set.estimated_calories) ||
-              estimateSetCalories(exercise, intensity)
-            ),
-          0
-        );
+      total +=
+        (exercise.sets || [])
+          .filter(set => set.completed)
+          .reduce(
+            (sum, set) =>
+              sum +
+              (
+                Number(set.estimated_calories) ||
+                estimateSetCalories(
+                  exercise,
+                  intensity
+                )
+              ),
+            0
+          );
     } else if (exercise.status === "completed") {
       total +=
         Number(exercise.estimated_calories) ||
-        estimateSingleActivityCalories(exercise, intensity);
+        estimateSingleActivityCalories(
+          exercise,
+          intensity
+        );
     }
   }
 
   return Math.round(total);
 }
 
+
 /* =====================================================
-   TIMING
+   TIMERS
 ===================================================== */
 
 function startRuntimeTimers() {
   clearRuntimeTimers();
 
-  state.sessionTimerId = window.setInterval(() => {
-    if (
-      state.activeSession &&
-      OPEN_SESSION_STATUSES.includes(state.activeSession.status)
-    ) {
-      renderLiveProgress();
-    }
-  }, 1000);
+  state.sessionTimerId =
+    window.setInterval(() => {
+      if (
+        state.activeSession &&
+        OPEN_SESSION_STATUSES.includes(
+          state.activeSession.status
+        )
+      ) {
+        renderLiveProgress();
+      }
+    }, 1000);
 
-  state.dateWatcherId = window.setInterval(handleDateRollover, 30000);
+  state.dateWatcherId =
+    window.setInterval(
+      handleDateRollover,
+      30000
+    );
 }
+
 
 function clearRuntimeTimers() {
   if (state.sessionTimerId) {
@@ -3309,6 +4456,7 @@ function clearRuntimeTimers() {
   }
 }
 
+
 function handleDateRollover() {
   const newToday = getLocalDateKey();
 
@@ -3317,6 +4465,7 @@ function handleDateRollover() {
   }
 
   const oldToday = state.todayDateKey;
+
   state.todayDateKey = newToday;
 
   if (
@@ -3331,86 +4480,124 @@ function handleDateRollover() {
   void renderSelectedDay();
 }
 
+
 function getElapsedSessionSeconds() {
   const session = state.activeSession;
 
-  if (!session?.started_at) {
-    return 0;
-  }
+  if (!session?.started_at) return 0;
 
   const startMs = Date.parse(session.started_at);
 
-  if (!Number.isFinite(startMs)) {
-    return 0;
-  }
+  if (!Number.isFinite(startMs)) return 0;
 
   let endMs = Date.now();
 
-  if (session.status === "completed" && session.completed_at) {
-    const completedMs = Date.parse(session.completed_at);
+  if (
+    session.status === "completed" &&
+    session.completed_at
+  ) {
+    const completedMs =
+      Date.parse(session.completed_at);
+
     if (Number.isFinite(completedMs)) {
       endMs = completedMs;
     }
   }
 
-  let pausedSeconds = Number(session.paused_duration_seconds) || 0;
+  let pausedSeconds =
+    Number(session.paused_duration_seconds) || 0;
 
-  if (session.status === "paused" && session.paused_at) {
-    const pausedAtMs = Date.parse(session.paused_at);
+  if (
+    session.status === "paused" &&
+    session.paused_at
+  ) {
+    const pausedAtMs =
+      Date.parse(session.paused_at);
+
     if (Number.isFinite(pausedAtMs)) {
-      pausedSeconds += Math.max(0, (endMs - pausedAtMs) / 1000);
+      pausedSeconds += Math.max(
+        0,
+        (endMs - pausedAtMs) / 1000
+      );
     }
   }
 
-  return Math.max(0, (endMs - startMs) / 1000 - pausedSeconds);
+  return Math.max(
+    0,
+    (endMs - startMs) / 1000 -
+    pausedSeconds
+  );
 }
+
 
 /* =====================================================
    SESSION HELPERS
 ===================================================== */
 
 function getOrderedSessionExercises() {
-  return [...(state.activeSession?.exercises || [])].sort(
-    (a, b) => Number(a.sort_order) - Number(b.sort_order)
+  return [
+    ...(state.activeSession?.exercises || [])
+  ].sort(
+    (a, b) =>
+      Number(a.sort_order) -
+      Number(b.sort_order)
   );
 }
+
 
 function getCurrentSessionExercise() {
   if (!state.currentExerciseId) {
     return null;
   }
 
-  return getSessionExerciseById(state.currentExerciseId);
+  return getSessionExerciseById(
+    state.currentExerciseId
+  );
 }
+
 
 function getSessionExerciseById(id) {
   return (
     state.activeSession?.exercises?.find(
-      exercise => String(exercise.id) === String(id)
-    ) || null
+      exercise =>
+        String(exercise.id) === String(id)
+    ) ||
+    null
   );
 }
 
+
 function renderAddedExerciseSummary() {
-  const container = elements.workoutAddedExercisesList;
+  const container =
+    elements.workoutAddedExercisesList;
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
-  const added = (state.activeSession?.exercises || []).filter(
-    exercise => exercise.source === "ad_hoc"
+  const added =
+    (state.activeSession?.exercises || [])
+      .filter(
+        exercise =>
+          exercise.source === "ad_hoc"
+      );
+
+  setHidden(
+    elements.workoutAddedExercisesSummary,
+    added.length === 0
   );
 
-  setHidden(elements.workoutAddedExercisesSummary, added.length === 0);
   container.replaceChildren();
 
   for (const exercise of added) {
-    const row = document.createElement("div");
-    row.textContent = exercise.exercise_name;
+    const row =
+      document.createElement("div");
+
+    row.textContent =
+      exercise.exercise_name;
+
     container.appendChild(row);
   }
 }
+
 
 /* =====================================================
    LOCAL CACHE
@@ -3427,17 +4614,20 @@ function persistLocalSessionCache() {
       LOCAL_SESSION_CACHE_KEY,
       JSON.stringify({
         session: state.activeSession,
-        currentExerciseId: state.currentExerciseId,
+        currentExerciseId:
+          state.currentExerciseId,
         rest: state.rest
       })
     );
   } catch {
-    // Best-effort cache only.
+    // Best effort.
   }
 }
 
+
 function restoreLocalSessionCache() {
-  const parsed = readStoredJson(LOCAL_SESSION_CACHE_KEY);
+  const parsed =
+    readStoredJson(LOCAL_SESSION_CACHE_KEY);
 
   if (
     !parsed?.session ||
@@ -3448,22 +4638,36 @@ function restoreLocalSessionCache() {
   }
 
   state.activeSession = parsed.session;
+
   state.currentExerciseId =
     parsed.currentExerciseId ||
-    resolveCurrentExerciseId(parsed.session.exercises || []);
+    resolveCurrentExerciseId(
+      parsed.session.exercises || []
+    );
+
   state.rest = parsed.rest || null;
 
   restoreRestState();
+
   return state.activeSession;
 }
 
+
 function clearLocalSessionCache() {
-  localStorage.removeItem(LOCAL_SESSION_CACHE_KEY);
+  localStorage.removeItem(
+    LOCAL_SESSION_CACHE_KEY
+  );
 }
 
+
 function cacheCompletedSessionLocally(session) {
-  const records = getCachedCompletedSessions();
-  const index = records.findIndex(item => item.id === session.id);
+  const records =
+    getCachedCompletedSessions();
+
+  const index =
+    records.findIndex(
+      item => item.id === session.id
+    );
 
   if (index >= 0) {
     records[index] = session;
@@ -3472,18 +4676,31 @@ function cacheCompletedSessionLocally(session) {
   }
 
   try {
-    localStorage.setItem(LOCAL_COMPLETED_CACHE_KEY, JSON.stringify(records));
+    localStorage.setItem(
+      LOCAL_COMPLETED_CACHE_KEY,
+      JSON.stringify(records)
+    );
   } catch {
-    // Best-effort cache.
+    // Best effort.
   }
 }
 
+
 function getCachedCompletedSessions() {
-  const records = readStoredJson(LOCAL_COMPLETED_CACHE_KEY);
-  return Array.isArray(records) ? records : [];
+  const records =
+    readStoredJson(
+      LOCAL_COMPLETED_CACHE_KEY
+    );
+
+  return Array.isArray(records)
+    ? records
+    : [];
 }
 
-function getCachedCompletedSessionForDate(dateKey) {
+
+function getCachedCompletedSessionForDate(
+  dateKey
+) {
   return (
     getCachedCompletedSessions()
       .filter(
@@ -3491,22 +4708,39 @@ function getCachedCompletedSessionForDate(dateKey) {
           item.local_date === dateKey &&
           item.status === "completed"
       )
-      .sort((a, b) =>
-        String(b.completed_at || "").localeCompare(String(a.completed_at || ""))
-      )[0] || null
+      .sort(
+        (a, b) =>
+          String(b.completed_at || "")
+            .localeCompare(
+              String(a.completed_at || "")
+            )
+      )[0] ||
+    null
   );
 }
 
+
 function restoreSelectedDate() {
-  const value = localStorage.getItem(LOCAL_SELECTED_DATE_KEY);
-  return isDateKey(value) ? value : null;
+  const value =
+    localStorage.getItem(
+      LOCAL_SELECTED_DATE_KEY
+    );
+
+  return isDateKey(value)
+    ? value
+    : null;
 }
+
 
 function persistSelectedDate() {
   if (isDateKey(state.selectedDateKey)) {
-    localStorage.setItem(LOCAL_SELECTED_DATE_KEY, state.selectedDateKey);
+    localStorage.setItem(
+      LOCAL_SELECTED_DATE_KEY,
+      state.selectedDateKey
+    );
   }
 }
+
 
 /* =====================================================
    PLAN HELPERS
@@ -3520,11 +4754,13 @@ function getPlanReference() {
   );
 }
 
+
 function buildWorkoutMeta(dayState) {
   const exercises = dayState.exercises || [];
   const exerciseCount = exercises.length;
   const sets = countRequiredWorkUnits(exercises);
-  const minutes = estimatePlannedMinutes(dayState);
+  const minutes =
+    estimatePlannedMinutes(dayState);
 
   const pieces = [
     `${exerciseCount} ${pluralize(exerciseCount, "exercise", "exercises")}`
@@ -3535,135 +4771,233 @@ function buildWorkoutMeta(dayState) {
   }
 
   if (minutes > 0) {
-    pieces.push(`about ${formatDurationMinutes(minutes)}`);
+    pieces.push(
+      `about ${formatDurationMinutes(minutes)}`
+    );
   }
 
-  return pieces.join(" \u00B7 ");
+  return pieces.join(" Â· ");
 }
 
+
 function countRequiredWorkUnits(exercises) {
-  return (exercises || []).reduce((total, entry) => {
-    const sets = normalizeRequiredSets(entry);
-    return total + (sets > 0 ? sets : 1);
-  }, 0);
+  return (exercises || []).reduce(
+    (total, entry) => {
+      const sets =
+        normalizeRequiredSets(entry);
+
+      return total + (sets > 0 ? sets : 1);
+    },
+    0
+  );
 }
+
 
 function estimatePlannedMinutes(dayState) {
   let total = 0;
 
   for (const entry of dayState?.exercises || []) {
-    const sets = normalizeRequiredSets(entry);
+    const sets =
+      normalizeRequiredSets(entry);
 
     if (sets > 0) {
-      total += sets * (normalizePositiveNumber(entry.minutesPerSet) || 2.5);
+      total +=
+        sets *
+        (
+          normalizePositiveNumber(
+            entry.minutesPerSet
+          ) ||
+          2.5
+        );
     } else {
-      total += normalizePositiveNumber(entry.durationMinutes) || 30;
+      total +=
+        normalizePositiveNumber(
+          entry.durationMinutes
+        ) ||
+        30;
     }
   }
 
   return Math.round(total);
 }
 
-function getShortPrescription(entry) {
-  const sets = normalizeRequiredSets(entry);
-  const reps = normalizePositiveInteger(entry.reps);
 
-  if (sets && reps) return `${sets} \u00D7 ${reps}`;
-  if (sets) return `${sets} sets`;
-  if (Number(entry.durationMinutes) > 0) return `${entry.durationMinutes} min`;
-  if (Number(entry.durationSeconds) > 0) return `${entry.durationSeconds} sec`;
+function getShortPrescription(entry) {
+  const sets =
+    normalizeRequiredSets(entry);
+
+  const reps =
+    normalizePositiveInteger(entry.reps);
+
+  if (sets && reps) {
+    return `${sets} Ã ${reps}`;
+  }
+
+  if (sets) {
+    return `${sets} sets`;
+  }
+
+  if (Number(entry.durationMinutes) > 0) {
+    return `${entry.durationMinutes} min`;
+  }
+
+  if (Number(entry.durationSeconds) > 0) {
+    return `${entry.durationSeconds} sec`;
+  }
+
   return "Activity";
 }
 
-function getSessionExercisePrescription(exercise) {
+
+function getSessionExercisePrescription(
+  exercise
+) {
   if (exercise.completion_mode === "sets") {
     const pieces = [];
 
     if (Number(exercise.planned_sets) > 0) {
-      pieces.push(`${exercise.planned_sets} sets`);
+      pieces.push(
+        `${exercise.planned_sets} sets`
+      );
     }
 
     if (Number(exercise.planned_reps) > 0) {
-      pieces.push(`${exercise.planned_reps} reps`);
+      pieces.push(
+        `${exercise.planned_reps} reps`
+      );
     }
 
-    return pieces.join(" \u00D7 ") || "Strength exercise";
+    return pieces.join(" Ã ") ||
+      "Strength exercise";
   }
 
-  if (Number(exercise.planned_duration_seconds) > 0) {
-    return formatDurationSeconds(exercise.planned_duration_seconds);
+  if (
+    Number(
+      exercise.planned_duration_seconds
+    ) > 0
+  ) {
+    return formatDurationSeconds(
+      exercise.planned_duration_seconds
+    );
   }
 
   return "Complete activity";
 }
 
+
 function buildSetTarget(set) {
   const pieces = [];
 
-  if (set.planned_weight !== null && set.planned_weight !== undefined) {
+  if (
+    set.planned_weight !== null &&
+    set.planned_weight !== undefined
+  ) {
     pieces.push(`${set.planned_weight} lb`);
   }
 
-  if (set.planned_reps !== null && set.planned_reps !== undefined) {
+  if (
+    set.planned_reps !== null &&
+    set.planned_reps !== undefined
+  ) {
     pieces.push(`${set.planned_reps} reps`);
   }
 
-  return pieces.join(" \u00D7 ") || "Planned set";
+  return pieces.join(" Ã ") ||
+    "Planned set";
 }
+
 
 function resolvePlannedWeight(entry) {
   return (
     normalizePositiveNumber(entry.weight) ??
-    normalizePositiveNumber(entry.added_weight) ??
+    normalizePositiveNumber(
+      entry.added_weight
+    ) ??
     null
   );
 }
 
+
 function getPlannedDurationSeconds(entry) {
-  const seconds = normalizePositiveInteger(entry.durationSeconds);
+  const seconds =
+    normalizePositiveInteger(
+      entry.durationSeconds
+    );
+
   if (seconds) return seconds;
 
-  const minutes = normalizePositiveNumber(entry.durationMinutes);
-  return minutes ? Math.round(minutes * 60) : null;
+  const minutes =
+    normalizePositiveNumber(
+      entry.durationMinutes
+    );
+
+  return minutes
+    ? Math.round(minutes * 60)
+    : null;
 }
 
+
 function getExerciseTypeLabel(exercise) {
-  const type = exercise?.exerciseTypes?.[0] || exercise?.category;
-  return type ? titleFromId(type) : "Exercise";
+  const type =
+    exercise?.exerciseTypes?.[0] ||
+    exercise?.category;
+
+  return type
+    ? titleFromId(type)
+    : "Exercise";
 }
+
 
 function getExerciseStateIcon(status) {
   switch (status) {
-    case "current": return "â";
-    case "completed": return "â";
-    case "skipped": return "\u2014";
-    default: return "â";
+    case "current":
+      return "â";
+
+    case "completed":
+      return "â";
+
+    case "skipped":
+      return "â";
+
+    default:
+      return "â";
   }
 }
 
+
 function getExerciseStateLabel(status) {
   switch (status) {
-    case "current": return "Current";
-    case "completed": return "Complete";
-    case "skipped": return "Skipped";
-    default: return "Ready";
+    case "current":
+      return "Current";
+
+    case "completed":
+      return "Complete";
+
+    case "skipped":
+      return "Skipped";
+
+    default:
+      return "Ready";
   }
 }
+
 
 /* =====================================================
    DATE HELPERS
 ===================================================== */
 
 function buildCalendarDateAriaLabel(dateKey) {
-  return `${formatLongDate(dateKey)}, ${titleFromId(getCalendarDateStatus(dateKey))}`;
+  return (
+    `${formatLongDate(dateKey)}, ` +
+    `${titleFromId(getCalendarDateStatus(dateKey))}`
+  );
 }
+
 
 function weekdayIdFromDateKey(dateKey) {
   const date = dateFromKey(dateKey);
 
-  if (!date) {
-    return null;
-  }
+  if (!date) return null;
 
   return [
     "sunday",
@@ -3676,43 +5010,71 @@ function weekdayIdFromDateKey(dateKey) {
   ][date.getDay()];
 }
 
+
 function getCurrentWeekMondayKey() {
   const now = new Date();
   const day = now.getDay();
-  const offset = day === 0 ? 6 : day - 1;
-  const monday = addDays(
-    new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-    -offset
-  );
+
+  const offset =
+    day === 0 ? 6 : day - 1;
+
+  const monday =
+    addDays(
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      ),
+      -offset
+    );
 
   return getLocalDateKey(monday);
 }
 
+
 function getSundayStart(date) {
   return addDays(
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+    new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    ),
     -date.getDay()
   );
 }
 
+
 function addDays(date, amount) {
   const result = new Date(date);
-  result.setDate(result.getDate() + amount);
+
+  result.setDate(
+    result.getDate() + amount
+  );
+
   return result;
 }
 
-function dateFromKey(dateKey) {
-  if (!isDateKey(dateKey)) {
-    return null;
-  }
 
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, month - 1, day);
+function dateFromKey(dateKey) {
+  if (!isDateKey(dateKey)) return null;
+
+  const [year, month, day] =
+    dateKey.split("-").map(Number);
+
+  return new Date(
+    year,
+    month - 1,
+    day
+  );
 }
+
 
 function isDateKey(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  return /^\d{4}-\d{2}-\d{2}$/.test(
+    String(value || "")
+  );
 }
+
 
 function getLocalDateKey(date = new Date()) {
   return (
@@ -3722,37 +5084,66 @@ function getLocalDateKey(date = new Date()) {
   );
 }
 
+
 function getMonthStartKey(dateKey) {
-  const date = dateFromKey(dateKey) || new Date();
-  return getLocalDateKey(new Date(date.getFullYear(), date.getMonth(), 1));
+  const date =
+    dateFromKey(dateKey) || new Date();
+
+  return getLocalDateKey(
+    new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      1
+    )
+  );
 }
 
+
 function getMonthEndKey(dateKey) {
-  const date = dateFromKey(dateKey) || new Date();
-  return getLocalDateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+  const date =
+    dateFromKey(dateKey) || new Date();
+
+  return getLocalDateKey(
+    new Date(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      0
+    )
+  );
 }
+
 
 function formatLongDate(dateKey) {
   const date = dateFromKey(dateKey);
+
   if (!date) return "";
 
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric"
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    "en-US",
+    {
+      weekday: "long",
+      month: "short",
+      day: "numeric"
+    }
+  ).format(date);
 }
+
 
 function formatCompactSelectedDate(dateKey) {
   const date = dateFromKey(dateKey);
+
   if (!date) return "Today";
 
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric"
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    "en-US",
+    {
+      weekday: "short",
+      month: "short",
+      day: "numeric"
+    }
+  ).format(date);
 }
+
 
 function getRelativeDateLabel(dateKey) {
   if (dateKey === state.todayDateKey) {
@@ -3762,17 +5153,27 @@ function getRelativeDateLabel(dateKey) {
   const date = dateFromKey(dateKey);
 
   return date
-    ? new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date)
+    ? new Intl.DateTimeFormat(
+        "en-US",
+        { weekday: "long" }
+      ).format(date)
     : dateKey;
 }
 
+
 function getUserTimeZone() {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    return (
+      Intl.DateTimeFormat()
+        .resolvedOptions()
+        .timeZone ||
+      null
+    );
   } catch {
     return null;
   }
 }
+
 
 /* =====================================================
    NORMALIZATION
@@ -3780,56 +5181,114 @@ function getUserTimeZone() {
 
 function normalizeAge(value) {
   const number = Number(value);
-  return Number.isFinite(number) && number >= 10 && number <= 120
+
+  return (
+    Number.isFinite(number) &&
+    number >= 10 &&
+    number <= 120
+  )
     ? number
     : null;
 }
 
+
 function normalizeWeight(value) {
   const number = Number(value);
-  return Number.isFinite(number) && number >= 50 && number <= 1000
+
+  return (
+    Number.isFinite(number) &&
+    number >= 50 &&
+    number <= 1000
+  )
     ? Math.round(number * 10) / 10
     : null;
 }
 
+
 function normalizeHeartRate(value) {
   const number = Number(value);
-  return Number.isFinite(number) && number >= 30 && number <= 240
+
+  return (
+    Number.isFinite(number) &&
+    number >= 30 &&
+    number <= 240
+  )
     ? Math.round(number)
     : null;
 }
 
+
 function normalizePositiveNumber(value) {
   const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : null;
+
+  return (
+    Number.isFinite(number) &&
+    number > 0
+  )
+    ? number
+    : null;
 }
+
 
 function normalizePositiveInteger(value) {
   const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
+
+  return (
+    Number.isInteger(number) &&
+    number > 0
+  )
+    ? number
+    : null;
 }
 
+
 function normalizeNonNegativeNumber(value) {
-  if (value === null || value === undefined || value === "") {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
     return null;
   }
 
   const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : null;
+
+  return (
+    Number.isFinite(number) &&
+    number >= 0
+  )
+    ? number
+    : null;
 }
 
+
 function normalizeNonNegativeInteger(value) {
-  const number = normalizeNonNegativeNumber(value);
-  return number === null ? null : Math.round(number);
+  const number =
+    normalizeNonNegativeNumber(value);
+
+  return number === null
+    ? null
+    : Math.round(number);
 }
+
 
 function normalizeRequiredSets(entry) {
   const number = Number(entry?.sets);
-  return Number.isInteger(number) && number > 0 ? number : 0;
+
+  return (
+    Number.isInteger(number) &&
+    number > 0
+  )
+    ? number
+    : 0;
 }
 
+
 function normalizeCalorieIntensity(value) {
-  const normalized = String(value || "moderate").trim().toLowerCase();
+  const normalized =
+    String(value || "moderate")
+      .trim()
+      .toLowerCase();
 
   switch (normalized) {
     case "easy":
@@ -3851,44 +5310,78 @@ function normalizeCalorieIntensity(value) {
   }
 }
 
+
 /* =====================================================
    UI HELPERS
 ===================================================== */
 
-function showTrainingMessage(text, tone = "neutral") {
-  let message = document.getElementById("ariTrainingRuntimeMessage");
+function showTrainingMessage(
+  text,
+  tone = "neutral"
+) {
+  let message =
+    document.getElementById(
+      "ariTrainingRuntimeMessage"
+    );
 
   if (!message) {
-    message = document.createElement("div");
-    message.id = "ariTrainingRuntimeMessage";
-    message.className = "ari-training-runtime-message";
-    message.setAttribute("role", "status");
-    message.setAttribute("aria-live", "polite");
-    elements.todaysTraining?.appendChild(message);
+    message =
+      document.createElement("div");
+
+    message.id =
+      "ariTrainingRuntimeMessage";
+
+    message.className =
+      "ari-training-runtime-message";
+
+    message.setAttribute(
+      "role",
+      "status"
+    );
+
+    message.setAttribute(
+      "aria-live",
+      "polite"
+    );
+
+    elements.todaysTraining
+      ?.appendChild(message);
   }
 
   message.dataset.tone = tone;
   message.textContent = text;
   message.hidden = false;
 
-  window.clearTimeout(showTrainingMessage.timeout);
-  showTrainingMessage.timeout = window.setTimeout(() => {
-    message.hidden = true;
-  }, 3800);
+  window.clearTimeout(
+    showTrainingMessage.timeout
+  );
+
+  showTrainingMessage.timeout =
+    window.setTimeout(() => {
+      message.hidden = true;
+    }, 3800);
 }
 
-function setButtonBusy(button, busy, label) {
-  if (!button) {
-    return;
-  }
+
+function setButtonBusy(
+  button,
+  busy,
+  label
+) {
+  if (!button) return;
 
   button.disabled = Boolean(busy);
-  button.setAttribute("aria-busy", busy ? "true" : "false");
+
+  button.setAttribute(
+    "aria-busy",
+    busy ? "true" : "false"
+  );
 
   if (label) {
     button.textContent = label;
   }
 }
+
 
 function readableError(error, fallback) {
   const parts = [
@@ -3897,8 +5390,11 @@ function readableError(error, fallback) {
     error?.hint
   ].filter(Boolean);
 
-  return parts.length ? parts.join(" \u00B7 ") : fallback;
+  return parts.length
+    ? parts.join(" Â· ")
+    : fallback;
 }
+
 
 function setText(element, value) {
   if (element) {
@@ -3906,12 +5402,16 @@ function setText(element, value) {
   }
 }
 
+
 function setTextWithin(root, selector, value) {
-  const element = root?.querySelector(selector);
+  const element =
+    root?.querySelector(selector);
+
   if (element) {
     element.textContent = value;
   }
 }
+
 
 function setHidden(element, hidden) {
   if (element) {
@@ -3919,58 +5419,116 @@ function setHidden(element, hidden) {
   }
 }
 
+
 function titleFromId(value) {
   return String(value || "")
     .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, char => char.toUpperCase());
+    .replace(
+      /\b\w/g,
+      char => char.toUpperCase()
+    );
 }
+
 
 function getStatusLabel(status) {
   switch (status) {
-    case "complete": return "COMPLETE";
-    case "in_progress": return "IN PROGRESS";
-    case "rest": return "REST DAY";
-    default: return "NOT STARTED";
+    case "complete":
+    case "completed":
+      return "COMPLETE";
+
+    case "active":
+    case "in_progress":
+      return "IN PROGRESS";
+
+    case "paused":
+      return "PAUSED";
+
+    case "finishing":
+      return "FINISHING";
+
+    case "rest":
+      return "REST DAY";
+
+    default:
+      return "NOT STARTED";
   }
 }
 
+
 function pluralize(count, singular, plural) {
-  return count === 1 ? singular : plural;
+  return count === 1
+    ? singular
+    : plural;
 }
+
 
 function formatNumber(value) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0
-  }).format(Math.round(Number(value) || 0));
+  return new Intl.NumberFormat(
+    "en-US",
+    { maximumFractionDigits: 0 }
+  ).format(
+    Math.round(Number(value) || 0)
+  );
 }
+
 
 function formatProfileNumber(value) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1
-  }).format(Number(value));
+  return new Intl.NumberFormat(
+    "en-US",
+    { maximumFractionDigits: 1 }
+  ).format(Number(value));
 }
 
+
 function formatDurationMinutes(minutes) {
-  const rounded = Math.max(0, Math.round(Number(minutes) || 0));
+  const rounded =
+    Math.max(
+      0,
+      Math.round(Number(minutes) || 0)
+    );
 
   if (rounded < 60) {
     return `${rounded}m`;
   }
 
-  const hours = Math.floor(rounded / 60);
-  const remaining = rounded % 60;
-  return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
+  const hours =
+    Math.floor(rounded / 60);
+
+  const remaining =
+    rounded % 60;
+
+  return remaining
+    ? `${hours}h ${remaining}m`
+    : `${hours}h`;
 }
+
 
 function formatDurationSeconds(seconds) {
-  return formatDurationMinutes(Number(seconds) / 60);
+  return formatDurationMinutes(
+    Number(seconds) / 60
+  );
 }
 
+
 function formatElapsedClock(totalSeconds) {
-  const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remaining = seconds % 60;
+  const seconds =
+    Math.max(
+      0,
+      Math.floor(
+        Number(totalSeconds) || 0
+      )
+    );
+
+  const hours =
+    Math.floor(seconds / 3600);
+
+  const minutes =
+    Math.floor(
+      (seconds % 3600) / 60
+    );
+
+  const remaining =
+    seconds % 60;
 
   if (hours > 0) {
     return (
@@ -3986,10 +5544,19 @@ function formatElapsedClock(totalSeconds) {
   );
 }
 
+
 function formatCountdown(milliseconds) {
-  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const remaining = seconds % 60;
+  const seconds =
+    Math.max(
+      0,
+      Math.ceil(milliseconds / 1000)
+    );
+
+  const minutes =
+    Math.floor(seconds / 60);
+
+  const remaining =
+    seconds % 60;
 
   return (
     `${String(minutes).padStart(2, "0")}:` +
@@ -3997,14 +5564,19 @@ function formatCountdown(milliseconds) {
   );
 }
 
+
 function readStoredJson(key) {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
+
+    return raw
+      ? JSON.parse(raw)
+      : null;
   } catch {
     return null;
   }
 }
+
 
 /* =====================================================
    GLOBAL API
@@ -4014,6 +5586,7 @@ function publishGlobal() {
   const runtime = {
     version: VERSION,
     source: SOURCE,
+
     initialize,
     refresh,
     selectDate,
@@ -4029,61 +5602,101 @@ function publishGlobal() {
       renderCalendar();
     },
 
-    startPlannedWorkout: startSelectedPlannedWorkout,
+    startPlannedWorkout:
+      startSelectedPlannedWorkout,
+
     startAdHocWorkout,
-    trainAgain: startTrainAgainWorkout,
+    trainAgain:
+      startTrainAgainWorkout,
+
     pauseWorkout,
     resumeWorkout,
-    finishWorkout: openFinishWorkoutPanel,
-    saveWorkout: saveCompletedWorkout,
+
+    finishWorkout:
+      openFinishWorkoutPanel,
+
+    saveWorkout:
+      saveCompletedWorkout,
+
     openExercisePicker,
 
-    getSelectedDate: () => state.selectedDateKey,
-    getToday: () => state.todayDateKey,
-    getPlan: () => state.plan,
-    getActiveSession: () => cloneSafe(state.activeSession),
+    getSelectedDate:
+      () => state.selectedDateKey,
+
+    getToday:
+      () => state.todayDateKey,
+
+    getPlan:
+      () => state.plan,
+
+    getActiveSession:
+      () => cloneSafe(state.activeSession),
 
     getTrainingProfile: () => ({
       age: state.profileAge,
       weightLb: state.profileWeightLb,
-      restingHeartRate: state.profileRestingHeartRate,
-      estimatedMaxHeartRate: state.profileEstimatedMaxHeartRate,
-      confirmedMaxHeartRate: state.profileConfirmedMaxHeartRate,
-      effectiveMaxHeartRate: state.profileEffectiveMaxHeartRate,
-      maxHeartRateSource: state.profileMaxHeartRateSource
-    })
+      restingHeartRate:
+        state.profileRestingHeartRate,
+      estimatedMaxHeartRate:
+        state.profileEstimatedMaxHeartRate,
+      confirmedMaxHeartRate:
+        state.profileConfirmedMaxHeartRate,
+      effectiveMaxHeartRate:
+        state.profileEffectiveMaxHeartRate,
+      maxHeartRateSource:
+        state.profileMaxHeartRateSource
+    }),
+
+    sessionApi:
+      WorkoutSessionApi
   };
 
-  window.Ari = window.Ari || {};
-  window.Ari.Training = runtime;
-  window.AriTrainingRuntime = runtime;
+  globalThis.Ari =
+    globalThis.Ari || {};
+
+  globalThis.Ari.Training = runtime;
+  globalThis.AriTrainingRuntime = runtime;
 }
 
+
 function cloneSafe(value) {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return value;
   }
 
   try {
-    if (typeof structuredClone === "function") {
+    if (
+      typeof structuredClone === "function"
+    ) {
       return structuredClone(value);
     }
   } catch {
     // Fall through.
   }
 
-  return JSON.parse(JSON.stringify(value));
+  return JSON.parse(
+    JSON.stringify(value)
+  );
 }
+
 
 /* =====================================================
    STARTUP
 ===================================================== */
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initialize, { once: true });
+  document.addEventListener(
+    "DOMContentLoaded",
+    initialize,
+    { once: true }
+  );
 } else {
   initialize();
 }
+
 
 export {
   VERSION,
