@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.1.0
+// Version: 4.1.1
 // Purpose:
 //   Calendar-first ARI Training controller.
 //
@@ -47,7 +47,7 @@ import CalorieCalculator
 import HeartRateIntensity
   from "./training/energy/heart-rate-intensity.js";
 
-const VERSION = "4.1.0";
+const VERSION = "4.1.1";
 const SOURCE = "js/ari-training";
 
 const DAYS = Object.freeze([
@@ -1931,7 +1931,7 @@ function createSessionExerciseQueueRow(exercise) {
     button = document.createElement("button");
     button.type = "button";
     button.className = "ari-session-exercise-row";
-    button.textContent = `${exercise.exercise_name} Â· ${getExerciseStateLabel(exercise.status)}`;
+    button.textContent = `${exercise.exercise_name} \u00B7 ${getExerciseStateLabel(exercise.status)}`;
   }
 
   button.dataset.exerciseId = exercise.id;
@@ -2424,7 +2424,7 @@ async function openFinishWorkoutPanel() {
   setText(elements.workoutCompleteSets, String(stats.completed));
   setText(
     elements.workoutCompleteAverageHeartRate,
-    hrStats.average ? `${hrStats.average} bpm` : "â"
+    hrStats.average ? `${hrStats.average} bpm` : "\u2014"
   );
 
   if (elements.finalAverageHeartRateInput) {
@@ -3036,19 +3036,19 @@ async function loadTrainingProfile() {
 function renderTrainingProfile() {
   setText(
     elements.trainingProfileWeight,
-    state.profileWeightLb ? `${formatProfileNumber(state.profileWeightLb)} lb` : "â"
+    state.profileWeightLb ? `${formatProfileNumber(state.profileWeightLb)} lb` : "\u2014"
   );
   setText(
     elements.trainingProfileRestingHeartRate,
     state.profileRestingHeartRate
       ? `${Math.round(state.profileRestingHeartRate)} bpm`
-      : "â"
+      : "\u2014"
   );
   setText(
     elements.trainingProfileMaxHeartRate,
     state.profileEffectiveMaxHeartRate
       ? `${Math.round(state.profileEffectiveMaxHeartRate)} bpm`
-      : "â"
+      : "\u2014"
   );
   setText(
     elements.trainingProfileMaxHeartRateSource,
@@ -3538,7 +3538,7 @@ function buildWorkoutMeta(dayState) {
     pieces.push(`about ${formatDurationMinutes(minutes)}`);
   }
 
-  return pieces.join(" Â· ");
+  return pieces.join(" \u00B7 ");
 }
 
 function countRequiredWorkUnits(exercises) {
@@ -3568,7 +3568,7 @@ function getShortPrescription(entry) {
   const sets = normalizeRequiredSets(entry);
   const reps = normalizePositiveInteger(entry.reps);
 
-  if (sets && reps) return `${sets} Ã ${reps}`;
+  if (sets && reps) return `${sets} \u00D7 ${reps}`;
   if (sets) return `${sets} sets`;
   if (Number(entry.durationMinutes) > 0) return `${entry.durationMinutes} min`;
   if (Number(entry.durationSeconds) > 0) return `${entry.durationSeconds} sec`;
@@ -3587,7 +3587,7 @@ function getSessionExercisePrescription(exercise) {
       pieces.push(`${exercise.planned_reps} reps`);
     }
 
-    return pieces.join(" Ã ") || "Strength exercise";
+    return pieces.join(" \u00D7 ") || "Strength exercise";
   }
 
   if (Number(exercise.planned_duration_seconds) > 0) {
@@ -3608,7 +3608,7 @@ function buildSetTarget(set) {
     pieces.push(`${set.planned_reps} reps`);
   }
 
-  return pieces.join(" Ã ") || "Planned set";
+  return pieces.join(" \u00D7 ") || "Planned set";
 }
 
 function resolvePlannedWeight(entry) {
@@ -3636,7 +3636,7 @@ function getExerciseStateIcon(status) {
   switch (status) {
     case "current": return "â";
     case "completed": return "â";
-    case "skipped": return "â";
+    case "skipped": return "\u2014";
     default: return "â";
   }
 }
@@ -3897,7 +3897,7 @@ function readableError(error, fallback) {
     error?.hint
   ].filter(Boolean);
 
-  return parts.length ? parts.join(" Â· ") : fallback;
+  return parts.length ? parts.join(" \u00B7 ") : fallback;
 }
 
 function setText(element, value) {
