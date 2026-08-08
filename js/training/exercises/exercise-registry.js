@@ -1,9 +1,15 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/exercises/exercise-registry.js
-// Version: 2.0.0
+// Version: 2.0.1
 // Purpose:
 //   Central Exercise Library registry for ARI Training.
+//
+// V2.0.1:
+//   - Removed nonexistent mobility/mobility.js import.
+//   - Removed mobility module registration.
+//   - Prevents the entire ES-module dependency tree from
+//     failing when ARI Training boots.
 //
 // Architecture:
 //   anatomy/body-parts.js
@@ -98,14 +104,6 @@ import FUNCTIONAL_EXERCISES
 
 
 // =====================================================
-// MOBILITY
-// =====================================================
-
-import MOBILITY_EXERCISES
-  from "./mobility/mobility.js";
-
-
-// =====================================================
 // SPORTS
 // =====================================================
 
@@ -117,7 +115,7 @@ import SURFING_EXERCISES
 
 
 const VERSION =
-  "2.0.0";
+  "2.0.1";
 
 const SOURCE =
   "js/training/exercises/exercise-registry";
@@ -223,14 +221,6 @@ const EXERCISE_MODULES =
       path: "./functional/functional.js",
       exercises:
         FUNCTIONAL_EXERCISES
-    },
-
-    {
-      id: "mobility",
-      label: "Mobility",
-      path: "./mobility/mobility.js",
-      exercises:
-        MOBILITY_EXERCISES
     },
 
     {
@@ -1275,7 +1265,7 @@ function recommendExercises({
         ) {
           return (
             b.score -
-            a.score
+              a.score
           );
         }
 
@@ -1773,7 +1763,7 @@ const AriTrainingExerciseRegistry =
 
 if (
   typeof globalThis !==
-  "undefined"
+    "undefined"
 ) {
   const Ari =
     globalThis.Ari ||
