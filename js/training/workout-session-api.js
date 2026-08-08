@@ -1,65 +1,55 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/workout-session-api.js
-// Version: 1.0.0
+// Version: 2.0.0
 // Purpose:
 //   Supabase persistence boundary for ARI Training live
-//   workout sessions, session exercises, completed sets,
-//   and completed workout history.
+//   workout sessions, session exercises, sets, heart-rate
+//   readings, and completed workout history.
 //
-// Architecture:
+// Built specifically for ari-training.js V4.1.1+.
 //
-//   workout-plan-store.js
-//        = permanent weekly prescription
-//
-//   workout-progress-store.js
-//        = fast local live execution state
-//
-//   workout-session-api.js
-//        = Supabase persistence for live/completed sessions
-//
-//   ari-training.js / controller
-//        = coordinates the UI and both persistence layers
-//
-// Responsibilities:
-//   - Save/update an active workout session.
-//   - Restore an unfinished session.
-//   - Save session exercise order.
-//   - Save planned, added, substituted, and skipped exercises.
-//   - Save completed set details.
-//   - Save average workout heart rate.
-//   - Save elapsed workout time.
-//   - Save estimated training calories.
-//   - Mark workout sessions complete.
-//   - Load workout history by date/month.
-//   - Delete a session when explicitly requested.
-//   - Scope all database access to the authenticated user.
-//   - Never create a second Supabase client.
-//
-// Expected Supabase tables:
+// IMPORTANT:
+//   This version matches the CURRENT production schema:
 //
 //   ari_workout_sessions
 //   ari_workout_session_exercises
-//   ari_workout_sets
+//   ari_workout_session_sets
+//   ari_workout_heart_rate_readings
 //
-// IMPORTANT:
-//   This API assumes the Supabase SQL for those tables has
-//   already been created.
+// Existing runtime statuses:
 //
-//   The API intentionally keeps JSON snapshots in addition
-//   to normalized exercise/set rows. That gives ARI:
-//     - simple recovery
-//     - richer history
-//     - migration flexibility
-//     - easy debugging
+//   Session:
+//     active
+//     paused
+//     finishing
+//     completed
+//     abandoned
 //
+//   Session Exercise:
+//     pending
+//     current
+//     completed
+//     skipped
+//
+// Existing exercise sources:
+//
+//     planned
+//     ad_hoc
+//
+// Design:
+//   - Does NOT create a second Supabase client.
+//   - Keeps all Supabase calls out of ari-training.js.
+//   - Keeps the current SQL/table structure intact.
+//   - Supports local/offline callers by failing cleanly when
+//     a Supabase client or authenticated user is unavailable.
+//   - All user-owned reads/writes are scoped by user_id.
+//   - Returns raw-ish runtime-shaped records so ari-training.js
+//     does not need an additional mapping layer.
 // =====================================================
 
 const VERSION =
-  "1.0.0";
-
-const SCHEMA_VERSION =
-  1;
+  "2.0.0";
 
 const SOURCE =
   "js/training/workout-session-api";
@@ -70,12 +60,56 @@ const DEFAULT_TABLES =
     sessions:
       "ari_workout_sessions",
 
-    sessionExercises:
+    exercises:
       "ari_workout_session_exercises",
 
     sets:
-      "ari_workout_sets"
+      "ari_workout_session_sets",
+
+    heartRateReadings:
+      "ari_workout_heart_rate_readings"
   });
+
+
+const OPEN_SESSION_STATUSES =
+  Object.freeze([
+    "active",
+    "paused",
+    "finishing"
+  ]);
+
+
+const SESSION_STATUSES =
+  Object.freeze([
+    "active",
+    "paused",
+    "finishing",
+    "completed",
+    "abandoned"
+  ]);
+
+
+const EXERCISE_STATUSES =
+  Object.freeze([
+    "pending",
+    "current",
+    "completed",
+    "skipped"
+  ]);
+
+
+const EXERCISE_SOURCES =
+  Object.freeze([
+    "planned",
+    "ad_hoc"
+  ]);
+
+
+const COMPLETION_MODES =
+  Object.freeze([
+    "sets",
+    "single"
+  ]);
 
 
 // =====================================================
@@ -111,27 +145,18 @@ function normalizeId(
 }
 
 
-function normalizeDay(
+function normalizeDateKey(
   value
 ) {
-  const day =
+  const text =
     normalizeText(
       value
-    )
-      .toLowerCase();
+    );
 
-  return [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday"
-  ].includes(
-    day
+  return /^\d{4}-\d{2}-\d{2}$/.test(
+    text
   )
-    ? day
+    ? text
     : null;
 }
 
@@ -139,66 +164,72 @@ function normalizeDay(
 function normalizeStatus(
   value
 ) {
-  const status =
+  const normalized =
     normalizeText(
       value
     )
       .toLowerCase();
 
-  return [
-    "not_started",
-    "in_progress",
-    "paused",
-    "complete",
-    "cancelled"
-  ].includes(
-    status
-  )
-    ? status
-    : "not_started";
+  return SESSION_STATUSES
+    .includes(
+      normalized
+    )
+      ? normalized
+      : null;
 }
 
 
-function normalizeEntryStatus(
+function normalizeExerciseStatus(
   value
 ) {
-  const status =
+  const normalized =
     normalizeText(
       value
     )
       .toLowerCase();
 
-  return [
-    "not_started",
-    "in_progress",
-    "complete",
-    "skipped"
-  ].includes(
-    status
-  )
-    ? status
-    : "not_started";
+  return EXERCISE_STATUSES
+    .includes(
+      normalized
+    )
+      ? normalized
+      : null;
 }
 
 
-function normalizeEntrySource(
+function normalizeExerciseSource(
   value
 ) {
-  const source =
+  const normalized =
     normalizeText(
       value
     )
       .toLowerCase();
 
-  return [
-    "planned",
-    "added",
-    "substitution"
-  ].includes(
-    source
-  )
-    ? source
-    : "planned";
+  return EXERCISE_SOURCES
+    .includes(
+      normalized
+    )
+      ? normalized
+      : null;
+}
+
+
+function normalizeCompletionMode(
+  value
+) {
+  const normalized =
+    normalizeText(
+      value
+    )
+      .toLowerCase();
+
+  return COMPLETION_MODES
+    .includes(
+      normalized
+    )
+      ? normalized
+      : null;
 }
 
 
@@ -243,6 +274,14 @@ function normalizeNonNegativeInteger(
 function normalizeNonNegativeNumber(
   value
 ) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
   const number =
     Number(
       value
@@ -256,25 +295,6 @@ function normalizeNonNegativeNumber(
   )
     ? number
     : null;
-}
-
-
-function normalizeCalories(
-  value
-) {
-  const number =
-    normalizeNonNegativeNumber(
-      value
-    );
-
-  return number ===
-    null
-      ? 0
-      : Math.round(
-          number *
-          10
-        ) /
-        10;
 }
 
 
@@ -343,12 +363,6 @@ function looksLikeSupabaseClient(
 }
 
 
-function nowIso() {
-  return new Date()
-    .toISOString();
-}
-
-
 function getLocalDateKey(
   date =
     new Date()
@@ -361,56 +375,39 @@ function getLocalDateKey(
 }
 
 
-function getMonthKey(
-  date =
-    new Date()
-) {
-  return (
-    `${date.getFullYear()}-` +
-    `${String(date.getMonth() + 1).padStart(2, "0")}`
-  );
-}
-
-
-function createMonthBounds(
-  monthKey
+function getMonthBounds(
+  dateKey =
+    getLocalDateKey()
 ) {
   const normalized =
-    normalizeText(
-      monthKey
+    normalizeDateKey(
+      dateKey
     );
 
-  const match =
-    normalized.match(
-      /^(\d{4})-(\d{2})$/
-    );
-
-  if (!match) {
+  if (!normalized) {
     return null;
   }
 
-  const year =
-    Number(
-      match[1]
-    );
-
-  const monthIndex =
-    Number(
-      match[2]
-    ) - 1;
+  const [
+    year,
+    month
+  ] =
+    normalized
+      .split("-")
+      .map(Number);
 
   const start =
     new Date(
       year,
-      monthIndex,
+      month - 1,
       1
     );
 
-  const next =
+  const end =
     new Date(
       year,
-      monthIndex + 1,
-      1
+      month,
+      0
     );
 
   return {
@@ -419,9 +416,9 @@ function createMonthBounds(
         start
       ),
 
-    endExclusive:
+    end:
       getLocalDateKey(
-        next
+        end
       )
   };
 }
@@ -435,11 +432,11 @@ const AriTrainingWorkoutSessionApi = {
   version:
     VERSION,
 
-  schemaVersion:
-    SCHEMA_VERSION,
-
   source:
     SOURCE,
+
+  openSessionStatuses:
+    OPEN_SESSION_STATUSES,
 
   state: {
     client:
@@ -452,13 +449,13 @@ const AriTrainingWorkoutSessionApi = {
       ...DEFAULT_TABLES
     },
 
-    lastLoadedAt:
+    lastLoadAt:
       null,
 
-    lastSavedAt:
+    lastSaveAt:
       null,
 
-    lastDeletedAt:
+    lastDeleteAt:
       null,
 
     lastError:
@@ -525,6 +522,12 @@ const AriTrainingWorkoutSessionApi = {
 
     const candidates = [
       globalThis
+        .calbuddySupabase,
+
+      globalThis
+        .supabaseClient,
+
+      globalThis
         .AriTrainingConfig
         ?.supabaseClient,
 
@@ -546,13 +549,7 @@ const AriTrainingWorkoutSessionApi = {
 
       globalThis
         .ARI
-        ?.supabase,
-
-      globalThis
-        .supabaseClient,
-
-      globalThis
-        .calbuddySupabase
+        ?.supabase
     ];
 
     for (
@@ -653,594 +650,37 @@ const AriTrainingWorkoutSessionApi = {
       await this
         .getAuthenticatedUser();
 
-    return normalizeId(
-      user.id
-    );
+    return user.id;
   },
 
 
   // ===================================================
-  // SNAPSHOT NORMALIZATION
+  // SESSION CREATION
   // ===================================================
 
-  normalizeSnapshot(
-    snapshot
-  ) {
-    if (
-      !snapshot ||
-      typeof snapshot !==
-        "object"
-    ) {
-      throw new TypeError(
-        "A workout session snapshot is required."
-      );
-    }
-
-    const sessionId =
-      normalizeId(
-        snapshot.sessionId
-      );
-
-    if (!sessionId) {
-      throw new TypeError(
-        "Workout session snapshot requires sessionId."
-      );
-    }
-
-    return {
-      schemaVersion:
-        Number(
-          snapshot.schemaVersion
-        ) ||
-        SCHEMA_VERSION,
-
-      sessionId,
-
-      planKey:
-        normalizeId(
-          snapshot.planKey
-        ),
-
-      weekKey:
-        normalizeId(
-          snapshot.weekKey
-        ),
-
-      day:
-        normalizeDay(
-          snapshot.day
-        ),
-
-      plannedWorkoutId:
-        normalizeId(
-          snapshot.plannedWorkoutId
-        ),
-
-      status:
-        normalizeStatus(
-          snapshot.status
-        ),
-
-      startedAt:
-        snapshot.startedAt ||
-        null,
-
-      completedAt:
-        snapshot.completedAt ||
-        null,
-
-      elapsedSeconds:
-        normalizeNonNegativeInteger(
-          snapshot.elapsedSeconds
-        ) ||
-        0,
-
-      averageHeartRate:
-        normalizeHeartRate(
-          snapshot.averageHeartRate
-        ),
-
-      estimatedCalories:
-        normalizeCalories(
-          snapshot.estimatedCalories
-        ),
-
-      originalOrder:
-        Array.isArray(
-          snapshot.originalOrder
-        )
-          ? snapshot
-              .originalOrder
-              .map(
-                normalizeId
-              )
-              .filter(Boolean)
-          : [],
-
-      sessionOrder:
-        Array.isArray(
-          snapshot.sessionOrder
-        )
-          ? snapshot
-              .sessionOrder
-              .map(
-                normalizeId
-              )
-              .filter(Boolean)
-          : [],
-
-      exercises:
-        Array.isArray(
-          snapshot.exercises
-        )
-          ? snapshot.exercises
-              .map(
-                exercise =>
-                  this
-                    .normalizeExerciseSnapshot(
-                      exercise
-                    )
-              )
-              .filter(Boolean)
-          : [],
-
-      notes:
-        normalizeText(
-          snapshot.notes
-        ) ||
-        null,
-
-      metadata:
-        snapshot.metadata &&
-        typeof snapshot.metadata ===
-          "object"
-          ? clone(
-              snapshot.metadata
-            )
-          : {}
-    };
-  },
-
-
-  normalizeExerciseSnapshot(
-    exercise
-  ) {
-    if (
-      !exercise ||
-      typeof exercise !==
-        "object"
-    ) {
-      return null;
-    }
-
-    const entryId =
-      normalizeId(
-        exercise.entryId
-      );
-
-    const exerciseId =
-      normalizeId(
-        exercise.exerciseId
-      );
-
-    if (
-      !entryId ||
-      !exerciseId
-    ) {
-      return null;
-    }
-
-    const completedSets = [];
-
-    if (
-      exercise.completedSets &&
-      typeof exercise.completedSets ===
-        "object"
-    ) {
-      for (
-        const [
-          setKey,
-          setRecord
-        ]
-        of Object.entries(
-          exercise.completedSets
-        )
-      ) {
-        const setNumber =
-          normalizePositiveInteger(
-            setRecord?.setNumber ??
-            setKey
-          );
-
-        if (!setNumber) {
-          continue;
-        }
-
-        completedSets.push({
-          setNumber,
-
-          completed:
-            Boolean(
-              setRecord?.completed
-            ),
-
-          completedAt:
-            setRecord?.completedAt ||
-            null,
-
-          reps:
-            normalizeNonNegativeInteger(
-              setRecord?.reps
-            ),
-
-          weight:
-            normalizeNonNegativeNumber(
-              setRecord?.weight
-            ),
-
-          durationSeconds:
-            normalizeNonNegativeNumber(
-              setRecord
-                ?.durationSeconds
-            ),
-
-          estimatedCalories:
-            normalizeCalories(
-              setRecord
-                ?.estimatedCalories
-            ),
-
-          notes:
-            normalizeText(
-              setRecord?.notes
-            ) ||
-            null
-        });
-      }
-    }
-
-    return {
-      entryId,
-
-      exerciseId,
-
-      source:
-        normalizeEntrySource(
-          exercise.source
-        ),
-
-      status:
-        normalizeEntryStatus(
-          exercise.status
-        ),
-
-      substitutedFromEntryId:
-        normalizeId(
-          exercise
-            .substitutedFromEntryId
-        ),
-
-      substitutedFromExerciseId:
-        normalizeId(
-          exercise
-            .substitutedFromExerciseId
-        ),
-
-      originalIndex:
-        normalizeNonNegativeInteger(
-          exercise.originalIndex
-        ),
-
-      role:
-        normalizeId(
-          exercise.role
-        ),
-
-      completionMode:
-        normalizeId(
-          exercise.completionMode
-        ) ||
-        "single",
-
-      requiredSets:
-        normalizePositiveInteger(
-          exercise.requiredSets
-        ),
-
-      completed:
-        Boolean(
-          exercise.completed
-        ),
-
-      startedAt:
-        exercise.startedAt ||
-        null,
-
-      completedAt:
-        exercise.completedAt ||
-        null,
-
-      skippedAt:
-        exercise.skippedAt ||
-        null,
-
-      prescription:
-        exercise.prescription &&
-        typeof exercise.prescription ===
-          "object"
-          ? clone(
-              exercise.prescription
-            )
-          : {},
-
-      actual:
-        exercise.actual &&
-        typeof exercise.actual ===
-          "object"
-          ? clone(
-              exercise.actual
-            )
-          : {},
-
-      estimatedCalories:
-        normalizeCalories(
-          exercise.estimatedCalories
-        ),
-
-      completedSets,
-
-      metadata:
-        exercise.metadata &&
-        typeof exercise.metadata ===
-          "object"
-          ? clone(
-              exercise.metadata
-            )
-          : {}
-    };
-  },
-
-
-  // ===================================================
-  // DATABASE PAYLOADS
-  // ===================================================
-
-  makeSessionPayload({
-    snapshot,
-    userId,
-    localDate =
-      null
-  }) {
-    const normalized =
-      this.normalizeSnapshot(
-        snapshot
-      );
-
-    const dateKey =
-      normalizeText(
-        localDate
-      ) ||
-      (
-        normalized.completedAt ||
-        normalized.startedAt
-          ? getLocalDateKey(
-              new Date(
-                normalized.completedAt ||
-                normalized.startedAt
-              )
-            )
-          : getLocalDateKey()
-      );
-
-    return {
-      id:
-        normalized.sessionId,
-
-      user_id:
-        userId,
-
-      plan_key:
-        normalized.planKey,
-
-      week_key:
-        normalized.weekKey,
-
-      weekday:
-        normalized.day,
-
-      local_date:
-        dateKey,
-
-      planned_workout_id:
-        normalized.plannedWorkoutId,
-
-      status:
-        normalized.status,
-
-      started_at:
-        normalized.startedAt,
-
-      completed_at:
-        normalized.completedAt,
-
-      elapsed_seconds:
-        normalized.elapsedSeconds,
-
-      average_heart_rate:
-        normalized.averageHeartRate,
-
-      estimated_calories:
-        normalized.estimatedCalories,
-
-      notes:
-        normalized.notes,
-
-      session_data: {
-        ...normalized,
-
-        schemaVersion:
-          SCHEMA_VERSION,
-
-        apiVersion:
-          VERSION
-      },
-
-      updated_at:
-        nowIso()
-    };
-  },
-
-
-  makeExercisePayload({
-    sessionId,
-    userId,
-    exercise,
-    position
-  }) {
-    return {
-      session_id:
-        sessionId,
-
-      user_id:
-        userId,
-
-      entry_id:
-        exercise.entryId,
-
-      exercise_id:
-        exercise.exerciseId,
-
-      position:
-        normalizeNonNegativeInteger(
-          position
-        ) ??
-        0,
-
-      original_position:
-        exercise.originalIndex,
-
-      source:
-        exercise.source,
-
-      status:
-        exercise.status,
-
-      role:
-        exercise.role,
-
-      substituted_from_entry_id:
-        exercise.substitutedFromEntryId,
-
-      substituted_from_exercise_id:
-        exercise.substitutedFromExerciseId,
-
-      completion_mode:
-        exercise.completionMode,
-
-      required_sets:
-        exercise.requiredSets,
-
-      completed:
-        exercise.completed,
-
-      started_at:
-        exercise.startedAt,
-
-      completed_at:
-        exercise.completedAt,
-
-      skipped_at:
-        exercise.skippedAt,
-
-      estimated_calories:
-        exercise.estimatedCalories,
-
-      prescription_data:
-        exercise.prescription,
-
-      actual_data:
-        exercise.actual,
-
-      exercise_data: {
-        ...exercise,
-
-        completedSets:
-          undefined
-      },
-
-      updated_at:
-        nowIso()
-    };
-  },
-
-
-  makeSetPayload({
-    sessionId,
-    userId,
-    exerciseEntryId,
-    exerciseId,
-    setRecord
-  }) {
-    return {
-      session_id:
-        sessionId,
-
-      user_id:
-        userId,
-
-      exercise_entry_id:
-        exerciseEntryId,
-
-      exercise_id:
-        exerciseId,
-
-      set_number:
-        setRecord.setNumber,
-
-      completed:
-        Boolean(
-          setRecord.completed
-        ),
-
-      completed_at:
-        setRecord.completedAt,
-
-      reps:
-        setRecord.reps,
-
-      weight:
-        setRecord.weight,
-
-      duration_seconds:
-        setRecord.durationSeconds,
-
-      estimated_calories:
-        setRecord.estimatedCalories,
-
-      notes:
-        setRecord.notes,
-
-      set_data:
-        clone(
-          setRecord
-        ),
-
-      updated_at:
-        nowIso()
-    };
-  },
-
-
-  // ===================================================
-  // SAVE COMPLETE SESSION SNAPSHOT
-  // ===================================================
-
-  async saveSession({
-    snapshot,
+  async createSession({
     userId =
       null,
-    localDate =
-      null
+
+    planId =
+      null,
+
+    localDate,
+
+    timezone =
+      null,
+
+    plannedWeekday =
+      null,
+
+    title =
+      "Workout",
+
+    source =
+      "planned",
+
+    status =
+      "active"
   } = {}) {
     this.state.lastError =
       null;
@@ -1255,68 +695,88 @@ const AriTrainingWorkoutSessionApi = {
             userId
           );
 
-      const normalized =
-        this.normalizeSnapshot(
-          snapshot
+      const normalizedDate =
+        normalizeDateKey(
+          localDate
         );
 
-      const sessionPayload =
-        this.makeSessionPayload({
-          snapshot:
-            normalized,
+      if (!normalizedDate) {
+        throw new TypeError(
+          "createSession requires localDate in YYYY-MM-DD format."
+        );
+      }
 
-          userId:
-            resolvedUserId,
+      const normalizedStatus =
+        normalizeStatus(
+          status
+        ) ||
+        "active";
 
-          localDate
-        });
+      const payload = {
+        user_id:
+          resolvedUserId,
 
-      const sessionTable =
-        this.state.tables
-          .sessions;
+        plan_id:
+          normalizeId(
+            planId
+          ),
+
+        local_date:
+          normalizedDate,
+
+        timezone:
+          normalizeText(
+            timezone
+          ) ||
+          null,
+
+        planned_weekday:
+          normalizeText(
+            plannedWeekday
+          )
+            .toLowerCase() ||
+          null,
+
+        title:
+          normalizeText(
+            title
+          ) ||
+          "Workout",
+
+        source:
+          normalizeText(
+            source
+          ) ||
+          "planned",
+
+        status:
+          normalizedStatus
+      };
 
       const {
-        data:
-          savedSession,
-        error:
-          sessionError
+        data,
+        error
       } =
         await client
           .from(
-            sessionTable
+            this.state.tables
+              .sessions
           )
-          .upsert(
-            sessionPayload,
-            {
-              onConflict:
-                "id"
-            }
+          .insert(
+            payload
           )
-          .select("*")
+          .select()
           .single();
 
-      if (
-        sessionError
-      ) {
-        throw sessionError;
+      if (error) {
+        throw error;
       }
 
-      await this
-        .saveSessionExercises({
-          snapshot:
-            normalized,
+      this.state.lastSaveAt =
+        new Date()
+          .toISOString();
 
-          userId:
-            resolvedUserId
-        });
-
-      this.state.lastSavedAt =
-        nowIso();
-
-      return this
-        .mapSessionRow(
-          savedSession
-        );
+      return data;
     } catch (
       error
     ) {
@@ -1329,352 +789,17 @@ const AriTrainingWorkoutSessionApi = {
 
 
   // ===================================================
-  // SAVE SESSION EXERCISES
+  // SESSION READS
   // ===================================================
 
-  async saveSessionExercises({
-    snapshot,
+  async getOpenSession({
     userId =
       null
-  } = {}) {
-    const client =
-      this.requireClient();
-
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
-        );
-
-    const normalized =
-      this.normalizeSnapshot(
-        snapshot
-      );
-
-    const table =
-      this.state.tables
-        .sessionExercises;
-
-    const positions =
-      new Map(
-        normalized
-          .sessionOrder
-          .map(
-            (
-              entryId,
-              index
-            ) => [
-              entryId,
-              index
-            ]
-          )
-      );
-
-    const rows =
-      normalized.exercises
-        .map(
-          exercise =>
-            this
-              .makeExercisePayload({
-                sessionId:
-                  normalized.sessionId,
-
-                userId:
-                  resolvedUserId,
-
-                exercise,
-
-                position:
-                  positions.get(
-                    exercise.entryId
-                  ) ??
-                  0
-              })
-        );
-
-    if (
-      rows.length >
-      0
-    ) {
-      const {
-        error
-      } =
-        await client
-          .from(
-            table
-          )
-          .upsert(
-            rows,
-            {
-              onConflict:
-                "session_id,entry_id"
-            }
-          );
-
-      if (error) {
-        throw error;
-      }
-    }
-
-    /*
-     * Remove stale session-exercise rows that no longer exist
-     * in the snapshot. This primarily affects temporary
-     * "added" or substitution entries that the user removes.
-     */
-    const activeEntryIds =
-      normalized.exercises
-        .map(
-          exercise =>
-            exercise.entryId
-        );
-
-    let staleQuery =
-      client
-        .from(
-          table
-        )
-        .delete()
-        .eq(
-          "session_id",
-          normalized.sessionId
-        )
-        .eq(
-          "user_id",
-          resolvedUserId
-        );
-
-    if (
-      activeEntryIds.length >
-      0
-    ) {
-      staleQuery =
-        staleQuery.not(
-          "entry_id",
-          "in",
-          `(${activeEntryIds.join(",")})`
-        );
-    }
-
-    const {
-      error:
-        staleError
-    } =
-      await staleQuery;
-
-    if (
-      staleError
-    ) {
-      /*
-       * This cleanup is non-critical. If the Supabase client
-       * or SQL dialect rejects the dynamic NOT IN syntax,
-       * the next full session save still preserves the active
-       * snapshot in session_data.
-       */
-      console.warn(
-        "[ARI Training] Could not remove stale session exercise rows.",
-        staleError
-      );
-    }
-
-    for (
-      const exercise
-      of normalized.exercises
-    ) {
-      await this
-        .saveExerciseSets({
-          sessionId:
-            normalized.sessionId,
-
-          exercise,
-
-          userId:
-            resolvedUserId
-        });
-    }
-
-    return true;
-  },
-
-
-  // ===================================================
-  // SAVE SETS
-  // ===================================================
-
-  async saveExerciseSets({
-    sessionId,
-    exercise,
-    userId =
-      null
-  } = {}) {
-    const resolvedSessionId =
-      normalizeId(
-        sessionId
-      );
-
-    if (
-      !resolvedSessionId ||
-      !exercise
-    ) {
-      return false;
-    }
-
-    const client =
-      this.requireClient();
-
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
-        );
-
-    const table =
-      this.state.tables
-        .sets;
-
-    const rows =
-      Array.isArray(
-        exercise.completedSets
-      )
-        ? exercise.completedSets
-            .filter(
-              setRecord =>
-                setRecord
-                  ?.setNumber
-            )
-            .map(
-              setRecord =>
-                this
-                  .makeSetPayload({
-                    sessionId:
-                      resolvedSessionId,
-
-                    userId:
-                      resolvedUserId,
-
-                    exerciseEntryId:
-                      exercise.entryId,
-
-                    exerciseId:
-                      exercise.exerciseId,
-
-                    setRecord
-                  })
-            )
-        : [];
-
-    if (
-      rows.length >
-      0
-    ) {
-      const {
-        error
-      } =
-        await client
-          .from(
-            table
-          )
-          .upsert(
-            rows,
-            {
-              onConflict:
-                "session_id,exercise_entry_id,set_number"
-            }
-          );
-
-      if (error) {
-        throw error;
-      }
-    }
-
-    return true;
-  },
-
-
-  // ===================================================
-  // SAVE ONLY SESSION HEADER
-  // ===================================================
-
-  async saveSessionHeader({
-    snapshot,
-    userId =
-      null,
-    localDate =
-      null
-  } = {}) {
-    const client =
-      this.requireClient();
-
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
-        );
-
-    const payload =
-      this.makeSessionPayload({
-        snapshot,
-        userId:
-          resolvedUserId,
-        localDate
-      });
-
-    const {
-      data,
-      error
-    } =
-      await client
-        .from(
-          this.state.tables
-            .sessions
-        )
-        .upsert(
-          payload,
-          {
-            onConflict:
-              "id"
-          }
-        )
-        .select("*")
-        .single();
-
-    if (error) {
-      throw error;
-    }
-
-    this.state.lastSavedAt =
-      nowIso();
-
-    return this
-      .mapSessionRow(
-        data
-      );
-  },
-
-
-  // ===================================================
-  // LOAD SESSION
-  // ===================================================
-
-  async loadSession({
-    sessionId,
-    userId =
-      null,
-    includeChildren =
-      true
   } = {}) {
     this.state.lastError =
       null;
 
     try {
-      const resolvedSessionId =
-        normalizeId(
-          sessionId
-        );
-
-      if (!resolvedSessionId) {
-        return null;
-      }
-
       const client =
         this.requireClient();
 
@@ -1689,95 +814,6 @@ const AriTrainingWorkoutSessionApi = {
         error
       } =
         await client
-          .from(
-            this.state.tables
-              .sessions
-          )
-          .select("*")
-          .eq(
-            "id",
-            resolvedSessionId
-          )
-          .eq(
-            "user_id",
-            resolvedUserId
-          )
-          .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data) {
-        return null;
-      }
-
-      const session =
-        this.mapSessionRow(
-          data
-        );
-
-      if (
-        includeChildren
-      ) {
-        const children =
-          await this
-            .loadSessionChildren({
-              sessionId:
-                resolvedSessionId,
-
-              userId:
-                resolvedUserId
-            });
-
-        session.exercises =
-          children.exercises;
-      }
-
-      this.state.lastLoadedAt =
-        nowIso();
-
-      return session;
-    } catch (
-      error
-    ) {
-      this.state.lastError =
-        error;
-
-      throw error;
-    }
-  },
-
-
-  // ===================================================
-  // LOAD ACTIVE SESSION
-  // ===================================================
-
-  async loadActiveSession({
-    userId =
-      null,
-    weekKey =
-      null,
-    day =
-      null,
-    includeChildren =
-      true
-  } = {}) {
-    this.state.lastError =
-      null;
-
-    try {
-      const client =
-        this.requireClient();
-
-      const resolvedUserId =
-        await this
-          .resolveUserId(
-            userId
-          );
-
-      let query =
-        client
           .from(
             this.state.tables
               .sessions
@@ -1790,48 +826,11 @@ const AriTrainingWorkoutSessionApi = {
           .in(
             "status",
             [
-              "in_progress",
-              "paused"
+              ...OPEN_SESSION_STATUSES
             ]
-          );
-
-      const normalizedWeekKey =
-        normalizeId(
-          weekKey
-        );
-
-      if (
-        normalizedWeekKey
-      ) {
-        query =
-          query.eq(
-            "week_key",
-            normalizedWeekKey
-          );
-      }
-
-      const normalizedDay =
-        normalizeDay(
-          day
-        );
-
-      if (
-        normalizedDay
-      ) {
-        query =
-          query.eq(
-            "weekday",
-            normalizedDay
-          );
-      }
-
-      const {
-        data,
-        error
-      } =
-        await query
+          )
           .order(
-            "updated_at",
+            "started_at",
             {
               ascending:
                 false
@@ -1846,36 +845,12 @@ const AriTrainingWorkoutSessionApi = {
         throw error;
       }
 
-      if (!data) {
-        return null;
-      }
+      this.state.lastLoadAt =
+        new Date()
+          .toISOString();
 
-      const session =
-        this.mapSessionRow(
-          data
-        );
-
-      if (
-        includeChildren
-      ) {
-        const children =
-          await this
-            .loadSessionChildren({
-              sessionId:
-                session.sessionId,
-
-              userId:
-                resolvedUserId
-            });
-
-        session.exercises =
-          children.exercises;
-      }
-
-      this.state.lastLoadedAt =
-        nowIso();
-
-      return session;
+      return data ||
+        null;
     } catch (
       error
     ) {
@@ -1887,29 +862,23 @@ const AriTrainingWorkoutSessionApi = {
   },
 
 
-  // ===================================================
-  // LOAD CHILD ROWS
-  // ===================================================
-
-  async loadSessionChildren({
+  async getSession({
     sessionId,
+
     userId =
       null
   } = {}) {
+    const client =
+      this.requireClient();
+
     const resolvedSessionId =
       normalizeId(
         sessionId
       );
 
     if (!resolvedSessionId) {
-      return {
-        exercises: [],
-        sets: []
-      };
+      return null;
     }
-
-    const client =
-      this.requireClient();
 
     const resolvedUserId =
       await this
@@ -1917,528 +886,38 @@ const AriTrainingWorkoutSessionApi = {
           userId
         );
 
-    const [
-      exerciseResult,
-      setResult
-    ] =
-      await Promise.all([
-        client
-          .from(
-            this.state.tables
-              .sessionExercises
-          )
-          .select("*")
-          .eq(
-            "session_id",
-            resolvedSessionId
-          )
-          .eq(
-            "user_id",
-            resolvedUserId
-          )
-          .order(
-            "position",
-            {
-              ascending:
-                true
-            }
-          ),
-
-        client
-          .from(
-            this.state.tables
-              .sets
-          )
-          .select("*")
-          .eq(
-            "session_id",
-            resolvedSessionId
-          )
-          .eq(
-            "user_id",
-            resolvedUserId
-          )
-          .order(
-            "set_number",
-            {
-              ascending:
-                true
-            }
-          )
-      ]);
-
-    if (
-      exerciseResult.error
-    ) {
-      throw exerciseResult
-        .error;
-    }
-
-    if (
-      setResult.error
-    ) {
-      throw setResult
-        .error;
-    }
-
-    const sets =
-      (
-        setResult.data ||
-        []
-      )
-        .map(
-          row =>
-            this.mapSetRow(
-              row
-            )
-        );
-
-    const setsByEntry =
-      new Map();
-
-    for (
-      const setRecord
-      of sets
-    ) {
-      if (
-        !setsByEntry.has(
-          setRecord
-            .exerciseEntryId
-        )
-      ) {
-        setsByEntry.set(
-          setRecord
-            .exerciseEntryId,
-          []
-        );
-      }
-
-      setsByEntry
-        .get(
-          setRecord
-            .exerciseEntryId
-        )
-        .push(
-          setRecord
-        );
-    }
-
-    const exercises =
-      (
-        exerciseResult.data ||
-        []
-      )
-        .map(
-          row => {
-            const exercise =
-              this
-                .mapExerciseRow(
-                  row
-                );
-
-            exercise.completedSets =
-              setsByEntry.get(
-                exercise.entryId
-              ) ||
-              [];
-
-            return exercise;
-          }
-        );
-
-    return {
-      exercises,
-      sets
-    };
-  },
-
-
-  // ===================================================
-  // COMPLETE SESSION
-  // ===================================================
-
-  async completeSession({
-    snapshot,
-    userId =
-      null,
-    localDate =
-      null
-  } = {}) {
-    const normalized =
-      this.normalizeSnapshot(
-        snapshot
-      );
-
-    normalized.status =
-      "complete";
-
-    normalized.completedAt =
-      normalized.completedAt ||
-      nowIso();
-
-    return this.saveSession({
-      snapshot:
-        normalized,
-
-      userId,
-
-      localDate
-    });
-  },
-
-
-  // ===================================================
-  // HISTORY
-  // ===================================================
-
-  async loadHistory({
-    userId =
-      null,
-    startDate =
-      null,
-    endDate =
-      null,
-    limit =
-      100,
-    includeChildren =
-      false
-  } = {}) {
-    this.state.lastError =
-      null;
-
-    try {
-      const client =
-        this.requireClient();
-
-      const resolvedUserId =
-        await this
-          .resolveUserId(
-            userId
-          );
-
-      let query =
-        client
-          .from(
-            this.state.tables
-              .sessions
-          )
-          .select("*")
-          .eq(
-            "user_id",
-            resolvedUserId
-          )
-          .eq(
-            "status",
-            "complete"
-          );
-
-      if (
-        normalizeText(
-          startDate
-        )
-      ) {
-        query =
-          query.gte(
-            "local_date",
-            normalizeText(
-              startDate
-            )
-          );
-      }
-
-      if (
-        normalizeText(
-          endDate
-        )
-      ) {
-        query =
-          query.lt(
-            "local_date",
-            normalizeText(
-              endDate
-            )
-          );
-      }
-
-      const {
-        data,
-        error
-      } =
-        await query
-          .order(
-            "local_date",
-            {
-              ascending:
-                false
-            }
-          )
-          .order(
-            "completed_at",
-            {
-              ascending:
-                false
-            }
-          )
-          .limit(
-            Math.max(
-              1,
-              Number(
-                limit
-              ) ||
-              100
-            )
-          );
-
-      if (error) {
-        throw error;
-      }
-
-      const sessions =
-        (
-          data ||
-          []
-        )
-          .map(
-            row =>
-              this.mapSessionRow(
-                row
-              )
-          );
-
-      if (
-        includeChildren
-      ) {
-        for (
-          const session
-          of sessions
-        ) {
-          const children =
-            await this
-              .loadSessionChildren({
-                sessionId:
-                  session.sessionId,
-
-                userId:
-                  resolvedUserId
-              });
-
-          session.exercises =
-            children.exercises;
-        }
-      }
-
-      this.state.lastLoadedAt =
-        nowIso();
-
-      return sessions;
-    } catch (
+    const {
+      data,
       error
-    ) {
-      this.state.lastError =
-        error;
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sessions
+        )
+        .select("*")
+        .eq(
+          "id",
+          resolvedSessionId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .maybeSingle();
 
+    if (error) {
       throw error;
     }
+
+    return data ||
+      null;
   },
 
 
-  async loadMonthHistory({
-    monthKey =
-      getMonthKey(),
-
-    userId =
-      null,
-
-    includeChildren =
-      false,
-
-    limit =
-      200
-  } = {}) {
-    const bounds =
-      createMonthBounds(
-        monthKey
-      );
-
-    if (!bounds) {
-      throw new TypeError(
-        "loadMonthHistory requires monthKey in YYYY-MM format."
-      );
-    }
-
-    return this
-      .loadHistory({
-        userId,
-
-        startDate:
-          bounds.start,
-
-        endDate:
-          bounds.endExclusive,
-
-        includeChildren,
-
-        limit
-      });
-  },
-
-
-  async loadDateHistory({
-    date =
-      getLocalDateKey(),
-
-    userId =
-      null,
-
-    includeChildren =
-      true
-  } = {}) {
-    const normalizedDate =
-      normalizeText(
-        date
-      );
-
-    if (!normalizedDate) {
-      return [];
-    }
-
-    const nextDate =
-      new Date(
-        `${normalizedDate}T12:00:00`
-      );
-
-    nextDate.setDate(
-      nextDate.getDate() +
-      1
-    );
-
-    return this
-      .loadHistory({
-        userId,
-
-        startDate:
-          normalizedDate,
-
-        endDate:
-          getLocalDateKey(
-            nextDate
-          ),
-
-        includeChildren
-      });
-  },
-
-
-  // ===================================================
-  // HISTORY SUMMARY
-  // ===================================================
-
-  summarizeSessions(
-    sessions =
-      []
-  ) {
-    const records =
-      Array.isArray(
-        sessions
-      )
-        ? sessions
-        : [];
-
-    const workoutCount =
-      records.length;
-
-    const calories =
-      records.reduce(
-        (
-          total,
-          session
-        ) =>
-          total +
-          (
-            normalizeCalories(
-              session
-                .estimatedCalories
-            ) ||
-            0
-          ),
-        0
-      );
-
-    const elapsedSeconds =
-      records.reduce(
-        (
-          total,
-          session
-        ) =>
-          total +
-          (
-            normalizeNonNegativeInteger(
-              session
-                .elapsedSeconds
-            ) ||
-            0
-          ),
-        0
-      );
-
-    const averageHeartRates =
-      records
-        .map(
-          session =>
-            normalizeHeartRate(
-              session
-                .averageHeartRate
-            )
-        )
-        .filter(
-          value =>
-            value !==
-              null
-        );
-
-    const averageHeartRate =
-      averageHeartRates
-        .length >
-        0
-        ? Math.round(
-            averageHeartRates
-              .reduce(
-                (
-                  total,
-                  value
-                ) =>
-                  total +
-                  value,
-                0
-              ) /
-            averageHeartRates
-              .length
-          )
-        : null;
-
-    return {
-      workoutCount,
-
-      estimatedCalories:
-        Math.round(
-          calories *
-          10
-        ) /
-        10,
-
-      elapsedSeconds,
-
-      averageHeartRate
-    };
-  },
-
-
-  // ===================================================
-  // DELETE SESSION
-  // ===================================================
-
-  async deleteSession({
+  async getFullSession({
     sessionId,
+
     userId =
       null
   } = {}) {
@@ -2452,11 +931,8 @@ const AriTrainingWorkoutSessionApi = {
         );
 
       if (!resolvedSessionId) {
-        return false;
+        return null;
       }
-
-      const client =
-        this.requireClient();
 
       const resolvedUserId =
         await this
@@ -2464,87 +940,77 @@ const AriTrainingWorkoutSessionApi = {
             userId
           );
 
-      /*
-       * If FK cascade is configured, deleting the session row
-       * removes exercise/set children automatically. If cascade
-       * is not configured, delete children explicitly first.
-       */
       const [
-        setDelete,
-        exerciseDelete
+        session,
+        exercises,
+        sets,
+        heartRateReadings
       ] =
         await Promise.all([
-          client
-            .from(
-              this.state.tables
-                .sets
-            )
-            .delete()
-            .eq(
-              "session_id",
-              resolvedSessionId
-            )
-            .eq(
-              "user_id",
-              resolvedUserId
-            ),
+          this.getSession({
+            sessionId:
+              resolvedSessionId,
 
-          client
-            .from(
-              this.state.tables
-                .sessionExercises
-            )
-            .delete()
-            .eq(
-              "session_id",
-              resolvedSessionId
-            )
-            .eq(
-              "user_id",
+            userId:
               resolvedUserId
-            )
+          }),
+
+          this.getSessionExercises({
+            sessionId:
+              resolvedSessionId,
+
+            userId:
+              resolvedUserId
+          }),
+
+          this.getSessionSets({
+            sessionId:
+              resolvedSessionId,
+
+            userId:
+              resolvedUserId
+          }),
+
+          this.getHeartRateReadings({
+            sessionId:
+              resolvedSessionId,
+
+            userId:
+              resolvedUserId
+          })
         ]);
 
-      if (
-        setDelete.error
-      ) {
-        throw setDelete
-          .error;
+      if (!session) {
+        return null;
       }
 
-      if (
-        exerciseDelete.error
+      for (
+        const exercise
+        of exercises
       ) {
-        throw exerciseDelete
-          .error;
-      }
-
-      const {
-        error
-      } =
-        await client
-          .from(
-            this.state.tables
-              .sessions
-          )
-          .delete()
-          .eq(
-            "id",
-            resolvedSessionId
-          )
-          .eq(
-            "user_id",
-            resolvedUserId
+        exercise.sets =
+          sets.filter(
+            set =>
+              String(
+                set.session_exercise_id
+              ) ===
+              String(
+                exercise.id
+              )
           );
-
-      if (error) {
-        throw error;
       }
 
-      this.state.lastDeletedAt =
-        nowIso();
+      this.state.lastLoadAt =
+        new Date()
+          .toISOString();
 
-      return true;
+      return {
+        ...session,
+
+        exercises,
+
+        heartRateReadings
+      };
     } catch (
       error
     ) {
@@ -2557,445 +1023,1768 @@ const AriTrainingWorkoutSessionApi = {
 
 
   // ===================================================
-  // MAPPERS
+  // SESSION UPDATE
   // ===================================================
 
-  mapSessionRow(
-    row
-  ) {
+  async updateSession({
+    sessionId,
+
+    userId =
+      null,
+
+    patch =
+      {}
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
     if (
-      !row ||
-      typeof row !==
+      !resolvedSessionId ||
+      !patch ||
+      typeof patch !==
         "object"
     ) {
       return null;
     }
 
-    const payload =
-      row.session_data &&
-      typeof row.session_data ===
-        "object"
-        ? row.session_data
-        : {};
+    const client =
+      this.requireClient();
 
-    return {
-      schemaVersion:
-        Number(
-          payload.schemaVersion
-        ) ||
-        SCHEMA_VERSION,
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
 
-      sessionId:
-        normalizeId(
-          row.id ||
-          payload.sessionId
-        ),
+    const nextPatch = {
+      ...clone(
+        patch
+      )
+    };
 
-      userId:
-        normalizeId(
-          row.user_id
-        ),
-
-      planKey:
-        normalizeId(
-          row.plan_key ||
-          payload.planKey
-        ),
-
-      weekKey:
-        normalizeId(
-          row.week_key ||
-          payload.weekKey
-        ),
-
-      day:
-        normalizeDay(
-          row.weekday ||
-          payload.day
-        ),
-
-      localDate:
-        row.local_date ||
-        payload.localDate ||
-        null,
-
-      plannedWorkoutId:
-        normalizeId(
-          row.planned_workout_id ||
-          payload.plannedWorkoutId
-        ),
-
-      status:
+    if (
+      "status" in
+      nextPatch
+    ) {
+      const normalizedStatus =
         normalizeStatus(
-          row.status ||
-          payload.status
-        ),
+          nextPatch.status
+        );
 
-      startedAt:
-        row.started_at ||
-        payload.startedAt ||
-        null,
+      if (!normalizedStatus) {
+        throw new TypeError(
+          `Invalid workout session status: ${nextPatch.status}`
+        );
+      }
 
-      completedAt:
-        row.completed_at ||
-        payload.completedAt ||
-        null,
+      nextPatch.status =
+        normalizedStatus;
+    }
 
-      elapsedSeconds:
-        normalizeNonNegativeInteger(
-          row.elapsed_seconds ??
-          payload.elapsedSeconds
-        ) ||
-        0,
-
-      averageHeartRate:
+    if (
+      "average_heart_rate" in
+      nextPatch
+    ) {
+      nextPatch.average_heart_rate =
         normalizeHeartRate(
-          row.average_heart_rate ??
-          payload.averageHeartRate
-        ),
+          nextPatch.average_heart_rate
+        );
+    }
 
-      estimatedCalories:
-        normalizeCalories(
-          row.estimated_calories ??
-          payload.estimatedCalories
-        ),
+    if (
+      "peak_heart_rate" in
+      nextPatch
+    ) {
+      nextPatch.peak_heart_rate =
+        normalizeHeartRate(
+          nextPatch.peak_heart_rate
+        );
+    }
 
-      originalOrder:
-        Array.isArray(
-          payload.originalOrder
+    if (
+      "estimated_calories" in
+      nextPatch
+    ) {
+      nextPatch.estimated_calories =
+        normalizeNonNegativeNumber(
+          nextPatch.estimated_calories
+        ) ||
+        0;
+    }
+
+    if (
+      "paused_duration_seconds" in
+      nextPatch
+    ) {
+      nextPatch.paused_duration_seconds =
+        normalizeNonNegativeInteger(
+          nextPatch.paused_duration_seconds
+        ) ||
+        0;
+    }
+
+    if (
+      "duration_seconds" in
+      nextPatch
+    ) {
+      nextPatch.duration_seconds =
+        normalizeNonNegativeInteger(
+          nextPatch.duration_seconds
+        );
+    }
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sessions
         )
-          ? clone(
-              payload.originalOrder
-            )
-          : [],
-
-      sessionOrder:
-        Array.isArray(
-          payload.sessionOrder
+        .update(
+          nextPatch
         )
-          ? clone(
-              payload.sessionOrder
-            )
-          : [],
-
-      exercises:
-        Array.isArray(
-          payload.exercises
+        .eq(
+          "id",
+          resolvedSessionId
         )
-          ? clone(
-              payload.exercises
-            )
-          : [],
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .select()
+        .single();
 
-      notes:
-        row.notes ||
-        payload.notes ||
-        null,
+    if (error) {
+      throw error;
+    }
 
-      metadata: {
-        ...(
-          payload.metadata &&
-          typeof payload.metadata ===
-            "object"
-            ? clone(
-                payload.metadata
-              )
-            : {}
-        ),
+    this.state.lastSaveAt =
+      new Date()
+        .toISOString();
 
-        createdAt:
-          row.created_at ||
-          payload
-            ?.metadata
-            ?.createdAt ||
+    return data;
+  },
+
+
+  async completeSession({
+    sessionId,
+
+    userId =
+      null,
+
+    durationSeconds,
+
+    selectedIntensity =
+      null,
+
+    resolvedIntensity =
+      null,
+
+    averageHeartRate =
+      null,
+
+    peakHeartRate =
+      null,
+
+    estimatedCalories =
+      0,
+
+    completedAt =
+      new Date()
+        .toISOString()
+  } = {}) {
+    return this.updateSession({
+      sessionId,
+
+      userId,
+
+      patch: {
+        status:
+          "completed",
+
+        completed_at:
+          completedAt,
+
+        duration_seconds:
+          normalizeNonNegativeInteger(
+            durationSeconds
+          ) ||
+          0,
+
+        selected_intensity:
+          normalizeText(
+            selectedIntensity
+          ) ||
           null,
 
-        updatedAt:
-          row.updated_at ||
-          payload
-            ?.metadata
-            ?.updatedAt ||
-          null
+        resolved_intensity:
+          normalizeText(
+            resolvedIntensity
+          ) ||
+          null,
+
+        average_heart_rate:
+          normalizeHeartRate(
+            averageHeartRate
+          ),
+
+        peak_heart_rate:
+          normalizeHeartRate(
+            peakHeartRate
+          ),
+
+        estimated_calories:
+          normalizeNonNegativeNumber(
+            estimatedCalories
+          ) ||
+          0
       }
-    };
+    });
   },
 
 
-  mapExerciseRow(
-    row
-  ) {
+  async abandonSession({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    return this.updateSession({
+      sessionId,
+
+      userId,
+
+      patch: {
+        status:
+          "abandoned"
+      }
+    });
+  },
+
+
+  // ===================================================
+  // SESSION EXERCISES
+  // ===================================================
+
+  async createExercise({
+    sessionId,
+
+    userId =
+      null,
+
+    exerciseId,
+
+    exerciseName,
+
+    exerciseType =
+      null,
+
+    sortOrder =
+      0,
+
+    source =
+      "planned",
+
+    status =
+      "pending",
+
+    completionMode =
+      "sets",
+
+    plannedSets =
+      null,
+
+    plannedReps =
+      null,
+
+    plannedWeight =
+      null,
+
+    plannedDurationSeconds =
+      null,
+
+    actualDurationSeconds =
+      null,
+
+    estimatedCalories =
+      0
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    const resolvedExerciseId =
+      normalizeId(
+        exerciseId
+      );
+
     if (
-      !row ||
-      typeof row !==
-        "object"
+      !resolvedSessionId ||
+      !resolvedExerciseId
     ) {
-      return null;
+      throw new TypeError(
+        "createExercise requires sessionId and exerciseId."
+      );
     }
 
-    const payload =
-      row.exercise_data &&
-      typeof row.exercise_data ===
-        "object"
-        ? row.exercise_data
-        : {};
+    const client =
+      this.requireClient();
 
-    return {
-      entryId:
-        normalizeId(
-          row.entry_id ||
-          payload.entryId
-        ),
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
 
-      exerciseId:
-        normalizeId(
-          row.exercise_id ||
-          payload.exerciseId
-        ),
+    const resolvedSource =
+      normalizeExerciseSource(
+        source
+      ) ||
+      "planned";
 
-      source:
-        normalizeEntrySource(
-          row.source ||
-          payload.source
-        ),
+    const resolvedStatus =
+      normalizeExerciseStatus(
+        status
+      ) ||
+      "pending";
 
-      status:
-        normalizeEntryStatus(
-          row.status ||
-          payload.status
-        ),
+    const resolvedCompletionMode =
+      normalizeCompletionMode(
+        completionMode
+      ) ||
+      "sets";
 
-      position:
+    const payload = {
+      session_id:
+        resolvedSessionId,
+
+      user_id:
+        resolvedUserId,
+
+      exercise_id:
+        resolvedExerciseId,
+
+      exercise_name:
+        normalizeText(
+          exerciseName
+        ) ||
+        resolvedExerciseId,
+
+      exercise_type:
+        normalizeText(
+          exerciseType
+        ) ||
+        null,
+
+      sort_order:
         normalizeNonNegativeInteger(
-          row.position ??
-          payload.position
+          sortOrder
         ) ||
         0,
 
-      originalIndex:
-        normalizeNonNegativeInteger(
-          row.original_position ??
-          payload.originalIndex
-        ),
+      source:
+        resolvedSource,
 
-      role:
-        normalizeId(
-          row.role ||
-          payload.role
-        ),
+      status:
+        resolvedStatus,
 
-      substitutedFromEntryId:
-        normalizeId(
-          row.substituted_from_entry_id ||
-          payload
-            .substitutedFromEntryId
-        ),
+      completion_mode:
+        resolvedCompletionMode,
 
-      substitutedFromExerciseId:
-        normalizeId(
-          row.substituted_from_exercise_id ||
-          payload
-            .substitutedFromExerciseId
-        ),
-
-      completionMode:
-        normalizeId(
-          row.completion_mode ||
-          payload.completionMode
-        ) ||
-        "single",
-
-      requiredSets:
+      planned_sets:
         normalizePositiveInteger(
-          row.required_sets ??
-          payload.requiredSets
+          plannedSets
         ),
 
-      completed:
-        Boolean(
-          row.completed ??
-          payload.completed
+      planned_reps:
+        normalizePositiveInteger(
+          plannedReps
         ),
 
-      startedAt:
-        row.started_at ||
-        payload.startedAt ||
-        null,
-
-      completedAt:
-        row.completed_at ||
-        payload.completedAt ||
-        null,
-
-      skippedAt:
-        row.skipped_at ||
-        payload.skippedAt ||
-        null,
-
-      prescription:
-        row.prescription_data &&
-        typeof row.prescription_data ===
-          "object"
-          ? clone(
-              row.prescription_data
-            )
-          : payload.prescription &&
-            typeof payload.prescription ===
-              "object"
-            ? clone(
-                payload.prescription
-              )
-            : {},
-
-      actual:
-        row.actual_data &&
-        typeof row.actual_data ===
-          "object"
-          ? clone(
-              row.actual_data
-            )
-          : payload.actual &&
-            typeof payload.actual ===
-              "object"
-            ? clone(
-                payload.actual
-              )
-            : {},
-
-      estimatedCalories:
-        normalizeCalories(
-          row.estimated_calories ??
-          payload.estimatedCalories
+      planned_weight:
+        normalizeNonNegativeNumber(
+          plannedWeight
         ),
 
-      completedSets:
-        [],
+      planned_duration_seconds:
+        normalizeNonNegativeInteger(
+          plannedDurationSeconds
+        ),
 
-      metadata:
-        payload.metadata &&
-        typeof payload.metadata ===
-          "object"
-          ? clone(
-              payload.metadata
-            )
-          : {}
+      actual_duration_seconds:
+        normalizeNonNegativeInteger(
+          actualDurationSeconds
+        ),
+
+      estimated_calories:
+        normalizeNonNegativeNumber(
+          estimatedCalories
+        ) ||
+        0
     };
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .exercises
+        )
+        .insert(
+          payload
+        )
+        .select()
+        .single();
+
+    if (error) {
+      throw error;
+    }
+
+    this.state.lastSaveAt =
+      new Date()
+        .toISOString();
+
+    return data;
   },
 
 
-  mapSetRow(
-    row
-  ) {
+  async updateExercise({
+    exerciseRowId,
+
+    userId =
+      null,
+
+    patch =
+      {}
+  } = {}) {
+    const resolvedExerciseRowId =
+      normalizeId(
+        exerciseRowId
+      );
+
     if (
-      !row ||
-      typeof row !==
+      !resolvedExerciseRowId ||
+      !patch ||
+      typeof patch !==
         "object"
     ) {
       return null;
     }
 
-    const payload =
-      row.set_data &&
-      typeof row.set_data ===
-        "object"
-        ? row.set_data
-        : {};
+    const client =
+      this.requireClient();
 
-    return {
-      setId:
-        normalizeId(
-          row.id
-        ),
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
 
-      sessionId:
-        normalizeId(
-          row.session_id
-        ),
-
-      exerciseEntryId:
-        normalizeId(
-          row.exercise_entry_id
-        ),
-
-      exerciseId:
-        normalizeId(
-          row.exercise_id
-        ),
-
-      setNumber:
-        normalizePositiveInteger(
-          row.set_number ??
-          payload.setNumber
-        ),
-
-      completed:
-        Boolean(
-          row.completed ??
-          payload.completed
-        ),
-
-      completedAt:
-        row.completed_at ||
-        payload.completedAt ||
-        null,
-
-      reps:
-        normalizeNonNegativeInteger(
-          row.reps ??
-          payload.reps
-        ),
-
-      weight:
-        normalizeNonNegativeNumber(
-          row.weight ??
-          payload.weight
-        ),
-
-      durationSeconds:
-        normalizeNonNegativeNumber(
-          row.duration_seconds ??
-          payload.durationSeconds
-        ),
-
-      estimatedCalories:
-        normalizeCalories(
-          row.estimated_calories ??
-          payload.estimatedCalories
-        ),
-
-      notes:
-        row.notes ||
-        payload.notes ||
-        null
+    const nextPatch = {
+      ...clone(
+        patch
+      )
     };
+
+    if (
+      "status" in
+      nextPatch
+    ) {
+      const normalized =
+        normalizeExerciseStatus(
+          nextPatch.status
+        );
+
+      if (!normalized) {
+        throw new TypeError(
+          `Invalid session exercise status: ${nextPatch.status}`
+        );
+      }
+
+      nextPatch.status =
+        normalized;
+    }
+
+    if (
+      "source" in
+      nextPatch
+    ) {
+      const normalized =
+        normalizeExerciseSource(
+          nextPatch.source
+        );
+
+      if (!normalized) {
+        throw new TypeError(
+          `Invalid session exercise source: ${nextPatch.source}`
+        );
+      }
+
+      nextPatch.source =
+        normalized;
+    }
+
+    if (
+      "completion_mode" in
+      nextPatch
+    ) {
+      const normalized =
+        normalizeCompletionMode(
+          nextPatch.completion_mode
+        );
+
+      if (!normalized) {
+        throw new TypeError(
+          `Invalid session exercise completion mode: ${nextPatch.completion_mode}`
+        );
+      }
+
+      nextPatch.completion_mode =
+        normalized;
+    }
+
+    const numericFields = [
+      "sort_order",
+      "planned_sets",
+      "planned_reps",
+      "planned_duration_seconds",
+      "actual_duration_seconds"
+    ];
+
+    for (
+      const field
+      of numericFields
+    ) {
+      if (
+        field in
+        nextPatch
+      ) {
+        nextPatch[
+          field
+        ] =
+          field ===
+            "sort_order"
+            ? (
+                normalizeNonNegativeInteger(
+                  nextPatch[
+                    field
+                  ]
+                ) ||
+                0
+              )
+            : normalizeNonNegativeInteger(
+                nextPatch[
+                  field
+                ]
+              );
+      }
+    }
+
+    if (
+      "planned_weight" in
+      nextPatch
+    ) {
+      nextPatch.planned_weight =
+        normalizeNonNegativeNumber(
+          nextPatch.planned_weight
+        );
+    }
+
+    if (
+      "estimated_calories" in
+      nextPatch
+    ) {
+      nextPatch.estimated_calories =
+        normalizeNonNegativeNumber(
+          nextPatch.estimated_calories
+        ) ||
+        0;
+    }
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .exercises
+        )
+        .update(
+          nextPatch
+        )
+        .eq(
+          "id",
+          resolvedExerciseRowId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .select()
+        .single();
+
+    if (error) {
+      throw error;
+    }
+
+    this.state.lastSaveAt =
+      new Date()
+        .toISOString();
+
+    return data;
+  },
+
+
+  async getSessionExercises({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    if (!resolvedSessionId) {
+      return [];
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .exercises
+        )
+        .select("*")
+        .eq(
+          "session_id",
+          resolvedSessionId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .order(
+          "sort_order",
+          {
+            ascending:
+              true
+          }
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return data ||
+      [];
+  },
+
+
+  async reorderExercises({
+    sessionId,
+
+    userId =
+      null,
+
+    orderedExerciseRowIds =
+      []
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    if (
+      !resolvedSessionId ||
+      !Array.isArray(
+        orderedExerciseRowIds
+      )
+    ) {
+      return false;
+    }
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    for (
+      let index = 0;
+      index <
+        orderedExerciseRowIds.length;
+      index += 1
+    ) {
+      const exerciseRowId =
+        normalizeId(
+          orderedExerciseRowIds[
+            index
+          ]
+        );
+
+      if (!exerciseRowId) {
+        continue;
+      }
+
+      await this.updateExercise({
+        exerciseRowId,
+
+        userId:
+          resolvedUserId,
+
+        patch: {
+          sort_order:
+            index
+        }
+      });
+    }
+
+    return true;
   },
 
 
   // ===================================================
-  // DESTROY
+  // SETS
   // ===================================================
 
-  destroy() {
-    this.state.client =
-      null;
+  async createSets({
+    sessionId,
 
-    this.state.configured =
-      false;
+    sessionExerciseId,
 
-    this.state.tables = {
-      ...DEFAULT_TABLES
+    userId =
+      null,
+
+    count,
+
+    plannedReps =
+      null,
+
+    plannedWeight =
+      null
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    const resolvedSessionExerciseId =
+      normalizeId(
+        sessionExerciseId
+      );
+
+    const resolvedCount =
+      normalizePositiveInteger(
+        count
+      );
+
+    if (
+      !resolvedSessionId ||
+      !resolvedSessionExerciseId ||
+      !resolvedCount
+    ) {
+      return [];
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const rows = [];
+
+    for (
+      let setNumber = 1;
+      setNumber <=
+        resolvedCount;
+      setNumber += 1
+    ) {
+      rows.push({
+        session_id:
+          resolvedSessionId,
+
+        session_exercise_id:
+          resolvedSessionExerciseId,
+
+        user_id:
+          resolvedUserId,
+
+        set_number:
+          setNumber,
+
+        planned_reps:
+          normalizePositiveInteger(
+            plannedReps
+          ),
+
+        planned_weight:
+          normalizeNonNegativeNumber(
+            plannedWeight
+          ),
+
+        actual_reps:
+          null,
+
+        actual_weight:
+          normalizeNonNegativeNumber(
+            plannedWeight
+          ),
+
+        completed:
+          false,
+
+        estimated_calories:
+          0
+      });
+    }
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sets
+        )
+        .insert(
+          rows
+        )
+        .select();
+
+    if (error) {
+      throw error;
+    }
+
+    this.state.lastSaveAt =
+      new Date()
+        .toISOString();
+
+    return data ||
+      [];
+  },
+
+
+  async createExerciseWithSets(
+    options =
+      {}
+  ) {
+    const exercise =
+      await this
+        .createExercise(
+          options
+        );
+
+    if (
+      exercise &&
+      exercise.completion_mode ===
+        "sets" &&
+      Number(
+        exercise.planned_sets
+      ) >
+        0
+    ) {
+      exercise.sets =
+        await this
+          .createSets({
+            sessionId:
+              exercise.session_id,
+
+            sessionExerciseId:
+              exercise.id,
+
+            userId:
+              exercise.user_id,
+
+            count:
+              exercise.planned_sets,
+
+            plannedReps:
+              exercise.planned_reps,
+
+            plannedWeight:
+              exercise.planned_weight
+          });
+    } else if (
+      exercise
+    ) {
+      exercise.sets =
+        [];
+    }
+
+    return exercise;
+  },
+
+
+  async updateSet({
+    setId,
+
+    userId =
+      null,
+
+    patch =
+      {}
+  } = {}) {
+    const resolvedSetId =
+      normalizeId(
+        setId
+      );
+
+    if (
+      !resolvedSetId ||
+      !patch ||
+      typeof patch !==
+        "object"
+    ) {
+      return null;
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const nextPatch = {
+      ...clone(
+        patch
+      )
     };
 
-    this.state.lastLoadedAt =
-      null;
+    const numericFields = [
+      "actual_reps",
+      "planned_reps",
+      "set_number"
+    ];
 
-    this.state.lastSavedAt =
-      null;
+    for (
+      const field
+      of numericFields
+    ) {
+      if (
+        field in
+        nextPatch
+      ) {
+        nextPatch[
+          field
+        ] =
+          normalizeNonNegativeInteger(
+            nextPatch[
+              field
+            ]
+          );
+      }
+    }
 
-    this.state.lastDeletedAt =
-      null;
+    const decimalFields = [
+      "actual_weight",
+      "planned_weight",
+      "estimated_calories"
+    ];
 
-    this.state.lastError =
-      null;
+    for (
+      const field
+      of decimalFields
+    ) {
+      if (
+        field in
+        nextPatch
+      ) {
+        nextPatch[
+          field
+        ] =
+          normalizeNonNegativeNumber(
+            nextPatch[
+              field
+            ]
+          ) ??
+          (
+            field ===
+              "estimated_calories"
+              ? 0
+              : null
+          );
+      }
+    }
+
+    if (
+      "completed" in
+      nextPatch
+    ) {
+      nextPatch.completed =
+        Boolean(
+          nextPatch.completed
+        );
+    }
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sets
+        )
+        .update(
+          nextPatch
+        )
+        .eq(
+          "id",
+          resolvedSetId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .select()
+        .single();
+
+    if (error) {
+      throw error;
+    }
+
+    this.state.lastSaveAt =
+      new Date()
+        .toISOString();
+
+    return data;
+  },
+
+
+  async completeSet({
+    setId,
+
+    userId =
+      null,
+
+    actualWeight =
+      null,
+
+    actualReps =
+      null,
+
+    estimatedCalories =
+      0,
+
+    completedAt =
+      new Date()
+        .toISOString()
+  } = {}) {
+    return this.updateSet({
+      setId,
+
+      userId,
+
+      patch: {
+        actual_weight:
+          normalizeNonNegativeNumber(
+            actualWeight
+          ),
+
+        actual_reps:
+          normalizeNonNegativeInteger(
+            actualReps
+          ),
+
+        completed:
+          true,
+
+        completed_at:
+          completedAt,
+
+        estimated_calories:
+          normalizeNonNegativeNumber(
+            estimatedCalories
+          ) ||
+          0
+      }
+    });
+  },
+
+
+  async getSessionSets({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    if (!resolvedSessionId) {
+      return [];
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sets
+        )
+        .select("*")
+        .eq(
+          "session_id",
+          resolvedSessionId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .order(
+          "set_number",
+          {
+            ascending:
+              true
+          }
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return data ||
+      [];
+  },
+
+
+  async countCompletedSets({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    if (!resolvedSessionId) {
+      return 0;
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      count,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sets
+        )
+        .select(
+          "id",
+          {
+            count:
+              "exact",
+            head:
+              true
+          }
+        )
+        .eq(
+          "session_id",
+          resolvedSessionId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .eq(
+          "completed",
+          true
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return count ||
+      0;
+  },
+
+
+  // ===================================================
+  // HEART RATE
+  // ===================================================
+
+  async addHeartRateReading({
+    sessionId,
+
+    userId =
+      null,
+
+    bpm,
+
+    elapsedSeconds =
+      0,
+
+    source =
+      "manual"
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    const resolvedBpm =
+      normalizeHeartRate(
+        bpm
+      );
+
+    if (
+      !resolvedSessionId ||
+      !resolvedBpm
+    ) {
+      throw new TypeError(
+        "addHeartRateReading requires sessionId and a valid bpm."
+      );
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .heartRateReadings
+        )
+        .insert({
+          session_id:
+            resolvedSessionId,
+
+          user_id:
+            resolvedUserId,
+
+          bpm:
+            resolvedBpm,
+
+          elapsed_seconds:
+            normalizeNonNegativeInteger(
+              elapsedSeconds
+            ) ||
+            0,
+
+          source:
+            normalizeText(
+              source
+            ) ||
+            "manual"
+        })
+        .select()
+        .single();
+
+    if (error) {
+      throw error;
+    }
+
+    this.state.lastSaveAt =
+      new Date()
+        .toISOString();
+
+    return data;
+  },
+
+
+  async getHeartRateReadings({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    if (!resolvedSessionId) {
+      return [];
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .heartRateReadings
+        )
+        .select("*")
+        .eq(
+          "session_id",
+          resolvedSessionId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .order(
+          "recorded_at",
+          {
+            ascending:
+              true
+          }
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return data ||
+      [];
+  },
+
+
+  // ===================================================
+  // HISTORY
+  // ===================================================
+
+  async getCompletedSessionForDate({
+    dateKey,
+
+    userId =
+      null
+  } = {}) {
+    const normalizedDate =
+      normalizeDateKey(
+        dateKey
+      );
+
+    if (!normalizedDate) {
+      return null;
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sessions
+        )
+        .select("*")
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .eq(
+          "local_date",
+          normalizedDate
+        )
+        .eq(
+          "status",
+          "completed"
+        )
+        .order(
+          "completed_at",
+          {
+            ascending:
+              false
+          }
+        )
+        .limit(
+          1
+        )
+        .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      ...data,
+
+      completed_sets:
+        await this
+          .countCompletedSets({
+            sessionId:
+              data.id,
+
+            userId:
+              resolvedUserId
+          })
+    };
+  },
+
+
+  async getCompletedSessionsForDate({
+    dateKey,
+
+    userId =
+      null
+  } = {}) {
+    const normalizedDate =
+      normalizeDateKey(
+        dateKey
+      );
+
+    if (!normalizedDate) {
+      return [];
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sessions
+        )
+        .select("*")
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .eq(
+          "local_date",
+          normalizedDate
+        )
+        .eq(
+          "status",
+          "completed"
+        )
+        .order(
+          "completed_at",
+          {
+            ascending:
+              false
+          }
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return this
+      .enrichCompletedSessions({
+        sessions:
+          data ||
+          [],
+
+        userId:
+          resolvedUserId
+      });
+  },
+
+
+  async getCompletedSessionsForMonth({
+    dateKey =
+      getLocalDateKey(),
+
+    userId =
+      null
+  } = {}) {
+    const bounds =
+      getMonthBounds(
+        dateKey
+      );
+
+    if (!bounds) {
+      return [];
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    const {
+      data,
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sessions
+        )
+        .select("*")
+        .eq(
+          "user_id",
+          resolvedUserId
+        )
+        .eq(
+          "status",
+          "completed"
+        )
+        .gte(
+          "local_date",
+          bounds.start
+        )
+        .lte(
+          "local_date",
+          bounds.end
+        )
+        .order(
+          "completed_at",
+          {
+            ascending:
+              false
+          }
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    return this
+      .enrichCompletedSessions({
+        sessions:
+          data ||
+          [],
+
+        userId:
+          resolvedUserId
+      });
+  },
+
+
+  async enrichCompletedSessions({
+    sessions =
+      [],
+
+    userId =
+      null
+  } = {}) {
+    const records = [];
+
+    for (
+      const session
+      of Array.isArray(
+        sessions
+      )
+        ? sessions
+        : []
+    ) {
+      records.push({
+        ...session,
+
+        completed_sets:
+          await this
+            .countCompletedSets({
+              sessionId:
+                session.id,
+
+              userId
+            })
+      });
+    }
+
+    return records;
+  },
+
+
+  // ===================================================
+  // REPEAT WORKOUT SUPPORT
+  // ===================================================
+
+  async getExercisesForCompletedSession({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    return this
+      .getSessionExercises({
+        sessionId,
+        userId
+      });
+  },
+
+
+  // ===================================================
+  // DELETE
+  // ===================================================
+
+  async deleteSession({
+    sessionId,
+
+    userId =
+      null
+  } = {}) {
+    const resolvedSessionId =
+      normalizeId(
+        sessionId
+      );
+
+    if (!resolvedSessionId) {
+      return false;
+    }
+
+    const client =
+      this.requireClient();
+
+    const resolvedUserId =
+      await this
+        .resolveUserId(
+          userId
+        );
+
+    /*
+     * Explicit child deletion keeps this safe even if the
+     * current database foreign keys do not use ON DELETE CASCADE.
+     */
+
+    const childTables = [
+      this.state.tables
+        .heartRateReadings,
+
+      this.state.tables
+        .sets,
+
+      this.state.tables
+        .exercises
+    ];
+
+    for (
+      const table
+      of childTables
+    ) {
+      const {
+        error
+      } =
+        await client
+          .from(
+            table
+          )
+          .delete()
+          .eq(
+            "session_id",
+            resolvedSessionId
+          )
+          .eq(
+            "user_id",
+            resolvedUserId
+          );
+
+      if (error) {
+        throw error;
+      }
+    }
+
+    const {
+      error
+    } =
+      await client
+        .from(
+          this.state.tables
+            .sessions
+        )
+        .delete()
+        .eq(
+          "id",
+          resolvedSessionId
+        )
+        .eq(
+          "user_id",
+          resolvedUserId
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    this.state.lastDeleteAt =
+      new Date()
+        .toISOString();
 
     return true;
   },
@@ -3013,9 +2802,6 @@ const AriTrainingWorkoutSessionApi = {
       version:
         VERSION,
 
-      schemaVersion:
-        SCHEMA_VERSION,
-
       configured:
         Boolean(
           this.findClient()
@@ -3025,14 +2811,31 @@ const AriTrainingWorkoutSessionApi = {
         ...this.state.tables
       },
 
-      lastLoadedAt:
-        this.state.lastLoadedAt,
+      statuses: {
+        open:
+          [
+            ...OPEN_SESSION_STATUSES
+          ],
 
-      lastSavedAt:
-        this.state.lastSavedAt,
+        session:
+          [
+            ...SESSION_STATUSES
+          ],
 
-      lastDeletedAt:
-        this.state.lastDeletedAt,
+        exercise:
+          [
+            ...EXERCISE_STATUSES
+          ]
+      },
+
+      lastLoadAt:
+        this.state.lastLoadAt,
+
+      lastSaveAt:
+        this.state.lastSaveAt,
+
+      lastDeleteAt:
+        this.state.lastDeleteAt,
 
       lastError:
         this.state.lastError
@@ -3049,19 +2852,24 @@ const AriTrainingWorkoutSessionApi = {
           : null,
 
       methods: {
-        saveSession:
+        createSession:
           typeof this
-            .saveSession ===
+            .createSession ===
             "function",
 
-        loadSession:
+        getOpenSession:
           typeof this
-            .loadSession ===
+            .getOpenSession ===
             "function",
 
-        loadActiveSession:
+        getFullSession:
           typeof this
-            .loadActiveSession ===
+            .getFullSession ===
+            "function",
+
+        updateSession:
+          typeof this
+            .updateSession ===
             "function",
 
         completeSession:
@@ -3069,27 +2877,78 @@ const AriTrainingWorkoutSessionApi = {
             .completeSession ===
             "function",
 
-        loadHistory:
+        createExercise:
           typeof this
-            .loadHistory ===
+            .createExercise ===
             "function",
 
-        loadMonthHistory:
+        createExerciseWithSets:
           typeof this
-            .loadMonthHistory ===
+            .createExerciseWithSets ===
             "function",
 
-        loadDateHistory:
+        updateExercise:
           typeof this
-            .loadDateHistory ===
+            .updateExercise ===
             "function",
 
-        deleteSession:
+        createSets:
           typeof this
-            .deleteSession ===
+            .createSets ===
+            "function",
+
+        updateSet:
+          typeof this
+            .updateSet ===
+            "function",
+
+        completeSet:
+          typeof this
+            .completeSet ===
+            "function",
+
+        addHeartRateReading:
+          typeof this
+            .addHeartRateReading ===
+            "function",
+
+        getCompletedSessionsForMonth:
+          typeof this
+            .getCompletedSessionsForMonth ===
             "function"
       }
     };
+  },
+
+
+  // ===================================================
+  // RESET
+  // ===================================================
+
+  destroy() {
+    this.state.client =
+      null;
+
+    this.state.configured =
+      false;
+
+    this.state.tables = {
+      ...DEFAULT_TABLES
+    };
+
+    this.state.lastLoadAt =
+      null;
+
+    this.state.lastSaveAt =
+      null;
+
+    this.state.lastDeleteAt =
+      null;
+
+    this.state.lastError =
+      null;
+
+    return true;
   }
 };
 
@@ -3125,10 +2984,15 @@ if (
 
 export {
   VERSION,
-  SCHEMA_VERSION,
   SOURCE,
 
   DEFAULT_TABLES,
+
+  OPEN_SESSION_STATUSES,
+  SESSION_STATUSES,
+  EXERCISE_STATUSES,
+  EXERCISE_SOURCES,
+  COMPLETION_MODES,
 
   AriTrainingWorkoutSessionApi
 };
