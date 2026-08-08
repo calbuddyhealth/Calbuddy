@@ -1,36 +1,122 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/workout-plan-controller.js
-// Version: 1.0.0
+// Version: 2.0.0
 // Purpose:
-//   Orchestrates ARI Training workout-plan behavior across
-//   the local store, Supabase API, templates, exercise
-//   library, workout focuses, fitness goals, and energy data.
+//   Main orchestration layer for ARI Training planning,
+//   workout generation, exercise discovery, session setup,
+//   local persistence, and Supabase plan synchronization.
 //
-// Design:
-//   - UI-facing controller for workout-plans.html.
-//   - Loads remote plans first, with local fallback.
-//   - Applies templates into the editable weekly plan.
-//   - Restricts added exercises to the approved registry.
-//   - Provides goal/body-part/focus-based recommendations.
-//   - Saves locally immediately and remotely when available.
+// V2.0.0 architecture:
+//
+//   Exercise Data
+//      ↓
+//   exercise-registry.js
+//      ↓
+//   exercise-search.js
+//      ↓
+//   exercise-recommender.js
+//      ↓
+//   workout-builder.js
+//      ↓
+//   workout-plan-controller.js
+//      ├── workout-plan-store.js
+//      ├── workout-plan-api.js
+//      └── workout-progress-store.js
+//
+// Responsibilities:
+//   - Load/save the user's permanent weekly plan.
+//   - Keep Supabase and local plan state synchronized.
+//   - Search and browse exercises.
+//   - Recommend exercises.
+//   - Build complete workouts.
+//   - Insert builder-generated workouts into plan days.
+//   - Build quick workouts.
+//   - Build surf/sport workouts.
+//   - Start and manage live workout sessions.
+//   - Reorder/substitute/add/skip exercises during a session.
+//   - Keep session edits separate from permanent plan edits.
+//   - Expose calorie estimation helpers.
+//   - Preserve compatibility with existing Training UI calls.
+//
+// Important separation:
+//
+//   workout-plan-store.js
+//     = what the user PLANS to do.
+//
+//   workout-progress-store.js
+//     = what the user is ACTUALLY doing.
+//
+//   workout-plan-api.js
+//     = permanent plan Supabase persistence.
+//
+// This controller intentionally does not permanently mutate a
+// weekly plan when users rearrange a live workout session.
 // =====================================================
 
-import WorkoutPlanStore from "./workout-plan-store.js";
-import WorkoutPlanApi from "./workout-plan-api.js";
+import WorkoutPlanStore
+  from "./workout-plan-store.js";
 
-import WorkoutTemplates from "./templates/workout-template-registry.js";
-import ExerciseRegistry from "./exercises/exercise-registry.js";
-import WorkoutFocuses from "./workouts/workout-focuses.js";
-import FitnessGoals from "./goals/fitness-goals.js";
+import WorkoutPlanApi
+  from "./workout-plan-api.js";
 
-import CalorieCalculator from "./energy/calorie-calculator.js";
-import MetValues from "./energy/met-values.js";
+import WorkoutProgressStore
+  from "./workout-progress-store.js";
 
-const VERSION = "1.0.0";
-const SOURCE = "js/training/workout-plan-controller";
+import WorkoutTemplates
+  from "./templates/workout-template-registry.js";
 
-function normalizeText(value) {
+import ExerciseRegistry
+  from "./exercises/exercise-registry.js";
+
+import ExerciseSearch
+  from "./exercises/exercise-search.js";
+
+import ExerciseRecommender
+  from "./exercises/exercise-recommender.js";
+
+import WorkoutBuilder
+  from "./workouts/workout-builder.js";
+
+import WorkoutFocuses
+  from "./workouts/workout-focuses.js";
+
+import FitnessGoals
+  from "./goals/fitness-goals.js";
+
+import CalorieCalculator
+  from "./energy/calorie-calculator.js";
+
+import MetValues
+  from "./energy/met-values.js";
+
+
+const VERSION =
+  "2.0.0";
+
+const SOURCE =
+  "js/training/workout-plan-controller";
+
+
+const DAYS =
+  Object.freeze([
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday"
+  ]);
+
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+function normalizeText(
+  value
+) {
   if (
     value === null ||
     value === undefined
@@ -38,49 +124,156 @@ function normalizeText(value) {
     return "";
   }
 
-  return String(value)
-    .trim();
+  return String(
+    value
+  ).trim();
 }
 
-function normalizeId(value) {
+
+function normalizeId(
+  value
+) {
   const text =
-    normalizeText(value);
+    normalizeText(
+      value
+    );
 
-  return text || null;
+  return text ||
+    null;
 }
 
-function normalizeDay(value) {
+
+function normalizeDay(
+  value
+) {
   const day =
-    normalizeText(value)
+    normalizeText(
+      value
+    )
       .toLowerCase();
 
-  return WorkoutPlanStore.days
-    .includes(day)
-      ? day
-      : null;
+  return DAYS.includes(
+    day
+  )
+    ? day
+    : null;
 }
 
-function normalizePositiveNumber(value) {
+
+function normalizePositiveNumber(
+  value
+) {
   const number =
-    Number(value);
+    Number(
+      value
+    );
 
-  return Number.isFinite(number) &&
+  return (
+    Number.isFinite(
+      number
+    ) &&
     number > 0
-      ? number
-      : null;
+  )
+    ? number
+    : null;
 }
 
-function clone(value) {
+
+function clone(
+  value
+) {
   if (
     value === undefined
   ) {
     return undefined;
   }
 
+  if (
+    typeof structuredClone ===
+      "function"
+  ) {
+    try {
+      return structuredClone(
+        value
+      );
+    } catch {
+      // Fall through.
+    }
+  }
+
   return JSON.parse(
-    JSON.stringify(value)
+    JSON.stringify(
+      value
+    )
   );
 }
+
+
+function getCurrentWeekKey(
+  date =
+    new Date()
+) {
+  const current =
+    new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+
+  const day =
+    current.getDay();
+
+  const mondayOffset =
+    day === 0
+      ? 6
+      : day - 1;
+
+  current.setDate(
+    current.getDate() -
+    mondayOffset
+  );
+
+  return (
+    `${current.getFullYear()}-` +
+    `${String(current.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(current.getDate()).padStart(2, "0")}`
+  );
+}
+
+
+function getCurrentWeekdayId(
+  date =
+    new Date()
+) {
+  return [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday"
+  ][
+    date.getDay()
+  ];
+}
+
+
+function getPlanContextKey(
+  plan
+) {
+  return (
+    plan?.planId ||
+    plan?.metadata
+      ?.sourceTemplateId ||
+    "local-plan"
+  );
+}
+
+
+// =====================================================
+// CONTROLLER
+// =====================================================
 
 const AriTrainingWorkoutPlanController = {
   version:
@@ -108,13 +301,30 @@ const AriTrainingWorkoutPlanController = {
     lastSavedAt:
       null,
 
+    lastBuiltWorkout:
+      null,
+
     lastError:
+      null,
+
+    unsubscribePlan:
+      null,
+
+    unsubscribeProgress:
       null
   },
 
+
+  // ===================================================
+  // CONFIGURATION
+  // ===================================================
+
   configure({
-    client = null,
-    tables = null
+    client =
+      null,
+
+    tables =
+      null
   } = {}) {
     if (
       client ||
@@ -128,43 +338,125 @@ const AriTrainingWorkoutPlanController = {
 
     this.state.remoteAvailable =
       Boolean(
-        WorkoutPlanApi.findClient?.()
+        WorkoutPlanApi
+          .findClient?.()
       );
 
-    return this.getDiagnostics();
+    return this
+      .getDiagnostics();
   },
 
-  async init(options = {}) {
+
+  // ===================================================
+  // INITIALIZATION
+  // ===================================================
+
+  async init(
+    options =
+      {}
+  ) {
     if (
       this.state.initialized &&
       !options.force
     ) {
-      return this.getDiagnostics();
+      return this
+        .getDiagnostics();
     }
 
     if (
       options.client ||
       options.tables
     ) {
-      this.configure(options);
+      this.configure(
+        options
+      );
     } else {
       this.state.remoteAvailable =
         Boolean(
-          WorkoutPlanApi.findClient?.()
+          WorkoutPlanApi
+            .findClient?.()
         );
     }
 
+    WorkoutProgressStore
+      .hydrate();
+
     await this.load();
+
+    this.syncProgressWithPlan();
+
+    this.bindInternalSubscriptions();
 
     this.state.initialized =
       true;
 
-    return this.getDiagnostics();
+    return this
+      .getDiagnostics();
   },
 
+
+  bindInternalSubscriptions() {
+    if (
+      !this.state
+        .unsubscribePlan
+    ) {
+      this.state
+        .unsubscribePlan =
+          WorkoutPlanStore
+            .subscribe(
+              () => {
+                this
+                  .syncProgressWithPlan();
+              }
+            );
+    }
+  },
+
+
+  destroy() {
+    if (
+      typeof this.state
+        .unsubscribePlan ===
+        "function"
+    ) {
+      this.state
+        .unsubscribePlan();
+    }
+
+    if (
+      typeof this.state
+        .unsubscribeProgress ===
+        "function"
+    ) {
+      this.state
+        .unsubscribeProgress();
+    }
+
+    this.state
+      .unsubscribePlan =
+        null;
+
+    this.state
+      .unsubscribeProgress =
+        null;
+
+    this.state.initialized =
+      false;
+
+    return true;
+  },
+
+
+  // ===================================================
+  // LOAD
+  // ===================================================
+
   async load() {
-    if (this.state.loading) {
-      return WorkoutPlanStore.getState();
+    if (
+      this.state.loading
+    ) {
+      return WorkoutPlanStore
+        .getState();
     }
 
     this.state.loading =
@@ -175,33 +467,44 @@ const AriTrainingWorkoutPlanController = {
 
     try {
       /*
-       * Remote data is authoritative when available.
+       * Remote remains authoritative when available.
+       * Local is the immediate/offline fallback.
        */
       if (
-        this.state.remoteAvailable
+        this.state
+          .remoteAvailable
       ) {
         try {
           const remotePlan =
             await WorkoutPlanApi
               .loadPlan();
 
-          if (remotePlan) {
+          if (
+            remotePlan
+          ) {
             WorkoutPlanStore
               .replaceState(
                 remotePlan
               );
 
-            WorkoutPlanStore.save();
+            WorkoutPlanStore
+              .save();
 
-            this.state.lastLoadSource =
-              "supabase";
+            this.state
+              .lastLoadSource =
+                "supabase";
+
+            this
+              .syncProgressWithPlan();
 
             return WorkoutPlanStore
               .getState();
           }
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.warn(
-            "ARI Training remote workout plan did not load. Falling back locally.",
+            "[ARI Training] Remote workout plan did not load. Falling back locally.",
             error
           );
 
@@ -214,10 +517,14 @@ const AriTrainingWorkoutPlanController = {
         WorkoutPlanStore
           .hydrate();
 
-      this.state.lastLoadSource =
-        hydrated
-          ? "local"
-          : "default";
+      this.state
+        .lastLoadSource =
+          hydrated
+            ? "local"
+            : "default";
+
+      this
+        .syncProgressWithPlan();
 
       return WorkoutPlanStore
         .getState();
@@ -227,10 +534,18 @@ const AriTrainingWorkoutPlanController = {
     }
   },
 
+
+  // ===================================================
+  // SAVE
+  // ===================================================
+
   async save({
-    remote = true
+    remote =
+      true
   } = {}) {
-    if (this.state.saving) {
+    if (
+      this.state.saving
+    ) {
       return false;
     }
 
@@ -241,11 +556,13 @@ const AriTrainingWorkoutPlanController = {
       null;
 
     try {
-      WorkoutPlanStore.save();
+      WorkoutPlanStore
+        .save();
 
       if (
         remote &&
-        this.state.remoteAvailable
+        this.state
+          .remoteAvailable
       ) {
         try {
           const saved =
@@ -256,21 +573,22 @@ const AriTrainingWorkoutPlanController = {
                     .getState()
               });
 
-          if (saved) {
+          if (
+            saved
+          ) {
             WorkoutPlanStore
               .replaceState(
                 saved
               );
 
-            WorkoutPlanStore.save();
+            WorkoutPlanStore
+              .save();
           }
-        } catch (error) {
-          /*
-           * Local save has already succeeded. Do not discard user
-           * edits merely because the remote save failed.
-           */
+        } catch (
+          error
+        ) {
           console.warn(
-            "ARI Training workout plan saved locally but remote save failed.",
+            "[ARI Training] Workout plan saved locally but remote save failed.",
             error
           );
 
@@ -285,6 +603,9 @@ const AriTrainingWorkoutPlanController = {
         new Date()
           .toISOString();
 
+      this
+        .syncProgressWithPlan();
+
       return true;
     } finally {
       this.state.saving =
@@ -292,34 +613,68 @@ const AriTrainingWorkoutPlanController = {
     }
   },
 
+
+  // ===================================================
+  // PLAN READS
+  // ===================================================
+
   getPlan() {
     return WorkoutPlanStore
       .getState();
   },
+
 
   getWeek() {
     return WorkoutPlanStore
       .getWeek();
   },
 
-  getDay(day) {
+
+  getDay(
+    day
+  ) {
     return WorkoutPlanStore
-      .getDay(day);
+      .getDay(
+        day
+      );
   },
+
+
+  getToday() {
+    return this.getDay(
+      getCurrentWeekdayId()
+    );
+  },
+
 
   getSummary() {
     return WorkoutPlanStore
       .getSummary();
   },
 
-  setPlanName(name) {
+
+  getCurrentWeekKey() {
+    return getCurrentWeekKey();
+  },
+
+
+  // ===================================================
+  // PLAN METADATA
+  // ===================================================
+
+  setPlanName(
+    name
+  ) {
     return WorkoutPlanStore
       .setPlanName(
         name
       );
   },
 
-  setPrimaryGoal(goalId) {
+
+  setPrimaryGoal(
+    goalId
+  ) {
     const goal =
       FitnessGoals.get(
         goalId
@@ -335,11 +690,15 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
+
   setSecondaryGoals(
-    goalIds = []
+    goalIds =
+      []
   ) {
     const validIds =
-      Array.isArray(goalIds)
+      Array.isArray(
+        goalIds
+      )
         ? goalIds
             .map(
               goalId =>
@@ -359,12 +718,19 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
+
+  // ===================================================
+  // DAY EDITING
+  // ===================================================
+
   setDayType(
     day,
     type
   ) {
     const normalizedDay =
-      normalizeDay(day);
+      normalizeDay(
+        day
+      );
 
     if (!normalizedDay) {
       return false;
@@ -377,12 +743,15 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
+
   setDayFocus(
     day,
     focusId
   ) {
     const normalizedDay =
-      normalizeDay(day);
+      normalizeDay(
+        day
+      );
 
     const focus =
       WorkoutFocuses.get(
@@ -433,7 +802,8 @@ const AriTrainingWorkoutPlanController = {
             WorkoutPlanStore
               .getDay(
                 normalizedDay
-              ) || {}
+              ) ||
+            {}
           ),
 
           type,
@@ -447,6 +817,7 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
+
   setDayTitle(
     day,
     title
@@ -458,20 +829,67 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
-  clearDay(day) {
+
+  setDayGoal(
+    day,
+    goalId
+  ) {
+    return WorkoutPlanStore
+      .setDayGoal(
+        day,
+        goalId
+      );
+  },
+
+
+  setDaySport(
+    day,
+    sportId
+  ) {
+    return WorkoutPlanStore
+      .setDaySport(
+        day,
+        sportId
+      );
+  },
+
+
+  setDayDuration(
+    day,
+    minutes
+  ) {
+    return WorkoutPlanStore
+      .setDayDuration(
+        day,
+        minutes
+      );
+  },
+
+
+  clearDay(
+    day
+  ) {
     return WorkoutPlanStore
       .clearDay(
         day
       );
   },
 
+
+  // ===================================================
+  // PLAN EXERCISE EDITING
+  // ===================================================
+
   addExercise(
     day,
     exerciseId,
-    options = {}
+    options =
+      {}
   ) {
     const normalizedDay =
-      normalizeDay(day);
+      normalizeDay(
+        day
+      );
 
     const exercise =
       ExerciseRegistry.get(
@@ -515,10 +933,12 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
+
   updateExercise(
     day,
     index,
-    patch = {}
+    patch =
+      {}
   ) {
     return WorkoutPlanStore
       .updateExercise(
@@ -527,6 +947,22 @@ const AriTrainingWorkoutPlanController = {
         patch
       );
   },
+
+
+  updateExerciseById(
+    day,
+    entryId,
+    patch =
+      {}
+  ) {
+    return WorkoutPlanStore
+      .updateExerciseById(
+        day,
+        entryId,
+        patch
+      );
+  },
+
 
   removeExercise(
     day,
@@ -538,6 +974,19 @@ const AriTrainingWorkoutPlanController = {
         index
       );
   },
+
+
+  removeExerciseById(
+    day,
+    entryId
+  ) {
+    return WorkoutPlanStore
+      .removeExerciseById(
+        day,
+        entryId
+      );
+  },
+
 
   moveExercise(
     day,
@@ -552,6 +1001,25 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
+
+  moveExerciseById(
+    day,
+    entryId,
+    toIndex
+  ) {
+    return WorkoutPlanStore
+      .moveExerciseById(
+        day,
+        entryId,
+        toIndex
+      );
+  },
+
+
+  // ===================================================
+  // TEMPLATES
+  // ===================================================
+
   applyTemplate(
     templateId
   ) {
@@ -564,290 +1032,379 @@ const AriTrainingWorkoutPlanController = {
       return false;
     }
 
-    return WorkoutPlanStore
-      .applyTemplate(
-        WorkoutTemplates.clone(
-          template.id
-        )
-      );
+    const applied =
+      WorkoutPlanStore
+        .applyTemplate(
+          WorkoutTemplates.clone(
+            template.id
+          )
+        );
+
+    if (
+      applied
+    ) {
+      this
+        .syncProgressWithPlan();
+    }
+
+    return applied;
   },
 
-  getTemplates(filters = {}) {
+
+  getTemplates(
+    filters =
+      {}
+  ) {
     return WorkoutTemplates
       .list(
         filters
       );
   },
 
-  searchTemplates(query) {
+
+  searchTemplates(
+    query
+  ) {
     return WorkoutTemplates
       .search(
         query
       );
   },
 
-  getWorkoutFocuses(filters = {}) {
+
+  // ===================================================
+  // WORKOUT FOCUSES / GOALS
+  // ===================================================
+
+  getWorkoutFocuses(
+    filters =
+      {}
+  ) {
     return WorkoutFocuses
       .list(
         filters
       );
   },
 
-  searchWorkoutFocuses(query) {
+
+  searchWorkoutFocuses(
+    query
+  ) {
     return WorkoutFocuses
       .search(
         query
       );
   },
 
-  getFitnessGoals(filters = {}) {
+
+  getFitnessGoals(
+    filters =
+      {}
+  ) {
     return FitnessGoals
       .list(
         filters
       );
   },
 
-  searchFitnessGoals(query) {
+
+  searchFitnessGoals(
+    query
+  ) {
     return FitnessGoals
       .search(
         query
       );
   },
 
-  getExercise(exerciseId) {
+
+  // ===================================================
+  // EXERCISE LIBRARY
+  // ===================================================
+
+  getExercise(
+    exerciseId
+  ) {
     return ExerciseRegistry
       .get(
         exerciseId
       );
   },
 
-  searchExercises(query) {
-    return ExerciseRegistry
-      .search(
-        query
-      );
-  },
 
-  getExercises(filters = {}) {
+  getExercises(
+    filters =
+      {}
+  ) {
     return ExerciseRegistry
       .list(
         filters
       );
   },
 
-  getRecommendedExercises({
-    goal = null,
-    bodyPart = null,
-    workoutFocus = null,
-    movementPattern = null,
-    exerciseType = null,
-    equipment = null,
-    difficulty = null,
-    limit = 12
-  } = {}) {
-    const resolvedGoal =
-      FitnessGoals.get(
-        goal ||
-        WorkoutPlanStore
-          .getState()
-          .primaryGoalId
-      );
 
-    let resolvedBodyPart =
-      normalizeId(
-        bodyPart
-      );
-
-    let resolvedMovement =
-      normalizeId(
-        movementPattern
-      );
-
-    let resolvedType =
-      normalizeId(
-        exerciseType
-      );
-
-    const focus =
-      WorkoutFocuses.get(
-        workoutFocus
-      );
-
-    /*
-     * If the UI supplies only a familiar workout focus like
-     * "Chest Day", use that focus to narrow the recommendation
-     * pool before ranking by goal.
-     */
-    if (
-      focus &&
-      !resolvedBodyPart &&
-      Array.isArray(
-        focus.primaryBodyParts
-      ) &&
-      focus.primaryBodyParts
-        .length === 1
-    ) {
-      resolvedBodyPart =
-        focus.primaryBodyParts[0];
-    }
-
-    if (
-      focus &&
-      !resolvedMovement &&
-      Array.isArray(
-        focus.movementPatterns
-      ) &&
-      focus.movementPatterns
-        .length === 1
-    ) {
-      resolvedMovement =
-        focus.movementPatterns[0];
-    }
-
-    if (
-      focus &&
-      !resolvedType &&
-      Array.isArray(
-        focus.exerciseTypes
-      ) &&
-      focus.exerciseTypes
-        .length === 1
-    ) {
-      resolvedType =
-        focus.exerciseTypes[0];
-    }
-
-    const baseRecommendations =
-      resolvedGoal
-        ? ExerciseRegistry
-            .recommend({
-              goal:
-                resolvedGoal.id,
-
-              bodyPart:
-                resolvedBodyPart,
-
-              movementPattern:
-                resolvedMovement,
-
-              exerciseType:
-                resolvedType,
-
-              equipment,
-
-              difficulty,
-
-              limit:
-                Math.max(
-                  24,
-                  Number(limit) ||
-                  12
-                )
-            })
-        : ExerciseRegistry
-            .list({
-              bodyPart:
-                resolvedBodyPart,
-
-              movementPattern:
-                resolvedMovement,
-
-              exerciseType:
-                resolvedType,
-
-              equipment,
-
-              difficulty
-            });
-
-    let recommendations =
-      baseRecommendations;
-
-    if (focus) {
-      recommendations =
-        recommendations.filter(
-          exercise => {
-            const exerciseBodyParts =
-              exercise.bodyParts ||
-              [];
-
-            const exerciseMovements =
-              exercise.movementPatterns ||
-              [];
-
-            const exerciseTypes =
-              exercise.exerciseTypes ||
-              [];
-
-            const bodyPartMatch =
-              (
-                focus.bodyParts ||
-                []
-              ).length === 0 ||
-              (
-                focus.bodyParts ||
-                []
-              ).some(
-                id =>
-                  exerciseBodyParts
-                    .includes(id)
-              );
-
-            const movementMatch =
-              (
-                focus.movementPatterns ||
-                []
-              ).length === 0 ||
-              (
-                focus.movementPatterns ||
-                []
-              ).some(
-                id =>
-                  exerciseMovements
-                    .includes(id)
-              );
-
-            const typeMatch =
-              (
-                focus.exerciseTypes ||
-                []
-              ).length === 0 ||
-              (
-                focus.exerciseTypes ||
-                []
-              ).some(
-                id =>
-                  exerciseTypes
-                    .includes(id)
-              );
-
-            return (
-              bodyPartMatch ||
-              movementMatch ||
-              typeMatch
-            );
-          }
-        );
-    }
-
-    return recommendations
-      .slice(
-        0,
-        Math.max(
-          1,
-          Number(limit) ||
-          12
-        )
+  searchExercises(
+    query,
+    options =
+      {}
+  ) {
+    return ExerciseSearch
+      .search(
+        query,
+        options
       );
   },
 
+
+  findExercises(
+    query,
+    options =
+      {}
+  ) {
+    return ExerciseSearch
+      .find(
+        query,
+        options
+      );
+  },
+
+
+  suggestExercises(
+    query,
+    options =
+      {}
+  ) {
+    return ExerciseSearch
+      .suggest(
+        query,
+        options
+      );
+  },
+
+
+  browseExercises(
+    options =
+      {}
+  ) {
+    return ExerciseSearch
+      .browse(
+        options
+      );
+  },
+
+
+  getExerciseSubstitutions(
+    exerciseId,
+    options =
+      {}
+  ) {
+    return ExerciseSearch
+      .substitutions(
+        exerciseId,
+        options
+      );
+  },
+
+
+  // ===================================================
+  // RECOMMENDATIONS
+  // ===================================================
+
+  getRecommendedExercises(
+    options =
+      {}
+  ) {
+    const primaryGoalId =
+      WorkoutPlanStore
+        .getState()
+        .primaryGoalId;
+
+    const focus =
+      options.workoutFocus
+        ? WorkoutFocuses.get(
+            options.workoutFocus
+          )
+        : null;
+
+    const bodyParts = [
+      ...(
+        Array.isArray(
+          options.bodyParts
+        )
+          ? options.bodyParts
+          : options.bodyPart
+            ? [
+                options.bodyPart
+              ]
+            : []
+      )
+    ];
+
+    const movementPatterns = [
+      ...(
+        Array.isArray(
+          options.movementPatterns
+        )
+          ? options
+              .movementPatterns
+          : options
+              .movementPattern
+            ? [
+                options
+                  .movementPattern
+              ]
+            : []
+      )
+    ];
+
+    const exerciseTypes = [
+      ...(
+        Array.isArray(
+          options.exerciseTypes
+        )
+          ? options
+              .exerciseTypes
+          : options.exerciseType
+            ? [
+                options.exerciseType
+              ]
+            : []
+      )
+    ];
+
+    if (
+      focus
+    ) {
+      if (
+        bodyParts.length ===
+          0
+      ) {
+        bodyParts.push(
+          ...(
+            focus.primaryBodyParts ||
+            focus.bodyParts ||
+            []
+          )
+        );
+      }
+
+      if (
+        movementPatterns
+          .length ===
+          0
+      ) {
+        movementPatterns.push(
+          ...(
+            focus.movementPatterns ||
+            []
+          )
+        );
+      }
+
+      if (
+        exerciseTypes.length ===
+          0
+      ) {
+        exerciseTypes.push(
+          ...(
+            focus.exerciseTypes ||
+            []
+          )
+        );
+      }
+    }
+
+    const recommendation =
+      ExerciseRecommender
+        .recommend({
+          goal:
+            options.goal ||
+            primaryGoalId ||
+            "general_fitness",
+
+          secondaryGoals:
+            options.secondaryGoals,
+
+          bodyParts,
+
+          muscles:
+            options.muscles,
+
+          movementPatterns,
+
+          exerciseTypes,
+
+          modules:
+            options.modules,
+
+          categories:
+            options.categories,
+
+          availableEquipment:
+            options
+              .availableEquipment ||
+            (
+              options.equipment
+                ? [
+                    options.equipment
+                  ]
+                : []
+            ),
+
+          preferredEquipment:
+            options
+              .preferredEquipment,
+
+          excludedEquipment:
+            options
+              .excludedEquipment,
+
+          preferredExercises:
+            options
+              .preferredExercises,
+
+          excludedExercises:
+            options
+              .excludedExercises,
+
+          difficulty:
+            options.difficulty,
+
+          sport:
+            options.sport,
+
+          specialization:
+            options
+              .specialization,
+
+          allowHarder:
+            options.allowHarder,
+
+          strictEquipment:
+            options
+              .strictEquipment,
+
+          includeBodyweight:
+            options
+              .includeBodyweight,
+
+          variety:
+            options.variety,
+
+          limit:
+            options.limit ||
+            12
+        });
+
+    return recommendation
+      .results;
+  },
+
+
   getRecommendedExercisesForDay(
     day,
-    {
-      limit = 12,
-      equipment = null,
-      difficulty = null
-    } = {}
+    options =
+      {}
   ) {
     const dayState =
       WorkoutPlanStore
@@ -866,6 +1423,7 @@ const AriTrainingWorkoutPlanController = {
     return this
       .getRecommendedExercises({
         goal:
+          dayState.goal ||
           WorkoutPlanStore
             .getState()
             .primaryGoalId,
@@ -873,21 +1431,744 @@ const AriTrainingWorkoutPlanController = {
         workoutFocus:
           dayState.focusId,
 
-        equipment,
+        sport:
+          dayState.sport,
 
-        difficulty,
-
-        limit
+        ...options
       });
   },
+
+
+  recommendFromQuery(
+    query,
+    options =
+      {}
+  ) {
+    return ExerciseRecommender
+      .recommendFromQuery(
+        query,
+        options
+      );
+  },
+
+
+  // ===================================================
+  // WORKOUT BUILDER
+  // ===================================================
+
+  buildWorkout(
+    options =
+      {}
+  ) {
+    const plan =
+      WorkoutPlanStore
+        .getState();
+
+    const workout =
+      WorkoutBuilder.build({
+        goal:
+          options.goal ||
+          plan.primaryGoalId ||
+          "general_fitness",
+
+        secondaryGoals:
+          options.secondaryGoals ||
+          plan.secondaryGoalIds,
+
+        ...options
+      });
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildQuickWorkout(
+    options =
+      {}
+  ) {
+    const workout =
+      WorkoutBuilder.quick(
+        options
+      );
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildStrengthWorkout(
+    options =
+      {}
+  ) {
+    const workout =
+      WorkoutBuilder.strength(
+        options
+      );
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildHypertrophyWorkout(
+    options =
+      {}
+  ) {
+    const workout =
+      WorkoutBuilder.hypertrophy(
+        options
+      );
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildCardioWorkout(
+    options =
+      {}
+  ) {
+    const workout =
+      WorkoutBuilder.cardio(
+        options
+      );
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildMobilityWorkout(
+    options =
+      {}
+  ) {
+    const workout =
+      WorkoutBuilder.mobility(
+        options
+      );
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildSurfWorkout(
+    options =
+      {}
+  ) {
+    const workout =
+      WorkoutBuilder.surfing(
+        options
+      );
+
+    this.state
+      .lastBuiltWorkout =
+        clone(
+          workout
+        );
+
+    return workout;
+  },
+
+
+  buildWorkoutForDay(
+    day,
+    options =
+      {}
+  ) {
+    const normalizedDay =
+      normalizeDay(
+        day
+      );
+
+    if (!normalizedDay) {
+      return null;
+    }
+
+    const currentDay =
+      WorkoutPlanStore
+        .getDay(
+          normalizedDay
+        );
+
+    const focus =
+      currentDay?.focusId
+        ? WorkoutFocuses.get(
+            currentDay.focusId
+          )
+        : null;
+
+    const inferredBodyParts =
+      focus?.primaryBodyParts ||
+      focus?.bodyParts ||
+      [];
+
+    const workout =
+      this.buildWorkout({
+        goal:
+          options.goal ||
+          currentDay?.goal ||
+          WorkoutPlanStore
+            .getState()
+            .primaryGoalId ||
+          "general_fitness",
+
+        sport:
+          options.sport ||
+          currentDay?.sport ||
+          null,
+
+        bodyParts:
+          options.bodyParts ||
+          (
+            options.bodyPart
+              ? [
+                  options.bodyPart
+                ]
+              : inferredBodyParts
+          ),
+
+        durationMinutes:
+          options
+            .durationMinutes ||
+          currentDay
+            ?.estimatedDurationMinutes ||
+          45,
+
+        ...options
+      });
+
+    return workout;
+  },
+
+
+  setBuiltWorkoutForDay(
+    day,
+    workout,
+    options =
+      {}
+  ) {
+    const normalizedDay =
+      normalizeDay(
+        day
+      );
+
+    if (
+      !normalizedDay ||
+      !workout
+    ) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .setBuiltWorkout(
+          normalizedDay,
+          workout,
+          options
+        );
+
+    if (
+      result
+    ) {
+      this
+        .syncProgressWithPlan();
+    }
+
+    return result;
+  },
+
+
+  buildAndSetWorkoutForDay(
+    day,
+    options =
+      {}
+  ) {
+    const workout =
+      this.buildWorkoutForDay(
+        day,
+        options
+      );
+
+    if (!workout) {
+      return null;
+    }
+
+    const stored =
+      this.setBuiltWorkoutForDay(
+        day,
+        workout,
+        {
+          focusId:
+            options.focusId ||
+            null
+        }
+      );
+
+    return stored
+      ? workout
+      : null;
+  },
+
+
+  regenerateDay(
+    day,
+    options =
+      {}
+  ) {
+    return this
+      .buildAndSetWorkoutForDay(
+        day,
+        options
+      );
+  },
+
+
+  addBuiltWorkoutToDay(
+    day,
+    workout,
+    options =
+      {}
+  ) {
+    return this
+      .setBuiltWorkoutForDay(
+        day,
+        workout,
+        options
+      );
+  },
+
+
+  // ===================================================
+  // BUILT WORKOUT EDITING
+  // ===================================================
+
+  replaceBuiltWorkoutExercise(
+    workout,
+    entryId,
+    replacementExerciseId
+  ) {
+    return WorkoutBuilder
+      .replaceExercise(
+        workout,
+        entryId,
+        replacementExerciseId
+      );
+  },
+
+
+  moveBuiltWorkoutExercise(
+    workout,
+    entryId,
+    options =
+      {}
+  ) {
+    return WorkoutBuilder
+      .moveExercise(
+        workout,
+        entryId,
+        options
+      );
+  },
+
+
+  removeBuiltWorkoutExercise(
+    workout,
+    entryId
+  ) {
+    return WorkoutBuilder
+      .removeExercise(
+        workout,
+        entryId
+      );
+  },
+
+
+  addExerciseToBuiltWorkout(
+    workout,
+    exerciseId,
+    options =
+      {}
+  ) {
+    return WorkoutBuilder
+      .addExercise(
+        workout,
+        exerciseId,
+        options
+      );
+  },
+
+
+  // ===================================================
+  // PLAN → PROGRESS SYNC
+  // ===================================================
+
+  syncProgressWithPlan() {
+    const plan =
+      WorkoutPlanStore
+        .getState();
+
+    WorkoutProgressStore
+      .setPlanContext({
+        planKey:
+          getPlanContextKey(
+            plan
+          ),
+
+        weekKey:
+          getCurrentWeekKey(),
+
+        resetIfChanged:
+          true
+      });
+
+    WorkoutProgressStore
+      .syncWeekWithPlan(
+        plan.week
+      );
+
+    return WorkoutProgressStore
+      .getWeekSummary();
+  },
+
+
+  // ===================================================
+  // LIVE SESSION READS
+  // ===================================================
+
+  getProgress() {
+    return WorkoutProgressStore
+      .getState();
+  },
+
+
+  getDayProgress(
+    day
+  ) {
+    return WorkoutProgressStore
+      .getDay(
+        day
+      );
+  },
+
+
+  getDayProgressSummary(
+    day
+  ) {
+    return WorkoutProgressStore
+      .getDaySummary(
+        day
+      );
+  },
+
+
+  getTodayProgress() {
+    return this
+      .getDayProgress(
+        getCurrentWeekdayId()
+      );
+  },
+
+
+  getTodayProgressSummary() {
+    return this
+      .getDayProgressSummary(
+        getCurrentWeekdayId()
+      );
+  },
+
+
+  getWeekProgressSummary() {
+    return WorkoutProgressStore
+      .getWeekSummary();
+  },
+
+
+  // ===================================================
+  // SESSION LIFECYCLE
+  // ===================================================
+
+  startWorkout(
+    day =
+      getCurrentWeekdayId()
+  ) {
+    return WorkoutProgressStore
+      .startDay(
+        day
+      );
+  },
+
+
+  pauseWorkout(
+    day =
+      getCurrentWeekdayId()
+  ) {
+    return WorkoutProgressStore
+      .pauseDay(
+        day
+      );
+  },
+
+
+  resumeWorkout(
+    day =
+      getCurrentWeekdayId()
+  ) {
+    return WorkoutProgressStore
+      .resumeDay(
+        day
+      );
+  },
+
+
+  completeWorkout(
+    day =
+      getCurrentWeekdayId(),
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .completeDay(
+        day,
+        options
+      );
+  },
+
+
+  getWorkoutElapsedSeconds(
+    day =
+      getCurrentWeekdayId()
+  ) {
+    return WorkoutProgressStore
+      .getElapsedSeconds(
+        day
+      );
+  },
+
+
+  setAverageHeartRate(
+    day,
+    heartRate
+  ) {
+    return WorkoutProgressStore
+      .setAverageHeartRate(
+        day,
+        heartRate
+      );
+  },
+
+
+  setWorkoutNotes(
+    day,
+    notes
+  ) {
+    return WorkoutProgressStore
+      .setDayNotes(
+        day,
+        notes
+      );
+  },
+
+
+  // ===================================================
+  // SESSION EXERCISE ACTIONS
+  // ===================================================
+
+  moveSessionExercise(
+    day,
+    entryId,
+    toIndex
+  ) {
+    return WorkoutProgressStore
+      .moveEntry(
+        day,
+        entryId,
+        toIndex
+      );
+  },
+
+
+  addSessionExercise(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .addSessionExercise(
+        options
+      );
+  },
+
+
+  substituteSessionExercise(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .substituteEntry(
+        options
+      );
+  },
+
+
+  skipSessionExercise(
+    day,
+    entryId,
+    skipped =
+      true
+  ) {
+    return WorkoutProgressStore
+      .skipEntry(
+        day,
+        entryId,
+        skipped
+      );
+  },
+
+
+  removeSessionExercise(
+    day,
+    entryId
+  ) {
+    return WorkoutProgressStore
+      .removeSessionEntry(
+        day,
+        entryId
+      );
+  },
+
+
+  getSessionExercise(
+    day,
+    entryIdOrExerciseId
+  ) {
+    return WorkoutProgressStore
+      .getExerciseProgress(
+        day,
+        entryIdOrExerciseId
+      );
+  },
+
+
+  // ===================================================
+  // SET / ACTIVITY COMPLETION
+  // ===================================================
+
+  setSetCompleted(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .setSetCompleted(
+        options
+      );
+  },
+
+
+  toggleSetCompleted(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .toggleSetCompleted(
+        options
+      );
+  },
+
+
+  setSetCalories(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .setSetCalories(
+        options
+      );
+  },
+
+
+  setExerciseCompleted(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .setExerciseCompleted(
+        options
+      );
+  },
+
+
+  toggleExerciseCompleted(
+    options =
+      {}
+  ) {
+    return WorkoutProgressStore
+      .toggleExerciseCompleted(
+        options
+      );
+  },
+
+
+  // ===================================================
+  // SESSION SNAPSHOT
+  // ===================================================
+
+  createSessionSnapshot(
+    day =
+      getCurrentWeekdayId()
+  ) {
+    return WorkoutProgressStore
+      .createSessionSnapshot(
+        day
+      );
+  },
+
+
+  // ===================================================
+  // CALORIE ESTIMATION
+  // ===================================================
 
   estimateExerciseCalories({
     exerciseId,
     durationMinutes,
-    weightKg = null,
-    weightLb = null,
-    intensity = null,
-    activityId = null
+    weightKg =
+      null,
+    weightLb =
+      null,
+    intensity =
+      null,
+    activityId =
+      null
   } = {}) {
     const exercise =
       ExerciseRegistry.get(
@@ -901,10 +2182,6 @@ const AriTrainingWorkoutPlanController = {
     const energyProfile =
       exercise.energyProfile;
 
-    /*
-     * Strength movements are better estimated as a full
-     * training session, not by summing individual lift METs.
-     */
     if (
       !energyProfile &&
       (
@@ -955,9 +2232,11 @@ const AriTrainingWorkoutPlanController = {
       });
   },
 
+
   resolveEnergyActivityId(
     exercise,
-    intensity = null
+    intensity =
+      null
   ) {
     if (
       !exercise ||
@@ -970,7 +2249,8 @@ const AriTrainingWorkoutPlanController = {
     const normalizedIntensity =
       normalizeText(
         intensity
-      ).toLowerCase();
+      )
+        .toLowerCase();
 
     switch (
       exercise.id
@@ -992,14 +2272,18 @@ const AriTrainingWorkoutPlanController = {
 
         return "walking_moderate";
 
+
       case "easy_run":
         return "running_easy";
+
 
       case "tempo_run":
         return "running_6_mph";
 
+
       case "running_intervals":
         return "hiit";
+
 
       case "stationary_bike":
         if (
@@ -1018,6 +2302,7 @@ const AriTrainingWorkoutPlanController = {
 
         return "stationary_bike_moderate";
 
+
       case "rowing_machine":
         if (
           normalizedIntensity ===
@@ -1035,8 +2320,10 @@ const AriTrainingWorkoutPlanController = {
 
         return "rowing_moderate";
 
+
       case "stair_climber":
         return "stair_climber";
+
 
       case "elliptical_trainer":
         return normalizedIntensity ===
@@ -1044,15 +2331,20 @@ const AriTrainingWorkoutPlanController = {
           ? "elliptical_vigorous"
           : "elliptical_moderate";
 
+
       default:
         return null;
     }
   },
 
+
   getCalorieActivityOptions({
-    category = null,
-    exerciseType = null,
-    intensity = null
+    category =
+      null,
+    exerciseType =
+      null,
+    intensity =
+      null
   } = {}) {
     return MetValues.list({
       category,
@@ -1061,16 +2353,39 @@ const AriTrainingWorkoutPlanController = {
     });
   },
 
-  subscribe(listener) {
+
+  // ===================================================
+  // SUBSCRIPTIONS
+  // ===================================================
+
+  subscribe(
+    listener
+  ) {
     return WorkoutPlanStore
       .subscribe(
         listener
       );
   },
 
+
+  subscribeProgress(
+    listener
+  ) {
+    return WorkoutProgressStore
+      .subscribe(
+        listener
+      );
+  },
+
+
+  // ===================================================
+  // DELETE / RESET
+  // ===================================================
+
   async deleteRemotePlan() {
     if (
-      !this.state.remoteAvailable
+      !this.state
+        .remoteAvailable
     ) {
       return false;
     }
@@ -1085,18 +2400,85 @@ const AriTrainingWorkoutPlanController = {
           plan.planId
       });
 
-    WorkoutPlanStore.reset();
+    WorkoutPlanStore
+      .reset();
 
-    this.state.lastLoadSource =
-      "default";
+    WorkoutProgressStore
+      .resetAll();
+
+    this.state
+      .lastLoadSource =
+        "default";
 
     return true;
   },
 
-  reset() {
-    return WorkoutPlanStore
-      .reset();
+
+  resetPlan() {
+    const result =
+      WorkoutPlanStore
+        .reset();
+
+    WorkoutProgressStore
+      .resetAll();
+
+    return result;
   },
+
+
+  resetProgress() {
+    return WorkoutProgressStore
+      .resetAll();
+  },
+
+
+  resetDayProgress(
+    day
+  ) {
+    return WorkoutProgressStore
+      .resetDay(
+        day
+      );
+  },
+
+
+  reset() {
+    return this
+      .resetPlan();
+  },
+
+
+  // ===================================================
+  // VALIDATION
+  // ===================================================
+
+  validatePlan() {
+    return WorkoutPlanStore
+      .validate?.() ||
+      null;
+  },
+
+
+  validateProgress() {
+    return WorkoutProgressStore
+      .validate?.() ||
+      null;
+  },
+
+
+  validateBuiltWorkout(
+    workout
+  ) {
+    return WorkoutBuilder
+      .validate(
+        workout
+      );
+  },
+
+
+  // ===================================================
+  // DIAGNOSTICS
+  // ===================================================
 
   getDiagnostics() {
     return {
@@ -1124,6 +2506,32 @@ const AriTrainingWorkoutPlanController = {
       lastSavedAt:
         this.state.lastSavedAt,
 
+      lastBuiltWorkout:
+        this.state
+          .lastBuiltWorkout
+          ? {
+              workoutId:
+                this.state
+                  .lastBuiltWorkout
+                  .workoutId,
+
+              title:
+                this.state
+                  .lastBuiltWorkout
+                  .title,
+
+              type:
+                this.state
+                  .lastBuiltWorkout
+                  .type,
+
+              goal:
+                this.state
+                  .lastBuiltWorkout
+                  .goal
+            }
+          : null,
+
       lastError:
         this.state.lastError
           ? {
@@ -1142,39 +2550,73 @@ const AriTrainingWorkoutPlanController = {
         WorkoutPlanStore
           .getSummary(),
 
+      progress:
+        WorkoutProgressStore
+          .getWeekSummary(),
+
       registries: {
         templates:
           WorkoutTemplates
             .all
-            .length,
+            ?.length ||
+          0,
 
         exercises:
           ExerciseRegistry
             .all
-            .length,
+            ?.length ||
+          0,
 
         workoutFocuses:
           WorkoutFocuses
             .all
-            .length,
+            ?.length ||
+          0,
 
         fitnessGoals:
           FitnessGoals
             .all
-            .length,
+            ?.length ||
+          0,
 
         metActivities:
           MetValues
             .all
-            .length
+            ?.length ||
+          0
       },
 
       validation: {
+        plan:
+          WorkoutPlanStore
+            .validate?.() ||
+          null,
+
+        progress:
+          WorkoutProgressStore
+            .validate?.() ||
+          null,
+
         exercises:
           ExerciseRegistry
             .validate?.() ||
           null
       },
+
+      search:
+        ExerciseSearch
+          .diagnostics?.() ||
+        null,
+
+      recommender:
+        ExerciseRecommender
+          .diagnostics?.() ||
+        null,
+
+      builder:
+        WorkoutBuilder
+          .diagnostics?.() ||
+        null,
 
       api:
         WorkoutPlanApi
@@ -1183,6 +2625,11 @@ const AriTrainingWorkoutPlanController = {
     };
   }
 };
+
+
+// =====================================================
+// GLOBAL API
+// =====================================================
 
 if (
   typeof globalThis !==
@@ -1196,12 +2643,18 @@ if (
     Ari.training ||
     {};
 
-  Ari.training.workoutPlanController =
-    AriTrainingWorkoutPlanController;
+  Ari.training
+    .workoutPlanController =
+      AriTrainingWorkoutPlanController;
 
   globalThis.Ari =
     Ari;
 }
+
+
+// =====================================================
+// EXPORTS
+// =====================================================
 
 export {
   VERSION,
@@ -1209,4 +2662,5 @@ export {
   AriTrainingWorkoutPlanController
 };
 
-export default AriTrainingWorkoutPlanController;
+export default
+  AriTrainingWorkoutPlanController;
