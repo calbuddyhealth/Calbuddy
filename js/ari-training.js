@@ -1,17 +1,9 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.2.1
+// Version: 4.1.1
 // Purpose:
 //   Calendar-first ARI Training controller.
-//
-// V4.2.1 improvements:
-//   - Preserves the known-good V4.1.1 calendar-first runtime.
-//   - Uses workout-session-api.js V2 for live-session persistence.
-//   - Binds and renders the calendar before cloud work so a slow/erroring
-//     Supabase request cannot leave the page visually frozen.
-//   - Keeps local/offline session fallback and refresh protection.
-//   - Fixes corrupted check, heart, and status symbols.
 //
 // V4.1.0 improvements:
 //   - Hardened Start Workout flow with immediate visual feedback.
@@ -46,9 +38,6 @@ import WorkoutPlanController
 import WorkoutProgressStore
   from "./training/workout-progress-store.js";
 
-import WorkoutSessionApi
-  from "./training/workout-session-api.js";
-
 import ExerciseRegistry
   from "./training/exercises/exercise-registry.js";
 
@@ -58,7 +47,7 @@ import CalorieCalculator
 import HeartRateIntensity
   from "./training/energy/heart-rate-intensity.js";
 
-const VERSION = "4.2.1";
+const VERSION = "4.1.1";
 const SOURCE = "js/ari-training";
 
 const DAYS = Object.freeze([
@@ -133,10 +122,6 @@ async function initialize() {
     return;
   }
 
-  /*
-   * Bind and render before any cloud request.
-   * The page must stay interactive even if Supabase is slow or unavailable.
-   */
   cacheElements();
   bindEvents();
 
@@ -144,33 +129,10 @@ async function initialize() {
   state.selectedDateKey = restoreSelectedDate() || state.todayDateKey;
   state.calendarMonthDate = dateFromKey(state.selectedDateKey) || new Date();
 
+  await resolveCurrentUser();
+  await loadTrainingProfile();
+
   WorkoutProgressStore.hydrate();
-
-  // Weekdays and controls become usable immediately.
-  renderCalendar();
-  publishGlobal();
-
-  try {
-    const client = getSupabase();
-
-    if (client) {
-      WorkoutSessionApi.configure({ client });
-    } else {
-      WorkoutSessionApi.configure();
-    }
-  } catch (error) {
-    console.warn(
-      "[ARI Training] Session API configuration unavailable. Local mode remains available.",
-      error
-    );
-  }
-
-  try {
-    await resolveCurrentUser();
-    await loadTrainingProfile();
-  } catch (error) {
-    console.warn("[ARI Training] User/profile initialization failed.", error);
-  }
 
   try {
     await WorkoutPlanController.init();
@@ -193,24 +155,13 @@ async function initialize() {
     void renderSelectedDay();
   });
 
+  await restoreOpenSession();
+
   state.initialized = true;
+
   startRuntimeTimers();
-
-  // Render the plan before remote session restoration.
   renderAll();
-
-  try {
-    await restoreOpenSession();
-
-    if (state.activeSession) {
-      renderAll();
-    }
-  } catch (error) {
-    console.warn(
-      "[ARI Training] Open-session restoration failed. Training remains available.",
-      error
-    );
-  }
+  publishGlobal();
 
   console.info(
     `[ARI Training] Runtime initialized. Version ${VERSION}.`
@@ -1172,11 +1123,15 @@ async function startRepeatFromCompletedSession(completed) {
       return;
     }
 
-    const previousExercises =
-      await WorkoutSessionApi.getExercisesForCompletedSession({
-        sessionId: completed.id,
-        userId: state.user?.id || null
-      });
+    const { data: previousExercises, error } = await client
+      .from("ari_workout_session_exercises")
+      .select("*")
+      .eq("session_id", completed.id)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
 
     for (const previous of previousExercises || []) {
       await createSessionExercise({
@@ -1253,18 +1208,22 @@ async function createWorkoutSession({
     return localSession;
   }
 
-  try {
-    return await WorkoutSessionApi.createSession({
-      userId: state.user.id,
-      planId,
-      localDate,
+  const { data, error } = await client
+    .from("ari_workout_sessions")
+    .insert({
+      user_id: state.user.id,
+      plan_id: planId,
+      local_date: localDate,
       timezone: getUserTimeZone(),
-      plannedWeekday: weekday,
+      planned_weekday: weekday,
       title,
       source,
       status: "active"
-    });
-  } catch (error) {
+    })
+    .select()
+    .single();
+
+  if (error) {
     const existing = await fetchOpenSession();
 
     if (existing?.id) {
@@ -1273,6 +1232,8 @@ async function createWorkoutSession({
 
     throw error;
   }
+
+  return data;
 }
 
 async function seedPlannedSessionExercises(session, exerciseEntries) {
@@ -1341,8 +1302,6 @@ async function createSessionExercise({
       for (let setNumber = 1; setNumber <= plannedSets; setNumber += 1) {
         exercise.sets.push({
           id: `local_set_${Date.now()}_${setNumber}_${Math.random().toString(36).slice(2, 6)}`,
-          session_id: sessionId,
-          session_exercise_id: exercise.id,
           set_number: setNumber,
           planned_reps: plannedReps,
           planned_weight: plannedWeight,
@@ -1360,21 +1319,58 @@ async function createSessionExercise({
     return exercise;
   }
 
-  return WorkoutSessionApi.createExerciseWithSets({
-    sessionId,
-    userId: state.user.id,
-    exerciseId,
-    exerciseName,
-    exerciseType,
-    source,
-    sortOrder,
-    status: "pending",
-    completionMode,
-    plannedSets,
-    plannedReps,
-    plannedWeight,
-    plannedDurationSeconds
-  });
+  const { data: exerciseRow, error } = await client
+    .from("ari_workout_session_exercises")
+    .insert({
+      session_id: sessionId,
+      user_id: state.user.id,
+      exercise_id: exerciseId,
+      exercise_name: exerciseName,
+      exercise_type: exerciseType,
+      sort_order: sortOrder,
+      source,
+      status: "pending",
+      completion_mode: completionMode,
+      planned_sets: plannedSets,
+      planned_reps: plannedReps,
+      planned_weight: plannedWeight,
+      planned_duration_seconds: plannedDurationSeconds
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  if (completionMode === "sets" && plannedSets) {
+    const rows = [];
+
+    for (let setNumber = 1; setNumber <= plannedSets; setNumber += 1) {
+      rows.push({
+        session_id: sessionId,
+        session_exercise_id: exerciseRow.id,
+        user_id: state.user.id,
+        set_number: setNumber,
+        planned_reps: plannedReps,
+        planned_weight: plannedWeight,
+        actual_reps: null,
+        actual_weight: plannedWeight,
+        completed: false,
+        estimated_calories: 0
+      });
+    }
+
+    const { error: setError } = await client
+      .from("ari_workout_session_sets")
+      .insert(rows);
+
+    if (setError) {
+      throw setError;
+    }
+  }
+
+  return exerciseRow;
 }
 
 async function restoreOpenSession({ preserveCurrent = false } = {}) {
@@ -1399,40 +1395,85 @@ async function restoreOpenSession({ preserveCurrent = false } = {}) {
 }
 
 async function fetchOpenSession() {
-  if (!state.user?.id || !getSupabase()) {
+  const client = getSupabase();
+
+  if (!client || !state.user?.id) {
     return null;
   }
 
-  try {
-    return await WorkoutSessionApi.getOpenSession({
-      userId: state.user.id
-    });
-  } catch (error) {
+  const { data, error } = await client
+    .from("ari_workout_sessions")
+    .select("*")
+    .eq("user_id", state.user.id)
+    .in("status", OPEN_SESSION_STATUSES)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
     console.warn("[ARI Training] Open session query failed.", error);
     return null;
   }
+
+  return data;
 }
 
 async function hydrateFullSession(sessionId) {
-  if (!getSupabase() || String(sessionId).startsWith("local_")) {
+  const client = getSupabase();
+
+  if (!client || String(sessionId).startsWith("local_")) {
     restoreLocalSessionCache();
     return state.activeSession;
   }
 
-  const fullSession = await WorkoutSessionApi.getFullSession({
-    sessionId,
-    userId: state.user?.id || null
-  });
+  const [sessionResult, exercisesResult, setsResult, hrResult] =
+    await Promise.all([
+      client
+        .from("ari_workout_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .single(),
 
-  if (!fullSession) {
-    return null;
+      client
+        .from("ari_workout_session_exercises")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("sort_order", { ascending: true }),
+
+      client
+        .from("ari_workout_session_sets")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("set_number", { ascending: true }),
+
+      client
+        .from("ari_workout_heart_rate_readings")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("recorded_at", { ascending: true })
+    ]);
+
+  if (sessionResult.error) throw sessionResult.error;
+  if (exercisesResult.error) throw exercisesResult.error;
+  if (setsResult.error) throw setsResult.error;
+  if (hrResult.error) throw hrResult.error;
+
+  const exercises = exercisesResult.data || [];
+  const sets = setsResult.data || [];
+
+  for (const exercise of exercises) {
+    exercise.sets = sets.filter(
+      set => set.session_exercise_id === exercise.id
+    );
   }
 
-  state.activeSession = fullSession;
-  state.currentExerciseId = resolveCurrentExerciseId(
-    fullSession.exercises || []
-  );
+  state.activeSession = {
+    ...sessionResult.data,
+    exercises,
+    heartRateReadings: hrResult.data || []
+  };
 
+  state.currentExerciseId = resolveCurrentExerciseId(exercises);
   restoreRestState();
   persistLocalSessionCache();
 
@@ -1660,34 +1701,32 @@ async function completeLiveSet(button) {
       estimated_calories: estimatedCalories
     });
   } else {
-    try {
-      const saved = await WorkoutSessionApi.completeSet({
-        setId: set.id,
-        userId: state.user.id,
-        actualWeight,
-        actualReps,
-        estimatedCalories,
-        completedAt
-      });
+    const client = getSupabase();
+    const { error } = await client
+      .from("ari_workout_session_sets")
+      .update({
+        actual_weight: actualWeight,
+        actual_reps: actualReps,
+        completed: true,
+        completed_at: completedAt,
+        estimated_calories: estimatedCalories
+      })
+      .eq("id", set.id)
+      .eq("user_id", state.user.id);
 
-      Object.assign(
-        set,
-        saved || {
-          actual_weight: actualWeight,
-          actual_reps: actualReps,
-          completed: true,
-          completed_at: completedAt,
-          estimated_calories: estimatedCalories
-        }
-      );
-    } catch (error) {
+    if (error) {
       console.error("[ARI Training] Set completion failed.", error);
-      showTrainingMessage(
-        readableError(error, "Set couldn't be saved."),
-        "error"
-      );
+      showTrainingMessage(readableError(error, "Set couldn't be saved."), "error");
       return;
     }
+
+    Object.assign(set, {
+      actual_weight: actualWeight,
+      actual_reps: actualReps,
+      completed: true,
+      completed_at: completedAt,
+      estimated_calories: estimatedCalories
+    });
   }
 
   await updateExerciseCompletionState(exercise);
@@ -1936,23 +1975,17 @@ async function updateSessionExercise({ exercise, patch }) {
     return;
   }
 
-  try {
-    const saved = await WorkoutSessionApi.updateExercise({
-      exerciseRowId: exercise.id,
-      userId: state.user.id,
-      patch
-    });
+  const client = getSupabase();
+  const { error } = await client
+    .from("ari_workout_session_exercises")
+    .update(patch)
+    .eq("id", exercise.id)
+    .eq("user_id", state.user.id);
 
-    if (saved) {
-      Object.assign(exercise, saved);
-    }
-  } catch (error) {
+  if (error) {
     Object.assign(exercise, previous);
     console.error("[ARI Training] Exercise update failed.", error);
-    showTrainingMessage(
-      readableError(error, "Exercise update couldn't be saved."),
-      "error"
-    );
+    showTrainingMessage(readableError(error, "Exercise update couldn't be saved."), "error");
     return;
   }
 
@@ -2257,25 +2290,26 @@ async function saveHeartRateReading() {
     session.heartRateReadings = session.heartRateReadings || [];
     session.heartRateReadings.push(reading);
   } else {
-    try {
-      const saved = await WorkoutSessionApi.addHeartRateReading({
-        sessionId: session.id,
-        userId: state.user.id,
+    const client = getSupabase();
+    const { data, error } = await client
+      .from("ari_workout_heart_rate_readings")
+      .insert({
+        session_id: session.id,
+        user_id: state.user.id,
         bpm,
-        elapsedSeconds: Math.round(getElapsedSessionSeconds()),
+        elapsed_seconds: getElapsedSessionSeconds(),
         source: "manual"
-      });
+      })
+      .select()
+      .single();
 
-      session.heartRateReadings = session.heartRateReadings || [];
-      session.heartRateReadings.push(saved);
-    } catch (error) {
+    if (error) {
       console.error("[ARI Training] Heart-rate save failed.", error);
-      showTrainingMessage(
-        readableError(error, "Heart rate couldn't be saved."),
-        "error"
-      );
+      showTrainingMessage(readableError(error, "Heart rate couldn't be saved."), "error");
       return;
     }
+
+    session.heartRateReadings.push(data);
   }
 
   closeHeartRateEntry();
@@ -2345,17 +2379,14 @@ async function updateSession(patch) {
     return;
   }
 
-  try {
-    const saved = await WorkoutSessionApi.updateSession({
-      sessionId: session.id,
-      userId: state.user.id,
-      patch
-    });
+  const client = getSupabase();
+  const { error } = await client
+    .from("ari_workout_sessions")
+    .update(patch)
+    .eq("id", session.id)
+    .eq("user_id", state.user.id);
 
-    if (saved) {
-      Object.assign(session, saved);
-    }
-  } catch (error) {
+  if (error) {
     Object.assign(session, previous);
     console.error("[ARI Training] Session update failed.", error);
     throw error;
@@ -2755,84 +2786,97 @@ async function renderHistory() {
 
 async function getCompletedSessionForDate(dateKey) {
   const cached = getCachedCompletedSessionForDate(dateKey);
+  const client = getSupabase();
 
-  if (!getSupabase() || !state.user?.id) {
+  if (!client || !state.user?.id) {
     return cached;
   }
 
-  try {
-    const result = await WorkoutSessionApi.getCompletedSessionForDate({
-      dateKey,
-      userId: state.user.id
-    });
+  const { data, error } = await client
+    .from("ari_workout_sessions")
+    .select("*")
+    .eq("user_id", state.user.id)
+    .eq("local_date", dateKey)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (!result) {
-      return cached;
-    }
-
-    cacheCompletedSessionLocally(result);
-    return result;
-  } catch (error) {
+  if (error) {
     console.warn("[ARI Training] Completed session query failed.", error);
     return cached;
   }
+
+  if (!data) {
+    return cached;
+  }
+
+  const result = {
+    ...data,
+    completed_sets: await countCompletedSetsForSession(data.id)
+  };
+
+  cacheCompletedSessionLocally(result);
+  return result;
 }
 
 async function fetchCompletedSessionsForDate(dateKey) {
-  if (!getSupabase() || !state.user?.id) {
+  const client = getSupabase();
+
+  if (!client || !state.user?.id) {
     return getCachedCompletedSessions().filter(
       record => record.local_date === dateKey
     );
   }
 
-  try {
-    const records = await WorkoutSessionApi.getCompletedSessionsForDate({
-      dateKey,
-      userId: state.user.id
-    });
+  const { data, error } = await client
+    .from("ari_workout_sessions")
+    .select("*")
+    .eq("user_id", state.user.id)
+    .eq("local_date", dateKey)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false });
 
-    for (const record of records) {
-      cacheCompletedSessionLocally(record);
-    }
-
-    return records;
-  } catch (error) {
+  if (error) {
     console.warn("[ARI Training] Daily completed session query failed.", error);
-
-    return getCachedCompletedSessions().filter(
-      record => record.local_date === dateKey
-    );
+    return [];
   }
+
+  return enrichSessionsWithCompletedSets(data || []);
 }
 
 async function fetchCurrentMonthCompletedSessions() {
   const start = getMonthStartKey(state.todayDateKey);
   const end = getMonthEndKey(state.todayDateKey);
+  const client = getSupabase();
 
-  if (!getSupabase() || !state.user?.id) {
+  if (!client || !state.user?.id) {
     return getCachedCompletedSessions().filter(
       record => record.local_date >= start && record.local_date <= end
     );
   }
 
-  try {
-    const records = await WorkoutSessionApi.getCompletedSessionsForMonth({
-      dateKey: state.todayDateKey,
-      userId: state.user.id
-    });
+  const { data, error } = await client
+    .from("ari_workout_sessions")
+    .select("*")
+    .eq("user_id", state.user.id)
+    .eq("status", "completed")
+    .gte("local_date", start)
+    .lte("local_date", end)
+    .order("completed_at", { ascending: false });
 
-    for (const record of records) {
-      cacheCompletedSessionLocally(record);
-    }
-
-    return records;
-  } catch (error) {
+  if (error) {
     console.warn("[ARI Training] History query failed.", error);
-
-    return getCachedCompletedSessions().filter(
-      record => record.local_date >= start && record.local_date <= end
-    );
+    return [];
   }
+
+  const records = await enrichSessionsWithCompletedSets(data || []);
+
+  for (const record of records) {
+    cacheCompletedSessionLocally(record);
+  }
+
+  return records;
 }
 
 async function enrichSessionsWithCompletedSets(sessions) {
@@ -2849,19 +2893,19 @@ async function enrichSessionsWithCompletedSets(sessions) {
 }
 
 async function countCompletedSetsForSession(sessionId) {
-  if (!getSupabase() || String(sessionId).startsWith("local_")) {
+  const client = getSupabase();
+
+  if (!client || String(sessionId).startsWith("local_")) {
     return 0;
   }
 
-  try {
-    return await WorkoutSessionApi.countCompletedSets({
-      sessionId,
-      userId: state.user?.id || null
-    });
-  } catch (error) {
-    console.warn("[ARI Training] Completed-set count failed.", error);
-    return 0;
-  }
+  const { count, error } = await client
+    .from("ari_workout_session_sets")
+    .select("id", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .eq("completed", true);
+
+  return error ? 0 : count || 0;
 }
 
 function groupSessionsByDate(records) {
@@ -3998,7 +4042,6 @@ function publishGlobal() {
     getToday: () => state.todayDateKey,
     getPlan: () => state.plan,
     getActiveSession: () => cloneSafe(state.activeSession),
-    getSessionApiDiagnostics: () => WorkoutSessionApi.getDiagnostics(),
 
     getTrainingProfile: () => ({
       age: state.profileAge,
