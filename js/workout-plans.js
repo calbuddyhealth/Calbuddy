@@ -1,28 +1,32 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 2.0.2
+// Version: 2.1.0
 // Purpose:
 //   Page controller for workout-plans.html.
 //
-// Features:
-//   - My Week rendering and day editing
-//   - Suggested workout templates
-//   - Custom goal + weekly-focus builder
-//   - Exercise Library search/filtering
-//   - Training-focus-aware exercise picker
-//   - Approved-exercise picker
-//   - Exercise detail/instruction/illustration view
-//   - Local + Supabase workout-plan persistence
-//   - Goal-based exercise recommendations
+// V2.1.0:
+//   - Completes DOM caching for all elements referenced by this file.
+//   - Restores Custom Builder tab support.
+//   - Adds safer rendering when optional HTML sections are absent.
+//   - Normalizes Workout Focus schemas (bodyParts + primaryBodyParts).
+//   - Removes the practical 500-exercise recommendation ceiling.
+//   - Prevents accidental duplicate exercises within the same workout day.
+//   - Improves focused exercise pool fallback behavior.
+//   - Improves large-library search/filter behavior.
+//   - Adds safer autosave sequencing.
+//   - Adds initialization diagnostics.
+//   - Uses ASCII / Unicode escapes for UI separators to avoid mojibake.
+//   - Keeps Workout Plans separate from live workout execution.
 //
-// V1.1.0:
-//   - Exercise picker is now STRICTLY filtered by the selected
-//     Training Focus for the active workout day.
-//   - Search remains inside the selected Training Focus.
-//   - No automatic fallback to all exercises for focused days.
-//   - Custom focus can intentionally browse all approved exercises.
-//   - Exercise Library tab remains unrestricted.
+// Responsibilities:
+//   - My Week rendering and day editing.
+//   - Suggested workout templates.
+//   - Optional custom goal + weekly-focus builder.
+//   - Exercise Library search/filtering.
+//   - Training-focus-aware exercise picker.
+//   - Exercise detail/instruction/illustration view.
+//   - Local + Supabase workout-plan persistence.
 // =====================================================
 
 import WorkoutPlanController from "./training/workout-plan-controller.js";
@@ -34,7 +38,7 @@ import Muscles from "./training/anatomy/muscles.js";
 import MovementPatterns from "./training/movements/movement-patterns.js";
 import ExerciseTypes from "./training/movements/exercise-types.js";
 
-const VERSION = "2.0.2";
+const VERSION = "2.1.0";
 const SOURCE = "js/workout-plans";
 
 const DAYS = Object.freeze([
@@ -52,25 +56,50 @@ const state = {
   activeDay: null,
   activeExerciseId: null,
   detailAddMode: false,
+  expandedExerciseIndex: null,
+
   pickerQuery: "",
   libraryQuery: "",
+
   autosaveTimer: null,
+  autosaveGeneration: 0,
+  saving: false,
+
   booted: false,
   unsubscribeStore: null
 };
 
 const dom = {};
 
+/* =====================================================
+   DOM
+===================================================== */
+
 function cacheDom() {
   const ids = [
     "workoutPlansApp",
     "workoutPlansBackButton",
     "workoutPlansStatus",
+    "workoutPlansToast",
+    "workoutPlansSaveButton",
+
+    "workoutPlanName",
+    "workoutDaysCount",
+    "workoutOffDaysCount",
+    "workoutExerciseCount",
+    "workoutPlanGoalSummary",
+
     "workoutWeekGrid",
+
     "workoutTemplateGoalFilter",
     "workoutTemplateDaysFilter",
     "workoutTemplateList",
     "workoutTemplateEmpty",
+
+    "workoutPrimaryGoal",
+    "workoutSecondaryGoals",
+    "workoutCustomWeek",
+
     "exerciseLibrarySearchForm",
     "exerciseLibrarySearch",
     "exerciseBodyPartFilter",
@@ -79,6 +108,7 @@ function cacheDom() {
     "exerciseEquipmentFilter",
     "exerciseLibraryList",
     "exerciseLibraryEmpty",
+
     "workoutDayEditor",
     "workoutDayEditorTitle",
     "workoutDayType",
@@ -89,10 +119,12 @@ function cacheDom() {
     "workoutDayExerciseList",
     "workoutDayExerciseEmpty",
     "workoutDayDoneButton",
+
     "workoutExercisePicker",
     "workoutExercisePickerContext",
     "workoutExercisePickerSearch",
     "workoutExercisePickerList",
+
     "exerciseDetailDialog",
     "exerciseDetailType",
     "exerciseDetailName",
@@ -108,11 +140,11 @@ function cacheDom() {
     "exerciseCaloriesSection",
     "exerciseCaloriesEstimate",
     "exerciseDetailAddButton",
+
     "workoutDayCardTemplate",
     "workoutTemplateCardTemplate",
     "exerciseCardTemplate",
-    "workoutExerciseRowTemplate",
-    "workoutPlansToast"
+    "workoutExerciseRowTemplate"
   ];
 
   for (const id of ids) {
@@ -128,12 +160,20 @@ function cacheDom() {
   );
 }
 
+/* =====================================================
+   HELPERS
+===================================================== */
+
 function normalizeText(value) {
   if (value === null || value === undefined) {
     return "";
   }
 
   return String(value).trim();
+}
+
+function normalizeLower(value) {
+  return normalizeText(value).toLowerCase();
 }
 
 function titleFromId(value) {
@@ -152,11 +192,28 @@ function arrayOfIds(value) {
     .filter(Boolean);
 }
 
+function uniqueIds(value) {
+  return [...new Set(arrayOfIds(value))];
+}
+
 function intersects(left = [], right = []) {
   const rightSet = new Set(arrayOfIds(right));
 
   return arrayOfIds(left)
     .some(value => rightSet.has(value));
+}
+
+function getAllRegistryExercises() {
+  if (Array.isArray(ExerciseRegistry?.all)) {
+    return [...ExerciseRegistry.all];
+  }
+
+  try {
+    const listed = WorkoutPlanController.getExercises();
+    return Array.isArray(listed) ? listed : [];
+  } catch {
+    return [];
+  }
 }
 
 function showToast(
@@ -252,10 +309,58 @@ function getGoalLabel(goalId) {
   );
 }
 
+function getFocusBodyParts(focus) {
+  return uniqueIds([
+    ...(focus?.bodyParts || []),
+    ...(focus?.primaryBodyParts || []),
+    ...(focus?.secondaryBodyParts || [])
+  ]);
+}
+
+function getFocusMuscles(focus) {
+  return uniqueIds([
+    ...(focus?.muscles || []),
+    ...(focus?.primaryMuscles || []),
+    ...(focus?.secondaryMuscles || [])
+  ]);
+}
+
+function getFocusMovements(focus) {
+  return uniqueIds(focus?.movementPatterns || []);
+}
+
+function getFocusExerciseTypes(focus) {
+  return uniqueIds(focus?.exerciseTypes || []);
+}
+
+function getCurrentDayState() {
+  if (!state.activeDay) {
+    return null;
+  }
+
+  return WorkoutPlanController.getDay(state.activeDay);
+}
+
+function hasExerciseOnActiveDay(exerciseId) {
+  const dayState = getCurrentDayState();
+
+  if (!dayState) {
+    return false;
+  }
+
+  return (dayState.exercises || [])
+    .some(entry => entry.exerciseId === exerciseId);
+}
+
+/* =====================================================
+   TABS
+===================================================== */
+
 function setActiveTab(tab) {
   const allowed = [
     "week",
     "templates",
+    "custom",
     "library"
   ];
 
@@ -265,7 +370,7 @@ function setActiveTab(tab) {
 
   state.activeTab = tab;
 
-  for (const button of dom.tabs) {
+  for (const button of dom.tabs || []) {
     const active =
       button.dataset.workoutTab === tab;
 
@@ -276,7 +381,7 @@ function setActiveTab(tab) {
     );
   }
 
-  for (const panel of dom.panels) {
+  for (const panel of dom.panels || []) {
     const active =
       panel.dataset.workoutPanel === tab;
 
@@ -296,8 +401,16 @@ function setActiveTab(tab) {
     renderExerciseLibrary();
   }
 
+  if (tab === "week") {
+    renderWeek();
+  }
+
   return true;
 }
+
+/* =====================================================
+   SELECT POPULATION
+===================================================== */
 
 function populateSelect(
   select,
@@ -322,7 +435,7 @@ function populateSelect(
     select.appendChild(option);
   }
 
-  for (const item of items) {
+  for (const item of items || []) {
     const option =
       document.createElement("option");
 
@@ -348,7 +461,10 @@ function populateSelect(
 }
 
 function populateFilters() {
-  const goals = FitnessGoals.all;
+  const goals =
+    Array.isArray(FitnessGoals?.all)
+      ? FitnessGoals.all
+      : [];
 
   populateSelect(
     dom.workoutTemplateGoalFilter,
@@ -364,27 +480,27 @@ function populateFilters() {
 
   populateSelect(
     dom.exerciseBodyPartFilter,
-    BodyParts.list({
+    BodyParts.list?.({
       selectableOnly: true
-    }),
+    }) || [],
     { placeholder: "All Body Parts" }
   );
 
   populateSelect(
     dom.exerciseMovementFilter,
-    MovementPatterns.all,
+    MovementPatterns.all || [],
     { placeholder: "All Movements" }
   );
 
   populateSelect(
     dom.exerciseTypeFilter,
-    ExerciseTypes.all,
+    ExerciseTypes.all || [],
     { placeholder: "All Types" }
   );
 
   const equipment = [
     ...new Set(
-      ExerciseRegistry.all
+      getAllRegistryExercises()
         .flatMap(
           exercise =>
             exercise.equipment || []
@@ -414,10 +530,14 @@ function populateDayFocusSelect() {
 
   populateSelect(
     dom.workoutDayFocus,
-    WorkoutFocuses.all,
+    WorkoutFocuses.all || [],
     { placeholder: "Choose focus" }
   );
 }
+
+/* =====================================================
+   OVERVIEW
+===================================================== */
 
 function renderOverview() {
   const plan =
@@ -432,26 +552,26 @@ function renderOverview() {
       dom.workoutPlanName
   ) {
     dom.workoutPlanName.value =
-      plan.name || "My Weekly Plan";
+      plan?.name || "My Weekly Plan";
   }
 
   if (dom.workoutDaysCount) {
     dom.workoutDaysCount.textContent =
-      String(summary.trainingDayCount || 0);
+      String(summary?.trainingDayCount || 0);
   }
 
   if (dom.workoutOffDaysCount) {
     dom.workoutOffDaysCount.textContent =
-      String(summary.offDayCount || 0);
+      String(summary?.offDayCount || 0);
   }
 
   if (dom.workoutExerciseCount) {
     dom.workoutExerciseCount.textContent =
-      String(summary.exerciseCount || 0);
+      String(summary?.exerciseCount || 0);
   }
 
   if (dom.workoutPlanGoalSummary) {
-    if (plan.primaryGoalId) {
+    if (plan?.primaryGoalId) {
       const secondary =
         (plan.secondaryGoalIds || [])
           .map(getGoalLabel)
@@ -467,6 +587,10 @@ function renderOverview() {
     }
   }
 }
+
+/* =====================================================
+   WEEK
+===================================================== */
 
 function getDaySummary(dayState) {
   if (!dayState) return "";
@@ -561,6 +685,10 @@ function renderWeek() {
   }
 }
 
+/* =====================================================
+   CUSTOM BUILDER
+===================================================== */
+
 function renderSecondaryGoals() {
   if (!dom.workoutSecondaryGoals) return;
 
@@ -568,12 +696,12 @@ function renderSecondaryGoals() {
     WorkoutPlanController.getPlan();
 
   const selected =
-    new Set(plan.secondaryGoalIds || []);
+    new Set(plan?.secondaryGoalIds || []);
 
   dom.workoutSecondaryGoals.innerHTML = "";
 
-  for (const goal of FitnessGoals.all) {
-    if (goal.id === plan.primaryGoalId) {
+  for (const goal of FitnessGoals.all || []) {
+    if (goal.id === plan?.primaryGoalId) {
       continue;
     }
 
@@ -607,7 +735,7 @@ function renderCustomBuilder() {
 
   if (dom.workoutPrimaryGoal) {
     dom.workoutPrimaryGoal.value =
-      plan.primaryGoalId || "";
+      plan?.primaryGoalId || "";
   }
 
   renderSecondaryGoals();
@@ -653,7 +781,7 @@ function renderCustomBuilder() {
       "custom-day-focus";
     select.dataset.day = day;
 
-    for (const focus of WorkoutFocuses.all) {
+    for (const focus of WorkoutFocuses.all || []) {
       const option =
         document.createElement("option");
 
@@ -678,6 +806,10 @@ function renderCustomBuilder() {
   }
 }
 
+/* =====================================================
+   TEMPLATES
+===================================================== */
+
 function renderTemplates() {
   if (!dom.workoutTemplateList) return;
 
@@ -694,7 +826,7 @@ function renderTemplates() {
   };
 
   const templates =
-    WorkoutPlanController.getTemplates(filters);
+    WorkoutPlanController.getTemplates(filters) || [];
 
   dom.workoutTemplateList.innerHTML = "";
 
@@ -763,13 +895,27 @@ function renderTemplates() {
   }
 }
 
-function getLibraryResults() {
-  const query = state.libraryQuery;
+/* =====================================================
+   EXERCISE LIBRARY
+===================================================== */
 
-  let results =
-    query
-      ? WorkoutPlanController.searchExercises(query)
-      : WorkoutPlanController.getExercises();
+function getLibraryResults() {
+  const query = normalizeText(state.libraryQuery);
+
+  let results;
+
+  try {
+    results =
+      query
+        ? WorkoutPlanController.searchExercises(query)
+        : WorkoutPlanController.getExercises();
+  } catch {
+    results = getAllRegistryExercises();
+  }
+
+  if (!Array.isArray(results)) {
+    results = [];
+  }
 
   const bodyPart =
     dom.exerciseBodyPartFilter?.value || "";
@@ -889,14 +1035,22 @@ function renderExerciseCard(
     exercise.illustration?.movement ||
     null;
 
-  if (image && imagePath) {
-    image.src = imagePath;
-    image.alt =
-      `${exercise.name} illustration`;
-    image.hidden = false;
+  if (image) {
+    if (imagePath) {
+      image.src = imagePath;
+      image.alt =
+        `${exercise.name} illustration`;
+      image.hidden = false;
 
-    if (placeholder) {
-      placeholder.hidden = true;
+      if (placeholder) {
+        placeholder.hidden = true;
+      }
+    } else {
+      image.hidden = true;
+
+      if (placeholder) {
+        placeholder.hidden = false;
+      }
     }
   }
 
@@ -904,6 +1058,15 @@ function renderExerciseCard(
     add.hidden = !addEnabled;
     add.dataset.exerciseId =
       exercise.id;
+
+    if (addEnabled) {
+      const alreadyAdded =
+        hasExerciseOnActiveDay(exercise.id);
+
+      add.disabled = alreadyAdded;
+      add.textContent =
+        alreadyAdded ? "Added" : "Add";
+    }
   }
 
   container?.appendChild(fragment);
@@ -954,19 +1117,16 @@ function exerciseMatchesFocus(
   }
 
   const focusBodyParts =
-    arrayOfIds(focus.bodyParts);
+    getFocusBodyParts(focus);
 
   const focusMovements =
-    arrayOfIds(focus.movementPatterns);
+    getFocusMovements(focus);
 
   const focusTypes =
-    arrayOfIds(focus.exerciseTypes);
+    getFocusExerciseTypes(focus);
 
-  const focusMuscles = [
-    ...arrayOfIds(focus.muscles),
-    ...arrayOfIds(focus.primaryMuscles),
-    ...arrayOfIds(focus.secondaryMuscles)
-  ];
+  const focusMuscles =
+    getFocusMuscles(focus);
 
   const exerciseMuscles = [
     ...arrayOfIds(exercise.primaryMuscles),
@@ -1031,15 +1191,27 @@ function getFocusedExercisePool(dayState) {
   }
 
   if (focus.id === "custom") {
-    return WorkoutPlanController.getExercises();
+    return getAllRegistryExercises();
   }
 
-  const recommended =
-    WorkoutPlanController
-      .getRecommendedExercisesForDay(
-        state.activeDay,
-        { limit: 500 }
-      );
+  let recommended = [];
+
+  try {
+    recommended =
+      WorkoutPlanController
+        .getRecommendedExercisesForDay(
+          state.activeDay,
+          {
+            limit:
+              Math.max(
+                1000,
+                getAllRegistryExercises().length + 50
+              )
+          }
+        ) || [];
+  } catch {
+    recommended = [];
+  }
 
   const focusedRecommendations =
     recommended.filter(
@@ -1054,8 +1226,7 @@ function getFocusedExercisePool(dayState) {
     return focusedRecommendations;
   }
 
-  return WorkoutPlanController
-    .getExercises()
+  return getAllRegistryExercises()
     .filter(
       exercise =>
         exerciseMatchesFocus(
@@ -1070,33 +1241,65 @@ function filterFocusedPoolBySearch(
   query
 ) {
   const normalizedQuery =
-    normalizeText(query);
+    normalizeLower(query);
 
   if (!normalizedQuery) {
     return exercises;
   }
 
-  const searchIds =
-    new Set(
-      WorkoutPlanController
-        .searchExercises(
-          normalizedQuery
-        )
-        .map(
-          exercise =>
-            exercise.id
-        )
-    );
+  let searchIds = new Set();
 
-  return exercises.filter(
-    exercise =>
-      searchIds.has(exercise.id)
-  );
+  try {
+    searchIds =
+      new Set(
+        (WorkoutPlanController
+          .searchExercises(
+            normalizedQuery
+          ) || [])
+          .map(
+            exercise =>
+              exercise.id
+          )
+      );
+  } catch {
+    searchIds = new Set();
+  }
+
+  if (searchIds.size > 0) {
+    return exercises.filter(
+      exercise =>
+        searchIds.has(exercise.id)
+    );
+  }
+
+  return exercises.filter(exercise => {
+    const searchable = [
+      exercise.id,
+      exercise.name,
+      exercise.category,
+      exercise.summary,
+      ...(exercise.exerciseTypes || []),
+      ...(exercise.bodyParts || []),
+      ...(exercise.primaryMuscles || []),
+      ...(exercise.secondaryMuscles || []),
+      ...(exercise.movementPatterns || []),
+      ...(exercise.equipment || [])
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchable.includes(normalizedQuery);
+  });
 }
+
+/* =====================================================
+   DAY EDITOR
+===================================================== */
 
 function openDayEditor(day) {
   const normalizedDay =
-    normalizeText(day).toLowerCase();
+    normalizeLower(day);
 
   const dayState =
     WorkoutPlanController
@@ -1105,6 +1308,7 @@ function openDayEditor(day) {
   if (!dayState) return;
 
   state.activeDay = normalizedDay;
+  state.expandedExerciseIndex = null;
 
   if (dom.workoutDayEditorTitle) {
     dom.workoutDayEditorTitle.textContent =
@@ -1750,6 +1954,10 @@ function renderDayExercises() {
   );
 }
 
+/* =====================================================
+   EXERCISE PICKER
+===================================================== */
+
 function openExercisePicker() {
   if (!state.activeDay) return;
 
@@ -1848,6 +2056,10 @@ function renderExercisePicker() {
     );
   }
 }
+
+/* =====================================================
+   EXERCISE DETAIL
+===================================================== */
 
 function openExerciseDetail(
   exerciseId,
@@ -2021,12 +2233,28 @@ function openExerciseDetail(
   }
 
   if (dom.exerciseDetailAddButton) {
+    const alreadyAdded =
+      state.activeDay &&
+      hasExerciseOnActiveDay(exercise.id);
+
     dom.exerciseDetailAddButton.hidden =
       !state.detailAddMode;
+
+    dom.exerciseDetailAddButton.disabled =
+      Boolean(alreadyAdded);
+
+    if (state.detailAddMode) {
+      dom.exerciseDetailAddButton.textContent =
+        alreadyAdded ? "Already Added" : "Add Exercise";
+    }
   }
 
   openDialog(dom.exerciseDetailDialog);
 }
+
+/* =====================================================
+   ADD / UPDATE EXERCISES
+===================================================== */
 
 function addExerciseToActiveDay(
   exerciseId
@@ -2043,6 +2271,15 @@ function addExerciseToActiveDay(
     );
 
   if (!exercise) {
+    return false;
+  }
+
+  if (hasExerciseOnActiveDay(exercise.id)) {
+    showToast(
+      `${exercise.name} is already in this workout.`,
+      { error: true }
+    );
+
     return false;
   }
 
@@ -2164,6 +2401,7 @@ function addExerciseToActiveDay(
     dom.workoutExercisePicker
   );
 
+  renderOverview();
   renderWeek();
   renderDayExercises();
 
@@ -2258,14 +2496,28 @@ function updateDayFromEditor() {
   scheduleAutosave();
 }
 
+/* =====================================================
+   SAVE / AUTOSAVE
+===================================================== */
+
 function scheduleAutosave() {
   window.clearTimeout(
     state.autosaveTimer
   );
 
+  const generation =
+    ++state.autosaveGeneration;
+
   state.autosaveTimer =
     window.setTimeout(
       async () => {
+        if (
+          generation !==
+          state.autosaveGeneration
+        ) {
+          return;
+        }
+
         try {
           await WorkoutPlanController
             .save({
@@ -2285,6 +2537,12 @@ function scheduleAutosave() {
 async function savePlan({
   announce = true
 } = {}) {
+  if (state.saving) {
+    return false;
+  }
+
+  state.saving = true;
+
   if (dom.workoutPlansSaveButton) {
     dom.workoutPlansSaveButton.disabled = true;
     dom.workoutPlansSaveButton.textContent =
@@ -2320,6 +2578,8 @@ async function savePlan({
 
     return false;
   } finally {
+    state.saving = false;
+
     if (dom.workoutPlansSaveButton) {
       dom.workoutPlansSaveButton.disabled = false;
       dom.workoutPlansSaveButton.textContent =
@@ -2332,6 +2592,8 @@ async function saveNow() {
   window.clearTimeout(
     state.autosaveTimer
   );
+
+  ++state.autosaveGeneration;
 
   try {
     return await WorkoutPlanController
@@ -2386,7 +2648,7 @@ async function finishDayEditor() {
     "week"
   );
 
-  renderWeek();
+  renderAll();
 
   showToast(
     success
@@ -2395,19 +2657,30 @@ async function finishDayEditor() {
   );
 }
 
+/* =====================================================
+   RENDER ALL
+===================================================== */
 
 function renderAll() {
+  renderOverview();
   renderWeek();
 
   if (state.activeTab === "templates") {
     renderTemplates();
   }
 
+  if (state.activeTab === "custom") {
+    renderCustomBuilder();
+  }
 
   if (state.activeTab === "library") {
     renderExerciseLibrary();
   }
 }
+
+/* =====================================================
+   EVENTS
+===================================================== */
 
 function handleClick(event) {
   const tab =
@@ -2447,7 +2720,7 @@ function handleClick(event) {
       break;
 
     case "done-day":
-      finishDayEditor();
+      void finishDayEditor();
       break;
 
     case "toggle-exercise-row": {
@@ -2542,6 +2815,21 @@ function handleClick(event) {
             index
           );
 
+        if (
+          state.expandedExerciseIndex ===
+          index
+        ) {
+          state.expandedExerciseIndex = null;
+        } else if (
+          Number.isInteger(
+            state.expandedExerciseIndex
+          ) &&
+          state.expandedExerciseIndex >
+            index
+        ) {
+          state.expandedExerciseIndex -= 1;
+        }
+
         renderAll();
         renderDayExercises();
         scheduleAutosave();
@@ -2617,8 +2905,10 @@ function handleChange(event) {
   }
 
   if (target === dom.workoutPrimaryGoal) {
-    WorkoutPlanController
-      .setPrimaryGoal(target.value);
+    if (target.value) {
+      WorkoutPlanController
+        .setPrimaryGoal(target.value);
+    }
 
     renderAll();
     scheduleAutosave();
@@ -2626,8 +2916,61 @@ function handleChange(event) {
   }
 
   if (
-    target === dom.workoutDayType ||
-    target === dom.workoutDayFocus
+    target.dataset?.workoutAction ===
+      "secondary-goal"
+  ) {
+    const selected =
+      Array.from(
+        dom.workoutSecondaryGoals
+          ?.querySelectorAll(
+            'input[data-workout-action="secondary-goal"]:checked'
+          ) || []
+      )
+        .map(input => input.value)
+        .filter(Boolean);
+
+    WorkoutPlanController
+      .setSecondaryGoals(selected);
+
+    renderOverview();
+    scheduleAutosave();
+    return;
+  }
+
+  if (
+    target.dataset?.workoutAction ===
+      "custom-day-focus"
+  ) {
+    const day =
+      normalizeLower(
+        target.dataset.day
+      );
+
+    const focusId =
+      target.value;
+
+    if (
+      day &&
+      focusId
+    ) {
+      WorkoutPlanController
+        .setDayFocus(
+          day,
+          focusId
+        );
+
+      renderAll();
+      scheduleAutosave();
+    }
+
+    return;
+  }
+
+  if (
+    target ===
+      dom.workoutDayType ||
+    target ===
+      dom.workoutDayFocus
   ) {
     updateDayFromEditor();
     return;
@@ -2669,6 +3012,7 @@ function handleChange(event) {
         );
 
       renderOverview();
+      renderWeek();
       scheduleAutosave();
     }
   }
@@ -2757,6 +3101,14 @@ function bindEvents() {
       }
     );
 
+  dom.workoutPlansSaveButton
+    ?.addEventListener(
+      "click",
+      () => {
+        void savePlan();
+      }
+    );
+
   dom.exerciseLibrarySearchForm
     ?.addEventListener(
       "submit",
@@ -2792,6 +3144,42 @@ function bindEvents() {
   }
 }
 
+/* =====================================================
+   DIAGNOSTICS
+===================================================== */
+
+function getPageDiagnostics() {
+  const requiredForCorePage = [
+    "workoutWeekGrid",
+    "workoutDayCardTemplate"
+  ];
+
+  const missingCoreDom =
+    requiredForCorePage
+      .filter(id => !dom[id]);
+
+  const controllerDiagnostics =
+    WorkoutPlanController
+      .getDiagnostics?.() ||
+    null;
+
+  return {
+    source: SOURCE,
+    version: VERSION,
+    activeTab: state.activeTab,
+    activeDay: state.activeDay,
+    registryExerciseCount:
+      getAllRegistryExercises().length,
+    missingCoreDom,
+    controller:
+      controllerDiagnostics
+  };
+}
+
+/* =====================================================
+   BOOT
+===================================================== */
+
 async function boot() {
   if (state.booted) return;
 
@@ -2812,7 +3200,22 @@ async function boot() {
       WorkoutPlanController
         .subscribe(
           () => {
+            renderOverview();
             renderWeek();
+
+            if (
+              state.activeDay &&
+              dom.workoutDayEditor?.open
+            ) {
+              renderDayExercises();
+            }
+
+            if (
+              state.activeTab ===
+              "custom"
+            ) {
+              renderCustomBuilder();
+            }
           }
         );
 
@@ -2845,17 +3248,35 @@ async function boot() {
       );
     }
 
+    const pageDiagnostics =
+      getPageDiagnostics();
+
+    if (
+      pageDiagnostics
+        .missingCoreDom
+        .length
+    ) {
+      console.warn(
+        "ARI Workout Plans is missing core HTML elements:",
+        pageDiagnostics
+          .missingCoreDom
+      );
+    }
+
     globalThis.AriWorkoutPlansPage = {
       version: VERSION,
       source: SOURCE,
       controller:
         WorkoutPlanController,
       refresh: renderAll,
+      save: savePlan,
       diagnostics:
-        () =>
-          WorkoutPlanController
-            .getDiagnostics()
+        getPageDiagnostics
     };
+
+    console.info(
+      `[ARI Workout Plans] Runtime initialized. Version ${VERSION}.`
+    );
   } catch (error) {
     console.error(
       "ARI Workout Plans failed to start.",
