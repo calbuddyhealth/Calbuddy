@@ -16,7 +16,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=2.0.0" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=2.0.2" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -39,7 +39,11 @@
         <p class="workout-plans-header__eyebrow">ARI TRAINING</p>
         <h1>Workout Plans</h1>
       </div>
-      <span class="workout-plans-header__spacer" aria-hidden="true"></span>
+
+      <span
+        class="workout-plans-header__spacer"
+        aria-hidden="true"
+      ></span>
     </header>
 
     <!-- =====================================================
@@ -57,7 +61,10 @@
     <!-- =====================================================
          MAIN NAVIGATION
     ====================================================== -->
-    <nav class="workout-plans-tabs" aria-label="Workout planning sections">
+    <nav
+      class="workout-plans-tabs"
+      aria-label="Workout planning sections"
+    >
       <button
         id="workoutTabWeek"
         class="workout-plans-tab active"
@@ -107,7 +114,10 @@
         </div>
       </header>
 
-      <div id="workoutWeekGrid" class="workout-week-grid">
+      <div
+        id="workoutWeekGrid"
+        class="workout-week-grid"
+      >
         <!-- Rendered by js/workout-plans.js -->
       </div>
     </section>
@@ -134,6 +144,7 @@
       <div class="workout-filter-row">
         <label class="workout-filter">
           <span>Goal</span>
+
           <select id="workoutTemplateGoalFilter">
             <option value="">All Goals</option>
           </select>
@@ -141,6 +152,7 @@
 
         <label class="workout-filter">
           <span>Days / Week</span>
+
           <select id="workoutTemplateDaysFilter">
             <option value="">Any</option>
             <option value="2">2 Days</option>
@@ -153,11 +165,18 @@
         </label>
       </div>
 
-      <div id="workoutTemplateList" class="workout-template-grid">
+      <div
+        id="workoutTemplateList"
+        class="workout-template-grid"
+      >
         <!-- Rendered by js/workout-plans.js -->
       </div>
 
-      <div id="workoutTemplateEmpty" class="workout-empty-state" hidden>
+      <div
+        id="workoutTemplateEmpty"
+        class="workout-empty-state"
+        hidden
+      >
         No templates match those filters.
       </div>
     </section>
@@ -176,14 +195,21 @@
           <p class="workout-section-eyebrow">MOVEMENT DATABASE</p>
           <h2>Exercise Library</h2>
           <p>
-            Explore selectable exercises by body part, movement, training type,
-            equipment, and fitness goal.
+            Explore selectable exercises by body part, movement,
+            training type, equipment, and fitness goal.
           </p>
         </div>
       </header>
 
-      <form id="exerciseLibrarySearchForm" class="exercise-library-search" role="search">
-        <label class="sr-only" for="exerciseLibrarySearch">
+      <form
+        id="exerciseLibrarySearchForm"
+        class="exercise-library-search"
+        role="search"
+      >
+        <label
+          class="sr-only"
+          for="exerciseLibrarySearch"
+        >
           Search exercises
         </label>
 
@@ -195,12 +221,15 @@
           placeholder="Search exercises..."
         />
 
-        <button type="submit">Search</button>
+        <button type="submit">
+          Search
+        </button>
       </form>
 
       <div class="exercise-library-filters">
         <label class="workout-filter">
           <span>Body Part</span>
+
           <select id="exerciseBodyPartFilter">
             <option value="">All Body Parts</option>
           </select>
@@ -208,6 +237,7 @@
 
         <label class="workout-filter">
           <span>Movement</span>
+
           <select id="exerciseMovementFilter">
             <option value="">All Movements</option>
           </select>
@@ -215,6 +245,7 @@
 
         <label class="workout-filter">
           <span>Exercise Type</span>
+
           <select id="exerciseTypeFilter">
             <option value="">All Types</option>
           </select>
@@ -222,17 +253,25 @@
 
         <label class="workout-filter">
           <span>Equipment</span>
+
           <select id="exerciseEquipmentFilter">
             <option value="">All Equipment</option>
           </select>
         </label>
       </div>
 
-      <div id="exerciseLibraryList" class="exercise-library-grid">
+      <div
+        id="exerciseLibraryList"
+        class="exercise-library-grid"
+      >
         <!-- Rendered by js/workout-plans.js -->
       </div>
 
-      <div id="exerciseLibraryEmpty" class="workout-empty-state" hidden>
+      <div
+        id="exerciseLibraryEmpty"
+        class="workout-empty-state"
+        hidden
+      >
         No exercises match your filters.
       </div>
     </section>
@@ -240,12 +279,20 @@
     <!-- =====================================================
          DAY EDITOR
     ====================================================== -->
-    <dialog id="workoutDayEditor" class="workout-dialog">
+    <dialog
+      id="workoutDayEditor"
+      class="workout-dialog"
+    >
       <div class="workout-dialog__panel">
         <header class="workout-dialog__header">
           <div>
-            <p class="workout-section-eyebrow">EDIT TRAINING DAY</p>
-            <h2 id="workoutDayEditorTitle">Monday</h2>
+            <p class="workout-section-eyebrow">
+              EDIT TRAINING DAY
+            </p>
+
+            <h2 id="workoutDayEditorTitle">
+              Monday
+            </h2>
           </div>
 
           <button
@@ -260,6 +307,7 @@
 
         <label class="workout-builder-field">
           <span>Day Type</span>
+
           <select id="workoutDayType">
             <option value="workout">Workout</option>
             <option value="recovery">Active Recovery</option>
@@ -269,6 +317,7 @@
 
         <label class="workout-builder-field">
           <span>Training Focus</span>
+
           <select id="workoutDayFocus">
             <option value="">Choose focus</option>
           </select>
@@ -276,6 +325,7 @@
 
         <label class="workout-builder-field">
           <span>Day Name</span>
+
           <input
             id="workoutDayTitle"
             type="text"
@@ -287,7 +337,10 @@
         <div id="workoutDayExerciseSection">
           <div class="workout-builder-card__header">
             <div>
-              <p class="workout-section-eyebrow">SELECTED EXERCISES</p>
+              <p class="workout-section-eyebrow">
+                SELECTED EXERCISES
+              </p>
+
               <h3>Exercises</h3>
             </div>
 
@@ -300,32 +353,44 @@
             </button>
           </div>
 
-          <div id="workoutDayExerciseList" class="workout-day-exercises"></div>
+          <div
+            id="workoutDayExerciseList"
+            class="workout-day-exercises"
+          ></div>
 
-          <div id="workoutDayExerciseEmpty" class="workout-empty-state">
+          <div
+            id="workoutDayExerciseEmpty"
+            class="workout-empty-state"
+          >
             No exercises selected yet.
           </div>
         </div>
 
         <button
-  id="workoutDayDoneButton"
-  class="workout-primary-button workout-primary-button--full"
-  type="button"
-  data-workout-action="done-day"
->
-  Save Exercises / Exit
-</button>
+          id="workoutDayDoneButton"
+          class="workout-primary-button workout-primary-button--full"
+          type="button"
+          data-workout-action="done-day"
+        >
+          Save Exercises / Exit
+        </button>
       </div>
     </dialog>
 
     <!-- =====================================================
          EXERCISE PICKER
     ====================================================== -->
-    <dialog id="workoutExercisePicker" class="workout-dialog">
+    <dialog
+      id="workoutExercisePicker"
+      class="workout-dialog"
+    >
       <div class="workout-dialog__panel">
         <header class="workout-dialog__header">
           <div>
-            <p class="workout-section-eyebrow">EXERCISE LIBRARY</p>
+            <p class="workout-section-eyebrow">
+              EXERCISE LIBRARY
+            </p>
+
             <h2>Add Exercise</h2>
           </div>
 
@@ -347,22 +412,37 @@
           id="workoutExercisePickerSearch"
           type="search"
           maxlength="100"
+          autocomplete="off"
           placeholder="Search exercise library..."
         />
 
-        <div id="workoutExercisePickerList" class="exercise-library-grid"></div>
+        <div
+          id="workoutExercisePickerList"
+          class="exercise-library-grid"
+        ></div>
       </div>
     </dialog>
 
     <!-- =====================================================
          EXERCISE DETAIL / ILLUSTRATION VIEW
     ====================================================== -->
-    <dialog id="exerciseDetailDialog" class="workout-dialog exercise-detail-dialog">
+    <dialog
+      id="exerciseDetailDialog"
+      class="workout-dialog exercise-detail-dialog"
+    >
       <div class="workout-dialog__panel">
         <header class="workout-dialog__header">
           <div>
-            <p id="exerciseDetailType" class="workout-section-eyebrow">EXERCISE</p>
-            <h2 id="exerciseDetailName">Exercise</h2>
+            <p
+              id="exerciseDetailType"
+              class="workout-section-eyebrow"
+            >
+              EXERCISE
+            </p>
+
+            <h2 id="exerciseDetailName">
+              Exercise
+            </h2>
           </div>
 
           <button
@@ -376,17 +456,42 @@
         </header>
 
         <div class="exercise-detail-visuals">
-          <figure id="exerciseAnatomyFigure" class="exercise-detail-figure" hidden>
-            <img id="exerciseAnatomyImage" src="" alt="" />
-            <figcaption>Anatomy</figcaption>
+          <figure
+            id="exerciseAnatomyFigure"
+            class="exercise-detail-figure"
+            hidden
+          >
+            <img
+              id="exerciseAnatomyImage"
+              src=""
+              alt=""
+            />
+
+            <figcaption>
+              Anatomy
+            </figcaption>
           </figure>
 
-          <figure id="exerciseMovementFigure" class="exercise-detail-figure" hidden>
-            <img id="exerciseMovementImage" src="" alt="" />
-            <figcaption>Movement</figcaption>
+          <figure
+            id="exerciseMovementFigure"
+            class="exercise-detail-figure"
+            hidden
+          >
+            <img
+              id="exerciseMovementImage"
+              src=""
+              alt=""
+            />
+
+            <figcaption>
+              Movement
+            </figcaption>
           </figure>
 
-          <div id="exerciseVisualPlaceholder" class="exercise-visual-placeholder">
+          <div
+            id="exerciseVisualPlaceholder"
+            class="exercise-visual-placeholder"
+          >
             Exercise illustrations will appear here when assets are available.
           </div>
         </div>
@@ -398,7 +503,10 @@
 
         <section class="exercise-detail-section">
           <h3>Muscles</h3>
-          <div id="exerciseMuscleList" class="exercise-muscle-list"></div>
+          <div
+            id="exerciseMuscleList"
+            class="exercise-muscle-list"
+          ></div>
         </section>
 
         <section class="exercise-detail-section">
@@ -411,7 +519,11 @@
           <ul id="exerciseFormCueList"></ul>
         </section>
 
-        <section id="exerciseCaloriesSection" class="exercise-detail-section" hidden>
+        <section
+          id="exerciseCaloriesSection"
+          class="exercise-detail-section"
+          hidden
+        >
           <h3>Estimated Calories</h3>
           <p id="exerciseCaloriesEstimate"></p>
         </section>
@@ -429,7 +541,7 @@
     </dialog>
 
     <!-- =====================================================
-         TEMPLATES
+         CARD TEMPLATES
     ====================================================== -->
     <template id="workoutDayCardTemplate">
       <article class="workout-day-card">
@@ -445,7 +557,10 @@
 
           <h3 class="workout-day-card__title"></h3>
           <p class="workout-day-card__summary"></p>
-          <span class="workout-day-card__open">Edit &rarr;</span>
+
+          <span class="workout-day-card__open">
+            Edit &rarr;
+          </span>
         </button>
       </article>
     </template>
@@ -477,8 +592,17 @@
           data-workout-action="open-exercise-detail"
         >
           <div class="exercise-library-card__visual">
-            <img class="exercise-library-card__image" src="" alt="" hidden />
-            <span class="exercise-library-card__placeholder" aria-hidden="true">
+            <img
+              class="exercise-library-card__image"
+              src=""
+              alt=""
+              hidden
+            />
+
+            <span
+              class="exercise-library-card__placeholder"
+              aria-hidden="true"
+            >
               ARI
             </span>
           </div>
@@ -501,63 +625,9 @@
       </article>
     </template>
 
-    <template id="workoutExerciseRowTemplate">
-      <article class="workout-exercise-row">
-        <button
-          class="workout-exercise-row__open"
-          type="button"
-          data-workout-action="open-exercise-detail"
-        >
-          <strong class="workout-exercise-row__name"></strong>
-          <span class="workout-exercise-row__muscles"></span>
-        </button>
-
-        <div class="workout-exercise-row__prescription">
-          <label>
-            <span>Sets</span>
-            <input
-              class="workout-exercise-sets"
-              type="number"
-              inputmode="numeric"
-              min="1"
-              max="20"
-            />
-          </label>
-
-          <label>
-            <span>Reps</span>
-            <input
-              class="workout-exercise-reps"
-              type="number"
-              inputmode="numeric"
-              min="1"
-              max="100"
-            />
-          </label>
-
-          <label>
-            <span>Weight</span>
-            <input
-              class="workout-exercise-weight"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.5"
-            />
-          </label>
-        </div>
-
-        <button
-          class="workout-exercise-row__remove"
-          type="button"
-          data-workout-action="remove-exercise"
-          aria-label="Remove exercise"
-        >
-          &times;
-        </button>
-      </article>
-    </template>
-
+    <!-- =====================================================
+         TOAST
+    ====================================================== -->
     <div
       id="workoutPlansToast"
       class="workout-plans-toast"
@@ -573,7 +643,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=2.0.0"
+    src="js/workout-plans.js?v=2.0.2"
   ></script>
 </body>
 </html>
