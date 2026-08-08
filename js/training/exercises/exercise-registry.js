@@ -1,17 +1,27 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/exercises/exercise-registry.js
-// Version: 1.0.0
+// Version: 2.0.0
 // Purpose:
 //   Central selectable Exercise Library for ARI Training.
 //
+// V2 architecture:
+//   - Exercise data can live in modular category files.
+//   - Chest exercises now come from:
+//       ./strength/chest.js
+//   - Existing non-chest records remain here temporarily
+//     so current workout plans continue working.
+//   - As new category modules are created, their inline
+//     records can be removed from this file and replaced
+//     with imports without changing the public registry API.
+//
 // Design:
-//   - Every selectable exercise exists here exactly once.
-//   - Workout templates and custom plans reference exercise IDs.
-//   - Records connect body parts, muscles, movement patterns,
-//     exercise types, goals, equipment, logging behavior,
-//     instructions, and future illustration assets.
-//   - Free-text exercises are intentionally outside this registry.
+//   - Every selectable exercise exists exactly once.
+//   - Workout templates and custom plans reference stable IDs.
+//   - Search includes aliases and richer metadata.
+//   - Validation checks anatomy/movement/type references,
+//     duplicate IDs, substitution references, and basic record
+//     integrity.
 // =====================================================
 
 import BodyParts from "../anatomy/body-parts.js";
@@ -19,238 +29,30 @@ import Muscles from "../anatomy/muscles.js";
 import MovementPatterns from "../movements/movement-patterns.js";
 import ExerciseTypes from "../movements/exercise-types.js";
 
-const VERSION = "1.0.0";
+import ChestExercises
+  from "./strength/chest.js";
+
+const VERSION = "2.0.0";
 const SOURCE = "js/training/exercises/exercise-registry";
 
-const EXERCISES = Object.freeze([
-  // ===================================================
-  // CHEST / PUSH
-  // ===================================================
-  {
-    id: "barbell_bench_press",
-    name: "Barbell Bench Press",
-    category: "strength",
-    exerciseTypes: ["strength", "hypertrophy", "free_weight"],
-    bodyParts: ["chest", "shoulders", "triceps", "upper_body"],
-    primaryMuscles: ["pectoralis_major"],
-    secondaryMuscles: ["anterior_deltoid", "triceps_brachii"],
-    movementPatterns: ["horizontal_push"],
-    equipment: ["barbell", "bench", "rack"],
-    difficulty: "intermediate",
-    goals: {
-      muscle_building: 10,
-      strength: 10,
-      upper_body_strength: 10,
-      general_fitness: 6
-    },
-    summary:
-      "Lie on a bench, lower the bar toward the mid-chest under control, then press it upward while keeping the upper back stable.",
-    instructions: [
-      "Plant both feet firmly on the floor.",
-      "Set the shoulder blades back and down against the bench.",
-      "Lower the bar toward the mid-chest under control.",
-      "Press the bar upward until the arms are extended without aggressively locking the elbows."
-    ],
-    cues: [
-      "Keep wrists stacked over the forearms.",
-      "Avoid excessive elbow flare.",
-      "Keep the upper back stable."
-    ],
-    logging: {
-      type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
-    },
-    illustration: {
-      anatomy: null,
-      movement: null
-    }
-  },
+/* =====================================================
+   NON-CHEST EXERCISES
+   These remain inline until their modular files are built.
+===================================================== */
 
-  {
-    id: "dumbbell_bench_press",
-    name: "Dumbbell Bench Press",
-    category: "strength",
-    exerciseTypes: ["strength", "hypertrophy", "free_weight"],
-    bodyParts: ["chest", "shoulders", "triceps", "upper_body"],
-    primaryMuscles: ["pectoralis_major"],
-    secondaryMuscles: ["anterior_deltoid", "triceps_brachii"],
-    movementPatterns: ["horizontal_push"],
-    equipment: ["dumbbells", "bench"],
-    difficulty: "beginner",
-    goals: {
-      muscle_building: 10,
-      strength: 8,
-      upper_body_strength: 9,
-      general_fitness: 7
-    },
-    summary:
-      "Press two dumbbells from chest level upward while keeping the shoulder blades stable against the bench.",
-    instructions: [
-      "Sit with a dumbbell in each hand and position yourself on the bench.",
-      "Set the shoulder blades back and down.",
-      "Lower the dumbbells beside the chest under control.",
-      "Press the dumbbells upward until the arms are extended."
-    ],
-    cues: [
-      "Control the lowering phase.",
-      "Keep the forearms close to vertical.",
-      "Do not bounce the dumbbells at the bottom."
-    ],
-    logging: {
-      type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
-    },
-    illustration: { anatomy: null, movement: null }
-  },
-
-  {
-    id: "incline_dumbbell_press",
-    name: "Incline Dumbbell Press",
-    category: "strength",
-    exerciseTypes: ["strength", "hypertrophy", "free_weight"],
-    bodyParts: ["chest", "shoulders", "triceps", "upper_body"],
-    primaryMuscles: ["pectoralis_major"],
-    secondaryMuscles: ["anterior_deltoid", "triceps_brachii"],
-    movementPatterns: ["horizontal_push"],
-    equipment: ["dumbbells", "incline_bench"],
-    difficulty: "beginner",
-    goals: {
-      muscle_building: 10,
-      strength: 8,
-      upper_body_strength: 9
-    },
-    summary:
-      "Press dumbbells upward from an inclined bench to emphasize the upper chest while the shoulders and triceps assist.",
-    instructions: [
-      "Set the bench to a moderate incline.",
-      "Hold the dumbbells near the upper chest.",
-      "Lower under control with the elbows slightly below shoulder level.",
-      "Press upward and slightly inward."
-    ],
-    cues: [
-      "Avoid turning the movement into a steep shoulder press.",
-      "Keep the shoulder blades stable."
-    ],
-    logging: {
-      type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
-    },
-    illustration: { anatomy: null, movement: null }
-  },
-
-  {
-    id: "push_up",
-    name: "Push-Up",
-    category: "strength",
-    exerciseTypes: ["strength", "hypertrophy", "calisthenics"],
-    bodyParts: ["chest", "shoulders", "triceps", "core", "upper_body"],
-    primaryMuscles: ["pectoralis_major"],
-    secondaryMuscles: ["anterior_deltoid", "triceps_brachii", "serratus_anterior", "rectus_abdominis"],
-    movementPatterns: ["horizontal_push", "anti_extension"],
-    equipment: ["bodyweight"],
-    difficulty: "beginner",
-    goals: {
-      muscle_building: 8,
-      strength: 7,
-      general_fitness: 10,
-      upper_body_strength: 8,
-      core_strength: 5
-    },
-    summary:
-      "From a rigid plank position, lower the chest toward the floor and press back up while keeping the trunk controlled.",
-    instructions: [
-      "Place the hands slightly wider than shoulder width.",
-      "Create a straight line from head to heels.",
-      "Lower the chest toward the floor.",
-      "Press the body back to the starting position."
-    ],
-    cues: [
-      "Keep the hips from sagging.",
-      "Keep the elbows controlled rather than fully flared."
-    ],
-    logging: {
-      type: "sets_reps",
-      fields: ["sets", "reps", "rest_seconds"]
-    },
-    illustration: { anatomy: null, movement: null }
-  },
-
-  {
-    id: "cable_chest_fly",
-    name: "Cable Chest Fly",
-    category: "strength",
-    exerciseTypes: ["hypertrophy", "cable"],
-    bodyParts: ["chest", "shoulders", "upper_body"],
-    primaryMuscles: ["pectoralis_major"],
-    secondaryMuscles: ["anterior_deltoid", "serratus_anterior"],
-    movementPatterns: ["horizontal_push"],
-    equipment: ["cable_machine"],
-    difficulty: "beginner",
-    goals: {
-      muscle_building: 10,
-      strength: 5,
-      upper_body_strength: 6
-    },
-    summary:
-      "Bring the cable handles toward each other in front of the body while maintaining a slight bend in the elbows.",
-    instructions: [
-      "Set the pulleys and take a stable split stance.",
-      "Begin with the arms open and elbows softly bent.",
-      "Sweep the arms forward until the hands approach each other.",
-      "Return under control."
-    ],
-    cues: [
-      "Move through the shoulders rather than repeatedly bending the elbows.",
-      "Avoid overstretching at the back."
-    ],
-    logging: {
-      type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
-    },
-    illustration: { anatomy: null, movement: null }
-  },
-
-  {
-    id: "machine_chest_press",
-    name: "Machine Chest Press",
-    category: "strength",
-    exerciseTypes: ["strength", "hypertrophy", "machine_strength"],
-    bodyParts: ["chest", "shoulders", "triceps", "upper_body"],
-    primaryMuscles: ["pectoralis_major"],
-    secondaryMuscles: ["anterior_deltoid", "triceps_brachii"],
-    movementPatterns: ["horizontal_push"],
-    equipment: ["chest_press_machine"],
-    difficulty: "beginner",
-    goals: {
-      muscle_building: 9,
-      strength: 7,
-      general_fitness: 8
-    },
-    summary:
-      "Press the machine handles forward from chest level while keeping the torso and shoulder blades supported.",
-    instructions: [
-      "Adjust the seat so the handles align near mid-chest.",
-      "Grip the handles and brace the torso.",
-      "Press forward until the arms are nearly straight.",
-      "Return under control."
-    ],
-    cues: [
-      "Keep the shoulders from shrugging.",
-      "Do not let the weight stack slam."
-    ],
-    logging: {
-      type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
-    },
-    illustration: { anatomy: null, movement: null }
-  },
-
+const NON_CHEST_EXERCISES = Object.freeze([
   // ===================================================
   // SHOULDERS
   // ===================================================
   {
     id: "dumbbell_overhead_press",
     name: "Dumbbell Overhead Press",
+    aliases: [
+      "dumbbell shoulder press",
+      "db shoulder press",
+      "seated dumbbell press",
+      "standing dumbbell press"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["shoulders", "triceps", "upper_body"],
@@ -259,6 +61,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["vertical_push"],
     equipment: ["dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "overhead_press",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "seated_or_standing",
     goals: {
       muscle_building: 9,
       strength: 9,
@@ -286,6 +92,11 @@ const EXERCISES = Object.freeze([
   {
     id: "dumbbell_lateral_raise",
     name: "Dumbbell Lateral Raise",
+    aliases: [
+      "lateral raise",
+      "side raise",
+      "side delt raise"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "free_weight"],
     bodyParts: ["shoulders", "upper_body"],
@@ -294,6 +105,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["shoulder_abduction"],
     equipment: ["dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "lateral_raise",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "standing_or_seated",
     goals: {
       muscle_building: 10,
       strength: 4,
@@ -321,6 +136,11 @@ const EXERCISES = Object.freeze([
   {
     id: "reverse_fly",
     name: "Reverse Fly",
+    aliases: [
+      "rear delt fly",
+      "reverse dumbbell fly",
+      "rear shoulder fly"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "free_weight", "machine_strength"],
     bodyParts: ["shoulders", "back", "upper_body"],
@@ -329,6 +149,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["shoulder_horizontal_abduction"],
     equipment: ["dumbbells", "reverse_fly_machine"],
     difficulty: "beginner",
+    substitutionGroup: "rear_delt_fly",
+    substitutions: ["face_pull"],
+    laterality: "bilateral",
+    setup: "supported_or_hinged",
     goals: {
       muscle_building: 9,
       upper_body_strength: 6,
@@ -359,6 +183,11 @@ const EXERCISES = Object.freeze([
   {
     id: "lat_pulldown",
     name: "Lat Pulldown",
+    aliases: [
+      "pulldown",
+      "lat pull down",
+      "wide grip pulldown"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "machine_strength", "cable"],
     bodyParts: ["back", "biceps", "upper_body"],
@@ -367,6 +196,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["vertical_pull"],
     equipment: ["lat_pulldown_machine", "cable_machine"],
     difficulty: "beginner",
+    substitutionGroup: "vertical_pull",
+    substitutions: ["pull_up"],
+    laterality: "bilateral",
+    setup: "seated_cable",
     goals: {
       muscle_building: 10,
       strength: 8,
@@ -394,6 +227,11 @@ const EXERCISES = Object.freeze([
   {
     id: "pull_up",
     name: "Pull-Up",
+    aliases: [
+      "pullup",
+      "bodyweight pull up",
+      "overhand pull up"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "calisthenics"],
     bodyParts: ["back", "biceps", "forearms", "upper_body"],
@@ -402,6 +240,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["vertical_pull"],
     equipment: ["pull_up_bar", "bodyweight"],
     difficulty: "intermediate",
+    substitutionGroup: "vertical_pull",
+    substitutions: ["lat_pulldown"],
+    laterality: "bilateral",
+    setup: "hanging",
     goals: {
       muscle_building: 9,
       strength: 10,
@@ -430,6 +272,11 @@ const EXERCISES = Object.freeze([
   {
     id: "seated_cable_row",
     name: "Seated Cable Row",
+    aliases: [
+      "cable row",
+      "seated row",
+      "low cable row"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "cable"],
     bodyParts: ["back", "biceps", "upper_body"],
@@ -438,6 +285,13 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["horizontal_pull"],
     equipment: ["cable_machine"],
     difficulty: "beginner",
+    substitutionGroup: "horizontal_row",
+    substitutions: [
+      "barbell_bent_over_row",
+      "one_arm_dumbbell_row"
+    ],
+    laterality: "bilateral",
+    setup: "seated_cable",
     goals: {
       muscle_building: 10,
       strength: 8,
@@ -465,6 +319,11 @@ const EXERCISES = Object.freeze([
   {
     id: "barbell_bent_over_row",
     name: "Barbell Bent-Over Row",
+    aliases: [
+      "barbell row",
+      "bent over row",
+      "bb row"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["back", "biceps", "lower_back", "core", "upper_body"],
@@ -473,6 +332,13 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["horizontal_pull", "hip_hinge"],
     equipment: ["barbell"],
     difficulty: "intermediate",
+    substitutionGroup: "horizontal_row",
+    substitutions: [
+      "seated_cable_row",
+      "one_arm_dumbbell_row"
+    ],
+    laterality: "bilateral",
+    setup: "standing_hinged",
     goals: {
       muscle_building: 10,
       strength: 9,
@@ -500,6 +366,11 @@ const EXERCISES = Object.freeze([
   {
     id: "one_arm_dumbbell_row",
     name: "One-Arm Dumbbell Row",
+    aliases: [
+      "one arm row",
+      "single arm dumbbell row",
+      "dumbbell row"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["back", "biceps", "upper_body"],
@@ -508,6 +379,13 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["horizontal_pull"],
     equipment: ["dumbbell", "bench"],
     difficulty: "beginner",
+    substitutionGroup: "horizontal_row",
+    substitutions: [
+      "seated_cable_row",
+      "barbell_bent_over_row"
+    ],
+    laterality: "unilateral",
+    setup: "bench_supported",
     goals: {
       muscle_building: 10,
       strength: 8,
@@ -527,7 +405,7 @@ const EXERCISES = Object.freeze([
     ],
     logging: {
       type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
+      fields: ["sets", "reps", "weight", "side", "rest_seconds"]
     },
     illustration: { anatomy: null, movement: null }
   },
@@ -535,6 +413,11 @@ const EXERCISES = Object.freeze([
   {
     id: "face_pull",
     name: "Face Pull",
+    aliases: [
+      "rope face pull",
+      "cable face pull",
+      "band face pull"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "cable", "resistance_band"],
     bodyParts: ["back", "shoulders", "upper_body"],
@@ -543,6 +426,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["horizontal_pull", "shoulder_horizontal_abduction"],
     equipment: ["cable_machine", "resistance_band", "rope_attachment"],
     difficulty: "beginner",
+    substitutionGroup: "rear_delt_pull",
+    substitutions: ["reverse_fly"],
+    laterality: "bilateral",
+    setup: "standing_cable_or_band",
     goals: {
       muscle_building: 7,
       upper_body_strength: 6,
@@ -573,6 +460,11 @@ const EXERCISES = Object.freeze([
   {
     id: "dumbbell_biceps_curl",
     name: "Dumbbell Biceps Curl",
+    aliases: [
+      "dumbbell curl",
+      "db curl",
+      "biceps curl"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "free_weight"],
     bodyParts: ["biceps", "arms", "forearms", "upper_body"],
@@ -581,6 +473,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["elbow_flexion"],
     equipment: ["dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "biceps_curl",
+    substitutions: ["hammer_curl"],
+    laterality: "bilateral_or_alternating",
+    setup: "standing_or_seated",
     goals: {
       muscle_building: 10,
       strength: 6,
@@ -608,6 +504,10 @@ const EXERCISES = Object.freeze([
   {
     id: "hammer_curl",
     name: "Hammer Curl",
+    aliases: [
+      "dumbbell hammer curl",
+      "neutral grip curl"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "free_weight"],
     bodyParts: ["biceps", "forearms", "arms", "upper_body"],
@@ -616,6 +516,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["elbow_flexion"],
     equipment: ["dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "biceps_curl",
+    substitutions: ["dumbbell_biceps_curl"],
+    laterality: "bilateral_or_alternating",
+    setup: "standing_or_seated",
     goals: {
       muscle_building: 9,
       strength: 6,
@@ -643,6 +547,11 @@ const EXERCISES = Object.freeze([
   {
     id: "cable_triceps_pushdown",
     name: "Cable Triceps Pushdown",
+    aliases: [
+      "triceps pushdown",
+      "cable pushdown",
+      "tricep pushdown"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "cable"],
     bodyParts: ["triceps", "arms", "upper_body"],
@@ -651,6 +560,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["elbow_extension"],
     equipment: ["cable_machine"],
     difficulty: "beginner",
+    substitutionGroup: "triceps_extension",
+    substitutions: ["overhead_triceps_extension"],
+    laterality: "bilateral",
+    setup: "standing_cable",
     goals: {
       muscle_building: 10,
       strength: 6,
@@ -678,6 +591,11 @@ const EXERCISES = Object.freeze([
   {
     id: "overhead_triceps_extension",
     name: "Overhead Triceps Extension",
+    aliases: [
+      "overhead tricep extension",
+      "dumbbell triceps extension",
+      "cable overhead triceps extension"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "free_weight", "cable"],
     bodyParts: ["triceps", "arms", "upper_body"],
@@ -686,6 +604,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["elbow_extension"],
     equipment: ["dumbbell", "cable_machine"],
     difficulty: "beginner",
+    substitutionGroup: "triceps_extension",
+    substitutions: ["cable_triceps_pushdown"],
+    laterality: "bilateral_or_unilateral",
+    setup: "standing_or_seated",
     goals: {
       muscle_building: 9,
       strength: 6,
@@ -716,6 +638,11 @@ const EXERCISES = Object.freeze([
   {
     id: "barbell_back_squat",
     name: "Barbell Back Squat",
+    aliases: [
+      "back squat",
+      "barbell squat",
+      "squat"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["lower_body", "quadriceps", "glutes", "hamstrings", "core"],
@@ -724,6 +651,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["squat"],
     equipment: ["barbell", "squat_rack"],
     difficulty: "intermediate",
+    substitutionGroup: "squat",
+    substitutions: ["goblet_squat", "leg_press"],
+    laterality: "bilateral",
+    setup: "squat_rack",
     goals: {
       muscle_building: 10,
       strength: 10,
@@ -753,6 +684,10 @@ const EXERCISES = Object.freeze([
   {
     id: "goblet_squat",
     name: "Goblet Squat",
+    aliases: [
+      "dumbbell goblet squat",
+      "kettlebell goblet squat"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["lower_body", "quadriceps", "glutes", "core"],
@@ -761,6 +696,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["squat"],
     equipment: ["dumbbell", "kettlebell"],
     difficulty: "beginner",
+    substitutionGroup: "squat",
+    substitutions: ["barbell_back_squat", "leg_press"],
+    laterality: "bilateral",
+    setup: "standing",
     goals: {
       muscle_building: 8,
       strength: 7,
@@ -789,6 +728,10 @@ const EXERCISES = Object.freeze([
   {
     id: "leg_press",
     name: "Leg Press",
+    aliases: [
+      "leg press machine",
+      "sled leg press"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "machine_strength"],
     bodyParts: ["lower_body", "quadriceps", "glutes", "hamstrings"],
@@ -797,6 +740,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["squat"],
     equipment: ["leg_press_machine"],
     difficulty: "beginner",
+    substitutionGroup: "squat",
+    substitutions: ["barbell_back_squat", "goblet_squat"],
+    laterality: "bilateral",
+    setup: "machine",
     goals: {
       muscle_building: 10,
       strength: 8,
@@ -824,6 +771,11 @@ const EXERCISES = Object.freeze([
   {
     id: "romanian_deadlift",
     name: "Romanian Deadlift",
+    aliases: [
+      "rdl",
+      "romanian dl",
+      "stiff leg deadlift"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["lower_body", "hamstrings", "glutes", "lower_back", "core"],
@@ -832,6 +784,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["hip_hinge"],
     equipment: ["barbell", "dumbbells"],
     difficulty: "intermediate",
+    substitutionGroup: "hip_hinge",
+    substitutions: ["conventional_deadlift"],
+    laterality: "bilateral",
+    setup: "standing",
     goals: {
       muscle_building: 10,
       strength: 9,
@@ -861,6 +817,11 @@ const EXERCISES = Object.freeze([
   {
     id: "conventional_deadlift",
     name: "Conventional Deadlift",
+    aliases: [
+      "deadlift",
+      "conventional dl",
+      "barbell deadlift"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "free_weight"],
     bodyParts: ["full_body", "lower_body", "glutes", "hamstrings", "back", "core", "forearms"],
@@ -869,6 +830,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["hip_hinge"],
     equipment: ["barbell"],
     difficulty: "advanced",
+    substitutionGroup: "hip_hinge",
+    substitutions: ["romanian_deadlift"],
+    laterality: "bilateral",
+    setup: "floor",
     goals: {
       strength: 10,
       muscle_building: 8,
@@ -897,6 +862,10 @@ const EXERCISES = Object.freeze([
   {
     id: "barbell_hip_thrust",
     name: "Barbell Hip Thrust",
+    aliases: [
+      "hip thrust",
+      "barbell glute thrust"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "free_weight"],
     bodyParts: ["glutes", "hips", "hamstrings", "lower_body"],
@@ -905,6 +874,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["hip_hinge"],
     equipment: ["barbell", "bench"],
     difficulty: "intermediate",
+    substitutionGroup: "hip_extension",
+    substitutions: ["glute_bridge"],
+    laterality: "bilateral",
+    setup: "bench_supported",
     goals: {
       muscle_building: 10,
       strength: 8,
@@ -933,6 +906,10 @@ const EXERCISES = Object.freeze([
   {
     id: "glute_bridge",
     name: "Glute Bridge",
+    aliases: [
+      "bodyweight glute bridge",
+      "floor glute bridge"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "calisthenics"],
     bodyParts: ["glutes", "hips", "hamstrings", "lower_body"],
@@ -941,6 +918,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["hip_hinge"],
     equipment: ["bodyweight"],
     difficulty: "beginner",
+    substitutionGroup: "hip_extension",
+    substitutions: ["barbell_hip_thrust"],
+    laterality: "bilateral",
+    setup: "floor",
     goals: {
       muscle_building: 6,
       lower_body_strength: 6,
@@ -969,6 +950,10 @@ const EXERCISES = Object.freeze([
   {
     id: "walking_lunge",
     name: "Walking Lunge",
+    aliases: [
+      "walking lunges",
+      "dumbbell walking lunge"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy", "functional"],
     bodyParts: ["lower_body", "quadriceps", "glutes", "hamstrings", "core"],
@@ -977,6 +962,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["lunge"],
     equipment: ["bodyweight", "dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "lunge",
+    substitutions: [],
+    laterality: "alternating",
+    setup: "standing",
     goals: {
       muscle_building: 8,
       strength: 7,
@@ -1006,6 +995,11 @@ const EXERCISES = Object.freeze([
   {
     id: "step_up",
     name: "Step-Up",
+    aliases: [
+      "step up",
+      "box step up",
+      "bench step up"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "functional", "free_weight"],
     bodyParts: ["lower_body", "quadriceps", "glutes", "calves"],
@@ -1014,6 +1008,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["step"],
     equipment: ["box", "bench", "bodyweight", "dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "step",
+    substitutions: [],
+    laterality: "unilateral",
+    setup: "elevated_surface",
     goals: {
       strength: 7,
       muscle_building: 7,
@@ -1044,6 +1042,10 @@ const EXERCISES = Object.freeze([
   {
     id: "leg_extension",
     name: "Leg Extension",
+    aliases: [
+      "leg extension machine",
+      "quad extension"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "machine_strength"],
     bodyParts: ["quadriceps", "lower_body"],
@@ -1052,6 +1054,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["knee_extension"],
     equipment: ["leg_extension_machine"],
     difficulty: "beginner",
+    substitutionGroup: "knee_extension",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "machine",
     goals: {
       muscle_building: 10,
       strength: 6,
@@ -1079,6 +1085,10 @@ const EXERCISES = Object.freeze([
   {
     id: "seated_leg_curl",
     name: "Seated Leg Curl",
+    aliases: [
+      "seated hamstring curl",
+      "leg curl machine"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "machine_strength"],
     bodyParts: ["hamstrings", "lower_body"],
@@ -1087,6 +1097,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["knee_flexion"],
     equipment: ["leg_curl_machine"],
     difficulty: "beginner",
+    substitutionGroup: "knee_flexion",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "machine",
     goals: {
       muscle_building: 10,
       strength: 6,
@@ -1114,6 +1128,10 @@ const EXERCISES = Object.freeze([
   {
     id: "standing_calf_raise",
     name: "Standing Calf Raise",
+    aliases: [
+      "calf raise",
+      "standing calf raises"
+    ],
     category: "strength",
     exerciseTypes: ["strength", "hypertrophy"],
     bodyParts: ["calves", "lower_body"],
@@ -1122,6 +1140,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["calf_raise"],
     equipment: ["bodyweight", "machine", "dumbbells"],
     difficulty: "beginner",
+    substitutionGroup: "calf_raise",
+    substitutions: [],
+    laterality: "bilateral_or_unilateral",
+    setup: "standing",
     goals: {
       muscle_building: 9,
       strength: 6,
@@ -1150,6 +1172,11 @@ const EXERCISES = Object.freeze([
   {
     id: "hip_abduction_machine",
     name: "Hip Abduction Machine",
+    aliases: [
+      "abductor machine",
+      "hip abductor machine",
+      "outer thigh machine"
+    ],
     category: "strength",
     exerciseTypes: ["hypertrophy", "machine_strength"],
     bodyParts: ["glutes", "abductors", "hips", "lower_body"],
@@ -1158,6 +1185,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["hip_abduction"],
     equipment: ["hip_abduction_machine"],
     difficulty: "beginner",
+    substitutionGroup: "hip_abduction",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "machine",
     goals: {
       muscle_building: 8,
       glute_development: 9,
@@ -1188,6 +1219,10 @@ const EXERCISES = Object.freeze([
   {
     id: "front_plank",
     name: "Front Plank",
+    aliases: [
+      "plank",
+      "forearm plank"
+    ],
     category: "core",
     exerciseTypes: ["core", "calisthenics"],
     bodyParts: ["core", "abdominals", "lower_back"],
@@ -1196,6 +1231,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["anti_extension"],
     equipment: ["bodyweight"],
     difficulty: "beginner",
+    substitutionGroup: "anti_extension_core",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "floor",
     goals: {
       core_strength: 10,
       general_fitness: 8,
@@ -1224,6 +1263,9 @@ const EXERCISES = Object.freeze([
   {
     id: "side_plank",
     name: "Side Plank",
+    aliases: [
+      "side forearm plank"
+    ],
     category: "core",
     exerciseTypes: ["core", "calisthenics"],
     bodyParts: ["core", "obliques", "lower_back"],
@@ -1232,6 +1274,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["anti_lateral_flexion"],
     equipment: ["bodyweight"],
     difficulty: "beginner",
+    substitutionGroup: "anti_lateral_flexion_core",
+    substitutions: [],
+    laterality: "unilateral",
+    setup: "floor",
     goals: {
       core_strength: 10,
       general_fitness: 8,
@@ -1252,7 +1298,7 @@ const EXERCISES = Object.freeze([
     ],
     logging: {
       type: "sets_duration",
-      fields: ["sets", "duration_seconds", "rest_seconds"]
+      fields: ["sets", "duration_seconds", "side", "rest_seconds"]
     },
     illustration: { anatomy: null, movement: null }
   },
@@ -1260,6 +1306,10 @@ const EXERCISES = Object.freeze([
   {
     id: "pallof_press",
     name: "Pallof Press",
+    aliases: [
+      "pallof",
+      "anti rotation press"
+    ],
     category: "core",
     exerciseTypes: ["core", "cable", "resistance_band"],
     bodyParts: ["core", "obliques"],
@@ -1268,6 +1318,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["anti_rotation"],
     equipment: ["cable_machine", "resistance_band"],
     difficulty: "beginner",
+    substitutionGroup: "anti_rotation_core",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "standing",
     goals: {
       core_strength: 10,
       athletic_performance: 9,
@@ -1288,7 +1342,7 @@ const EXERCISES = Object.freeze([
     ],
     logging: {
       type: "sets_reps_weight",
-      fields: ["sets", "reps", "weight", "rest_seconds"]
+      fields: ["sets", "reps", "weight", "side", "rest_seconds"]
     },
     illustration: { anatomy: null, movement: null }
   },
@@ -1296,6 +1350,10 @@ const EXERCISES = Object.freeze([
   {
     id: "crunch",
     name: "Crunch",
+    aliases: [
+      "ab crunch",
+      "floor crunch"
+    ],
     category: "core",
     exerciseTypes: ["core", "calisthenics"],
     bodyParts: ["abdominals", "core"],
@@ -1304,6 +1362,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["trunk_flexion"],
     equipment: ["bodyweight"],
     difficulty: "beginner",
+    substitutionGroup: "trunk_flexion_core",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "floor",
     goals: {
       core_strength: 8,
       muscle_building: 5,
@@ -1334,6 +1396,11 @@ const EXERCISES = Object.freeze([
   {
     id: "farmers_carry",
     name: "Farmer's Carry",
+    aliases: [
+      "farmers walk",
+      "farmer carry",
+      "loaded carry"
+    ],
     category: "functional",
     exerciseTypes: ["functional", "strength"],
     bodyParts: ["full_body", "forearms", "core", "shoulders"],
@@ -1342,6 +1409,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["loaded_carry", "walking"],
     equipment: ["dumbbells", "kettlebells"],
     difficulty: "beginner",
+    substitutionGroup: "loaded_carry",
+    substitutions: [],
+    laterality: "bilateral",
+    setup: "standing",
     goals: {
       strength: 8,
       general_fitness: 9,
@@ -1373,6 +1444,11 @@ const EXERCISES = Object.freeze([
   {
     id: "walking_general",
     name: "Walking",
+    aliases: [
+      "walk",
+      "brisk walk",
+      "treadmill walking"
+    ],
     category: "cardio",
     exerciseTypes: ["walking", "cardio", "endurance"],
     bodyParts: ["full_body", "lower_body", "glutes", "calves"],
@@ -1381,6 +1457,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["walking"],
     equipment: ["none", "treadmill"],
     difficulty: "beginner",
+    substitutionGroup: "steady_cardio",
+    substitutions: ["elliptical_trainer", "stationary_bike"],
+    laterality: "alternating",
+    setup: "ground_or_treadmill",
     goals: {
       general_fitness: 10,
       cardio: 7,
@@ -1414,6 +1494,11 @@ const EXERCISES = Object.freeze([
   {
     id: "easy_run",
     name: "Easy Run",
+    aliases: [
+      "easy running",
+      "easy jog",
+      "aerobic run"
+    ],
     category: "cardio",
     exerciseTypes: ["running", "cardio", "endurance"],
     bodyParts: ["full_body", "lower_body", "glutes", "calves", "core"],
@@ -1422,6 +1507,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["running"],
     equipment: ["none", "treadmill"],
     difficulty: "beginner",
+    substitutionGroup: "running",
+    substitutions: ["walking_general", "elliptical_trainer"],
+    laterality: "alternating",
+    setup: "ground_or_treadmill",
     goals: {
       running: 10,
       cardio: 9,
@@ -1455,6 +1544,10 @@ const EXERCISES = Object.freeze([
   {
     id: "tempo_run",
     name: "Tempo Run",
+    aliases: [
+      "threshold run",
+      "tempo running"
+    ],
     category: "cardio",
     exerciseTypes: ["running", "cardio", "endurance"],
     bodyParts: ["full_body", "lower_body", "core"],
@@ -1463,6 +1556,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["running"],
     equipment: ["none", "treadmill"],
     difficulty: "intermediate",
+    substitutionGroup: "running",
+    substitutions: ["easy_run", "running_intervals"],
+    laterality: "alternating",
+    setup: "ground_or_treadmill",
     goals: {
       running: 10,
       endurance: 10,
@@ -1496,6 +1593,11 @@ const EXERCISES = Object.freeze([
   {
     id: "running_intervals",
     name: "Running Intervals",
+    aliases: [
+      "run intervals",
+      "interval running",
+      "sprint intervals"
+    ],
     category: "cardio",
     exerciseTypes: ["running", "hiit", "speed"],
     bodyParts: ["full_body", "lower_body", "core"],
@@ -1504,6 +1606,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["running", "sprint"],
     equipment: ["none", "treadmill"],
     difficulty: "intermediate",
+    substitutionGroup: "running_intervals",
+    substitutions: ["tempo_run"],
+    laterality: "alternating",
+    setup: "ground_or_treadmill",
     goals: {
       running: 10,
       speed: 10,
@@ -1537,6 +1643,11 @@ const EXERCISES = Object.freeze([
   {
     id: "stationary_bike",
     name: "Stationary Bike",
+    aliases: [
+      "exercise bike",
+      "indoor bike",
+      "stationary cycling"
+    ],
     category: "cardio",
     exerciseTypes: ["cycling", "cardio", "endurance"],
     bodyParts: ["lower_body", "quadriceps", "glutes", "hamstrings", "calves"],
@@ -1545,6 +1656,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["cycling"],
     equipment: ["stationary_bike"],
     difficulty: "beginner",
+    substitutionGroup: "steady_cardio",
+    substitutions: ["elliptical_trainer", "walking_general"],
+    laterality: "alternating",
+    setup: "machine",
     goals: {
       cardio: 10,
       endurance: 9,
@@ -1578,6 +1693,11 @@ const EXERCISES = Object.freeze([
   {
     id: "rowing_machine",
     name: "Rowing Machine",
+    aliases: [
+      "rower",
+      "rowing erg",
+      "erg row"
+    ],
     category: "cardio",
     exerciseTypes: ["rowing", "cardio", "endurance"],
     bodyParts: ["full_body", "back", "lower_body", "core"],
@@ -1586,6 +1706,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["rowing_cardio"],
     equipment: ["rowing_machine"],
     difficulty: "beginner",
+    substitutionGroup: "steady_cardio",
+    substitutions: ["stationary_bike", "elliptical_trainer"],
+    laterality: "bilateral",
+    setup: "machine",
     goals: {
       cardio: 10,
       endurance: 10,
@@ -1618,6 +1742,11 @@ const EXERCISES = Object.freeze([
   {
     id: "stair_climber",
     name: "Stair Climber",
+    aliases: [
+      "stair stepper",
+      "stairs machine",
+      "stairmaster"
+    ],
     category: "cardio",
     exerciseTypes: ["cardio", "endurance"],
     bodyParts: ["lower_body", "glutes", "quadriceps", "calves"],
@@ -1626,6 +1755,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["stair_climbing"],
     equipment: ["stair_climber"],
     difficulty: "beginner",
+    substitutionGroup: "steady_cardio",
+    substitutions: ["walking_general", "elliptical_trainer"],
+    laterality: "alternating",
+    setup: "machine",
     goals: {
       cardio: 9,
       endurance: 9,
@@ -1658,6 +1791,10 @@ const EXERCISES = Object.freeze([
   {
     id: "elliptical_trainer",
     name: "Elliptical Trainer",
+    aliases: [
+      "elliptical",
+      "cross trainer"
+    ],
     category: "cardio",
     exerciseTypes: ["cardio", "endurance"],
     bodyParts: ["full_body", "lower_body"],
@@ -1666,6 +1803,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["elliptical"],
     equipment: ["elliptical"],
     difficulty: "beginner",
+    substitutionGroup: "steady_cardio",
+    substitutions: ["stationary_bike", "walking_general"],
+    laterality: "alternating",
+    setup: "machine",
     goals: {
       cardio: 9,
       endurance: 8,
@@ -1702,6 +1843,10 @@ const EXERCISES = Object.freeze([
   {
     id: "hip_flexor_stretch",
     name: "Hip Flexor Stretch",
+    aliases: [
+      "kneeling hip flexor stretch",
+      "psoas stretch"
+    ],
     category: "mobility",
     exerciseTypes: ["flexibility", "mobility", "recovery"],
     bodyParts: ["hips", "lower_body"],
@@ -1710,6 +1855,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["static_stretch"],
     equipment: ["bodyweight"],
     difficulty: "beginner",
+    substitutionGroup: "hip_flexor_mobility",
+    substitutions: [],
+    laterality: "unilateral",
+    setup: "half_kneeling_or_split_stance",
     goals: {
       mobility: 10,
       flexibility: 10,
@@ -1738,6 +1887,11 @@ const EXERCISES = Object.freeze([
   {
     id: "ankle_dorsiflexion_mobility",
     name: "Ankle Dorsiflexion Mobility",
+    aliases: [
+      "ankle mobility",
+      "knee to wall",
+      "ankle dorsiflexion drill"
+    ],
     category: "mobility",
     exerciseTypes: ["mobility", "recovery"],
     bodyParts: ["calves", "shins", "lower_body"],
@@ -1746,6 +1900,10 @@ const EXERCISES = Object.freeze([
     movementPatterns: ["mobility"],
     equipment: ["bodyweight"],
     difficulty: "beginner",
+    substitutionGroup: "ankle_mobility",
+    substitutions: [],
+    laterality: "unilateral",
+    setup: "standing_or_half_kneeling",
     goals: {
       mobility: 10,
       recovery: 7,
@@ -1772,16 +1930,38 @@ const EXERCISES = Object.freeze([
   }
 ]);
 
-const EXERCISE_MAP = new Map(
-  EXERCISES.map(
-    exercise => [
+/* =====================================================
+   MASTER EXERCISE COLLECTION
+
+   New category files only need to be imported and spread here.
+   Existing runtime callers continue using ExerciseRegistry.
+===================================================== */
+
+const EXERCISES = Object.freeze([
+  ...ChestExercises,
+  ...NON_CHEST_EXERCISES
+]);
+
+/* =====================================================
+   MAPS
+===================================================== */
+
+const EXERCISE_MAP = new Map();
+
+for (const exercise of EXERCISES) {
+  if (!EXERCISE_MAP.has(exercise.id)) {
+    EXERCISE_MAP.set(
       exercise.id,
       exercise
-    ]
-  )
-);
+    );
+  }
+}
 
 const EXERCISE_ALIAS_MAP = new Map();
+
+/* =====================================================
+   NORMALIZATION
+===================================================== */
 
 function normalizeText(value) {
   if (
@@ -1798,25 +1978,66 @@ function normalizeText(value) {
 
 function slugify(value) {
   return normalizeText(value)
-    .replace(/['â]/g, "")
+    .replace(/['\u2019]/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
+
+/* =====================================================
+   ALIAS INDEX
+===================================================== */
 
 for (const exercise of EXERCISES) {
   const aliases = [
     exercise.id,
     exercise.name,
-    slugify(exercise.name)
+    slugify(exercise.name),
+    ...(exercise.aliases || [])
   ];
 
   for (const alias of aliases) {
-    EXERCISE_ALIAS_MAP.set(
-      normalizeText(alias),
-      exercise.id
-    );
+    const normalized =
+      normalizeText(alias);
+
+    if (!normalized) {
+      continue;
+    }
+
+    /*
+     * Preserve first ownership of an alias.
+     * Duplicate aliases are reported by validate().
+     */
+    if (
+      !EXERCISE_ALIAS_MAP.has(
+        normalized
+      )
+    ) {
+      EXERCISE_ALIAS_MAP.set(
+        normalized,
+        exercise.id
+      );
+    }
+
+    const slug =
+      slugify(alias);
+
+    if (
+      slug &&
+      !EXERCISE_ALIAS_MAP.has(
+        slug
+      )
+    ) {
+      EXERCISE_ALIAS_MAP.set(
+        slug,
+        exercise.id
+      );
+    }
   }
 }
+
+/* =====================================================
+   BASIC LOOKUP
+===================================================== */
 
 function getExercise(idOrName) {
   const normalized =
@@ -1846,6 +2067,10 @@ function hasExercise(idOrName) {
   );
 }
 
+/* =====================================================
+   FILTERING
+===================================================== */
+
 function getExercises({
   bodyPart = null,
   muscle = null,
@@ -1854,6 +2079,9 @@ function getExercises({
   equipment = null,
   difficulty = null,
   goal = null,
+  targetRegion = null,
+  substitutionGroup = null,
+  laterality = null,
   minimumGoalScore = 1
 } = {}) {
   const normalizedBodyPart =
@@ -1876,6 +2104,15 @@ function getExercises({
 
   const normalizedGoal =
     normalizeText(goal);
+
+  const normalizedTargetRegion =
+    normalizeText(targetRegion);
+
+  const normalizedSubstitutionGroup =
+    normalizeText(substitutionGroup);
+
+  const normalizedLaterality =
+    normalizeText(laterality);
 
   return EXERCISES.filter(
     exercise => {
@@ -1941,7 +2178,39 @@ function getExercises({
         normalizedDifficulty &&
         normalizeText(
           exercise.difficulty
-        ) !== normalizedDifficulty
+        ) !==
+          normalizedDifficulty
+      ) {
+        return false;
+      }
+
+      if (
+        normalizedTargetRegion &&
+        normalizeText(
+          exercise.targetEmphasis
+            ?.region
+        ) !==
+          normalizedTargetRegion
+      ) {
+        return false;
+      }
+
+      if (
+        normalizedSubstitutionGroup &&
+        normalizeText(
+          exercise.substitutionGroup
+        ) !==
+          normalizedSubstitutionGroup
+      ) {
+        return false;
+      }
+
+      if (
+        normalizedLaterality &&
+        normalizeText(
+          exercise.laterality
+        ) !==
+          normalizedLaterality
       ) {
         return false;
       }
@@ -1969,6 +2238,10 @@ function getExercises({
   );
 }
 
+/* =====================================================
+   SEARCH
+===================================================== */
+
 function searchExercises(query) {
   const normalized =
     normalizeText(query);
@@ -1985,12 +2258,20 @@ function searchExercises(query) {
         exercise.category,
         exercise.difficulty,
         exercise.summary,
+        exercise.substitutionGroup,
+        exercise.laterality,
+        exercise.setup,
+        exercise.targetEmphasis?.muscle,
+        exercise.targetEmphasis?.region,
+        exercise.targetEmphasis?.label,
+        ...(exercise.aliases || []),
         ...(exercise.exerciseTypes || []),
         ...(exercise.bodyParts || []),
         ...(exercise.primaryMuscles || []),
         ...(exercise.secondaryMuscles || []),
         ...(exercise.movementPatterns || []),
         ...(exercise.equipment || []),
+        ...(exercise.substitutions || []),
         ...Object.keys(
           exercise.goals || {}
         )
@@ -2006,6 +2287,10 @@ function searchExercises(query) {
   );
 }
 
+/* =====================================================
+   RECOMMENDATIONS
+===================================================== */
+
 function recommendExercises({
   goal,
   bodyPart = null,
@@ -2013,6 +2298,8 @@ function recommendExercises({
   exerciseType = null,
   equipment = null,
   difficulty = null,
+  targetRegion = null,
+  substitutionGroup = null,
   limit = 12
 } = {}) {
   const normalizedGoal =
@@ -2028,6 +2315,8 @@ function recommendExercises({
     exerciseType,
     equipment,
     difficulty,
+    targetRegion,
+    substitutionGroup,
     goal: normalizedGoal,
     minimumGoalScore: 1
   })
@@ -2057,16 +2346,290 @@ function recommendExercises({
     );
 }
 
+/* =====================================================
+   SUBSTITUTIONS / SWAPS
+===================================================== */
+
+function getSubstitutions(
+  idOrName,
+  {
+    equipment = null,
+    limit = 8
+  } = {}
+) {
+  const exercise =
+    getExercise(idOrName);
+
+  if (!exercise) {
+    return [];
+  }
+
+  const results = [];
+  const seen = new Set([
+    exercise.id
+  ]);
+
+  /*
+   * Preferred explicit substitutions first.
+   */
+  for (
+    const substitutionId
+    of exercise.substitutions || []
+  ) {
+    const candidate =
+      getExercise(
+        substitutionId
+      );
+
+    if (
+      !candidate ||
+      seen.has(
+        candidate.id
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      equipment &&
+      !(candidate.equipment || []).some(
+        item =>
+          normalizeText(item) ===
+          normalizeText(equipment)
+      )
+    ) {
+      continue;
+    }
+
+    results.push(candidate);
+    seen.add(candidate.id);
+  }
+
+  /*
+   * Then fill from the same substitution group.
+   */
+  if (
+    exercise.substitutionGroup
+  ) {
+    const grouped =
+      getExercises({
+        substitutionGroup:
+          exercise.substitutionGroup
+      });
+
+    grouped
+      .sort(
+        (a, b) => {
+          const sameRegionA =
+            normalizeText(
+              a.targetEmphasis?.region
+            ) ===
+            normalizeText(
+              exercise.targetEmphasis
+                ?.region
+            )
+              ? 1
+              : 0;
+
+          const sameRegionB =
+            normalizeText(
+              b.targetEmphasis?.region
+            ) ===
+            normalizeText(
+              exercise.targetEmphasis
+                ?.region
+            )
+              ? 1
+              : 0;
+
+          return (
+            sameRegionB -
+            sameRegionA
+          );
+        }
+      );
+
+    for (const candidate of grouped) {
+      if (
+        seen.has(
+          candidate.id
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        equipment &&
+        !(candidate.equipment || []).some(
+          item =>
+            normalizeText(item) ===
+            normalizeText(equipment)
+        )
+      ) {
+        continue;
+      }
+
+      results.push(candidate);
+      seen.add(candidate.id);
+
+      if (
+        results.length >=
+        Math.max(
+          1,
+          Number(limit) || 8
+        )
+      ) {
+        break;
+      }
+    }
+  }
+
+  return results.slice(
+    0,
+    Math.max(
+      1,
+      Number(limit) || 8
+    )
+  );
+}
+
+/* =====================================================
+   GROUP HELPERS
+===================================================== */
+
+function getBySubstitutionGroup(
+  group
+) {
+  return getExercises({
+    substitutionGroup:
+      group
+  });
+}
+
+function getByTargetRegion(
+  region
+) {
+  return getExercises({
+    targetRegion:
+      region
+  });
+}
+
 function getExerciseIds() {
   return EXERCISES.map(
-    exercise => exercise.id
+    exercise =>
+      exercise.id
   );
+}
+
+/* =====================================================
+   VALIDATION
+===================================================== */
+
+function validateDuplicateIds() {
+  const seen =
+    new Set();
+
+  const duplicates =
+    [];
+
+  for (const exercise of EXERCISES) {
+    if (
+      seen.has(
+        exercise.id
+      )
+    ) {
+      duplicates.push(
+        exercise.id
+      );
+    }
+
+    seen.add(
+      exercise.id
+    );
+  }
+
+  return duplicates;
+}
+
+function validateDuplicateAliases() {
+  const ownerByAlias =
+    new Map();
+
+  const duplicates =
+    [];
+
+  for (const exercise of EXERCISES) {
+    const aliases = [
+      exercise.id,
+      exercise.name,
+      slugify(
+        exercise.name
+      ),
+      ...(exercise.aliases || [])
+    ];
+
+    for (const alias of aliases) {
+      const normalized =
+        normalizeText(alias);
+
+      if (!normalized) {
+        continue;
+      }
+
+      const existingOwner =
+        ownerByAlias.get(
+          normalized
+        );
+
+      if (
+        existingOwner &&
+        existingOwner !==
+          exercise.id
+      ) {
+        duplicates.push({
+          alias:
+            normalized,
+
+          exerciseIds: [
+            existingOwner,
+            exercise.id
+          ]
+        });
+      } else {
+        ownerByAlias.set(
+          normalized,
+          exercise.id
+        );
+      }
+    }
+  }
+
+  return duplicates;
 }
 
 function validateReferences() {
   const invalid = [];
 
   for (const exercise of EXERCISES) {
+    if (
+      !exercise?.id ||
+      !exercise?.name
+    ) {
+      invalid.push({
+        exerciseId:
+          exercise?.id || null,
+
+        type:
+          "record",
+
+        value:
+          "missing_id_or_name"
+      });
+
+      continue;
+    }
+
     for (
       const bodyPartId
       of exercise.bodyParts || []
@@ -2079,8 +2642,10 @@ function validateReferences() {
         invalid.push({
           exerciseId:
             exercise.id,
+
           type:
             "bodyPart",
+
           value:
             bodyPartId
         });
@@ -2102,8 +2667,10 @@ function validateReferences() {
         invalid.push({
           exerciseId:
             exercise.id,
+
           type:
             "muscle",
+
           value:
             muscleId
         });
@@ -2122,8 +2689,10 @@ function validateReferences() {
         invalid.push({
           exerciseId:
             exercise.id,
+
           type:
             "movementPattern",
+
           value:
             movementId
         });
@@ -2142,21 +2711,119 @@ function validateReferences() {
         invalid.push({
           exerciseId:
             exercise.id,
+
           type:
             "exerciseType",
+
           value:
             typeId
         });
       }
     }
+
+    if (
+      exercise.targetEmphasis?.muscle &&
+      !Muscles.has(
+        exercise
+          .targetEmphasis
+          .muscle
+      )
+    ) {
+      invalid.push({
+        exerciseId:
+          exercise.id,
+
+        type:
+          "targetEmphasisMuscle",
+
+        value:
+          exercise
+            .targetEmphasis
+            .muscle
+      });
+    }
+  }
+
+  /*
+   * Validate substitutions after all IDs are indexed.
+   */
+  for (const exercise of EXERCISES) {
+    for (
+      const substitutionId
+      of exercise.substitutions || []
+    ) {
+      if (
+        !EXERCISE_MAP.has(
+          substitutionId
+        )
+      ) {
+        invalid.push({
+          exerciseId:
+            exercise.id,
+
+          type:
+            "substitution",
+
+          value:
+            substitutionId
+        });
+      }
+    }
+  }
+
+  const duplicateIds =
+    validateDuplicateIds();
+
+  for (
+    const duplicateId
+    of duplicateIds
+  ) {
+    invalid.push({
+      exerciseId:
+        duplicateId,
+
+      type:
+        "duplicateId",
+
+      value:
+        duplicateId
+    });
+  }
+
+  const duplicateAliases =
+    validateDuplicateAliases();
+
+  for (
+    const duplicate
+    of duplicateAliases
+  ) {
+    invalid.push({
+      exerciseId:
+        duplicate.exerciseIds
+          .join(","),
+
+      type:
+        "duplicateAlias",
+
+      value:
+        duplicate.alias
+    });
   }
 
   return {
     valid:
       invalid.length === 0,
+
+    totalExercises:
+      EXERCISES.length,
+
     invalid
   };
 }
+
+/* =====================================================
+   REGISTRY
+===================================================== */
 
 const AriTrainingExerciseRegistry =
   Object.freeze({
@@ -2184,12 +2851,25 @@ const AriTrainingExerciseRegistry =
     recommend:
       recommendExercises,
 
+    substitutions:
+      getSubstitutions,
+
+    bySubstitutionGroup:
+      getBySubstitutionGroup,
+
+    byTargetRegion:
+      getByTargetRegion,
+
     ids:
       getExerciseIds,
 
     validate:
       validateReferences
   });
+
+/* =====================================================
+   GLOBAL API
+===================================================== */
 
 if (
   typeof globalThis !==
@@ -2210,6 +2890,10 @@ if (
     Ari;
 }
 
+/* =====================================================
+   EXPORTS
+===================================================== */
+
 export {
   VERSION,
   SOURCE,
@@ -2219,7 +2903,12 @@ export {
   getExercises,
   searchExercises,
   recommendExercises,
+  getSubstitutions,
+  getBySubstitutionGroup,
+  getByTargetRegion,
   getExerciseIds,
+  validateDuplicateIds,
+  validateDuplicateAliases,
   validateReferences,
   AriTrainingExerciseRegistry
 };
