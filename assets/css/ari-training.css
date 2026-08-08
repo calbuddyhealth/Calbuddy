@@ -1,38 +1,116 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/ari-training.css
-   Version: 3.2.0
-
+   Version: 4.0.0
    Purpose:
-   Complete visual redesign for the ARI Training
-   summary / weekly execution / monthly history page.
+     Premium mobile-first ARI Training interface.
+
+   Design goals:
+     - Today's workout is always visually dominant.
+     - One obvious primary action at a time.
+     - Large controls for use while actively training.
+     - Progressive disclosure for secondary information.
+     - Cyan = action / active.
+     - Green = complete.
+     - Amber = rest / pause.
+     - Red = warning / destructive only.
+     - Strong visual satisfaction without visual overload.
+===================================================== */
+
+
+/* =====================================================
+   DESIGN TOKENS
 ===================================================== */
 
 :root {
-  --ari-training-bg: #05090d;
-  --ari-training-bg-soft: #081117;
-  --ari-training-surface: rgba(10, 22, 29, 0.92);
-  --ari-training-surface-2: rgba(13, 28, 37, 0.94);
-  --ari-training-border: rgba(92, 231, 255, 0.20);
-  --ari-training-border-strong: rgba(92, 231, 255, 0.42);
-  --ari-training-cyan: #5ce7ff;
-  --ari-training-cyan-soft: #9bf3ff;
-  --ari-training-blue: #64a8ff;
-  --ari-training-purple: #9b6cff;
-  --ari-training-green: #6fffc2;
-  --ari-training-yellow: #ffe38a;
-  --ari-training-red: #ff758f;
-  --ari-training-text: #f4fbff;
-  --ari-training-text-soft: #c4d2dc;
-  --ari-training-text-muted: #8298a6;
-  --ari-training-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
-  --ari-training-glow: 0 0 0 1px rgba(92, 231, 255, 0.06), 0 0 28px rgba(92, 231, 255, 0.08);
-  --ari-training-radius-xl: 28px;
-  --ari-training-radius-lg: 22px;
-  --ari-training-radius-md: 16px;
-  --ari-training-radius-sm: 12px;
-  --ari-training-max-width: 1180px;
+  --training-bg: #050b10;
+  --training-bg-deep: #02070b;
+  --training-bg-soft: #071118;
+
+  --training-surface: #09141c;
+  --training-surface-2: #0c1a23;
+  --training-surface-3: #10242f;
+  --training-surface-4: #132c38;
+
+  --training-glass:
+    rgba(11, 25, 34, 0.78);
+
+  --training-glass-strong:
+    rgba(13, 31, 41, 0.92);
+
+  --training-border:
+    rgba(103, 227, 255, 0.13);
+
+  --training-border-medium:
+    rgba(103, 227, 255, 0.24);
+
+  --training-border-strong:
+    rgba(103, 227, 255, 0.42);
+
+  --training-cyan: #67e3ff;
+  --training-cyan-bright: #b6f5ff;
+  --training-cyan-deep: #31cde9;
+
+  --training-cyan-soft:
+    rgba(103, 227, 255, 0.1);
+
+  --training-cyan-medium:
+    rgba(103, 227, 255, 0.18);
+
+  --training-green: #69f5a8;
+
+  --training-green-soft:
+    rgba(105, 245, 168, 0.12);
+
+  --training-green-border:
+    rgba(105, 245, 168, 0.35);
+
+  --training-amber: #ffc96b;
+
+  --training-amber-soft:
+    rgba(255, 201, 107, 0.12);
+
+  --training-amber-border:
+    rgba(255, 201, 107, 0.34);
+
+  --training-red: #ff7089;
+
+  --training-red-soft:
+    rgba(255, 112, 137, 0.12);
+
+  --training-white: #f7fbff;
+  --training-text: #ecf6fb;
+  --training-soft: #c5d4dc;
+  --training-muted: #8095a1;
+  --training-dim: #586c77;
+
+  --training-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.34);
+
+  --training-shadow-soft:
+    0 10px 28px rgba(0, 0, 0, 0.22);
+
+  --training-glow:
+    0 0 30px rgba(103, 227, 255, 0.12);
+
+  --training-glow-strong:
+    0 0 34px rgba(103, 227, 255, 0.24);
+
+  --training-radius-sm: 10px;
+  --training-radius-md: 14px;
+  --training-radius-lg: 20px;
+  --training-radius-xl: 26px;
+
+  --training-page-width: 900px;
+
+  --training-transition:
+    180ms ease;
 }
+
+
+/* =====================================================
+   RESET / PAGE
+===================================================== */
 
 *,
 *::before,
@@ -41,1750 +119,4168 @@
 }
 
 html {
-  scroll-behavior: smooth;
-  background: var(--ari-training-bg);
+  min-height: 100%;
+  background:
+    var(--training-bg-deep);
+  color-scheme: dark;
 }
 
 body.ari-training-page {
-  margin: 0;
   min-height: 100vh;
-  min-height: 100svh;
-  background:
-    radial-gradient(circle at 50% -10%, rgba(92, 231, 255, 0.10), transparent 34rem),
-    linear-gradient(180deg, #04080b 0%, #061016 44%, #03070a 100%);
-  color: var(--ari-training-text);
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  overflow-x: hidden;
-}
+  margin: 0;
 
-body.ari-training-page::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.45;
-  background-image:
-    linear-gradient(rgba(92, 231, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(92, 231, 255, 0.018) 1px, transparent 1px);
-  background-size: 42px 42px;
+  color:
+    var(--training-text);
+
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  background:
+    radial-gradient(
+      circle at 50% -10%,
+      rgba(103, 227, 255, 0.12),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at 90% 24%,
+      rgba(47, 129, 164, 0.08),
+      transparent 25rem
+    ),
+    linear-gradient(
+      180deg,
+      #071118 0%,
+      #040a0f 52%,
+      #020609 100%
+    );
+
+  background-attachment:
+    fixed;
+
+  overflow-x:
+    hidden;
+
+  -webkit-font-smoothing:
+    antialiased;
+
+  text-rendering:
+    optimizeLegibility;
 }
 
 button,
 input,
 select,
 textarea {
-  font: inherit;
+  font:
+    inherit;
 }
 
-[hidden] {
-  display: none !important;
+button,
+a {
+  -webkit-tap-highlight-color:
+    transparent;
 }
+
+button {
+  touch-action:
+    manipulation;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline:
+    2px solid
+    var(--training-cyan);
+
+  outline-offset:
+    3px;
+}
+
+
+/* =====================================================
+   ACCESSIBILITY
+===================================================== */
 
 .ari-skip-link {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  z-index: 9999;
-  transform: translateY(-160%);
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: #fff;
-  color: #000;
+  position:
+    fixed;
+
+  top:
+    10px;
+
+  left:
+    10px;
+
+  z-index:
+    9999;
+
+  padding:
+    10px 14px;
+
+  color:
+    #001218;
+
+  background:
+    var(--training-cyan);
+
+  border-radius:
+    10px;
+
+  font-weight:
+    800;
+
+  transform:
+    translateY(-150%);
+
+  transition:
+    transform var(--training-transition);
 }
 
 .ari-skip-link:focus {
-  transform: translateY(0);
+  transform:
+    translateY(0);
 }
+
+[hidden] {
+  display:
+    none !important;
+}
+
+
+/* =====================================================
+   SHELL
+===================================================== */
 
 .ari-training-shell {
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100svh;
+  width:
+    min(
+      100%,
+      var(--training-page-width)
+    );
+
+  margin:
+    0 auto;
+
+  padding-bottom:
+    max(
+      40px,
+      env(safe-area-inset-bottom)
+    );
 }
 
-/* HEADER */
+.ari-training-main {
+  display:
+    grid;
+
+  gap:
+    14px;
+
+  padding:
+    18px 14px 44px;
+}
+
+
+/* =====================================================
+   HEADER
+===================================================== */
+
 .ari-training-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  padding-top: env(safe-area-inset-top);
-  background: linear-gradient(180deg, rgba(3, 8, 12, 0.98), rgba(3, 9, 13, 0.94));
-  border-bottom: 1px solid rgba(92, 231, 255, 0.22);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  position:
+    sticky;
+
+  top:
+    0;
+
+  z-index:
+    100;
+
+  border-bottom:
+    1px solid
+    rgba(103, 227, 255, 0.08);
+
+  background:
+    rgba(4, 11, 16, 0.88);
+
+  backdrop-filter:
+    blur(18px);
+
+  -webkit-backdrop-filter:
+    blur(18px);
 }
 
 .ari-training-header__inner {
-  width: min(calc(100% - 36px), var(--ari-training-max-width));
-  min-height: 88px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(76px, 1fr) auto minmax(76px, 1fr);
-  align-items: center;
-  gap: 16px;
+  min-height:
+    78px;
+
+  display:
+    grid;
+
+  grid-template-columns:
+    auto 1fr auto;
+
+  align-items:
+    center;
+
+  gap:
+    12px;
+
+  padding:
+    max(
+      8px,
+      env(safe-area-inset-top)
+    )
+    14px
+    8px;
 }
 
 .ari-training-back {
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  text-decoration: none;
-  color: var(--ari-training-text-soft);
-  font-weight: 800;
+  min-width:
+    64px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+
+  color:
+    var(--training-soft);
+
+  text-decoration:
+    none;
+
+  font-size:
+    0.78rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.02em;
+
+  transition:
+    color var(--training-transition);
 }
 
 .ari-training-back > span:first-child {
-  color: var(--ari-training-cyan);
-  font-size: 2rem;
-  line-height: 1;
+  font-size:
+    1.25rem;
+
+  color:
+    var(--training-cyan);
+}
+
+.ari-training-back:hover {
+  color:
+    var(--training-cyan-bright);
 }
 
 .ari-training-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-width: 0;
+  min-width:
+    0;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    9px;
+
+  text-align:
+    left;
 }
 
 .ari-training-brand__mark {
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--ari-training-border-strong);
-  border-radius: 50%;
-  color: var(--ari-training-cyan);
-  background: rgba(92, 231, 255, 0.06);
+  width:
+    33px;
+
+  height:
+    33px;
+
+  flex:
+    0 0 auto;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  color:
+    var(--training-cyan);
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.3);
+
+  border-radius:
+    11px;
+
+  background:
+    rgba(103, 227, 255, 0.055);
+
+  box-shadow:
+    inset 0 0 16px
+    rgba(103, 227, 255, 0.06);
 }
 
 .ari-training-brand__mark svg {
-  width: 26px;
-  height: 26px;
+  width:
+    22px;
+
+  height:
+    22px;
 }
 
 .ari-training-brand__eyebrow,
+.ari-training-brand h1,
 .ari-training-brand__subtitle {
-  margin: 0;
-  font-family: "Orbitron", sans-serif;
-  letter-spacing: 0.18em;
+  margin:
+    0;
 }
 
 .ari-training-brand__eyebrow {
-  color: var(--ari-training-cyan);
-  font-size: 0.68rem;
-  font-weight: 800;
+  color:
+    var(--training-cyan);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    0.58rem;
+
+  letter-spacing:
+    0.22em;
 }
 
 .ari-training-brand h1 {
-  margin: 1px 0 0;
-  font-family: "Audiowide", sans-serif;
-  font-size: clamp(1.35rem, 5vw, 1.95rem);
-  line-height: 1;
-  font-weight: 400;
-  text-transform: uppercase;
+  color:
+    var(--training-white);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.08rem,
+      5vw,
+      1.42rem
+    );
+
+  font-weight:
+    400;
+
+  letter-spacing:
+    0.035em;
 }
 
 .ari-training-brand__subtitle {
-  margin-top: 4px;
-  color: var(--ari-training-cyan-soft);
-  font-size: 0.64rem;
+  margin-top:
+    2px;
+
+  color:
+    var(--training-muted);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.48rem;
+
+  font-weight:
+    600;
+
+  letter-spacing:
+    0.12em;
+
+  text-transform:
+    uppercase;
 }
 
 .ari-training-menu {
-  justify-self: end;
-  width: 46px;
-  height: 46px;
-  padding: 9px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-  border: 0;
-  border-radius: 14px;
-  background: transparent;
-  color: var(--ari-training-text);
-  cursor: pointer;
+  width:
+    42px;
+
+  height:
+    42px;
+
+  padding:
+    0;
+
+  display:
+    grid;
+
+  place-content:
+    center;
+
+  gap:
+    4px;
+
+  border:
+    1px solid
+    var(--training-border);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(103, 227, 255, 0.035);
+
+  cursor:
+    pointer;
+
+  transition:
+    border-color var(--training-transition),
+    background var(--training-transition),
+    transform var(--training-transition);
 }
 
 .ari-training-menu span {
-  width: 100%;
-  height: 3px;
-  border-radius: 999px;
-  background: currentColor;
+  width:
+    18px;
+
+  height:
+    2px;
+
+  display:
+    block;
+
+  border-radius:
+    999px;
+
+  background:
+    var(--training-cyan);
+}
+
+.ari-training-menu:active {
+  transform:
+    scale(0.96);
+}
+
+.ari-training-menu[aria-expanded="true"] {
+  border-color:
+    var(--training-border-strong);
+
+  background:
+    var(--training-cyan-soft);
 }
 
 .ari-training-menu-panel {
-  width: min(calc(100% - 36px), var(--ari-training-max-width));
-  margin: 0 auto 16px;
-  padding: 10px;
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--ari-training-border);
-  border-radius: 18px;
-  background: rgba(8, 19, 25, 0.98);
-  box-shadow: var(--ari-training-shadow);
+  display:
+    grid;
+
+  gap:
+    4px;
+
+  padding:
+    8px 14px 14px;
+
+  border-top:
+    1px solid
+    rgba(103, 227, 255, 0.06);
 }
 
 .ari-training-menu-panel a {
-  min-height: 44px;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  border-radius: 12px;
-  text-decoration: none;
-  color: var(--ari-training-text-soft);
-  font-weight: 700;
+  min-height:
+    46px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  padding:
+    0 14px;
+
+  color:
+    var(--training-soft);
+
+  text-decoration:
+    none;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(255, 255, 255, 0.012);
+
+  transition:
+    color var(--training-transition),
+    border-color var(--training-transition),
+    background var(--training-transition);
 }
 
-/* MAIN */
-.ari-training-main {
-  width: min(calc(100% - 32px), var(--ari-training-max-width));
-  margin: 0 auto;
-  padding: 24px 0 calc(64px + env(safe-area-inset-bottom));
-  display: grid;
-  gap: 24px;
+.ari-training-menu-panel a:hover {
+  color:
+    var(--training-white);
+
+  border-color:
+    var(--training-border);
+
+  background:
+    var(--training-cyan-soft);
 }
+
+
+/* =====================================================
+   GENERIC SECTION
+===================================================== */
 
 .ari-training-section {
-  min-width: 0;
+  position:
+    relative;
+
+  min-width:
+    0;
 }
 
 .ari-section-heading {
-  margin-bottom: 16px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
 }
 
 .ari-section-heading__eyebrow {
-  margin: 0 0 7px;
-  color: var(--ari-training-cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  margin:
+    0 0 6px;
+
+  color:
+    var(--training-cyan);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.6rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.16em;
+
+  text-transform:
+    uppercase;
 }
 
-.ari-section-heading h2,
-.ari-section-heading h3 {
-  margin: 0;
-  font-family: "Audiowide", sans-serif;
-  font-weight: 400;
-  text-transform: uppercase;
-}
 
-.ari-section-heading h2 {
-  font-size: clamp(1.25rem, 5vw, 1.85rem);
-}
-
-.ari-section-heading time {
-  color: var(--ari-training-text-muted);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-/* OVERVIEW */
-.ari-performance-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.ari-performance-card {
-  min-width: 0;
-  min-height: 142px;
-  padding: 18px;
-  border: 1px solid var(--ari-training-border);
-  border-radius: var(--ari-training-radius-lg);
-  background: linear-gradient(145deg, rgba(15, 31, 40, 0.96), rgba(7, 17, 23, 0.96));
-  box-shadow: var(--ari-training-glow);
-}
-
-.ari-performance-card--primary {
-  border-color: var(--ari-training-border-strong);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(155, 108, 255, 0.14), transparent 50%),
-    linear-gradient(145deg, rgba(11, 38, 47, 0.98), rgba(7, 18, 24, 0.98));
-}
-
-.ari-performance-card__label,
-.ari-performance-card__meta {
-  margin: 0;
-}
-
-.ari-performance-card__label {
-  color: var(--ari-training-text-soft);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.67rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.ari-performance-card__value {
-  margin: 10px 0 8px;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-family: "Audiowide", sans-serif;
-  font-size: clamp(1.65rem, 8vw, 2.55rem);
-  line-height: 1;
-}
-
-.ari-performance-card__unit {
-  color: var(--ari-training-cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.75rem;
-}
-
-.ari-performance-card__meta {
-  color: var(--ari-training-text-muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-/* TODAY */
-.ari-training-today-plan {
-  margin-top: 16px;
-  padding: 20px;
-  border: 1px solid var(--ari-training-border);
-  border-radius: var(--ari-training-radius-lg);
-  background: var(--ari-training-surface);
-  box-shadow: var(--ari-training-glow);
-}
-
-.ari-training-today-plan__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.ari-training-today-plan__header h3 {
-  margin: 2px 0 0;
-  font-family: "Audiowide", sans-serif;
-  font-size: 1.08rem;
-  font-weight: 400;
-  text-transform: uppercase;
-}
-
-.ari-training-day-status {
-  flex: 0 0 auto;
-  padding: 7px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.04);
-  color: var(--ari-training-text-soft);
-  font-family: "Orbitron", sans-serif;
-  font-size: .62rem;
-  font-weight: 800;
-}
-
-.ari-training-day-status[data-status="complete"],
-.ari-weekly-plan-day[data-status="complete"] .ari-weekly-plan-day__status {
-  color: var(--ari-training-green);
-}
-
-.ari-training-day-status[data-status="in_progress"],
-.ari-weekly-plan-day[data-status="in_progress"] .ari-weekly-plan-day__status {
-  color: var(--ari-training-yellow);
-}
-
-.ari-training-day-status[data-status="rest"],
-.ari-weekly-plan-day[data-status="rest"] .ari-weekly-plan-day__status {
-  color: var(--ari-training-blue);
-}
-
-.ari-training-today-plan__summary {
-  margin: 18px 0 10px;
-  color: var(--ari-training-text-soft);
-  line-height: 1.6;
-}
-
-.ari-training-today-plan__progress {
-  color: var(--ari-training-cyan-soft);
-  font-weight: 800;
-}
+/* =====================================================
+   BUTTON SYSTEM
+===================================================== */
 
 .ari-primary-button,
-.ari-text-button {
-  min-height: 46px;
-  border-radius: 14px;
-  font-weight: 800;
+.ari-secondary-button,
+.ari-text-button,
+.ari-icon-button {
+  appearance:
+    none;
+
+  -webkit-appearance:
+    none;
+
+  cursor:
+    pointer;
+
+  transition:
+    transform 130ms ease,
+    box-shadow var(--training-transition),
+    border-color var(--training-transition),
+    background var(--training-transition),
+    color var(--training-transition),
+    opacity var(--training-transition);
 }
 
 .ari-primary-button {
-  margin-top: 18px;
-  padding: 12px 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(92, 231, 255, 0.48);
-  background: linear-gradient(135deg, rgba(92, 231, 255, 0.18), rgba(155, 108, 255, 0.16));
-  color: var(--ari-training-text);
-  text-decoration: none;
+  min-height:
+    54px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    8px;
+
+  padding:
+    0 20px;
+
+  color:
+    #021117;
+
+  border:
+    1px solid
+    rgba(184, 247, 255, 0.72);
+
+  border-radius:
+    15px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #9af1ff 0%,
+      #67e3ff 46%,
+      #45d3f0 100%
+    );
+
+  box-shadow:
+    0 8px 24px
+      rgba(42, 193, 222, 0.18),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.54);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.78rem;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    0.08em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-primary-button:hover {
+  box-shadow:
+    0 10px 30px
+      rgba(42, 193, 222, 0.27),
+    0 0 24px
+      rgba(103, 227, 255, 0.14);
+}
+
+.ari-primary-button:active {
+  transform:
+    translateY(2px)
+    scale(0.995);
+
+  box-shadow:
+    0 4px 14px
+      rgba(42, 193, 222, 0.16);
+}
+
+.ari-primary-button:disabled {
+  cursor:
+    default;
+
+  opacity:
+    0.5;
+
+  transform:
+    none;
+}
+
+.ari-secondary-button {
+  min-height:
+    48px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0 17px;
+
+  color:
+    var(--training-cyan-bright);
+
+  border:
+    1px solid
+    var(--training-border-medium);
+
+  border-radius:
+    14px;
+
+  background:
+    rgba(103, 227, 255, 0.055);
+
+  font-weight:
+    800;
+}
+
+.ari-secondary-button:hover {
+  border-color:
+    var(--training-border-strong);
+
+  background:
+    var(--training-cyan-soft);
+}
+
+.ari-secondary-button:active {
+  transform:
+    translateY(1px);
 }
 
 .ari-text-button {
-  padding: 8px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--ari-training-cyan);
-  text-decoration: none;
+  min-height:
+    42px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0 10px;
+
+  color:
+    var(--training-cyan);
+
+  border:
+    0;
+
+  background:
+    transparent;
+
+  text-decoration:
+    none;
+
+  font-size:
+    0.82rem;
+
+  font-weight:
+    800;
 }
 
-/* HEART-RATE PROFILE */
-.ari-training-profile {
-  margin-top: 16px;
-  padding: 20px;
-  border: 1px solid var(--ari-training-border);
-  border-radius: var(--ari-training-radius-lg);
-  background: radial-gradient(circle at 100% 0%, rgba(100, 168, 255, 0.11), transparent 45%), var(--ari-training-surface);
+.ari-text-button:hover {
+  color:
+    var(--training-cyan-bright);
 }
 
-.ari-training-profile__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+.ari-icon-button {
+  width:
+    38px;
+
+  height:
+    38px;
+
+  display:
+    inline-grid;
+
+  place-items:
+    center;
+
+  padding:
+    0;
+
+  color:
+    var(--training-soft);
+
+  border:
+    1px solid
+    var(--training-border);
+
+  border-radius:
+    11px;
+
+  background:
+    rgba(255, 255, 255, 0.02);
+
+  font-size:
+    1.25rem;
 }
 
-.ari-training-profile__header h3 {
-  margin: 0;
-  font-family: "Audiowide", sans-serif;
-  font-size: 1.08rem;
-  font-weight: 400;
-  text-transform: uppercase;
+
+/* =====================================================
+   TODAY'S TRAINING HERO
+===================================================== */
+
+.ari-todays-training {
+  position:
+    relative;
+
+  overflow:
+    hidden;
+
+  padding:
+    20px;
+
+  border:
+    1px solid
+    var(--training-border-strong);
+
+  border-radius:
+    var(--training-radius-xl);
+
+  background:
+    radial-gradient(
+      circle at 50% -15%,
+      rgba(103, 227, 255, 0.12),
+      transparent 24rem
+    ),
+    linear-gradient(
+      145deg,
+      rgba(14, 36, 47, 0.96),
+      rgba(7, 17, 24, 0.98)
+    );
+
+  box-shadow:
+    var(--training-shadow),
+    var(--training-glow),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.025);
 }
 
-.ari-training-profile__source {
-  padding: 7px 9px;
-  border-radius: 999px;
-  color: var(--ari-training-cyan);
-  background: rgba(92, 231, 255, 0.07);
-  font-size: 0.68rem;
-  font-weight: 800;
+.ari-todays-training::before {
+  content:
+    "";
+
+  position:
+    absolute;
+
+  inset:
+    0 12% auto;
+
+  height:
+    1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(154, 241, 255, 0.8),
+      transparent
+    );
+
+  opacity:
+    0.8;
 }
 
-.ari-training-profile__grid {
-  margin-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+.ari-todays-training::after {
+  content:
+    "";
+
+  position:
+    absolute;
+
+  top:
+    -120px;
+
+  right:
+    -110px;
+
+  width:
+    260px;
+
+  height:
+    260px;
+
+  pointer-events:
+    none;
+
+  border-radius:
+    50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(103, 227, 255, 0.07),
+      transparent 68%
+    );
 }
 
-.ari-training-profile__metric {
-  padding: 14px;
-  border: 1px solid rgba(92, 231, 255, 0.12);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.025);
+.ari-todays-training__header {
+  position:
+    relative;
+
+  z-index:
+    1;
+
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
 }
 
-.ari-training-profile__metric span,
-.ari-training-profile__metric small {
-  display: block;
-  color: var(--ari-training-text-muted);
-  font-size: .68rem;
+.ari-todays-training__header h2 {
+  margin:
+    0;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.45rem,
+      7vw,
+      2.1rem
+    );
+
+  font-weight:
+    400;
+
+  line-height:
+    1.15;
 }
 
-.ari-training-profile__metric strong {
-  display: block;
-  margin-top: 6px;
+.ari-todays-training__date {
+  display:
+    block;
+
+  margin-top:
+    8px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.8rem;
 }
 
-.ari-training-profile__workout-hr {
-  margin-top: 18px;
+.ari-todays-training__status {
+  flex:
+    0 0 auto;
+
+  min-height:
+    29px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0 10px;
+
+  color:
+    var(--training-muted);
+
+  border:
+    1px solid
+    rgba(128, 149, 161, 0.18);
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(128, 149, 161, 0.07);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.54rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.09em;
+
+  white-space:
+    nowrap;
 }
 
-.ari-training-profile__workout-hr label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 800;
+.ari-todays-training__status[data-status="in_progress"] {
+  color:
+    var(--training-cyan-bright);
+
+  border-color:
+    var(--training-border-medium);
+
+  background:
+    var(--training-cyan-soft);
+
+  box-shadow:
+    inset 0 0 18px
+    rgba(103, 227, 255, 0.05);
+}
+
+.ari-todays-training__status[data-status="complete"] {
+  color:
+    var(--training-green);
+
+  border-color:
+    var(--training-green-border);
+
+  background:
+    var(--training-green-soft);
+}
+
+.ari-todays-training__status[data-status="rest"] {
+  color:
+    var(--training-amber);
+
+  border-color:
+    var(--training-amber-border);
+
+  background:
+    var(--training-amber-soft);
+}
+
+.ari-todays-training__plan {
+  position:
+    relative;
+
+  z-index:
+    1;
+
+  margin-top:
+    28px;
+}
+
+.ari-todays-training__type {
+  margin:
+    0 0 7px;
+
+  color:
+    var(--training-cyan);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.58rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.13em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-todays-training__name {
+  margin:
+    0;
+
+  max-width:
+    680px;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.65rem,
+      8vw,
+      2.8rem
+    );
+
+  font-weight:
+    400;
+
+  line-height:
+    1.15;
+
+  letter-spacing:
+    0.015em;
+}
+
+.ari-todays-training__meta {
+  margin:
+    9px 0 0;
+
+  color:
+    var(--training-soft);
+
+  font-size:
+    0.9rem;
+
+  line-height:
+    1.5;
+}
+
+.ari-todays-training__preview {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    8px;
+
+  margin-top:
+    22px;
+}
+
+.ari-todays-training__preview > div {
+  min-width:
+    0;
+
+  padding:
+    13px 8px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.1);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(2, 9, 13, 0.34);
+}
+
+.ari-todays-training__preview span {
+  display:
+    block;
+
+  margin-bottom:
+    5px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.58rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.05em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-todays-training__preview strong {
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.82rem;
+
+  font-weight:
+    800;
+}
+
+.ari-todays-training__actions {
+  position:
+    relative;
+
+  z-index:
+    1;
+
+  display:
+    grid;
+
+  gap:
+    8px;
+
+  margin-top:
+    22px;
+}
+
+.ari-todays-training__start {
+  width:
+    100%;
+
+  min-height:
+    58px;
+}
+
+.ari-todays-training__empty {
+  margin-top:
+    20px;
+
+  padding:
+    18px;
+
+  border:
+    1px dashed
+    var(--training-border-medium);
+
+  border-radius:
+    16px;
+
+  background:
+    rgba(3, 12, 17, 0.34);
+
+  text-align:
+    center;
+}
+
+.ari-todays-training__empty p {
+  margin:
+    0;
+
+  color:
+    var(--training-soft);
+}
+
+.ari-todays-training__empty-actions {
+  display:
+    grid;
+
+  gap:
+    6px;
+
+  margin-top:
+    14px;
+}
+
+
+/* =====================================================
+   ACTIVE SESSION METRICS
+===================================================== */
+
+.ari-todays-training__session {
+  position:
+    relative;
+
+  z-index:
+    1;
+
+  margin-top:
+    20px;
+}
+
+.ari-today-session-status {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    8px;
+}
+
+.ari-today-session-status__metric {
+  min-width:
+    0;
+
+  padding:
+    13px 8px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.1);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(2, 9, 13, 0.42);
+}
+
+.ari-today-session-status__metric span {
+  display:
+    block;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.57rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.07em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-today-session-status__metric strong {
+  display:
+    block;
+
+  margin-top:
+    6px;
+
+  color:
+    var(--training-cyan-bright);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    clamp(
+      0.75rem,
+      3vw,
+      0.95rem
+    );
+
+  font-weight:
+    800;
+}
+
+
+/* =====================================================
+   CURRENT EXERCISE
+===================================================== */
+
+.ari-today-session-current {
+  margin-top:
+    16px;
+
+  padding:
+    18px;
+
+  border:
+    1px solid
+    var(--training-border-medium);
+
+  border-radius:
+    var(--training-radius-lg);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(10, 29, 39, 0.94),
+      rgba(5, 15, 21, 0.96)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.025);
+}
+
+.ari-today-session-current__heading {
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    flex-start;
+
+  gap:
+    12px;
+}
+
+.ari-today-session-current__heading h3 {
+  margin:
+    0;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.2rem,
+      6vw,
+      1.8rem
+    );
+
+  font-weight:
+    400;
+
+  line-height:
+    1.2;
+}
+
+.ari-today-session-current__heading p:not(
+  .ari-section-heading__eyebrow
+) {
+  margin:
+    8px 0 0;
+
+  color:
+    var(--training-soft);
+
+  line-height:
+    1.45;
+}
+
+.ari-today-session-current__position {
+  min-width:
+    54px;
+
+  padding:
+    7px 9px;
+
+  color:
+    var(--training-cyan-bright);
+
+  border:
+    1px solid
+    var(--training-border-medium);
+
+  border-radius:
+    999px;
+
+  background:
+    var(--training-cyan-soft);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.64rem;
+
+  font-weight:
+    800;
+
+  text-align:
+    center;
+}
+
+.ari-today-session-current__sets {
+  display:
+    grid;
+
+  gap:
+    10px;
+
+  margin-top:
+    18px;
+}
+
+
+/* =====================================================
+   LIVE SET
+===================================================== */
+
+.ari-live-set {
+  padding:
+    14px;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.11);
+
+  border-radius:
+    15px;
+
+  background:
+    rgba(0, 8, 12, 0.32);
+
+  transition:
+    border-color var(--training-transition),
+    background var(--training-transition),
+    opacity var(--training-transition),
+    transform var(--training-transition);
+}
+
+.ari-live-set__header {
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+  gap:
+    10px;
+}
+
+.ari-live-set__label {
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.72rem;
+
+  letter-spacing:
+    0.05em;
+}
+
+.ari-live-set__target {
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.75rem;
+}
+
+.ari-live-set__inputs {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:
+    10px;
+
+  margin-top:
+    12px;
+}
+
+.ari-live-set__complete {
+  width:
+    100%;
+
+  margin-top:
+    12px;
+}
+
+.ari-live-set__previous {
+  margin:
+    10px 0 0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.72rem;
+}
+
+.ari-live-set__previous strong {
+  color:
+    var(--training-soft);
+}
+
+.ari-live-set.is-complete,
+.ari-live-set[data-status="complete"] {
+  border-color:
+    var(--training-green-border);
+
+  background:
+    var(--training-green-soft);
+
+  box-shadow:
+    inset 0 0 20px
+      rgba(105, 245, 168, 0.035);
+}
+
+.ari-live-set.is-complete
+.ari-live-set__label {
+  color:
+    var(--training-green);
+}
+
+.ari-live-set.is-complete
+.ari-primary-button {
+  color:
+    var(--training-green);
+
+  border-color:
+    var(--training-green-border);
+
+  background:
+    rgba(105, 245, 168, 0.08);
+
+  box-shadow:
+    none;
+}
+
+
+/* =====================================================
+   FORM FIELDS
+===================================================== */
+
+.ari-field {
+  display:
+    grid;
+
+  gap:
+    7px;
+
+  color:
+    var(--training-soft);
+
+  font-size:
+    0.7rem;
+
+  font-weight:
+    700;
+}
+
+.ari-field > span {
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.61rem;
+
+  letter-spacing:
+    0.04em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-field input,
+.ari-input-with-unit {
+  width:
+    100%;
+}
+
+.ari-field input {
+  min-height:
+    50px;
+
+  padding:
+    0 13px;
+
+  color:
+    var(--training-white);
+
+  caret-color:
+    var(--training-cyan);
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.17);
+
+  border-radius:
+    12px;
+
+  outline:
+    none;
+
+  background:
+    rgba(2, 9, 13, 0.58);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    1rem;
+
+  font-weight:
+    700;
+
+  transition:
+    border-color var(--training-transition),
+    box-shadow var(--training-transition),
+    background var(--training-transition);
+}
+
+.ari-field input:focus {
+  border-color:
+    var(--training-border-strong);
+
+  background:
+    rgba(4, 17, 23, 0.82);
+
+  box-shadow:
+    0 0 0 3px
+      rgba(103, 227, 255, 0.07);
+}
+
+.ari-field input::placeholder {
+  color:
+    var(--training-dim);
+}
+
+.ari-field input:disabled {
+  color:
+    var(--training-muted);
+
+  opacity:
+    0.8;
 }
 
 .ari-input-with-unit {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 10px;
+  position:
+    relative;
 }
 
-.ari-input-with-unit input,
-.ari-field input,
-.ari-field select,
-.ari-field textarea {
-  width: 100%;
-  min-height: 50px;
-  padding: 12px 14px;
-  border: 1px solid rgba(92, 231, 255, 0.20);
-  border-radius: 14px;
-  background: rgba(2, 9, 13, 0.78);
-  color: var(--ari-training-text);
+.ari-input-with-unit input {
+  padding-right:
+    54px;
+}
+
+.ari-input-with-unit > span {
+  position:
+    absolute;
+
+  top:
+    50%;
+
+  right:
+    14px;
+
+  transform:
+    translateY(-50%);
+
+  color:
+    var(--training-cyan);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.62rem;
+
+  font-weight:
+    800;
+
+  pointer-events:
+    none;
 }
 
 .ari-field-help {
-  margin: 8px 0 0;
-  color: var(--ari-training-text-muted);
-  font-size: .75rem;
-  line-height: 1.5;
+  margin:
+    9px 0 0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.69rem;
+
+  line-height:
+    1.5;
 }
 
-.ari-training-profile__intensity {
-  margin-top: 16px;
-  padding: 14px 16px;
-  display: grid;
-  gap: 5px;
-  border-left: 3px solid var(--ari-training-border-strong);
-  border-radius: 12px;
-  background: rgba(92, 231, 255, 0.045);
+
+/* =====================================================
+   REST TIMER
+===================================================== */
+
+.ari-workout-rest {
+  margin-top:
+    18px;
+
+  padding:
+    18px;
+
+  border:
+    1px solid
+    var(--training-amber-border);
+
+  border-radius:
+    17px;
+
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 201, 107, 0.09),
+      transparent 18rem
+    ),
+    rgba(30, 21, 8, 0.34);
+
+  text-align:
+    center;
 }
 
-.ari-training-profile__intensity strong {
-  font-family: "Audiowide", sans-serif;
-  font-weight: 400;
-  text-transform: uppercase;
+.ari-workout-rest h4 {
+  margin:
+    0;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    1rem;
+
+  font-weight:
+    400;
 }
 
-.ari-training-profile__intensity small,
-.ari-training-profile__intensity > span {
-  color: var(--ari-training-text-muted);
+.ari-workout-rest__timer {
+  display:
+    block;
+
+  margin:
+    15px 0;
+
+  color:
+    var(--training-amber);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    clamp(
+      2.3rem,
+      13vw,
+      4rem
+    );
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.04em;
+
+  text-shadow:
+    0 0 24px
+      rgba(255, 201, 107, 0.12);
+}
+
+.ari-workout-rest__actions {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:
+    8px;
+}
+
+.ari-workout-rest
+#logWorkoutHeartRateButton {
+  color:
+    var(--training-cyan);
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.12);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(103, 227, 255, 0.04);
+}
+
+.ari-workout-rest
+#logWorkoutHeartRateButton::before {
+  content:
+    "♡";
+
+  margin-right:
+    6px;
+
+  font-size:
+    1rem;
+}
+
+
+/* =====================================================
+   HR ENTRY
+===================================================== */
+
+.ari-workout-heart-rate-entry {
+  margin-top:
+    14px;
+
+  padding:
+    16px;
+
+  border:
+    1px solid
+    var(--training-border-medium);
+
+  border-radius:
+    17px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(11, 30, 39, 0.98),
+      rgba(5, 15, 21, 0.98)
+    );
+
+  box-shadow:
+    var(--training-shadow-soft),
+    var(--training-glow);
+}
+
+.ari-workout-heart-rate-entry__heading {
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    flex-start;
+
+  gap:
+    12px;
+
+  margin-bottom:
+    14px;
+}
+
+.ari-workout-heart-rate-entry h4 {
+  margin:
+    0;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    1rem;
+}
+
+.ari-workout-heart-rate-entry
+.ari-secondary-button {
+  width:
+    100%;
+
+  margin-top:
+    12px;
+}
+
+.ari-workout-heart-rate-summary {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    7px;
+
+  margin-top:
+    14px;
+}
+
+.ari-workout-heart-rate-summary > div {
+  padding:
+    11px 7px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.09);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(103, 227, 255, 0.035);
+}
+
+.ari-workout-heart-rate-summary span {
+  display:
+    block;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.52rem;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-workout-heart-rate-summary strong {
+  display:
+    block;
+
+  margin-top:
+    5px;
+
+  color:
+    var(--training-cyan-bright);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.7rem;
+}
+
+
+/* =====================================================
+   SESSION EXERCISE LIST
+===================================================== */
+
+.ari-todays-training__exercise-list {
+  display:
+    grid;
+
+  gap:
+    7px;
+
+  margin-top:
+    15px;
+}
+
+.ari-today-exercise {
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.08);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(3, 11, 16, 0.34);
+
+  transition:
+    border-color var(--training-transition),
+    background var(--training-transition);
+}
+
+.ari-today-exercise[data-status="complete"] {
+  border-color:
+    rgba(105, 245, 168, 0.2);
+
+  background:
+    rgba(105, 245, 168, 0.045);
+}
+
+.ari-today-exercise__header {
+  width:
+    100%;
+
+  min-height:
+    66px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    10px;
+
+  padding:
+    11px 13px;
+
+  color:
+    inherit;
+
+  text-align:
+    left;
+
+  border:
+    0;
+
+  background:
+    transparent;
+
+  cursor:
+    pointer;
+}
+
+.ari-today-exercise__type,
+.ari-today-exercise__name,
+.ari-today-exercise__prescription {
+  margin:
+    0;
+}
+
+.ari-today-exercise__type {
+  color:
+    var(--training-cyan);
+
+  font-size:
+    0.5rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.1em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-today-exercise__name {
+  margin-top:
+    3px;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    0.85rem;
+
+  font-weight:
+    800;
+}
+
+.ari-today-exercise[data-status="complete"]
+.ari-today-exercise__name {
+  color:
+    var(--training-green);
+}
+
+.ari-today-exercise__prescription {
+  margin-top:
+    3px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.65rem;
+}
+
+.ari-today-exercise__status {
+  flex:
+    0 0 auto;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+}
+
+.ari-today-exercise__progress {
+  color:
+    var(--training-soft);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.56rem;
+}
+
+.ari-today-exercise[data-status="complete"]
+.ari-today-exercise__progress {
+  color:
+    var(--training-green);
+}
+
+.ari-today-exercise__chevron {
+  color:
+    var(--training-muted);
+}
+
+.ari-today-exercise__body {
+  padding:
+    0 13px 13px;
+}
+
+.ari-today-exercise__sets {
+  display:
+    grid;
+
+  gap:
+    5px;
+}
+
+.ari-today-exercise__set-summary {
+  padding:
+    8px 10px;
+
+  color:
+    var(--training-soft);
+
+  border-radius:
+    9px;
+
+  background:
+    rgba(255, 255, 255, 0.018);
+
+  font-size:
+    0.68rem;
+}
+
+.ari-todays-training__session-actions {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(0, 0.7fr)
+    minmax(0, 1.3fr);
+
+  gap:
+    8px;
+
+  margin-top:
+    18px;
+}
+
+
+/* =====================================================
+   COMPLETION PANEL
+===================================================== */
+
+.ari-workout-complete-panel {
+  position:
+    relative;
+
+  z-index:
+    1;
+
+  margin-top:
+    20px;
+
+  overflow:
+    hidden;
+
+  padding:
+    20px;
+
+  border:
+    1px solid
+    var(--training-green-border);
+
+  border-radius:
+    20px;
+
+  background:
+    radial-gradient(
+      circle at 50% -10%,
+      rgba(105, 245, 168, 0.1),
+      transparent 24rem
+    ),
+    linear-gradient(
+      180deg,
+      rgba(13, 37, 34, 0.96),
+      rgba(5, 16, 20, 0.98)
+    );
+
+  box-shadow:
+    0 18px 45px
+      rgba(0, 0, 0, 0.26),
+    0 0 34px
+      rgba(105, 245, 168, 0.07);
+}
+
+.ari-workout-complete-panel__heading {
+  text-align:
+    center;
+}
+
+.ari-workout-complete-panel__heading
+.ari-section-heading__eyebrow {
+  color:
+    var(--training-green);
+}
+
+.ari-workout-complete-panel__heading h3 {
+  margin:
+    4px 0 0;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.6rem,
+      8vw,
+      2.4rem
+    );
+
+  font-weight:
+    400;
+}
+
+.ari-workout-complete-panel__heading p:last-child {
+  margin:
+    9px 0 0;
+
+  color:
+    var(--training-soft);
+
+  line-height:
+    1.45;
+}
+
+.ari-workout-complete-panel__metrics {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    7px;
+
+  margin-top:
+    18px;
+}
+
+.ari-workout-complete-panel__metrics > div {
+  padding:
+    12px 8px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(105, 245, 168, 0.13);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(105, 245, 168, 0.04);
+}
+
+.ari-workout-complete-panel__metrics span {
+  display:
+    block;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.54rem;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-workout-complete-panel__metrics strong {
+  display:
+    block;
+
+  margin-top:
+    5px;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.76rem;
+}
+
+
+/* =====================================================
+   INTENSITY SELECTION
+===================================================== */
+
+.ari-workout-intensity {
+  margin:
+    20px 0 0;
+
+  padding:
+    0;
+
+  border:
+    0;
+}
+
+.ari-workout-intensity legend {
+  margin-bottom:
+    10px;
+
+  color:
+    var(--training-soft);
+
+  font-size:
+    0.78rem;
+
+  font-weight:
+    800;
+}
+
+.ari-workout-intensity__options {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap:
+    8px;
+}
+
+.ari-workout-intensity__options label {
+  position:
+    relative;
+}
+
+.ari-workout-intensity__options input {
+  position:
+    absolute;
+
+  opacity:
+    0;
+
+  pointer-events:
+    none;
+}
+
+.ari-workout-intensity__options span {
+  min-height:
+    46px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0 10px;
+
+  color:
+    var(--training-soft);
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.1);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(2, 10, 14, 0.4);
+
+  cursor:
+    pointer;
+
+  font-size:
+    0.72rem;
+
+  font-weight:
+    800;
+
+  transition:
+    border-color var(--training-transition),
+    color var(--training-transition),
+    background var(--training-transition),
+    transform var(--training-transition);
+}
+
+.ari-workout-intensity__options
+input:checked + span {
+  color:
+    var(--training-cyan-bright);
+
+  border-color:
+    var(--training-border-strong);
+
+  background:
+    var(--training-cyan-soft);
+
+  box-shadow:
+    inset 0 0 20px
+      rgba(103, 227, 255, 0.04);
+}
+
+.ari-workout-intensity__options
+span:active {
+  transform:
+    scale(0.98);
+}
+
+
+/* =====================================================
+   FINAL HEART RATE
+===================================================== */
+
+.ari-workout-final-heart-rate {
+  margin-top:
+    20px;
+
+  padding-top:
+    18px;
+
+  border-top:
+    1px solid
+    rgba(103, 227, 255, 0.09);
+}
+
+.ari-workout-final-heart-rate__heading h4 {
+  margin:
+    0;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    0.95rem;
+}
+
+.ari-workout-final-heart-rate__grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:
+    10px;
+
+  margin-top:
+    12px;
+}
+
+
+/* =====================================================
+   CALORIE RESULT
+===================================================== */
+
+.ari-workout-calorie-result {
+  margin-top:
+    18px;
+
+  padding:
+    17px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    var(--training-border-medium);
+
+  border-radius:
+    16px;
+
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(103, 227, 255, 0.08),
+      transparent 12rem
+    ),
+    rgba(103, 227, 255, 0.035);
+}
+
+.ari-workout-calorie-result > span {
+  display:
+    block;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.62rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.08em;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-workout-calorie-result strong {
+  display:
+    block;
+
+  margin-top:
+    8px;
+
+  color:
+    var(--training-cyan-bright);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.8rem,
+      9vw,
+      2.8rem
+    );
+
+  font-weight:
+    800;
+
+  text-shadow:
+    0 0 22px
+      rgba(103, 227, 255, 0.1);
+}
+
+.ari-workout-calorie-result small {
+  display:
+    block;
+
+  max-width:
+    520px;
+
+  margin:
+    8px auto 0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.67rem;
+
+  line-height:
+    1.5;
+}
+
+.ari-workout-complete-panel__actions {
+  display:
+    grid;
+
+  gap:
+    8px;
+
+  margin-top:
+    18px;
+}
+
+
+/* =====================================================
+   COLLAPSIBLE TOP-LEVEL SECTIONS
+===================================================== */
+
+.ari-training-collapsible,
+.ari-training-profile,
+.ari-training-history-panel {
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.09);
+
+  border-radius:
+    var(--training-radius-lg);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(9, 20, 28, 0.87),
+      rgba(5, 13, 18, 0.92)
+    );
+
+  box-shadow:
+    var(--training-shadow-soft);
+}
+
+.ari-training-collapsible__summary,
+.ari-training-profile__summary,
+.ari-training-history-summary {
+  min-height:
+    80px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+
+  padding:
+    15px 16px;
+
+  list-style:
+    none;
+
+  cursor:
+    pointer;
+
+  user-select:
+    none;
+}
+
+.ari-training-collapsible__summary::-webkit-details-marker,
+.ari-training-profile__summary::-webkit-details-marker,
+.ari-training-history-summary::-webkit-details-marker {
+  display:
+    none;
+}
+
+.ari-training-collapsible__summary::marker,
+.ari-training-profile__summary::marker,
+.ari-training-history-summary::marker {
+  content:
+    "";
+}
+
+.ari-training-collapsible__summary h2,
+.ari-training-profile__summary h2,
+.ari-training-history-summary h2 {
+  margin:
+    0;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    1rem;
+
+  font-weight:
+    800;
+}
+
+.ari-training-collapsible__subtext,
+.ari-training-profile__summary-note,
+.ari-training-history-summary__month {
+  margin:
+    4px 0 0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.67rem;
+}
+
+.ari-training-collapsible__summary-right,
+.ari-training-profile__summary-action,
+.ari-training-history-summary__totals {
+  flex:
+    0 0 auto;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    9px;
+}
+
+.ari-training-collapsible__summary-stat,
+.ari-training-profile__source,
+.ari-training-history-summary__totals span {
+  color:
+    var(--training-soft);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.56rem;
+
+  font-weight:
+    700;
+}
+
+.ari-training-collapsible__chevron,
+.ari-training-profile__chevron,
+.ari-training-history-summary__chevron {
+  display:
+    inline-block;
+
+  color:
+    var(--training-cyan);
+
+  transition:
+    transform var(--training-transition);
+}
+
+details[open]
+> summary
+.ari-training-collapsible__chevron,
+details[open]
+> summary
+.ari-training-profile__chevron,
+details[open]
+> summary
+.ari-training-history-summary__chevron {
+  transform:
+    rotate(180deg);
+}
+
+.ari-training-collapsible__body,
+.ari-training-profile__body,
+.ari-training-history-panel__body {
+  padding:
+    0 15px 16px;
+
+  border-top:
+    1px solid
+    rgba(103, 227, 255, 0.06);
+}
+
+
+/* =====================================================
+   SECTION ACTIONS
+===================================================== */
+
+.ari-training-section-actions {
+  display:
+    flex;
+
+  justify-content:
+    flex-end;
+
+  padding:
+    8px 0;
+}
+
+
+/* =====================================================
+   PERFORMANCE
+===================================================== */
+
+.ari-performance-grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap:
+    8px;
+
+  margin-top:
+    14px;
+}
+
+.ari-performance-card {
+  min-width:
+    0;
+
+  padding:
+    14px;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.08);
+
+  border-radius:
+    14px;
+
+  background:
+    rgba(2, 10, 14, 0.34);
+}
+
+.ari-performance-card--primary {
+  border-color:
+    rgba(103, 227, 255, 0.18);
+
+  background:
+    rgba(103, 227, 255, 0.045);
+}
+
+.ari-performance-card__label,
+.ari-performance-card__value,
+.ari-performance-card__meta {
+  margin:
+    0;
+}
+
+.ari-performance-card__label {
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.6rem;
+
+  font-weight:
+    800;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-performance-card__value {
+  margin-top:
+    7px;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    1.2rem;
+
+  font-weight:
+    800;
+}
+
+.ari-performance-card--primary
+.ari-performance-card__value {
+  color:
+    var(--training-cyan-bright);
+}
+
+.ari-performance-card__unit {
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.58em;
+}
+
+.ari-performance-card__meta {
+  margin-top:
+    6px;
+
+  color:
+    var(--training-dim);
+
+  font-size:
+    0.58rem;
+
+  line-height:
+    1.4;
+}
+
+.ari-performance-heart-rate {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    7px;
+
+  margin-top:
+    10px;
+}
+
+.ari-performance-heart-rate > div {
+  padding:
+    11px 7px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.08);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(103, 227, 255, 0.025);
+}
+
+.ari-performance-heart-rate span {
+  display:
+    block;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.5rem;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-performance-heart-rate strong {
+  display:
+    block;
+
+  margin-top:
+    5px;
+
+  color:
+    var(--training-cyan-bright);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.64rem;
 }
 
 .ari-training-calorie-note {
-  margin: 14px 2px 0;
-  color: var(--ari-training-text-muted);
-  font-size: .74rem;
-  line-height: 1.5;
+  margin:
+    12px 0 0;
+
+  color:
+    var(--training-dim);
+
+  font-size:
+    0.61rem;
+
+  line-height:
+    1.5;
 }
 
-/* PLAN CARD */
-.ari-training-plan-tab {
-  position: relative;
-  padding: 22px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  overflow: hidden;
-  border: 1px solid var(--ari-training-border);
-  border-radius: var(--ari-training-radius-xl);
-  background: radial-gradient(circle at 100% 0%, rgba(155,108,255,.10), transparent 42%), linear-gradient(145deg, rgba(12,29,37,.98), rgba(6,16,22,.98));
-  box-shadow: var(--ari-training-shadow);
-  text-decoration: none;
+
+/* =====================================================
+   PROFILE
+===================================================== */
+
+.ari-training-profile__grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    7px;
+
+  margin-top:
+    14px;
 }
 
-.ari-training-plan-tab__icon {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--ari-training-border-strong);
-  border-radius: 17px;
-  color: var(--ari-training-cyan);
-  background: rgba(92,231,255,.06);
-  font-family: "Audiowide", sans-serif;
+.ari-training-profile__metric {
+  min-width:
+    0;
+
+  padding:
+    12px 7px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.08);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(3, 11, 16, 0.34);
 }
 
-.ari-training-plan-tab__content h2 {
-  margin: 0;
-  font-family: "Audiowide", sans-serif;
-  font-size: clamp(1.25rem, 5vw, 1.8rem);
-  font-weight: 400;
-  text-transform: uppercase;
+.ari-training-profile__metric span,
+.ari-training-profile__metric strong,
+.ari-training-profile__metric small {
+  display:
+    block;
 }
 
-.ari-training-plan-tab__content p:last-child {
-  margin: 10px 0 0;
-  color: var(--ari-training-text-soft);
-  line-height: 1.55;
+.ari-training-profile__metric span {
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.51rem;
+
+  text-transform:
+    uppercase;
 }
 
-.ari-training-plan-tab__arrow {
-  color: var(--ari-training-cyan);
-  font-size: 1.8rem;
+.ari-training-profile__metric strong {
+  margin-top:
+    6px;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.68rem;
 }
 
-/* WEEKLY SUMMARY */
-.ari-weekly-plan-summary {
-  padding: 22px;
-  border: 1px solid var(--ari-training-border);
-  border-radius: var(--ari-training-radius-xl);
-  background: linear-gradient(145deg, rgba(11,27,35,.97), rgba(6,16,22,.97));
-  box-shadow: var(--ari-training-shadow);
+.ari-training-profile__metric small {
+  margin-top:
+    4px;
+
+  color:
+    var(--training-dim);
+
+  font-size:
+    0.48rem;
+
+  line-height:
+    1.3;
 }
+
+
+/* =====================================================
+   WEEKLY PLAN TOTALS
+===================================================== */
 
 .ari-weekly-plan-progress {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap:
+    7px;
+
+  margin:
+    4px 0 12px;
 }
 
 .ari-weekly-plan-progress > div {
-  padding: 14px 12px;
-  display: grid;
-  gap: 7px;
-  border: 1px solid rgba(92,231,255,.13);
-  border-radius: 14px;
-  background: rgba(255,255,255,.025);
+  min-width:
+    0;
+
+  padding:
+    11px 7px;
+
+  text-align:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.07);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(2, 9, 13, 0.3);
 }
 
 .ari-weekly-plan-progress span {
-  color: var(--ari-training-text-muted);
-  font-size: .67rem;
+  display:
+    block;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.5rem;
+
+  text-transform:
+    uppercase;
 }
 
+.ari-weekly-plan-progress strong {
+  display:
+    block;
+
+  margin-top:
+    5px;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.62rem;
+}
+
+
+/* =====================================================
+   WEEKLY DAY
+===================================================== */
+
 .ari-weekly-plan-list {
-  display: grid;
-  gap: 10px;
+  display:
+    grid;
+
+  gap:
+    7px;
 }
 
 .ari-weekly-plan-day {
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid rgba(92,231,255,.14);
-  border-radius: 18px;
-  background: rgba(4,12,17,.70);
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.07);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(3, 11, 16, 0.33);
+
+  transition:
+    border-color var(--training-transition),
+    background var(--training-transition);
 }
 
 .ari-weekly-plan-day[data-status="complete"] {
-  border-color: rgba(111,255,194,.27);
+  border-color:
+    rgba(105, 245, 168, 0.2);
+
+  background:
+    rgba(105, 245, 168, 0.04);
+}
+
+.ari-weekly-plan-day[data-status="in_progress"] {
+  border-color:
+    rgba(103, 227, 255, 0.2);
+
+  background:
+    rgba(103, 227, 255, 0.04);
 }
 
 .ari-weekly-plan-day[data-status="rest"] {
-  opacity: .78;
+  border-color:
+    rgba(255, 201, 107, 0.11);
+
+  background:
+    rgba(255, 201, 107, 0.025);
 }
 
 .ari-weekly-plan-day__header {
-  width: 100%;
-  min-height: 82px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
+  width:
+    100%;
+
+  min-height:
+    70px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    10px;
+
+  padding:
+    12px 13px;
+
+  color:
+    inherit;
+
+  text-align:
+    left;
+
+  border:
+    0;
+
+  background:
+    transparent;
+
+  cursor:
+    pointer;
 }
 
-.ari-weekly-plan-day__identity {
-  min-width: 0;
-  flex: 1 1 auto;
+.ari-weekly-plan-day__header:disabled {
+  cursor:
+    default;
+}
+
+.ari-weekly-plan-day__weekday,
+.ari-weekly-plan-day__title,
+.ari-weekly-plan-day__summary {
+  margin:
+    0;
 }
 
 .ari-weekly-plan-day__weekday {
-  margin: 0 0 5px;
-  color: var(--ari-training-cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: .66rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  color:
+    var(--training-cyan);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.52rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.08em;
+
+  text-transform:
+    uppercase;
 }
 
 .ari-weekly-plan-day__title {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
+  margin-top:
+    3px;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    0.86rem;
+
+  font-weight:
+    800;
+}
+
+.ari-weekly-plan-day__summary {
+  margin-top:
+    3px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.62rem;
 }
 
 .ari-weekly-plan-day__status-group {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 9px;
-  flex-wrap: wrap;
+  flex:
+    0 0 auto;
+
+  display:
+    grid;
+
+  justify-items:
+    end;
+
+  gap:
+    3px;
 }
 
 .ari-weekly-plan-day__calories {
-  color: var(--ari-training-text-soft);
-  font-size: .78rem;
-  font-weight: 800;
-  white-space: nowrap;
+  color:
+    var(--training-soft);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.55rem;
 }
 
 .ari-weekly-plan-day__status {
-  padding: 6px 8px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.045);
-  font-family: "Orbitron", sans-serif;
-  font-size: .58rem;
-  font-weight: 800;
-  white-space: nowrap;
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.5rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.05em;
+}
+
+.ari-weekly-plan-day[data-status="complete"]
+.ari-weekly-plan-day__status {
+  color:
+    var(--training-green);
+}
+
+.ari-weekly-plan-day[data-status="in_progress"]
+.ari-weekly-plan-day__status {
+  color:
+    var(--training-cyan);
+}
+
+.ari-weekly-plan-day[data-status="rest"]
+.ari-weekly-plan-day__status {
+  color:
+    var(--training-amber);
 }
 
 .ari-weekly-plan-day__chevron {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  color: var(--ari-training-text-muted);
-  transition: transform 180ms ease;
+  margin-top:
+    2px;
+
+  color:
+    var(--training-muted);
 }
 
-.ari-weekly-plan-day__header[aria-expanded="true"] .ari-weekly-plan-day__chevron {
-  transform: rotate(180deg);
+.ari-weekly-plan-day__header[aria-expanded="true"]
+.ari-weekly-plan-day__chevron {
+  transform:
+    rotate(180deg);
 }
 
 .ari-weekly-plan-day__body {
-  padding: 0 16px 16px;
-  border-top: 1px solid rgba(92,231,255,.09);
+  padding:
+    0 12px 12px;
+
+  border-top:
+    1px solid
+    rgba(103, 227, 255, 0.05);
 }
 
 .ari-weekly-plan-day__exercise-list {
-  padding-top: 14px;
-  display: grid;
-  gap: 12px;
+  display:
+    grid;
+
+  gap:
+    6px;
+
+  margin-top:
+    10px;
 }
 
 .ari-weekly-plan-day__footer {
-  margin-top: 14px;
-  padding-top: 14px;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 1px solid rgba(92,231,255,.09);
-  color: var(--ari-training-text-muted);
-  font-size: .75rem;
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+
+  padding:
+    11px 2px 0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.59rem;
 }
 
-/* EXERCISES + SETS */
+
+/* =====================================================
+   PLANNED EXERCISE
+===================================================== */
+
 .ari-planned-exercise {
-  padding: 16px;
-  border: 1px solid rgba(92,231,255,.11);
-  border-radius: 16px;
-  background: rgba(255,255,255,.025);
+  padding:
+    11px;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.065);
+
+  border-radius:
+    11px;
+
+  background:
+    rgba(1, 7, 10, 0.28);
 }
 
 .ari-planned-exercise__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    flex-start;
+
+  gap:
+    10px;
+}
+
+.ari-planned-exercise__type,
+.ari-planned-exercise__name,
+.ari-planned-exercise__prescription {
+  margin:
+    0;
 }
 
 .ari-planned-exercise__type {
-  margin: 0 0 4px;
-  color: var(--ari-training-cyan);
-  font-size: .64rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  color:
+    var(--training-cyan);
+
+  font-size:
+    0.47rem;
+
+  font-weight:
+    800;
+
+  text-transform:
+    uppercase;
 }
 
 .ari-planned-exercise__name {
-  margin: 0;
-  font-size: 1rem;
+  margin-top:
+    2px;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    0.76rem;
 }
 
 .ari-planned-exercise__prescription {
-  margin: 5px 0 0;
-  color: var(--ari-training-text-muted);
-  font-size: .76rem;
+  margin-top:
+    3px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.59rem;
 }
 
 .ari-planned-exercise__calories {
-  flex: 0 0 auto;
-  color: var(--ari-training-cyan-soft);
-  font-size: .8rem;
+  flex:
+    0 0 auto;
+
+  color:
+    var(--training-muted);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.52rem;
 }
 
 .ari-planned-exercise__sets {
-  margin-top: 12px;
-  display: grid;
-  gap: 8px;
+  display:
+    grid;
+
+  gap:
+    4px;
+
+  margin-top:
+    8px;
 }
 
-.ari-planned-set,
-.ari-planned-exercise__single-complete {
-  display: block;
-  cursor: pointer;
+.ari-planned-set--summary {
+  padding:
+    7px 8px;
+
+  color:
+    var(--training-muted);
+
+  border-radius:
+    8px;
+
+  background:
+    rgba(255, 255, 255, 0.014);
+
+  font-size:
+    0.58rem;
 }
 
-.ari-planned-set__checkbox,
-.ari-planned-exercise__complete-checkbox {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.ari-planned-set--summary.is-complete {
+  color:
+    var(--training-green);
+
+  background:
+    rgba(105, 245, 168, 0.045);
 }
 
-.ari-planned-set__control,
-.ari-planned-exercise__complete-control {
-  min-height: 52px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: 28px auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid rgba(92,231,255,.10);
-  border-radius: 12px;
-  background: rgba(2,8,12,.50);
+
+/* =====================================================
+   EMPTY PLAN
+===================================================== */
+
+.ari-weekly-plan-empty {
+  padding:
+    18px;
+
+  text-align:
+    center;
+
+  border:
+    1px dashed
+    var(--training-border-medium);
+
+  border-radius:
+    14px;
 }
 
-.ari-planned-exercise__complete-control {
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+.ari-weekly-plan-empty p {
+  margin:
+    0 0 12px;
+
+  color:
+    var(--training-soft);
 }
 
-.ari-planned-set__check,
-.ari-planned-exercise__check {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(92,231,255,.28);
-  border-radius: 8px;
-  color: transparent;
-  background: rgba(255,255,255,.025);
-}
 
-.ari-planned-set__calories,
-.ari-planned-exercise__single-calories {
-  color: var(--ari-training-cyan-soft);
-  font-size: .76rem;
-  white-space: nowrap;
-}
-
-.ari-planned-set__prescription {
-  color: var(--ari-training-text-muted);
-  font-size: .75rem;
-}
-
-.ari-planned-set__checkbox:checked + .ari-planned-set__control,
-.ari-planned-exercise__complete-checkbox:checked + .ari-planned-exercise__complete-control {
-  border-color: rgba(111,255,194,.30);
-  background: rgba(111,255,194,.055);
-}
-
-.ari-planned-set__checkbox:checked + .ari-planned-set__control .ari-planned-set__check,
-.ari-planned-exercise__complete-checkbox:checked + .ari-planned-exercise__complete-control .ari-planned-exercise__check {
-  color: #00120c;
-  border-color: var(--ari-training-green);
-  background: var(--ari-training-green);
-}
-
-/* MONTHLY HISTORY */
-.ari-training-history-panel {
-  overflow: hidden;
-  border: 1px solid var(--ari-training-border);
-  border-radius: var(--ari-training-radius-xl);
-  background: var(--ari-training-surface);
-  box-shadow: var(--ari-training-shadow);
-}
-
-.ari-training-history-summary {
-  list-style: none;
-  min-height: 110px;
-  padding: 20px 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.ari-training-history-summary::-webkit-details-marker,
-.ari-history-day > summary::-webkit-details-marker {
-  display: none;
-}
-
-.ari-training-history-summary h2 {
-  margin: 0;
-  font-family: "Audiowide", sans-serif;
-  font-size: clamp(1.2rem, 5vw, 1.7rem);
-  font-weight: 400;
-  text-transform: uppercase;
-}
-
-.ari-training-history-summary__month {
-  margin: 7px 0 0;
-  color: var(--ari-training-text-muted);
-  font-size: .76rem;
-}
+/* =====================================================
+   MONTHLY HISTORY
+===================================================== */
 
 .ari-training-history-summary__totals {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  color: var(--ari-training-text-soft);
-  font-size: .72rem;
+  flex-wrap:
+    wrap;
+
+  justify-content:
+    flex-end;
 }
 
-.ari-training-history-panel__body {
-  padding: 0 22px 22px;
-  border-top: 1px solid rgba(92,231,255,.10);
+.ari-training-history-summary__totals span {
+  white-space:
+    nowrap;
 }
 
 .ari-monthly-summary-grid {
-  padding-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap:
+    7px;
+
+  margin-top:
+    14px;
 }
 
 .ari-monthly-summary-grid article {
-  padding: 14px;
-  border: 1px solid rgba(92,231,255,.11);
-  border-radius: 14px;
-  background: rgba(255,255,255,.025);
+  padding:
+    12px;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.07);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(3, 11, 16, 0.3);
 }
 
 .ari-monthly-summary-grid p {
-  margin: 0 0 8px;
-  color: var(--ari-training-text-muted);
-  font-size: .66rem;
+  margin:
+    0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.56rem;
+
+  text-transform:
+    uppercase;
+}
+
+.ari-monthly-summary-grid strong {
+  display:
+    block;
+
+  margin-top:
+    6px;
+
+  color:
+    var(--training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    0.8rem;
 }
 
 .ari-month-history-list {
-  margin-top: 16px;
-  display: grid;
-  gap: 10px;
+  display:
+    grid;
+
+  gap:
+    7px;
+
+  margin-top:
+    12px;
 }
 
 .ari-history-day {
-  overflow: hidden;
-  border: 1px solid rgba(92,231,255,.11);
-  border-radius: 16px;
-  background: rgba(3,10,14,.54);
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.065);
+
+  border-radius:
+    12px;
+
+  background:
+    rgba(2, 9, 13, 0.28);
 }
 
 .ari-history-day > summary {
-  min-height: 72px;
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  list-style: none;
+  min-height:
+    60px;
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+  gap:
+    10px;
+
+  padding:
+    10px 12px;
+
+  list-style:
+    none;
+
+  cursor:
+    pointer;
 }
 
-.ari-history-day__date,
-.ari-training-history-reset-note,
-.ari-history-empty-state {
-  color: var(--ari-training-text-muted);
-  font-size: .72rem;
+.ari-history-day > summary::-webkit-details-marker {
+  display:
+    none;
+}
+
+.ari-history-day__label {
+  display:
+    block;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    0.75rem;
+}
+
+.ari-history-day__date {
+  display:
+    block;
+
+  margin-top:
+    2px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.56rem;
+}
+
+.ari-history-day__summary {
+  display:
+    grid;
+
+  justify-items:
+    end;
+
+  gap:
+    2px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.55rem;
 }
 
 .ari-history-day__entries {
-  padding: 0 14px 14px;
-  display: grid;
-  gap: 8px;
+  display:
+    grid;
+
+  gap:
+    5px;
+
+  padding:
+    0 10px 10px;
 }
 
 .ari-history-workout {
-  padding: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.025);
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  gap:
+    10px;
+
+  padding:
+    10px;
+
+  border-radius:
+    10px;
+
+  background:
+    rgba(255, 255, 255, 0.015);
+}
+
+.ari-history-workout__type,
+.ari-history-workout__name {
+  margin:
+    0;
 }
 
 .ari-history-workout__type {
-  margin: 0 0 3px;
-  color: var(--ari-training-green);
-  font-size: .61rem;
-  font-weight: 900;
+  color:
+    var(--training-green);
+
+  font-size:
+    0.46rem;
+
+  font-weight:
+    800;
 }
 
 .ari-history-workout__name {
-  margin: 0;
+  margin-top:
+    2px;
+
+  color:
+    var(--training-white);
+
+  font-size:
+    0.7rem;
 }
 
 .ari-history-workout__metrics {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  color: var(--ari-training-text-muted);
-  font-size: .68rem;
+  display:
+    grid;
+
+  justify-items:
+    end;
+
+  gap:
+    2px;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.52rem;
 }
 
-/* FOCUS */
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-summary:focus-visible {
-  outline: 2px solid var(--ari-training-cyan);
-  outline-offset: 3px;
+.ari-history-workout__metrics strong {
+  color:
+    var(--training-cyan-bright);
 }
 
-/* MOBILE */
-@media (max-width: 760px) {
+.ari-history-empty-state {
+  margin-top:
+    12px;
+
+  padding:
+    15px;
+
+  text-align:
+    center;
+
+  border:
+    1px dashed
+    rgba(103, 227, 255, 0.1);
+
+  border-radius:
+    12px;
+}
+
+.ari-history-empty-state p {
+  margin:
+    0;
+
+  color:
+    var(--training-muted);
+
+  font-size:
+    0.68rem;
+}
+
+.ari-training-history-reset-note {
+  margin:
+    12px 0 0;
+
+  color:
+    var(--training-dim);
+
+  font-size:
+    0.58rem;
+
+  line-height:
+    1.5;
+}
+
+
+/* =====================================================
+   SMALL SATISFACTION STATES
+===================================================== */
+
+@keyframes ariTrainingSetComplete {
+  0% {
+    box-shadow:
+      0 0 0
+      rgba(105, 245, 168, 0);
+  }
+
+  45% {
+    box-shadow:
+      0 0 26px
+      rgba(105, 245, 168, 0.18);
+  }
+
+  100% {
+    box-shadow:
+      0 0 0
+      rgba(105, 245, 168, 0);
+  }
+}
+
+.ari-live-set.is-complete {
+  animation:
+    ariTrainingSetComplete
+    420ms ease-out;
+}
+
+
+@keyframes ariTrainingSoftPulse {
+  0%,
+  100% {
+    opacity:
+      0.82;
+  }
+
+  50% {
+    opacity:
+      1;
+  }
+}
+
+.ari-todays-training__status[data-status="in_progress"] {
+  animation:
+    ariTrainingSoftPulse
+    2.4s ease-in-out infinite;
+}
+
+
+/* =====================================================
+   TABLET / DESKTOP
+===================================================== */
+
+@media (
+  min-width: 680px
+) {
+  .ari-training-main {
+    gap:
+      16px;
+
+    padding:
+      22px 18px 52px;
+  }
+
+  .ari-todays-training {
+    padding:
+      26px;
+  }
+
+  .ari-todays-training__actions {
+    grid-template-columns:
+      minmax(220px, 1fr)
+      auto;
+
+    align-items:
+      center;
+  }
+
+  .ari-todays-training__start {
+    max-width:
+      440px;
+  }
+
+  .ari-today-session-current {
+    padding:
+      22px;
+  }
+
+  .ari-workout-complete-panel {
+    padding:
+      26px;
+  }
+
+  .ari-workout-complete-panel__actions {
+    grid-template-columns:
+      0.7fr 1.3fr;
+  }
+
+  .ari-training-collapsible__summary,
+  .ari-training-profile__summary,
+  .ari-training-history-summary {
+    min-height:
+      86px;
+
+    padding:
+      17px 19px;
+  }
+
+  .ari-training-collapsible__body,
+  .ari-training-profile__body,
+  .ari-training-history-panel__body {
+    padding:
+      0 18px 18px;
+  }
+}
+
+
+/* =====================================================
+   VERY SMALL PHONES
+===================================================== */
+
+@media (
+  max-width: 370px
+) {
+  .ari-training-main {
+    padding-left:
+      10px;
+
+    padding-right:
+      10px;
+  }
+
   .ari-training-header__inner {
-    width: calc(100% - 28px);
-    min-height: 82px;
-    grid-template-columns: 76px minmax(0, 1fr) 48px;
-    gap: 8px;
+    padding-left:
+      10px;
+
+    padding-right:
+      10px;
+  }
+
+  .ari-training-back span:last-child {
+    display:
+      none;
   }
 
   .ari-training-back {
-    gap: 6px;
-    font-size: .82rem;
+    min-width:
+      42px;
   }
 
-  .ari-training-brand {
-    gap: 9px;
+  .ari-todays-training {
+    padding:
+      16px;
   }
 
-  .ari-training-brand__mark {
-    width: 42px;
-    height: 42px;
-    flex-basis: 42px;
+  .ari-todays-training__preview,
+  .ari-today-session-status,
+  .ari-workout-complete-panel__metrics,
+  .ari-training-profile__grid,
+  .ari-weekly-plan-progress,
+  .ari-performance-heart-rate {
+    gap:
+      5px;
   }
 
-  .ari-training-brand h1 {
-    font-size: clamp(1.1rem, 5.1vw, 1.48rem);
+  .ari-todays-training__preview span,
+  .ari-today-session-status__metric span,
+  .ari-workout-complete-panel__metrics span {
+    font-size:
+      0.48rem;
   }
 
-  .ari-training-brand__subtitle {
-    font-size: .56rem;
+  .ari-live-set__inputs,
+  .ari-workout-final-heart-rate__grid {
+    grid-template-columns:
+      1fr;
   }
 
-  .ari-training-main {
-    width: calc(100% - 28px);
-    padding-top: 18px;
-    gap: 20px;
-  }
-
-  .ari-performance-grid {
-    gap: 10px;
-  }
-
-  .ari-performance-card {
-    min-height: 132px;
-    padding: 15px;
-    border-radius: 18px;
-  }
-
-  .ari-training-today-plan,
-  .ari-training-profile,
-  .ari-weekly-plan-summary {
-    padding: 17px;
-    border-radius: 20px;
-  }
-
-  .ari-training-profile__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .ari-training-profile__metric {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .ari-training-profile__metric strong {
-    margin: 0;
-    text-align: right;
-  }
-
-  .ari-training-profile__metric small {
-    grid-column: 1 / -1;
-  }
-
-  .ari-training-plan-tab {
-    padding: 18px;
-    grid-template-columns: 48px minmax(0, 1fr) 24px;
-    gap: 12px;
-    border-radius: 22px;
-  }
-
-  .ari-training-plan-tab__icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .ari-training-plan-tab__content h2 {
-    font-size: 1.22rem;
-    line-height: 1.18;
-  }
-
-  .ari-training-plan-tab__content p:last-child {
-    font-size: .82rem;
-  }
-
-  .ari-weekly-plan-progress {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .ari-weekly-plan-progress > div {
-    padding: 12px 9px;
-  }
-
-  .ari-weekly-plan-progress span {
-    font-size: .6rem;
-  }
-
-  .ari-weekly-plan-day__header {
-    min-height: 76px;
-    padding: 14px;
-    gap: 10px;
-  }
-
-  .ari-weekly-plan-day__status-group {
-    flex: 0 1 42%;
-    gap: 6px;
-  }
-
-  .ari-weekly-plan-day__calories {
-    width: 100%;
-    text-align: right;
-    font-size: .7rem;
-  }
-
-  .ari-weekly-plan-day__status {
-    font-size: .52rem;
-  }
-
-  .ari-weekly-plan-day__body {
-    padding: 0 12px 12px;
-  }
-
-  .ari-planned-exercise {
-    padding: 13px;
-  }
-
-  .ari-planned-set__control,
-  .ari-planned-exercise__complete-control {
-    min-height: 54px;
-    grid-template-columns: 26px auto minmax(0, 1fr) auto;
-    gap: 7px;
-    padding: 9px 10px;
-  }
-
-  .ari-planned-exercise__complete-control {
-    grid-template-columns: 26px minmax(0, 1fr) auto;
-  }
-
-  .ari-training-history-summary {
-    min-height: 96px;
-    padding: 17px;
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .ari-training-history-summary__totals {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .ari-training-history-panel__body {
-    padding: 0 17px 17px;
-  }
-
-  .ari-monthly-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .ari-history-workout {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .ari-history-workout__metrics {
-    justify-content: flex-start;
+  .ari-workout-rest__actions,
+  .ari-todays-training__session-actions {
+    grid-template-columns:
+      1fr;
   }
 }
 
-@media (max-width: 420px) {
-  .ari-training-header__inner {
-    width: calc(100% - 22px);
-    grid-template-columns: 62px minmax(0, 1fr) 44px;
-  }
 
-  .ari-training-back > span:last-child {
-    display: none;
-  }
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
 
-  .ari-training-main {
-    width: calc(100% - 22px);
-  }
-
-  .ari-weekly-plan-progress {
-    grid-template-columns: 1fr;
-  }
-
-  .ari-weekly-plan-progress > div {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .ari-weekly-plan-day__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .ari-weekly-plan-day__status-group {
-    width: 100%;
-    max-width: none;
-    flex-basis: auto;
-    justify-content: flex-start;
-  }
-
-  .ari-weekly-plan-day__calories {
-    width: auto;
-    text-align: left;
-  }
-
-  .ari-weekly-plan-day__chevron {
-    margin-left: auto;
-  }
-
-  .ari-planned-exercise__header {
-    flex-direction: column;
-  }
-
-  .ari-planned-set__control {
-    grid-template-columns: 26px auto 1fr;
-  }
-
-  .ari-planned-set__calories {
-    grid-column: 2 / -1;
-  }
-
-  .ari-planned-exercise__complete-control {
-    grid-template-columns: 26px 1fr;
-  }
-
-  .ari-planned-exercise__single-calories {
-    grid-column: 2;
-  }
-}
-
-@media (min-width: 900px) {
-  .ari-training-main {
-    padding-top: 34px;
-    gap: 30px;
-  }
-
-  .ari-performance-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .ari-weekly-plan-summary {
-    padding: 28px;
-  }
-
-  .ari-weekly-plan-day__header {
-    padding: 18px 20px;
-  }
-
-  .ari-weekly-plan-day__body {
-    padding: 0 20px 20px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
   *,
   *::before,
   *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-  }
-}
+    scroll-behavior:
+      auto !important;
 
+    animation-duration:
+      0.01ms !important;
 
-/* =====================================================
-   V3.1.0 ORGANIZATION UPDATE
+    animation-iteration-count:
+      1 !important;
 
-   - Today's Plan card removed.
-   - Training Planner launcher removed.
-   - Heart-rate profile is collapsible.
-   - Each non-rest workout day owns its own Average HR.
-===================================================== */
-
-.ari-training-profile {
-  margin-top: 18px;
-  padding: 0;
-  overflow: hidden;
-}
-
-.ari-training-profile__summary {
-  min-height: 92px;
-  padding: 18px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  list-style: none;
-  cursor: pointer;
-}
-
-.ari-training-profile__summary::-webkit-details-marker {
-  display: none;
-}
-
-.ari-training-profile__summary h3 {
-  margin: 0;
-  font-family: "Audiowide", sans-serif;
-  font-size: 1.02rem;
-  font-weight: 400;
-  text-transform: uppercase;
-}
-
-.ari-training-profile__summary-note {
-  margin: 7px 0 0;
-  color: var(--ari-training-text-muted);
-  font-size: 0.74rem;
-  line-height: 1.4;
-}
-
-.ari-training-profile__summary-action {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ari-training-profile__chevron {
-  color: var(--ari-training-cyan);
-  font-size: 1rem;
-  transition: transform 180ms ease;
-}
-
-.ari-training-profile[open]
-  .ari-training-profile__chevron {
-  transform: rotate(180deg);
-}
-
-.ari-training-profile__body {
-  padding: 0 20px 20px;
-  border-top: 1px solid rgba(92, 231, 255, 0.09);
-}
-
-.ari-training-profile__body
-  .ari-training-profile__grid {
-  padding-top: 18px;
-}
-
-.ari-training-profile__help {
-  margin-top: 14px;
-}
-
-.ari-weekly-plan-day__heart-rate {
-  margin-top: 14px;
-  padding: 15px;
-  border: 1px solid rgba(92, 231, 255, 0.13);
-  border-radius: 15px;
-  background:
-    radial-gradient(
-      circle at 100% 0%,
-      rgba(100, 168, 255, 0.08),
-      transparent 48%
-    ),
-    rgba(92, 231, 255, 0.025);
-}
-
-.ari-weekly-plan-day__heart-rate-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.ari-weekly-plan-day__heart-rate-heading h4 {
-  margin: 0;
-  color: var(--ari-training-text);
-  font-size: 0.95rem;
-}
-
-.ari-weekly-plan-day__intensity-pill {
-  flex: 0 0 auto;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--ari-training-text-muted);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.55rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.ari-weekly-plan-day__intensity-pill[data-intensity="very_light"],
-.ari-weekly-plan-day__intensity-pill[data-intensity="light"] {
-  color: var(--ari-training-green);
-  border-color: rgba(111, 255, 194, 0.22);
-}
-
-.ari-weekly-plan-day__intensity-pill[data-intensity="moderate"] {
-  color: var(--ari-training-cyan);
-  border-color: rgba(92, 231, 255, 0.26);
-}
-
-.ari-weekly-plan-day__intensity-pill[data-intensity="vigorous"],
-.ari-weekly-plan-day__intensity-pill[data-intensity="near_maximal"],
-.ari-weekly-plan-day__intensity-pill[data-intensity="maximal"] {
-  color: #c7a8ff;
-  border-color: rgba(155, 108, 255, 0.28);
-}
-
-.ari-weekly-plan-day__heart-rate-grid {
-  margin-top: 13px;
-  display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-  gap: 12px;
-  align-items: stretch;
-}
-
-.ari-weekly-plan-day__heart-rate-label {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--ari-training-text-soft);
-  font-size: 0.74rem;
-  font-weight: 800;
-}
-
-.ari-weekly-plan-day__intensity-result {
-  min-width: 0;
-  padding: 12px 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  border-left: 2px solid rgba(92, 231, 255, 0.30);
-  border-radius: 10px;
-  background: rgba(2, 9, 13, 0.44);
-}
-
-.ari-weekly-plan-day__intensity-result > span {
-  color: var(--ari-training-text-muted);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.ari-weekly-plan-day__intensity-result strong {
-  color: var(--ari-training-cyan-soft);
-  font-size: 0.88rem;
-}
-
-.ari-weekly-plan-day__intensity-result small {
-  color: var(--ari-training-text-muted);
-  font-size: 0.68rem;
-  line-height: 1.4;
-}
-
-.ari-weekly-plan-day__exercise-list {
-  margin-top: 12px;
-}
-
-@media (max-width: 760px) {
-  .ari-training-profile__summary {
-    min-height: 84px;
-    padding: 16px;
-  }
-
-  .ari-training-profile__body {
-    padding: 0 16px 16px;
-  }
-
-  .ari-training-profile__source {
-    display: none;
-  }
-
-  .ari-weekly-plan-day__heart-rate-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .ari-weekly-plan-day__heart-rate {
-    padding: 13px;
-  }
-
-  .ari-weekly-plan-day__heart-rate-heading {
-    align-items: center;
-  }
-}
-
-@media (max-width: 420px) {
-  .ari-weekly-plan-day__heart-rate-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .ari-weekly-plan-day__intensity-pill {
-    align-self: flex-start;
-  }
-}
-
-
-/* =====================================================
-   V3.2.0 CONTRAST UPDATE
-
-   Design rules:
-   - Collapsed workout-day rows stay dark.
-   - Expanded exercise/workout cards become white.
-   - Average-heart-rate panel becomes heart red.
-   - Day headers remain part of the dark ARI Training shell.
-===================================================== */
-
-
-/* -----------------------------------------------------
-   COLLAPSED / DAY SHELL
------------------------------------------------------ */
-
-.ari-weekly-plan-day {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(7, 19, 25, 0.98),
-      rgba(3, 11, 16, 0.98)
-    );
-  border-color: rgba(92, 231, 255, 0.16);
-}
-
-.ari-weekly-plan-day__header {
-  background: transparent;
-  color: var(--ari-training-text);
-}
-
-.ari-weekly-plan-day__body {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(4, 14, 19, 0.98),
-      rgba(4, 12, 17, 0.98)
-    );
-}
-
-
-/* -----------------------------------------------------
-   HEART-RATE PANEL â RED / HEART VISUAL
------------------------------------------------------ */
-
-.ari-weekly-plan-day__heart-rate {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(255, 91, 112, 0.44);
-  background:
-    radial-gradient(
-      circle at 92% 8%,
-      rgba(255, 87, 111, 0.25),
-      transparent 34%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(84, 13, 25, 0.96),
-      rgba(42, 8, 16, 0.98)
-    );
-  box-shadow:
-    inset 0 0 28px rgba(255, 73, 102, 0.06),
-    0 12px 30px rgba(0, 0, 0, 0.22);
-}
-
-.ari-weekly-plan-day__heart-rate::after {
-  content: "â¥";
-  position: absolute;
-  top: 12px;
-  right: 15px;
-  z-index: 0;
-  color: rgba(255, 112, 131, 0.13);
-  font-size: clamp(3rem, 12vw, 5.6rem);
-  line-height: 1;
-  pointer-events: none;
-}
-
-.ari-weekly-plan-day__heart-rate > * {
-  position: relative;
-  z-index: 1;
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-section-heading__eyebrow {
-  color: #ff8fa2;
-}
-
-.ari-weekly-plan-day__heart-rate-heading h4,
-.ari-weekly-plan-day__heart-rate-label {
-  color: #fff6f7;
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-input-with-unit input {
-  border-color: rgba(255, 126, 145, 0.50);
-  background: rgba(20, 4, 8, 0.82);
-  color: #ffffff;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-input-with-unit input::placeholder {
-  color: rgba(255, 232, 236, 0.54);
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-input-with-unit span {
-  color: #ffb3bf;
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-weekly-plan-day__intensity-result {
-  border-left-color: rgba(255, 120, 140, 0.78);
-  background: rgba(24, 4, 9, 0.58);
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-weekly-plan-day__intensity-result > span {
-  color: rgba(255, 211, 218, 0.70);
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-weekly-plan-day__intensity-result strong {
-  color: #ffd7dd;
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-weekly-plan-day__intensity-result small {
-  color: rgba(255, 225, 230, 0.66);
-}
-
-.ari-weekly-plan-day__heart-rate
-  .ari-weekly-plan-day__intensity-pill {
-  color: #ffd7dd;
-  border-color: rgba(255, 133, 151, 0.35);
-  background: rgba(36, 4, 11, 0.60);
-}
-
-
-/* -----------------------------------------------------
-   EXPANDED WORKOUT / EXERCISE CARDS â WHITE
------------------------------------------------------ */
-
-.ari-weekly-plan-day__exercise-list {
-  gap: 14px;
-}
-
-.ari-planned-exercise {
-  border: 1px solid rgba(9, 36, 46, 0.12);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.99),
-      rgba(245, 250, 252, 0.99)
-    );
-  color: #0b1a21;
-  box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.18);
-}
-
-.ari-planned-exercise__type {
-  color: #0a9fba;
-}
-
-.ari-planned-exercise__name {
-  color: #07151c;
-}
-
-.ari-planned-exercise__prescription {
-  color: #61727c;
-}
-
-.ari-planned-exercise__calories {
-  color: #087f95;
-}
-
-
-/* -----------------------------------------------------
-   SET ROWS INSIDE WHITE WORKOUT CARDS
------------------------------------------------------ */
-
-.ari-planned-set__control,
-.ari-planned-exercise__complete-control {
-  border-color: rgba(8, 56, 69, 0.13);
-  background: #edf4f7;
-  color: #0b1a21;
-}
-
-.ari-planned-set__check,
-.ari-planned-exercise__check {
-  border-color: rgba(8, 91, 108, 0.38);
-  background: #ffffff;
-}
-
-.ari-planned-set__label,
-.ari-planned-exercise__complete-label {
-  color: #0b1a21;
-}
-
-.ari-planned-set__prescription {
-  color: #667983;
-}
-
-.ari-planned-set__calories,
-.ari-planned-exercise__single-calories {
-  color: #087f95;
-  font-weight: 800;
-}
-
-.ari-planned-set__checkbox:checked
-  + .ari-planned-set__control,
-.ari-planned-exercise__complete-checkbox:checked
-  + .ari-planned-exercise__complete-control {
-  border-color: rgba(12, 157, 112, 0.34);
-  background: #e5f8f0;
-}
-
-.ari-planned-set__checkbox:checked
-  + .ari-planned-set__control
-  .ari-planned-set__check,
-.ari-planned-exercise__complete-checkbox:checked
-  + .ari-planned-exercise__complete-control
-  .ari-planned-exercise__check {
-  color: #ffffff;
-  border-color: #0eaf7c;
-  background: #0eaf7c;
-}
-
-
-/* -----------------------------------------------------
-   KEEP DAY FOOTER DARK
------------------------------------------------------ */
-
-.ari-weekly-plan-day__footer {
-  color: var(--ari-training-text-muted);
-  border-top-color: rgba(92, 231, 255, 0.09);
-}
-
-
-/* -----------------------------------------------------
-   MOBILE REFINEMENTS
------------------------------------------------------ */
-
-@media (max-width: 760px) {
-  .ari-weekly-plan-day__body {
-    padding:
-      0
-      12px
-      14px;
-  }
-
-  .ari-weekly-plan-day__heart-rate {
-    margin-top: 14px;
-    border-radius: 16px;
-  }
-
-  .ari-planned-exercise {
-    border-radius: 17px;
-  }
-
-  .ari-planned-set__control,
-  .ari-planned-exercise__complete-control {
-    border-radius: 13px;
+    transition-duration:
+      0.01ms !important;
   }
 }
