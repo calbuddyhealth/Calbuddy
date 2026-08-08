@@ -1,28 +1,56 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/workout-plan-api.js
-// Version: 1.0.0
+// Version: 2.0.0
 // Purpose:
 //   Supabase persistence boundary for ARI Training weekly
 //   workout plans.
 //
-// Design:
-//   - Keeps database access separate from workout-plan-store.js.
+// V2.0.0:
+//   - Preserves richer V2 plan/day/exercise records.
+//   - Stores schemaVersion with the plan payload.
+//   - Remains backward-compatible with V1 rows.
+//   - Continues to keep database access separate from
+//     workout-plan-store.js.
 //   - Saves one active weekly plan per authenticated user.
 //   - Stores the complete Monday-Sunday plan as JSON.
-//   - Supports load, save/upsert, delete, and diagnostics.
+//   - Supports load, save/upsert, delete, existence checks,
+//     diagnostics, and plan normalization.
 //   - Does NOT create a second Supabase client.
+//   - Does NOT persist live workout/session progress.
+//
+// Important separation:
+//   workout-plan-api.js
+//     = permanent weekly-plan persistence.
+//
+//   workout-progress/session API
+//     = live/completed workout execution persistence.
 // =====================================================
 
-const VERSION = "1.0.0";
-const SOURCE = "js/training/workout-plan-api";
+const VERSION =
+  "2.0.0";
 
-const DEFAULT_TABLES = Object.freeze({
-  workoutPlans:
-    "ari_training_workout_plans"
-});
+const SCHEMA_VERSION =
+  2;
 
-function normalizeText(value) {
+const SOURCE =
+  "js/training/workout-plan-api";
+
+
+const DEFAULT_TABLES =
+  Object.freeze({
+    workoutPlans:
+      "ari_training_workout_plans"
+  });
+
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+function normalizeText(
+  value
+) {
   if (
     value === null ||
     value === undefined
@@ -30,16 +58,40 @@ function normalizeText(value) {
     return "";
   }
 
-  return String(value)
-    .trim();
+  return String(
+    value
+  ).trim();
 }
 
-function normalizeId(value) {
+
+function normalizeId(
+  value
+) {
   const text =
-    normalizeText(value);
+    normalizeText(
+      value
+    );
 
-  return text || null;
+  return text ||
+    null;
 }
+
+
+function normalizeInteger(
+  value
+) {
+  const number =
+    Number(
+      value
+    );
+
+  return Number.isInteger(
+    number
+  )
+    ? number
+    : null;
+}
+
 
 function looksLikeSupabaseClient(
   value
@@ -53,11 +105,27 @@ function looksLikeSupabaseClient(
   );
 }
 
-function clone(value) {
+
+function clone(
+  value
+) {
   if (
     value === undefined
   ) {
     return undefined;
+  }
+
+  if (
+    typeof structuredClone ===
+      "function"
+  ) {
+    try {
+      return structuredClone(
+        value
+      );
+    } catch {
+      // Fall through.
+    }
   }
 
   return JSON.parse(
@@ -67,9 +135,46 @@ function clone(value) {
   );
 }
 
+
+function nowIso() {
+  return new Date()
+    .toISOString();
+}
+
+
+function uniqueIds(
+  values
+) {
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      values
+        .map(
+          normalizeId
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+
+
+// =====================================================
+// API OBJECT
+// =====================================================
+
 const AriTrainingWorkoutPlanApi = {
   version:
     VERSION,
+
+  schemaVersion:
+    SCHEMA_VERSION,
 
   source:
     SOURCE,
@@ -83,12 +188,32 @@ const AriTrainingWorkoutPlanApi = {
 
     tables: {
       ...DEFAULT_TABLES
-    }
+    },
+
+    lastLoadedAt:
+      null,
+
+    lastSavedAt:
+      null,
+
+    lastDeletedAt:
+      null,
+
+    lastError:
+      null
   },
 
+
+  // ===================================================
+  // CONFIGURATION
+  // ===================================================
+
   configure({
-    client = null,
-    tables = null
+    client =
+      null,
+
+    tables =
+      null
   } = {}) {
     if (
       client &&
@@ -119,11 +244,13 @@ const AriTrainingWorkoutPlanApi = {
 
     this.state.configured =
       Boolean(
-        this.state.client
+        this.findClient()
       );
 
-    return this.getDiagnostics();
+    return this
+      .getDiagnostics();
   },
+
 
   findClient() {
     if (
@@ -160,7 +287,10 @@ const AriTrainingWorkoutPlanApi = {
         ?.supabase,
 
       globalThis
-        .supabaseClient
+        .supabaseClient,
+
+      globalThis
+        .calbuddySupabase
     ];
 
     for (
@@ -185,6 +315,7 @@ const AriTrainingWorkoutPlanApi = {
     return null;
   },
 
+
   requireClient() {
     const client =
       this.findClient();
@@ -197,6 +328,11 @@ const AriTrainingWorkoutPlanApi = {
 
     return client;
   },
+
+
+  // ===================================================
+  // AUTH
+  // ===================================================
 
   async getAuthenticatedUser() {
     const client =
@@ -237,8 +373,10 @@ const AriTrainingWorkoutPlanApi = {
     return user;
   },
 
+
   async resolveUserId(
-    userId = null
+    userId =
+      null
   ) {
     const explicit =
       normalizeId(
@@ -258,6 +396,11 @@ const AriTrainingWorkoutPlanApi = {
     );
   },
 
+
+  // ===================================================
+  // PLAN NORMALIZATION
+  // ===================================================
+
   normalizePlanForSave(
     plan
   ) {
@@ -271,7 +414,15 @@ const AriTrainingWorkoutPlanApi = {
       );
     }
 
-    return {
+    const schemaVersion =
+      normalizeInteger(
+        plan.schemaVersion
+      ) ||
+      SCHEMA_VERSION;
+
+    const normalized = {
+      schemaVersion,
+
       planId:
         normalizeId(
           plan.planId
@@ -289,40 +440,49 @@ const AriTrainingWorkoutPlanApi = {
         ),
 
       secondaryGoalIds:
-        Array.isArray(
+        uniqueIds(
           plan.secondaryGoalIds
-        )
-          ? [
-              ...new Set(
-                plan
-                  .secondaryGoalIds
-                  .map(
-                    normalizeId
-                  )
-                  .filter(Boolean)
-              )
-            ]
-          : [],
+        ),
 
       week:
-        plan.week &&
-        typeof plan.week ===
-          "object"
+        (
+          plan.week &&
+          typeof plan.week ===
+            "object"
+        )
           ? clone(
               plan.week
             )
           : {},
 
       metadata:
-        plan.metadata &&
-        typeof plan.metadata ===
-          "object"
+        (
+          plan.metadata &&
+          typeof plan.metadata ===
+            "object"
+        )
           ? clone(
               plan.metadata
             )
           : {}
     };
+
+    normalized.metadata = {
+      ...normalized.metadata,
+
+      schemaVersion,
+
+      apiVersion:
+        VERSION
+    };
+
+    return normalized;
   },
+
+
+  // ===================================================
+  // ROW MAPPING
+  // ===================================================
 
   mapRowToPlan(
     row
@@ -336,13 +496,45 @@ const AriTrainingWorkoutPlanApi = {
     }
 
     const payload =
-      row.plan_data &&
-      typeof row.plan_data ===
-        "object"
+      (
+        row.plan_data &&
+        typeof row.plan_data ===
+          "object"
+      )
         ? row.plan_data
         : {};
 
-    return {
+    const rowWeek =
+      (
+        row.week_data &&
+        typeof row.week_data ===
+          "object"
+      )
+        ? row.week_data
+        : null;
+
+    const payloadWeek =
+      (
+        payload.week &&
+        typeof payload.week ===
+          "object"
+      )
+        ? payload.week
+        : null;
+
+    const schemaVersion =
+      normalizeInteger(
+        payload.schemaVersion ??
+        payload
+          ?.metadata
+          ?.schemaVersion ??
+        row.schema_version
+      ) ||
+      1;
+
+    const mapped = {
+      schemaVersion,
+
       planId:
         normalizeId(
           row.id ||
@@ -378,17 +570,13 @@ const AriTrainingWorkoutPlanApi = {
             : [],
 
       week:
-        row.week_data &&
-        typeof row.week_data ===
-          "object"
+        rowWeek
           ? clone(
-              row.week_data
+              rowWeek
             )
-          : payload.week &&
-            typeof payload.week ===
-              "object"
+          : payloadWeek
             ? clone(
-                payload.week
+                payloadWeek
               )
             : {},
 
@@ -423,297 +611,537 @@ const AriTrainingWorkoutPlanApi = {
           payload
             ?.metadata
             ?.updatedAt ||
-          null
+          null,
+
+        schemaVersion,
+
+        loadedByApiVersion:
+          VERSION
       }
     };
+
+    return mapped;
   },
+
+
+  // ===================================================
+  // SELECT FIELDS
+  // ===================================================
+
+  getSelectFields() {
+    return [
+      "id",
+      "user_id",
+      "name",
+      "primary_goal_id",
+      "secondary_goal_ids",
+      "source_template_id",
+      "week_data",
+      "plan_data",
+      "created_at",
+      "updated_at"
+    ].join(",");
+  },
+
+
+  // ===================================================
+  // LOAD
+  // ===================================================
 
   async loadPlan({
-    userId = null
+    userId =
+      null
   } = {}) {
-    const client =
-      this.requireClient();
+    this.state.lastError =
+      null;
 
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
-        );
+    try {
+      const client =
+        this.requireClient();
 
-    const table =
-      this.state.tables
-        .workoutPlans;
+      const resolvedUserId =
+        await this
+          .resolveUserId(
+            userId
+          );
 
-    const {
-      data,
-      error
-    } =
-      await client
-        .from(table)
-        .select(
-          [
-            "id",
-            "user_id",
-            "name",
-            "primary_goal_id",
-            "secondary_goal_ids",
-            "source_template_id",
-            "week_data",
-            "plan_data",
-            "created_at",
-            "updated_at"
-          ].join(",")
-        )
-        .eq(
-          "user_id",
-          resolvedUserId
-        )
-        .order(
-          "updated_at",
-          {
-            ascending:
-              false
-          }
-        )
-        .limit(1)
-        .maybeSingle();
+      const table =
+        this.state.tables
+          .workoutPlans;
 
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
-      return null;
-    }
-
-    return this
-      .mapRowToPlan(
-        data
-      );
-  },
-
-  async savePlan({
-    plan,
-    userId = null
-  } = {}) {
-    const client =
-      this.requireClient();
-
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
-        );
-
-    const normalizedPlan =
-      this.normalizePlanForSave(
-        plan
-      );
-
-    const now =
-      new Date()
-        .toISOString();
-
-    const table =
-      this.state.tables
-        .workoutPlans;
-
-    const payload = {
-      user_id:
-        resolvedUserId,
-
-      name:
-        normalizedPlan.name,
-
-      primary_goal_id:
-        normalizedPlan
-          .primaryGoalId,
-
-      secondary_goal_ids:
-        normalizedPlan
-          .secondaryGoalIds,
-
-      source_template_id:
-        normalizeId(
-          normalizedPlan
-            .metadata
-            ?.sourceTemplateId
-        ),
-
-      week_data:
-        normalizedPlan.week,
-
-      plan_data: {
-        ...normalizedPlan,
-
-        metadata: {
-          ...normalizedPlan.metadata,
-
-          updatedAt:
-            now
-        }
-      },
-
-      updated_at:
-        now
-    };
-
-    let query;
-
-    if (
-      normalizedPlan
-        .planId
-    ) {
-      query =
-        client
-          .from(table)
-          .update(
-            payload
+      const {
+        data,
+        error
+      } =
+        await client
+          .from(
+            table
           )
-          .eq(
-            "id",
-            normalizedPlan
-              .planId
+          .select(
+            this
+              .getSelectFields()
           )
           .eq(
             "user_id",
             resolvedUserId
-          );
-    } else {
-      query =
-        client
-          .from(table)
-          .upsert(
-            payload,
+          )
+          .order(
+            "updated_at",
             {
-              onConflict:
-                "user_id"
+              ascending:
+                false
             }
-          );
-    }
+          )
+          .limit(
+            1
+          )
+          .maybeSingle();
 
-    const {
-      data,
+      if (error) {
+        throw error;
+      }
+
+      this.state.lastLoadedAt =
+        nowIso();
+
+      if (!data) {
+        return null;
+      }
+
+      return this
+        .mapRowToPlan(
+          data
+        );
+    } catch (
       error
-    } =
-      await query
-        .select(
-          [
-            "id",
-            "user_id",
-            "name",
-            "primary_goal_id",
-            "secondary_goal_ids",
-            "source_template_id",
-            "week_data",
-            "plan_data",
-            "created_at",
-            "updated_at"
-          ].join(",")
-        )
-        .single();
+    ) {
+      this.state.lastError =
+        error;
 
-    if (error) {
       throw error;
     }
-
-    return this
-      .mapRowToPlan(
-        data
-      );
   },
+
+
+  // ===================================================
+  // SAVE / UPSERT
+  // ===================================================
+
+  async savePlan({
+    plan,
+    userId =
+      null
+  } = {}) {
+    this.state.lastError =
+      null;
+
+    try {
+      const client =
+        this.requireClient();
+
+      const resolvedUserId =
+        await this
+          .resolveUserId(
+            userId
+          );
+
+      const normalizedPlan =
+        this
+          .normalizePlanForSave(
+            plan
+          );
+
+      const now =
+        nowIso();
+
+      const table =
+        this.state.tables
+          .workoutPlans;
+
+      const planPayload = {
+        ...normalizedPlan,
+
+        metadata: {
+          ...normalizedPlan
+            .metadata,
+
+          updatedAt:
+            now,
+
+          schemaVersion:
+            normalizedPlan
+              .schemaVersion,
+
+          apiVersion:
+            VERSION
+        }
+      };
+
+      const payload = {
+        user_id:
+          resolvedUserId,
+
+        name:
+          normalizedPlan
+            .name,
+
+        primary_goal_id:
+          normalizedPlan
+            .primaryGoalId,
+
+        secondary_goal_ids:
+          normalizedPlan
+            .secondaryGoalIds,
+
+        source_template_id:
+          normalizeId(
+            normalizedPlan
+              .metadata
+              ?.sourceTemplateId
+          ),
+
+        week_data:
+          normalizedPlan
+            .week,
+
+        plan_data:
+          planPayload,
+
+        updated_at:
+          now
+      };
+
+      let query;
+
+      if (
+        normalizedPlan
+          .planId
+      ) {
+        query =
+          client
+            .from(
+              table
+            )
+            .update(
+              payload
+            )
+            .eq(
+              "id",
+              normalizedPlan
+                .planId
+            )
+            .eq(
+              "user_id",
+              resolvedUserId
+            );
+      } else {
+        query =
+          client
+            .from(
+              table
+            )
+            .upsert(
+              payload,
+              {
+                onConflict:
+                  "user_id"
+              }
+            );
+      }
+
+      const {
+        data,
+        error
+      } =
+        await query
+          .select(
+            this
+              .getSelectFields()
+          )
+          .single();
+
+      if (error) {
+        throw error;
+      }
+
+      this.state.lastSavedAt =
+        nowIso();
+
+      return this
+        .mapRowToPlan(
+          data
+        );
+    } catch (
+      error
+    ) {
+      this.state.lastError =
+        error;
+
+      throw error;
+    }
+  },
+
+
+  // ===================================================
+  // DELETE
+  // ===================================================
 
   async deletePlan({
-    planId = null,
-    userId = null
+    planId =
+      null,
+
+    userId =
+      null
   } = {}) {
-    const client =
-      this.requireClient();
+    this.state.lastError =
+      null;
 
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
+    try {
+      const client =
+        this.requireClient();
+
+      const resolvedUserId =
+        await this
+          .resolveUserId(
+            userId
+          );
+
+      const table =
+        this.state.tables
+          .workoutPlans;
+
+      let query =
+        client
+          .from(
+            table
+          )
+          .delete()
+          .eq(
+            "user_id",
+            resolvedUserId
+          );
+
+      const resolvedPlanId =
+        normalizeId(
+          planId
         );
 
-    const table =
-      this.state.tables
-        .workoutPlans;
+      if (resolvedPlanId) {
+        query =
+          query.eq(
+            "id",
+            resolvedPlanId
+          );
+      }
 
-    let query =
-      client
-        .from(table)
-        .delete()
-        .eq(
-          "user_id",
-          resolvedUserId
-        );
+      const {
+        error
+      } =
+        await query;
 
-    const resolvedPlanId =
-      normalizeId(
-        planId
-      );
+      if (error) {
+        throw error;
+      }
 
-    if (resolvedPlanId) {
-      query =
-        query.eq(
-          "id",
-          resolvedPlanId
-        );
-    }
+      this.state.lastDeletedAt =
+        nowIso();
 
-    const {
+      return true;
+    } catch (
       error
-    } =
-      await query;
+    ) {
+      this.state.lastError =
+        error;
 
-    if (error) {
       throw error;
     }
-
-    return true;
   },
+
+
+  // ===================================================
+  // EXISTS
+  // ===================================================
 
   async planExists({
-    userId = null
+    userId =
+      null
   } = {}) {
-    const client =
-      this.requireClient();
+    this.state.lastError =
+      null;
 
-    const resolvedUserId =
-      await this
-        .resolveUserId(
-          userId
-        );
+    try {
+      const client =
+        this.requireClient();
 
-    const table =
-      this.state.tables
-        .workoutPlans;
+      const resolvedUserId =
+        await this
+          .resolveUserId(
+            userId
+          );
 
-    const {
-      data,
+      const table =
+        this.state.tables
+          .workoutPlans;
+
+      const {
+        data,
+        error
+      } =
+        await client
+          .from(
+            table
+          )
+          .select(
+            "id"
+          )
+          .eq(
+            "user_id",
+            resolvedUserId
+          )
+          .limit(
+            1
+          )
+          .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      return Boolean(
+        data?.id
+      );
+    } catch (
       error
-    } =
-      await client
-        .from(table)
-        .select(
-          "id"
-        )
-        .eq(
-          "user_id",
-          resolvedUserId
-        )
-        .limit(1)
-        .maybeSingle();
+    ) {
+      this.state.lastError =
+        error;
 
-    if (error) {
       throw error;
     }
-
-    return Boolean(
-      data?.id
-    );
   },
+
+
+  // ===================================================
+  // CURRENT ROW
+  // ===================================================
+
+  async getPlanRow({
+    userId =
+      null
+  } = {}) {
+    this.state.lastError =
+      null;
+
+    try {
+      const client =
+        this.requireClient();
+
+      const resolvedUserId =
+        await this
+          .resolveUserId(
+            userId
+          );
+
+      const table =
+        this.state.tables
+          .workoutPlans;
+
+      const {
+        data,
+        error
+      } =
+        await client
+          .from(
+            table
+          )
+          .select(
+            this
+              .getSelectFields()
+          )
+          .eq(
+            "user_id",
+            resolvedUserId
+          )
+          .order(
+            "updated_at",
+            {
+              ascending:
+                false
+            }
+          )
+          .limit(
+            1
+          )
+          .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      return data ||
+        null;
+    } catch (
+      error
+    ) {
+      this.state.lastError =
+        error;
+
+      throw error;
+    }
+  },
+
+
+  // ===================================================
+  // SCHEMA INFO
+  // ===================================================
+
+  getPlanSchemaInfo(
+    plan
+  ) {
+    if (
+      !plan ||
+      typeof plan !==
+        "object"
+    ) {
+      return {
+        schemaVersion:
+          null,
+
+        current:
+          false,
+
+        legacy:
+          false
+      };
+    }
+
+    const schemaVersion =
+      normalizeInteger(
+        plan.schemaVersion ??
+        plan
+          ?.metadata
+          ?.schemaVersion
+      );
+
+    return {
+      schemaVersion,
+
+      current:
+        schemaVersion ===
+          SCHEMA_VERSION,
+
+      legacy:
+        schemaVersion !==
+          null &&
+        schemaVersion <
+          SCHEMA_VERSION
+    };
+  },
+
+
+  // ===================================================
+  // DESTROY
+  // ===================================================
 
   destroy() {
     this.state.client =
@@ -726,10 +1154,30 @@ const AriTrainingWorkoutPlanApi = {
       ...DEFAULT_TABLES
     };
 
+    this.state.lastLoadedAt =
+      null;
+
+    this.state.lastSavedAt =
+      null;
+
+    this.state.lastDeletedAt =
+      null;
+
+    this.state.lastError =
+      null;
+
     return true;
   },
 
+
+  // ===================================================
+  // DIAGNOSTICS
+  // ===================================================
+
   getDiagnostics() {
+    const client =
+      this.findClient();
+
     return {
       source:
         SOURCE,
@@ -737,14 +1185,40 @@ const AriTrainingWorkoutPlanApi = {
       version:
         VERSION,
 
+      schemaVersion:
+        SCHEMA_VERSION,
+
       configured:
         Boolean(
-          this.state.client
+          client
         ),
 
       table:
         this.state.tables
           .workoutPlans,
+
+      lastLoadedAt:
+        this.state.lastLoadedAt,
+
+      lastSavedAt:
+        this.state.lastSavedAt,
+
+      lastDeletedAt:
+        this.state.lastDeletedAt,
+
+      lastError:
+        this.state.lastError
+          ? {
+              message:
+                this.state
+                  .lastError
+                  ?.message ||
+                String(
+                  this.state
+                    .lastError
+                )
+            }
+          : null,
 
       methods: {
         loadPlan:
@@ -765,15 +1239,35 @@ const AriTrainingWorkoutPlanApi = {
         planExists:
           typeof this
             .planExists ===
+            "function",
+
+        getPlanRow:
+          typeof this
+            .getPlanRow ===
+            "function",
+
+        normalizePlanForSave:
+          typeof this
+            .normalizePlanForSave ===
+            "function",
+
+        mapRowToPlan:
+          typeof this
+            .mapRowToPlan ===
             "function"
       }
     };
   }
 };
 
+
+// =====================================================
+// GLOBAL API
+// =====================================================
+
 if (
   typeof globalThis !==
-  "undefined"
+    "undefined"
 ) {
   const Ari =
     globalThis.Ari ||
@@ -790,11 +1284,18 @@ if (
     Ari;
 }
 
+
+// =====================================================
+// EXPORTS
+// =====================================================
+
 export {
   VERSION,
+  SCHEMA_VERSION,
   SOURCE,
   DEFAULT_TABLES,
   AriTrainingWorkoutPlanApi
 };
 
-export default AriTrainingWorkoutPlanApi;
+export default
+  AriTrainingWorkoutPlanApi;
