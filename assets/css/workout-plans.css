@@ -1,1185 +1,2239 @@
-/* =====================================================
-   ARI REBIRTH
-   File: assets/css/workout-plans.css
-   Version: 3.1.0
-   Purpose:
-   Premium scientific-lab Workout Plans interface.
+// =====================================================
+// ARI REBIRTH
+// File: js/workout-plans.js
+// Version: 3.1.0
+// Purpose:
+//   Page controller for workout-plans.html.
+//
+// V3.1.0:
+//   - Restores the simple Workout Plans flow.
+//   - Removes the top-level Custom tab.
+//   - Removes weekly plan-name / stat-summary UI logic.
+//   - Removes Day Name editing.
+//   - Keeps Custom as a Training Focus option only.
+//   - Uses Sunday-Saturday calendar weeks.
+//   - Displays real dates on every workout-day card.
+//   - Displays:
+//       THIS WEEK
+//       NEXT WEEK
+//       PREVIOUS WEEK
+//       2 WEEKS AHEAD, etc.
+//   - Supports previous / next week navigation.
+//   - Supports Repeat Last Week.
+//   - Supports Clear Week.
+//   - Templates apply only to the currently selected week.
+//   - Future untouched weeks remain off by default.
+//   - Keeps Exercise Library.
+//   - Keeps focus-aware exercise filtering.
+//   - Keeps structured exercise-search compatibility.
+//   - Keeps optional Weight.
+//   - Keeps 120-second default rest for set-based exercises.
+//   - Keeps explicit Done action on expanded exercise cards.
+//
+// UX:
+//   My Week
+//      ↓
+//   THIS WEEK
+//   AUG 9 - AUG 15
+//      ↓
+//   SUN AUG 9
+//   MON AUG 10
+//   ...
+//   SAT AUG 15
+//      ↓
+//   Tap day → choose type/focus → add exercises
+//
+// Important:
+//   This page expects the V3 WorkoutPlanController to support
+//   date-specific / week-specific plans.
+// =====================================================
 
-   V3.1.0:
-   - Simplifies the page around week planning.
-   - Removes styling for the old weekly summary dashboard.
-   - Removes old Calendar / This Week controls.
-   - Removes top-level Custom-tab styling.
-   - Uses 3 premium tabs:
-       My Week
-       Templates
-       Exercise Library
-   - Makes selected week navigation the main control.
-   - Supports:
-       THIS WEEK
-       NEXT WEEK
-       PREVIOUS WEEK
-   - Makes dated Sunday-Saturday cards the hero UI.
-   - Keeps white / cyan / royal blue / violet laboratory theme.
-   - Preserves premium collapsible exercise cards.
-   - Preserves explicit Done flow.
-   - Weight remains visually optional.
-   - Rest time remains visible and easy to edit.
-===================================================== */
+import WorkoutPlanController
+  from "./training/workout-plan-controller.js";
 
-:root {
-  /* ===================================================
-     CORE COLORS
-  =================================================== */
+import ExerciseRegistry
+  from "./training/exercises/exercise-registry.js";
 
-  --wp-bg:
-    #f5faff;
+import WorkoutFocuses
+  from "./training/workouts/workout-focuses.js";
 
-  --wp-bg-deep:
-    #edf6ff;
+import FitnessGoals
+  from "./training/goals/fitness-goals.js";
 
-  --wp-surface:
-    rgba(255, 255, 255, 0.94);
+import BodyParts
+  from "./training/anatomy/body-parts.js";
 
-  --wp-surface-solid:
-    #ffffff;
+import Muscles
+  from "./training/anatomy/muscles.js";
 
-  --wp-surface-soft:
-    rgba(247, 251, 255, 0.94);
+import MovementPatterns
+  from "./training/movements/movement-patterns.js";
 
-  --wp-surface-cyan:
-    rgba(230, 250, 255, 0.82);
+import ExerciseTypes
+  from "./training/movements/exercise-types.js";
 
-  --wp-surface-blue:
-    rgba(236, 243, 255, 0.88);
 
-  --wp-surface-violet:
-    rgba(246, 240, 255, 0.88);
+const VERSION =
+  "3.1.0";
 
-  --wp-text:
-    #122033;
+const SOURCE =
+  "js/workout-plans";
 
-  --wp-text-strong:
-    #071425;
-
-  --wp-soft:
-    #43556f;
-
-  --wp-muted:
-    #74879f;
-
-  --wp-faint:
-    #9caabd;
-
-  --wp-cyan:
-    #13cdec;
-
-  --wp-cyan-strong:
-    #00add3;
-
-  --wp-cyan-dark:
-    #087b99;
-
-  --wp-blue:
-    #2f5fff;
-
-  --wp-blue-strong:
-    #2048d9;
-
-  --wp-blue-dark:
-    #173293;
-
-  --wp-violet:
-    #8f63f7;
-
-  --wp-violet-strong:
-    #7149e7;
-
-  --wp-success:
-    #168a68;
-
-  --wp-success-bg:
-    #eaf9f3;
-
-  --wp-danger:
-    #d94f66;
-
-  --wp-danger-dark:
-    #b63149;
-
-  --wp-danger-bg:
-    #fff0f3;
-
-  /* ===================================================
-     BORDERS
-  =================================================== */
-
-  --wp-border:
-    rgba(48, 91, 136, 0.13);
-
-  --wp-border-soft:
-    rgba(48, 91, 136, 0.08);
-
-  --wp-border-cyan:
-    rgba(0, 173, 211, 0.24);
-
-  --wp-border-blue:
-    rgba(47, 95, 255, 0.22);
-
-  --wp-border-violet:
-    rgba(143, 99, 247, 0.22);
-
-  /* ===================================================
-     SHADOWS
-  =================================================== */
-
-  --wp-shadow-xs:
-    0 3px 10px
-    rgba(22, 55, 92, 0.045);
-
-  --wp-shadow-sm:
-    0 8px 24px
-    rgba(22, 55, 92, 0.07);
-
-  --wp-shadow-md:
-    0 18px 44px
-    rgba(22, 55, 92, 0.10);
-
-  --wp-shadow-lg:
-    0 28px 78px
-    rgba(17, 42, 78, 0.16);
-
-  --wp-glow-cyan:
-    0 0 0 1px
-      rgba(19, 205, 236, 0.10),
-    0 14px 34px
-      rgba(19, 180, 220, 0.13);
-
-  --wp-glow-blue:
-    0 0 0 1px
-      rgba(47, 95, 255, 0.08),
-    0 14px 36px
-      rgba(47, 95, 255, 0.12);
-
-  --wp-glow-violet:
-    0 0 0 1px
-      rgba(143, 99, 247, 0.08),
-    0 14px 36px
-      rgba(113, 73, 231, 0.11);
-
-  /* ===================================================
-     SHAPES
-  =================================================== */
-
-  --wp-radius-xs:
-    10px;
-
-  --wp-radius-sm:
-    14px;
-
-  --wp-radius-md:
-    18px;
-
-  --wp-radius-lg:
-    22px;
-
-  --wp-radius-xl:
-    28px;
-
-  --wp-radius-pill:
-    999px;
-
-  /* ===================================================
-     MOTION
-  =================================================== */
-
-  --wp-fast:
-    150ms;
-
-  --wp-normal:
-    240ms;
-
-  --wp-slow:
-    360ms;
-
-  --wp-ease:
-    cubic-bezier(
-      0.22,
-      1,
-      0.36,
-      1
-    );
-}
+const DEFAULT_STRENGTH_REST_SECONDS =
+  120;
 
 
 /* =====================================================
-   RESET
+   WEEK MODEL
+
+   UI is Sunday → Saturday.
 ===================================================== */
 
-*,
-*::before,
-*::after {
-  box-sizing:
-    border-box;
-}
+const DAYS =
+  Object.freeze([
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday"
+  ]);
+
+const DAY_SHORT_LABELS =
+  Object.freeze({
+    sunday:
+      "SUN",
+
+    monday:
+      "MON",
+
+    tuesday:
+      "TUE",
+
+    wednesday:
+      "WED",
+
+    thursday:
+      "THU",
+
+    friday:
+      "FRI",
+
+    saturday:
+      "SAT"
+  });
 
 
-html {
-  min-height:
-    100%;
+/* =====================================================
+   PAGE STATE
+===================================================== */
 
-  background:
-    radial-gradient(
-      circle at 8% 0%,
-      rgba(
-        19,
-        205,
-        236,
-        0.12
-      ),
-      transparent
-        28%
-    ),
-    radial-gradient(
-      circle at 92% 4%,
-      rgba(
-        143,
-        99,
-        247,
-        0.11
-      ),
-      transparent
-        30%
-    ),
-    radial-gradient(
-      circle at 50% 100%,
-      rgba(
-        47,
-        95,
-        255,
-        0.075
-      ),
-      transparent
-        42%
-    ),
-    linear-gradient(
-      180deg,
-      #fbfdff 0%,
-      var(--wp-bg) 45%,
-      #f8fbff 100%
-    );
-}
+const state = {
+  activeTab:
+    "week",
 
+  activeDay:
+    null,
 
-body.ari-workout-plans-page {
-  margin:
-    0;
+  activeDayDate:
+    null,
 
-  min-height:
-    100vh;
+  activeExerciseId:
+    null,
 
-  min-height:
-    100dvh;
+  detailAddMode:
+    false,
 
-  color:
-    var(--wp-text);
+  expandedExerciseIndex:
+    null,
 
-  background:
-    transparent;
+  pickerQuery:
+    "",
 
-  font-family:
-    "Orbitron",
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  libraryQuery:
+    "",
 
-  overflow-x:
-    hidden;
-}
+  /*
+   * Calendar date representing the Sunday
+   * of the currently selected week.
+   */
+  selectedWeekStart:
+    null,
+
+  autosaveTimer:
+    null,
+
+  autosaveGeneration:
+    0,
+
+  saving:
+    false,
+
+  changingWeek:
+    false,
+
+  booted:
+    false,
+
+  unsubscribeStore:
+    null
+};
 
 
-body.ari-workout-plans-page::before {
-  content:
-    "";
+const dom = {};
 
-  position:
-    fixed;
 
-  inset:
-    0;
+/* =====================================================
+   DOM
+===================================================== */
 
-  z-index:
-    -1;
+function cacheDom() {
+  const ids = [
+    "workoutPlansApp",
+    "workoutPlansBackButton",
+    "workoutPlansStatus",
+    "workoutPlansToast",
+    "workoutPlansSaveButton",
 
-  pointer-events:
-    none;
+    "workoutPreviousWeekButton",
+    "workoutNextWeekButton",
+    "workoutWeekRelativeLabel",
+    "workoutWeekDateRange",
 
-  opacity:
-    0.5;
+    "workoutRepeatLastWeekButton",
+    "workoutClearWeekButton",
 
-  background-image:
-    linear-gradient(
-      rgba(
-        32,
-        82,
-        130,
-        0.025
+    "workoutWeekGrid",
+
+    "workoutTemplateWeekRange",
+    "workoutTemplateGoalFilter",
+    "workoutTemplateDaysFilter",
+    "workoutTemplateList",
+    "workoutTemplateEmpty",
+
+    "exerciseLibrarySearchForm",
+    "exerciseLibrarySearch",
+    "exerciseBodyPartFilter",
+    "exerciseMovementFilter",
+    "exerciseTypeFilter",
+    "exerciseEquipmentFilter",
+    "exerciseLibraryList",
+    "exerciseLibraryEmpty",
+
+    "workoutDayEditor",
+    "workoutDayEditorTitle",
+    "workoutDayType",
+    "workoutDayFocus",
+    "workoutDayExerciseSection",
+    "workoutAddExerciseButton",
+    "workoutDayExerciseList",
+    "workoutDayExerciseEmpty",
+    "workoutDayDoneButton",
+
+    "workoutExercisePicker",
+    "workoutExercisePickerContext",
+    "workoutExercisePickerSearch",
+    "workoutExercisePickerList",
+
+    "exerciseDetailDialog",
+    "exerciseDetailType",
+    "exerciseDetailName",
+    "exerciseAnatomyFigure",
+    "exerciseAnatomyImage",
+    "exerciseMovementFigure",
+    "exerciseMovementImage",
+    "exerciseVisualPlaceholder",
+    "exerciseInstructionList",
+    "exerciseMuscleList",
+    "exerciseMovementSummary",
+    "exerciseFormCueList",
+    "exerciseCaloriesSection",
+    "exerciseCaloriesEstimate",
+    "exerciseDetailAddButton",
+
+    "workoutDayCardTemplate",
+    "workoutTemplateCardTemplate",
+    "exerciseCardTemplate"
+  ];
+
+  for (
+    const id
+    of ids
+  ) {
+    dom[
+      id
+    ] =
+      document.getElementById(
+        id
+      );
+  }
+
+  dom.tabs =
+    Array.from(
+      document.querySelectorAll(
+        "[data-workout-tab]"
       )
-        1px,
-      transparent
-        1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(
-        32,
-        82,
-        130,
-        0.025
+    );
+
+  dom.panels =
+    Array.from(
+      document.querySelectorAll(
+        "[data-workout-panel]"
       )
-        1px,
-      transparent
-        1px
     );
-
-  background-size:
-    30px
-    30px;
-
-  mask-image:
-    linear-gradient(
-      to bottom,
-      rgba(
-        0,
-        0,
-        0,
-        0.88
-      ),
-      transparent
-        92%
-    );
-}
-
-
-button,
-input,
-select,
-textarea {
-  font:
-    inherit;
-}
-
-
-button,
-select {
-  -webkit-tap-highlight-color:
-    transparent;
-}
-
-
-button {
-  touch-action:
-    manipulation;
-}
-
-
-img {
-  display:
-    block;
-
-  max-width:
-    100%;
-}
-
-
-[hidden] {
-  display:
-    none !important;
-}
-
-
-.sr-only {
-  position:
-    absolute !important;
-
-  width:
-    1px !important;
-
-  height:
-    1px !important;
-
-  padding:
-    0 !important;
-
-  margin:
-    -1px !important;
-
-  overflow:
-    hidden !important;
-
-  clip:
-    rect(
-      0,
-      0,
-      0,
-      0
-    ) !important;
-
-  white-space:
-    nowrap !important;
-
-  border:
-    0 !important;
 }
 
 
 /* =====================================================
-   APP SHELL
+   BASIC HELPERS
 ===================================================== */
 
-.workout-plans-shell {
-  width:
-    min(
-      100%,
-      1120px
+function normalizeText(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  return String(
+    value
+  ).trim();
+}
+
+
+function normalizeLower(
+  value
+) {
+  return normalizeText(
+    value
+  ).toLowerCase();
+}
+
+
+function titleFromId(
+  value
+) {
+  return normalizeText(
+    value
+  )
+    .replace(
+      /[_-]+/g,
+      " "
+    )
+    .replace(
+      /\b\w/g,
+      char =>
+        char.toUpperCase()
     );
+}
 
-  min-height:
-    100vh;
 
-  min-height:
-    100dvh;
+function arrayOfIds(
+  value
+) {
+  if (
+    !Array.isArray(
+      value
+    )
+  ) {
+    return [];
+  }
 
-  margin:
-    0 auto;
+  return value
+    .map(
+      normalizeText
+    )
+    .filter(
+      Boolean
+    );
+}
 
-  padding:
-    max(
-      16px,
-      env(
-        safe-area-inset-top
+
+function uniqueIds(
+  value
+) {
+  return [
+    ...new Set(
+      arrayOfIds(
+        value
       )
     )
-    16px
-    max(
-      38px,
-      calc(
-        env(
-          safe-area-inset-bottom
-        ) +
-        22px
+  ];
+}
+
+
+function intersects(
+  left =
+    [],
+  right =
+    []
+) {
+  const rightSet =
+    new Set(
+      arrayOfIds(
+        right
       )
     );
+
+  return arrayOfIds(
+    left
+  ).some(
+    value =>
+      rightSet.has(
+        value
+      )
+  );
+}
+
+
+function cloneDate(
+  date
+) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
 }
 
 
 /* =====================================================
-   HEADER
+   DATE / WEEK HELPERS
 ===================================================== */
 
-.workout-plans-header {
-  display:
-    grid;
+function getSundayStart(
+  value =
+    new Date()
+) {
+  const date =
+    cloneDate(
+      value
+    );
 
-  grid-template-columns:
-    46px
-    minmax(
-      0,
-      1fr
+  date.setDate(
+    date.getDate() -
+    date.getDay()
+  );
+
+  return date;
+}
+
+
+function addDays(
+  date,
+  amount
+) {
+  const result =
+    cloneDate(
+      date
+    );
+
+  result.setDate(
+    result.getDate() +
+    Number(
+      amount || 0
     )
-    auto;
+  );
 
-  align-items:
-    center;
-
-  gap:
-    12px;
-
-  min-height:
-    70px;
-
-  margin-bottom:
-    14px;
+  return result;
 }
 
 
-.workout-plans-header__back {
-  display:
-    grid;
+function addWeeks(
+  date,
+  amount
+) {
+  return addDays(
+    date,
+    Number(
+      amount || 0
+    ) *
+    7
+  );
+}
 
-  place-items:
-    center;
 
-  width:
-    46px;
+function getWeekEnd(
+  weekStart
+) {
+  return addDays(
+    weekStart,
+    6
+  );
+}
 
-  height:
-    46px;
 
-  padding:
-    0;
+function toLocalDateKey(
+  date
+) {
+  return (
+    `${date.getFullYear()}-` +
+    `${String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    )}-` +
+    `${String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    )}`
+  );
+}
 
-  border:
-    1px solid
-    var(--wp-border);
 
-  border-radius:
-    15px;
+function parseLocalDateKey(
+  value
+) {
+  const match =
+    normalizeText(
+      value
+    ).match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
 
-  color:
-    var(--wp-text-strong);
+  if (!match) {
+    return null;
+  }
 
-  background:
-    linear-gradient(
-      180deg,
-      rgba(
-        255,
-        255,
-        255,
-        0.98
+  const date =
+    new Date(
+      Number(
+        match[1]
       ),
-      rgba(
-        241,
-        248,
-        255,
-        0.95
+      Number(
+        match[2]
+      ) - 1,
+      Number(
+        match[3]
       )
     );
 
-  box-shadow:
-    var(--wp-shadow-xs);
-
-  cursor:
-    pointer;
-
-  font-size:
-    1.28rem;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    border-color
-      var(--wp-fast)
-      ease,
-    box-shadow
-      var(--wp-fast)
-      ease;
+  return Number.isNaN(
+    date.getTime()
+  )
+    ? null
+    : date;
 }
 
 
-.workout-plans-header__back:hover,
-.workout-plans-header__back:focus-visible {
-  border-color:
-    var(--wp-border-cyan);
-
-  box-shadow:
-    var(--wp-glow-cyan);
-
-  outline:
-    none;
+function getSelectedWeekKey() {
+  return toLocalDateKey(
+    state.selectedWeekStart
+  );
 }
 
 
-.workout-plans-header__back:active {
-  transform:
-    scale(
-      0.94
-    );
-}
-
-
-.workout-plans-header__brand {
-  min-width:
-    0;
-
-  text-align:
-    center;
-}
-
-
-.workout-plans-header__eyebrow,
-.workout-section-eyebrow {
-  margin:
-    0 0
-    5px;
-
-  color:
-    var(--wp-cyan-dark);
-
-  font-size:
-    0.61rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.19em;
-
-  text-transform:
-    uppercase;
-}
-
-
-.workout-plans-header__brand h1 {
-  margin:
-    0;
-
-  overflow:
-    hidden;
-
-  color:
-    var(--wp-text-strong);
-
-  font-family:
-    "Audiowide",
-    sans-serif;
-
-  font-size:
-    clamp(
-      1.12rem,
-      5vw,
-      1.7rem
+function getWeekOffsetFromCurrent(
+  weekStart
+) {
+  const current =
+    getSundayStart(
+      new Date()
     );
 
-  font-weight:
-    400;
+  const target =
+    getSundayStart(
+      weekStart
+    );
 
-  letter-spacing:
-    0.02em;
+  const milliseconds =
+    target.getTime() -
+    current.getTime();
 
-  white-space:
-    nowrap;
-
-  text-overflow:
-    ellipsis;
+  return Math.round(
+    milliseconds /
+    (
+      7 *
+      24 *
+      60 *
+      60 *
+      1000
+    )
+  );
 }
 
 
-.workout-plans-header__save {
-  min-width:
-    58px;
-
-  min-height:
-    42px;
-
-  padding:
-    0 13px;
-
-  border:
-    1px solid
-    var(--wp-border-blue);
-
-  border-radius:
-    13px;
-
-  color:
-    var(--wp-blue-dark);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        238,
-        246,
-        255,
-        0.98
-      ),
-      rgba(
-        245,
-        241,
-        255,
-        0.96
-      )
+function getRelativeWeekLabel(
+  weekStart
+) {
+  const offset =
+    getWeekOffsetFromCurrent(
+      weekStart
     );
 
-  box-shadow:
-    var(--wp-shadow-xs);
-
-  cursor:
-    pointer;
-
-  font-size:
-    0.64rem;
-
-  font-weight:
-    900;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    box-shadow
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-plans-header__save:hover {
-  box-shadow:
-    var(--wp-glow-blue);
-}
-
-
-.workout-plans-header__save:active {
-  transform:
-    scale(
-      0.96
-    );
-}
-
-
-.workout-plans-header__save:disabled {
-  opacity:
-    0.6;
-
-  cursor:
-    wait;
-}
-
-
-/* =====================================================
-   STATUS
-===================================================== */
-
-.workout-plans-status {
-  margin:
-    0 0
-    13px;
-
-  padding:
-    11px
-    14px;
-
-  border:
-    1px solid
-    var(--wp-border-cyan);
-
-  border-radius:
-    var(--wp-radius-sm);
-
-  color:
-    var(--wp-cyan-dark);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        232,
-        251,
-        255,
-        0.97
-      ),
-      rgba(
-        247,
-        251,
-        255,
-        0.97
-      )
-    );
-
-  box-shadow:
-    var(--wp-shadow-xs);
-
-  font-size:
-    0.7rem;
-
-  font-weight:
-    800;
-
-  line-height:
-    1.45;
-}
-
-
-.workout-plans-status[data-state="error"] {
-  color:
-    var(--wp-danger);
-
-  border-color:
-    rgba(
-      217,
-      79,
-      102,
-      0.25
-    );
-
-  background:
-    var(--wp-danger-bg);
-}
-
-
-/* =====================================================
-   MAIN TABS
-===================================================== */
-
-.workout-plans-tabs {
-  display:
-    grid;
-
-  grid-template-columns:
-    repeat(
-      3,
-      minmax(
-        0,
-        1fr
-      )
-    );
-
-  gap:
-    5px;
-
-  margin-bottom:
-    23px;
-
-  padding:
-    5px;
-
-  border:
-    1px solid
-    rgba(
-      51,
-      91,
-      133,
-      0.10
-    );
-
-  border-radius:
-    18px;
-
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.78
-    );
-
-  box-shadow:
-    inset
-      0
-      1px
-      0
-      rgba(
-        255,
-        255,
-        255,
-        0.96
-      ),
+  if (
+    offset ===
     0
-      9px
-      26px
-      rgba(
-        22,
-        58,
-        96,
-        0.055
+  ) {
+    return "THIS WEEK";
+  }
+
+  if (
+    offset ===
+    1
+  ) {
+    return "NEXT WEEK";
+  }
+
+  if (
+    offset ===
+    -1
+  ) {
+    return "PREVIOUS WEEK";
+  }
+
+  if (
+    offset >
+    1
+  ) {
+    return `${offset} WEEKS AHEAD`;
+  }
+
+  return `${Math.abs(
+    offset
+  )} WEEKS AGO`;
+}
+
+
+function formatMonthDay(
+  date
+) {
+  return date
+    .toLocaleDateString(
+      "en-US",
+      {
+        month:
+          "short",
+
+        day:
+          "numeric"
+      }
+    )
+    .toUpperCase();
+}
+
+
+function formatDayCardDate(
+  day,
+  date
+) {
+  return (
+    `${DAY_SHORT_LABELS[
+      day
+    ]} ` +
+    `${formatMonthDay(
+      date
+    )}`
+  );
+}
+
+
+function formatWeekRange(
+  weekStart
+) {
+  const weekEnd =
+    getWeekEnd(
+      weekStart
+    );
+
+  const sameYear =
+    weekStart.getFullYear() ===
+    weekEnd.getFullYear();
+
+  const sameMonth =
+    sameYear &&
+    weekStart.getMonth() ===
+    weekEnd.getMonth();
+
+  if (
+    sameMonth
+  ) {
+    return (
+      `${weekStart
+        .toLocaleDateString(
+          "en-US",
+          {
+            month:
+              "short"
+          }
+        )
+        .toUpperCase()} ` +
+      `${weekStart.getDate()} - ` +
+      `${weekEnd.getDate()}`
+    );
+  }
+
+  return (
+    `${formatMonthDay(
+      weekStart
+    )} - ` +
+    `${formatMonthDay(
+      weekEnd
+    )}`
+  );
+}
+
+
+function getDateForDay(
+  day
+) {
+  const index =
+    DAYS.indexOf(
+      day
+    );
+
+  if (
+    index <
+    0
+  ) {
+    return null;
+  }
+
+  return addDays(
+    state.selectedWeekStart,
+    index
+  );
+}
+
+
+/* =====================================================
+   CONTROLLER COMPATIBILITY HELPERS
+
+   These allow the page to work with slightly different
+   V3 controller naming while keeping one UI implementation.
+===================================================== */
+
+function getSelectedWeekPlan() {
+  if (
+    typeof WorkoutPlanController
+      .getSelectedWeek ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getSelectedWeek();
+  }
+
+  if (
+    typeof WorkoutPlanController
+      .getWeekByKey ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getWeekByKey(
+        getSelectedWeekKey()
+      );
+  }
+
+  if (
+    typeof WorkoutPlanController
+      .getWeek ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getWeek(
+        getSelectedWeekKey()
+      );
+  }
+
+  return WorkoutPlanController
+    .getPlan?.()
+    ?.week ||
+    null;
+}
+
+
+function getSelectedDay(
+  day
+) {
+  if (
+    typeof WorkoutPlanController
+      .getSelectedDay ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getSelectedDay(
+        day
+      );
+  }
+
+  if (
+    typeof WorkoutPlanController
+      .getDayForWeek ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getDayForWeek(
+        getSelectedWeekKey(),
+        day
+      );
+  }
+
+  return WorkoutPlanController
+    .getDay(
+      day,
+      getSelectedWeekKey()
+    );
+}
+
+
+async function selectControllerWeek(
+  weekStart
+) {
+  const key =
+    toLocalDateKey(
+      weekStart
+    );
+
+  if (
+    typeof WorkoutPlanController
+      .selectWeek ===
+    "function"
+  ) {
+    return await WorkoutPlanController
+      .selectWeek(
+        key
+      );
+  }
+
+  if (
+    typeof WorkoutPlanController
+      .setSelectedWeek ===
+    "function"
+  ) {
+    return await WorkoutPlanController
+      .setSelectedWeek(
+        key
+      );
+  }
+
+  if (
+    typeof WorkoutPlanController
+      .loadWeek ===
+    "function"
+  ) {
+    return await WorkoutPlanController
+      .loadWeek(
+        key
+      );
+  }
+
+  return true;
+}
+
+
+function controllerSetDayType(
+  day,
+  type
+) {
+  return WorkoutPlanController
+    .setDayType(
+      day,
+      type,
+      getSelectedWeekKey()
+    );
+}
+
+
+function controllerSetDayFocus(
+  day,
+  focusId
+) {
+  return WorkoutPlanController
+    .setDayFocus(
+      day,
+      focusId,
+      getSelectedWeekKey()
+    );
+}
+
+
+function controllerAddExercise(
+  day,
+  exerciseId,
+  options
+) {
+  return WorkoutPlanController
+    .addExercise(
+      day,
+      exerciseId,
+      options,
+      getSelectedWeekKey()
+    );
+}
+
+
+function controllerUpdateExercise(
+  day,
+  index,
+  patch
+) {
+  return WorkoutPlanController
+    .updateExercise(
+      day,
+      index,
+      patch,
+      getSelectedWeekKey()
+    );
+}
+
+
+function controllerRemoveExercise(
+  day,
+  index
+) {
+  return WorkoutPlanController
+    .removeExercise(
+      day,
+      index,
+      getSelectedWeekKey()
+    );
+}
+
+
+/* =====================================================
+   SEARCH COMPATIBILITY
+===================================================== */
+
+function extractExerciseResults(
+  value
+) {
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value ===
+      "object" &&
+    Array.isArray(
+      value.results
+    )
+  ) {
+    return value.results;
+  }
+
+  return [];
+}
+
+
+function getAllRegistryExercises() {
+  if (
+    Array.isArray(
+      ExerciseRegistry
+        ?.all
+    )
+  ) {
+    return [
+      ...ExerciseRegistry.all
+    ];
+  }
+
+  try {
+    return extractExerciseResults(
+      WorkoutPlanController
+        .getExercises()
+    );
+  } catch {
+    return [];
+  }
+}
+
+
+function locallySearchExercises(
+  exercises,
+  query
+) {
+  const normalizedQuery =
+    normalizeLower(
+      query
+    );
+
+  if (
+    !normalizedQuery
+  ) {
+    return [
+      ...exercises
+    ];
+  }
+
+  const queryTokens =
+    normalizedQuery
+      .split(
+        /\s+/
+      )
+      .filter(
+        Boolean
       );
 
-  backdrop-filter:
-    blur(
-      15px
-    );
+  return exercises
+    .map(
+      exercise => {
+        const searchablePieces = [
+          exercise.id,
+          exercise.name,
+          exercise.moduleId,
+          exercise.moduleLabel,
+          exercise.category,
+          exercise.difficulty,
+          exercise.summary,
+          exercise.substitutionGroup,
+          exercise.laterality,
+          exercise.setup,
 
-  -webkit-backdrop-filter:
-    blur(
-      15px
+          exercise.targetEmphasis
+            ?.muscle,
+
+          exercise.targetEmphasis
+            ?.region,
+
+          exercise.targetEmphasis
+            ?.label,
+
+          ...(exercise.aliases ||
+            []),
+
+          ...(exercise.exerciseTypes ||
+            []),
+
+          ...(exercise.bodyParts ||
+            []),
+
+          ...(exercise.primaryMuscles ||
+            []),
+
+          ...(exercise.secondaryMuscles ||
+            []),
+
+          ...(exercise.movementPatterns ||
+            []),
+
+          ...(exercise.equipment ||
+            []),
+
+          ...(exercise.substitutions ||
+            []),
+
+          ...Object.keys(
+            exercise.goals ||
+            {}
+          )
+        ];
+
+        const searchable =
+          searchablePieces
+            .filter(
+              Boolean
+            )
+            .join(
+              " "
+            )
+            .toLowerCase();
+
+        const normalizedName =
+          normalizeLower(
+            exercise.name
+          );
+
+        const normalizedId =
+          normalizeLower(
+            exercise.id
+          );
+
+        const aliases =
+          (
+            exercise.aliases ||
+            []
+          ).map(
+            normalizeLower
+          );
+
+        let score =
+          0;
+
+        if (
+          normalizedName ===
+          normalizedQuery
+        ) {
+          score +=
+            5000;
+        }
+
+        if (
+          normalizedId ===
+          normalizedQuery
+        ) {
+          score +=
+            5000;
+        }
+
+        if (
+          aliases.includes(
+            normalizedQuery
+          )
+        ) {
+          score +=
+            4500;
+        }
+
+        if (
+          normalizedName
+            .startsWith(
+              normalizedQuery
+            )
+        ) {
+          score +=
+            3000;
+        }
+
+        if (
+          aliases.some(
+            alias =>
+              alias.startsWith(
+                normalizedQuery
+              )
+          )
+        ) {
+          score +=
+            2500;
+        }
+
+        if (
+          normalizedName
+            .includes(
+              normalizedQuery
+            )
+        ) {
+          score +=
+            1800;
+        }
+
+        if (
+          aliases.some(
+            alias =>
+              alias.includes(
+                normalizedQuery
+              )
+          )
+        ) {
+          score +=
+            1600;
+        }
+
+        if (
+          searchable.includes(
+            normalizedQuery
+          )
+        ) {
+          score +=
+            1000;
+        }
+
+        for (
+          const token
+          of queryTokens
+        ) {
+          if (
+            normalizedName
+              .includes(
+                token
+              )
+          ) {
+            score +=
+              150;
+          }
+
+          if (
+            aliases.some(
+              alias =>
+                alias.includes(
+                  token
+                )
+            )
+          ) {
+            score +=
+              125;
+          }
+
+          if (
+            searchable.includes(
+              token
+            )
+          ) {
+            score +=
+              75;
+          }
+        }
+
+        return {
+          exercise,
+          score
+        };
+      }
+    )
+    .filter(
+      item =>
+        item.score >
+        0
+    )
+    .sort(
+      (
+        a,
+        b
+      ) => {
+        if (
+          b.score !==
+          a.score
+        ) {
+          return (
+            b.score -
+            a.score
+          );
+        }
+
+        return a.exercise
+          .name
+          .localeCompare(
+            b.exercise
+              .name
+          );
+      }
+    )
+    .map(
+      item =>
+        item.exercise
     );
 }
 
 
-.workout-plans-tab {
-  position:
-    relative;
+/* =====================================================
+   UI HELPERS
+===================================================== */
 
-  min-height:
-    44px;
+function showToast(
+  message,
+  {
+    error =
+      false,
 
-  padding:
-    8px
-    6px;
+    duration =
+      2200
+  } = {}
+) {
+  if (
+    !dom.workoutPlansToast
+  ) {
+    return;
+  }
 
-  border:
-    0;
+  dom.workoutPlansToast
+    .textContent =
+      message;
 
-  border-radius:
-    13px;
+  dom.workoutPlansToast
+    .dataset
+    .state =
+      error
+        ? "error"
+        : "success";
 
-  color:
-    var(--wp-muted);
+  dom.workoutPlansToast
+    .hidden =
+      false;
 
-  background:
-    transparent;
+  window.clearTimeout(
+    showToast.timer
+  );
 
-  cursor:
-    pointer;
-
-  font-size:
-    clamp(
-      0.57rem,
-      2.55vw,
-      0.69rem
+  showToast.timer =
+    window.setTimeout(
+      () => {
+        if (
+          dom.workoutPlansToast
+        ) {
+          dom.workoutPlansToast
+            .hidden =
+              true;
+        }
+      },
+      duration
     );
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.025em;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    color
-      var(--wp-normal)
-      ease,
-    background
-      var(--wp-normal)
-      ease,
-    box-shadow
-      var(--wp-normal)
-      ease;
 }
 
 
-.workout-plans-tab::after {
-  content:
+function setStatus(
+  message,
+  {
+    hide =
+      false,
+
+    error =
+      false
+  } = {}
+) {
+  if (
+    !dom.workoutPlansStatus
+  ) {
+    return;
+  }
+
+  dom.workoutPlansStatus
+    .textContent =
+      message ||
+      "";
+
+  dom.workoutPlansStatus
+    .hidden =
+      Boolean(
+        hide
+      );
+
+  dom.workoutPlansStatus
+    .dataset
+    .state =
+      error
+        ? "error"
+        : "ready";
+}
+
+
+function openDialog(
+  dialog
+) {
+  if (!dialog) {
+    return;
+  }
+
+  if (
+    typeof dialog
+      .showModal ===
+    "function"
+  ) {
+    if (
+      !dialog.open
+    ) {
+      dialog.showModal();
+    }
+
+    return;
+  }
+
+  dialog.setAttribute(
+    "open",
+    ""
+  );
+}
+
+
+function closeDialog(
+  dialog
+) {
+  if (!dialog) {
+    return;
+  }
+
+  if (
+    typeof dialog
+      .close ===
+    "function"
+  ) {
+    if (
+      dialog.open
+    ) {
+      dialog.close();
+    }
+
+    return;
+  }
+
+  dialog.removeAttribute(
+    "open"
+  );
+}
+
+
+/* =====================================================
+   LABEL HELPERS
+===================================================== */
+
+function getMuscleLabel(
+  muscleId
+) {
+  return (
+    Muscles.get(
+      muscleId
+    )?.commonName ||
+    Muscles.get(
+      muscleId
+    )?.name ||
+    titleFromId(
+      muscleId
+    )
+  );
+}
+
+
+function getMovementLabel(
+  movementId
+) {
+  return (
+    MovementPatterns.get(
+      movementId
+    )?.label ||
+    titleFromId(
+      movementId
+    )
+  );
+}
+
+
+function getGoalLabel(
+  goalId
+) {
+  return (
+    FitnessGoals.get(
+      goalId
+    )?.label ||
+    titleFromId(
+      goalId
+    )
+  );
+}
+
+
+function getFocusBodyParts(
+  focus
+) {
+  return uniqueIds([
+    ...(focus?.bodyParts ||
+      []),
+
+    ...(focus?.primaryBodyParts ||
+      []),
+
+    ...(focus?.secondaryBodyParts ||
+      [])
+  ]);
+}
+
+
+function getFocusMuscles(
+  focus
+) {
+  return uniqueIds([
+    ...(focus?.muscles ||
+      []),
+
+    ...(focus?.primaryMuscles ||
+      []),
+
+    ...(focus?.secondaryMuscles ||
+      [])
+  ]);
+}
+
+
+function getFocusMovements(
+  focus
+) {
+  return uniqueIds(
+    focus?.movementPatterns ||
+    []
+  );
+}
+
+
+function getFocusExerciseTypes(
+  focus
+) {
+  return uniqueIds(
+    focus?.exerciseTypes ||
+    []
+  );
+}
+
+
+/* =====================================================
+   CURRENT DAY HELPERS
+===================================================== */
+
+function getCurrentDayState() {
+  if (
+    !state.activeDay
+  ) {
+    return null;
+  }
+
+  return getSelectedDay(
+    state.activeDay
+  );
+}
+
+
+function hasExerciseOnActiveDay(
+  exerciseId
+) {
+  const dayState =
+    getCurrentDayState();
+
+  if (
+    !dayState
+  ) {
+    return false;
+  }
+
+  return (
+    dayState.exercises ||
+    []
+  ).some(
+    entry =>
+      entry.exerciseId ===
+      exerciseId
+  );
+}
+
+
+/* =====================================================
+   EXERCISE DEFAULT HELPERS
+===================================================== */
+
+function isSetBasedExercise(
+  exercise
+) {
+  const fields =
+    exercise
+      ?.logging
+      ?.fields ||
+    [];
+
+  return (
+    fields.includes(
+      "sets"
+    ) ||
+    normalizeLower(
+      exercise
+        ?.logging
+        ?.type
+    ).startsWith(
+      "sets_"
+    )
+  );
+}
+
+
+function isWeightField(
+  field
+) {
+  return (
+    field ===
+      "weight" ||
+    field ===
+      "added_weight" ||
+    field ===
+      "addedWeight"
+  );
+}
+
+
+function displayMetricValue(
+  field,
+  value
+) {
+  if (
+    isWeightField(
+      field
+    ) &&
+    (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      value ===
+        "" ||
+      Number(
+        value
+      ) ===
+        0
+    )
+  ) {
+    return "";
+  }
+
+  return value ??
+    "";
+}
+
+
+function getRestSecondsValue(
+  exercise,
+  entry
+) {
+  const stored =
+    Number(
+      entry
+        ?.restSeconds ??
+      entry
+        ?.rest_seconds
+    );
+
+  if (
+    Number.isFinite(
+      stored
+    ) &&
+    stored >=
+      0
+  ) {
+    return stored;
+  }
+
+  return isSetBasedExercise(
+    exercise
+  )
+    ? DEFAULT_STRENGTH_REST_SECONDS
+    : "";
+}
+
+
+/* =====================================================
+   TABS
+
+   Custom is intentionally NOT a page tab anymore.
+===================================================== */
+
+function setActiveTab(
+  tab
+) {
+  const allowed = [
+    "week",
+    "templates",
+    "library"
+  ];
+
+  if (
+    !allowed.includes(
+      tab
+    )
+  ) {
+    return false;
+  }
+
+  state.activeTab =
+    tab;
+
+  for (
+    const button
+    of dom.tabs ||
+      []
+  ) {
+    const active =
+      button.dataset
+        .workoutTab ===
+      tab;
+
+    button.classList
+      .toggle(
+        "active",
+        active
+      );
+
+    button.setAttribute(
+      "aria-selected",
+      active
+        ? "true"
+        : "false"
+    );
+  }
+
+  for (
+    const panel
+    of dom.panels ||
+      []
+  ) {
+    const active =
+      panel.dataset
+        .workoutPanel ===
+      tab;
+
+    panel.classList
+      .toggle(
+        "active",
+        active
+      );
+
+    panel.hidden =
+      !active;
+  }
+
+  if (
+    tab ===
+    "templates"
+  ) {
+    renderTemplates();
+  }
+
+  if (
+    tab ===
+    "library"
+  ) {
+    renderExerciseLibrary();
+  }
+
+  if (
+    tab ===
+    "week"
+  ) {
+    renderWeek();
+  }
+
+  return true;
+}
+
+
+/* =====================================================
+   SELECT POPULATION
+===================================================== */
+
+function populateSelect(
+  select,
+  items,
+  {
+    placeholder =
+      null,
+
+    valueKey =
+      "id",
+
+    labelKey =
+      "label"
+  } = {}
+) {
+  if (
+    !select
+  ) {
+    return;
+  }
+
+  const current =
+    select.value;
+
+  select.innerHTML =
     "";
 
-  position:
-    absolute;
-
-  left:
-    24%;
-
-  right:
-    24%;
-
-  bottom:
-    5px;
-
-  height:
-    2px;
-
-  border-radius:
-    var(--wp-radius-pill);
-
-  background:
-    linear-gradient(
-      90deg,
-      var(--wp-cyan),
-      var(--wp-blue),
-      var(--wp-violet)
-    );
-
-  opacity:
-    0;
-
-  transform:
-    scaleX(
-      0.4
-    );
-
-  transition:
-    opacity
-      var(--wp-normal)
-      ease,
-    transform
-      var(--wp-normal)
-      var(--wp-ease);
-}
-
-
-.workout-plans-tab:hover {
-  color:
-    var(--wp-text-strong);
-
-  background:
-    rgba(
-      240,
-      248,
-      255,
-      0.72
-    );
-}
-
-
-.workout-plans-tab:active {
-  transform:
-    scale(
-      0.96
-    );
-}
-
-
-.workout-plans-tab.active {
-  color:
-    var(--wp-blue-dark);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        231,
-        251,
-        255,
-        0.97
-      ),
-      rgba(
-        239,
-        246,
-        255,
-        0.97
-      )
-        52%,
-      rgba(
-        248,
-        243,
-        255,
-        0.97
-      )
-    );
-
-  box-shadow:
-    0
-      7px
-      20px
-      rgba(
-        25,
-        70,
-        124,
-        0.10
-      ),
-    inset
-      0
-      0
-      0
-      1px
-      rgba(
-        19,
-        205,
-        236,
-        0.11
+  if (
+    placeholder !==
+    null
+  ) {
+    const option =
+      document.createElement(
+        "option"
       );
+
+    option.value =
+      "";
+
+    option.textContent =
+      placeholder;
+
+    select.appendChild(
+      option
+    );
+  }
+
+  for (
+    const item
+    of items ||
+      []
+  ) {
+    const option =
+      document.createElement(
+        "option"
+      );
+
+    option.value =
+      item?.[
+        valueKey
+      ] ??
+      "";
+
+    option.textContent =
+      item?.[
+        labelKey
+      ] ??
+      item?.name ??
+      item?.id ??
+      "";
+
+    select.appendChild(
+      option
+    );
+  }
+
+  if (
+    current &&
+    Array.from(
+      select.options
+    ).some(
+      option =>
+        option.value ===
+        current
+    )
+  ) {
+    select.value =
+      current;
+  }
 }
 
 
-.workout-plans-tab.active::after {
-  opacity:
-    1;
+function populateFilters() {
+  const goals =
+    Array.isArray(
+      FitnessGoals
+        ?.all
+    )
+      ? FitnessGoals.all
+      : [];
 
-  transform:
-    scaleX(
-      1
+  populateSelect(
+    dom.workoutTemplateGoalFilter,
+    goals,
+    {
+      placeholder:
+        "All Goals"
+    }
+  );
+
+  populateSelect(
+    dom.exerciseBodyPartFilter,
+    BodyParts.list?.({
+      selectableOnly:
+        true
+    }) ||
+    [],
+    {
+      placeholder:
+        "All Body Parts"
+    }
+  );
+
+  populateSelect(
+    dom.exerciseMovementFilter,
+    MovementPatterns.all ||
+      [],
+    {
+      placeholder:
+        "All Movements"
+    }
+  );
+
+  populateSelect(
+    dom.exerciseTypeFilter,
+    ExerciseTypes.all ||
+      [],
+    {
+      placeholder:
+        "All Types"
+    }
+  );
+
+  const equipment = [
+    ...new Set(
+      getAllRegistryExercises()
+        .flatMap(
+          exercise =>
+            exercise.equipment ||
+            []
+        )
+        .filter(
+          Boolean
+        )
+    )
+  ]
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        a.localeCompare(
+          b
+        )
+    )
+    .map(
+      id => ({
+        id,
+
+        label:
+          titleFromId(
+            id
+          )
+      })
     );
+
+  populateSelect(
+    dom.exerciseEquipmentFilter,
+    equipment,
+    {
+      placeholder:
+        "All Equipment"
+    }
+  );
+
+  populateDayFocusSelect();
 }
 
 
-.workout-plans-tab:focus-visible {
-  outline:
-    2px solid
-    rgba(
-      47,
-      95,
-      255,
-      0.26
-    );
+function populateDayFocusSelect() {
+  if (
+    !dom.workoutDayFocus
+  ) {
+    return;
+  }
 
-  outline-offset:
-    2px;
+  populateSelect(
+    dom.workoutDayFocus,
+    WorkoutFocuses.all ||
+      [],
+    {
+      placeholder:
+        "Choose focus"
+    }
+  );
 }
 
 
 /* =====================================================
-   PANELS
+   WEEK HEADER
 ===================================================== */
 
-.workout-plans-panel {
-  animation:
-    workoutPanelIn
-    300ms
-    var(--wp-ease);
+function renderWeekHeader() {
+  if (
+    !state.selectedWeekStart
+  ) {
+    return;
+  }
+
+  const relativeLabel =
+    getRelativeWeekLabel(
+      state.selectedWeekStart
+    );
+
+  const range =
+    formatWeekRange(
+      state.selectedWeekStart
+    );
+
+  if (
+    dom.workoutWeekRelativeLabel
+  ) {
+    dom.workoutWeekRelativeLabel
+      .textContent =
+        relativeLabel;
+  }
+
+  if (
+    dom.workoutWeekDateRange
+  ) {
+    dom.workoutWeekDateRange
+      .textContent =
+        range;
+  }
+
+  if (
+    dom.workoutTemplateWeekRange
+  ) {
+    dom.workoutTemplateWeekRange
+      .textContent =
+        `${relativeLabel} \u00B7 ${range}`;
+  }
 }
 
 
-@keyframes workoutPanelIn {
-  from {
-    opacity:
+/* =====================================================
+   WEEK CARDS
+===================================================== */
+
+function getDaySummary(
+  dayState
+) {
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    return "";
+  }
+
+  const count =
+    dayState.exercises
+      ?.length ||
+    0;
+
+  if (
+    count ===
+    0
+  ) {
+    return "";
+  }
+
+  return (
+    `${count} exercise` +
+    `${count === 1
+      ? ""
+      : "s"}`
+  );
+}
+
+
+function getDayActionLabel(
+  dayState
+) {
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    return "Plan Workout \u2192";
+  }
+
+  return "Edit Workout \u2192";
+}
+
+
+function renderWeek() {
+  if (
+    !dom.workoutWeekGrid ||
+    !state.selectedWeekStart
+  ) {
+    return;
+  }
+
+  renderWeekHeader();
+
+  dom.workoutWeekGrid
+    .innerHTML =
+      "";
+
+  for (
+    let index =
       0;
 
-    transform:
-      translateY(
-        7px
+    index <
+      DAYS.length;
+
+    index +=
+      1
+  ) {
+    const day =
+      DAYS[
+        index
+      ];
+
+    const dayState =
+      getSelectedDay(
+        day
+      ) || {
+        day,
+
+        type:
+          "off",
+
+        focusId:
+          "off_day",
+
+        title:
+          "Off Day",
+
+        exercises:
+          []
+      };
+
+    const date =
+      addDays(
+        state.selectedWeekStart,
+        index
+      );
+
+    const fragment =
+      dom.workoutDayCardTemplate
+        ?.content
+        ?.cloneNode(
+          true
+        );
+
+    if (
+      !fragment
+    ) {
+      continue;
+    }
+
+    const card =
+      fragment.querySelector(
+        ".workout-day-card"
+      );
+
+    const button =
+      fragment.querySelector(
+        ".workout-day-card__button"
+      );
+
+    const dayLabel =
+      fragment.querySelector(
+        ".workout-day-card__day"
+      );
+
+    const dateLabel =
+      fragment.querySelector(
+        ".workout-day-card__date"
+      );
+
+    const type =
+      fragment.querySelector(
+        ".workout-day-card__type"
+      );
+
+    const title =
+      fragment.querySelector(
+        ".workout-day-card__title"
+      );
+
+    const summary =
+      fragment.querySelector(
+        ".workout-day-card__summary"
+      );
+
+    const open =
+      fragment.querySelector(
+        ".workout-day-card__open"
+      );
+
+    if (
+      !card ||
+      !button
+    ) {
+      continue;
+    }
+
+    const dateKey =
+      toLocalDateKey(
+        date
+      );
+
+    card.dataset.day =
+      day;
+
+    card.dataset.date =
+      dateKey;
+
+    card.dataset.type =
+      dayState.type ||
+      "off";
+
+    button.dataset.day =
+      day;
+
+    button.dataset.date =
+      dateKey;
+
+    /*
+     * Preferred simplified label:
+     * MON AUG 10
+     */
+    if (
+      dayLabel
+    ) {
+      dayLabel.textContent =
+        formatDayCardDate(
+          day,
+          date
+        );
+    }
+
+    /*
+     * New HTML does not need a second date line,
+     * but this keeps compatibility if the span exists.
+     */
+    if (
+      dateLabel
+    ) {
+      dateLabel.textContent =
+        "";
+      dateLabel.hidden =
+        true;
+    }
+
+    if (
+      type
+    ) {
+      type.textContent =
+        dayState.type ===
+          "off"
+          ? "OFF"
+          : dayState.type ===
+              "recovery"
+            ? "RECOVERY"
+            : "WORKOUT";
+    }
+
+    if (
+      title
+    ) {
+      if (
+        dayState.type ===
+        "off"
+      ) {
+        title.textContent =
+          "Off Day";
+      } else {
+        const focus =
+          WorkoutFocuses.get(
+            dayState.focusId
+          );
+
+        title.textContent =
+          focus?.label ||
+          dayState.title ||
+          "Workout";
+      }
+    }
+
+    if (
+      summary
+    ) {
+      const value =
+        getDaySummary(
+          dayState
+        );
+
+      summary.textContent =
+        value;
+
+      summary.hidden =
+        !value;
+    }
+
+    if (
+      open
+    ) {
+      open.textContent =
+        getDayActionLabel(
+          dayState
+        );
+    }
+
+    dom.workoutWeekGrid
+      .appendChild(
+        fragment
       );
   }
-
-  to {
-    opacity:
-      1;
-
-    transform:
-      translateY(
-        0
-      );
-  }
-}
-
-
-/* =====================================================
-   SECTION HEADER
-===================================================== */
-
-.workout-section-header {
-  margin-bottom:
-    14px;
-}
-
-
-.workout-section-header h2 {
-  margin:
-    0 0
-    6px;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    clamp(
-      1.08rem,
-      4vw,
-      1.38rem
-    );
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    -0.02em;
-}
-
-
-.workout-section-header p:not(.workout-section-eyebrow) {
-  margin:
-    0;
-
-  color:
-    var(--wp-soft);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.84rem;
-
-  line-height:
-    1.5;
 }
 
 
@@ -1187,1816 +2241,1219 @@ img {
    WEEK NAVIGATION
 ===================================================== */
 
-.workout-week-toolbar {
-  margin-bottom:
-    12px;
-}
-
-
-.workout-week-toolbar__navigation {
-  display:
-    grid;
-
-  grid-template-columns:
-    46px
-    minmax(
-      0,
-      1fr
-    )
-    46px;
-
-  align-items:
-    center;
-
-  gap:
-    10px;
-
-  padding:
-    9px;
-
-  border:
-    1px solid
-    var(--wp-border);
-
-  border-radius:
-    var(--wp-radius-lg);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(
-        255,
-        255,
-        255,
-        0.97
-      ),
-      rgba(
-        242,
-        249,
-        255,
-        0.95
-      )
-    );
-
-  box-shadow:
-    var(--wp-shadow-sm);
-}
-
-
-.workout-week-nav-button {
-  display:
-    grid;
-
-  place-items:
-    center;
-
-  width:
-    46px;
-
-  height:
-    46px;
-
-  padding:
-    0;
-
-  border:
-    1px solid
-    rgba(
-      47,
-      95,
-      255,
-      0.15
-    );
-
-  border-radius:
-    14px;
-
-  color:
-    var(--wp-blue-dark);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        239,
-        248,
-        255,
-        0.98
-      ),
-      rgba(
-        244,
-        241,
-        255,
-        0.95
-      )
-    );
-
-  cursor:
-    pointer;
-
-  font-size:
-    1.05rem;
-
-  font-weight:
-    900;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    border-color
-      var(--wp-fast)
-      ease,
-    box-shadow
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-week-nav-button:hover,
-.workout-week-nav-button:focus-visible {
-  border-color:
-    var(--wp-border-blue);
-
-  box-shadow:
-    var(--wp-glow-blue);
-
-  outline:
-    none;
-}
-
-
-.workout-week-nav-button:active {
-  transform:
-    scale(
-      0.93
-    );
-}
-
-
-.workout-week-toolbar__range {
-  display:
-    grid;
-
-  justify-items:
-    center;
-
-  min-width:
-    0;
-
-  gap:
-    4px;
-
-  text-align:
-    center;
-}
-
-
-.workout-week-toolbar__label,
-#workoutWeekRelativeLabel {
-  color:
-    var(--wp-cyan-dark);
-
-  font-size:
-    0.58rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.17em;
-
-  text-transform:
-    uppercase;
-}
-
-
-.workout-week-toolbar__range strong,
-#workoutWeekDateRange {
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    clamp(
-      0.82rem,
-      3.8vw,
-      1rem
-    );
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.02em;
-}
-
-
-/* =====================================================
-   WEEK ACTIONS
-===================================================== */
-
-.workout-week-actions {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr
-    1fr;
-
-  gap:
-    8px;
-
-  margin-bottom:
-    15px;
-}
-
-
-.workout-secondary-button,
-.workout-danger-button {
-  min-height:
-    42px;
-
-  padding:
-    0 11px;
-
-  border-radius:
-    13px;
-
-  cursor:
-    pointer;
-
-  font-size:
-    0.62rem;
-
-  font-weight:
-    900;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    box-shadow
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-secondary-button {
-  border:
-    1px solid
-    rgba(
-      19,
-      173,
-      211,
-      0.18
-    );
-
-  color:
-    var(--wp-cyan-dark);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        232,
-        251,
-        255,
-        0.92
-      ),
-      rgba(
-        239,
-        246,
-        255,
-        0.92
-      )
-    );
-}
-
-
-.workout-secondary-button:hover {
-  box-shadow:
-    var(--wp-glow-cyan);
-}
-
-
-.workout-danger-button {
-  border:
-    1px solid
-    rgba(
-      217,
-      79,
-      102,
-      0.16
-    );
-
-  color:
-    var(--wp-danger-dark);
-
-  background:
-    var(--wp-danger-bg);
-}
-
-
-.workout-danger-button:hover {
-  box-shadow:
-    0
-      10px
-      24px
-      rgba(
-        217,
-        79,
-        102,
-        0.11
+async function changeSelectedWeek(
+  nextStart
+) {
+  if (
+    state.changingWeek
+  ) {
+    return false;
+  }
+
+  state.changingWeek =
+    true;
+
+  try {
+    const normalized =
+      getSundayStart(
+        nextStart
       );
+
+    state.selectedWeekStart =
+      normalized;
+
+    state.activeDay =
+      null;
+
+    state.activeDayDate =
+      null;
+
+    state.expandedExerciseIndex =
+      null;
+
+    await selectControllerWeek(
+      normalized
+    );
+
+    renderWeek();
+    renderTemplates();
+
+    return true;
+  } catch (
+    error
+  ) {
+    console.error(
+      "ARI Workout Plans could not change weeks.",
+      error
+    );
+
+    showToast(
+      "That week could not be loaded.",
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  } finally {
+    state.changingWeek =
+      false;
+  }
 }
 
 
-.workout-secondary-button:active,
-.workout-danger-button:active {
-  transform:
-    scale(
-      0.97
-    );
+async function goPreviousWeek() {
+  return changeSelectedWeek(
+    addWeeks(
+      state.selectedWeekStart,
+      -1
+    )
+  );
+}
+
+
+async function goNextWeek() {
+  return changeSelectedWeek(
+    addWeeks(
+      state.selectedWeekStart,
+      1
+    )
+  );
 }
 
 
 /* =====================================================
-   WEEK GRID
+   REPEAT / CLEAR WEEK
 ===================================================== */
 
-.workout-week-grid {
-  display:
-    grid;
+async function repeatLastWeek() {
+  const previousWeekStart =
+    addWeeks(
+      state.selectedWeekStart,
+      -1
+    );
 
-  grid-template-columns:
-    1fr;
+  const previousLabel =
+    formatWeekRange(
+      previousWeekStart
+    );
 
-  gap:
-    10px;
+  const currentLabel =
+    formatWeekRange(
+      state.selectedWeekStart
+    );
+
+  const confirmed =
+    window.confirm(
+      `Repeat ${previousLabel} into ${currentLabel}? This will replace anything already planned for this week.`
+    );
+
+  if (
+    !confirmed
+  ) {
+    return false;
+  }
+
+  try {
+    let result =
+      false;
+
+    if (
+      typeof WorkoutPlanController
+        .repeatPreviousWeek ===
+      "function"
+    ) {
+      result =
+        await WorkoutPlanController
+          .repeatPreviousWeek(
+            getSelectedWeekKey()
+          );
+    } else if (
+      typeof WorkoutPlanController
+        .repeatLastWeek ===
+      "function"
+    ) {
+      result =
+        await WorkoutPlanController
+          .repeatLastWeek(
+            getSelectedWeekKey()
+          );
+    } else if (
+      typeof WorkoutPlanController
+        .copyWeek ===
+      "function"
+    ) {
+      result =
+        await WorkoutPlanController
+          .copyWeek({
+            fromWeekKey:
+              toLocalDateKey(
+                previousWeekStart
+              ),
+
+            toWeekKey:
+              getSelectedWeekKey()
+          });
+    }
+
+    if (
+      !result
+    ) {
+      throw new Error(
+        "Repeat-last-week controller method is unavailable."
+      );
+    }
+
+    renderWeek();
+
+    await saveNow();
+
+    showToast(
+      "Last week repeated."
+    );
+
+    return true;
+  } catch (
+    error
+  ) {
+    console.error(
+      "ARI Workout Plans could not repeat last week.",
+      error
+    );
+
+    showToast(
+      "Last week could not be repeated.",
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  }
+}
+
+
+async function clearSelectedWeek() {
+  const confirmed =
+    window.confirm(
+      `Clear ${formatWeekRange(
+        state.selectedWeekStart
+      )}? Every day in this week will become an Off Day.`
+    );
+
+  if (
+    !confirmed
+  ) {
+    return false;
+  }
+
+  try {
+    let result =
+      false;
+
+    if (
+      typeof WorkoutPlanController
+        .clearSelectedWeek ===
+      "function"
+    ) {
+      result =
+        await WorkoutPlanController
+          .clearSelectedWeek();
+    } else if (
+      typeof WorkoutPlanController
+        .clearWeek ===
+      "function"
+    ) {
+      result =
+        await WorkoutPlanController
+          .clearWeek(
+            getSelectedWeekKey()
+          );
+    } else {
+      /*
+       * Safe fallback:
+       * explicitly clear all seven dates.
+       */
+      const results =
+        DAYS.map(
+          day =>
+            WorkoutPlanController
+              .clearDay(
+                day,
+                getSelectedWeekKey()
+              )
+        );
+
+      result =
+        results.every(
+          value =>
+            value !==
+            false
+        );
+    }
+
+    if (
+      !result
+    ) {
+      throw new Error(
+        "Selected week could not be cleared."
+      );
+    }
+
+    renderWeek();
+
+    await saveNow();
+
+    showToast(
+      "Week cleared."
+    );
+
+    return true;
+  } catch (
+    error
+  ) {
+    console.error(
+      "ARI Workout Plans could not clear the week.",
+      error
+    );
+
+    showToast(
+      "Week could not be cleared.",
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  }
 }
 
 
 /* =====================================================
-   DAY CARD
+   TEMPLATES
 ===================================================== */
 
-.workout-day-card {
-  position:
-    relative;
+function renderTemplates() {
+  if (
+    !dom.workoutTemplateList
+  ) {
+    return;
+  }
 
-  overflow:
-    hidden;
+  renderWeekHeader();
 
-  border:
-    1px solid
-    var(--wp-border);
+  const filters = {
+    goal:
+      dom.workoutTemplateGoalFilter
+        ?.value ||
+      null,
 
-  border-radius:
-    var(--wp-radius-lg);
+    trainingDaysPerWeek:
+      dom.workoutTemplateDaysFilter
+        ?.value ||
+      null
+  };
 
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.95
-    );
+  const templates =
+    WorkoutPlanController
+      .getTemplates(
+        filters
+      ) ||
+    [];
 
-  box-shadow:
-    var(--wp-shadow-sm);
+  dom.workoutTemplateList
+    .innerHTML =
+      "";
 
-  transition:
-    transform
-      var(--wp-normal)
-      var(--wp-ease),
-    border-color
-      var(--wp-normal)
-      ease,
-    box-shadow
-      var(--wp-normal)
-      ease;
+  if (
+    dom.workoutTemplateEmpty
+  ) {
+    dom.workoutTemplateEmpty
+      .hidden =
+        templates.length >
+        0;
+  }
+
+  for (
+    const template
+    of templates
+  ) {
+    const fragment =
+      dom.workoutTemplateCardTemplate
+        ?.content
+        ?.cloneNode(
+          true
+        );
+
+    if (
+      !fragment
+    ) {
+      continue;
+    }
+
+    const card =
+      fragment.querySelector(
+        ".workout-template-card"
+      );
+
+    const eyebrow =
+      fragment.querySelector(
+        ".workout-template-card__eyebrow"
+      );
+
+    const name =
+      fragment.querySelector(
+        ".workout-template-card__name"
+      );
+
+    const description =
+      fragment.querySelector(
+        ".workout-template-card__description"
+      );
+
+    const meta =
+      fragment.querySelector(
+        ".workout-template-card__meta"
+      );
+
+    const apply =
+      fragment.querySelector(
+        ".workout-template-card__apply"
+      );
+
+    if (
+      card
+    ) {
+      card.dataset
+        .templateId =
+          template.id;
+    }
+
+    if (
+      eyebrow
+    ) {
+      eyebrow.textContent =
+        `${titleFromId(
+          template.level
+        )} \u00B7 ` +
+        `${template.trainingDaysPerWeek} DAYS/WEEK`;
+    }
+
+    if (
+      name
+    ) {
+      name.textContent =
+        template.name;
+    }
+
+    if (
+      description
+    ) {
+      description.textContent =
+        template.description;
+    }
+
+    if (
+      meta
+    ) {
+      meta.textContent =
+        (
+          template.primaryGoals ||
+          []
+        )
+          .map(
+            getGoalLabel
+          )
+          .join(
+            " \u00B7 "
+          );
+    }
+
+    if (
+      apply
+    ) {
+      apply.dataset
+        .templateId =
+          template.id;
+
+      const offset =
+        getWeekOffsetFromCurrent(
+          state.selectedWeekStart
+        );
+
+      apply.textContent =
+        offset ===
+          0
+          ? "Use for This Week"
+          : offset ===
+              1
+            ? "Use for Next Week"
+            : offset ===
+                -1
+              ? "Use for Previous Week"
+              : "Use for Selected Week";
+    }
+
+    dom.workoutTemplateList
+      .appendChild(
+        fragment
+      );
+  }
 }
 
 
-.workout-day-card::before {
-  content:
+async function applyTemplate(
+  templateId
+) {
+  const template =
+    WorkoutPlanController
+      .getTemplates()
+      .find(
+        item =>
+          item.id ===
+          templateId
+      );
+
+  if (
+    !template
+  ) {
+    return false;
+  }
+
+  const confirmed =
+    window.confirm(
+      `Use "${template.name}" for ${formatWeekRange(
+        state.selectedWeekStart
+      )}? This replaces only the selected week.`
+    );
+
+  if (
+    !confirmed
+  ) {
+    return false;
+  }
+
+  try {
+    let applied;
+
+    /*
+     * V3 should scope this to the selected week.
+     */
+    if (
+      typeof WorkoutPlanController
+        .applyTemplateToWeek ===
+      "function"
+    ) {
+      applied =
+        WorkoutPlanController
+          .applyTemplateToWeek(
+            templateId,
+            getSelectedWeekKey()
+          );
+    } else {
+      applied =
+        WorkoutPlanController
+          .applyTemplate(
+            templateId,
+            getSelectedWeekKey()
+          );
+    }
+
+    if (
+      !applied
+    ) {
+      throw new Error(
+        "Template was not applied."
+      );
+    }
+
+    renderWeek();
+
+    scheduleAutosave();
+
+    showToast(
+      `${template.name} applied.`
+    );
+
+    setActiveTab(
+      "week"
+    );
+
+    return true;
+  } catch (
+    error
+  ) {
+    console.error(
+      "ARI Workout Plans template apply failed.",
+      error
+    );
+
+    showToast(
+      "Template could not be applied.",
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  }
+}
+
+
+/* =====================================================
+   EXERCISE LIBRARY
+===================================================== */
+
+function getLibraryResults() {
+  const query =
+    normalizeText(
+      state.libraryQuery
+    );
+
+  let results =
+    [];
+
+  try {
+    const response =
+      query
+        ? WorkoutPlanController
+            .searchExercises(
+              query,
+              {
+                limit:
+                  Math.max(
+                    1000,
+                    getAllRegistryExercises()
+                      .length +
+                      50
+                  )
+              }
+            )
+        : WorkoutPlanController
+            .getExercises();
+
+    results =
+      extractExerciseResults(
+        response
+      );
+  } catch (
+    error
+  ) {
+    console.warn(
+      "ARI Workout Plans library search failed. Falling back locally.",
+      error
+    );
+
+    results =
+      [];
+  }
+
+  if (
+    query &&
+    results.length ===
+      0
+  ) {
+    results =
+      locallySearchExercises(
+        getAllRegistryExercises(),
+        query
+      );
+  }
+
+  if (
+    !query &&
+    results.length ===
+      0
+  ) {
+    results =
+      getAllRegistryExercises();
+  }
+
+  const bodyPart =
+    dom.exerciseBodyPartFilter
+      ?.value ||
     "";
 
-  position:
-    absolute;
+  const movement =
+    dom.exerciseMovementFilter
+      ?.value ||
+    "";
 
-  inset:
-    0 auto
-    0 0;
+  const type =
+    dom.exerciseTypeFilter
+      ?.value ||
+    "";
 
-  width:
-    4px;
+  const equipment =
+    dom.exerciseEquipmentFilter
+      ?.value ||
+    "";
 
-  background:
-    linear-gradient(
-      180deg,
-      var(--wp-cyan),
-      var(--wp-blue)
-    );
+  return results.filter(
+    exercise => {
+      if (
+        bodyPart &&
+        !(
+          exercise.bodyParts ||
+          []
+        ).includes(
+          bodyPart
+        )
+      ) {
+        return false;
+      }
 
-  opacity:
-    0.82;
+      if (
+        movement &&
+        !(
+          exercise.movementPatterns ||
+          []
+        ).includes(
+          movement
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        type &&
+        !(
+          exercise.exerciseTypes ||
+          []
+        ).includes(
+          type
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        equipment &&
+        !(
+          exercise.equipment ||
+          []
+        ).includes(
+          equipment
+        )
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+  );
 }
 
 
-.workout-day-card[data-type="recovery"]::before {
-  background:
-    linear-gradient(
-      180deg,
-      var(--wp-violet),
-      var(--wp-cyan)
-    );
-}
-
-
-.workout-day-card[data-type="off"]::before {
-  background:
-    linear-gradient(
-      180deg,
-      #c1cedd,
-      #94a7ba
-    );
-
-  opacity:
-    0.65;
-}
-
-
-.workout-day-card:hover {
-  transform:
-    translateY(
-      -2px
-    );
-
-  border-color:
-    rgba(
-      19,
-      173,
-      211,
-      0.23
-    );
-
-  box-shadow:
-    var(--wp-shadow-md);
-}
-
-
-.workout-day-card__button {
-  width:
-    100%;
-
-  padding:
-    15px
-    15px
-    14px
-    18px;
-
-  border:
-    0;
-
-  color:
-    inherit;
-
-  background:
-    transparent;
-
-  text-align:
-    left;
-
-  cursor:
-    pointer;
-
-  transition:
-    background
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-day-card__button:active {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        228,
-        248,
-        255,
-        0.70
-      ),
-      rgba(
-        248,
-        244,
-        255,
-        0.68
-      )
-    );
-}
-
-
-.workout-day-card__header {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    10px;
-
-  margin-bottom:
-    9px;
-}
-
-
-.workout-day-card__identity {
-  display:
-    grid;
-
-  gap:
-    2px;
-
-  min-width:
-    0;
-}
-
-
-.workout-day-card__day {
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.77rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.045em;
-
-  text-transform:
-    uppercase;
-}
-
-
-.workout-day-card__date {
-  color:
-    var(--wp-muted);
-
-  font-size:
-    0.59rem;
-
-  font-weight:
-    800;
-}
-
-
-.workout-day-card__type {
-  display:
-    inline-flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  min-height:
-    24px;
-
-  padding:
-    4px
-    8px;
-
-  border:
-    1px solid
-    rgba(
-      19,
-      173,
-      211,
-      0.15
-    );
-
-  border-radius:
-    var(--wp-radius-pill);
-
-  color:
-    var(--wp-cyan-dark);
-
-  background:
-    rgba(
-      230,
-      250,
-      255,
-      0.84
-    );
-
-  font-size:
-    0.5rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.11em;
-}
-
-
-.workout-day-card[data-type="recovery"]
-.workout-day-card__type {
-  color:
-    var(--wp-violet-strong);
-
-  border-color:
-    rgba(
-      143,
-      99,
-      247,
-      0.16
-    );
-
-  background:
-    var(--wp-surface-violet);
-}
-
-
-.workout-day-card[data-type="off"]
-.workout-day-card__type {
-  color:
-    #74869b;
-
-  border-color:
-    rgba(
-      111,
-      132,
-      155,
-      0.13
-    );
-
-  background:
-    rgba(
-      242,
-      246,
-      250,
-      0.9
-    );
-}
-
-
-.workout-day-card__title {
-  margin:
-    0;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.94rem;
-
-  font-weight:
-    900;
-
-  line-height:
-    1.3;
-}
-
-
-.workout-day-card__summary {
-  margin:
-    5px 0
-    0;
-
-  color:
-    var(--wp-muted);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.75rem;
-
-  line-height:
-    1.42;
-}
-
-
-.workout-day-card__open {
-  display:
-    inline-flex;
-
-  align-items:
-    center;
-
-  margin-top:
-    10px;
-
-  color:
-    var(--wp-blue);
-
-  font-size:
-    0.62rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.035em;
-}
-
-
-/* =====================================================
-   TEMPLATE WEEK CONTEXT
-===================================================== */
-
-.workout-template-week-context {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    12px;
-
-  margin-bottom:
-    13px;
-
-  padding:
-    11px
-    13px;
-
-  border:
-    1px solid
-    var(--wp-border-cyan);
-
-  border-radius:
-    var(--wp-radius-sm);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        232,
-        251,
-        255,
-        0.84
-      ),
-      rgba(
-        244,
-        247,
-        255,
-        0.90
-      )
-    );
-}
-
-
-.workout-template-week-context span {
-  color:
-    var(--wp-muted);
-
-  font-size:
-    0.6rem;
-
-  font-weight:
-    800;
-}
-
-
-.workout-template-week-context strong {
-  color:
-    var(--wp-blue-dark);
-
-  font-size:
-    0.66rem;
-
-  font-weight:
-    900;
-
-  text-align:
-    right;
-}
-
-
-/* =====================================================
-   FILTERS / INPUTS
-===================================================== */
-
-.workout-filter-row,
-.exercise-library-filters {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr;
-
-  gap:
-    10px;
-
-  margin-bottom:
-    14px;
-}
-
-
-.workout-filter,
-.workout-builder-field,
-.workout-exercise-metric {
-  display:
-    grid;
-
-  gap:
-    7px;
-}
-
-
-.workout-filter > span,
-.workout-builder-field > span,
-.workout-exercise-metric > span {
-  color:
-    var(--wp-soft);
-
-  font-size:
-    0.59rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.055em;
-}
-
-
-.workout-filter select,
-.workout-builder-field select,
-.workout-builder-field input,
-.workout-exercise-metric input,
-.exercise-library-search input,
-#workoutExercisePickerSearch {
-  width:
-    100%;
-
-  min-height:
-    46px;
-
-  padding:
-    0 12px;
-
-  border:
-    1px solid
-    rgba(
-      52,
-      96,
-      140,
-      0.14
-    );
-
-  border-radius:
-    13px;
-
-  color:
-    var(--wp-text-strong);
-
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.97
-    );
-
-  box-shadow:
-    inset
-      0
-      1px
-      0
-      rgba(
-        255,
-        255,
-        255,
-        0.95
+function renderExerciseCard(
+  exercise,
+  {
+    addEnabled =
+      false,
+
+    container
+  } = {}
+) {
+  const fragment =
+    dom.exerciseCardTemplate
+      ?.content
+      ?.cloneNode(
+        true
       );
 
-  outline:
-    none;
+  if (
+    !fragment
+  ) {
+    return;
+  }
 
-  transition:
-    border-color
-      var(--wp-fast)
-      ease,
-    box-shadow
-      var(--wp-fast)
-      ease,
-    background
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-filter select:focus,
-.workout-builder-field select:focus,
-.workout-builder-field input:focus,
-.workout-exercise-metric input:focus,
-.exercise-library-search input:focus,
-#workoutExercisePickerSearch:focus {
-  border-color:
-    rgba(
-      19,
-      173,
-      211,
-      0.42
+  const card =
+    fragment.querySelector(
+      ".exercise-library-card"
     );
 
-  background:
-    #ffffff;
+  const open =
+    fragment.querySelector(
+      ".exercise-library-card__open"
+    );
 
-  box-shadow:
-    0
-      0
-      0
-      4px
-      rgba(
-        19,
-        205,
-        236,
-        0.085
+  const image =
+    fragment.querySelector(
+      ".exercise-library-card__image"
+    );
+
+  const placeholder =
+    fragment.querySelector(
+      ".exercise-library-card__placeholder"
+    );
+
+  const type =
+    fragment.querySelector(
+      ".exercise-library-card__type"
+    );
+
+  const name =
+    fragment.querySelector(
+      ".exercise-library-card__name"
+    );
+
+  const muscles =
+    fragment.querySelector(
+      ".exercise-library-card__muscles"
+    );
+
+  const add =
+    fragment.querySelector(
+      ".exercise-library-card__add"
+    );
+
+  if (
+    card
+  ) {
+    card.dataset
+      .exerciseId =
+        exercise.id;
+  }
+
+  if (
+    open
+  ) {
+    open.dataset
+      .exerciseId =
+        exercise.id;
+  }
+
+  if (
+    type
+  ) {
+    type.textContent =
+      titleFromId(
+        exercise.category
       );
+  }
+
+  if (
+    name
+  ) {
+    name.textContent =
+      exercise.name;
+  }
+
+  if (
+    muscles
+  ) {
+    muscles.textContent =
+      (
+        exercise.primaryMuscles ||
+        []
+      )
+        .map(
+          getMuscleLabel
+        )
+        .join(
+          " \u00B7 "
+        );
+  }
+
+  const imagePath =
+    exercise
+      .illustration
+      ?.anatomy ||
+    exercise
+      .illustration
+      ?.movement ||
+    null;
+
+  if (
+    image
+  ) {
+    if (
+      imagePath
+    ) {
+      image.src =
+        imagePath;
+
+      image.alt =
+        `${exercise.name} illustration`;
+
+      image.hidden =
+        false;
+
+      if (
+        placeholder
+      ) {
+        placeholder.hidden =
+          true;
+      }
+    } else {
+      image.hidden =
+        true;
+
+      if (
+        placeholder
+      ) {
+        placeholder.hidden =
+          false;
+      }
+    }
+  }
+
+  if (
+    add
+  ) {
+    add.hidden =
+      !addEnabled;
+
+    add.dataset
+      .exerciseId =
+        exercise.id;
+
+    if (
+      addEnabled
+    ) {
+      const alreadyAdded =
+        hasExerciseOnActiveDay(
+          exercise.id
+        );
+
+      add.disabled =
+        alreadyAdded;
+
+      add.textContent =
+        alreadyAdded
+          ? "Added"
+          : "Add";
+    }
+  }
+
+  container?.appendChild(
+    fragment
+  );
 }
 
 
-.workout-builder-field
-+
-.workout-builder-field {
-  margin-top:
-    12px;
+function renderExerciseLibrary() {
+  if (
+    !dom.exerciseLibraryList
+  ) {
+    return;
+  }
+
+  const results =
+    getLibraryResults();
+
+  dom.exerciseLibraryList
+    .innerHTML =
+      "";
+
+  if (
+    dom.exerciseLibraryEmpty
+  ) {
+    dom.exerciseLibraryEmpty
+      .hidden =
+        results.length >
+        0;
+  }
+
+  for (
+    const exercise
+    of results
+  ) {
+    renderExerciseCard(
+      exercise,
+      {
+        addEnabled:
+          false,
+
+        container:
+          dom.exerciseLibraryList
+      }
+    );
+  }
 }
 
 
 /* =====================================================
-   TEMPLATE GRID
+   FOCUS FILTERING
 ===================================================== */
 
-.workout-template-grid {
-  display:
-    grid;
+function exerciseMatchesFocus(
+  exercise,
+  focus
+) {
+  if (
+    !exercise ||
+    !focus
+  ) {
+    return false;
+  }
 
-  grid-template-columns:
-    1fr;
+  /*
+   * Custom remains a legitimate TRAINING FOCUS.
+   */
+  if (
+    focus.id ===
+    "custom"
+  ) {
+    return true;
+  }
 
-  gap:
-    11px;
-}
+  if (
+    focus.id ===
+    "off_day"
+  ) {
+    return false;
+  }
 
-
-.workout-template-card {
-  display:
-    grid;
-
-  gap:
-    13px;
-
-  padding:
-    16px;
-
-  border:
-    1px solid
-    var(--wp-border);
-
-  border-radius:
-    var(--wp-radius-lg);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(
-        255,
-        255,
-        255,
-        0.97
-      ),
-      rgba(
-        244,
-        250,
-        255,
-        0.95
-      )
+  const focusBodyParts =
+    getFocusBodyParts(
+      focus
     );
 
-  box-shadow:
-    var(--wp-shadow-sm);
-}
-
-
-.workout-template-card__eyebrow {
-  margin:
-    0 0
-    7px;
-
-  color:
-    var(--wp-violet-strong);
-
-  font-size:
-    0.55rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.11em;
-}
-
-
-.workout-template-card__name {
-  margin:
-    0 0
-    7px;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.96rem;
-
-  font-weight:
-    900;
-}
-
-
-.workout-template-card__description {
-  margin:
-    0;
-
-  color:
-    var(--wp-soft);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.79rem;
-
-  line-height:
-    1.52;
-}
-
-
-.workout-template-card__meta {
-  margin-top:
-    9px;
-
-  color:
-    var(--wp-blue-dark);
-
-  font-size:
-    0.59rem;
-
-  font-weight:
-    900;
-}
-
-
-.workout-template-card__apply {
-  min-height:
-    44px;
-
-  border:
-    1px solid
-    var(--wp-border-blue);
-
-  border-radius:
-    13px;
-
-  color:
-    var(--wp-blue-dark);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        236,
-        245,
-        255,
-        0.96
-      ),
-      rgba(
-        245,
-        241,
-        255,
-        0.96
-      )
+  const focusMovements =
+    getFocusMovements(
+      focus
     );
 
-  cursor:
-    pointer;
-
-  font-size:
-    0.66rem;
-
-  font-weight:
-    900;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    box-shadow
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-template-card__apply:hover {
-  box-shadow:
-    var(--wp-glow-blue);
-}
-
-
-.workout-template-card__apply:active {
-  transform:
-    scale(
-      0.97
+  const focusTypes =
+    getFocusExerciseTypes(
+      focus
     );
-}
 
+  const focusMuscles =
+    getFocusMuscles(
+      focus
+    );
 
-/* =====================================================
-   EXERCISE LIBRARY SEARCH
-===================================================== */
+  const exerciseMuscles = [
+    ...arrayOfIds(
+      exercise.primaryMuscles
+    ),
 
-.exercise-library-search {
-  display:
-    grid;
-
-  grid-template-columns:
-    minmax(
-      0,
-      1fr
+    ...arrayOfIds(
+      exercise.secondaryMuscles
     )
-    auto;
+  ];
 
-  gap:
-    8px;
+  const rules =
+    [];
 
-  margin-bottom:
-    12px;
+  if (
+    focusBodyParts.length
+  ) {
+    rules.push(
+      intersects(
+        exercise.bodyParts,
+        focusBodyParts
+      )
+    );
+  }
+
+  if (
+    focusMuscles.length
+  ) {
+    rules.push(
+      intersects(
+        exerciseMuscles,
+        focusMuscles
+      )
+    );
+  }
+
+  if (
+    focusMovements.length
+  ) {
+    rules.push(
+      intersects(
+        exercise.movementPatterns,
+        focusMovements
+      )
+    );
+  }
+
+  if (
+    focusTypes.length
+  ) {
+    rules.push(
+      intersects(
+        exercise.exerciseTypes,
+        focusTypes
+      )
+    );
+  }
+
+  return rules.length
+    ? rules.some(
+        Boolean
+      )
+    : false;
 }
 
 
-.exercise-library-search button {
-  min-width:
-    82px;
+function getFocusedExercisePool(
+  dayState
+) {
+  if (
+    !dayState
+  ) {
+    return [];
+  }
 
-  border:
-    0;
-
-  border-radius:
-    13px;
-
-  color:
-    #ffffff;
-
-  background:
-    linear-gradient(
-      135deg,
-      var(--wp-cyan-strong),
-      var(--wp-blue)
+  const focus =
+    WorkoutFocuses.get(
+      dayState.focusId
     );
 
-  box-shadow:
+  if (
+    !focus
+  ) {
+    return [];
+  }
+
+  if (
+    focus.id ===
+    "off_day"
+  ) {
+    return [];
+  }
+
+  if (
+    focus.id ===
+    "custom"
+  ) {
+    return getAllRegistryExercises();
+  }
+
+  let recommended =
+    [];
+
+  try {
+    recommended =
+      extractExerciseResults(
+        WorkoutPlanController
+          .getRecommendedExercisesForDay(
+            state.activeDay,
+            {
+              weekKey:
+                getSelectedWeekKey(),
+
+              limit:
+                Math.max(
+                  1000,
+                  getAllRegistryExercises()
+                    .length +
+                    50
+                )
+            }
+          )
+      );
+  } catch {
+    recommended =
+      [];
+  }
+
+  const focusedRecommendations =
+    recommended.filter(
+      exercise =>
+        exerciseMatchesFocus(
+          exercise,
+          focus
+        )
+    );
+
+  if (
+    focusedRecommendations
+      .length
+  ) {
+    return focusedRecommendations;
+  }
+
+  return getAllRegistryExercises()
+    .filter(
+      exercise =>
+        exerciseMatchesFocus(
+          exercise,
+          focus
+        )
+    );
+}
+
+
+function filterFocusedPoolBySearch(
+  exercises,
+  query
+) {
+  const normalizedQuery =
+    normalizeLower(
+      query
+    );
+
+  if (
+    !normalizedQuery
+  ) {
+    return exercises;
+  }
+
+  let searchResults =
+    [];
+
+  try {
+    searchResults =
+      extractExerciseResults(
+        WorkoutPlanController
+          .searchExercises(
+            normalizedQuery,
+            {
+              limit:
+                Math.max(
+                  1000,
+                  getAllRegistryExercises()
+                    .length +
+                    50
+                )
+            }
+          )
+      );
+  } catch (
+    error
+  ) {
+    console.warn(
+      "ARI Workout Plans picker search failed. Using local search fallback.",
+      error
+    );
+
+    searchResults =
+      [];
+  }
+
+  if (
+    searchResults.length >
     0
-      10px
-      26px
-      rgba(
-        47,
-        95,
-        255,
-        0.15
+  ) {
+    const ids =
+      new Set(
+        searchResults.map(
+          exercise =>
+            exercise.id
+        )
       );
 
-  cursor:
-    pointer;
-
-  font-size:
-    0.65rem;
-
-  font-weight:
-    900;
-}
-
-
-.exercise-library-search button:active {
-  transform:
-    scale(
-      0.97
+    return exercises.filter(
+      exercise =>
+        ids.has(
+          exercise.id
+        )
     );
-}
-
-
-/* =====================================================
-   EXERCISE LIBRARY CARDS
-===================================================== */
-
-.exercise-library-grid {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr;
-
-  gap:
-    10px;
-}
-
-
-.exercise-library-card {
-  position:
-    relative;
-
-  overflow:
-    hidden;
-
-  border:
-    1px solid
-    var(--wp-border);
-
-  border-radius:
-    var(--wp-radius-md);
-
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.95
-    );
-
-  box-shadow:
-    var(--wp-shadow-xs);
-
-  transition:
-    transform
-      var(--wp-normal)
-      var(--wp-ease),
-    border-color
-      var(--wp-normal)
-      ease,
-    box-shadow
-      var(--wp-normal)
-      ease;
-}
-
-
-.exercise-library-card:hover {
-  transform:
-    translateY(
-      -1px
-    );
-
-  border-color:
-    rgba(
-      19,
-      173,
-      211,
-      0.22
-    );
-
-  box-shadow:
-    var(--wp-shadow-sm);
-}
-
-
-.exercise-library-card__open {
-  display:
-    grid;
-
-  grid-template-columns:
-    66px
-    minmax(
-      0,
-      1fr
-    );
-
-  gap:
-    11px;
-
-  align-items:
-    center;
-
-  width:
-    100%;
-
-  padding:
-    10px;
-
-  border:
-    0;
-
-  color:
-    inherit;
-
-  background:
-    transparent;
-
-  text-align:
-    left;
-
-  cursor:
-    pointer;
-}
-
-
-.exercise-library-card__visual {
-  display:
-    grid;
-
-  place-items:
-    center;
-
-  width:
-    66px;
-
-  height:
-    66px;
-
-  overflow:
-    hidden;
-
-  border:
-    1px solid
-    rgba(
-      19,
-      173,
-      211,
-      0.11
-    );
-
-  border-radius:
-    14px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(
-        230,
-        251,
-        255,
-        0.95
-      ),
-      rgba(
-        241,
-        246,
-        255,
-        0.95
-      )
-        52%,
-      rgba(
-        247,
-        241,
-        255,
-        0.95
-      )
-    );
-}
-
-
-.exercise-library-card__image {
-  width:
-    100%;
-
-  height:
-    100%;
-
-  object-fit:
-    cover;
-}
-
-
-.exercise-library-card__placeholder {
-  color:
-    rgba(
-      47,
-      95,
-      255,
-      0.44
-    );
-
-  font-family:
-    "Audiowide",
-    sans-serif;
-
-  font-size:
-    0.82rem;
-
-  letter-spacing:
-    0.07em;
-}
-
-
-.exercise-library-card__type {
-  margin:
-    0 0
-    4px;
-
-  color:
-    var(--wp-cyan-dark);
-
-  font-size:
-    0.53rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.095em;
-
-  text-transform:
-    uppercase;
-}
-
-
-.exercise-library-card__name {
-  margin:
-    0 0
-    4px;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.83rem;
-
-  line-height:
-    1.3;
-
-  font-weight:
-    900;
-}
-
-
-.exercise-library-card__muscles {
-  margin:
-    0;
-
-  color:
-    var(--wp-muted);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.69rem;
-
-  line-height:
-    1.4;
-}
-
-
-.exercise-library-card__add {
-  margin:
-    0
-    10px
-    10px;
-
-  min-height:
-    39px;
-
-  border:
-    1px solid
-    var(--wp-border-cyan);
-
-  border-radius:
-    11px;
-
-  color:
-    var(--wp-cyan-dark);
-
-  background:
-    var(--wp-surface-cyan);
-
-  cursor:
-    pointer;
-
-  font-size:
-    0.65rem;
-
-  font-weight:
-    900;
-}
-
-
-.exercise-library-card__add:disabled {
-  color:
-    var(--wp-success);
-
-  border-color:
-    rgba(
-      22,
-      138,
-      104,
-      0.18
-    );
-
-  background:
-    var(--wp-success-bg);
-
-  cursor:
-    default;
-}
-
-
-/* =====================================================
-   EMPTY STATES
-===================================================== */
-
-.workout-empty-state,
-.workout-exercise-picker__empty {
-  margin:
-    12px 0
-    0;
-
-  padding:
-    17px;
-
-  border:
-    1px dashed
-    rgba(
-      74,
-      113,
-      151,
-      0.18
-    );
-
-  border-radius:
-    15px;
-
-  color:
-    var(--wp-muted);
-
-  background:
-    rgba(
-      248,
-      252,
-      255,
-      0.74
-    );
-
-  text-align:
-    center;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.77rem;
-
-  line-height:
-    1.48;
-}
-
-
-/* =====================================================
-   DIALOGS
-===================================================== */
-
-.workout-dialog {
-  width:
-    min(
-      calc(
-        100% -
-        18px
-      ),
-      720px
-    );
-
-  max-height:
-    min(
-      92dvh,
-      900px
-    );
-
-  padding:
-    0;
-
-  border:
-    0;
-
-  border-radius:
-    var(--wp-radius-xl);
-
-  color:
-    var(--wp-text);
-
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.99
-    );
-
-  box-shadow:
-    var(--wp-shadow-lg);
-
-  overflow:
-    hidden;
-}
-
-
-.workout-dialog::backdrop {
-  background:
-    rgba(
-      15,
-      34,
-      58,
-      0.39
-    );
-
-  backdrop-filter:
-    blur(
-      8px
-    );
-
-  -webkit-backdrop-filter:
-    blur(
-      8px
-    );
-}
-
-
-.workout-dialog__panel {
-  max-height:
-    min(
-      92dvh,
-      900px
-    );
-
-  overflow-y:
-    auto;
-
-  padding:
-    20px
-    15px
-    calc(
-      20px +
-      env(
-        safe-area-inset-bottom
-      )
-    );
-
-  background:
-    radial-gradient(
-      circle at 100% 0%,
-      rgba(
-        143,
-        99,
-        247,
-        0.075
-      ),
-      transparent
-        26%
-    ),
-    radial-gradient(
-      circle at 0% 0%,
-      rgba(
-        19,
-        205,
-        236,
-        0.085
-      ),
-      transparent
-        24%
-    ),
-    #ffffff;
-}
-
-
-.workout-dialog__header {
-  display:
-    flex;
-
-  align-items:
-    flex-start;
-
-  justify-content:
-    space-between;
-
-  gap:
-    13px;
-
-  margin-bottom:
-    17px;
-}
-
-
-.workout-dialog__header h2 {
-  margin:
-    0;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    1.12rem;
-
-  font-weight:
-    900;
-}
-
-
-.workout-dialog__close {
-  flex:
-    0 0
-    auto;
-
-  display:
-    grid;
-
-  place-items:
-    center;
-
-  width:
-    39px;
-
-  height:
-    39px;
-
-  border:
-    1px solid
-    var(--wp-border);
-
-  border-radius:
-    12px;
-
-  color:
-    var(--wp-text);
-
-  background:
-    rgba(
-      248,
-      252,
-      255,
-      0.95
-    );
-
-  cursor:
-    pointer;
-
-  font-size:
-    1.2rem;
-}
-
-
-#workoutExercisePickerContext {
-  margin:
-    -2px 0
-    11px;
-
-  color:
-    var(--wp-soft);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.77rem;
-
-  line-height:
-    1.45;
-}
-
-
-#workoutExercisePickerSearch {
-  margin-bottom:
-    12px;
+  }
+
+  return locallySearchExercises(
+    exercises,
+    normalizedQuery
+  );
 }
 
 
@@ -3004,826 +3461,1118 @@ img {
    DAY EDITOR
 ===================================================== */
 
-#workoutDayExerciseSection {
-  margin-top:
-    19px;
+function openDayEditor(
+  day,
+  dateKey =
+    null
+) {
+  const normalizedDay =
+    normalizeLower(
+      day
+    );
 
-  padding-top:
-    16px;
+  if (
+    !DAYS.includes(
+      normalizedDay
+    )
+  ) {
+    return;
+  }
 
-  border-top:
-    1px solid
-    var(--wp-border-soft);
+  const dayState =
+    getSelectedDay(
+      normalizedDay
+    );
+
+  state.activeDay =
+    normalizedDay;
+
+  const resolvedDate =
+    parseLocalDateKey(
+      dateKey
+    ) ||
+    getDateForDay(
+      normalizedDay
+    );
+
+  state.activeDayDate =
+    resolvedDate
+      ? toLocalDateKey(
+          resolvedDate
+        )
+      : null;
+
+  state.expandedExerciseIndex =
+    null;
+
+  if (
+    dom.workoutDayEditorTitle
+  ) {
+    dom.workoutDayEditorTitle
+      .textContent =
+        resolvedDate
+          ? formatDayCardDate(
+              normalizedDay,
+              resolvedDate
+            )
+          : DAY_SHORT_LABELS[
+              normalizedDay
+            ];
+  }
+
+  if (
+    dom.workoutDayType
+  ) {
+    dom.workoutDayType.value =
+      dayState?.type ||
+      "off";
+  }
+
+  if (
+    dom.workoutDayFocus
+  ) {
+    dom.workoutDayFocus.value =
+      dayState?.focusId ||
+      "off_day";
+  }
+
+  updateDayEditorVisibility();
+
+  renderDayExercises();
+
+  openDialog(
+    dom.workoutDayEditor
+  );
 }
 
 
-.workout-builder-card__header {
-  display:
-    flex;
+function updateDayEditorVisibility() {
+  const type =
+    dom.workoutDayType
+      ?.value ||
+    "off";
 
-  align-items:
-    center;
+  const off =
+    type ===
+    "off";
 
-  justify-content:
-    space-between;
+  if (
+    dom.workoutDayFocus
+  ) {
+    dom.workoutDayFocus.disabled =
+      off;
+  }
 
-  gap:
-    11px;
-
-  margin-bottom:
-    11px;
+  if (
+    dom.workoutDayExerciseSection
+  ) {
+    dom.workoutDayExerciseSection.hidden =
+      off;
+  }
 }
 
 
-.workout-builder-card__header h3 {
-  margin:
-    0;
+/* =====================================================
+   METRIC INPUT
+===================================================== */
 
-  color:
-    var(--wp-text-strong);
+function makeMetricInput({
+  label,
+  field,
+  value =
+    "",
+  min =
+    0,
+  max =
+    null,
+  step =
+    1,
+  inputMode =
+    "decimal",
+  placeholder =
+    ""
+}) {
+  const wrapper =
+    document.createElement(
+      "label"
+    );
 
-  font-size:
-    0.93rem;
+  wrapper.className =
+    "workout-exercise-metric";
 
-  font-weight:
-    900;
+  const span =
+    document.createElement(
+      "span"
+    );
+
+  span.textContent =
+    label;
+
+  const input =
+    document.createElement(
+      "input"
+    );
+
+  input.type =
+    "number";
+
+  input.inputMode =
+    inputMode;
+
+  input.min =
+    String(
+      min
+    );
+
+  if (
+    max !==
+    null
+  ) {
+    input.max =
+      String(
+        max
+      );
+  }
+
+  input.step =
+    String(
+      step
+    );
+
+  input.value =
+    displayMetricValue(
+      field,
+      value
+    );
+
+  if (
+    placeholder
+  ) {
+    input.placeholder =
+      placeholder;
+  }
+
+  input.dataset
+    .exerciseField =
+      field;
+
+  wrapper.append(
+    span,
+    input
+  );
+
+  return wrapper;
 }
 
 
-#workoutAddExerciseButton {
-  min-height:
-    39px;
+/* =====================================================
+   EXERCISE PRESCRIPTION SUMMARY
+===================================================== */
 
-  padding:
-    0 11px;
+function getExercisePrescriptionSummary(
+  exercise,
+  entry
+) {
+  const parts =
+    [];
 
-  border:
-    1px solid
-    var(--wp-border-cyan);
+  if (
+    Number(
+      entry.sets
+    ) >
+      0 &&
+    Number(
+      entry.reps
+    ) >
+      0
+  ) {
+    parts.push(
+      `${entry.sets} sets \u00D7 ${entry.reps} reps`
+    );
+  } else if (
+    Number(
+      entry.sets
+    ) >
+    0
+  ) {
+    parts.push(
+      `${entry.sets} sets`
+    );
+  } else if (
+    Number(
+      entry.reps
+    ) >
+    0
+  ) {
+    parts.push(
+      `${entry.reps} reps`
+    );
+  }
 
-  border-radius:
-    11px;
+  if (
+    Number(
+      entry.weight
+    ) >
+    0
+  ) {
+    parts.push(
+      `${entry.weight} lb`
+    );
+  }
 
-  color:
-    var(--wp-cyan-dark);
+  const addedWeight =
+    entry.addedWeight ??
+    entry.added_weight;
 
-  background:
-    linear-gradient(
-      135deg,
-      rgba(
-        229,
-        250,
-        255,
-        0.95
-      ),
-      rgba(
-        239,
-        246,
-        255,
-        0.95
+  if (
+    Number(
+      addedWeight
+    ) >
+    0
+  ) {
+    parts.push(
+      `${addedWeight} lb`
+    );
+  }
+
+  if (
+    Number(
+      entry.durationMinutes
+    ) >
+    0
+  ) {
+    parts.push(
+      `${entry.durationMinutes} min`
+    );
+  }
+
+  if (
+    Number(
+      entry.durationSeconds
+    ) >
+    0
+  ) {
+    parts.push(
+      `${entry.durationSeconds} sec`
+    );
+  }
+
+  if (
+    Number(
+      entry.rounds
+    ) >
+    0
+  ) {
+    parts.push(
+      `${entry.rounds} rounds`
+    );
+  }
+
+  return parts.length
+    ? parts.join(
+        " \u00B7 "
       )
-    );
-
-  cursor:
-    pointer;
-
-  font-size:
-    0.61rem;
-
-  font-weight:
-    900;
-}
-
-
-/* =====================================================
-   PRIMARY BUTTONS
-===================================================== */
-
-.workout-primary-button,
-.workout-primary-action {
-  border:
-    0;
-
-  border-radius:
-    13px;
-
-  color:
-    #ffffff;
-
-  background:
-    linear-gradient(
-      135deg,
-      var(--wp-cyan-strong)
-        0%,
-      var(--wp-blue)
-        53%,
-      var(--wp-violet-strong)
-        100%
-    );
-
-  box-shadow:
-    0
-      13px
-      32px
-      rgba(
-        47,
-        95,
-        255,
-        0.18
-      );
-
-  cursor:
-    pointer;
-
-  font-weight:
-    900;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    box-shadow
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-primary-button:hover,
-.workout-primary-action:hover {
-  box-shadow:
-    0
-      16px
-      38px
-      rgba(
-        47,
-        95,
-        255,
-        0.22
+    : (
+        (
+          exercise.primaryMuscles ||
+          []
+        )
+          .map(
+            getMuscleLabel
+          )
+          .slice(
+            0,
+            2
+          )
+          .join(
+            " \u00B7 "
+          ) ||
+        "Set workout details"
       );
 }
 
 
-.workout-primary-button:active,
-.workout-primary-action:active {
-  transform:
-    scale(
-      0.98
+/* =====================================================
+   DAY EXERCISES
+===================================================== */
+
+function renderDayExercises() {
+  if (
+    !state.activeDay ||
+    !dom.workoutDayExerciseList
+  ) {
+    return;
+  }
+
+  const dayState =
+    getSelectedDay(
+      state.activeDay
     );
-}
 
+  const entries =
+    dayState
+      ?.exercises ||
+    [];
 
-.workout-primary-button--full {
-  width:
-    100%;
+  dom.workoutDayExerciseList
+    .innerHTML =
+      "";
 
-  min-height:
-    49px;
+  if (
+    dom.workoutDayExerciseEmpty
+  ) {
+    dom.workoutDayExerciseEmpty
+      .hidden =
+        entries.length >
+        0;
+  }
 
-  margin-top:
-    17px;
+  entries.forEach(
+    (
+      entry,
+      index
+    ) => {
+      const exercise =
+        ExerciseRegistry.get(
+          entry.exerciseId
+        );
 
-  font-size:
-    0.68rem;
+      if (
+        !exercise
+      ) {
+        return;
+      }
+
+      const expanded =
+        state.expandedExerciseIndex ===
+        index;
+
+      const row =
+        document.createElement(
+          "article"
+        );
+
+      row.className =
+        "workout-exercise-row";
+
+      row.dataset
+        .exerciseIndex =
+          String(
+            index
+          );
+
+      row.dataset
+        .exerciseId =
+          exercise.id;
+
+      row.dataset
+        .expanded =
+          expanded
+            ? "true"
+            : "false";
+
+      /* ===============================================
+         COLLAPSIBLE HEADER
+      =============================================== */
+
+      const summary =
+        document.createElement(
+          "button"
+        );
+
+      summary.type =
+        "button";
+
+      summary.className =
+        "workout-exercise-row__summary";
+
+      summary.dataset
+        .workoutAction =
+          "toggle-exercise-row";
+
+      summary.dataset
+        .exerciseIndex =
+          String(
+            index
+          );
+
+      summary.setAttribute(
+        "aria-expanded",
+        expanded
+          ? "true"
+          : "false"
+      );
+
+      const copy =
+        document.createElement(
+          "span"
+        );
+
+      copy.className =
+        "workout-exercise-row__summary-copy";
+
+      const strong =
+        document.createElement(
+          "strong"
+        );
+
+      strong.textContent =
+        exercise.name;
+
+      const sub =
+        document.createElement(
+          "span"
+        );
+
+      sub.textContent =
+        getExercisePrescriptionSummary(
+          exercise,
+          entry
+        );
+
+      copy.append(
+        strong,
+        sub
+      );
+
+      const summaryEnd =
+        document.createElement(
+          "span"
+        );
+
+      summaryEnd.className =
+        "workout-exercise-row__summary-end";
+
+      if (
+        !expanded
+      ) {
+        const doneBadge =
+          document.createElement(
+            "span"
+          );
+
+        doneBadge.className =
+          "workout-exercise-row__done-badge";
+
+        doneBadge.textContent =
+          "DONE \u2713";
+
+        doneBadge.setAttribute(
+          "aria-hidden",
+          "true"
+        );
+
+        summaryEnd.appendChild(
+          doneBadge
+        );
+      }
+
+      const chevron =
+        document.createElement(
+          "span"
+        );
+
+      chevron.className =
+        "workout-exercise-row__chevron";
+
+      chevron.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+      chevron.textContent =
+        expanded
+          ? "\u25B2"
+          : "\u25BC";
+
+      summaryEnd.appendChild(
+        chevron
+      );
+
+      summary.append(
+        copy,
+        summaryEnd
+      );
+
+      /* ===============================================
+         EXPANDED BODY
+      =============================================== */
+
+      const body =
+        document.createElement(
+          "div"
+        );
+
+      body.className =
+        "workout-exercise-row__body";
+
+      body.hidden =
+        !expanded;
+
+      const metrics =
+        document.createElement(
+          "div"
+        );
+
+      metrics.className =
+        "workout-exercise-row__prescription";
+
+      const fields =
+        exercise
+          .logging
+          ?.fields ||
+        [];
+
+      if (
+        fields.includes(
+          "sets"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Sets",
+
+            field:
+              "sets",
+
+            value:
+              entry.sets ??
+              "",
+
+            min:
+              1,
+
+            max:
+              20,
+
+            step:
+              1,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "reps"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Reps",
+
+            field:
+              "reps",
+
+            value:
+              entry.reps ??
+              "",
+
+            min:
+              1,
+
+            max:
+              200,
+
+            step:
+              1,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "weight"
+        ) ||
+        fields.includes(
+          "added_weight"
+        )
+      ) {
+        const weightField =
+          fields.includes(
+            "weight"
+          )
+            ? "weight"
+            : "added_weight";
+
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Weight",
+
+            field:
+              weightField,
+
+            value:
+              entry.weight ??
+              entry.addedWeight ??
+              entry.added_weight ??
+              "",
+
+            min:
+              0,
+
+            step:
+              0.5,
+
+            placeholder:
+              "Optional"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "rest_seconds"
+        ) ||
+        isSetBasedExercise(
+          exercise
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Rest sec",
+
+            field:
+              "restSeconds",
+
+            value:
+              getRestSecondsValue(
+                exercise,
+                entry
+              ),
+
+            min:
+              0,
+
+            max:
+              3600,
+
+            step:
+              5,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "duration_minutes"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Minutes",
+
+            field:
+              "durationMinutes",
+
+            value:
+              entry.durationMinutes ??
+              "",
+
+            min:
+              1,
+
+            max:
+              600,
+
+            step:
+              1,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "duration_seconds"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Seconds",
+
+            field:
+              "durationSeconds",
+
+            value:
+              entry.durationSeconds ??
+              "",
+
+            min:
+              1,
+
+            max:
+              3600,
+
+            step:
+              1,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "distance"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Distance",
+
+            field:
+              "distance",
+
+            value:
+              entry.distance ??
+              "",
+
+            min:
+              0,
+
+            step:
+              0.1
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "rounds"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Rounds",
+
+            field:
+              "rounds",
+
+            value:
+              entry.rounds ??
+              "",
+
+            min:
+              1,
+
+            max:
+              100,
+
+            step:
+              1,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      if (
+        fields.includes(
+          "work_seconds"
+        )
+      ) {
+        metrics.appendChild(
+          makeMetricInput({
+            label:
+              "Work sec",
+
+            field:
+              "workSeconds",
+
+            value:
+              entry.workSeconds ??
+              "",
+
+            min:
+              1,
+
+            max:
+              3600,
+
+            step:
+              1,
+
+            inputMode:
+              "numeric"
+          })
+        );
+      }
+
+      /* ===============================================
+         DONE
+      =============================================== */
+
+      const done =
+        document.createElement(
+          "button"
+        );
+
+      done.type =
+        "button";
+
+      done.className =
+        "workout-exercise-row__done";
+
+      done.dataset
+        .workoutAction =
+          "done-exercise-row";
+
+      done.dataset
+        .exerciseIndex =
+          String(
+            index
+          );
+
+      done.textContent =
+        "Done";
+
+      /* ===============================================
+         SECONDARY ACTIONS
+      =============================================== */
+
+      const actions =
+        document.createElement(
+          "div"
+        );
+
+      actions.className =
+        "workout-exercise-row__actions";
+
+      const detail =
+        document.createElement(
+          "button"
+        );
+
+      detail.type =
+        "button";
+
+      detail.className =
+        "workout-exercise-row__detail";
+
+      detail.dataset
+        .workoutAction =
+          "open-exercise-detail";
+
+      detail.dataset
+        .exerciseId =
+          exercise.id;
+
+      detail.textContent =
+        "View Exercise";
+
+      const remove =
+        document.createElement(
+          "button"
+        );
+
+      remove.type =
+        "button";
+
+      remove.className =
+        "workout-exercise-row__remove";
+
+      remove.dataset
+        .workoutAction =
+          "remove-exercise";
+
+      remove.dataset
+        .exerciseIndex =
+          String(
+            index
+          );
+
+      remove.textContent =
+        "Remove";
+
+      actions.append(
+        detail,
+        remove
+      );
+
+      body.append(
+        metrics,
+        done,
+        actions
+      );
+
+      row.append(
+        summary,
+        body
+      );
+
+      dom.workoutDayExerciseList
+        .appendChild(
+          row
+        );
+    }
+  );
 }
 
 
 /* =====================================================
-   EXERCISE COLLAPSIBLE ROWS
+   EXERCISE PICKER
 ===================================================== */
 
-.workout-day-exercises {
-  display:
-    grid;
+function openExercisePicker() {
+  if (
+    !state.activeDay
+  ) {
+    return;
+  }
 
-  gap:
-    10px;
-}
-
-
-.workout-exercise-row {
-  position:
-    relative;
-
-  overflow:
-    hidden;
-
-  border:
-    1px solid
-    rgba(
-      51,
-      94,
-      137,
-      0.13
+  const dayState =
+    getSelectedDay(
+      state.activeDay
     );
 
-  border-radius:
-    var(--wp-radius-md);
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    return;
+  }
 
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.97
-    );
-
-  box-shadow:
-    var(--wp-shadow-xs);
-
-  transition:
-    border-color
-      var(--wp-normal)
-      ease,
-    box-shadow
-      var(--wp-normal)
-      ease,
-    background
-      var(--wp-normal)
-      ease;
-}
-
-
-.workout-exercise-row::before {
-  content:
+  state.pickerQuery =
     "";
 
-  position:
-    absolute;
-
-  top:
-    0;
-
-  left:
-    0;
-
-  width:
-    4px;
-
-  height:
-    100%;
-
-  background:
-    linear-gradient(
-      180deg,
-      var(--wp-cyan),
-      var(--wp-blue)
-    );
-
-  opacity:
-    0.65;
-}
-
-
-.workout-exercise-row[data-expanded="true"] {
-  border-color:
-    rgba(
-      19,
-      173,
-      211,
-      0.29
-    );
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(
-        255,
-        255,
-        255,
-        0.99
-      ),
-      rgba(
-        239,
-        250,
-        255,
-        0.97
-      )
-        58%,
-      rgba(
-        247,
-        243,
-        255,
-        0.96
-      )
-    );
-
-  box-shadow:
-    var(--wp-glow-cyan),
-    0
-      18px
-      42px
-      rgba(
-        28,
-        76,
-        128,
-        0.08
-      );
-}
-
-
-.workout-exercise-row__summary {
-  position:
-    relative;
-
-  z-index:
-    1;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    11px;
-
-  width:
-    100%;
-
-  min-height:
-    65px;
-
-  padding:
-    11px
-    12px
-    11px
-    16px;
-
-  border:
-    0;
-
-  color:
-    inherit;
-
-  background:
-    transparent;
-
-  text-align:
-    left;
-
-  cursor:
-    pointer;
-}
-
-
-.workout-exercise-row__summary:hover {
-  background:
-    rgba(
-      234,
-      249,
-      255,
-      0.48
-    );
-}
-
-
-.workout-exercise-row__summary-copy {
-  display:
-    grid;
-
-  min-width:
-    0;
-
-  gap:
-    4px;
-}
-
-
-.workout-exercise-row__summary-copy strong {
-  overflow:
-    hidden;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.76rem;
-
-  font-weight:
-    900;
-
-  line-height:
-    1.25;
-
-  text-overflow:
-    ellipsis;
-}
-
-
-.workout-exercise-row__summary-copy > span {
-  overflow:
-    hidden;
-
-  color:
-    var(--wp-muted);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.69rem;
-
-  line-height:
-    1.34;
-
-  text-overflow:
-    ellipsis;
-}
-
-
-.workout-exercise-row__summary-end {
-  flex:
-    0 0
-    auto;
-
-  display:
-    inline-flex;
-
-  align-items:
-    center;
-
-  gap:
-    7px;
-}
-
-
-.workout-exercise-row__done-badge {
-  display:
-    inline-flex;
-
-  align-items:
-    center;
-
-  min-height:
-    23px;
-
-  padding:
-    4px
-    7px;
-
-  border:
-    1px solid
-    rgba(
-      22,
-      138,
-      104,
-      0.15
-    );
-
-  border-radius:
-    var(--wp-radius-pill);
-
-  color:
-    var(--wp-success);
-
-  background:
-    var(--wp-success-bg);
-
-  font-size:
-    0.48rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.075em;
-}
-
-
-.workout-exercise-row__chevron {
-  display:
-    grid;
-
-  place-items:
-    center;
-
-  width:
-    25px;
-
-  height:
-    25px;
-
-  border:
-    1px solid
-    rgba(
-      58,
-      103,
-      149,
-      0.10
-    );
-
-  border-radius:
-    8px;
-
-  color:
-    var(--wp-blue);
-
-  background:
-    rgba(
-      240,
-      247,
-      255,
-      0.88
-    );
-
-  font-size:
-    0.52rem;
-}
-
-
-.workout-exercise-row[data-expanded="true"]
-.workout-exercise-row__chevron {
-  color:
-    var(--wp-violet-strong);
-
-  background:
-    rgba(
-      246,
-      240,
-      255,
-      0.92
-    );
-}
-
-
-.workout-exercise-row__body {
-  position:
-    relative;
-
-  z-index:
-    1;
-
-  padding:
-    0
-    12px
-    13px
-    16px;
-
-  animation:
-    workoutExerciseOpen
-    220ms
-    var(--wp-ease);
-}
-
-
-@keyframes workoutExerciseOpen {
-  from {
-    opacity:
-      0;
-
-    transform:
-      translateY(
-        -3px
-      );
+  if (
+    dom.workoutExercisePickerSearch
+  ) {
+    dom.workoutExercisePickerSearch
+      .value =
+        "";
   }
 
-  to {
-    opacity:
-      1;
+  renderExercisePicker();
 
-    transform:
-      translateY(
-        0
-      );
+  openDialog(
+    dom.workoutExercisePicker
+  );
+}
+
+
+function renderExercisePicker() {
+  if (
+    !state.activeDay ||
+    !dom.workoutExercisePickerList
+  ) {
+    return;
   }
-}
 
-
-.workout-exercise-row__prescription {
-  display:
-    grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(
-        0,
-        1fr
-      )
+  const dayState =
+    getSelectedDay(
+      state.activeDay
     );
 
-  gap:
-    8px;
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    dom.workoutExercisePickerList
+      .innerHTML =
+        "";
 
-  margin-bottom:
-    11px;
-}
+    return;
+  }
 
-
-.workout-exercise-metric {
-  min-width:
-    0;
-}
-
-
-.workout-exercise-metric input {
-  min-height:
-    45px;
-
-  padding:
-    0 10px;
-
-  border-radius:
-    11px;
-
-  font-size:
-    0.75rem;
-
-  font-weight:
-    800;
-}
-
-
-.workout-exercise-metric input::placeholder {
-  color:
-    var(--wp-faint);
-
-  font-size:
-    0.65rem;
-
-  font-weight:
-    700;
-}
-
-
-/* =====================================================
-   EXERCISE DONE BUTTON
-===================================================== */
-
-.workout-exercise-row__done {
-  position:
-    relative;
-
-  width:
-    100%;
-
-  min-height:
-    45px;
-
-  margin:
-    2px 0
-    9px;
-
-  overflow:
-    hidden;
-
-  border:
-    0;
-
-  border-radius:
-    12px;
-
-  color:
-    #ffffff;
-
-  background:
-    linear-gradient(
-      135deg,
-      #04b7d9 0%,
-      #2f5fff 54%,
-      #7c53e8 100%
+  const focus =
+    WorkoutFocuses.get(
+      dayState.focusId
     );
 
-  box-shadow:
+  let exercises =
+    getFocusedExercisePool(
+      dayState
+    );
+
+  exercises =
+    filterFocusedPoolBySearch(
+      exercises,
+      state.pickerQuery
+    );
+
+  if (
+    dom.workoutExercisePickerContext
+  ) {
+    const focusLabel =
+      focus?.label ||
+      "this workout";
+
+    dom.workoutExercisePickerContext
+      .textContent =
+        focus?.id ===
+          "custom"
+          ? "Browse all exercises."
+          : `Exercises for ${focusLabel}.`;
+  }
+
+  dom.workoutExercisePickerList
+    .innerHTML =
+      "";
+
+  if (
+    exercises.length ===
     0
-      10px
-      27px
-      rgba(
-        47,
-        95,
-        255,
-        0.18
+  ) {
+    const empty =
+      document.createElement(
+        "p"
       );
 
-  cursor:
-    pointer;
+    empty.className =
+      "workout-exercise-picker__empty";
 
-  font-size:
-    0.67rem;
+    empty.textContent =
+      state.pickerQuery
+        ? "No matching exercises."
+        : "No exercises are mapped to this focus.";
 
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.03em;
-
-  transition:
-    transform
-      var(--wp-fast)
-      var(--wp-ease),
-    box-shadow
-      var(--wp-fast)
-      ease;
-}
-
-
-.workout-exercise-row__done:hover {
-  box-shadow:
-    0
-      14px
-      34px
-      rgba(
-        47,
-        95,
-        255,
-        0.23
+    dom.workoutExercisePickerList
+      .appendChild(
+        empty
       );
-}
 
+    return;
+  }
 
-.workout-exercise-row__done:active {
-  transform:
-    scale(
-      0.985
+  for (
+    const exercise
+    of exercises
+  ) {
+    renderExerciseCard(
+      exercise,
+      {
+        addEnabled:
+          true,
+
+        container:
+          dom.workoutExercisePickerList
+      }
     );
-}
-
-
-/* =====================================================
-   EXERCISE SECONDARY ACTIONS
-===================================================== */
-
-.workout-exercise-row__actions {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr
-    1fr;
-
-  gap:
-    8px;
-}
-
-
-.workout-exercise-row__detail,
-.workout-exercise-row__remove {
-  min-height:
-    39px;
-
-  border-radius:
-    10px;
-
-  cursor:
-    pointer;
-
-  font-size:
-    0.59rem;
-
-  font-weight:
-    900;
-}
-
-
-.workout-exercise-row__detail {
-  border:
-    1px solid
-    rgba(
-      47,
-      95,
-      255,
-      0.14
-    );
-
-  color:
-    var(--wp-blue-dark);
-
-  background:
-    var(--wp-surface-blue);
-}
-
-
-.workout-exercise-row__remove {
-  border:
-    1px solid
-    rgba(
-      217,
-      79,
-      102,
-      0.14
-    );
-
-  color:
-    var(--wp-danger);
-
-  background:
-    var(--wp-danger-bg);
-}
-
-
-.workout-exercise-row__detail:active,
-.workout-exercise-row__remove:active {
-  transform:
-    scale(
-      0.97
-    );
+  }
 }
 
 
@@ -3831,781 +4580,1706 @@ img {
    EXERCISE DETAIL
 ===================================================== */
 
-.exercise-detail-visuals {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr;
-
-  gap:
-    10px;
-
-  margin-bottom:
-    15px;
-}
-
-
-.exercise-detail-figure,
-.exercise-visual-placeholder {
-  margin:
-    0;
-
-  overflow:
-    hidden;
-
-  border:
-    1px solid
-    var(--wp-border);
-
-  border-radius:
-    15px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(
-        237,
-        250,
-        255,
-        0.9
-      ),
-      rgba(
-        247,
-        243,
-        255,
-        0.9
-      )
-    );
-}
-
-
-.exercise-detail-figure img {
-  width:
-    100%;
-
-  max-height:
-    280px;
-
-  object-fit:
-    contain;
-}
-
-
-.exercise-detail-figure figcaption {
-  padding:
-    8px
-    10px;
-
-  color:
-    var(--wp-muted);
-
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.86
+function openExerciseDetail(
+  exerciseId,
+  {
+    addMode =
+      false
+  } = {}
+) {
+  const exercise =
+    ExerciseRegistry.get(
+      exerciseId
     );
 
-  font-size:
-    0.55rem;
+  if (
+    !exercise
+  ) {
+    return;
+  }
 
-  font-weight:
-    800;
-}
+  state.activeExerciseId =
+    exercise.id;
 
+  state.detailAddMode =
+    Boolean(
+      addMode &&
+      state.activeDay
+    );
 
-.exercise-visual-placeholder {
-  min-height:
-    145px;
+  if (
+    dom.exerciseDetailType
+  ) {
+    dom.exerciseDetailType
+      .textContent =
+        (
+          exercise.exerciseTypes ||
+          []
+        )
+          .slice(
+            0,
+            2
+          )
+          .map(
+            id =>
+              ExerciseTypes.get(
+                id
+              )?.shortLabel ||
+              titleFromId(
+                id
+              )
+          )
+          .join(
+            " \u00B7 "
+          ) ||
+        "EXERCISE";
+  }
 
-  display:
-    grid;
+  if (
+    dom.exerciseDetailName
+  ) {
+    dom.exerciseDetailName
+      .textContent =
+        exercise.name;
+  }
 
-  place-items:
-    center;
+  const anatomyPath =
+    exercise
+      .illustration
+      ?.anatomy ||
+    null;
 
-  padding:
-    18px;
+  const movementPath =
+    exercise
+      .illustration
+      ?.movement ||
+    null;
 
-  color:
-    var(--wp-muted);
+  if (
+    dom.exerciseAnatomyFigure &&
+    dom.exerciseAnatomyImage
+  ) {
+    dom.exerciseAnatomyFigure
+      .hidden =
+        !anatomyPath;
 
-  text-align:
-    center;
+    if (
+      anatomyPath
+    ) {
+      dom.exerciseAnatomyImage
+        .src =
+          anatomyPath;
 
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+      dom.exerciseAnatomyImage
+        .alt =
+          `${exercise.name} muscle illustration`;
+    }
+  }
 
-  font-size:
-    0.76rem;
+  if (
+    dom.exerciseMovementFigure &&
+    dom.exerciseMovementImage
+  ) {
+    dom.exerciseMovementFigure
+      .hidden =
+        !movementPath;
 
-  line-height:
-    1.48;
-}
+    if (
+      movementPath
+    ) {
+      dom.exerciseMovementImage
+        .src =
+          movementPath;
 
+      dom.exerciseMovementImage
+        .alt =
+          `${exercise.name} movement illustration`;
+    }
+  }
 
-.exercise-detail-section {
-  padding:
-    13px 0;
+  if (
+    dom.exerciseVisualPlaceholder
+  ) {
+    dom.exerciseVisualPlaceholder
+      .hidden =
+        Boolean(
+          anatomyPath ||
+          movementPath
+        );
+  }
 
-  border-top:
-    1px solid
-    var(--wp-border-soft);
-}
+  if (
+    dom.exerciseInstructionList
+  ) {
+    dom.exerciseInstructionList
+      .innerHTML =
+        "";
 
+    const instructions =
+      exercise.instructions
+        ?.length
+        ? exercise.instructions
+        : [
+            exercise.summary
+          ].filter(
+            Boolean
+          );
 
-.exercise-detail-section h3 {
-  margin:
-    0 0
-    8px;
+    for (
+      const instruction
+      of instructions
+    ) {
+      const li =
+        document.createElement(
+          "li"
+        );
 
-  color:
-    var(--wp-text-strong);
+      li.textContent =
+        instruction;
 
-  font-size:
-    0.78rem;
+      dom.exerciseInstructionList
+        .appendChild(
+          li
+        );
+    }
+  }
 
-  font-weight:
-    900;
-}
+  if (
+    dom.exerciseMuscleList
+  ) {
+    dom.exerciseMuscleList
+      .innerHTML =
+        "";
 
+    const primary =
+      document.createElement(
+        "p"
+      );
 
-.exercise-detail-section p,
-.exercise-detail-section li,
-#exerciseMovementSummary,
-.exercise-muscle-list {
-  color:
-    var(--wp-soft);
+    primary.textContent =
+      `Primary: ${
+        (
+          exercise.primaryMuscles ||
+          []
+        )
+          .map(
+            getMuscleLabel
+          )
+          .join(
+            ", "
+          ) ||
+        "Not specified"
+      }`;
 
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+    const secondary =
+      document.createElement(
+        "p"
+      );
 
-  font-size:
-    0.78rem;
+    secondary.textContent =
+      `Secondary: ${
+        (
+          exercise.secondaryMuscles ||
+          []
+        )
+          .map(
+            getMuscleLabel
+          )
+          .join(
+            ", "
+          ) ||
+        "None listed"
+      }`;
 
-  line-height:
-    1.55;
-}
+    dom.exerciseMuscleList
+      .append(
+        primary,
+        secondary
+      );
+  }
 
+  if (
+    dom.exerciseMovementSummary
+  ) {
+    dom.exerciseMovementSummary
+      .textContent =
+        (
+          exercise.movementPatterns ||
+          []
+        )
+          .map(
+            getMovementLabel
+          )
+          .join(
+            " \u00B7 "
+          ) ||
+        "Movement classification pending.";
+  }
 
-.exercise-detail-section ol,
-.exercise-detail-section ul {
-  margin:
-    0;
+  if (
+    dom.exerciseFormCueList
+  ) {
+    dom.exerciseFormCueList
+      .innerHTML =
+        "";
 
-  padding-left:
-    19px;
-}
+    for (
+      const cue
+      of exercise.cues ||
+        []
+    ) {
+      const li =
+        document.createElement(
+          "li"
+        );
 
+      li.textContent =
+        cue;
 
-.exercise-detail-section li
-+
-li {
-  margin-top:
-    5px;
-}
+      dom.exerciseFormCueList
+        .appendChild(
+          li
+        );
+    }
+  }
 
+  if (
+    dom.exerciseCaloriesSection
+  ) {
+    const estimable =
+      Boolean(
+        exercise.energyProfile ||
+        exercise.exerciseTypes
+          ?.includes(
+            "strength"
+          ) ||
+        exercise.exerciseTypes
+          ?.includes(
+            "hypertrophy"
+          )
+      );
 
-.exercise-muscle-list p {
-  margin:
-    4px 0;
-}
+    dom.exerciseCaloriesSection
+      .hidden =
+        !estimable;
 
+    if (
+      estimable &&
+      dom.exerciseCaloriesEstimate
+    ) {
+      dom.exerciseCaloriesEstimate
+        .textContent =
+          "Calories are estimated when the workout is performed.";
+    }
+  }
 
-.exercise-detail-dialog
-.workout-primary-action {
-  width:
-    100%;
+  if (
+    dom.exerciseDetailAddButton
+  ) {
+    const alreadyAdded =
+      state.activeDay &&
+      hasExerciseOnActiveDay(
+        exercise.id
+      );
 
-  min-height:
-    47px;
+    dom.exerciseDetailAddButton
+      .hidden =
+        !state.detailAddMode;
 
-  margin-top:
-    8px;
+    dom.exerciseDetailAddButton
+      .disabled =
+        Boolean(
+          alreadyAdded
+        );
+
+    if (
+      state.detailAddMode
+    ) {
+      dom.exerciseDetailAddButton
+        .textContent =
+          alreadyAdded
+            ? "Already Added"
+            : "Add Exercise";
+    }
+  }
+
+  openDialog(
+    dom.exerciseDetailDialog
+  );
 }
 
 
 /* =====================================================
-   TOAST
+   ADD EXERCISE
 ===================================================== */
 
-.workout-plans-toast {
-  position:
-    fixed;
-
-  left:
-    50%;
-
-  bottom:
-    max(
-      17px,
-      calc(
-        env(
-          safe-area-inset-bottom
-        ) +
-        13px
-      )
-    );
-
-  z-index:
-    1000;
-
-  width:
-    min(
-      calc(
-        100% -
-        30px
-      ),
-      420px
-    );
-
-  transform:
-    translateX(
-      -50%
-    );
-
-  padding:
-    12px
-    15px;
-
-  border:
-    1px solid
-    rgba(
-      19,
-      173,
-      211,
-      0.22
-    );
-
-  border-radius:
-    var(--wp-radius-pill);
-
-  color:
-    #ffffff;
-
-  background:
-    linear-gradient(
-      135deg,
-      #0a98b8,
-      #2f5fff
-    );
-
-  box-shadow:
-    0
-      18px
-      44px
-      rgba(
-        20,
-        70,
-        130,
-        0.23
-      );
-
-  text-align:
-    center;
-
-  font-size:
-    0.71rem;
-
-  font-weight:
-    900;
-
-  animation:
-    workoutToastIn
-    250ms
-    var(--wp-ease);
-}
-
-
-.workout-plans-toast[data-state="error"] {
-  background:
-    linear-gradient(
-      135deg,
-      #bf344e,
-      #d94f66
-    );
-
-  border-color:
-    rgba(
-      217,
-      79,
-      102,
-      0.30
-    );
-}
-
-
-@keyframes workoutToastIn {
-  from {
-    opacity:
-      0;
-
-    transform:
-      translateX(
-        -50%
-      )
-      translateY(
-        9px
-      )
-      scale(
-        0.97
-      );
+function addExerciseToActiveDay(
+  exerciseId
+) {
+  if (
+    !state.activeDay
+  ) {
+    return false;
   }
 
-  to {
-    opacity:
-      1;
+  const exercise =
+    ExerciseRegistry.get(
+      exerciseId
+    );
 
-    transform:
-      translateX(
-        -50%
+  if (
+    !exercise
+  ) {
+    return false;
+  }
+
+  if (
+    hasExerciseOnActiveDay(
+      exercise.id
+    )
+  ) {
+    showToast(
+      `${exercise.name} is already in this workout.`,
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  }
+
+  const dayState =
+    getSelectedDay(
+      state.activeDay
+    );
+
+  const focus =
+    WorkoutFocuses.get(
+      dayState?.focusId
+    );
+
+  if (
+    focus &&
+    focus.id !==
+      "custom" &&
+    !exerciseMatchesFocus(
+      exercise,
+      focus
+    )
+  ) {
+    showToast(
+      `${exercise.name} does not match this Training Focus.`,
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  }
+
+  const defaults =
+    {};
+
+  const fields =
+    exercise
+      .logging
+      ?.fields ||
+    [];
+
+  if (
+    fields.includes(
+      "sets"
+    )
+  ) {
+    defaults.sets =
+      3;
+  }
+
+  if (
+    fields.includes(
+      "reps"
+    )
+  ) {
+    defaults.reps =
+      10;
+  }
+
+  /*
+   * Weight intentionally remains unset.
+   */
+
+  if (
+    isSetBasedExercise(
+      exercise
+    )
+  ) {
+    defaults.restSeconds =
+      DEFAULT_STRENGTH_REST_SECONDS;
+  }
+
+  if (
+    fields.includes(
+      "duration_minutes"
+    )
+  ) {
+    defaults.durationMinutes =
+      30;
+  }
+
+  if (
+    fields.includes(
+      "duration_seconds"
+    )
+  ) {
+    defaults.durationSeconds =
+      30;
+  }
+
+  if (
+    exercise.energyProfile
+      ?.intensityOptions
+      ?.includes(
+        "moderate"
       )
-      translateY(
-        0
-      )
-      scale(
+  ) {
+    defaults.intensity =
+      "moderate";
+  }
+
+  const added =
+    controllerAddExercise(
+      state.activeDay,
+      exercise.id,
+      defaults
+    );
+
+  if (
+    !added
+  ) {
+    return false;
+  }
+
+  const updatedDay =
+    getSelectedDay(
+      state.activeDay
+    );
+
+  state.expandedExerciseIndex =
+    Math.max(
+      (
+        updatedDay
+          ?.exercises
+          ?.length ||
         1
+      ) -
+      1,
+      0
+    );
+
+  closeDialog(
+    dom.workoutExercisePicker
+  );
+
+  renderWeek();
+  renderDayExercises();
+
+  scheduleAutosave();
+
+  showToast(
+    `${exercise.name} added.`
+  );
+
+  requestAnimationFrame(
+    () => {
+      const row =
+        dom.workoutDayExerciseList
+          ?.querySelector(
+            `[data-exercise-index="${state.expandedExerciseIndex}"]`
+          );
+
+      row?.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "nearest"
+      });
+
+      row
+        ?.querySelector(
+          "input"
+        )
+        ?.focus({
+          preventScroll:
+            true
+        });
+    }
+  );
+
+  return true;
+}
+
+
+function collapseExerciseRow(
+  index
+) {
+  if (
+    !Number.isInteger(
+      index
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    state.expandedExerciseIndex !==
+      index
+  ) {
+    return false;
+  }
+
+  state.expandedExerciseIndex =
+    null;
+
+  renderDayExercises();
+
+  return true;
+}
+
+
+/* =====================================================
+   DAY EDITOR UPDATE
+
+   Day Name has intentionally been removed.
+===================================================== */
+
+function updateDayFromEditor() {
+  if (
+    !state.activeDay
+  ) {
+    return;
+  }
+
+  const type =
+    dom.workoutDayType
+      ?.value ||
+    "off";
+
+  if (
+    type ===
+    "off"
+  ) {
+    controllerSetDayFocus(
+      state.activeDay,
+      "off_day"
+    );
+
+    controllerSetDayType(
+      state.activeDay,
+      "off"
+    );
+  } else {
+    controllerSetDayType(
+      state.activeDay,
+      type
+    );
+
+    const focusId =
+      dom.workoutDayFocus
+        ?.value;
+
+    if (
+      focusId
+    ) {
+      controllerSetDayFocus(
+        state.activeDay,
+        focusId
       );
+    }
+
+    if (
+      type ===
+      "recovery"
+    ) {
+      controllerSetDayType(
+        state.activeDay,
+        "recovery"
+      );
+    }
+  }
+
+  updateDayEditorVisibility();
+
+  renderWeek();
+  renderDayExercises();
+
+  scheduleAutosave();
+}
+
+
+/* =====================================================
+   SAVE
+===================================================== */
+
+function scheduleAutosave() {
+  window.clearTimeout(
+    state.autosaveTimer
+  );
+
+  const generation =
+    ++state.autosaveGeneration;
+
+  state.autosaveTimer =
+    window.setTimeout(
+      async () => {
+        if (
+          generation !==
+          state.autosaveGeneration
+        ) {
+          return;
+        }
+
+        try {
+          await WorkoutPlanController
+            .save({
+              remote:
+                true,
+
+              weekKey:
+                getSelectedWeekKey()
+            });
+        } catch (
+          error
+        ) {
+          console.warn(
+            "ARI Training autosave failed.",
+            error
+          );
+        }
+      },
+      700
+    );
+}
+
+
+async function savePlan({
+  announce =
+    true
+} = {}) {
+  if (
+    state.saving
+  ) {
+    return false;
+  }
+
+  state.saving =
+    true;
+
+  if (
+    dom.workoutPlansSaveButton
+  ) {
+    dom.workoutPlansSaveButton
+      .disabled =
+        true;
+
+    dom.workoutPlansSaveButton
+      .textContent =
+        "Saving...";
+  }
+
+  try {
+    const success =
+      await WorkoutPlanController
+        .save({
+          remote:
+            true,
+
+          weekKey:
+            getSelectedWeekKey()
+        });
+
+    if (
+      announce
+    ) {
+      showToast(
+        success
+          ? "Workout plan saved."
+          : "Saved on this device."
+      );
+    }
+
+    return success;
+  } catch (
+    error
+  ) {
+    console.error(
+      "Workout plan save failed.",
+      error
+    );
+
+    showToast(
+      "Workout plan could not be saved.",
+      {
+        error:
+          true
+      }
+    );
+
+    return false;
+  } finally {
+    state.saving =
+      false;
+
+    if (
+      dom.workoutPlansSaveButton
+    ) {
+      dom.workoutPlansSaveButton
+        .disabled =
+          false;
+
+      dom.workoutPlansSaveButton
+        .textContent =
+          "Save";
+    }
+  }
+}
+
+
+async function saveNow() {
+  window.clearTimeout(
+    state.autosaveTimer
+  );
+
+  ++state.autosaveGeneration;
+
+  try {
+    return await WorkoutPlanController
+      .save({
+        remote:
+          true,
+
+        weekKey:
+          getSelectedWeekKey()
+      });
+  } catch (
+    error
+  ) {
+    console.error(
+      "Workout plan save failed.",
+      error
+    );
+
+    return false;
+  }
+}
+
+
+async function finishDayEditor() {
+  updateDayFromEditor();
+
+  if (
+    dom.workoutDayDoneButton
+  ) {
+    dom.workoutDayDoneButton
+      .disabled =
+        true;
+
+    dom.workoutDayDoneButton
+      .textContent =
+        "Saving...";
+  }
+
+  const success =
+    await saveNow();
+
+  if (
+    dom.workoutDayDoneButton
+  ) {
+    dom.workoutDayDoneButton
+      .disabled =
+        false;
+
+    dom.workoutDayDoneButton
+      .textContent =
+        "Save Workout";
+  }
+
+  closeDialog(
+    dom.workoutDayEditor
+  );
+
+  state.expandedExerciseIndex =
+    null;
+
+  renderWeek();
+
+  showToast(
+    success
+      ? "Workout saved."
+      : "Saved on this device."
+  );
+}
+
+
+/* =====================================================
+   RENDER ALL
+===================================================== */
+
+function renderAll() {
+  renderWeekHeader();
+  renderWeek();
+
+  if (
+    state.activeTab ===
+      "templates"
+  ) {
+    renderTemplates();
+  }
+
+  if (
+    state.activeTab ===
+      "library"
+  ) {
+    renderExerciseLibrary();
   }
 }
 
 
 /* =====================================================
-   TABLET
+   CLICK EVENTS
 ===================================================== */
 
-@media (
-  min-width:
-  540px
+function handleClick(
+  event
 ) {
-  .workout-plans-shell {
-    padding-left:
-      22px;
+  const tab =
+    event.target.closest(
+      "[data-workout-tab]"
+    );
 
-    padding-right:
-      22px;
+  if (
+    tab
+  ) {
+    setActiveTab(
+      tab.dataset
+        .workoutTab
+    );
+
+    return;
   }
 
+  const actionNode =
+    event.target.closest(
+      "[data-workout-action]"
+    );
 
-  .workout-week-grid {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
-        )
-      );
+  if (
+    !actionNode
+  ) {
+    return;
   }
 
+  const action =
+    actionNode.dataset
+      .workoutAction;
 
-  .workout-filter-row {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
-        )
+  switch (
+    action
+  ) {
+    case "previous-week":
+      void goPreviousWeek();
+      break;
+
+
+    case "next-week":
+      void goNextWeek();
+      break;
+
+
+    case "repeat-last-week":
+      void repeatLastWeek();
+      break;
+
+
+    case "clear-week":
+      void clearSelectedWeek();
+      break;
+
+
+    case "edit-day":
+      openDayEditor(
+        actionNode.dataset.day ||
+        actionNode
+          .closest(
+            "[data-day]"
+          )
+          ?.dataset
+          ?.day,
+
+        actionNode.dataset.date ||
+        actionNode
+          .closest(
+            "[data-date]"
+          )
+          ?.dataset
+          ?.date
       );
-  }
+      break;
 
 
-  .exercise-library-filters {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
-        )
+    case "close-day-editor":
+      closeDialog(
+        dom.workoutDayEditor
       );
-  }
+      break;
 
 
-  .exercise-library-grid {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
+    case "done-day":
+      void finishDayEditor();
+      break;
+
+
+    case "toggle-exercise-row": {
+      const index =
+        Number(
+          actionNode.dataset
+            .exerciseIndex ??
+          actionNode
+            .closest(
+              "[data-exercise-index]"
+            )
+            ?.dataset
+            ?.exerciseIndex
+        );
+
+      if (
+        Number.isInteger(
+          index
         )
+      ) {
+        state.expandedExerciseIndex =
+          state.expandedExerciseIndex ===
+            index
+            ? null
+            : index;
+
+        renderDayExercises();
+      }
+
+      break;
+    }
+
+
+    case "done-exercise-row": {
+      const index =
+        Number(
+          actionNode.dataset
+            .exerciseIndex ??
+          actionNode
+            .closest(
+              "[data-exercise-index]"
+            )
+            ?.dataset
+            ?.exerciseIndex
+        );
+
+      collapseExerciseRow(
+        index
       );
-  }
+
+      break;
+    }
 
 
-  .exercise-detail-visuals {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
+    case "open-exercise-picker":
+      openExercisePicker();
+      break;
+
+
+    case "close-exercise-picker":
+      closeDialog(
+        dom.workoutExercisePicker
+      );
+      break;
+
+
+    case "open-exercise-detail":
+      openExerciseDetail(
+        actionNode.dataset
+          .exerciseId ||
+        actionNode
+          .closest(
+            "[data-exercise-id]"
+          )
+          ?.dataset
+          ?.exerciseId,
+
+        {
+          addMode:
+            Boolean(
+              actionNode.closest(
+                "#workoutExercisePicker"
+              )
+            )
+        }
+      );
+      break;
+
+
+    case "close-exercise-detail":
+      closeDialog(
+        dom.exerciseDetailDialog
+      );
+      break;
+
+
+    case "add-exercise":
+      addExerciseToActiveDay(
+        actionNode.dataset
+          .exerciseId
+      );
+      break;
+
+
+    case "add-detail-exercise":
+      if (
+        state.activeExerciseId
+      ) {
+        addExerciseToActiveDay(
+          state.activeExerciseId
+        );
+
+        closeDialog(
+          dom.exerciseDetailDialog
+        );
+      }
+
+      break;
+
+
+    case "remove-exercise": {
+      const row =
+        actionNode.closest(
+          "[data-exercise-index]"
+        );
+
+      const index =
+        Number(
+          actionNode.dataset
+            .exerciseIndex ??
+          row?.dataset
+            ?.exerciseIndex
+        );
+
+      if (
+        state.activeDay &&
+        Number.isInteger(
+          index
         )
+      ) {
+        controllerRemoveExercise(
+          state.activeDay,
+          index
+        );
+
+        if (
+          state.expandedExerciseIndex ===
+          index
+        ) {
+          state.expandedExerciseIndex =
+            null;
+        } else if (
+          Number.isInteger(
+            state.expandedExerciseIndex
+          ) &&
+          state.expandedExerciseIndex >
+            index
+        ) {
+          state.expandedExerciseIndex -=
+            1;
+        }
+
+        renderWeek();
+        renderDayExercises();
+
+        scheduleAutosave();
+      }
+
+      break;
+    }
+
+
+    case "apply-template":
+      void applyTemplate(
+        actionNode.dataset
+          .templateId
       );
+      break;
+
+
+    default:
+      break;
   }
 }
 
 
 /* =====================================================
-   DESKTOP
+   CHANGE EVENTS
 ===================================================== */
 
-@media (
-  min-width:
-  760px
+function handleChange(
+  event
 ) {
-  .workout-plans-shell {
-    padding-left:
-      28px;
+  const target =
+    event.target;
 
-    padding-right:
-      28px;
+  if (
+    target ===
+      dom.workoutTemplateGoalFilter ||
+    target ===
+      dom.workoutTemplateDaysFilter
+  ) {
+    renderTemplates();
+
+    return;
   }
 
+  if (
+    target ===
+      dom.exerciseBodyPartFilter ||
+    target ===
+      dom.exerciseMovementFilter ||
+    target ===
+      dom.exerciseTypeFilter ||
+    target ===
+      dom.exerciseEquipmentFilter
+  ) {
+    renderExerciseLibrary();
 
-  .workout-plans-header {
-    margin-top:
-      7px;
-
-    margin-bottom:
-      17px;
+    return;
   }
 
+  if (
+    target ===
+      dom.workoutDayType
+  ) {
+    /*
+     * If user switches from Off Day → Workout,
+     * make sure there is a usable focus.
+     */
+    if (
+      target.value ===
+        "workout" &&
+      dom.workoutDayFocus
+        ?.value ===
+        "off_day"
+    ) {
+      dom.workoutDayFocus.value =
+        "custom";
+    }
 
-  .workout-plans-tabs {
-    width:
-      min(
-        100%,
-        650px
+    updateDayFromEditor();
+
+    return;
+  }
+
+  if (
+    target ===
+      dom.workoutDayFocus
+  ) {
+    if (
+      target.value ===
+        "off_day"
+    ) {
+      if (
+        dom.workoutDayType
+      ) {
+        dom.workoutDayType.value =
+          "off";
+      }
+    } else if (
+      dom.workoutDayType
+        ?.value ===
+      "off"
+    ) {
+      dom.workoutDayType.value =
+        "workout";
+    }
+
+    updateDayFromEditor();
+
+    return;
+  }
+
+  if (
+    target.dataset
+      ?.exerciseField
+  ) {
+    const row =
+      target.closest(
+        "[data-exercise-index]"
       );
 
-    margin-left:
-      auto;
-
-    margin-right:
-      auto;
-  }
-
-
-  .workout-week-toolbar,
-  .workout-week-actions {
-    width:
-      min(
-        100%,
-        760px
+    const index =
+      Number(
+        row?.dataset
+          ?.exerciseIndex
       );
 
-    margin-left:
-      auto;
+    const field =
+      target.dataset
+        .exerciseField;
 
-    margin-right:
-      auto;
-  }
+    const number =
+      target.value ===
+        ""
+        ? null
+        : Number(
+            target.value
+          );
 
-
-  .workout-template-grid {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
-        )
-      );
-  }
-
-
-  .exercise-library-filters {
-    grid-template-columns:
-      repeat(
-        4,
-        minmax(
-          0,
-          1fr
-        )
-      );
-  }
-
-
-  .workout-exercise-row__prescription {
-    grid-template-columns:
-      repeat(
-        4,
-        minmax(
-          0,
-          1fr
-        )
-      );
-  }
-
-
-  .workout-dialog__panel {
-    padding:
-      23px
-      21px
-      calc(
-        23px +
-        env(
-          safe-area-inset-bottom
-        )
-      );
-  }
-}
-
-
-/* =====================================================
-   LARGE DESKTOP
-===================================================== */
-
-@media (
-  min-width:
-  980px
-) {
-  .workout-week-grid {
-    grid-template-columns:
-      repeat(
-        3,
-        minmax(
-          0,
-          1fr
-        )
-      );
-  }
-
-
-  .workout-day-card:last-child:nth-child(7) {
-    grid-column:
-      2 / 3;
-  }
-
-
-  .exercise-library-grid {
-    grid-template-columns:
-      repeat(
-        3,
-        minmax(
-          0,
-          1fr
-        )
-      );
-  }
-}
-
-
-/* =====================================================
-   SMALL MOBILE
-===================================================== */
-
-@media (
-  max-width:
-  390px
-) {
-  .workout-plans-shell {
-    padding-left:
-      12px;
-
-    padding-right:
-      12px;
-  }
-
-
-  .workout-plans-header {
-    grid-template-columns:
-      42px
-      minmax(
-        0,
-        1fr
+    if (
+      state.activeDay &&
+      Number.isInteger(
+        index
       )
-      auto;
-
-    gap:
-      9px;
-  }
-
-
-  .workout-plans-header__back {
-    width:
-      42px;
-
-    height:
-      42px;
-  }
-
-
-  .workout-plans-header__save {
-    min-width:
-      52px;
-
-    min-height:
-      40px;
-
-    padding:
-      0 10px;
-
-    font-size:
-      0.58rem;
-  }
-
-
-  .workout-plans-tabs {
-    gap:
-      3px;
-
-    padding:
-      4px;
-  }
-
-
-  .workout-plans-tab {
-    min-height:
-      41px;
-
-    padding-left:
-      3px;
-
-    padding-right:
-      3px;
-
-    letter-spacing:
-      0;
-  }
-
-
-  .workout-week-toolbar__navigation {
-    grid-template-columns:
-      42px
-      minmax(
-        0,
-        1fr
-      )
-      42px;
-
-    gap:
-      7px;
-
-    padding:
-      7px;
-  }
-
-
-  .workout-week-nav-button {
-    width:
-      42px;
-
-    height:
-      42px;
-  }
-
-
-  .workout-week-actions {
-    gap:
-      6px;
-  }
-
-
-  .workout-secondary-button,
-  .workout-danger-button {
-    min-height:
-      40px;
-
-    padding:
-      0 7px;
-
-    font-size:
-      0.56rem;
-  }
-
-
-  .workout-builder-card__header {
-    align-items:
-      flex-start;
-  }
-
-
-  #workoutAddExerciseButton {
-    flex:
-      0 0
-      auto;
-  }
-
-
-  .workout-exercise-row__prescription {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
-        )
+    ) {
+      controllerUpdateExercise(
+        state.activeDay,
+        index,
+        {
+          [field]:
+            Number.isFinite(
+              number
+            )
+              ? number
+              : null
+        }
       );
-  }
 
+      renderWeek();
 
-  .workout-exercise-row__done-badge {
-    padding-left:
-      6px;
+      scheduleAutosave();
+    }
 
-    padding-right:
-      6px;
-
-    font-size:
-      0.44rem;
-  }
-
-
-  .exercise-library-card__open {
-    grid-template-columns:
-      57px
-      minmax(
-        0,
-        1fr
-      );
-  }
-
-
-  .exercise-library-card__visual {
-    width:
-      57px;
-
-    height:
-      57px;
+    return;
   }
 }
 
 
 /* =====================================================
-   REDUCED MOTION
+   INPUT EVENTS
 ===================================================== */
 
-@media (
-  prefers-reduced-motion:
-  reduce
+function handleInput(
+  event
 ) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior:
-      auto !important;
+  const target =
+    event.target;
 
-    animation-duration:
-      1ms !important;
+  if (
+    target ===
+      dom.workoutExercisePickerSearch
+  ) {
+    state.pickerQuery =
+      normalizeText(
+        target.value
+      );
 
-    animation-iteration-count:
-      1 !important;
+    renderExercisePicker();
 
-    transition-duration:
-      1ms !important;
+    return;
+  }
+
+  if (
+    target ===
+      dom.exerciseLibrarySearch
+  ) {
+    state.libraryQuery =
+      normalizeText(
+        target.value
+      );
+
+    renderExerciseLibrary();
   }
 }
+
+
+/* =====================================================
+   EVENT BINDING
+===================================================== */
+
+function bindEvents() {
+  document.addEventListener(
+    "click",
+    handleClick
+  );
+
+  document.addEventListener(
+    "change",
+    handleChange
+  );
+
+  document.addEventListener(
+    "input",
+    handleInput
+  );
+
+  dom.workoutPlansBackButton
+    ?.addEventListener(
+      "click",
+      () => {
+        window.location.href =
+          "ari-training.html";
+      }
+    );
+
+  dom.workoutPlansSaveButton
+    ?.addEventListener(
+      "click",
+      () => {
+        void savePlan();
+      }
+    );
+
+  dom.exerciseLibrarySearchForm
+    ?.addEventListener(
+      "submit",
+      event => {
+        event.preventDefault();
+
+        state.libraryQuery =
+          normalizeText(
+            dom.exerciseLibrarySearch
+              ?.value
+          );
+
+        renderExerciseLibrary();
+      }
+    );
+
+  for (
+    const dialog
+    of [
+      dom.workoutDayEditor,
+      dom.workoutExercisePicker,
+      dom.exerciseDetailDialog
+    ]
+  ) {
+    dialog?.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+          dialog
+        ) {
+          closeDialog(
+            dialog
+          );
+        }
+      }
+    );
+  }
+}
+
+
+/* =====================================================
+   INITIAL WEEK
+===================================================== */
+
+async function initializeSelectedWeek() {
+  let weekStart =
+    null;
+
+  /*
+   * Prefer controller-selected week if V3 exposes it.
+   */
+  if (
+    typeof WorkoutPlanController
+      .getSelectedWeekKey ===
+    "function"
+  ) {
+    const controllerKey =
+      WorkoutPlanController
+        .getSelectedWeekKey();
+
+    weekStart =
+      parseLocalDateKey(
+        controllerKey
+      );
+  }
+
+  /*
+   * Default page opening = current Sunday-Saturday.
+   */
+  if (
+    !weekStart
+  ) {
+    weekStart =
+      getSundayStart(
+        new Date()
+      );
+  }
+
+  state.selectedWeekStart =
+    getSundayStart(
+      weekStart
+    );
+
+  await selectControllerWeek(
+    state.selectedWeekStart
+  );
+}
+
+
+/* =====================================================
+   DIAGNOSTICS
+===================================================== */
+
+function getPageDiagnostics() {
+  const requiredForCorePage = [
+    "workoutWeekGrid",
+    "workoutDayCardTemplate",
+    "workoutPreviousWeekButton",
+    "workoutNextWeekButton",
+    "workoutWeekRelativeLabel",
+    "workoutWeekDateRange"
+  ];
+
+  const missingCoreDom =
+    requiredForCorePage
+      .filter(
+        id =>
+          !dom[
+            id
+          ]
+      );
+
+  return {
+    source:
+      SOURCE,
+
+    version:
+      VERSION,
+
+    activeTab:
+      state.activeTab,
+
+    activeDay:
+      state.activeDay,
+
+    activeDayDate:
+      state.activeDayDate,
+
+    selectedWeekKey:
+      state.selectedWeekStart
+        ? getSelectedWeekKey()
+        : null,
+
+    selectedWeekLabel:
+      state.selectedWeekStart
+        ? getRelativeWeekLabel(
+            state.selectedWeekStart
+          )
+        : null,
+
+    selectedWeekRange:
+      state.selectedWeekStart
+        ? formatWeekRange(
+            state.selectedWeekStart
+          )
+        : null,
+
+    defaultStrengthRestSeconds:
+      DEFAULT_STRENGTH_REST_SECONDS,
+
+    registryExerciseCount:
+      getAllRegistryExercises()
+        .length,
+
+    missingCoreDom,
+
+    controller:
+      WorkoutPlanController
+        .getDiagnostics?.() ||
+      null
+  };
+}
+
+
+/* =====================================================
+   BOOT
+===================================================== */
+
+async function boot() {
+  if (
+    state.booted
+  ) {
+    return;
+  }
+
+  state.booted =
+    true;
+
+  cacheDom();
+
+  setStatus(
+    "Loading your training schedule..."
+  );
+
+  try {
+    populateFilters();
+
+    await WorkoutPlanController
+      .init();
+
+    await initializeSelectedWeek();
+
+    state.unsubscribeStore =
+      WorkoutPlanController
+        .subscribe(
+          () => {
+            renderWeek();
+
+            if (
+              state.activeDay &&
+              dom.workoutDayEditor
+                ?.open
+            ) {
+              renderDayExercises();
+            }
+
+            if (
+              state.activeTab ===
+                "templates"
+            ) {
+              renderTemplates();
+            }
+          }
+        );
+
+    bindEvents();
+
+    renderAll();
+
+    setStatus(
+      "",
+      {
+        hide:
+          true
+      }
+    );
+
+    const diagnostics =
+      getPageDiagnostics();
+
+    if (
+      diagnostics
+        .missingCoreDom
+        .length
+    ) {
+      console.warn(
+        "ARI Workout Plans is missing core HTML elements:",
+        diagnostics
+          .missingCoreDom
+      );
+    }
+
+    globalThis.AriWorkoutPlansPage = {
+      version:
+        VERSION,
+
+      source:
+        SOURCE,
+
+      controller:
+        WorkoutPlanController,
+
+      getSelectedWeekKey,
+
+      previousWeek:
+        goPreviousWeek,
+
+      nextWeek:
+        goNextWeek,
+
+      repeatLastWeek,
+
+      clearWeek:
+        clearSelectedWeek,
+
+      refresh:
+        renderAll,
+
+      save:
+        savePlan,
+
+      diagnostics:
+        getPageDiagnostics
+    };
+
+    console.info(
+      `[ARI Workout Plans] Runtime initialized. Version ${VERSION}.`
+    );
+  } catch (
+    error
+  ) {
+    console.error(
+      "ARI Workout Plans failed to start.",
+      error
+    );
+
+    setStatus(
+      "Workout Plans could not load.",
+      {
+        error:
+          true
+      }
+    );
+
+    showToast(
+      error?.message ||
+      "Workout Plans could not load.",
+      {
+        error:
+          true,
+
+        duration:
+          5000
+      }
+    );
+  }
+}
+
+
+/* =====================================================
+   START
+===================================================== */
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    boot,
+    {
+      once:
+        true
+    }
+  );
+} else {
+  boot();
+}
+
+
+/* =====================================================
+   EXPORTS
+===================================================== */
+
+export {
+  VERSION,
+  SOURCE
+};
