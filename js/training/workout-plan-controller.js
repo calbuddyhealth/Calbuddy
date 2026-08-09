@@ -9,39 +9,16 @@
 //   and Supabase synchronization.
 //
 // V3.1.0:
-//   - Fixes selected-week synchronization with workout-plan-store.js.
-//   - Every calendar selection now updates BOTH controller state
-//     and WorkoutPlanStore.selectedWeekKey.
-//   - Date-specific plan edits now explicitly resolve the correct
-//     Sunday-Saturday store week instead of relying on whichever
-//     week the store previously had selected.
-//   - Fixes Add Exercise / Update Exercise / Remove Exercise when
-//     planning a week other than the store's previously selected week.
-//   - Adds direct compatibility helpers expected by workout-plans.js:
-//       getSelectedWeekKey()
-//       getSelectedWeek()
-//       clearWeek()
-//       repeatPreviousWeek()
-//       copyWeek()
-//   - Template application is explicitly scoped to the selected week.
-//   - Progress synchronization follows the same selected calendar week.
-//   - Keeps V3 date-specific planning and live-session separation.
-//
-// V3.0.0:
-//   - Moves planning from one endlessly repeating Monday-Sunday
-//     definition to calendar-specific week plans.
-//   - Uses real YYYY-MM-DD dates for each planned day.
-//   - Supports browsing/planning future weeks and months.
-//   - Unplanned dates resolve as Off Day instead of inheriting
-//     workouts from another week.
-//   - Templates are copy-on-apply starting points only.
-//   - Adds calendar/month planning helpers.
-//   - Prevents Start Workout on off/recovery/unplanned dates.
-//   - Adds Plan Workout routing helpers.
-//   - Adds cancelWorkout() for accidental starts.
-//   - Adds deleteSession() for accidental sessions.
-//   - Adds clearWeekPlan() and clearMonthPlan().
-//   - Keeps permanent plan data separate from live progress.
+//   - Aligns controller exactly with workout-plan-store.js V3.
+//   - Aligns controller exactly with workout-progress-store.js V3.
+//   - Keeps controller + store selectedWeekKey synchronized.
+//   - Passes the selected week into ALL weekday plan mutations.
+//   - Uses real YYYY-MM-DD dates for progress/session actions.
+//   - Fixes Add Exercise incorrectly seeing the day as Off Day.
+//   - Fixes week navigation / editing targeting the wrong week.
+//   - Adds page compatibility methods used by workout-plans.js.
+//   - Fixes template apply / repeat / clear week signatures.
+//   - Keeps permanent plans separate from live workout progress.
 // =====================================================
 
 import WorkoutPlanStore from "./workout-plan-store.js";
@@ -70,25 +47,51 @@ const DAYS = Object.freeze([
   "saturday"
 ]);
 
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE_PATTERN =
+  /^\d{4}-\d{2}-\d{2}$/;
 
-/* =====================================================
-   HELPERS
-===================================================== */
+
+// =====================================================
+// BASIC HELPERS
+// =====================================================
 
 function normalizeText(value) {
-  if (value === null || value === undefined) return "";
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
   return String(value).trim();
 }
+
 
 function normalizeId(value) {
   return normalizeText(value) || null;
 }
 
-function clone(value) {
-  if (value === undefined) return undefined;
 
-  if (typeof structuredClone === "function") {
+function normalizeDay(value) {
+  const day =
+    normalizeText(value)
+      .toLowerCase();
+
+  return DAYS.includes(day)
+    ? day
+    : null;
+}
+
+
+function clone(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof structuredClone ===
+    "function"
+  ) {
     try {
       return structuredClone(value);
     } catch {
@@ -96,19 +99,63 @@ function clone(value) {
     }
   }
 
-  return JSON.parse(JSON.stringify(value));
+  return JSON.parse(
+    JSON.stringify(value)
+  );
 }
+
 
 function pad2(value) {
-  return String(value).padStart(2, "0");
+  return String(value)
+    .padStart(2, "0");
 }
 
-function toLocalIsoDate(value = new Date()) {
+
+function normalizePositiveNumber(value) {
+  const number =
+    Number(value);
+
+  return (
+    Number.isFinite(number) &&
+    number > 0
+  )
+    ? number
+    : null;
+}
+
+
+function toLocalIsoDate(
+  value = new Date()
+) {
   if (
     typeof value === "string" &&
     ISO_DATE_PATTERN.test(value)
   ) {
-    return value;
+    const [
+      year,
+      month,
+      day
+    ] =
+      value
+        .split("-")
+        .map(Number);
+
+    const candidate =
+      new Date(
+        year,
+        month - 1,
+        day
+      );
+
+    if (
+      candidate.getFullYear() === year &&
+      candidate.getMonth() === month - 1 &&
+      candidate.getDate() === day
+    ) {
+      return value;
+    }
+
+    return null;
   }
 
   const date =
@@ -116,7 +163,11 @@ function toLocalIsoDate(value = new Date()) {
       ? new Date(value.getTime())
       : new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return null;
   }
 
@@ -127,13 +178,27 @@ function toLocalIsoDate(value = new Date()) {
   );
 }
 
-function fromLocalIsoDate(isoDate) {
-  if (!ISO_DATE_PATTERN.test(normalizeText(isoDate))) {
+
+function fromLocalIsoDate(
+  isoDate
+) {
+  const text =
+    normalizeText(isoDate);
+
+  if (
+    !ISO_DATE_PATTERN.test(text)
+  ) {
     return null;
   }
 
-  const [year, month, day] =
-    isoDate.split("-").map(Number);
+  const [
+    year,
+    month,
+    day
+  ] =
+    text
+      .split("-")
+      .map(Number);
 
   const date =
     new Date(
@@ -141,10 +206,6 @@ function fromLocalIsoDate(isoDate) {
       month - 1,
       day
     );
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
 
   if (
     date.getFullYear() !== year ||
@@ -157,11 +218,19 @@ function fromLocalIsoDate(isoDate) {
   return date;
 }
 
-function addDays(isoDate, amount) {
-  const date =
-    fromLocalIsoDate(isoDate);
 
-  if (!date) return null;
+function addDays(
+  isoDate,
+  amount
+) {
+  const date =
+    fromLocalIsoDate(
+      toLocalIsoDate(isoDate)
+    );
+
+  if (!date) {
+    return null;
+  }
 
   date.setDate(
     date.getDate() +
@@ -171,36 +240,38 @@ function addDays(isoDate, amount) {
   return toLocalIsoDate(date);
 }
 
-function getWeekdayIdFromDate(value = new Date()) {
-  const date =
-    typeof value === "string"
-      ? fromLocalIsoDate(value)
-      : new Date(value);
 
-  if (
-    !date ||
-    Number.isNaN(date.getTime())
-  ) {
+function getWeekdayIdFromDate(
+  value = new Date()
+) {
+  const isoDate =
+    toLocalIsoDate(value);
+
+  const date =
+    fromLocalIsoDate(isoDate);
+
+  if (!date) {
     return null;
   }
 
-  return DAYS[date.getDay()];
+  return DAYS[
+    date.getDay()
+  ] || null;
 }
 
-function getSundayWeekStart(value = new Date()) {
-  const date =
-    typeof value === "string"
-      ? fromLocalIsoDate(value)
-      : new Date(value);
 
-  if (
-    !date ||
-    Number.isNaN(date.getTime())
-  ) {
+function getSundayWeekStart(
+  value = new Date()
+) {
+  const isoDate =
+    toLocalIsoDate(value);
+
+  const date =
+    fromLocalIsoDate(isoDate);
+
+  if (!date) {
     return null;
   }
-
-  date.setHours(0, 0, 0, 0);
 
   date.setDate(
     date.getDate() -
@@ -210,11 +281,16 @@ function getSundayWeekStart(value = new Date()) {
   return toLocalIsoDate(date);
 }
 
-function getWeekDates(anchor = new Date()) {
+
+function getWeekDates(
+  anchor = new Date()
+) {
   const startDate =
     getSundayWeekStart(anchor);
 
-  if (!startDate) return [];
+  if (!startDate) {
+    return [];
+  }
 
   return DAYS.map(
     (day, index) => ({
@@ -228,7 +304,10 @@ function getWeekDates(anchor = new Date()) {
   );
 }
 
-function getMonthKey(value = new Date()) {
+
+function getMonthKey(
+  value = new Date()
+) {
   const iso =
     toLocalIsoDate(value);
 
@@ -237,25 +316,32 @@ function getMonthKey(value = new Date()) {
     : null;
 }
 
-function getMonthDateRange(value = new Date()) {
-  const date =
-    typeof value === "string" &&
-    /^\d{4}-\d{2}$/.test(value)
-      ? new Date(
-          Number(value.slice(0, 4)),
-          Number(value.slice(5, 7)) - 1,
-          1
-        )
-      : (
-          typeof value === "string"
-            ? fromLocalIsoDate(value)
-            : new Date(value)
-        );
+
+function getMonthDateRange(
+  value = new Date()
+) {
+  let date =
+    null;
 
   if (
-    !date ||
-    Number.isNaN(date.getTime())
+    typeof value === "string" &&
+    /^\d{4}-\d{2}$/.test(value)
   ) {
+    date =
+      new Date(
+        Number(value.slice(0, 4)),
+        Number(value.slice(5, 7)) - 1,
+        1
+      );
+  } else {
+    const iso =
+      toLocalIsoDate(value);
+
+    date =
+      fromLocalIsoDate(iso);
+  }
+
+  if (!date) {
     return null;
   }
 
@@ -275,15 +361,22 @@ function getMonthDateRange(value = new Date()) {
 
   return {
     monthKey:
-      `${first.getFullYear()}-${pad2(first.getMonth() + 1)}`,
+      `${first.getFullYear()}-${pad2(
+        first.getMonth() + 1
+      )}`,
+
     startDate:
       toLocalIsoDate(first),
+
     endDate:
       toLocalIsoDate(last)
   };
 }
 
-function normalizeDateOrToday(value = null) {
+
+function normalizeDateOrToday(
+  value = null
+) {
   return (
     toLocalIsoDate(
       value || new Date()
@@ -292,26 +385,33 @@ function normalizeDateOrToday(value = null) {
   );
 }
 
-function normalizePositiveNumber(value) {
-  const number =
-    Number(value);
 
+function normalizeWeekKey(
+  value = null
+) {
   return (
-    Number.isFinite(number) &&
-    number > 0
-  )
-    ? number
-    : null;
+    getSundayWeekStart(
+      value ||
+      new Date()
+    ) ||
+    getSundayWeekStart(new Date())
+  );
 }
 
-function getPlanContextKey(plan) {
+
+function getPlanContextKey(
+  plan
+) {
   return (
     plan?.planId ||
     "calendar-plan"
   );
 }
 
-function hasPlannedExercises(dayState) {
+
+function hasPlannedExercises(
+  dayState
+) {
   return Boolean(
     Array.isArray(
       dayState?.exercises
@@ -320,258 +420,42 @@ function hasPlannedExercises(dayState) {
   );
 }
 
-function storeSupportsCalendar() {
-  return Boolean(
-    WorkoutPlanStore?.getDayByDate ||
-    WorkoutPlanStore?.getWeek
-  );
-}
 
-function progressSupportsCalendar() {
-  return Boolean(
-    WorkoutProgressStore?.getDayByDate ||
-    WorkoutProgressStore?.getDate
-  );
-}
-
-function syncStoreSelectedWeek(weekStart) {
-  const normalizedWeekStart =
-    getSundayWeekStart(weekStart);
-
-  if (!normalizedWeekStart) {
-    return false;
-  }
-
-  if (
-    typeof WorkoutPlanStore.setSelectedWeek ===
-    "function"
-  ) {
-    return WorkoutPlanStore.setSelectedWeek(
-      normalizedWeekStart
-    );
-  }
-
-  return true;
-}
-
-function getStoreWeekKeyForDate(isoDate) {
-  return getSundayWeekStart(
-    isoDate
-  );
-}
-
-function getStoreDate(isoDate) {
-  const normalizedDate =
-    normalizeDateOrToday(
-      isoDate
-    );
-
-  if (!normalizedDate) {
-    return null;
-  }
-
-  if (
-    typeof WorkoutPlanStore.getDate ===
-    "function"
-  ) {
-    return WorkoutPlanStore.getDate(
-      normalizedDate
-    );
-  }
-
-  if (
-    typeof WorkoutPlanStore.getDayByDate ===
-    "function"
-  ) {
-    return WorkoutPlanStore.getDayByDate(
-      normalizedDate
-    );
-  }
-
-  const weekday =
-    getWeekdayIdFromDate(
-      normalizedDate
-    );
-
-  const weekKey =
-    getStoreWeekKeyForDate(
-      normalizedDate
-    );
-
-  if (
-    weekday &&
-    typeof WorkoutPlanStore.getDay ===
-      "function"
-  ) {
-    return WorkoutPlanStore.getDay(
-      weekday,
-      weekKey
-    );
-  }
-
-  return null;
-}
-
-function setStoreDate(isoDate, dayState) {
-  const normalizedDate =
-    normalizeDateOrToday(
-      isoDate
-    );
-
-  if (!normalizedDate) {
-    return false;
-  }
-
-  if (
-    typeof WorkoutPlanStore.setDate ===
-    "function"
-  ) {
-    return WorkoutPlanStore.setDate(
-      normalizedDate,
-      dayState
-    );
-  }
-
-  if (
-    typeof WorkoutPlanStore.setDayByDate ===
-    "function"
-  ) {
-    return WorkoutPlanStore.setDayByDate(
-      normalizedDate,
-      dayState
-    );
-  }
-
-  const weekday =
-    getWeekdayIdFromDate(
-      normalizedDate
-    );
-
-  const weekKey =
-    getStoreWeekKeyForDate(
-      normalizedDate
-    );
-
-  if (
-    weekday &&
-    typeof WorkoutPlanStore.setDay ===
-      "function"
-  ) {
-    return WorkoutPlanStore.setDay(
-      weekday,
-      dayState,
-      weekKey
-    );
-  }
-
-  return false;
-}
-
-function clearStoreDate(isoDate) {
-  const normalizedDate =
-    normalizeDateOrToday(
-      isoDate
-    );
-
-  if (!normalizedDate) {
-    return false;
-  }
-
-  if (
-    typeof WorkoutPlanStore.clearDate ===
-    "function"
-  ) {
-    return WorkoutPlanStore.clearDate(
-      normalizedDate
-    );
-  }
-
-  const weekday =
-    getWeekdayIdFromDate(
-      normalizedDate
-    );
-
-  const weekKey =
-    getStoreWeekKeyForDate(
-      normalizedDate
-    );
-
-  if (
-    weekday &&
-    typeof WorkoutPlanStore.clearDay ===
-      "function"
-  ) {
-    return WorkoutPlanStore.clearDay(
-      weekday,
-      weekKey
-    );
-  }
-
-  return false;
-}
-
-function getProgressDate(isoDate) {
-  const normalizedDate =
-    normalizeDateOrToday(
-      isoDate
-    );
-
-  if (!normalizedDate) {
-    return null;
-  }
-
-  if (
-    typeof WorkoutProgressStore.getDate ===
-    "function"
-  ) {
-    return WorkoutProgressStore.getDate(
-      normalizedDate
-    );
-  }
-
-  if (
-    typeof WorkoutProgressStore.getDayByDate ===
-    "function"
-  ) {
-    return WorkoutProgressStore.getDayByDate(
-      normalizedDate
-    );
-  }
-
-  if (
-    typeof WorkoutProgressStore.getDay ===
-    "function"
-  ) {
-    /*
-     * workout-progress-store V3 accepts either a real date
-     * or weekday. Passing the real date keeps the session
-     * bound to the exact calendar date.
-     */
-    return WorkoutProgressStore.getDay(
-      normalizedDate
-    );
-  }
-
-  return null;
-}
-
-/* =====================================================
-   CONTROLLER
-===================================================== */
+// =====================================================
+// CONTROLLER
+// =====================================================
 
 const AriTrainingWorkoutPlanController = {
-  version: VERSION,
-  source: SOURCE,
+  version:
+    VERSION,
+
+  source:
+    SOURCE,
 
   state: {
-    initialized: false,
-    loading: false,
-    saving: false,
-    remoteAvailable: false,
-    lastLoadSource: null,
-    lastSavedAt: null,
-    lastBuiltWorkout: null,
-    lastError: null,
+    initialized:
+      false,
+
+    loading:
+      false,
+
+    saving:
+      false,
+
+    remoteAvailable:
+      false,
+
+    lastLoadSource:
+      null,
+
+    lastSavedAt:
+      null,
+
+    lastBuiltWorkout:
+      null,
+
+    lastError:
+      null,
 
     selectedDate:
       toLocalIsoDate(new Date()),
@@ -582,19 +466,26 @@ const AriTrainingWorkoutPlanController = {
     selectedMonth:
       getMonthKey(new Date()),
 
-    unsubscribePlan: null,
-    unsubscribeProgress: null
+    unsubscribePlan:
+      null,
+
+    unsubscribeProgress:
+      null
   },
 
-  /* ===================================================
-     CONFIGURATION / INIT
-  =================================================== */
+
+  // ===================================================
+  // CONFIGURATION / INIT
+  // ===================================================
 
   configure({
     client = null,
     tables = null
   } = {}) {
-    if (client || tables) {
+    if (
+      client ||
+      tables
+    ) {
       WorkoutPlanApi.configure({
         client,
         tables
@@ -610,7 +501,10 @@ const AriTrainingWorkoutPlanController = {
     return this.getDiagnostics();
   },
 
-  async init(options = {}) {
+
+  async init(
+    options = {}
+  ) {
     if (
       this.state.initialized &&
       !options.force
@@ -631,140 +525,171 @@ const AriTrainingWorkoutPlanController = {
         );
     }
 
-    WorkoutProgressStore.hydrate?.();
+    WorkoutProgressStore
+      .hydrate?.();
 
     await this.load();
 
     /*
-     * Critical V3.1 synchronization:
-     * when the store hydrates, it may have its own selectedWeekKey.
-     * Prefer that stored value if valid, then keep both layers aligned.
+     * IMPORTANT:
+     * Controller and V3 plan store must agree on selected week.
      */
-    const storedWeekKey =
+    const storeWeekKey =
       WorkoutPlanStore
         .getSelectedWeekKey?.();
 
-    if (
-      storedWeekKey &&
+    const selectedWeek =
+      normalizeWeekKey(
+        storeWeekKey ||
+        this.state.selectedWeekStart ||
+        new Date()
+      );
+
+    this.state.selectedWeekStart =
+      selectedWeek;
+
+    this.state.selectedDate =
+      this.state.selectedDate &&
       getSundayWeekStart(
-        storedWeekKey
-      )
-    ) {
-      this.state.selectedWeekStart =
-        getSundayWeekStart(
-          storedWeekKey
-        );
+        this.state.selectedDate
+      ) === selectedWeek
+        ? this.state.selectedDate
+        : selectedWeek;
 
-      this.state.selectedDate =
-        this.state.selectedWeekStart;
+    this.state.selectedMonth =
+      getMonthKey(selectedWeek);
 
-      this.state.selectedMonth =
-        getMonthKey(
-          this.state.selectedWeekStart
-        );
-    }
-
-    syncStoreSelectedWeek(
-      this.state.selectedWeekStart
-    );
+    WorkoutPlanStore
+      .setSelectedWeek?.(
+        selectedWeek
+      );
 
     this.syncProgressWithPlan();
     this.bindInternalSubscriptions();
 
-    this.state.initialized = true;
+    this.state.initialized =
+      true;
 
     return this.getDiagnostics();
   },
 
+
   bindInternalSubscriptions() {
     if (
       !this.state.unsubscribePlan &&
-      typeof WorkoutPlanStore.subscribe ===
+      typeof WorkoutPlanStore
+        .subscribe ===
         "function"
     ) {
       this.state.unsubscribePlan =
         WorkoutPlanStore.subscribe(
           () => {
+            const storeWeekKey =
+              WorkoutPlanStore
+                .getSelectedWeekKey?.();
+
+            if (storeWeekKey) {
+              this.state
+                .selectedWeekStart =
+                  storeWeekKey;
+
+              this.state
+                .selectedMonth =
+                  getMonthKey(
+                    storeWeekKey
+                  );
+            }
+
             this.syncProgressWithPlan();
           }
         );
     }
   },
 
+
   destroy() {
     if (
-      typeof this.state.unsubscribePlan ===
-      "function"
+      typeof this.state
+        .unsubscribePlan ===
+        "function"
     ) {
-      this.state.unsubscribePlan();
+      this.state
+        .unsubscribePlan();
     }
 
     if (
-      typeof this.state.unsubscribeProgress ===
-      "function"
+      typeof this.state
+        .unsubscribeProgress ===
+        "function"
     ) {
-      this.state.unsubscribeProgress();
+      this.state
+        .unsubscribeProgress();
     }
 
-    this.state.unsubscribePlan = null;
-    this.state.unsubscribeProgress = null;
-    this.state.initialized = false;
+    this.state.unsubscribePlan =
+      null;
+
+    this.state.unsubscribeProgress =
+      null;
+
+    this.state.initialized =
+      false;
 
     return true;
   },
 
-  /* ===================================================
-     LOAD / SAVE
-  =================================================== */
+
+  // ===================================================
+  // LOAD / SAVE
+  // ===================================================
 
   async load() {
-    if (this.state.loading) {
-      return WorkoutPlanStore.getState?.();
+    if (
+      this.state.loading
+    ) {
+      return WorkoutPlanStore
+        .getState?.();
     }
 
-    this.state.loading = true;
-    this.state.lastError = null;
+    this.state.loading =
+      true;
+
+    this.state.lastError =
+      null;
 
     try {
-      if (this.state.remoteAvailable) {
+      if (
+        this.state.remoteAvailable
+      ) {
         try {
           const remotePlan =
-            await WorkoutPlanApi.loadPlan();
+            await WorkoutPlanApi
+              .loadPlan();
 
           if (remotePlan) {
-            WorkoutPlanStore.replaceState?.(
-              remotePlan
-            );
+            WorkoutPlanStore
+              .replaceState?.(
+                remotePlan
+              );
 
-            WorkoutPlanStore.save?.();
+            WorkoutPlanStore
+              .save?.();
 
-            const storedWeekKey =
+            const remoteSelectedWeek =
               WorkoutPlanStore
                 .getSelectedWeekKey?.();
 
-            if (
-              storedWeekKey &&
-              getSundayWeekStart(
-                storedWeekKey
-              )
-            ) {
-              this.state.selectedWeekStart =
-                getSundayWeekStart(
-                  storedWeekKey
-                );
+            if (remoteSelectedWeek) {
+              this.state
+                .selectedWeekStart =
+                  remoteSelectedWeek;
 
-              this.state.selectedDate =
-                this.state.selectedWeekStart;
-
-              this.state.selectedMonth =
-                getMonthKey(
-                  this.state.selectedWeekStart
-                );
+              this.state
+                .selectedMonth =
+                  getMonthKey(
+                    remoteSelectedWeek
+                  );
             }
-
-            syncStoreSelectedWeek(
-              this.state.selectedWeekStart
-            );
 
             this.state.lastLoadSource =
               "supabase";
@@ -774,7 +699,9 @@ const AriTrainingWorkoutPlanController = {
             return WorkoutPlanStore
               .getState?.();
           }
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.warn(
             "[ARI Training] Remote workout plan did not load. Falling back locally.",
             error
@@ -786,35 +713,24 @@ const AriTrainingWorkoutPlanController = {
       }
 
       const hydrated =
-        WorkoutPlanStore.hydrate?.();
+        WorkoutPlanStore
+          .hydrate?.();
 
-      const storedWeekKey =
+      const localSelectedWeek =
         WorkoutPlanStore
           .getSelectedWeekKey?.();
 
-      if (
-        storedWeekKey &&
-        getSundayWeekStart(
-          storedWeekKey
-        )
-      ) {
-        this.state.selectedWeekStart =
-          getSundayWeekStart(
-            storedWeekKey
-          );
+      if (localSelectedWeek) {
+        this.state
+          .selectedWeekStart =
+            localSelectedWeek;
 
-        this.state.selectedDate =
-          this.state.selectedWeekStart;
-
-        this.state.selectedMonth =
-          getMonthKey(
-            this.state.selectedWeekStart
-          );
+        this.state
+          .selectedMonth =
+            getMonthKey(
+              localSelectedWeek
+            );
       }
-
-      syncStoreSelectedWeek(
-        this.state.selectedWeekStart
-      );
 
       this.state.lastLoadSource =
         hydrated
@@ -823,28 +739,40 @@ const AriTrainingWorkoutPlanController = {
 
       this.syncProgressWithPlan();
 
-      return WorkoutPlanStore.getState?.();
+      return WorkoutPlanStore
+        .getState?.();
     } finally {
-      this.state.loading = false;
+      this.state.loading =
+        false;
     }
   },
 
+
   async save({
-    remote = true
+    remote = true,
+    weekKey = null
   } = {}) {
-    if (this.state.saving) {
+    if (
+      this.state.saving
+    ) {
       return false;
     }
 
-    this.state.saving = true;
-    this.state.lastError = null;
+    this.state.saving =
+      true;
+
+    this.state.lastError =
+      null;
 
     try {
-      syncStoreSelectedWeek(
-        this.state.selectedWeekStart
-      );
+      if (weekKey) {
+        this.setSelectedWeek(
+          weekKey
+        );
+      }
 
-      WorkoutPlanStore.save?.();
+      WorkoutPlanStore
+        .save?.();
 
       if (
         remote &&
@@ -852,24 +780,37 @@ const AriTrainingWorkoutPlanController = {
       ) {
         try {
           const saved =
-            await WorkoutPlanApi.savePlan({
-              plan:
-                WorkoutPlanStore
-                  .getState?.()
-            });
+            await WorkoutPlanApi
+              .savePlan({
+                plan:
+                  WorkoutPlanStore
+                    .getState?.()
+              });
 
-          if (saved) {
-            WorkoutPlanStore.replaceState?.(
-              saved
-            );
+          /*
+           * Only replace when API actually returns
+           * a complete plan-shaped object.
+           */
+          if (
+            saved &&
+            typeof saved === "object" &&
+            (
+              saved.weeks ||
+              saved.schemaVersion ||
+              saved.selectedWeekKey
+            )
+          ) {
+            WorkoutPlanStore
+              .replaceState?.(
+                saved
+              );
 
-            syncStoreSelectedWeek(
-              this.state.selectedWeekStart
-            );
-
-            WorkoutPlanStore.save?.();
+            WorkoutPlanStore
+              .save?.();
           }
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.warn(
             "[ARI Training] Workout plan saved locally but remote save failed.",
             error
@@ -883,25 +824,32 @@ const AriTrainingWorkoutPlanController = {
       }
 
       this.state.lastSavedAt =
-        new Date().toISOString();
+        new Date()
+          .toISOString();
 
       this.syncProgressWithPlan();
 
       return true;
     } finally {
-      this.state.saving = false;
+      this.state.saving =
+        false;
     }
   },
 
-  /* ===================================================
-     CALENDAR SELECTION
-  =================================================== */
 
-  setSelectedDate(date) {
+  // ===================================================
+  // CALENDAR SELECTION
+  // ===================================================
+
+  setSelectedDate(
+    date
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
-    const weekStart =
+    const weekKey =
       getSundayWeekStart(
         isoDate
       );
@@ -910,25 +858,28 @@ const AriTrainingWorkoutPlanController = {
       isoDate;
 
     this.state.selectedWeekStart =
-      weekStart;
+      weekKey;
 
     this.state.selectedMonth =
-      getMonthKey(isoDate);
+      getMonthKey(
+        isoDate
+      );
 
-    syncStoreSelectedWeek(
-      weekStart
-    );
+    WorkoutPlanStore
+      .setSelectedWeek?.(
+        weekKey
+      );
 
     WorkoutProgressStore
       .setPlanContext?.({
         planKey:
           getPlanContextKey(
             WorkoutPlanStore
-              .getState?.() ||
-            {}
+              .getState?.()
           ),
-        weekKey:
-          weekStart,
+
+        weekKey,
+
         resetIfChanged:
           false
       });
@@ -936,49 +887,88 @@ const AriTrainingWorkoutPlanController = {
     return isoDate;
   },
 
-  setSelectedWeek(date) {
-    const weekStart =
-      getSundayWeekStart(date);
 
-    if (!weekStart) return null;
+  setSelectedWeek(
+    value
+  ) {
+    const weekKey =
+      normalizeWeekKey(
+        value
+      );
+
+    if (!weekKey) {
+      return null;
+    }
 
     this.state.selectedWeekStart =
-      weekStart;
+      weekKey;
 
     this.state.selectedDate =
-      weekStart;
+      weekKey;
 
     this.state.selectedMonth =
-      getMonthKey(weekStart);
+      getMonthKey(
+        weekKey
+      );
 
-    syncStoreSelectedWeek(
-      weekStart
-    );
+    /*
+     * CRITICAL FIX:
+     * Keep V3 plan store's selectedWeekKey synchronized.
+     */
+    WorkoutPlanStore
+      .setSelectedWeek?.(
+        weekKey
+      );
 
     WorkoutProgressStore
       .setPlanContext?.({
         planKey:
           getPlanContextKey(
             WorkoutPlanStore
-              .getState?.() ||
-            {}
+              .getState?.()
           ),
-        weekKey:
-          weekStart,
+
+        weekKey,
+
         resetIfChanged:
           false
       });
 
     return this.getWeek(
-      weekStart
+      weekKey
     );
   },
 
-  setSelectedMonth(value) {
-    const range =
-      getMonthDateRange(value);
 
-    if (!range) return null;
+  selectWeek(
+    value
+  ) {
+    return this.setSelectedWeek(
+      value
+    );
+  },
+
+
+  loadWeek(
+    value
+  ) {
+    return this.setSelectedWeek(
+      value
+    );
+  },
+
+
+  setSelectedMonth(
+    value
+  ) {
+    const range =
+      getMonthDateRange(
+        value
+      );
+
+    if (!range) {
+      return null;
+    }
 
     this.state.selectedMonth =
       range.monthKey;
@@ -988,49 +978,67 @@ const AriTrainingWorkoutPlanController = {
     );
   },
 
+
   getSelectedDate() {
-    return this.state.selectedDate;
+    return this.state
+      .selectedDate;
   },
+
 
   getSelectedWeekStart() {
-    return this.state.selectedWeekStart;
+    return this.state
+      .selectedWeekStart;
   },
+
 
   getSelectedWeekKey() {
-    return this.state.selectedWeekStart;
-  },
-
-  getSelectedWeek() {
-    return this.getWeek(
+    return (
+      WorkoutPlanStore
+        .getSelectedWeekKey?.() ||
       this.state.selectedWeekStart
     );
   },
 
+
   getSelectedMonth() {
-    return this.state.selectedMonth;
+    return this.state
+      .selectedMonth;
   },
 
-  /* ===================================================
-     PLAN READS
-  =================================================== */
+
+  // ===================================================
+  // PLAN READS
+  // ===================================================
 
   getPlan() {
-    return WorkoutPlanStore.getState?.();
+    return WorkoutPlanStore
+      .getState?.();
   },
 
-  getDate(date = this.state.selectedDate) {
+
+  getDate(
+    date =
+      this.state.selectedDate
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
     const stored =
-      getStoreDate(isoDate);
+      WorkoutPlanStore
+        .getDayByDate?.(
+          isoDate
+        );
 
     if (stored) {
       return {
         ...stored,
+
         date:
           stored.date ||
           isoDate,
+
         day:
           stored.day ||
           getWeekdayIdFromDate(
@@ -1040,20 +1048,33 @@ const AriTrainingWorkoutPlanController = {
     }
 
     return {
-      date: isoDate,
+      date:
+        isoDate,
+
       day:
         getWeekdayIdFromDate(
           isoDate
         ),
-      type: "off",
-      focusId: "off_day",
-      title: "Off Day",
-      exercises: [],
+
+      type:
+        "off",
+
+      focusId:
+        "off_day",
+
+      title:
+        "Off Day",
+
+      exercises:
+        [],
+
       metadata: {
-        implicitOffDay: true
+        implicitOffDay:
+          true
       }
     };
   },
+
 
   getToday() {
     return this.getDate(
@@ -1061,97 +1082,113 @@ const AriTrainingWorkoutPlanController = {
     );
   },
 
-  getWeek(anchor = this.state.selectedWeekStart) {
-    const startDate =
-      getSundayWeekStart(anchor);
 
-    if (!startDate) return null;
-
-    if (
-      typeof WorkoutPlanStore.getWeekByDate ===
-      "function"
-    ) {
-      return WorkoutPlanStore.getWeekByDate(
-        startDate
+  getWeek(
+    anchor =
+      this.state.selectedWeekStart
+  ) {
+    const weekKey =
+      normalizeWeekKey(
+        anchor
       );
+
+    if (!weekKey) {
+      return null;
     }
 
-    if (
-      typeof WorkoutPlanStore.getWeek ===
-      "function"
-    ) {
-      const storedWeek =
-        WorkoutPlanStore.getWeek(
-          startDate
+    const week =
+      WorkoutPlanStore
+        .getWeek?.(
+          weekKey
         );
 
-      if (storedWeek) {
-        return {
-          weekStart:
-            storedWeek.weekKey ||
-            storedWeek.startDate ||
-            startDate,
-          weekEnd:
-            storedWeek.endDate ||
-            addDays(
-              startDate,
-              6
-            ),
-          ...storedWeek,
-          days:
-            storedWeek.days ||
-            {}
-        };
-      }
+    if (week) {
+      return week;
     }
 
     const days = {};
 
     for (
       const item
-      of getWeekDates(startDate)
+      of getWeekDates(
+        weekKey
+      )
     ) {
-      days[item.day] =
-        this.getDate(item.date);
+      days[
+        item.day
+      ] =
+        this.getDate(
+          item.date
+        );
     }
 
     return {
-      weekStart: startDate,
-      weekEnd:
-        addDays(startDate, 6),
+      weekKey,
+
+      startDate:
+        weekKey,
+
+      endDate:
+        addDays(
+          weekKey,
+          6
+        ),
+
       days
     };
   },
 
-  getMonth(value = this.state.selectedMonth) {
+
+  getSelectedWeek() {
+    return this.getWeek(
+      this.getSelectedWeekKey()
+    );
+  },
+
+
+  getWeekByKey(
+    weekKey
+  ) {
+    return this.getWeek(
+      weekKey
+    );
+  },
+
+
+  getMonth(
+    value =
+      this.state.selectedMonth
+  ) {
     const range =
-      getMonthDateRange(value);
-
-    if (!range) return null;
-
-    if (
-      typeof WorkoutPlanStore.getMonth ===
-      "function"
-    ) {
-      return WorkoutPlanStore.getMonth(
-        range.monthKey
+      getMonthDateRange(
+        value
       );
+
+    if (!range) {
+      return null;
     }
 
     const dates = [];
+
     let cursor =
       range.startDate;
 
     while (
       cursor &&
-      cursor <= range.endDate
+      cursor <=
+        range.endDate
     ) {
       dates.push(
-        this.getDate(cursor)
+        this.getDate(
+          cursor
+        )
       );
 
       cursor =
-        addDays(cursor, 1);
+        addDays(
+          cursor,
+          1
+        );
     }
 
     return {
@@ -1160,7 +1197,68 @@ const AriTrainingWorkoutPlanController = {
     };
   },
 
-  getSummary(options = {}) {
+
+  getDay(
+    dayOrDate,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    if (
+      ISO_DATE_PATTERN.test(
+        normalizeText(
+          dayOrDate
+        )
+      )
+    ) {
+      return this.getDate(
+        dayOrDate
+      );
+    }
+
+    const day =
+      normalizeDay(
+        dayOrDate
+      );
+
+    if (!day) {
+      return null;
+    }
+
+    return WorkoutPlanStore
+      .getDay?.(
+        day,
+        normalizeWeekKey(
+          weekValue
+        )
+      ) ||
+      null;
+  },
+
+
+  getSelectedDay(
+    day
+  ) {
+    return this.getDay(
+      day,
+      this.getSelectedWeekKey()
+    );
+  },
+
+
+  getDayForWeek(
+    weekKey,
+    day
+  ) {
+    return this.getDay(
+      day,
+      weekKey
+    );
+  },
+
+
+  getSummary(
+    options = {}
+  ) {
     if (
       options.month ||
       options.monthKey
@@ -1173,78 +1271,95 @@ const AriTrainingWorkoutPlanController = {
 
     if (
       options.week ||
-      options.weekStart
+      options.weekStart ||
+      options.weekKey
     ) {
       return this.getWeekSummary(
         options.week ||
-        options.weekStart
-      );
-    }
-
-    if (
-      typeof WorkoutPlanStore.getSummary ===
-      "function"
-    ) {
-      return WorkoutPlanStore.getSummary(
-        this.state.selectedWeekStart
+        options.weekStart ||
+        options.weekKey
       );
     }
 
     return this.getWeekSummary(
-      this.state.selectedWeekStart
+      this.getSelectedWeekKey()
     );
   },
 
-  getWeekSummary(anchor = this.state.selectedWeekStart) {
-    const week =
-      this.getWeek(anchor);
 
-    const dayStates =
-      Object.values(
-        week?.days || {}
+  getWeekSummary(
+    anchor =
+      this.getSelectedWeekKey()
+  ) {
+    const week =
+      this.getWeek(
+        anchor
       );
 
-    const weekStart =
-      week?.weekStart ||
-      week?.weekKey ||
-      week?.startDate ||
-      getSundayWeekStart(anchor);
+    const dayStates =
+      DAYS
+        .map(
+          day =>
+            week
+              ?.days?.[
+                day
+              ]
+        )
+        .filter(Boolean);
 
     return {
-      weekStart,
+      weekKey:
+        week?.weekKey ||
+        normalizeWeekKey(
+          anchor
+        ),
+
+      weekStart:
+        week?.startDate ||
+        normalizeWeekKey(
+          anchor
+        ),
 
       weekEnd:
-        week?.weekEnd ||
         week?.endDate ||
         addDays(
-          weekStart,
+          normalizeWeekKey(
+            anchor
+          ),
           6
         ),
 
       trainingDayCount:
         dayStates.filter(
           day =>
-            day.type === "workout"
+            day.type ===
+            "workout"
         ).length,
 
       recoveryDayCount:
         dayStates.filter(
           day =>
-            day.type === "recovery"
+            day.type ===
+            "recovery"
         ).length,
 
       offDayCount:
         dayStates.filter(
           day =>
-            day.type === "off"
+            day.type ===
+            "off"
         ).length,
 
       exerciseCount:
         dayStates.reduce(
-          (total, day) =>
+          (
+            total,
+            day
+          ) =>
             total +
             (
-              day.exercises?.length ||
+              day.exercises
+                ?.length ||
               0
             ),
           0
@@ -1252,56 +1367,65 @@ const AriTrainingWorkoutPlanController = {
     };
   },
 
-  getMonthSummary(value = this.state.selectedMonth) {
+
+  getMonthSummary(
+    value =
+      this.state.selectedMonth
+  ) {
     const month =
-      this.getMonth(value);
+      this.getMonth(
+        value
+      );
 
     const dates =
       month?.dates ||
-      Object.values(
-        month?.days || {}
-      );
+      [];
 
     return {
       monthKey:
         month?.monthKey ||
-        (
-          typeof value === "string" &&
-          /^\d{4}-\d{2}$/.test(value)
-            ? value
-            : getMonthKey(value)
+        getMonthKey(
+          value
         ),
 
       trainingDayCount:
         dates.filter(
           day =>
-            day.type === "workout"
+            day.type ===
+            "workout"
         ).length,
 
       recoveryDayCount:
         dates.filter(
           day =>
-            day.type === "recovery"
+            day.type ===
+            "recovery"
         ).length,
 
       offDayCount:
         dates.filter(
           day =>
-            day.type === "off"
+            day.type ===
+            "off"
         ).length,
 
       plannedExerciseCount:
         dates.reduce(
-          (total, day) =>
+          (
+            total,
+            day
+          ) =>
             total +
             (
-              day.exercises?.length ||
+              day.exercises
+                ?.length ||
               0
             ),
           0
         )
     };
   },
+
 
   getCurrentWeekKey() {
     return getSundayWeekStart(
@@ -1309,106 +1433,152 @@ const AriTrainingWorkoutPlanController = {
     );
   },
 
-  /* ===================================================
-     START / PLAN ROUTING RULES
-  =================================================== */
 
-  canStartWorkout(date = new Date()) {
+  // ===================================================
+  // START / PLAN ROUTING
+  // ===================================================
+
+  canStartWorkout(
+    date = new Date()
+  ) {
     const dayState =
-      this.getDate(date);
+      this.getDate(
+        date
+      );
 
     return Boolean(
       dayState &&
-      dayState.type === "workout" &&
-      hasPlannedExercises(dayState)
+      dayState.type ===
+        "workout" &&
+      hasPlannedExercises(
+        dayState
+      )
     );
   },
 
-  needsWorkoutPlan(date = new Date()) {
+
+  needsWorkoutPlan(
+    date = new Date()
+  ) {
     return !this.canStartWorkout(
       date
     );
   },
 
-  getPrimaryDayAction(date = new Date()) {
+
+  getPrimaryDayAction(
+    date = new Date()
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
     const dayState =
-      this.getDate(isoDate);
+      this.getDate(
+        isoDate
+      );
 
     if (
-      this.canStartWorkout(isoDate)
+      this.canStartWorkout(
+        isoDate
+      )
     ) {
       return {
-        action: "start_workout",
-        label: "Start Workout",
-        date: isoDate,
+        action:
+          "start_workout",
+
+        label:
+          "Start Workout",
+
+        date:
+          isoDate,
+
         dayState
       };
     }
 
     return {
-      action: "plan_workout",
-      label: "Plan Workout",
-      date: isoDate,
+      action:
+        "plan_workout",
+
+      label:
+        "Plan Workout",
+
+      date:
+        isoDate,
+
       href:
         `workout-plans.html?date=${encodeURIComponent(
           isoDate
         )}`,
+
       dayState
     };
   },
 
-  /* ===================================================
-     PLAN METADATA
-  =================================================== */
+
+  // ===================================================
+  // PLAN METADATA
+  // ===================================================
 
   setPlanName(
     name,
-    weekStart =
-      this.state.selectedWeekStart
+    weekValue =
+      this.getSelectedWeekKey()
   ) {
     return WorkoutPlanStore
       .setPlanName?.(
         name,
-        getSundayWeekStart(
-          weekStart
+        normalizeWeekKey(
+          weekValue
         )
-      );
+      ) ||
+      false;
   },
+
 
   setPrimaryGoal(
     goalId,
-    weekStart =
-      this.state.selectedWeekStart
+    weekValue =
+      this.getSelectedWeekKey()
   ) {
     const goal =
-      FitnessGoals.get(goalId);
+      FitnessGoals.get(
+        goalId
+      );
 
-    if (!goal) return false;
+    if (!goal) {
+      return false;
+    }
 
     return WorkoutPlanStore
       .setPrimaryGoal?.(
         goal.id,
-        getSundayWeekStart(
-          weekStart
+        normalizeWeekKey(
+          weekValue
         )
-      );
+      ) ||
+      false;
   },
+
 
   setSecondaryGoals(
     goalIds = [],
-    weekStart =
-      this.state.selectedWeekStart
+    weekValue =
+      this.getSelectedWeekKey()
   ) {
     const validIds =
-      Array.isArray(goalIds)
+      Array.isArray(
+        goalIds
+      )
         ? goalIds
             .map(
               goalId =>
                 FitnessGoals
-                  .get(goalId)
+                  .get(
+                    goalId
+                  )
                   ?.id ||
                 null
             )
@@ -1418,36 +1588,71 @@ const AriTrainingWorkoutPlanController = {
     return WorkoutPlanStore
       .setSecondaryGoals?.(
         validIds,
-        getSundayWeekStart(
-          weekStart
+        normalizeWeekKey(
+          weekValue
         )
-      );
+      ) ||
+      false;
   },
 
-  /* ===================================================
-     DATE-SPECIFIC PLAN EDITING
-  =================================================== */
 
-  setDate(date, patch = {}) {
+  // ===================================================
+  // DATE-SPECIFIC PLAN EDITING
+  // ===================================================
+
+  setDate(
+    date,
+    patch = {}
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    if (
+      !weekKey ||
+      !day
+    ) {
+      return false;
+    }
 
     const current =
-      this.getDate(isoDate);
+      WorkoutPlanStore
+        .getDay?.(
+          day,
+          weekKey
+        ) ||
+      this.getDate(
+        isoDate
+      );
 
     const result =
-      setStoreDate(
-        isoDate,
-        {
-          ...current,
-          ...clone(patch),
-          date: isoDate,
-          day:
-            getWeekdayIdFromDate(
+      WorkoutPlanStore
+        .setDay?.(
+          day,
+          {
+            ...current,
+            ...clone(
+              patch
+            ),
+
+            day,
+            date:
               isoDate
-            )
-        }
-      );
+          },
+          weekKey
+        ) ||
+      false;
 
     if (result) {
       this.syncProgressDateWithPlan(
@@ -1458,9 +1663,37 @@ const AriTrainingWorkoutPlanController = {
     return result;
   },
 
-  setDateType(date, type) {
-    const normalized =
-      normalizeText(type)
+
+  setDateType(
+    date,
+    type
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    if (
+      !weekKey ||
+      !day
+    ) {
+      return false;
+    }
+
+    const normalizedType =
+      normalizeText(
+        type
+      )
         .toLowerCase();
 
     const validType =
@@ -1468,223 +1701,356 @@ const AriTrainingWorkoutPlanController = {
         "workout",
         "recovery",
         "off"
-      ].includes(normalized)
-        ? normalized
+      ].includes(
+        normalizedType
+      )
+        ? normalizedType
         : "off";
 
-    if (validType === "off") {
-      return this.clearDate(
-        date
+    const result =
+      WorkoutPlanStore
+        .setDayType?.(
+          day,
+          validType,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressDateWithPlan(
+        isoDate
       );
     }
 
-    const current =
-      this.getDate(date);
-
-    return this.setDate(
-      date,
-      {
-        type: validType,
-
-        focusId:
-          validType === "recovery"
-            ? "active_recovery"
-            : (
-                current?.focusId ===
-                  "off_day"
-                  ? "custom"
-                  : current?.focusId ||
-                    "custom"
-              ),
-
-        title:
-          validType === "recovery"
-            ? "Active Recovery"
-            : (
-                current?.title ===
-                  "Off Day"
-                  ? "Workout"
-                  : current?.title ||
-                    "Workout"
-              )
-      }
-    );
+    return result;
   },
 
-  setDateFocus(date, focusId) {
+
+  setDateFocus(
+    date,
+    focusId
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
     const focus =
       WorkoutFocuses.get(
         focusId
       );
 
-    if (!focus) return false;
-
-    if (focus.id === "off_day") {
-      return this.clearDate(
-        date
-      );
+    if (
+      !weekKey ||
+      !day ||
+      !focus
+    ) {
+      return false;
     }
 
-    return this.setDate(
-      date,
-      {
-        type:
-          focus.category ===
-            "recovery"
-            ? "recovery"
-            : "workout",
-        focusId: focus.id,
-        title: focus.label
-      }
-    );
-  },
-
-  setDateTitle(date, title) {
-    const normalized =
-      normalizeText(title);
-
-    if (!normalized) return false;
-
-    return this.setDate(
-      date,
-      {
-        title: normalized
-      }
-    );
-  },
-
-  setDateGoal(date, goalId) {
-    return this.setDate(
-      date,
-      {
-        goal:
-          normalizeId(goalId)
-      }
-    );
-  },
-
-  setDateSport(date, sportId) {
-    return this.setDate(
-      date,
-      {
-        sport:
-          normalizeId(sportId)
-      }
-    );
-  },
-
-  setDateDuration(date, minutes) {
-    return this.setDate(
-      date,
-      {
-        estimatedDurationMinutes:
-          normalizePositiveNumber(
-            minutes
-          )
-      }
-    );
-  },
-
-  clearDate(date) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
     const result =
-      clearStoreDate(isoDate);
+      WorkoutPlanStore
+        .setDayFocus?.(
+          day,
+          focus.id,
+          focus.label,
+          weekKey
+        ) ||
+      false;
 
-    this.syncProgressDateWithPlan(
-      isoDate
-    );
+    if (result) {
+      this.syncProgressDateWithPlan(
+        isoDate
+      );
+    }
 
     return result;
   },
 
-  clearWeekPlan(anchor = this.state.selectedWeekStart) {
-    const startDate =
-      getSundayWeekStart(anchor);
 
-    if (!startDate) return false;
+  setDateTitle(
+    date,
+    title
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
 
-    syncStoreSelectedWeek(
-      startDate
-    );
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    const normalized =
+      normalizeText(
+        title
+      );
 
     if (
-      typeof WorkoutPlanStore.clearWeek ===
-      "function"
+      !weekKey ||
+      !day ||
+      !normalized
     ) {
-      const result =
-        WorkoutPlanStore.clearWeek(
-          startDate
-        );
-
-      this.syncProgressWithPlan();
-
-      return result;
+      return false;
     }
 
-    let changed = false;
-
-    for (
-      const item
-      of getWeekDates(startDate)
-    ) {
-      changed =
-        clearStoreDate(item.date) ||
-        changed;
-    }
-
-    this.syncProgressWithPlan();
-
-    return changed;
+    return WorkoutPlanStore
+      .setDayTitle?.(
+        day,
+        normalized,
+        weekKey
+      ) ||
+      false;
   },
 
-  clearWeek(anchor = this.state.selectedWeekStart) {
+
+  setDateGoal(
+    date,
+    goalId
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    if (
+      !weekKey ||
+      !day
+    ) {
+      return false;
+    }
+
+    return WorkoutPlanStore
+      .setDayGoal?.(
+        day,
+        goalId,
+        weekKey
+      ) ||
+      false;
+  },
+
+
+  setDateSport(
+    date,
+    sportId
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    if (
+      !weekKey ||
+      !day
+    ) {
+      return false;
+    }
+
+    return WorkoutPlanStore
+      .setDaySport?.(
+        day,
+        sportId,
+        weekKey
+      ) ||
+      false;
+  },
+
+
+  setDateDuration(
+    date,
+    minutes
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    if (
+      !weekKey ||
+      !day
+    ) {
+      return false;
+    }
+
+    return WorkoutPlanStore
+      .setDayDuration?.(
+        day,
+        minutes,
+        weekKey
+      ) ||
+      false;
+  },
+
+
+  clearDate(
+    date
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
+
+    if (
+      !weekKey ||
+      !day
+    ) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .clearDay?.(
+          day,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressDateWithPlan(
+        isoDate
+      );
+    }
+
+    return result;
+  },
+
+
+  clearWeekPlan(
+    anchor =
+      this.getSelectedWeekKey()
+  ) {
+    const weekKey =
+      normalizeWeekKey(
+        anchor
+      );
+
+    if (!weekKey) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .clearWeek?.(
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressWithPlan();
+    }
+
+    return result;
+  },
+
+
+  clearWeek(
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
     return this.clearWeekPlan(
-      anchor
+      weekValue
     );
   },
+
 
   clearSelectedWeek() {
     return this.clearWeekPlan(
-      this.state.selectedWeekStart
+      this.getSelectedWeekKey()
     );
   },
 
-  clearMonthPlan(value = this.state.selectedMonth) {
+
+  clearMonthPlan(
+    value =
+      this.state.selectedMonth
+  ) {
     const range =
-      getMonthDateRange(value);
+      getMonthDateRange(
+        value
+      );
 
-    if (!range) return false;
-
-    if (
-      typeof WorkoutPlanStore.clearMonth ===
-      "function"
-    ) {
-      const result =
-        WorkoutPlanStore.clearMonth(
-          range.monthKey
-        );
-
-      this.syncProgressWithPlan();
-
-      return result;
+    if (!range) {
+      return false;
     }
 
-    let changed = false;
+    let changed =
+      false;
+
     let cursor =
       range.startDate;
 
     while (
       cursor &&
-      cursor <= range.endDate
+      cursor <=
+        range.endDate
     ) {
       changed =
-        clearStoreDate(cursor) ||
+        this.clearDate(
+          cursor
+        ) ||
         changed;
 
       cursor =
-        addDays(cursor, 1);
+        addDays(
+          cursor,
+          1
+        );
     }
 
     this.syncProgressWithPlan();
@@ -1692,27 +2058,571 @@ const AriTrainingWorkoutPlanController = {
     return changed;
   },
 
-  /* ===================================================
-     WEEK COPY / REPEAT COMPATIBILITY
-  =================================================== */
 
-  copyWeek(
-    sourceOrOptions,
-    targetWeekValue = null,
-    options = {}
+  // ===================================================
+  // WEEKDAY COMPATIBILITY
+  // ===================================================
+
+  getDateForWeekday(
+    day,
+    anchor =
+      this.getSelectedWeekKey()
   ) {
+    const normalizedDay =
+      normalizeDay(
+        day
+      );
+
+    if (!normalizedDay) {
+      return null;
+    }
+
+    const weekKey =
+      normalizeWeekKey(
+        anchor
+      );
+
+    if (!weekKey) {
+      return null;
+    }
+
+    return WorkoutPlanStore
+      .getDayDateForWeek?.(
+        weekKey,
+        normalizedDay
+      ) ||
+      addDays(
+        weekKey,
+        DAYS.indexOf(
+          normalizedDay
+        )
+      );
+  },
+
+
+  setDayType(
+    day,
+    type,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    const normalizedDay =
+      normalizeDay(
+        day
+      );
+
+    const weekKey =
+      normalizeWeekKey(
+        weekValue
+      );
+
     if (
-      typeof WorkoutPlanStore.copyWeek !==
-      "function"
+      !normalizedDay ||
+      !weekKey
     ) {
       return false;
     }
 
-    let sourceWeek =
-      sourceOrOptions;
+    const result =
+      WorkoutPlanStore
+        .setDayType?.(
+          normalizedDay,
+          type,
+          weekKey
+        ) ||
+      false;
 
-    let targetWeek =
-      targetWeekValue;
+    if (result) {
+      const date =
+        this.getDateForWeekday(
+          normalizedDay,
+          weekKey
+        );
+
+      this.syncProgressDateWithPlan(
+        date
+      );
+    }
+
+    return result;
+  },
+
+
+  setDayFocus(
+    day,
+    focusId,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    const normalizedDay =
+      normalizeDay(
+        day
+      );
+
+    const weekKey =
+      normalizeWeekKey(
+        weekValue
+      );
+
+    const focus =
+      WorkoutFocuses.get(
+        focusId
+      );
+
+    if (
+      !normalizedDay ||
+      !weekKey ||
+      !focus
+    ) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .setDayFocus?.(
+          normalizedDay,
+          focus.id,
+          focus.label,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      const date =
+        this.getDateForWeekday(
+          normalizedDay,
+          weekKey
+        );
+
+      this.syncProgressDateWithPlan(
+        date
+      );
+    }
+
+    return result;
+  },
+
+
+  setDayTitle(
+    day,
+    title,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    return WorkoutPlanStore
+      .setDayTitle?.(
+        normalizeDay(day),
+        title,
+        normalizeWeekKey(
+          weekValue
+        )
+      ) ||
+      false;
+  },
+
+
+  setDayGoal(
+    day,
+    goalId,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    return WorkoutPlanStore
+      .setDayGoal?.(
+        normalizeDay(day),
+        goalId,
+        normalizeWeekKey(
+          weekValue
+        )
+      ) ||
+      false;
+  },
+
+
+  setDaySport(
+    day,
+    sportId,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    return WorkoutPlanStore
+      .setDaySport?.(
+        normalizeDay(day),
+        sportId,
+        normalizeWeekKey(
+          weekValue
+        )
+      ) ||
+      false;
+  },
+
+
+  setDayDuration(
+    day,
+    minutes,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    return WorkoutPlanStore
+      .setDayDuration?.(
+        normalizeDay(day),
+        minutes,
+        normalizeWeekKey(
+          weekValue
+        )
+      ) ||
+      false;
+  },
+
+
+  clearDay(
+    day,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    const normalizedDay =
+      normalizeDay(
+        day
+      );
+
+    const weekKey =
+      normalizeWeekKey(
+        weekValue
+      );
+
+    if (
+      !normalizedDay ||
+      !weekKey
+    ) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .clearDay?.(
+          normalizedDay,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressDateWithPlan(
+        this.getDateForWeekday(
+          normalizedDay,
+          weekKey
+        )
+      );
+    }
+
+    return result;
+  },
+
+
+  // ===================================================
+  // EXERCISE PLAN EDITING
+  // ===================================================
+
+  addExercise(
+    dateOrDay,
+    exerciseId,
+    options = {},
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    const exercise =
+      ExerciseRegistry.get(
+        exerciseId
+      );
+
+    if (!exercise) {
+      return false;
+    }
+
+    let isoDate =
+      null;
+
+    let day =
+      null;
+
+    let weekKey =
+      null;
+
+    if (
+      ISO_DATE_PATTERN.test(
+        normalizeText(
+          dateOrDay
+        )
+      )
+    ) {
+      isoDate =
+        normalizeDateOrToday(
+          dateOrDay
+        );
+
+      day =
+        getWeekdayIdFromDate(
+          isoDate
+        );
+
+      weekKey =
+        getSundayWeekStart(
+          isoDate
+        );
+    } else {
+      day =
+        normalizeDay(
+          dateOrDay
+        );
+
+      weekKey =
+        normalizeWeekKey(
+          weekValue
+        );
+
+      isoDate =
+        this.getDateForWeekday(
+          day,
+          weekKey
+        );
+    }
+
+    if (
+      !day ||
+      !weekKey ||
+      !isoDate
+    ) {
+      return false;
+    }
+
+    const current =
+      WorkoutPlanStore
+        .getDay?.(
+          day,
+          weekKey
+        );
+
+    /*
+     * The add button may only operate on a real workout day.
+     */
+    if (
+      !current ||
+      current.type !==
+        "workout"
+    ) {
+      return false;
+    }
+
+    const entry = {
+      exerciseId:
+        exercise.id,
+
+      ...clone(
+        options
+      )
+    };
+
+    /*
+     * CRITICAL FIX:
+     * Pass weekKey into V3 store addExercise().
+     */
+    const result =
+      WorkoutPlanStore
+        .addExercise?.(
+          day,
+          entry,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressDateWithPlan(
+        isoDate
+      );
+    }
+
+    return result;
+  },
+
+
+  updateExercise(
+    dateOrDay,
+    index,
+    patch = {},
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    let isoDate =
+      null;
+
+    let day =
+      null;
+
+    let weekKey =
+      null;
+
+    if (
+      ISO_DATE_PATTERN.test(
+        normalizeText(
+          dateOrDay
+        )
+      )
+    ) {
+      isoDate =
+        normalizeDateOrToday(
+          dateOrDay
+        );
+
+      day =
+        getWeekdayIdFromDate(
+          isoDate
+        );
+
+      weekKey =
+        getSundayWeekStart(
+          isoDate
+        );
+    } else {
+      day =
+        normalizeDay(
+          dateOrDay
+        );
+
+      weekKey =
+        normalizeWeekKey(
+          weekValue
+        );
+
+      isoDate =
+        this.getDateForWeekday(
+          day,
+          weekKey
+        );
+    }
+
+    if (
+      !day ||
+      !weekKey ||
+      !isoDate
+    ) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .updateExercise?.(
+          day,
+          index,
+          patch,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressDateWithPlan(
+        isoDate
+      );
+    }
+
+    return result;
+  },
+
+
+  removeExercise(
+    dateOrDay,
+    index,
+    weekValue =
+      this.getSelectedWeekKey()
+  ) {
+    let isoDate =
+      null;
+
+    let day =
+      null;
+
+    let weekKey =
+      null;
+
+    if (
+      ISO_DATE_PATTERN.test(
+        normalizeText(
+          dateOrDay
+        )
+      )
+    ) {
+      isoDate =
+        normalizeDateOrToday(
+          dateOrDay
+        );
+
+      day =
+        getWeekdayIdFromDate(
+          isoDate
+        );
+
+      weekKey =
+        getSundayWeekStart(
+          isoDate
+        );
+    } else {
+      day =
+        normalizeDay(
+          dateOrDay
+        );
+
+      weekKey =
+        normalizeWeekKey(
+          weekValue
+        );
+
+      isoDate =
+        this.getDateForWeekday(
+          day,
+          weekKey
+        );
+    }
+
+    if (
+      !day ||
+      !weekKey ||
+      !isoDate
+    ) {
+      return false;
+    }
+
+    const result =
+      WorkoutPlanStore
+        .removeExercise?.(
+          day,
+          index,
+          weekKey
+        ) ||
+      false;
+
+    if (result) {
+      this.syncProgressDateWithPlan(
+        isoDate
+      );
+    }
+
+    return result;
+  },
+
+
+  // ===================================================
+  // WEEK COPY / REPEAT
+  // ===================================================
+
+  copyWeek(
+    sourceOrOptions,
+    targetWeekValue =
+      null,
+    options = {}
+  ) {
+    let sourceWeekKey =
+      null;
+
+    let targetWeekKey =
+      null;
 
     let copyOptions =
       options;
@@ -1720,66 +2630,69 @@ const AriTrainingWorkoutPlanController = {
     if (
       sourceOrOptions &&
       typeof sourceOrOptions ===
-        "object" &&
-      !Array.isArray(
-        sourceOrOptions
-      )
+        "object"
     ) {
-      sourceWeek =
-        sourceOrOptions.fromWeekKey ||
-        sourceOrOptions.sourceWeekKey ||
-        sourceOrOptions.sourceWeek ||
-        null;
+      sourceWeekKey =
+        normalizeWeekKey(
+          sourceOrOptions
+            .fromWeekKey ||
+          sourceOrOptions
+            .sourceWeekKey
+        );
 
-      targetWeek =
-        sourceOrOptions.toWeekKey ||
-        sourceOrOptions.targetWeekKey ||
-        sourceOrOptions.targetWeek ||
-        null;
+      targetWeekKey =
+        normalizeWeekKey(
+          sourceOrOptions
+            .toWeekKey ||
+          sourceOrOptions
+            .targetWeekKey ||
+          this.getSelectedWeekKey()
+        );
 
       copyOptions = {
         overwrite:
-          sourceOrOptions.overwrite ??
+          sourceOrOptions
+            .overwrite ??
           true,
+
         markAsRepeat:
-          sourceOrOptions.markAsRepeat ??
+          sourceOrOptions
+            .markAsRepeat ??
           false
       };
+    } else {
+      sourceWeekKey =
+        normalizeWeekKey(
+          sourceOrOptions
+        );
+
+      targetWeekKey =
+        normalizeWeekKey(
+          targetWeekValue ||
+          this.getSelectedWeekKey()
+        );
     }
 
-    const sourceKey =
-      getSundayWeekStart(
-        sourceWeek
-      );
-
-    const targetKey =
-      getSundayWeekStart(
-        targetWeek
-      );
-
     if (
-      !sourceKey ||
-      !targetKey
+      !sourceWeekKey ||
+      !targetWeekKey
     ) {
       return false;
     }
 
     const result =
-      WorkoutPlanStore.copyWeek(
-        sourceKey,
-        targetKey,
-        copyOptions
-      );
+      WorkoutPlanStore
+        .copyWeek?.(
+          sourceWeekKey,
+          targetWeekKey,
+          copyOptions
+        ) ||
+      false;
 
     if (result) {
-      if (
-        targetKey ===
-        this.state.selectedWeekStart
-      ) {
-        syncStoreSelectedWeek(
-          targetKey
-        );
-      }
+      this.setSelectedWeek(
+        targetWeekKey
+      );
 
       this.syncProgressWithPlan();
     }
@@ -1787,13 +2700,14 @@ const AriTrainingWorkoutPlanController = {
     return result;
   },
 
+
   repeatPreviousWeek(
     targetWeekValue =
-      this.state.selectedWeekStart,
+      this.getSelectedWeekKey(),
     options = {}
   ) {
     const targetWeekKey =
-      getSundayWeekStart(
+      normalizeWeekKey(
         targetWeekValue
       );
 
@@ -1801,47 +2715,29 @@ const AriTrainingWorkoutPlanController = {
       return false;
     }
 
-    if (
-      typeof WorkoutPlanStore.repeatPreviousWeek ===
-      "function"
-    ) {
-      const result =
-        WorkoutPlanStore.repeatPreviousWeek(
+    const result =
+      WorkoutPlanStore
+        .repeatPreviousWeek?.(
           targetWeekKey,
           options
-        );
+        ) ||
+      false;
 
-      if (result) {
-        syncStoreSelectedWeek(
-          targetWeekKey
-        );
-
-        this.syncProgressWithPlan();
-      }
-
-      return result;
-    }
-
-    const previousWeekKey =
-      addDays(
-        targetWeekKey,
-        -7
+    if (result) {
+      this.setSelectedWeek(
+        targetWeekKey
       );
 
-    return this.copyWeek(
-      previousWeekKey,
-      targetWeekKey,
-      {
-        ...options,
-        markAsRepeat:
-          true
-      }
-    );
+      this.syncProgressWithPlan();
+    }
+
+    return result;
   },
+
 
   repeatLastWeek(
     targetWeekValue =
-      this.state.selectedWeekStart,
+      this.getSelectedWeekKey(),
     options = {}
   ) {
     return this.repeatPreviousWeek(
@@ -1850,591 +2746,218 @@ const AriTrainingWorkoutPlanController = {
     );
   },
 
-  /* ===================================================
-     WEEKDAY COMPATIBILITY
-  =================================================== */
 
-  getDateForWeekday(
-    day,
-    anchor =
-      this.state.selectedWeekStart
-  ) {
-    const normalized =
-      normalizeText(day)
-        .toLowerCase();
-
-    const index =
-      DAYS.indexOf(normalized);
-
-    if (index < 0) {
-      return null;
-    }
-
-    const startDate =
-      getSundayWeekStart(anchor);
-
-    return startDate
-      ? addDays(startDate, index)
-      : null;
-  },
-
-  getDay(
-    dayOrDate,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    if (
-      ISO_DATE_PATTERN.test(
-        normalizeText(dayOrDate)
-      )
-    ) {
-      return this.getDate(
-        dayOrDate
-      );
-    }
-
-    const targetDate =
-      this.getDateForWeekday(
-        dayOrDate,
-        weekStart
-      );
-
-    return targetDate
-      ? this.getDate(targetDate)
-      : null;
-  },
-
-  getDayForWeek(
-    weekStart,
-    day
-  ) {
-    return this.getDay(
-      day,
-      weekStart
-    );
-  },
-
-  getSelectedDay(day) {
-    return this.getDay(
-      day,
-      this.state.selectedWeekStart
-    );
-  },
-
-  setDayType(
-    day,
-    type,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.setDateType(
-          targetDate,
-          type
-        )
-      : false;
-  },
-
-  setDayFocus(
-    day,
-    focusId,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.setDateFocus(
-          targetDate,
-          focusId
-        )
-      : false;
-  },
-
-  setDayTitle(
-    day,
-    title,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.setDateTitle(
-          targetDate,
-          title
-        )
-      : false;
-  },
-
-  setDayGoal(
-    day,
-    goalId,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.setDateGoal(
-          targetDate,
-          goalId
-        )
-      : false;
-  },
-
-  setDaySport(
-    day,
-    sportId,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.setDateSport(
-          targetDate,
-          sportId
-        )
-      : false;
-  },
-
-  setDayDuration(
-    day,
-    minutes,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.setDateDuration(
-          targetDate,
-          minutes
-        )
-      : false;
-  },
-
-  clearDay(
-    day,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const targetDate =
-      this.getDateForWeekday(
-        day,
-        weekStart
-      );
-
-    return targetDate
-      ? this.clearDate(targetDate)
-      : false;
-  },
-
-  /* ===================================================
-     EXERCISE PLAN EDITING
-  =================================================== */
-
-  addExercise(
-    dateOrDay,
-    exerciseId,
-    options = {},
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const exercise =
-      ExerciseRegistry.get(
-        exerciseId
-      );
-
-    if (!exercise) return false;
-
-    const isoDate =
-      ISO_DATE_PATTERN.test(
-        normalizeText(dateOrDay)
-      )
-        ? normalizeText(dateOrDay)
-        : this.getDateForWeekday(
-            dateOrDay,
-            weekStart
-          );
-
-    if (!isoDate) return false;
-
-    const current =
-      this.getDate(isoDate);
-
-    if (
-      !current ||
-      current.type !== "workout"
-    ) {
-      return false;
-    }
-
-    const entry = {
-      exerciseId: exercise.id,
-      ...clone(options)
-    };
-
-    let result =
-      false;
-
-    if (
-      typeof WorkoutPlanStore.addExerciseToDate ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore.addExerciseToDate(
-          isoDate,
-          entry
-        );
-    } else if (
-      typeof WorkoutPlanStore.addExercise ===
-      "function"
-    ) {
-      const weekday =
-        getWeekdayIdFromDate(
-          isoDate
-        );
-
-      const storeWeekKey =
-        getStoreWeekKeyForDate(
-          isoDate
-        );
-
-      result =
-        WorkoutPlanStore.addExercise(
-          weekday,
-          entry,
-          storeWeekKey
-        );
-    }
-
-    if (result) {
-      this.syncProgressDateWithPlan(
-        isoDate
-      );
-    }
-
-    return result;
-  },
-
-  updateExercise(
-    dateOrDay,
-    index,
-    patch = {},
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const isoDate =
-      ISO_DATE_PATTERN.test(
-        normalizeText(dateOrDay)
-      )
-        ? normalizeText(dateOrDay)
-        : this.getDateForWeekday(
-            dateOrDay,
-            weekStart
-          );
-
-    if (!isoDate) return false;
-
-    let result =
-      false;
-
-    if (
-      typeof WorkoutPlanStore.updateExerciseOnDate ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore.updateExerciseOnDate(
-          isoDate,
-          index,
-          patch
-        );
-    } else if (
-      typeof WorkoutPlanStore.updateExercise ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore.updateExercise(
-          getWeekdayIdFromDate(
-            isoDate
-          ),
-          index,
-          patch,
-          getStoreWeekKeyForDate(
-            isoDate
-          )
-        );
-    }
-
-    if (result) {
-      this.syncProgressDateWithPlan(
-        isoDate
-      );
-    }
-
-    return result;
-  },
-
-  removeExercise(
-    dateOrDay,
-    index,
-    weekStart =
-      this.state.selectedWeekStart
-  ) {
-    const isoDate =
-      ISO_DATE_PATTERN.test(
-        normalizeText(dateOrDay)
-      )
-        ? normalizeText(dateOrDay)
-        : this.getDateForWeekday(
-            dateOrDay,
-            weekStart
-          );
-
-    if (!isoDate) return false;
-
-    let result =
-      false;
-
-    if (
-      typeof WorkoutPlanStore.removeExerciseFromDate ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore.removeExerciseFromDate(
-          isoDate,
-          index
-        );
-    } else if (
-      typeof WorkoutPlanStore.removeExercise ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore.removeExercise(
-          getWeekdayIdFromDate(
-            isoDate
-          ),
-          index,
-          getStoreWeekKeyForDate(
-            isoDate
-          )
-        );
-    }
-
-    if (result) {
-      this.syncProgressDateWithPlan(
-        isoDate
-      );
-    }
-
-    return result;
-  },
-
-  /* ===================================================
-     TEMPLATES
-  =================================================== */
+  // ===================================================
+  // TEMPLATES
+  // ===================================================
 
   applyTemplate(
     templateId,
-    options = {}
+    weekOrOptions =
+      this.getSelectedWeekKey()
   ) {
     const template =
       WorkoutTemplates.get(
         templateId
       );
 
-    if (!template) return false;
-
-    const requestedWeek =
-      typeof options === "string"
-        ? options
-        : (
-            options?.weekStart ||
-            options?.weekKey ||
-            this.state.selectedWeekStart
-          );
-
-    const targetWeekStart =
-      getSundayWeekStart(
-        requestedWeek
-      );
-
-    if (!targetWeekStart) {
+    if (!template) {
       return false;
     }
 
-    syncStoreSelectedWeek(
-      targetWeekStart
-    );
-
-    let applied =
-      false;
+    let weekKey =
+      null;
 
     if (
-      typeof WorkoutPlanStore.applyTemplateToWeek ===
-      "function"
+      weekOrOptions &&
+      typeof weekOrOptions ===
+        "object"
     ) {
-      applied =
-        WorkoutPlanStore.applyTemplateToWeek(
-          WorkoutTemplates.clone(
-            template.id
-          ),
-          targetWeekStart
+      weekKey =
+        normalizeWeekKey(
+          weekOrOptions
+            .weekKey ||
+          weekOrOptions
+            .weekStart ||
+          this.getSelectedWeekKey()
         );
-    } else if (
-      typeof WorkoutPlanStore.applyTemplate ===
-      "function"
-    ) {
-      applied =
-        WorkoutPlanStore.applyTemplate(
-          WorkoutTemplates.clone(
-            template.id
-          ),
-          {
-            weekKey:
-              targetWeekStart
-          }
+    } else {
+      weekKey =
+        normalizeWeekKey(
+          weekOrOptions ||
+          this.getSelectedWeekKey()
         );
     }
 
-    if (applied) {
-      if (
-        targetWeekStart ===
-        this.state.selectedWeekStart
-      ) {
-        syncStoreSelectedWeek(
-          targetWeekStart
-        );
-      }
+    if (!weekKey) {
+      return false;
+    }
+
+    const templateCopy =
+      typeof WorkoutTemplates
+        .clone ===
+        "function"
+        ? WorkoutTemplates.clone(
+            template.id
+          )
+        : clone(
+            template
+          );
+
+    const result =
+      WorkoutPlanStore
+        .applyTemplate?.(
+          templateCopy,
+          {
+            weekKey
+          }
+        ) ||
+      false;
+
+    if (result) {
+      this.setSelectedWeek(
+        weekKey
+      );
 
       this.syncProgressWithPlan();
     }
 
-    return applied;
+    return result;
   },
+
 
   applyTemplateToWeek(
     templateId,
-    weekStart
+    weekKey
   ) {
     return this.applyTemplate(
       templateId,
-      {
-        weekStart
-      }
+      weekKey
     );
   },
 
-  getTemplates(filters = {}) {
+
+  getTemplates(
+    filters = {}
+  ) {
     return WorkoutTemplates.list(
       filters
     );
   },
 
-  searchTemplates(query) {
+
+  searchTemplates(
+    query
+  ) {
     return WorkoutTemplates.search(
       query
     );
   },
 
-  /* ===================================================
-     FOCUSES / GOALS
-  =================================================== */
 
-  getWorkoutFocuses(filters = {}) {
+  // ===================================================
+  // FOCUSES / GOALS
+  // ===================================================
+
+  getWorkoutFocuses(
+    filters = {}
+  ) {
     return WorkoutFocuses.list(
       filters
     );
   },
 
-  searchWorkoutFocuses(query) {
+
+  searchWorkoutFocuses(
+    query
+  ) {
     return WorkoutFocuses.search(
       query
     );
   },
 
-  getFitnessGoals(filters = {}) {
+
+  getFitnessGoals(
+    filters = {}
+  ) {
     return FitnessGoals.list(
       filters
     );
   },
 
-  searchFitnessGoals(query) {
+
+  searchFitnessGoals(
+    query
+  ) {
     return FitnessGoals.search(
       query
     );
   },
 
-  /* ===================================================
-     EXERCISE LIBRARY
-  =================================================== */
 
-  getExercise(exerciseId) {
+  // ===================================================
+  // EXERCISE LIBRARY
+  // ===================================================
+
+  getExercise(
+    exerciseId
+  ) {
     return ExerciseRegistry.get(
       exerciseId
     );
   },
 
-  getExercises(filters = {}) {
+
+  getExercises(
+    filters = {}
+  ) {
     return ExerciseRegistry.list(
       filters
     );
   },
 
-  searchExercises(query, options = {}) {
+
+  searchExercises(
+    query,
+    options = {}
+  ) {
     return ExerciseSearch.search(
       query,
       options
     );
   },
 
-  findExercises(query, options = {}) {
+
+  findExercises(
+    query,
+    options = {}
+  ) {
     return ExerciseSearch.find(
       query,
       options
     );
   },
 
-  suggestExercises(query, options = {}) {
+
+  suggestExercises(
+    query,
+    options = {}
+  ) {
     return ExerciseSearch.suggest(
       query,
       options
     );
   },
 
-  browseExercises(options = {}) {
+
+  browseExercises(
+    options = {}
+  ) {
     return ExerciseSearch.browse(
       options
     );
   },
+
 
   getExerciseSubstitutions(
     exerciseId,
@@ -2446,20 +2969,22 @@ const AriTrainingWorkoutPlanController = {
     );
   },
 
-  /* ===================================================
-     RECOMMENDATIONS
-  =================================================== */
 
-  getRecommendedExercises(options = {}) {
+  // ===================================================
+  // RECOMMENDATIONS
+  // ===================================================
+
+  getRecommendedExercises(
+    options = {}
+  ) {
     const selectedWeek =
-      this.getWeek(
-        this.state.selectedWeekStart
-      );
+      WorkoutPlanStore
+        .getWeek?.(
+          this.getSelectedWeekKey()
+        );
 
     const primaryGoalId =
-      selectedWeek?.primaryGoalId ||
-      WorkoutPlanStore
-        .getState?.()
+      selectedWeek
         ?.primaryGoalId ||
       null;
 
@@ -2477,7 +3002,9 @@ const AriTrainingWorkoutPlanController = {
         )
           ? options.bodyParts
           : options.bodyPart
-            ? [options.bodyPart]
+            ? [
+                options.bodyPart
+              ]
             : []
       )
     ];
@@ -2489,7 +3016,9 @@ const AriTrainingWorkoutPlanController = {
         )
           ? options.movementPatterns
           : options.movementPattern
-            ? [options.movementPattern]
+            ? [
+                options.movementPattern
+              ]
             : []
       )
     ];
@@ -2501,13 +3030,18 @@ const AriTrainingWorkoutPlanController = {
         )
           ? options.exerciseTypes
           : options.exerciseType
-            ? [options.exerciseType]
+            ? [
+                options.exerciseType
+              ]
             : []
       )
     ];
 
     if (focus) {
-      if (bodyParts.length === 0) {
+      if (
+        bodyParts.length ===
+        0
+      ) {
         bodyParts.push(
           ...(
             focus.primaryBodyParts ||
@@ -2517,120 +3051,146 @@ const AriTrainingWorkoutPlanController = {
         );
       }
 
-      if (movementPatterns.length === 0) {
+      if (
+        movementPatterns.length ===
+        0
+      ) {
         movementPatterns.push(
-          ...(focus.movementPatterns || [])
+          ...(
+            focus.movementPatterns ||
+            []
+          )
         );
       }
 
-      if (exerciseTypes.length === 0) {
+      if (
+        exerciseTypes.length ===
+        0
+      ) {
         exerciseTypes.push(
-          ...(focus.exerciseTypes || [])
+          ...(
+            focus.exerciseTypes ||
+            []
+          )
         );
       }
     }
 
     const recommendation =
-      ExerciseRecommender.recommend({
-        goal:
-          options.goal ||
-          primaryGoalId ||
-          "general_fitness",
+      ExerciseRecommender
+        .recommend({
+          goal:
+            options.goal ||
+            primaryGoalId ||
+            "general_fitness",
 
-        secondaryGoals:
-          options.secondaryGoals,
+          secondaryGoals:
+            options.secondaryGoals,
 
-        bodyParts,
-        muscles:
-          options.muscles,
-        movementPatterns,
-        exerciseTypes,
-        modules:
-          options.modules,
-        categories:
-          options.categories,
+          bodyParts,
 
-        availableEquipment:
-          options.availableEquipment ||
-          (
-            options.equipment
-              ? [options.equipment]
-              : []
-          ),
+          muscles:
+            options.muscles,
 
-        preferredEquipment:
-          options.preferredEquipment,
+          movementPatterns,
 
-        excludedEquipment:
-          options.excludedEquipment,
+          exerciseTypes,
 
-        preferredExercises:
-          options.preferredExercises,
+          modules:
+            options.modules,
 
-        excludedExercises:
-          options.excludedExercises,
+          categories:
+            options.categories,
 
-        difficulty:
-          options.difficulty,
+          availableEquipment:
+            options.availableEquipment ||
+            (
+              options.equipment
+                ? [
+                    options.equipment
+                  ]
+                : []
+            ),
 
-        sport:
-          options.sport,
+          preferredEquipment:
+            options.preferredEquipment,
 
-        specialization:
-          options.specialization,
+          excludedEquipment:
+            options.excludedEquipment,
 
-        allowHarder:
-          options.allowHarder,
+          preferredExercises:
+            options.preferredExercises,
 
-        strictEquipment:
-          options.strictEquipment,
+          excludedExercises:
+            options.excludedExercises,
 
-        includeBodyweight:
-          options.includeBodyweight,
+          difficulty:
+            options.difficulty,
 
-        variety:
-          options.variety,
+          sport:
+            options.sport,
 
-        limit:
-          options.limit ||
-          12
-      });
+          specialization:
+            options.specialization,
 
-    return recommendation.results;
+          allowHarder:
+            options.allowHarder,
+
+          strictEquipment:
+            options.strictEquipment,
+
+          includeBodyweight:
+            options.includeBodyweight,
+
+          variety:
+            options.variety,
+
+          limit:
+            options.limit ||
+            12
+        });
+
+    return (
+      recommendation
+        ?.results ||
+      []
+    );
   },
+
 
   getRecommendedExercisesForDate(
     date,
     options = {}
   ) {
     const dayState =
-      this.getDate(date);
+      this.getDate(
+        date
+      );
 
     if (
       !dayState ||
-      dayState.type !== "workout"
+      dayState.type !==
+        "workout"
     ) {
       return [];
     }
 
-    const weekStart =
+    const weekKey =
       getSundayWeekStart(
-        dayState.date ||
-        date
+        dayState.date
       );
 
     const week =
-      this.getWeek(
-        weekStart
-      );
+      WorkoutPlanStore
+        .getWeek?.(
+          weekKey
+        );
 
     return this.getRecommendedExercises({
       goal:
         dayState.goal ||
         week?.primaryGoalId ||
-        WorkoutPlanStore
-          .getState?.()
-          ?.primaryGoalId,
+        null,
 
       workoutFocus:
         dayState.focusId,
@@ -2642,23 +3202,27 @@ const AriTrainingWorkoutPlanController = {
     });
   },
 
+
   getRecommendedExercisesForDay(
     day,
     options = {}
   ) {
-    const requestedWeek =
-      options.weekStart ||
-      options.weekKey ||
-      this.state.selectedWeekStart;
+    const weekKey =
+      normalizeWeekKey(
+        options.weekKey ||
+        this.getSelectedWeekKey()
+      );
 
     const targetDate =
       ISO_DATE_PATTERN.test(
-        normalizeText(day)
+        normalizeText(
+          day
+        )
       )
         ? normalizeText(day)
         : this.getDateForWeekday(
             day,
-            requestedWeek
+            weekKey
           );
 
     return targetDate
@@ -2669,7 +3233,11 @@ const AriTrainingWorkoutPlanController = {
       : [];
   },
 
-  recommendFromQuery(query, options = {}) {
+
+  recommendFromQuery(
+    query,
+    options = {}
+  ) {
     return ExerciseRecommender
       .recommendFromQuery(
         query,
@@ -2677,33 +3245,31 @@ const AriTrainingWorkoutPlanController = {
       );
   },
 
-  /* ===================================================
-     WORKOUT BUILDER
-  =================================================== */
 
-  buildWorkout(options = {}) {
-    const selectedWeek =
-      this.getWeek(
-        this.state.selectedWeekStart
-      );
+  // ===================================================
+  // WORKOUT BUILDER
+  // ===================================================
 
-    const plan =
+  buildWorkout(
+    options = {}
+  ) {
+    const week =
       WorkoutPlanStore
-        .getState?.() ||
+        .getWeek?.(
+          this.getSelectedWeekKey()
+        ) ||
       {};
 
     const workout =
       WorkoutBuilder.build({
         goal:
           options.goal ||
-          selectedWeek?.primaryGoalId ||
-          plan.primaryGoalId ||
+          week.primaryGoalId ||
           "general_fitness",
 
         secondaryGoals:
           options.secondaryGoals ||
-          selectedWeek?.secondaryGoalIds ||
-          plan.secondaryGoalIds,
+          week.secondaryGoalIds,
 
         ...options
       });
@@ -2714,7 +3280,10 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
-  buildQuickWorkout(options = {}) {
+
+  buildQuickWorkout(
+    options = {}
+  ) {
     const workout =
       WorkoutBuilder.quick(
         options
@@ -2726,7 +3295,10 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
-  buildStrengthWorkout(options = {}) {
+
+  buildStrengthWorkout(
+    options = {}
+  ) {
     const workout =
       WorkoutBuilder.strength(
         options
@@ -2738,7 +3310,10 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
-  buildHypertrophyWorkout(options = {}) {
+
+  buildHypertrophyWorkout(
+    options = {}
+  ) {
     const workout =
       WorkoutBuilder.hypertrophy(
         options
@@ -2750,7 +3325,10 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
-  buildCardioWorkout(options = {}) {
+
+  buildCardioWorkout(
+    options = {}
+  ) {
     const workout =
       WorkoutBuilder.cardio(
         options
@@ -2762,7 +3340,10 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
-  buildMobilityWorkout(options = {}) {
+
+  buildMobilityWorkout(
+    options = {}
+  ) {
     const workout =
       WorkoutBuilder.mobility(
         options
@@ -2774,7 +3355,10 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
-  buildSurfWorkout(options = {}) {
+
+  buildSurfWorkout(
+    options = {}
+  ) {
     const workout =
       WorkoutBuilder.surfing(
         options
@@ -2786,15 +3370,20 @@ const AriTrainingWorkoutPlanController = {
     return workout;
   },
 
+
   buildWorkoutForDate(
     date,
     options = {}
   ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
     const currentDay =
-      this.getDate(isoDate);
+      this.getDate(
+        isoDate
+      );
 
     const focus =
       currentDay?.focusId
@@ -2803,26 +3392,25 @@ const AriTrainingWorkoutPlanController = {
           )
         : null;
 
+    const week =
+      WorkoutPlanStore
+        .getWeek?.(
+          getSundayWeekStart(
+            isoDate
+          )
+        ) ||
+      {};
+
     const inferredBodyParts =
       focus?.primaryBodyParts ||
       focus?.bodyParts ||
       [];
 
-    const week =
-      this.getWeek(
-        getSundayWeekStart(
-          isoDate
-        )
-      );
-
     return this.buildWorkout({
       goal:
         options.goal ||
         currentDay?.goal ||
-        week?.primaryGoalId ||
-        WorkoutPlanStore
-          .getState?.()
-          ?.primaryGoalId ||
+        week.primaryGoalId ||
         "general_fitness",
 
       sport:
@@ -2834,7 +3422,9 @@ const AriTrainingWorkoutPlanController = {
         options.bodyParts ||
         (
           options.bodyPart
-            ? [options.bodyPart]
+            ? [
+                options.bodyPart
+              ]
             : inferredBodyParts
         ),
 
@@ -2848,23 +3438,27 @@ const AriTrainingWorkoutPlanController = {
     });
   },
 
+
   buildWorkoutForDay(
     day,
     options = {}
   ) {
-    const requestedWeek =
-      options.weekStart ||
-      options.weekKey ||
-      this.state.selectedWeekStart;
+    const weekKey =
+      normalizeWeekKey(
+        options.weekKey ||
+        this.getSelectedWeekKey()
+      );
 
     const targetDate =
       ISO_DATE_PATTERN.test(
-        normalizeText(day)
+        normalizeText(
+          day
+        )
       )
         ? normalizeText(day)
         : this.getDateForWeekday(
             day,
-            requestedWeek
+            weekKey
           );
 
     return targetDate
@@ -2875,49 +3469,42 @@ const AriTrainingWorkoutPlanController = {
       : null;
   },
 
+
   setBuiltWorkoutForDate(
     date,
     workout,
     options = {}
   ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
-    if (!workout) return false;
+    if (!workout) {
+      return false;
+    }
 
-    let result =
-      false;
+    const day =
+      getWeekdayIdFromDate(
+        isoDate
+      );
 
-    if (
-      typeof WorkoutPlanStore.setBuiltWorkoutForDate ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore
-          .setBuiltWorkoutForDate(
-            isoDate,
-            workout,
-            options
-          );
-    } else if (
-      typeof WorkoutPlanStore.setBuiltWorkout ===
-      "function"
-    ) {
-      result =
-        WorkoutPlanStore.setBuiltWorkout(
-          getWeekdayIdFromDate(
-            isoDate
-          ),
+    const weekKey =
+      getSundayWeekStart(
+        isoDate
+      );
+
+    const result =
+      WorkoutPlanStore
+        .setBuiltWorkout?.(
+          day,
           workout,
           {
             ...options,
-            weekKey:
-              getStoreWeekKeyForDate(
-                isoDate
-              )
+            weekKey
           }
-        );
-    }
+        ) ||
+      false;
 
     if (result) {
       this.syncProgressDateWithPlan(
@@ -2928,24 +3515,28 @@ const AriTrainingWorkoutPlanController = {
     return result;
   },
 
+
   setBuiltWorkoutForDay(
     day,
     workout,
     options = {}
   ) {
-    const requestedWeek =
-      options.weekStart ||
-      options.weekKey ||
-      this.state.selectedWeekStart;
+    const weekKey =
+      normalizeWeekKey(
+        options.weekKey ||
+        this.getSelectedWeekKey()
+      );
 
     const targetDate =
       ISO_DATE_PATTERN.test(
-        normalizeText(day)
+        normalizeText(
+          day
+        )
       )
         ? normalizeText(day)
         : this.getDateForWeekday(
             day,
-            requestedWeek
+            weekKey
           );
 
     return targetDate
@@ -2957,6 +3548,7 @@ const AriTrainingWorkoutPlanController = {
       : false;
   },
 
+
   buildAndSetWorkoutForDate(
     date,
     options = {}
@@ -2967,38 +3559,45 @@ const AriTrainingWorkoutPlanController = {
         options
       );
 
-    if (!workout) return null;
+    if (!workout) {
+      return null;
+    }
 
-    return this.setBuiltWorkoutForDate(
-      date,
-      workout,
-      {
-        focusId:
-          options.focusId ||
-          null
-      }
-    )
-      ? workout
-      : null;
+    return this
+      .setBuiltWorkoutForDate(
+        date,
+        workout,
+        {
+          focusId:
+            options.focusId ||
+            null
+        }
+      )
+        ? workout
+        : null;
   },
+
 
   buildAndSetWorkoutForDay(
     day,
     options = {}
   ) {
-    const requestedWeek =
-      options.weekStart ||
-      options.weekKey ||
-      this.state.selectedWeekStart;
+    const weekKey =
+      normalizeWeekKey(
+        options.weekKey ||
+        this.getSelectedWeekKey()
+      );
 
     const targetDate =
       ISO_DATE_PATTERN.test(
-        normalizeText(day)
+        normalizeText(
+          day
+        )
       )
         ? normalizeText(day)
         : this.getDateForWeekday(
             day,
-            requestedWeek
+            weekKey
           );
 
     return targetDate
@@ -3009,140 +3608,137 @@ const AriTrainingWorkoutPlanController = {
       : null;
   },
 
+
   regenerateDate(
     date,
     options = {}
   ) {
-    return this.buildAndSetWorkoutForDate(
-      date,
-      options
-    );
+    return this
+      .buildAndSetWorkoutForDate(
+        date,
+        options
+      );
   },
+
 
   regenerateDay(
     day,
     options = {}
   ) {
-    return this.buildAndSetWorkoutForDay(
-      day,
-      options
-    );
+    return this
+      .buildAndSetWorkoutForDay(
+        day,
+        options
+      );
   },
 
-  /* ===================================================
-     BUILT WORKOUT EDITING
-  =================================================== */
+
+  // ===================================================
+  // BUILT WORKOUT EDITING
+  // ===================================================
 
   replaceBuiltWorkoutExercise(
     workout,
     entryId,
     replacementExerciseId
   ) {
-    return WorkoutBuilder.replaceExercise(
-      workout,
-      entryId,
-      replacementExerciseId
-    );
+    return WorkoutBuilder
+      .replaceExercise(
+        workout,
+        entryId,
+        replacementExerciseId
+      );
   },
+
 
   moveBuiltWorkoutExercise(
     workout,
     entryId,
     options = {}
   ) {
-    return WorkoutBuilder.moveExercise(
-      workout,
-      entryId,
-      options
-    );
+    return WorkoutBuilder
+      .moveExercise(
+        workout,
+        entryId,
+        options
+      );
   },
+
 
   removeBuiltWorkoutExercise(
     workout,
     entryId
   ) {
-    return WorkoutBuilder.removeExercise(
-      workout,
-      entryId
-    );
+    return WorkoutBuilder
+      .removeExercise(
+        workout,
+        entryId
+      );
   },
+
 
   addExerciseToBuiltWorkout(
     workout,
     exerciseId,
     options = {}
   ) {
-    return WorkoutBuilder.addExercise(
-      workout,
-      exerciseId,
-      options
-    );
+    return WorkoutBuilder
+      .addExercise(
+        workout,
+        exerciseId,
+        options
+      );
   },
 
-  /* ===================================================
-     PLAN -> PROGRESS SYNC
-  =================================================== */
 
-  syncProgressDateWithPlan(date) {
+  // ===================================================
+  // PLAN -> PROGRESS SYNC
+  // ===================================================
+
+  syncProgressDateWithPlan(
+    date
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
     const dayState =
-      this.getDate(isoDate);
+      this.getDate(
+        isoDate
+      );
 
-    if (
-      typeof WorkoutProgressStore.syncDateWithPlan ===
-      "function"
-    ) {
-      return WorkoutProgressStore.syncDateWithPlan({
-        date: isoDate,
-        dayType:
-          dayState?.type ||
-          "off",
-        workoutId:
-          dayState?.workoutId ||
-          null,
-        exercises:
-          Array.isArray(
-            dayState?.exercises
-          )
-            ? dayState.exercises
-            : [],
-        preserveSessionChanges:
-          true
-      });
-    }
-
-    if (
-      typeof WorkoutProgressStore.syncDayWithPlan ===
-      "function"
-    ) {
-      return WorkoutProgressStore.syncDayWithPlan({
-        date:
-          isoDate,
+    return WorkoutProgressStore
+      .syncDayWithPlan?.({
         day:
           getWeekdayIdFromDate(
             isoDate
           ),
+
+        date:
+          isoDate,
+
         dayType:
           dayState?.type ||
           "off",
+
         workoutId:
           dayState?.workoutId ||
           null,
+
         exercises:
           Array.isArray(
             dayState?.exercises
           )
             ? dayState.exercises
             : [],
+
         preserveSessionChanges:
           true
-      });
-    }
-
-    return false;
+      }) ||
+      false;
   },
+
 
   syncProgressWithPlan() {
     const plan =
@@ -3150,82 +3746,100 @@ const AriTrainingWorkoutPlanController = {
         .getState?.() ||
       {};
 
-    syncStoreSelectedWeek(
-      this.state.selectedWeekStart
-    );
+    const weekKey =
+      this.getSelectedWeekKey() ||
+      this.getCurrentWeekKey();
 
     WorkoutProgressStore
       .setPlanContext?.({
         planKey:
-          getPlanContextKey(plan),
+          getPlanContextKey(
+            plan
+          ),
 
-        weekKey:
-          this.state.selectedWeekStart ||
-          this.getCurrentWeekKey(),
+        weekKey,
 
         resetIfChanged:
           false
       });
 
-    if (
-      typeof WorkoutProgressStore.syncCalendarWithPlan ===
-      "function"
-    ) {
-      return WorkoutProgressStore
-        .syncCalendarWithPlan(
-          plan
-        );
-    }
-
     const selectedWeek =
-      this.getWeek(
-        this.state.selectedWeekStart
-      );
+      WorkoutPlanStore
+        .getWeek?.(
+          weekKey
+        );
 
     if (
-      typeof WorkoutProgressStore.syncWeekWithPlan ===
-      "function"
+      !selectedWeek ||
+      !selectedWeek.days
     ) {
-      return WorkoutProgressStore.syncWeekWithPlan(
-        selectedWeek?.days ||
-        plan.week ||
-        {}
-      );
+      return false;
     }
 
-    return null;
+    /*
+     * Pass the V3 store's actual days object.
+     * Each day already contains its real date.
+     */
+    return WorkoutProgressStore
+      .syncWeekWithPlan?.(
+        selectedWeek.days
+      ) ??
+      null;
   },
 
-  /* ===================================================
-     LIVE SESSION READS
-  =================================================== */
+
+  // ===================================================
+  // LIVE SESSION READS
+  // ===================================================
 
   getProgress() {
     return WorkoutProgressStore
       .getState?.();
   },
 
-  getDateProgress(date = new Date()) {
-    return getProgressDate(
-      normalizeDateOrToday(date)
-    );
+
+  getDateProgress(
+    date = new Date()
+  ) {
+    const isoDate =
+      normalizeDateOrToday(
+        date
+      );
+
+    return WorkoutProgressStore
+      .getDayByDate?.(
+        isoDate
+      ) ||
+      WorkoutProgressStore
+        .getDay?.(
+          isoDate
+        ) ||
+      null;
   },
 
-  getDayProgress(day) {
+
+  getDayProgress(
+    day
+  ) {
     const targetDate =
       ISO_DATE_PATTERN.test(
-        normalizeText(day)
+        normalizeText(
+          day
+        )
       )
         ? normalizeText(day)
         : this.getDateForWeekday(
             day,
-            this.state.selectedWeekStart
+            this.getSelectedWeekKey()
           );
 
     return targetDate
-      ? this.getDateProgress(targetDate)
+      ? this.getDateProgress(
+          targetDate
+        )
       : null;
   },
+
 
   getTodayProgress() {
     return this.getDateProgress(
@@ -3233,74 +3847,60 @@ const AriTrainingWorkoutPlanController = {
     );
   },
 
-  getDateProgressSummary(date = new Date()) {
+
+  getDateProgressSummary(
+    date = new Date()
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
-
-    if (
-      typeof WorkoutProgressStore.getDateSummary ===
-      "function"
-    ) {
-      return WorkoutProgressStore.getDateSummary(
-        isoDate
+      normalizeDateOrToday(
+        date
       );
-    }
 
-    return (
-      WorkoutProgressStore
-        .getDaySummary?.(
-          isoDate
-        ) ||
-      null
-    );
+    return WorkoutProgressStore
+      .getDaySummary?.(
+        isoDate
+      ) ||
+      null;
   },
+
 
   getTodayProgressSummary() {
-    return this.getDateProgressSummary(
-      new Date()
-    );
+    return this
+      .getDateProgressSummary(
+        new Date()
+      );
   },
+
 
   getWeekProgressSummary(
     anchor =
-      this.state.selectedWeekStart
+      this.getSelectedWeekKey()
   ) {
     const weekKey =
-      getSundayWeekStart(
+      normalizeWeekKey(
         anchor
       );
 
-    if (
-      typeof WorkoutProgressStore.getWeekSummaryByDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.getWeekSummaryByDate(
+    return WorkoutProgressStore
+      .getWeekSummary?.(
         weekKey
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .getWeekSummary?.(
-          weekKey
-        ) ||
-      null
-    );
+      ) ||
+      null;
   },
 
-  /* ===================================================
-     SESSION LIFECYCLE
-  =================================================== */
 
-  startWorkout(date = new Date()) {
+  // ===================================================
+  // SESSION LIFECYCLE
+  // ===================================================
+
+  startWorkout(
+    date = new Date()
+  ) {
     const isoDate =
-      normalizeDateOrToday(date);
+      normalizeDateOrToday(
+        date
+      );
 
-    /*
-     * Critical V3 rule:
-     * only a real planned workout with at least one exercise
-     * can be started.
-     */
     if (
       !this.canStartWorkout(
         isoDate
@@ -3309,163 +3909,86 @@ const AriTrainingWorkoutPlanController = {
       return false;
     }
 
-    if (
-      typeof WorkoutProgressStore.startDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.startDate(
-        isoDate
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .startDay?.(
-          isoDate
-        ) ||
-      false
+    this.syncProgressDateWithPlan(
+      isoDate
     );
+
+    return WorkoutProgressStore
+      .startDay?.(
+        isoDate
+      ) ||
+      false;
   },
 
-  pauseWorkout(date = new Date()) {
-    const isoDate =
-      normalizeDateOrToday(date);
 
-    if (
-      typeof WorkoutProgressStore.pauseDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.pauseDate(
-        isoDate
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .pauseDay?.(
-          isoDate
-        ) ||
-      false
-    );
+  pauseWorkout(
+    date = new Date()
+  ) {
+    return WorkoutProgressStore
+      .pauseDay?.(
+        normalizeDateOrToday(
+          date
+        )
+      ) ||
+      false;
   },
 
-  resumeWorkout(date = new Date()) {
-    const isoDate =
-      normalizeDateOrToday(date);
 
-    if (
-      typeof WorkoutProgressStore.resumeDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.resumeDate(
-        isoDate
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .resumeDay?.(
-          isoDate
-        ) ||
-      false
-    );
+  resumeWorkout(
+    date = new Date()
+  ) {
+    return WorkoutProgressStore
+      .resumeDay?.(
+        normalizeDateOrToday(
+          date
+        )
+      ) ||
+      false;
   },
+
 
   completeWorkout(
     date = new Date(),
     options = {}
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    if (
-      typeof WorkoutProgressStore.completeDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.completeDate(
-        isoDate,
+    return WorkoutProgressStore
+      .completeDay?.(
+        normalizeDateOrToday(
+          date
+        ),
         options
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .completeDay?.(
-          isoDate,
-          options
-        ) ||
-      false
-    );
+      ) ||
+      false;
   },
 
-  /*
-   * Cancel an accidental workout start.
-   *
-   * Permanent plan remains untouched.
-   * Active timer/session execution state is removed.
-   * No completed workout history should be created.
-   */
-  cancelWorkout(date = new Date()) {
-    const isoDate =
-      normalizeDateOrToday(date);
 
-    if (
-      typeof WorkoutProgressStore.cancelDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.cancelDate(
-        isoDate
-      );
-    }
-
-    if (
-      typeof WorkoutProgressStore.cancelDay ===
-      "function"
-    ) {
-      return WorkoutProgressStore.cancelDay(
-        isoDate
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .resetDay?.(
-          isoDate
-        ) ||
-      false
-    );
+  cancelWorkout(
+    date = new Date()
+  ) {
+    return WorkoutProgressStore
+      .cancelDay?.(
+        normalizeDateOrToday(
+          date
+        )
+      ) ||
+      false;
   },
 
-  /*
-   * Delete an accidental/unwanted historical session.
-   */
+
   deleteSession({
     sessionId = null,
     date = null
   } = {}) {
     if (
-      typeof WorkoutProgressStore.deleteSession ===
-      "function"
+      sessionId &&
+      typeof WorkoutProgressStore
+        .deleteSessionRecord ===
+        "function"
     ) {
-      return WorkoutProgressStore.deleteSession({
-        sessionId,
-        date:
-          date
-            ? normalizeDateOrToday(
-                date
-              )
-            : null
-      });
-    }
-
-    if (
-      typeof WorkoutProgressStore.deleteSessionRecord ===
-      "function" &&
-      sessionId
-    ) {
-      return WorkoutProgressStore.deleteSessionRecord(
-        sessionId
-      );
+      return WorkoutProgressStore
+        .deleteSessionRecord(
+          sessionId
+        );
     }
 
     if (date) {
@@ -3477,263 +4000,243 @@ const AriTrainingWorkoutPlanController = {
     return false;
   },
 
+
   getWorkoutElapsedSeconds(
     date = new Date()
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    if (
-      typeof WorkoutProgressStore.getElapsedSecondsForDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore
-        .getElapsedSecondsForDate(
-          isoDate
-        );
-    }
-
-    return (
-      WorkoutProgressStore
-        .getElapsedSeconds?.(
-          isoDate
-        ) ||
-      0
-    );
+    return WorkoutProgressStore
+      .getElapsedSeconds?.(
+        normalizeDateOrToday(
+          date
+        )
+      ) ||
+      0;
   },
+
 
   setAverageHeartRate(
     date,
     heartRate
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    if (
-      typeof WorkoutProgressStore.setAverageHeartRateForDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore
-        .setAverageHeartRateForDate(
-          isoDate,
-          heartRate
-        );
-    }
-
-    return (
-      WorkoutProgressStore
-        .setAverageHeartRate?.(
-          isoDate,
-          heartRate
-        ) ||
-      false
-    );
+    return WorkoutProgressStore
+      .setAverageHeartRate?.(
+        normalizeDateOrToday(
+          date
+        ),
+        heartRate
+      ) ||
+      false;
   },
 
-  setWorkoutNotes(date, notes) {
-    const isoDate =
-      normalizeDateOrToday(date);
 
-    if (
-      typeof WorkoutProgressStore.setDateNotes ===
-      "function"
-    ) {
-      return WorkoutProgressStore.setDateNotes(
-        isoDate,
+  setWorkoutNotes(
+    date,
+    notes
+  ) {
+    return WorkoutProgressStore
+      .setDayNotes?.(
+        normalizeDateOrToday(
+          date
+        ),
         notes
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .setDayNotes?.(
-          isoDate,
-          notes
-        ) ||
-      false
-    );
+      ) ||
+      false;
   },
 
-  /* ===================================================
-     SESSION EXERCISE ACTIONS
-  =================================================== */
+
+  // ===================================================
+  // SESSION EXERCISE ACTIONS
+  // ===================================================
 
   moveSessionExercise(
     date,
     entryId,
     toIndex
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    if (
-      typeof WorkoutProgressStore.moveDateEntry ===
-      "function"
-    ) {
-      return WorkoutProgressStore.moveDateEntry(
-        isoDate,
+    return WorkoutProgressStore
+      .moveEntry?.(
+        normalizeDateOrToday(
+          date
+        ),
         entryId,
         toIndex
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .moveEntry?.(
-          isoDate,
-          entryId,
-          toIndex
-        ) ||
-      false
-    );
+      ) ||
+      false;
   },
 
-  addSessionExercise(options = {}) {
+
+  addSessionExercise(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .addSessionExercise?.(
         options
       );
   },
 
-  substituteSessionExercise(options = {}) {
+
+  substituteSessionExercise(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .substituteEntry?.(
         options
       );
   },
 
+
   skipSessionExercise(
     date,
     entryId,
     skipped = true
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    return (
-      WorkoutProgressStore
-        .skipEntry?.(
-          progressSupportsCalendar()
-            ? isoDate
-            : getWeekdayIdFromDate(
-                isoDate
-              ),
-          entryId,
-          skipped
-        ) ||
-      false
-    );
+    return WorkoutProgressStore
+      .skipEntry?.(
+        normalizeDateOrToday(
+          date
+        ),
+        entryId,
+        skipped
+      ) ||
+      false;
   },
+
 
   removeSessionExercise(
     date,
     entryId
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    return (
-      WorkoutProgressStore
-        .removeSessionEntry?.(
-          progressSupportsCalendar()
-            ? isoDate
-            : getWeekdayIdFromDate(
-                isoDate
-              ),
-          entryId
-        ) ||
-      false
-    );
+    return WorkoutProgressStore
+      .removeSessionEntry?.(
+        normalizeDateOrToday(
+          date
+        ),
+        entryId
+      ) ||
+      false;
   },
+
 
   getSessionExercise(
     date,
     entryIdOrExerciseId
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    return (
-      WorkoutProgressStore
-        .getExerciseProgress?.(
-          progressSupportsCalendar()
-            ? isoDate
-            : getWeekdayIdFromDate(
-                isoDate
-              ),
-          entryIdOrExerciseId
-        ) ||
-      null
-    );
+    return WorkoutProgressStore
+      .getExerciseProgress?.(
+        normalizeDateOrToday(
+          date
+        ),
+        entryIdOrExerciseId
+      ) ||
+      null;
   },
 
-  /* ===================================================
-     SET / ACTIVITY COMPLETION
-  =================================================== */
 
-  setSetCompleted(options = {}) {
+  // ===================================================
+  // SET / ACTIVITY COMPLETION
+  // ===================================================
+
+  setSetCompleted(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .setSetCompleted?.(
         options
       );
   },
 
-  toggleSetCompleted(options = {}) {
+
+  toggleSetCompleted(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .toggleSetCompleted?.(
         options
       );
   },
 
-  setSetCalories(options = {}) {
+
+  setSetCalories(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .setSetCalories?.(
         options
       );
   },
 
-  setExerciseCompleted(options = {}) {
+
+  setExerciseCompleted(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .setExerciseCompleted?.(
         options
       );
   },
 
-  toggleExerciseCompleted(options = {}) {
+
+  toggleExerciseCompleted(
+    options = {}
+  ) {
     return WorkoutProgressStore
       .toggleExerciseCompleted?.(
         options
       );
   },
 
+
   createSessionSnapshot(
     date = new Date()
   ) {
-    const isoDate =
-      normalizeDateOrToday(date);
-
-    if (
-      typeof WorkoutProgressStore.createSessionSnapshotForDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore
-        .createSessionSnapshotForDate(
-          isoDate
-        );
-    }
-
-    return (
-      WorkoutProgressStore
-        .createSessionSnapshot?.(
-          isoDate
-        ) ||
-      null
-    );
+    return WorkoutProgressStore
+      .createSessionSnapshot?.(
+        normalizeDateOrToday(
+          date
+        )
+      ) ||
+      null;
   },
 
-  /* ===================================================
-     CALORIE ESTIMATION
-  =================================================== */
+
+  getSessionRecord(
+    sessionId
+  ) {
+    return WorkoutProgressStore
+      .getSessionRecord?.(
+        sessionId
+      ) ||
+      null;
+  },
+
+
+  getSessionHistory(
+    options = {}
+  ) {
+    return WorkoutProgressStore
+      .getSessionHistory?.(
+        options
+      ) ||
+      [];
+  },
+
+
+  getMonthHistory(
+    year,
+    month
+  ) {
+    return WorkoutProgressStore
+      .getMonthHistory?.(
+        year,
+        month
+      ) ||
+      [];
+  },
+
+
+  // ===================================================
+  // CALORIE ESTIMATION
+  // ===================================================
 
   estimateExerciseCalories({
     exerciseId,
@@ -3759,9 +4262,13 @@ const AriTrainingWorkoutPlanController = {
       !energyProfile &&
       (
         exercise.exerciseTypes
-          ?.includes("strength") ||
+          ?.includes(
+            "strength"
+          ) ||
         exercise.exerciseTypes
-          ?.includes("hypertrophy")
+          ?.includes(
+            "hypertrophy"
+          )
       )
     ) {
       return CalorieCalculator
@@ -3769,6 +4276,7 @@ const AriTrainingWorkoutPlanController = {
           intensity:
             intensity ||
             "moderate",
+
           weightKg,
           weightLb,
           durationMinutes
@@ -3790,6 +4298,7 @@ const AriTrainingWorkoutPlanController = {
       .estimateActivity({
         activityId:
           resolvedActivityId,
+
         weightKg,
         weightLb,
         durationMinutes,
@@ -3797,22 +4306,28 @@ const AriTrainingWorkoutPlanController = {
       });
   },
 
+
   resolveEnergyActivityId(
     exercise,
     intensity = null
   ) {
     if (
       !exercise ||
-      typeof exercise !== "object"
+      typeof exercise !==
+        "object"
     ) {
       return null;
     }
 
     const normalizedIntensity =
-      normalizeText(intensity)
+      normalizeText(
+        intensity
+      )
         .toLowerCase();
 
-    switch (exercise.id) {
+    switch (
+      exercise.id
+    ) {
       case "walking_general":
         if (
           normalizedIntensity ===
@@ -3830,14 +4345,18 @@ const AriTrainingWorkoutPlanController = {
 
         return "walking_moderate";
 
+
       case "easy_run":
         return "running_easy";
+
 
       case "tempo_run":
         return "running_6_mph";
 
+
       case "running_intervals":
         return "hiit";
+
 
       case "stationary_bike":
         if (
@@ -3856,6 +4375,7 @@ const AriTrainingWorkoutPlanController = {
 
         return "stationary_bike_moderate";
 
+
       case "rowing_machine":
         if (
           normalizedIntensity ===
@@ -3873,8 +4393,10 @@ const AriTrainingWorkoutPlanController = {
 
         return "rowing_moderate";
 
+
       case "stair_climber":
         return "stair_climber";
+
 
       case "elliptical_trainer":
         return normalizedIntensity ===
@@ -3882,10 +4404,12 @@ const AriTrainingWorkoutPlanController = {
           ? "elliptical_vigorous"
           : "elliptical_moderate";
 
+
       default:
         return null;
     }
   },
+
 
   getCalorieActivityOptions({
     category = null,
@@ -3899,27 +4423,34 @@ const AriTrainingWorkoutPlanController = {
     });
   },
 
-  /* ===================================================
-     SUBSCRIPTIONS
-  =================================================== */
 
-  subscribe(listener) {
+  // ===================================================
+  // SUBSCRIPTIONS
+  // ===================================================
+
+  subscribe(
+    listener
+  ) {
     return WorkoutPlanStore
       .subscribe?.(
         listener
       );
   },
 
-  subscribeProgress(listener) {
+
+  subscribeProgress(
+    listener
+  ) {
     return WorkoutProgressStore
       .subscribe?.(
         listener
       );
   },
 
-  /* ===================================================
-     DELETE / RESET
-  =================================================== */
+
+  // ===================================================
+  // DELETE / RESET
+  // ===================================================
 
   async deleteRemotePlan() {
     if (
@@ -3933,13 +4464,20 @@ const AriTrainingWorkoutPlanController = {
         .getState?.() ||
       {};
 
-    await WorkoutPlanApi.deletePlan({
-      planId:
-        plan.planId
-    });
+    await WorkoutPlanApi
+      .deletePlan({
+        planId:
+          plan.planId
+      });
 
-    WorkoutPlanStore.reset?.();
-    WorkoutProgressStore.resetAll?.();
+    WorkoutPlanStore
+      .reset?.();
+
+    WorkoutProgressStore
+      .resetAll?.();
+
+    this.state.lastLoadSource =
+      "default";
 
     this.state.selectedWeekStart =
       getSundayWeekStart(
@@ -3956,15 +4494,9 @@ const AriTrainingWorkoutPlanController = {
         new Date()
       );
 
-    syncStoreSelectedWeek(
-      this.state.selectedWeekStart
-    );
-
-    this.state.lastLoadSource =
-      "default";
-
     return true;
   },
+
 
   resetPlan() {
     const result =
@@ -3976,26 +4508,15 @@ const AriTrainingWorkoutPlanController = {
       .resetAll?.();
 
     this.state.selectedWeekStart =
+      WorkoutPlanStore
+        .getSelectedWeekKey?.() ||
       getSundayWeekStart(
         new Date()
       );
 
-    this.state.selectedDate =
-      toLocalIsoDate(
-        new Date()
-      );
-
-    this.state.selectedMonth =
-      getMonthKey(
-        new Date()
-      );
-
-    syncStoreSelectedWeek(
-      this.state.selectedWeekStart
-    );
-
     return result;
   },
+
 
   resetProgress() {
     return WorkoutProgressStore
@@ -4003,37 +4524,33 @@ const AriTrainingWorkoutPlanController = {
       false;
   },
 
-  resetDateProgress(date) {
-    const isoDate =
-      normalizeDateOrToday(date);
 
-    if (
-      typeof WorkoutProgressStore.resetDate ===
-      "function"
-    ) {
-      return WorkoutProgressStore.resetDate(
-        isoDate
-      );
-    }
-
-    return (
-      WorkoutProgressStore
-        .resetDay?.(
-          isoDate
-        ) ||
-      false
-    );
+  resetDateProgress(
+    date
+  ) {
+    return WorkoutProgressStore
+      .resetDay?.(
+        normalizeDateOrToday(
+          date
+        )
+      ) ||
+      false;
   },
 
-  resetDayProgress(day) {
+
+  resetDayProgress(
+    day
+  ) {
     const targetDate =
       ISO_DATE_PATTERN.test(
-        normalizeText(day)
+        normalizeText(
+          day
+        )
       )
         ? normalizeText(day)
         : this.getDateForWeekday(
             day,
-            this.state.selectedWeekStart
+            this.getSelectedWeekKey()
           );
 
     return targetDate
@@ -4043,13 +4560,15 @@ const AriTrainingWorkoutPlanController = {
       : false;
   },
 
+
   reset() {
     return this.resetPlan();
   },
 
-  /* ===================================================
-     VALIDATION / DIAGNOSTICS
-  =================================================== */
+
+  // ===================================================
+  // VALIDATION / DIAGNOSTICS
+  // ===================================================
 
   validatePlan() {
     return WorkoutPlanStore
@@ -4057,32 +4576,50 @@ const AriTrainingWorkoutPlanController = {
       null;
   },
 
+
   validateProgress() {
     return WorkoutProgressStore
       .validate?.() ||
       null;
   },
 
-  validateBuiltWorkout(workout) {
-    return WorkoutBuilder.validate(
-      workout
-    );
+
+  validateBuiltWorkout(
+    workout
+  ) {
+    return WorkoutBuilder
+      .validate(
+        workout
+      );
   },
 
+
   getDiagnostics() {
+    const selectedWeekKey =
+      this.getSelectedWeekKey();
+
     return {
-      source: SOURCE,
-      version: VERSION,
+      source:
+        SOURCE,
+
+      version:
+        VERSION,
+
       initialized:
         this.state.initialized,
+
       loading:
         this.state.loading,
+
       saving:
         this.state.saving,
+
       remoteAvailable:
         this.state.remoteAvailable,
+
       lastLoadSource:
         this.state.lastLoadSource,
+
       lastSavedAt:
         this.state.lastSavedAt,
 
@@ -4092,8 +4629,7 @@ const AriTrainingWorkoutPlanController = {
       selectedWeekStart:
         this.state.selectedWeekStart,
 
-      selectedWeekKey:
-        this.getSelectedWeekKey(),
+      selectedWeekKey,
 
       storeSelectedWeekKey:
         WorkoutPlanStore
@@ -4102,12 +4638,6 @@ const AriTrainingWorkoutPlanController = {
 
       selectedMonth:
         this.state.selectedMonth,
-
-      calendarPlanningSupported:
-        storeSupportsCalendar(),
-
-      calendarProgressSupported:
-        progressSupportsCalendar(),
 
       todayAction:
         this.getPrimaryDayAction(
@@ -4121,14 +4651,17 @@ const AriTrainingWorkoutPlanController = {
                 this.state
                   .lastBuiltWorkout
                   .workoutId,
+
               title:
                 this.state
                   .lastBuiltWorkout
                   .title,
+
               type:
                 this.state
                   .lastBuiltWorkout
                   .type,
+
               goal:
                 this.state
                   .lastBuiltWorkout
@@ -4151,7 +4684,7 @@ const AriTrainingWorkoutPlanController = {
 
       selectedWeek:
         this.getWeekSummary(
-          this.state.selectedWeekStart
+          selectedWeekKey
         ),
 
       selectedMonthSummary:
@@ -4161,7 +4694,7 @@ const AriTrainingWorkoutPlanController = {
 
       progress:
         this.getWeekProgressSummary(
-          this.state.selectedWeekStart
+          selectedWeekKey
         ),
 
       registries: {
@@ -4236,9 +4769,10 @@ const AriTrainingWorkoutPlanController = {
   }
 };
 
-/* =====================================================
-   GLOBAL API
-===================================================== */
+
+// =====================================================
+// GLOBAL API
+// =====================================================
 
 if (
   typeof globalThis !==
@@ -4260,14 +4794,16 @@ if (
     Ari;
 }
 
-/* =====================================================
-   EXPORTS
-===================================================== */
+
+// =====================================================
+// EXPORTS
+// =====================================================
 
 export {
   VERSION,
   SOURCE,
   DAYS,
+
   toLocalIsoDate,
   fromLocalIsoDate,
   addDays,
@@ -4275,6 +4811,7 @@ export {
   getWeekDates,
   getMonthKey,
   getMonthDateRange,
+
   AriTrainingWorkoutPlanController
 };
 
