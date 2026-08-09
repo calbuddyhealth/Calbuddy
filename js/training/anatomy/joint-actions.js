@@ -1,10 +1,18 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/anatomy/joint-actions.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Central registry for anatomical joint actions and
 //   movement directions used throughout ARI Training.
+//
+// V1.1.0:
+//   - Added shoulder_extension_assist.
+//   - Added hip_abduction_assist.
+//   - Added hip_adduction_assist.
+//   - Added hip_external_rotation_assist.
+//   - Added knee_extension_assist.
+//   - Preserves existing stable joint-action IDs.
 //
 // Design:
 //   - Stable IDs referenced by muscles.js and exercises.
@@ -13,7 +21,7 @@
 //     concise descriptions for later illustrations.
 // =====================================================
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const SOURCE = "js/training/anatomy/joint-actions";
 
 const JOINT_ACTIONS = Object.freeze([
@@ -28,7 +36,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward_up",
     description:
       "Raises the arm forward and upward in front of the body.",
-    aliases: ["arm flexion", "shoulder forward raise"]
+    aliases: [
+      "arm flexion",
+      "shoulder forward raise"
+    ]
   },
   {
     id: "shoulder_extension",
@@ -38,7 +49,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "backward",
     description:
       "Moves the upper arm backward behind the body.",
-    aliases: ["arm extension", "shoulder backward movement"]
+    aliases: [
+      "arm extension",
+      "shoulder backward movement"
+    ]
   },
   {
     id: "shoulder_abduction",
@@ -48,7 +62,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "away_from_midline",
     description:
       "Raises the arm out to the side away from the body's midline.",
-    aliases: ["arm abduction", "lateral arm raise"]
+    aliases: [
+      "arm abduction",
+      "lateral arm raise"
+    ]
   },
   {
     id: "shoulder_adduction",
@@ -58,7 +75,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "toward_midline",
     description:
       "Brings the arm toward the body's midline from the side.",
-    aliases: ["arm adduction"]
+    aliases: [
+      "arm adduction"
+    ]
   },
   {
     id: "shoulder_horizontal_adduction",
@@ -68,7 +87,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "across_body",
     description:
       "Moves the upper arm horizontally across the front of the body.",
-    aliases: ["horizontal adduction", "horizontal shoulder adduction"]
+    aliases: [
+      "horizontal adduction",
+      "horizontal shoulder adduction"
+    ]
   },
   {
     id: "shoulder_horizontal_abduction",
@@ -78,7 +100,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "away_from_body",
     description:
       "Moves the upper arm horizontally away from the front of the body.",
-    aliases: ["horizontal abduction", "horizontal shoulder abduction"]
+    aliases: [
+      "horizontal abduction",
+      "horizontal shoulder abduction"
+    ]
   },
   {
     id: "shoulder_internal_rotation",
@@ -88,7 +113,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_inward",
     description:
       "Rotates the upper arm inward toward the body's midline.",
-    aliases: ["internal shoulder rotation", "medial shoulder rotation"]
+    aliases: [
+      "internal shoulder rotation",
+      "medial shoulder rotation"
+    ]
   },
   {
     id: "shoulder_external_rotation",
@@ -98,7 +126,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_outward",
     description:
       "Rotates the upper arm outward away from the body's midline.",
-    aliases: ["external shoulder rotation", "lateral shoulder rotation"]
+    aliases: [
+      "external shoulder rotation",
+      "lateral shoulder rotation"
+    ]
   },
   {
     id: "glenohumeral_stabilization",
@@ -108,7 +139,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Maintains control and alignment of the upper-arm bone within the shoulder joint.",
-    aliases: ["shoulder stabilization", "rotator cuff stabilization"]
+    aliases: [
+      "shoulder stabilization",
+      "rotator cuff stabilization"
+    ]
   },
 
   // ===================================================
@@ -122,7 +156,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward",
     description:
       "Moves the shoulder blades forward and around the rib cage.",
-    aliases: ["shoulder blade protraction"]
+    aliases: [
+      "shoulder blade protraction"
+    ]
   },
   {
     id: "scapular_retraction",
@@ -132,7 +168,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "backward",
     description:
       "Draws the shoulder blades toward the spine.",
-    aliases: ["shoulder blade retraction"]
+    aliases: [
+      "shoulder blade retraction"
+    ]
   },
   {
     id: "scapular_elevation",
@@ -142,7 +180,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "up",
     description:
       "Raises the shoulder blades upward.",
-    aliases: ["shoulder shrug", "scapula elevation"]
+    aliases: [
+      "shoulder shrug",
+      "scapula elevation"
+    ]
   },
   {
     id: "scapular_depression",
@@ -152,7 +193,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "down",
     description:
       "Draws the shoulder blades downward.",
-    aliases: ["scapula depression"]
+    aliases: [
+      "scapula depression"
+    ]
   },
   {
     id: "scapular_upward_rotation",
@@ -162,7 +205,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_upward",
     description:
       "Rotates the shoulder blade so the socket faces more upward during arm elevation.",
-    aliases: ["upward scapular rotation"]
+    aliases: [
+      "upward scapular rotation"
+    ]
   },
   {
     id: "scapular_downward_rotation",
@@ -172,7 +217,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_downward",
     description:
       "Rotates the shoulder blade so the socket faces more downward.",
-    aliases: ["downward scapular rotation"]
+    aliases: [
+      "downward scapular rotation"
+    ]
   },
   {
     id: "scapular_stabilization",
@@ -182,7 +229,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Controls the shoulder blade against the rib cage during movement.",
-    aliases: ["shoulder blade stabilization"]
+    aliases: [
+      "shoulder blade stabilization"
+    ]
   },
 
   // ===================================================
@@ -196,7 +245,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "bend",
     description:
       "Decreases the angle at the elbow by bringing the forearm toward the upper arm.",
-    aliases: ["bend elbow"]
+    aliases: [
+      "bend elbow"
+    ]
   },
   {
     id: "elbow_extension",
@@ -206,7 +257,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "straighten",
     description:
       "Straightens the elbow by increasing the angle between the upper arm and forearm.",
-    aliases: ["straighten elbow"]
+    aliases: [
+      "straighten elbow"
+    ]
   },
   {
     id: "forearm_supination",
@@ -216,7 +269,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "palm_up",
     description:
       "Rotates the forearm so the palm faces upward or forward.",
-    aliases: ["supination", "palm up"]
+    aliases: [
+      "supination",
+      "palm up"
+    ]
   },
   {
     id: "forearm_pronation",
@@ -226,7 +282,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "palm_down",
     description:
       "Rotates the forearm so the palm faces downward or backward.",
-    aliases: ["pronation", "palm down"]
+    aliases: [
+      "pronation",
+      "palm down"
+    ]
   },
   {
     id: "forearm_neutral_position_assist",
@@ -236,7 +295,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "neutral",
     description:
       "Supports elbow flexion when the forearm is held in a neutral thumb-up position.",
-    aliases: ["neutral grip flexion"]
+    aliases: [
+      "neutral grip flexion"
+    ]
   },
   {
     id: "wrist_flexion",
@@ -246,7 +307,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "palm_toward_forearm",
     description:
       "Bends the wrist so the palm moves toward the forearm.",
-    aliases: ["flex wrist"]
+    aliases: [
+      "flex wrist"
+    ]
   },
   {
     id: "wrist_extension",
@@ -256,7 +319,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "back_of_hand_toward_forearm",
     description:
       "Bends the wrist so the back of the hand moves toward the forearm.",
-    aliases: ["extend wrist"]
+    aliases: [
+      "extend wrist"
+    ]
   },
   {
     id: "finger_flexion",
@@ -266,7 +331,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "close",
     description:
       "Bends the fingers toward the palm.",
-    aliases: ["close fingers"]
+    aliases: [
+      "close fingers"
+    ]
   },
   {
     id: "finger_extension",
@@ -276,7 +343,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "open",
     description:
       "Straightens the fingers away from the palm.",
-    aliases: ["open fingers"]
+    aliases: [
+      "open fingers"
+    ]
   },
   {
     id: "grip",
@@ -286,7 +355,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "close_and_hold",
     description:
       "Produces force by closing the fingers and thumb around an object.",
-    aliases: ["gripping"]
+    aliases: [
+      "gripping"
+    ]
   },
   {
     id: "grip_stabilization",
@@ -296,7 +367,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Maintains wrist and hand position while holding or controlling a load.",
-    aliases: ["grip stability"]
+    aliases: [
+      "grip stability"
+    ]
   },
 
   // ===================================================
@@ -310,7 +383,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward",
     description:
       "Bends the trunk forward.",
-    aliases: ["spinal flexion", "torso flexion"]
+    aliases: [
+      "spinal flexion",
+      "torso flexion"
+    ]
   },
   {
     id: "spinal_extension",
@@ -320,7 +396,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "backward",
     description:
       "Extends or straightens the spine from a flexed position.",
-    aliases: ["back extension", "trunk extension"]
+    aliases: [
+      "back extension",
+      "trunk extension"
+    ]
   },
   {
     id: "trunk_rotation",
@@ -330,7 +409,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate",
     description:
       "Rotates the torso around the body's vertical axis.",
-    aliases: ["spinal rotation", "torso rotation"]
+    aliases: [
+      "spinal rotation",
+      "torso rotation"
+    ]
   },
   {
     id: "trunk_lateral_flexion",
@@ -340,7 +422,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "side_bend",
     description:
       "Bends the trunk sideways.",
-    aliases: ["side bend", "lateral spinal flexion"]
+    aliases: [
+      "side bend",
+      "lateral spinal flexion"
+    ]
   },
   {
     id: "spinal_lateral_flexion",
@@ -350,7 +435,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "side_bend",
     description:
       "Bends the spine laterally to one side.",
-    aliases: ["lateral spine flexion"]
+    aliases: [
+      "lateral spine flexion"
+    ]
   },
   {
     id: "spinal_stabilization",
@@ -360,7 +447,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Maintains spinal position against external movement or load.",
-    aliases: ["core stabilization", "spine stabilization"]
+    aliases: [
+      "core stabilization",
+      "spine stabilization"
+    ]
   },
   {
     id: "abdominal_compression",
@@ -370,7 +460,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "compress",
     description:
       "Creates abdominal pressure and trunk stiffness to support the torso.",
-    aliases: ["abdominal bracing"]
+    aliases: [
+      "abdominal bracing"
+    ]
   },
   {
     id: "anti_extension",
@@ -380,7 +472,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "resist_extension",
     description:
       "Resists excessive spinal extension and helps maintain a neutral trunk position.",
-    aliases: ["anti extension", "resist back arching"]
+    aliases: [
+      "anti extension",
+      "resist back arching"
+    ]
   },
   {
     id: "anti_rotation",
@@ -390,7 +485,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "resist_rotation",
     description:
       "Resists unwanted rotation of the trunk.",
-    aliases: ["anti rotation"]
+    aliases: [
+      "anti rotation"
+    ]
   },
   {
     id: "pelvic_stabilization",
@@ -400,7 +497,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Maintains pelvic control and alignment during movement.",
-    aliases: ["pelvis stabilization", "hip stabilization"]
+    aliases: [
+      "pelvis stabilization",
+      "hip stabilization"
+    ]
   },
 
   // ===================================================
@@ -414,7 +514,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward_up",
     description:
       "Brings the thigh toward the torso.",
-    aliases: ["flex hip", "raise thigh"]
+    aliases: [
+      "flex hip",
+      "raise thigh"
+    ]
   },
   {
     id: "hip_extension",
@@ -424,7 +527,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "backward",
     description:
       "Moves the thigh backward or drives the hips forward from a flexed position.",
-    aliases: ["extend hip"]
+    aliases: [
+      "extend hip"
+    ]
   },
   {
     id: "hip_abduction",
@@ -434,7 +539,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "away_from_midline",
     description:
       "Moves the thigh away from the body's midline.",
-    aliases: ["abduct hip", "leg out to side"]
+    aliases: [
+      "abduct hip",
+      "leg out to side"
+    ]
   },
   {
     id: "hip_adduction",
@@ -444,7 +552,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "toward_midline",
     description:
       "Moves the thigh toward the body's midline.",
-    aliases: ["adduct hip", "inner thigh movement"]
+    aliases: [
+      "adduct hip",
+      "inner thigh movement"
+    ]
   },
   {
     id: "hip_internal_rotation",
@@ -454,7 +565,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_inward",
     description:
       "Rotates the thigh inward toward the body's midline.",
-    aliases: ["internal hip rotation"]
+    aliases: [
+      "internal hip rotation"
+    ]
   },
   {
     id: "hip_external_rotation",
@@ -464,7 +577,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_outward",
     description:
       "Rotates the thigh outward away from the body's midline.",
-    aliases: ["external hip rotation"]
+    aliases: [
+      "external hip rotation"
+    ]
   },
   {
     id: "hip_flexion_assist",
@@ -474,7 +589,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward_up",
     description:
       "Assists other muscles in bringing the thigh toward the torso.",
-    aliases: ["assist hip flexion"]
+    aliases: [
+      "assist hip flexion"
+    ]
   },
   {
     id: "hip_extension_assist",
@@ -484,7 +601,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "backward",
     description:
       "Assists other muscles in extending the hip.",
-    aliases: ["assist hip extension"]
+    aliases: [
+      "assist hip extension"
+    ]
   },
   {
     id: "hip_internal_rotation_assist",
@@ -494,7 +613,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_inward",
     description:
       "Assists other muscles in rotating the thigh inward.",
-    aliases: ["assist hip internal rotation"]
+    aliases: [
+      "assist hip internal rotation"
+    ]
   },
   {
     id: "trunk_flexion_assist",
@@ -504,7 +625,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward",
     description:
       "Assists other muscles in flexing the trunk.",
-    aliases: ["assist trunk flexion"]
+    aliases: [
+      "assist trunk flexion"
+    ]
   },
 
   // ===================================================
@@ -518,7 +641,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "bend",
     description:
       "Bends the knee by bringing the lower leg toward the back of the thigh.",
-    aliases: ["bend knee"]
+    aliases: [
+      "bend knee"
+    ]
   },
   {
     id: "knee_extension",
@@ -528,7 +653,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "straighten",
     description:
       "Straightens the knee.",
-    aliases: ["straighten knee"]
+    aliases: [
+      "straighten knee"
+    ]
   },
   {
     id: "knee_flexion_assist",
@@ -538,7 +665,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "bend",
     description:
       "Assists other muscles in bending the knee.",
-    aliases: ["assist knee flexion"]
+    aliases: [
+      "assist knee flexion"
+    ]
   },
   {
     id: "patellar_stabilization",
@@ -548,7 +677,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Helps control the position and tracking of the kneecap during knee movement.",
-    aliases: ["kneecap stabilization"]
+    aliases: [
+      "kneecap stabilization"
+    ]
   },
   {
     id: "tibial_internal_rotation_assist",
@@ -558,7 +689,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_inward",
     description:
       "Assists inward rotation of the lower leg when the knee is flexed.",
-    aliases: ["assist tibial internal rotation"]
+    aliases: [
+      "assist tibial internal rotation"
+    ]
   },
   {
     id: "tibial_external_rotation_assist",
@@ -568,7 +701,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate_outward",
     description:
       "Assists outward rotation of the lower leg when the knee is flexed.",
-    aliases: ["assist tibial external rotation"]
+    aliases: [
+      "assist tibial external rotation"
+    ]
   },
 
   // ===================================================
@@ -582,7 +717,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "toes_down",
     description:
       "Points the foot downward, as when rising onto the toes.",
-    aliases: ["plantar flexion", "point toes"]
+    aliases: [
+      "plantar flexion",
+      "point toes"
+    ]
   },
   {
     id: "ankle_dorsiflexion",
@@ -592,7 +730,10 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "toes_up",
     description:
       "Brings the top of the foot toward the shin.",
-    aliases: ["dorsiflexion", "toes up"]
+    aliases: [
+      "dorsiflexion",
+      "toes up"
+    ]
   },
   {
     id: "ankle_inversion",
@@ -602,7 +743,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "sole_inward",
     description:
       "Turns the sole of the foot inward.",
-    aliases: ["foot inversion"]
+    aliases: [
+      "foot inversion"
+    ]
   },
   {
     id: "ankle_eversion",
@@ -612,7 +755,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "sole_outward",
     description:
       "Turns the sole of the foot outward.",
-    aliases: ["foot eversion"]
+    aliases: [
+      "foot eversion"
+    ]
   },
   {
     id: "ankle_plantarflexion_assist",
@@ -622,7 +767,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "toes_down",
     description:
       "Assists other muscles in pointing the foot downward.",
-    aliases: ["assist plantarflexion"]
+    aliases: [
+      "assist plantarflexion"
+    ]
   },
   {
     id: "ankle_stabilization",
@@ -632,7 +779,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Controls ankle position during standing, walking, running, and loaded movement.",
-    aliases: ["ankle stability"]
+    aliases: [
+      "ankle stability"
+    ]
   },
   {
     id: "postural_stabilization",
@@ -642,7 +791,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "stabilize",
     description:
       "Helps maintain upright posture and balance against gravity.",
-    aliases: ["postural stability"]
+    aliases: [
+      "postural stability"
+    ]
   },
 
   // ===================================================
@@ -656,7 +807,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward",
     description:
       "Bends the neck forward.",
-    aliases: ["cervical flexion"]
+    aliases: [
+      "cervical flexion"
+    ]
   },
   {
     id: "neck_extension",
@@ -666,7 +819,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "backward",
     description:
       "Extends the neck backward.",
-    aliases: ["cervical extension"]
+    aliases: [
+      "cervical extension"
+    ]
   },
   {
     id: "neck_rotation",
@@ -676,7 +831,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "rotate",
     description:
       "Turns the head and neck to one side.",
-    aliases: ["cervical rotation"]
+    aliases: [
+      "cervical rotation"
+    ]
   },
   {
     id: "neck_lateral_flexion",
@@ -686,7 +843,9 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "side_bend",
     description:
       "Tilts the head toward one shoulder.",
-    aliases: ["cervical lateral flexion"]
+    aliases: [
+      "cervical lateral flexion"
+    ]
   },
 
   // ===================================================
@@ -700,7 +859,75 @@ const JOINT_ACTIONS = Object.freeze([
     direction: "forward_up",
     description:
       "Assists other muscles in raising the arm forward.",
-    aliases: ["assist shoulder flexion"]
+    aliases: [
+      "assist shoulder flexion",
+      "shoulder flexion assistance"
+    ]
+  },
+  {
+    id: "shoulder_extension_assist",
+    label: "Shoulder Extension Assistance",
+    joint: "shoulder",
+    plane: "sagittal",
+    direction: "backward",
+    description:
+      "Assists other muscles in moving the upper arm backward.",
+    aliases: [
+      "assist shoulder extension",
+      "shoulder extension assistance"
+    ]
+  },
+  {
+    id: "hip_abduction_assist",
+    label: "Hip Abduction Assistance",
+    joint: "hip",
+    plane: "frontal",
+    direction: "away_from_midline",
+    description:
+      "Assists other muscles in moving the thigh away from the body's midline.",
+    aliases: [
+      "assist hip abduction",
+      "hip abduction assistance"
+    ]
+  },
+  {
+    id: "hip_adduction_assist",
+    label: "Hip Adduction Assistance",
+    joint: "hip",
+    plane: "frontal",
+    direction: "toward_midline",
+    description:
+      "Assists other muscles in moving the thigh toward the body's midline.",
+    aliases: [
+      "assist hip adduction",
+      "hip adduction assistance"
+    ]
+  },
+  {
+    id: "hip_external_rotation_assist",
+    label: "Hip External Rotation Assistance",
+    joint: "hip",
+    plane: "transverse",
+    direction: "rotate_outward",
+    description:
+      "Assists other muscles in rotating the thigh outward.",
+    aliases: [
+      "assist hip external rotation",
+      "hip external rotation assistance"
+    ]
+  },
+  {
+    id: "knee_extension_assist",
+    label: "Knee Extension Assistance",
+    joint: "knee",
+    plane: "sagittal",
+    direction: "straighten",
+    description:
+      "Assists other muscles in straightening the knee.",
+    aliases: [
+      "assist knee extension",
+      "knee extension assistance"
+    ]
   }
 ]);
 
