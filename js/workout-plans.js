@@ -3388,6 +3388,9 @@ function exerciseMatchesFocus(
     return false;
   }
 
+  /*
+   * Custom intentionally exposes the entire catalog.
+   */
   if (
     focus.id ===
     "custom"
@@ -3395,6 +3398,9 @@ function exerciseMatchesFocus(
     return true;
   }
 
+  /*
+   * Off Day never exposes exercises.
+   */
   if (
     focus.id ===
     "off_day"
@@ -3402,8 +3408,27 @@ function exerciseMatchesFocus(
     return false;
   }
 
+  const focusPrimaryBodyParts =
+    uniqueIds(
+      focus.primaryBodyParts ||
+      []
+    );
+
+  const focusSecondaryBodyParts =
+    uniqueIds(
+      focus.secondaryBodyParts ||
+      []
+    );
+
   const focusBodyParts =
-    getFocusBodyParts(
+    uniqueIds([
+      ...(focus.bodyParts || []),
+      ...focusPrimaryBodyParts,
+      ...focusSecondaryBodyParts
+    ]);
+
+  const focusMuscles =
+    getFocusMuscles(
       focus
     );
 
@@ -3412,77 +3437,140 @@ function exerciseMatchesFocus(
       focus
     );
 
-  const focusTypes =
-    getFocusExerciseTypes(
-      focus
+  const exerciseBodyParts =
+    uniqueIds(
+      exercise.bodyParts ||
+      []
     );
 
-  const focusMuscles =
-    getFocusMuscles(
-      focus
+  const exercisePrimaryMuscles =
+    uniqueIds(
+      exercise.primaryMuscles ||
+      []
+    );
+
+  const exerciseSecondaryMuscles =
+    uniqueIds(
+      exercise.secondaryMuscles ||
+      []
     );
 
   const exerciseMuscles = [
-    ...arrayOfIds(
-      exercise.primaryMuscles
-    ),
-    ...arrayOfIds(
-      exercise.secondaryMuscles
-    )
+    ...exercisePrimaryMuscles,
+    ...exerciseSecondaryMuscles
   ];
 
-  const rules =
-    [];
+  const exerciseMovements =
+    uniqueIds(
+      exercise.movementPatterns ||
+      []
+    );
+
+
+  /* ===================================================
+     PRIMARY BODY-PART MATCH
+
+     For body-part workouts such as Chest Day, Back Day,
+     Leg Day, Shoulder Day, etc., the exercise needs to
+     actually belong to the focus anatomy.
+
+     Generic classifications such as "strength",
+     "hypertrophy", "cable", etc. are NOT sufficient.
+  =================================================== */
 
   if (
-    focusBodyParts.length
+    focusPrimaryBodyParts.length >
+    0
   ) {
-    rules.push(
+    if (
       intersects(
-        exercise.bodyParts,
-        focusBodyParts
+        exerciseBodyParts,
+        focusPrimaryBodyParts
       )
-    );
+    ) {
+      return true;
+    }
   }
+
+
+  /* ===================================================
+     SPECIFIC FOCUS BODY-PART MATCH
+  =================================================== */
 
   if (
-    focusMuscles.length
+    focusBodyParts.length >
+      0 &&
+    intersects(
+      exerciseBodyParts,
+      focusBodyParts
+    )
   ) {
-    rules.push(
-      intersects(
-        exerciseMuscles,
-        focusMuscles
-      )
-    );
+    return true;
   }
+
+
+  /* ===================================================
+     MUSCLE MATCH
+
+     Allows exercises whose registry anatomy is more
+     specific than its general bodyParts classification.
+  =================================================== */
 
   if (
-    focusMovements.length
+    focusMuscles.length >
+      0 &&
+    intersects(
+      exerciseMuscles,
+      focusMuscles
+    )
   ) {
-    rules.push(
-      intersects(
-        exercise.movementPatterns,
-        focusMovements
-      )
-    );
+    return true;
   }
+
+
+  /* ===================================================
+     MOVEMENT MATCH
+
+     Important for movements such as:
+       chest fly
+       pressing
+       rowing
+       curls
+       extensions
+       squats
+       hinges
+       etc.
+
+     This allows a correctly-classified exercise even if
+     one of its body-part tags is less specific.
+  =================================================== */
 
   if (
-    focusTypes.length
+    focusMovements.length >
+      0 &&
+    intersects(
+      exerciseMovements,
+      focusMovements
+    )
   ) {
-    rules.push(
-      intersects(
-        exercise.exerciseTypes,
-        focusTypes
-      )
-    );
+    return true;
   }
 
-  return rules.length
-    ? rules.some(
-        Boolean
-      )
-    : false;
+
+  /*
+   * IMPORTANT:
+   *
+   * Do NOT use exerciseTypes here as a standalone match.
+   *
+   * "strength", "hypertrophy", "free_weight", "cable",
+   * "machine_strength", etc. describe HOW an exercise is
+   * performed — not WHAT body part the workout targets.
+   *
+   * Using them as an OR condition causes Chest Day to
+   * incorrectly include virtually every strength exercise.
+   */
+
+  return false;
 }
 
 
