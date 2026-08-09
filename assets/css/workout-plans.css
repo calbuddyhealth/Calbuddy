@@ -3,163 +3,174 @@
    File: assets/css/workout-plans.css
    Version: 3.1.0
    Purpose:
-   Premium scientific-lab / luxury medical-tech interface
-   for ARI Training Workout Plans.
+   Premium scientific-lab Workout Plans interface.
 
    V3.1.0:
-   - Premium white laboratory visual system.
-   - Cyan + royal blue + restrained violet accents.
-   - Four-tab responsive navigation.
-   - Floating selected-week instrument panel.
-   - Premium calendar controls.
-   - Scientific stat readouts.
-   - Distinct workout / recovery / off-day states.
-   - Improved templates and custom-week builder.
-   - Refined exercise library cards.
-   - Premium collapsible exercise prescription cards.
-   - Strong mobile polish.
-   - Better iPhone Safari spacing.
-===================================================== */
-
-/* =====================================================
-   ROOT
+   - Simplifies the page around week planning.
+   - Removes styling for the old weekly summary dashboard.
+   - Removes old Calendar / This Week controls.
+   - Removes top-level Custom-tab styling.
+   - Uses 3 premium tabs:
+       My Week
+       Templates
+       Exercise Library
+   - Makes selected week navigation the main control.
+   - Supports:
+       THIS WEEK
+       NEXT WEEK
+       PREVIOUS WEEK
+   - Makes dated Sunday-Saturday cards the hero UI.
+   - Keeps white / cyan / royal blue / violet laboratory theme.
+   - Preserves premium collapsible exercise cards.
+   - Preserves explicit Done flow.
+   - Weight remains visually optional.
+   - Rest time remains visible and easy to edit.
 ===================================================== */
 
 :root {
-  /* Core background */
+  /* ===================================================
+     CORE COLORS
+  =================================================== */
+
   --wp-bg:
-    #f5f9ff;
+    #f5faff;
 
-  --wp-bg-top:
-    #fbfdff;
+  --wp-bg-deep:
+    #edf6ff;
 
-  --wp-bg-cyan:
-    #effcff;
-
-  --wp-bg-blue:
-    #f0f5ff;
-
-  --wp-bg-violet:
-    #f8f4ff;
-
-  /* Surfaces */
   --wp-surface:
     rgba(255, 255, 255, 0.94);
 
-  --wp-surface-strong:
+  --wp-surface-solid:
     #ffffff;
 
   --wp-surface-soft:
-    rgba(248, 251, 255, 0.94);
+    rgba(247, 251, 255, 0.94);
 
-  --wp-surface-muted:
-    rgba(242, 247, 252, 0.92);
+  --wp-surface-cyan:
+    rgba(230, 250, 255, 0.82);
 
-  /* Text */
+  --wp-surface-blue:
+    rgba(236, 243, 255, 0.88);
+
+  --wp-surface-violet:
+    rgba(246, 240, 255, 0.88);
+
   --wp-text:
-    #1d2a3b;
+    #122033;
 
   --wp-text-strong:
-    #081425;
+    #071425;
 
   --wp-soft:
-    #4d6179;
+    #43556f;
 
   --wp-muted:
-    #73859b;
+    #74879f;
 
   --wp-faint:
-    #a6b4c5;
+    #9caabd;
 
-  /* Brand */
   --wp-cyan:
-    #2bd8f2;
+    #13cdec;
 
   --wp-cyan-strong:
-    #10bfe3;
+    #00add3;
 
-  --wp-cyan-deep:
-    #087f9d;
+  --wp-cyan-dark:
+    #087b99;
 
   --wp-blue:
-    #4167ff;
+    #2f5fff;
 
   --wp-blue-strong:
-    #2648e8;
+    #2048d9;
 
-  --wp-blue-deep:
-    #1b358f;
+  --wp-blue-dark:
+    #173293;
 
   --wp-violet:
-    #9a72ff;
+    #8f63f7;
 
   --wp-violet-strong:
-    #744bea;
+    #7149e7;
 
-  --wp-violet-soft:
-    #efe9ff;
-
-  /* States */
   --wp-success:
-    #16896b;
+    #168a68;
 
-  --wp-success-soft:
-    #e8f9f3;
+  --wp-success-bg:
+    #eaf9f3;
 
   --wp-danger:
-    #cf405d;
+    #d94f66;
 
-  --wp-danger-soft:
+  --wp-danger-dark:
+    #b63149;
+
+  --wp-danger-bg:
     #fff0f3;
 
-  --wp-warning:
-    #bc7e18;
+  /* ===================================================
+     BORDERS
+  =================================================== */
 
-  /* Border */
   --wp-border:
-    rgba(78, 103, 137, 0.13);
+    rgba(48, 91, 136, 0.13);
 
   --wp-border-soft:
-    rgba(78, 103, 137, 0.08);
+    rgba(48, 91, 136, 0.08);
 
   --wp-border-cyan:
-    rgba(16, 191, 227, 0.28);
+    rgba(0, 173, 211, 0.24);
 
   --wp-border-blue:
-    rgba(65, 103, 255, 0.22);
+    rgba(47, 95, 255, 0.22);
 
   --wp-border-violet:
-    rgba(154, 114, 255, 0.24);
+    rgba(143, 99, 247, 0.22);
 
-  /* Shadows */
+  /* ===================================================
+     SHADOWS
+  =================================================== */
+
   --wp-shadow-xs:
-    0 2px 8px rgba(25, 53, 88, 0.05);
+    0 3px 10px
+    rgba(22, 55, 92, 0.045);
 
   --wp-shadow-sm:
-    0 8px 24px rgba(25, 53, 88, 0.07);
+    0 8px 24px
+    rgba(22, 55, 92, 0.07);
 
   --wp-shadow-md:
-    0 16px 44px rgba(25, 53, 88, 0.10);
+    0 18px 44px
+    rgba(22, 55, 92, 0.10);
 
   --wp-shadow-lg:
-    0 26px 72px rgba(25, 53, 88, 0.14);
-
-  --wp-shadow-float:
-    0 18px 46px rgba(33, 68, 115, 0.11);
+    0 28px 78px
+    rgba(17, 42, 78, 0.16);
 
   --wp-glow-cyan:
-    0 0 0 1px rgba(43, 216, 242, 0.15),
-    0 12px 34px rgba(16, 191, 227, 0.12);
+    0 0 0 1px
+      rgba(19, 205, 236, 0.10),
+    0 14px 34px
+      rgba(19, 180, 220, 0.13);
 
   --wp-glow-blue:
-    0 0 0 1px rgba(65, 103, 255, 0.12),
-    0 14px 36px rgba(65, 103, 255, 0.11);
+    0 0 0 1px
+      rgba(47, 95, 255, 0.08),
+    0 14px 36px
+      rgba(47, 95, 255, 0.12);
 
   --wp-glow-violet:
-    0 0 0 1px rgba(154, 114, 255, 0.12),
-    0 14px 36px rgba(116, 75, 234, 0.10);
+    0 0 0 1px
+      rgba(143, 99, 247, 0.08),
+    0 14px 36px
+      rgba(113, 73, 231, 0.11);
 
-  /* Radius */
+  /* ===================================================
+     SHAPES
+  =================================================== */
+
   --wp-radius-xs:
     10px;
 
@@ -170,17 +181,17 @@
     18px;
 
   --wp-radius-lg:
-    24px;
+    22px;
 
   --wp-radius-xl:
-    30px;
+    28px;
 
-  --wp-pill:
+  --wp-radius-pill:
     999px;
 
-  /* Motion */
-  --wp-ease:
-    cubic-bezier(0.22, 1, 0.36, 1);
+  /* ===================================================
+     MOTION
+  =================================================== */
 
   --wp-fast:
     150ms;
@@ -190,7 +201,16 @@
 
   --wp-slow:
     360ms;
+
+  --wp-ease:
+    cubic-bezier(
+      0.22,
+      1,
+      0.36,
+      1
+    );
 }
+
 
 /* =====================================================
    RESET
@@ -203,33 +223,53 @@
     border-box;
 }
 
+
 html {
   min-height:
     100%;
 
   background:
     radial-gradient(
-      circle at 8% 2%,
-      rgba(43, 216, 242, 0.11),
-      transparent 27%
+      circle at 8% 0%,
+      rgba(
+        19,
+        205,
+        236,
+        0.12
+      ),
+      transparent
+        28%
     ),
     radial-gradient(
-      circle at 88% 0%,
-      rgba(154, 114, 255, 0.10),
-      transparent 31%
+      circle at 92% 4%,
+      rgba(
+        143,
+        99,
+        247,
+        0.11
+      ),
+      transparent
+        30%
     ),
     radial-gradient(
       circle at 50% 100%,
-      rgba(65, 103, 255, 0.08),
-      transparent 42%
+      rgba(
+        47,
+        95,
+        255,
+        0.075
+      ),
+      transparent
+        42%
     ),
     linear-gradient(
       180deg,
-      var(--wp-bg-top) 0%,
-      var(--wp-bg) 42%,
-      #f7faff 100%
+      #fbfdff 0%,
+      var(--wp-bg) 45%,
+      #f8fbff 100%
     );
 }
+
 
 body.ari-workout-plans-page {
   margin:
@@ -240,9 +280,6 @@ body.ari-workout-plans-page {
 
   min-height:
     100dvh;
-
-  overflow-x:
-    hidden;
 
   color:
     var(--wp-text);
@@ -257,50 +294,13 @@ body.ari-workout-plans-page {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+
+  overflow-x:
+    hidden;
 }
+
 
 body.ari-workout-plans-page::before {
-  content:
-    "";
-
-  position:
-    fixed;
-
-  inset:
-    0;
-
-  z-index:
-    -2;
-
-  pointer-events:
-    none;
-
-  opacity:
-    0.55;
-
-  background-image:
-    linear-gradient(
-      rgba(46, 85, 127, 0.026) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(46, 85, 127, 0.026) 1px,
-      transparent 1px
-    );
-
-  background-size:
-    30px 30px;
-
-  mask-image:
-    linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.75),
-      transparent 92%
-    );
-}
-
-body.ari-workout-plans-page::after {
   content:
     "";
 
@@ -316,15 +316,52 @@ body.ari-workout-plans-page::after {
   pointer-events:
     none;
 
-  background:
+  opacity:
+    0.5;
+
+  background-image:
+    linear-gradient(
+      rgba(
+        32,
+        82,
+        130,
+        0.025
+      )
+        1px,
+      transparent
+        1px
+    ),
     linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.16),
-      transparent 13%,
-      transparent 87%,
-      rgba(255, 255, 255, 0.16)
+      rgba(
+        32,
+        82,
+        130,
+        0.025
+      )
+        1px,
+      transparent
+        1px
+    );
+
+  background-size:
+    30px
+    30px;
+
+  mask-image:
+    linear-gradient(
+      to bottom,
+      rgba(
+        0,
+        0,
+        0,
+        0.88
+      ),
+      transparent
+        92%
     );
 }
+
 
 button,
 input,
@@ -334,16 +371,19 @@ textarea {
     inherit;
 }
 
+
 button,
 select {
   -webkit-tap-highlight-color:
     transparent;
 }
 
+
 button {
   touch-action:
     manipulation;
 }
+
 
 img {
   display:
@@ -353,10 +393,12 @@ img {
     100%;
 }
 
+
 [hidden] {
   display:
     none !important;
 }
+
 
 .sr-only {
   position:
@@ -378,7 +420,12 @@ img {
     hidden !important;
 
   clip:
-    rect(0, 0, 0, 0) !important;
+    rect(
+      0,
+      0,
+      0,
+      0
+    ) !important;
 
   white-space:
     nowrap !important;
@@ -387,13 +434,17 @@ img {
     0 !important;
 }
 
+
 /* =====================================================
-   SHELL
+   APP SHELL
 ===================================================== */
 
 .workout-plans-shell {
   width:
-    min(100%, 1180px);
+    min(
+      100%,
+      1120px
+    );
 
   min-height:
     100vh;
@@ -405,13 +456,24 @@ img {
     0 auto;
 
   padding:
-    max(18px, env(safe-area-inset-top))
-    18px
     max(
-      44px,
-      calc(env(safe-area-inset-bottom) + 30px)
+      16px,
+      env(
+        safe-area-inset-top
+      )
+    )
+    16px
+    max(
+      38px,
+      calc(
+        env(
+          safe-area-inset-bottom
+        ) +
+        22px
+      )
     );
 }
+
 
 /* =====================================================
    HEADER
@@ -422,7 +484,12 @@ img {
     grid;
 
   grid-template-columns:
-    52px minmax(0, 1fr) auto;
+    46px
+    minmax(
+      0,
+      1fr
+    )
+    auto;
 
   align-items:
     center;
@@ -431,32 +498,12 @@ img {
     12px;
 
   min-height:
-    76px;
+    70px;
 
   margin-bottom:
-    16px;
+    14px;
 }
 
-.workout-plans-header__back,
-.workout-plans-header__save {
-  min-height:
-    48px;
-
-  border:
-    1px solid var(--wp-border);
-
-  box-shadow:
-    var(--wp-shadow-xs);
-
-  cursor:
-    pointer;
-
-  transition:
-    transform var(--wp-fast) var(--wp-ease),
-    box-shadow var(--wp-fast) ease,
-    border-color var(--wp-fast) ease,
-    background var(--wp-fast) ease;
-}
 
 .workout-plans-header__back {
   display:
@@ -466,10 +513,20 @@ img {
     center;
 
   width:
-    48px;
+    46px;
+
+  height:
+    46px;
+
+  padding:
+    0;
+
+  border:
+    1px solid
+    var(--wp-border);
 
   border-radius:
-    16px;
+    15px;
 
   color:
     var(--wp-text-strong);
@@ -477,37 +534,41 @@ img {
   background:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(244, 249, 255, 0.96)
+      rgba(
+        255,
+        255,
+        255,
+        0.98
+      ),
+      rgba(
+        241,
+        248,
+        255,
+        0.95
+      )
     );
+
+  box-shadow:
+    var(--wp-shadow-xs);
+
+  cursor:
+    pointer;
 
   font-size:
-    1.6rem;
+    1.28rem;
+
+  transition:
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    border-color
+      var(--wp-fast)
+      ease,
+    box-shadow
+      var(--wp-fast)
+      ease;
 }
 
-.workout-plans-header__save {
-  min-width:
-    74px;
-
-  padding:
-    0 16px;
-
-  border-radius:
-    var(--wp-pill);
-
-  color:
-    var(--wp-blue-deep);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(244, 252, 255, 0.98),
-      rgba(245, 241, 255, 0.98)
-    );
-
-  font-weight:
-    700;
-}
 
 .workout-plans-header__back:hover,
 .workout-plans-header__back:focus-visible {
@@ -521,53 +582,53 @@ img {
     none;
 }
 
-.workout-plans-header__save:hover,
-.workout-plans-header__save:focus-visible {
-  border-color:
-    var(--wp-border-blue);
 
-  box-shadow:
-    var(--wp-glow-blue);
-
-  outline:
-    none;
-}
-
-.workout-plans-header__back:active,
-.workout-plans-header__save:active {
+.workout-plans-header__back:active {
   transform:
-    scale(0.95);
+    scale(
+      0.94
+    );
 }
+
 
 .workout-plans-header__brand {
+  min-width:
+    0;
+
   text-align:
     center;
 }
 
+
 .workout-plans-header__eyebrow,
 .workout-section-eyebrow {
   margin:
-    0 0 5px;
+    0 0
+    5px;
 
   color:
-    var(--wp-cyan-deep);
+    var(--wp-cyan-dark);
 
   font-size:
-    0.67rem;
+    0.61rem;
 
   font-weight:
-    800;
+    900;
 
   letter-spacing:
-    0.22em;
+    0.19em;
 
   text-transform:
     uppercase;
 }
 
+
 .workout-plans-header__brand h1 {
   margin:
     0;
+
+  overflow:
+    hidden;
 
   color:
     var(--wp-text-strong);
@@ -578,9 +639,9 @@ img {
 
   font-size:
     clamp(
-      1.35rem,
+      1.12rem,
       5vw,
-      2rem
+      1.7rem
     );
 
   font-weight:
@@ -588,7 +649,96 @@ img {
 
   letter-spacing:
     0.02em;
+
+  white-space:
+    nowrap;
+
+  text-overflow:
+    ellipsis;
 }
+
+
+.workout-plans-header__save {
+  min-width:
+    58px;
+
+  min-height:
+    42px;
+
+  padding:
+    0 13px;
+
+  border:
+    1px solid
+    var(--wp-border-blue);
+
+  border-radius:
+    13px;
+
+  color:
+    var(--wp-blue-dark);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(
+        238,
+        246,
+        255,
+        0.98
+      ),
+      rgba(
+        245,
+        241,
+        255,
+        0.96
+      )
+    );
+
+  box-shadow:
+    var(--wp-shadow-xs);
+
+  cursor:
+    pointer;
+
+  font-size:
+    0.64rem;
+
+  font-weight:
+    900;
+
+  transition:
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    box-shadow
+      var(--wp-fast)
+      ease;
+}
+
+
+.workout-plans-header__save:hover {
+  box-shadow:
+    var(--wp-glow-blue);
+}
+
+
+.workout-plans-header__save:active {
+  transform:
+    scale(
+      0.96
+    );
+}
+
+
+.workout-plans-header__save:disabled {
+  opacity:
+    0.6;
+
+  cursor:
+    wait;
+}
+
 
 /* =====================================================
    STATUS
@@ -596,53 +746,73 @@ img {
 
 .workout-plans-status {
   margin:
-    0 0 14px;
+    0 0
+    13px;
 
   padding:
-    12px 14px;
+    11px
+    14px;
 
   border:
-    1px solid var(--wp-border-cyan);
+    1px solid
+    var(--wp-border-cyan);
 
   border-radius:
     var(--wp-radius-sm);
 
   color:
-    var(--wp-cyan-deep);
+    var(--wp-cyan-dark);
 
   background:
     linear-gradient(
       135deg,
-      rgba(237, 253, 255, 0.96),
-      rgba(247, 250, 255, 0.96)
+      rgba(
+        232,
+        251,
+        255,
+        0.97
+      ),
+      rgba(
+        247,
+        251,
+        255,
+        0.97
+      )
     );
 
   box-shadow:
     var(--wp-shadow-xs);
 
   font-size:
-    0.72rem;
+    0.7rem;
 
   font-weight:
-    700;
+    800;
 
   line-height:
     1.45;
 }
+
 
 .workout-plans-status[data-state="error"] {
   color:
     var(--wp-danger);
 
   border-color:
-    rgba(207, 64, 93, 0.22);
+    rgba(
+      217,
+      79,
+      102,
+      0.25
+    );
 
   background:
-    var(--wp-danger-soft);
+    var(--wp-danger-bg);
 }
 
+
 /* =====================================================
-   TABS
+   MAIN TABS
 ===================================================== */
 
 .workout-plans-tabs {
@@ -650,52 +820,92 @@ img {
     grid;
 
   grid-template-columns:
-    repeat(4, minmax(0, 1fr));
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
 
   gap:
     5px;
 
   margin-bottom:
-    26px;
+    23px;
 
   padding:
-    6px;
+    5px;
 
   border:
-    1px solid rgba(74, 104, 138, 0.10);
+    1px solid
+    rgba(
+      51,
+      91,
+      133,
+      0.10
+    );
 
   border-radius:
-    22px;
+    18px;
 
   background:
-    rgba(255, 255, 255, 0.78);
+    rgba(
+      255,
+      255,
+      255,
+      0.78
+    );
 
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 12px 32px rgba(29, 65, 108, 0.07);
+    inset
+      0
+      1px
+      0
+      rgba(
+        255,
+        255,
+        255,
+        0.96
+      ),
+    0
+      9px
+      26px
+      rgba(
+        22,
+        58,
+        96,
+        0.055
+      );
 
   backdrop-filter:
-    blur(18px);
+    blur(
+      15px
+    );
 
   -webkit-backdrop-filter:
-    blur(18px);
+    blur(
+      15px
+    );
 }
+
 
 .workout-plans-tab {
   position:
     relative;
 
   min-height:
-    50px;
+    44px;
 
   padding:
-    9px 7px;
+    8px
+    6px;
 
   border:
     0;
 
   border-radius:
-    16px;
+    13px;
 
   color:
     var(--wp-muted);
@@ -708,26 +918,32 @@ img {
 
   font-size:
     clamp(
-      0.55rem,
-      2.5vw,
-      0.72rem
+      0.57rem,
+      2.55vw,
+      0.69rem
     );
 
   font-weight:
-    800;
-
-  line-height:
-    1.2;
+    900;
 
   letter-spacing:
-    0.015em;
+    0.025em;
 
   transition:
-    transform var(--wp-fast) var(--wp-ease),
-    color var(--wp-normal) ease,
-    background var(--wp-normal) ease,
-    box-shadow var(--wp-normal) ease;
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    color
+      var(--wp-normal)
+      ease,
+    background
+      var(--wp-normal)
+      ease,
+    box-shadow
+      var(--wp-normal)
+      ease;
 }
+
 
 .workout-plans-tab::after {
   content:
@@ -743,13 +959,13 @@ img {
     24%;
 
   bottom:
-    6px;
+    5px;
 
   height:
-    3px;
+    2px;
 
   border-radius:
-    var(--wp-pill);
+    var(--wp-radius-pill);
 
   background:
     linear-gradient(
@@ -763,61 +979,131 @@ img {
     0;
 
   transform:
-    scaleX(0.4);
+    scaleX(
+      0.4
+    );
 
   transition:
-    opacity var(--wp-normal) ease,
-    transform var(--wp-normal) var(--wp-ease);
+    opacity
+      var(--wp-normal)
+      ease,
+    transform
+      var(--wp-normal)
+      var(--wp-ease);
 }
+
 
 .workout-plans-tab:hover {
   color:
     var(--wp-text-strong);
 
   background:
-    rgba(241, 247, 255, 0.75);
+    rgba(
+      240,
+      248,
+      255,
+      0.72
+    );
 }
+
 
 .workout-plans-tab:active {
   transform:
-    scale(0.95);
+    scale(
+      0.96
+    );
 }
+
 
 .workout-plans-tab.active {
   color:
-    var(--wp-blue-deep);
+    var(--wp-blue-dark);
 
   background:
     linear-gradient(
       135deg,
-      rgba(231, 252, 255, 0.97),
-      rgba(241, 246, 255, 0.97) 52%,
-      rgba(249, 243, 255, 0.97)
+      rgba(
+        231,
+        251,
+        255,
+        0.97
+      ),
+      rgba(
+        239,
+        246,
+        255,
+        0.97
+      )
+        52%,
+      rgba(
+        248,
+        243,
+        255,
+        0.97
+      )
     );
 
   box-shadow:
-    0 9px 24px rgba(31, 78, 132, 0.10),
-    inset 0 0 0 1px rgba(16, 191, 227, 0.13);
+    0
+      7px
+      20px
+      rgba(
+        25,
+        70,
+        124,
+        0.10
+      ),
+    inset
+      0
+      0
+      0
+      1px
+      rgba(
+        19,
+        205,
+        236,
+        0.11
+      );
 }
+
 
 .workout-plans-tab.active::after {
   opacity:
     1;
 
   transform:
-    scaleX(1);
+    scaleX(
+      1
+    );
 }
 
+
+.workout-plans-tab:focus-visible {
+  outline:
+    2px solid
+    rgba(
+      47,
+      95,
+      255,
+      0.26
+    );
+
+  outline-offset:
+    2px;
+}
+
+
 /* =====================================================
-   PANEL
+   PANELS
 ===================================================== */
 
 .workout-plans-panel {
   animation:
     workoutPanelIn
-    320ms
+    300ms
     var(--wp-ease);
 }
+
 
 @keyframes workoutPanelIn {
   from {
@@ -825,7 +1111,9 @@ img {
       0;
 
     transform:
-      translateY(8px);
+      translateY(
+        7px
+      );
   }
 
   to {
@@ -833,46 +1121,49 @@ img {
       1;
 
     transform:
-      translateY(0);
+      translateY(
+        0
+      );
   }
 }
 
+
 /* =====================================================
-   SECTION HEADERS
+   SECTION HEADER
 ===================================================== */
 
 .workout-section-header {
   margin-bottom:
-    18px;
+    14px;
 }
+
 
 .workout-section-header h2 {
   margin:
-    0 0 8px;
+    0 0
+    6px;
 
   color:
     var(--wp-text-strong);
 
   font-size:
     clamp(
-      1.2rem,
-      4.5vw,
-      1.6rem
+      1.08rem,
+      4vw,
+      1.38rem
     );
 
   font-weight:
     900;
 
   letter-spacing:
-    -0.025em;
+    -0.02em;
 }
+
 
 .workout-section-header p:not(.workout-section-eyebrow) {
   margin:
     0;
-
-  max-width:
-    760px;
 
   color:
     var(--wp-soft);
@@ -885,37 +1176,47 @@ img {
     sans-serif;
 
   font-size:
-    0.92rem;
+    0.84rem;
 
   line-height:
-    1.6;
+    1.5;
 }
 
+
 /* =====================================================
-   WEEK TOOLBAR
+   WEEK NAVIGATION
 ===================================================== */
 
 .workout-week-toolbar {
-  position:
-    relative;
+  margin-bottom:
+    12px;
+}
 
+
+.workout-week-toolbar__navigation {
   display:
     grid;
 
-  gap:
-    14px;
+  grid-template-columns:
+    46px
+    minmax(
+      0,
+      1fr
+    )
+    46px;
 
-  margin-bottom:
-    12px;
+  align-items:
+    center;
+
+  gap:
+    10px;
 
   padding:
-    15px;
-
-  overflow:
-    hidden;
+    9px;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    var(--wp-border);
 
   border-radius:
     var(--wp-radius-lg);
@@ -923,50 +1224,24 @@ img {
   background:
     linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(242, 251, 255, 0.94) 48%,
-      rgba(247, 243, 255, 0.94)
+      rgba(
+        255,
+        255,
+        255,
+        0.97
+      ),
+      rgba(
+        242,
+        249,
+        255,
+        0.95
+      )
     );
 
   box-shadow:
-    var(--wp-shadow-md);
+    var(--wp-shadow-sm);
 }
 
-.workout-week-toolbar::before {
-  content:
-    "";
-
-  position:
-    absolute;
-
-  inset:
-    0 0 auto 0;
-
-  height:
-    3px;
-
-  background:
-    linear-gradient(
-      90deg,
-      var(--wp-cyan),
-      var(--wp-blue),
-      var(--wp-violet)
-    );
-}
-
-.workout-week-toolbar__navigation {
-  display:
-    grid;
-
-  grid-template-columns:
-    48px minmax(0, 1fr) 48px;
-
-  align-items:
-    center;
-
-  gap:
-    10px;
-}
 
 .workout-week-nav-button {
   display:
@@ -976,146 +1251,145 @@ img {
     center;
 
   width:
-    48px;
+    46px;
 
   height:
-    48px;
+    46px;
+
+  padding:
+    0;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    rgba(
+      47,
+      95,
+      255,
+      0.15
+    );
 
   border-radius:
-    16px;
+    14px;
 
   color:
-    var(--wp-text-strong);
+    var(--wp-blue-dark);
 
   background:
-    rgba(255, 255, 255, 0.92);
-
-  box-shadow:
-    var(--wp-shadow-xs);
+    linear-gradient(
+      135deg,
+      rgba(
+        239,
+        248,
+        255,
+        0.98
+      ),
+      rgba(
+        244,
+        241,
+        255,
+        0.95
+      )
+    );
 
   cursor:
     pointer;
 
   font-size:
-    1.35rem;
+    1.05rem;
+
+  font-weight:
+    900;
 
   transition:
-    transform var(--wp-fast) var(--wp-ease),
-    box-shadow var(--wp-fast) ease,
-    border-color var(--wp-fast) ease;
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    border-color
+      var(--wp-fast)
+      ease,
+    box-shadow
+      var(--wp-fast)
+      ease;
 }
 
-.workout-week-nav-button:hover {
+
+.workout-week-nav-button:hover,
+.workout-week-nav-button:focus-visible {
   border-color:
-    var(--wp-border-cyan);
+    var(--wp-border-blue);
 
   box-shadow:
-    var(--wp-glow-cyan);
+    var(--wp-glow-blue);
+
+  outline:
+    none;
 }
+
 
 .workout-week-nav-button:active {
   transform:
-    scale(0.94);
+    scale(
+      0.93
+    );
 }
+
 
 .workout-week-toolbar__range {
   display:
     grid;
 
-  gap:
-    5px;
+  justify-items:
+    center;
 
   min-width:
     0;
+
+  gap:
+    4px;
 
   text-align:
     center;
 }
 
-.workout-week-toolbar__label {
+
+.workout-week-toolbar__label,
+#workoutWeekRelativeLabel {
   color:
-    var(--wp-cyan-deep);
+    var(--wp-cyan-dark);
 
   font-size:
-    0.55rem;
+    0.58rem;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.16em;
+    0.17em;
 
   text-transform:
     uppercase;
 }
 
-.workout-week-toolbar__range strong {
-  overflow:
-    hidden;
 
+.workout-week-toolbar__range strong,
+#workoutWeekDateRange {
   color:
     var(--wp-text-strong);
 
   font-size:
     clamp(
-      0.8rem,
-      3.2vw,
-      1.02rem
+      0.82rem,
+      3.8vw,
+      1rem
     );
 
   font-weight:
     900;
 
-  line-height:
-    1.35;
-
-  text-overflow:
-    ellipsis;
+  letter-spacing:
+    0.02em;
 }
 
-.workout-week-toolbar__actions {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr 1fr;
-
-  gap:
-    9px;
-}
-
-.workout-calendar-control {
-  position:
-    relative;
-}
-
-.workout-calendar-control .workout-secondary-button {
-  width:
-    100%;
-}
-
-.workout-calendar-input {
-  position:
-    absolute;
-
-  inset:
-    0;
-
-  width:
-    100%;
-
-  height:
-    100%;
-
-  opacity:
-    0;
-
-  cursor:
-    pointer;
-}
 
 /* =====================================================
    WEEK ACTIONS
@@ -1126,318 +1400,125 @@ img {
     grid;
 
   grid-template-columns:
-    1.35fr 0.85fr;
+    1fr
+    1fr;
 
   gap:
-    9px;
+    8px;
 
   margin-bottom:
-    14px;
+    15px;
 }
+
 
 .workout-secondary-button,
 .workout-danger-button {
   min-height:
-    46px;
+    42px;
 
   padding:
-    0 14px;
+    0 11px;
 
   border-radius:
-    14px;
+    13px;
 
   cursor:
     pointer;
 
   font-size:
-    0.66rem;
+    0.62rem;
 
   font-weight:
     900;
 
   transition:
-    transform var(--wp-fast) var(--wp-ease),
-    box-shadow var(--wp-fast) ease,
-    border-color var(--wp-fast) ease;
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    box-shadow
+      var(--wp-fast)
+      ease;
 }
+
 
 .workout-secondary-button {
   border:
-    1px solid var(--wp-border-blue);
+    1px solid
+    rgba(
+      19,
+      173,
+      211,
+      0.18
+    );
 
   color:
-    var(--wp-blue-deep);
+    var(--wp-cyan-dark);
 
   background:
     linear-gradient(
       135deg,
-      rgba(239, 247, 255, 0.96),
-      rgba(245, 241, 255, 0.96)
+      rgba(
+        232,
+        251,
+        255,
+        0.92
+      ),
+      rgba(
+        239,
+        246,
+        255,
+        0.92
+      )
     );
 }
 
-.workout-danger-button {
-  border:
-    1px solid rgba(207, 64, 93, 0.15);
-
-  color:
-    var(--wp-danger);
-
-  background:
-    rgba(255, 247, 249, 0.94);
-}
 
 .workout-secondary-button:hover {
   box-shadow:
-    var(--wp-glow-blue);
+    var(--wp-glow-cyan);
 }
+
+
+.workout-danger-button {
+  border:
+    1px solid
+    rgba(
+      217,
+      79,
+      102,
+      0.16
+    );
+
+  color:
+    var(--wp-danger-dark);
+
+  background:
+    var(--wp-danger-bg);
+}
+
 
 .workout-danger-button:hover {
   box-shadow:
-    0 8px 22px rgba(207, 64, 93, 0.09);
+    0
+      10px
+      24px
+      rgba(
+        217,
+        79,
+        102,
+        0.11
+      );
 }
+
 
 .workout-secondary-button:active,
 .workout-danger-button:active {
   transform:
-    scale(0.97);
-}
-
-/* =====================================================
-   PLAN OVERVIEW
-===================================================== */
-
-.workout-plan-overview {
-  margin-bottom:
-    18px;
-
-  padding:
-    16px;
-
-  border:
-    1px solid var(--wp-border);
-
-  border-radius:
-    var(--wp-radius-lg);
-
-  background:
-    rgba(255, 255, 255, 0.88);
-
-  box-shadow:
-    var(--wp-shadow-sm);
-
-  backdrop-filter:
-    blur(14px);
-
-  -webkit-backdrop-filter:
-    blur(14px);
-}
-
-.workout-plan-name-field {
-  display:
-    grid;
-
-  gap:
-    7px;
-
-  margin-bottom:
-    14px;
-}
-
-.workout-plan-name-field > span {
-  color:
-    var(--wp-soft);
-
-  font-size:
-    0.59rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.08em;
-
-  text-transform:
-    uppercase;
-}
-
-.workout-plan-name-field input {
-  width:
-    100%;
-
-  min-height:
-    48px;
-
-  padding:
-    0 14px;
-
-  border:
-    1px solid var(--wp-border);
-
-  border-radius:
-    14px;
-
-  color:
-    var(--wp-text-strong);
-
-  background:
-    rgba(255, 255, 255, 0.97);
-
-  outline:
-    none;
-
-  font-weight:
-    700;
-
-  transition:
-    border-color var(--wp-fast) ease,
-    box-shadow var(--wp-fast) ease;
-}
-
-.workout-plan-name-field input:focus {
-  border-color:
-    var(--wp-border-cyan);
-
-  box-shadow:
-    0 0 0 4px rgba(43, 216, 242, 0.08);
-}
-
-.workout-plan-stats {
-  display:
-    grid;
-
-  grid-template-columns:
-    repeat(3, minmax(0, 1fr));
-
-  gap:
-    8px;
-}
-
-.workout-plan-stat {
-  position:
-    relative;
-
-  display:
-    grid;
-
-  justify-items:
-    center;
-
-  gap:
-    5px;
-
-  min-height:
-    94px;
-
-  padding:
-    13px 8px;
-
-  overflow:
-    hidden;
-
-  border:
-    1px solid var(--wp-border-soft);
-
-  border-radius:
-    16px;
-
-  background:
-    linear-gradient(
-      155deg,
-      rgba(249, 253, 255, 0.98),
-      rgba(241, 247, 255, 0.96)
-    );
-
-  text-align:
-    center;
-}
-
-.workout-plan-stat::after {
-  content:
-    "";
-
-  position:
-    absolute;
-
-  left:
-    20%;
-
-  right:
-    20%;
-
-  bottom:
-    0;
-
-  height:
-    2px;
-
-  border-radius:
-    var(--wp-pill);
-
-  background:
-    linear-gradient(
-      90deg,
-      var(--wp-cyan),
-      var(--wp-blue),
-      var(--wp-violet)
+    scale(
+      0.97
     );
 }
 
-.workout-plan-stat span {
-  color:
-    var(--wp-muted);
-
-  font-size:
-    0.5rem;
-
-  font-weight:
-    800;
-
-  line-height:
-    1.3;
-
-  text-transform:
-    uppercase;
-
-  letter-spacing:
-    0.07em;
-}
-
-.workout-plan-stat strong {
-  color:
-    var(--wp-text-strong);
-
-  font-family:
-    "Audiowide",
-    sans-serif;
-
-  font-size:
-    1.45rem;
-
-  font-weight:
-    400;
-}
-
-.workout-plan-goal-summary {
-  margin:
-    14px 0 0;
-
-  color:
-    var(--wp-soft);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.82rem;
-
-  line-height:
-    1.5;
-}
 
 /* =====================================================
    WEEK GRID
@@ -1451,8 +1532,13 @@ img {
     1fr;
 
   gap:
-    11px;
+    10px;
 }
+
+
+/* =====================================================
+   DAY CARD
+===================================================== */
 
 .workout-day-card {
   position:
@@ -1462,22 +1548,35 @@ img {
     hidden;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    var(--wp-border);
 
   border-radius:
     var(--wp-radius-lg);
 
   background:
-    rgba(255, 255, 255, 0.94);
+    rgba(
+      255,
+      255,
+      255,
+      0.95
+    );
 
   box-shadow:
     var(--wp-shadow-sm);
 
   transition:
-    transform var(--wp-normal) var(--wp-ease),
-    box-shadow var(--wp-normal) ease,
-    border-color var(--wp-normal) ease;
+    transform
+      var(--wp-normal)
+      var(--wp-ease),
+    border-color
+      var(--wp-normal)
+      ease,
+    box-shadow
+      var(--wp-normal)
+      ease;
 }
+
 
 .workout-day-card::before {
   content:
@@ -1487,7 +1586,8 @@ img {
     absolute;
 
   inset:
-    0 auto 0 0;
+    0 auto
+    0 0;
 
   width:
     4px;
@@ -1498,7 +1598,11 @@ img {
       var(--wp-cyan),
       var(--wp-blue)
     );
+
+  opacity:
+    0.82;
 }
+
 
 .workout-day-card[data-type="recovery"]::before {
   background:
@@ -1509,32 +1613,48 @@ img {
     );
 }
 
+
 .workout-day-card[data-type="off"]::before {
   background:
     linear-gradient(
       180deg,
-      #cdd8e4,
-      #9bacc0
+      #c1cedd,
+      #94a7ba
     );
+
+  opacity:
+    0.65;
 }
+
 
 .workout-day-card:hover {
   transform:
-    translateY(-2px);
+    translateY(
+      -2px
+    );
 
   border-color:
-    var(--wp-border-cyan);
+    rgba(
+      19,
+      173,
+      211,
+      0.23
+    );
 
   box-shadow:
     var(--wp-shadow-md);
 }
+
 
 .workout-day-card__button {
   width:
     100%;
 
   padding:
-    16px 16px 15px 20px;
+    15px
+    15px
+    14px
+    18px;
 
   border:
     0;
@@ -1550,16 +1670,33 @@ img {
 
   cursor:
     pointer;
+
+  transition:
+    background
+      var(--wp-fast)
+      ease;
 }
+
 
 .workout-day-card__button:active {
   background:
     linear-gradient(
       135deg,
-      rgba(231, 250, 255, 0.62),
-      rgba(247, 243, 255, 0.62)
+      rgba(
+        228,
+        248,
+        255,
+        0.70
+      ),
+      rgba(
+        248,
+        244,
+        255,
+        0.68
+      )
     );
 }
+
 
 .workout-day-card__header {
   display:
@@ -1575,8 +1712,9 @@ img {
     10px;
 
   margin-bottom:
-    10px;
+    9px;
 }
+
 
 .workout-day-card__identity {
   display:
@@ -1584,7 +1722,11 @@ img {
 
   gap:
     2px;
+
+  min-width:
+    0;
 }
+
 
 .workout-day-card__day {
   color:
@@ -1597,10 +1739,140 @@ img {
     900;
 
   letter-spacing:
-    0.02em;
+    0.045em;
+
+  text-transform:
+    uppercase;
 }
 
+
 .workout-day-card__date {
+  color:
+    var(--wp-muted);
+
+  font-size:
+    0.59rem;
+
+  font-weight:
+    800;
+}
+
+
+.workout-day-card__type {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  min-height:
+    24px;
+
+  padding:
+    4px
+    8px;
+
+  border:
+    1px solid
+    rgba(
+      19,
+      173,
+      211,
+      0.15
+    );
+
+  border-radius:
+    var(--wp-radius-pill);
+
+  color:
+    var(--wp-cyan-dark);
+
+  background:
+    rgba(
+      230,
+      250,
+      255,
+      0.84
+    );
+
+  font-size:
+    0.5rem;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    0.11em;
+}
+
+
+.workout-day-card[data-type="recovery"]
+.workout-day-card__type {
+  color:
+    var(--wp-violet-strong);
+
+  border-color:
+    rgba(
+      143,
+      99,
+      247,
+      0.16
+    );
+
+  background:
+    var(--wp-surface-violet);
+}
+
+
+.workout-day-card[data-type="off"]
+.workout-day-card__type {
+  color:
+    #74869b;
+
+  border-color:
+    rgba(
+      111,
+      132,
+      155,
+      0.13
+    );
+
+  background:
+    rgba(
+      242,
+      246,
+      250,
+      0.9
+    );
+}
+
+
+.workout-day-card__title {
+  margin:
+    0;
+
+  color:
+    var(--wp-text-strong);
+
+  font-size:
+    0.94rem;
+
+  font-weight:
+    900;
+
+  line-height:
+    1.3;
+}
+
+
+.workout-day-card__summary {
+  margin:
+    5px 0
+    0;
+
   color:
     var(--wp-muted);
 
@@ -1612,128 +1884,39 @@ img {
     sans-serif;
 
   font-size:
-    0.69rem;
+    0.75rem;
 
-  font-weight:
-    600;
+  line-height:
+    1.42;
 }
 
-.workout-day-card__type {
+
+.workout-day-card__open {
   display:
     inline-flex;
 
   align-items:
     center;
 
-  min-height:
-    25px;
-
-  padding:
-    4px 8px;
-
-  border:
-    1px solid rgba(16, 191, 227, 0.15);
-
-  border-radius:
-    var(--wp-pill);
-
-  color:
-    var(--wp-cyan-deep);
-
-  background:
-    rgba(233, 252, 255, 0.86);
-
-  font-size:
-    0.52rem;
-
-  font-weight:
-    900;
-
-  letter-spacing:
-    0.11em;
-}
-
-.workout-day-card[data-type="recovery"]
-.workout-day-card__type {
-  color:
-    var(--wp-violet-strong);
-
-  border-color:
-    rgba(154, 114, 255, 0.17);
-
-  background:
-    rgba(247, 241, 255, 0.88);
-}
-
-.workout-day-card[data-type="off"]
-.workout-day-card__type {
-  color:
-    #73869a;
-
-  border-color:
-    rgba(116, 135, 156, 0.14);
-
-  background:
-    rgba(244, 247, 250, 0.92);
-}
-
-.workout-day-card__title {
-  margin:
-    0 0 7px;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    1rem;
-
-  font-weight:
-    900;
-}
-
-.workout-day-card__summary {
-  margin:
-    0;
-
-  color:
-    var(--wp-soft);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.82rem;
-
-  line-height:
-    1.45;
-}
-
-.workout-day-card__open {
-  display:
-    inline-flex;
-
   margin-top:
-    12px;
+    10px;
 
   color:
     var(--wp-blue);
 
   font-size:
-    0.65rem;
+    0.62rem;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.03em;
+    0.035em;
 }
 
+
 /* =====================================================
-   TEMPLATE CONTEXT
+   TEMPLATE WEEK CONTEXT
 ===================================================== */
 
 .workout-template-week-context {
@@ -1747,58 +1930,70 @@ img {
     space-between;
 
   gap:
-    14px;
-
-  margin-bottom:
     12px;
 
+  margin-bottom:
+    13px;
+
   padding:
-    11px 14px;
+    11px
+    13px;
 
   border:
-    1px solid var(--wp-border-violet);
+    1px solid
+    var(--wp-border-cyan);
 
   border-radius:
-    14px;
+    var(--wp-radius-sm);
 
   background:
     linear-gradient(
       135deg,
-      rgba(246, 241, 255, 0.95),
-      rgba(238, 249, 255, 0.95)
+      rgba(
+        232,
+        251,
+        255,
+        0.84
+      ),
+      rgba(
+        244,
+        247,
+        255,
+        0.90
+      )
     );
 }
+
 
 .workout-template-week-context span {
   color:
     var(--wp-muted);
 
   font-size:
-    0.58rem;
+    0.6rem;
 
   font-weight:
     800;
-
-  text-transform:
-    uppercase;
-
-  letter-spacing:
-    0.08em;
 }
+
 
 .workout-template-week-context strong {
   color:
-    var(--wp-blue-deep);
+    var(--wp-blue-dark);
 
   font-size:
-    0.7rem;
+    0.66rem;
+
+  font-weight:
+    900;
 
   text-align:
     right;
 }
 
+
 /* =====================================================
-   FILTERS
+   FILTERS / INPUTS
 ===================================================== */
 
 .workout-filter-row,
@@ -1816,6 +2011,7 @@ img {
     14px;
 }
 
+
 .workout-filter,
 .workout-builder-field,
 .workout-exercise-metric {
@@ -1826,6 +2022,7 @@ img {
     7px;
 }
 
+
 .workout-filter > span,
 .workout-builder-field > span,
 .workout-exercise-metric > span {
@@ -1833,14 +2030,15 @@ img {
     var(--wp-soft);
 
   font-size:
-    0.61rem;
+    0.59rem;
 
   font-weight:
-    800;
+    900;
 
   letter-spacing:
     0.055em;
 }
+
 
 .workout-filter select,
 .workout-builder-field select,
@@ -1852,34 +2050,61 @@ img {
     100%;
 
   min-height:
-    48px;
+    46px;
+
+  padding:
+    0 12px;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    rgba(
+      52,
+      96,
+      140,
+      0.14
+    );
 
   border-radius:
-    14px;
+    13px;
 
   color:
     var(--wp-text-strong);
 
   background:
-    rgba(255, 255, 255, 0.97);
+    rgba(
+      255,
+      255,
+      255,
+      0.97
+    );
 
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    inset
+      0
+      1px
+      0
+      rgba(
+        255,
+        255,
+        255,
+        0.95
+      );
 
   outline:
     none;
 
-  padding:
-    0 13px;
-
   transition:
-    border-color var(--wp-fast) ease,
-    box-shadow var(--wp-fast) ease,
-    background var(--wp-fast) ease;
+    border-color
+      var(--wp-fast)
+      ease,
+    box-shadow
+      var(--wp-fast)
+      ease,
+    background
+      var(--wp-fast)
+      ease;
 }
+
 
 .workout-filter select:focus,
 .workout-builder-field select:focus,
@@ -1888,14 +2113,37 @@ img {
 .exercise-library-search input:focus,
 #workoutExercisePickerSearch:focus {
   border-color:
-    var(--wp-border-cyan);
+    rgba(
+      19,
+      173,
+      211,
+      0.42
+    );
 
   background:
     #ffffff;
 
   box-shadow:
-    0 0 0 4px rgba(43, 216, 242, 0.08);
+    0
+      0
+      0
+      4px
+      rgba(
+        19,
+        205,
+        236,
+        0.085
+      );
 }
+
+
+.workout-builder-field
++
+.workout-builder-field {
+  margin-top:
+    12px;
+}
+
 
 /* =====================================================
    TEMPLATE GRID
@@ -1909,27 +2157,23 @@ img {
     1fr;
 
   gap:
-    12px;
+    11px;
 }
 
-.workout-template-card {
-  position:
-    relative;
 
+.workout-template-card {
   display:
     grid;
 
   gap:
-    14px;
+    13px;
 
   padding:
-    18px;
-
-  overflow:
-    hidden;
+    16px;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    var(--wp-border);
 
   border-radius:
     var(--wp-radius-lg);
@@ -1937,63 +2181,59 @@ img {
   background:
     linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.97),
-      rgba(243, 250, 255, 0.95)
+      rgba(
+        255,
+        255,
+        255,
+        0.97
+      ),
+      rgba(
+        244,
+        250,
+        255,
+        0.95
+      )
     );
 
   box-shadow:
     var(--wp-shadow-sm);
 }
 
-.workout-template-card::before {
-  content:
-    "";
-
-  position:
-    absolute;
-
-  inset:
-    0 0 auto 0;
-
-  height:
-    3px;
-
-  background:
-    linear-gradient(
-      90deg,
-      var(--wp-violet),
-      var(--wp-blue),
-      var(--wp-cyan)
-    );
-}
 
 .workout-template-card__eyebrow {
   margin:
-    0 0 7px;
+    0 0
+    7px;
 
   color:
     var(--wp-violet-strong);
 
   font-size:
-    0.57rem;
+    0.55rem;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.12em;
+    0.11em;
 }
+
 
 .workout-template-card__name {
   margin:
-    0 0 8px;
+    0 0
+    7px;
 
   color:
     var(--wp-text-strong);
 
   font-size:
-    1rem;
+    0.96rem;
+
+  font-weight:
+    900;
 }
+
 
 .workout-template-card__description {
   margin:
@@ -2010,44 +2250,57 @@ img {
     sans-serif;
 
   font-size:
-    0.82rem;
+    0.79rem;
 
   line-height:
-    1.55;
+    1.52;
 }
+
 
 .workout-template-card__meta {
   margin-top:
-    10px;
+    9px;
 
   color:
-    var(--wp-blue-deep);
+    var(--wp-blue-dark);
 
   font-size:
-    0.61rem;
+    0.59rem;
 
   font-weight:
-    800;
+    900;
 }
+
 
 .workout-template-card__apply {
   min-height:
-    45px;
+    44px;
 
   border:
-    1px solid var(--wp-border-blue);
+    1px solid
+    var(--wp-border-blue);
 
   border-radius:
     13px;
 
   color:
-    var(--wp-blue-deep);
+    var(--wp-blue-dark);
 
   background:
     linear-gradient(
       135deg,
-      rgba(236, 245, 255, 0.97),
-      rgba(245, 240, 255, 0.97)
+      rgba(
+        236,
+        245,
+        255,
+        0.96
+      ),
+      rgba(
+        245,
+        241,
+        255,
+        0.96
+      )
     );
 
   cursor:
@@ -2060,259 +2313,28 @@ img {
     900;
 
   transition:
-    transform var(--wp-fast) var(--wp-ease),
-    box-shadow var(--wp-fast) ease;
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    box-shadow
+      var(--wp-fast)
+      ease;
 }
+
 
 .workout-template-card__apply:hover {
   box-shadow:
     var(--wp-glow-blue);
 }
 
+
 .workout-template-card__apply:active {
   transform:
-    scale(0.97);
+    scale(
+      0.97
+    );
 }
 
-/* =====================================================
-   CUSTOM BUILDER
-===================================================== */
-
-.workout-builder-card {
-  margin-bottom:
-    14px;
-
-  padding:
-    16px;
-
-  border:
-    1px solid var(--wp-border);
-
-  border-radius:
-    var(--wp-radius-lg);
-
-  background:
-    rgba(255, 255, 255, 0.91);
-
-  box-shadow:
-    var(--wp-shadow-sm);
-}
-
-.workout-builder-card__header {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    12px;
-
-  margin-bottom:
-    13px;
-}
-
-.workout-builder-card__header h3 {
-  margin:
-    0;
-
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.98rem;
-}
-
-.workout-builder-field + .workout-builder-field {
-  margin-top:
-    12px;
-}
-
-.workout-builder-fieldset {
-  margin:
-    15px 0 0;
-
-  padding:
-    0;
-
-  border:
-    0;
-}
-
-.workout-builder-fieldset legend {
-  margin-bottom:
-    8px;
-
-  color:
-    var(--wp-soft);
-
-  font-size:
-    0.61rem;
-
-  font-weight:
-    800;
-}
-
-.workout-choice-grid {
-  display:
-    grid;
-
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
-
-  gap:
-    8px;
-}
-
-.workout-choice {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    8px;
-
-  min-height:
-    42px;
-
-  padding:
-    9px 10px;
-
-  border:
-    1px solid var(--wp-border);
-
-  border-radius:
-    12px;
-
-  background:
-    rgba(248, 251, 255, 0.92);
-
-  cursor:
-    pointer;
-}
-
-.workout-choice input {
-  accent-color:
-    var(--wp-blue);
-}
-
-.workout-choice span {
-  color:
-    var(--wp-text);
-
-  font-size:
-    0.61rem;
-
-  font-weight:
-    700;
-}
-
-.workout-custom-week {
-  display:
-    grid;
-
-  gap:
-    10px;
-}
-
-.workout-custom-day {
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr;
-
-  gap:
-    10px;
-
-  padding:
-    14px;
-
-  border:
-    1px solid var(--wp-border);
-
-  border-radius:
-    16px;
-
-  background:
-    rgba(255, 255, 255, 0.94);
-}
-
-.workout-custom-day__identity {
-  display:
-    grid;
-
-  gap:
-    3px;
-}
-
-.workout-custom-day__identity strong {
-  color:
-    var(--wp-text-strong);
-
-  font-size:
-    0.75rem;
-}
-
-.workout-custom-day__identity span {
-  color:
-    var(--wp-muted);
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size:
-    0.73rem;
-}
-
-.workout-custom-day select,
-.workout-custom-day button {
-  min-height:
-    43px;
-
-  border-radius:
-    12px;
-}
-
-.workout-custom-day select {
-  border:
-    1px solid var(--wp-border);
-
-  color:
-    var(--wp-text-strong);
-
-  background:
-    #ffffff;
-
-  padding:
-    0 10px;
-}
-
-.workout-custom-day button {
-  border:
-    1px solid var(--wp-border-blue);
-
-  color:
-    var(--wp-blue-deep);
-
-  background:
-    rgba(239, 245, 255, 0.92);
-
-  cursor:
-    pointer;
-
-  font-weight:
-    900;
-}
 
 /* =====================================================
    EXERCISE LIBRARY SEARCH
@@ -2323,7 +2345,11 @@ img {
     grid;
 
   grid-template-columns:
-    minmax(0, 1fr) auto;
+    minmax(
+      0,
+      1fr
+    )
+    auto;
 
   gap:
     8px;
@@ -2332,15 +2358,16 @@ img {
     12px;
 }
 
+
 .exercise-library-search button {
   min-width:
-    86px;
+    82px;
 
   border:
     0;
 
   border-radius:
-    14px;
+    13px;
 
   color:
     #ffffff;
@@ -2353,25 +2380,37 @@ img {
     );
 
   box-shadow:
-    0 11px 28px rgba(65, 103, 255, 0.15);
+    0
+      10px
+      26px
+      rgba(
+        47,
+        95,
+        255,
+        0.15
+      );
 
   cursor:
     pointer;
 
   font-size:
-    0.67rem;
+    0.65rem;
 
   font-weight:
     900;
 }
 
+
 .exercise-library-search button:active {
   transform:
-    scale(0.97);
+    scale(
+      0.97
+    );
 }
 
+
 /* =====================================================
-   EXERCISE CARDS
+   EXERCISE LIBRARY CARDS
 ===================================================== */
 
 .exercise-library-grid {
@@ -2385,54 +2424,77 @@ img {
     10px;
 }
 
+
 .exercise-library-card {
   position:
     relative;
-
-  display:
-    grid;
 
   overflow:
     hidden;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    var(--wp-border);
 
   border-radius:
     var(--wp-radius-md);
 
   background:
-    rgba(255, 255, 255, 0.95);
+    rgba(
+      255,
+      255,
+      255,
+      0.95
+    );
 
   box-shadow:
     var(--wp-shadow-xs);
 
   transition:
-    transform var(--wp-normal) var(--wp-ease),
-    border-color var(--wp-normal) ease,
-    box-shadow var(--wp-normal) ease;
+    transform
+      var(--wp-normal)
+      var(--wp-ease),
+    border-color
+      var(--wp-normal)
+      ease,
+    box-shadow
+      var(--wp-normal)
+      ease;
 }
+
 
 .exercise-library-card:hover {
   transform:
-    translateY(-1px);
+    translateY(
+      -1px
+    );
 
   border-color:
-    var(--wp-border-cyan);
+    rgba(
+      19,
+      173,
+      211,
+      0.22
+    );
 
   box-shadow:
     var(--wp-shadow-sm);
 }
+
 
 .exercise-library-card__open {
   display:
     grid;
 
   grid-template-columns:
-    68px minmax(0, 1fr);
+    66px
+    minmax(
+      0,
+      1fr
+    );
 
   gap:
-    12px;
+    11px;
 
   align-items:
     center;
@@ -2441,7 +2503,7 @@ img {
     100%;
 
   padding:
-    11px;
+    10px;
 
   border:
     0;
@@ -2459,6 +2521,7 @@ img {
     pointer;
 }
 
+
 .exercise-library-card__visual {
   display:
     grid;
@@ -2467,28 +2530,51 @@ img {
     center;
 
   width:
-    68px;
+    66px;
 
   height:
-    68px;
+    66px;
 
   overflow:
     hidden;
 
   border:
-    1px solid rgba(16, 191, 227, 0.13);
+    1px solid
+    rgba(
+      19,
+      173,
+      211,
+      0.11
+    );
 
   border-radius:
-    16px;
+    14px;
 
   background:
     linear-gradient(
       145deg,
-      rgba(230, 252, 255, 0.95),
-      rgba(241, 246, 255, 0.95) 50%,
-      rgba(248, 242, 255, 0.95)
+      rgba(
+        230,
+        251,
+        255,
+        0.95
+      ),
+      rgba(
+        241,
+        246,
+        255,
+        0.95
+      )
+        52%,
+      rgba(
+        247,
+        241,
+        255,
+        0.95
+      )
     );
 }
+
 
 .exercise-library-card__image {
   width:
@@ -2501,54 +2587,68 @@ img {
     cover;
 }
 
+
 .exercise-library-card__placeholder {
   color:
-    rgba(65, 103, 255, 0.45);
+    rgba(
+      47,
+      95,
+      255,
+      0.44
+    );
 
   font-family:
     "Audiowide",
     sans-serif;
 
   font-size:
-    0.86rem;
+    0.82rem;
 
   letter-spacing:
-    0.08em;
+    0.07em;
 }
+
 
 .exercise-library-card__type {
   margin:
-    0 0 4px;
+    0 0
+    4px;
 
   color:
-    var(--wp-cyan-deep);
+    var(--wp-cyan-dark);
 
   font-size:
-    0.55rem;
+    0.53rem;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.10em;
+    0.095em;
 
   text-transform:
     uppercase;
 }
 
+
 .exercise-library-card__name {
   margin:
-    0 0 5px;
+    0 0
+    4px;
 
   color:
     var(--wp-text-strong);
 
   font-size:
-    0.86rem;
+    0.83rem;
 
   line-height:
     1.3;
+
+  font-weight:
+    900;
 }
+
 
 .exercise-library-card__muscles {
   margin:
@@ -2565,78 +2665,101 @@ img {
     sans-serif;
 
   font-size:
-    0.72rem;
+    0.69rem;
 
   line-height:
     1.4;
 }
 
+
 .exercise-library-card__add {
   margin:
-    0 11px 11px;
+    0
+    10px
+    10px;
 
   min-height:
-    40px;
+    39px;
 
   border:
-    1px solid var(--wp-border-cyan);
+    1px solid
+    var(--wp-border-cyan);
 
   border-radius:
-    12px;
+    11px;
 
   color:
-    var(--wp-cyan-deep);
+    var(--wp-cyan-dark);
 
   background:
-    rgba(232, 252, 255, 0.88);
+    var(--wp-surface-cyan);
 
   cursor:
     pointer;
 
   font-size:
-    0.67rem;
+    0.65rem;
 
   font-weight:
     900;
 }
+
 
 .exercise-library-card__add:disabled {
   color:
     var(--wp-success);
 
   border-color:
-    rgba(22, 137, 107, 0.16);
+    rgba(
+      22,
+      138,
+      104,
+      0.18
+    );
 
   background:
-    var(--wp-success-soft);
+    var(--wp-success-bg);
 
   cursor:
     default;
 }
 
+
 /* =====================================================
-   EMPTY STATE
+   EMPTY STATES
 ===================================================== */
 
 .workout-empty-state,
 .workout-exercise-picker__empty {
   margin:
-    13px 0 0;
+    12px 0
+    0;
 
   padding:
-    18px;
+    17px;
 
   border:
-    1px dashed rgba(83, 111, 144, 0.20);
+    1px dashed
+    rgba(
+      74,
+      113,
+      151,
+      0.18
+    );
 
   border-radius:
-    16px;
+    15px;
 
   color:
     var(--wp-muted);
 
   background:
-    rgba(248, 252, 255, 0.74);
+    rgba(
+      248,
+      252,
+      255,
+      0.74
+    );
 
   text-align:
     center;
@@ -2649,22 +2772,32 @@ img {
     sans-serif;
 
   font-size:
-    0.8rem;
+    0.77rem;
 
   line-height:
-    1.5;
+    1.48;
 }
 
+
 /* =====================================================
-   DIALOG
+   DIALOGS
 ===================================================== */
 
 .workout-dialog {
   width:
-    min(calc(100% - 20px), 720px);
+    min(
+      calc(
+        100% -
+        18px
+      ),
+      720px
+    );
 
   max-height:
-    min(92dvh, 920px);
+    min(
+      92dvh,
+      900px
+    );
 
   padding:
     0;
@@ -2679,7 +2812,12 @@ img {
     var(--wp-text);
 
   background:
-    rgba(255, 255, 255, 0.99);
+    rgba(
+      255,
+      255,
+      255,
+      0.99
+    );
 
   box-shadow:
     var(--wp-shadow-lg);
@@ -2688,42 +2826,74 @@ img {
     hidden;
 }
 
+
 .workout-dialog::backdrop {
   background:
-    rgba(21, 39, 65, 0.36);
+    rgba(
+      15,
+      34,
+      58,
+      0.39
+    );
 
   backdrop-filter:
-    blur(9px);
+    blur(
+      8px
+    );
 
   -webkit-backdrop-filter:
-    blur(9px);
+    blur(
+      8px
+    );
 }
+
 
 .workout-dialog__panel {
   max-height:
-    min(92dvh, 920px);
+    min(
+      92dvh,
+      900px
+    );
 
   overflow-y:
     auto;
 
   padding:
     20px
-    16px
-    calc(22px + env(safe-area-inset-bottom));
+    15px
+    calc(
+      20px +
+      env(
+        safe-area-inset-bottom
+      )
+    );
 
   background:
     radial-gradient(
       circle at 100% 0%,
-      rgba(154, 114, 255, 0.08),
-      transparent 26%
+      rgba(
+        143,
+        99,
+        247,
+        0.075
+      ),
+      transparent
+        26%
     ),
     radial-gradient(
       circle at 0% 0%,
-      rgba(43, 216, 242, 0.09),
-      transparent 25%
+      rgba(
+        19,
+        205,
+        236,
+        0.085
+      ),
+      transparent
+        24%
     ),
     #ffffff;
 }
+
 
 .workout-dialog__header {
   display:
@@ -2736,11 +2906,12 @@ img {
     space-between;
 
   gap:
-    14px;
+    13px;
 
   margin-bottom:
-    18px;
+    17px;
 }
+
 
 .workout-dialog__header h2 {
   margin:
@@ -2750,12 +2921,17 @@ img {
     var(--wp-text-strong);
 
   font-size:
-    1.18rem;
+    1.12rem;
+
+  font-weight:
+    900;
 }
+
 
 .workout-dialog__close {
   flex:
-    0 0 auto;
+    0 0
+    auto;
 
   display:
     grid;
@@ -2764,33 +2940,41 @@ img {
     center;
 
   width:
-    42px;
+    39px;
 
   height:
-    42px;
+    39px;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    var(--wp-border);
 
   border-radius:
-    14px;
+    12px;
 
   color:
     var(--wp-text);
 
   background:
-    rgba(249, 252, 255, 0.95);
+    rgba(
+      248,
+      252,
+      255,
+      0.95
+    );
 
   cursor:
     pointer;
 
   font-size:
-    1.3rem;
+    1.2rem;
 }
+
 
 #workoutExercisePickerContext {
   margin:
-    -3px 0 12px;
+    -2px 0
+    11px;
 
   color:
     var(--wp-soft);
@@ -2803,16 +2987,18 @@ img {
     sans-serif;
 
   font-size:
-    0.8rem;
+    0.77rem;
 
   line-height:
-    1.5;
+    1.45;
 }
+
 
 #workoutExercisePickerSearch {
   margin-bottom:
-    13px;
+    12px;
 }
+
 
 /* =====================================================
    DAY EDITOR
@@ -2820,47 +3006,98 @@ img {
 
 #workoutDayExerciseSection {
   margin-top:
-    20px;
+    19px;
 
   padding-top:
-    18px;
+    16px;
 
   border-top:
-    1px solid var(--wp-border-soft);
+    1px solid
+    var(--wp-border-soft);
 }
+
+
+.workout-builder-card__header {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    11px;
+
+  margin-bottom:
+    11px;
+}
+
+
+.workout-builder-card__header h3 {
+  margin:
+    0;
+
+  color:
+    var(--wp-text-strong);
+
+  font-size:
+    0.93rem;
+
+  font-weight:
+    900;
+}
+
 
 #workoutAddExerciseButton {
   min-height:
-    42px;
+    39px;
 
   padding:
-    0 13px;
+    0 11px;
 
   border:
-    1px solid var(--wp-border-cyan);
+    1px solid
+    var(--wp-border-cyan);
 
   border-radius:
-    13px;
+    11px;
 
   color:
-    var(--wp-cyan-deep);
+    var(--wp-cyan-dark);
 
   background:
     linear-gradient(
       135deg,
-      rgba(232, 252, 255, 0.96),
-      rgba(239, 246, 255, 0.96)
+      rgba(
+        229,
+        250,
+        255,
+        0.95
+      ),
+      rgba(
+        239,
+        246,
+        255,
+        0.95
+      )
     );
 
   cursor:
     pointer;
 
   font-size:
-    0.63rem;
+    0.61rem;
 
   font-weight:
     900;
 }
+
+
+/* =====================================================
+   PRIMARY BUTTONS
+===================================================== */
 
 .workout-primary-button,
 .workout-primary-action {
@@ -2868,7 +3105,7 @@ img {
     0;
 
   border-radius:
-    14px;
+    13px;
 
   color:
     #ffffff;
@@ -2876,13 +3113,24 @@ img {
   background:
     linear-gradient(
       135deg,
-      var(--wp-cyan-strong) 0%,
-      var(--wp-blue) 54%,
-      var(--wp-violet-strong) 100%
+      var(--wp-cyan-strong)
+        0%,
+      var(--wp-blue)
+        53%,
+      var(--wp-violet-strong)
+        100%
     );
 
   box-shadow:
-    0 14px 36px rgba(65, 103, 255, 0.18);
+    0
+      13px
+      32px
+      rgba(
+        47,
+        95,
+        255,
+        0.18
+      );
 
   cursor:
     pointer;
@@ -2891,35 +3139,56 @@ img {
     900;
 
   transition:
-    transform var(--wp-fast) var(--wp-ease),
-    box-shadow var(--wp-fast) ease;
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    box-shadow
+      var(--wp-fast)
+      ease;
 }
+
 
 .workout-primary-button:hover,
 .workout-primary-action:hover {
   box-shadow:
-    0 18px 42px rgba(65, 103, 255, 0.22);
+    0
+      16px
+      38px
+      rgba(
+        47,
+        95,
+        255,
+        0.22
+      );
 }
+
 
 .workout-primary-button:active,
 .workout-primary-action:active {
   transform:
-    scale(0.98);
+    scale(
+      0.98
+    );
 }
+
 
 .workout-primary-button--full {
   width:
     100%;
 
   min-height:
-    52px;
+    49px;
 
   margin-top:
-    18px;
+    17px;
+
+  font-size:
+    0.68rem;
 }
 
+
 /* =====================================================
-   COLLAPSIBLE EXERCISE ROW
+   EXERCISE COLLAPSIBLE ROWS
 ===================================================== */
 
 .workout-day-exercises {
@@ -2927,8 +3196,9 @@ img {
     grid;
 
   gap:
-    11px;
+    10px;
 }
+
 
 .workout-exercise-row {
   position:
@@ -2938,23 +3208,40 @@ img {
     hidden;
 
   border:
-    1px solid rgba(67, 98, 134, 0.13);
+    1px solid
+    rgba(
+      51,
+      94,
+      137,
+      0.13
+    );
 
   border-radius:
-    20px;
+    var(--wp-radius-md);
 
   background:
-    rgba(255, 255, 255, 0.97);
+    rgba(
+      255,
+      255,
+      255,
+      0.97
+    );
 
   box-shadow:
     var(--wp-shadow-xs);
 
   transition:
-    border-color var(--wp-normal) ease,
-    box-shadow var(--wp-normal) ease,
-    transform var(--wp-normal) var(--wp-ease),
-    background var(--wp-normal) ease;
+    border-color
+      var(--wp-normal)
+      ease,
+    box-shadow
+      var(--wp-normal)
+      ease,
+    background
+      var(--wp-normal)
+      ease;
 }
+
 
 .workout-exercise-row::before {
   content:
@@ -2963,11 +3250,17 @@ img {
   position:
     absolute;
 
-  inset:
-    0 auto 0 0;
+  top:
+    0;
+
+  left:
+    0;
 
   width:
     4px;
+
+  height:
+    100%;
 
   background:
     linear-gradient(
@@ -2977,33 +3270,56 @@ img {
     );
 
   opacity:
-    0.66;
+    0.65;
 }
+
 
 .workout-exercise-row[data-expanded="true"] {
   border-color:
-    var(--wp-border-cyan);
+    rgba(
+      19,
+      173,
+      211,
+      0.29
+    );
 
   background:
     linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.99),
-      rgba(237, 252, 255, 0.98) 54%,
-      rgba(248, 243, 255, 0.97)
+      rgba(
+        255,
+        255,
+        255,
+        0.99
+      ),
+      rgba(
+        239,
+        250,
+        255,
+        0.97
+      )
+        58%,
+      rgba(
+        247,
+        243,
+        255,
+        0.96
+      )
     );
 
   box-shadow:
     var(--wp-glow-cyan),
-    0 18px 44px rgba(32, 77, 126, 0.09);
+    0
+      18px
+      42px
+      rgba(
+        28,
+        76,
+        128,
+        0.08
+      );
 }
 
-.workout-exercise-row[data-expanded="true"]::before {
-  width:
-    5px;
-
-  opacity:
-    1;
-}
 
 .workout-exercise-row__summary {
   position:
@@ -3022,16 +3338,19 @@ img {
     space-between;
 
   gap:
-    12px;
+    11px;
 
   width:
     100%;
 
   min-height:
-    70px;
+    65px;
 
   padding:
-    13px 13px 13px 18px;
+    11px
+    12px
+    11px
+    16px;
 
   border:
     0;
@@ -3049,10 +3368,17 @@ img {
     pointer;
 }
 
-.workout-exercise-row__summary:active {
+
+.workout-exercise-row__summary:hover {
   background:
-    rgba(232, 249, 255, 0.74);
+    rgba(
+      234,
+      249,
+      255,
+      0.48
+    );
 }
+
 
 .workout-exercise-row__summary-copy {
   display:
@@ -3062,8 +3388,9 @@ img {
     0;
 
   gap:
-    5px;
+    4px;
 }
+
 
 .workout-exercise-row__summary-copy strong {
   overflow:
@@ -3073,14 +3400,18 @@ img {
     var(--wp-text-strong);
 
   font-size:
-    0.8rem;
+    0.76rem;
 
   font-weight:
     900;
 
+  line-height:
+    1.25;
+
   text-overflow:
     ellipsis;
 }
+
 
 .workout-exercise-row__summary-copy > span {
   overflow:
@@ -3097,16 +3428,21 @@ img {
     sans-serif;
 
   font-size:
-    0.72rem;
+    0.69rem;
 
   line-height:
-    1.35;
+    1.34;
 
   text-overflow:
     ellipsis;
 }
 
+
 .workout-exercise-row__summary-end {
+  flex:
+    0 0
+    auto;
+
   display:
     inline-flex;
 
@@ -3114,11 +3450,9 @@ img {
     center;
 
   gap:
-    8px;
-
-  flex:
-    0 0 auto;
+    7px;
 }
+
 
 .workout-exercise-row__done-badge {
   display:
@@ -3128,32 +3462,40 @@ img {
     center;
 
   min-height:
-    25px;
+    23px;
 
   padding:
-    4px 8px;
+    4px
+    7px;
 
   border:
-    1px solid rgba(22, 137, 107, 0.16);
+    1px solid
+    rgba(
+      22,
+      138,
+      104,
+      0.15
+    );
 
   border-radius:
-    var(--wp-pill);
+    var(--wp-radius-pill);
 
   color:
     var(--wp-success);
 
   background:
-    var(--wp-success-soft);
+    var(--wp-success-bg);
 
   font-size:
-    0.5rem;
+    0.48rem;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.08em;
+    0.075em;
 }
+
 
 .workout-exercise-row__chevron {
   display:
@@ -3163,31 +3505,38 @@ img {
     center;
 
   width:
-    28px;
+    25px;
 
   height:
-    28px;
+    25px;
 
   border:
-    1px solid rgba(69, 100, 136, 0.10);
+    1px solid
+    rgba(
+      58,
+      103,
+      149,
+      0.10
+    );
 
   border-radius:
-    9px;
+    8px;
 
   color:
     var(--wp-blue);
 
   background:
-    rgba(241, 247, 255, 0.90);
+    rgba(
+      240,
+      247,
+      255,
+      0.88
+    );
 
   font-size:
-    0.56rem;
-
-  transition:
-    transform var(--wp-normal) var(--wp-ease),
-    background var(--wp-normal) ease,
-    color var(--wp-normal) ease;
+    0.52rem;
 }
+
 
 .workout-exercise-row[data-expanded="true"]
 .workout-exercise-row__chevron {
@@ -3195,8 +3544,14 @@ img {
     var(--wp-violet-strong);
 
   background:
-    rgba(247, 241, 255, 0.93);
+    rgba(
+      246,
+      240,
+      255,
+      0.92
+    );
 }
+
 
 .workout-exercise-row__body {
   position:
@@ -3206,13 +3561,17 @@ img {
     1;
 
   padding:
-    0 13px 15px 18px;
+    0
+    12px
+    13px
+    16px;
 
   animation:
     workoutExerciseOpen
-    240ms
+    220ms
     var(--wp-ease);
 }
+
 
 @keyframes workoutExerciseOpen {
   from {
@@ -3220,7 +3579,9 @@ img {
       0;
 
     transform:
-      translateY(-4px);
+      translateY(
+        -3px
+      );
   }
 
   to {
@@ -3228,40 +3589,69 @@ img {
       1;
 
     transform:
-      translateY(0);
+      translateY(
+        0
+      );
   }
 }
+
 
 .workout-exercise-row__prescription {
   display:
     grid;
 
   grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
 
   gap:
-    10px;
+    8px;
 
   margin-bottom:
-    12px;
+    11px;
 }
+
+
+.workout-exercise-metric {
+  min-width:
+    0;
+}
+
 
 .workout-exercise-metric input {
   min-height:
-    48px;
+    45px;
 
   padding:
-    0 11px;
+    0 10px;
 
   border-radius:
-    13px;
+    11px;
 
   font-size:
-    0.77rem;
+    0.75rem;
 
   font-weight:
     800;
 }
+
+
+.workout-exercise-metric input::placeholder {
+  color:
+    var(--wp-faint);
+
+  font-size:
+    0.65rem;
+
+  font-weight:
+    700;
+}
+
 
 /* =====================================================
    EXERCISE DONE BUTTON
@@ -3275,10 +3665,11 @@ img {
     100%;
 
   min-height:
-    48px;
+    45px;
 
   margin:
-    2px 0 10px;
+    2px 0
+    9px;
 
   overflow:
     hidden;
@@ -3287,7 +3678,7 @@ img {
     0;
 
   border-radius:
-    14px;
+    12px;
 
   color:
     #ffffff;
@@ -3295,71 +3686,68 @@ img {
   background:
     linear-gradient(
       135deg,
-      #17c3e3 0%,
-      #4167ff 54%,
-      #835ef1 100%
+      #04b7d9 0%,
+      #2f5fff 54%,
+      #7c53e8 100%
     );
 
   box-shadow:
-    0 11px 30px rgba(65, 103, 255, 0.18);
+    0
+      10px
+      27px
+      rgba(
+        47,
+        95,
+        255,
+        0.18
+      );
 
   cursor:
     pointer;
 
   font-size:
-    0.7rem;
+    0.67rem;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.035em;
-
-  transition:
-    transform var(--wp-fast) var(--wp-ease),
-    box-shadow var(--wp-fast) ease,
-    filter var(--wp-fast) ease;
-}
-
-.workout-exercise-row__done::after {
-  content:
-    "";
-
-  position:
-    absolute;
-
-  inset:
-    0;
-
-  background:
-    linear-gradient(
-      120deg,
-      transparent 22%,
-      rgba(255, 255, 255, 0.28) 47%,
-      transparent 72%
-    );
-
-  transform:
-    translateX(-130%);
+    0.03em;
 
   transition:
     transform
-    520ms
-    var(--wp-ease);
+      var(--wp-fast)
+      var(--wp-ease),
+    box-shadow
+      var(--wp-fast)
+      ease;
 }
 
-.workout-exercise-row__done:hover::after {
-  transform:
-    translateX(130%);
+
+.workout-exercise-row__done:hover {
+  box-shadow:
+    0
+      14px
+      34px
+      rgba(
+        47,
+        95,
+        255,
+        0.23
+      );
 }
+
 
 .workout-exercise-row__done:active {
   transform:
-    scale(0.985);
+    scale(
+      0.985
+    );
 }
 
+
 /* =====================================================
-   EXERCISE ACTIONS
+   EXERCISE SECONDARY ACTIONS
 ===================================================== */
 
 .workout-exercise-row__actions {
@@ -3367,51 +3755,77 @@ img {
     grid;
 
   grid-template-columns:
-    1fr 1fr;
+    1fr
+    1fr;
 
   gap:
     8px;
 }
 
+
 .workout-exercise-row__detail,
 .workout-exercise-row__remove {
   min-height:
-    41px;
+    39px;
 
   border-radius:
-    12px;
+    10px;
 
   cursor:
     pointer;
 
   font-size:
-    0.61rem;
+    0.59rem;
 
   font-weight:
     900;
 }
 
+
 .workout-exercise-row__detail {
   border:
-    1px solid var(--wp-border-blue);
+    1px solid
+    rgba(
+      47,
+      95,
+      255,
+      0.14
+    );
 
   color:
-    var(--wp-blue-deep);
+    var(--wp-blue-dark);
 
   background:
-    rgba(239, 245, 255, 0.91);
+    var(--wp-surface-blue);
 }
+
 
 .workout-exercise-row__remove {
   border:
-    1px solid rgba(207, 64, 93, 0.15);
+    1px solid
+    rgba(
+      217,
+      79,
+      102,
+      0.14
+    );
 
   color:
     var(--wp-danger);
 
   background:
-    var(--wp-danger-soft);
+    var(--wp-danger-bg);
 }
+
+
+.workout-exercise-row__detail:active,
+.workout-exercise-row__remove:active {
+  transform:
+    scale(
+      0.97
+    );
+}
+
 
 /* =====================================================
    EXERCISE DETAIL
@@ -3428,8 +3842,9 @@ img {
     10px;
 
   margin-bottom:
-    16px;
+    15px;
 }
+
 
 .exercise-detail-figure,
 .exercise-visual-placeholder {
@@ -3440,18 +3855,30 @@ img {
     hidden;
 
   border:
-    1px solid var(--wp-border);
+    1px solid
+    var(--wp-border);
 
   border-radius:
-    16px;
+    15px;
 
   background:
     linear-gradient(
       145deg,
-      rgba(237, 252, 255, 0.92),
-      rgba(247, 242, 255, 0.92)
+      rgba(
+        237,
+        250,
+        255,
+        0.9
+      ),
+      rgba(
+        247,
+        243,
+        255,
+        0.9
+      )
     );
 }
+
 
 .exercise-detail-figure img {
   width:
@@ -3464,26 +3891,34 @@ img {
     contain;
 }
 
+
 .exercise-detail-figure figcaption {
   padding:
-    8px 11px;
+    8px
+    10px;
 
   color:
     var(--wp-muted);
 
   background:
-    rgba(255, 255, 255, 0.88);
+    rgba(
+      255,
+      255,
+      255,
+      0.86
+    );
 
   font-size:
-    0.57rem;
+    0.55rem;
 
   font-weight:
     800;
 }
 
+
 .exercise-visual-placeholder {
   min-height:
-    150px;
+    145px;
 
   display:
     grid;
@@ -3492,7 +3927,7 @@ img {
     center;
 
   padding:
-    20px;
+    18px;
 
   color:
     var(--wp-muted);
@@ -3508,30 +3943,38 @@ img {
     sans-serif;
 
   font-size:
-    0.8rem;
+    0.76rem;
 
   line-height:
-    1.5;
+    1.48;
 }
+
 
 .exercise-detail-section {
   padding:
-    14px 0;
+    13px 0;
 
   border-top:
-    1px solid var(--wp-border-soft);
+    1px solid
+    var(--wp-border-soft);
 }
+
 
 .exercise-detail-section h3 {
   margin:
-    0 0 9px;
+    0 0
+    8px;
 
   color:
     var(--wp-text-strong);
 
   font-size:
-    0.81rem;
+    0.78rem;
+
+  font-weight:
+    900;
 }
+
 
 .exercise-detail-section p,
 .exercise-detail-section li,
@@ -3548,11 +3991,12 @@ img {
     sans-serif;
 
   font-size:
-    0.81rem;
+    0.78rem;
 
   line-height:
-    1.58;
+    1.55;
 }
+
 
 .exercise-detail-section ol,
 .exercise-detail-section ul {
@@ -3560,18 +4004,23 @@ img {
     0;
 
   padding-left:
-    20px;
+    19px;
 }
 
-.exercise-detail-section li + li {
+
+.exercise-detail-section li
++
+li {
   margin-top:
     5px;
 }
+
 
 .exercise-muscle-list p {
   margin:
     4px 0;
 }
+
 
 .exercise-detail-dialog
 .workout-primary-action {
@@ -3579,11 +4028,12 @@ img {
     100%;
 
   min-height:
-    49px;
+    47px;
 
   margin-top:
     8px;
 }
+
 
 /* =====================================================
    TOAST
@@ -3598,27 +4048,47 @@ img {
 
   bottom:
     max(
-      18px,
-      calc(env(safe-area-inset-bottom) + 14px)
+      17px,
+      calc(
+        env(
+          safe-area-inset-bottom
+        ) +
+        13px
+      )
     );
 
   z-index:
     1000;
 
   width:
-    min(calc(100% - 32px), 440px);
+    min(
+      calc(
+        100% -
+        30px
+      ),
+      420px
+    );
 
   transform:
-    translateX(-50%);
+    translateX(
+      -50%
+    );
 
   padding:
-    13px 16px;
+    12px
+    15px;
 
   border:
-    1px solid rgba(255, 255, 255, 0.18);
+    1px solid
+    rgba(
+      19,
+      173,
+      211,
+      0.22
+    );
 
   border-radius:
-    var(--wp-pill);
+    var(--wp-radius-pill);
 
   color:
     #ffffff;
@@ -3626,36 +4096,54 @@ img {
   background:
     linear-gradient(
       135deg,
-      #10afce,
-      #4167ff
+      #0a98b8,
+      #2f5fff
     );
 
   box-shadow:
-    0 20px 46px rgba(28, 69, 126, 0.24);
+    0
+      18px
+      44px
+      rgba(
+        20,
+        70,
+        130,
+        0.23
+      );
 
   text-align:
     center;
 
   font-size:
-    0.72rem;
+    0.71rem;
 
   font-weight:
-    800;
+    900;
 
   animation:
     workoutToastIn
-    260ms
+    250ms
     var(--wp-ease);
 }
+
 
 .workout-plans-toast[data-state="error"] {
   background:
     linear-gradient(
       135deg,
-      #bc3753,
-      #d94e67
+      #bf344e,
+      #d94f66
+    );
+
+  border-color:
+    rgba(
+      217,
+      79,
+      102,
+      0.30
     );
 }
+
 
 @keyframes workoutToastIn {
   from {
@@ -3663,9 +4151,15 @@ img {
       0;
 
     transform:
-      translateX(-50%)
-      translateY(10px)
-      scale(0.97);
+      translateX(
+        -50%
+      )
+      translateY(
+        9px
+      )
+      scale(
+        0.97
+      );
   }
 
   to {
@@ -3673,17 +4167,27 @@ img {
       1;
 
     transform:
-      translateX(-50%)
-      translateY(0)
-      scale(1);
+      translateX(
+        -50%
+      )
+      translateY(
+        0
+      )
+      scale(
+        1
+      );
   }
 }
+
 
 /* =====================================================
    TABLET
 ===================================================== */
 
-@media (min-width: 540px) {
+@media (
+  min-width:
+  540px
+) {
   .workout-plans-shell {
     padding-left:
       22px;
@@ -3692,47 +4196,76 @@ img {
       22px;
   }
 
+
   .workout-week-grid {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .workout-filter-row {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .exercise-library-filters {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .exercise-library-grid {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .exercise-detail-visuals {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  .workout-custom-day {
-    grid-template-columns:
-      minmax(140px, 1fr)
-      minmax(180px, 1.25fr)
-      auto;
-
-    align-items:
-      center;
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
 }
+
 
 /* =====================================================
    DESKTOP
 ===================================================== */
 
-@media (min-width: 760px) {
+@media (
+  min-width:
+  760px
+) {
   .workout-plans-shell {
     padding-left:
       28px;
@@ -3741,17 +4274,22 @@ img {
       28px;
   }
 
+
   .workout-plans-header {
     margin-top:
-      8px;
+      7px;
 
     margin-bottom:
-      18px;
+      17px;
   }
+
 
   .workout-plans-tabs {
     width:
-      min(100%, 760px);
+      min(
+        100%,
+        650px
+      );
 
     margin-left:
       auto;
@@ -3760,98 +4298,120 @@ img {
       auto;
   }
 
-  .workout-week-toolbar {
-    grid-template-columns:
-      minmax(0, 1fr)
+
+  .workout-week-toolbar,
+  .workout-week-actions {
+    width:
+      min(
+        100%,
+        760px
+      );
+
+    margin-left:
       auto;
 
-    align-items:
-      center;
+    margin-right:
+      auto;
   }
 
-  .workout-week-toolbar__actions {
-    min-width:
-      280px;
-  }
 
   .workout-template-grid {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .exercise-library-filters {
     grid-template-columns:
-      repeat(4, minmax(0, 1fr));
+      repeat(
+        4,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .workout-exercise-row__prescription {
     grid-template-columns:
-      repeat(4, minmax(0, 1fr));
+      repeat(
+        4,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
 
   .workout-dialog__panel {
     padding:
-      24px
-      22px
-      calc(24px + env(safe-area-inset-bottom));
+      23px
+      21px
+      calc(
+        23px +
+        env(
+          safe-area-inset-bottom
+        )
+      );
   }
 }
 
-@media (min-width: 980px) {
+
+/* =====================================================
+   LARGE DESKTOP
+===================================================== */
+
+@media (
+  min-width:
+  980px
+) {
   .workout-week-grid {
     grid-template-columns:
-      repeat(3, minmax(0, 1fr));
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
+
+  .workout-day-card:last-child:nth-child(7) {
+    grid-column:
+      2 / 3;
+  }
+
 
   .exercise-library-grid {
     grid-template-columns:
-      repeat(3, minmax(0, 1fr));
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
 }
 
-/* =====================================================
-   MOBILE
-===================================================== */
-
-@media (max-width: 540px) {
-  .workout-plans-tabs {
-    grid-template-columns:
-      repeat(4, minmax(0, 1fr));
-
-    padding:
-      5px;
-  }
-
-  .workout-plans-tab {
-    min-height:
-      48px;
-
-    padding-left:
-      4px;
-
-    padding-right:
-      4px;
-
-    font-size:
-      0.56rem;
-  }
-
-  .workout-week-toolbar__range strong {
-    font-size:
-      0.82rem;
-  }
-
-  .workout-plan-overview {
-    padding:
-      14px;
-  }
-}
 
 /* =====================================================
    SMALL MOBILE
 ===================================================== */
 
-@media (max-width: 390px) {
+@media (
+  max-width:
+  390px
+) {
   .workout-plans-shell {
     padding-left:
       12px;
@@ -3860,40 +4420,44 @@ img {
       12px;
   }
 
+
   .workout-plans-header {
     grid-template-columns:
-      44px minmax(0, 1fr) auto;
+      42px
+      minmax(
+        0,
+        1fr
+      )
+      auto;
 
     gap:
-      8px;
+      9px;
   }
+
 
   .workout-plans-header__back {
     width:
-      44px;
+      42px;
 
-    min-height:
-      44px;
+    height:
+      42px;
   }
+
 
   .workout-plans-header__save {
     min-width:
-      64px;
+      52px;
 
     min-height:
-      44px;
+      40px;
 
     padding:
-      0 12px;
+      0 10px;
 
     font-size:
-      0.66rem;
+      0.58rem;
   }
 
-  .workout-plans-header__brand h1 {
-    font-size:
-      1.22rem;
-  }
 
   .workout-plans-tabs {
     gap:
@@ -3903,97 +4467,123 @@ img {
       4px;
   }
 
+
   .workout-plans-tab {
     min-height:
-      46px;
+      41px;
 
-    font-size:
-      0.51rem;
+    padding-left:
+      3px;
+
+    padding-right:
+      3px;
 
     letter-spacing:
       0;
   }
 
-  .workout-week-toolbar {
-    padding:
-      12px;
-  }
 
   .workout-week-toolbar__navigation {
     grid-template-columns:
-      44px minmax(0, 1fr) 44px;
+      42px
+      minmax(
+        0,
+        1fr
+      )
+      42px;
+
+    gap:
+      7px;
+
+    padding:
+      7px;
   }
+
 
   .workout-week-nav-button {
     width:
-      44px;
+      42px;
 
     height:
-      44px;
+      42px;
   }
 
-  .workout-week-toolbar__actions,
+
   .workout-week-actions {
-    grid-template-columns:
-      1fr;
-  }
-
-  .workout-plan-stats {
     gap:
       6px;
   }
 
-  .workout-plan-stat {
+
+  .workout-secondary-button,
+  .workout-danger-button {
     min-height:
-      86px;
+      40px;
 
     padding:
-      11px 5px;
-  }
+      0 7px;
 
-  .workout-plan-stat span {
     font-size:
-      0.45rem;
+      0.56rem;
   }
 
-  .workout-plan-stat strong {
-    font-size:
-      1.24rem;
-  }
-
-  .workout-choice-grid {
-    grid-template-columns:
-      1fr;
-  }
 
   .workout-builder-card__header {
     align-items:
       flex-start;
   }
 
+
   #workoutAddExerciseButton {
     flex:
-      0 0 auto;
+      0 0
+      auto;
   }
+
 
   .workout-exercise-row__prescription {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
   }
+
+
+  .workout-exercise-row__done-badge {
+    padding-left:
+      6px;
+
+    padding-right:
+      6px;
+
+    font-size:
+      0.44rem;
+  }
+
 
   .exercise-library-card__open {
     grid-template-columns:
-      58px minmax(0, 1fr);
+      57px
+      minmax(
+        0,
+        1fr
+      );
   }
+
 
   .exercise-library-card__visual {
     width:
-      58px;
+      57px;
 
     height:
-      58px;
+      57px;
   }
 }
+
 
 /* =====================================================
    REDUCED MOTION
