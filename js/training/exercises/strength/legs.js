@@ -1,46 +1,36 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/exercises/strength/legs.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
 //   Lower-body strength and hypertrophy exercise data
 //   for the ARI Training Exercise Registry.
 //
-// V1.1.0:
-//   - Preserves all existing V1.0.0 exercise IDs.
+// V1.2.0:
+//   - Preserves all existing V1.0.0 and V1.1.0 exercise IDs.
+//   - Preserves legacy equipment compatibility for generic
+//     lunge, split-squat, step-up, and RDL records.
+//   - Keeps explicit dumbbell/barbell variants for better
+//     search, logging, and recommendation accuracy.
 //   - Adds dedicated hip-abductor and hip-adductor exercises.
 //   - Adds seated hip abduction / adduction machines.
-//   - Adds cable hip abduction / adduction.
+//   - Adds cable and band hip abduction / adduction.
 //   - Adds explicit weighted lunge variants.
 //   - Adds dumbbell and barbell walking/reverse lunges.
+//   - Adds weighted forward lunges.
+//   - Adds dumbbell lateral lunges.
 //   - Adds weighted step-ups.
 //   - Adds belt squat.
 //   - Adds Smith-machine split squat.
+//   - Adds Smith-machine Bulgarian split squat.
 //   - Adds stiff-leg deadlift.
 //   - Adds barbell good morning.
-//   - Fixes invalid muscle references that previously used
-//     body-part IDs such as "hamstrings" and "quadriceps".
-//
-// Architecture:
-//   anatomy/body-parts.js
-//   anatomy/muscles.js
-//   movements/movement-patterns.js
-//            ↓
-//   legs.js
-//            ↓
-//   exercise-registry.js
-//
-// Design:
-//   - Stable exercise IDs.
-//   - Search-friendly aliases.
-//   - Explicit equipment variants where users commonly
-//     think of them as separate gym exercises.
-//   - Glute-isolation movements such as hip thrusts and
-//     kickbacks remain appropriate for glutes.js.
-//   - Calf-isolation remains appropriate for calves.js.
+//   - Adds clamshell hip external-rotation work.
+//   - Adds Copenhagen plank adductor work.
+//   - Uses registered anatomy and movement-pattern IDs.
 // =====================================================
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const SOURCE = "js/training/exercises/strength/legs";
 
 const LEG_EXERCISES = Object.freeze([
@@ -819,7 +809,7 @@ const LEG_EXERCISES = Object.freeze([
 
 
   // ===================================================
-  // SPLIT SQUAT
+  // SPLIT SQUATS
   // ===================================================
 
   {
@@ -880,7 +870,8 @@ const LEG_EXERCISES = Object.freeze([
       "dumbbell_walking_lunge",
       "split_squat",
       "single_leg_press",
-      "smith_machine_split_squat"
+      "smith_machine_split_squat",
+      "smith_machine_bulgarian_split_squat"
     ],
     laterality: "unilateral",
     setup: "rear_foot_elevated",
@@ -926,7 +917,8 @@ const LEG_EXERCISES = Object.freeze([
       "stationary lunge",
       "static lunge",
       "split stance squat",
-      "bodyweight split squat"
+      "bodyweight split squat",
+      "weighted split squat"
     ],
     category: "strength",
     exerciseTypes: [
@@ -1093,6 +1085,94 @@ const LEG_EXERCISES = Object.freeze([
     }
   },
 
+  {
+    id: "smith_machine_bulgarian_split_squat",
+    name: "Smith Machine Bulgarian Split Squat",
+    aliases: [
+      "smith bulgarian split squat",
+      "smith machine bulgarian squat",
+      "smith bulgarian",
+      "smith rfess"
+    ],
+    category: "strength",
+    exerciseTypes: [
+      "strength",
+      "hypertrophy",
+      "machine_strength"
+    ],
+    bodyParts: [
+      "lower_body",
+      "quadriceps",
+      "glutes",
+      "hamstrings"
+    ],
+    primaryMuscles: [
+      "rectus_femoris",
+      "vastus_lateralis",
+      "vastus_medialis",
+      "gluteus_maximus"
+    ],
+    secondaryMuscles: [
+      "biceps_femoris",
+      "gluteus_medius",
+      "adductor_magnus"
+    ],
+    movementPatterns: [
+      "lunge"
+    ],
+    equipment: [
+      "smith_machine",
+      "bench"
+    ],
+    difficulty: "intermediate",
+    targetEmphasis: {
+      muscle: "gluteus_maximus",
+      region: "rear_foot_elevated_unilateral",
+      label: "Glutes + Quads"
+    },
+    substitutionGroup: "split_squat_lunge",
+    substitutions: [
+      "bulgarian_split_squat",
+      "smith_machine_split_squat",
+      "single_leg_press",
+      "dumbbell_reverse_lunge"
+    ],
+    laterality: "unilateral",
+    setup: "smith_machine_rear_foot_elevated",
+    goals: {
+      muscle_building: 10,
+      strength: 9,
+      lower_body_strength: 10
+    },
+    summary:
+      "Perform a rear-foot-elevated split squat beneath a Smith-machine bar for stable unilateral loading.",
+    instructions: [
+      "Position the rear foot on a stable bench.",
+      "Set the Smith bar securely across the upper back.",
+      "Lower through the front hip and knee.",
+      "Drive through the front foot to stand."
+    ],
+    cues: [
+      "Keep most of the load on the front leg.",
+      "Keep the pelvis controlled.",
+      "Position the front foot to match the machine path."
+    ],
+    logging: {
+      type: "sets_reps_weight",
+      fields: [
+        "sets",
+        "reps",
+        "weight",
+        "side",
+        "rest_seconds"
+      ]
+    },
+    illustration: {
+      anatomy: null,
+      movement: null
+    }
+  },
+
 
   // ===================================================
   // LUNGES
@@ -1104,7 +1184,10 @@ const LEG_EXERCISES = Object.freeze([
     aliases: [
       "walking lunges",
       "bodyweight walking lunge",
-      "walking bodyweight lunge"
+      "walking bodyweight lunge",
+      "weighted walking lunge",
+      "weighted walking lunges",
+      "walking lunge with weights"
     ],
     category: "strength",
     exerciseTypes: [
@@ -1133,7 +1216,8 @@ const LEG_EXERCISES = Object.freeze([
       "lunge"
     ],
     equipment: [
-      "bodyweight"
+      "bodyweight",
+      "dumbbells"
     ],
     difficulty: "beginner",
     targetEmphasis: {
@@ -1174,6 +1258,7 @@ const LEG_EXERCISES = Object.freeze([
       fields: [
         "sets",
         "reps",
+        "weight",
         "distance",
         "rest_seconds"
       ]
@@ -1188,13 +1273,12 @@ const LEG_EXERCISES = Object.freeze([
     id: "dumbbell_walking_lunge",
     name: "Dumbbell Walking Lunge",
     aliases: [
-      "weighted walking lunge",
-      "weighted walking lunges",
+      "dumbbell walking lunge",
       "dumbbell walking lunges",
       "walking dumbbell lunge",
       "walking lunges with dumbbells",
-      "weighted lunges",
-      "dumbbell lunges"
+      "db walking lunge",
+      "db walking lunges"
     ],
     category: "strength",
     exerciseTypes: [
@@ -1373,7 +1457,9 @@ const LEG_EXERCISES = Object.freeze([
     aliases: [
       "backward lunge",
       "rear lunge",
-      "bodyweight reverse lunge"
+      "bodyweight reverse lunge",
+      "reverse dumbbell lunge",
+      "weighted reverse lunge"
     ],
     category: "strength",
     exerciseTypes: [
@@ -1402,7 +1488,9 @@ const LEG_EXERCISES = Object.freeze([
       "lunge"
     ],
     equipment: [
-      "bodyweight"
+      "bodyweight",
+      "dumbbells",
+      "barbell"
     ],
     difficulty: "beginner",
     targetEmphasis: {
@@ -1443,6 +1531,7 @@ const LEG_EXERCISES = Object.freeze([
       fields: [
         "sets",
         "reps",
+        "weight",
         "side",
         "rest_seconds"
       ]
@@ -1638,7 +1727,9 @@ const LEG_EXERCISES = Object.freeze([
     name: "Forward Lunge",
     aliases: [
       "front lunge",
-      "bodyweight forward lunge"
+      "bodyweight forward lunge",
+      "forward dumbbell lunge",
+      "weighted forward lunge"
     ],
     category: "strength",
     exerciseTypes: [
@@ -1666,7 +1757,8 @@ const LEG_EXERCISES = Object.freeze([
       "lunge"
     ],
     equipment: [
-      "bodyweight"
+      "bodyweight",
+      "dumbbells"
     ],
     difficulty: "beginner",
     targetEmphasis: {
@@ -1706,6 +1798,7 @@ const LEG_EXERCISES = Object.freeze([
       fields: [
         "sets",
         "reps",
+        "weight",
         "side",
         "rest_seconds"
       ]
@@ -1851,6 +1944,7 @@ const LEG_EXERCISES = Object.freeze([
     },
     substitutionGroup: "lateral_lower_body",
     substitutions: [
+      "dumbbell_lateral_lunge",
       "cossack_squat",
       "split_squat",
       "seated_hip_adduction"
@@ -1875,6 +1969,95 @@ const LEG_EXERCISES = Object.freeze([
     cues: [
       "Keep the working foot planted.",
       "Keep the knee tracking with the toes."
+    ],
+    logging: {
+      type: "sets_reps_weight",
+      fields: [
+        "sets",
+        "reps",
+        "weight",
+        "side",
+        "rest_seconds"
+      ]
+    },
+    illustration: {
+      anatomy: null,
+      movement: null
+    }
+  },
+
+  {
+    id: "dumbbell_lateral_lunge",
+    name: "Dumbbell Lateral Lunge",
+    aliases: [
+      "weighted lateral lunge",
+      "weighted side lunge",
+      "dumbbell side lunge",
+      "db lateral lunge",
+      "dumbbell lateral lunges"
+    ],
+    category: "strength",
+    exerciseTypes: [
+      "strength",
+      "hypertrophy",
+      "functional",
+      "free_weight"
+    ],
+    bodyParts: [
+      "lower_body",
+      "quadriceps",
+      "glutes",
+      "adductors",
+      "hips"
+    ],
+    primaryMuscles: [
+      "adductor_magnus",
+      "gluteus_maximus",
+      "rectus_femoris"
+    ],
+    secondaryMuscles: [
+      "gluteus_medius",
+      "vastus_lateralis",
+      "vastus_medialis"
+    ],
+    movementPatterns: [
+      "lunge"
+    ],
+    equipment: [
+      "dumbbells"
+    ],
+    difficulty: "intermediate",
+    targetEmphasis: {
+      muscle: "adductor_magnus",
+      region: "loaded_frontal_plane",
+      label: "Adductors + Glutes"
+    },
+    substitutionGroup: "lateral_lower_body",
+    substitutions: [
+      "lateral_lunge",
+      "cossack_squat",
+      "seated_hip_adduction"
+    ],
+    laterality: "unilateral",
+    setup: "standing",
+    goals: {
+      muscle_building: 8,
+      strength: 8,
+      lower_body_strength: 8,
+      athletic_performance: 9
+    },
+    summary:
+      "Step laterally while holding dumbbells and load the working hip, quadriceps, glutes, and adductors.",
+    instructions: [
+      "Hold the dumbbells securely.",
+      "Step laterally with one leg.",
+      "Sit the hips backward over the working leg.",
+      "Drive through the working foot to return."
+    ],
+    cues: [
+      "Keep the working foot planted.",
+      "Keep the knee aligned with the toes.",
+      "Control the dumbbells throughout the movement."
     ],
     logging: {
       type: "sets_reps_weight",
@@ -1940,7 +2123,8 @@ const LEG_EXERCISES = Object.freeze([
     },
     substitutionGroup: "lateral_lower_body",
     substitutions: [
-      "lateral_lunge"
+      "lateral_lunge",
+      "dumbbell_lateral_lunge"
     ],
     laterality: "alternating",
     setup: "wide_stance",
@@ -1990,7 +2174,8 @@ const LEG_EXERCISES = Object.freeze([
       "step up",
       "box step up",
       "bench step up",
-      "bodyweight step up"
+      "bodyweight step up",
+      "weighted step up"
     ],
     category: "strength",
     exerciseTypes: [
@@ -2020,7 +2205,8 @@ const LEG_EXERCISES = Object.freeze([
     equipment: [
       "box",
       "bench",
-      "bodyweight"
+      "bodyweight",
+      "dumbbells"
     ],
     difficulty: "beginner",
     targetEmphasis: {
@@ -2062,6 +2248,7 @@ const LEG_EXERCISES = Object.freeze([
       fields: [
         "sets",
         "reps",
+        "weight",
         "box_height",
         "side",
         "rest_seconds"
@@ -2762,7 +2949,8 @@ const LEG_EXERCISES = Object.freeze([
     },
     substitutionGroup: "hip_abduction",
     substitutions: [
-      "cable_hip_abduction"
+      "cable_hip_abduction",
+      "band_hip_abduction"
     ],
     laterality: "bilateral",
     setup: "seated_machine",
@@ -2845,7 +3033,8 @@ const LEG_EXERCISES = Object.freeze([
     },
     substitutionGroup: "hip_abduction",
     substitutions: [
-      "seated_hip_abduction"
+      "seated_hip_abduction",
+      "band_hip_abduction"
     ],
     laterality: "unilateral",
     setup: "standing_cable",
@@ -2874,6 +3063,172 @@ const LEG_EXERCISES = Object.freeze([
         "sets",
         "reps",
         "weight",
+        "side",
+        "rest_seconds"
+      ]
+    },
+    illustration: {
+      anatomy: null,
+      movement: null
+    }
+  },
+
+  {
+    id: "band_hip_abduction",
+    name: "Band Hip Abduction",
+    aliases: [
+      "banded hip abduction",
+      "standing band hip abduction",
+      "resistance band hip abduction",
+      "band leg abduction",
+      "banded leg abduction"
+    ],
+    category: "strength",
+    exerciseTypes: [
+      "hypertrophy",
+      "resistance_band"
+    ],
+    bodyParts: [
+      "lower_body",
+      "hips",
+      "glutes",
+      "abductors"
+    ],
+    primaryMuscles: [
+      "gluteus_medius",
+      "gluteus_minimus"
+    ],
+    secondaryMuscles: [
+      "tensor_fasciae_latae"
+    ],
+    movementPatterns: [
+      "hip_abduction"
+    ],
+    equipment: [
+      "resistance_band"
+    ],
+    difficulty: "beginner",
+    targetEmphasis: {
+      muscle: "gluteus_medius",
+      region: "lateral_hip",
+      label: "Hip Abductors"
+    },
+    substitutionGroup: "hip_abduction",
+    substitutions: [
+      "seated_hip_abduction",
+      "cable_hip_abduction"
+    ],
+    laterality: "unilateral",
+    setup: "standing_band",
+    goals: {
+      muscle_building: 7,
+      strength: 5,
+      lower_body_strength: 6,
+      athletic_performance: 7,
+      general_fitness: 8
+    },
+    summary:
+      "Move one leg outward against elastic resistance to train the lateral hip musculature.",
+    instructions: [
+      "Secure the resistance band appropriately.",
+      "Stand tall and stabilize the pelvis.",
+      "Move one leg outward against the band.",
+      "Return slowly."
+    ],
+    cues: [
+      "Keep the pelvis level.",
+      "Avoid leaning to create momentum.",
+      "Control the return."
+    ],
+    logging: {
+      type: "sets_reps_weight",
+      fields: [
+        "sets",
+        "reps",
+        "band_resistance",
+        "side",
+        "rest_seconds"
+      ]
+    },
+    illustration: {
+      anatomy: null,
+      movement: null
+    }
+  },
+
+  {
+    id: "clamshell",
+    name: "Clamshell",
+    aliases: [
+      "clam shell",
+      "hip clamshell",
+      "banded clamshell",
+      "resistance band clamshell",
+      "side lying clamshell"
+    ],
+    category: "strength",
+    exerciseTypes: [
+      "resistance_band",
+      "functional"
+    ],
+    bodyParts: [
+      "hips",
+      "glutes",
+      "abductors",
+      "lower_body"
+    ],
+    primaryMuscles: [
+      "gluteus_medius",
+      "gluteus_minimus"
+    ],
+    secondaryMuscles: [
+      "tensor_fasciae_latae"
+    ],
+    movementPatterns: [
+      "hip_external_rotation"
+    ],
+    equipment: [
+      "bodyweight",
+      "resistance_band"
+    ],
+    difficulty: "beginner",
+    targetEmphasis: {
+      muscle: "gluteus_medius",
+      region: "lateral_posterior_hip",
+      label: "Glutes + Hip Rotators"
+    },
+    substitutionGroup: "hip_external_rotation",
+    substitutions: [
+      "seated_hip_abduction",
+      "band_hip_abduction"
+    ],
+    laterality: "unilateral",
+    setup: "side_lying",
+    goals: {
+      strength: 5,
+      lower_body_strength: 5,
+      athletic_performance: 7,
+      general_fitness: 8
+    },
+    summary:
+      "Externally rotate the upper hip from a side-lying bent-knee position while keeping the pelvis controlled.",
+    instructions: [
+      "Lie on one side with the knees bent.",
+      "Keep the feet together.",
+      "Rotate the upper knee away from the lower knee.",
+      "Return slowly."
+    ],
+    cues: [
+      "Do not roll the pelvis backward.",
+      "Move from the hip.",
+      "Use a controlled range."
+    ],
+    logging: {
+      type: "sets_reps_weight",
+      fields: [
+        "sets",
+        "reps",
+        "band_resistance",
         "side",
         "rest_seconds"
       ]
@@ -2934,6 +3289,7 @@ const LEG_EXERCISES = Object.freeze([
     substitutionGroup: "hip_adduction",
     substitutions: [
       "cable_hip_adduction",
+      "band_hip_adduction",
       "lateral_lunge",
       "cossack_squat"
     ],
@@ -3019,6 +3375,7 @@ const LEG_EXERCISES = Object.freeze([
     substitutionGroup: "hip_adduction",
     substitutions: [
       "seated_hip_adduction",
+      "band_hip_adduction",
       "lateral_lunge"
     ],
     laterality: "unilateral",
@@ -3058,6 +3415,177 @@ const LEG_EXERCISES = Object.freeze([
     }
   },
 
+  {
+    id: "band_hip_adduction",
+    name: "Band Hip Adduction",
+    aliases: [
+      "banded hip adduction",
+      "standing band hip adduction",
+      "resistance band hip adduction",
+      "band inner thigh",
+      "banded leg adduction"
+    ],
+    category: "strength",
+    exerciseTypes: [
+      "hypertrophy",
+      "resistance_band"
+    ],
+    bodyParts: [
+      "lower_body",
+      "hips",
+      "adductors"
+    ],
+    primaryMuscles: [
+      "adductor_magnus",
+      "adductor_longus",
+      "adductor_brevis"
+    ],
+    secondaryMuscles: [
+      "gracilis"
+    ],
+    movementPatterns: [
+      "hip_adduction"
+    ],
+    equipment: [
+      "resistance_band"
+    ],
+    difficulty: "beginner",
+    targetEmphasis: {
+      muscle: "adductor_longus",
+      region: "inner_thigh",
+      label: "Hip Adductors"
+    },
+    substitutionGroup: "hip_adduction",
+    substitutions: [
+      "seated_hip_adduction",
+      "cable_hip_adduction"
+    ],
+    laterality: "unilateral",
+    setup: "standing_band",
+    goals: {
+      muscle_building: 7,
+      strength: 5,
+      lower_body_strength: 6,
+      athletic_performance: 7
+    },
+    summary:
+      "Move one leg inward against elastic resistance to train the inner-thigh adductor muscles.",
+    instructions: [
+      "Secure the band to the working leg.",
+      "Stand with the working leg nearest the band anchor.",
+      "Draw the leg inward across the body's midline.",
+      "Return under control."
+    ],
+    cues: [
+      "Keep the pelvis stable.",
+      "Avoid rotating the torso.",
+      "Control both directions."
+    ],
+    logging: {
+      type: "sets_reps_weight",
+      fields: [
+        "sets",
+        "reps",
+        "band_resistance",
+        "side",
+        "rest_seconds"
+      ]
+    },
+    illustration: {
+      anatomy: null,
+      movement: null
+    }
+  },
+
+  {
+    id: "copenhagen_plank",
+    name: "Copenhagen Plank",
+    aliases: [
+      "copenhagen side plank",
+      "copenhagen adductor plank",
+      "adductor plank",
+      "copenhagen hold"
+    ],
+    category: "strength",
+    exerciseTypes: [
+      "strength",
+      "core",
+      "calisthenics"
+    ],
+    bodyParts: [
+      "adductors",
+      "hips",
+      "core",
+      "obliques",
+      "lower_body"
+    ],
+    primaryMuscles: [
+      "adductor_magnus",
+      "adductor_longus",
+      "adductor_brevis",
+      "gracilis"
+    ],
+    secondaryMuscles: [
+      "external_oblique",
+      "internal_oblique",
+      "transversus_abdominis"
+    ],
+    movementPatterns: [
+      "hip_adduction",
+      "anti_lateral_flexion"
+    ],
+    equipment: [
+      "bodyweight",
+      "bench"
+    ],
+    difficulty: "advanced",
+    targetEmphasis: {
+      muscle: "adductor_magnus",
+      region: "adductors_and_lateral_core",
+      label: "Adductors + Core"
+    },
+    substitutionGroup: "hip_adduction",
+    substitutions: [
+      "seated_hip_adduction",
+      "cable_hip_adduction",
+      "band_hip_adduction"
+    ],
+    laterality: "unilateral",
+    setup: "side_plank_elevated_leg",
+    goals: {
+      strength: 8,
+      lower_body_strength: 8,
+      core_strength: 8,
+      athletic_performance: 9
+    },
+    summary:
+      "Support the body in a side-plank position using the upper leg to strongly challenge the adductors and lateral core.",
+    instructions: [
+      "Place the upper leg on a stable bench.",
+      "Set the elbow beneath the shoulder.",
+      "Lift the hips into a side-plank position.",
+      "Hold the body in a controlled straight line."
+    ],
+    cues: [
+      "Keep the hips elevated.",
+      "Do not rotate the torso.",
+      "Progress the lever length gradually."
+    ],
+    logging: {
+      type: "sets_duration",
+      fields: [
+        "sets",
+        "duration",
+        "side",
+        "rest_seconds"
+      ]
+    },
+    illustration: {
+      anatomy: null,
+      movement: null
+    }
+  },
+
 
   // ===================================================
   // HIP HINGE / POSTERIOR CHAIN
@@ -3070,6 +3598,7 @@ const LEG_EXERCISES = Object.freeze([
       "rdl",
       "romanian dl",
       "barbell rdl",
+      "dumbbell rdl",
       "romanian dead lift"
     ],
     category: "strength",
@@ -3099,7 +3628,8 @@ const LEG_EXERCISES = Object.freeze([
       "hip_hinge"
     ],
     equipment: [
-      "barbell"
+      "barbell",
+      "dumbbells"
     ],
     difficulty: "intermediate",
     targetEmphasis: {
@@ -3126,7 +3656,7 @@ const LEG_EXERCISES = Object.freeze([
     summary:
       "Push the hips backward while lowering the weight close to the legs, then extend the hips to return to standing.",
     instructions: [
-      "Stand tall holding the bar.",
+      "Stand tall holding the weight.",
       "Soften the knees and push the hips backward.",
       "Lower until you feel a controlled hamstring stretch.",
       "Drive the hips forward to stand."
