@@ -4537,4 +4537,4 @@ if (
 export {
   VERSION,
   SOURCE
-};.
+};
