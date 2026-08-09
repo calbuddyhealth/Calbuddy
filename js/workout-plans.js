@@ -1,21 +1,24 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.2.0
+// Version: 3.3.0
 // Purpose:
 //   Page controller for workout-plans.html.
 //
-// V3.2.0:
-//   - Preserves the full V3.1.0 Workout Plans feature set.
-//   - Fixes iPhone/mobile dialog stacking for + Add Exercise.
-//   - Uses the active calendar date for V3 controller mutations.
-//   - Keeps weekday compatibility fallbacks where needed.
-//   - Reopens the Training Day editor after the picker closes.
-//   - Prevents nested modal showModal() conflicts.
+// V3.3.0:
+//   - Preserves the full V3.2.0 Workout Plans feature set.
+//   - Manual Add Exercise picker now uses the COMPLETE
+//     ExerciseRegistry catalog for the selected Training Focus.
+//   - Removes recommender-result limits from the manual picker.
+//   - Chest Day now shows every registry exercise mapped to chest.
+//   - Custom focus still shows the entire exercise catalog.
+//   - Search filters the full focus-matched catalog.
+//   - Keeps iPhone/mobile dialog stacking fixes.
+//   - Keeps active calendar-date mutations.
 //   - Keeps Sunday-Saturday calendar weeks.
-//   - Keeps Templates, Exercise Library, focus filtering,
-//     exercise details, autosave, Repeat Last Week, Clear Week,
-//     optional weight, 120-second set rest, and Done collapse.
+//   - Keeps Templates, Exercise Library, exercise details,
+//     autosave, Repeat Last Week, Clear Week, optional weight,
+//     120-second set rest, and Done collapse.
 // =====================================================
 
 import WorkoutPlanController
@@ -44,7 +47,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.2.0";
+  "3.3.0";
 
 const SOURCE =
   "js/workout-plans";
@@ -2122,7 +2125,8 @@ function getDaySummary(
     0;
 
   if (
-    count === 0
+    count ===
+    0
   ) {
     return "";
   }
@@ -3482,6 +3486,24 @@ function exerciseMatchesFocus(
 }
 
 
+/*
+ * V3.3.0 IMPORTANT:
+ *
+ * Manual exercise selection must browse the COMPLETE catalog
+ * for the selected Training Focus.
+ *
+ * The recommender is intentionally NOT used here because a
+ * recommendation engine is supposed to rank/limit choices.
+ * That behavior is useful for auto-built workouts, but not for
+ * a user manually browsing the full Chest Day, Back Day, etc.
+ * catalog.
+ *
+ * Flow:
+ *   Complete ExerciseRegistry
+ *       -> filter by selected focus
+ *       -> search within that full focus pool
+ *       -> render every match
+ */
 function getFocusedExercisePool(
   dayState
 ) {
@@ -3509,87 +3531,35 @@ function getFocusedExercisePool(
     return [];
   }
 
+  const allExercises =
+    getAllRegistryExercises();
+
   if (
     focus.id ===
     "custom"
   ) {
-    return getAllRegistryExercises();
+    return allExercises;
   }
 
-  let recommended =
-    [];
-
-  try {
-    const date =
-      getActiveDateKey();
-
-    if (
-      date &&
-      typeof WorkoutPlanController
-        .getRecommendedExercisesForDate ===
-      "function"
-    ) {
-      recommended =
-        extractExerciseResults(
-          WorkoutPlanController
-            .getRecommendedExercisesForDate(
-              date,
-              {
-                limit:
-                  Math.max(
-                    1000,
-                    getAllRegistryExercises()
-                      .length +
-                      50
-                  )
-              }
-            )
-        );
-    } else {
-      recommended =
-        extractExerciseResults(
-          WorkoutPlanController
-            .getRecommendedExercisesForDay(
-              state.activeDay,
-              {
-                limit:
-                  Math.max(
-                    1000,
-                    getAllRegistryExercises()
-                      .length +
-                      50
-                  )
-              }
-            )
-        );
-    }
-  } catch {
-    recommended =
-      [];
-  }
-
-  const focusedRecommendations =
-    recommended.filter(
-      exercise =>
-        exerciseMatchesFocus(
-          exercise,
-          focus
-        )
-    );
-
-  if (
-    focusedRecommendations
-      .length
-  ) {
-    return focusedRecommendations;
-  }
-
-  return getAllRegistryExercises()
+  return allExercises
     .filter(
       exercise =>
         exerciseMatchesFocus(
           exercise,
           focus
+        )
+    )
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        normalizeText(
+          a?.name
+        ).localeCompare(
+          normalizeText(
+            b?.name
+          )
         )
     );
 }
@@ -3610,58 +3580,11 @@ function filterFocusedPoolBySearch(
     return exercises;
   }
 
-  let searchResults =
-    [];
-
-  try {
-    searchResults =
-      extractExerciseResults(
-        WorkoutPlanController
-          .searchExercises(
-            normalizedQuery,
-            {
-              limit:
-                Math.max(
-                  1000,
-                  getAllRegistryExercises()
-                    .length +
-                    50
-                )
-            }
-          )
-      );
-  } catch (
-    error
-  ) {
-    console.warn(
-      "ARI Workout Plans picker search failed. Using local search fallback.",
-      error
-    );
-
-    searchResults =
-      [];
-  }
-
-  if (
-    searchResults.length >
-    0
-  ) {
-    const ids =
-      new Set(
-        searchResults.map(
-          exercise =>
-            exercise.id
-        )
-      );
-
-    return exercises.filter(
-      exercise =>
-        ids.has(
-          exercise.id
-        )
-    );
-  }
-
+  /*
+   * Search locally inside the already-complete focus pool.
+   * This prevents ExerciseSearch result limits from trimming
+   * the manual Add Exercise catalog.
+   */
   return locallySearchExercises(
     exercises,
     normalizedQuery
@@ -4678,12 +4601,6 @@ function openExercisePicker() {
 
   renderExercisePicker();
 
-  /*
-   * IMPORTANT:
-   * iOS/Safari can fail when showModal() is called while another
-   * modal dialog is already open. Close the day editor first,
-   * open the picker, then restore the day editor when picker closes.
-   */
   state.reopenDayEditorAfterPicker =
     isDialogOpen(
       dom.workoutDayEditor
@@ -4757,8 +4674,8 @@ function renderExercisePicker() {
       .textContent =
         focus?.id ===
           "custom"
-          ? "Browse all exercises."
-          : `Exercises for ${focusLabel}.`;
+          ? `Browse all ${exercises.length} matching exercises.`
+          : `${exercises.length} exercises for ${focusLabel}.`;
   }
 
   dom.workoutExercisePickerList
@@ -6434,6 +6351,13 @@ function getPageDiagnostics() {
     registryExerciseCount:
       getAllRegistryExercises()
         .length,
+
+    activeFocusExerciseCount:
+      getCurrentDayState()
+        ? getFocusedExercisePool(
+            getCurrentDayState()
+          ).length
+        : null,
 
     missingCoreDom,
 
