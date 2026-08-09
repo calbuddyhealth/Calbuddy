@@ -1,47 +1,61 @@
 // =====================================================
 // ARI REBIRTH
-// File: js/training/workout-progress-store.js
+// File: js/training/workout-plan-store.js
 // Version: 3.0.0
 // Purpose:
-//   Persistent date-specific workout execution/session state
-//   for ARI Training.
+//   Persistent, date-specific ARI Training workout-plan store.
 //
 // V3.0.0:
-//   - Replaces repeating weekday-only progress with real dates.
-//   - Sessions are stored by YYYY-MM-DD.
-//   - Keeps compatibility with older weekday calls such as
-//     getDay("monday") by resolving them inside activeWeekKey.
-//   - Supports Sunday-Saturday planning weeks.
-//   - Prevents an Off Day / Recovery Day from becoming a formal
-//     workout session when the controller blocks it.
-//   - Adds cancelDay() so accidental "Start Workout" taps can be
-//     completely undone without modifying the workout plan.
-//   - Cancel restores the original planned exercise list,
-//     order, prescriptions, completion state, HR, timer, and notes.
-//   - Adds completed-session history snapshots.
-//   - Adds deleteSessionRecord() for accidentally recorded history.
-//   - Adds clearSessionHistory() with optional month/date filters.
-//   - Adds monthly-history helpers.
-//   - Keeps live session edits separate from permanent plan edits.
-//   - Supports duplicate exercises through stable entryId values.
-//   - Supports live reordering, substitutions, added exercises,
-//     skipping, set completion, calories, actual reps/weight/time.
-//   - Migrates V2 and V1 local progress forward when possible.
+//   - Replaces one permanently repeating Monday-Sunday plan
+//     with date-bound Sunday-Saturday calendar weeks.
+//   - Each week is stored under a stable Sunday date key.
+//   - Every plan day stores its real YYYY-MM-DD calendar date.
+//   - Empty / unplanned future weeks resolve to Off Days.
+//   - Supports previous / next / current week navigation.
+//   - Supports Repeat Last Week.
+//   - Supports copying one week into another.
+//   - Supports clearing a selected week.
+//   - Templates apply only to the selected calendar week.
+//   - Keeps live workout execution completely separate.
+//   - Migrates V2 repeating-plan data into the current week.
+//   - Preserves localStorage as immediate/offline fallback.
 //
 // Important separation:
 //
 //   workout-plan-store.js
-//     = what the user PLANS on a specific date.
+//     = what the user PLANS to do on specific dates.
 //
 //   workout-progress-store.js
-//     = what the user is CURRENTLY doing.
+//     = what the user is ACTUALLY doing / completed.
 //
-//   history records in this file
-//     = completed execution snapshots only.
+//   workout-history-store.js
+//     = archived completed/cancelled historical sessions.
 //
-// Future:
-//   History can later be moved into workout-history-store.js
-//   without changing the public controller contract.
+// Calendar model:
+//
+//   weeks: {
+//     "2026-08-09": {
+//       weekKey: "2026-08-09",
+//       startDate: "2026-08-09",
+//       endDate: "2026-08-15",
+//       days: {
+//         sunday: {
+//           date: "2026-08-09",
+//           ...
+//         },
+//         monday: {
+//           date: "2026-08-10",
+//           ...
+//         }
+//       }
+//     }
+//   }
+//
+// Rules:
+//   - Weeks are Sunday -> Saturday.
+//   - Templates are reusable patterns, not permanent repeating plans.
+//   - No future week automatically inherits another week's workouts.
+//   - An absent week behaves as a clean Off-Day week.
 // =====================================================
 
 const VERSION =
@@ -51,18 +65,18 @@ const SCHEMA_VERSION =
   3;
 
 const SOURCE =
-  "js/training/workout-progress-store";
+  "js/training/workout-plan-store";
 
 const STORAGE_KEY =
-  "ari_training_workout_progress_v3";
+  "ari_training_workout_plan_v3";
 
 const LEGACY_STORAGE_KEYS =
   Object.freeze([
-    "ari_training_workout_progress_v2",
-    "ari_training_workout_progress_v1"
+    "ari_training_weekly_plan_v2",
+    "ari_training_weekly_plan_v1"
   ]);
 
-const DAYS =
+const DAY_IDS =
   Object.freeze([
     "sunday",
     "monday",
@@ -73,44 +87,27 @@ const DAYS =
     "saturday"
   ]);
 
-const DAY_INDEX =
+const DAY_LABELS =
   Object.freeze({
-    sunday: 0,
-    monday: 1,
-    tuesday: 2,
-    wednesday: 3,
-    thursday: 4,
-    friday: 5,
-    saturday: 6
+    sunday: "Sunday",
+    monday: "Monday",
+    tuesday: "Tuesday",
+    wednesday: "Wednesday",
+    thursday: "Thursday",
+    friday: "Friday",
+    saturday: "Saturday"
   });
 
-const VALID_SESSION_STATUSES =
+const VALID_DAY_TYPES =
   Object.freeze([
-    "not_started",
-    "in_progress",
-    "paused",
-    "complete",
-    "rest"
-  ]);
-
-const VALID_ENTRY_STATUSES =
-  Object.freeze([
-    "not_started",
-    "in_progress",
-    "complete",
-    "skipped"
-  ]);
-
-const VALID_SOURCES =
-  Object.freeze([
-    "planned",
-    "added",
-    "substitution"
+    "workout",
+    "recovery",
+    "off"
   ]);
 
 
 // =====================================================
-// BASIC NORMALIZATION
+// BASIC HELPERS
 // =====================================================
 
 function normalizeText(
@@ -148,13 +145,47 @@ function normalizeDay(
   const day =
     normalizeText(
       value
-    )
-      .toLowerCase();
+    ).toLowerCase();
 
-  return DAYS.includes(
+  return DAY_IDS.includes(
     day
   )
     ? day
+    : null;
+}
+
+
+function normalizeDayType(
+  value
+) {
+  const type =
+    normalizeText(
+      value
+    ).toLowerCase();
+
+  return VALID_DAY_TYPES.includes(
+    type
+  )
+    ? type
+    : "off";
+}
+
+
+function normalizePositiveNumber(
+  value
+) {
+  const number =
+    Number(
+      value
+    );
+
+  return (
+    Number.isFinite(
+      number
+    ) &&
+    number > 0
+  )
+    ? number
     : null;
 }
 
@@ -169,44 +200,6 @@ function normalizePositiveInteger(
 
   return (
     Number.isInteger(
-      number
-    ) &&
-    number > 0
-  )
-    ? number
-    : null;
-}
-
-
-function normalizeNonNegativeInteger(
-  value
-) {
-  const number =
-    Number(
-      value
-    );
-
-  return (
-    Number.isInteger(
-      number
-    ) &&
-    number >= 0
-  )
-    ? number
-    : null;
-}
-
-
-function normalizePositiveNumber(
-  value
-) {
-  const number =
-    Number(
-      value
-    );
-
-  return (
-    Number.isFinite(
       number
     ) &&
     number > 0
@@ -232,105 +225,6 @@ function normalizeNonNegativeNumber(
   )
     ? number
     : null;
-}
-
-
-function normalizeCalories(
-  value
-) {
-  const number =
-    normalizeNonNegativeNumber(
-      value
-    );
-
-  return number ===
-    null
-      ? null
-      : Math.round(
-          number * 10
-        ) / 10;
-}
-
-
-function normalizeHeartRate(
-  value
-) {
-  const number =
-    Number(
-      value
-    );
-
-  return (
-    Number.isFinite(
-      number
-    ) &&
-    number >= 30 &&
-    number <= 240
-  )
-    ? Math.round(
-        number
-      )
-    : null;
-}
-
-
-function normalizeSessionStatus(
-  value,
-  fallback =
-    "not_started"
-) {
-  const status =
-    normalizeText(
-      value
-    )
-      .toLowerCase();
-
-  return VALID_SESSION_STATUSES
-    .includes(
-      status
-    )
-      ? status
-      : fallback;
-}
-
-
-function normalizeEntryStatus(
-  value,
-  fallback =
-    "not_started"
-) {
-  const status =
-    normalizeText(
-      value
-    )
-      .toLowerCase();
-
-  return VALID_ENTRY_STATUSES
-    .includes(
-      status
-    )
-      ? status
-      : fallback;
-}
-
-
-function normalizeEntrySource(
-  value,
-  fallback =
-    "planned"
-) {
-  const source =
-    normalizeText(
-      value
-    )
-      .toLowerCase();
-
-  return VALID_SOURCES
-    .includes(
-      source
-    )
-      ? source
-      : fallback;
 }
 
 
@@ -372,7 +266,7 @@ function nowIso() {
 
 function createStableId(
   prefix =
-    "session"
+    "plan"
 ) {
   const random =
     Math.random()
@@ -390,17 +284,60 @@ function createStableId(
 }
 
 
+function uniqueStrings(
+  values
+) {
+  if (
+    !Array.isArray(
+      values
+    )
+  ) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      values
+        .map(
+          normalizeId
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+
+
 // =====================================================
-// DATE / WEEK HELPERS
+// DATE HELPERS
 // =====================================================
 
-function toLocalDate(
+function pad2(
+  value
+) {
+  return String(
+    value
+  ).padStart(
+    2,
+    "0"
+  );
+}
+
+
+function toLocalDateOnly(
   value =
     new Date()
 ) {
   if (
     value instanceof Date
   ) {
+    if (
+      Number.isNaN(
+        value.getTime()
+      )
+    ) {
+      return null;
+    }
+
     return new Date(
       value.getFullYear(),
       value.getMonth(),
@@ -413,38 +350,52 @@ function toLocalDate(
       value
     );
 
+  if (!text) {
+    return null;
+  }
+
+  const dateOnlyMatch =
+    text.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
+
   if (
-    /^\d{4}-\d{2}-\d{2}$/
-      .test(
-        text
-      )
+    dateOnlyMatch
   ) {
-    const [
-      year,
-      month,
-      day
-    ] =
-      text
-        .split("-")
-        .map(Number);
+    const year =
+      Number(
+        dateOnlyMatch[1]
+      );
+
+    const month =
+      Number(
+        dateOnlyMatch[2]
+      ) - 1;
+
+    const day =
+      Number(
+        dateOnlyMatch[3]
+      );
 
     const date =
       new Date(
         year,
-        month - 1,
+        month,
         day
       );
 
     if (
-      date.getFullYear() ===
-        year &&
-      date.getMonth() ===
-        month - 1 &&
-      date.getDate() ===
+      date.getFullYear() !==
+        year ||
+      date.getMonth() !==
+        month ||
+      date.getDate() !==
         day
     ) {
-      return date;
+      return null;
     }
+
+    return date;
   }
 
   const parsed =
@@ -469,11 +420,10 @@ function toLocalDate(
 
 
 function formatDateKey(
-  value =
-    new Date()
+  value
 ) {
   const date =
-    toLocalDate(
+    toLocalDateOnly(
       value
     );
 
@@ -483,19 +433,44 @@ function formatDateKey(
 
   return (
     `${date.getFullYear()}-` +
-    `${String(
+    `${pad2(
       date.getMonth() + 1
-    ).padStart(
-      2,
-      "0"
     )}-` +
-    `${String(
+    `${pad2(
       date.getDate()
-    ).padStart(
-      2,
-      "0"
     )}`
   );
+}
+
+
+function addDays(
+  value,
+  amount
+) {
+  const date =
+    toLocalDateOnly(
+      value
+    );
+
+  if (!date) {
+    return null;
+  }
+
+  const next =
+    new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+
+  next.setDate(
+    next.getDate() +
+    Number(
+      amount || 0
+    )
+  );
+
+  return next;
 }
 
 
@@ -504,7 +479,7 @@ function getWeekStartDate(
     new Date()
 ) {
   const date =
-    toLocalDate(
+    toLocalDateOnly(
       value
     );
 
@@ -512,17 +487,13 @@ function getWeekStartDate(
     return null;
   }
 
-  const sunday =
-    new Date(
-      date
-    );
+  const dayIndex =
+    date.getDay();
 
-  sunday.setDate(
-    sunday.getDate() -
-    sunday.getDay()
+  return addDays(
+    date,
+    -dayIndex
   );
-
-  return sunday;
 }
 
 
@@ -538,41 +509,56 @@ function getWeekKey(
 }
 
 
+function getWeekEndDate(
+  weekKey
+) {
+  const start =
+    toLocalDateOnly(
+      weekKey
+    );
+
+  if (!start) {
+    return null;
+  }
+
+  return addDays(
+    start,
+    6
+  );
+}
+
+
 function getDayDateForWeek(
   weekKey,
-  day
+  dayId
 ) {
   const normalizedDay =
     normalizeDay(
-      day
+      dayId
     );
 
-  const weekStart =
-    toLocalDate(
+  const start =
+    toLocalDateOnly(
       weekKey
     );
 
   if (
     !normalizedDay ||
-    !weekStart
+    !start
   ) {
     return null;
   }
 
-  const date =
-    new Date(
-      weekStart
+  const index =
+    DAY_IDS.indexOf(
+      normalizedDay
     );
 
-  date.setDate(
-    date.getDate() +
-    DAY_INDEX[
-      normalizedDay
-    ]
-  );
-
   return formatDateKey(
-    date
+    addDays(
+      start,
+      index
+    )
   );
 }
 
@@ -581,7 +567,7 @@ function getDayIdFromDate(
   value
 ) {
   const date =
-    toLocalDate(
+    toLocalDateOnly(
       value
     );
 
@@ -589,191 +575,66 @@ function getDayIdFromDate(
     return null;
   }
 
-  return DAYS[
+  return DAY_IDS[
     date.getDay()
-  ];
+  ] || null;
 }
 
 
-function resolveDateKey(
-  dayOrDate,
-  weekKey =
-    state.activeWeekKey
+function normalizeWeekKey(
+  value
 ) {
-  const text =
-    normalizeText(
-      dayOrDate
+  const key =
+    getWeekKey(
+      value
     );
 
-  if (
-    /^\d{4}-\d{2}-\d{2}$/
-      .test(
-        text
+  return key ||
+    null;
+}
+
+
+function getWeekRange(
+  value =
+    new Date()
+) {
+  const weekKey =
+    normalizeWeekKey(
+      value
+    );
+
+  if (!weekKey) {
+    return null;
+  }
+
+  return {
+    weekKey,
+    startDate:
+      weekKey,
+    endDate:
+      formatDateKey(
+        getWeekEndDate(
+          weekKey
+        )
       )
-  ) {
-    return formatDateKey(
-      text
-    );
-  }
-
-  const day =
-    normalizeDay(
-      dayOrDate
-    );
-
-  if (
-    day
-  ) {
-    const resolvedWeek =
-      normalizeId(
-        weekKey
-      ) ||
-      getWeekKey(
-        new Date()
-      );
-
-    return getDayDateForWeek(
-      resolvedWeek,
-      day
-    );
-  }
-
-  return null;
-}
-
-
-// =====================================================
-// SET RECORDS
-// =====================================================
-
-function createEmptySetRecord(
-  setNumber
-) {
-  return {
-    setNumber:
-      normalizePositiveInteger(
-        setNumber
-      ),
-
-    completed:
-      false,
-
-    completedAt:
-      null,
-
-    reps:
-      null,
-
-    weight:
-      null,
-
-    durationSeconds:
-      null,
-
-    estimatedCalories:
-      0,
-
-    notes:
-      null
-  };
-}
-
-
-function normalizeSetRecord(
-  value,
-  setNumber =
-    null
-) {
-  if (
-    typeof value ===
-      "boolean"
-  ) {
-    return {
-      ...createEmptySetRecord(
-        setNumber
-      ),
-
-      completed:
-        value
-    };
-  }
-
-  if (
-    !value ||
-    typeof value !==
-      "object"
-  ) {
-    return createEmptySetRecord(
-      setNumber
-    );
-  }
-
-  const resolvedSetNumber =
-    normalizePositiveInteger(
-      value.setNumber ??
-      setNumber
-    );
-
-  return {
-    setNumber:
-      resolvedSetNumber,
-
-    completed:
-      Boolean(
-        value.completed
-      ),
-
-    completedAt:
-      value.completedAt ||
-      null,
-
-    reps:
-      normalizeNonNegativeInteger(
-        value.reps
-      ),
-
-    weight:
-      normalizeNonNegativeNumber(
-        value.weight
-      ),
-
-    durationSeconds:
-      normalizeNonNegativeNumber(
-        value.durationSeconds
-      ),
-
-    estimatedCalories:
-      normalizeCalories(
-        value.estimatedCalories
-      ) ||
-      0,
-
-    notes:
-      normalizeText(
-        value.notes
-      ) ||
-      null
   };
 }
 
 
 // =====================================================
-// ENTRY CREATION
+// EXERCISE ENTRY NORMALIZATION
 // =====================================================
 
-function createEntryFromPlanExercise(
-  exercise,
+function normalizePlanExercise(
+  exerciseEntry,
   {
-    source =
-      "planned",
-
-    originalIndex =
-      null
+    preserveEntryId =
+      true
   } = {}
 ) {
   if (
-    !exercise ||
-    typeof exercise !==
+    !exerciseEntry ||
+    typeof exerciseEntry !==
       "object"
   ) {
     return null;
@@ -781,7 +642,8 @@ function createEntryFromPlanExercise(
 
   const exerciseId =
     normalizeId(
-      exercise.exerciseId
+      exerciseEntry
+        .exerciseId
     );
 
   if (!exerciseId) {
@@ -789,189 +651,417 @@ function createEntryFromPlanExercise(
   }
 
   const entryId =
-    normalizeId(
-      exercise.entryId
-    ) ||
-    createStableId(
-      "session_entry"
-    );
-
-  const requiredSets =
-    normalizePositiveInteger(
-      exercise.sets
-    );
-
-  const completionMode =
-    requiredSets
-      ? "sets"
-      : "single";
-
-  const completedSets =
-    {};
-
-  if (
-    requiredSets
-  ) {
-    for (
-      let setNumber = 1;
-      setNumber <=
-        requiredSets;
-      setNumber += 1
-    ) {
-      completedSets[
-        String(
-          setNumber
+    preserveEntryId
+      ? normalizeId(
+          exerciseEntry
+            .entryId
         )
+      : null;
+
+  const sets =
+    normalizePositiveInteger(
+      exerciseEntry.sets ??
+      exerciseEntry
+        .prescription
+        ?.sets
+    );
+
+  const reps =
+    normalizePositiveInteger(
+      exerciseEntry.reps ??
+      exerciseEntry
+        .prescription
+        ?.reps
+    );
+
+  const restSeconds =
+    normalizeNonNegativeNumber(
+      exerciseEntry
+        .restSeconds ??
+      exerciseEntry
+        .rest_seconds ??
+      exerciseEntry
+        .prescription
+        ?.restSeconds
+    );
+
+  const durationMinutes =
+    normalizePositiveNumber(
+      exerciseEntry
+        .durationMinutes ??
+      exerciseEntry
+        .duration_minutes ??
+      exerciseEntry
+        .prescription
+        ?.durationMinutes
+    );
+
+  const durationSeconds =
+    normalizePositiveNumber(
+      exerciseEntry
+        .durationSeconds ??
+      exerciseEntry
+        .duration_seconds ??
+      exerciseEntry
+        .prescription
+        ?.durationSeconds
+    );
+
+  const rounds =
+    normalizePositiveInteger(
+      exerciseEntry.rounds ??
+      exerciseEntry
+        .prescription
+        ?.rounds
+    );
+
+  const workSeconds =
+    normalizePositiveNumber(
+      exerciseEntry
+        .workSeconds ??
+      exerciseEntry
+        .work_seconds ??
+      exerciseEntry
+        .prescription
+        ?.workSeconds
+    );
+
+  const weight =
+    normalizeNonNegativeNumber(
+      exerciseEntry.weight
+    );
+
+  const addedWeight =
+    normalizeNonNegativeNumber(
+      exerciseEntry
+        .addedWeight ??
+      exerciseEntry
+        .added_weight
+    );
+
+  const distance =
+    normalizePositiveNumber(
+      exerciseEntry.distance
+    );
+
+  const intensity =
+    normalizeId(
+      exerciseEntry.intensity ??
+      exerciseEntry
+        .prescription
+        ?.intensity
+    );
+
+  const role =
+    normalizeId(
+      exerciseEntry.role
+    );
+
+  const notes =
+    normalizeText(
+      exerciseEntry.notes ??
+      exerciseEntry.userNotes
+    ) ||
+    null;
+
+  const normalized = {
+    entryId:
+      entryId ||
+      createStableId(
+        "plan_exercise"
+      ),
+
+    exerciseId,
+
+    role,
+
+    sets,
+
+    reps,
+
+    restSeconds,
+
+    durationMinutes,
+
+    durationSeconds,
+
+    rounds,
+
+    workSeconds,
+
+    weight,
+
+    addedWeight,
+
+    distance,
+
+    intensity,
+
+    notes,
+
+    metadata: {
+      ...(
+        exerciseEntry
+          .metadata &&
+        typeof exerciseEntry
+          .metadata ===
+            "object"
+          ? clone(
+              exerciseEntry
+                .metadata
+            )
+          : {}
+      )
+    }
+  };
+
+  const passthroughFields = [
+    "pace",
+    "incline",
+    "resistance",
+    "assistance",
+    "boxHeight",
+    "box_height",
+    "side",
+    "stance",
+    "speed",
+    "level",
+    "steps",
+    "strokeRate",
+    "stroke_rate"
+  ];
+
+  for (
+    const field
+    of passthroughFields
+  ) {
+    if (
+      exerciseEntry[
+        field
+      ] !==
+        undefined
+    ) {
+      normalized[
+        field
       ] =
-        createEmptySetRecord(
-          setNumber
+        clone(
+          exerciseEntry[
+            field
+          ]
         );
     }
   }
 
-  return {
-    entryId,
+  return normalized;
+}
 
-    exerciseId,
 
-    source:
-      normalizeEntrySource(
-        source
-      ),
+function normalizeExerciseList(
+  exercises,
+  {
+    regenerateEntryIds =
+      false
+  } = {}
+) {
+  if (
+    !Array.isArray(
+      exercises
+    )
+  ) {
+    return [];
+  }
 
-    substitutedFromEntryId:
-      null,
+  const normalized = [];
 
-    substitutedFromExerciseId:
-      null,
+  const usedEntryIds =
+    new Set();
 
-    originalIndex:
-      Number.isInteger(
-        Number(
-          originalIndex
-        )
+  for (
+    const exercise
+    of exercises
+  ) {
+    const entry =
+      normalizePlanExercise(
+        exercise,
+        {
+          preserveEntryId:
+            !regenerateEntryIds
+        }
+      );
+
+    if (!entry) {
+      continue;
+    }
+
+    if (
+      regenerateEntryIds ||
+      usedEntryIds.has(
+        entry.entryId
       )
-        ? Number(
-            originalIndex
-          )
-        : null,
+    ) {
+      entry.entryId =
+        createStableId(
+          "plan_exercise"
+        );
+    }
 
-    role:
-      normalizeId(
-        exercise.role
+    usedEntryIds.add(
+      entry.entryId
+    );
+
+    normalized.push(
+      entry
+    );
+  }
+
+  return normalized;
+}
+
+
+// =====================================================
+// DAY CREATION
+// =====================================================
+
+function makeDay({
+  day,
+  date =
+    null,
+
+  type =
+    "off",
+
+  focusId =
+    "off_day",
+
+  title =
+    null,
+
+  goal =
+    null,
+
+  sport =
+    null,
+
+  workoutId =
+    null,
+
+  estimatedDurationMinutes =
+    null,
+
+  exercises =
+    [],
+
+  metadata =
+    null
+} = {}) {
+  const normalizedDay =
+    normalizeDay(
+      day
+    );
+
+  if (!normalizedDay) {
+    throw new TypeError(
+      "AriTrainingWorkoutPlanStore.makeDay requires a valid weekday."
+    );
+  }
+
+  const normalizedDate =
+    formatDateKey(
+      date
+    );
+
+  if (!normalizedDate) {
+    throw new TypeError(
+      "AriTrainingWorkoutPlanStore.makeDay requires a valid calendar date."
+    );
+  }
+
+  const normalizedType =
+    normalizeDayType(
+      type
+    );
+
+  const isOff =
+    normalizedType ===
+      "off";
+
+  return {
+    day:
+      normalizedDay,
+
+    label:
+      DAY_LABELS[
+        normalizedDay
+      ],
+
+    date:
+      normalizedDate,
+
+    type:
+      normalizedType,
+
+    focusId:
+      isOff
+        ? "off_day"
+        : normalizeId(
+            focusId
+          ) ||
+          "custom",
+
+    title:
+      normalizeText(
+        title
+      ) ||
+      (
+        isOff
+          ? "Off Day"
+          : DAY_LABELS[
+              normalizedDay
+            ]
       ),
 
-    completionMode,
+    goal:
+      isOff
+        ? null
+        : normalizeId(
+            goal
+          ),
 
-    requiredSets,
+    sport:
+      isOff
+        ? null
+        : normalizeId(
+            sport
+          ),
 
-    prescription: {
-      sets:
-        requiredSets,
+    workoutId:
+      isOff
+        ? null
+        : normalizeId(
+            workoutId
+          ),
 
-      reps:
-        normalizePositiveInteger(
-          exercise.reps
-        ),
+    estimatedDurationMinutes:
+      isOff
+        ? null
+        : normalizePositiveNumber(
+            estimatedDurationMinutes
+          ),
 
-      restSeconds:
-        normalizeNonNegativeNumber(
-          exercise.restSeconds ??
-          exercise.rest_seconds
-        ),
-
-      durationMinutes:
-        normalizePositiveNumber(
-          exercise.durationMinutes ??
-          exercise.duration_minutes
-        ),
-
-      durationSeconds:
-        normalizePositiveNumber(
-          exercise.durationSeconds ??
-          exercise.duration_seconds
-        ),
-
-      rounds:
-        normalizePositiveInteger(
-          exercise.rounds
-        ),
-
-      workSeconds:
-        normalizePositiveNumber(
-          exercise.workSeconds ??
-          exercise.work_seconds
-        ),
-
-      weight:
-        normalizeNonNegativeNumber(
-          exercise.weight
-        ),
-
-      addedWeight:
-        normalizeNonNegativeNumber(
-          exercise.addedWeight ??
-          exercise.added_weight
-        ),
-
-      distance:
-        normalizePositiveNumber(
-          exercise.distance
-        ),
-
-      intensity:
-        normalizeId(
-          exercise.intensity
-        )
-    },
-
-    status:
-      "not_started",
-
-    completed:
-      false,
-
-    startedAt:
-      null,
-
-    completedAt:
-      null,
-
-    skippedAt:
-      null,
-
-    completedSets,
-
-    actual: {
-      reps:
-        null,
-
-      weight:
-        null,
-
-      durationMinutes:
-        null,
-
-      durationSeconds:
-        null,
-
-      distance:
-        null,
-
-      notes:
-        null
-    },
-
-    estimatedCalories:
-      0,
+    exercises:
+      isOff
+        ? []
+        : normalizeExerciseList(
+            exercises
+          ),
 
     metadata: {
       ...(
-        exercise.metadata &&
-        typeof exercise.metadata ===
+        metadata &&
+        typeof metadata ===
           "object"
           ? clone(
-              exercise.metadata
+              metadata
             )
           : {}
       )
@@ -981,93 +1071,80 @@ function createEntryFromPlanExercise(
 
 
 // =====================================================
-// SESSION / DAY CREATION
+// WEEK CREATION
 // =====================================================
 
-function createEmptyDayState({
-  date =
-    null,
-
-  day =
-    null,
-
-  dayType =
-    "workout"
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
+function createEmptyWeek(
+  value =
+    new Date()
+) {
+  const weekKey =
+    normalizeWeekKey(
+      value
     );
 
-  const resolvedDay =
-    normalizeDay(
+  if (!weekKey) {
+    throw new TypeError(
+      "AriTrainingWorkoutPlanStore.createEmptyWeek requires a valid date/week key."
+    );
+  }
+
+  const range =
+    getWeekRange(
+      weekKey
+    );
+
+  const days = {};
+
+  for (
+    const day
+    of DAY_IDS
+  ) {
+    days[
       day
-    ) ||
-    getDayIdFromDate(
-      resolvedDate
-    );
+    ] =
+      makeDay({
+        day,
 
-  const rest =
-    dayType ===
-      "off" ||
-    dayType ===
-      "recovery";
+        date:
+          getDayDateForWeek(
+            weekKey,
+            day
+          ),
+
+        type:
+          "off",
+
+        focusId:
+          "off_day",
+
+        title:
+          "Off Day",
+
+        exercises:
+          []
+      });
+  }
 
   return {
-    date:
-      resolvedDate,
+    weekKey,
 
-    day:
-      resolvedDay,
+    startDate:
+      range.startDate,
 
-    dayType:
-      rest
-        ? dayType
-        : "workout",
+    endDate:
+      range.endDate,
 
-    sessionId:
+    primaryGoalId:
       null,
 
-    plannedWorkoutId:
-      null,
-
-    status:
-      rest
-        ? "rest"
-        : "not_started",
-
-    startedAt:
-      null,
-
-    pausedAt:
-      null,
-
-    completedAt:
-      null,
-
-    lastResumedAt:
-      null,
-
-    elapsedSeconds:
-      0,
-
-    averageHeartRate:
-      null,
-
-    exercises:
-      {},
-
-    originalOrder:
+    secondaryGoalIds:
       [],
 
-    sessionOrder:
-      [],
+    name:
+      "My Weekly Plan",
 
-    notes:
-      null,
-
-    estimatedCalories:
-      0,
+    days,
 
     metadata: {
       createdAt:
@@ -1076,15 +1153,25 @@ function createEmptyDayState({
       updatedAt:
         null,
 
-      historyArchivedAt:
+      sourceTemplateId:
         null,
 
-      planSyncedAt:
+      repeatedFromWeekKey:
+        null,
+
+      copiedFromWeekKey:
+        null,
+
+      builderVersion:
         null
     }
   };
 }
 
+
+// =====================================================
+// ROOT STATE
+// =====================================================
 
 function createInitialState() {
   return {
@@ -1097,18 +1184,15 @@ function createInitialState() {
     source:
       SOURCE,
 
-    planKey:
+    planId:
       null,
 
-    activeWeekKey:
+    selectedWeekKey:
       getWeekKey(
         new Date()
       ),
 
-    sessionsByDate:
-      {},
-
-    history:
+    weeks:
       {},
 
     metadata: {
@@ -1139,7 +1223,7 @@ const listeners =
 // EVENTS
 // =====================================================
 
-function touch() {
+function touchRoot() {
   const now =
     nowIso();
 
@@ -1158,42 +1242,32 @@ function touch() {
 }
 
 
-function touchDay(
-  dayState
+function touchWeek(
+  week
 ) {
   if (
-    !dayState.metadata
+    !week.metadata
   ) {
-    dayState.metadata = {
-      createdAt:
-        null,
-
-      updatedAt:
-        null,
-
-      historyArchivedAt:
-        null,
-
-      planSyncedAt:
-        null
-    };
+    week.metadata = {};
   }
 
   const now =
     nowIso();
 
   if (
-    !dayState.metadata
+    !week.metadata
       .createdAt
   ) {
-    dayState.metadata
+    week.metadata
       .createdAt =
         now;
   }
 
-  dayState.metadata
+  week.metadata
     .updatedAt =
       now;
+
+  touchRoot();
 }
 
 
@@ -1213,7 +1287,7 @@ function emit() {
       error
     ) {
       console.warn(
-        "ARI Training workout-progress listener failed.",
+        "ARI Training workout-plan listener failed.",
         error
       );
     }
@@ -1229,7 +1303,7 @@ function subscribe(
       "function"
   ) {
     throw new TypeError(
-      "WorkoutProgressStore.subscribe requires a function."
+      "AriTrainingWorkoutPlanStore.subscribe requires a function."
     );
   }
 
@@ -1246,117 +1320,215 @@ function subscribe(
 
 
 // =====================================================
-// STATE / READ API
+// INTERNAL WEEK ACCESS
 // =====================================================
 
-function getDaysProjection(
-  weekKey =
-    state.activeWeekKey
+function ensureWeek(
+  value =
+    state.selectedWeekKey
 ) {
-  const result = {};
+  const weekKey =
+    normalizeWeekKey(
+      value
+    );
 
-  for (
-    const day
-    of DAYS
+  if (!weekKey) {
+    return null;
+  }
+
+  if (
+    !state.weeks[
+      weekKey
+    ]
   ) {
-    const date =
-      getDayDateForWeek(
-        weekKey,
-        day
-      );
-
-    result[
-      day
+    state.weeks[
+      weekKey
     ] =
-      clone(
-        state.sessionsByDate[
-          date
-        ] ||
-        createEmptyDayState({
-          date,
-          day,
-          dayType:
-            "workout"
-        })
+      createEmptyWeek(
+        weekKey
       );
   }
 
-  return result;
+  return state.weeks[
+    weekKey
+  ];
 }
 
 
+function getStoredWeek(
+  value =
+    state.selectedWeekKey
+) {
+  const weekKey =
+    normalizeWeekKey(
+      value
+    );
+
+  if (!weekKey) {
+    return null;
+  }
+
+  return state.weeks[
+    weekKey
+  ] ||
+    null;
+}
+
+
+function getResolvedWeek(
+  value =
+    state.selectedWeekKey
+) {
+  const weekKey =
+    normalizeWeekKey(
+      value
+    );
+
+  if (!weekKey) {
+    return null;
+  }
+
+  return clone(
+    state.weeks[
+      weekKey
+    ] ||
+    createEmptyWeek(
+      weekKey
+    )
+  );
+}
+
+
+// =====================================================
+// READ API
+// =====================================================
+
 function getState() {
-  return {
-    ...clone(
-      state
-    ),
+  return clone(
+    state
+  );
+}
 
-    /*
-     * Compatibility projection for V2 callers that expect
-     * state.days.monday / state.days.tuesday ...
-     */
-    days:
-      getDaysProjection(
-        state.activeWeekKey
-      ),
 
-    weekKey:
-      state.activeWeekKey
-  };
+function getSelectedWeekKey() {
+  return state
+    .selectedWeekKey;
+}
+
+
+function getSelectedWeek() {
+  return getResolvedWeek(
+    state.selectedWeekKey
+  );
+}
+
+
+function getWeek(
+  value =
+    state.selectedWeekKey
+) {
+  return getResolvedWeek(
+    value
+  );
+}
+
+
+function hasStoredWeek(
+  value =
+    state.selectedWeekKey
+) {
+  return Boolean(
+    getStoredWeek(
+      value
+    )
+  );
+}
+
+
+function getWeekKeys() {
+  return Object.keys(
+    state.weeks
+  ).sort();
 }
 
 
 function getDay(
-  dayOrDate
+  day,
+  weekValue =
+    state.selectedWeekKey
 ) {
-  const date =
-    resolveDateKey(
-      dayOrDate
+  const normalizedDay =
+    normalizeDay(
+      day
     );
 
-  if (!date) {
+  if (!normalizedDay) {
     return null;
   }
 
-  const existing =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (existing) {
-    return clone(
-      existing
+  const week =
+    getResolvedWeek(
+      weekValue
     );
-  }
 
-  return createEmptyDayState({
-    date,
-    day:
-      getDayIdFromDate(
-        date
-      ),
-    dayType:
-      "workout"
-  });
+  return week?.days?.[
+    normalizedDay
+  ]
+    ? clone(
+        week.days[
+          normalizedDay
+        ]
+      )
+    : null;
 }
 
 
 function getDayByDate(
   date
 ) {
+  const dateKey =
+    formatDateKey(
+      date
+    );
+
+  if (!dateKey) {
+    return null;
+  }
+
+  const weekKey =
+    getWeekKey(
+      dateKey
+    );
+
+  const dayId =
+    getDayIdFromDate(
+      dateKey
+    );
+
   return getDay(
-    date
+    dayId,
+    weekKey
   );
 }
 
 
-function getEntry(
-  dayOrDate,
-  entryId
+function getToday() {
+  return getDayByDate(
+    new Date()
+  );
+}
+
+
+function getExerciseByEntryId(
+  day,
+  entryId,
+  weekValue =
+    state.selectedWeekKey
 ) {
-  const date =
-    resolveDateKey(
-      dayOrDate
+  const current =
+    getDay(
+      day,
+      weekValue
     );
 
   const normalizedEntryId =
@@ -1365,1274 +1537,288 @@ function getEntry(
     );
 
   if (
-    !date ||
+    !current ||
     !normalizedEntryId
   ) {
     return null;
   }
 
-  const entry =
-    state.sessionsByDate[
-      date
-    ]
-      ?.exercises?.[
-        normalizedEntryId
-      ];
-
-  return entry
-    ? clone(
-        entry
-      )
-    : null;
-}
-
-
-function getEntryByExerciseId(
-  dayOrDate,
-  exerciseId
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  const normalizedExerciseId =
-    normalizeId(
-      exerciseId
-    );
-
-  if (
-    !date ||
-    !normalizedExerciseId
-  ) {
-    return null;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (!dayState) {
-    return null;
-  }
-
-  const entryId =
-    dayState.sessionOrder
-      .find(
-        id =>
-          dayState
-            .exercises[
-              id
-            ]
-            ?.exerciseId ===
-            normalizedExerciseId
-      );
-
-  if (!entryId) {
-    return null;
-  }
-
-  return getEntry(
-    date,
-    entryId
-  );
-}
-
-
-function getExerciseProgress(
-  dayOrDate,
-  entryIdOrExerciseId
-) {
-  const byEntry =
-    getEntry(
-      dayOrDate,
-      entryIdOrExerciseId
-    );
-
-  if (byEntry) {
-    return byEntry;
-  }
-
-  return getEntryByExerciseId(
-    dayOrDate,
-    entryIdOrExerciseId
-  );
-}
-
-
-// =====================================================
-// PLAN CONTEXT
-// =====================================================
-
-function setPlanContext({
-  planKey =
-    null,
-
-  weekKey =
-    null,
-
-  resetIfChanged =
-    false
-} = {}) {
-  const normalizedPlanKey =
-    normalizeId(
-      planKey
-    );
-
-  const normalizedWeekKey =
-    normalizeId(
-      weekKey
-    ) ||
-    getWeekKey(
-      new Date()
-    );
-
-  const planChanged =
-    state.planKey !==
-      normalizedPlanKey;
-
-  const weekChanged =
-    state.activeWeekKey !==
-      normalizedWeekKey;
-
-  /*
-   * V3 intentionally does NOT erase every other week when
-   * navigating the calendar. Progress is date-specific.
-   *
-   * resetIfChanged is only honored when the plan identity itself
-   * changes, not when the user browses another week.
-   */
-  if (
-    planChanged &&
-    resetIfChanged
-  ) {
-    state.sessionsByDate =
-      {};
-  }
-
-  state.planKey =
-    normalizedPlanKey;
-
-  state.activeWeekKey =
-    normalizedWeekKey;
-
-  touch();
-  persist();
-  emit();
-
   return (
-    planChanged ||
-    weekChanged
-  );
-}
-
-
-// =====================================================
-// PLAN -> SESSION SYNC
-// =====================================================
-
-function syncDayWithPlan({
-  day =
-    null,
-
-  date =
-    null,
-
-  exercises =
-    [],
-
-  dayType =
-    "workout",
-
-  workoutId =
-    null,
-
-  preserveSessionChanges =
-    true
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
-    ) ||
-    resolveDateKey(
-      day
-    );
-
-  if (!resolvedDate) {
-    return false;
-  }
-
-  const resolvedDay =
-    normalizeDay(
-      day
-    ) ||
-    getDayIdFromDate(
-      resolvedDate
-    );
-
-  const existingDay =
-    state.sessionsByDate[
-      resolvedDate
-    ] ||
-    createEmptyDayState({
-      date:
-        resolvedDate,
-
-      day:
-        resolvedDay,
-
-      dayType
-    });
-
-  /*
-   * Off and Recovery dates exist in progress as REST entries only.
-   * They cannot accidentally inherit an old workout session.
-   */
-  if (
-    dayType ===
-      "off" ||
-    dayType ===
-      "recovery"
-  ) {
-    state.sessionsByDate[
-      resolvedDate
-    ] =
-      createEmptyDayState({
-        date:
-          resolvedDate,
-
-        day:
-          resolvedDay,
-
-        dayType
-      });
-
-    touch();
-    persist();
-    emit();
-
-    return true;
-  }
-
-  const existingEntries =
-    existingDay.exercises ||
-    {};
-
-  const nextEntries =
-    {};
-
-  const nextOriginalOrder =
-    [];
-
-  const plannedExercises =
-    Array.isArray(
-      exercises
-    )
-      ? exercises
-      : [];
-
-  for (
-    let index = 0;
-    index <
-      plannedExercises.length;
-    index += 1
-  ) {
-    const planExercise =
-      plannedExercises[
-        index
-      ];
-
-    const preferredEntryId =
-      normalizeId(
-        planExercise
-          ?.entryId
+    current.exercises
+      .find(
+        exercise =>
+          exercise.entryId ===
+            normalizedEntryId
       ) ||
-      createStableId(
-        "session_entry"
-      );
-
-    const existing =
-      existingEntries[
-        preferredEntryId
-      ];
-
-    const fresh =
-      createEntryFromPlanExercise(
-        {
-          ...planExercise,
-
-          entryId:
-            preferredEntryId
-        },
-        {
-          source:
-            "planned",
-
-          originalIndex:
-            index
-        }
-      );
-
-    if (!fresh) {
-      continue;
-    }
-
-    nextOriginalOrder.push(
-      preferredEntryId
-    );
-
-    nextEntries[
-      preferredEntryId
-    ] =
-      existing
-        ? mergeExistingEntryWithPlan(
-            existing,
-            fresh
-          )
-        : fresh;
-  }
-
-  if (
-    preserveSessionChanges
-  ) {
-    for (
-      const [
-        entryId,
-        entry
-      ]
-      of Object.entries(
-        existingEntries
-      )
-    ) {
-      if (
-        nextEntries[
-          entryId
-        ]
-      ) {
-        continue;
-      }
-
-      if (
-        [
-          "added",
-          "substitution"
-        ].includes(
-          entry.source
-        )
-      ) {
-        nextEntries[
-          entryId
-        ] =
-          clone(
-            entry
-          );
-      }
-    }
-  }
-
-  existingDay.date =
-    resolvedDate;
-
-  existingDay.day =
-    resolvedDay;
-
-  existingDay.dayType =
-    "workout";
-
-  existingDay.exercises =
-    nextEntries;
-
-  existingDay.originalOrder =
-    nextOriginalOrder;
-
-  const validExistingOrder =
-    (
-      preserveSessionChanges
-        ? existingDay.sessionOrder
-        : []
-    )
-      .filter(
-        entryId =>
-          Boolean(
-            nextEntries[
-              entryId
-            ]
-          )
-      );
-
-  const missingOrderEntries =
-    Object.keys(
-      nextEntries
-    )
-      .filter(
-        entryId =>
-          !validExistingOrder
-            .includes(
-              entryId
-            )
-      );
-
-  existingDay.sessionOrder = [
-    ...validExistingOrder,
-    ...missingOrderEntries
-  ];
-
-  existingDay.plannedWorkoutId =
-    normalizeId(
-      workoutId
-    );
-
-  if (
-    existingDay.status ===
-      "rest"
-  ) {
-    existingDay.status =
-      "not_started";
-  }
-
-  existingDay.metadata
-    .planSyncedAt =
-      nowIso();
-
-  recalculateDayCompletion(
-    resolvedDate
-  );
-
-  touchDay(
-    existingDay
-  );
-
-  state.sessionsByDate[
-    resolvedDate
-  ] =
-    existingDay;
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function syncWeekWithPlan(
-  week
-) {
-  if (
-    !week ||
-    typeof week !==
-      "object"
-  ) {
-    return false;
-  }
-
-  for (
-    const day
-    of DAYS
-  ) {
-    const planDay =
-      week[
-        day
-      ];
-
-    const date =
-      formatDateKey(
-        planDay?.date
-      ) ||
-      getDayDateForWeek(
-        state.activeWeekKey,
-        day
-      );
-
-    syncDayWithPlan({
-      day,
-
-      date,
-
-      dayType:
-        planDay?.type ||
-        "off",
-
-      workoutId:
-        planDay?.workoutId ||
-        null,
-
-      exercises:
-        Array.isArray(
-          planDay?.exercises
-        )
-          ? planDay.exercises
-          : [],
-
-      preserveSessionChanges:
-        true
-    });
-  }
-
-  return true;
-}
-
-
-function mergeExistingEntryWithPlan(
-  existing,
-  fresh
-) {
-  const merged =
-    clone(
-      existing
-    );
-
-  merged.exerciseId =
-    fresh.exerciseId;
-
-  merged.role =
-    fresh.role;
-
-  merged.originalIndex =
-    fresh.originalIndex;
-
-  merged.prescription =
-    fresh.prescription;
-
-  merged.requiredSets =
-    fresh.requiredSets;
-
-  merged.completionMode =
-    fresh.completionMode;
-
-  if (
-    merged.completionMode ===
-      "sets"
-  ) {
-    merged.completedSets =
-      merged.completedSets &&
-      typeof merged.completedSets ===
-        "object"
-        ? merged.completedSets
-        : {};
-
-    for (
-      let setNumber = 1;
-      setNumber <=
-        merged.requiredSets;
-      setNumber += 1
-    ) {
-      const key =
-        String(
-          setNumber
-        );
-
-      merged.completedSets[
-        key
-      ] =
-        normalizeSetRecord(
-          merged.completedSets[
-            key
-          ],
-          setNumber
-        );
-    }
-
-    for (
-      const key
-      of Object.keys(
-        merged.completedSets
-      )
-    ) {
-      if (
-        Number(
-          key
-        ) >
-          merged.requiredSets
-      ) {
-        delete merged
-          .completedSets[
-            key
-          ];
-      }
-    }
-  } else {
-    merged.completedSets =
-      {};
-  }
-
-  recalculateEntryCompletion(
-    merged
-  );
-
-  return merged;
-}
-
-
-// =====================================================
-// SESSION START / PAUSE / RESUME
-// =====================================================
-
-function startDay(
-  dayOrDate
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    dayState.status ===
-      "rest" ||
-    dayState.dayType !==
-      "workout" ||
-    dayState.sessionOrder
-      .length ===
-      0
-  ) {
-    return false;
-  }
-
-  if (
-    !dayState.sessionId
-  ) {
-    dayState.sessionId =
-      createStableId(
-        "workout_session"
-      );
-  }
-
-  if (
-    !dayState.startedAt
-  ) {
-    dayState.startedAt =
-      nowIso();
-  }
-
-  if (
-    dayState.status ===
-      "paused"
-  ) {
-    dayState.lastResumedAt =
-      nowIso();
-
-    dayState.pausedAt =
-      null;
-  } else if (
-    !dayState.lastResumedAt
-  ) {
-    dayState.lastResumedAt =
-      dayState.startedAt;
-  }
-
-  dayState.status =
-    "in_progress";
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function markDayStarted(
-  dayOrDate
-) {
-  return startDay(
-    dayOrDate
+    null
   );
 }
 
 
-function pauseDay(
-  dayOrDate
+function getExerciseIndexByEntryId(
+  day,
+  entryId,
+  weekValue =
+    state.selectedWeekKey
 ) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    dayState.status !==
-      "in_progress"
-  ) {
-    return false;
-  }
-
-  accumulateElapsedTime(
-    dayState
-  );
-
-  dayState.status =
-    "paused";
-
-  dayState.pausedAt =
-    nowIso();
-
-  dayState.lastResumedAt =
-    null;
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function resumeDay(
-  dayOrDate
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    dayState.status !==
-      "paused"
-  ) {
-    return false;
-  }
-
-  dayState.status =
-    "in_progress";
-
-  dayState.pausedAt =
-    null;
-
-  dayState.lastResumedAt =
-    nowIso();
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-// =====================================================
-// COMPLETE / CANCEL
-// =====================================================
-
-function completeDay(
-  dayOrDate,
-  {
-    force =
-      false,
-
-    archive =
-      true
-  } = {}
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    dayState.status ===
-      "rest"
-  ) {
-    return false;
-  }
-
-  if (
-    !force
-  ) {
-    const complete =
-      recalculateDayCompletion(
-        date
-      );
-
-    if (!complete) {
-      return false;
-    }
-  }
-
-  if (
-    dayState.status ===
-      "in_progress"
-  ) {
-    accumulateElapsedTime(
-      dayState
-    );
-  }
-
-  dayState.status =
-    "complete";
-
-  dayState.completedAt =
-    dayState.completedAt ||
-    nowIso();
-
-  dayState.pausedAt =
-    null;
-
-  dayState.lastResumedAt =
-    null;
-
-  recalculateDayCalories(
-    date
-  );
-
-  touchDay(
-    dayState
-  );
-
-  if (
-    archive
-  ) {
-    archiveCompletedSession(
-      date
-    );
-  }
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-/*
- * Completely undo an accidental workout start.
- *
- * This:
- *   - removes the sessionId
- *   - clears timer / HR / notes
- *   - removes temporary added exercises
- *   - removes substitutions
- *   - restores planned exercises
- *   - restores original order
- *   - clears all completion data
- *   - returns the date to not_started
- *   - does NOT alter workout-plan-store.js
- *   - does NOT create history
- */
-function cancelDay(
-  dayOrDate,
-  {
-    preservePlannedEntries =
-      true
-  } = {}
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
   const current =
-    state.sessionsByDate[
-      date
-    ];
+    getDay(
+      day,
+      weekValue
+    );
+
+  const normalizedEntryId =
+    normalizeId(
+      entryId
+    );
+
+  if (
+    !current ||
+    !normalizedEntryId
+  ) {
+    return -1;
+  }
+
+  return current.exercises
+    .findIndex(
+      exercise =>
+        exercise.entryId ===
+          normalizedEntryId
+    );
+}
+
+
+// =====================================================
+// WEEK NAVIGATION
+// =====================================================
+
+function setSelectedWeek(
+  value
+) {
+  const weekKey =
+    normalizeWeekKey(
+      value
+    );
+
+  if (!weekKey) {
+    return false;
+  }
+
+  state.selectedWeekKey =
+    weekKey;
+
+  touchRoot();
+  persist();
+  emit();
+
+  return true;
+}
+
+
+function goToCurrentWeek() {
+  return setSelectedWeek(
+    new Date()
+  );
+}
+
+
+function goToPreviousWeek() {
+  const current =
+    toLocalDateOnly(
+      state.selectedWeekKey
+    );
 
   if (!current) {
     return false;
   }
 
+  return setSelectedWeek(
+    addDays(
+      current,
+      -7
+    )
+  );
+}
+
+
+function goToNextWeek() {
+  const current =
+    toLocalDateOnly(
+      state.selectedWeekKey
+    );
+
+  if (!current) {
+    return false;
+  }
+
+  return setSelectedWeek(
+    addDays(
+      current,
+      7
+    )
+  );
+}
+
+
+// =====================================================
+// WEEK METADATA
+// =====================================================
+
+function setPlanName(
+  name,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const normalized =
+    normalizeText(
+      name
+    );
+
+  if (!normalized) {
+    return false;
+  }
+
+  const week =
+    ensureWeek(
+      weekValue
+    );
+
+  if (!week) {
+    return false;
+  }
+
+  week.name =
+    normalized;
+
+  touchWeek(
+    week
+  );
+
+  persist();
+  emit();
+
+  return true;
+}
+
+
+function setPrimaryGoal(
+  goalId,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const week =
+    ensureWeek(
+      weekValue
+    );
+
+  if (!week) {
+    return false;
+  }
+
+  week.primaryGoalId =
+    normalizeId(
+      goalId
+    );
+
+  touchWeek(
+    week
+  );
+
+  persist();
+  emit();
+
+  return true;
+}
+
+
+function setSecondaryGoals(
+  goalIds =
+    [],
+  weekValue =
+    state.selectedWeekKey
+) {
+  const week =
+    ensureWeek(
+      weekValue
+    );
+
+  if (!week) {
+    return false;
+  }
+
+  week.secondaryGoalIds =
+    uniqueStrings(
+      goalIds
+    );
+
+  touchWeek(
+    week
+  );
+
+  persist();
+  emit();
+
+  return true;
+}
+
+
+// =====================================================
+// DAY MUTATIONS
+// =====================================================
+
+function setDay(
+  day,
+  dayState,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const normalizedDay =
+    normalizeDay(
+      day
+    );
+
+  const week =
+    ensureWeek(
+      weekValue
+    );
+
   if (
-    current.status ===
-      "rest"
+    !normalizedDay ||
+    !week
   ) {
     return false;
   }
 
-  const fresh =
-    createEmptyDayState({
-      date:
-        current.date,
+  const existing =
+    week.days[
+      normalizedDay
+    ];
+
+  week.days[
+    normalizedDay
+  ] =
+    makeDay({
+      ...existing,
+
+      ...(
+        dayState ||
+        {}
+      ),
 
       day:
-        current.day,
+        normalizedDay,
 
-      dayType:
-        "workout"
+      date:
+        getDayDateForWeek(
+          week.weekKey,
+          normalizedDay
+        )
     });
 
-  fresh.plannedWorkoutId =
-    current.plannedWorkoutId;
-
-  if (
-    preservePlannedEntries
-  ) {
-    const plannedIds =
-      current.originalOrder
-        .filter(
-          entryId =>
-            current.exercises[
-              entryId
-            ]?.source ===
-              "planned"
-        );
-
-    for (
-      let index = 0;
-      index <
-        plannedIds.length;
-      index += 1
-    ) {
-      const entryId =
-        plannedIds[
-          index
-        ];
-
-      const old =
-        current.exercises[
-          entryId
-        ];
-
-      if (!old) {
-        continue;
-      }
-
-      const rebuilt =
-        createEntryFromPlanExercise(
-          {
-            entryId:
-              old.entryId,
-
-            exerciseId:
-              old.exerciseId,
-
-            role:
-              old.role,
-
-            sets:
-              old.prescription
-                ?.sets,
-
-            reps:
-              old.prescription
-                ?.reps,
-
-            restSeconds:
-              old.prescription
-                ?.restSeconds,
-
-            durationMinutes:
-              old.prescription
-                ?.durationMinutes,
-
-            durationSeconds:
-              old.prescription
-                ?.durationSeconds,
-
-            rounds:
-              old.prescription
-                ?.rounds,
-
-            workSeconds:
-              old.prescription
-                ?.workSeconds,
-
-            weight:
-              old.prescription
-                ?.weight,
-
-            addedWeight:
-              old.prescription
-                ?.addedWeight,
-
-            distance:
-              old.prescription
-                ?.distance,
-
-            intensity:
-              old.prescription
-                ?.intensity,
-
-            metadata:
-              old.metadata
-          },
-          {
-            source:
-              "planned",
-
-            originalIndex:
-              index
-          }
-        );
-
-      if (!rebuilt) {
-        continue;
-      }
-
-      fresh.exercises[
-        rebuilt.entryId
-      ] =
-        rebuilt;
-
-      fresh.originalOrder
-        .push(
-          rebuilt.entryId
-        );
-
-      fresh.sessionOrder
-        .push(
-          rebuilt.entryId
-        );
-    }
-  }
-
-  fresh.metadata
-    .planSyncedAt =
-      current.metadata
-        ?.planSyncedAt ||
-      null;
-
-  state.sessionsByDate[
-    date
-  ] =
-    fresh;
-
-  /*
-   * If a malformed/incomplete history snapshot exists for the
-   * canceled session, remove it as part of the cleanup.
-   */
-  if (
-    current.sessionId &&
-    state.history[
-      current.sessionId
-    ] &&
-    state.history[
-      current.sessionId
-    ].status !==
-      "complete"
-  ) {
-    delete state.history[
-      current.sessionId
-    ];
-  }
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-// =====================================================
-// ELAPSED TIME
-// =====================================================
-
-function accumulateElapsedTime(
-  dayState
-) {
-  if (
-    !dayState ||
-    !dayState.lastResumedAt
-  ) {
-    return;
-  }
-
-  const started =
-    new Date(
-      dayState.lastResumedAt
-    )
-      .getTime();
-
-  const ended =
-    Date.now();
-
-  if (
-    !Number.isFinite(
-      started
-    ) ||
-    ended <=
-      started
-  ) {
-    dayState.lastResumedAt =
-      null;
-
-    return;
-  }
-
-  const deltaSeconds =
-    Math.max(
-      0,
-      Math.floor(
-        (
-          ended -
-          started
-        ) /
-        1000
-      )
-    );
-
-  dayState.elapsedSeconds =
-    (
-      normalizeNonNegativeInteger(
-        dayState.elapsedSeconds
-      ) ||
-      0
-    ) +
-    deltaSeconds;
-
-  dayState.lastResumedAt =
-    null;
-}
-
-
-function getElapsedSeconds(
-  dayOrDate
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return 0;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (!dayState) {
-    return 0;
-  }
-
-  let total =
-    normalizeNonNegativeInteger(
-      dayState.elapsedSeconds
-    ) ||
-    0;
-
-  if (
-    dayState.status ===
-      "in_progress" &&
-    dayState.lastResumedAt
-  ) {
-    const started =
-      new Date(
-        dayState.lastResumedAt
-      )
-        .getTime();
-
-    const now =
-      Date.now();
-
-    if (
-      Number.isFinite(
-        started
-      ) &&
-      now >
-        started
-    ) {
-      total +=
-        Math.floor(
-          (
-            now -
-            started
-          ) /
-          1000
-        );
-    }
-  }
-
-  return total;
-}
-
-
-// =====================================================
-// HEART RATE / NOTES
-// =====================================================
-
-function setAverageHeartRate(
-  dayOrDate,
-  value
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    dayState.status ===
-      "rest"
-  ) {
-    return false;
-  }
-
-  dayState.averageHeartRate =
-    normalizeHeartRate(
-      value
-    );
-
-  touchDay(
-    dayState
+  touchWeek(
+    week
   );
 
-  touch();
   persist();
   emit();
 
@@ -2640,2706 +1826,1205 @@ function setAverageHeartRate(
 }
 
 
-function setDayNotes(
-  dayOrDate,
-  notes
+function setDayType(
+  day,
+  type,
+  weekValue =
+    state.selectedWeekKey
 ) {
-  const date =
-    resolveDateKey(
-      dayOrDate
+  const current =
+    getDay(
+      day,
+      weekValue
     );
 
-  if (!date) {
+  if (!current) {
     return false;
   }
 
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
+  const normalizedType =
+    normalizeDayType(
+      type
+    );
 
-  if (
-    !dayState ||
-    dayState.status ===
-      "rest"
-  ) {
-    return false;
-  }
+  return setDay(
+    day,
+    {
+      ...current,
 
-  dayState.notes =
-    normalizeText(
-      notes
-    ) ||
-    null;
+      type:
+        normalizedType,
 
-  touchDay(
-    dayState
+      focusId:
+        normalizedType ===
+          "off"
+          ? "off_day"
+          : current.focusId ||
+            "custom",
+
+      title:
+        normalizedType ===
+          "off"
+          ? "Off Day"
+          : current.title,
+
+      goal:
+        normalizedType ===
+          "off"
+          ? null
+          : current.goal,
+
+      sport:
+        normalizedType ===
+          "off"
+          ? null
+          : current.sport,
+
+      workoutId:
+        normalizedType ===
+          "off"
+          ? null
+          : current.workoutId,
+
+      estimatedDurationMinutes:
+        normalizedType ===
+          "off"
+          ? null
+          : current
+              .estimatedDurationMinutes,
+
+      exercises:
+        normalizedType ===
+          "off"
+          ? []
+          : current.exercises
+    },
+    weekValue
   );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
 }
 
 
-// =====================================================
-// ENTRY ORDER
-// =====================================================
-
-function moveEntry(
-  dayOrDate,
-  entryId,
-  toIndex
+function setDayFocus(
+  day,
+  focusId,
+  title =
+    null,
+  weekValue =
+    state.selectedWeekKey
 ) {
-  const date =
-    resolveDateKey(
-      dayOrDate
+  const current =
+    getDay(
+      day,
+      weekValue
     );
 
-  const normalizedEntryId =
+  if (!current) {
+    return false;
+  }
+
+  const normalizedFocusId =
     normalizeId(
-      entryId
+      focusId
     );
 
-  if (
-    !date ||
-    !normalizedEntryId
-  ) {
+  if (!normalizedFocusId) {
     return false;
   }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (!dayState) {
-    return false;
-  }
-
-  const fromIndex =
-    dayState.sessionOrder
-      .indexOf(
-        normalizedEntryId
-      );
 
   if (
-    fromIndex <
-      0
+    normalizedFocusId ===
+      "off_day"
   ) {
-    return false;
+    return setDay(
+      day,
+      {
+        ...current,
+
+        type:
+          "off",
+
+        focusId:
+          "off_day",
+
+        title:
+          "Off Day",
+
+        goal:
+          null,
+
+        sport:
+          null,
+
+        workoutId:
+          null,
+
+        estimatedDurationMinutes:
+          null,
+
+        exercises:
+          []
+      },
+      weekValue
+    );
   }
 
-  const target =
-    Math.max(
-      0,
-      Math.min(
-        dayState
-          .sessionOrder
-          .length -
-          1,
-        Number(
-          toIndex
+  return setDay(
+    day,
+    {
+      ...current,
+
+      type:
+        current.type ===
+          "off"
+          ? "workout"
+          : current.type,
+
+      focusId:
+        normalizedFocusId,
+
+      title:
+        normalizeText(
+          title
         ) ||
-        0
-      )
+        current.title
+    },
+    weekValue
+  );
+}
+
+
+function setDayTitle(
+  day,
+  title,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  const normalized =
+    normalizeText(
+      title
     );
 
   if (
-    fromIndex ===
-      target
+    !current ||
+    !normalized
+  ) {
+    return false;
+  }
+
+  return setDay(
+    day,
+    {
+      ...current,
+
+      title:
+        normalized
+    },
+    weekValue
+  );
+}
+
+
+function setDayGoal(
+  day,
+  goal,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  if (
+    !current ||
+    current.type ===
+      "off"
+  ) {
+    return false;
+  }
+
+  return setDay(
+    day,
+    {
+      ...current,
+
+      goal:
+        normalizeId(
+          goal
+        )
+    },
+    weekValue
+  );
+}
+
+
+function setDaySport(
+  day,
+  sport,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  if (
+    !current ||
+    current.type ===
+      "off"
+  ) {
+    return false;
+  }
+
+  return setDay(
+    day,
+    {
+      ...current,
+
+      sport:
+        normalizeId(
+          sport
+        )
+    },
+    weekValue
+  );
+}
+
+
+function setDayDuration(
+  day,
+  estimatedDurationMinutes,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  if (
+    !current ||
+    current.type ===
+      "off"
+  ) {
+    return false;
+  }
+
+  return setDay(
+    day,
+    {
+      ...current,
+
+      estimatedDurationMinutes:
+        normalizePositiveNumber(
+          estimatedDurationMinutes
+        )
+    },
+    weekValue
+  );
+}
+
+
+// =====================================================
+// BUILDER / WORKOUT IMPORT
+// =====================================================
+
+function setBuiltWorkout(
+  day,
+  workoutOrPlanDay,
+  {
+    focusId =
+      null,
+
+    weekKey =
+      state.selectedWeekKey
+  } = {}
+) {
+  const normalizedDay =
+    normalizeDay(
+      day
+    );
+
+  const resolvedWeekKey =
+    normalizeWeekKey(
+      weekKey
+    );
+
+  if (
+    !normalizedDay ||
+    !resolvedWeekKey ||
+    !workoutOrPlanDay ||
+    typeof workoutOrPlanDay !==
+      "object"
+  ) {
+    return false;
+  }
+
+  const planDay =
+    workoutOrPlanDay.blocks
+      ? convertBuilderWorkoutToDay(
+          workoutOrPlanDay,
+          normalizedDay,
+          resolvedWeekKey
+        )
+      : {
+          ...clone(
+            workoutOrPlanDay
+          ),
+
+          day:
+            normalizedDay,
+
+          date:
+            getDayDateForWeek(
+              resolvedWeekKey,
+              normalizedDay
+            )
+        };
+
+  return setDay(
+    normalizedDay,
+    {
+      ...planDay,
+
+      type:
+        planDay.type ===
+          "off"
+          ? "off"
+          : planDay.type ===
+              "recovery"
+            ? "recovery"
+            : "workout",
+
+      focusId:
+        normalizeId(
+          focusId
+        ) ||
+        normalizeId(
+          planDay.focusId
+        ) ||
+        "custom",
+
+      metadata: {
+        ...(
+          planDay.metadata &&
+          typeof planDay.metadata ===
+            "object"
+            ? clone(
+                planDay.metadata
+              )
+            : {}
+        ),
+
+        importedAt:
+          nowIso()
+      }
+    },
+    resolvedWeekKey
+  );
+}
+
+
+function convertBuilderWorkoutToDay(
+  workout,
+  day,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const weekKey =
+    normalizeWeekKey(
+      weekValue
+    );
+
+  if (!weekKey) {
+    return null;
+  }
+
+  const mainExercises =
+    Array.isArray(
+      workout.blocks
+    )
+      ? workout.blocks
+          .flatMap(
+            block =>
+              Array.isArray(
+                block.exercises
+              )
+                ? block.exercises
+                : []
+          )
+          .filter(
+            entry =>
+              ![
+                "warmup",
+                "cooldown"
+              ].includes(
+                entry.role
+              )
+          )
+      : [];
+
+  return {
+    day,
+
+    date:
+      getDayDateForWeek(
+        weekKey,
+        day
+      ),
+
+    type:
+      workout.type ===
+        "mobility" &&
+      workout.goal ===
+        "recovery"
+        ? "recovery"
+        : "workout",
+
+    title:
+      normalizeText(
+        workout.title
+      ) ||
+      DAY_LABELS[
+        day
+      ],
+
+    goal:
+      normalizeId(
+        workout.goal
+      ),
+
+    sport:
+      normalizeId(
+        workout.sport
+      ),
+
+    workoutId:
+      normalizeId(
+        workout.workoutId
+      ),
+
+    estimatedDurationMinutes:
+      normalizePositiveNumber(
+        workout
+          .estimatedDurationMinutes ??
+        workout
+          .plannedDurationMinutes
+      ),
+
+    exercises:
+      mainExercises.map(
+        entry => ({
+          entryId:
+            entry.entryId,
+
+          exerciseId:
+            entry.exerciseId,
+
+          role:
+            entry.role,
+
+          ...(
+            entry.prescription &&
+            typeof entry.prescription ===
+              "object"
+              ? clone(
+                  entry.prescription
+                )
+              : {}
+          ),
+
+          metadata: {
+            builderEntry:
+              true,
+
+            sourceBlock:
+              null
+          }
+        })
+      ),
+
+    metadata: {
+      source:
+        workout.metadata
+          ?.source ||
+        "workout-builder",
+
+      builderVersion:
+        workout.metadata
+          ?.version ||
+        workout.metadata
+          ?.builderVersion ||
+        null,
+
+      originalWorkoutMetadata:
+        workout.metadata
+          ? clone(
+              workout.metadata
+            )
+          : {}
+    }
+  };
+}
+
+
+// =====================================================
+// EXERCISE MUTATIONS
+// =====================================================
+
+function addExercise(
+  day,
+  exerciseEntry,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  if (
+    !current ||
+    current.type ===
+      "off"
+  ) {
+    return false;
+  }
+
+  const normalized =
+    normalizePlanExercise(
+      exerciseEntry
+    );
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    current.exercises
+      .some(
+        exercise =>
+          exercise.entryId ===
+            normalized.entryId
+      )
+  ) {
+    normalized.entryId =
+      createStableId(
+        "plan_exercise"
+      );
+  }
+
+  current.exercises.push(
+    normalized
+  );
+
+  return setDay(
+    day,
+    current,
+    weekValue
+  );
+}
+
+
+function updateExercise(
+  day,
+  index,
+  patch =
+    {},
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  const position =
+    Number(
+      index
+    );
+
+  if (
+    !current ||
+    !Number.isInteger(
+      position
+    ) ||
+    position < 0 ||
+    position >=
+      current.exercises.length ||
+    !patch ||
+    typeof patch !==
+      "object"
+  ) {
+    return false;
+  }
+
+  const merged = {
+    ...current.exercises[
+      position
+    ],
+
+    ...clone(
+      patch
+    ),
+
+    entryId:
+      current.exercises[
+        position
+      ].entryId
+  };
+
+  const normalized =
+    normalizePlanExercise(
+      merged
+    );
+
+  if (!normalized) {
+    return false;
+  }
+
+  current.exercises[
+    position
+  ] =
+    normalized;
+
+  return setDay(
+    day,
+    current,
+    weekValue
+  );
+}
+
+
+function updateExerciseById(
+  day,
+  entryId,
+  patch =
+    {},
+  weekValue =
+    state.selectedWeekKey
+) {
+  const index =
+    getExerciseIndexByEntryId(
+      day,
+      entryId,
+      weekValue
+    );
+
+  if (
+    index < 0
+  ) {
+    return false;
+  }
+
+  return updateExercise(
+    day,
+    index,
+    patch,
+    weekValue
+  );
+}
+
+
+function removeExercise(
+  day,
+  index,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  const position =
+    Number(
+      index
+    );
+
+  if (
+    !current ||
+    !Number.isInteger(
+      position
+    ) ||
+    position < 0 ||
+    position >=
+      current.exercises.length
+  ) {
+    return false;
+  }
+
+  current.exercises.splice(
+    position,
+    1
+  );
+
+  return setDay(
+    day,
+    current,
+    weekValue
+  );
+}
+
+
+function removeExerciseById(
+  day,
+  entryId,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const index =
+    getExerciseIndexByEntryId(
+      day,
+      entryId,
+      weekValue
+    );
+
+  if (
+    index < 0
+  ) {
+    return false;
+  }
+
+  return removeExercise(
+    day,
+    index,
+    weekValue
+  );
+}
+
+
+function moveExercise(
+  day,
+  fromIndex,
+  toIndex,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const current =
+    getDay(
+      day,
+      weekValue
+    );
+
+  const from =
+    Number(
+      fromIndex
+    );
+
+  const to =
+    Number(
+      toIndex
+    );
+
+  if (
+    !current ||
+    !Number.isInteger(
+      from
+    ) ||
+    !Number.isInteger(
+      to
+    ) ||
+    from < 0 ||
+    to < 0 ||
+    from >=
+      current.exercises.length ||
+    to >=
+      current.exercises.length
+  ) {
+    return false;
+  }
+
+  if (
+    from ===
+      to
   ) {
     return true;
   }
 
   const [
-    moved
+    exercise
   ] =
-    dayState
-      .sessionOrder
-      .splice(
-        fromIndex,
-        1
-      );
-
-  dayState
-    .sessionOrder
-    .splice(
-      target,
-      0,
-      moved
+    current.exercises.splice(
+      from,
+      1
     );
 
-  touchDay(
-    dayState
+  current.exercises.splice(
+    to,
+    0,
+    exercise
   );
 
-  touch();
-  persist();
-  emit();
+  return setDay(
+    day,
+    current,
+    weekValue
+  );
+}
 
-  return true;
+
+function moveExerciseById(
+  day,
+  entryId,
+  toIndex,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const fromIndex =
+    getExerciseIndexByEntryId(
+      day,
+      entryId,
+      weekValue
+    );
+
+  if (
+    fromIndex < 0
+  ) {
+    return false;
+  }
+
+  return moveExercise(
+    day,
+    fromIndex,
+    toIndex,
+    weekValue
+  );
 }
 
 
 // =====================================================
-// ADD / REMOVE / SKIP / SUBSTITUTE
+// DAY CLEAR
 // =====================================================
 
-function addSessionExercise({
-  day =
-    null,
-
-  date =
-    null,
-
-  exerciseId,
-
-  entryId =
-    null,
-
-  role =
-    "extra",
-
-  prescription =
-    {},
-
-  metadata =
-    {}
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
-    ) ||
-    resolveDateKey(
+function clearDay(
+  day,
+  weekValue =
+    state.selectedWeekKey
+) {
+  const normalizedDay =
+    normalizeDay(
       day
     );
 
-  const normalizedExerciseId =
-    normalizeId(
-      exerciseId
+  const week =
+    ensureWeek(
+      weekValue
     );
 
   if (
-    !resolvedDate ||
-    !normalizedExerciseId
+    !normalizedDay ||
+    !week
   ) {
-    return null;
+    return false;
   }
 
-  const dayState =
-    state.sessionsByDate[
-      resolvedDate
-    ];
-
-  if (
-    !dayState ||
-    dayState.status ===
-      "rest"
-  ) {
-    return null;
-  }
-
-  const resolvedEntryId =
-    normalizeId(
-      entryId
-    ) ||
-    createStableId(
-      "session_entry"
-    );
-
-  if (
-    dayState.exercises[
-      resolvedEntryId
-    ]
-  ) {
-    return null;
-  }
-
-  const entry =
-    createEntryFromPlanExercise(
-      {
-        entryId:
-          resolvedEntryId,
-
-        exerciseId:
-          normalizedExerciseId,
-
-        role,
-
-        ...clone(
-          prescription
-        ),
-
-        metadata
-      },
-      {
-        source:
-          "added",
-
-        originalIndex:
-          null
-      }
-    );
-
-  if (!entry) {
-    return null;
-  }
-
-  entry.source =
-    "added";
-
-  dayState.exercises[
-    resolvedEntryId
+  week.days[
+    normalizedDay
   ] =
-    entry;
-
-  dayState.sessionOrder
-    .push(
-      resolvedEntryId
-    );
-
-  startDay(
-    resolvedDate
-  );
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return clone(
-    entry
-  );
-}
-
-
-function skipEntry(
-  dayOrDate,
-  entryId,
-  skipped =
-    true
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  const normalizedEntryId =
-    normalizeId(
-      entryId
-    );
-
-  if (
-    !date ||
-    !normalizedEntryId
-  ) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  const entry =
-    dayState
-      ?.exercises?.[
-        normalizedEntryId
-      ];
-
-  if (!entry) {
-    return false;
-  }
-
-  if (
-    skipped
-  ) {
-    entry.status =
-      "skipped";
-
-    entry.completed =
-      false;
-
-    entry.skippedAt =
-      nowIso();
-
-    entry.completedAt =
-      null;
-  } else {
-    entry.status =
-      "not_started";
-
-    entry.skippedAt =
-      null;
-  }
-
-  recalculateDayCompletion(
-    date
-  );
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function removeSessionEntry(
-  dayOrDate,
-  entryId
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  const normalizedEntryId =
-    normalizeId(
-      entryId
-    );
-
-  if (
-    !date ||
-    !normalizedEntryId
-  ) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  const entry =
-    dayState
-      ?.exercises?.[
-        normalizedEntryId
-      ];
-
-  if (!entry) {
-    return false;
-  }
-
-  if (
-    entry.source ===
-      "planned"
-  ) {
-    return skipEntry(
-      date,
-      normalizedEntryId,
-      true
-    );
-  }
-
-  delete dayState
-    .exercises[
-      normalizedEntryId
-    ];
-
-  dayState.sessionOrder =
-    dayState.sessionOrder
-      .filter(
-        id =>
-          id !==
-            normalizedEntryId
-      );
-
-  recalculateDayCompletion(
-    date
-  );
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function substituteEntry({
-  day =
-    null,
-
-  date =
-    null,
-
-  entryId,
-
-  replacementExerciseId,
-
-  prescription =
-    null,
-
-  replacementEntryId =
-    null
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
-    ) ||
-    resolveDateKey(
-      day
-    );
-
-  const normalizedEntryId =
-    normalizeId(
-      entryId
-    );
-
-  const normalizedReplacementId =
-    normalizeId(
-      replacementExerciseId
-    );
-
-  if (
-    !resolvedDate ||
-    !normalizedEntryId ||
-    !normalizedReplacementId
-  ) {
-    return null;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      resolvedDate
-    ];
-
-  const original =
-    dayState
-      ?.exercises?.[
-        normalizedEntryId
-      ];
-
-  if (!original) {
-    return null;
-  }
-
-  const targetIndex =
-    dayState.sessionOrder
-      .indexOf(
-        normalizedEntryId
-      );
-
-  const nextEntryId =
-    normalizeId(
-      replacementEntryId
-    ) ||
-    createStableId(
-      "session_entry"
-    );
-
-  const replacement =
-    createEntryFromPlanExercise(
-      {
-        entryId:
-          nextEntryId,
-
-        exerciseId:
-          normalizedReplacementId,
-
-        role:
-          original.role,
-
-        ...clone(
-          prescription ||
-          original.prescription
-        )
-      },
-      {
-        source:
-          "substitution",
-
-        originalIndex:
-          original.originalIndex
-      }
-    );
-
-  if (!replacement) {
-    return null;
-  }
-
-  replacement.source =
-    "substitution";
-
-  replacement
-    .substitutedFromEntryId =
-      original.entryId;
-
-  replacement
-    .substitutedFromExerciseId =
-      original.exerciseId;
-
-  original.status =
-    "skipped";
-
-  original.skippedAt =
-    nowIso();
-
-  dayState.exercises[
-    nextEntryId
-  ] =
-    replacement;
-
-  if (
-    targetIndex >=
-      0
-  ) {
-    dayState.sessionOrder
-      .splice(
-        targetIndex,
-        1,
-        nextEntryId
-      );
-  } else {
-    dayState.sessionOrder
-      .push(
-        nextEntryId
-      );
-  }
-
-  startDay(
-    resolvedDate
-  );
-
-  touchDay(
-    dayState
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return clone(
-    replacement
-  );
-}
-
-
-// =====================================================
-// ENTRY RESOLUTION
-// =====================================================
-
-function resolveEntryReference(
-  date,
-  entryId,
-  exerciseId
-) {
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (!dayState) {
-    return null;
-  }
-
-  const normalizedEntryId =
-    normalizeId(
-      entryId
-    );
-
-  if (
-    normalizedEntryId &&
-    dayState.exercises[
-      normalizedEntryId
-    ]
-  ) {
-    return normalizedEntryId;
-  }
-
-  const normalizedExerciseId =
-    normalizeId(
-      exerciseId
-    );
-
-  if (!normalizedExerciseId) {
-    return null;
-  }
-
-  return (
-    dayState.sessionOrder
-      .find(
-        id =>
-          dayState
-            .exercises[
-              id
-            ]
-            ?.exerciseId ===
-            normalizedExerciseId
-      ) ||
-    null
-  );
-}
-
-
-// =====================================================
-// SET COMPLETION
-// =====================================================
-
-function setSetCompleted({
-  day =
-    null,
-
-  date =
-    null,
-
-  entryId =
-    null,
-
-  exerciseId =
-    null,
-
-  setNumber,
-
-  completed =
-    true,
-
-  requiredSets =
-    null,
-
-  estimatedCalories =
-    null,
-
-  reps =
-    null,
-
-  weight =
-    null,
-
-  durationSeconds =
-    null,
-
-  notes =
-    null
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
-    ) ||
-    resolveDateKey(
-      day
-    );
-
-  const normalizedSet =
-    normalizePositiveInteger(
-      setNumber
-    );
-
-  if (
-    !resolvedDate ||
-    !normalizedSet
-  ) {
-    return false;
-  }
-
-  const resolvedEntry =
-    resolveEntryReference(
-      resolvedDate,
-      entryId,
-      exerciseId
-    );
-
-  if (!resolvedEntry) {
-    return false;
-  }
-
-  if (
-    !startDay(
-      resolvedDate
-    )
-  ) {
-    return false;
-  }
-
-  const entry =
-    state.sessionsByDate[
-      resolvedDate
-    ]
-      .exercises[
-        resolvedEntry
-      ];
-
-  if (
-    entry.status ===
-      "skipped"
-  ) {
-    return false;
-  }
-
-  if (
-    normalizePositiveInteger(
-      requiredSets
-    )
-  ) {
-    entry.requiredSets =
-      normalizePositiveInteger(
-        requiredSets
-      );
-
-    entry.completionMode =
-      "sets";
-  }
-
-  const key =
-    String(
-      normalizedSet
-    );
-
-  const previous =
-    normalizeSetRecord(
-      entry.completedSets[
-        key
-      ],
-      normalizedSet
-    );
-
-  const isCompleted =
-    Boolean(
-      completed
-    );
-
-  entry.completedSets[
-    key
-  ] = {
-    setNumber:
-      normalizedSet,
-
-    completed:
-      isCompleted,
-
-    completedAt:
-      isCompleted
-        ? previous.completedAt ||
-          nowIso()
-        : null,
-
-    reps:
-      normalizeNonNegativeInteger(
-        reps
-      ) ??
-      previous.reps,
-
-    weight:
-      normalizeNonNegativeNumber(
-        weight
-      ) ??
-      previous.weight,
-
-    durationSeconds:
-      normalizeNonNegativeNumber(
-        durationSeconds
-      ) ??
-      previous.durationSeconds,
-
-    estimatedCalories:
-      isCompleted
-        ? (
-            normalizeCalories(
-              estimatedCalories
-            ) ??
-            previous
-              .estimatedCalories ??
-            0
-          )
-        : 0,
-
-    notes:
-      normalizeText(
-        notes
-      ) ||
-      previous.notes ||
-      null
-  };
-
-  entry.startedAt =
-    entry.startedAt ||
-    nowIso();
-
-  entry.status =
-    "in_progress";
-
-  recalculateEntryCompletion(
-    entry
-  );
-
-  recalculateDayCompletion(
-    resolvedDate
-  );
-
-  touchDay(
-    state.sessionsByDate[
-      resolvedDate
-    ]
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function toggleSetCompleted(
-  options =
-    {}
-) {
-  const resolvedDate =
-    formatDateKey(
-      options.date
-    ) ||
-    resolveDateKey(
-      options.day
-    );
-
-  if (!resolvedDate) {
-    return false;
-  }
-
-  const resolvedEntry =
-    resolveEntryReference(
-      resolvedDate,
-      options.entryId,
-      options.exerciseId
-    );
-
-  const normalizedSet =
-    normalizePositiveInteger(
-      options.setNumber
-    );
-
-  if (
-    !resolvedEntry ||
-    !normalizedSet
-  ) {
-    return false;
-  }
-
-  const entry =
-    state.sessionsByDate[
-      resolvedDate
-    ]
-      .exercises[
-        resolvedEntry
-      ];
-
-  const current =
-    normalizeSetRecord(
-      entry.completedSets[
-        String(
-          normalizedSet
-        )
-      ],
-      normalizedSet
-    );
-
-  return setSetCompleted({
-    ...options,
-
-    date:
-      resolvedDate,
-
-    entryId:
-      resolvedEntry,
-
-    completed:
-      !current.completed
-  });
-}
-
-
-function setSetCalories({
-  day =
-    null,
-
-  date =
-    null,
-
-  entryId =
-    null,
-
-  exerciseId =
-    null,
-
-  setNumber,
-
-  estimatedCalories
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
-    ) ||
-    resolveDateKey(
-      day
-    );
-
-  const normalizedSet =
-    normalizePositiveInteger(
-      setNumber
-    );
-
-  const calories =
-    normalizeCalories(
-      estimatedCalories
-    );
-
-  if (
-    !resolvedDate ||
-    !normalizedSet ||
-    calories ===
-      null
-  ) {
-    return false;
-  }
-
-  const resolvedEntry =
-    resolveEntryReference(
-      resolvedDate,
-      entryId,
-      exerciseId
-    );
-
-  if (!resolvedEntry) {
-    return false;
-  }
-
-  const entry =
-    state.sessionsByDate[
-      resolvedDate
-    ]
-      .exercises[
-        resolvedEntry
-      ];
-
-  const key =
-    String(
-      normalizedSet
-    );
-
-  const current =
-    normalizeSetRecord(
-      entry.completedSets[
-        key
-      ],
-      normalizedSet
-    );
-
-  entry.completedSets[
-    key
-  ] = {
-    ...current,
-
-    estimatedCalories:
-      current.completed
-        ? calories
-        : 0
-  };
-
-  recalculateEntryCompletion(
-    entry
-  );
-
-  recalculateDayCalories(
-    resolvedDate
-  );
-
-  touchDay(
-    state.sessionsByDate[
-      resolvedDate
-    ]
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-// =====================================================
-// SINGLE ACTIVITY COMPLETION
-// =====================================================
-
-function setExerciseCompleted({
-  day =
-    null,
-
-  date =
-    null,
-
-  entryId =
-    null,
-
-  exerciseId =
-    null,
-
-  completed =
-    true,
-
-  estimatedCalories =
-    null,
-
-  actual =
-    null
-} = {}) {
-  const resolvedDate =
-    formatDateKey(
-      date
-    ) ||
-    resolveDateKey(
-      day
-    );
-
-  if (!resolvedDate) {
-    return false;
-  }
-
-  const resolvedEntry =
-    resolveEntryReference(
-      resolvedDate,
-      entryId,
-      exerciseId
-    );
-
-  if (!resolvedEntry) {
-    return false;
-  }
-
-  if (
-    !startDay(
-      resolvedDate
-    )
-  ) {
-    return false;
-  }
-
-  const entry =
-    state.sessionsByDate[
-      resolvedDate
-    ]
-      .exercises[
-        resolvedEntry
-      ];
-
-  if (
-    entry.status ===
-      "skipped"
-  ) {
-    return false;
-  }
-
-  const isCompleted =
-    Boolean(
-      completed
-    );
-
-  entry.completed =
-    isCompleted;
-
-  entry.startedAt =
-    entry.startedAt ||
-    nowIso();
-
-  entry.completedAt =
-    isCompleted
-      ? entry.completedAt ||
-        nowIso()
-      : null;
-
-  entry.status =
-    isCompleted
-      ? "complete"
-      : "in_progress";
-
-  entry.estimatedCalories =
-    isCompleted
-      ? (
-          normalizeCalories(
-            estimatedCalories
-          ) ??
-          entry.estimatedCalories ??
-          0
-        )
-      : 0;
-
-  if (
-    actual &&
-    typeof actual ===
-      "object"
-  ) {
-    entry.actual = {
-      ...entry.actual,
-
-      ...clone(
-        actual
-      )
-    };
-  }
-
-  recalculateDayCompletion(
-    resolvedDate
-  );
-
-  touchDay(
-    state.sessionsByDate[
-      resolvedDate
-    ]
-  );
-
-  touch();
-  persist();
-  emit();
-
-  return true;
-}
-
-
-function toggleExerciseCompleted(
-  options =
-    {}
-) {
-  const resolvedDate =
-    formatDateKey(
-      options.date
-    ) ||
-    resolveDateKey(
-      options.day
-    );
-
-  if (!resolvedDate) {
-    return false;
-  }
-
-  const resolvedEntry =
-    resolveEntryReference(
-      resolvedDate,
-      options.entryId,
-      options.exerciseId
-    );
-
-  if (!resolvedEntry) {
-    return false;
-  }
-
-  const entry =
-    state.sessionsByDate[
-      resolvedDate
-    ]
-      .exercises[
-        resolvedEntry
-      ];
-
-  return setExerciseCompleted({
-    ...options,
-
-    date:
-      resolvedDate,
-
-    entryId:
-      resolvedEntry,
-
-    completed:
-      !entry.completed
-  });
-}
-
-
-// =====================================================
-// ENTRY COMPLETION / CALORIES
-// =====================================================
-
-function getSetCalories(
-  entry
-) {
-  if (
-    !entry ||
-    !entry.completedSets
-  ) {
-    return 0;
-  }
-
-  return Math.round(
-    Object.values(
-      entry.completedSets
-    )
-      .map(
-        value =>
-          normalizeSetRecord(
-            value
-          )
-      )
-      .reduce(
-        (
-          total,
-          setRecord
-        ) =>
-          total +
-          (
-            setRecord.completed
-              ? (
-                  normalizeCalories(
-                    setRecord
-                      .estimatedCalories
-                  ) ||
-                  0
-                )
-              : 0
-          ),
-        0
-      ) *
-    10
-  ) / 10;
-}
-
-
-function recalculateEntryCompletion(
-  entry
-) {
-  if (
-    !entry ||
-    typeof entry !==
-      "object"
-  ) {
-    return false;
-  }
-
-  if (
-    entry.status ===
-      "skipped"
-  ) {
-    entry.completed =
-      false;
-
-    entry.completedAt =
-      null;
-
-    return false;
-  }
-
-  if (
-    entry.completionMode ===
-      "single"
-  ) {
-    entry.completed =
-      Boolean(
-        entry.completed
-      );
-
-    entry.status =
-      entry.completed
-        ? "complete"
-        : entry.startedAt
-          ? "in_progress"
-          : "not_started";
-
-    entry.estimatedCalories =
-      entry.completed
-        ? (
-            normalizeCalories(
-              entry.estimatedCalories
-            ) ||
-            0
-          )
-        : 0;
-
-    return entry.completed;
-  }
-
-  const requiredSets =
-    normalizePositiveInteger(
-      entry.requiredSets
-    );
-
-  if (!requiredSets) {
-    entry.completed =
-      false;
-
-    entry.completedAt =
-      null;
-
-    entry.estimatedCalories =
-      getSetCalories(
-        entry
-      );
-
-    entry.status =
-      entry.startedAt
-        ? "in_progress"
-        : "not_started";
-
-    return false;
-  }
-
-  let completedCount =
-    0;
-
-  for (
-    let setNumber = 1;
-    setNumber <=
-      requiredSets;
-    setNumber += 1
-  ) {
-    const key =
-      String(
-        setNumber
-      );
-
-    const normalized =
-      normalizeSetRecord(
-        entry.completedSets[
-          key
-        ],
-        setNumber
-      );
-
-    entry.completedSets[
-      key
-    ] =
-      normalized;
-
-    if (
-      normalized.completed
-    ) {
-      completedCount +=
-        1;
-    }
-  }
-
-  entry.completed =
-    completedCount ===
-      requiredSets;
-
-  entry.completedAt =
-    entry.completed
-      ? entry.completedAt ||
-        nowIso()
-      : null;
-
-  entry.status =
-    entry.completed
-      ? "complete"
-      : completedCount >
-          0 ||
-        entry.startedAt
-          ? "in_progress"
-          : "not_started";
-
-  entry.estimatedCalories =
-    getSetCalories(
-      entry
-    );
-
-  return entry.completed;
-}
-
-
-function recalculateDayCalories(
-  dayOrDate
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return 0;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (!dayState) {
-    return 0;
-  }
-
-  const total =
-    dayState.sessionOrder
-      .reduce(
-        (
-          sum,
-          entryId
-        ) => {
-          const entry =
-            dayState
-              .exercises[
-                entryId
-              ];
-
-          if (
-            !entry ||
-            entry.status ===
-              "skipped"
-          ) {
-            return sum;
-          }
-
-          recalculateEntryCompletion(
-            entry
-          );
-
-          return (
-            sum +
-            (
-              normalizeCalories(
-                entry.estimatedCalories
-              ) ||
-              0
-            )
-          );
-        },
-        0
-      );
-
-  dayState.estimatedCalories =
-    Math.round(
-      total * 10
-    ) / 10;
-
-  return dayState
-    .estimatedCalories;
-}
-
-
-function recalculateDayCompletion(
-  dayOrDate,
-  exerciseDefinitions =
-    null
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return false;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    dayState.status ===
-      "rest"
-  ) {
-    return false;
-  }
-
-  if (
-    Array.isArray(
-      exerciseDefinitions
-    )
-  ) {
-    for (
-      const definition
-      of exerciseDefinitions
-    ) {
-      const entryId =
-        resolveEntryReference(
-          date,
-          definition
-            ?.entryId,
-          definition
-            ?.exerciseId
-        );
-
-      if (!entryId) {
-        continue;
-      }
-
-      const entry =
-        dayState.exercises[
-          entryId
-        ];
-
-      const requiredSets =
-        normalizePositiveInteger(
-          definition
-            ?.requiredSets
-        );
-
-      if (requiredSets) {
-        entry.requiredSets =
-          requiredSets;
-
-        entry.completionMode =
-          "sets";
-      } else if (
-        definition
-          ?.completionMode
-      ) {
-        entry.completionMode =
-          definition
-            .completionMode;
-      }
-    }
-  }
-
-  const activeEntries =
-    dayState.sessionOrder
-      .map(
-        entryId =>
-          dayState
-            .exercises[
-              entryId
-            ]
-      )
-      .filter(
-        entry =>
-          entry &&
-          entry.status !==
-            "skipped"
-      );
-
-  if (
-    activeEntries.length ===
-      0
-  ) {
-    dayState.status =
-      dayState.startedAt
-        ? "in_progress"
-        : "not_started";
-
-    dayState.completedAt =
-      null;
-
-    recalculateDayCalories(
-      date
-    );
-
-    return false;
-  }
-
-  const complete =
-    activeEntries.every(
-      entry =>
-        recalculateEntryCompletion(
-          entry
-        )
-    );
-
-  if (
-    complete
-  ) {
-    if (
-      dayState.status ===
-        "in_progress"
-    ) {
-      accumulateElapsedTime(
-        dayState
-      );
-    }
-
-    dayState.status =
-      "complete";
-
-    dayState.completedAt =
-      dayState.completedAt ||
-      nowIso();
-
-    dayState.pausedAt =
-      null;
-
-    dayState.lastResumedAt =
-      null;
-  } else if (
-    dayState.status !==
-      "paused"
-  ) {
-    dayState.status =
-      dayState.startedAt
-        ? "in_progress"
-        : "not_started";
-
-    dayState.completedAt =
-      null;
-  }
-
-  recalculateDayCalories(
-    date
-  );
-
-  return complete;
-}
-
-
-// =====================================================
-// SUMMARIES
-// =====================================================
-
-function getExerciseSummary(
-  dayOrDate,
-  entryIdOrExerciseId
-) {
-  const progress =
-    getExerciseProgress(
-      dayOrDate,
-      entryIdOrExerciseId
-    );
-
-  if (!progress) {
-    return null;
-  }
-
-  const requiredSets =
-    normalizePositiveInteger(
-      progress.requiredSets
-    ) ||
-    0;
-
-  let completedSets =
-    0;
-
-  if (
-    progress.completionMode ===
-      "sets"
-  ) {
-    for (
-      let setNumber = 1;
-      setNumber <=
-        requiredSets;
-      setNumber += 1
-    ) {
-      const setRecord =
-        normalizeSetRecord(
-          progress.completedSets[
-            String(
-              setNumber
-            )
-          ],
-          setNumber
-        );
-
-      if (
-        setRecord.completed
-      ) {
-        completedSets +=
-          1;
-      }
-    }
-  }
-
-  return {
-    entryId:
-      progress.entryId,
-
-    exerciseId:
-      progress.exerciseId,
-
-    source:
-      progress.source,
-
-    status:
-      progress.status,
-
-    completionMode:
-      progress.completionMode,
-
-    completed:
-      Boolean(
-        progress.completed
-      ),
-
-    requiredSets,
-
-    completedSets,
-
-    estimatedCalories:
-      normalizeCalories(
-        progress.estimatedCalories
-      ) ||
-      0,
-
-    startedAt:
-      progress.startedAt,
-
-    completedAt:
-      progress.completedAt,
-
-    skippedAt:
-      progress.skippedAt,
-
-    substitutedFromEntryId:
-      progress
-        .substitutedFromEntryId,
-
-    substitutedFromExerciseId:
-      progress
-        .substitutedFromExerciseId
-  };
-}
-
-
-function getDayCalories(
-  dayOrDate
-) {
-  return recalculateDayCalories(
-    dayOrDate
-  );
-}
-
-
-function getDaySummary(
-  dayOrDate
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return null;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (!dayState) {
-    return {
-      date,
+    makeDay({
       day:
-        getDayIdFromDate(
-          date
-        ),
-      status:
-        "not_started",
-      completed:
-        false,
-      exerciseCount:
-        0,
-      activeExerciseCount:
-        0,
-      completedExercises:
-        0,
-      skippedExercises:
-        0,
-      addedExercises:
-        0,
-      substitutions:
-        0,
-      requiredSets:
-        0,
-      completedSets:
-        0,
-      estimatedCalories:
-        0,
-      elapsedSeconds:
-        0,
-      averageHeartRate:
-        null,
-      startedAt:
-        null,
-      pausedAt:
-        null,
-      completedAt:
-        null,
-      notes:
-        null
-    };
-  }
-
-  let requiredSets =
-    0;
-
-  let completedSets =
-    0;
-
-  let completedExercises =
-    0;
-
-  let skippedExercises =
-    0;
-
-  let addedExercises =
-    0;
-
-  let substitutions =
-    0;
-
-  for (
-    const entryId
-    of dayState.sessionOrder
-  ) {
-    const entry =
-      dayState.exercises[
-        entryId
-      ];
-
-    if (!entry) {
-      continue;
-    }
-
-    recalculateEntryCompletion(
-      entry
-    );
-
-    if (
-      entry.status ===
-        "skipped"
-    ) {
-      skippedExercises +=
-        1;
-
-      continue;
-    }
-
-    if (
-      entry.source ===
-        "added"
-    ) {
-      addedExercises +=
-        1;
-    }
-
-    if (
-      entry.source ===
-        "substitution"
-    ) {
-      substitutions +=
-        1;
-    }
-
-    if (
-      entry.completionMode ===
-        "sets"
-    ) {
-      const required =
-        normalizePositiveInteger(
-          entry.requiredSets
-        ) ||
-        0;
-
-      requiredSets +=
-        required;
-
-      for (
-        let setNumber = 1;
-        setNumber <=
-          required;
-        setNumber += 1
-      ) {
-        const setRecord =
-          normalizeSetRecord(
-            entry.completedSets[
-              String(
-                setNumber
-              )
-            ],
-            setNumber
-          );
-
-        if (
-          setRecord.completed
-        ) {
-          completedSets +=
-            1;
-        }
-      }
-    }
-
-    if (
-      entry.completed
-    ) {
-      completedExercises +=
-        1;
-    }
-  }
-
-  return {
-    date,
-
-    day:
-      dayState.day,
-
-    dayType:
-      dayState.dayType,
-
-    sessionId:
-      dayState.sessionId,
-
-    plannedWorkoutId:
-      dayState.plannedWorkoutId,
-
-    status:
-      dayState.status,
-
-    completed:
-      dayState.status ===
-        "complete",
-
-    exerciseCount:
-      dayState.sessionOrder
-        .length,
-
-    activeExerciseCount:
-      dayState.sessionOrder
-        .filter(
-          entryId =>
-            dayState
-              .exercises[
-                entryId
-              ]
-              ?.status !==
-              "skipped"
-        )
-        .length,
-
-    completedExercises,
-
-    skippedExercises,
-
-    addedExercises,
-
-    substitutions,
-
-    requiredSets,
-
-    completedSets,
-
-    estimatedCalories:
-      recalculateDayCalories(
-        date
-      ),
-
-    elapsedSeconds:
-      getElapsedSeconds(
-        date
-      ),
-
-    averageHeartRate:
-      dayState
-        .averageHeartRate,
-
-    startedAt:
-      dayState.startedAt,
-
-    pausedAt:
-      dayState.pausedAt,
-
-    completedAt:
-      dayState.completedAt,
-
-    notes:
-      dayState.notes
-  };
-}
-
-
-function getWeekSummary(
-  weekKey =
-    state.activeWeekKey
-) {
-  const summaries =
-    DAYS.map(
-      day =>
-        getDaySummary(
-          getDayDateForWeek(
-            weekKey,
-            day
-          )
-        )
-    );
-
-  return {
-    weekKey,
-
-    completeDays:
-      summaries.filter(
-        summary =>
-          summary?.status ===
-            "complete"
-      ).length,
-
-    inProgressDays:
-      summaries.filter(
-        summary =>
-          summary?.status ===
-            "in_progress"
-      ).length,
-
-    pausedDays:
-      summaries.filter(
-        summary =>
-          summary?.status ===
-            "paused"
-      ).length,
-
-    restDays:
-      summaries.filter(
-        summary =>
-          summary?.status ===
-            "rest"
-      ).length,
-
-    completedSets:
-      summaries.reduce(
-        (
-          total,
-          summary
-        ) =>
-          total +
-          (
-            summary
-              ?.completedSets ||
-            0
-          ),
-        0
-      ),
-
-    requiredSets:
-      summaries.reduce(
-        (
-          total,
-          summary
-        ) =>
-          total +
-          (
-            summary
-              ?.requiredSets ||
-            0
-          ),
-        0
-      ),
-
-    estimatedCalories:
-      Math.round(
-        summaries.reduce(
-          (
-            total,
-            summary
-          ) =>
-            total +
-            (
-              summary
-                ?.estimatedCalories ||
-              0
-            ),
-          0
-        ) * 10
-      ) / 10,
-
-    elapsedSeconds:
-      summaries.reduce(
-        (
-          total,
-          summary
-        ) =>
-          total +
-          (
-            summary
-              ?.elapsedSeconds ||
-            0
-          ),
-        0
-      ),
-
-    days:
-      summaries
-  };
-}
-
-
-function getWeekCalories(
-  weekKey =
-    state.activeWeekKey
-) {
-  return getWeekSummary(
-    weekKey
-  ).estimatedCalories;
-}
-
-
-// =====================================================
-// SESSION SNAPSHOT / HISTORY
-// =====================================================
-
-function createSessionSnapshot(
-  dayOrDate
-) {
-  const date =
-    resolveDateKey(
-      dayOrDate
-    );
-
-  if (!date) {
-    return null;
-  }
-
-  const dayState =
-    state.sessionsByDate[
-      date
-    ];
-
-  if (
-    !dayState ||
-    !dayState.sessionId
-  ) {
-    return null;
-  }
-
-  return {
-    schemaVersion:
-      SCHEMA_VERSION,
-
-    sessionId:
-      dayState.sessionId,
-
-    planKey:
-      state.planKey,
-
-    weekKey:
-      getWeekKey(
-        date
-      ),
-
-    date,
-
-    day:
-      dayState.day,
-
-    plannedWorkoutId:
-      dayState.plannedWorkoutId,
-
-    status:
-      dayState.status,
-
-    startedAt:
-      dayState.startedAt,
-
-    completedAt:
-      dayState.completedAt,
-
-    elapsedSeconds:
-      getElapsedSeconds(
-        date
-      ),
-
-    averageHeartRate:
-      dayState.averageHeartRate,
-
-    estimatedCalories:
-      recalculateDayCalories(
-        date
-      ),
-
-    originalOrder: [
-      ...dayState
-        .originalOrder
-    ],
-
-    sessionOrder: [
-      ...dayState
-        .sessionOrder
-    ],
-
-    exercises:
-      dayState.sessionOrder
-        .map(
-          entryId =>
-            dayState
-              .exercises[
-                entryId
-              ]
-        )
-        .filter(Boolean)
-        .map(
-          entry =>
-            clone(
-              entry
-            )
+        normalizedDay,
+
+      date:
+        getDayDateForWeek(
+          week.weekKey,
+          normalizedDay
         ),
 
-    notes:
-      dayState.notes,
+      type:
+        "off",
 
-    metadata: {
-      source:
-        SOURCE,
+      focusId:
+        "off_day",
 
-      version:
-        VERSION,
+      title:
+        "Off Day",
 
-      createdAt:
-        dayState
-          .metadata
-          ?.createdAt ||
-        null,
-
-      updatedAt:
-        dayState
-          .metadata
-          ?.updatedAt ||
-        null,
-
-      archivedAt:
-        nowIso()
-    }
-  };
-}
-
-
-function archiveCompletedSession(
-  dayOrDate
-) {
-  const snapshot =
-    createSessionSnapshot(
-      dayOrDate
-    );
-
-  if (
-    !snapshot ||
-    snapshot.status !==
-      "complete"
-  ) {
-    return false;
-  }
-
-  state.history[
-    snapshot.sessionId
-  ] =
-    clone(
-      snapshot
-    );
-
-  const date =
-    snapshot.date;
-
-  if (
-    state.sessionsByDate[
-      date
-    ]
-  ) {
-    state.sessionsByDate[
-      date
-    ]
-      .metadata
-      .historyArchivedAt =
-        nowIso();
-  }
-
-  return true;
-}
-
-
-function getSessionRecord(
-  sessionId
-) {
-  const id =
-    normalizeId(
-      sessionId
-    );
-
-  if (!id) {
-    return null;
-  }
-
-  const record =
-    state.history[
-      id
-    ];
-
-  return record
-    ? clone(
-        record
-      )
-    : null;
-}
-
-
-function getSessionHistory({
-  startDate =
-    null,
-
-  endDate =
-    null,
-
-  year =
-    null,
-
-  month =
-    null,
-
-  status =
-    null,
-
-  newestFirst =
-    true
-} = {}) {
-  const start =
-    formatDateKey(
-      startDate
-    );
-
-  const end =
-    formatDateKey(
-      endDate
-    );
-
-  const resolvedYear =
-    Number(
-      year
-    );
-
-  const resolvedMonth =
-    Number(
-      month
-    );
-
-  const normalizedStatus =
-    normalizeText(
-      status
-    )
-      .toLowerCase();
-
-  const records =
-    Object.values(
-      state.history
-    )
-      .filter(
-        record => {
-          if (
-            start &&
-            record.date <
-              start
-          ) {
-            return false;
-          }
-
-          if (
-            end &&
-            record.date >
-              end
-          ) {
-            return false;
-          }
-
-          if (
-            Number.isInteger(
-              resolvedYear
-            ) &&
-            resolvedYear > 0
-          ) {
-            const date =
-              toLocalDate(
-                record.date
-              );
-
-            if (
-              !date ||
-              date.getFullYear() !==
-                resolvedYear
-            ) {
-              return false;
-            }
-
-            if (
-              Number.isInteger(
-                resolvedMonth
-              ) &&
-              resolvedMonth >= 1 &&
-              resolvedMonth <= 12 &&
-              date.getMonth() + 1 !==
-                resolvedMonth
-            ) {
-              return false;
-            }
-          }
-
-          if (
-            normalizedStatus &&
-            normalizeText(
-              record.status
-            ).toLowerCase() !==
-              normalizedStatus
-          ) {
-            return false;
-          }
-
-          return true;
-        }
-      )
-      .sort(
-        (a, b) => {
-          const left =
-            new Date(
-              a.completedAt ||
-              a.startedAt ||
-              a.date
-            )
-              .getTime();
-
-          const right =
-            new Date(
-              b.completedAt ||
-              b.startedAt ||
-              b.date
-            )
-              .getTime();
-
-          return newestFirst
-            ? right - left
-            : left - right;
-        }
-      );
-
-  return clone(
-    records
-  );
-}
-
-
-function getMonthHistory(
-  year,
-  month
-) {
-  return getSessionHistory({
-    year,
-    month,
-    status:
-      "complete"
-  });
-}
-
-
-/*
- * Delete a saved session record.
- *
- * If the session is also the currently loaded date session,
- * reset that date back to the planned/not-started state.
- */
-function deleteSessionRecord(
-  sessionId
-) {
-  const id =
-    normalizeId(
-      sessionId
-    );
-
-  if (!id) {
-    return false;
-  }
-
-  let changed =
-    false;
-
-  if (
-    state.history[
-      id
-    ]
-  ) {
-    delete state.history[
-      id
-    ];
-
-    changed =
-      true;
-  }
-
-  for (
-    const [
-      date,
-      dayState
-    ]
-    of Object.entries(
-      state.sessionsByDate
-    )
-  ) {
-    if (
-      dayState
-        ?.sessionId ===
-        id
-    ) {
-      cancelDay(
-        date,
-        {
-          preservePlannedEntries:
-            true
-        }
-      );
-
-      changed =
-        true;
-    }
-  }
-
-  if (
-    changed
-  ) {
-    touch();
-    persist();
-    emit();
-  }
-
-  return changed;
-}
-
-
-function clearSessionHistory({
-  startDate =
-    null,
-
-  endDate =
-    null,
-
-  year =
-    null,
-
-  month =
-    null,
-
-  completedOnly =
-    false
-} = {}) {
-  const matches =
-    getSessionHistory({
-      startDate,
-      endDate,
-      year,
-      month,
-      status:
-        completedOnly
-          ? "complete"
-          : null
+      exercises:
+        []
     });
 
-  if (
-    matches.length ===
-      0
-  ) {
-    return 0;
-  }
+  touchWeek(
+    week
+  );
 
-  let removed =
-    0;
-
-  for (
-    const record
-    of matches
-  ) {
-    if (
-      state.history[
-        record.sessionId
-      ]
-    ) {
-      delete state.history[
-        record.sessionId
-      ];
-
-      removed +=
-        1;
-    }
-  }
-
-  touch();
   persist();
   emit();
 
-  return removed;
+  return true;
 }
 
 
 // =====================================================
-// RESET
+// WEEK COPY / REPEAT / CLEAR
 // =====================================================
 
-function resetDay(
-  dayOrDate
+function copyWeek(
+  sourceWeekValue,
+  targetWeekValue,
+  {
+    overwrite =
+      true,
+
+    markAsRepeat =
+      false
+  } = {}
 ) {
-  const date =
-    resolveDateKey(
-      dayOrDate
+  const sourceWeekKey =
+    normalizeWeekKey(
+      sourceWeekValue
     );
 
-  if (!date) {
+  const targetWeekKey =
+    normalizeWeekKey(
+      targetWeekValue
+    );
+
+  if (
+    !sourceWeekKey ||
+    !targetWeekKey ||
+    sourceWeekKey ===
+      targetWeekKey
+  ) {
     return false;
   }
 
-  const current =
-    state.sessionsByDate[
-      date
+  const source =
+    getResolvedWeek(
+      sourceWeekKey
+    );
+
+  if (!source) {
+    return false;
+  }
+
+  if (
+    !overwrite &&
+    hasStoredWeek(
+      targetWeekKey
+    )
+  ) {
+    return false;
+  }
+
+  const target =
+    createEmptyWeek(
+      targetWeekKey
+    );
+
+  target.name =
+    source.name;
+
+  target.primaryGoalId =
+    source.primaryGoalId;
+
+  target.secondaryGoalIds =
+    [
+      ...source.secondaryGoalIds
     ];
 
-  if (!current) {
+  for (
+    const day
+    of DAY_IDS
+  ) {
+    const sourceDay =
+      source.days[
+        day
+      ];
+
+    target.days[
+      day
+    ] =
+      makeDay({
+        ...clone(
+          sourceDay
+        ),
+
+        day,
+
+        date:
+          getDayDateForWeek(
+            targetWeekKey,
+            day
+          ),
+
+        workoutId:
+          null,
+
+        exercises:
+          normalizeExerciseList(
+            sourceDay.exercises,
+            {
+              regenerateEntryIds:
+                true
+            }
+          ),
+
+        metadata: {
+          ...(
+            sourceDay.metadata &&
+            typeof sourceDay.metadata ===
+              "object"
+              ? clone(
+                  sourceDay.metadata
+                )
+              : {}
+          ),
+
+          copiedFromDate:
+            sourceDay.date,
+
+          copiedFromWeekKey:
+            sourceWeekKey,
+
+          copiedAt:
+            nowIso()
+        }
+      });
+  }
+
+  target.metadata = {
+    ...target.metadata,
+
+    createdAt:
+      nowIso(),
+
+    updatedAt:
+      nowIso(),
+
+    sourceTemplateId:
+      null,
+
+    copiedFromWeekKey:
+      sourceWeekKey,
+
+    repeatedFromWeekKey:
+      markAsRepeat
+        ? sourceWeekKey
+        : null
+  };
+
+  state.weeks[
+    targetWeekKey
+  ] =
+    target;
+
+  touchRoot();
+  persist();
+  emit();
+
+  return true;
+}
+
+
+function repeatPreviousWeek(
+  targetWeekValue =
+    state.selectedWeekKey,
+  options =
+    {}
+) {
+  const targetWeekKey =
+    normalizeWeekKey(
+      targetWeekValue
+    );
+
+  if (!targetWeekKey) {
     return false;
   }
 
-  /*
-   * V3 resetDay is intentionally equivalent to safe cancellation:
-   * retain the plan, erase execution.
-   */
-  return cancelDay(
-    date,
+  const previousWeekKey =
+    formatDateKey(
+      addDays(
+        targetWeekKey,
+        -7
+      )
+    );
+
+  return copyWeek(
+    previousWeekKey,
+    targetWeekKey,
     {
-      preservePlannedEntries:
+      ...options,
+
+      markAsRepeat:
         true
     }
   );
 }
 
 
-function resetAll({
-  clearHistory =
-    false
-} = {}) {
-  state.sessionsByDate =
-    {};
-
-  state.planKey =
-    null;
-
-  state.activeWeekKey =
-    getWeekKey(
-      new Date()
+function clearWeek(
+  weekValue =
+    state.selectedWeekKey
+) {
+  const weekKey =
+    normalizeWeekKey(
+      weekValue
     );
 
-  if (
-    clearHistory
-  ) {
-    state.history =
-      {};
+  if (!weekKey) {
+    return false;
   }
 
-  state.metadata = {
-    createdAt:
-      null,
+  state.weeks[
+    weekKey
+  ] =
+    createEmptyWeek(
+      weekKey
+    );
 
-    updatedAt:
-      null,
+  touchWeek(
+    state.weeks[
+      weekKey
+    ]
+  );
 
-    migratedFrom:
-      state.metadata
-        ?.migratedFrom ||
-      null,
+  persist();
+  emit();
 
-    migratedAt:
-      state.metadata
-        ?.migratedAt ||
-      null
-  };
+  return true;
+}
 
-  touch();
+
+function deleteWeek(
+  weekValue
+) {
+  const weekKey =
+    normalizeWeekKey(
+      weekValue
+    );
+
+  if (!weekKey) {
+    return false;
+  }
+
+  if (
+    !state.weeks[
+      weekKey
+    ]
+  ) {
+    return true;
+  }
+
+  delete state.weeks[
+    weekKey
+  ];
+
+  touchRoot();
   persist();
   emit();
 
@@ -5348,95 +3033,531 @@ function resetAll({
 
 
 // =====================================================
-// PERSISTENCE
+// TEMPLATE SUPPORT
 // =====================================================
 
-function persist() {
-  if (
-    typeof localStorage ===
-      "undefined"
-  ) {
-    return false;
-  }
-
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(
-        state
-      )
-    );
-
-    return true;
-  } catch (
-    error
-  ) {
-    console.warn(
-      "ARI Training workout progress could not persist locally.",
-      error
-    );
-
-    return false;
-  }
-}
-
-
-function hydrate() {
-  if (
-    typeof localStorage ===
-      "undefined"
-  ) {
-    return false;
-  }
-
-  try {
-    const raw =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
-
-    if (raw) {
-      const parsed =
-        JSON.parse(
-          raw
-        );
-
-      return replaceState(
-        parsed
-      );
-    }
-
-    return hydrateLegacy();
-  } catch (
-    error
-  ) {
-    console.warn(
-      "ARI Training workout progress could not hydrate.",
-      error
-    );
-
-    return hydrateLegacy();
-  }
-}
-
-
-// =====================================================
-// STATE REPLACEMENT
-// =====================================================
-
-function replaceState(
-  incoming
+function applyTemplate(
+  template,
+  {
+    weekKey =
+      state.selectedWeekKey
+  } = {}
 ) {
   if (
-    !incoming ||
-    typeof incoming !==
+    !template ||
+    typeof template !==
+      "object" ||
+    !template.schedule
+  ) {
+    return false;
+  }
+
+  const resolvedWeekKey =
+    normalizeWeekKey(
+      weekKey
+    );
+
+  if (!resolvedWeekKey) {
+    return false;
+  }
+
+  const nextWeek =
+    createEmptyWeek(
+      resolvedWeekKey
+    );
+
+  nextWeek.name =
+    normalizeText(
+      template.name
+    ) ||
+    "My Weekly Plan";
+
+  nextWeek.primaryGoalId =
+    Array.isArray(
+      template.primaryGoals
+    )
+      ? normalizeId(
+          template
+            .primaryGoals[0]
+        )
+      : null;
+
+  nextWeek.secondaryGoalIds =
+    Array.isArray(
+      template.primaryGoals
+    )
+      ? uniqueStrings(
+          template.primaryGoals
+            .slice(1)
+        )
+      : [];
+
+  for (
+    const day
+    of DAY_IDS
+  ) {
+    const templateDay =
+      template.schedule[
+        day
+      ];
+
+    if (!templateDay) {
+      continue;
+    }
+
+    nextWeek.days[
+      day
+    ] =
+      makeDay({
+        day,
+
+        date:
+          getDayDateForWeek(
+            resolvedWeekKey,
+            day
+          ),
+
+        ...templateDay,
+
+        workoutId:
+          null,
+
+        exercises:
+          normalizeExerciseList(
+            templateDay.exercises,
+            {
+              regenerateEntryIds:
+                true
+            }
+          ),
+
+        metadata: {
+          ...(
+            templateDay
+              .metadata &&
+            typeof templateDay
+              .metadata ===
+                "object"
+              ? clone(
+                  templateDay
+                    .metadata
+                )
+              : {}
+          ),
+
+          sourceTemplateId:
+            normalizeId(
+              template.id
+            ),
+
+          appliedAt:
+            nowIso()
+        }
+      });
+  }
+
+  nextWeek.metadata = {
+    ...nextWeek.metadata,
+
+    createdAt:
+      nowIso(),
+
+    updatedAt:
+      nowIso(),
+
+    sourceTemplateId:
+      normalizeId(
+        template.id
+      ),
+
+    repeatedFromWeekKey:
+      null,
+
+    copiedFromWeekKey:
+      null
+  };
+
+  state.weeks[
+    resolvedWeekKey
+  ] =
+    nextWeek;
+
+  state.selectedWeekKey =
+    resolvedWeekKey;
+
+  touchRoot();
+  persist();
+  emit();
+
+  return true;
+}
+
+
+// =====================================================
+// SUMMARY / QUERY HELPERS
+// =====================================================
+
+function getTrainingDays(
+  weekValue =
+    state.selectedWeekKey
+) {
+  const week =
+    getResolvedWeek(
+      weekValue
+    );
+
+  return DAY_IDS
+    .map(
+      day =>
+        week.days[
+          day
+        ]
+    )
+    .filter(
+      dayState =>
+        dayState.type !==
+          "off"
+    )
+    .map(
+      clone
+    );
+}
+
+
+function getOffDays(
+  weekValue =
+    state.selectedWeekKey
+) {
+  const week =
+    getResolvedWeek(
+      weekValue
+    );
+
+  return DAY_IDS
+    .map(
+      day =>
+        week.days[
+          day
+        ]
+    )
+    .filter(
+      dayState =>
+        dayState.type ===
+          "off"
+    )
+    .map(
+      clone
+    );
+}
+
+
+function getSummary(
+  weekValue =
+    state.selectedWeekKey
+) {
+  const week =
+    getResolvedWeek(
+      weekValue
+    );
+
+  const trainingDays =
+    getTrainingDays(
+      week.weekKey
+    );
+
+  const offDays =
+    getOffDays(
+      week.weekKey
+    );
+
+  const exerciseCount =
+    DAY_IDS.reduce(
+      (
+        total,
+        day
+      ) =>
+        total +
+        (
+          week.days[
+            day
+          ]?.exercises
+            ?.length ||
+          0
+        ),
+      0
+    );
+
+  const plannedMinutes =
+    DAY_IDS.reduce(
+      (
+        total,
+        day
+      ) =>
+        total +
+        (
+          normalizePositiveNumber(
+            week.days[
+              day
+            ]
+              ?.estimatedDurationMinutes
+          ) ||
+          0
+        ),
+      0
+    );
+
+  return {
+    schemaVersion:
+      SCHEMA_VERSION,
+
+    weekKey:
+      week.weekKey,
+
+    startDate:
+      week.startDate,
+
+    endDate:
+      week.endDate,
+
+    name:
+      week.name,
+
+    primaryGoalId:
+      week.primaryGoalId,
+
+    secondaryGoalIds:
+      [
+        ...week.secondaryGoalIds
+      ],
+
+    trainingDayCount:
+      trainingDays.length,
+
+    offDayCount:
+      offDays.length,
+
+    exerciseCount,
+
+    plannedMinutes,
+
+    hasStoredWeek:
+      hasStoredWeek(
+        week.weekKey
+      ),
+
+    sourceTemplateId:
+      week.metadata
+        .sourceTemplateId,
+
+    repeatedFromWeekKey:
+      week.metadata
+        .repeatedFromWeekKey,
+
+    copiedFromWeekKey:
+      week.metadata
+        .copiedFromWeekKey,
+
+    builderVersion:
+      week.metadata
+        .builderVersion,
+
+    updatedAt:
+      week.metadata
+        .updatedAt
+  };
+}
+
+
+// =====================================================
+// STATE NORMALIZATION
+// =====================================================
+
+function normalizeIncomingWeek(
+  sourceWeek,
+  fallbackWeekKey
+) {
+  const weekKey =
+    normalizeWeekKey(
+      sourceWeek?.weekKey ||
+      sourceWeek?.startDate ||
+      fallbackWeekKey
+    );
+
+  if (!weekKey) {
+    return null;
+  }
+
+  const fresh =
+    createEmptyWeek(
+      weekKey
+    );
+
+  const sourceDays =
+    sourceWeek?.days ||
+    sourceWeek?.week ||
+    {};
+
+  for (
+    const day
+    of DAY_IDS
+  ) {
+    const incomingDay =
+      sourceDays[
+        day
+      ];
+
+    if (
+      incomingDay &&
+      typeof incomingDay ===
+        "object"
+    ) {
+      fresh.days[
+        day
+      ] =
+        makeDay({
+          day,
+
+          date:
+            getDayDateForWeek(
+              weekKey,
+              day
+            ),
+
+          ...incomingDay
+        });
+    }
+  }
+
+  fresh.name =
+    normalizeText(
+      sourceWeek?.name
+    ) ||
+    fresh.name;
+
+  fresh.primaryGoalId =
+    normalizeId(
+      sourceWeek
+        ?.primaryGoalId
+    );
+
+  fresh.secondaryGoalIds =
+    uniqueStrings(
+      sourceWeek
+        ?.secondaryGoalIds
+    );
+
+  fresh.metadata = {
+    ...fresh.metadata,
+
+    ...(
+      sourceWeek?.metadata &&
+      typeof sourceWeek
+        .metadata ===
+          "object"
+        ? clone(
+            sourceWeek
+              .metadata
+          )
+        : {}
+    )
+  };
+
+  return fresh;
+}
+
+
+function normalizeIncomingState(
+  incoming
+) {
+  const fresh =
+    createInitialState();
+
+  const normalized = {
+    ...fresh,
+
+    planId:
+      normalizeId(
+        incoming?.planId
+      ),
+
+    selectedWeekKey:
+      normalizeWeekKey(
+        incoming?.selectedWeekKey ||
+        new Date()
+      ) ||
+      fresh.selectedWeekKey,
+
+    weeks:
+      {},
+
+    metadata: {
+      ...fresh.metadata,
+
+      ...(
+        incoming?.metadata &&
+        typeof incoming
+          .metadata ===
+            "object"
+          ? clone(
+              incoming
+                .metadata
+            )
+          : {}
+      )
+    }
+  };
+
+  const sourceWeeks =
+    incoming?.weeks &&
+    typeof incoming.weeks ===
+      "object"
+      ? incoming.weeks
+      : {};
+
+  for (
+    const [
+      weekKey,
+      sourceWeek
+    ]
+    of Object.entries(
+      sourceWeeks
+    )
+  ) {
+    const week =
+      normalizeIncomingWeek(
+        sourceWeek,
+        weekKey
+      );
+
+    if (!week) {
+      continue;
+    }
+
+    normalized.weeks[
+      week.weekKey
+    ] =
+      week;
+  }
+
+  return normalized;
+}
+
+
+function replaceState(
+  nextState
+) {
+  if (
+    !nextState ||
+    typeof nextState !==
       "object"
   ) {
     return false;
   }
 
-  const fresh =
-    createInitialState();
+  const normalized =
+    normalizeIncomingState(
+      nextState
+    );
 
   state.schemaVersion =
     SCHEMA_VERSION;
@@ -5447,132 +3568,18 @@ function replaceState(
   state.source =
     SOURCE;
 
-  state.planKey =
-    normalizeId(
-      incoming.planKey
-    );
+  state.planId =
+    normalized.planId;
 
-  state.activeWeekKey =
-    normalizeId(
-      incoming.activeWeekKey ??
-      incoming.weekKey
-    ) ||
-    fresh.activeWeekKey;
+  state.selectedWeekKey =
+    normalized
+      .selectedWeekKey;
 
-  state.sessionsByDate =
-    {};
+  state.weeks =
+    normalized.weeks;
 
-  const incomingSessions =
-    incoming.sessionsByDate &&
-    typeof incoming.sessionsByDate ===
-      "object"
-      ? incoming.sessionsByDate
-      : {};
-
-  for (
-    const [
-      date,
-      rawDay
-    ]
-    of Object.entries(
-      incomingSessions
-    )
-  ) {
-    const normalizedDate =
-      formatDateKey(
-        date
-      );
-
-    if (
-      !normalizedDate ||
-      !rawDay ||
-      typeof rawDay !==
-        "object"
-    ) {
-      continue;
-    }
-
-    state.sessionsByDate[
-      normalizedDate
-    ] =
-      normalizeIncomingDay(
-        rawDay,
-        normalizedDate
-      );
-  }
-
-  state.history =
-    {};
-
-  const incomingHistory =
-    incoming.history &&
-    typeof incoming.history ===
-      "object"
-      ? incoming.history
-      : {};
-
-  for (
-    const [
-      sessionId,
-      record
-    ]
-    of Object.entries(
-      incomingHistory
-    )
-  ) {
-    if (
-      !record ||
-      typeof record !==
-        "object"
-    ) {
-      continue;
-    }
-
-    const id =
-      normalizeId(
-        record.sessionId ??
-        sessionId
-      );
-
-    const date =
-      formatDateKey(
-        record.date
-      );
-
-    if (
-      !id ||
-      !date
-    ) {
-      continue;
-    }
-
-    state.history[
-      id
-    ] = {
-      ...clone(
-        record
-      ),
-
-      sessionId:
-        id,
-
-      date
-    };
-  }
-
-  state.metadata = {
-    ...fresh.metadata,
-
-    ...(
-      incoming.metadata &&
-      typeof incoming.metadata ===
-        "object"
-        ? clone(
-            incoming.metadata
-          )
-        : {}
-    )
-  };
+  state.metadata =
+    normalized.metadata;
 
   emit();
 
@@ -5580,445 +3587,183 @@ function replaceState(
 }
 
 
-function normalizeIncomingDay(
-  sourceDay,
-  fallbackDate
-) {
-  const date =
-    formatDateKey(
-      sourceDay.date ??
-      fallbackDate
-    );
+// =====================================================
+// V2 / V1 MIGRATION
+// =====================================================
 
-  const fresh =
-    createEmptyDayState({
-      date,
-
-      day:
-        sourceDay.day,
-
-      dayType:
-        sourceDay.dayType ||
-        (
-          sourceDay.status ===
-            "rest"
-            ? "off"
-            : "workout"
-        )
-    });
-
-  const dayState = {
-    ...fresh,
-
-    ...clone(
-      sourceDay
-    ),
-
-    date,
-
-    day:
-      normalizeDay(
-        sourceDay.day
-      ) ||
-      getDayIdFromDate(
-        date
+function migrateLegacyRepeatingPlan(
+  legacyState,
+  {
+    targetWeekKey =
+      getWeekKey(
+        new Date()
       )
-  };
-
-  dayState.sessionId =
-    normalizeId(
-      sourceDay.sessionId
-    );
-
-  dayState.plannedWorkoutId =
-    normalizeId(
-      sourceDay.plannedWorkoutId
-    );
-
-  dayState.status =
-    normalizeSessionStatus(
-      sourceDay.status
-    );
-
-  dayState.elapsedSeconds =
-    normalizeNonNegativeInteger(
-      sourceDay.elapsedSeconds
-    ) ||
-    0;
-
-  dayState.averageHeartRate =
-    normalizeHeartRate(
-      sourceDay.averageHeartRate
-    );
-
-  dayState.originalOrder =
-    Array.isArray(
-      sourceDay.originalOrder
-    )
-      ? [
-          ...new Set(
-            sourceDay.originalOrder
-              .map(
-                normalizeId
-              )
-              .filter(Boolean)
-          )
-        ]
-      : [];
-
-  dayState.sessionOrder =
-    Array.isArray(
-      sourceDay.sessionOrder
-    )
-      ? [
-          ...new Set(
-            sourceDay.sessionOrder
-              .map(
-                normalizeId
-              )
-              .filter(Boolean)
-          )
-        ]
-      : [];
-
-  dayState.exercises =
-    {};
-
-  const incomingExercises =
-    sourceDay.exercises &&
-    typeof sourceDay.exercises ===
+  } = {}
+) {
+  if (
+    !legacyState ||
+    typeof legacyState !==
       "object"
-      ? sourceDay.exercises
+  ) {
+    return null;
+  }
+
+  const resolvedTargetWeekKey =
+    normalizeWeekKey(
+      targetWeekKey
+    );
+
+  if (!resolvedTargetWeekKey) {
+    return null;
+  }
+
+  const migrated =
+    createInitialState();
+
+  const week =
+    createEmptyWeek(
+      resolvedTargetWeekKey
+    );
+
+  week.name =
+    normalizeText(
+      legacyState.name
+    ) ||
+    "My Weekly Plan";
+
+  week.primaryGoalId =
+    normalizeId(
+      legacyState
+        .primaryGoalId
+    );
+
+  week.secondaryGoalIds =
+    uniqueStrings(
+      legacyState
+        .secondaryGoalIds
+    );
+
+  const legacyWeek =
+    legacyState.week &&
+    typeof legacyState.week ===
+      "object"
+      ? legacyState.week
       : {};
 
   for (
-    const [
-      entryId,
-      rawEntry
-    ]
-    of Object.entries(
-      incomingExercises
-    )
+    const day
+    of DAY_IDS
   ) {
+    const legacyDay =
+      legacyWeek[
+        day
+      ];
+
     if (
-      !rawEntry ||
-      typeof rawEntry !==
+      !legacyDay ||
+      typeof legacyDay !==
         "object"
     ) {
       continue;
     }
 
-    const normalizedEntry =
-      normalizeIncomingEntry(
-        rawEntry,
-        entryId
-      );
-
-    if (!normalizedEntry) {
-      continue;
-    }
-
-    dayState.exercises[
-      normalizedEntry.entryId
+    week.days[
+      day
     ] =
-      normalizedEntry;
+      makeDay({
+        day,
+
+        date:
+          getDayDateForWeek(
+            resolvedTargetWeekKey,
+            day
+          ),
+
+        ...legacyDay,
+
+        workoutId:
+          null,
+
+        exercises:
+          normalizeExerciseList(
+            legacyDay.exercises,
+            {
+              regenerateEntryIds:
+                true
+            }
+          ),
+
+        metadata: {
+          ...(
+            legacyDay.metadata &&
+            typeof legacyDay
+              .metadata ===
+                "object"
+              ? clone(
+                  legacyDay.metadata
+                )
+              : {}
+          ),
+
+          migratedFromLegacyPlan:
+            true
+        }
+      });
   }
 
-  if (
-    dayState.sessionOrder
-      .length ===
-      0
-  ) {
-    dayState.sessionOrder =
-      Object.keys(
-        dayState.exercises
-      );
-  }
+  week.metadata = {
+    ...week.metadata,
 
-  if (
-    dayState.originalOrder
-      .length ===
-      0
-  ) {
-    dayState.originalOrder =
-      dayState.sessionOrder
-        .filter(
-          entryId =>
-            dayState
-              .exercises[
-                entryId
-              ]
-              ?.source ===
-              "planned"
-        );
-  }
+    createdAt:
+      nowIso(),
 
-  dayState.sessionOrder =
-    dayState.sessionOrder
-      .filter(
-        entryId =>
-          Boolean(
-            dayState.exercises[
-              entryId
-            ]
-          )
-      );
+    updatedAt:
+      nowIso(),
 
-  for (
-    const entryId
-    of Object.keys(
-      dayState.exercises
-    )
-  ) {
-    if (
-      !dayState.sessionOrder
-        .includes(
-          entryId
-        )
-    ) {
-      dayState.sessionOrder
-        .push(
-          entryId
-        );
-    }
-  }
-
-  recalculateDayCaloriesForState(
-    dayState
-  );
-
-  return dayState;
-}
-
-
-function normalizeIncomingEntry(
-  rawEntry,
-  fallbackEntryId
-) {
-  const exerciseId =
-    normalizeId(
-      rawEntry.exerciseId
-    );
-
-  if (!exerciseId) {
-    return null;
-  }
-
-  const entryId =
-    normalizeId(
-      rawEntry.entryId ??
-      fallbackEntryId
-    ) ||
-    createStableId(
-      "session_entry"
-    );
-
-  const base =
-    createEntryFromPlanExercise(
-      {
-        entryId,
-
-        exerciseId,
-
-        role:
-          rawEntry.role,
-
-        sets:
-          rawEntry.requiredSets ??
-          rawEntry.prescription
-            ?.sets,
-
-        reps:
-          rawEntry.prescription
-            ?.reps,
-
-        restSeconds:
-          rawEntry.prescription
-            ?.restSeconds,
-
-        durationMinutes:
-          rawEntry.prescription
-            ?.durationMinutes,
-
-        durationSeconds:
-          rawEntry.prescription
-            ?.durationSeconds,
-
-        rounds:
-          rawEntry.prescription
-            ?.rounds,
-
-        workSeconds:
-          rawEntry.prescription
-            ?.workSeconds,
-
-        weight:
-          rawEntry.prescription
-            ?.weight,
-
-        addedWeight:
-          rawEntry.prescription
-            ?.addedWeight,
-
-        distance:
-          rawEntry.prescription
-            ?.distance,
-
-        intensity:
-          rawEntry.prescription
-            ?.intensity,
-
-        metadata:
-          rawEntry.metadata
-      },
-      {
-        source:
-          rawEntry.source,
-
-        originalIndex:
-          rawEntry.originalIndex
-      }
-    );
-
-  if (!base) {
-    return null;
-  }
-
-  const entry = {
-    ...base,
-
-    ...clone(
-      rawEntry
-    ),
-
-    entryId,
-
-    exerciseId,
-
-    source:
-      normalizeEntrySource(
-        rawEntry.source
+    sourceTemplateId:
+      normalizeId(
+        legacyState
+          .metadata
+          ?.sourceTemplateId
       ),
 
-    status:
-      normalizeEntryStatus(
-        rawEntry.status
-      ),
-
-    requiredSets:
-      normalizePositiveInteger(
-        rawEntry.requiredSets
-      ),
-
-    completed:
-      Boolean(
-        rawEntry.completed
-      ),
-
-    estimatedCalories:
-      normalizeCalories(
-        rawEntry.estimatedCalories
-      ) ||
-      0
+    builderVersion:
+      normalizeId(
+        legacyState
+          .metadata
+          ?.builderVersion
+      )
   };
 
-  entry.completedSets =
-    {};
+  migrated.planId =
+    normalizeId(
+      legacyState.planId
+    );
 
-  const incomingSets =
-    rawEntry.completedSets &&
-    typeof rawEntry.completedSets ===
-      "object"
-      ? rawEntry.completedSets
-      : {};
+  migrated.selectedWeekKey =
+    resolvedTargetWeekKey;
 
-  for (
-    const [
-      key,
-      value
-    ]
-    of Object.entries(
-      incomingSets
-    )
-  ) {
-    const setNumber =
-      normalizePositiveInteger(
-        key
-      );
+  migrated.weeks[
+    resolvedTargetWeekKey
+  ] =
+    week;
 
-    if (!setNumber) {
-      continue;
-    }
+  migrated.metadata = {
+    ...migrated.metadata,
 
-    entry.completedSets[
-      String(
-        setNumber
-      )
-    ] =
-      normalizeSetRecord(
-        value,
-        setNumber
-      );
-  }
+    migratedFrom:
+      legacyState.schemaVersion ===
+        2
+        ? "ari_training_weekly_plan_v2"
+        : "ari_training_weekly_plan_v1",
 
-  recalculateEntryCompletion(
-    entry
-  );
+    migratedAt:
+      nowIso()
+  };
 
-  return entry;
+  return migrated;
 }
 
-
-function recalculateDayCaloriesForState(
-  dayState
-) {
-  const total =
-    dayState.sessionOrder
-      .reduce(
-        (
-          sum,
-          entryId
-        ) => {
-          const entry =
-            dayState.exercises[
-              entryId
-            ];
-
-          if (
-            !entry ||
-            entry.status ===
-              "skipped"
-          ) {
-            return sum;
-          }
-
-          recalculateEntryCompletion(
-            entry
-          );
-
-          return (
-            sum +
-            (
-              normalizeCalories(
-                entry.estimatedCalories
-              ) ||
-              0
-            )
-          );
-        },
-        0
-      );
-
-  dayState.estimatedCalories =
-    Math.round(
-      total * 10
-    ) / 10;
-}
-
-
-// =====================================================
-// V2 / V1 MIGRATION
-// =====================================================
 
 function hydrateLegacy() {
   if (
@@ -6048,15 +3793,9 @@ function hydrateLegacy() {
         );
 
       const migrated =
-        legacyKey.endsWith(
-          "_v2"
-        )
-          ? migrateV2State(
-              parsed
-            )
-          : migrateV1State(
-              parsed
-            );
+        migrateLegacyRepeatingPlan(
+          parsed
+        );
 
       if (!migrated) {
         continue;
@@ -6066,14 +3805,6 @@ function hydrateLegacy() {
         migrated
       );
 
-      state.metadata
-        .migratedFrom =
-          legacyKey;
-
-      state.metadata
-        .migratedAt =
-          nowIso();
-
       persist();
 
       return true;
@@ -6081,7 +3812,7 @@ function hydrateLegacy() {
       error
     ) {
       console.warn(
-        `ARI Training progress could not migrate legacy key "${legacyKey}".`,
+        `ARI Training workout plan could not migrate legacy key "${legacyKey}".`,
         error
       );
     }
@@ -6091,341 +3822,128 @@ function hydrateLegacy() {
 }
 
 
-function migrateV2State(
-  legacy
-) {
+// =====================================================
+// PERSISTENCE
+// =====================================================
+
+function persist() {
   if (
-    !legacy ||
-    typeof legacy !==
-      "object"
+    typeof localStorage ===
+      "undefined"
   ) {
-    return null;
+    return false;
   }
 
-  const migrated =
-    createInitialState();
-
-  migrated.planKey =
-    normalizeId(
-      legacy.planKey
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(
+        state
+      )
     );
 
-  migrated.activeWeekKey =
-    normalizeId(
-      legacy.weekKey
-    ) ||
-    getWeekKey(
-      new Date()
-    );
-
-  const legacyDays =
-    legacy.days &&
-    typeof legacy.days ===
-      "object"
-      ? legacy.days
-      : {};
-
-  for (
-    const day
-    of DAYS
+    return true;
+  } catch (
+    error
   ) {
-    const legacyDay =
-      legacyDays[
-        day
-      ];
+    console.warn(
+      "ARI Training workout plan could not persist locally.",
+      error
+    );
 
-    if (
-      !legacyDay ||
-      typeof legacyDay !==
-        "object"
-    ) {
-      continue;
-    }
-
-    const date =
-      getDayDateForWeek(
-        migrated.activeWeekKey,
-        day
-      );
-
-    migrated.sessionsByDate[
-      date
-    ] =
-      normalizeIncomingDay(
-        {
-          ...legacyDay,
-
-          date,
-
-          day
-        },
-        date
-      );
+    return false;
   }
-
-  migrated.metadata = {
-    ...migrated.metadata,
-
-    migratedFrom:
-      "ari_training_workout_progress_v2",
-
-    migratedAt:
-      nowIso()
-  };
-
-  return migrated;
 }
 
 
-function migrateV1State(
-  legacy
-) {
+function hydrate() {
   if (
-    !legacy ||
-    typeof legacy !==
-      "object"
+    typeof localStorage ===
+      "undefined"
   ) {
-    return null;
+    return false;
   }
 
-  const migrated =
-    createInitialState();
-
-  migrated.planKey =
-    normalizeId(
-      legacy.planKey
-    );
-
-  migrated.activeWeekKey =
-    normalizeId(
-      legacy.weekKey
-    ) ||
-    getWeekKey(
-      new Date()
-    );
-
-  for (
-    const day
-    of DAYS
-  ) {
-    const legacyDay =
-      legacy.days?.[
-        day
-      ];
-
-    if (
-      !legacyDay ||
-      typeof legacyDay !==
-        "object"
-    ) {
-      continue;
-    }
-
-    const date =
-      getDayDateForWeek(
-        migrated.activeWeekKey,
-        day
+  try {
+    const raw =
+      localStorage.getItem(
+        STORAGE_KEY
       );
 
-    const nextDay =
-      createEmptyDayState({
-        date,
-        day,
-        dayType:
-          legacyDay.status ===
-            "rest"
-            ? "off"
-            : "workout"
-      });
-
-    nextDay.status =
-      normalizeSessionStatus(
-        legacyDay.status
-      );
-
-    nextDay.startedAt =
-      legacyDay.startedAt ||
-      null;
-
-    nextDay.completedAt =
-      legacyDay.completedAt ||
-      null;
-
-    nextDay.sessionId =
-      legacyDay.startedAt
-        ? createStableId(
-            "migrated_session"
-          )
-        : null;
-
-    const legacyExercises =
-      legacyDay.exercises &&
-      typeof legacyDay.exercises ===
-        "object"
-        ? legacyDay.exercises
-        : {};
-
-    let index =
-      0;
-
-    for (
-      const [
-        exerciseId,
-        legacyProgress
-      ]
-      of Object.entries(
-        legacyExercises
-      )
-    ) {
-      const entryId =
-        createStableId(
-          "migrated_entry"
+    if (raw) {
+      const parsed =
+        JSON.parse(
+          raw
         );
-
-      const requiredSets =
-        normalizePositiveInteger(
-          legacyProgress
-            ?.requiredSets
-        );
-
-      const entry =
-        createEntryFromPlanExercise(
-          {
-            entryId,
-            exerciseId,
-            sets:
-              requiredSets
-          },
-          {
-            source:
-              "planned",
-
-            originalIndex:
-              index
-          }
-        );
-
-      if (!entry) {
-        continue;
-      }
-
-      entry.status =
-        legacyProgress
-          ?.completed
-          ? "complete"
-          : legacyProgress
-              ?.startedAt
-            ? "in_progress"
-            : "not_started";
-
-      entry.completed =
-        Boolean(
-          legacyProgress
-            ?.completed
-        );
-
-      entry.startedAt =
-        legacyProgress
-          ?.startedAt ||
-        null;
-
-      entry.completedAt =
-        legacyProgress
-          ?.completedAt ||
-        null;
-
-      entry.estimatedCalories =
-        normalizeCalories(
-          legacyProgress
-            ?.estimatedCalories
-        ) ||
-        0;
 
       if (
-        legacyProgress
-          ?.completedSets &&
-        typeof legacyProgress
-          .completedSets ===
-          "object"
+        replaceState(
+          parsed
+        )
       ) {
-        entry.completedSets =
-          {};
-
-        for (
-          const [
-            setKey,
-            setValue
-          ]
-          of Object.entries(
-            legacyProgress
-              .completedSets
-          )
-        ) {
-          const setNumber =
-            normalizePositiveInteger(
-              setKey
-            );
-
-          if (!setNumber) {
-            continue;
-          }
-
-          entry.completedSets[
-            String(
-              setNumber
-            )
-          ] =
-            normalizeSetRecord(
-              setValue,
-              setNumber
-            );
-        }
+        return true;
       }
-
-      recalculateEntryCompletion(
-        entry
-      );
-
-      nextDay.exercises[
-        entryId
-      ] =
-        entry;
-
-      nextDay.originalOrder
-        .push(
-          entryId
-        );
-
-      nextDay.sessionOrder
-        .push(
-          entryId
-        );
-
-      index +=
-        1;
     }
 
-    recalculateDayCaloriesForState(
-      nextDay
+    return hydrateLegacy();
+  } catch (
+    error
+  ) {
+    console.warn(
+      "ARI Training workout plan could not hydrate from local storage.",
+      error
     );
 
-    migrated.sessionsByDate[
-      date
-    ] =
-      nextDay;
+    return hydrateLegacy();
   }
+}
 
-  migrated.metadata = {
-    ...migrated.metadata,
 
-    migratedFrom:
-      "ari_training_workout_progress_v1",
+function save() {
+  touchRoot();
 
-    migratedAt:
-      nowIso()
-  };
+  const persisted =
+    persist();
 
-  return migrated;
+  emit();
+
+  return persisted;
+}
+
+
+// =====================================================
+// RESET
+// =====================================================
+
+function reset() {
+  const fresh =
+    createInitialState();
+
+  state.schemaVersion =
+    fresh.schemaVersion;
+
+  state.version =
+    fresh.version;
+
+  state.source =
+    fresh.source;
+
+  state.planId =
+    fresh.planId;
+
+  state.selectedWeekKey =
+    fresh.selectedWeekKey;
+
+  state.weeks =
+    fresh.weeks;
+
+  state.metadata =
+    fresh.metadata;
+
+  persist();
+  emit();
+
+  return true;
 }
 
 
@@ -6437,160 +3955,153 @@ function validate() {
   const errors = [];
   const warnings = [];
 
-  for (
-    const [
-      date,
-      dayState
-    ]
-    of Object.entries(
-      state.sessionsByDate
+  if (
+    state.schemaVersion !==
+      SCHEMA_VERSION
+  ) {
+    warnings.push(
+      `Plan schema version is ${state.schemaVersion}; expected ${SCHEMA_VERSION}.`
+    );
+  }
+
+  if (
+    !normalizeWeekKey(
+      state.selectedWeekKey
     )
   ) {
-    if (
-      formatDateKey(
-        date
-      ) !==
-        date
-    ) {
-      errors.push(
-        `Progress session key "${date}" is not a valid YYYY-MM-DD date.`
-      );
-    }
-
-    if (
-      dayState.date !==
-        date
-    ) {
-      warnings.push(
-        `Progress date key "${date}" differs from session.date "${dayState.date}".`
-      );
-    }
-
-    if (
-      !VALID_SESSION_STATUSES
-        .includes(
-          dayState.status
-        )
-    ) {
-      errors.push(
-        `Date "${date}" has invalid session status "${dayState.status}".`
-      );
-    }
-
-    const orderIds =
-      new Set(
-        dayState.sessionOrder
-      );
-
-    for (
-      const entryId
-      of dayState.sessionOrder
-    ) {
-      if (
-        !dayState.exercises[
-          entryId
-        ]
-      ) {
-        errors.push(
-          `Date "${date}" sessionOrder references missing entry "${entryId}".`
-        );
-      }
-    }
-
-    for (
-      const [
-        entryId,
-        entry
-      ]
-      of Object.entries(
-        dayState.exercises
-      )
-    ) {
-      if (
-        !entry.entryId
-      ) {
-        errors.push(
-          `Date "${date}" contains an entry without entryId.`
-        );
-      }
-
-      if (
-        entry.entryId !==
-          entryId
-      ) {
-        warnings.push(
-          `Date "${date}" entry key "${entryId}" differs from entry.entryId "${entry.entryId}".`
-        );
-      }
-
-      if (
-        !entry.exerciseId
-      ) {
-        errors.push(
-          `Date "${date}" entry "${entryId}" has no exerciseId.`
-        );
-      }
-
-      if (
-        !VALID_ENTRY_STATUSES
-          .includes(
-            entry.status
-          )
-      ) {
-        errors.push(
-          `Date "${date}" entry "${entryId}" has invalid status "${entry.status}".`
-        );
-      }
-
-      if (
-        !VALID_SOURCES
-          .includes(
-            entry.source
-          )
-      ) {
-        errors.push(
-          `Date "${date}" entry "${entryId}" has invalid source "${entry.source}".`
-        );
-      }
-
-      if (
-        !orderIds.has(
-          entryId
-        )
-      ) {
-        warnings.push(
-          `Date "${date}" entry "${entryId}" is not present in sessionOrder.`
-        );
-      }
-    }
+    errors.push(
+      "selectedWeekKey is invalid."
+    );
   }
 
   for (
     const [
-      sessionId,
-      record
+      weekKey,
+      week
     ]
     of Object.entries(
-      state.history
+      state.weeks
     )
   ) {
     if (
-      record.sessionId !==
-        sessionId
+      normalizeWeekKey(
+        weekKey
+      ) !==
+        weekKey
     ) {
-      warnings.push(
-        `History key "${sessionId}" differs from record.sessionId "${record.sessionId}".`
+      errors.push(
+        `Stored week key "${weekKey}" is not a valid Sunday week key.`
       );
     }
 
     if (
-      !formatDateKey(
-        record.date
-      )
+      week.weekKey !==
+        weekKey
     ) {
       errors.push(
-        `History session "${sessionId}" has invalid date "${record.date}".`
+        `Stored week "${weekKey}" reports mismatched weekKey "${week.weekKey}".`
       );
+    }
+
+    if (
+      !week.days ||
+      typeof week.days !==
+        "object"
+    ) {
+      errors.push(
+        `Week "${weekKey}" has no days object.`
+      );
+
+      continue;
+    }
+
+    for (
+      const day
+      of DAY_IDS
+    ) {
+      const dayState =
+        week.days[
+          day
+        ];
+
+      if (!dayState) {
+        errors.push(
+          `Week "${weekKey}" is missing "${day}".`
+        );
+
+        continue;
+      }
+
+      const expectedDate =
+        getDayDateForWeek(
+          weekKey,
+          day
+        );
+
+      if (
+        dayState.day !==
+          day
+      ) {
+        errors.push(
+          `Week "${weekKey}" day "${day}" contains mismatched day id "${dayState.day}".`
+        );
+      }
+
+      if (
+        dayState.date !==
+          expectedDate
+      ) {
+        errors.push(
+          `Week "${weekKey}" day "${day}" has date "${dayState.date}", expected "${expectedDate}".`
+        );
+      }
+
+      if (
+        !VALID_DAY_TYPES.includes(
+          dayState.type
+        )
+      ) {
+        errors.push(
+          `Week "${weekKey}" day "${day}" has invalid type "${dayState.type}".`
+        );
+      }
+
+      const entryIds =
+        new Set();
+
+      for (
+        const exercise
+        of dayState.exercises ||
+        []
+      ) {
+        if (
+          !exercise?.exerciseId
+        ) {
+          errors.push(
+            `Week "${weekKey}" day "${day}" contains an exercise without exerciseId.`
+          );
+        }
+
+        if (
+          !exercise?.entryId
+        ) {
+          errors.push(
+            `Week "${weekKey}" day "${day}" contains exercise "${exercise?.exerciseId || "unknown"}" without entryId.`
+          );
+        } else if (
+          entryIds.has(
+            exercise.entryId
+          )
+        ) {
+          errors.push(
+            `Week "${weekKey}" day "${day}" contains duplicate entryId "${exercise.entryId}".`
+          );
+        } else {
+          entryIds.add(
+            exercise.entryId
+          );
+        }
+      }
     }
   }
 
@@ -6601,16 +4112,6 @@ function validate() {
 
     schemaVersion:
       SCHEMA_VERSION,
-
-    sessionDateCount:
-      Object.keys(
-        state.sessionsByDate
-      ).length,
-
-    historyCount:
-      Object.keys(
-        state.history
-      ).length,
 
     errorCount:
       errors.length,
@@ -6643,50 +4144,24 @@ function getDiagnostics() {
     storageKey:
       STORAGE_KEY,
 
-    legacyStorageKeys: [
-      ...LEGACY_STORAGE_KEYS
-    ],
+    legacyStorageKeys:
+      [
+        ...LEGACY_STORAGE_KEYS
+      ],
 
-    planKey:
-      state.planKey,
+    selectedWeekKey:
+      state.selectedWeekKey,
 
-    activeWeekKey:
-      state.activeWeekKey,
-
-    sessionDateCount:
+    storedWeekCount:
       Object.keys(
-        state.sessionsByDate
+        state.weeks
       ).length,
 
-    historyCount:
-      Object.keys(
-        state.history
-      ).length,
+    storedWeekKeys:
+      getWeekKeys(),
 
-    weekSummary:
-      getWeekSummary(
-        state.activeWeekKey
-      ),
-
-    capabilities: {
-      dateSpecificSessions:
-        true,
-
-      cancelWorkout:
-        true,
-
-      completedHistory:
-        true,
-
-      deleteSessionRecord:
-        true,
-
-      clearSessionHistory:
-        true,
-
-      monthHistory:
-        true
-    },
+    selectedWeekSummary:
+      getSummary(),
 
     validation:
       validate()
@@ -6698,7 +4173,7 @@ function getDiagnostics() {
 // PUBLIC STORE
 // =====================================================
 
-const AriTrainingWorkoutProgressStore =
+const AriTrainingWorkoutPlanStore =
   Object.freeze({
     version:
       VERSION,
@@ -6716,104 +4191,114 @@ const AriTrainingWorkoutProgressStore =
       LEGACY_STORAGE_KEYS,
 
     days:
-      DAYS,
+      DAY_IDS,
+
+    dayLabels:
+      DAY_LABELS,
 
     formatDateKey,
+
     getWeekKey,
-    getDayDateForWeek,
+
+    getWeekRange,
+
     getDayIdFromDate,
 
+    getDayDateForWeek,
+
     getState,
+
+    getSelectedWeekKey,
+
+    getSelectedWeek,
+
+    getWeek,
+
+    getWeekKeys,
+
+    hasStoredWeek,
 
     getDay,
 
     getDayByDate,
 
-    getEntry,
+    getToday,
 
-    getEntryByExerciseId,
+    getExerciseByEntryId,
 
-    getExerciseProgress,
+    getExerciseIndexByEntryId,
 
-    getExerciseSummary,
+    getSummary,
 
-    getDaySummary,
+    getTrainingDays,
 
-    getWeekSummary,
+    getOffDays,
 
-    getDayCalories,
+    setSelectedWeek,
 
-    getWeekCalories,
+    goToCurrentWeek,
 
-    getElapsedSeconds,
+    goToPreviousWeek,
 
-    createSessionSnapshot,
+    goToNextWeek,
 
-    archiveCompletedSession,
+    setPlanName,
 
-    getSessionRecord,
+    setPrimaryGoal,
 
-    getSessionHistory,
+    setSecondaryGoals,
 
-    getMonthHistory,
+    setDay,
 
-    deleteSessionRecord,
+    setDayType,
 
-    clearSessionHistory,
+    setDayFocus,
 
-    setPlanContext,
+    setDayTitle,
 
-    syncDayWithPlan,
+    setDayGoal,
 
-    syncWeekWithPlan,
+    setDaySport,
 
-    startDay,
+    setDayDuration,
 
-    markDayStarted,
+    setBuiltWorkout,
 
-    pauseDay,
+    addExercise,
 
-    resumeDay,
+    updateExercise,
 
-    completeDay,
+    updateExerciseById,
 
-    cancelDay,
+    removeExercise,
 
-    setAverageHeartRate,
+    removeExerciseById,
 
-    setDayNotes,
+    moveExercise,
 
-    moveEntry,
+    moveExerciseById,
 
-    addSessionExercise,
+    clearDay,
 
-    substituteEntry,
+    copyWeek,
 
-    skipEntry,
+    repeatPreviousWeek,
 
-    removeSessionEntry,
+    clearWeek,
 
-    setSetCompleted,
+    deleteWeek,
 
-    toggleSetCompleted,
-
-    setSetCalories,
-
-    setExerciseCompleted,
-
-    toggleExerciseCompleted,
-
-    recalculateDayCompletion,
+    applyTemplate,
 
     replaceState,
 
+    migrateLegacyRepeatingPlan,
+
     hydrate,
 
-    persist,
+    save,
 
-    resetDay,
-
-    resetAll,
+    reset,
 
     subscribe,
 
@@ -6840,8 +4325,8 @@ if (
     Ari.training ||
     {};
 
-  Ari.training.workoutProgress =
-    AriTrainingWorkoutProgressStore;
+  Ari.training.workoutPlan =
+    AriTrainingWorkoutPlanStore;
 
   globalThis.Ari =
     Ari;
@@ -6860,89 +4345,90 @@ export {
   STORAGE_KEY,
   LEGACY_STORAGE_KEYS,
 
-  DAYS,
+  DAY_IDS as DAYS,
+  DAY_LABELS,
 
   formatDateKey,
   getWeekKey,
-  getDayDateForWeek,
+  getWeekRange,
   getDayIdFromDate,
+  getDayDateForWeek,
+
+  createEmptyWeek,
+  makeDay,
+
+  normalizePlanExercise,
 
   getState,
 
+  getSelectedWeekKey,
+  getSelectedWeek,
+
+  getWeek,
+  getWeekKeys,
+  hasStoredWeek,
+
   getDay,
   getDayByDate,
+  getToday,
 
-  getEntry,
-  getEntryByExerciseId,
+  getExerciseByEntryId,
+  getExerciseIndexByEntryId,
 
-  getExerciseProgress,
-  getExerciseSummary,
+  getSummary,
+  getTrainingDays,
+  getOffDays,
 
-  getDaySummary,
-  getWeekSummary,
+  setSelectedWeek,
+  goToCurrentWeek,
+  goToPreviousWeek,
+  goToNextWeek,
 
-  getDayCalories,
-  getWeekCalories,
+  setPlanName,
+  setPrimaryGoal,
+  setSecondaryGoals,
 
-  getElapsedSeconds,
+  setDay,
+  setDayType,
+  setDayFocus,
+  setDayTitle,
+  setDayGoal,
+  setDaySport,
+  setDayDuration,
 
-  createSessionSnapshot,
-  archiveCompletedSession,
+  setBuiltWorkout,
 
-  getSessionRecord,
-  getSessionHistory,
-  getMonthHistory,
+  addExercise,
+  updateExercise,
+  updateExerciseById,
+  removeExercise,
+  removeExerciseById,
+  moveExercise,
+  moveExerciseById,
 
-  deleteSessionRecord,
-  clearSessionHistory,
+  clearDay,
 
-  setPlanContext,
+  copyWeek,
+  repeatPreviousWeek,
+  clearWeek,
+  deleteWeek,
 
-  syncDayWithPlan,
-  syncWeekWithPlan,
-
-  startDay,
-  markDayStarted,
-
-  pauseDay,
-  resumeDay,
-  completeDay,
-  cancelDay,
-
-  setAverageHeartRate,
-  setDayNotes,
-
-  moveEntry,
-
-  addSessionExercise,
-  substituteEntry,
-  skipEntry,
-  removeSessionEntry,
-
-  setSetCompleted,
-  toggleSetCompleted,
-  setSetCalories,
-
-  setExerciseCompleted,
-  toggleExerciseCompleted,
-
-  recalculateDayCompletion,
+  applyTemplate,
 
   replaceState,
+  migrateLegacyRepeatingPlan,
 
   hydrate,
-  persist,
-
-  resetDay,
-  resetAll,
+  save,
+  reset,
 
   subscribe,
 
   validate,
   getDiagnostics,
 
-  AriTrainingWorkoutProgressStore
+  AriTrainingWorkoutPlanStore
 };
 
 export default
-  AriTrainingWorkoutProgressStore;
+  AriTrainingWorkoutPlanStore;
