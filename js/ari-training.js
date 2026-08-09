@@ -1,11 +1,24 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.3.0
+// Version: 4.4.0
 // Purpose:
 //   Fault-isolated calendar-first ARI Training controller.
 //
-// V4.3.0:
+// V4.4.0:
+ //   - Uses calendar-specific plan dates from Workout Plan Controller V3.
+ //   - Stops weekly plans from repeating indefinitely across future weeks.
+ //   - Unplanned dates render Plan Workout instead of Start Workout Anyway.
+ //   - Recovery days no longer offer Start Workout / Train Anyway.
+ //   - Plan Workout opens workout-plans.html for the selected calendar date.
+ //   - Adds Cancel Workout for accidental session starts.
+ //   - Cancel Workout removes the accidental live Supabase session when possible.
+ //   - Adds per-session Delete controls in Monthly History.
+ //   - Adds Clear Month support for workout-history cleanup.
+ //   - Keeps completed-history deletion separate from workout-plan deletion.
+ //   - Preserves the fault-isolated V4.3.0 boot architecture.
+ //
+ // V4.3.0:
 //   - Boots visible Training controls before loading child modules.
 //   - Weekdays, calendar, hamburger, and buttons bind immediately.
 //   - Dynamically loads Training dependencies.
@@ -20,7 +33,7 @@
 //   - Fixes malformed symbols.
 // =====================================================
 
-const VERSION = "4.3.0";
+const VERSION = "4.4.0";
 const SOURCE = "js/ari-training";
 
 
@@ -689,6 +702,7 @@ function cacheElements() {
     "todaysTrainingSession",
     "liveSessionWorkoutName",
     "pauseTodayWorkoutButton",
+    "cancelTodayWorkoutButton",
     "todaySessionElapsed",
     "todaySessionSets",
     "todaySessionProgressFill",
@@ -756,6 +770,7 @@ function cacheElements() {
     "monthlySetsCompleted",
     "monthlyHistoryList",
     "monthlyHistoryEmptyState",
+    "clearMonthlyHistoryButton",
 
     "trainingProfileWeight",
     "trainingProfileRestingHeartRate",
@@ -863,14 +878,49 @@ function bindEvents() {
   elements.startUnplannedWorkoutButton
     ?.addEventListener(
       "click",
-      () => void startAdHocWorkout()
+      openWorkoutPlannerForSelectedDate
     );
 
 
   elements.trainOnRestDayButton
     ?.addEventListener(
       "click",
-      () => void startAdHocWorkout()
+      openWorkoutPlannerForSelectedDate
+    );
+
+
+  elements.cancelTodayWorkoutButton
+    ?.addEventListener(
+      "click",
+      () => void cancelActiveWorkout()
+    );
+
+
+  elements.clearMonthlyHistoryButton
+    ?.addEventListener(
+      "click",
+      () => void clearCurrentMonthHistory()
+    );
+
+
+
+  elements.monthlyHistoryList
+    ?.addEventListener(
+      "click",
+      event => {
+        const button =
+          event.target.closest(
+            '[data-training-action="delete-history-session"]'
+          );
+
+        if (!button) {
+          return;
+        }
+
+        void deleteHistorySession(
+          button.dataset.sessionId
+        );
+      }
     );
 
 
@@ -1305,38 +1355,82 @@ function renderCalendarShell() {
 
 
 function syncProgressWithPlan() {
-  const plan =
-    state.plan;
-
-
   if (
-    !plan?.week ||
-    !WorkoutProgressStore
+    !WorkoutProgressStore ||
+    !WorkoutPlanController
   ) {
     return;
   }
 
+  try {
+    const selectedWeekStart =
+      typeof WorkoutPlanController.getSelectedWeekStart ===
+        "function"
+        ? WorkoutPlanController.getSelectedWeekStart()
+        : getSundayWeekStartKey(
+            state.selectedDateKey ||
+            state.todayDateKey
+          );
 
-  WorkoutProgressStore
-    .setPlanContext({
-      planKey:
-        plan.planId ||
-        plan.metadata
-          ?.sourceTemplateId ||
-        "local-plan",
+    const plan =
+      typeof WorkoutPlanController.getPlan ===
+        "function"
+        ? WorkoutPlanController.getPlan()
+        : state.plan;
 
-      weekKey:
-        getCurrentWeekMondayKey(),
+    WorkoutProgressStore
+      .setPlanContext?.({
+        planKey:
+          plan?.planId ||
+          plan?.metadata?.sourceTemplateId ||
+          "calendar-plan",
 
-      resetIfChanged:
-        true
-    });
+        weekKey:
+          selectedWeekStart,
 
+        /*
+         * V3 progress is calendar-aware. Selecting another week
+         * must not erase workout history or create a repeating plan.
+         */
+        resetIfChanged:
+          true,
 
-  WorkoutProgressStore
-    .syncWeekWithPlan(
-      plan.week
+        archiveCompletedBeforeReset:
+          true
+      });
+
+    if (
+      typeof WorkoutPlanController.getWeek ===
+        "function"
+    ) {
+      const week =
+        WorkoutPlanController.getWeek(
+          selectedWeekStart
+        );
+
+      WorkoutProgressStore
+        .syncWeekWithPlan?.(
+          week?.days ||
+          {}
+        );
+
+      return;
+    }
+
+    if (
+      plan?.week
+    ) {
+      WorkoutProgressStore
+        .syncWeekWithPlan?.(
+          plan.week
+        );
+    }
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Calendar progress synchronization failed.",
+      error
     );
+  }
 }
 
 
@@ -1945,6 +2039,92 @@ function getCalendarDateStatus(
 }
 
 
+function getSundayWeekStartKey(
+  dateKey
+) {
+  const date =
+    dateFromKey(
+      dateKey
+    );
+
+  if (!date) {
+    return dateKey;
+  }
+
+  date.setDate(
+    date.getDate() -
+    date.getDay()
+  );
+
+  return getLocalDateKey(
+    date
+  );
+}
+
+
+function getSelectedPlanDay() {
+  if (
+    !state.selectedDateKey
+  ) {
+    return null;
+  }
+
+  try {
+    if (
+      typeof WorkoutPlanController?.setSelectedDate ===
+        "function"
+    ) {
+      WorkoutPlanController
+        .setSelectedDate(
+          state.selectedDateKey
+        );
+    }
+
+    if (
+      typeof WorkoutPlanController?.getDate ===
+        "function"
+    ) {
+      return WorkoutPlanController
+        .getDate(
+          state.selectedDateKey
+        );
+    }
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Could not read calendar plan date.",
+      error
+    );
+  }
+
+  /*
+   * Backward compatibility only.
+   * Old controllers exposed one repeating Monday-Sunday week.
+   */
+  const weekday =
+    weekdayIdFromDateKey(
+      state.selectedDateKey
+    );
+
+  return state.plan?.week?.[
+    weekday
+  ] ||
+    null;
+}
+
+
+function openWorkoutPlannerForSelectedDate() {
+  const dateKey =
+    state.selectedDateKey ||
+    state.todayDateKey ||
+    getLocalDateKey();
+
+  window.location.href =
+    `workout-plans.html?date=${encodeURIComponent(
+      dateKey
+    )}`;
+}
+
+
 // =====================================================
 // SELECTED DAY
 // =====================================================
@@ -2010,21 +2190,26 @@ async function renderSelectedDay() {
   }
 
 
-  const weekday =
-    weekdayIdFromDateKey(
-      dateKey
-    );
-
-
   const dayState =
-    state.plan?.week?.[
-      weekday
-    ];
+    getSelectedPlanDay();
 
 
   if (
-    dayState?.type ===
-    "off"
+    !dayState ||
+    dayState.type ===
+      "off" ||
+    dayState.metadata
+      ?.implicitOffDay
+  ) {
+    renderEmptyDay();
+
+    return;
+  }
+
+
+  if (
+    dayState.type ===
+      "recovery"
   ) {
     renderRestDay(
       dayState
@@ -2034,7 +2219,15 @@ async function renderSelectedDay() {
   }
 
 
-  if (!dayState) {
+  if (
+    dayState.type !==
+      "workout" ||
+    !Array.isArray(
+      dayState.exercises
+    ) ||
+    dayState.exercises.length ===
+      0
+  ) {
     renderEmptyDay();
 
     return;
@@ -2169,6 +2362,20 @@ function renderEmptyDay() {
     elements.todaysTrainingEmpty,
     false
   );
+
+  if (
+    elements.startUnplannedWorkoutButton
+  ) {
+    elements
+      .startUnplannedWorkoutButton
+      .textContent =
+        "Plan Workout";
+
+    elements
+      .startUnplannedWorkoutButton
+      .disabled =
+        false;
+  }
 }
 
 
@@ -2194,6 +2401,21 @@ function renderRestDay(
 
     "Recovery is part of the program."
   );
+
+
+  if (
+    elements.trainOnRestDayButton
+  ) {
+    elements
+      .trainOnRestDayButton
+      .textContent =
+        "Plan Workout";
+
+    elements
+      .trainOnRestDayButton
+      .disabled =
+        false;
+  }
 }
 
 
@@ -2462,15 +2684,18 @@ async function startSelectedPlannedWorkout() {
 
 
   const dayState =
-    state.plan?.week?.[
-      weekday
-    ];
+    getSelectedPlanDay();
 
 
   if (
     !dayState ||
-    dayState.type ===
-      "off"
+    dayState.type !==
+      "workout" ||
+    !Array.isArray(
+      dayState.exercises
+    ) ||
+    dayState.exercises.length ===
+      0
   ) {
     console.warn(
       "[ARI Training] No planned workout found for selected date.",
@@ -2490,10 +2715,12 @@ async function startSelectedPlannedWorkout() {
 
 
     showTrainingMessage(
-      "No workout is scheduled for this day.",
+      "Plan a workout for this date first.",
       "warning"
     );
 
+
+    openWorkoutPlannerForSelectedDate();
 
     return;
   }
@@ -3186,6 +3413,229 @@ async function startRepeatFromCompletedSession(
   } finally {
     state.saving =
       false;
+  }
+}
+
+
+async function cancelActiveWorkout() {
+  const session =
+    state.activeSession;
+
+  if (
+    !session ||
+    !OPEN_SESSION_STATUSES
+      .includes(
+        session.status
+      )
+  ) {
+    return false;
+  }
+
+  if (
+    !window.confirm(
+      "Cancel this workout? Any progress from this session will be discarded."
+    )
+  ) {
+    return false;
+  }
+
+  state.saving =
+    true;
+
+  try {
+    await deleteWorkoutSessionRecord(
+      session.id
+    );
+
+    const weekday =
+      weekdayIdFromDateKey(
+        session.local_date ||
+        state.selectedDateKey
+      );
+
+    try {
+      WorkoutProgressStore
+        ?.cancelDay?.(
+          weekday,
+          {
+            archiveCancelled:
+              false
+          }
+        );
+    } catch (error) {
+      console.warn(
+        "[ARI Training] Local progress cancellation failed.",
+        error
+      );
+    }
+
+    state.activeSession =
+      null;
+
+    state.currentExerciseId =
+      null;
+
+    state.rest =
+      null;
+
+    clearLocalSessionCache();
+
+    stopSessionTimer();
+    stopRestTimer();
+
+    renderAll();
+
+    showTrainingMessage(
+      "Workout cancelled.",
+      "success"
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "[ARI Training] Could not cancel workout.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Workout could not be cancelled."
+      ),
+      "error"
+    );
+
+    return false;
+  } finally {
+    state.saving =
+      false;
+  }
+}
+
+
+async function deleteWorkoutSessionRecord(
+  sessionId
+) {
+  if (
+    !sessionId
+  ) {
+    return false;
+  }
+
+  if (
+    String(
+      sessionId
+    ).startsWith(
+      "local_"
+    )
+  ) {
+    return true;
+  }
+
+  const client =
+    getSupabase();
+
+  if (
+    !client ||
+    !state.user?.id
+  ) {
+    return true;
+  }
+
+  /*
+   * Delete children explicitly so this also works when the
+   * database does not have cascading foreign keys enabled.
+   */
+  for (
+    const table
+    of [
+      "ari_workout_session_sets",
+      "ari_workout_heart_rate_readings",
+      "ari_workout_session_exercises"
+    ]
+  ) {
+    const {
+      error
+    } =
+      await client
+        .from(
+          table
+        )
+        .delete()
+        .eq(
+          "session_id",
+          sessionId
+        )
+        .eq(
+          "user_id",
+          state.user.id
+        );
+
+    if (
+      error
+    ) {
+      throw error;
+    }
+  }
+
+  const {
+    error
+  } =
+    await client
+      .from(
+        "ari_workout_sessions"
+      )
+      .delete()
+      .eq(
+        "id",
+        sessionId
+      )
+      .eq(
+        "user_id",
+        state.user.id
+      );
+
+  if (
+    error
+  ) {
+    throw error;
+  }
+
+  removeCompletedSessionFromLocalCache(
+    sessionId
+  );
+
+  return true;
+}
+
+
+function removeCompletedSessionFromLocalCache(
+  sessionId
+) {
+  try {
+    const records =
+      getCachedCompletedSessions()
+        .filter(
+          record =>
+            String(
+              record.id
+            ) !==
+            String(
+              sessionId
+            )
+        );
+
+    localStorage.setItem(
+      LOCAL_COMPLETED_CACHE_KEY,
+      JSON.stringify(
+        records
+      )
+    );
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Completed-session cache cleanup failed.",
+      error
+    );
   }
 }
 
@@ -4075,6 +4525,12 @@ function renderLiveSession() {
   );
 
 
+  setHidden(
+    elements.cancelTodayWorkoutButton,
+    false
+  );
+
+
   if (
     elements.pauseTodayWorkoutButton
   ) {
@@ -4167,7 +4623,7 @@ function renderCurrentExercise() {
     setText(
       elements.todayCurrentExercisePosition,
 
-      "✓"
+      "â"
     );
 
 
@@ -5189,7 +5645,7 @@ function createSessionExerciseQueueRow(
 
 
     button.textContent =
-      `${exercise.exercise_name} · ${getExerciseStateLabel(
+      `${exercise.exercise_name} Â· ${getExerciseStateLabel(
         exercise.status
       )}`;
   }
@@ -6170,7 +6626,7 @@ async function saveHeartRateReading() {
 
 
   showTrainingMessage(
-    `♥ ${bpm} BPM saved`,
+    `â¥ ${bpm} BPM saved`,
     "success"
   );
 }
@@ -6464,7 +6920,7 @@ async function openFinishWorkoutPanel() {
 
     hrStats.average
       ? `${hrStats.average} bpm`
-      : "—"
+      : "â"
   );
 
 
@@ -8131,7 +8587,182 @@ function createHistoryWorkoutElement(
   );
 
 
+  article.dataset.sessionId =
+    record.id ||
+    record.sessionId ||
+    "";
+
+
+  let deleteButton =
+    article.querySelector(
+      "[data-training-action=\"delete-history-session\"]"
+    );
+
+
+  if (
+    !deleteButton
+  ) {
+    deleteButton =
+      document.createElement(
+        "button"
+      );
+
+    deleteButton.type =
+      "button";
+
+    deleteButton.className =
+      "ari-history-workout__delete";
+
+    deleteButton.dataset.trainingAction =
+      "delete-history-session";
+
+    deleteButton.textContent =
+      "Delete";
+
+    article.appendChild(
+      deleteButton
+    );
+  }
+
+
+  deleteButton.dataset.sessionId =
+    record.id ||
+    record.sessionId ||
+    "";
+
+
   return fragment;
+}
+
+
+async function deleteHistorySession(
+  sessionId
+) {
+  if (
+    !sessionId
+  ) {
+    return false;
+  }
+
+  if (
+    !window.confirm(
+      "Delete this workout from your history? This cannot be undone."
+    )
+  ) {
+    return false;
+  }
+
+  try {
+    await deleteWorkoutSessionRecord(
+      sessionId
+    );
+
+    try {
+      WorkoutProgressStore
+        ?.deleteHistorySession?.(
+          sessionId
+        );
+    } catch {
+      // Cloud history remains authoritative for this page.
+    }
+
+    await renderHistory();
+    renderCalendar();
+
+    showTrainingMessage(
+      "Workout deleted from history.",
+      "success"
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "[ARI Training] History deletion failed.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Workout history could not be deleted."
+      ),
+      "error"
+    );
+
+    return false;
+  }
+}
+
+
+async function clearCurrentMonthHistory() {
+  const monthStart =
+    getMonthStartKey(
+      state.todayDateKey
+    );
+
+  const monthEnd =
+    getMonthEndKey(
+      state.todayDateKey
+    );
+
+  if (
+    !window.confirm(
+      "Clear all completed workouts from this month? This cannot be undone."
+    )
+  ) {
+    return false;
+  }
+
+  try {
+    const records =
+      await fetchCurrentMonthCompletedSessions();
+
+    for (
+      const record
+      of records
+    ) {
+      await deleteWorkoutSessionRecord(
+        record.id
+      );
+    }
+
+    try {
+      WorkoutProgressStore
+        ?.clearHistoryMonth?.(
+          monthStart.slice(
+            0,
+            7
+          )
+        );
+    } catch {
+      // Non-fatal.
+    }
+
+    await renderHistory();
+    renderCalendar();
+
+    showTrainingMessage(
+      "Monthly workout history cleared.",
+      "success"
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "[ARI Training] Monthly history clear failed.",
+      error
+    );
+
+    showTrainingMessage(
+      readableError(
+        error,
+        "Monthly workout history could not be cleared."
+      ),
+      "error"
+    );
+
+    return false;
+  }
 }
 
 
@@ -8299,7 +8930,7 @@ function renderTrainingProfile() {
       ? `${formatProfileNumber(
           state.profileWeightLb
         )} lb`
-      : "—"
+      : "â"
   );
 
 
@@ -8310,7 +8941,7 @@ function renderTrainingProfile() {
       ? `${Math.round(
           state.profileRestingHeartRate
         )} bpm`
-      : "—"
+      : "â"
   );
 
 
@@ -8321,7 +8952,7 @@ function renderTrainingProfile() {
       ? `${Math.round(
           state.profileEffectiveMaxHeartRate
         )} bpm`
-      : "—"
+      : "â"
   );
 
 
@@ -9549,7 +10180,7 @@ function buildWorkoutMeta(
 
 
   return pieces.join(
-    " · "
+    " Â· "
   );
 }
 
@@ -9645,7 +10276,7 @@ function getShortPrescription(
     sets &&
     reps
   ) {
-    return `${sets} × ${reps}`;
+    return `${sets} Ã ${reps}`;
   }
 
 
@@ -9710,7 +10341,7 @@ function getSessionExercisePrescription(
 
 
     return pieces.join(
-      " × "
+      " Ã "
     ) ||
       "Strength exercise";
   }
@@ -9763,7 +10394,7 @@ function buildSetTarget(
 
 
   return pieces.join(
-    " × "
+    " Ã "
   ) ||
     "Planned set";
 }
@@ -9836,16 +10467,16 @@ function getExerciseStateIcon(
 ) {
   switch (status) {
     case "current":
-      return "●";
+      return "â";
 
     case "completed":
-      return "✓";
+      return "â";
 
     case "skipped":
-      return "—";
+      return "â";
 
     default:
-      return "○";
+      return "â";
   }
 }
 
@@ -10610,7 +11241,7 @@ function readableError(
 
   return parts.length
     ? parts.join(
-        " · "
+        " Â· "
       )
     : fallback;
 }
