@@ -2,65 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   />
-
-  <meta
-    name="theme-color"
-    content="#070b10"
-  />
+  <meta name="theme-color" content="#070b10" />
 
   <title>ARI Training | Performance Center</title>
 
   <meta
     name="description"
-    content="ARI Training daily workout, calendar navigation, live workout execution, and training history."
+    content="ARI Training calendar, workout execution, performance, profile, and monthly workout history."
   />
 
-  <link
-    rel="preconnect"
-    href="https://fonts.googleapis.com"
-  />
-
-  <link
-    rel="preconnect"
-    href="https://fonts.gstatic.com"
-    crossorigin
-  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
   <link
     href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
   />
 
-  <link
-    rel="stylesheet"
-    href="assets/css/header.css?v=2.0.0"
-  />
-
-  <link
-    rel="stylesheet"
-    href="assets/css/animations.css?v=1.2.1"
-  />
-
-  <link
-    rel="stylesheet"
-    href="assets/css/ari-training.css?v=5.0.0"
-  />
+  <link rel="stylesheet" href="assets/css/base.css?v=16" />
+  <link rel="stylesheet" href="assets/css/header.css?v=17" />
+  <link rel="stylesheet" href="assets/css/animations.css?v=16" />
+  <link rel="stylesheet" href="assets/css/ari-training.css?v=4.4.0" />
 </head>
 
 <body class="ari-training-page">
-
-  <a
-    class="ari-skip-link"
-    href="#mainContent"
-  >
+  <a class="ari-skip-link" href="#mainContent">
     Skip to main content
   </a>
-
 
   <div class="ari-training-shell">
 
@@ -72,7 +44,6 @@
       aria-label="ARI Training header"
     >
       <div class="ari-training-header__inner">
-
         <a
           class="ari-training-back"
           href="goals.html"
@@ -82,7 +53,6 @@
           <span>Goals</span>
         </a>
 
-
         <div
           class="ari-training-brand"
           aria-labelledby="ariTrainingTitle"
@@ -91,10 +61,7 @@
             class="ari-training-brand__mark"
             aria-hidden="true"
           >
-            <svg
-              viewBox="0 0 64 64"
-              role="img"
-            >
+            <svg viewBox="0 0 64 64" role="img">
               <path
                 d="M13 25h7v-7h6v28h-6v-7h-7V25Zm38 0h-7v-7h-6v28h6v-7h7V25ZM26 29h12v6H26v-6Z"
                 fill="currentColor"
@@ -103,20 +70,13 @@
           </div>
 
           <div>
-            <p class="ari-training-brand__eyebrow">
-              ARI
-            </p>
-
-            <h1 id="ariTrainingTitle">
-              Training
-            </h1>
-
+            <p class="ari-training-brand__eyebrow">ARI</p>
+            <h1 id="ariTrainingTitle">Training</h1>
             <p class="ari-training-brand__subtitle">
               Performance Center
             </p>
           </div>
         </div>
-
 
         <button
           class="ari-training-menu"
@@ -130,22 +90,15 @@
           <span></span>
           <span></span>
         </button>
-
       </div>
 
-
-      <!-- ===================================================
-           HAMBURGER MENU
-      ==================================================== -->
       <nav
         class="ari-training-menu-panel"
         id="trainingMenu"
         aria-label="Training navigation"
         hidden
       >
-        <a href="workout-plans.html">
-          Edit Workout Plan
-        </a>
+        <a href="workout-plans.html">Workout Plans</a>
 
         <button
           type="button"
@@ -158,7 +111,7 @@
           type="button"
           data-training-panel="history"
         >
-          Training History
+          History
         </button>
 
         <button
@@ -168,9 +121,7 @@
           Training Profile
         </button>
       </nav>
-
     </header>
-
 
     <!-- =====================================================
          MAIN
@@ -181,1906 +132,1061 @@
     >
 
       <!-- ===================================================
-           DATE / CALENDAR CONTROL
+           CALENDAR / DATE CONTROL
       ==================================================== -->
       <section
-        class="ari-training-calendar-section"
-        aria-labelledby="trainingCalendarTitle"
+        class="ari-training-section ari-training-calendar-shell"
+        aria-label="Training calendar"
       >
-
-        <div class="ari-training-date-toolbar">
-
+        <div class="ari-training-date-row">
           <button
-            class="ari-training-date-trigger"
             id="trainingDateTrigger"
+            class="ari-training-date-trigger"
             type="button"
             aria-expanded="false"
             aria-controls="trainingCalendarPanel"
           >
-            <span
-              class="ari-training-date-trigger__label"
-              id="trainingDateTriggerLabel"
-            >
-              Today
-            </span>
-
-            <span
-              class="ari-training-date-trigger__chevron"
-              aria-hidden="true"
-            >
-              &#9662;
-            </span>
+            <span id="trainingDateTriggerLabel">Today</span>
+            <span aria-hidden="true">&#9662;</span>
           </button>
 
-
           <button
-            class="ari-training-today-shortcut"
             id="trainingTodayShortcut"
+            class="ari-text-button"
             type="button"
             hidden
           >
             Today
           </button>
-
         </div>
 
-
-        <!-- ===============================================
-             WEEK STRIP
-        ================================================ -->
         <div
-          class="ari-training-week-strip"
           id="trainingWeekStrip"
-          aria-label="Training week"
+          class="ari-training-week-strip"
+          aria-label="Selected week"
         >
           <!-- Rendered by js/ari-training.js -->
         </div>
 
-
-        <!-- ===============================================
-             FULL MONTH CALENDAR
-        ================================================ -->
-        <div
-          class="ari-training-calendar-panel"
+        <section
           id="trainingCalendarPanel"
+          class="ari-training-calendar-panel"
           hidden
         >
-
-          <div class="ari-training-calendar-panel__header">
-
+          <header class="ari-training-calendar-panel__header">
             <button
-              class="ari-icon-button"
               id="trainingPreviousMonthButton"
               type="button"
               aria-label="Previous month"
             >
-              &lsaquo;
+              &larr;
             </button>
 
-
-            <h2
-              id="trainingCalendarTitle"
-              class="ari-training-calendar-panel__month"
-            >
-              August 2026
+            <h2 id="trainingCalendarTitle">
+              Calendar
             </h2>
 
-
             <button
-              class="ari-icon-button"
               id="trainingNextMonthButton"
               type="button"
               aria-label="Next month"
             >
-              &rsaquo;
+              &rarr;
             </button>
-
-          </div>
-
+          </header>
 
           <div
             class="ari-training-calendar-weekdays"
             aria-hidden="true"
           >
-            <span>Sun</span>
-            <span>Mon</span>
-            <span>Tue</span>
-            <span>Wed</span>
-            <span>Thu</span>
-            <span>Fri</span>
-            <span>Sat</span>
+            <span>S</span>
+            <span>M</span>
+            <span>T</span>
+            <span>W</span>
+            <span>T</span>
+            <span>F</span>
+            <span>S</span>
           </div>
 
+          <div
+            id="trainingCalendarGrid"
+            class="ari-training-calendar-grid"
+          >
+            <!-- Rendered by js/ari-training.js -->
+          </div>
+        </section>
+      </section>
+
+      <!-- ===================================================
+           SELECTED DAY
+      ==================================================== -->
+      <section
+        id="todaysTraining"
+        class="ari-training-section ari-todays-training"
+        aria-labelledby="todaysTrainingDate"
+      >
+
+        <!-- Planned workout -->
+        <article
+          id="todaysTrainingDayView"
+          class="ari-selected-day-card"
+          hidden
+        >
+          <header class="ari-selected-day-card__header">
+            <div>
+              <p
+                id="todaysTrainingEyebrow"
+                class="ari-section-heading__eyebrow"
+              >
+                SELECTED DAY
+              </p>
+
+              <h2 id="todaysTrainingDate">
+                Today
+              </h2>
+            </div>
+
+            <span
+              id="todaysTrainingStatus"
+              class="ari-training-day-status"
+              data-status="not_started"
+            >
+              NOT STARTED
+            </span>
+          </header>
+
+          <div class="ari-selected-day-card__plan">
+            <p id="todaysTrainingPlan">PLANNED WORKOUT</p>
+            <span id="todaysTrainingType"></span>
+          </div>
+
+          <h3 id="todaysTrainingTitle">
+            Workout
+          </h3>
+
+          <p id="todaysTrainingMeta"></p>
 
           <div
-            class="ari-training-calendar-grid"
-            id="trainingCalendarGrid"
+            id="todaysTrainingExercisePreview"
+            class="ari-training-exercise-preview"
           >
             <!-- Rendered by js/ari-training.js -->
           </div>
 
-
-          <div class="ari-training-calendar-legend">
-
-            <span>
-              <i
-                class="ari-training-calendar-legend__dot
-                       ari-training-calendar-legend__dot--planned"
-              ></i>
-              Planned
-            </span>
-
-            <span>
-              <i
-                class="ari-training-calendar-legend__dot
-                       ari-training-calendar-legend__dot--complete"
-              ></i>
-              Complete
-            </span>
-
-            <span>
-              <i
-                class="ari-training-calendar-legend__dot
-                       ari-training-calendar-legend__dot--rest"
-              ></i>
-              Recovery
-            </span>
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      <!-- ===================================================
-           SELECTED DAY / TODAY'S TRAINING
-      ==================================================== -->
-      <section
-        class="ari-training-section ari-todays-training"
-        id="todaysTraining"
-        aria-labelledby="todaysTrainingTitle"
-      >
-
-        <!-- ===============================================
-             NORMAL DAY VIEW
-        ================================================ -->
-        <div
-          class="ari-todays-training__day-view"
-          id="todaysTrainingDayView"
-        >
-
-          <div class="ari-todays-training__header">
-
-            <div>
-
-              <p
-                class="ari-section-heading__eyebrow"
-                id="todaysTrainingEyebrow"
-              >
-                Today's Training
-              </p>
-
-              <time
-                class="ari-todays-training__date"
-                id="todaysTrainingDate"
-                datetime=""
-              >
-                Saturday, Aug 8
-              </time>
-
-            </div>
-
-
-            <span
-              class="ari-todays-training__status"
-              id="todaysTrainingStatus"
-              data-status="not_started"
-            >
-              Not Started
-            </span>
-
-          </div>
-
-
-          <!-- =============================================
-               WORKOUT CONTENT
-          ============================================== -->
           <div
-            class="ari-todays-training__plan"
-            id="todaysTrainingPlan"
-          >
-
-            <p
-              class="ari-todays-training__type"
-              id="todaysTrainingType"
-            >
-              Scheduled Workout
-            </p>
-
-
-            <h2
-              class="ari-todays-training__name"
-              id="todaysTrainingTitle"
-            >
-              Chest
-            </h2>
-
-
-            <p
-              class="ari-todays-training__meta"
-              id="todaysTrainingMeta"
-            >
-              2 exercises · 8 sets · about 20m
-            </p>
-
-          </div>
-
-
-          <!-- =============================================
-               PLANNED EXERCISES PREVIEW
-          ============================================== -->
-          <div
-            class="ari-todays-training__exercise-preview"
-            id="todaysTrainingExercisePreview"
-          >
-            <!-- Rendered by JS -->
-          </div>
-
-
-          <!-- =============================================
-               PRIMARY ACTION
-          ============================================== -->
-          <div
-            class="ari-todays-training__actions"
             id="todaysTrainingActions"
+            class="ari-selected-day-card__actions"
           >
-
             <button
-              class="ari-primary-button ari-todays-training__start"
               id="startTodayWorkoutButton"
+              class="ari-primary-button"
               type="button"
             >
               Start Workout
             </button>
-
           </div>
+        </article>
 
-        </div>
-
-
-        <!-- =================================================
-             EMPTY / UNSCHEDULED DAY
-        ================================================== -->
-        <div
-          class="ari-todays-training__empty"
+        <!-- No workout planned -->
+        <article
           id="todaysTrainingEmpty"
+          class="ari-selected-day-card ari-selected-day-card--empty"
           hidden
         >
-
-          <div class="ari-todays-training__empty-icon">
-            +
-          </div>
-
-
           <p class="ari-section-heading__eyebrow">
-            Open Training Day
+            SELECTED DAY
           </p>
 
-
-          <h2>
-            No Workout Planned
-          </h2>
-
+          <h2>No workout planned</h2>
 
           <p>
-            Your day is open.
+            This date is currently an off day. Plan a workout only if
+            you want to train on this date.
           </p>
-
 
           <button
-            class="ari-primary-button"
             id="startUnplannedWorkoutButton"
+            class="ari-primary-button"
             type="button"
           >
-            Start a Workout
+            Plan Workout
           </button>
+        </article>
 
-
-          <a
-            class="ari-text-button"
-            href="workout-plans.html"
-          >
-            Plan a Workout
-          </a>
-
-        </div>
-
-
-        <!-- =================================================
-             REST DAY
-        ================================================== -->
-        <div
-          class="ari-todays-training__rest-day"
+        <!-- Recovery day -->
+        <article
           id="todaysTrainingRestDay"
+          class="ari-selected-day-card ari-selected-day-card--recovery"
           hidden
         >
-
-          <div class="ari-todays-training__rest-icon">
-            ◌
-          </div>
-
-
           <p class="ari-section-heading__eyebrow">
-            Recovery Day
+            RECOVERY DAY
           </p>
 
-
           <h2 id="restDayTitle">
-            Rest &amp; Recover
+            Active Recovery
           </h2>
-
 
           <p id="restDayMessage">
             Recovery is part of the program.
           </p>
 
-
           <button
-            class="ari-secondary-button"
             id="trainOnRestDayButton"
+            class="ari-secondary-button"
             type="button"
           >
-            Start a Workout Anyway
+            Plan Workout
           </button>
+        </article>
 
-        </div>
-
-
-        <!-- =================================================
-             COMPLETED DAY
-        ================================================== -->
-        <div
-          class="ari-todays-training__completed-day"
+        <!-- Completed day -->
+        <article
           id="todaysTrainingCompletedDay"
+          class="ari-selected-day-card ari-selected-day-card--complete"
           hidden
         >
-
-          <div class="ari-todays-training__completed-check">
-            &#10003;
-          </div>
-
-
           <p class="ari-section-heading__eyebrow">
-            Workout Complete
+            WORKOUT COMPLETE
           </p>
 
-
-          <h2
-            id="completedDayWorkoutName"
-          >
-            Chest
+          <h2 id="completedDayWorkoutName">
+            Workout
           </h2>
 
-
-          <div class="ari-todays-training__completed-metrics">
-
+          <div class="ari-completed-day-summary">
             <div>
               <span>Time</span>
-              <strong id="completedDayDuration">
-                0m
-              </strong>
+              <strong id="completedDayDuration">0m</strong>
             </div>
-
 
             <div>
               <span>Sets</span>
-              <strong id="completedDaySets">
-                0
-              </strong>
+              <strong id="completedDaySets">0</strong>
             </div>
-
 
             <div>
               <span>Calories</span>
-              <strong id="completedDayCalories">
-                0 kcal
-              </strong>
+              <strong id="completedDayCalories">0 kcal</strong>
             </div>
-
           </div>
 
-
           <button
-            class="ari-primary-button"
             id="trainAgainButton"
+            class="ari-secondary-button"
             type="button"
           >
             Train Again
           </button>
-
-        </div>
-
+        </article>
 
         <!-- =================================================
-             ACTIVE WORKOUT SESSION
+             LIVE WORKOUT SESSION
         ================================================== -->
-        <div
-          class="ari-todays-training__session"
+        <article
           id="todaysTrainingSession"
+          class="ari-live-workout"
           hidden
         >
-
-          <!-- SESSION HEADER -->
-          <div class="ari-live-session-header">
-
+          <header class="ari-live-workout__header">
             <div>
-
               <p class="ari-section-heading__eyebrow">
-                Workout In Progress
+                LIVE WORKOUT
               </p>
 
-              <h2
-                id="liveSessionWorkoutName"
-              >
-                Chest
+              <h2 id="liveSessionWorkoutName">
+                Workout
               </h2>
-
             </div>
 
-
-            <button
-              class="ari-secondary-button ari-live-session-header__pause"
-              id="pauseTodayWorkoutButton"
-              type="button"
-            >
-              Pause
-            </button>
-
-          </div>
-
-
-          <!-- =============================================
-               PROGRESS RAIL
-          ============================================== -->
-          <div class="ari-live-session-progress">
-
-            <div class="ari-live-session-progress__header">
-
-              <span id="todaySessionElapsed">
-                00:00
-              </span>
-
-              <span id="todaySessionSets">
-                0 / 0 sets
-              </span>
-
-            </div>
-
-
-            <div
-              class="ari-live-session-progress__track"
-              aria-hidden="true"
-            >
-              <div
-                class="ari-live-session-progress__fill"
-                id="todaySessionProgressFill"
-              ></div>
-            </div>
-
-          </div>
-
-
-          <!-- =============================================
-               CURRENT EXERCISE
-          ============================================== -->
-          <article
-            class="ari-live-current-exercise"
-            id="todayCurrentExercise"
-          >
-
-            <div class="ari-live-current-exercise__heading">
-
-              <div>
-
-                <p class="ari-section-heading__eyebrow">
-                  Current Exercise
-                </p>
-
-                <h3
-                  id="todayCurrentExerciseName"
-                >
-                  Bench Press
-                </h3>
-
-                <p
-                  id="todayCurrentExercisePrescription"
-                >
-                  4 sets × 8 reps
-                </p>
-
-              </div>
-
-
-              <span
-                class="ari-live-current-exercise__position"
-                id="todayCurrentExercisePosition"
+            <div class="ari-live-workout__header-actions">
+              <button
+                id="pauseTodayWorkoutButton"
+                class="ari-secondary-button"
+                type="button"
               >
-                1 / 2
-              </span>
-
-            </div>
-
-
-            <!-- SET UI -->
-            <div
-              class="ari-live-current-exercise__sets"
-              id="todayCurrentExerciseSets"
-            >
-              <!-- Rendered by JS -->
-            </div>
-
-
-            <!-- EXERCISE ACTIONS -->
-            <div class="ari-live-current-exercise__actions">
+                Pause
+              </button>
 
               <button
-                class="ari-text-button"
+                id="cancelTodayWorkoutButton"
+                class="ari-danger-button"
+                type="button"
+                hidden
+              >
+                Cancel Workout
+              </button>
+            </div>
+          </header>
+
+          <div class="ari-live-workout__stats">
+            <div>
+              <span>Elapsed</span>
+              <strong id="todaySessionElapsed">0:00</strong>
+            </div>
+
+            <div>
+              <span>Sets</span>
+              <strong id="todaySessionSets">0 / 0</strong>
+            </div>
+          </div>
+
+          <div class="ari-live-workout__progress">
+            <span
+              id="todaySessionProgressFill"
+              class="ari-live-workout__progress-fill"
+            ></span>
+          </div>
+
+          <!-- Current exercise -->
+          <section
+            id="todayCurrentExercise"
+            class="ari-current-exercise"
+          >
+            <div class="ari-current-exercise__top">
+              <div>
+                <p class="ari-section-heading__eyebrow">
+                  CURRENT
+                </p>
+
+                <h3 id="todayCurrentExerciseName">
+                  Exercise
+                </h3>
+
+                <p id="todayCurrentExercisePrescription"></p>
+              </div>
+
+              <span id="todayCurrentExercisePosition">
+                1 / 1
+              </span>
+            </div>
+
+            <div
+              id="todayCurrentExerciseSets"
+              class="ari-current-exercise__sets"
+            >
+              <!-- Rendered by js/ari-training.js -->
+            </div>
+
+            <div class="ari-current-exercise__actions">
+              <button
                 id="doCurrentExerciseLaterButton"
+                class="ari-secondary-button"
                 type="button"
               >
                 Do Later
               </button>
 
-
               <button
-                class="ari-text-button ari-text-button--danger"
                 id="skipCurrentExerciseButton"
-                type="button"
-              >
-                Skip Exercise
-              </button>
-
-            </div>
-
-          </article>
-
-
-          <!-- =============================================
-               REST TIMER
-          ============================================== -->
-          <div
-            class="ari-workout-rest"
-            id="todayWorkoutRestPanel"
-            hidden
-          >
-
-            <p class="ari-section-heading__eyebrow">
-              Recovery
-            </p>
-
-
-            <strong
-              class="ari-workout-rest__timer"
-              id="todayWorkoutRestTimer"
-            >
-              01:30
-            </strong>
-
-
-            <div class="ari-workout-rest__actions">
-
-              <button
                 class="ari-text-button"
-                id="logWorkoutHeartRateButton"
-                type="button"
-              >
-                Log HR
-              </button>
-
-
-              <button
-                class="ari-text-button"
-                id="skipRestButton"
                 type="button"
               >
                 Skip
               </button>
-
             </div>
+          </section>
 
-          </div>
-
-
-          <!-- =============================================
-               HEART RATE QUICK ENTRY
-          ============================================== -->
-          <div
-            class="ari-workout-heart-rate-entry"
-            id="workoutHeartRateEntry"
+          <!-- Rest -->
+          <section
+            id="todayWorkoutRestPanel"
+            class="ari-workout-rest"
             hidden
           >
+            <p class="ari-section-heading__eyebrow">
+              REST
+            </p>
 
-            <div class="ari-workout-heart-rate-entry__heading">
+            <strong id="todayWorkoutRestTimer">
+              2:00
+            </strong>
 
-              <div>
-
-                <p class="ari-section-heading__eyebrow">
-                  Heart Rate
-                </p>
-
-                <h4>
-                  Log Current HR
-                </h4>
-
-              </div>
-
+            <div class="ari-workout-rest__actions">
+              <button
+                id="logWorkoutHeartRateButton"
+                class="ari-secondary-button"
+                type="button"
+              >
+                Log Heart Rate
+              </button>
 
               <button
-                class="ari-icon-button"
+                id="skipRestButton"
+                class="ari-text-button"
+                type="button"
+              >
+                Skip Rest
+              </button>
+            </div>
+          </section>
+
+          <!-- Heart rate entry -->
+          <section
+            id="workoutHeartRateEntry"
+            class="ari-workout-heart-rate-entry"
+            hidden
+          >
+            <div class="ari-workout-heart-rate-entry__header">
+              <div>
+                <p class="ari-section-heading__eyebrow">
+                  HEART RATE
+                </p>
+
+                <h3>Workout Heart Rate</h3>
+              </div>
+
+              <button
                 id="closeHeartRateEntryButton"
                 type="button"
                 aria-label="Close heart rate entry"
               >
                 &times;
               </button>
-
             </div>
 
+            <div class="ari-input-with-unit">
+              <input
+                id="workoutHeartRateInput"
+                type="number"
+                inputmode="numeric"
+                min="30"
+                max="240"
+                step="1"
+                placeholder="Example: 138"
+              />
+              <span>bpm</span>
+            </div>
 
-            <label class="ari-field">
+            <button
+              id="saveWorkoutHeartRateButton"
+              class="ari-primary-button"
+              type="button"
+            >
+              Save Heart Rate
+            </button>
+          </section>
 
+          <!-- Workout queue -->
+          <section class="ari-live-workout__queue">
+            <div class="ari-section-heading">
+              <div>
+                <p class="ari-section-heading__eyebrow">
+                  WORKOUT QUEUE
+                </p>
+
+                <h3>Exercises</h3>
+              </div>
+
+              <button
+                id="addExerciseToSessionButton"
+                class="ari-text-button"
+                type="button"
+              >
+                + Add Exercise
+              </button>
+            </div>
+
+            <div
+              id="todayExerciseList"
+              class="ari-session-exercise-list"
+            >
+              <!-- Rendered by js/ari-training.js -->
+            </div>
+          </section>
+
+          <button
+            id="finishTodayWorkoutButton"
+            class="ari-primary-button ari-primary-button--full"
+            type="button"
+          >
+            Finish Workout
+          </button>
+        </article>
+
+        <!-- =================================================
+             FINISH / REVIEW PANEL
+        ================================================== -->
+        <article
+          id="workoutCompletePanel"
+          class="ari-workout-complete-panel"
+          hidden
+        >
+          <p class="ari-section-heading__eyebrow">
+            FINISH WORKOUT
+          </p>
+
+          <h2 id="workoutCompleteName">
+            Workout
+          </h2>
+
+          <div class="ari-workout-complete-panel__summary">
+            <div>
+              <span>Duration</span>
+              <strong id="workoutCompleteDuration">0m</strong>
+            </div>
+
+            <div>
+              <span>Sets</span>
+              <strong id="workoutCompleteSets">0</strong>
+            </div>
+
+            <div>
+              <span>Average HR</span>
+              <strong id="workoutCompleteAverageHeartRate">&mdash;</strong>
+            </div>
+
+            <div>
+              <span>Calories</span>
+              <strong id="workoutCompleteCalories">0 kcal</strong>
+            </div>
+          </div>
+
+          <div class="ari-workout-complete-panel__hr">
+            <label>
               <span>
-                Heart Rate
+                Average Heart Rate
+                <small>Optional</small>
               </span>
 
-
               <div class="ari-input-with-unit">
-
                 <input
-                  id="workoutHeartRateInput"
+                  id="finalAverageHeartRateInput"
                   type="number"
                   inputmode="numeric"
                   min="30"
                   max="240"
                   step="1"
-                  placeholder="148"
-                  autocomplete="off"
+                  placeholder="Average"
                 />
-
-                <span>
-                  bpm
-                </span>
-
+                <span>bpm</span>
               </div>
-
             </label>
 
-
-            <button
-              class="ari-secondary-button"
-              id="saveWorkoutHeartRateButton"
-              type="button"
-            >
-              Save HR
-            </button>
-
-          </div>
-
-
-          <!-- =============================================
-               WORKOUT EXERCISE QUEUE
-          ============================================== -->
-          <div class="ari-live-session-queue">
-
-            <div class="ari-live-session-queue__header">
-
-              <div>
-                <p class="ari-section-heading__eyebrow">
-                  Today's Workout
-                </p>
-
-                <h3>
-                  Exercises
-                </h3>
-              </div>
-
-
-              <button
-                class="ari-text-button"
-                id="addExerciseToSessionButton"
-                type="button"
-              >
-                + Add Exercise
-              </button>
-
-            </div>
-
-
-            <div
-              class="ari-live-session-queue__list"
-              id="todayExerciseList"
-            >
-              <!-- Rendered by JS -->
-            </div>
-
-          </div>
-
-
-          <!-- =============================================
-               SESSION ACTIONS
-          ============================================== -->
-          <div class="ari-live-session-footer">
-
-            <button
-              class="ari-primary-button"
-              id="finishTodayWorkoutButton"
-              type="button"
-            >
-              Finish Workout
-            </button>
-
-          </div>
-
-        </div>
-
-
-        <!-- =================================================
-             ADD EXERCISE PANEL
-        ================================================== -->
-        <div
-          class="ari-session-exercise-picker"
-          id="sessionExercisePicker"
-          hidden
-        >
-
-          <div class="ari-session-exercise-picker__header">
-
-            <div>
-
-              <p class="ari-section-heading__eyebrow">
-                Add Exercise
-              </p>
-
-              <h3>
-                Add to Today's Workout
-              </h3>
-
-            </div>
-
-
-            <button
-              class="ari-icon-button"
-              id="closeSessionExercisePickerButton"
-              type="button"
-              aria-label="Close exercise picker"
-            >
-              &times;
-            </button>
-
-          </div>
-
-
-          <label class="ari-field">
-
-            <span>
-              Search Exercises
-            </span>
-
-            <input
-              id="sessionExerciseSearchInput"
-              type="search"
-              placeholder="Bench press, treadmill, pull-ups..."
-              autocomplete="off"
-            />
-
-          </label>
-
-
-          <div
-            class="ari-session-exercise-picker__results"
-            id="sessionExerciseSearchResults"
-          >
-            <!-- Rendered from ExerciseRegistry -->
-          </div>
-
-        </div>
-
-
-        <!-- =================================================
-             FINISH WORKOUT PANEL
-        ================================================== -->
-        <div
-          class="ari-workout-complete-panel"
-          id="workoutCompletePanel"
-          hidden
-        >
-
-          <div class="ari-workout-complete-panel__heading">
-
-            <div class="ari-workout-complete-panel__check">
-              &#10003;
-            </div>
-
-
-            <p class="ari-section-heading__eyebrow">
-              Mission Complete
-            </p>
-
-
-            <h3
-              id="workoutCompleteName"
-            >
-              Chest
-            </h3>
-
-
-            <p>
-              Review your workout before saving.
-            </p>
-
-          </div>
-
-
-          <div class="ari-workout-complete-panel__metrics">
-
-            <div>
-              <span>Duration</span>
-
-              <strong
-                id="workoutCompleteDuration"
-              >
-                0m
-              </strong>
-            </div>
-
-
-            <div>
-              <span>Sets</span>
-
-              <strong
-                id="workoutCompleteSets"
-              >
-                0
-              </strong>
-            </div>
-
-
-            <div>
-              <span>Avg HR</span>
-
-              <strong
-                id="workoutCompleteAverageHeartRate"
-              >
-                &mdash;
-              </strong>
-            </div>
-
-          </div>
-
-
-          <!-- INTENSITY -->
-          <fieldset class="ari-workout-intensity">
-
-            <legend>
-              How hard was this workout?
-            </legend>
-
-
-            <div class="ari-workout-intensity__options">
-
-              <label>
-                <input
-                  type="radio"
-                  name="workoutIntensity"
-                  value="easy"
-                />
-
-                <span>
-                  Easy
-                </span>
-              </label>
-
-
-              <label>
-                <input
-                  type="radio"
-                  name="workoutIntensity"
-                  value="moderate"
-                  checked
-                />
-
-                <span>
-                  Moderate
-                </span>
-              </label>
-
-
-              <label>
-                <input
-                  type="radio"
-                  name="workoutIntensity"
-                  value="hard"
-                />
-
-                <span>
-                  Hard
-                </span>
-              </label>
-
-
-              <label>
-                <input
-                  type="radio"
-                  name="workoutIntensity"
-                  value="very_hard"
-                />
-
-                <span>
-                  Very Hard
-                </span>
-              </label>
-
-            </div>
-
-          </fieldset>
-
-
-          <!-- OPTIONAL FINAL HR -->
-          <div class="ari-workout-final-heart-rate">
-
-            <p class="ari-section-heading__eyebrow">
-              Optional Heart Rate
-            </p>
-
-
-            <div class="ari-workout-final-heart-rate__grid">
-
-              <label class="ari-field">
-
-                <span>
-                  Average HR
-                </span>
-
-
-                <div class="ari-input-with-unit">
-
-                  <input
-                    id="finalAverageHeartRateInput"
-                    type="number"
-                    inputmode="numeric"
-                    min="30"
-                    max="240"
-                    step="1"
-                    placeholder="Optional"
-                  />
-
-                  <span>
-                    bpm
-                  </span>
-
-                </div>
-
-              </label>
-
-
-              <label class="ari-field">
-
-                <span>
-                  Peak HR
-                </span>
-
-
-                <div class="ari-input-with-unit">
-
-                  <input
-                    id="finalPeakHeartRateInput"
-                    type="number"
-                    inputmode="numeric"
-                    min="30"
-                    max="240"
-                    step="1"
-                    placeholder="Optional"
-                  />
-
-                  <span>
-                    bpm
-                  </span>
-
-                </div>
-
-              </label>
-
-            </div>
-
-          </div>
-
-
-          <!-- CALORIE RESULT -->
-          <div class="ari-workout-calorie-result">
-
-            <span>
-              Estimated Calories
-            </span>
-
-
-            <strong>
-              <span
-                id="workoutCompleteCalories"
-              >
-                0
+            <label>
+              <span>
+                Peak Heart Rate
+                <small>Optional</small>
               </span>
 
-              kcal
-            </strong>
-
-
-            <small
-              id="workoutCalorieCalculationNote"
-            >
-              Based on workout duration, body weight,
-              workout type, and intensity.
-            </small>
-
+              <div class="ari-input-with-unit">
+                <input
+                  id="finalPeakHeartRateInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="30"
+                  max="240"
+                  step="1"
+                  placeholder="Peak"
+                />
+                <span>bpm</span>
+              </div>
+            </label>
           </div>
 
+          <fieldset class="ari-workout-intensity">
+            <legend>
+              Workout Intensity
+            </legend>
 
-          <!-- ADDED EXERCISES SUMMARY -->
-          <div
-            class="ari-workout-added-exercises"
+            <label>
+              <input
+                type="radio"
+                name="workoutIntensity"
+                value="light"
+              />
+              <span>Light</span>
+            </label>
+
+            <label>
+              <input
+                type="radio"
+                name="workoutIntensity"
+                value="moderate"
+                checked
+              />
+              <span>Moderate</span>
+            </label>
+
+            <label>
+              <input
+                type="radio"
+                name="workoutIntensity"
+                value="vigorous"
+              />
+              <span>Vigorous</span>
+            </label>
+          </fieldset>
+
+          <p id="workoutCalorieCalculationNote">
+            Calories are estimated from workout duration, body weight,
+            activity, intensity, and available heart-rate data.
+          </p>
+
+          <section
             id="workoutAddedExercisesSummary"
+            class="ari-added-exercise-summary"
             hidden
           >
+            <h3>Exercises Added During Workout</h3>
 
-            <p class="ari-section-heading__eyebrow">
-              Added Today
-            </p>
-
-
-            <div
-              id="workoutAddedExercisesList"
-            >
-            </div>
-
-          </div>
-
+            <div id="workoutAddedExercisesList"></div>
+          </section>
 
           <div class="ari-workout-complete-panel__actions">
-
             <button
-              class="ari-secondary-button"
               id="returnToWorkoutButton"
+              class="ari-secondary-button"
               type="button"
             >
               Return to Workout
             </button>
 
-
             <button
-              class="ari-primary-button"
               id="saveCompletedWorkoutButton"
+              class="ari-primary-button"
               type="button"
             >
-              Finish &amp; Save
+              Save Workout
             </button>
-
           </div>
-
-        </div>
-
+        </article>
       </section>
-
     </main>
-
   </div>
 
+  <!-- =====================================================
+       SESSION EXERCISE PICKER
+  ====================================================== -->
+  <dialog
+    id="sessionExercisePicker"
+    class="ari-training-dialog"
+  >
+    <div class="ari-training-dialog__surface">
+      <header class="ari-training-dialog__header">
+        <div>
+          <p class="ari-section-heading__eyebrow">
+            EXERCISE LIBRARY
+          </p>
+
+          <h2>Add Exercise</h2>
+        </div>
+
+        <button
+          id="closeSessionExercisePickerButton"
+          type="button"
+          aria-label="Close exercise picker"
+        >
+          &times;
+        </button>
+      </header>
+
+      <input
+        id="sessionExerciseSearchInput"
+        type="search"
+        autocomplete="off"
+        maxlength="100"
+        placeholder="Search exercises..."
+      />
+
+      <div
+        id="sessionExerciseSearchResults"
+        class="ari-session-exercise-search-results"
+      >
+        <!-- Rendered by js/ari-training.js -->
+      </div>
+    </div>
+  </dialog>
 
   <!-- =====================================================
-       SIDE / OVERLAY PANELS
-       Opened from hamburger navigation.
+       DRAWER OVERLAY
   ====================================================== -->
-
   <div
-    class="ari-training-overlay"
     id="trainingOverlay"
+    class="ari-training-overlay"
     hidden
   ></div>
 
-
   <!-- =====================================================
-       PERFORMANCE PANEL
+       PERFORMANCE DRAWER
   ====================================================== -->
   <aside
-    class="ari-training-drawer"
     id="trainingPerformanceDrawer"
-    aria-labelledby="trainingPerformanceDrawerTitle"
+    class="ari-training-drawer"
+    aria-label="Training performance"
     hidden
   >
-
-    <div class="ari-training-drawer__header">
-
+    <header class="ari-training-drawer__header">
       <div>
-
         <p class="ari-section-heading__eyebrow">
-          Performance
+          PERFORMANCE
         </p>
 
-        <h2 id="trainingPerformanceDrawerTitle">
-          Today's Performance
-        </h2>
-
+        <h2>Training Performance</h2>
       </div>
 
-
       <button
-        class="ari-icon-button"
         type="button"
         data-close-training-drawer
         aria-label="Close performance"
       >
         &times;
       </button>
+    </header>
 
-    </div>
+    <div class="ari-training-drawer__body">
+      <div class="ari-performance-grid">
+        <article class="ari-performance-card">
+          <p>Calories</p>
+          <strong id="trainingCaloriesBurned">0</strong>
+        </article>
 
+        <article class="ari-performance-card">
+          <p>Workout Time</p>
+          <strong id="trainingWorkoutTime">0m</strong>
+        </article>
 
-    <div class="ari-performance-grid">
+        <article class="ari-performance-card">
+          <p>Workouts</p>
+          <strong id="trainingWorkoutCount">0</strong>
+        </article>
 
-      <article
-        class="ari-performance-card
-               ari-performance-card--primary"
-      >
-
-        <p class="ari-performance-card__label">
-          Calories Burned
-        </p>
-
-        <p class="ari-performance-card__value">
-
-          <span id="trainingCaloriesBurned">
-            0
-          </span>
-
-          <span class="ari-performance-card__unit">
-            kcal
-          </span>
-
-        </p>
-
-      </article>
-
-
-      <article class="ari-performance-card">
-
-        <p class="ari-performance-card__label">
-          Training Time
-        </p>
-
-        <p class="ari-performance-card__value">
-
-          <span id="trainingWorkoutTime">
-            0m
-          </span>
-
-        </p>
-
-      </article>
-
-
-      <article class="ari-performance-card">
-
-        <p class="ari-performance-card__label">
-          Workouts
-        </p>
-
-        <p class="ari-performance-card__value">
-
-          <span id="trainingWorkoutCount">
-            0
-          </span>
-
-        </p>
-
-      </article>
-
-
-      <article class="ari-performance-card">
-
-        <p class="ari-performance-card__label">
-          Sets
-        </p>
-
-        <p class="ari-performance-card__value">
-
-          <span id="trainingSetsCompleted">
-            0
-          </span>
-
-        </p>
-
-      </article>
-
-    </div>
-
-
-    <div
-      class="ari-performance-heart-rate"
-      id="trainingHeartRatePerformance"
-      hidden
-    >
-
-      <div>
-        <span>Avg HR</span>
-
-        <strong
-          id="trainingAverageHeartRate"
-        >
-          &mdash;
-        </strong>
+        <article class="ari-performance-card">
+          <p>Sets</p>
+          <strong id="trainingSetsCompleted">0</strong>
+        </article>
       </div>
 
+      <section class="ari-training-drawer-section">
+        <p class="ari-section-heading__eyebrow">
+          HEART RATE
+        </p>
 
-      <div>
-        <span>Peak HR</span>
+        <div class="ari-performance-grid">
+          <article class="ari-performance-card">
+            <p>Performance</p>
+            <strong id="trainingHeartRatePerformance">&mdash;</strong>
+          </article>
 
-        <strong
-          id="trainingPeakHeartRate"
-        >
-          &mdash;
-        </strong>
-      </div>
+          <article class="ari-performance-card">
+            <p>Average HR</p>
+            <strong id="trainingAverageHeartRate">&mdash;</strong>
+          </article>
 
+          <article class="ari-performance-card">
+            <p>Peak HR</p>
+            <strong id="trainingPeakHeartRate">&mdash;</strong>
+          </article>
 
-      <div>
-        <span>Intensity</span>
-
-        <strong
-          id="trainingIntensityLabel"
-        >
-          &mdash;
-        </strong>
-      </div>
-
+          <article class="ari-performance-card">
+            <p>Intensity</p>
+            <strong id="trainingIntensityLabel">&mdash;</strong>
+          </article>
+        </div>
+      </section>
     </div>
-
   </aside>
 
-
   <!-- =====================================================
-       TRAINING HISTORY DRAWER
+       HISTORY DRAWER
   ====================================================== -->
   <aside
-    class="ari-training-drawer"
     id="trainingHistoryDrawer"
-    aria-labelledby="trainingHistoryDrawerTitle"
+    class="ari-training-drawer"
+    aria-label="Workout history"
     hidden
   >
-
-    <div class="ari-training-drawer__header">
-
+    <header class="ari-training-drawer__header">
       <div>
-
         <p class="ari-section-heading__eyebrow">
-          Training History
+          MONTHLY ARCHIVE
         </p>
 
-        <h2 id="trainingHistoryDrawerTitle">
-          Monthly Archive
-        </h2>
+        <h2>Training History</h2>
 
         <p id="trainingHistoryMonthLabel">
           This Month
         </p>
-
       </div>
 
-
       <button
-        class="ari-icon-button"
         type="button"
         data-close-training-drawer
         aria-label="Close history"
       >
         &times;
       </button>
+    </header>
 
-    </div>
-
-
-    <div class="ari-monthly-summary-grid">
-
-      <article>
-
-        <p>
-          Workouts
-        </p>
-
-        <strong
-          id="monthlyCompletedWorkouts"
+    <div class="ari-training-drawer__body">
+      <div class="ari-training-history-toolbar">
+        <button
+          id="clearMonthlyHistoryButton"
+          class="ari-danger-button ari-danger-button--quiet"
+          type="button"
         >
-          0
-        </strong>
-
-      </article>
-
-
-      <article>
-
-        <p>
-          Training Time
-        </p>
-
-        <strong
-          id="monthlyTrainingTime"
-        >
-          0m
-        </strong>
-
-      </article>
-
-
-      <article>
-
-        <p>
-          Calories
-        </p>
-
-        <strong>
-
-          <span
-            id="monthlyCaloriesTotal"
-          >
-            0
-          </span>
-
-          kcal
-
-        </strong>
-
-      </article>
-
-
-      <article>
-
-        <p>
-          Sets
-        </p>
-
-        <strong
-          id="monthlySetsCompleted"
-        >
-          0
-        </strong>
-
-      </article>
-
-    </div>
-
-
-    <!-- Compatibility IDs -->
-    <span
-      id="monthlyWorkoutCount"
-      hidden
-    >
-      0
-    </span>
-
-    <span
-      id="monthlyCaloriesBurned"
-      hidden
-    >
-      0
-    </span>
-
-
-    <div
-      class="ari-month-history-list"
-      id="monthlyHistoryList"
-    >
-      <!-- Rendered by JS -->
-    </div>
-
-
-    <div
-      class="ari-history-empty-state"
-      id="monthlyHistoryEmptyState"
-    >
-
-      <p>
-        Completed workouts will appear here.
-      </p>
-
-    </div>
-
-  </aside>
-
-
-  <!-- =====================================================
-       TRAINING PROFILE DRAWER
-  ====================================================== -->
-  <aside
-    class="ari-training-drawer"
-    id="trainingProfileDrawer"
-    aria-labelledby="trainingProfileTitle"
-    hidden
-  >
-
-    <div class="ari-training-drawer__header">
-
-      <div>
-
-        <p class="ari-section-heading__eyebrow">
-          Training Profile
-        </p>
-
-        <h2 id="trainingProfileTitle">
-          Training Intelligence
-        </h2>
-
+          Clear Month
+        </button>
       </div>
 
+      <div class="ari-monthly-summary-grid">
+        <article>
+          <p>Workouts</p>
+          <strong id="monthlyWorkoutCount">0</strong>
+        </article>
+
+        <article>
+          <p>Calories</p>
+          <strong id="monthlyCaloriesBurned">0</strong>
+        </article>
+
+        <article>
+          <p>Completed Workouts</p>
+          <strong id="monthlyCompletedWorkouts">0</strong>
+        </article>
+
+        <article>
+          <p>Training Time</p>
+          <strong id="monthlyTrainingTime">0m</strong>
+        </article>
+
+        <article>
+          <p>Calories Total</p>
+          <strong id="monthlyCaloriesTotal">0</strong>
+        </article>
+
+        <article>
+          <p>Sets Completed</p>
+          <strong id="monthlySetsCompleted">0</strong>
+        </article>
+      </div>
+
+      <div
+        id="monthlyHistoryList"
+        class="ari-month-history-list"
+        aria-live="polite"
+      >
+        <!-- Rendered by js/ari-training.js -->
+      </div>
+
+      <div
+        id="monthlyHistoryEmptyState"
+        class="ari-history-empty-state"
+      >
+        <p>
+          Completed workouts for this month will appear here.
+        </p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =====================================================
+       PROFILE DRAWER
+  ====================================================== -->
+  <aside
+    id="trainingProfileDrawer"
+    class="ari-training-drawer"
+    aria-label="Training profile"
+    hidden
+  >
+    <header class="ari-training-drawer__header">
+      <div>
+        <p class="ari-section-heading__eyebrow">
+          TRAINING PROFILE
+        </p>
+
+        <h2>Heart-Rate Profile</h2>
+      </div>
 
       <button
-        class="ari-icon-button"
         type="button"
         data-close-training-drawer
         aria-label="Close training profile"
       >
         &times;
       </button>
+    </header>
 
+    <div class="ari-training-drawer__body">
+      <p
+        id="trainingProfileSource"
+        class="ari-training-profile__source"
+      >
+        Goals Profile
+      </p>
+
+      <div class="ari-training-profile__grid">
+        <article class="ari-training-profile__metric">
+          <span>Body Weight</span>
+          <strong id="trainingProfileWeight">&mdash;</strong>
+        </article>
+
+        <article class="ari-training-profile__metric">
+          <span>Resting Heart Rate</span>
+          <strong id="trainingProfileRestingHeartRate">&mdash;</strong>
+        </article>
+
+        <article class="ari-training-profile__metric">
+          <span>Maximum Heart Rate</span>
+          <strong id="trainingProfileMaxHeartRate">&mdash;</strong>
+
+          <small id="trainingProfileMaxHeartRateSource">
+            Estimated from age
+          </small>
+        </article>
+      </div>
     </div>
-
-
-    <div class="ari-training-profile__grid">
-
-      <div class="ari-training-profile__metric">
-
-        <span>
-          Body Weight
-        </span>
-
-        <strong
-          id="trainingProfileWeight"
-        >
-          &mdash;
-        </strong>
-
-      </div>
-
-
-      <div class="ari-training-profile__metric">
-
-        <span>
-          Resting Heart Rate
-        </span>
-
-        <strong
-          id="trainingProfileRestingHeartRate"
-        >
-          &mdash;
-        </strong>
-
-      </div>
-
-
-      <div class="ari-training-profile__metric">
-
-        <span>
-          Maximum Heart Rate
-        </span>
-
-        <strong
-          id="trainingProfileMaxHeartRate"
-        >
-          &mdash;
-        </strong>
-
-        <small
-          id="trainingProfileMaxHeartRateSource"
-        >
-          Estimated from age
-        </small>
-
-      </div>
-
-    </div>
-
-
-    <p class="ari-field-help">
-      These values provide context for workout intensity
-      and calorie estimates.
-    </p>
-
-
-    <span
-      id="trainingProfileSource"
-      hidden
-    >
-      Goals Profile
-    </span>
-
   </aside>
 
-
   <!-- =====================================================
-       WEEK STRIP DAY TEMPLATE
+       TEMPLATES
   ====================================================== -->
-  <template id="trainingWeekDayTemplate">
 
+  <!-- Week strip day -->
+  <template id="trainingWeekDayTemplate">
     <button
       class="ari-training-week-day"
       type="button"
-      data-status="empty"
     >
-
+      <span class="ari-training-week-day__weekday"></span>
+      <strong class="ari-training-week-day__date"></strong>
       <span
-        class="ari-training-week-day__weekday"
-      >
-        S
-      </span>
-
-
-      <span
-        class="ari-training-week-day__date"
-      >
-        8
-      </span>
-
-
-      <span
-        class="ari-training-week-day__indicator"
+        class="ari-training-week-day__signal"
         aria-hidden="true"
       ></span>
-
     </button>
-
   </template>
 
-
-  <!-- =====================================================
-       MONTH CALENDAR DAY TEMPLATE
-  ====================================================== -->
+  <!-- Month calendar day -->
   <template id="trainingCalendarDayTemplate">
-
     <button
       class="ari-training-calendar-day"
       type="button"
-      data-status="empty"
     >
-
+      <span class="ari-training-calendar-day__number"></span>
       <span
-        class="ari-training-calendar-day__number"
-      >
-        8
-      </span>
-
-
-      <span
-        class="ari-training-calendar-day__indicator"
+        class="ari-training-calendar-day__signal"
         aria-hidden="true"
       ></span>
-
     </button>
-
   </template>
 
-
-  <!-- =====================================================
-       DAY EXERCISE PREVIEW TEMPLATE
-  ====================================================== -->
+  <!-- Planned exercise preview -->
   <template id="trainingDayExercisePreviewTemplate">
-
-    <div class="ari-training-day-exercise-preview">
-
-      <span
-        class="ari-training-day-exercise-preview__name"
-      >
-        Bench Press
-      </span>
-
-
-      <span
-        class="ari-training-day-exercise-preview__prescription"
-      >
-        4 × 8
-      </span>
-
-    </div>
-
+    <article class="ari-training-exercise-preview-row">
+      <div>
+        <strong class="ari-training-exercise-preview-row__name"></strong>
+        <span class="ari-training-exercise-preview-row__prescription"></span>
+      </div>
+    </article>
   </template>
 
-
-  <!-- =====================================================
-       LIVE SET TEMPLATE
-  ====================================================== -->
+  <!-- Live set -->
   <template id="todayWorkoutSetTemplate">
-
-    <div
-      class="ari-live-set"
-      data-status="not_started"
+    <button
+      class="ari-workout-set"
+      type="button"
     >
+      <span class="ari-workout-set__number"></span>
 
-      <div class="ari-live-set__header">
+      <span class="ari-workout-set__prescription"></span>
 
-        <strong
-          class="ari-live-set__label"
-        >
-          Set 1
-        </strong>
-
-
-        <span
-          class="ari-live-set__target"
-        >
-          155 lb × 8 reps
-        </span>
-
-      </div>
-
-
-      <div class="ari-live-set__inputs">
-
-        <label class="ari-field">
-
-          <span>
-            Weight
-          </span>
-
-
-          <div class="ari-input-with-unit">
-
-            <input
-              class="ari-live-set__weight"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.5"
-              placeholder="0"
-            />
-
-            <span>
-              lb
-            </span>
-
-          </div>
-
-        </label>
-
-
-        <label class="ari-field">
-
-          <span>
-            Reps
-          </span>
-
-          <input
-            class="ari-live-set__reps"
-            type="number"
-            inputmode="numeric"
-            min="0"
-            step="1"
-            placeholder="0"
-          />
-
-        </label>
-
-      </div>
-
-
-      <p
-        class="ari-live-set__previous"
-        hidden
+      <span
+        class="ari-workout-set__check"
+        aria-hidden="true"
       >
-        Last time:
-        <strong></strong>
-      </p>
-
-
-      <button
-        class="ari-primary-button
-               ari-live-set__complete"
-        type="button"
-      >
-        Complete Set
-      </button>
-
-    </div>
-
+        &#10003;
+      </span>
+    </button>
   </template>
 
-
-  <!-- =====================================================
-       WORKOUT QUEUE EXERCISE TEMPLATE
-  ====================================================== -->
+  <!-- Workout queue row -->
   <template id="todayWorkoutExerciseTemplate">
-
     <button
       class="ari-session-exercise-row"
       type="button"
-      data-status="pending"
     >
+      <span class="ari-session-exercise-row__status"></span>
 
-      <span
-        class="ari-session-exercise-row__status"
-        aria-hidden="true"
-      >
-        ○
+      <span class="ari-session-exercise-row__copy">
+        <strong class="ari-session-exercise-row__name"></strong>
+        <small class="ari-session-exercise-row__prescription"></small>
       </span>
 
-
-      <span class="ari-session-exercise-row__identity">
-
-        <strong
-          class="ari-session-exercise-row__name"
-        >
-          Bench Press
-        </strong>
-
-        <small
-          class="ari-session-exercise-row__prescription"
-        >
-          4 × 8
-        </small>
-
-      </span>
-
-
-      <span
-        class="ari-session-exercise-row__meta"
-      >
-        Ready
-      </span>
-
+      <span class="ari-session-exercise-row__meta"></span>
     </button>
-
   </template>
 
-
-  <!-- =====================================================
-       EXERCISE SEARCH RESULT TEMPLATE
-  ====================================================== -->
+  <!-- Session search result -->
   <template id="sessionExerciseSearchResultTemplate">
+    <article class="ari-session-search-result">
+      <div>
+        <p class="ari-session-search-result__type"></p>
+        <h3 class="ari-session-search-result__name"></h3>
+        <p class="ari-session-search-result__muscles"></p>
+      </div>
 
-    <button
-      class="ari-session-exercise-search-result"
-      type="button"
-    >
-
-      <span>
-
-        <strong
-          class="ari-session-exercise-search-result__name"
-        >
-          Treadmill Running
-        </strong>
-
-        <small
-          class="ari-session-exercise-search-result__type"
-        >
-          Cardio
-        </small>
-
-      </span>
-
-
-      <span
-        class="ari-session-exercise-search-result__add"
+      <button
+        class="ari-session-search-result__add"
+        type="button"
       >
-        +
-      </span>
-
-    </button>
-
+        Add
+      </button>
+    </article>
   </template>
 
-
-  <!-- =====================================================
-       MONTH HISTORY DAY TEMPLATE
-  ====================================================== -->
+  <!-- History day -->
   <template id="monthlyHistoryDayTemplate">
-
     <details class="ari-history-day">
-
       <summary>
-
         <div>
-
-          <strong
-            class="ari-history-day__label"
-          ></strong>
-
-          <span
-            class="ari-history-day__date"
-          ></span>
-
+          <strong class="ari-history-day__label"></strong>
+          <span class="ari-history-day__date"></span>
         </div>
-
 
         <div class="ari-history-day__summary">
-
-          <span
-            class="ari-history-day__sessions"
-          ></span>
-
-          <span
-            class="ari-history-day__calories"
-          ></span>
-
+          <span class="ari-history-day__sessions"></span>
+          <span class="ari-history-day__calories"></span>
         </div>
-
       </summary>
 
-
-      <div
-        class="ari-history-day__entries"
-      ></div>
-
+      <div class="ari-history-day__entries"></div>
     </details>
-
   </template>
 
-
-  <!-- =====================================================
-       HISTORY WORKOUT TEMPLATE
-  ====================================================== -->
+  <!-- Individual history workout -->
   <template id="monthlyHistoryWorkoutTemplate">
-
     <article class="ari-history-workout">
-
-      <div>
-
-        <p
-          class="ari-history-workout__type"
-        ></p>
-
-        <h4
-          class="ari-history-workout__name"
-        ></h4>
-
+      <div class="ari-history-workout__identity">
+        <p class="ari-history-workout__type"></p>
+        <h4 class="ari-history-workout__name"></h4>
       </div>
-
 
       <div class="ari-history-workout__metrics">
-
-        <span
-          class="ari-history-workout__sets"
-        ></span>
-
-        <span
-          class="ari-history-workout__duration"
-        ></span>
-
-        <strong
-          class="ari-history-workout__calories"
-        ></strong>
-
+        <span class="ari-history-workout__sets"></span>
+        <span class="ari-history-workout__duration"></span>
+        <strong class="ari-history-workout__calories"></strong>
       </div>
 
+      <button
+        class="ari-history-workout__delete"
+        type="button"
+        data-training-action="delete-history-session"
+      >
+        Delete
+      </button>
     </article>
-
   </template>
-
 
   <!-- =====================================================
        SCRIPTS
   ====================================================== -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-  ></script>
-
-  <script
-    src="supabase-config.js?v=8"
-  ></script>
-
-  <script
-    src="js/auth.js"
-  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=8"></script>
+  <script src="js/auth.js"></script>
 
   <script
     type="module"
-    src="js/ari-training.js?v=4.0.0"
+    src="js/ari-training.js?v=4.4.0"
   ></script>
-
 </body>
 </html>
