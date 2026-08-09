@@ -1,75 +1,88 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/workout-progress-store.js
-// Version: 2.0.0
+// Version: 3.0.0
 // Purpose:
-//   Persistent execution/session state for ARI Training.
+//   Persistent date-specific workout execution/session state
+//   for ARI Training.
 //
-// V2.0.0:
-//   - Keeps live workout execution separate from plan definition.
-//   - Uses stable entryId values instead of exerciseId as the
-//     primary progress key.
-//   - Supports duplicate exercises in the same workout.
-//   - Supports session-specific exercise reordering.
-//   - Supports temporary exercise substitutions.
-//   - Supports adding unplanned exercises during a session.
-//   - Supports skipping/removing an exercise for this session only.
-//   - Stores started / paused / resumed / completed timestamps.
-//   - Stores elapsed workout time.
-//   - Stores average workout heart rate.
-//   - Stores per-set and per-activity calorie estimates.
-//   - Stores actual user-entered weight/reps/duration where useful.
-//   - Preserves completion after refresh through localStorage.
-//   - Migrates V1 progress data forward when possible.
-//   - Produces completed-session snapshots suitable for history.
-//   - Keeps training calories separate from Nutrition calories.
+// V3.0.0:
+//   - Replaces repeating weekday-only progress with real dates.
+//   - Sessions are stored by YYYY-MM-DD.
+//   - Keeps compatibility with older weekday calls such as
+//     getDay("monday") by resolving them inside activeWeekKey.
+//   - Supports Sunday-Saturday planning weeks.
+//   - Prevents an Off Day / Recovery Day from becoming a formal
+//     workout session when the controller blocks it.
+//   - Adds cancelDay() so accidental "Start Workout" taps can be
+//     completely undone without modifying the workout plan.
+//   - Cancel restores the original planned exercise list,
+//     order, prescriptions, completion state, HR, timer, and notes.
+//   - Adds completed-session history snapshots.
+//   - Adds deleteSessionRecord() for accidentally recorded history.
+//   - Adds clearSessionHistory() with optional month/date filters.
+//   - Adds monthly-history helpers.
+//   - Keeps live session edits separate from permanent plan edits.
+//   - Supports duplicate exercises through stable entryId values.
+//   - Supports live reordering, substitutions, added exercises,
+//     skipping, set completion, calories, actual reps/weight/time.
+//   - Migrates V2 and V1 local progress forward when possible.
 //
 // Important separation:
+//
 //   workout-plan-store.js
-//     = what the user planned.
+//     = what the user PLANS on a specific date.
 //
 //   workout-progress-store.js
-//     = what happened during the workout.
+//     = what the user is CURRENTLY doing.
 //
-// This store does NOT permanently modify the weekly plan when:
-//   - exercises are reordered during a session
-//   - a substitution is used
-//   - an extra exercise is added
-//   - an exercise is skipped
+//   history records in this file
+//     = completed execution snapshots only.
 //
-// A controller/UI can later explicitly copy session changes back
-// into the plan if the user chooses "Update Plan".
+// Future:
+//   History can later be moved into workout-history-store.js
+//   without changing the public controller contract.
 // =====================================================
 
 const VERSION =
-  "2.0.0";
+  "3.0.0";
 
 const SCHEMA_VERSION =
-  2;
+  3;
 
 const SOURCE =
   "js/training/workout-progress-store";
 
 const STORAGE_KEY =
-  "ari_training_workout_progress_v2";
+  "ari_training_workout_progress_v3";
 
 const LEGACY_STORAGE_KEYS =
   Object.freeze([
+    "ari_training_workout_progress_v2",
     "ari_training_workout_progress_v1"
   ]);
 
-
 const DAYS =
   Object.freeze([
+    "sunday",
     "monday",
     "tuesday",
     "wednesday",
     "thursday",
     "friday",
-    "saturday",
-    "sunday"
+    "saturday"
   ]);
 
+const DAY_INDEX =
+  Object.freeze({
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6
+  });
 
 const VALID_SESSION_STATUSES =
   Object.freeze([
@@ -80,7 +93,6 @@ const VALID_SESSION_STATUSES =
     "rest"
   ]);
 
-
 const VALID_ENTRY_STATUSES =
   Object.freeze([
     "not_started",
@@ -88,7 +100,6 @@ const VALID_ENTRY_STATUSES =
     "complete",
     "skipped"
   ]);
-
 
 const VALID_SOURCES =
   Object.freeze([
@@ -99,7 +110,7 @@ const VALID_SOURCES =
 
 
 // =====================================================
-// NORMALIZATION HELPERS
+// BASIC NORMALIZATION
 // =====================================================
 
 function normalizeText(
@@ -236,10 +247,8 @@ function normalizeCalories(
     null
       ? null
       : Math.round(
-          number *
-          10
-        ) /
-        10;
+          number * 10
+        ) / 10;
 }
 
 
@@ -381,26 +390,255 @@ function createStableId(
 }
 
 
-function uniqueIds(
-  values
+// =====================================================
+// DATE / WEEK HELPERS
+// =====================================================
+
+function toLocalDate(
+  value =
+    new Date()
 ) {
   if (
-    !Array.isArray(
-      values
-    )
+    value instanceof Date
   ) {
-    return [];
+    return new Date(
+      value.getFullYear(),
+      value.getMonth(),
+      value.getDate()
+    );
   }
 
-  return [
-    ...new Set(
-      values
-        .map(
-          normalizeId
-        )
-        .filter(Boolean)
+  const text =
+    normalizeText(
+      value
+    );
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/
+      .test(
+        text
+      )
+  ) {
+    const [
+      year,
+      month,
+      day
+    ] =
+      text
+        .split("-")
+        .map(Number);
+
+    const date =
+      new Date(
+        year,
+        month - 1,
+        day
+      );
+
+    if (
+      date.getFullYear() ===
+        year &&
+      date.getMonth() ===
+        month - 1 &&
+      date.getDate() ===
+        day
+    ) {
+      return date;
+    }
+  }
+
+  const parsed =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      parsed.getTime()
     )
+  ) {
+    return null;
+  }
+
+  return new Date(
+    parsed.getFullYear(),
+    parsed.getMonth(),
+    parsed.getDate()
+  );
+}
+
+
+function formatDateKey(
+  value =
+    new Date()
+) {
+  const date =
+    toLocalDate(
+      value
+    );
+
+  if (!date) {
+    return null;
+  }
+
+  return (
+    `${date.getFullYear()}-` +
+    `${String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    )}-` +
+    `${String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    )}`
+  );
+}
+
+
+function getWeekStartDate(
+  value =
+    new Date()
+) {
+  const date =
+    toLocalDate(
+      value
+    );
+
+  if (!date) {
+    return null;
+  }
+
+  const sunday =
+    new Date(
+      date
+    );
+
+  sunday.setDate(
+    sunday.getDate() -
+    sunday.getDay()
+  );
+
+  return sunday;
+}
+
+
+function getWeekKey(
+  value =
+    new Date()
+) {
+  return formatDateKey(
+    getWeekStartDate(
+      value
+    )
+  );
+}
+
+
+function getDayDateForWeek(
+  weekKey,
+  day
+) {
+  const normalizedDay =
+    normalizeDay(
+      day
+    );
+
+  const weekStart =
+    toLocalDate(
+      weekKey
+    );
+
+  if (
+    !normalizedDay ||
+    !weekStart
+  ) {
+    return null;
+  }
+
+  const date =
+    new Date(
+      weekStart
+    );
+
+  date.setDate(
+    date.getDate() +
+    DAY_INDEX[
+      normalizedDay
+    ]
+  );
+
+  return formatDateKey(
+    date
+  );
+}
+
+
+function getDayIdFromDate(
+  value
+) {
+  const date =
+    toLocalDate(
+      value
+    );
+
+  if (!date) {
+    return null;
+  }
+
+  return DAYS[
+    date.getDay()
   ];
+}
+
+
+function resolveDateKey(
+  dayOrDate,
+  weekKey =
+    state.activeWeekKey
+) {
+  const text =
+    normalizeText(
+      dayOrDate
+    );
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/
+      .test(
+        text
+      )
+  ) {
+    return formatDateKey(
+      text
+    );
+  }
+
+  const day =
+    normalizeDay(
+      dayOrDate
+    );
+
+  if (
+    day
+  ) {
+    const resolvedWeek =
+      normalizeId(
+        weekKey
+      ) ||
+      getWeekKey(
+        new Date()
+      );
+
+    return getDayDateForWeek(
+      resolvedWeek,
+      day
+    );
+  }
+
+  return null;
 }
 
 
@@ -446,10 +684,6 @@ function normalizeSetRecord(
   setNumber =
     null
 ) {
-  /*
-   * V1 compatibility:
-   * completedSets["1"] = true
-   */
   if (
     typeof value ===
       "boolean"
@@ -572,7 +806,8 @@ function createEntryFromPlanExercise(
       ? "sets"
       : "single";
 
-  const completedSets = {};
+  const completedSets =
+    {};
 
   if (
     requiredSets
@@ -746,11 +981,50 @@ function createEntryFromPlanExercise(
 
 
 // =====================================================
-// DAY / SESSION CREATION
+// SESSION / DAY CREATION
 // =====================================================
 
-function createEmptyDayState() {
+function createEmptyDayState({
+  date =
+    null,
+
+  day =
+    null,
+
+  dayType =
+    "workout"
+} = {}) {
+  const resolvedDate =
+    formatDateKey(
+      date
+    );
+
+  const resolvedDay =
+    normalizeDay(
+      day
+    ) ||
+    getDayIdFromDate(
+      resolvedDate
+    );
+
+  const rest =
+    dayType ===
+      "off" ||
+    dayType ===
+      "recovery";
+
   return {
+    date:
+      resolvedDate,
+
+    day:
+      resolvedDay,
+
+    dayType:
+      rest
+        ? dayType
+        : "workout",
+
     sessionId:
       null,
 
@@ -758,7 +1032,9 @@ function createEmptyDayState() {
       null,
 
     status:
-      "not_started",
+      rest
+        ? "rest"
+        : "not_started",
 
     startedAt:
       null,
@@ -801,6 +1077,9 @@ function createEmptyDayState() {
         null,
 
       historyArchivedAt:
+        null,
+
+      planSyncedAt:
         null
     }
   };
@@ -821,24 +1100,16 @@ function createInitialState() {
     planKey:
       null,
 
-    weekKey:
-      null,
-
-    days:
-      DAYS.reduce(
-        (
-          result,
-          day
-        ) => {
-          result[
-            day
-          ] =
-            createEmptyDayState();
-
-          return result;
-        },
-        {}
+    activeWeekKey:
+      getWeekKey(
+        new Date()
       ),
+
+    sessionsByDate:
+      {},
+
+    history:
+      {},
 
     metadata: {
       createdAt:
@@ -848,6 +1119,9 @@ function createInitialState() {
         null,
 
       migratedFrom:
+        null,
+
+      migratedAt:
         null
     }
   };
@@ -898,6 +1172,9 @@ function touchDay(
         null,
 
       historyArchivedAt:
+        null,
+
+      planSyncedAt:
         null
     };
   }
@@ -969,43 +1246,117 @@ function subscribe(
 
 
 // =====================================================
-// READ API
+// STATE / READ API
 // =====================================================
 
+function getDaysProjection(
+  weekKey =
+    state.activeWeekKey
+) {
+  const result = {};
+
+  for (
+    const day
+    of DAYS
+  ) {
+    const date =
+      getDayDateForWeek(
+        weekKey,
+        day
+      );
+
+    result[
+      day
+    ] =
+      clone(
+        state.sessionsByDate[
+          date
+        ] ||
+        createEmptyDayState({
+          date,
+          day,
+          dayType:
+            "workout"
+        })
+      );
+  }
+
+  return result;
+}
+
+
 function getState() {
-  return clone(
-    state
-  );
+  return {
+    ...clone(
+      state
+    ),
+
+    /*
+     * Compatibility projection for V2 callers that expect
+     * state.days.monday / state.days.tuesday ...
+     */
+    days:
+      getDaysProjection(
+        state.activeWeekKey
+      ),
+
+    weekKey:
+      state.activeWeekKey
+  };
 }
 
 
 function getDay(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return null;
   }
 
-  return clone(
-    state.days[
-      normalizedDay
-    ]
+  const existing =
+    state.sessionsByDate[
+      date
+    ];
+
+  if (existing) {
+    return clone(
+      existing
+    );
+  }
+
+  return createEmptyDayState({
+    date,
+    day:
+      getDayIdFromDate(
+        date
+      ),
+    dayType:
+      "workout"
+  });
+}
+
+
+function getDayByDate(
+  date
+) {
+  return getDay(
+    date
   );
 }
 
 
 function getEntry(
-  day,
+  dayOrDate,
   entryId
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
   const normalizedEntryId =
@@ -1014,17 +1365,17 @@ function getEntry(
     );
 
   if (
-    !normalizedDay ||
+    !date ||
     !normalizedEntryId
   ) {
     return null;
   }
 
   const entry =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ]
-      .exercises[
+      ?.exercises?.[
         normalizedEntryId
       ];
 
@@ -1037,12 +1388,12 @@ function getEntry(
 
 
 function getEntryByExerciseId(
-  day,
+  dayOrDate,
   exerciseId
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
   const normalizedExerciseId =
@@ -1051,16 +1402,20 @@ function getEntryByExerciseId(
     );
 
   if (
-    !normalizedDay ||
+    !date ||
     !normalizedExerciseId
   ) {
     return null;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
+
+  if (!dayState) {
+    return null;
+  }
 
   const entryId =
     dayState.sessionOrder
@@ -1079,24 +1434,19 @@ function getEntryByExerciseId(
   }
 
   return getEntry(
-    normalizedDay,
+    date,
     entryId
   );
 }
 
 
 function getExerciseProgress(
-  day,
+  dayOrDate,
   entryIdOrExerciseId
 ) {
-  /*
-   * V2 prefers entryId.
-   * For backward compatibility, if an entryId is not found,
-   * this falls back to the first matching exerciseId.
-   */
   const byEntry =
     getEntry(
-      day,
+      dayOrDate,
       entryIdOrExerciseId
     );
 
@@ -1105,18 +1455,90 @@ function getExerciseProgress(
   }
 
   return getEntryByExerciseId(
-    day,
+    dayOrDate,
     entryIdOrExerciseId
   );
 }
 
 
 // =====================================================
-// SESSION INITIALIZATION
+// PLAN CONTEXT
+// =====================================================
+
+function setPlanContext({
+  planKey =
+    null,
+
+  weekKey =
+    null,
+
+  resetIfChanged =
+    false
+} = {}) {
+  const normalizedPlanKey =
+    normalizeId(
+      planKey
+    );
+
+  const normalizedWeekKey =
+    normalizeId(
+      weekKey
+    ) ||
+    getWeekKey(
+      new Date()
+    );
+
+  const planChanged =
+    state.planKey !==
+      normalizedPlanKey;
+
+  const weekChanged =
+    state.activeWeekKey !==
+      normalizedWeekKey;
+
+  /*
+   * V3 intentionally does NOT erase every other week when
+   * navigating the calendar. Progress is date-specific.
+   *
+   * resetIfChanged is only honored when the plan identity itself
+   * changes, not when the user browses another week.
+   */
+  if (
+    planChanged &&
+    resetIfChanged
+  ) {
+    state.sessionsByDate =
+      {};
+  }
+
+  state.planKey =
+    normalizedPlanKey;
+
+  state.activeWeekKey =
+    normalizedWeekKey;
+
+  touch();
+  persist();
+  emit();
+
+  return (
+    planChanged ||
+    weekChanged
+  );
+}
+
+
+// =====================================================
+// PLAN -> SESSION SYNC
 // =====================================================
 
 function syncDayWithPlan({
-  day,
+  day =
+    null,
+
+  date =
+    null,
+
   exercises =
     [],
 
@@ -1129,32 +1551,62 @@ function syncDayWithPlan({
   preserveSessionChanges =
     true
 } = {}) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      date
+    ) ||
+    resolveDateKey(
       day
     );
 
-  if (!normalizedDay) {
+  if (!resolvedDate) {
     return false;
   }
 
-  const dayState =
-    state.days[
-      normalizedDay
-    ];
+  const resolvedDay =
+    normalizeDay(
+      day
+    ) ||
+    getDayIdFromDate(
+      resolvedDate
+    );
 
+  const existingDay =
+    state.sessionsByDate[
+      resolvedDate
+    ] ||
+    createEmptyDayState({
+      date:
+        resolvedDate,
+
+      day:
+        resolvedDay,
+
+      dayType
+    });
+
+  /*
+   * Off and Recovery dates exist in progress as REST entries only.
+   * They cannot accidentally inherit an old workout session.
+   */
   if (
     dayType ===
-      "off"
+      "off" ||
+    dayType ===
+      "recovery"
   ) {
-    state.days[
-      normalizedDay
-    ] = {
-      ...createEmptyDayState(),
+    state.sessionsByDate[
+      resolvedDate
+    ] =
+      createEmptyDayState({
+        date:
+          resolvedDate,
 
-      status:
-        "rest"
-    };
+        day:
+          resolvedDay,
+
+        dayType
+      });
 
     touch();
     persist();
@@ -1164,12 +1616,14 @@ function syncDayWithPlan({
   }
 
   const existingEntries =
-    dayState.exercises ||
+    existingDay.exercises ||
     {};
 
-  const nextEntries = {};
+  const nextEntries =
+    {};
 
-  const nextOriginalOrder = [];
+  const nextOriginalOrder =
+    [];
 
   const plannedExercises =
     Array.isArray(
@@ -1228,22 +1682,15 @@ function syncDayWithPlan({
       preferredEntryId
     );
 
-    if (
+    nextEntries[
+      preferredEntryId
+    ] =
       existing
-    ) {
-      nextEntries[
-        preferredEntryId
-      ] =
-        mergeExistingEntryWithPlan(
-          existing,
-          fresh
-        );
-    } else {
-      nextEntries[
-        preferredEntryId
-      ] =
-        fresh;
-    }
+        ? mergeExistingEntryWithPlan(
+            existing,
+            fresh
+          )
+        : fresh;
   }
 
   if (
@@ -1284,16 +1731,25 @@ function syncDayWithPlan({
     }
   }
 
-  dayState.exercises =
+  existingDay.date =
+    resolvedDate;
+
+  existingDay.day =
+    resolvedDay;
+
+  existingDay.dayType =
+    "workout";
+
+  existingDay.exercises =
     nextEntries;
 
-  dayState.originalOrder =
+  existingDay.originalOrder =
     nextOriginalOrder;
 
   const validExistingOrder =
     (
       preserveSessionChanges
-        ? dayState.sessionOrder
+        ? existingDay.sessionOrder
         : []
     )
       .filter(
@@ -1317,31 +1773,40 @@ function syncDayWithPlan({
             )
       );
 
-  dayState.sessionOrder = [
+  existingDay.sessionOrder = [
     ...validExistingOrder,
     ...missingOrderEntries
   ];
 
-  dayState.plannedWorkoutId =
+  existingDay.plannedWorkoutId =
     normalizeId(
       workoutId
     );
 
   if (
-    dayState.status ===
+    existingDay.status ===
       "rest"
   ) {
-    dayState.status =
+    existingDay.status =
       "not_started";
   }
 
+  existingDay.metadata
+    .planSyncedAt =
+      nowIso();
+
   recalculateDayCompletion(
-    normalizedDay
+    resolvedDate
   );
 
   touchDay(
-    dayState
+    existingDay
   );
+
+  state.sessionsByDate[
+    resolvedDate
+  ] =
+    existingDay;
 
   touch();
   persist();
@@ -1366,27 +1831,38 @@ function syncWeekWithPlan(
     const day
     of DAYS
   ) {
-    const dayState =
+    const planDay =
       week[
         day
       ];
 
+    const date =
+      formatDateKey(
+        planDay?.date
+      ) ||
+      getDayDateForWeek(
+        state.activeWeekKey,
+        day
+      );
+
     syncDayWithPlan({
       day,
 
+      date,
+
       dayType:
-        dayState?.type ||
+        planDay?.type ||
         "off",
 
       workoutId:
-        dayState?.workoutId ||
+        planDay?.workoutId ||
         null,
 
       exercises:
         Array.isArray(
-          dayState?.exercises
+          planDay?.exercises
         )
-          ? dayState.exercises
+          ? planDay.exercises
           : [],
 
       preserveSessionChanges:
@@ -1490,29 +1966,35 @@ function mergeExistingEntryWithPlan(
 
 
 // =====================================================
-// SESSION LIFECYCLE
+// SESSION START / PAUSE / RESUME
 // =====================================================
 
 function startDay(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   if (
+    !dayState ||
     dayState.status ===
-      "rest"
+      "rest" ||
+    dayState.dayType !==
+      "workout" ||
+    dayState.sessionOrder
+      .length ===
+      0
   ) {
     return false;
   }
@@ -1565,32 +2047,33 @@ function startDay(
 
 
 function markDayStarted(
-  day
+  dayOrDate
 ) {
   return startDay(
-    day
+    dayOrDate
   );
 }
 
 
 function pauseDay(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   if (
+    !dayState ||
     dayState.status !==
       "in_progress"
   ) {
@@ -1623,23 +2106,24 @@ function pauseDay(
 
 
 function resumeDay(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   if (
+    !dayState ||
     dayState.status !==
       "paused"
   ) {
@@ -1667,28 +2151,36 @@ function resumeDay(
 }
 
 
+// =====================================================
+// COMPLETE / CANCEL
+// =====================================================
+
 function completeDay(
-  day,
+  dayOrDate,
   {
     force =
-      false
+      false,
+
+    archive =
+      true
   } = {}
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   if (
+    !dayState ||
     dayState.status ===
       "rest"
   ) {
@@ -1700,7 +2192,7 @@ function completeDay(
   ) {
     const complete =
       recalculateDayCompletion(
-        normalizedDay
+        date
       );
 
     if (!complete) {
@@ -1731,12 +2223,20 @@ function completeDay(
     null;
 
   recalculateDayCalories(
-    normalizedDay
+    date
   );
 
   touchDay(
     dayState
   );
+
+  if (
+    archive
+  ) {
+    archiveCompletedSession(
+      date
+    );
+  }
 
   touch();
   persist();
@@ -1745,6 +2245,232 @@ function completeDay(
   return true;
 }
 
+
+/*
+ * Completely undo an accidental workout start.
+ *
+ * This:
+ *   - removes the sessionId
+ *   - clears timer / HR / notes
+ *   - removes temporary added exercises
+ *   - removes substitutions
+ *   - restores planned exercises
+ *   - restores original order
+ *   - clears all completion data
+ *   - returns the date to not_started
+ *   - does NOT alter workout-plan-store.js
+ *   - does NOT create history
+ */
+function cancelDay(
+  dayOrDate,
+  {
+    preservePlannedEntries =
+      true
+  } = {}
+) {
+  const date =
+    resolveDateKey(
+      dayOrDate
+    );
+
+  if (!date) {
+    return false;
+  }
+
+  const current =
+    state.sessionsByDate[
+      date
+    ];
+
+  if (!current) {
+    return false;
+  }
+
+  if (
+    current.status ===
+      "rest"
+  ) {
+    return false;
+  }
+
+  const fresh =
+    createEmptyDayState({
+      date:
+        current.date,
+
+      day:
+        current.day,
+
+      dayType:
+        "workout"
+    });
+
+  fresh.plannedWorkoutId =
+    current.plannedWorkoutId;
+
+  if (
+    preservePlannedEntries
+  ) {
+    const plannedIds =
+      current.originalOrder
+        .filter(
+          entryId =>
+            current.exercises[
+              entryId
+            ]?.source ===
+              "planned"
+        );
+
+    for (
+      let index = 0;
+      index <
+        plannedIds.length;
+      index += 1
+    ) {
+      const entryId =
+        plannedIds[
+          index
+        ];
+
+      const old =
+        current.exercises[
+          entryId
+        ];
+
+      if (!old) {
+        continue;
+      }
+
+      const rebuilt =
+        createEntryFromPlanExercise(
+          {
+            entryId:
+              old.entryId,
+
+            exerciseId:
+              old.exerciseId,
+
+            role:
+              old.role,
+
+            sets:
+              old.prescription
+                ?.sets,
+
+            reps:
+              old.prescription
+                ?.reps,
+
+            restSeconds:
+              old.prescription
+                ?.restSeconds,
+
+            durationMinutes:
+              old.prescription
+                ?.durationMinutes,
+
+            durationSeconds:
+              old.prescription
+                ?.durationSeconds,
+
+            rounds:
+              old.prescription
+                ?.rounds,
+
+            workSeconds:
+              old.prescription
+                ?.workSeconds,
+
+            weight:
+              old.prescription
+                ?.weight,
+
+            addedWeight:
+              old.prescription
+                ?.addedWeight,
+
+            distance:
+              old.prescription
+                ?.distance,
+
+            intensity:
+              old.prescription
+                ?.intensity,
+
+            metadata:
+              old.metadata
+          },
+          {
+            source:
+              "planned",
+
+            originalIndex:
+              index
+          }
+        );
+
+      if (!rebuilt) {
+        continue;
+      }
+
+      fresh.exercises[
+        rebuilt.entryId
+      ] =
+        rebuilt;
+
+      fresh.originalOrder
+        .push(
+          rebuilt.entryId
+        );
+
+      fresh.sessionOrder
+        .push(
+          rebuilt.entryId
+        );
+    }
+  }
+
+  fresh.metadata
+    .planSyncedAt =
+      current.metadata
+        ?.planSyncedAt ||
+      null;
+
+  state.sessionsByDate[
+    date
+  ] =
+    fresh;
+
+  /*
+   * If a malformed/incomplete history snapshot exists for the
+   * canceled session, remove it as part of the cleanup.
+   */
+  if (
+    current.sessionId &&
+    state.history[
+      current.sessionId
+    ] &&
+    state.history[
+      current.sessionId
+    ].status !==
+      "complete"
+  ) {
+    delete state.history[
+      current.sessionId
+    ];
+  }
+
+  touch();
+  persist();
+  emit();
+
+  return true;
+}
+
+
+// =====================================================
+// ELAPSED TIME
+// =====================================================
 
 function accumulateElapsedTime(
   dayState
@@ -1805,21 +2531,25 @@ function accumulateElapsedTime(
 
 
 function getElapsedSeconds(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return 0;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
+
+  if (!dayState) {
+    return 0;
+  }
 
   let total =
     normalizeNonNegativeInteger(
@@ -1868,30 +2598,35 @@ function getElapsedSeconds(
 // =====================================================
 
 function setAverageHeartRate(
-  day,
+  dayOrDate,
   value
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
-  const heartRate =
+  const dayState =
+    state.sessionsByDate[
+      date
+    ];
+
+  if (
+    !dayState ||
+    dayState.status ===
+      "rest"
+  ) {
+    return false;
+  }
+
+  dayState.averageHeartRate =
     normalizeHeartRate(
       value
     );
-
-  const dayState =
-    state.days[
-      normalizedDay
-    ];
-
-  dayState.averageHeartRate =
-    heartRate;
 
   touchDay(
     dayState
@@ -1906,22 +2641,30 @@ function setAverageHeartRate(
 
 
 function setDayNotes(
-  day,
+  dayOrDate,
   notes
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
+
+  if (
+    !dayState ||
+    dayState.status ===
+      "rest"
+  ) {
+    return false;
+  }
 
   dayState.notes =
     normalizeText(
@@ -1946,13 +2689,13 @@ function setDayNotes(
 // =====================================================
 
 function moveEntry(
-  day,
+  dayOrDate,
   entryId,
   toIndex
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
   const normalizedEntryId =
@@ -1961,16 +2704,20 @@ function moveEntry(
     );
 
   if (
-    !normalizedDay ||
+    !date ||
     !normalizedEntryId
   ) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
+
+  if (!dayState) {
+    return false;
+  }
 
   const fromIndex =
     dayState.sessionOrder
@@ -2042,8 +2789,14 @@ function moveEntry(
 // =====================================================
 
 function addSessionExercise({
-  day,
+  day =
+    null,
+
+  date =
+    null,
+
   exerciseId,
+
   entryId =
     null,
 
@@ -2056,8 +2809,11 @@ function addSessionExercise({
   metadata =
     {}
 } = {}) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      date
+    ) ||
+    resolveDateKey(
       day
     );
 
@@ -2067,18 +2823,19 @@ function addSessionExercise({
     );
 
   if (
-    !normalizedDay ||
+    !resolvedDate ||
     !normalizedExerciseId
   ) {
     return null;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ];
 
   if (
+    !dayState ||
     dayState.status ===
       "rest"
   ) {
@@ -2145,7 +2902,7 @@ function addSessionExercise({
     );
 
   startDay(
-    normalizedDay
+    resolvedDate
   );
 
   touchDay(
@@ -2163,14 +2920,14 @@ function addSessionExercise({
 
 
 function skipEntry(
-  day,
+  dayOrDate,
   entryId,
   skipped =
     true
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
   const normalizedEntryId =
@@ -2179,17 +2936,20 @@ function skipEntry(
     );
 
   if (
-    !normalizedDay ||
+    !date ||
     !normalizedEntryId
   ) {
     return false;
   }
 
+  const dayState =
+    state.sessionsByDate[
+      date
+    ];
+
   const entry =
-    state.days[
-      normalizedDay
-    ]
-      .exercises[
+    dayState
+      ?.exercises?.[
         normalizedEntryId
       ];
 
@@ -2220,13 +2980,11 @@ function skipEntry(
   }
 
   recalculateDayCompletion(
-    normalizedDay
+    date
   );
 
   touchDay(
-    state.days[
-      normalizedDay
-    ]
+    dayState
   );
 
   touch();
@@ -2238,12 +2996,12 @@ function skipEntry(
 
 
 function removeSessionEntry(
-  day,
+  dayOrDate,
   entryId
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
   const normalizedEntryId =
@@ -2252,36 +3010,33 @@ function removeSessionEntry(
     );
 
   if (
-    !normalizedDay ||
+    !date ||
     !normalizedEntryId
   ) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   const entry =
-    dayState.exercises[
-      normalizedEntryId
-    ];
+    dayState
+      ?.exercises?.[
+        normalizedEntryId
+      ];
 
   if (!entry) {
     return false;
   }
 
-  /*
-   * Planned entries should usually be skipped rather than
-   * deleted so we still know the plan originally contained them.
-   */
   if (
     entry.source ===
       "planned"
   ) {
     return skipEntry(
-      normalizedDay,
+      date,
       normalizedEntryId,
       true
     );
@@ -2301,7 +3056,7 @@ function removeSessionEntry(
       );
 
   recalculateDayCompletion(
-    normalizedDay
+    date
   );
 
   touchDay(
@@ -2317,16 +3072,27 @@ function removeSessionEntry(
 
 
 function substituteEntry({
-  day,
+  day =
+    null,
+
+  date =
+    null,
+
   entryId,
+
   replacementExerciseId,
+
   prescription =
     null,
+
   replacementEntryId =
     null
 } = {}) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      date
+    ) ||
+    resolveDateKey(
       day
     );
 
@@ -2341,7 +3107,7 @@ function substituteEntry({
     );
 
   if (
-    !normalizedDay ||
+    !resolvedDate ||
     !normalizedEntryId ||
     !normalizedReplacementId
   ) {
@@ -2349,14 +3115,15 @@ function substituteEntry({
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ];
 
   const original =
-    dayState.exercises[
-      normalizedEntryId
-    ];
+    dayState
+      ?.exercises?.[
+        normalizedEntryId
+      ];
 
   if (!original) {
     return null;
@@ -2446,7 +3213,7 @@ function substituteEntry({
   }
 
   startDay(
-    normalizedDay
+    resolvedDate
   );
 
   touchDay(
@@ -2464,33 +3231,107 @@ function substituteEntry({
 
 
 // =====================================================
+// ENTRY RESOLUTION
+// =====================================================
+
+function resolveEntryReference(
+  date,
+  entryId,
+  exerciseId
+) {
+  const dayState =
+    state.sessionsByDate[
+      date
+    ];
+
+  if (!dayState) {
+    return null;
+  }
+
+  const normalizedEntryId =
+    normalizeId(
+      entryId
+    );
+
+  if (
+    normalizedEntryId &&
+    dayState.exercises[
+      normalizedEntryId
+    ]
+  ) {
+    return normalizedEntryId;
+  }
+
+  const normalizedExerciseId =
+    normalizeId(
+      exerciseId
+    );
+
+  if (!normalizedExerciseId) {
+    return null;
+  }
+
+  return (
+    dayState.sessionOrder
+      .find(
+        id =>
+          dayState
+            .exercises[
+              id
+            ]
+            ?.exerciseId ===
+            normalizedExerciseId
+      ) ||
+    null
+  );
+}
+
+
+// =====================================================
 // SET COMPLETION
 // =====================================================
 
 function setSetCompleted({
-  day,
+  day =
+    null,
+
+  date =
+    null,
+
   entryId =
     null,
+
   exerciseId =
     null,
+
   setNumber,
+
   completed =
     true,
+
   requiredSets =
     null,
+
   estimatedCalories =
     null,
+
   reps =
     null,
+
   weight =
     null,
+
   durationSeconds =
     null,
+
   notes =
     null
 } = {}) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      date
+    ) ||
+    resolveDateKey(
       day
     );
 
@@ -2500,7 +3341,7 @@ function setSetCompleted({
     );
 
   if (
-    !normalizedDay ||
+    !resolvedDate ||
     !normalizedSet
   ) {
     return false;
@@ -2508,7 +3349,7 @@ function setSetCompleted({
 
   const resolvedEntry =
     resolveEntryReference(
-      normalizedDay,
+      resolvedDate,
       entryId,
       exerciseId
     );
@@ -2517,13 +3358,17 @@ function setSetCompleted({
     return false;
   }
 
-  startDay(
-    normalizedDay
-  );
+  if (
+    !startDay(
+      resolvedDate
+    )
+  ) {
+    return false;
+  }
 
   const entry =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
       .exercises[
         resolvedEntry
@@ -2633,12 +3478,12 @@ function setSetCompleted({
   );
 
   recalculateDayCompletion(
-    normalizedDay
+    resolvedDate
   );
 
   touchDay(
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
   );
 
@@ -2654,18 +3499,21 @@ function toggleSetCompleted(
   options =
     {}
 ) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      options.date
+    ) ||
+    resolveDateKey(
       options.day
     );
 
-  if (!normalizedDay) {
+  if (!resolvedDate) {
     return false;
   }
 
   const resolvedEntry =
     resolveEntryReference(
-      normalizedDay,
+      resolvedDate,
       options.entryId,
       options.exerciseId
     );
@@ -2683,8 +3531,8 @@ function toggleSetCompleted(
   }
 
   const entry =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
       .exercises[
         resolvedEntry
@@ -2703,8 +3551,8 @@ function toggleSetCompleted(
   return setSetCompleted({
     ...options,
 
-    day:
-      normalizedDay,
+    date:
+      resolvedDate,
 
     entryId:
       resolvedEntry,
@@ -2716,16 +3564,27 @@ function toggleSetCompleted(
 
 
 function setSetCalories({
-  day,
+  day =
+    null,
+
+  date =
+    null,
+
   entryId =
     null,
+
   exerciseId =
     null,
+
   setNumber,
+
   estimatedCalories
 } = {}) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      date
+    ) ||
+    resolveDateKey(
       day
     );
 
@@ -2740,7 +3599,7 @@ function setSetCalories({
     );
 
   if (
-    !normalizedDay ||
+    !resolvedDate ||
     !normalizedSet ||
     calories ===
       null
@@ -2750,7 +3609,7 @@ function setSetCalories({
 
   const resolvedEntry =
     resolveEntryReference(
-      normalizedDay,
+      resolvedDate,
       entryId,
       exerciseId
     );
@@ -2760,8 +3619,8 @@ function setSetCalories({
   }
 
   const entry =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
       .exercises[
         resolvedEntry
@@ -2796,12 +3655,12 @@ function setSetCalories({
   );
 
   recalculateDayCalories(
-    normalizedDay
+    resolvedDate
   );
 
   touchDay(
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
   );
 
@@ -2818,30 +3677,42 @@ function setSetCalories({
 // =====================================================
 
 function setExerciseCompleted({
-  day,
+  day =
+    null,
+
+  date =
+    null,
+
   entryId =
     null,
+
   exerciseId =
     null,
+
   completed =
     true,
+
   estimatedCalories =
     null,
+
   actual =
     null
 } = {}) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      date
+    ) ||
+    resolveDateKey(
       day
     );
 
-  if (!normalizedDay) {
+  if (!resolvedDate) {
     return false;
   }
 
   const resolvedEntry =
     resolveEntryReference(
-      normalizedDay,
+      resolvedDate,
       entryId,
       exerciseId
     );
@@ -2850,13 +3721,17 @@ function setExerciseCompleted({
     return false;
   }
 
-  startDay(
-    normalizedDay
-  );
+  if (
+    !startDay(
+      resolvedDate
+    )
+  ) {
+    return false;
+  }
 
   const entry =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
       .exercises[
         resolvedEntry
@@ -2918,12 +3793,12 @@ function setExerciseCompleted({
   }
 
   recalculateDayCompletion(
-    normalizedDay
+    resolvedDate
   );
 
   touchDay(
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
   );
 
@@ -2939,18 +3814,21 @@ function toggleExerciseCompleted(
   options =
     {}
 ) {
-  const normalizedDay =
-    normalizeDay(
+  const resolvedDate =
+    formatDateKey(
+      options.date
+    ) ||
+    resolveDateKey(
       options.day
     );
 
-  if (!normalizedDay) {
+  if (!resolvedDate) {
     return false;
   }
 
   const resolvedEntry =
     resolveEntryReference(
-      normalizedDay,
+      resolvedDate,
       options.entryId,
       options.exerciseId
     );
@@ -2960,8 +3838,8 @@ function toggleExerciseCompleted(
   }
 
   const entry =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      resolvedDate
     ]
       .exercises[
         resolvedEntry
@@ -2970,8 +3848,8 @@ function toggleExerciseCompleted(
   return setExerciseCompleted({
     ...options,
 
-    day:
-      normalizedDay,
+    date:
+      resolvedDate,
 
     entryId:
       resolvedEntry,
@@ -3026,8 +3904,7 @@ function getSetCalories(
         0
       ) *
     10
-  ) /
-  10;
+  ) / 10;
 }
 
 
@@ -3173,21 +4050,25 @@ function recalculateEntryCompletion(
 
 
 function recalculateDayCalories(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return 0;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
+
+  if (!dayState) {
+    return 0;
+  }
 
   const total =
     dayState.sessionOrder
@@ -3229,10 +4110,8 @@ function recalculateDayCalories(
 
   dayState.estimatedCalories =
     Math.round(
-      total *
-      10
-    ) /
-    10;
+      total * 10
+    ) / 10;
 
   return dayState
     .estimatedCalories;
@@ -3240,36 +4119,32 @@ function recalculateDayCalories(
 
 
 function recalculateDayCompletion(
-  day,
+  dayOrDate,
   exerciseDefinitions =
     null
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   if (
+    !dayState ||
     dayState.status ===
       "rest"
   ) {
     return false;
   }
 
-  /*
-   * V1 compatibility: callers may still pass exercise definitions.
-   * In V2 we use them only to update required sets/modes where a
-   * matching exercise can be resolved.
-   */
   if (
     Array.isArray(
       exerciseDefinitions
@@ -3281,7 +4156,7 @@ function recalculateDayCompletion(
     ) {
       const entryId =
         resolveEntryReference(
-          normalizedDay,
+          date,
           definition
             ?.entryId,
           definition
@@ -3340,21 +4215,16 @@ function recalculateDayCompletion(
     activeEntries.length ===
       0
   ) {
-    if (
+    dayState.status =
       dayState.startedAt
-    ) {
-      dayState.status =
-        "in_progress";
-    } else {
-      dayState.status =
-        "not_started";
-    }
+        ? "in_progress"
+        : "not_started";
 
     dayState.completedAt =
       null;
 
     recalculateDayCalories(
-      normalizedDay
+      date
     );
 
     return false;
@@ -3406,63 +4276,10 @@ function recalculateDayCompletion(
   }
 
   recalculateDayCalories(
-    normalizedDay
+    date
   );
 
   return complete;
-}
-
-
-// =====================================================
-// ENTRY RESOLUTION
-// =====================================================
-
-function resolveEntryReference(
-  day,
-  entryId,
-  exerciseId
-) {
-  const dayState =
-    state.days[
-      day
-    ];
-
-  const normalizedEntryId =
-    normalizeId(
-      entryId
-    );
-
-  if (
-    normalizedEntryId &&
-    dayState.exercises[
-      normalizedEntryId
-    ]
-  ) {
-    return normalizedEntryId;
-  }
-
-  const normalizedExerciseId =
-    normalizeId(
-      exerciseId
-    );
-
-  if (!normalizedExerciseId) {
-    return null;
-  }
-
-  return (
-    dayState.sessionOrder
-      .find(
-        id =>
-          dayState
-            .exercises[
-              id
-            ]
-            ?.exerciseId ===
-            normalizedExerciseId
-      ) ||
-    null
-  );
 }
 
 
@@ -3471,12 +4288,12 @@ function resolveEntryReference(
 // =====================================================
 
 function getExerciseSummary(
-  day,
+  dayOrDate,
   entryIdOrExerciseId
 ) {
   const progress =
     getExerciseProgress(
-      day,
+      dayOrDate,
       entryIdOrExerciseId
     );
 
@@ -3574,30 +4391,74 @@ function getExerciseSummary(
 
 
 function getDayCalories(
-  day
+  dayOrDate
 ) {
   return recalculateDayCalories(
-    day
+    dayOrDate
   );
 }
 
 
 function getDaySummary(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return null;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
+
+  if (!dayState) {
+    return {
+      date,
+      day:
+        getDayIdFromDate(
+          date
+        ),
+      status:
+        "not_started",
+      completed:
+        false,
+      exerciseCount:
+        0,
+      activeExerciseCount:
+        0,
+      completedExercises:
+        0,
+      skippedExercises:
+        0,
+      addedExercises:
+        0,
+      substitutions:
+        0,
+      requiredSets:
+        0,
+      completedSets:
+        0,
+      estimatedCalories:
+        0,
+      elapsedSeconds:
+        0,
+      averageHeartRate:
+        null,
+      startedAt:
+        null,
+      pausedAt:
+        null,
+      completedAt:
+        null,
+      notes:
+        null
+    };
+  }
 
   let requiredSets =
     0;
@@ -3707,8 +4568,13 @@ function getDaySummary(
   }
 
   return {
+    date,
+
     day:
-      normalizedDay,
+      dayState.day,
+
+    dayType:
+      dayState.dayType,
 
     sessionId:
       dayState.sessionId,
@@ -3754,12 +4620,12 @@ function getDaySummary(
 
     estimatedCalories:
       recalculateDayCalories(
-        normalizedDay
+        date
       ),
 
     elapsedSeconds:
       getElapsedSeconds(
-        normalizedDay
+        date
       ),
 
     averageHeartRate:
@@ -3781,131 +4647,127 @@ function getDaySummary(
 }
 
 
-function getWeekCalories() {
-  return Math.round(
-    DAYS.reduce(
-      (
-        total,
-        day
-      ) =>
-        total +
-        (
-          getDayCalories(
-            day
-          ) ||
-          0
-        ),
-      0
-    ) *
-    10
-  ) /
-  10;
-}
-
-
-function getWeekSummary() {
+function getWeekSummary(
+  weekKey =
+    state.activeWeekKey
+) {
   const summaries =
     DAYS.map(
       day =>
         getDaySummary(
-          day
+          getDayDateForWeek(
+            weekKey,
+            day
+          )
         )
     );
 
-  const completeDays =
-    summaries.filter(
-      summary =>
-        summary?.status ===
-          "complete"
-    ).length;
-
-  const inProgressDays =
-    summaries.filter(
-      summary =>
-        summary?.status ===
-          "in_progress"
-    ).length;
-
-  const pausedDays =
-    summaries.filter(
-      summary =>
-        summary?.status ===
-          "paused"
-    ).length;
-
-  const restDays =
-    summaries.filter(
-      summary =>
-        summary?.status ===
-          "rest"
-    ).length;
-
-  const completedSets =
-    summaries.reduce(
-      (
-        total,
-        summary
-      ) =>
-        total +
-        (
-          summary
-            ?.completedSets ||
-          0
-        ),
-      0
-    );
-
-  const requiredSets =
-    summaries.reduce(
-      (
-        total,
-        summary
-      ) =>
-        total +
-        (
-          summary
-            ?.requiredSets ||
-          0
-        ),
-      0
-    );
-
-  const elapsedSeconds =
-    summaries.reduce(
-      (
-        total,
-        summary
-      ) =>
-        total +
-        (
-          summary
-            ?.elapsedSeconds ||
-          0
-        ),
-      0
-    );
-
   return {
-    completeDays,
+    weekKey,
 
-    inProgressDays,
+    completeDays:
+      summaries.filter(
+        summary =>
+          summary?.status ===
+            "complete"
+      ).length,
 
-    pausedDays,
+    inProgressDays:
+      summaries.filter(
+        summary =>
+          summary?.status ===
+            "in_progress"
+      ).length,
 
-    restDays,
+    pausedDays:
+      summaries.filter(
+        summary =>
+          summary?.status ===
+            "paused"
+      ).length,
 
-    completedSets,
+    restDays:
+      summaries.filter(
+        summary =>
+          summary?.status ===
+            "rest"
+      ).length,
 
-    requiredSets,
+    completedSets:
+      summaries.reduce(
+        (
+          total,
+          summary
+        ) =>
+          total +
+          (
+            summary
+              ?.completedSets ||
+            0
+          ),
+        0
+      ),
+
+    requiredSets:
+      summaries.reduce(
+        (
+          total,
+          summary
+        ) =>
+          total +
+          (
+            summary
+              ?.requiredSets ||
+            0
+          ),
+        0
+      ),
 
     estimatedCalories:
-      getWeekCalories(),
+      Math.round(
+        summaries.reduce(
+          (
+            total,
+            summary
+          ) =>
+            total +
+            (
+              summary
+                ?.estimatedCalories ||
+              0
+            ),
+          0
+        ) * 10
+      ) / 10,
 
-    elapsedSeconds,
+    elapsedSeconds:
+      summaries.reduce(
+        (
+          total,
+          summary
+        ) =>
+          total +
+          (
+            summary
+              ?.elapsedSeconds ||
+            0
+          ),
+        0
+      ),
 
     days:
       summaries
   };
+}
+
+
+function getWeekCalories(
+  weekKey =
+    state.activeWeekKey
+) {
+  return getWeekSummary(
+    weekKey
+  ).estimatedCalories;
 }
 
 
@@ -3914,23 +4776,24 @@ function getWeekSummary() {
 // =====================================================
 
 function createSessionSnapshot(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return null;
   }
 
   const dayState =
-    state.days[
-      normalizedDay
+    state.sessionsByDate[
+      date
     ];
 
   if (
+    !dayState ||
     !dayState.sessionId
   ) {
     return null;
@@ -3947,10 +4810,14 @@ function createSessionSnapshot(
       state.planKey,
 
     weekKey:
-      state.weekKey,
+      getWeekKey(
+        date
+      ),
+
+    date,
 
     day:
-      normalizedDay,
+      dayState.day,
 
     plannedWorkoutId:
       dayState.plannedWorkoutId,
@@ -3966,7 +4833,7 @@ function createSessionSnapshot(
 
     elapsedSeconds:
       getElapsedSeconds(
-        normalizedDay
+        date
       ),
 
     averageHeartRate:
@@ -3974,7 +4841,7 @@ function createSessionSnapshot(
 
     estimatedCalories:
       recalculateDayCalories(
-        normalizedDay
+        date
       ),
 
     originalOrder: [
@@ -4024,67 +4891,372 @@ function createSessionSnapshot(
         dayState
           .metadata
           ?.updatedAt ||
-        null
+        null,
+
+      archivedAt:
+        nowIso()
     }
   };
 }
 
 
-// =====================================================
-// PLAN CONTEXT
-// =====================================================
-
-function setPlanContext({
-  planKey =
-    null,
-
-  weekKey =
-    null,
-
-  resetIfChanged =
-    true
-} = {}) {
-  const normalizedPlanKey =
-    normalizeId(
-      planKey
+function archiveCompletedSession(
+  dayOrDate
+) {
+  const snapshot =
+    createSessionSnapshot(
+      dayOrDate
     );
-
-  const normalizedWeekKey =
-    normalizeId(
-      weekKey
-    );
-
-  const changed =
-    state.planKey !==
-      normalizedPlanKey ||
-    state.weekKey !==
-      normalizedWeekKey;
 
   if (
-    changed &&
-    resetIfChanged
+    !snapshot ||
+    snapshot.status !==
+      "complete"
   ) {
-    const fresh =
-      createInitialState();
-
-    state.days =
-      fresh.days;
-
-    state.metadata =
-      fresh.metadata;
+    return false;
   }
 
-  state.planKey =
-    normalizedPlanKey;
+  state.history[
+    snapshot.sessionId
+  ] =
+    clone(
+      snapshot
+    );
 
-  state.weekKey =
-    normalizedWeekKey;
+  const date =
+    snapshot.date;
+
+  if (
+    state.sessionsByDate[
+      date
+    ]
+  ) {
+    state.sessionsByDate[
+      date
+    ]
+      .metadata
+      .historyArchivedAt =
+        nowIso();
+  }
+
+  return true;
+}
+
+
+function getSessionRecord(
+  sessionId
+) {
+  const id =
+    normalizeId(
+      sessionId
+    );
+
+  if (!id) {
+    return null;
+  }
+
+  const record =
+    state.history[
+      id
+    ];
+
+  return record
+    ? clone(
+        record
+      )
+    : null;
+}
+
+
+function getSessionHistory({
+  startDate =
+    null,
+
+  endDate =
+    null,
+
+  year =
+    null,
+
+  month =
+    null,
+
+  status =
+    null,
+
+  newestFirst =
+    true
+} = {}) {
+  const start =
+    formatDateKey(
+      startDate
+    );
+
+  const end =
+    formatDateKey(
+      endDate
+    );
+
+  const resolvedYear =
+    Number(
+      year
+    );
+
+  const resolvedMonth =
+    Number(
+      month
+    );
+
+  const normalizedStatus =
+    normalizeText(
+      status
+    )
+      .toLowerCase();
+
+  const records =
+    Object.values(
+      state.history
+    )
+      .filter(
+        record => {
+          if (
+            start &&
+            record.date <
+              start
+          ) {
+            return false;
+          }
+
+          if (
+            end &&
+            record.date >
+              end
+          ) {
+            return false;
+          }
+
+          if (
+            Number.isInteger(
+              resolvedYear
+            ) &&
+            resolvedYear > 0
+          ) {
+            const date =
+              toLocalDate(
+                record.date
+              );
+
+            if (
+              !date ||
+              date.getFullYear() !==
+                resolvedYear
+            ) {
+              return false;
+            }
+
+            if (
+              Number.isInteger(
+                resolvedMonth
+              ) &&
+              resolvedMonth >= 1 &&
+              resolvedMonth <= 12 &&
+              date.getMonth() + 1 !==
+                resolvedMonth
+            ) {
+              return false;
+            }
+          }
+
+          if (
+            normalizedStatus &&
+            normalizeText(
+              record.status
+            ).toLowerCase() !==
+              normalizedStatus
+          ) {
+            return false;
+          }
+
+          return true;
+        }
+      )
+      .sort(
+        (a, b) => {
+          const left =
+            new Date(
+              a.completedAt ||
+              a.startedAt ||
+              a.date
+            )
+              .getTime();
+
+          const right =
+            new Date(
+              b.completedAt ||
+              b.startedAt ||
+              b.date
+            )
+              .getTime();
+
+          return newestFirst
+            ? right - left
+            : left - right;
+        }
+      );
+
+  return clone(
+    records
+  );
+}
+
+
+function getMonthHistory(
+  year,
+  month
+) {
+  return getSessionHistory({
+    year,
+    month,
+    status:
+      "complete"
+  });
+}
+
+
+/*
+ * Delete a saved session record.
+ *
+ * If the session is also the currently loaded date session,
+ * reset that date back to the planned/not-started state.
+ */
+function deleteSessionRecord(
+  sessionId
+) {
+  const id =
+    normalizeId(
+      sessionId
+    );
+
+  if (!id) {
+    return false;
+  }
+
+  let changed =
+    false;
+
+  if (
+    state.history[
+      id
+    ]
+  ) {
+    delete state.history[
+      id
+    ];
+
+    changed =
+      true;
+  }
+
+  for (
+    const [
+      date,
+      dayState
+    ]
+    of Object.entries(
+      state.sessionsByDate
+    )
+  ) {
+    if (
+      dayState
+        ?.sessionId ===
+        id
+    ) {
+      cancelDay(
+        date,
+        {
+          preservePlannedEntries:
+            true
+        }
+      );
+
+      changed =
+        true;
+    }
+  }
+
+  if (
+    changed
+  ) {
+    touch();
+    persist();
+    emit();
+  }
+
+  return changed;
+}
+
+
+function clearSessionHistory({
+  startDate =
+    null,
+
+  endDate =
+    null,
+
+  year =
+    null,
+
+  month =
+    null,
+
+  completedOnly =
+    false
+} = {}) {
+  const matches =
+    getSessionHistory({
+      startDate,
+      endDate,
+      year,
+      month,
+      status:
+        completedOnly
+          ? "complete"
+          : null
+    });
+
+  if (
+    matches.length ===
+      0
+  ) {
+    return 0;
+  }
+
+  let removed =
+    0;
+
+  for (
+    const record
+    of matches
+  ) {
+    if (
+      state.history[
+        record.sessionId
+      ]
+    ) {
+      delete state.history[
+        record.sessionId
+      ];
+
+      removed +=
+        1;
+    }
+  }
 
   touch();
   persist();
   emit();
 
-  return changed;
+  return removed;
 }
 
 
@@ -4093,55 +5265,81 @@ function setPlanContext({
 // =====================================================
 
 function resetDay(
-  day
+  dayOrDate
 ) {
-  const normalizedDay =
-    normalizeDay(
-      day
+  const date =
+    resolveDateKey(
+      dayOrDate
     );
 
-  if (!normalizedDay) {
+  if (!date) {
     return false;
   }
 
-  state.days[
-    normalizedDay
-  ] =
-    createEmptyDayState();
+  const current =
+    state.sessionsByDate[
+      date
+    ];
 
-  touch();
-  persist();
-  emit();
+  if (!current) {
+    return false;
+  }
 
-  return true;
+  /*
+   * V3 resetDay is intentionally equivalent to safe cancellation:
+   * retain the plan, erase execution.
+   */
+  return cancelDay(
+    date,
+    {
+      preservePlannedEntries:
+        true
+    }
+  );
 }
 
 
-function resetAll() {
-  const fresh =
-    createInitialState();
-
-  state.schemaVersion =
-    fresh.schemaVersion;
-
-  state.version =
-    fresh.version;
-
-  state.source =
-    fresh.source;
+function resetAll({
+  clearHistory =
+    false
+} = {}) {
+  state.sessionsByDate =
+    {};
 
   state.planKey =
-    fresh.planKey;
+    null;
 
-  state.weekKey =
-    fresh.weekKey;
+  state.activeWeekKey =
+    getWeekKey(
+      new Date()
+    );
 
-  state.days =
-    fresh.days;
+  if (
+    clearHistory
+  ) {
+    state.history =
+      {};
+  }
 
-  state.metadata =
-    fresh.metadata;
+  state.metadata = {
+    createdAt:
+      null,
 
+    updatedAt:
+      null,
+
+    migratedFrom:
+      state.metadata
+        ?.migratedFrom ||
+      null,
+
+    migratedAt:
+      state.metadata
+        ?.migratedAt ||
+      null
+  };
+
+  touch();
   persist();
   emit();
 
@@ -4254,35 +5452,112 @@ function replaceState(
       incoming.planKey
     );
 
-  state.weekKey =
+  state.activeWeekKey =
     normalizeId(
+      incoming.activeWeekKey ??
       incoming.weekKey
-    );
+    ) ||
+    fresh.activeWeekKey;
 
-  state.days =
-    fresh.days;
+  state.sessionsByDate =
+    {};
+
+  const incomingSessions =
+    incoming.sessionsByDate &&
+    typeof incoming.sessionsByDate ===
+      "object"
+      ? incoming.sessionsByDate
+      : {};
 
   for (
-    const day
-    of DAYS
+    const [
+      date,
+      rawDay
+    ]
+    of Object.entries(
+      incomingSessions
+    )
   ) {
-    const sourceDay =
-      incoming.days?.[
-        day
-      ];
+    const normalizedDate =
+      formatDateKey(
+        date
+      );
 
     if (
-      sourceDay &&
-      typeof sourceDay ===
+      !normalizedDate ||
+      !rawDay ||
+      typeof rawDay !==
         "object"
     ) {
-      state.days[
-        day
-      ] =
-        normalizeIncomingDay(
-          sourceDay
-        );
+      continue;
     }
+
+    state.sessionsByDate[
+      normalizedDate
+    ] =
+      normalizeIncomingDay(
+        rawDay,
+        normalizedDate
+      );
+  }
+
+  state.history =
+    {};
+
+  const incomingHistory =
+    incoming.history &&
+    typeof incoming.history ===
+      "object"
+      ? incoming.history
+      : {};
+
+  for (
+    const [
+      sessionId,
+      record
+    ]
+    of Object.entries(
+      incomingHistory
+    )
+  ) {
+    if (
+      !record ||
+      typeof record !==
+        "object"
+    ) {
+      continue;
+    }
+
+    const id =
+      normalizeId(
+        record.sessionId ??
+        sessionId
+      );
+
+    const date =
+      formatDateKey(
+        record.date
+      );
+
+    if (
+      !id ||
+      !date
+    ) {
+      continue;
+    }
+
+    state.history[
+      id
+    ] = {
+      ...clone(
+        record
+      ),
+
+      sessionId:
+        id,
+
+      date
+    };
   }
 
   state.metadata = {
@@ -4306,17 +5581,48 @@ function replaceState(
 
 
 function normalizeIncomingDay(
-  sourceDay
+  sourceDay,
+  fallbackDate
 ) {
+  const date =
+    formatDateKey(
+      sourceDay.date ??
+      fallbackDate
+    );
+
   const fresh =
-    createEmptyDayState();
+    createEmptyDayState({
+      date,
+
+      day:
+        sourceDay.day,
+
+      dayType:
+        sourceDay.dayType ||
+        (
+          sourceDay.status ===
+            "rest"
+            ? "off"
+            : "workout"
+        )
+    });
 
   const dayState = {
     ...fresh,
 
     ...clone(
       sourceDay
-    )
+    ),
+
+    date,
+
+    day:
+      normalizeDay(
+        sourceDay.day
+      ) ||
+      getDayIdFromDate(
+        date
+      )
   };
 
   dayState.sessionId =
@@ -4346,16 +5652,37 @@ function normalizeIncomingDay(
     );
 
   dayState.originalOrder =
-    uniqueIds(
+    Array.isArray(
       sourceDay.originalOrder
-    );
+    )
+      ? [
+          ...new Set(
+            sourceDay.originalOrder
+              .map(
+                normalizeId
+              )
+              .filter(Boolean)
+          )
+        ]
+      : [];
 
   dayState.sessionOrder =
-    uniqueIds(
+    Array.isArray(
       sourceDay.sessionOrder
-    );
+    )
+      ? [
+          ...new Set(
+            sourceDay.sessionOrder
+              .map(
+                normalizeId
+              )
+              .filter(Boolean)
+          )
+        ]
+      : [];
 
-  dayState.exercises = {};
+  dayState.exercises =
+    {};
 
   const incomingExercises =
     sourceDay.exercises &&
@@ -4486,8 +5813,8 @@ function normalizeIncomingEntry(
       "session_entry"
     );
 
-  const entry = {
-    ...createEntryFromPlanExercise(
+  const base =
+    createEntryFromPlanExercise(
       {
         entryId,
 
@@ -4551,7 +5878,14 @@ function normalizeIncomingEntry(
         originalIndex:
           rawEntry.originalIndex
       }
-    ),
+    );
+
+  if (!base) {
+    return null;
+  }
+
+  const entry = {
+    ...base,
 
     ...clone(
       rawEntry
@@ -4588,7 +5922,8 @@ function normalizeIncomingEntry(
       0
   };
 
-  entry.completedSets = {};
+  entry.completedSets =
+    {};
 
   const incomingSets =
     rawEntry.completedSets &&
@@ -4676,15 +6011,13 @@ function recalculateDayCaloriesForState(
 
   dayState.estimatedCalories =
     Math.round(
-      total *
-      10
-    ) /
-    10;
+      total * 10
+    ) / 10;
 }
 
 
 // =====================================================
-// V1 MIGRATION
+// V2 / V1 MIGRATION
 // =====================================================
 
 function hydrateLegacy() {
@@ -4715,9 +6048,15 @@ function hydrateLegacy() {
         );
 
       const migrated =
-        migrateV1State(
-          parsed
-        );
+        legacyKey.endsWith(
+          "_v2"
+        )
+          ? migrateV2State(
+              parsed
+            )
+          : migrateV1State(
+              parsed
+            );
 
       if (!migrated) {
         continue;
@@ -4730,6 +6069,10 @@ function hydrateLegacy() {
       state.metadata
         .migratedFrom =
           legacyKey;
+
+      state.metadata
+        .migratedAt =
+          nowIso();
 
       persist();
 
@@ -4745,6 +6088,92 @@ function hydrateLegacy() {
   }
 
   return false;
+}
+
+
+function migrateV2State(
+  legacy
+) {
+  if (
+    !legacy ||
+    typeof legacy !==
+      "object"
+  ) {
+    return null;
+  }
+
+  const migrated =
+    createInitialState();
+
+  migrated.planKey =
+    normalizeId(
+      legacy.planKey
+    );
+
+  migrated.activeWeekKey =
+    normalizeId(
+      legacy.weekKey
+    ) ||
+    getWeekKey(
+      new Date()
+    );
+
+  const legacyDays =
+    legacy.days &&
+    typeof legacy.days ===
+      "object"
+      ? legacy.days
+      : {};
+
+  for (
+    const day
+    of DAYS
+  ) {
+    const legacyDay =
+      legacyDays[
+        day
+      ];
+
+    if (
+      !legacyDay ||
+      typeof legacyDay !==
+        "object"
+    ) {
+      continue;
+    }
+
+    const date =
+      getDayDateForWeek(
+        migrated.activeWeekKey,
+        day
+      );
+
+    migrated.sessionsByDate[
+      date
+    ] =
+      normalizeIncomingDay(
+        {
+          ...legacyDay,
+
+          date,
+
+          day
+        },
+        date
+      );
+  }
+
+  migrated.metadata = {
+    ...migrated.metadata,
+
+    migratedFrom:
+      "ari_training_workout_progress_v2",
+
+    migratedAt:
+      nowIso()
+  };
+
+  return migrated;
 }
 
 
@@ -4767,9 +6196,12 @@ function migrateV1State(
       legacy.planKey
     );
 
-  migrated.weekKey =
+  migrated.activeWeekKey =
     normalizeId(
       legacy.weekKey
+    ) ||
+    getWeekKey(
+      new Date()
     );
 
   for (
@@ -4789,8 +6221,22 @@ function migrateV1State(
       continue;
     }
 
+    const date =
+      getDayDateForWeek(
+        migrated.activeWeekKey,
+        day
+      );
+
     const nextDay =
-      createEmptyDayState();
+      createEmptyDayState({
+        date,
+        day,
+        dayType:
+          legacyDay.status ===
+            "rest"
+            ? "off"
+            : "workout"
+      });
 
     nextDay.status =
       normalizeSessionStatus(
@@ -4963,8 +6409,8 @@ function migrateV1State(
       nextDay
     );
 
-    migrated.days[
-      day
+    migrated.sessionsByDate[
+      date
     ] =
       nextDay;
   }
@@ -4992,20 +6438,32 @@ function validate() {
   const warnings = [];
 
   for (
-    const day
-    of DAYS
+    const [
+      date,
+      dayState
+    ]
+    of Object.entries(
+      state.sessionsByDate
+    )
   ) {
-    const dayState =
-      state.days[
-        day
-      ];
-
-    if (!dayState) {
+    if (
+      formatDateKey(
+        date
+      ) !==
+        date
+    ) {
       errors.push(
-        `Missing progress state for "${day}".`
+        `Progress session key "${date}" is not a valid YYYY-MM-DD date.`
       );
+    }
 
-      continue;
+    if (
+      dayState.date !==
+        date
+    ) {
+      warnings.push(
+        `Progress date key "${date}" differs from session.date "${dayState.date}".`
+      );
     }
 
     if (
@@ -5015,7 +6473,7 @@ function validate() {
         )
     ) {
       errors.push(
-        `Day "${day}" has invalid session status "${dayState.status}".`
+        `Date "${date}" has invalid session status "${dayState.status}".`
       );
     }
 
@@ -5034,7 +6492,7 @@ function validate() {
         ]
       ) {
         errors.push(
-          `Day "${day}" sessionOrder references missing entry "${entryId}".`
+          `Date "${date}" sessionOrder references missing entry "${entryId}".`
         );
       }
     }
@@ -5052,7 +6510,7 @@ function validate() {
         !entry.entryId
       ) {
         errors.push(
-          `Day "${day}" contains an entry without entryId.`
+          `Date "${date}" contains an entry without entryId.`
         );
       }
 
@@ -5061,7 +6519,7 @@ function validate() {
           entryId
       ) {
         warnings.push(
-          `Day "${day}" entry key "${entryId}" differs from entry.entryId "${entry.entryId}".`
+          `Date "${date}" entry key "${entryId}" differs from entry.entryId "${entry.entryId}".`
         );
       }
 
@@ -5069,7 +6527,7 @@ function validate() {
         !entry.exerciseId
       ) {
         errors.push(
-          `Day "${day}" entry "${entryId}" has no exerciseId.`
+          `Date "${date}" entry "${entryId}" has no exerciseId.`
         );
       }
 
@@ -5080,7 +6538,7 @@ function validate() {
           )
       ) {
         errors.push(
-          `Day "${day}" entry "${entryId}" has invalid status "${entry.status}".`
+          `Date "${date}" entry "${entryId}" has invalid status "${entry.status}".`
         );
       }
 
@@ -5091,7 +6549,7 @@ function validate() {
           )
       ) {
         errors.push(
-          `Day "${day}" entry "${entryId}" has invalid source "${entry.source}".`
+          `Date "${date}" entry "${entryId}" has invalid source "${entry.source}".`
         );
       }
 
@@ -5101,9 +6559,38 @@ function validate() {
         )
       ) {
         warnings.push(
-          `Day "${day}" entry "${entryId}" is not present in sessionOrder.`
+          `Date "${date}" entry "${entryId}" is not present in sessionOrder.`
         );
       }
+    }
+  }
+
+  for (
+    const [
+      sessionId,
+      record
+    ]
+    of Object.entries(
+      state.history
+    )
+  ) {
+    if (
+      record.sessionId !==
+        sessionId
+    ) {
+      warnings.push(
+        `History key "${sessionId}" differs from record.sessionId "${record.sessionId}".`
+      );
+    }
+
+    if (
+      !formatDateKey(
+        record.date
+      )
+    ) {
+      errors.push(
+        `History session "${sessionId}" has invalid date "${record.date}".`
+      );
     }
   }
 
@@ -5114,6 +6601,16 @@ function validate() {
 
     schemaVersion:
       SCHEMA_VERSION,
+
+    sessionDateCount:
+      Object.keys(
+        state.sessionsByDate
+      ).length,
+
+    historyCount:
+      Object.keys(
+        state.history
+      ).length,
 
     errorCount:
       errors.length,
@@ -5153,11 +6650,43 @@ function getDiagnostics() {
     planKey:
       state.planKey,
 
-    weekKey:
-      state.weekKey,
+    activeWeekKey:
+      state.activeWeekKey,
+
+    sessionDateCount:
+      Object.keys(
+        state.sessionsByDate
+      ).length,
+
+    historyCount:
+      Object.keys(
+        state.history
+      ).length,
 
     weekSummary:
-      getWeekSummary(),
+      getWeekSummary(
+        state.activeWeekKey
+      ),
+
+    capabilities: {
+      dateSpecificSessions:
+        true,
+
+      cancelWorkout:
+        true,
+
+      completedHistory:
+        true,
+
+      deleteSessionRecord:
+        true,
+
+      clearSessionHistory:
+        true,
+
+      monthHistory:
+        true
+    },
 
     validation:
       validate()
@@ -5189,9 +6718,16 @@ const AriTrainingWorkoutProgressStore =
     days:
       DAYS,
 
+    formatDateKey,
+    getWeekKey,
+    getDayDateForWeek,
+    getDayIdFromDate,
+
     getState,
 
     getDay,
+
+    getDayByDate,
 
     getEntry,
 
@@ -5213,6 +6749,18 @@ const AriTrainingWorkoutProgressStore =
 
     createSessionSnapshot,
 
+    archiveCompletedSession,
+
+    getSessionRecord,
+
+    getSessionHistory,
+
+    getMonthHistory,
+
+    deleteSessionRecord,
+
+    clearSessionHistory,
+
     setPlanContext,
 
     syncDayWithPlan,
@@ -5228,6 +6776,8 @@ const AriTrainingWorkoutProgressStore =
     resumeDay,
 
     completeDay,
+
+    cancelDay,
 
     setAverageHeartRate,
 
@@ -5312,8 +6862,15 @@ export {
 
   DAYS,
 
+  formatDateKey,
+  getWeekKey,
+  getDayDateForWeek,
+  getDayIdFromDate,
+
   getState,
+
   getDay,
+  getDayByDate,
 
   getEntry,
   getEntryByExerciseId,
@@ -5330,6 +6887,14 @@ export {
   getElapsedSeconds,
 
   createSessionSnapshot,
+  archiveCompletedSession,
+
+  getSessionRecord,
+  getSessionHistory,
+  getMonthHistory,
+
+  deleteSessionRecord,
+  clearSessionHistory,
 
   setPlanContext,
 
@@ -5342,6 +6907,7 @@ export {
   pauseDay,
   resumeDay,
   completeDay,
+  cancelDay,
 
   setAverageHeartRate,
   setDayNotes,
