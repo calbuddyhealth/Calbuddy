@@ -1,41 +1,31 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/workouts/workout-builder.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Build complete workout sessions from ARI Training's
 //   exercise registry and recommendation engine.
 //
-// Architecture:
-//   exercise-registry.js
-//          ↓
-//   exercise-search.js
-//          ↓
-//   exercise-recommender.js
-//          ↓
-//   workout-builder.js
-//          ↓
-//   workout-plan-controller.js / quick workout / training UI
-//
-// Responsibilities:
-//   - Build strength, hypertrophy, cardio, mobility,
-//     functional, sport, surfing, and mixed workouts.
-//   - Select appropriate exercises.
-//   - Decide exercise order.
-//   - Assign sets, reps, duration, rest, and intensity.
-//   - Respect user experience level and equipment.
-//   - Respect workout duration.
-//   - Avoid excessive duplicate movement patterns.
-//   - Create warm-up / main / accessory / finisher blocks.
-//   - Support quick workouts.
-//   - Support substitutions.
-//   - Produce stable workout records suitable for saving.
-//
-// Important:
-//   - This file does not persist workouts.
-//   - This file does not write to Supabase.
-//   - This file does not mark exercises complete.
-//   - Persistence belongs to plan/session stores.
+// V1.1.0:
+//   - Preserves existing public builder API.
+//   - Removes dependency on nonexistent "mobility" module.
+//   - Improves lower-body movement-pattern diversity.
+//   - Prevents hip-abduction and hip-adduction exercises
+//     from being crowded out by squat/lunge selections.
+//   - Adds priority support for lower-body isolation:
+//       hip_abduction
+//       hip_adduction
+//       hip_extension
+//       knee_extension
+//       knee_flexion
+//       calf_raise
+//       ankle_dorsiflexion
+//   - Improves exercise selection when explicit movement
+//     patterns or body parts are requested.
+//   - Adds fallback selection directly from registry/search
+//     if recommender results are too narrow.
+//   - Prevents duplicate exercises from being added to a
+//     built workout.
 // =====================================================
 
 import ExerciseRegistry
@@ -49,15 +39,11 @@ import ExerciseRecommender
 
 
 const VERSION =
-  "1.0.0";
+  "1.1.0";
 
 const SOURCE =
   "js/training/workouts/workout-builder";
 
-
-// =====================================================
-// CONSTANTS
-// =====================================================
 
 const DEFAULT_DURATION_MINUTES =
   45;
@@ -90,147 +76,126 @@ const DIFFICULTY_RANK =
   });
 
 
+const LOWER_BODY_PRIORITY_PATTERNS =
+  Object.freeze([
+    "squat",
+    "hip_hinge",
+    "lunge",
+    "step",
+    "hip_extension",
+    "hip_abduction",
+    "hip_adduction",
+    "knee_extension",
+    "knee_flexion",
+    "calf_raise",
+    "ankle_dorsiflexion"
+  ]);
+
+
+const LOWER_BODY_BODY_PARTS =
+  new Set([
+    "lower_body",
+    "quadriceps",
+    "hamstrings",
+    "glutes",
+    "calves",
+    "hips",
+    "adductors",
+    "abductors",
+    "shins"
+  ]);
+
+
 const GOAL_DEFAULTS =
   Object.freeze({
     strength: {
-      mainSets:
-        4,
-      mainReps:
-        5,
-      accessorySets:
-        3,
-      accessoryReps:
-        8,
-      restSecondsMain:
-        150,
-      restSecondsAccessory:
-        90
+      mainSets: 4,
+      mainReps: 5,
+      accessorySets: 3,
+      accessoryReps: 8,
+      restSecondsMain: 150,
+      restSecondsAccessory: 90
     },
 
     muscle_building: {
-      mainSets:
-        4,
-      mainReps:
-        8,
-      accessorySets:
-        3,
-      accessoryReps:
-        12,
-      restSecondsMain:
-        90,
-      restSecondsAccessory:
-        60
+      mainSets: 4,
+      mainReps: 8,
+      accessorySets: 3,
+      accessoryReps: 12,
+      restSecondsMain: 90,
+      restSecondsAccessory: 60
     },
 
     upper_body_strength: {
-      mainSets:
-        4,
-      mainReps:
-        6,
-      accessorySets:
-        3,
-      accessoryReps:
-        10,
-      restSecondsMain:
-        120,
-      restSecondsAccessory:
-        75
+      mainSets: 4,
+      mainReps: 6,
+      accessorySets: 3,
+      accessoryReps: 10,
+      restSecondsMain: 120,
+      restSecondsAccessory: 75
     },
 
     lower_body_strength: {
-      mainSets:
-        4,
-      mainReps:
-        6,
-      accessorySets:
-        3,
-      accessoryReps:
-        10,
-      restSecondsMain:
-        120,
-      restSecondsAccessory:
-        75
+      mainSets: 4,
+      mainReps: 6,
+      accessorySets: 3,
+      accessoryReps: 10,
+      restSecondsMain: 120,
+      restSecondsAccessory: 75
     },
 
     core_strength: {
-      mainSets:
-        3,
-      mainReps:
-        10,
-      accessorySets:
-        3,
-      accessoryReps:
-        12,
-      restSecondsMain:
-        60,
-      restSecondsAccessory:
-        45
+      mainSets: 3,
+      mainReps: 10,
+      accessorySets: 3,
+      accessoryReps: 12,
+      restSecondsMain: 60,
+      restSecondsAccessory: 45
     },
 
     cardio: {
-      durationMinutes:
-        30,
-      intensity:
-        "moderate"
+      durationMinutes: 30,
+      intensity: "moderate"
     },
 
     endurance: {
-      durationMinutes:
-        40,
-      intensity:
-        "moderate"
+      durationMinutes: 40,
+      intensity: "moderate"
     },
 
     running: {
-      durationMinutes:
-        35,
-      intensity:
-        "moderate"
+      durationMinutes: 35,
+      intensity: "moderate"
     },
 
     mobility: {
-      durationMinutes:
-        20
+      durationMinutes: 20
     },
 
     flexibility: {
-      durationMinutes:
-        20
+      durationMinutes: 20
     },
 
     recovery: {
-      durationMinutes:
-        15
+      durationMinutes: 15
     },
 
     athletic_performance: {
-      mainSets:
-        3,
-      mainReps:
-        6,
-      accessorySets:
-        3,
-      accessoryReps:
-        8,
-      restSecondsMain:
-        90,
-      restSecondsAccessory:
-        60
+      mainSets: 3,
+      mainReps: 6,
+      accessorySets: 3,
+      accessoryReps: 8,
+      restSecondsMain: 90,
+      restSecondsAccessory: 60
     },
 
     general_fitness: {
-      mainSets:
-        3,
-      mainReps:
-        10,
-      accessorySets:
-        3,
-      accessoryReps:
-        12,
-      restSecondsMain:
-        75,
-      restSecondsAccessory:
-        60
+      mainSets: 3,
+      mainReps: 10,
+      accessorySets: 3,
+      accessoryReps: 12,
+      restSecondsMain: 75,
+      restSecondsAccessory: 60
     }
   });
 
@@ -304,9 +269,7 @@ function normalizeText(
     return "";
   }
 
-  return String(
-    value
-  )
+  return String(value)
     .normalize("NFKD")
     .replace(
       /[\u0300-\u036f]/g,
@@ -324,9 +287,7 @@ function normalizeText(
 function normalizeKey(
   value
 ) {
-  return normalizeText(
-    value
-  )
+  return normalizeText(value)
     .replace(
       /[^a-z0-9]+/g,
       "_"
@@ -341,9 +302,7 @@ function normalizeKey(
 function asArray(
   value
 ) {
-  return Array.isArray(
-    value
-  )
+  return Array.isArray(value)
     ? value
     : [];
 }
@@ -354,12 +313,8 @@ function unique(
 ) {
   return [
     ...new Set(
-      asArray(
-        values
-      )
-        .map(
-          normalizeKey
-        )
+      asArray(values)
+        .map(normalizeKey)
         .filter(Boolean)
     )
   ];
@@ -385,9 +340,7 @@ function clampDuration(
   value
 ) {
   const duration =
-    Number(
-      value
-    );
+    Number(value);
 
   if (
     !Number.isFinite(
@@ -398,9 +351,7 @@ function clampDuration(
   }
 
   return clamp(
-    Math.round(
-      duration
-    ),
+    Math.round(duration),
     MIN_DURATION_MINUTES,
     MAX_DURATION_MINUTES
   );
@@ -411,14 +362,10 @@ function normalizeGoal(
   value
 ) {
   const key =
-    normalizeKey(
-      value
-    );
+    normalizeKey(value);
 
   return (
-    GOAL_ALIASES[
-      key
-    ] ||
+    GOAL_ALIASES[key] ||
     key ||
     "general_fitness"
   );
@@ -429,8 +376,7 @@ function titleFromId(
   value
 ) {
   return String(
-    value ||
-    ""
+    value || ""
   )
     .replace(
       /[_-]+/g,
@@ -439,8 +385,7 @@ function titleFromId(
     .replace(
       /\b\w/g,
       character =>
-        character
-          .toUpperCase()
+        character.toUpperCase()
     );
 }
 
@@ -473,11 +418,28 @@ function getDifficultyRank(
 ) {
   return (
     DIFFICULTY_RANK[
-      normalizeText(
-        value
-      )
+      normalizeText(value)
     ] ||
     0
+  );
+}
+
+
+function isLowerBodyRequest(
+  request
+) {
+  if (
+    request.goal ===
+      "lower_body_strength"
+  ) {
+    return true;
+  }
+
+  return request.bodyParts.some(
+    bodyPart =>
+      LOWER_BODY_BODY_PARTS.has(
+        bodyPart
+      )
   );
 }
 
@@ -737,16 +699,13 @@ function estimateExerciseCount(
       DEFAULT_EXERCISE_COUNTS
     )
       .map(
-        (
-          [
-            duration,
-            count
-          ]
-        ) => ({
+        ([
+          duration,
+          count
+        ]) => ({
           duration:
-            Number(
-              duration
-            ),
+            Number(duration),
+
           count
         })
       )
@@ -874,7 +833,6 @@ function resolveDefaultModules(
         "functional",
         "core",
         "cardio",
-        "mobility",
         "shoulders",
         "back"
       ];
@@ -884,8 +842,7 @@ function resolveDefaultModules(
         "sports",
         "functional",
         "core",
-        "cardio",
-        "mobility"
+        "cardio"
       ];
 
     case "cardio":
@@ -898,7 +855,7 @@ function resolveDefaultModules(
 
     case "mobility":
       return [
-        "mobility",
+        "functional",
         "core"
       ];
 
@@ -907,8 +864,7 @@ function resolveDefaultModules(
         "functional",
         "sports",
         "core",
-        "cardio",
-        "mobility"
+        "cardio"
       ];
 
     case "strength":
@@ -927,6 +883,108 @@ function resolveDefaultModules(
         "functional"
       ];
   }
+}
+
+
+// =====================================================
+// CANDIDATE FALLBACK
+// =====================================================
+
+function getFallbackCandidates(
+  request
+) {
+  let pool =
+    asArray(
+      ExerciseRegistry.all
+    );
+
+  if (
+    request.modules.length
+  ) {
+    const modules =
+      new Set(
+        request.modules
+      );
+
+    pool =
+      pool.filter(
+        exercise =>
+          modules.has(
+            normalizeKey(
+              exercise.moduleId
+            )
+          )
+      );
+  }
+
+  if (
+    request.bodyParts.length
+  ) {
+    const bodyParts =
+      new Set(
+        request.bodyParts
+      );
+
+    pool =
+      pool.filter(
+        exercise =>
+          asArray(
+            exercise.bodyParts
+          )
+            .some(
+              bodyPart =>
+                bodyParts.has(
+                  normalizeKey(
+                    bodyPart
+                  )
+                )
+            )
+      );
+  }
+
+  if (
+    request.movementPatterns.length
+  ) {
+    const patterns =
+      new Set(
+        request.movementPatterns
+      );
+
+    pool =
+      pool.filter(
+        exercise =>
+          asArray(
+            exercise.movementPatterns
+          )
+            .some(
+              movement =>
+                patterns.has(
+                  normalizeKey(
+                    movement
+                  )
+                )
+            )
+      );
+  }
+
+  if (
+    request.excludedExercises.length
+  ) {
+    const excluded =
+      new Set(
+        request.excludedExercises
+      );
+
+    pool =
+      pool.filter(
+        exercise =>
+          !excluded.has(
+            exercise.id
+          )
+      );
+  }
+
+  return pool;
 }
 
 
@@ -957,11 +1015,11 @@ function buildWorkout(
 
   const recommendationLimit =
     Math.max(
-      exerciseCount * 3,
-      12
+      exerciseCount * 5,
+      30
     );
 
-  const recommendation =
+  let recommendation =
     ExerciseRecommender.recommend(
       buildRecommendationRequest(
         normalized,
@@ -969,10 +1027,47 @@ function buildWorkout(
       )
     );
 
-  const mainCandidates =
+  let mainCandidates =
     asArray(
-      recommendation.results
+      recommendation?.results
     );
+
+  if (
+    mainCandidates.length <
+      exerciseCount
+  ) {
+    const fallback =
+      getFallbackCandidates(
+        normalized
+      );
+
+    const existingIds =
+      new Set(
+        mainCandidates.map(
+          exercise =>
+            exercise.id
+        )
+      );
+
+    for (
+      const exercise
+      of fallback
+    ) {
+      if (
+        !existingIds.has(
+          exercise.id
+        )
+      ) {
+        mainCandidates.push(
+          exercise
+        );
+
+        existingIds.add(
+          exercise.id
+        );
+      }
+    }
+  }
 
   const selected =
     selectMainExercises({
@@ -1074,7 +1169,7 @@ function buildWorkout(
     }
   }
 
-  const workout = {
+  return {
     workoutId:
       createId(
         "workout"
@@ -1164,8 +1259,6 @@ function buildWorkout(
         )
     }
   };
-
-  return workout;
 }
 
 
@@ -1181,27 +1274,17 @@ function selectMainExercises({
 }) {
   if (
     workoutType ===
-      "cardio"
-  ) {
-    return candidates
-      .slice(
-        0,
-        Math.max(
-          1,
-          count
-        )
-      );
-  }
-
-  if (
+      "cardio" ||
     workoutType ===
       "mobility"
   ) {
-    return candidates
-      .slice(
-        0,
+    return candidates.slice(
+      0,
+      Math.max(
+        1,
         count
-      );
+      )
+    );
   }
 
   const selected = [];
@@ -1213,6 +1296,161 @@ function selectMainExercises({
 
   const usedPatterns =
     new Map();
+
+  const lowerBody =
+    isLowerBodyRequest(
+      request
+    );
+
+
+  function addCandidate(
+    candidate
+  ) {
+    if (
+      !candidate ||
+      usedIds.has(
+        candidate.id
+      ) ||
+      selected.length >=
+        count
+    ) {
+      return false;
+    }
+
+    selected.push(
+      candidate
+    );
+
+    usedIds.add(
+      candidate.id
+    );
+
+    const group =
+      normalizeKey(
+        candidate
+          .substitutionGroup
+      );
+
+    if (group) {
+      usedGroups.add(
+        group
+      );
+    }
+
+    for (
+      const pattern
+      of unique(
+        candidate
+          .movementPatterns
+      )
+    ) {
+      usedPatterns.set(
+        pattern,
+        (
+          usedPatterns.get(
+            pattern
+          ) ||
+          0
+        ) +
+        1
+      );
+    }
+
+    return true;
+  }
+
+
+  /*
+   * Explicit movement-pattern requests should receive
+   * first-class coverage before general ranking.
+   */
+  for (
+    const requestedPattern
+    of request
+      .movementPatterns
+  ) {
+    if (
+      selected.length >=
+        count
+    ) {
+      break;
+    }
+
+    const match =
+      candidates.find(
+        exercise =>
+          !usedIds.has(
+            exercise.id
+          ) &&
+          asArray(
+            exercise.movementPatterns
+          )
+            .map(
+              normalizeKey
+            )
+            .includes(
+              requestedPattern
+            )
+      );
+
+    addCandidate(
+      match
+    );
+  }
+
+
+  /*
+   * For lower-body sessions, preserve pattern diversity.
+   * This is what keeps abductors/adductors from being
+   * crowded out by several squat/lunge variations.
+   */
+  if (
+    lowerBody &&
+    selected.length <
+      count
+  ) {
+    for (
+      const pattern
+      of LOWER_BODY_PRIORITY_PATTERNS
+    ) {
+      if (
+        selected.length >=
+          count
+      ) {
+        break;
+      }
+
+      if (
+        usedPatterns.has(
+          pattern
+        )
+      ) {
+        continue;
+      }
+
+      const match =
+        candidates.find(
+          exercise =>
+            !usedIds.has(
+              exercise.id
+            ) &&
+            asArray(
+              exercise.movementPatterns
+            )
+              .map(
+                normalizeKey
+              )
+              .includes(
+                pattern
+              )
+        );
+
+      addCandidate(
+        match
+      );
+    }
+  }
+
 
   for (
     const candidate
@@ -1256,8 +1494,15 @@ function selectMainExercises({
       continue;
     }
 
+    const maxPatternUses =
+      request.goal ===
+        "muscle_building"
+        ? 2
+        : 1;
+
     const excessivePattern =
-      patterns.some(
+      patterns.length > 0 &&
+      patterns.every(
         pattern =>
           (
             usedPatterns.get(
@@ -1265,12 +1510,7 @@ function selectMainExercises({
             ) ||
             0
           ) >=
-            (
-              request.goal ===
-                "muscle_building"
-                ? 2
-                : 1
-            )
+            maxPatternUses
       );
 
     if (
@@ -1281,37 +1521,15 @@ function selectMainExercises({
       continue;
     }
 
-    selected.push(
+    addCandidate(
       candidate
     );
-
-    usedIds.add(
-      candidate.id
-    );
-
-    if (group) {
-      usedGroups.add(
-        group
-      );
-    }
-
-    for (
-      const pattern
-      of patterns
-    ) {
-      usedPatterns.set(
-        pattern,
-        (
-          usedPatterns.get(
-            pattern
-          ) ||
-          0
-        ) +
-        1
-      );
-    }
   }
 
+
+  /*
+   * Final fill pass.
+   */
   if (
     selected.length <
       count
@@ -1327,20 +1545,8 @@ function selectMainExercises({
         break;
       }
 
-      if (
-        usedIds.has(
-          candidate.id
-        )
-      ) {
-        continue;
-      }
-
-      selected.push(
+      addCandidate(
         candidate
-      );
-
-      usedIds.add(
-        candidate.id
       );
     }
   }
@@ -1350,13 +1556,21 @@ function selectMainExercises({
 
 
 // =====================================================
-// BLOCK BUILDERS
+// WARM-UP
 // =====================================================
 
 function buildWarmupBlock(
   request,
   selected
 ) {
+  /*
+   * There is currently no standalone mobility module
+   * registered in exercise-registry.js.
+   *
+   * Pull suitable warm-up movements from functional/core
+   * records instead of requesting a nonexistent module.
+   */
+
   const targetBodyParts =
     unique(
       selected.flatMap(
@@ -1367,17 +1581,7 @@ function buildWarmupBlock(
       )
     );
 
-  const targetMuscles =
-    unique(
-      selected.flatMap(
-        exercise =>
-          asArray(
-            exercise.primaryMuscles
-          )
-      )
-    );
-
-  const mobilityResults =
+  let results =
     ExerciseRecommender.recommend({
       goal:
         "mobility",
@@ -1385,11 +1589,15 @@ function buildWarmupBlock(
       bodyParts:
         targetBodyParts,
 
-      muscles:
-        targetMuscles,
+      exerciseTypes: [
+        "mobility",
+        "flexibility",
+        "functional"
+      ],
 
       modules: [
-        "mobility"
+        "functional",
+        "core"
       ],
 
       availableEquipment:
@@ -1399,7 +1607,7 @@ function buildWarmupBlock(
         false,
 
       difficulty:
-        request.difficulty,
+        "beginner",
 
       variety:
         true,
@@ -1410,22 +1618,9 @@ function buildWarmupBlock(
           : 3
     }).results;
 
-  const exercises =
-    mobilityResults.map(
-      exercise =>
-        createWorkoutExercise(
-          exercise,
-          {
-            role:
-              "warmup",
-
-            prescription:
-              createMobilityPrescription(
-                exercise,
-                1
-              )
-          }
-        )
+  results =
+    asArray(
+      results
     );
 
   return {
@@ -1438,10 +1633,30 @@ function buildWarmupBlock(
     type:
       "warmup",
 
-    exercises
+    exercises:
+      results.map(
+        exercise =>
+          createWorkoutExercise(
+            exercise,
+            {
+              role:
+                "warmup",
+
+              prescription:
+                createMobilityPrescription(
+                  exercise,
+                  1
+                )
+            }
+          )
+      )
   };
 }
 
+
+// =====================================================
+// MAIN / ACCESSORY BLOCKS
+// =====================================================
 
 function buildMainBlock(
   request,
@@ -1602,6 +1817,10 @@ function buildAccessoryBlock(
 }
 
 
+// =====================================================
+// FINISHER
+// =====================================================
+
 function buildFinisherBlock(
   request,
   selected
@@ -1655,7 +1874,7 @@ function buildFinisherBlock(
     }).results;
 
   const exercise =
-    results[0];
+    results?.[0];
 
   if (!exercise) {
     return {
@@ -1703,6 +1922,10 @@ function buildFinisherBlock(
 }
 
 
+// =====================================================
+// COOLDOWN
+// =====================================================
+
 function buildCooldownBlock(
   request,
   selected
@@ -1724,8 +1947,15 @@ function buildCooldownBlock(
 
       bodyParts,
 
+      exerciseTypes: [
+        "mobility",
+        "flexibility",
+        "recovery"
+      ],
+
       modules: [
-        "mobility"
+        "functional",
+        "core"
       ],
 
       availableEquipment:
@@ -1757,22 +1987,25 @@ function buildCooldownBlock(
       "cooldown",
 
     exercises:
-      results.map(
-        exercise =>
-          createWorkoutExercise(
-            exercise,
-            {
-              role:
-                "cooldown",
-
-              prescription:
-                createMobilityPrescription(
-                  exercise,
-                  2
-                )
-            }
-          )
+      asArray(
+        results
       )
+        .map(
+          exercise =>
+            createWorkoutExercise(
+              exercise,
+              {
+                role:
+                  "cooldown",
+
+                prescription:
+                  createMobilityPrescription(
+                    exercise,
+                    2
+                  )
+              }
+            )
+        )
   };
 }
 
@@ -2117,7 +2350,8 @@ function createMobilityPrescription(
 
       reps:
         clamp(
-          approximateMinutes * 5,
+          approximateMinutes *
+            5,
           6,
           15
         ),
@@ -2325,32 +2559,34 @@ function createWorkoutExercise(
 function resolveSubstitutions(
   exercise
 ) {
-  return ExerciseRegistry
-    .substitutions?.(
-      exercise.id,
-      {
-        limit:
-          5
-      }
-    )
-    ?.map(
-      substitution => ({
-        exerciseId:
-          substitution.id,
+  return (
+    ExerciseRegistry
+      .substitutions?.(
+        exercise.id,
+        {
+          limit:
+            5
+        }
+      )
+      ?.map(
+        substitution => ({
+          exerciseId:
+            substitution.id,
 
-        name:
-          substitution.name,
+          name:
+            substitution.name,
 
-        equipment:
-          [
-            ...asArray(
-              substitution
-                .equipment
-            )
-          ]
-      })
-    ) ||
-    [];
+          equipment:
+            [
+              ...asArray(
+                substitution
+                  .equipment
+              )
+            ]
+        })
+      ) ||
+    []
+  );
 }
 
 
@@ -2449,7 +2685,7 @@ function estimateWorkoutDuration(
     1,
     Math.round(
       totalSeconds /
-      60
+        60
     )
   );
 }
@@ -2594,9 +2830,7 @@ function collectUniqueField(
   field
 ) {
   return unique(
-    asArray(
-      blocks
-    )
+    asArray(blocks)
       .flatMap(
         block =>
           asArray(
@@ -2606,9 +2840,7 @@ function collectUniqueField(
       .flatMap(
         exercise =>
           asArray(
-            exercise[
-              field
-            ]
+            exercise[field]
           )
       )
   );
@@ -2619,9 +2851,7 @@ function collectWorkoutMuscles(
   blocks
 ) {
   return unique(
-    asArray(
-      blocks
-    )
+    asArray(blocks)
       .flatMap(
         block =>
           asArray(
@@ -2647,18 +2877,17 @@ function countWorkoutExercises(
 ) {
   return asArray(
     blocks
-  )
-    .reduce(
-      (
-        total,
-        block
-      ) =>
-        total +
-        asArray(
-          block.exercises
-        ).length,
-      0
-    );
+  ).reduce(
+    (
+      total,
+      block
+    ) =>
+      total +
+      asArray(
+        block.exercises
+      ).length,
+    0
+  );
 }
 
 
@@ -2717,7 +2946,7 @@ function buildQuickWorkout({
 
 
 // =====================================================
-// SURFING WORKOUT
+// SPECIALIZED BUILDERS
 // =====================================================
 
 function buildSurfWorkout(
@@ -2738,7 +2967,6 @@ function buildSurfWorkout(
       "surfing",
       "functional",
       "core",
-      "mobility",
       "shoulders",
       "back",
       "cardio"
@@ -2751,10 +2979,6 @@ function buildSurfWorkout(
   });
 }
 
-
-// =====================================================
-// CARDIO WORKOUT
-// =====================================================
 
 function buildCardioWorkout(
   options =
@@ -2778,10 +3002,6 @@ function buildCardioWorkout(
 }
 
 
-// =====================================================
-// MOBILITY WORKOUT
-// =====================================================
-
 function buildMobilityWorkout(
   options =
     {}
@@ -2804,10 +3024,6 @@ function buildMobilityWorkout(
 }
 
 
-// =====================================================
-// STRENGTH WORKOUT
-// =====================================================
-
 function buildStrengthWorkout(
   options =
     {}
@@ -2823,10 +3039,6 @@ function buildStrengthWorkout(
   });
 }
 
-
-// =====================================================
-// HYPERTROPHY WORKOUT
-// =====================================================
 
 function buildHypertrophyWorkout(
   options =
@@ -2845,7 +3057,7 @@ function buildHypertrophyWorkout(
 
 
 // =====================================================
-// SUBSTITUTE AN EXERCISE IN A BUILT WORKOUT
+// SUBSTITUTE EXERCISE
 // =====================================================
 
 function replaceExercise(
@@ -2898,13 +3110,9 @@ function replaceExercise(
     }
 
     const existing =
-      block.exercises[
-        index
-      ];
+      block.exercises[index];
 
-    block.exercises[
-      index
-    ] =
+    block.exercises[index] =
       createWorkoutExercise(
         replacement,
         {
@@ -2919,10 +3127,15 @@ function replaceExercise(
         }
       );
 
-    block.exercises[
-      index
-    ].entryId =
-      existing.entryId;
+    block.exercises[index]
+      .entryId =
+        existing.entryId;
+
+    cloned
+      .estimatedDurationMinutes =
+        estimateWorkoutDuration(
+          cloned.blocks
+        );
 
     return cloned;
   }
@@ -3117,6 +3330,31 @@ function addExercise(
     structuredCloneSafe(
       workout
     );
+
+  const existingExerciseIds =
+    new Set(
+      asArray(
+        cloned.blocks
+      )
+        .flatMap(
+          block =>
+            asArray(
+              block.exercises
+            )
+        )
+        .map(
+          entry =>
+            entry.exerciseId
+        )
+  );
+
+  if (
+    existingExerciseIds.has(
+      exercise.id
+    )
+  ) {
+    return cloned;
+  }
 
   let block =
     asArray(
@@ -3425,6 +3663,9 @@ function validateWorkout(
     );
   }
 
+  const exerciseIds =
+    new Set();
+
   for (
     const block
     of asArray(
@@ -3456,6 +3697,20 @@ function validateWorkout(
 
         continue;
       }
+
+      if (
+        exerciseIds.has(
+          entry.exerciseId
+        )
+      ) {
+        warnings.push(
+          `Exercise "${entry.exerciseId}" appears more than once in the workout.`
+        );
+      }
+
+      exerciseIds.add(
+        entry.exerciseId
+      );
 
       if (
         !ExerciseRegistry.has(
@@ -3532,6 +3787,11 @@ function getDiagnostics() {
       Object.keys(
         GOAL_DEFAULTS
       ),
+
+    lowerBodyPriorityPatterns:
+      [
+        ...LOWER_BODY_PRIORITY_PATTERNS
+      ],
 
     defaultDurationMinutes:
       DEFAULT_DURATION_MINUTES,
@@ -3652,6 +3912,7 @@ export {
 
   AriTrainingWorkoutBuilder
 };
+
 
 export default
   AriTrainingWorkoutBuilder;
