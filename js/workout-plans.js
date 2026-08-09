@@ -1,9 +1,20 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.3.0
+// Version: 3.3.1
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V3.3.1:
+//   - Fixes focused exercise matching at the source.
+//   - Uses primaryBodyParts as the anatomical qualifier when
+//     a focus defines them.
+//   - Prevents supporting body parts from independently adding
+//     unrelated exercises to focused workout days.
+//   - Chest Day now matches chest anatomy plus its explicitly
+//     configured chest movement patterns.
+//   - Preserves the complete ExerciseRegistry catalog,
+//     focus-local search, Custom, and all V3.3.0 features.
 //
 // V3.3.0:
 //   - Preserves the full V3.2.0 Workout Plans feature set.
@@ -47,7 +58,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.3.0";
+  "3.3.1";
 
 const SOURCE =
   "js/workout-plans";
@@ -3414,18 +3425,17 @@ function exerciseMatchesFocus(
       []
     );
 
-  const focusSecondaryBodyParts =
+  const focusFallbackBodyParts =
     uniqueIds(
-      focus.secondaryBodyParts ||
+      focus.bodyParts ||
       []
     );
 
-  const focusBodyParts =
-    uniqueIds([
-      ...(focus.bodyParts || []),
-      ...focusPrimaryBodyParts,
-      ...focusSecondaryBodyParts
-    ]);
+  const focusTargetBodyParts =
+    focusPrimaryBodyParts.length >
+      0
+      ? focusPrimaryBodyParts
+      : focusFallbackBodyParts;
 
   const focusMuscles =
     getFocusMuscles(
@@ -3468,41 +3478,26 @@ function exerciseMatchesFocus(
 
 
   /* ===================================================
-     PRIMARY BODY-PART MATCH
+     TARGET BODY-PART MATCH
 
-     For body-part workouts such as Chest Day, Back Day,
-     Leg Day, Shoulder Day, etc., the exercise needs to
-     actually belong to the focus anatomy.
+     When primaryBodyParts exists, only the primary anatomy
+     may qualify an exercise through body-part matching.
 
-     Generic classifications such as "strength",
-     "hypertrophy", "cable", etc. are NOT sufficient.
+     focus.bodyParts and secondaryBodyParts may describe
+     supporting involvement, but they must not independently
+     admit unrelated exercises. For example, Chest Day may
+     involve the shoulders and triceps without admitting every
+     shoulder raise, shrug, or triceps-isolation exercise.
+
+     Focuses without primaryBodyParts fall back to bodyParts.
   =================================================== */
 
   if (
-    focusPrimaryBodyParts.length >
-    0
-  ) {
-    if (
-      intersects(
-        exerciseBodyParts,
-        focusPrimaryBodyParts
-      )
-    ) {
-      return true;
-    }
-  }
-
-
-  /* ===================================================
-     SPECIFIC FOCUS BODY-PART MATCH
-  =================================================== */
-
-  if (
-    focusBodyParts.length >
+    focusTargetBodyParts.length >
       0 &&
     intersects(
       exerciseBodyParts,
-      focusBodyParts
+      focusTargetBodyParts
     )
   ) {
     return true;
@@ -3564,7 +3559,7 @@ function exerciseMatchesFocus(
    *
    * "strength", "hypertrophy", "free_weight", "cable",
    * "machine_strength", etc. describe HOW an exercise is
-   * performed — not WHAT body part the workout targets.
+   * performed â not WHAT body part the workout targets.
    *
    * Using them as an OR condition causes Chest Day to
    * incorrectly include virtually every strength exercise.
