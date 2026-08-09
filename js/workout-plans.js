@@ -1,51 +1,21 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.1.0
+// Version: 3.2.0
 // Purpose:
 //   Page controller for workout-plans.html.
 //
-// V3.1.0:
-//   - Restores the simple Workout Plans flow.
-//   - Removes the top-level Custom tab.
-//   - Removes weekly plan-name / stat-summary UI logic.
-//   - Removes Day Name editing.
-//   - Keeps Custom as a Training Focus option only.
-//   - Uses Sunday-Saturday calendar weeks.
-//   - Displays real dates on every workout-day card.
-//   - Displays:
-//       THIS WEEK
-//       NEXT WEEK
-//       PREVIOUS WEEK
-//       2 WEEKS AHEAD, etc.
-//   - Supports previous / next week navigation.
-//   - Supports Repeat Last Week.
-//   - Supports Clear Week.
-//   - Templates apply only to the currently selected week.
-//   - Future untouched weeks remain off by default.
-//   - Keeps Exercise Library.
-//   - Keeps focus-aware exercise filtering.
-//   - Keeps structured exercise-search compatibility.
-//   - Keeps optional Weight.
-//   - Keeps 120-second default rest for set-based exercises.
-//   - Keeps explicit Done action on expanded exercise cards.
-//
-// UX:
-//   My Week
-//      ↓
-//   THIS WEEK
-//   AUG 9 - AUG 15
-//      ↓
-//   SUN AUG 9
-//   MON AUG 10
-//   ...
-//   SAT AUG 15
-//      ↓
-//   Tap day → choose type/focus → add exercises
-//
-// Important:
-//   This page expects the V3 WorkoutPlanController to support
-//   date-specific / week-specific plans.
+// V3.2.0:
+//   - Preserves the full V3.1.0 Workout Plans feature set.
+//   - Fixes iPhone/mobile dialog stacking for + Add Exercise.
+//   - Uses the active calendar date for V3 controller mutations.
+//   - Keeps weekday compatibility fallbacks where needed.
+//   - Reopens the Training Day editor after the picker closes.
+//   - Prevents nested modal showModal() conflicts.
+//   - Keeps Sunday-Saturday calendar weeks.
+//   - Keeps Templates, Exercise Library, focus filtering,
+//     exercise details, autosave, Repeat Last Week, Clear Week,
+//     optional weight, 120-second set rest, and Done collapse.
 // =====================================================
 
 import WorkoutPlanController
@@ -74,7 +44,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.1.0";
+  "3.2.0";
 
 const SOURCE =
   "js/workout-plans";
@@ -85,8 +55,6 @@ const DEFAULT_STRENGTH_REST_SECONDS =
 
 /* =====================================================
    WEEK MODEL
-
-   UI is Sunday → Saturday.
 ===================================================== */
 
 const DAYS =
@@ -102,26 +70,13 @@ const DAYS =
 
 const DAY_SHORT_LABELS =
   Object.freeze({
-    sunday:
-      "SUN",
-
-    monday:
-      "MON",
-
-    tuesday:
-      "TUE",
-
-    wednesday:
-      "WED",
-
-    thursday:
-      "THU",
-
-    friday:
-      "FRI",
-
-    saturday:
-      "SAT"
+    sunday: "SUN",
+    monday: "MON",
+    tuesday: "TUE",
+    wednesday: "WED",
+    thursday: "THU",
+    friday: "FRI",
+    saturday: "SAT"
   });
 
 
@@ -154,10 +109,6 @@ const state = {
   libraryQuery:
     "",
 
-  /*
-   * Calendar date representing the Sunday
-   * of the currently selected week.
-   */
   selectedWeekStart:
     null,
 
@@ -174,6 +125,12 @@ const state = {
     false,
 
   booted:
+    false,
+
+  reopenDayEditorAfterPicker:
+    false,
+
+  reopenPickerAfterDetail:
     false,
 
   unsubscribeStore:
@@ -257,13 +214,8 @@ function cacheDom() {
     "exerciseCardTemplate"
   ];
 
-  for (
-    const id
-    of ids
-  ) {
-    dom[
-      id
-    ] =
+  for (const id of ids) {
+    dom[id] =
       document.getElementById(
         id
       );
@@ -401,6 +353,21 @@ function cloneDate(
 }
 
 
+function isDialogOpen(
+  dialog
+) {
+  return Boolean(
+    dialog &&
+    (
+      dialog.open ||
+      dialog.hasAttribute?.(
+        "open"
+      )
+    )
+  );
+}
+
+
 /* =====================================================
    DATE / WEEK HELPERS
 ===================================================== */
@@ -451,8 +418,7 @@ function addWeeks(
     date,
     Number(
       amount || 0
-    ) *
-    7
+    ) * 7
   );
 }
 
@@ -530,6 +496,32 @@ function getSelectedWeekKey() {
 }
 
 
+function getActiveDateKey() {
+  if (
+    state.activeDayDate
+  ) {
+    return state.activeDayDate;
+  }
+
+  if (
+    state.activeDay
+  ) {
+    const date =
+      getDateForDay(
+        state.activeDay
+      );
+
+    return date
+      ? toLocalDateKey(
+          date
+        )
+      : null;
+  }
+
+  return null;
+}
+
+
 function getWeekOffsetFromCurrent(
   weekStart
 ) {
@@ -568,31 +560,19 @@ function getRelativeWeekLabel(
       weekStart
     );
 
-  if (
-    offset ===
-    0
-  ) {
+  if (offset === 0) {
     return "THIS WEEK";
   }
 
-  if (
-    offset ===
-    1
-  ) {
+  if (offset === 1) {
     return "NEXT WEEK";
   }
 
-  if (
-    offset ===
-    -1
-  ) {
+  if (offset === -1) {
     return "PREVIOUS WEEK";
   }
 
-  if (
-    offset >
-    1
-  ) {
+  if (offset > 1) {
     return `${offset} WEEKS AHEAD`;
   }
 
@@ -609,11 +589,8 @@ function formatMonthDay(
     .toLocaleDateString(
       "en-US",
       {
-        month:
-          "short",
-
-        day:
-          "numeric"
+        month: "short",
+        day: "numeric"
       }
     )
     .toUpperCase();
@@ -660,8 +637,7 @@ function formatWeekRange(
         .toLocaleDateString(
           "en-US",
           {
-            month:
-              "short"
+            month: "short"
           }
         )
         .toUpperCase()} ` +
@@ -690,8 +666,7 @@ function getDateForDay(
     );
 
   if (
-    index <
-    0
+    index < 0
   ) {
     return null;
   }
@@ -705,9 +680,6 @@ function getDateForDay(
 
 /* =====================================================
    CONTROLLER COMPATIBILITY HELPERS
-
-   These allow the page to work with slightly different
-   V3 controller naming while keeping one UI implementation.
 ===================================================== */
 
 function getSelectedWeekPlan() {
@@ -752,6 +724,34 @@ function getSelectedWeekPlan() {
 function getSelectedDay(
   day
 ) {
+  const date =
+    state.activeDay ===
+      day
+      ? getActiveDateKey()
+      : (
+          getDateForDay(
+            day
+          )
+            ? toLocalDateKey(
+                getDateForDay(
+                  day
+                )
+              )
+            : null
+        );
+
+  if (
+    date &&
+    typeof WorkoutPlanController
+      .getDate ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getDate(
+        date
+      );
+  }
+
   if (
     typeof WorkoutPlanController
       .getSelectedDay ===
@@ -832,11 +832,26 @@ function controllerSetDayType(
   day,
   type
 ) {
+  const date =
+    getActiveDateKey();
+
+  if (
+    date &&
+    typeof WorkoutPlanController
+      .setDateType ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .setDateType(
+        date,
+        type
+      );
+  }
+
   return WorkoutPlanController
     .setDayType(
       day,
-      type,
-      getSelectedWeekKey()
+      type
     );
 }
 
@@ -845,11 +860,26 @@ function controllerSetDayFocus(
   day,
   focusId
 ) {
+  const date =
+    getActiveDateKey();
+
+  if (
+    date &&
+    typeof WorkoutPlanController
+      .setDateFocus ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .setDateFocus(
+        date,
+        focusId
+      );
+  }
+
   return WorkoutPlanController
     .setDayFocus(
       day,
-      focusId,
-      getSelectedWeekKey()
+      focusId
     );
 }
 
@@ -859,12 +889,25 @@ function controllerAddExercise(
   exerciseId,
   options
 ) {
+  const date =
+    getActiveDateKey();
+
+  if (
+    date
+  ) {
+    return WorkoutPlanController
+      .addExercise(
+        date,
+        exerciseId,
+        options
+      );
+  }
+
   return WorkoutPlanController
     .addExercise(
       day,
       exerciseId,
-      options,
-      getSelectedWeekKey()
+      options
     );
 }
 
@@ -874,12 +917,25 @@ function controllerUpdateExercise(
   index,
   patch
 ) {
+  const date =
+    getActiveDateKey();
+
+  if (
+    date
+  ) {
+    return WorkoutPlanController
+      .updateExercise(
+        date,
+        index,
+        patch
+      );
+  }
+
   return WorkoutPlanController
     .updateExercise(
       day,
       index,
-      patch,
-      getSelectedWeekKey()
+      patch
     );
 }
 
@@ -888,11 +944,23 @@ function controllerRemoveExercise(
   day,
   index
 ) {
+  const date =
+    getActiveDateKey();
+
+  if (
+    date
+  ) {
+    return WorkoutPlanController
+      .removeExercise(
+        date,
+        index
+      );
+  }
+
   return WorkoutPlanController
     .removeExercise(
       day,
-      index,
-      getSelectedWeekKey()
+      index
     );
 }
 
@@ -990,40 +1058,17 @@ function locallySearchExercises(
           exercise.substitutionGroup,
           exercise.laterality,
           exercise.setup,
-
-          exercise.targetEmphasis
-            ?.muscle,
-
-          exercise.targetEmphasis
-            ?.region,
-
-          exercise.targetEmphasis
-            ?.label,
-
-          ...(exercise.aliases ||
-            []),
-
-          ...(exercise.exerciseTypes ||
-            []),
-
-          ...(exercise.bodyParts ||
-            []),
-
-          ...(exercise.primaryMuscles ||
-            []),
-
-          ...(exercise.secondaryMuscles ||
-            []),
-
-          ...(exercise.movementPatterns ||
-            []),
-
-          ...(exercise.equipment ||
-            []),
-
-          ...(exercise.substitutions ||
-            []),
-
+          exercise.targetEmphasis?.muscle,
+          exercise.targetEmphasis?.region,
+          exercise.targetEmphasis?.label,
+          ...(exercise.aliases || []),
+          ...(exercise.exerciseTypes || []),
+          ...(exercise.bodyParts || []),
+          ...(exercise.primaryMuscles || []),
+          ...(exercise.secondaryMuscles || []),
+          ...(exercise.movementPatterns || []),
+          ...(exercise.equipment || []),
+          ...(exercise.substitutions || []),
           ...Object.keys(
             exercise.goals ||
             {}
@@ -1065,16 +1110,14 @@ function locallySearchExercises(
           normalizedName ===
           normalizedQuery
         ) {
-          score +=
-            5000;
+          score += 5000;
         }
 
         if (
           normalizedId ===
           normalizedQuery
         ) {
-          score +=
-            5000;
+          score += 5000;
         }
 
         if (
@@ -1082,8 +1125,7 @@ function locallySearchExercises(
             normalizedQuery
           )
         ) {
-          score +=
-            4500;
+          score += 4500;
         }
 
         if (
@@ -1092,8 +1134,7 @@ function locallySearchExercises(
               normalizedQuery
             )
         ) {
-          score +=
-            3000;
+          score += 3000;
         }
 
         if (
@@ -1104,8 +1145,7 @@ function locallySearchExercises(
               )
           )
         ) {
-          score +=
-            2500;
+          score += 2500;
         }
 
         if (
@@ -1114,8 +1154,7 @@ function locallySearchExercises(
               normalizedQuery
             )
         ) {
-          score +=
-            1800;
+          score += 1800;
         }
 
         if (
@@ -1126,8 +1165,7 @@ function locallySearchExercises(
               )
           )
         ) {
-          score +=
-            1600;
+          score += 1600;
         }
 
         if (
@@ -1135,8 +1173,7 @@ function locallySearchExercises(
             normalizedQuery
           )
         ) {
-          score +=
-            1000;
+          score += 1000;
         }
 
         for (
@@ -1149,8 +1186,7 @@ function locallySearchExercises(
                 token
               )
           ) {
-            score +=
-              150;
+            score += 150;
           }
 
           if (
@@ -1161,8 +1197,7 @@ function locallySearchExercises(
                 )
             )
           ) {
-            score +=
-              125;
+            score += 125;
           }
 
           if (
@@ -1170,8 +1205,7 @@ function locallySearchExercises(
               token
             )
           ) {
-            score +=
-              75;
+            score += 75;
           }
         }
 
@@ -1204,8 +1238,7 @@ function locallySearchExercises(
         return a.exercise
           .name
           .localeCompare(
-            b.exercise
-              .name
+            b.exercise.name
           );
       }
     )
@@ -1311,27 +1344,45 @@ function openDialog(
   dialog
 ) {
   if (!dialog) {
-    return;
+    return false;
   }
 
-  if (
-    typeof dialog
-      .showModal ===
-    "function"
-  ) {
+  try {
     if (
-      !dialog.open
+      typeof dialog
+        .showModal ===
+      "function"
     ) {
-      dialog.showModal();
+      if (
+        !dialog.open
+      ) {
+        dialog.showModal();
+      }
+
+      return true;
     }
 
-    return;
-  }
+    dialog.setAttribute(
+      "open",
+      ""
+    );
 
-  dialog.setAttribute(
-    "open",
-    ""
-  );
+    return true;
+  } catch (
+    error
+  ) {
+    console.warn(
+      "ARI Workout Plans dialog could not open.",
+      error
+    );
+
+    dialog.setAttribute(
+      "open",
+      ""
+    );
+
+    return false;
+  }
 }
 
 
@@ -1339,26 +1390,121 @@ function closeDialog(
   dialog
 ) {
   if (!dialog) {
+    return false;
+  }
+
+  try {
+    if (
+      typeof dialog
+        .close ===
+      "function"
+    ) {
+      if (
+        dialog.open
+      ) {
+        dialog.close();
+      }
+
+      return true;
+    }
+
+    dialog.removeAttribute(
+      "open"
+    );
+
+    return true;
+  } catch (
+    error
+  ) {
+    console.warn(
+      "ARI Workout Plans dialog could not close cleanly.",
+      error
+    );
+
+    dialog.removeAttribute(
+      "open"
+    );
+
+    return false;
+  }
+}
+
+
+function reopenDayEditor() {
+  if (
+    !state.activeDay ||
+    !dom.workoutDayEditor
+  ) {
+    return false;
+  }
+
+  if (
+    isDialogOpen(
+      dom.workoutDayEditor
+    )
+  ) {
+    return true;
+  }
+
+  renderDayExercises();
+
+  return openDialog(
+    dom.workoutDayEditor
+  );
+}
+
+
+function closePickerAndReturnToDayEditor() {
+  closeDialog(
+    dom.workoutExercisePicker
+  );
+
+  if (
+    state.reopenDayEditorAfterPicker
+  ) {
+    state.reopenDayEditorAfterPicker =
+      false;
+
+    requestAnimationFrame(
+      () => {
+        reopenDayEditor();
+      }
+    );
+  }
+}
+
+
+function closeDetailAndReturn() {
+  closeDialog(
+    dom.exerciseDetailDialog
+  );
+
+  if (
+    state.reopenPickerAfterDetail
+  ) {
+    state.reopenPickerAfterDetail =
+      false;
+
+    requestAnimationFrame(
+      () => {
+        openDialog(
+          dom.workoutExercisePicker
+        );
+      }
+    );
+
     return;
   }
 
   if (
-    typeof dialog
-      .close ===
-    "function"
+    state.reopenDayEditorAfterPicker
   ) {
-    if (
-      dialog.open
-    ) {
-      dialog.close();
-    }
-
-    return;
+    requestAnimationFrame(
+      () => {
+        reopenDayEditor();
+      }
+    );
   }
-
-  dialog.removeAttribute(
-    "open"
-  );
 }
 
 
@@ -1415,14 +1561,9 @@ function getFocusBodyParts(
   focus
 ) {
   return uniqueIds([
-    ...(focus?.bodyParts ||
-      []),
-
-    ...(focus?.primaryBodyParts ||
-      []),
-
-    ...(focus?.secondaryBodyParts ||
-      [])
+    ...(focus?.bodyParts || []),
+    ...(focus?.primaryBodyParts || []),
+    ...(focus?.secondaryBodyParts || [])
   ]);
 }
 
@@ -1431,14 +1572,9 @@ function getFocusMuscles(
   focus
 ) {
   return uniqueIds([
-    ...(focus?.muscles ||
-      []),
-
-    ...(focus?.primaryMuscles ||
-      []),
-
-    ...(focus?.secondaryMuscles ||
-      [])
+    ...(focus?.muscles || []),
+    ...(focus?.primaryMuscles || []),
+    ...(focus?.secondaryMuscles || [])
   ]);
 }
 
@@ -1472,6 +1608,21 @@ function getCurrentDayState() {
     !state.activeDay
   ) {
     return null;
+  }
+
+  const date =
+    getActiveDateKey();
+
+  if (
+    date &&
+    typeof WorkoutPlanController
+      .getDate ===
+    "function"
+  ) {
+    return WorkoutPlanController
+      .getDate(
+        date
+      );
   }
 
   return getSelectedDay(
@@ -1554,16 +1705,12 @@ function displayMetricValue(
       field
     ) &&
     (
-      value ===
-        null ||
-      value ===
-        undefined ||
-      value ===
-        "" ||
+      value === null ||
+      value === undefined ||
+      value === "" ||
       Number(
         value
-      ) ===
-        0
+      ) === 0
     )
   ) {
     return "";
@@ -1590,8 +1737,7 @@ function getRestSecondsValue(
     Number.isFinite(
       stored
     ) &&
-    stored >=
-      0
+    stored >= 0
   ) {
     return stored;
   }
@@ -1606,8 +1752,6 @@ function getRestSecondsValue(
 
 /* =====================================================
    TABS
-
-   Custom is intentionally NOT a page tab anymore.
 ===================================================== */
 
 function setActiveTab(
@@ -1978,8 +2122,7 @@ function getDaySummary(
     0;
 
   if (
-    count ===
-    0
+    count === 0
   ) {
     return "";
   }
@@ -2023,44 +2166,65 @@ function renderWeek() {
       "";
 
   for (
-    let index =
-      0;
-
+    let index = 0;
     index <
       DAYS.length;
-
-    index +=
-      1
+    index += 1
   ) {
     const day =
       DAYS[
         index
       ];
 
-    const dayState =
-      getSelectedDay(
-        day
-      ) || {
-        day,
-
-        type:
-          "off",
-
-        focusId:
-          "off_day",
-
-        title:
-          "Off Day",
-
-        exercises:
-          []
-      };
-
     const date =
       addDays(
         state.selectedWeekStart,
         index
       );
+
+    const dateKey =
+      toLocalDateKey(
+        date
+      );
+
+    let dayState =
+      null;
+
+    if (
+      typeof WorkoutPlanController
+        .getDate ===
+      "function"
+    ) {
+      dayState =
+        WorkoutPlanController
+          .getDate(
+            dateKey
+          );
+    }
+
+    if (
+      !dayState
+    ) {
+      dayState =
+        getSelectedDay(
+          day
+        );
+    }
+
+    dayState =
+      dayState || {
+        day,
+        date:
+          dateKey,
+        type:
+          "off",
+        focusId:
+          "off_day",
+        title:
+          "Off Day",
+        exercises:
+          []
+      };
 
     const fragment =
       dom.workoutDayCardTemplate
@@ -2122,11 +2286,6 @@ function renderWeek() {
       continue;
     }
 
-    const dateKey =
-      toLocalDateKey(
-        date
-      );
-
     card.dataset.day =
       day;
 
@@ -2143,10 +2302,6 @@ function renderWeek() {
     button.dataset.date =
       dateKey;
 
-    /*
-     * Preferred simplified label:
-     * MON AUG 10
-     */
     if (
       dayLabel
     ) {
@@ -2157,15 +2312,12 @@ function renderWeek() {
         );
     }
 
-    /*
-     * New HTML does not need a second date line,
-     * but this keeps compatibility if the span exists.
-     */
     if (
       dateLabel
     ) {
       dateLabel.textContent =
         "";
+
       dateLabel.hidden =
         true;
     }
@@ -2463,6 +2615,16 @@ async function clearSelectedWeek() {
           .clearSelectedWeek();
     } else if (
       typeof WorkoutPlanController
+        .clearWeekPlan ===
+      "function"
+    ) {
+      result =
+        await WorkoutPlanController
+          .clearWeekPlan(
+            getSelectedWeekKey()
+          );
+    } else if (
+      typeof WorkoutPlanController
         .clearWeek ===
       "function"
     ) {
@@ -2472,25 +2634,44 @@ async function clearSelectedWeek() {
             getSelectedWeekKey()
           );
     } else {
-      /*
-       * Safe fallback:
-       * explicitly clear all seven dates.
-       */
       const results =
         DAYS.map(
-          day =>
-            WorkoutPlanController
+          day => {
+            const date =
+              getDateForDay(
+                day
+              );
+
+            const dateKey =
+              date
+                ? toLocalDateKey(
+                    date
+                  )
+                : null;
+
+            if (
+              dateKey &&
+              typeof WorkoutPlanController
+                .clearDate ===
+              "function"
+            ) {
+              return WorkoutPlanController
+                .clearDate(
+                  dateKey
+                );
+            }
+
+            return WorkoutPlanController
               .clearDay(
-                day,
-                getSelectedWeekKey()
-              )
+                day
+              );
+          }
         );
 
       result =
         results.every(
           value =>
-            value !==
-            false
+            value !== false
         );
     }
 
@@ -2685,14 +2866,11 @@ function renderTemplates() {
         );
 
       apply.textContent =
-        offset ===
-          0
+        offset === 0
           ? "Use for This Week"
-          : offset ===
-              1
+          : offset === 1
             ? "Use for Next Week"
-            : offset ===
-                -1
+            : offset === -1
               ? "Use for Previous Week"
               : "Use for Selected Week";
     }
@@ -2737,11 +2915,9 @@ async function applyTemplate(
   }
 
   try {
-    let applied;
+    let applied =
+      false;
 
-    /*
-     * V3 should scope this to the selected week.
-     */
     if (
       typeof WorkoutPlanController
         .applyTemplateToWeek ===
@@ -2753,13 +2929,29 @@ async function applyTemplate(
             templateId,
             getSelectedWeekKey()
           );
-    } else {
-      applied =
-        WorkoutPlanController
-          .applyTemplate(
-            templateId,
-            getSelectedWeekKey()
-          );
+    } else if (
+      typeof WorkoutPlanController
+        .applyTemplate ===
+      "function"
+    ) {
+      try {
+        applied =
+          WorkoutPlanController
+            .applyTemplate(
+              templateId,
+              {
+                weekStart:
+                  getSelectedWeekKey()
+              }
+            );
+      } catch {
+        applied =
+          WorkoutPlanController
+            .applyTemplate(
+              templateId,
+              getSelectedWeekKey()
+            );
+      }
     }
 
     if (
@@ -3192,9 +3384,6 @@ function exerciseMatchesFocus(
     return false;
   }
 
-  /*
-   * Custom remains a legitimate TRAINING FOCUS.
-   */
   if (
     focus.id ===
     "custom"
@@ -3233,7 +3422,6 @@ function exerciseMatchesFocus(
     ...arrayOfIds(
       exercise.primaryMuscles
     ),
-
     ...arrayOfIds(
       exercise.secondaryMuscles
     )
@@ -3332,25 +3520,49 @@ function getFocusedExercisePool(
     [];
 
   try {
-    recommended =
-      extractExerciseResults(
-        WorkoutPlanController
-          .getRecommendedExercisesForDay(
-            state.activeDay,
-            {
-              weekKey:
-                getSelectedWeekKey(),
+    const date =
+      getActiveDateKey();
 
-              limit:
-                Math.max(
-                  1000,
-                  getAllRegistryExercises()
-                    .length +
-                    50
-                )
-            }
-          )
-      );
+    if (
+      date &&
+      typeof WorkoutPlanController
+        .getRecommendedExercisesForDate ===
+      "function"
+    ) {
+      recommended =
+        extractExerciseResults(
+          WorkoutPlanController
+            .getRecommendedExercisesForDate(
+              date,
+              {
+                limit:
+                  Math.max(
+                    1000,
+                    getAllRegistryExercises()
+                      .length +
+                      50
+                  )
+              }
+            )
+        );
+    } else {
+      recommended =
+        extractExerciseResults(
+          WorkoutPlanController
+            .getRecommendedExercisesForDay(
+              state.activeDay,
+              {
+                limit:
+                  Math.max(
+                    1000,
+                    getAllRegistryExercises()
+                      .length +
+                      50
+                  )
+              }
+            )
+        );
+    }
   } catch {
     recommended =
       [];
@@ -3479,11 +3691,6 @@ function openDayEditor(
     return;
   }
 
-  const dayState =
-    getSelectedDay(
-      normalizedDay
-    );
-
   state.activeDay =
     normalizedDay;
 
@@ -3501,6 +3708,31 @@ function openDayEditor(
           resolvedDate
         )
       : null;
+
+  let dayState =
+    null;
+
+  if (
+    state.activeDayDate &&
+    typeof WorkoutPlanController
+      .getDate ===
+    "function"
+  ) {
+    dayState =
+      WorkoutPlanController
+        .getDate(
+          state.activeDayDate
+        );
+  }
+
+  if (
+    !dayState
+  ) {
+    dayState =
+      getSelectedDay(
+        normalizedDay
+      );
+  }
 
   state.expandedExerciseIndex =
     null;
@@ -3679,12 +3911,10 @@ function getExercisePrescriptionSummary(
   if (
     Number(
       entry.sets
-    ) >
-      0 &&
+    ) > 0 &&
     Number(
       entry.reps
-    ) >
-      0
+    ) > 0
   ) {
     parts.push(
       `${entry.sets} sets \u00D7 ${entry.reps} reps`
@@ -3692,8 +3922,7 @@ function getExercisePrescriptionSummary(
   } else if (
     Number(
       entry.sets
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${entry.sets} sets`
@@ -3701,8 +3930,7 @@ function getExercisePrescriptionSummary(
   } else if (
     Number(
       entry.reps
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${entry.reps} reps`
@@ -3712,8 +3940,7 @@ function getExercisePrescriptionSummary(
   if (
     Number(
       entry.weight
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${entry.weight} lb`
@@ -3727,8 +3954,7 @@ function getExercisePrescriptionSummary(
   if (
     Number(
       addedWeight
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${addedWeight} lb`
@@ -3738,8 +3964,7 @@ function getExercisePrescriptionSummary(
   if (
     Number(
       entry.durationMinutes
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${entry.durationMinutes} min`
@@ -3749,8 +3974,7 @@ function getExercisePrescriptionSummary(
   if (
     Number(
       entry.durationSeconds
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${entry.durationSeconds} sec`
@@ -3760,8 +3984,7 @@ function getExercisePrescriptionSummary(
   if (
     Number(
       entry.rounds
-    ) >
-    0
+    ) > 0
   ) {
     parts.push(
       `${entry.rounds} rounds`
@@ -3805,9 +4028,7 @@ function renderDayExercises() {
   }
 
   const dayState =
-    getSelectedDay(
-      state.activeDay
-    );
+    getCurrentDayState();
 
   const entries =
     dayState
@@ -3870,10 +4091,6 @@ function renderDayExercises() {
           expanded
             ? "true"
             : "false";
-
-      /* ===============================================
-         COLLAPSIBLE HEADER
-      =============================================== */
 
       const summary =
         document.createElement(
@@ -3993,10 +4210,6 @@ function renderDayExercises() {
         copy,
         summaryEnd
       );
-
-      /* ===============================================
-         EXPANDED BODY
-      =============================================== */
 
       const body =
         document.createElement(
@@ -4319,10 +4532,6 @@ function renderDayExercises() {
         );
       }
 
-      /* ===============================================
-         DONE
-      =============================================== */
-
       const done =
         document.createElement(
           "button"
@@ -4346,10 +4555,6 @@ function renderDayExercises() {
 
       done.textContent =
         "Done";
-
-      /* ===============================================
-         SECONDARY ACTIONS
-      =============================================== */
 
       const actions =
         document.createElement(
@@ -4442,15 +4647,21 @@ function openExercisePicker() {
   }
 
   const dayState =
-    getSelectedDay(
-      state.activeDay
-    );
+    getCurrentDayState();
 
   if (
     !dayState ||
     dayState.type ===
       "off"
   ) {
+    showToast(
+      "Choose Workout or Recovery before adding exercises.",
+      {
+        error:
+          true
+      }
+    );
+
     return;
   }
 
@@ -4467,8 +4678,31 @@ function openExercisePicker() {
 
   renderExercisePicker();
 
-  openDialog(
-    dom.workoutExercisePicker
+  /*
+   * IMPORTANT:
+   * iOS/Safari can fail when showModal() is called while another
+   * modal dialog is already open. Close the day editor first,
+   * open the picker, then restore the day editor when picker closes.
+   */
+  state.reopenDayEditorAfterPicker =
+    isDialogOpen(
+      dom.workoutDayEditor
+    );
+
+  if (
+    state.reopenDayEditorAfterPicker
+  ) {
+    closeDialog(
+      dom.workoutDayEditor
+    );
+  }
+
+  requestAnimationFrame(
+    () => {
+      openDialog(
+        dom.workoutExercisePicker
+      );
+    }
   );
 }
 
@@ -4482,9 +4716,7 @@ function renderExercisePicker() {
   }
 
   const dayState =
-    getSelectedDay(
-      state.activeDay
-    );
+    getCurrentDayState();
 
   if (
     !dayState ||
@@ -4903,8 +5135,25 @@ function openExerciseDetail(
     }
   }
 
-  openDialog(
-    dom.exerciseDetailDialog
+  state.reopenPickerAfterDetail =
+    isDialogOpen(
+      dom.workoutExercisePicker
+    );
+
+  if (
+    state.reopenPickerAfterDetail
+  ) {
+    closeDialog(
+      dom.workoutExercisePicker
+    );
+  }
+
+  requestAnimationFrame(
+    () => {
+      openDialog(
+        dom.exerciseDetailDialog
+      );
+    }
   );
 }
 
@@ -4930,6 +5179,14 @@ function addExerciseToActiveDay(
   if (
     !exercise
   ) {
+    showToast(
+      "That exercise could not be found.",
+      {
+        error:
+          true
+      }
+    );
+
     return false;
   }
 
@@ -4950,9 +5207,23 @@ function addExerciseToActiveDay(
   }
 
   const dayState =
-    getSelectedDay(
-      state.activeDay
+    getCurrentDayState();
+
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    showToast(
+      "Choose Workout before adding exercises.",
+      {
+        error:
+          true
+      }
     );
+
+    return false;
+  }
 
   const focus =
     WorkoutFocuses.get(
@@ -5006,10 +5277,6 @@ function addExerciseToActiveDay(
       10;
   }
 
-  /*
-   * Weight intentionally remains unset.
-   */
-
   if (
     isSetBasedExercise(
       exercise
@@ -5058,13 +5325,19 @@ function addExerciseToActiveDay(
   if (
     !added
   ) {
+    showToast(
+      "Exercise could not be added.",
+      {
+        error:
+          true
+      }
+    );
+
     return false;
   }
 
   const updatedDay =
-    getSelectedDay(
-      state.activeDay
-    );
+    getCurrentDayState();
 
   state.expandedExerciseIndex =
     Math.max(
@@ -5073,10 +5346,16 @@ function addExerciseToActiveDay(
           ?.exercises
           ?.length ||
         1
-      ) -
-      1,
+      ) - 1,
       0
     );
+
+  closeDialog(
+    dom.exerciseDetailDialog
+  );
+
+  state.reopenPickerAfterDetail =
+    false;
 
   closeDialog(
     dom.workoutExercisePicker
@@ -5093,28 +5372,41 @@ function addExerciseToActiveDay(
 
   requestAnimationFrame(
     () => {
-      const row =
-        dom.workoutDayExerciseList
-          ?.querySelector(
-            `[data-exercise-index="${state.expandedExerciseIndex}"]`
-          );
+      if (
+        state.reopenDayEditorAfterPicker
+      ) {
+        state.reopenDayEditorAfterPicker =
+          false;
 
-      row?.scrollIntoView({
-        behavior:
-          "smooth",
+        reopenDayEditor();
+      }
 
-        block:
-          "nearest"
-      });
+      requestAnimationFrame(
+        () => {
+          const row =
+            dom.workoutDayExerciseList
+              ?.querySelector(
+                `[data-exercise-index="${state.expandedExerciseIndex}"]`
+              );
 
-      row
-        ?.querySelector(
-          "input"
-        )
-        ?.focus({
-          preventScroll:
-            true
-        });
+          row?.scrollIntoView({
+            behavior:
+              "smooth",
+
+            block:
+              "nearest"
+          });
+
+          row
+            ?.querySelector(
+              "input"
+            )
+            ?.focus({
+              preventScroll:
+                true
+            });
+        }
+      );
     }
   );
 
@@ -5151,8 +5443,6 @@ function collapseExerciseRow(
 
 /* =====================================================
    DAY EDITOR UPDATE
-
-   Day Name has intentionally been removed.
 ===================================================== */
 
 function updateDayFromEditor() {
@@ -5245,10 +5535,7 @@ function scheduleAutosave() {
           await WorkoutPlanController
             .save({
               remote:
-                true,
-
-              weekKey:
-                getSelectedWeekKey()
+                true
             });
         } catch (
           error
@@ -5294,10 +5581,7 @@ async function savePlan({
       await WorkoutPlanController
         .save({
           remote:
-            true,
-
-          weekKey:
-            getSelectedWeekKey()
+            true
         });
 
     if (
@@ -5358,10 +5642,7 @@ async function saveNow() {
     return await WorkoutPlanController
       .save({
         remote:
-          true,
-
-        weekKey:
-          getSelectedWeekKey()
+          true
       });
   } catch (
     error
@@ -5599,9 +5880,7 @@ function handleClick(
 
 
     case "close-exercise-picker":
-      closeDialog(
-        dom.workoutExercisePicker
-      );
+      closePickerAndReturnToDayEditor();
       break;
 
 
@@ -5629,9 +5908,7 @@ function handleClick(
 
 
     case "close-exercise-detail":
-      closeDialog(
-        dom.exerciseDetailDialog
-      );
+      closeDetailAndReturn();
       break;
 
 
@@ -5649,10 +5926,6 @@ function handleClick(
       ) {
         addExerciseToActiveDay(
           state.activeExerciseId
-        );
-
-        closeDialog(
-          dom.exerciseDetailDialog
         );
       }
 
@@ -5765,10 +6038,6 @@ function handleChange(
     target ===
       dom.workoutDayType
   ) {
-    /*
-     * If user switches from Off Day → Workout,
-     * make sure there is a usable focus.
-     */
     if (
       target.value ===
         "workout" &&
@@ -5960,6 +6229,49 @@ function bindEvents() {
       }
     );
 
+  dom.workoutExercisePicker
+    ?.addEventListener(
+      "close",
+      () => {
+        if (
+          state.reopenDayEditorAfterPicker &&
+          !isDialogOpen(
+            dom.exerciseDetailDialog
+          )
+        ) {
+          state.reopenDayEditorAfterPicker =
+            false;
+
+          requestAnimationFrame(
+            () => {
+              reopenDayEditor();
+            }
+          );
+        }
+      }
+    );
+
+  dom.exerciseDetailDialog
+    ?.addEventListener(
+      "close",
+      () => {
+        if (
+          state.reopenPickerAfterDetail
+        ) {
+          state.reopenPickerAfterDetail =
+            false;
+
+          requestAnimationFrame(
+            () => {
+              openDialog(
+                dom.workoutExercisePicker
+              );
+            }
+          );
+        }
+      }
+    );
+
   for (
     const dialog
     of [
@@ -5972,13 +6284,33 @@ function bindEvents() {
       "click",
       event => {
         if (
-          event.target ===
+          event.target !==
           dialog
         ) {
-          closeDialog(
-            dialog
-          );
+          return;
         }
+
+        if (
+          dialog ===
+          dom.workoutExercisePicker
+        ) {
+          closePickerAndReturnToDayEditor();
+
+          return;
+        }
+
+        if (
+          dialog ===
+          dom.exerciseDetailDialog
+        ) {
+          closeDetailAndReturn();
+
+          return;
+        }
+
+        closeDialog(
+          dialog
+        );
       }
     );
   }
@@ -5993,27 +6325,31 @@ async function initializeSelectedWeek() {
   let weekStart =
     null;
 
-  /*
-   * Prefer controller-selected week if V3 exposes it.
-   */
   if (
+    typeof WorkoutPlanController
+      .getSelectedWeekStart ===
+    "function"
+  ) {
+    weekStart =
+      parseLocalDateKey(
+        WorkoutPlanController
+          .getSelectedWeekStart()
+      );
+  }
+
+  if (
+    !weekStart &&
     typeof WorkoutPlanController
       .getSelectedWeekKey ===
     "function"
   ) {
-    const controllerKey =
-      WorkoutPlanController
-        .getSelectedWeekKey();
-
     weekStart =
       parseLocalDateKey(
-        controllerKey
+        WorkoutPlanController
+          .getSelectedWeekKey()
       );
   }
 
-  /*
-   * Default page opening = current Sunday-Saturday.
-   */
   if (
     !weekStart
   ) {
@@ -6101,6 +6437,23 @@ function getPageDiagnostics() {
 
     missingCoreDom,
 
+    dialogs: {
+      dayEditorOpen:
+        isDialogOpen(
+          dom.workoutDayEditor
+        ),
+
+      pickerOpen:
+        isDialogOpen(
+          dom.workoutExercisePicker
+        ),
+
+      detailOpen:
+        isDialogOpen(
+          dom.exerciseDetailDialog
+        )
+    },
+
     controller:
       WorkoutPlanController
         .getDiagnostics?.() ||
@@ -6130,10 +6483,10 @@ async function boot() {
   );
 
   try {
-    populateFilters();
-
     await WorkoutPlanController
       .init();
+
+    populateFilters();
 
     await initializeSelectedWeek();
 
@@ -6145,10 +6498,20 @@ async function boot() {
 
             if (
               state.activeDay &&
-              dom.workoutDayEditor
-                ?.open
+              isDialogOpen(
+                dom.workoutDayEditor
+              )
             ) {
               renderDayExercises();
+            }
+
+            if (
+              state.activeDay &&
+              isDialogOpen(
+                dom.workoutExercisePicker
+              )
+            ) {
+              renderExercisePicker();
             }
 
             if (
@@ -6198,6 +6561,8 @@ async function boot() {
         WorkoutPlanController,
 
       getSelectedWeekKey,
+
+      getActiveDateKey,
 
       previousWeek:
         goPreviousWeek,
