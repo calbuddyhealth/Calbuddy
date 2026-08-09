@@ -2,13 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
   <meta name="theme-color" content="#070c13" />
 
   <title>Workout Plans - ARI Training</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
   <link
     href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap"
     rel="stylesheet"
@@ -16,11 +20,14 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=2.0.2" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.0.0" />
 </head>
 
 <body class="ari-workout-plans-page">
-  <main id="workoutPlansApp" class="workout-plans-shell">
+  <main
+    id="workoutPlansApp"
+    class="workout-plans-shell"
+  >
 
     <!-- =====================================================
          HEADER
@@ -36,14 +43,20 @@
       </button>
 
       <div class="workout-plans-header__brand">
-        <p class="workout-plans-header__eyebrow">ARI TRAINING</p>
+        <p class="workout-plans-header__eyebrow">
+          ARI TRAINING
+        </p>
+
         <h1>Workout Plans</h1>
       </div>
 
-      <span
-        class="workout-plans-header__spacer"
-        aria-hidden="true"
-      ></span>
+      <button
+        id="workoutPlansSaveButton"
+        class="workout-plans-header__save"
+        type="button"
+      >
+        Save
+      </button>
     </header>
 
     <!-- =====================================================
@@ -55,7 +68,7 @@
       role="status"
       aria-live="polite"
     >
-      Loading your training system&hellip;
+      Loading your training calendar&hellip;
     </div>
 
     <!-- =====================================================
@@ -86,6 +99,16 @@
       </button>
 
       <button
+        id="workoutTabCustom"
+        class="workout-plans-tab"
+        type="button"
+        data-workout-tab="custom"
+        aria-selected="false"
+      >
+        Custom
+      </button>
+
+      <button
         id="workoutTabLibrary"
         class="workout-plans-tab"
         type="button"
@@ -106,13 +129,161 @@
     >
       <header class="workout-section-header">
         <div>
-          <p class="workout-section-eyebrow">YOUR SCHEDULE</p>
+          <p class="workout-section-eyebrow">
+            YOUR CALENDAR
+          </p>
+
           <h2>My Week</h2>
+
           <p>
-            Tap a day to set its focus and exercises.
+            Plan this specific Sunday through Saturday.
+            Future weeks remain off until you schedule them.
           </p>
         </div>
       </header>
+
+      <!-- =================================================
+           WEEK NAVIGATION
+      ================================================== -->
+      <section
+        class="workout-week-toolbar"
+        aria-label="Workout week navigation"
+      >
+        <div class="workout-week-toolbar__navigation">
+          <button
+            id="workoutPreviousWeekButton"
+            class="workout-week-nav-button"
+            type="button"
+            data-workout-action="previous-week"
+            aria-label="Previous week"
+          >
+            &larr;
+          </button>
+
+          <div class="workout-week-toolbar__range">
+            <span class="workout-week-toolbar__label">
+              SELECTED WEEK
+            </span>
+
+            <strong id="workoutWeekDateRange">
+              Week
+            </strong>
+          </div>
+
+          <button
+            id="workoutNextWeekButton"
+            class="workout-week-nav-button"
+            type="button"
+            data-workout-action="next-week"
+            aria-label="Next week"
+          >
+            &rarr;
+          </button>
+        </div>
+
+        <div class="workout-week-toolbar__actions">
+          <button
+            id="workoutCurrentWeekButton"
+            class="workout-secondary-button"
+            type="button"
+            data-workout-action="current-week"
+          >
+            This Week
+          </button>
+
+          <div class="workout-calendar-control">
+            <button
+              id="workoutCalendarButton"
+              class="workout-secondary-button"
+              type="button"
+            >
+              Calendar
+            </button>
+
+            <label
+              class="sr-only"
+              for="workoutCalendarInput"
+            >
+              Choose a date
+            </label>
+
+            <input
+              id="workoutCalendarInput"
+              class="workout-calendar-input"
+              type="date"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================
+           WEEK ACTIONS
+      ================================================== -->
+      <section
+        class="workout-week-actions"
+        aria-label="Workout week actions"
+      >
+        <button
+          id="workoutRepeatLastWeekButton"
+          class="workout-secondary-button"
+          type="button"
+          data-workout-action="repeat-last-week"
+        >
+          Repeat Last Week
+        </button>
+
+        <button
+          id="workoutClearWeekButton"
+          class="workout-danger-button"
+          type="button"
+          data-workout-action="clear-week"
+        >
+          Clear Week
+        </button>
+      </section>
+
+      <!-- =================================================
+           WEEK SUMMARY
+      ================================================== -->
+      <section
+        class="workout-plan-overview"
+        aria-label="Selected week summary"
+      >
+        <label class="workout-plan-name-field">
+          <span>Plan Name</span>
+
+          <input
+            id="workoutPlanName"
+            type="text"
+            maxlength="80"
+            placeholder="My Weekly Plan"
+          />
+        </label>
+
+        <div class="workout-plan-stats">
+          <article class="workout-plan-stat">
+            <span>Training Days</span>
+            <strong id="workoutDaysCount">0</strong>
+          </article>
+
+          <article class="workout-plan-stat">
+            <span>Off Days</span>
+            <strong id="workoutOffDaysCount">7</strong>
+          </article>
+
+          <article class="workout-plan-stat">
+            <span>Exercises</span>
+            <strong id="workoutExerciseCount">0</strong>
+          </article>
+        </div>
+
+        <p
+          id="workoutPlanGoalSummary"
+          class="workout-plan-goal-summary"
+        >
+          Choose a fitness goal to personalize this week.
+        </p>
+      </section>
 
       <div
         id="workoutWeekGrid"
@@ -133,13 +304,25 @@
     >
       <header class="workout-section-header">
         <div>
-          <p class="workout-section-eyebrow">QUICK START</p>
+          <p class="workout-section-eyebrow">
+            QUICK START
+          </p>
+
           <h2>Templates</h2>
+
           <p>
-            Choose a plan, then edit any day.
+            Copy a template into the selected calendar week.
+            After it is applied, every day remains fully editable.
           </p>
         </div>
       </header>
+
+      <div class="workout-template-week-context">
+        <span>Applying to</span>
+        <strong id="workoutTemplateWeekRange">
+          Selected Week
+        </strong>
+      </div>
 
       <div class="workout-filter-row">
         <label class="workout-filter">
@@ -182,6 +365,85 @@
     </section>
 
     <!-- =====================================================
+         CUSTOM BUILDER
+    ====================================================== -->
+    <section
+      id="workoutPanelCustom"
+      class="workout-plans-panel"
+      data-workout-panel="custom"
+      hidden
+    >
+      <header class="workout-section-header">
+        <div>
+          <p class="workout-section-eyebrow">
+            BUILD YOUR OWN
+          </p>
+
+          <h2>Custom Week</h2>
+
+          <p>
+            Choose your goals and assign a training focus
+            to each date in the selected week.
+          </p>
+        </div>
+      </header>
+
+      <section class="workout-builder-card">
+        <div class="workout-builder-card__header">
+          <div>
+            <p class="workout-section-eyebrow">
+              FITNESS GOALS
+            </p>
+
+            <h3>Weekly Goal</h3>
+          </div>
+        </div>
+
+        <label class="workout-builder-field">
+          <span>Primary Goal</span>
+
+          <select id="workoutPrimaryGoal">
+            <option value="">
+              Choose a goal
+            </option>
+          </select>
+        </label>
+
+        <fieldset class="workout-builder-fieldset">
+          <legend>
+            Secondary Goals
+          </legend>
+
+          <div
+            id="workoutSecondaryGoals"
+            class="workout-choice-grid"
+          >
+            <!-- Rendered by JS -->
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="workout-builder-card">
+        <div class="workout-builder-card__header">
+          <div>
+            <p class="workout-section-eyebrow">
+              WEEKLY FOCUS
+            </p>
+
+            <h3>Plan Each Day</h3>
+          </div>
+        </div>
+
+        <div
+          id="workoutCustomWeek"
+          class="workout-custom-week"
+        >
+          <!-- Rendered by JS -->
+        </div>
+      </section>
+    </section>
+
+    <!-- =====================================================
          EXERCISE LIBRARY
     ====================================================== -->
     <section
@@ -192,11 +454,15 @@
     >
       <header class="workout-section-header">
         <div>
-          <p class="workout-section-eyebrow">MOVEMENT DATABASE</p>
+          <p class="workout-section-eyebrow">
+            MOVEMENT DATABASE
+          </p>
+
           <h2>Exercise Library</h2>
+
           <p>
-            Explore selectable exercises by body part, movement,
-            training type, equipment, and fitness goal.
+            Explore selectable exercises by body part,
+            movement, training type, and equipment.
           </p>
         </div>
       </header>
@@ -231,7 +497,9 @@
           <span>Body Part</span>
 
           <select id="exerciseBodyPartFilter">
-            <option value="">All Body Parts</option>
+            <option value="">
+              All Body Parts
+            </option>
           </select>
         </label>
 
@@ -239,7 +507,9 @@
           <span>Movement</span>
 
           <select id="exerciseMovementFilter">
-            <option value="">All Movements</option>
+            <option value="">
+              All Movements
+            </option>
           </select>
         </label>
 
@@ -247,7 +517,9 @@
           <span>Exercise Type</span>
 
           <select id="exerciseTypeFilter">
-            <option value="">All Types</option>
+            <option value="">
+              All Types
+            </option>
           </select>
         </label>
 
@@ -255,7 +527,9 @@
           <span>Equipment</span>
 
           <select id="exerciseEquipmentFilter">
-            <option value="">All Equipment</option>
+            <option value="">
+              All Equipment
+            </option>
           </select>
         </label>
       </div>
@@ -291,7 +565,7 @@
             </p>
 
             <h2 id="workoutDayEditorTitle">
-              Monday
+              Training Day
             </h2>
           </div>
 
@@ -309,9 +583,17 @@
           <span>Day Type</span>
 
           <select id="workoutDayType">
-            <option value="workout">Workout</option>
-            <option value="recovery">Active Recovery</option>
-            <option value="off">Off Day</option>
+            <option value="workout">
+              Workout
+            </option>
+
+            <option value="recovery">
+              Active Recovery
+            </option>
+
+            <option value="off">
+              Off Day
+            </option>
           </select>
         </label>
 
@@ -319,7 +601,9 @@
           <span>Training Focus</span>
 
           <select id="workoutDayFocus">
-            <option value="">Choose focus</option>
+            <option value="">
+              Choose focus
+            </option>
           </select>
         </label>
 
@@ -503,6 +787,7 @@
 
         <section class="exercise-detail-section">
           <h3>Muscles</h3>
+
           <div
             id="exerciseMuscleList"
             class="exercise-muscle-list"
@@ -551,15 +836,20 @@
           data-workout-action="edit-day"
         >
           <div class="workout-day-card__header">
-            <span class="workout-day-card__day"></span>
+            <div class="workout-day-card__identity">
+              <span class="workout-day-card__day"></span>
+              <span class="workout-day-card__date"></span>
+            </div>
+
             <span class="workout-day-card__type"></span>
           </div>
 
           <h3 class="workout-day-card__title"></h3>
+
           <p class="workout-day-card__summary"></p>
 
           <span class="workout-day-card__open">
-            Edit &rarr;
+            Plan / Edit &rarr;
           </span>
         </button>
       </article>
@@ -569,8 +859,11 @@
       <article class="workout-template-card">
         <div class="workout-template-card__body">
           <p class="workout-template-card__eyebrow"></p>
+
           <h3 class="workout-template-card__name"></h3>
+
           <p class="workout-template-card__description"></p>
+
           <div class="workout-template-card__meta"></div>
         </div>
 
@@ -579,7 +872,7 @@
           type="button"
           data-workout-action="apply-template"
         >
-          Use Template
+          Use for Selected Week
         </button>
       </article>
     </template>
@@ -609,7 +902,9 @@
 
           <div class="exercise-library-card__body">
             <p class="exercise-library-card__type"></p>
+
             <h3 class="exercise-library-card__name"></h3>
+
             <p class="exercise-library-card__muscles"></p>
           </div>
         </button>
@@ -635,6 +930,7 @@
       aria-live="polite"
       hidden
     ></div>
+
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -643,7 +939,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=2.0.2"
+    src="js/workout-plans.js?v=3.0.0"
   ></script>
 </body>
 </html>
