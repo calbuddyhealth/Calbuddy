@@ -1,9 +1,18 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 2.1.0
+// Version: 2.2.0
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V2.2.0:
+//   - Fixes structured exercise-search response handling.
+//   - Supports both exercise arrays and { results: [] } responses.
+//   - Restores Exercise Library search results.
+//   - Restores focused Exercise Picker search results.
+//   - Adds aliases to local search fallback.
+//   - Improves abductor/adductor and equipment-name discovery.
+//   - Preserves focus-aware exercise filtering.
 //
 // V2.1.0:
 //   - Completes DOM caching for all elements referenced by this file.
@@ -38,7 +47,7 @@ import Muscles from "./training/anatomy/muscles.js";
 import MovementPatterns from "./training/movements/movement-patterns.js";
 import ExerciseTypes from "./training/movements/exercise-types.js";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const SOURCE = "js/workout-plans";
 
 const DAYS = Object.freeze([
@@ -203,17 +212,253 @@ function intersects(left = [], right = []) {
     .some(value => rightSet.has(value));
 }
 
+/*
+ * Exercise-search compatibility helper.
+ *
+ * Supports both:
+ *   [exercise, exercise]
+ *
+ * and:
+ *   {
+ *     results: [exercise, exercise]
+ *   }
+ */
+function extractExerciseResults(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray(value.results)
+  ) {
+    return value.results;
+  }
+
+  return [];
+}
+
 function getAllRegistryExercises() {
   if (Array.isArray(ExerciseRegistry?.all)) {
     return [...ExerciseRegistry.all];
   }
 
   try {
-    const listed = WorkoutPlanController.getExercises();
-    return Array.isArray(listed) ? listed : [];
+    return extractExerciseResults(
+      WorkoutPlanController.getExercises()
+    );
   } catch {
     return [];
   }
+}
+
+/*
+ * Shared local search fallback.
+ *
+ * This intentionally indexes aliases and metadata so
+ * terms such as:
+ *
+ *   abductor
+ *   hip abductor machine
+ *   outer thigh machine
+ *   adductor
+ *   inner thigh machine
+ *
+ * remain discoverable even if the controller search
+ * response is unavailable.
+ */
+function locallySearchExercises(
+  exercises,
+  query
+) {
+  const normalizedQuery =
+    normalizeLower(query);
+
+  if (!normalizedQuery) {
+    return [...exercises];
+  }
+
+  const queryTokens =
+    normalizedQuery
+      .split(/\s+/)
+      .filter(Boolean);
+
+  return exercises
+    .map(exercise => {
+      const searchablePieces = [
+        exercise.id,
+        exercise.name,
+        exercise.moduleId,
+        exercise.moduleLabel,
+        exercise.category,
+        exercise.difficulty,
+        exercise.summary,
+        exercise.substitutionGroup,
+        exercise.laterality,
+        exercise.setup,
+
+        exercise.targetEmphasis?.muscle,
+        exercise.targetEmphasis?.region,
+        exercise.targetEmphasis?.label,
+
+        ...(exercise.aliases || []),
+        ...(exercise.exerciseTypes || []),
+        ...(exercise.bodyParts || []),
+        ...(exercise.primaryMuscles || []),
+        ...(exercise.secondaryMuscles || []),
+        ...(exercise.movementPatterns || []),
+        ...(exercise.equipment || []),
+        ...(exercise.substitutions || []),
+        ...Object.keys(exercise.goals || {})
+      ];
+
+      const searchable =
+        searchablePieces
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+      let score = 0;
+
+      const normalizedName =
+        normalizeLower(exercise.name);
+
+      const normalizedId =
+        normalizeLower(exercise.id);
+
+      const aliases =
+        (exercise.aliases || [])
+          .map(normalizeLower);
+
+      if (
+        normalizedName ===
+        normalizedQuery
+      ) {
+        score += 5000;
+      }
+
+      if (
+        normalizedId ===
+        normalizedQuery
+      ) {
+        score += 5000;
+      }
+
+      if (
+        aliases.includes(
+          normalizedQuery
+        )
+      ) {
+        score += 4500;
+      }
+
+      if (
+        normalizedName.startsWith(
+          normalizedQuery
+        )
+      ) {
+        score += 3000;
+      }
+
+      if (
+        aliases.some(
+          alias =>
+            alias.startsWith(
+              normalizedQuery
+            )
+        )
+      ) {
+        score += 2500;
+      }
+
+      if (
+        normalizedName.includes(
+          normalizedQuery
+        )
+      ) {
+        score += 1800;
+      }
+
+      if (
+        aliases.some(
+          alias =>
+            alias.includes(
+              normalizedQuery
+            )
+        )
+      ) {
+        score += 1600;
+      }
+
+      if (
+        searchable.includes(
+          normalizedQuery
+        )
+      ) {
+        score += 1000;
+      }
+
+      for (const token of queryTokens) {
+        if (
+          normalizedName.includes(
+            token
+          )
+        ) {
+          score += 150;
+        }
+
+        if (
+          aliases.some(
+            alias =>
+              alias.includes(
+                token
+              )
+          )
+        ) {
+          score += 125;
+        }
+
+        if (
+          searchable.includes(
+            token
+          )
+        ) {
+          score += 75;
+        }
+      }
+
+      return {
+        exercise,
+        score
+      };
+    })
+    .filter(
+      item =>
+        item.score > 0
+    )
+    .sort(
+      (a, b) => {
+        if (
+          b.score !==
+          a.score
+        ) {
+          return (
+            b.score -
+            a.score
+          );
+        }
+
+        return a.exercise.name
+          .localeCompare(
+            b.exercise.name
+          );
+      }
+    )
+    .map(
+      item =>
+        item.exercise
+    );
 }
 
 function showToast(
@@ -326,11 +571,15 @@ function getFocusMuscles(focus) {
 }
 
 function getFocusMovements(focus) {
-  return uniqueIds(focus?.movementPatterns || []);
+  return uniqueIds(
+    focus?.movementPatterns || []
+  );
 }
 
 function getFocusExerciseTypes(focus) {
-  return uniqueIds(focus?.exerciseTypes || []);
+  return uniqueIds(
+    focus?.exerciseTypes || []
+  );
 }
 
 function getCurrentDayState() {
@@ -338,18 +587,28 @@ function getCurrentDayState() {
     return null;
   }
 
-  return WorkoutPlanController.getDay(state.activeDay);
+  return WorkoutPlanController.getDay(
+    state.activeDay
+  );
 }
 
-function hasExerciseOnActiveDay(exerciseId) {
-  const dayState = getCurrentDayState();
+function hasExerciseOnActiveDay(
+  exerciseId
+) {
+  const dayState =
+    getCurrentDayState();
 
   if (!dayState) {
     return false;
   }
 
-  return (dayState.exercises || [])
-    .some(entry => entry.exerciseId === exerciseId);
+  return (
+    dayState.exercises || []
+  ).some(
+    entry =>
+      entry.exerciseId ===
+      exerciseId
+  );
 }
 
 /* =====================================================
@@ -372,9 +631,14 @@ function setActiveTab(tab) {
 
   for (const button of dom.tabs || []) {
     const active =
-      button.dataset.workoutTab === tab;
+      button.dataset.workoutTab ===
+      tab;
 
-    button.classList.toggle("active", active);
+    button.classList.toggle(
+      "active",
+      active
+    );
+
     button.setAttribute(
       "aria-selected",
       active ? "true" : "false"
@@ -383,9 +647,14 @@ function setActiveTab(tab) {
 
   for (const panel of dom.panels || []) {
     const active =
-      panel.dataset.workoutPanel === tab;
+      panel.dataset.workoutPanel ===
+      tab;
 
-    panel.classList.toggle("active", active);
+    panel.classList.toggle(
+      "active",
+      active
+    );
+
     panel.hidden = !active;
   }
 
@@ -423,21 +692,31 @@ function populateSelect(
 ) {
   if (!select) return;
 
-  const current = select.value;
+  const current =
+    select.value;
+
   select.innerHTML = "";
 
   if (placeholder !== null) {
     const option =
-      document.createElement("option");
+      document.createElement(
+        "option"
+      );
 
     option.value = "";
-    option.textContent = placeholder;
-    select.appendChild(option);
+    option.textContent =
+      placeholder;
+
+    select.appendChild(
+      option
+    );
   }
 
   for (const item of items || []) {
     const option =
-      document.createElement("option");
+      document.createElement(
+        "option"
+      );
 
     option.value =
       item?.[valueKey] ?? "";
@@ -448,34 +727,50 @@ function populateSelect(
       item?.id ??
       "";
 
-    select.appendChild(option);
+    select.appendChild(
+      option
+    );
   }
 
   if (
     current &&
-    Array.from(select.options)
-      .some(option => option.value === current)
+    Array.from(
+      select.options
+    ).some(
+      option =>
+        option.value ===
+        current
+    )
   ) {
-    select.value = current;
+    select.value =
+      current;
   }
 }
 
 function populateFilters() {
   const goals =
-    Array.isArray(FitnessGoals?.all)
+    Array.isArray(
+      FitnessGoals?.all
+    )
       ? FitnessGoals.all
       : [];
 
   populateSelect(
     dom.workoutTemplateGoalFilter,
     goals,
-    { placeholder: "All Goals" }
+    {
+      placeholder:
+        "All Goals"
+    }
   );
 
   populateSelect(
     dom.workoutPrimaryGoal,
     goals,
-    { placeholder: "Choose a goal" }
+    {
+      placeholder:
+        "Choose a goal"
+    }
   );
 
   populateSelect(
@@ -483,19 +778,28 @@ function populateFilters() {
     BodyParts.list?.({
       selectableOnly: true
     }) || [],
-    { placeholder: "All Body Parts" }
+    {
+      placeholder:
+        "All Body Parts"
+    }
   );
 
   populateSelect(
     dom.exerciseMovementFilter,
     MovementPatterns.all || [],
-    { placeholder: "All Movements" }
+    {
+      placeholder:
+        "All Movements"
+    }
   );
 
   populateSelect(
     dom.exerciseTypeFilter,
     ExerciseTypes.all || [],
-    { placeholder: "All Types" }
+    {
+      placeholder:
+        "All Types"
+    }
   );
 
   const equipment = [
@@ -508,30 +812,42 @@ function populateFilters() {
         .filter(Boolean)
     )
   ]
-    .sort((a, b) => a.localeCompare(b))
+    .sort(
+      (a, b) =>
+        a.localeCompare(b)
+    )
     .map(
       id => ({
         id,
-        label: titleFromId(id)
+        label:
+          titleFromId(id)
       })
     );
 
   populateSelect(
     dom.exerciseEquipmentFilter,
     equipment,
-    { placeholder: "All Equipment" }
+    {
+      placeholder:
+        "All Equipment"
+    }
   );
 
   populateDayFocusSelect();
 }
 
 function populateDayFocusSelect() {
-  if (!dom.workoutDayFocus) return;
+  if (!dom.workoutDayFocus) {
+    return;
+  }
 
   populateSelect(
     dom.workoutDayFocus,
     WorkoutFocuses.all || [],
-    { placeholder: "Choose focus" }
+    {
+      placeholder:
+        "Choose focus"
+    }
   );
 }
 
@@ -541,10 +857,12 @@ function populateDayFocusSelect() {
 
 function renderOverview() {
   const plan =
-    WorkoutPlanController.getPlan();
+    WorkoutPlanController
+      .getPlan();
 
   const summary =
-    WorkoutPlanController.getSummary();
+    WorkoutPlanController
+      .getSummary();
 
   if (
     dom.workoutPlanName &&
@@ -552,35 +870,66 @@ function renderOverview() {
       dom.workoutPlanName
   ) {
     dom.workoutPlanName.value =
-      plan?.name || "My Weekly Plan";
+      plan?.name ||
+      "My Weekly Plan";
   }
 
-  if (dom.workoutDaysCount) {
+  if (
+    dom.workoutDaysCount
+  ) {
     dom.workoutDaysCount.textContent =
-      String(summary?.trainingDayCount || 0);
+      String(
+        summary?.trainingDayCount ||
+        0
+      );
   }
 
-  if (dom.workoutOffDaysCount) {
+  if (
+    dom.workoutOffDaysCount
+  ) {
     dom.workoutOffDaysCount.textContent =
-      String(summary?.offDayCount || 0);
+      String(
+        summary?.offDayCount ||
+        0
+      );
   }
 
-  if (dom.workoutExerciseCount) {
+  if (
+    dom.workoutExerciseCount
+  ) {
     dom.workoutExerciseCount.textContent =
-      String(summary?.exerciseCount || 0);
+      String(
+        summary?.exerciseCount ||
+        0
+      );
   }
 
-  if (dom.workoutPlanGoalSummary) {
-    if (plan?.primaryGoalId) {
+  if (
+    dom.workoutPlanGoalSummary
+  ) {
+    if (
+      plan?.primaryGoalId
+    ) {
       const secondary =
-        (plan.secondaryGoalIds || [])
-          .map(getGoalLabel)
+        (
+          plan.secondaryGoalIds ||
+          []
+        )
+          .map(
+            getGoalLabel
+          )
           .filter(Boolean);
 
       dom.workoutPlanGoalSummary.textContent =
         secondary.length
-          ? `${getGoalLabel(plan.primaryGoalId)} \u00B7 ${secondary.join(" \u00B7 ")}`
-          : getGoalLabel(plan.primaryGoalId);
+          ? `${getGoalLabel(
+              plan.primaryGoalId
+            )} \u00B7 ${secondary.join(
+              " \u00B7 "
+            )}`
+          : getGoalLabel(
+              plan.primaryGoalId
+            );
     } else {
       dom.workoutPlanGoalSummary.textContent =
         "Choose a fitness goal to personalize your training.";
@@ -592,66 +941,117 @@ function renderOverview() {
    WEEK
 ===================================================== */
 
-function getDaySummary(dayState) {
-  if (!dayState) return "";
+function getDaySummary(
+  dayState
+) {
+  if (!dayState) {
+    return "";
+  }
 
-  if (dayState.type === "off") {
+  if (
+    dayState.type ===
+    "off"
+  ) {
     return "Recovery scheduled";
   }
 
   const count =
-    dayState.exercises?.length || 0;
+    dayState.exercises
+      ?.length ||
+    0;
 
-  if (count === 0) {
+  if (
+    count === 0
+  ) {
     return "No exercises selected";
   }
 
-  return `${count} exercise${count === 1 ? "" : "s"}`;
+  return `${count} exercise${
+    count === 1
+      ? ""
+      : "s"
+  }`;
 }
 
 function renderWeek() {
-  if (!dom.workoutWeekGrid) return;
+  if (
+    !dom.workoutWeekGrid
+  ) {
+    return;
+  }
 
-  dom.workoutWeekGrid.innerHTML = "";
+  dom.workoutWeekGrid.innerHTML =
+    "";
 
   const plan =
-    WorkoutPlanController.getPlan();
+    WorkoutPlanController
+      .getPlan();
 
-  if (!plan?.week) return;
+  if (!plan?.week) {
+    return;
+  }
 
-  for (const day of DAYS) {
+  for (
+    const day
+    of DAYS
+  ) {
     const dayState =
-      WorkoutPlanController.getDay(day);
+      WorkoutPlanController
+        .getDay(day);
 
     const fragment =
       dom.workoutDayCardTemplate
         ?.content
-        ?.cloneNode(true);
+        ?.cloneNode(
+          true
+        );
 
-    if (!fragment) continue;
+    if (!fragment) {
+      continue;
+    }
 
     const card =
-      fragment.querySelector(".workout-day-card");
+      fragment.querySelector(
+        ".workout-day-card"
+      );
 
     const button =
-      fragment.querySelector(".workout-day-card__button");
+      fragment.querySelector(
+        ".workout-day-card__button"
+      );
 
     const dayLabel =
-      fragment.querySelector(".workout-day-card__day");
+      fragment.querySelector(
+        ".workout-day-card__day"
+      );
 
     const type =
-      fragment.querySelector(".workout-day-card__type");
+      fragment.querySelector(
+        ".workout-day-card__type"
+      );
 
     const title =
-      fragment.querySelector(".workout-day-card__title");
+      fragment.querySelector(
+        ".workout-day-card__title"
+      );
 
     const summary =
-      fragment.querySelector(".workout-day-card__summary");
+      fragment.querySelector(
+        ".workout-day-card__summary"
+      );
 
-    if (!card || !button) continue;
+    if (
+      !card ||
+      !button
+    ) {
+      continue;
+    }
 
-    card.dataset.day = day;
-    button.dataset.day = day;
+    card.dataset.day =
+      day;
+
+    button.dataset.day =
+      day;
 
     if (dayLabel) {
       dayLabel.textContent =
@@ -661,27 +1061,36 @@ function renderWeek() {
 
     if (type) {
       type.textContent =
-        dayState?.type === "off"
+        dayState?.type ===
+        "off"
           ? "OFF"
-          : dayState?.type === "recovery"
+          : dayState?.type ===
+              "recovery"
             ? "RECOVERY"
             : "WORKOUT";
     }
 
     if (title) {
       title.textContent =
-        dayState?.title || "Off Day";
+        dayState?.title ||
+        "Off Day";
     }
 
     if (summary) {
       summary.textContent =
-        getDaySummary(dayState);
+        getDaySummary(
+          dayState
+        );
     }
 
     card.dataset.type =
-      dayState?.type || "off";
+      dayState?.type ||
+      "off";
 
-    dom.workoutWeekGrid.appendChild(fragment);
+    dom.workoutWeekGrid
+      .appendChild(
+        fragment
+      );
   }
 }
 
@@ -690,119 +1099,221 @@ function renderWeek() {
 ===================================================== */
 
 function renderSecondaryGoals() {
-  if (!dom.workoutSecondaryGoals) return;
+  if (
+    !dom.workoutSecondaryGoals
+  ) {
+    return;
+  }
 
   const plan =
-    WorkoutPlanController.getPlan();
+    WorkoutPlanController
+      .getPlan();
 
   const selected =
-    new Set(plan?.secondaryGoalIds || []);
+    new Set(
+      plan?.secondaryGoalIds ||
+      []
+    );
 
-  dom.workoutSecondaryGoals.innerHTML = "";
+  dom.workoutSecondaryGoals.innerHTML =
+    "";
 
-  for (const goal of FitnessGoals.all || []) {
-    if (goal.id === plan?.primaryGoalId) {
+  for (
+    const goal
+    of FitnessGoals.all ||
+    []
+  ) {
+    if (
+      goal.id ===
+      plan?.primaryGoalId
+    ) {
       continue;
     }
 
     const label =
-      document.createElement("label");
+      document.createElement(
+        "label"
+      );
 
-    label.className = "workout-choice";
+    label.className =
+      "workout-choice";
 
     const input =
-      document.createElement("input");
+      document.createElement(
+        "input"
+      );
 
-    input.type = "checkbox";
-    input.value = goal.id;
-    input.checked = selected.has(goal.id);
+    input.type =
+      "checkbox";
+
+    input.value =
+      goal.id;
+
+    input.checked =
+      selected.has(
+        goal.id
+      );
+
     input.dataset.workoutAction =
       "secondary-goal";
 
     const span =
-      document.createElement("span");
+      document.createElement(
+        "span"
+      );
 
-    span.textContent = goal.label;
+    span.textContent =
+      goal.label;
 
-    label.append(input, span);
-    dom.workoutSecondaryGoals.appendChild(label);
+    label.append(
+      input,
+      span
+    );
+
+    dom.workoutSecondaryGoals
+      .appendChild(
+        label
+      );
   }
 }
 
 function renderCustomBuilder() {
   const plan =
-    WorkoutPlanController.getPlan();
+    WorkoutPlanController
+      .getPlan();
 
-  if (dom.workoutPrimaryGoal) {
+  if (
+    dom.workoutPrimaryGoal
+  ) {
     dom.workoutPrimaryGoal.value =
-      plan?.primaryGoalId || "";
+      plan?.primaryGoalId ||
+      "";
   }
 
   renderSecondaryGoals();
 
-  if (!dom.workoutCustomWeek) return;
+  if (
+    !dom.workoutCustomWeek
+  ) {
+    return;
+  }
 
-  dom.workoutCustomWeek.innerHTML = "";
+  dom.workoutCustomWeek.innerHTML =
+    "";
 
-  for (const day of DAYS) {
+  for (
+    const day
+    of DAYS
+  ) {
     const dayState =
-      WorkoutPlanController.getDay(day);
+      WorkoutPlanController
+        .getDay(day);
 
     const row =
-      document.createElement("article");
+      document.createElement(
+        "article"
+      );
 
-    row.className = "workout-custom-day";
-    row.dataset.day = day;
+    row.className =
+      "workout-custom-day";
+
+    row.dataset.day =
+      day;
 
     const heading =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     heading.className =
       "workout-custom-day__identity";
 
     const dayName =
-      document.createElement("strong");
+      document.createElement(
+        "strong"
+      );
 
     dayName.textContent =
-      dayState?.label || titleFromId(day);
+      dayState?.label ||
+      titleFromId(day);
 
     const current =
-      document.createElement("span");
+      document.createElement(
+        "span"
+      );
 
     current.textContent =
-      dayState?.title || "Off Day";
+      dayState?.title ||
+      "Off Day";
 
-    heading.append(dayName, current);
+    heading.append(
+      dayName,
+      current
+    );
 
     const select =
-      document.createElement("select");
+      document.createElement(
+        "select"
+      );
 
     select.dataset.workoutAction =
       "custom-day-focus";
-    select.dataset.day = day;
 
-    for (const focus of WorkoutFocuses.all || []) {
+    select.dataset.day =
+      day;
+
+    for (
+      const focus
+      of WorkoutFocuses.all ||
+      []
+    ) {
       const option =
-        document.createElement("option");
+        document.createElement(
+          "option"
+        );
 
-      option.value = focus.id;
-      option.textContent = focus.label;
-      select.appendChild(option);
+      option.value =
+        focus.id;
+
+      option.textContent =
+        focus.label;
+
+      select.appendChild(
+        option
+      );
     }
 
     select.value =
-      dayState?.focusId || "off_day";
+      dayState?.focusId ||
+      "off_day";
 
     const edit =
-      document.createElement("button");
+      document.createElement(
+        "button"
+      );
 
-    edit.type = "button";
-    edit.dataset.workoutAction = "edit-day";
-    edit.dataset.day = day;
-    edit.textContent = "Edit";
+    edit.type =
+      "button";
 
-    row.append(heading, select, edit);
-    dom.workoutCustomWeek.appendChild(row);
+    edit.dataset.workoutAction =
+      "edit-day";
+
+    edit.dataset.day =
+      day;
+
+    edit.textContent =
+      "Edit";
+
+    row.append(
+      heading,
+      select,
+      edit
+    );
+
+    dom.workoutCustomWeek
+      .appendChild(
+        row
+      );
   }
 }
 
@@ -811,7 +1322,11 @@ function renderCustomBuilder() {
 ===================================================== */
 
 function renderTemplates() {
-  if (!dom.workoutTemplateList) return;
+  if (
+    !dom.workoutTemplateList
+  ) {
+    return;
+  }
 
   const filters = {
     goal:
@@ -826,52 +1341,81 @@ function renderTemplates() {
   };
 
   const templates =
-    WorkoutPlanController.getTemplates(filters) || [];
+    WorkoutPlanController
+      .getTemplates(
+        filters
+      ) || [];
 
-  dom.workoutTemplateList.innerHTML = "";
+  dom.workoutTemplateList.innerHTML =
+    "";
 
-  if (dom.workoutTemplateEmpty) {
+  if (
+    dom.workoutTemplateEmpty
+  ) {
     dom.workoutTemplateEmpty.hidden =
       templates.length > 0;
   }
 
-  for (const template of templates) {
+  for (
+    const template
+    of templates
+  ) {
     const fragment =
       dom.workoutTemplateCardTemplate
         ?.content
-        ?.cloneNode(true);
+        ?.cloneNode(
+          true
+        );
 
-    if (!fragment) continue;
+    if (!fragment) {
+      continue;
+    }
 
     const card =
-      fragment.querySelector(".workout-template-card");
+      fragment.querySelector(
+        ".workout-template-card"
+      );
 
     const eyebrow =
-      fragment.querySelector(".workout-template-card__eyebrow");
+      fragment.querySelector(
+        ".workout-template-card__eyebrow"
+      );
 
     const name =
-      fragment.querySelector(".workout-template-card__name");
+      fragment.querySelector(
+        ".workout-template-card__name"
+      );
 
     const description =
-      fragment.querySelector(".workout-template-card__description");
+      fragment.querySelector(
+        ".workout-template-card__description"
+      );
 
     const meta =
-      fragment.querySelector(".workout-template-card__meta");
+      fragment.querySelector(
+        ".workout-template-card__meta"
+      );
 
     const apply =
-      fragment.querySelector(".workout-template-card__apply");
+      fragment.querySelector(
+        ".workout-template-card__apply"
+      );
 
     if (card) {
-      card.dataset.templateId = template.id;
+      card.dataset.templateId =
+        template.id;
     }
 
     if (eyebrow) {
       eyebrow.textContent =
-        `${titleFromId(template.level)} \u00B7 ${template.trainingDaysPerWeek} DAYS/WEEK`;
+        `${titleFromId(
+          template.level
+        )} \u00B7 ${template.trainingDaysPerWeek} DAYS/WEEK`;
     }
 
     if (name) {
-      name.textContent = template.name;
+      name.textContent =
+        template.name;
     }
 
     if (description) {
@@ -881,9 +1425,16 @@ function renderTemplates() {
 
     if (meta) {
       meta.textContent =
-        (template.primaryGoals || [])
-          .map(getGoalLabel)
-          .join(" \u00B7 ");
+        (
+          template.primaryGoals ||
+          []
+        )
+          .map(
+            getGoalLabel
+          )
+          .join(
+            " \u00B7 "
+          );
     }
 
     if (apply) {
@@ -891,7 +1442,10 @@ function renderTemplates() {
         template.id;
     }
 
-    dom.workoutTemplateList.appendChild(fragment);
+    dom.workoutTemplateList
+      .appendChild(
+        fragment
+      );
   }
 }
 
@@ -900,65 +1454,138 @@ function renderTemplates() {
 ===================================================== */
 
 function getLibraryResults() {
-  const query = normalizeText(state.libraryQuery);
+  const query =
+    normalizeText(
+      state.libraryQuery
+    );
 
-  let results;
+  let results = [];
 
   try {
-    results =
+    const response =
       query
-        ? WorkoutPlanController.searchExercises(query)
-        : WorkoutPlanController.getExercises();
-  } catch {
-    results = getAllRegistryExercises();
-  }
+        ? WorkoutPlanController
+            .searchExercises(
+              query,
+              {
+                limit:
+                  Math.max(
+                    1000,
+                    getAllRegistryExercises()
+                      .length +
+                      50
+                  )
+              }
+            )
+        : WorkoutPlanController
+            .getExercises();
 
-  if (!Array.isArray(results)) {
+    results =
+      extractExerciseResults(
+        response
+      );
+  } catch (error) {
+    console.warn(
+      "ARI Workout Plans library search failed. Falling back to registry search.",
+      error
+    );
+
     results = [];
   }
 
+  /*
+   * If controller search did not return usable data,
+   * perform a complete local registry search.
+   */
+  if (
+    query &&
+    results.length === 0
+  ) {
+    results =
+      locallySearchExercises(
+        getAllRegistryExercises(),
+        query
+      );
+  }
+
+  /*
+   * If there is no query and controller listing failed,
+   * always fall back to the registry.
+   */
+  if (
+    !query &&
+    results.length === 0
+  ) {
+    results =
+      getAllRegistryExercises();
+  }
+
   const bodyPart =
-    dom.exerciseBodyPartFilter?.value || "";
+    dom.exerciseBodyPartFilter
+      ?.value ||
+    "";
 
   const movement =
-    dom.exerciseMovementFilter?.value || "";
+    dom.exerciseMovementFilter
+      ?.value ||
+    "";
 
   const type =
-    dom.exerciseTypeFilter?.value || "";
+    dom.exerciseTypeFilter
+      ?.value ||
+    "";
 
   const equipment =
-    dom.exerciseEquipmentFilter?.value || "";
+    dom.exerciseEquipmentFilter
+      ?.value ||
+    "";
 
   return results.filter(
     exercise => {
       if (
         bodyPart &&
-        !(exercise.bodyParts || [])
-          .includes(bodyPart)
+        !(
+          exercise.bodyParts ||
+          []
+        ).includes(
+          bodyPart
+        )
       ) {
         return false;
       }
 
       if (
         movement &&
-        !(exercise.movementPatterns || [])
-          .includes(movement)
+        !(
+          exercise.movementPatterns ||
+          []
+        ).includes(
+          movement
+        )
       ) {
         return false;
       }
 
       if (
         type &&
-        !(exercise.exerciseTypes || [])
-          .includes(type)
+        !(
+          exercise.exerciseTypes ||
+          []
+        ).includes(
+          type
+        )
       ) {
         return false;
       }
 
       if (
         equipment &&
-        !(exercise.equipment || [])
-          .includes(equipment)
+        !(
+          exercise.equipment ||
+          []
+        ).includes(
+          equipment
+        )
       ) {
         return false;
       }
@@ -978,117 +1605,185 @@ function renderExerciseCard(
   const fragment =
     dom.exerciseCardTemplate
       ?.content
-      ?.cloneNode(true);
+      ?.cloneNode(
+        true
+      );
 
-  if (!fragment) return;
+  if (!fragment) {
+    return;
+  }
 
   const card =
-    fragment.querySelector(".exercise-library-card");
+    fragment.querySelector(
+      ".exercise-library-card"
+    );
 
   const open =
-    fragment.querySelector(".exercise-library-card__open");
+    fragment.querySelector(
+      ".exercise-library-card__open"
+    );
 
   const image =
-    fragment.querySelector(".exercise-library-card__image");
+    fragment.querySelector(
+      ".exercise-library-card__image"
+    );
 
   const placeholder =
-    fragment.querySelector(".exercise-library-card__placeholder");
+    fragment.querySelector(
+      ".exercise-library-card__placeholder"
+    );
 
   const type =
-    fragment.querySelector(".exercise-library-card__type");
+    fragment.querySelector(
+      ".exercise-library-card__type"
+    );
 
   const name =
-    fragment.querySelector(".exercise-library-card__name");
+    fragment.querySelector(
+      ".exercise-library-card__name"
+    );
 
   const muscles =
-    fragment.querySelector(".exercise-library-card__muscles");
+    fragment.querySelector(
+      ".exercise-library-card__muscles"
+    );
 
   const add =
-    fragment.querySelector(".exercise-library-card__add");
+    fragment.querySelector(
+      ".exercise-library-card__add"
+    );
 
   if (card) {
-    card.dataset.exerciseId = exercise.id;
+    card.dataset.exerciseId =
+      exercise.id;
   }
 
   if (open) {
-    open.dataset.exerciseId = exercise.id;
+    open.dataset.exerciseId =
+      exercise.id;
   }
 
   if (type) {
     type.textContent =
-      titleFromId(exercise.category);
+      titleFromId(
+        exercise.category
+      );
   }
 
   if (name) {
-    name.textContent = exercise.name;
+    name.textContent =
+      exercise.name;
   }
 
   if (muscles) {
     muscles.textContent =
-      (exercise.primaryMuscles || [])
-        .map(getMuscleLabel)
-        .join(" \u00B7 ");
+      (
+        exercise.primaryMuscles ||
+        []
+      )
+        .map(
+          getMuscleLabel
+        )
+        .join(
+          " \u00B7 "
+        );
   }
 
   const imagePath =
-    exercise.illustration?.anatomy ||
-    exercise.illustration?.movement ||
+    exercise.illustration
+      ?.anatomy ||
+    exercise.illustration
+      ?.movement ||
     null;
 
   if (image) {
     if (imagePath) {
-      image.src = imagePath;
+      image.src =
+        imagePath;
+
       image.alt =
         `${exercise.name} illustration`;
-      image.hidden = false;
 
-      if (placeholder) {
-        placeholder.hidden = true;
+      image.hidden =
+        false;
+
+      if (
+        placeholder
+      ) {
+        placeholder.hidden =
+          true;
       }
     } else {
-      image.hidden = true;
+      image.hidden =
+        true;
 
-      if (placeholder) {
-        placeholder.hidden = false;
+      if (
+        placeholder
+      ) {
+        placeholder.hidden =
+          false;
       }
     }
   }
 
   if (add) {
-    add.hidden = !addEnabled;
+    add.hidden =
+      !addEnabled;
+
     add.dataset.exerciseId =
       exercise.id;
 
     if (addEnabled) {
       const alreadyAdded =
-        hasExerciseOnActiveDay(exercise.id);
+        hasExerciseOnActiveDay(
+          exercise.id
+        );
 
-      add.disabled = alreadyAdded;
+      add.disabled =
+        alreadyAdded;
+
       add.textContent =
-        alreadyAdded ? "Added" : "Add";
+        alreadyAdded
+          ? "Added"
+          : "Add";
     }
   }
 
-  container?.appendChild(fragment);
+  container?.appendChild(
+    fragment
+  );
 }
 
 function renderExerciseLibrary() {
-  if (!dom.exerciseLibraryList) return;
+  if (
+    !dom.exerciseLibraryList
+  ) {
+    return;
+  }
 
-  const results = getLibraryResults();
+  const results =
+    getLibraryResults();
 
-  dom.exerciseLibraryList.innerHTML = "";
+  dom.exerciseLibraryList.innerHTML =
+    "";
 
-  if (dom.exerciseLibraryEmpty) {
+  if (
+    dom.exerciseLibraryEmpty
+  ) {
     dom.exerciseLibraryEmpty.hidden =
       results.length > 0;
   }
 
-  for (const exercise of results) {
+  for (
+    const exercise
+    of results
+  ) {
     renderExerciseCard(
       exercise,
       {
-        addEnabled: false,
+        addEnabled:
+          false,
+
         container:
           dom.exerciseLibraryList
       }
@@ -1104,38 +1799,61 @@ function exerciseMatchesFocus(
   exercise,
   focus
 ) {
-  if (!exercise || !focus) {
+  if (
+    !exercise ||
+    !focus
+  ) {
     return false;
   }
 
-  if (focus.id === "custom") {
+  if (
+    focus.id ===
+    "custom"
+  ) {
     return true;
   }
 
-  if (focus.id === "off_day") {
+  if (
+    focus.id ===
+    "off_day"
+  ) {
     return false;
   }
 
   const focusBodyParts =
-    getFocusBodyParts(focus);
+    getFocusBodyParts(
+      focus
+    );
 
   const focusMovements =
-    getFocusMovements(focus);
+    getFocusMovements(
+      focus
+    );
 
   const focusTypes =
-    getFocusExerciseTypes(focus);
+    getFocusExerciseTypes(
+      focus
+    );
 
   const focusMuscles =
-    getFocusMuscles(focus);
+    getFocusMuscles(
+      focus
+    );
 
   const exerciseMuscles = [
-    ...arrayOfIds(exercise.primaryMuscles),
-    ...arrayOfIds(exercise.secondaryMuscles)
+    ...arrayOfIds(
+      exercise.primaryMuscles
+    ),
+    ...arrayOfIds(
+      exercise.secondaryMuscles
+    )
   ];
 
   const rules = [];
 
-  if (focusBodyParts.length) {
+  if (
+    focusBodyParts.length
+  ) {
     rules.push(
       intersects(
         exercise.bodyParts,
@@ -1144,7 +1862,9 @@ function exerciseMatchesFocus(
     );
   }
 
-  if (focusMuscles.length) {
+  if (
+    focusMuscles.length
+  ) {
     rules.push(
       intersects(
         exerciseMuscles,
@@ -1153,7 +1873,9 @@ function exerciseMatchesFocus(
     );
   }
 
-  if (focusMovements.length) {
+  if (
+    focusMovements.length
+  ) {
     rules.push(
       intersects(
         exercise.movementPatterns,
@@ -1162,7 +1884,9 @@ function exerciseMatchesFocus(
     );
   }
 
-  if (focusTypes.length) {
+  if (
+    focusTypes.length
+  ) {
     rules.push(
       intersects(
         exercise.exerciseTypes,
@@ -1171,26 +1895,44 @@ function exerciseMatchesFocus(
     );
   }
 
-  if (rules.length) {
-    return rules.some(Boolean);
+  if (
+    rules.length
+  ) {
+    return rules.some(
+      Boolean
+    );
   }
 
   return false;
 }
 
-function getFocusedExercisePool(dayState) {
-  if (!dayState) return [];
-
-  const focus =
-    WorkoutFocuses.get(dayState.focusId);
-
-  if (!focus) return [];
-
-  if (focus.id === "off_day") {
+function getFocusedExercisePool(
+  dayState
+) {
+  if (!dayState) {
     return [];
   }
 
-  if (focus.id === "custom") {
+  const focus =
+    WorkoutFocuses.get(
+      dayState.focusId
+    );
+
+  if (!focus) {
+    return [];
+  }
+
+  if (
+    focus.id ===
+    "off_day"
+  ) {
+    return [];
+  }
+
+  if (
+    focus.id ===
+    "custom"
+  ) {
     return getAllRegistryExercises();
   }
 
@@ -1198,19 +1940,24 @@ function getFocusedExercisePool(dayState) {
 
   try {
     recommended =
-      WorkoutPlanController
-        .getRecommendedExercisesForDay(
-          state.activeDay,
-          {
-            limit:
-              Math.max(
-                1000,
-                getAllRegistryExercises().length + 50
-              )
-          }
-        ) || [];
+      extractExerciseResults(
+        WorkoutPlanController
+          .getRecommendedExercisesForDay(
+            state.activeDay,
+            {
+              limit:
+                Math.max(
+                  1000,
+                  getAllRegistryExercises()
+                    .length +
+                    50
+                )
+            }
+          )
+      );
   } catch {
-    recommended = [];
+    recommended =
+      [];
   }
 
   const focusedRecommendations =
@@ -1222,7 +1969,9 @@ function getFocusedExercisePool(dayState) {
         )
     );
 
-  if (focusedRecommendations.length) {
+  if (
+    focusedRecommendations.length
+  ) {
     return focusedRecommendations;
   }
 
@@ -1241,56 +1990,72 @@ function filterFocusedPoolBySearch(
   query
 ) {
   const normalizedQuery =
-    normalizeLower(query);
+    normalizeLower(
+      query
+    );
 
   if (!normalizedQuery) {
     return exercises;
   }
 
-  let searchIds = new Set();
+  let searchResults = [];
 
   try {
-    searchIds =
-      new Set(
-        (WorkoutPlanController
-          .searchExercises(
-            normalizedQuery
-          ) || [])
-          .map(
-            exercise =>
-              exercise.id
-          )
+    const response =
+      WorkoutPlanController
+        .searchExercises(
+          normalizedQuery,
+          {
+            limit:
+              Math.max(
+                1000,
+                getAllRegistryExercises()
+                  .length +
+                  50
+              )
+          }
+        );
+
+    searchResults =
+      extractExerciseResults(
+        response
       );
-  } catch {
-    searchIds = new Set();
+  } catch (error) {
+    console.warn(
+      "ARI Workout Plans picker search failed. Using local search fallback.",
+      error
+    );
+
+    searchResults =
+      [];
   }
 
-  if (searchIds.size > 0) {
+  if (
+    searchResults.length > 0
+  ) {
+    const searchIds =
+      new Set(
+        searchResults.map(
+          exercise =>
+            exercise.id
+        )
+      );
+
     return exercises.filter(
       exercise =>
-        searchIds.has(exercise.id)
+        searchIds.has(
+          exercise.id
+        )
     );
   }
 
-  return exercises.filter(exercise => {
-    const searchable = [
-      exercise.id,
-      exercise.name,
-      exercise.category,
-      exercise.summary,
-      ...(exercise.exerciseTypes || []),
-      ...(exercise.bodyParts || []),
-      ...(exercise.primaryMuscles || []),
-      ...(exercise.secondaryMuscles || []),
-      ...(exercise.movementPatterns || []),
-      ...(exercise.equipment || [])
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return searchable.includes(normalizedQuery);
-  });
+  /*
+   * Search only inside the focus-approved pool.
+   */
+  return locallySearchExercises(
+    exercises,
+    normalizedQuery
+  );
 }
 
 /* =====================================================
@@ -1303,55 +2068,91 @@ function openDayEditor(day) {
 
   const dayState =
     WorkoutPlanController
-      .getDay(normalizedDay);
+      .getDay(
+        normalizedDay
+      );
 
-  if (!dayState) return;
+  if (!dayState) {
+    return;
+  }
 
-  state.activeDay = normalizedDay;
-  state.expandedExerciseIndex = null;
+  state.activeDay =
+    normalizedDay;
 
-  if (dom.workoutDayEditorTitle) {
+  state.expandedExerciseIndex =
+    null;
+
+  if (
+    dom.workoutDayEditorTitle
+  ) {
     dom.workoutDayEditorTitle.textContent =
       dayState.label ||
-      titleFromId(normalizedDay);
+      titleFromId(
+        normalizedDay
+      );
   }
 
-  if (dom.workoutDayType) {
+  if (
+    dom.workoutDayType
+  ) {
     dom.workoutDayType.value =
-      dayState.type || "off";
+      dayState.type ||
+      "off";
   }
 
-  if (dom.workoutDayFocus) {
+  if (
+    dom.workoutDayFocus
+  ) {
     dom.workoutDayFocus.value =
-      dayState.focusId || "off_day";
+      dayState.focusId ||
+      "off_day";
   }
 
-  if (dom.workoutDayTitle) {
+  if (
+    dom.workoutDayTitle
+  ) {
     dom.workoutDayTitle.value =
-      dayState.title || "";
+      dayState.title ||
+      "";
   }
 
   updateDayEditorVisibility();
   renderDayExercises();
-  openDialog(dom.workoutDayEditor);
+
+  openDialog(
+    dom.workoutDayEditor
+  );
 }
 
 function updateDayEditorVisibility() {
   const type =
-    dom.workoutDayType?.value || "off";
+    dom.workoutDayType
+      ?.value ||
+    "off";
 
-  const off = type === "off";
+  const off =
+    type ===
+    "off";
 
-  if (dom.workoutDayFocus) {
-    dom.workoutDayFocus.disabled = off;
+  if (
+    dom.workoutDayFocus
+  ) {
+    dom.workoutDayFocus.disabled =
+      off;
   }
 
-  if (dom.workoutDayTitle) {
-    dom.workoutDayTitle.disabled = false;
+  if (
+    dom.workoutDayTitle
+  ) {
+    dom.workoutDayTitle.disabled =
+      false;
   }
 
-  if (dom.workoutDayExerciseSection) {
-    dom.workoutDayExerciseSection.hidden = off;
+  if (
+    dom.workoutDayExerciseSection
+  ) {
+    dom.workoutDayExerciseSection.hidden =
+      off;
   }
 }
 
@@ -1365,32 +2166,55 @@ function makeMetricInput({
   inputMode = "decimal"
 }) {
   const wrapper =
-    document.createElement("label");
+    document.createElement(
+      "label"
+    );
 
   wrapper.className =
     "workout-exercise-metric";
 
   const span =
-    document.createElement("span");
+    document.createElement(
+      "span"
+    );
 
-  span.textContent = label;
+  span.textContent =
+    label;
 
   const input =
-    document.createElement("input");
+    document.createElement(
+      "input"
+    );
 
-  input.type = "number";
-  input.inputMode = inputMode;
-  input.min = String(min);
+  input.type =
+    "number";
 
-  if (max !== null) {
-    input.max = String(max);
+  input.inputMode =
+    inputMode;
+
+  input.min =
+    String(min);
+
+  if (
+    max !== null
+  ) {
+    input.max =
+      String(max);
   }
 
-  input.step = String(step);
-  input.value = value ?? "";
-  input.dataset.exerciseField = field;
+  input.step =
+    String(step);
 
-  wrapper.append(span, input);
+  input.value =
+    value ?? "";
+
+  input.dataset.exerciseField =
+    field;
+
+  wrapper.append(
+    span,
+    input
+  );
 
   return wrapper;
 }
@@ -1402,20 +2226,28 @@ function getExercisePrescriptionSummary(
   const parts = [];
 
   if (
-    Number(entry.sets) > 0 &&
-    Number(entry.reps) > 0
+    Number(
+      entry.sets
+    ) > 0 &&
+    Number(
+      entry.reps
+    ) > 0
   ) {
     parts.push(
       `${entry.sets} sets \u00D7 ${entry.reps} reps`
     );
   } else if (
-    Number(entry.sets) > 0
+    Number(
+      entry.sets
+    ) > 0
   ) {
     parts.push(
       `${entry.sets} sets`
     );
   } else if (
-    Number(entry.reps) > 0
+    Number(
+      entry.reps
+    ) > 0
   ) {
     parts.push(
       `${entry.reps} reps`
@@ -1423,7 +2255,9 @@ function getExercisePrescriptionSummary(
   }
 
   if (
-    Number(entry.weight) > 0
+    Number(
+      entry.weight
+    ) > 0
   ) {
     parts.push(
       `${entry.weight} lb`
@@ -1431,7 +2265,9 @@ function getExercisePrescriptionSummary(
   }
 
   if (
-    Number(entry.added_weight) > 0
+    Number(
+      entry.added_weight
+    ) > 0
   ) {
     parts.push(
       `${entry.added_weight} lb`
@@ -1439,7 +2275,9 @@ function getExercisePrescriptionSummary(
   }
 
   if (
-    Number(entry.durationMinutes) > 0
+    Number(
+      entry.durationMinutes
+    ) > 0
   ) {
     parts.push(
       `${entry.durationMinutes} min`
@@ -1447,7 +2285,9 @@ function getExercisePrescriptionSummary(
   }
 
   if (
-    Number(entry.durationSeconds) > 0
+    Number(
+      entry.durationSeconds
+    ) > 0
   ) {
     parts.push(
       `${entry.durationSeconds} sec`
@@ -1455,7 +2295,9 @@ function getExercisePrescriptionSummary(
   }
 
   if (
-    Number(entry.rounds) > 0
+    Number(
+      entry.rounds
+    ) > 0
   ) {
     parts.push(
       `${entry.rounds} rounds`
@@ -1463,7 +2305,9 @@ function getExercisePrescriptionSummary(
   }
 
   return parts.length
-    ? parts.join(" \u00B7 ")
+    ? parts.join(
+        " \u00B7 "
+      )
     : (
         (
           exercise.primaryMuscles ||
@@ -1959,27 +2803,41 @@ function renderDayExercises() {
 ===================================================== */
 
 function openExercisePicker() {
-  if (!state.activeDay) return;
-
-  const dayState =
-    WorkoutPlanController
-      .getDay(state.activeDay);
-
   if (
-    !dayState ||
-    dayState.type === "off"
+    !state.activeDay
   ) {
     return;
   }
 
-  state.pickerQuery = "";
+  const dayState =
+    WorkoutPlanController
+      .getDay(
+        state.activeDay
+      );
 
-  if (dom.workoutExercisePickerSearch) {
-    dom.workoutExercisePickerSearch.value = "";
+  if (
+    !dayState ||
+    dayState.type ===
+      "off"
+  ) {
+    return;
+  }
+
+  state.pickerQuery =
+    "";
+
+  if (
+    dom.workoutExercisePickerSearch
+  ) {
+    dom.workoutExercisePickerSearch.value =
+      "";
   }
 
   renderExercisePicker();
-  openDialog(dom.workoutExercisePicker);
+
+  openDialog(
+    dom.workoutExercisePicker
+  );
 }
 
 function renderExercisePicker() {
@@ -1992,21 +2850,30 @@ function renderExercisePicker() {
 
   const dayState =
     WorkoutPlanController
-      .getDay(state.activeDay);
+      .getDay(
+        state.activeDay
+      );
 
   if (
     !dayState ||
-    dayState.type === "off"
+    dayState.type ===
+      "off"
   ) {
-    dom.workoutExercisePickerList.innerHTML = "";
+    dom.workoutExercisePickerList.innerHTML =
+      "";
+
     return;
   }
 
   const focus =
-    WorkoutFocuses.get(dayState.focusId);
+    WorkoutFocuses.get(
+      dayState.focusId
+    );
 
   let exercises =
-    getFocusedExercisePool(dayState);
+    getFocusedExercisePool(
+      dayState
+    );
 
   exercises =
     filterFocusedPoolBySearch(
@@ -2014,7 +2881,9 @@ function renderExercisePicker() {
       state.pickerQuery
     );
 
-  if (dom.workoutExercisePickerContext) {
+  if (
+    dom.workoutExercisePickerContext
+  ) {
     const focusLabel =
       focus?.label ||
       dayState.title ||
@@ -2022,16 +2891,23 @@ function renderExercisePicker() {
       "this workout";
 
     dom.workoutExercisePickerContext.textContent =
-      focus?.id === "custom"
+      focus?.id ===
+      "custom"
         ? "Custom focus \u00B7 Browse all approved exercises."
         : `Showing exercises for ${focusLabel}.`;
   }
 
-  dom.workoutExercisePickerList.innerHTML = "";
+  dom.workoutExercisePickerList.innerHTML =
+    "";
 
-  if (exercises.length === 0) {
+  if (
+    exercises.length ===
+    0
+  ) {
     const empty =
-      document.createElement("p");
+      document.createElement(
+        "p"
+      );
 
     empty.className =
       "workout-exercise-picker__empty";
@@ -2041,15 +2917,24 @@ function renderExercisePicker() {
         ? "No exercises in this training focus match your search."
         : "No approved exercises are currently mapped to this training focus.";
 
-    dom.workoutExercisePickerList.appendChild(empty);
+    dom.workoutExercisePickerList
+      .appendChild(
+        empty
+      );
+
     return;
   }
 
-  for (const exercise of exercises) {
+  for (
+    const exercise
+    of exercises
+  ) {
     renderExerciseCard(
       exercise,
       {
-        addEnabled: true,
+        addEnabled:
+          true,
+
         container:
           dom.workoutExercisePickerList
       }
@@ -2068,39 +2953,64 @@ function openExerciseDetail(
   } = {}
 ) {
   const exercise =
-    ExerciseRegistry.get(exerciseId);
+    ExerciseRegistry.get(
+      exerciseId
+    );
 
-  if (!exercise) return;
+  if (!exercise) {
+    return;
+  }
 
   state.activeExerciseId =
     exercise.id;
 
   state.detailAddMode =
-    Boolean(addMode && state.activeDay);
+    Boolean(
+      addMode &&
+      state.activeDay
+    );
 
-  if (dom.exerciseDetailType) {
+  if (
+    dom.exerciseDetailType
+  ) {
     dom.exerciseDetailType.textContent =
-      (exercise.exerciseTypes || [])
-        .slice(0, 2)
+      (
+        exercise.exerciseTypes ||
+        []
+      )
+        .slice(
+          0,
+          2
+        )
         .map(
           id =>
-            ExerciseTypes.get(id)?.shortLabel ||
+            ExerciseTypes.get(
+              id
+            )?.shortLabel ||
             titleFromId(id)
         )
-        .join(" \u00B7 ") ||
+        .join(
+          " \u00B7 "
+        ) ||
       "EXERCISE";
   }
 
-  if (dom.exerciseDetailName) {
+  if (
+    dom.exerciseDetailName
+  ) {
     dom.exerciseDetailName.textContent =
       exercise.name;
   }
 
   const anatomyPath =
-    exercise.illustration?.anatomy || null;
+    exercise.illustration
+      ?.anatomy ||
+    null;
 
   const movementPath =
-    exercise.illustration?.movement || null;
+    exercise.illustration
+      ?.movement ||
+    null;
 
   if (
     dom.exerciseAnatomyFigure &&
@@ -2109,9 +3019,12 @@ function openExerciseDetail(
     dom.exerciseAnatomyFigure.hidden =
       !anatomyPath;
 
-    if (anatomyPath) {
+    if (
+      anatomyPath
+    ) {
       dom.exerciseAnatomyImage.src =
         anatomyPath;
+
       dom.exerciseAnatomyImage.alt =
         `${exercise.name} muscle illustration`;
     }
@@ -2124,95 +3037,171 @@ function openExerciseDetail(
     dom.exerciseMovementFigure.hidden =
       !movementPath;
 
-    if (movementPath) {
+    if (
+      movementPath
+    ) {
       dom.exerciseMovementImage.src =
         movementPath;
+
       dom.exerciseMovementImage.alt =
         `${exercise.name} movement illustration`;
     }
   }
 
-  if (dom.exerciseVisualPlaceholder) {
+  if (
+    dom.exerciseVisualPlaceholder
+  ) {
     dom.exerciseVisualPlaceholder.hidden =
-      Boolean(anatomyPath || movementPath);
+      Boolean(
+        anatomyPath ||
+        movementPath
+      );
   }
 
-  if (dom.exerciseInstructionList) {
-    dom.exerciseInstructionList.innerHTML = "";
+  if (
+    dom.exerciseInstructionList
+  ) {
+    dom.exerciseInstructionList.innerHTML =
+      "";
 
     const instructions =
       exercise.instructions?.length
         ? exercise.instructions
-        : [exercise.summary].filter(Boolean);
+        : [
+            exercise.summary
+          ].filter(
+            Boolean
+          );
 
-    for (const instruction of instructions) {
+    for (
+      const instruction
+      of instructions
+    ) {
       const li =
-        document.createElement("li");
+        document.createElement(
+          "li"
+        );
 
-      li.textContent = instruction;
-      dom.exerciseInstructionList.appendChild(li);
+      li.textContent =
+        instruction;
+
+      dom.exerciseInstructionList
+        .appendChild(
+          li
+        );
     }
   }
 
-  if (dom.exerciseMuscleList) {
-    dom.exerciseMuscleList.innerHTML = "";
+  if (
+    dom.exerciseMuscleList
+  ) {
+    dom.exerciseMuscleList.innerHTML =
+      "";
 
     const primary =
-      document.createElement("p");
+      document.createElement(
+        "p"
+      );
 
     primary.textContent =
       `Primary: ${
-        (exercise.primaryMuscles || [])
-          .map(getMuscleLabel)
-          .join(", ") ||
+        (
+          exercise.primaryMuscles ||
+          []
+        )
+          .map(
+            getMuscleLabel
+          )
+          .join(
+            ", "
+          ) ||
         "Not specified"
       }`;
 
     const secondary =
-      document.createElement("p");
+      document.createElement(
+        "p"
+      );
 
     secondary.textContent =
       `Secondary: ${
-        (exercise.secondaryMuscles || [])
-          .map(getMuscleLabel)
-          .join(", ") ||
+        (
+          exercise.secondaryMuscles ||
+          []
+        )
+          .map(
+            getMuscleLabel
+          )
+          .join(
+            ", "
+          ) ||
         "None listed"
       }`;
 
-    dom.exerciseMuscleList.append(
-      primary,
-      secondary
-    );
+    dom.exerciseMuscleList
+      .append(
+        primary,
+        secondary
+      );
   }
 
-  if (dom.exerciseMovementSummary) {
+  if (
+    dom.exerciseMovementSummary
+  ) {
     dom.exerciseMovementSummary.textContent =
-      (exercise.movementPatterns || [])
-        .map(getMovementLabel)
-        .join(" \u00B7 ") ||
+      (
+        exercise.movementPatterns ||
+        []
+      )
+        .map(
+          getMovementLabel
+        )
+        .join(
+          " \u00B7 "
+        ) ||
       "Movement classification pending.";
   }
 
-  if (dom.exerciseFormCueList) {
-    dom.exerciseFormCueList.innerHTML = "";
+  if (
+    dom.exerciseFormCueList
+  ) {
+    dom.exerciseFormCueList.innerHTML =
+      "";
 
-    for (const cue of exercise.cues || []) {
+    for (
+      const cue
+      of exercise.cues ||
+      []
+    ) {
       const li =
-        document.createElement("li");
+        document.createElement(
+          "li"
+        );
 
-      li.textContent = cue;
-      dom.exerciseFormCueList.appendChild(li);
+      li.textContent =
+        cue;
+
+      dom.exerciseFormCueList
+        .appendChild(
+          li
+        );
     }
   }
 
-  if (dom.exerciseCaloriesSection) {
+  if (
+    dom.exerciseCaloriesSection
+  ) {
     const estimable =
       Boolean(
         exercise.energyProfile ||
         exercise.exerciseTypes
-          ?.includes("strength") ||
+          ?.includes(
+            "strength"
+          ) ||
         exercise.exerciseTypes
-          ?.includes("hypertrophy")
+          ?.includes(
+            "hypertrophy"
+          )
       );
 
     dom.exerciseCaloriesSection.hidden =
@@ -2224,32 +3213,48 @@ function openExerciseDetail(
     ) {
       dom.exerciseCaloriesEstimate.textContent =
         exercise.exerciseTypes
-          ?.includes("strength") ||
+          ?.includes(
+            "strength"
+          ) ||
         exercise.exerciseTypes
-          ?.includes("hypertrophy")
+          ?.includes(
+            "hypertrophy"
+          )
           ? "Calories are estimated from the full strength-training session using duration, body weight, and intensity."
           : "Calories can be estimated from body weight, duration, activity, and intensity when this exercise is logged.";
     }
   }
 
-  if (dom.exerciseDetailAddButton) {
+  if (
+    dom.exerciseDetailAddButton
+  ) {
     const alreadyAdded =
       state.activeDay &&
-      hasExerciseOnActiveDay(exercise.id);
+      hasExerciseOnActiveDay(
+        exercise.id
+      );
 
     dom.exerciseDetailAddButton.hidden =
       !state.detailAddMode;
 
     dom.exerciseDetailAddButton.disabled =
-      Boolean(alreadyAdded);
+      Boolean(
+        alreadyAdded
+      );
 
-    if (state.detailAddMode) {
+    if (
+      state.detailAddMode
+    ) {
       dom.exerciseDetailAddButton.textContent =
-        alreadyAdded ? "Already Added" : "Add Exercise";
+        alreadyAdded
+          ? "Already Added"
+          : "Add Exercise";
     }
   }
 
-  openDialog(dom.exerciseDetailDialog);
+  openDialog(
+    dom.exerciseDetailDialog
+  );
 }
 
 /* =====================================================
@@ -2274,10 +3279,17 @@ function addExerciseToActiveDay(
     return false;
   }
 
-  if (hasExerciseOnActiveDay(exercise.id)) {
+  if (
+    hasExerciseOnActiveDay(
+      exercise.id
+    )
+  ) {
     showToast(
       `${exercise.name} is already in this workout.`,
-      { error: true }
+      {
+        error:
+          true
+      }
     );
 
     return false;
@@ -2314,7 +3326,8 @@ function addExerciseToActiveDay(
     return false;
   }
 
-  const defaults = {};
+  const defaults =
+    {};
 
   const fields =
     exercise.logging
@@ -2393,7 +3406,8 @@ function addExerciseToActiveDay(
           ?.exercises
           ?.length ||
         1
-      ) - 1,
+      ) -
+      1,
       0
     );
 
@@ -2441,12 +3455,21 @@ function addExerciseToActiveDay(
 }
 
 function updateDayFromEditor() {
-  if (!state.activeDay) return;
+  if (
+    !state.activeDay
+  ) {
+    return;
+  }
 
   const type =
-    dom.workoutDayType?.value || "off";
+    dom.workoutDayType
+      ?.value ||
+    "off";
 
-  if (type === "off") {
+  if (
+    type ===
+    "off"
+  ) {
     WorkoutPlanController
       .setDayFocus(
         state.activeDay,
@@ -2460,16 +3483,22 @@ function updateDayFromEditor() {
       );
 
     const focusId =
-      dom.workoutDayFocus?.value;
+      dom.workoutDayFocus
+        ?.value;
 
-    if (focusId) {
+    if (
+      focusId
+    ) {
       WorkoutPlanController
         .setDayFocus(
           state.activeDay,
           focusId
         );
 
-      if (type === "recovery") {
+      if (
+        type ===
+        "recovery"
+      ) {
         WorkoutPlanController
           .setDayType(
             state.activeDay,
@@ -2480,9 +3509,14 @@ function updateDayFromEditor() {
   }
 
   const title =
-    dom.workoutDayTitle?.value;
+    dom.workoutDayTitle
+      ?.value;
 
-  if (normalizeText(title)) {
+  if (
+    normalizeText(
+      title
+    )
+  ) {
     WorkoutPlanController
       .setDayTitle(
         state.activeDay,
@@ -2521,9 +3555,12 @@ function scheduleAutosave() {
         try {
           await WorkoutPlanController
             .save({
-              remote: true
+              remote:
+                true
             });
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.warn(
             "ARI Training autosave failed.",
             error
@@ -2537,14 +3574,21 @@ function scheduleAutosave() {
 async function savePlan({
   announce = true
 } = {}) {
-  if (state.saving) {
+  if (
+    state.saving
+  ) {
     return false;
   }
 
-  state.saving = true;
+  state.saving =
+    true;
 
-  if (dom.workoutPlansSaveButton) {
-    dom.workoutPlansSaveButton.disabled = true;
+  if (
+    dom.workoutPlansSaveButton
+  ) {
+    dom.workoutPlansSaveButton.disabled =
+      true;
+
     dom.workoutPlansSaveButton.textContent =
       "Saving...";
   }
@@ -2553,10 +3597,13 @@ async function savePlan({
     const success =
       await WorkoutPlanController
         .save({
-          remote: true
+          remote:
+            true
         });
 
-    if (announce) {
+    if (
+      announce
+    ) {
       showToast(
         success
           ? "Workout plan saved."
@@ -2565,7 +3612,9 @@ async function savePlan({
     }
 
     return success;
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "Workout plan save failed.",
       error
@@ -2573,15 +3622,23 @@ async function savePlan({
 
     showToast(
       "Workout plan could not be saved.",
-      { error: true }
+      {
+        error:
+          true
+      }
     );
 
     return false;
   } finally {
-    state.saving = false;
+    state.saving =
+      false;
 
-    if (dom.workoutPlansSaveButton) {
-      dom.workoutPlansSaveButton.disabled = false;
+    if (
+      dom.workoutPlansSaveButton
+    ) {
+      dom.workoutPlansSaveButton.disabled =
+        false;
+
       dom.workoutPlansSaveButton.textContent =
         "Save";
     }
@@ -2601,7 +3658,9 @@ async function saveNow() {
         remote:
           true
       });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "Workout plan save failed.",
       error
@@ -2665,15 +3724,24 @@ function renderAll() {
   renderOverview();
   renderWeek();
 
-  if (state.activeTab === "templates") {
+  if (
+    state.activeTab ===
+    "templates"
+  ) {
     renderTemplates();
   }
 
-  if (state.activeTab === "custom") {
+  if (
+    state.activeTab ===
+    "custom"
+  ) {
     renderCustomBuilder();
   }
 
-  if (state.activeTab === "library") {
+  if (
+    state.activeTab ===
+    "library"
+  ) {
     renderExerciseLibrary();
   }
 }
@@ -2682,7 +3750,9 @@ function renderAll() {
    EVENTS
 ===================================================== */
 
-function handleClick(event) {
+function handleClick(
+  event
+) {
   const tab =
     event.target.closest(
       "[data-workout-tab]"
@@ -2692,6 +3762,7 @@ function handleClick(event) {
     setActiveTab(
       tab.dataset.workoutTab
     );
+
     return;
   }
 
@@ -2700,23 +3771,35 @@ function handleClick(event) {
       "[data-workout-action]"
     );
 
-  if (!actionNode) return;
+  if (
+    !actionNode
+  ) {
+    return;
+  }
 
   const action =
-    actionNode.dataset.workoutAction;
+    actionNode.dataset
+      .workoutAction;
 
-  switch (action) {
+  switch (
+    action
+  ) {
     case "edit-day":
       openDayEditor(
         actionNode.dataset.day ||
         actionNode
-          .closest("[data-day]")
-          ?.dataset?.day
+          .closest(
+            "[data-day]"
+          )
+          ?.dataset
+          ?.day
       );
       break;
 
     case "close-day-editor":
-      closeDialog(dom.workoutDayEditor);
+      closeDialog(
+        dom.workoutDayEditor
+      );
       break;
 
     case "done-day":
@@ -2726,13 +3809,24 @@ function handleClick(event) {
     case "toggle-exercise-row": {
       const index =
         Number(
-          actionNode.dataset.exerciseIndex ??
-          actionNode.closest("[data-exercise-index]")?.dataset?.exerciseIndex
+          actionNode.dataset
+            .exerciseIndex ??
+          actionNode
+            .closest(
+              "[data-exercise-index]"
+            )
+            ?.dataset
+            ?.exerciseIndex
         );
 
-      if (Number.isInteger(index)) {
+      if (
+        Number.isInteger(
+          index
+        )
+      ) {
         state.expandedExerciseIndex =
-          state.expandedExerciseIndex === index
+          state.expandedExerciseIndex ===
+          index
             ? null
             : index;
 
@@ -2754,10 +3848,14 @@ function handleClick(event) {
 
     case "open-exercise-detail":
       openExerciseDetail(
-        actionNode.dataset.exerciseId ||
+        actionNode.dataset
+          .exerciseId ||
         actionNode
-          .closest("[data-exercise-id]")
-          ?.dataset?.exerciseId,
+          .closest(
+            "[data-exercise-id]"
+          )
+          ?.dataset
+          ?.exerciseId,
         {
           addMode:
             Boolean(
@@ -2777,12 +3875,15 @@ function handleClick(event) {
 
     case "add-exercise":
       addExerciseToActiveDay(
-        actionNode.dataset.exerciseId
+        actionNode.dataset
+          .exerciseId
       );
       break;
 
     case "add-detail-exercise":
-      if (state.activeExerciseId) {
+      if (
+        state.activeExerciseId
+      ) {
         addExerciseToActiveDay(
           state.activeExerciseId
         );
@@ -2801,13 +3902,17 @@ function handleClick(event) {
 
       const index =
         Number(
-          actionNode.dataset.exerciseIndex ??
-          row?.dataset?.exerciseIndex
+          actionNode.dataset
+            .exerciseIndex ??
+          row?.dataset
+            ?.exerciseIndex
         );
 
       if (
         state.activeDay &&
-        Number.isInteger(index)
+        Number.isInteger(
+          index
+        )
       ) {
         WorkoutPlanController
           .removeExercise(
@@ -2819,7 +3924,8 @@ function handleClick(event) {
           state.expandedExerciseIndex ===
           index
         ) {
-          state.expandedExerciseIndex = null;
+          state.expandedExerciseIndex =
+            null;
         } else if (
           Number.isInteger(
             state.expandedExerciseIndex
@@ -2827,7 +3933,8 @@ function handleClick(event) {
           state.expandedExerciseIndex >
             index
         ) {
-          state.expandedExerciseIndex -= 1;
+          state.expandedExerciseIndex -=
+            1;
         }
 
         renderAll();
@@ -2840,14 +3947,16 @@ function handleClick(event) {
 
     case "apply-template": {
       const templateId =
-        actionNode.dataset.templateId;
+        actionNode.dataset
+          .templateId;
 
       const template =
         WorkoutPlanController
           .getTemplates()
           .find(
             item =>
-              item.id === templateId
+              item.id ===
+              templateId
           );
 
       if (
@@ -2857,7 +3966,9 @@ function handleClick(event) {
         )
       ) {
         WorkoutPlanController
-          .applyTemplate(templateId);
+          .applyTemplate(
+            templateId
+          );
 
         renderAll();
         scheduleAutosave();
@@ -2866,7 +3977,9 @@ function handleClick(event) {
           `${template.name} applied.`
         );
 
-        setActiveTab("week");
+        setActiveTab(
+          "week"
+        );
       }
 
       break;
@@ -2877,8 +3990,11 @@ function handleClick(event) {
   }
 }
 
-function handleChange(event) {
-  const target = event.target;
+function handleChange(
+  event
+) {
+  const target =
+    event.target;
 
   if (
     target ===
@@ -2887,6 +4003,7 @@ function handleChange(event) {
       dom.workoutTemplateDaysFilter
   ) {
     renderTemplates();
+
     return;
   }
 
@@ -2901,45 +4018,65 @@ function handleChange(event) {
       dom.exerciseEquipmentFilter
   ) {
     renderExerciseLibrary();
-    return;
-  }
 
-  if (target === dom.workoutPrimaryGoal) {
-    if (target.value) {
-      WorkoutPlanController
-        .setPrimaryGoal(target.value);
-    }
-
-    renderAll();
-    scheduleAutosave();
     return;
   }
 
   if (
-    target.dataset?.workoutAction ===
-      "secondary-goal"
+    target ===
+    dom.workoutPrimaryGoal
+  ) {
+    if (
+      target.value
+    ) {
+      WorkoutPlanController
+        .setPrimaryGoal(
+          target.value
+        );
+    }
+
+    renderAll();
+    scheduleAutosave();
+
+    return;
+  }
+
+  if (
+    target.dataset
+      ?.workoutAction ===
+    "secondary-goal"
   ) {
     const selected =
       Array.from(
         dom.workoutSecondaryGoals
           ?.querySelectorAll(
             'input[data-workout-action="secondary-goal"]:checked'
-          ) || []
+          ) ||
+        []
       )
-        .map(input => input.value)
-        .filter(Boolean);
+        .map(
+          input =>
+            input.value
+        )
+        .filter(
+          Boolean
+        );
 
     WorkoutPlanController
-      .setSecondaryGoals(selected);
+      .setSecondaryGoals(
+        selected
+      );
 
     renderOverview();
     scheduleAutosave();
+
     return;
   }
 
   if (
-    target.dataset?.workoutAction ===
-      "custom-day-focus"
+    target.dataset
+      ?.workoutAction ===
+    "custom-day-focus"
   ) {
     const day =
       normalizeLower(
@@ -2973,10 +4110,14 @@ function handleChange(event) {
       dom.workoutDayFocus
   ) {
     updateDayFromEditor();
+
     return;
   }
 
-  if (target.dataset?.exerciseField) {
+  if (
+    target.dataset
+      ?.exerciseField
+  ) {
     const row =
       target.closest(
         "[data-exercise-index]"
@@ -2984,20 +4125,27 @@ function handleChange(event) {
 
     const index =
       Number(
-        row?.dataset?.exerciseIndex
+        row?.dataset
+          ?.exerciseIndex
       );
 
     const field =
-      target.dataset.exerciseField;
+      target.dataset
+        .exerciseField;
 
     const number =
-      target.value === ""
+      target.value ===
+      ""
         ? null
-        : Number(target.value);
+        : Number(
+            target.value
+          );
 
     if (
       state.activeDay &&
-      Number.isInteger(index)
+      Number.isInteger(
+        index
+      )
     ) {
       WorkoutPlanController
         .updateExercise(
@@ -3005,7 +4153,9 @@ function handleChange(event) {
           index,
           {
             [field]:
-              Number.isFinite(number)
+              Number.isFinite(
+                number
+              )
                 ? number
                 : null
           }
@@ -3018,16 +4168,28 @@ function handleChange(event) {
   }
 }
 
-function handleInput(event) {
-  const target = event.target;
+function handleInput(
+  event
+) {
+  const target =
+    event.target;
 
-  if (target === dom.workoutPlanName) {
+  if (
+    target ===
+    dom.workoutPlanName
+  ) {
     const value =
-      normalizeText(target.value);
+      normalizeText(
+        target.value
+      );
 
-    if (value) {
+    if (
+      value
+    ) {
       WorkoutPlanController
-        .setPlanName(value);
+        .setPlanName(
+          value
+        );
 
       scheduleAutosave();
     }
@@ -3035,10 +4197,15 @@ function handleInput(event) {
     return;
   }
 
-  if (target === dom.workoutDayTitle) {
+  if (
+    target ===
+    dom.workoutDayTitle
+  ) {
     if (
       state.activeDay &&
-      normalizeText(target.value)
+      normalizeText(
+        target.value
+      )
     ) {
       WorkoutPlanController
         .setDayTitle(
@@ -3056,21 +4223,26 @@ function handleInput(event) {
 
   if (
     target ===
-      dom.workoutExercisePickerSearch
+    dom.workoutExercisePickerSearch
   ) {
     state.pickerQuery =
-      normalizeText(target.value);
+      normalizeText(
+        target.value
+      );
 
     renderExercisePicker();
+
     return;
   }
 
   if (
     target ===
-      dom.exerciseLibrarySearch
+    dom.exerciseLibrarySearch
   ) {
     state.libraryQuery =
-      normalizeText(target.value);
+      normalizeText(
+        target.value
+      );
 
     renderExerciseLibrary();
   }
@@ -3136,8 +4308,13 @@ function bindEvents() {
     dialog?.addEventListener(
       "click",
       event => {
-        if (event.target === dialog) {
-          closeDialog(dialog);
+        if (
+          event.target ===
+          dialog
+        ) {
+          closeDialog(
+            dialog
+          );
         }
       }
     );
@@ -3156,7 +4333,10 @@ function getPageDiagnostics() {
 
   const missingCoreDom =
     requiredForCorePage
-      .filter(id => !dom[id]);
+      .filter(
+        id =>
+          !dom[id]
+      );
 
   const controllerDiagnostics =
     WorkoutPlanController
@@ -3164,13 +4344,24 @@ function getPageDiagnostics() {
     null;
 
   return {
-    source: SOURCE,
-    version: VERSION,
-    activeTab: state.activeTab,
-    activeDay: state.activeDay,
+    source:
+      SOURCE,
+
+    version:
+      VERSION,
+
+    activeTab:
+      state.activeTab,
+
+    activeDay:
+      state.activeDay,
+
     registryExerciseCount:
-      getAllRegistryExercises().length,
+      getAllRegistryExercises()
+        .length,
+
     missingCoreDom,
+
     controller:
       controllerDiagnostics
   };
@@ -3181,9 +4372,14 @@ function getPageDiagnostics() {
 ===================================================== */
 
 async function boot() {
-  if (state.booted) return;
+  if (
+    state.booted
+  ) {
+    return;
+  }
 
-  state.booted = true;
+  state.booted =
+    true;
 
   cacheDom();
 
@@ -3194,7 +4390,8 @@ async function boot() {
   try {
     populateFilters();
 
-    await WorkoutPlanController.init();
+    await WorkoutPlanController
+      .init();
 
     state.unsubscribeStore =
       WorkoutPlanController
@@ -3205,7 +4402,8 @@ async function boot() {
 
             if (
               state.activeDay &&
-              dom.workoutDayEditor?.open
+              dom.workoutDayEditor
+                ?.open
             ) {
               renderDayExercises();
             }
@@ -3224,7 +4422,10 @@ async function boot() {
 
     setStatus(
       "",
-      { hide: true }
+      {
+        hide:
+          true
+      }
     );
 
     const diagnostics =
@@ -3238,7 +4439,8 @@ async function boot() {
       diagnostics
         .validation
         .exercises
-        .valid === false
+        .valid ===
+        false
     ) {
       console.warn(
         "ARI Training exercise registry contains unresolved references.",
@@ -3264,12 +4466,21 @@ async function boot() {
     }
 
     globalThis.AriWorkoutPlansPage = {
-      version: VERSION,
-      source: SOURCE,
+      version:
+        VERSION,
+
+      source:
+        SOURCE,
+
       controller:
         WorkoutPlanController,
-      refresh: renderAll,
-      save: savePlan,
+
+      refresh:
+        renderAll,
+
+      save:
+        savePlan,
+
       diagnostics:
         getPageDiagnostics
     };
@@ -3277,7 +4488,9 @@ async function boot() {
     console.info(
       `[ARI Workout Plans] Runtime initialized. Version ${VERSION}.`
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "ARI Workout Plans failed to start.",
       error
@@ -3285,25 +4498,37 @@ async function boot() {
 
     setStatus(
       "Workout Plans could not load.",
-      { error: true }
+      {
+        error:
+          true
+      }
     );
 
     showToast(
       error?.message ||
       "Workout Plans could not load.",
       {
-        error: true,
-        duration: 5000
+        error:
+          true,
+
+        duration:
+          5000
       }
     );
   }
 }
 
-if (document.readyState === "loading") {
+if (
+  document.readyState ===
+  "loading"
+) {
   document.addEventListener(
     "DOMContentLoaded",
     boot,
-    { once: true }
+    {
+      once:
+        true
+    }
   );
 } else {
   boot();
