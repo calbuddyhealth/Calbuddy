@@ -1,12 +1,12 @@
 // =====================================================
 // ARI REBIRTH
 // Experimental OpenAI-Authority App Bridge
-// Version 3.2.0-experimental
+// Version 3.2.1-experimental
 // =====================================================
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 window.AriRebirthAppBridge = {
-  version: "3.2.0-experimental",
+  version: "3.2.1-experimental",
   source: "ari-rebirth-app-bridge-openai-authority",
   requiredScripts: [
     "ari/diagnostics/ari-execution-trace.js",
@@ -24,15 +24,34 @@ window.AriRebirthAppBridge = {
     "ari/profile/ari-user-preference-store.js?v=1.0.1",
     "ari/profile/ari-preference-resolver.js?v=2.1.0",
     "ari/profile/ari-preference-runtime.js?v=1.1.0",
+
+    // Canonical current-turn intake.
     "ari/conversation/ari-turn-packet.js",
     "ari/conversation/ari-turn-intake-engine.js",
+
+    // Conversation operating state must exist before context authorities attach
+    // their authoritative relationship/reference packets to the active turn.
     "ari/continuity/ari-conversation-operating-state.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
     "ari/continuity/ari-elliptical-follow-up-resolver.js",
     "ari/continuity/ari-continuity-entry-point.js",
+
+    // Canonical conversation relationship authority. These dependencies are
+    // intentionally ordered registry -> types -> evaluator -> packet -> engine.
+    // The Rebirth Pipeline requires the final engine immediately after
+    // Perception and before Executive Routing.
+    "ari/conversation/ari-conversation-rule-registry.js",
+    "ari/conversation/ari-conversation-relationship-types.js",
+    "ari/conversation/ari-conversation-relationship-rules.js",
+    "ari/conversation/ari-turn-classification-packet.js",
+    "ari/conversation/ari-conversation-relationship-engine.js",
+
+    // Reference resolution authority runs directly after relationship
+    // classification inside the same conversation-context boundary.
     "ari/context/ari-reference-packet.js",
     "ari/context/ari-entity-reference-resolver.js",
+
     "ari/memory/ari-memory-ranking-engine.js",
     "ari/memory/ari-memory-retrieval-engine.js",
     "ari/memory/ari-memory-context-builder.js",
@@ -102,7 +121,11 @@ window.AriRebirthAppBridge = {
         openai_reasoning_client: window.AriOpenAIReasoningClient || window.Ari?.openAIReasoningClient,
         openai_cognitive_orchestrator: window.AriOpenAICognitiveOrchestrator || window.Ari?.openAICognitiveOrchestrator,
         turn_intake: window.AriTurnIntakeEngine || window.Ari?.turnIntakeEngine,
-        follow_up_resolver: window.AriEllipticalFollowUpResolver || window.Ari?.ellipticalFollowUpResolver
+        follow_up_resolver: window.AriEllipticalFollowUpResolver || window.Ari?.ellipticalFollowUpResolver,
+        conversation_relationship_rules: window.AriConversationRelationshipRules || window.Ari?.conversationRelationshipRules,
+        turn_classification_packet: window.AriTurnClassificationPacket || window.Ari?.turnClassificationPacket,
+        conversation_relationship_engine: window.AriConversationRelationshipEngine || window.Ari?.conversationRelationshipEngine,
+        reference_resolution_engine: window.AriEntityReferenceResolver || window.AriReferenceResolutionEngine || window.Ari?.entityReferenceResolver || window.Ari?.referenceResolutionEngine
       };
       const missing = Object.entries(required).filter(([, value]) => !value).map(([name]) => name);
       if (missing.length) throw new Error(`ari_runtime_boot_incomplete:${missing.join(",")}`);
