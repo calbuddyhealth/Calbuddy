@@ -12,7 +12,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16">
   <link rel="stylesheet" href="assets/css/animations.css?v=16">
-  <link rel="stylesheet" href="assets/css/goals.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/goals.css?v=3.1.3">
 </head>
 
 <body>
@@ -97,13 +97,7 @@
       id="calorieStatusCard"
       aria-labelledby="calorieStatusLabel"
     >
-      <div class="ari-calorie-hero__art" aria-hidden="true">
-        <img
-          src="assets/images/ari-calories-left-tab.png"
-          alt=""
-          draggable="false"
-        >
-      </div>
+      <div class="ari-calorie-hero__art" aria-hidden="true"></div>
 
       <div class="ari-calorie-hero__wash" aria-hidden="true"></div>
 
@@ -118,7 +112,7 @@
 
         <div class="ari-calorie-hero__reading">
           <p id="calorieStatusLabel" class="ari-meter-label">Calories Left</p>
-          <h2 id="caloriesLeftText" class="ari-meter-number">â</h2>
+          <h2 id="caloriesLeftText" class="ari-meter-number">&#8212;</h2>
           <p class="ari-meter-unit">KCAL REMAINING</p>
         </div>
 
@@ -127,7 +121,7 @@
             <p>Consumed</p>
             <strong>
               <span id="caloriesConsumedText">0</span>
-              <small>/ <span id="dailyGoalText">â</span> kcal</small>
+              <small>/ <span id="dailyGoalText">&#8212;</span> kcal</small>
             </strong>
           </div>
 
@@ -183,7 +177,7 @@
             <input id="height" class="ari-input" type="number" inputmode="decimal" min="36" max="96" step="0.1" value="69.8">
             <span>in</span>
           </div>
-          <p id="heightConversion" class="ari-field-note">Equivalent: â</p>
+          <p id="heightConversion" class="ari-field-note">Equivalent: &#8212;</p>
         </div>
 
         <div class="ari-field">
@@ -347,7 +341,7 @@
 
         <div class="ari-calorie-goal-editor__meta">
           <span id="dailyCalorieGoalModeChip" class="ari-estimate-chip">AUTO ESTIMATE</span>
-          <p>ARI estimate <strong id="calorieGoal">â kcal</strong></p>
+          <p>ARI estimate <strong id="calorieGoal">&#8212; kcal</strong></p>
         </div>
       </div>
 
@@ -374,36 +368,36 @@
       <div class="ari-goal-path" role="group" aria-label="Current weight to target weight">
         <div class="ari-goal-path__node ari-goal-path__node--current">
           <span>NOW</span>
-          <strong id="summaryCurrentWeight">â</strong>
+          <strong id="summaryCurrentWeight">&#8212;</strong>
         </div>
         <div class="ari-goal-path__line" aria-hidden="true">
           <span></span>
         </div>
         <div class="ari-goal-path__node ari-goal-path__node--target">
           <span>TARGET</span>
-          <strong id="summaryTargetWeight">â</strong>
+          <strong id="summaryTargetWeight">&#8212;</strong>
         </div>
       </div>
 
       <div class="ari-result-grid ari-summary-grid">
         <div class="ari-stat-card">
           <p class="ari-stat-label">Maintenance</p>
-          <p id="maintenanceBox" class="ari-stat-value">â</p>
+          <p id="maintenanceBox" class="ari-stat-value">&#8212;</p>
         </div>
 
         <div class="ari-stat-card">
           <p class="ari-stat-label">BMI</p>
-          <p id="bmiBox" class="ari-stat-value">â</p>
+          <p id="bmiBox" class="ari-stat-value">&#8212;</p>
         </div>
 
         <div class="ari-stat-card ari-stat-card--violet">
           <p class="ari-stat-label">Estimated Time</p>
-          <p id="timeToGoal" class="ari-stat-value">â</p>
+          <p id="timeToGoal" class="ari-stat-value">&#8212;</p>
         </div>
 
         <div class="ari-stat-card ari-stat-card--goal-date">
           <p class="ari-stat-label">Estimated Goal Date</p>
-          <p id="goalDate" class="ari-stat-value">â</p>
+          <p id="goalDate" class="ari-stat-value">&#8212;</p>
         </div>
       </div>
 
@@ -418,11 +412,11 @@
           </div>
 
           <div class="ari-nutrition-target-list">
-            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Protein</p><p id="proteinTarget" class="ari-stat-value">â</p></div>
-            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Carbohydrates</p><p id="carbohydrateTarget" class="ari-stat-value">â</p></div>
-            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Fat</p><p id="fatTarget" class="ari-stat-value">â</p></div>
-            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Fiber</p><p id="fiberTarget" class="ari-stat-value">â</p></div>
-            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Hydration</p><p id="hydrationTarget" class="ari-stat-value">â</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Protein</p><p id="proteinTarget" class="ari-stat-value">&#8212;</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Carbohydrates</p><p id="carbohydrateTarget" class="ari-stat-value">&#8212;</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Fat</p><p id="fatTarget" class="ari-stat-value">&#8212;</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Fiber</p><p id="fiberTarget" class="ari-stat-value">&#8212;</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Hydration</p><p id="hydrationTarget" class="ari-stat-value">&#8212;</p></div>
           </div>
         </div>
       </details>
@@ -442,19 +436,19 @@
       <div class="ari-progress-weight-path">
         <div>
           <span>CURRENT</span>
-          <strong id="progressWeight">â</strong>
+          <strong id="progressWeight">&#8212;</strong>
         </div>
         <div class="ari-progress-weight-path__beam" aria-hidden="true"><span></span></div>
         <div>
           <span>TARGET</span>
-          <strong id="progressTargetWeight">â</strong>
+          <strong id="progressTargetWeight">&#8212;</strong>
         </div>
       </div>
 
       <div class="ari-progress-grid">
         <article class="ari-progress-tile ari-progress-tile--wide">
           <p>Calories Consumed</p>
-          <strong id="progressCalories">â</strong>
+          <strong id="progressCalories">&#8212;</strong>
           <span>today's intake / daily goal</span>
         </article>
 
@@ -472,14 +466,14 @@
 
         <article class="ari-progress-tile">
           <p>Current BMI</p>
-          <strong id="progressBmi">â</strong>
+          <strong id="progressBmi">&#8212;</strong>
           <span>profile estimate</span>
         </article>
 
         <article class="ari-progress-tile ari-progress-tile--violet">
           <p>Estimated Timeline</p>
-          <strong id="progressTimeline">â</strong>
-          <span id="progressGoalDate">Goal date â</span>
+          <strong id="progressTimeline">&#8212;</strong>
+          <span id="progressGoalDate">Goal date &#8212;</span>
         </article>
       </div>
 
