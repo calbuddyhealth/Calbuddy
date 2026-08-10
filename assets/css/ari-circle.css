@@ -2495,3 +2495,56 @@ body.ari-circle-page img {
     transition-duration: 0.01ms !important;
   }
 }
+/* =====================================================
+   ARI CIRCLE
+   Profile Cover Correction V2.0.2
+===================================================== */
+
+.circle-profile__cover {
+  height: clamp(220px, 62vw, 330px);
+  background: #e7edf5;
+}
+
+/* Remove the oversized decorative oval. */
+.circle-profile__cover::before {
+  display: none;
+  content: none;
+}
+
+/* Keep only a small transition into the profile body. */
+.circle-profile__cover::after {
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 18%;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(248, 251, 255, 0.18) 45%,
+    rgba(248, 251, 255, 0.88) 100%
+  );
+}
+
+/* Let the uploaded photo remain strong and visible. */
+.circle-profile__cover-image {
+  object-fit: cover;
+  object-position: 50% 50%;
+  opacity: 1;
+  filter:
+    saturate(0.98)
+    brightness(0.98)
+    contrast(1.03);
+}
+
+/* Reduce the excessive rings around the profile photo. */
+.circle-profile__avatar-wrap::after {
+  display: none;
+}
+
+.circle-profile__avatar-wrap::before {
+  inset: -6px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 12px 34px rgba(7, 20, 46, 0.14);
+}
