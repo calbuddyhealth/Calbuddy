@@ -20,7 +20,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.3.0" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.5.0" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -54,13 +54,94 @@
         </h1>
       </div>
 
-      <button
-        id="workoutPlansSaveButton"
-        class="workout-plans-header__save"
-        type="button"
-      >
-        Save
-      </button>
+      <div class="workout-plans-header__menu">
+
+        <button
+          id="workoutPlansMenuButton"
+          class="workout-plans-header__menu-button"
+          type="button"
+          data-workout-action="toggle-plans-menu"
+          aria-label="Open workout plan options"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="workoutPlansMenu"
+        >
+          <span aria-hidden="true">&hellip;</span>
+        </button>
+
+        <div
+          id="workoutPlansMenu"
+          class="workout-plans-options-menu"
+          role="menu"
+          aria-label="Workout plan options"
+          hidden
+        >
+
+          <p class="workout-plans-options-menu__label">
+            PLAN OPTIONS
+          </p>
+
+          <button
+            id="workoutMenuViewExercisesButton"
+            class="workout-plans-options-menu__item"
+            type="button"
+            role="menuitem"
+            data-workout-action="view-exercises"
+          >
+            <span
+              class="workout-plans-options-menu__icon"
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                focusable="false"
+              >
+                <path d="M8 6h13M8 12h13M8 18h13" />
+                <circle cx="3.5" cy="6" r="1.25" />
+                <circle cx="3.5" cy="12" r="1.25" />
+                <circle cx="3.5" cy="18" r="1.25" />
+              </svg>
+            </span>
+
+            <span class="workout-plans-options-menu__copy">
+              <strong>View Exercises</strong>
+              <small>Browse the exercise library</small>
+            </span>
+          </button>
+
+          <div
+            class="workout-plans-options-menu__divider"
+            role="separator"
+          ></div>
+
+          <button
+            id="workoutMenuClearWeekButton"
+            class="workout-plans-options-menu__item workout-plans-options-menu__item--danger"
+            type="button"
+            role="menuitem"
+            data-workout-action="request-clear-week"
+          >
+            <span
+              class="workout-plans-options-menu__icon"
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                focusable="false"
+              >
+                <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
+              </svg>
+            </span>
+
+            <span class="workout-plans-options-menu__copy">
+              <strong>Clear Week</strong>
+              <small>Confirmation required</small>
+            </span>
+          </button>
+
+        </div>
+
+      </div>
 
     </header>
 
@@ -185,15 +266,6 @@
           data-workout-action="repeat-last-week"
         >
           Repeat Last Week
-        </button>
-
-        <button
-          id="workoutClearWeekButton"
-          class="workout-danger-button"
-          type="button"
-          data-workout-action="clear-week"
-        >
-          Clear Week
         </button>
 
       </section>
@@ -819,6 +891,71 @@
     </dialog>
 
     <!-- =====================================================
+         CLEAR WEEK CONFIRMATION
+    ====================================================== -->
+    <dialog
+      id="workoutClearWeekDialog"
+      class="workout-confirm-dialog"
+      aria-labelledby="workoutClearWeekDialogTitle"
+      aria-describedby="workoutClearWeekDialogDescription"
+    >
+
+      <div class="workout-confirm-dialog__panel">
+
+        <div
+          class="workout-confirm-dialog__icon"
+          aria-hidden="true"
+        >
+          !
+        </div>
+
+        <p class="workout-confirm-dialog__eyebrow">
+          PROTECTED ACTION
+        </p>
+
+        <h2 id="workoutClearWeekDialogTitle">
+          Clear this week?
+        </h2>
+
+        <p
+          id="workoutClearWeekDialogDescription"
+          class="workout-confirm-dialog__description"
+        >
+          This will remove every planned workout from
+          <strong id="workoutClearWeekRange">
+            the selected week
+          </strong>
+          and change all seven days to Off Days. This cannot be undone.
+        </p>
+
+        <div class="workout-confirm-dialog__actions">
+
+          <button
+            id="workoutCancelClearWeekButton"
+            class="workout-confirm-dialog__cancel"
+            type="button"
+            data-workout-action="cancel-clear-week"
+            autofocus
+          >
+            Keep My Plan
+          </button>
+
+          <button
+            id="workoutConfirmClearWeekButton"
+            class="workout-confirm-dialog__confirm"
+            type="button"
+            data-workout-action="confirm-clear-week"
+          >
+            Clear Week
+          </button>
+
+        </div>
+
+      </div>
+
+    </dialog>
+
+    <!-- =====================================================
          DAY CARD TEMPLATE
     ====================================================== -->
     <template id="workoutDayCardTemplate">
@@ -968,7 +1105,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=3.3.2"
+    src="js/workout-plans.js?v=3.5.0"
   ></script>
 
 </body>
