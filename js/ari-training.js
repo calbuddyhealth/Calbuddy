@@ -9018,7 +9018,7 @@ function renderTrainingProfile() {
 
     state.profileMaxHeartRateSource ===
       "confirmed"
-      ? "Confirmed max"
+      ? "Edited in My Health Profile"
       : state.profileMaxHeartRateSource ===
           "estimated"
         ? "Estimated from age"
