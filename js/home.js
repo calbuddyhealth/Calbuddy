@@ -1,8 +1,15 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.1.0
+// Version: 3.2.0
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
+//
+// V3.2.0:
+//   - Adds an eight-frame Ari thinking sequence behind conversation messages.
+//   - Advances 1 through 8, then alternates 8 and 7 while awaiting Ari.
+//   - Reverses to frame 1 when the response arrives or thinking is stopped.
+//   - Resumes forward from the current frame when a new question arrives.
+//   - Creates the thinking backdrop at runtime; no new HTML is required.
 //
 // V3.1.0:
 //   - Makes the visible Ari hero open Ari Preferences when selected.
@@ -23,6 +30,9 @@ let ariFirstReplyCompleted = false;
 let ariAbortController = null;
 let ariCurrentThinkingMessage = null;
 let ariStopped = false;
+let ariThinkingSequenceTimer = null;
+let ariThinkingSequenceFrame = 1;
+let ariThinkingSequencePhase = "idle";
 
 const ARI_ASSETS = {
   heroOpen: "assets/ari/ari-idle-open.png",
@@ -32,10 +42,25 @@ const ARI_ASSETS = {
 const ARI_COMPOSER_PROMPT = "What are you working on?";
 const ARI_PREFERENCES_URL = "ari-preference-settings.html";
 
+const ARI_THINKING_SEQUENCE = Object.freeze({
+  frames: Array.from(
+    { length: 8 },
+    (_, index) => `assets/ari/ari-thinking-${index + 1}.png`
+  ),
+  firstFrame: 1,
+  holdLowFrame: 7,
+  lastFrame: 8,
+  enterDelay: 115,
+  holdFrame8Delay: 390,
+  holdFrame7Delay: 180,
+  exitDelay: 92
+});
+
 document.addEventListener("DOMContentLoaded", async () => {
   openRequestedHomeMenu();
 
   preloadAriAssets();
+  setupAriThinkingSequence();
   enterAriWelcomeMode();
   setRotatingWelcomeQuestion();
   startAriBlinkLoop();
@@ -72,10 +97,199 @@ window.addEventListener("calbuddy:mood", (event) => {
 });
 
 function preloadAriAssets() {
-  Object.values(ARI_ASSETS).forEach((src) => {
+  const sources = [
+    ...Object.values(ARI_ASSETS),
+    ...ARI_THINKING_SEQUENCE.frames
+  ];
+
+  sources.forEach((src) => {
     const img = new Image();
+    img.decoding = "async";
     img.src = src;
   });
+}
+
+function setupAriThinkingSequence() {
+  const conversationShell = document.getElementById("ariConversationShell");
+  if (!conversationShell) return;
+
+  let backdrop = document.getElementById("ariThinkingBackdrop");
+  let sequenceImage = document.getElementById("ariThinkingSequence");
+
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "ariThinkingBackdrop";
+    backdrop.className = "ari-thinking-backdrop";
+    backdrop.setAttribute("aria-hidden", "true");
+
+    sequenceImage = document.createElement("img");
+    sequenceImage.id = "ariThinkingSequence";
+    sequenceImage.className = "ari-thinking-sequence-img";
+    sequenceImage.alt = "";
+    sequenceImage.decoding = "async";
+    sequenceImage.draggable = false;
+
+    backdrop.appendChild(sequenceImage);
+    conversationShell.prepend(backdrop);
+  }
+
+  renderAriThinkingFrame(ariThinkingSequenceFrame, true);
+}
+
+function renderAriThinkingFrame(frame, force = false) {
+  const sequenceImage = document.getElementById("ariThinkingSequence");
+  const nextFrame = Math.max(
+    ARI_THINKING_SEQUENCE.firstFrame,
+    Math.min(ARI_THINKING_SEQUENCE.lastFrame, Number(frame) || 1)
+  );
+
+  if (
+    !force &&
+    nextFrame === ariThinkingSequenceFrame &&
+    sequenceImage?.getAttribute("src")
+  ) {
+    return;
+  }
+
+  ariThinkingSequenceFrame = nextFrame;
+
+  if (sequenceImage) {
+    sequenceImage.src = ARI_THINKING_SEQUENCE.frames[nextFrame - 1];
+    sequenceImage.dataset.frame = String(nextFrame);
+  }
+}
+
+function clearAriThinkingSequenceTimer() {
+  if (ariThinkingSequenceTimer) {
+    clearTimeout(ariThinkingSequenceTimer);
+    ariThinkingSequenceTimer = null;
+  }
+}
+
+function scheduleAriThinkingSequence(callback, delay) {
+  clearAriThinkingSequenceTimer();
+
+  ariThinkingSequenceTimer = setTimeout(() => {
+    ariThinkingSequenceTimer = null;
+    callback();
+  }, delay);
+}
+
+function startAriThinkingSequence() {
+  setupAriThinkingSequence();
+
+  const backdrop = document.getElementById("ariThinkingBackdrop");
+  backdrop?.classList.add("is-active");
+  backdrop?.classList.remove("is-settling");
+
+  if (ariThinkingSequencePhase === "holding") return;
+
+  clearAriThinkingSequenceTimer();
+
+  if (ariThinkingSequenceFrame >= ARI_THINKING_SEQUENCE.lastFrame) {
+    ariThinkingSequencePhase = "holding";
+    scheduleAriThinkingHold();
+    return;
+  }
+
+  ariThinkingSequencePhase = "entering";
+  scheduleAriThinkingSequence(
+    advanceAriThinkingSequence,
+    ARI_THINKING_SEQUENCE.enterDelay
+  );
+}
+
+function advanceAriThinkingSequence() {
+  if (ariThinkingSequencePhase !== "entering") return;
+
+  const nextFrame = Math.min(
+    ariThinkingSequenceFrame + 1,
+    ARI_THINKING_SEQUENCE.lastFrame
+  );
+
+  renderAriThinkingFrame(nextFrame);
+
+  if (nextFrame >= ARI_THINKING_SEQUENCE.lastFrame) {
+    ariThinkingSequencePhase = "holding";
+    scheduleAriThinkingHold();
+    return;
+  }
+
+  scheduleAriThinkingSequence(
+    advanceAriThinkingSequence,
+    ARI_THINKING_SEQUENCE.enterDelay
+  );
+}
+
+function scheduleAriThinkingHold() {
+  if (ariThinkingSequencePhase !== "holding") return;
+
+  const showingFrame8 =
+    ariThinkingSequenceFrame === ARI_THINKING_SEQUENCE.lastFrame;
+
+  const delay = showingFrame8
+    ? ARI_THINKING_SEQUENCE.holdFrame8Delay
+    : ARI_THINKING_SEQUENCE.holdFrame7Delay;
+
+  scheduleAriThinkingSequence(() => {
+    if (ariThinkingSequencePhase !== "holding") return;
+
+    renderAriThinkingFrame(
+      showingFrame8
+        ? ARI_THINKING_SEQUENCE.holdLowFrame
+        : ARI_THINKING_SEQUENCE.lastFrame
+    );
+
+    scheduleAriThinkingHold();
+  }, delay);
+}
+
+function finishAriThinkingSequence() {
+  const backdrop = document.getElementById("ariThinkingBackdrop");
+
+  backdrop?.classList.remove("is-active");
+  backdrop?.classList.add("is-settling");
+
+  if (ariThinkingSequencePhase === "exiting") return;
+
+  clearAriThinkingSequenceTimer();
+
+  if (ariThinkingSequenceFrame <= ARI_THINKING_SEQUENCE.firstFrame) {
+    ariThinkingSequencePhase = "idle";
+    renderAriThinkingFrame(ARI_THINKING_SEQUENCE.firstFrame, true);
+    backdrop?.classList.remove("is-settling");
+    return;
+  }
+
+  ariThinkingSequencePhase = "exiting";
+  scheduleAriThinkingSequence(
+    reverseAriThinkingSequence,
+    ARI_THINKING_SEQUENCE.exitDelay
+  );
+}
+
+function reverseAriThinkingSequence() {
+  if (ariThinkingSequencePhase !== "exiting") return;
+
+  const nextFrame = Math.max(
+    ariThinkingSequenceFrame - 1,
+    ARI_THINKING_SEQUENCE.firstFrame
+  );
+
+  renderAriThinkingFrame(nextFrame);
+
+  if (nextFrame <= ARI_THINKING_SEQUENCE.firstFrame) {
+    ariThinkingSequencePhase = "idle";
+    document
+      .getElementById("ariThinkingBackdrop")
+      ?.classList.remove("is-settling");
+    return;
+  }
+
+  scheduleAriThinkingSequence(
+    reverseAriThinkingSequence,
+    ARI_THINKING_SEQUENCE.exitDelay
+  );
 }
 
 function setRotatingWelcomeQuestion() {
@@ -411,6 +625,12 @@ function setAriComposerThinking(isThinking) {
   app?.classList.toggle("ari-thinking-mode", isThinking);
 
   if (isThinking) {
+    startAriThinkingSequence();
+  } else {
+    finishAriThinkingSequence();
+  }
+
+  if (isThinking) {
     input.disabled = true;
     input.placeholder = "Ari is thinking...";
     button.textContent = "STOP";
@@ -550,6 +770,8 @@ async function sendAriMessage() {
 
     if (ariStopped) return;
 
+    finishAriThinkingSequence();
+
     const reply =
       response.reply ||
       "Hmm. I had trouble answering that. Try again.";
@@ -590,6 +812,7 @@ async function sendAriMessage() {
   } catch (error) {
     if (ariStopped) return;
 
+    finishAriThinkingSequence();
     setAriPose("idleOpen");
 
     if (thinkingMessage) {
