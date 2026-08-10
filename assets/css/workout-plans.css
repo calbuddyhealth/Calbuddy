@@ -1,9 +1,16 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/workout-plans.css
-   Version: 3.5.0
+   Version: 3.6.0
    Purpose:
    Premium scientific-lab Workout Plans interface.
+
+   V3.6.0:
+   - Rebuilds exercise cards around two obvious tap targets.
+   - Removes the ARI visual tile and full-width Add bar.
+   - Adds an explicit View Exercise cue to the content button.
+   - Adds a separate circular SVG plus / green-check control.
+   - Makes picker cards shorter, calmer, and easier to scan.
 
    V3.5.0:
    - Replaces the header Save styling with a professional options menu.
@@ -2160,10 +2167,22 @@ p:not(
   grid-template-columns:
     1fr;
 
-  gap: 8px;
+  gap: 12px;
+}
+
+#workoutExercisePickerList {
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    );
 }
 
 .exercise-library-card {
+  position: relative;
+
+  display: block;
+
   overflow: hidden;
 
   border:
@@ -2171,13 +2190,40 @@ p:not(
     var(--wp-border);
 
   border-radius:
-    16px;
+    17px;
 
   background:
-    var(--wp-surface);
+    linear-gradient(
+      145deg,
+      rgba(
+        255,
+        255,
+        255,
+        0.985
+      ),
+      rgba(
+        251,
+        253,
+        255,
+        0.94
+      )
+    );
 
   box-shadow:
-    var(--wp-shadow-xs);
+    0 10px 26px
+      rgba(
+        17,
+        48,
+        82,
+        0.07
+      ),
+    0 2px 5px
+      rgba(
+        17,
+        48,
+        82,
+        0.04
+      );
 
   transition:
     transform
@@ -2191,6 +2237,20 @@ p:not(
       ease;
 }
 
+.exercise-library-card--add-enabled {
+  display: grid;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    82px;
+
+  align-items:
+    stretch;
+}
+
 .exercise-library-card:hover {
   transform:
     translateY(-1px);
@@ -2202,25 +2262,32 @@ p:not(
     var(--wp-shadow-sm);
 }
 
-.exercise-library-card__open {
-  display: grid;
-
-  grid-template-columns:
-    58px
-    minmax(
-      0,
-      1fr
+.exercise-library-card:focus-within {
+  border-color:
+    rgba(
+      36,
+      87,
+      214,
+      0.30
     );
 
-  align-items:
-    center;
+  box-shadow:
+    var(--wp-glow-blue);
+}
 
-  gap: 10px;
+.exercise-library-card__open {
+  display: block;
 
   width: 100%;
+  height: 100%;
+
+  min-height:
+    126px;
 
   padding:
-    10px;
+    14px
+    16px
+    13px;
 
   border: 0;
 
@@ -2235,94 +2302,61 @@ p:not(
 
   cursor:
     pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
 }
 
-.exercise-library-card__visual {
-  display: grid;
-
-  place-items: center;
-
-  width: 58px;
-  height: 58px;
-
-  overflow: hidden;
-
-  border:
-    1px solid
-    rgba(
-      0,
-      174,
-      219,
-      0.11
-    );
-
-  border-radius:
-    13px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(
-        230,
-        251,
-        255,
-        0.94
-      ),
-      rgba(
-        241,
-        245,
-        255,
-        0.94
-      )
-      52%,
-      rgba(
-        247,
-        241,
-        255,
-        0.94
-      )
-    );
-}
-
-.exercise-library-card__image {
-  width: 100%;
-  height: 100%;
-
-  object-fit:
-    cover;
-}
-
-.exercise-library-card__placeholder {
+.exercise-library-card__open:hover
+  .exercise-library-card__view-cue {
   color:
+    var(--wp-blue-strong);
+
+  transform:
+    translateX(2px);
+}
+
+.exercise-library-card__open:focus-visible {
+  position: relative;
+
+  z-index: 2;
+
+  outline:
+    3px solid
     rgba(
       36,
-      89,
-      255,
-      0.44
+      87,
+      214,
+      0.24
     );
 
-  font-family:
-    "Audiowide",
-    sans-serif;
+  outline-offset:
+    -3px;
+}
 
-  font-size:
-    0.73rem;
+.exercise-library-card__body {
+  display: flex;
 
-  letter-spacing:
-    0.06em;
+  flex-direction:
+    column;
+
+  align-items:
+    flex-start;
+
+  min-width: 0;
 }
 
 .exercise-library-card__type {
   margin:
     0
     0
-    3px;
+    5px;
 
   color:
     var(--wp-cyan-deep);
 
   font-size:
-    0.49rem;
+    0.58rem;
 
   font-weight:
     900;
@@ -2338,16 +2372,19 @@ p:not(
   margin:
     0
     0
-    4px;
+    5px;
 
   color:
     var(--wp-text-strong);
 
   font-size:
-    0.78rem;
+    0.91rem;
 
   line-height:
-    1.3;
+    1.28;
+
+  overflow-wrap:
+    anywhere;
 }
 
 .exercise-library-card__muscles {
@@ -2364,65 +2401,267 @@ p:not(
     sans-serif;
 
   font-size:
-    0.65rem;
+    0.73rem;
 
   line-height:
-    1.35;
+    1.4;
 }
 
-.exercise-library-card__add {
-  width:
-    calc(
-      100% - 20px
-    );
+.exercise-library-card__view-cue {
+  display: inline-flex;
 
-  min-height:
-    38px;
+  align-items:
+    center;
 
-  margin:
-    0
-    10px
+  gap: 5px;
+
+  margin-top:
+    auto;
+
+  padding-top:
     10px;
 
-  border:
-    1px solid
-    var(--wp-border-cyan);
-
-  border-radius:
-    11px;
-
   color:
-    var(--wp-cyan-deep);
-
-  background:
-    var(--wp-surface-cyan);
-
-  cursor: pointer;
+    var(--wp-blue);
 
   font-size:
-    0.61rem;
+    0.70rem;
 
   font-weight:
     900;
+
+  line-height: 1;
+
+  transition:
+    color
+      var(--wp-fast)
+      ease,
+    transform
+      var(--wp-fast)
+      var(--wp-ease);
+}
+
+.exercise-library-card__view-cue svg {
+  width: 15px;
+  height: 15px;
+
+  flex:
+    0 0 auto;
+}
+
+.exercise-library-card__actions {
+  position: relative;
+
+  display: grid;
+
+  place-items: center;
+
+  min-width: 0;
+
+  padding:
+    12px;
+
+  border-left:
+    1px solid
+    rgba(
+      31,
+      62,
+      101,
+      0.10
+    );
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(
+        247,
+        251,
+        255,
+        0.60
+      ),
+      rgba(
+        242,
+        247,
+        253,
+        0.40
+      )
+    );
+}
+
+.exercise-library-card__actions[hidden] {
+  display: none;
+}
+
+.exercise-library-card__add {
+  display: grid;
+
+  place-items: center;
+
+  width: 50px;
+  height: 50px;
+
+  min-width: 50px;
+  min-height: 50px;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.78
+    );
+
+  border-radius:
+    50%;
+
+  color:
+    #ffffff;
+
+  background:
+    linear-gradient(
+      145deg,
+      #14abc7 0%,
+      #2457d6 56%,
+      #6748c7 100%
+    );
+
+  box-shadow:
+    0 12px 24px
+      rgba(
+        36,
+        87,
+        214,
+        0.24
+      ),
+    inset 0 1px 0
+      rgba(
+        255,
+        255,
+        255,
+        0.44
+      );
+
+  cursor: pointer;
+
+  touch-action:
+    manipulation;
+
+  -webkit-tap-highlight-color:
+    transparent;
+
+  transition:
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    box-shadow
+      var(--wp-fast)
+      ease,
+    background
+      var(--wp-fast)
+      ease;
+}
+
+.exercise-library-card__add:hover:not(:disabled) {
+  transform:
+    translateY(-1px)
+    scale(1.035);
+
+  box-shadow:
+    0 15px 30px
+      rgba(
+        36,
+        87,
+        214,
+        0.30
+      ),
+    inset 0 1px 0
+      rgba(
+        255,
+        255,
+        255,
+        0.52
+      );
+}
+
+.exercise-library-card__add:active:not(:disabled) {
+  transform:
+    scale(0.95);
+}
+
+.exercise-library-card__add:focus-visible {
+  outline:
+    3px solid
+    rgba(
+      36,
+      87,
+      214,
+      0.25
+    );
+
+  outline-offset:
+    3px;
 }
 
 .exercise-library-card__add:disabled {
   color:
-    var(--wp-success);
+    #ffffff;
 
   border-color:
     rgba(
-      23,
-      139,
-      105,
-      0.15
+      255,
+      255,
+      255,
+      0.72
     );
 
   background:
-    var(--wp-success-soft);
+    linear-gradient(
+      145deg,
+      #28a77d,
+      var(--wp-success)
+    );
+
+  box-shadow:
+    0 10px 20px
+      rgba(
+        22,
+        128,
+        91,
+        0.20
+      ),
+    inset 0 1px 0
+      rgba(
+        255,
+        255,
+        255,
+        0.38
+      );
 
   cursor:
     default;
+
+  opacity: 1;
+}
+
+.exercise-library-card__add-icon,
+.exercise-library-card__added-icon {
+  display: grid;
+
+  place-items: center;
+}
+
+.exercise-library-card__add-icon[hidden],
+.exercise-library-card__added-icon[hidden] {
+  display: none;
+}
+
+.exercise-library-card__add-icon svg,
+.exercise-library-card__added-icon svg {
+  width: 26px;
+  height: 26px;
 }
 
 
@@ -5218,5 +5457,4 @@ body.ari-workout-plans-page::before {
     order: 2;
   }
 }
-
 
