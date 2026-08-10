@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/home.css
-   Version: 2.0.0
+   Version: 2.1.0
    Purpose:
    Premium white futuristic space-lab homepage.
 
@@ -11,6 +11,11 @@
 
    This stylesheet replaces the old homepage-specific
    header, navigation, avatar, and composer styles.
+
+   V2.1.0:
+   - Raises Ari higher on the welcome screen.
+   - Adds the eight-frame conversation thinking backdrop.
+   - Makes conversation messages more translucent.
 ===================================================== */
 
 :root {
@@ -36,6 +41,7 @@
   --ari-header-top: calc(env(safe-area-inset-top, 0px) + 16px);
   --ari-header-height: clamp(96px, 13.5vw, 124px);
   --ari-composer-height: clamp(148px, 18svh, 184px);
+  --ari-hero-rise: clamp(38px, 5.7svh, 56px);
   --ari-page-max: 760px;
 }
 
@@ -392,6 +398,8 @@ a {
   width: min(100%, 820px);
   height: 100%;
   pointer-events: none;
+  transform: translateY(calc(-1 * var(--ari-hero-rise)));
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ari-hero-halo {
@@ -682,6 +690,7 @@ a {
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--ari-composer-height) + 42px);
   left: 15px;
   z-index: 12;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   width: min(calc(100% - 30px), 720px);
@@ -703,7 +712,85 @@ a {
   transform: translateY(0);
 }
 
+.ari-thinking-backdrop {
+  position: absolute;
+  inset: -8px 0 -10px;
+  z-index: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: clamp(28px, 7vw, 46px);
+  transform: scale(0.985);
+  transition:
+    opacity 260ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 260ms ease;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 8%,
+    #000 91%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 8%,
+    #000 91%,
+    transparent 100%
+  );
+}
+
+.ari-thinking-backdrop::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(250, 252, 255, 0.20), transparent 22% 78%, rgba(239, 249, 255, 0.16)),
+    radial-gradient(circle at 50% 45%, transparent 22%, rgba(248, 250, 255, 0.12) 76%);
+}
+
+.conversation-mode .ari-thinking-backdrop {
+  opacity: 0.24;
+  transform: scale(1);
+}
+
+.conversation-mode .ari-thinking-backdrop.is-active {
+  opacity: 0.40;
+  filter: saturate(1.04) contrast(1.02);
+}
+
+.conversation-mode .ari-thinking-backdrop.is-settling {
+  opacity: 0.30;
+}
+
+.ari-thinking-sequence-img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: min(100%, 650px);
+  height: 104%;
+  max-width: 100%;
+  max-height: 104%;
+  object-fit: contain;
+  object-position: center bottom;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter:
+    drop-shadow(0 18px 28px rgba(28, 43, 104, 0.12))
+    drop-shadow(0 0 22px rgba(34, 220, 237, 0.10));
+  transform: translateY(2%);
+  transform-origin: center bottom;
+}
+
 .ari-thread {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -736,14 +823,14 @@ a {
   width: fit-content;
   max-width: min(88%, 590px);
   padding: 14px 17px 15px;
-  border: 1px solid rgba(102, 126, 210, 0.19);
+  border: 1px solid rgba(102, 126, 210, 0.22);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.70);
   box-shadow:
-    0 10px 24px rgba(52, 66, 128, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+    0 10px 24px rgba(52, 66, 128, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  -webkit-backdrop-filter: blur(11px) saturate(125%);
+  backdrop-filter: blur(11px) saturate(125%);
 }
 
 .ari-message.ari-ai {
@@ -756,7 +843,11 @@ a {
   color: #ffffff;
   border-color: rgba(71, 111, 218, 0.22);
   border-bottom-right-radius: 7px;
-  background: linear-gradient(145deg, #11226d, #263b98);
+  background: linear-gradient(
+    145deg,
+    rgba(17, 34, 109, 0.84),
+    rgba(38, 59, 152, 0.82)
+  );
   box-shadow:
     0 12px 25px rgba(23, 41, 113, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -813,6 +904,8 @@ a {
 }
 
 .pending-action-bar {
+  position: relative;
+  z-index: 3;
   display: none;
   flex: 0 0 auto;
   align-items: center;
@@ -1367,6 +1460,7 @@ body.ari-menu-open {
     --ari-header-top: calc(env(safe-area-inset-top, 0px) + 9px);
     --ari-header-height: 90px;
     --ari-composer-height: 136px;
+    --ari-hero-rise: 30px;
   }
 
   .ari-welcome {
@@ -1418,6 +1512,7 @@ body.ari-menu-open {
     --ari-header-top: calc(env(safe-area-inset-top, 0px) + 8px);
     --ari-header-height: 82px;
     --ari-composer-height: 118px;
+    --ari-hero-rise: 18px;
   }
 
   .ari-header-v5 {
