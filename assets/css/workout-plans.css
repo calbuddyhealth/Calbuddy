@@ -1,9 +1,16 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/workout-plans.css
-   Version: 3.2.0
+   Version: 3.3.0
    Purpose:
    Premium scientific-lab Workout Plans interface.
+
+   V3.3.0:
+   - Enlarges exercise cards and all card typography on mobile.
+   - Uses 16px metric inputs to prevent iPhone input zoom.
+   - Renames the exercise Done action to Save.
+   - Enlarges the green SAVED check badge after collapse.
+   - Removes styling dependence on the duplicate day-save button.
 
    V3.2.0:
    - Simplifies My Week dramatically.
@@ -16,7 +23,7 @@
    - Compact mobile-first spacing.
    - Strong differentiation between OFF / WORKOUT / RECOVERY.
    - Exercise editor remains premium and easy to scan.
-   - Expanded exercise cards use Done-driven collapse flow.
+   - Expanded exercise cards use Save-driven collapse flow.
 ===================================================== */
 
 :root {
@@ -2836,7 +2843,7 @@ p:not(
 .workout-day-exercises {
   display: grid;
 
-  gap: 8px;
+  gap: 12px;
 }
 
 .workout-exercise-row {
@@ -2854,7 +2861,7 @@ p:not(
     );
 
   border-radius:
-    16px;
+    20px;
 
   background:
     rgba(
@@ -2960,18 +2967,18 @@ p:not(
   justify-content:
     space-between;
 
-  gap: 9px;
+  gap: 12px;
 
   width: 100%;
 
   min-height:
-    60px;
+    82px;
 
   padding:
-    10px
-    11px
-    10px
-    15px;
+    15px
+    14px
+    15px
+    20px;
 
   border: 0;
 
@@ -3003,7 +3010,7 @@ p:not(
 
   min-width: 0;
 
-  gap: 3px;
+  gap: 5px;
 }
 
 .workout-exercise-row__summary-copy strong {
@@ -3013,7 +3020,7 @@ p:not(
     var(--wp-text-strong);
 
   font-size:
-    0.71rem;
+    0.95rem;
 
   font-weight:
     900;
@@ -3022,10 +3029,10 @@ p:not(
     1.25;
 
   white-space:
-    nowrap;
+    normal;
 
-  text-overflow:
-    ellipsis;
+  overflow-wrap:
+    anywhere;
 }
 
 .workout-exercise-row__summary-copy > span {
@@ -3042,16 +3049,13 @@ p:not(
     sans-serif;
 
   font-size:
-    0.64rem;
+    0.79rem;
 
   line-height:
     1.3;
 
   white-space:
-    nowrap;
-
-  text-overflow:
-    ellipsis;
+    normal;
 }
 
 .workout-exercise-row__summary-end {
@@ -3067,7 +3071,7 @@ p:not(
   gap: 6px;
 }
 
-.workout-exercise-row__done-badge {
+.workout-exercise-row__saved-badge {
   display:
     inline-flex;
 
@@ -3075,11 +3079,11 @@ p:not(
     center;
 
   min-height:
-    22px;
+    30px;
 
   padding:
-    3px
-    7px;
+    5px
+    10px;
 
   border:
     1px solid
@@ -3100,13 +3104,16 @@ p:not(
     var(--wp-success-soft);
 
   font-size:
-    0.47rem;
+    0.64rem;
 
   font-weight:
     900;
 
   letter-spacing:
     0.065em;
+
+  white-space:
+    nowrap;
 }
 
 .workout-exercise-row__chevron {
@@ -3115,8 +3122,8 @@ p:not(
   place-items:
     center;
 
-  width: 24px;
-  height: 24px;
+  width: 34px;
+  height: 34px;
 
   border:
     1px solid
@@ -3128,7 +3135,7 @@ p:not(
     );
 
   border-radius:
-    8px;
+    11px;
 
   color:
     var(--wp-blue);
@@ -3142,7 +3149,7 @@ p:not(
     );
 
   font-size:
-    0.5rem;
+    0.65rem;
 }
 
 .workout-exercise-row[data-expanded="true"]
@@ -3161,9 +3168,9 @@ p:not(
 
   padding:
     0
-    11px
-    12px
-    15px;
+    16px
+    18px
+    20px;
 
   animation:
     workoutExerciseOpen
@@ -3199,29 +3206,39 @@ p:not(
       )
     );
 
-  gap: 7px;
+  gap: 11px;
 
   margin-bottom:
-    9px;
+    14px;
 }
 
 .workout-exercise-metric {
   min-width: 0;
+
+  gap: 7px;
+}
+
+.workout-exercise-metric > span {
+  font-size:
+    0.72rem;
+
+  line-height:
+    1.25;
 }
 
 .workout-exercise-metric input {
   min-height:
-    43px;
+    56px;
 
   padding:
     0
-    9px;
+    14px;
 
   border-radius:
-    11px;
+    14px;
 
   font-size:
-    0.7rem;
+    1rem;
 
   font-weight:
     800;
@@ -3233,33 +3250,33 @@ input::placeholder {
     var(--wp-faint);
 
   font-size:
-    0.62rem;
+    0.78rem;
 }
 
 
 /* =====================================================
-   EXERCISE DONE BUTTON
+   EXERCISE SAVE BUTTON
 ===================================================== */
 
-.workout-exercise-row__done {
+.workout-exercise-row__save {
   position: relative;
 
   width: 100%;
 
   min-height:
-    43px;
+    54px;
 
   margin:
-    1px
+    2px
     0
-    8px;
+    12px;
 
   overflow: hidden;
 
   border: 0;
 
   border-radius:
-    12px;
+    15px;
 
   color:
     #ffffff;
@@ -3289,7 +3306,7 @@ input::placeholder {
   cursor: pointer;
 
   font-size:
-    0.63rem;
+    0.82rem;
 
   font-weight:
     900;
@@ -3306,9 +3323,17 @@ input::placeholder {
       ease;
 }
 
-.workout-exercise-row__done:active {
+.workout-exercise-row__save:active {
   transform:
     scale(0.985);
+}
+
+.workout-exercise-row__save:disabled {
+  cursor:
+    wait;
+
+  opacity:
+    0.78;
 }
 
 
@@ -3323,22 +3348,22 @@ input::placeholder {
     1fr
     1fr;
 
-  gap: 7px;
+  gap: 10px;
 }
 
 .workout-exercise-row__detail,
 .workout-exercise-row__remove {
   min-height:
-    38px;
+    48px;
 
   border-radius:
-    10px;
+    13px;
 
   cursor:
     pointer;
 
   font-size:
-    0.56rem;
+    0.72rem;
 
   font-weight:
     900;
@@ -4065,15 +4090,15 @@ input::placeholder {
       );
   }
 
-  .workout-exercise-row__done-badge {
+  .workout-exercise-row__saved-badge {
     padding-left:
-      5px;
+      7px;
 
     padding-right:
-      5px;
+      7px;
 
     font-size:
-      0.43rem;
+      0.60rem;
   }
 }
 
