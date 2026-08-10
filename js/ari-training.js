@@ -1,9 +1,19 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.4.0
+// Version: 4.5.0
 // Purpose:
 //   Fault-isolated calendar-first ARI Training controller.
+//
+// V4.5.0:
+//   - Cancel Workout now returns to the selected-day card immediately.
+//   - Removes calls to nonexistent timer-stop functions that interrupted cancel.
+//   - Resets cancelled progress by exact YYYY-MM-DD date, never weekday alone.
+//   - Current Off Day / Recovery Day plans take priority over stale history.
+//   - Replaces the completed-card Train Again action with Undo Completion.
+//   - Undo removes the cloud session, local cache, and local progress snapshot.
+//   - Completed-history deletion now calls deleteSessionRecord(), the real store API.
+//   - Selected day, calendar, history, and performance rerender after cleanup.
 //
 // V4.4.0:
  //   - Uses calendar-specific plan dates from Workout Plan Controller V3.
@@ -33,7 +43,7 @@
 //   - Fixes malformed symbols.
 // =====================================================
 
-const VERSION = "4.4.0";
+const VERSION = "4.5.0";
 const SOURCE = "js/ari-training";
 
 
@@ -697,7 +707,7 @@ function cacheElements() {
     "completedDayDuration",
     "completedDaySets",
     "completedDayCalories",
-    "trainAgainButton",
+    "undoCompletedWorkoutButton",
 
     "todaysTrainingSession",
     "liveSessionWorkoutName",
@@ -924,10 +934,10 @@ function bindEvents() {
     );
 
 
-  elements.trainAgainButton
+  elements.undoCompletedWorkoutButton
     ?.addEventListener(
       "click",
-      () => void startTrainAgainWorkout()
+      () => void undoCompletedWorkout()
     );
 
 
@@ -1995,6 +2005,30 @@ function getCalendarDateStatus(
   dateKey
 ) {
   try {
+    const dayState =
+      getPlanDayForDate(
+        dateKey
+      );
+
+
+    /*
+     * The current calendar plan owns the day badge.
+     * Old history must never turn a current Off Day or
+     * Recovery Day into a completed workout day.
+     */
+    if (
+      !dayState ||
+      dayState.type ===
+        "off" ||
+      dayState.type ===
+        "recovery" ||
+      dayState.metadata
+        ?.implicitOffDay
+    ) {
+      return "rest";
+    }
+
+
     if (
       getCachedCompletedSessionForDate(
         dateKey
@@ -2004,27 +2038,8 @@ function getCalendarDateStatus(
     }
 
 
-    const weekday =
-      weekdayIdFromDateKey(
-        dateKey
-      );
-
-
-    const dayState =
-      state.plan?.week?.[
-        weekday
-      ];
-
-
-    if (
-      dayState?.type ===
-      "off"
-    ) {
-      return "rest";
-    }
-
-
-    return dayState
+    return dayState.type ===
+      "workout"
       ? "planned"
       : "empty";
   } catch (error) {
@@ -2062,31 +2077,21 @@ function getSundayWeekStartKey(
 }
 
 
-function getSelectedPlanDay() {
-  if (
-    !state.selectedDateKey
-  ) {
+function getPlanDayForDate(
+  dateKey
+) {
+  if (!dateKey) {
     return null;
   }
 
   try {
-    if (
-      typeof WorkoutPlanController?.setSelectedDate ===
-        "function"
-    ) {
-      WorkoutPlanController
-        .setSelectedDate(
-          state.selectedDateKey
-        );
-    }
-
     if (
       typeof WorkoutPlanController?.getDate ===
         "function"
     ) {
       return WorkoutPlanController
         .getDate(
-          state.selectedDateKey
+          dateKey
         );
     }
   } catch (error) {
@@ -2102,13 +2107,20 @@ function getSelectedPlanDay() {
    */
   const weekday =
     weekdayIdFromDateKey(
-      state.selectedDateKey
+      dateKey
     );
 
   return state.plan?.week?.[
     weekday
   ] ||
     null;
+}
+
+
+function getSelectedPlanDay() {
+  return getPlanDayForDate(
+    state.selectedDateKey
+  );
 }
 
 
@@ -2154,46 +2166,17 @@ async function renderSelectedDay() {
     state.selectedDateKey;
 
 
-  let completed =
-    null;
-
-
-  try {
-    completed =
-      await getCompletedSessionForDate(
-        dateKey
-      );
-  } catch (error) {
-    console.warn(
-      "[ARI Training] Selected-day completion lookup failed.",
-      error
-    );
-  }
-
-
-  if (
-    token !==
-      state.selectedDayRenderToken ||
-    dateKey !==
-      state.selectedDateKey
-  ) {
-    return;
-  }
-
-
-  if (completed) {
-    renderCompletedDay(
-      completed
-    );
-
-    return;
-  }
-
-
   const dayState =
-    getSelectedPlanDay();
+    getPlanDayForDate(
+      dateKey
+    );
 
 
+  /*
+   * Plan state is checked before history. A completed session
+   * remains in Monthly History, but it cannot visually override
+   * a current Off Day or Recovery Day.
+   */
   if (
     !dayState ||
     dayState.type ===
@@ -2229,6 +2212,42 @@ async function renderSelectedDay() {
       0
   ) {
     renderEmptyDay();
+
+    return;
+  }
+
+
+  let completed =
+    null;
+
+
+  try {
+    completed =
+      await getCompletedSessionForDate(
+        dateKey
+      );
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Selected-day completion lookup failed.",
+      error
+    );
+  }
+
+
+  if (
+    token !==
+      state.selectedDayRenderToken ||
+    dateKey !==
+      state.selectedDateKey
+  ) {
+    return;
+  }
+
+
+  if (completed) {
+    renderCompletedDay(
+      completed
+    );
 
     return;
   }
@@ -2464,6 +2483,28 @@ function renderCompletedDay(
         0
     )} kcal`
   );
+
+
+  if (
+    elements.undoCompletedWorkoutButton
+  ) {
+    const sessionId =
+      session.id ||
+      session.sessionId ||
+      "";
+
+
+    elements
+      .undoCompletedWorkoutButton
+      .dataset.sessionId =
+        sessionId;
+
+
+    elements
+      .undoCompletedWorkoutButton
+      .disabled =
+        !sessionId;
+  }
 }
 
 
@@ -3068,6 +3109,32 @@ async function startAdHocWorkout() {
 }
 
 
+async function undoCompletedWorkout(
+  sessionId =
+    elements
+      .undoCompletedWorkoutButton
+      ?.dataset.sessionId
+) {
+
+
+  if (!sessionId) {
+    return false;
+  }
+
+
+  return deleteHistorySession(
+    sessionId,
+    {
+      confirmationMessage:
+        "Undo this completed workout? Its saved sets, time, calories, and heart-rate data will be removed. Your workout plan will stay unchanged.",
+
+      successMessage:
+        "Workout completion undone."
+    }
+  );
+}
+
+
 async function startTrainAgainWorkout() {
   if (state.saving) {
     return;
@@ -3081,9 +3148,7 @@ async function startTrainAgainWorkout() {
 
 
   const dayState =
-    state.plan?.week?.[
-      weekday
-    ];
+    getSelectedPlanDay();
 
 
   if (
@@ -3447,28 +3512,15 @@ async function cancelActiveWorkout() {
       session.id
     );
 
-    const weekday =
-      weekdayIdFromDateKey(
-        session.local_date ||
-        state.selectedDateKey
-      );
+    const dateKey =
+      session.local_date ||
+      state.selectedDateKey;
 
-    try {
-      WorkoutProgressStore
-        ?.cancelDay?.(
-          weekday,
-          {
-            archiveCancelled:
-              false
-          }
-        );
-    } catch (error) {
-      console.warn(
-        "[ARI Training] Local progress cancellation failed.",
-        error
-      );
-    }
 
+    /*
+     * Clear controller state before the progress store emits.
+     * That prevents its subscription from remounting the live card.
+     */
     state.activeSession =
       null;
 
@@ -3480,10 +3532,35 @@ async function cancelActiveWorkout() {
 
     clearLocalSessionCache();
 
-    stopSessionTimer();
-    stopRestTimer();
+    clearRestInterval();
 
-    renderAll();
+    try {
+      WorkoutProgressStore
+        ?.cancelDay?.(
+          dateKey,
+          {
+            preservePlannedEntries:
+              true
+          }
+        );
+    } catch (error) {
+      console.warn(
+        "[ARI Training] Local progress cancellation failed.",
+        error
+      );
+    }
+
+    /*
+     * Await the selected-day render so Cancel visibly finishes
+     * without requiring a browser refresh.
+     */
+    await Promise.all([
+      renderSelectedDay(),
+      renderHistory(),
+      renderPerformance()
+    ]);
+
+    renderCalendar();
 
     showTrainingMessage(
       "Workout cancelled.",
@@ -3529,6 +3606,10 @@ async function deleteWorkoutSessionRecord(
       "local_"
     )
   ) {
+    removeCompletedSessionFromLocalCache(
+      sessionId
+    );
+
     return true;
   }
 
@@ -3539,6 +3620,10 @@ async function deleteWorkoutSessionRecord(
     !client ||
     !state.user?.id
   ) {
+    removeCompletedSessionFromLocalCache(
+      sessionId
+    );
+
     return true;
   }
 
@@ -8636,7 +8721,14 @@ function createHistoryWorkoutElement(
 
 
 async function deleteHistorySession(
-  sessionId
+  sessionId,
+  {
+    confirmationMessage =
+      "Delete this workout from your history? This cannot be undone.",
+
+    successMessage =
+      "Workout deleted from history."
+  } = {}
 ) {
   if (
     !sessionId
@@ -8646,7 +8738,7 @@ async function deleteHistorySession(
 
   if (
     !window.confirm(
-      "Delete this workout from your history? This cannot be undone."
+      confirmationMessage
     )
   ) {
     return false;
@@ -8659,18 +8751,23 @@ async function deleteHistorySession(
 
     try {
       WorkoutProgressStore
-        ?.deleteHistorySession?.(
+        ?.deleteSessionRecord?.(
           sessionId
         );
     } catch {
       // Cloud history remains authoritative for this page.
     }
 
-    await renderHistory();
+    await Promise.all([
+      renderSelectedDay(),
+      renderHistory(),
+      renderPerformance()
+    ]);
+
     renderCalendar();
 
     showTrainingMessage(
-      "Workout deleted from history.",
+      successMessage,
       "success"
     );
 
@@ -8721,24 +8818,49 @@ async function clearCurrentMonthHistory() {
       const record
       of records
     ) {
+      const sessionId =
+        record.id ||
+        record.sessionId;
+
+
+      if (!sessionId) {
+        continue;
+      }
+
+
       await deleteWorkoutSessionRecord(
-        record.id
+        sessionId
       );
+
+
+      WorkoutProgressStore
+        ?.deleteSessionRecord?.(
+          sessionId
+        );
     }
 
     try {
       WorkoutProgressStore
-        ?.clearHistoryMonth?.(
-          monthStart.slice(
-            0,
-            7
-          )
-        );
+        ?.clearSessionHistory?.({
+          startDate:
+            monthStart,
+
+          endDate:
+            monthEnd,
+
+          completedOnly:
+            true
+        });
     } catch {
       // Non-fatal.
     }
 
-    await renderHistory();
+    await Promise.all([
+      renderSelectedDay(),
+      renderHistory(),
+      renderPerformance()
+    ]);
+
     renderCalendar();
 
     showTrainingMessage(
@@ -11635,6 +11757,14 @@ function publishGlobal() {
 
 
     startAdHocWorkout,
+
+
+    cancelWorkout:
+      cancelActiveWorkout,
+
+
+    undoCompletion:
+      undoCompletedWorkout,
 
 
     trainAgain:
