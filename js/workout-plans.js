@@ -1,9 +1,17 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.6.0
+// Version: 3.6.1
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V3.6.1:
+//   - Fixes the iPhone dialog race when View Exercise is opened.
+//   - Prevents the day editor from reopening during the intentional
+//     Exercise Picker -> Exercise Detail transition.
+//   - Makes explicit close actions clear their return state before
+//     closing so native dialog close events cannot navigate twice.
+//   - Preserves the picker -> detail -> picker navigation path.
 //
 // V3.6.0:
 //   - Rebuilds exercise selections as two unmistakable actions.
@@ -84,7 +92,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.6.0";
+  "3.6.1";
 
 const SOURCE =
   "js/workout-plans";
@@ -1513,16 +1521,27 @@ function reopenDayEditor() {
 
 
 function closePickerAndReturnToDayEditor() {
+  const shouldReturnToDayEditor =
+    Boolean(
+      state.reopenDayEditorAfterPicker
+    );
+
+  /*
+   * Clear the return state before dialog.close(). Native dialog
+   * close events may be delivered on a different task in Safari.
+   * Clearing first guarantees that only this function performs
+   * the explicit navigation.
+   */
+  state.reopenDayEditorAfterPicker =
+    false;
+
   closeDialog(
     dom.workoutExercisePicker
   );
 
   if (
-    state.reopenDayEditorAfterPicker
+    shouldReturnToDayEditor
   ) {
-    state.reopenDayEditorAfterPicker =
-      false;
-
     requestAnimationFrame(
       () => {
         reopenDayEditor();
@@ -1533,16 +1552,39 @@ function closePickerAndReturnToDayEditor() {
 
 
 function closeDetailAndReturn() {
+  const shouldReturnToPicker =
+    Boolean(
+      state.reopenPickerAfterDetail
+    );
+
+  const shouldReturnToDayEditor =
+    Boolean(
+      !shouldReturnToPicker &&
+      state.reopenDayEditorAfterPicker
+    );
+
+  /*
+   * Clear the detail return state before closing. This prevents the
+   * dialog's close listener and this explicit close action from both
+   * trying to open a destination.
+   */
+  state.reopenPickerAfterDetail =
+    false;
+
+  if (
+    shouldReturnToDayEditor
+  ) {
+    state.reopenDayEditorAfterPicker =
+      false;
+  }
+
   closeDialog(
     dom.exerciseDetailDialog
   );
 
   if (
-    state.reopenPickerAfterDetail
+    shouldReturnToPicker
   ) {
-    state.reopenPickerAfterDetail =
-      false;
-
     requestAnimationFrame(
       () => {
         openDialog(
@@ -1555,7 +1597,7 @@ function closeDetailAndReturn() {
   }
 
   if (
-    state.reopenDayEditorAfterPicker
+    shouldReturnToDayEditor
   ) {
     requestAnimationFrame(
       () => {
@@ -6881,6 +6923,18 @@ function bindEvents() {
     ?.addEventListener(
       "close",
       () => {
+        /*
+         * openExerciseDetail() deliberately closes the picker before
+         * opening the detail dialog. During that transition the detail
+         * dialog may not be open until the next animation frame.
+         * The return flag is therefore the authoritative guard.
+         */
+        if (
+          state.reopenPickerAfterDetail
+        ) {
+          return;
+        }
+
         if (
           state.reopenDayEditorAfterPicker &&
           !isDialogOpen(
