@@ -1,117 +1,336 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>My Goals - ARI Rebirth</title>
+  <title>My Goals - ARI Rebirth</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="assets/css/base.css?v=16">
-<link rel="stylesheet" href="assets/css/animations.css?v=16">
-<link rel="stylesheet" href="assets/css/goals.css?v=2">
-
+  <link rel="stylesheet" href="assets/css/base.css?v=16">
+  <link rel="stylesheet" href="assets/css/animations.css?v=16">
+  <link rel="stylesheet" href="assets/css/goals.css?v=3.0.0">
 </head>
 
 <body>
 <main class="ari-goals-page" id="ariGoalsPage">
+  <header class="ari-goals-header ari-goals-header--lab">
+    <button
+      class="ari-header-control ari-back-btn"
+      type="button"
+      onclick="goBack()"
+      aria-label="Return to the home navigation"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14.5 5 7.5 12l7 7" />
+      </svg>
+    </button>
 
-<header class="ari-goals-header">
-  <button class="ari-back-btn" type="button" onclick="goBack()">←</button>
-
-  <div class="ari-brand-mark" aria-label="ARI Rebirth">
-    <h1 class="ari-brand-title">ARI</h1>
-    <p class="ari-brand-subtitle">REBIRTH</p>
-  </div>
-
-  <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
-</header>
-
-<div class="ari-tabs" aria-label="Health and fitness navigation">
-  <button
-    id="healthGoalsTab"
-    class="ari-tab-btn active"
-    type="button"
-    onclick="showHealthTab('goals')"
-  >
-    My Health Goals
-  </button>
-
-  <button
-    id="healthProgressTab"
-    class="ari-tab-btn"
-    type="button"
-    onclick="showHealthTab('progress')"
-  >
-    My Health Progress
-  </button>
-
-  <button
-    id="fitnessTab"
-    class="ari-tab-btn"
-    type="button"
-    onclick="window.location.href='ari-training.html'"
-    aria-label="Open My Fitness and ARI Training"
-  >
-    My Fitness
-  </button>
-
-  <button
-    id="logMealsTab"
-    class="ari-tab-btn"
-    type="button"
-    onclick="window.location.href='nutrition.html'"
-    aria-label="Open ARI Nutrition to log meals"
-  >
-    Log Meals
-  </button>
-</div>
-
-<section id="healthGoalsPanel" class="ari-tab-panel active">
-
-  <section
-    class="ari-meter-card ari-calorie-card"
-    id="calorieStatusCard"
-    aria-labelledby="calorieStatusLabel"
-  >
-    <span class="ari-calorie-led"></span>
-
-    <p id="calorieStatusLabel" class="ari-meter-label">Calories Left</p>
-    <h3 id="caloriesLeftText" class="ari-meter-number">—</h3>
-
-    <div class="ari-meter-subtext">
-      <p>
-        Today's Intake<br>
-        <span id="caloriesConsumedText">0</span> /
-        <span id="dailyGoalText">—</span> kcal
-      </p>
-
-      <p>
-        Calories Burned<br>
-        <span id="caloriesBurnedText">0</span> kcal
-      </p>
+    <div class="ari-goals-heading">
+      <p class="ari-goals-heading__eyebrow">ARI HEALTH</p>
+      <h1 class="ari-goals-heading__title">My Goals</h1>
+      <p class="ari-goals-heading__subtitle">Your daily health lab</p>
     </div>
 
-    <p class="ari-hint">
-      Training calories are tracked for performance only and do not increase your calories left.
-    </p>
-  </section>
+    <button
+      class="ari-header-control ari-header-home"
+      type="button"
+      onclick="goHome()"
+      aria-label="Open the home navigation"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="6" height="6" rx="1.5" />
+        <rect x="14" y="4" width="6" height="6" rx="1.5" />
+        <rect x="4" y="14" width="6" height="6" rx="1.5" />
+        <rect x="14" y="14" width="6" height="6" rx="1.5" />
+      </svg>
+      <span>HOME</span>
+    </button>
+  </header>
 
-  <section class="ari-panel ari-daily-calorie-settings">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">Daily Calorie Goal</h3>
-    </div>
+  <nav class="ari-tabs ari-goals-nav" aria-label="Goals navigation">
+    <button
+      id="healthGoalsTab"
+      class="ari-tab-btn active"
+      type="button"
+      onclick="showHealthTab('goals')"
+      aria-selected="true"
+    >
+      Goals
+    </button>
 
-    <div class="ari-form">
-      <div class="ari-field">
-        <label class="ari-label" for="dailyCalorieGoalInput">
-          Total Daily Calories
-        </label>
+    <button
+      id="healthProgressTab"
+      class="ari-tab-btn"
+      type="button"
+      onclick="showHealthTab('progress')"
+      aria-selected="false"
+    >
+      Progress
+    </button>
 
-        <div class="ari-calorie-goal-input-row">
+    <button
+      id="fitnessTab"
+      class="ari-tab-btn"
+      type="button"
+      onclick="window.location.href='ari-training.html'"
+    >
+      Training
+    </button>
+
+    <button
+      id="logMealsTab"
+      class="ari-tab-btn"
+      type="button"
+      onclick="window.location.href='nutrition.html'"
+    >
+      Meals
+    </button>
+  </nav>
+
+  <section id="healthGoalsPanel" class="ari-tab-panel active">
+    <section
+      class="ari-meter-card ari-calorie-card ari-calorie-hero"
+      id="calorieStatusCard"
+      aria-labelledby="calorieStatusLabel"
+    >
+      <div class="ari-calorie-hero__art" aria-hidden="true">
+        <img
+          src="assets/images/ari-calories-left-tab.png"
+          alt=""
+          draggable="false"
+        >
+      </div>
+
+      <div class="ari-calorie-hero__wash" aria-hidden="true"></div>
+
+      <div class="ari-calorie-hero__content">
+        <div class="ari-calorie-hero__topline">
+          <span class="ari-live-chip">
+            <span class="ari-live-chip__dot"></span>
+            TODAY
+          </span>
+          <span id="calorieSyncDate" class="ari-sync-date">Syncing...</span>
+        </div>
+
+        <div class="ari-calorie-hero__reading">
+          <p id="calorieStatusLabel" class="ari-meter-label">Calories Left</p>
+          <h2 id="caloriesLeftText" class="ari-meter-number">â</h2>
+          <p class="ari-meter-unit">KCAL REMAINING</p>
+        </div>
+
+        <div class="ari-calorie-hero__metrics">
+          <div class="ari-calorie-metric">
+            <p>Consumed</p>
+            <strong>
+              <span id="caloriesConsumedText">0</span>
+              <small>/ <span id="dailyGoalText">â</span> kcal</small>
+            </strong>
+          </div>
+
+          <div class="ari-calorie-metric ari-calorie-metric--training">
+            <p>Training Burned</p>
+            <strong><span id="caloriesBurnedText">0</span> <small>kcal</small></strong>
+          </div>
+        </div>
+
+        <p class="ari-calorie-rule">
+          Training burn is synchronized by date and shown separately from your food allowance.
+        </p>
+      </div>
+    </section>
+
+    <section class="ari-panel ari-health-profile-card">
+      <div class="ari-panel-header ari-panel-header--numbered">
+        <span class="ari-section-index">01</span>
+        <div>
+          <p class="ari-section-kicker">YOUR BASELINE</p>
+          <h2 class="ari-section-title">My Health Profile</h2>
+          <p class="ari-section-subtitle">
+            ARI uses this profile for calorie, timeline, and workout-intensity estimates.
+          </p>
+        </div>
+      </div>
+
+      <div class="ari-form ari-profile-grid">
+        <div class="ari-field">
+          <label class="ari-label" for="age">Age</label>
+          <input id="age" class="ari-input" type="number" inputmode="numeric" min="10" max="120" step="1" value="34">
+        </div>
+
+        <div class="ari-field">
+          <label class="ari-label" for="sex">Sex</label>
+          <select id="sex" class="ari-select">
+            <option value="male" selected>Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+
+        <div class="ari-field">
+          <label class="ari-label" for="weight">Current Weight</label>
+          <div class="ari-input-with-unit">
+            <input id="weight" class="ari-input" type="number" inputmode="decimal" min="50" max="1000" step="0.1" value="185.2">
+            <span>lb</span>
+          </div>
+        </div>
+
+        <div class="ari-field">
+          <label class="ari-label" for="height">Height</label>
+          <div class="ari-input-with-unit">
+            <input id="height" class="ari-input" type="number" inputmode="decimal" min="36" max="96" step="0.1" value="69.8">
+            <span>in</span>
+          </div>
+          <p id="heightConversion" class="ari-field-note">Equivalent: â</p>
+        </div>
+
+        <div class="ari-field">
+          <label class="ari-label" for="restingHeartRate">Resting Heart Rate</label>
+          <div class="ari-input-with-unit">
+            <input id="restingHeartRate" class="ari-input" type="number" inputmode="numeric" min="30" max="220" step="1" placeholder="62">
+            <span>bpm</span>
+          </div>
+        </div>
+
+        <div class="ari-field ari-field--max-heart-rate">
+          <div class="ari-label-row">
+            <label class="ari-label" for="estimatedMaxHeartRate">Estimated Max Heart Rate</label>
+            <span id="maxHeartRateSource" class="ari-estimate-chip">AUTO</span>
+          </div>
+          <div class="ari-input-with-unit">
+            <input
+              id="estimatedMaxHeartRate"
+              class="ari-input"
+              type="number"
+              inputmode="numeric"
+              min="80"
+              max="260"
+              step="1"
+              placeholder="186"
+            >
+            <span>bpm</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ari-panel ari-weight-goal-card">
+      <div class="ari-panel-header ari-panel-header--numbered">
+        <span class="ari-section-index">02</span>
+        <div>
+          <p class="ari-section-kicker">YOUR DIRECTION</p>
+          <h2 class="ari-section-title">Weight Goal</h2>
+          <p class="ari-section-subtitle">Set a realistic pace and ARI will estimate your path forward.</p>
+        </div>
+      </div>
+
+      <div class="ari-form ari-goal-grid">
+        <div class="ari-field">
+          <label class="ari-label" for="goalMode">Goal</label>
+          <select id="goalMode" class="ari-select">
+            <option value="lose" selected>Lose Weight</option>
+            <option value="maintain">Maintain Weight</option>
+            <option value="gain">Gain Weight</option>
+          </select>
+        </div>
+
+        <div class="ari-field">
+          <label class="ari-label" for="targetWeight">Target Weight</label>
+          <div class="ari-input-with-unit">
+            <input id="targetWeight" class="ari-input" type="number" inputmode="decimal" min="50" max="1000" step="0.1" value="175.0">
+            <span>lb</span>
+          </div>
+        </div>
+
+        <div class="ari-field" id="weeklyChangeGroup">
+          <label class="ari-label" for="weeklyChange">Weekly Pace</label>
+          <select id="weeklyChange" class="ari-select">
+            <option value="0.25">0.25 lb/week</option>
+            <option value="0.5">0.5 lb/week</option>
+            <option value="1" selected>1 lb/week</option>
+            <option value="1.5">1.5 lb/week</option>
+            <option value="2">2 lb/week</option>
+          </select>
+          <p id="goalModeHelper" class="ari-field-note">Creates a measured calorie deficit.</p>
+        </div>
+
+        <div class="ari-field">
+          <label class="ari-label" for="activity">Daily Activity</label>
+          <select id="activity" class="ari-select">
+            <option value="1.2">Sedentary</option>
+            <option value="1.375">Lightly Active</option>
+            <option value="1.55" selected>Moderately Active</option>
+            <option value="1.725">Very Active</option>
+            <option value="1.9">Athlete / Extremely Active</option>
+          </select>
+        </div>
+      </div>
+
+      <details class="ari-advanced-details">
+        <summary>Nutrition preferences</summary>
+        <p class="ari-details-intro">Optional preferences for meal and macro recommendations.</p>
+
+        <div class="ari-form ari-details-grid">
+          <div class="ari-field">
+            <label class="ari-label" for="macroNutritionStrategy">Macro Strategy</label>
+            <select id="macroNutritionStrategy" class="ari-select">
+              <option value="balance" selected>Balance</option>
+              <option value="endurance">Endurance</option>
+              <option value="muscle_building">Muscle Building</option>
+            </select>
+          </div>
+
+          <div class="ari-field">
+            <label class="ari-label" for="dietPreference">Diet Preference</label>
+            <select id="dietPreference" class="ari-select">
+              <option value="none" selected>None</option>
+              <option value="mediterranean">Mediterranean</option>
+              <option value="vegetarian">Vegetarian</option>
+              <option value="vegan">Vegan</option>
+              <option value="pescatarian">Pescatarian</option>
+              <option value="keto">Keto</option>
+              <option value="low_carb">Low Carb</option>
+              <option value="paleo">Paleo</option>
+              <option value="gluten_free">Gluten Free</option>
+              <option value="dairy_free">Dairy Free</option>
+              <option value="halal">Halal</option>
+              <option value="kosher">Kosher</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div class="ari-field" id="dietOtherGroup" hidden>
+            <label class="ari-label" for="dietOther">Diet Notes</label>
+            <textarea id="dietOther" class="ari-textarea" placeholder="Anything ARI should know about your diet."></textarea>
+          </div>
+
+          <div class="ari-field">
+            <label class="ari-label" for="foodAllergies">Food Allergies</label>
+            <textarea id="foodAllergies" class="ari-textarea" placeholder="Peanuts, shellfish, dairy, or none."></textarea>
+          </div>
+
+          <div class="ari-field ari-field--full">
+            <label class="ari-label" for="medicalConditions">Health Considerations</label>
+            <textarea id="medicalConditions" class="ari-textarea" placeholder="Optional information ARI should consider."></textarea>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="ari-panel ari-daily-calorie-settings">
+      <div class="ari-panel-header ari-panel-header--numbered">
+        <span class="ari-section-index">03</span>
+        <div>
+          <p class="ari-section-kicker">YOUR DAILY TARGET</p>
+          <h2 class="ari-section-title">Daily Calorie Goal</h2>
+          <p class="ari-section-subtitle">Auto-estimated from your profile and always editable.</p>
+        </div>
+      </div>
+
+      <div class="ari-calorie-goal-editor">
+        <div class="ari-calorie-goal-editor__value">
           <input
             id="dailyCalorieGoalInput"
             class="ari-input"
@@ -120,589 +339,160 @@
             min="800"
             max="10000"
             step="10"
-            placeholder="Enter daily calories"
+            placeholder="2000"
             aria-describedby="dailyCalorieGoalHint"
-          />
-
-          <span class="ari-input-unit">kcal</span>
+          >
+          <span>KCAL / DAY</span>
         </div>
 
-        <p id="dailyCalorieGoalHint" class="ari-hint">
-          Not sure what to enter? Ask Ari for an AI daily calorie intake estimate.
-          Or, use the recommended estimate found in Health Goal Summary.
-        </p>
+        <div class="ari-calorie-goal-editor__meta">
+          <span id="dailyCalorieGoalModeChip" class="ari-estimate-chip">AUTO ESTIMATE</span>
+          <p>ARI estimate <strong id="calorieGoal">â kcal</strong></p>
+        </div>
       </div>
 
-      <div
-        id="dailyCalorieGoalMessage"
-        class="ari-status"
-        role="status"
-        aria-live="polite"
-      ></div>
-    </div>
-  </section>
-
-  <section class="ari-panel">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">Daily Actions</h3>
-      <p class="ari-section-subtitle">
-        Log your current weight, review your training summary, or open your weekly workout plan.
+      <p id="dailyCalorieGoalHint" class="ari-hint">
+        Keep the estimate or enter the daily target you prefer.
       </p>
-    </div>
+      <div id="dailyCalorieGoalMessage" class="ari-status" role="status" aria-live="polite"></div>
+    </section>
 
-    <div class="ari-form">
-      <button
-        class="ari-secondary-action"
-        type="button"
-        onclick="logWeightQuick()"
-      >
-        Log Weight
-      </button>
-
-      <button
-        class="ari-secondary-action"
-        type="button"
-        onclick="window.location.href='ari-training.html'"
-        aria-label="Open ARI Training performance summary"
-      >
-        Open ARI Training
-      </button>
-
-      <button
-        class="ari-secondary-action"
-        type="button"
-        onclick="window.location.href='workout-plans.html'"
-        aria-label="Open weekly workout planner"
-      >
-        Plan Weekly Workout
-      </button>
-    </div>
-  </section>
-
-  <section class="ari-panel">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">Current Body</h3>
-      <p class="ari-section-subtitle">
-        These health inputs support calorie estimates, fitness planning, and heart-rate-based training intensity.
-      </p>
-    </div>
-
-    <div class="ari-form">
-      <div class="ari-field">
-        <label class="ari-label" for="age">Age</label>
-        <input
-          id="age"
-          class="ari-input"
-          type="number"
-          inputmode="numeric"
-          min="10"
-          max="120"
-          step="1"
-          value="34"
-        />
-        <p class="ari-hint">
-          Later this can be calculated from birthday in My Identity.
-        </p>
+    <section class="ari-panel ari-health-summary-card">
+      <div class="ari-panel-header ari-panel-header--numbered">
+        <span class="ari-section-index">04</span>
+        <div>
+          <p class="ari-section-kicker">YOUR PROJECTION</p>
+          <h2 class="ari-section-title">Health Goal Summary</h2>
+          <p id="goalExplanation" class="ari-section-subtitle">A clear estimate based on your current profile and selected pace.</p>
+        </div>
       </div>
 
-      <div class="ari-field">
-        <label class="ari-label" for="sex">Sex</label>
-        <select id="sex" class="ari-select">
-          <option value="male" selected>Male</option>
-          <option value="female">Female</option>
-        </select>
+      <div id="warningBox" class="ari-warning">
+        This pace may be aggressive. Consider a slower weekly target.
       </div>
 
-      <div class="ari-field">
-        <label class="ari-label" for="weight">Current Weight (lbs)</label>
-        <input
-          id="weight"
-          class="ari-input"
-          type="number"
-          inputmode="decimal"
-          min="50"
-          max="1000"
-          step="0.1"
-          value="185.2"
-        />
-        <p class="ari-hint">
-          ARI Training can use your saved weight automatically when estimating training calories.
-        </p>
+      <div class="ari-goal-path" role="group" aria-label="Current weight to target weight">
+        <div class="ari-goal-path__node ari-goal-path__node--current">
+          <span>NOW</span>
+          <strong id="summaryCurrentWeight">â</strong>
+        </div>
+        <div class="ari-goal-path__line" aria-hidden="true">
+          <span></span>
+        </div>
+        <div class="ari-goal-path__node ari-goal-path__node--target">
+          <span>TARGET</span>
+          <strong id="summaryTargetWeight">â</strong>
+        </div>
       </div>
 
-      <div class="ari-field">
-        <label class="ari-label" for="height">Height (inches)</label>
-        <input
-          id="height"
-          class="ari-input"
-          type="number"
-          inputmode="decimal"
-          min="36"
-          max="96"
-          step="0.1"
-          value="69.8"
-        />
-        <p id="heightConversion" class="ari-hint">Equivalent: —</p>
-      </div>
-
-      <div class="ari-field">
-        <label class="ari-label" for="restingHeartRate">
-          Resting Heart Rate
-        </label>
-
-        <div class="ari-calorie-goal-input-row">
-          <input
-            id="restingHeartRate"
-            class="ari-input"
-            type="number"
-            inputmode="numeric"
-            min="30"
-            max="220"
-            step="1"
-            placeholder="Example: 62"
-            aria-describedby="restingHeartRateHint"
-          />
-
-          <span class="ari-input-unit">bpm</span>
+      <div class="ari-result-grid ari-summary-grid">
+        <div class="ari-stat-card">
+          <p class="ari-stat-label">Maintenance</p>
+          <p id="maintenanceBox" class="ari-stat-value">â</p>
         </div>
 
-        <p id="restingHeartRateHint" class="ari-hint">
-          Your resting heart rate helps ARI personalize exercise intensity using heart-rate reserve.
-        </p>
-      </div>
-
-      <div class="ari-field">
-        <p class="ari-label">Estimated Maximum Heart Rate</p>
-
-        <div
-          class="ari-stat-card"
-          id="maxHeartRateEstimateCard"
-          aria-live="polite"
-        >
-          <p class="ari-stat-label">Estimated Max</p>
-
-          <p
-            id="estimatedMaxHeartRate"
-            class="ari-stat-value"
-          >
-            — bpm
-          </p>
-
-          <p
-            id="maxHeartRateSource"
-            class="ari-hint"
-          >
-            ARI will estimate this from your age.
-          </p>
+        <div class="ari-stat-card">
+          <p class="ari-stat-label">BMI</p>
+          <p id="bmiBox" class="ari-stat-value">â</p>
         </div>
 
-        <button
-          id="confirmedMaxHeartRateToggle"
-          class="ari-secondary-action"
-          type="button"
-          aria-expanded="false"
-          aria-controls="confirmedMaxHeartRateGroup"
-        >
-          I Know My Confirmed Max Heart Rate
-        </button>
+        <div class="ari-stat-card ari-stat-card--violet">
+          <p class="ari-stat-label">Estimated Time</p>
+          <p id="timeToGoal" class="ari-stat-value">â</p>
+        </div>
 
-        <div
-          id="confirmedMaxHeartRateGroup"
-          class="ari-field"
-          hidden
-          style="margin-top:14px;"
-        >
-          <label
-            class="ari-label"
-            for="confirmedMaxHeartRate"
-          >
-            Confirmed Maximum Heart Rate
-            <span class="ari-optional-label">Optional</span>
-          </label>
+        <div class="ari-stat-card ari-stat-card--goal-date">
+          <p class="ari-stat-label">Estimated Goal Date</p>
+          <p id="goalDate" class="ari-stat-value">â</p>
+        </div>
+      </div>
 
-          <div class="ari-calorie-goal-input-row">
-            <input
-              id="confirmedMaxHeartRate"
-              class="ari-input"
-              type="number"
-              inputmode="numeric"
-              min="80"
-              max="260"
-              step="1"
-              placeholder="Example: 192"
-              aria-describedby="confirmedMaxHeartRateHint"
-            />
-
-            <span class="ari-input-unit">bpm</span>
+      <details class="ari-advanced-details ari-nutrition-targets-details">
+        <summary>Daily nutrition targets</summary>
+        <div class="ari-stat-card ari-nutrition-targets-card">
+          <div class="ari-nutrition-strategy-row">
+            <div>
+              <p class="ari-stat-label">Strategy</p>
+              <p id="macroStrategySummary" class="ari-stat-value">Balance</p>
+            </div>
           </div>
 
-          <p
-            id="confirmedMaxHeartRateHint"
-            class="ari-hint"
-          >
-            Enter this only if you know a measured or reliably confirmed maximum heart rate.
-            When present, ARI will use this value instead of the age-based estimate.
-          </p>
-
-          <button
-            id="clearConfirmedMaxHeartRateButton"
-            class="ari-secondary-action"
-            type="button"
-          >
-            Use ARI Estimate Instead
-          </button>
+          <div class="ari-nutrition-target-list">
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Protein</p><p id="proteinTarget" class="ari-stat-value">â</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Carbohydrates</p><p id="carbohydrateTarget" class="ari-stat-value">â</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Fat</p><p id="fatTarget" class="ari-stat-value">â</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Fiber</p><p id="fiberTarget" class="ari-stat-value">â</p></div>
+            <div class="ari-nutrition-target-row"><p class="ari-stat-label">Hydration</p><p id="hydrationTarget" class="ari-stat-value">â</p></div>
+          </div>
         </div>
-
-        <div
-          id="effectiveMaxHeartRateStatus"
-          class="ari-status"
-          role="status"
-          aria-live="polite"
-        ></div>
-      </div>
-    </div>
+      </details>
+    </section>
   </section>
 
-  <section class="ari-panel">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">Goal Settings</h3>
-      <p class="ari-section-subtitle">
-        Tell Ari what you are trying to do with your health.
-      </p>
-    </div>
-
-    <div class="ari-form">
-      <div class="ari-field">
-        <label class="ari-label" for="activity">Activity Level</label>
-        <select id="activity" class="ari-select">
-          <option value="1.2">Sedentary</option>
-          <option value="1.375">Lightly Active</option>
-          <option value="1.55" selected>Moderately Active</option>
-          <option value="1.725">Very Active</option>
-          <option value="1.9">Athlete / Extremely Active</option>
-        </select>
-
-        <p class="ari-hint">
-          This describes your typical daily activity for maintenance-calorie estimates.
-          Workout intensity in ARI Training is calculated separately and can use heart rate.
-        </p>
-      </div>
-
-      <button
-        class="ari-secondary-action"
-        type="button"
-        onclick="toggleActivityGuide()"
-      >
-        What do these activity levels mean?
-      </button>
-
-      <div
-        id="activityGuide"
-        class="ari-hint"
-        style="display:none; margin-top:14px;"
-      >
-        Sedentary: little/no exercise. Lightly active: light activity 1–3 days/week.
-        Moderately active: exercise 3–5 days/week. Very active: hard activity most days.
-        Athlete: intense daily training.
-      </div>
-
-      <div class="ari-field">
-        <label class="ari-label" for="goalMode">Goal</label>
-        <select id="goalMode" class="ari-select">
-          <option value="lose" selected>Lose Weight</option>
-          <option value="maintain">Maintain Weight</option>
-          <option value="gain">Gain Weight</option>
-        </select>
-      </div>
-
-      <div class="ari-field">
-        <label class="ari-label" for="targetWeight">Target Weight (lbs)</label>
-        <input
-          id="targetWeight"
-          class="ari-input"
-          type="number"
-          step="0.1"
-          value="175.0"
-        />
-      </div>
-
-      <div class="ari-field" id="weeklyChangeGroup">
-        <label class="ari-label" for="weeklyChange">
-          Weekly Weight Change Goal
-        </label>
-
-        <select id="weeklyChange" class="ari-select">
-          <option value="0.25">0.25 lb/week</option>
-          <option value="0.5">0.5 lb/week</option>
-          <option value="1" selected>1 lb/week</option>
-          <option value="1.5">1.5 lb/week</option>
-          <option value="2">2 lb/week</option>
-        </select>
-
-        <p id="goalModeHelper" class="ari-hint">
-          For weight loss, this creates a calorie deficit.
-        </p>
-      </div>
-
-      <div class="ari-field">
-        <label
-          class="ari-label"
-          for="macroNutritionStrategy"
-        >
-          Macro Nutrition Strategy
-        </label>
-
-        <select
-          id="macroNutritionStrategy"
-          class="ari-select"
-        >
-          <option value="balance" selected>Balance</option>
-          <option value="endurance">Endurance</option>
-          <option value="muscle_building">Muscle Building</option>
-        </select>
-      </div>
-
-      <button
-        id="macroStrategyGuideButton"
-        class="ari-secondary-action"
-        type="button"
-        aria-expanded="false"
-        aria-controls="macroStrategyGuide"
-        onclick="toggleMacroStrategyGuide()"
-      >
-        What do these strategies mean?
-      </button>
-
-      <div
-        id="macroStrategyGuide"
-        class="ari-hint"
-        style="display:none; margin-top:14px;"
-      >
-        <p>
-          <strong>Balance:</strong>
-          A general mix of protein, carbohydrates, and fat for everyday health and steady energy.
-        </p>
-
-        <p>
-          <strong>Endurance:</strong>
-          More carbohydrates to support longer workouts, sports, and sustained activity.
-        </p>
-
-        <p>
-          <strong>Muscle Building:</strong>
-          More protein to support strength training, muscle recovery, and growth.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <section class="ari-panel">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">Nutrition Context</h3>
-      <p class="ari-section-subtitle">
-        These are not identity fields. They help Ari reason about your health goals.
-      </p>
-    </div>
-
-    <div class="ari-form">
-      <div class="ari-field">
-        <label class="ari-label" for="dietPreference">Diet Preference</label>
-
-        <select id="dietPreference" class="ari-select">
-          <option value="none" selected>None</option>
-          <option value="mediterranean">Mediterranean</option>
-          <option value="vegetarian">Vegetarian</option>
-          <option value="vegan">Vegan</option>
-          <option value="pescatarian">Pescatarian</option>
-          <option value="keto">Keto</option>
-          <option value="low_carb">Low Carb</option>
-          <option value="paleo">Paleo</option>
-          <option value="gluten_free">Gluten Free</option>
-          <option value="dairy_free">Dairy Free</option>
-          <option value="halal">Halal</option>
-          <option value="kosher">Kosher</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-
-      <div
-        class="ari-field"
-        id="dietOtherGroup"
-        style="display:none;"
-      >
-        <label class="ari-label" for="dietOther">
-          Tell Ari about your diet
-        </label>
-
-        <textarea
-          id="dietOther"
-          class="ari-textarea"
-          placeholder="Example: I avoid red meat but eat fish."
-        ></textarea>
-      </div>
-
-      <div class="ari-field">
-        <label class="ari-label" for="foodAllergies">
-          Food Allergies
-        </label>
-
-        <textarea
-          id="foodAllergies"
-          class="ari-textarea"
-          placeholder="Example: peanuts, shellfish, dairy, or none."
-        ></textarea>
-      </div>
-
-      <div class="ari-field">
-        <label class="ari-label" for="medicalConditions">
-          Medical Conditions Ari should consider
-        </label>
-
-        <textarea
-          id="medicalConditions"
-          class="ari-textarea"
-          placeholder="Optional. Example: diabetes, hypertension, pregnancy, kidney disease."
-        ></textarea>
-      </div>
-    </div>
-  </section>
-
-  <section class="ari-panel">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">Health Goal Summary</h3>
-
-      <p id="goalExplanation" class="ari-section-subtitle">
-        Informational estimates based on your current body information and health goals.
-      </p>
-    </div>
-
-    <div id="warningBox" class="ari-warning">
-      This goal may be too aggressive. Consider a slower weekly goal.
-    </div>
-
-    <div class="ari-result-grid">
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Estimated Daily Calories</p>
-        <p id="calorieGoal" class="ari-stat-value">— kcal</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Maintenance Calories</p>
-        <p id="maintenanceBox" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">BMI</p>
-        <p id="bmiBox" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Estimated Time</p>
-        <p id="timeToGoal" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Estimated Goal Date</p>
-        <p id="goalDate" class="ari-stat-value">—</p>
-      </div>
-    </div>
-
-    <div class="ari-panel-header" style="margin-top:24px;">
-      <h3 class="ari-section-title">Daily Nutrition Targets</h3>
-    </div>
-
-    <div class="ari-stat-card ari-nutrition-targets-card">
-      <div class="ari-nutrition-strategy-row">
+  <section id="healthProgressPanel" class="ari-tab-panel">
+    <section class="ari-panel ari-progress-panel">
+      <div class="ari-progress-heading">
         <div>
-          <p class="ari-stat-label">Strategy</p>
-          <p id="macroStrategySummary" class="ari-stat-value">Balance</p>
+          <p class="ari-section-kicker">TODAY AT A GLANCE</p>
+          <h2 class="ari-section-title">My Health Progress</h2>
+        </div>
+        <span id="progressSummaryDate" class="ari-sync-date">Today</span>
+      </div>
+
+      <div class="ari-progress-weight-path">
+        <div>
+          <span>CURRENT</span>
+          <strong id="progressWeight">â</strong>
+        </div>
+        <div class="ari-progress-weight-path__beam" aria-hidden="true"><span></span></div>
+        <div>
+          <span>TARGET</span>
+          <strong id="progressTargetWeight">â</strong>
         </div>
       </div>
 
-      <div class="ari-nutrition-target-list">
-        <div class="ari-nutrition-target-row">
-          <p class="ari-stat-label">Protein</p>
-          <p id="proteinTarget" class="ari-stat-value">—</p>
-        </div>
+      <div class="ari-progress-grid">
+        <article class="ari-progress-tile ari-progress-tile--wide">
+          <p>Calories Consumed</p>
+          <strong id="progressCalories">â</strong>
+          <span>today's intake / daily goal</span>
+        </article>
 
-        <div class="ari-nutrition-target-row">
-          <p class="ari-stat-label">Carbohydrates</p>
-          <p id="carbohydrateTarget" class="ari-stat-value">—</p>
-        </div>
+        <article class="ari-progress-tile ari-progress-tile--cyan">
+          <p>Training Burned</p>
+          <strong id="progressCaloriesBurned">0 kcal</strong>
+          <span>synced from ARI Training</span>
+        </article>
 
-        <div class="ari-nutrition-target-row">
-          <p class="ari-stat-label">Fat</p>
-          <p id="fatTarget" class="ari-stat-value">—</p>
-        </div>
+        <article class="ari-progress-tile ari-progress-tile--status">
+          <p>Today's Workout</p>
+          <strong id="progressWorkoutStatus" class="ari-workout-status">Incomplete</strong>
+          <span id="progressWorkoutDetail">No completed workout yet</span>
+        </article>
 
-        <div class="ari-nutrition-target-row">
-          <p class="ari-stat-label">Fiber</p>
-          <p id="fiberTarget" class="ari-stat-value">—</p>
-        </div>
+        <article class="ari-progress-tile">
+          <p>Current BMI</p>
+          <strong id="progressBmi">â</strong>
+          <span>profile estimate</span>
+        </article>
 
-        <div class="ari-nutrition-target-row">
-          <p class="ari-stat-label">Hydration</p>
-          <p id="hydrationTarget" class="ari-stat-value">—</p>
-        </div>
+        <article class="ari-progress-tile ari-progress-tile--violet">
+          <p>Estimated Timeline</p>
+          <strong id="progressTimeline">â</strong>
+          <span id="progressGoalDate">Goal date â</span>
+        </article>
       </div>
-    </div>
-  </section>
-</section>
 
-<section id="healthProgressPanel" class="ari-tab-panel">
-  <section class="ari-panel">
-    <div class="ari-panel-header">
-      <h3 class="ari-section-title">My Health Progress</h3>
-
-      <p class="ari-section-subtitle">
-        Progress belongs inside each goal domain. This tab summarizes health progress without asking you to log weight here.
+      <p class="ari-progress-note">
+        Your food intake and workout status refresh for the current date whenever this page opens or returns to focus.
       </p>
-    </div>
-
-    <div class="ari-result-grid">
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Current Weight</p>
-        <p id="progressWeight" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Target Weight</p>
-        <p id="progressTargetWeight" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">BMI</p>
-        <p id="progressBmi" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Calories</p>
-        <p id="progressCalories" class="ari-stat-value">—</p>
-      </div>
-
-      <div class="ari-stat-card">
-        <p class="ari-stat-label">Timeline</p>
-        <p id="progressTimeline" class="ari-stat-value">—</p>
-      </div>
-    </div>
+    </section>
   </section>
-
-  <p class="ari-footer-note">
-    Weight logging now belongs in Health Goals or My Identity.
-    This progress tab is for trends and summaries.
-  </p>
-</section>
-
-<p class="ari-footer-note">
-  My Goals is a domain framework. Today it contains Health Goals and ARI Training.
-  Tomorrow it can contain Mental Health, Financial, Career, and Learning goals.
-</p>
-
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js?v=8"></script>
 <script src="js/auth.js"></script>
-<script src="js/goals.js?v=2.5.1"></script>
+<script src="js/goals.js?v=3.0.0"></script>
 </body>
 </html>
