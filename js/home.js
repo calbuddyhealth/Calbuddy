@@ -1,8 +1,14 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.2.2
+// Version: 3.2.3
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
+//
+// V3.2.3:
+//   - Treats frame 7 as the quick blink version of frame 8.
+//   - Holds frame 8 for seven seconds, flashes frame 7 for 140ms,
+//     and immediately returns to frame 8.
+//   - Keeps frame 7 brief during entry and reverse transitions.
 //
 // V3.2.2:
 //   - Completely skips ari-thinking-3.png in both animation directions.
@@ -66,8 +72,8 @@ const ARI_THINKING_SEQUENCE = Object.freeze({
   holdLowFrame: 7,
   lastFrame: 8,
   enterDelay: 240,
-  holdFrame8Delay: 8000,
-  holdFrame7Delay: 8000,
+  holdFrame8Delay: 7000,
+  frame7BlinkDelay: 140,
   exitDelay: 165
 });
 
@@ -241,10 +247,11 @@ function advanceAriThinkingSequence() {
     return;
   }
 
-  scheduleAriThinkingSequence(
-    advanceAriThinkingSequence,
-    ARI_THINKING_SEQUENCE.enterDelay
-  );
+  const nextDelay = nextFrame === ARI_THINKING_SEQUENCE.holdLowFrame
+    ? ARI_THINKING_SEQUENCE.frame7BlinkDelay
+    : ARI_THINKING_SEQUENCE.enterDelay;
+
+  scheduleAriThinkingSequence(advanceAriThinkingSequence, nextDelay);
 }
 
 function scheduleAriThinkingHold() {
@@ -255,7 +262,7 @@ function scheduleAriThinkingHold() {
 
   const delay = showingFrame8
     ? ARI_THINKING_SEQUENCE.holdFrame8Delay
-    : ARI_THINKING_SEQUENCE.holdFrame7Delay;
+    : ARI_THINKING_SEQUENCE.frame7BlinkDelay;
 
   scheduleAriThinkingSequence(() => {
     if (ariThinkingSequencePhase !== "holding") return;
@@ -312,10 +319,11 @@ function reverseAriThinkingSequence() {
     return;
   }
 
-  scheduleAriThinkingSequence(
-    reverseAriThinkingSequence,
-    ARI_THINKING_SEQUENCE.exitDelay
-  );
+  const nextDelay = nextFrame === ARI_THINKING_SEQUENCE.holdLowFrame
+    ? ARI_THINKING_SEQUENCE.frame7BlinkDelay
+    : ARI_THINKING_SEQUENCE.exitDelay;
+
+  scheduleAriThinkingSequence(reverseAriThinkingSequence, nextDelay);
 }
 
 function setRotatingWelcomeQuestion() {
