@@ -48,6 +48,8 @@ const ARI_WELCOME_QUESTIONS = [
 ];
 
 document.addEventListener("DOMContentLoaded", async () => {
+  openRequestedHomeMenu();
+
   preloadAriAssets();
   enterAriWelcomeMode();
   setRotatingWelcomeQuestion();
@@ -297,6 +299,35 @@ function toggleMenu() {
   toggle?.classList.toggle("open");
 }
 
+function openRequestedHomeMenu() {
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
+
+  if (params.get("menu") !== "open") {
+    return;
+  }
+
+  document
+    .getElementById("sideMenu")
+    ?.classList.add("open");
+
+  document
+    .getElementById("menuOverlay")
+    ?.classList.add("show");
+
+  document
+    .querySelector(".ari-menu-toggle")
+    ?.classList.add("open");
+
+  window.history.replaceState(
+    {},
+    "",
+    "home.html"
+  );
+}
+
 async function setupHomeAuth() {
   if (typeof requireAuth === "function") {
     await requireAuth();
@@ -428,13 +459,13 @@ function setAriComposerThinking(isThinking) {
   if (isThinking) {
     input.disabled = true;
     input.placeholder = "Ari is thinking...";
-    button.textContent = "■";
+    button.textContent = "â ";
     button.classList.add("ari-stop-btn");
     button.onclick = stopAriThinking;
   } else {
     input.disabled = false;
     setRotatingWelcomeQuestion();
-    button.textContent = "➤";
+    button.textContent = "â¤";
     button.classList.remove("ari-stop-btn");
     button.onclick = sendAriMessage;
   }
