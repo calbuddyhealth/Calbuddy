@@ -1,9 +1,16 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.5.0
+// Version: 4.6.0
 // Purpose:
 //   Fault-isolated calendar-first ARI Training controller.
+//
+// V4.6.0:
+//   - Repairs the live Complete Set template/class mismatch.
+//   - Rebuilds set completion as large tactile cyan-to-green controls.
+//   - Removes Do Later and keeps one clear Skip action.
+//   - Replaces corrupted encoded symbols with safe readable text.
+//   - Uses clean numbered workout-queue badges instead of glyph icons.
 //
 // V4.5.0:
 //   - Cancel Workout now returns to the selected-day card immediately.
@@ -43,7 +50,7 @@
 //   - Fixes malformed symbols.
 // =====================================================
 
-const VERSION = "4.5.0";
+const VERSION = "4.6.0";
 const SOURCE = "js/ari-training";
 
 
@@ -721,7 +728,6 @@ function cacheElements() {
     "todayCurrentExercisePrescription",
     "todayCurrentExercisePosition",
     "todayCurrentExerciseSets",
-    "doCurrentExerciseLaterButton",
     "skipCurrentExerciseButton",
 
     "todayWorkoutRestPanel",
@@ -962,13 +968,6 @@ function bindEvents() {
         void handleSessionExerciseQueueClick(
           event
         )
-    );
-
-
-  elements.doCurrentExerciseLaterButton
-    ?.addEventListener(
-      "click",
-      () => void doCurrentExerciseLater()
     );
 
 
@@ -4708,7 +4707,7 @@ function renderCurrentExercise() {
     setText(
       elements.todayCurrentExercisePosition,
 
-      "â"
+      "DONE"
     );
 
 
@@ -4856,99 +4855,101 @@ function createLiveSetElement(
     elements.todayWorkoutSetTemplate;
 
 
-  if (!template?.content) {
-    const fallback =
-      document.createElement(
-        "button"
+  let renderedNode =
+    null;
+
+
+  let root =
+    null;
+
+
+  if (template?.content) {
+    const fragment =
+      template.content
+        .cloneNode(true);
+
+
+    root =
+      fragment.querySelector(
+        ".ari-workout-set"
       );
 
 
-    fallback.type =
-      "button";
-
-
-    fallback.dataset.action =
-      "complete-live-set";
-
-
-    fallback.dataset.setId =
-      set.id;
-
-
-    fallback.dataset.exerciseId =
-      exercise.id;
-
-
-    fallback.textContent =
-      `Complete Set ${set.set_number}`;
-
-
-    return fallback;
+    if (root) {
+      renderedNode =
+        fragment;
+    }
   }
-
-
-  const fragment =
-    template.content
-      .cloneNode(true);
-
-
-  const root =
-    fragment.querySelector(
-      ".ari-live-set"
-    );
 
 
   if (!root) {
-    const fallback =
+    root =
       document.createElement(
         "button"
       );
 
 
-    fallback.type =
-      "button";
+    root.className =
+      "ari-workout-set";
 
 
-    fallback.dataset.action =
-      "complete-live-set";
+    for (
+      const className
+      of [
+        "ari-workout-set__number",
+        "ari-workout-set__prescription",
+        "ari-workout-set__check"
+      ]
+    ) {
+      const span =
+        document.createElement(
+          "span"
+        );
 
 
-    fallback.dataset.setId =
-      set.id;
+      span.className =
+        className;
 
 
-    fallback.dataset.exerciseId =
-      exercise.id;
+      span.setAttribute(
+        "aria-hidden",
+        "true"
+      );
 
 
-    fallback.textContent =
-      `Complete Set ${set.set_number}`;
+      root.appendChild(
+        span
+      );
+    }
 
 
-    return fallback;
+    renderedNode =
+      root;
   }
 
 
-  const weightInput =
-    root.querySelector(
-      ".ari-live-set__weight"
-    );
+  root.type =
+    "button";
 
 
-  const repsInput =
-    root.querySelector(
-      ".ari-live-set__reps"
-    );
-
-
-  const completeButton =
-    root.querySelector(
-      ".ari-live-set__complete"
-    );
+  root.dataset.action =
+    "complete-live-set";
 
 
   root.dataset.setId =
     set.id;
+
+
+  root.dataset.exerciseId =
+    exercise.id;
+
+
+  root.dataset.completed =
+    String(
+      Boolean(
+        set.completed
+      )
+    );
 
 
   root.dataset.status =
@@ -4960,75 +4961,39 @@ function createLiveSetElement(
   setTextWithin(
     root,
 
-    ".ari-live-set__label",
+    ".ari-workout-set__number",
 
-    `Set ${set.set_number}`
+    String(
+      set.set_number
+    )
   );
 
 
   setTextWithin(
     root,
 
-    ".ari-live-set__target",
+    ".ari-workout-set__prescription",
 
-    buildSetTarget(
-      set
-    )
+    set.completed
+      ? "Set Complete"
+      : "Complete Set"
   );
 
 
-  if (weightInput) {
-    weightInput.value =
-      set.actual_weight ??
-      set.planned_weight ??
-      "";
-
-
-    weightInput.disabled =
-      Boolean(
-        set.completed
-      );
-  }
-
-
-  if (repsInput) {
-    repsInput.value =
-      set.actual_reps ??
-      set.planned_reps ??
-      "";
-
-
-    repsInput.disabled =
-      Boolean(
-        set.completed
-      );
-  }
-
-
-  if (completeButton) {
-    completeButton.dataset.action =
-      "complete-live-set";
-
-
-    completeButton.dataset.setId =
-      set.id;
-
-
-    completeButton.dataset.exerciseId =
-      exercise.id;
-
-
-    completeButton.textContent =
+  root.disabled =
+    Boolean(
       set.completed
-        ? "Set Complete"
-        : "Complete Set";
+    );
 
 
-    completeButton.disabled =
-      Boolean(
-        set.completed
-      );
-  }
+  root.setAttribute(
+    "aria-label",
+    set.completed
+      ? `Set ${set.set_number} complete`
+      : `Complete set ${set.set_number}: ${buildSetTarget(
+          set
+        )}`
+  );
 
 
   if (set.completed) {
@@ -5038,7 +5003,7 @@ function createLiveSetElement(
   }
 
 
-  return fragment;
+  return renderedNode;
 }
 
 
@@ -5123,29 +5088,21 @@ async function completeLiveSet(
   }
 
 
-  const root =
-    button.closest(
-      ".ari-live-set"
-    );
-
-
   const actualWeight =
     normalizeNonNegativeNumber(
-      root
-        ?.querySelector(
-          ".ari-live-set__weight"
-        )
-        ?.value
+      set.actual_weight
+    ) ??
+    normalizeNonNegativeNumber(
+      set.planned_weight
     );
 
 
   const actualReps =
     normalizeNonNegativeInteger(
-      root
-        ?.querySelector(
-          ".ari-live-set__reps"
-        )
-        ?.value
+      set.actual_reps
+    ) ??
+    normalizeNonNegativeInteger(
+      set.planned_reps
     );
 
 
@@ -5453,42 +5410,6 @@ function hasRemainingIncompleteWork() {
 // EXERCISE ORDER
 // =====================================================
 
-async function doCurrentExerciseLater() {
-  const current =
-    getCurrentSessionExercise();
-
-
-  if (!current) {
-    return;
-  }
-
-
-  if (
-    current.status ===
-    "current"
-  ) {
-    await updateSessionExercise({
-      exercise:
-        current,
-
-      patch: {
-        status:
-          "pending"
-      }
-    });
-  }
-
-
-  await chooseNextExercise({
-    excludeId:
-      current.id
-  });
-
-
-  renderLiveSession();
-}
-
-
 async function skipCurrentExercise() {
   const current =
     getCurrentSessionExercise();
@@ -5623,13 +5544,25 @@ function renderSessionExerciseQueue() {
   container.replaceChildren();
 
 
+  const exercises =
+    getOrderedSessionExercises();
+
+
   for (
-    const exercise
-    of getOrderedSessionExercises()
+    let index = 0;
+    index < exercises.length;
+    index += 1
   ) {
+    const exercise =
+      exercises[
+        index
+      ];
+
+
     container.appendChild(
       createSessionExerciseQueueRow(
-        exercise
+        exercise,
+        index
       )
     );
   }
@@ -5637,7 +5570,9 @@ function renderSessionExerciseQueue() {
 
 
 function createSessionExerciseQueueRow(
-  exercise
+  exercise,
+  index =
+    0
 ) {
   const template =
     elements.todayWorkoutExerciseTemplate;
@@ -5699,8 +5634,8 @@ function createSessionExerciseQueueRow(
 
       ".ari-session-exercise-row__status",
 
-      getExerciseStateIcon(
-        exercise.status
+      String(
+        index + 1
       )
     );
 
@@ -5730,7 +5665,7 @@ function createSessionExerciseQueueRow(
 
 
     button.textContent =
-      `${exercise.exercise_name} Â· ${getExerciseStateLabel(
+      `${index + 1}. ${exercise.exercise_name} - ${getExerciseStateLabel(
         exercise.status
       )}`;
   }
@@ -6711,7 +6646,7 @@ async function saveHeartRateReading() {
 
 
   showTrainingMessage(
-    `â¥ ${bpm} BPM saved`,
+    `Heart rate ${bpm} BPM saved`,
     "success"
   );
 }
@@ -7005,7 +6940,7 @@ async function openFinishWorkoutPanel() {
 
     hrStats.average
       ? `${hrStats.average} bpm`
-      : "â"
+      : "--"
   );
 
 
@@ -9052,7 +8987,7 @@ function renderTrainingProfile() {
       ? `${formatProfileNumber(
           state.profileWeightLb
         )} lb`
-      : "â"
+      : "--"
   );
 
 
@@ -9063,7 +8998,7 @@ function renderTrainingProfile() {
       ? `${Math.round(
           state.profileRestingHeartRate
         )} bpm`
-      : "â"
+      : "--"
   );
 
 
@@ -9074,7 +9009,7 @@ function renderTrainingProfile() {
       ? `${Math.round(
           state.profileEffectiveMaxHeartRate
         )} bpm`
-      : "â"
+      : "--"
   );
 
 
@@ -10302,7 +10237,7 @@ function buildWorkoutMeta(
 
 
   return pieces.join(
-    " Â· "
+    " / "
   );
 }
 
@@ -10398,7 +10333,7 @@ function getShortPrescription(
     sets &&
     reps
   ) {
-    return `${sets} Ã ${reps}`;
+    return `${sets} sets / ${reps} reps`;
   }
 
 
@@ -10463,7 +10398,7 @@ function getSessionExercisePrescription(
 
 
     return pieces.join(
-      " Ã "
+      " / "
     ) ||
       "Strength exercise";
   }
@@ -10516,7 +10451,7 @@ function buildSetTarget(
 
 
   return pieces.join(
-    " Ã "
+    " / "
   ) ||
     "Planned set";
 }
@@ -10581,25 +10516,6 @@ function getExerciseTypeLabel(
         type
       )
     : "Exercise";
-}
-
-
-function getExerciseStateIcon(
-  status
-) {
-  switch (status) {
-    case "current":
-      return "â";
-
-    case "completed":
-      return "â";
-
-    case "skipped":
-      return "â";
-
-    default:
-      return "â";
-  }
 }
 
 
@@ -11363,7 +11279,7 @@ function readableError(
 
   return parts.length
     ? parts.join(
-        " Â· "
+        " / "
       )
     : fallback;
 }
