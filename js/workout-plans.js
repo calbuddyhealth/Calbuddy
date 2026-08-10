@@ -1,9 +1,17 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.3.1
+// Version: 3.3.2
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V3.3.2:
+//   - Removes the duplicate Save Workout button from the day editor.
+//   - The top-right close button now commits and saves the day.
+//   - Renames each exercise Done action to Save.
+//   - Exercise Save commits visible metric inputs immediately,
+//     saves the plan, collapses the card, and shows SAVED ✓.
+//   - Preserves V3.3.1 focus matching and the full registry.
 //
 // V3.3.1:
 //   - Fixes focused exercise matching at the source.
@@ -29,7 +37,7 @@
 //   - Keeps Sunday-Saturday calendar weeks.
 //   - Keeps Templates, Exercise Library, exercise details,
 //     autosave, Repeat Last Week, Clear Week, optional weight,
-//     120-second set rest, and Done collapse.
+//     120-second set rest, and per-exercise Save collapse.
 // =====================================================
 
 import WorkoutPlanController
@@ -58,7 +66,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.3.1";
+  "3.3.2";
 
 const SOURCE =
   "js/workout-plans";
@@ -135,6 +143,12 @@ const state = {
   saving:
     false,
 
+  savingDayEditor:
+    false,
+
+  savingExerciseIndex:
+    null,
+
   changingWeek:
     false,
 
@@ -200,7 +214,6 @@ function cacheDom() {
     "workoutAddExerciseButton",
     "workoutDayExerciseList",
     "workoutDayExerciseEmpty",
-    "workoutDayDoneButton",
 
     "workoutExercisePicker",
     "workoutExercisePickerContext",
@@ -3559,7 +3572,7 @@ function exerciseMatchesFocus(
    *
    * "strength", "hypertrophy", "free_weight", "cable",
    * "machine_strength", etc. describe HOW an exercise is
-   * performed â not WHAT body part the workout targets.
+   * performed — not WHAT body part the workout targets.
    *
    * Using them as an OR condition causes Chest Day to
    * incorrectly include virtually every strength exercise.
@@ -3742,6 +3755,12 @@ function openDayEditor(
 
   state.expandedExerciseIndex =
     null;
+
+  state.savingExerciseIndex =
+    null;
+
+  state.savingDayEditor =
+    false;
 
   if (
     dom.workoutDayEditorTitle
@@ -4169,24 +4188,24 @@ function renderDayExercises() {
       if (
         !expanded
       ) {
-        const doneBadge =
+        const savedBadge =
           document.createElement(
             "span"
           );
 
-        doneBadge.className =
-          "workout-exercise-row__done-badge";
+        savedBadge.className =
+          "workout-exercise-row__saved-badge";
 
-        doneBadge.textContent =
-          "DONE \u2713";
+        savedBadge.textContent =
+          "SAVED \u2713";
 
-        doneBadge.setAttribute(
+        savedBadge.setAttribute(
           "aria-hidden",
           "true"
         );
 
         summaryEnd.appendChild(
-          doneBadge
+          savedBadge
         );
       }
 
@@ -4538,29 +4557,45 @@ function renderDayExercises() {
         );
       }
 
-      const done =
+      const saveExercise =
         document.createElement(
           "button"
         );
 
-      done.type =
+      saveExercise.type =
         "button";
 
-      done.className =
-        "workout-exercise-row__done";
+      saveExercise.className =
+        "workout-exercise-row__save";
 
-      done.dataset
+      saveExercise.dataset
         .workoutAction =
-          "done-exercise-row";
+          "save-exercise-row";
 
-      done.dataset
+      saveExercise.dataset
         .exerciseIndex =
           String(
             index
           );
 
-      done.textContent =
-        "Done";
+      const exerciseSaving =
+        state.savingExerciseIndex ===
+          index;
+
+      saveExercise.disabled =
+        exerciseSaving;
+
+      saveExercise.setAttribute(
+        "aria-busy",
+        exerciseSaving
+          ? "true"
+          : "false"
+      );
+
+      saveExercise.textContent =
+        exerciseSaving
+          ? "Saving..."
+          : "Save";
 
       const actions =
         document.createElement(
@@ -4623,7 +4658,7 @@ function renderDayExercises() {
 
       body.append(
         metrics,
-        done,
+        saveExercise,
         actions
       );
 
@@ -5414,30 +5449,125 @@ function addExerciseToActiveDay(
 }
 
 
-function collapseExerciseRow(
+function commitExerciseRowInputs(
   index
 ) {
   if (
-    !Number.isInteger(
-      index
-    )
+    !state.activeDay ||
+    !Number.isInteger(index)
   ) {
     return false;
   }
 
+  const row =
+    dom.workoutDayExerciseList
+      ?.querySelector(
+        `[data-exercise-index="${index}"]`
+      );
+
+  if (!row) {
+    return false;
+  }
+
+  const updates =
+    {};
+
+  for (
+    const input
+    of row.querySelectorAll(
+      "[data-exercise-field]"
+    )
+  ) {
+    const field =
+      input.dataset
+        .exerciseField;
+
+    if (!field) {
+      continue;
+    }
+
+    const number =
+      input.value ===
+        ""
+        ? null
+        : Number(
+            input.value
+          );
+
+    updates[field] =
+      Number.isFinite(
+        number
+      )
+        ? number
+        : null;
+  }
+
   if (
-    state.expandedExerciseIndex !==
-      index
+    Object.keys(
+      updates
+    ).length
+  ) {
+    controllerUpdateExercise(
+      state.activeDay,
+      index,
+      updates
+    );
+
+    renderWeek();
+  }
+
+  return true;
+}
+
+
+async function saveExerciseRow(
+  index
+) {
+  if (
+    !state.activeDay ||
+    !Number.isInteger(index) ||
+    state.savingExerciseIndex !==
+      null
   ) {
     return false;
   }
+
+  state.savingExerciseIndex =
+    index;
+
+  const committed =
+    commitExerciseRowInputs(
+      index
+    );
+
+  if (!committed) {
+    state.savingExerciseIndex =
+      null;
+
+    return false;
+  }
+
+  renderDayExercises();
+
+  const success =
+    await saveNow();
+
+  state.savingExerciseIndex =
+    null;
 
   state.expandedExerciseIndex =
     null;
 
+  renderWeek();
   renderDayExercises();
 
-  return true;
+  showToast(
+    success
+      ? "Exercise saved."
+      : "Saved on this device."
+  );
+
+  return success;
 }
 
 
@@ -5658,33 +5788,54 @@ async function saveNow() {
 
 
 async function finishDayEditor() {
-  updateDayFromEditor();
+  if (
+    state.savingDayEditor
+  ) {
+    return false;
+  }
+
+  state.savingDayEditor =
+    true;
+
+  const closeButton =
+    dom.workoutDayEditor
+      ?.querySelector(
+        '[data-workout-action="close-day-editor"]'
+      );
+
+  if (closeButton) {
+    closeButton.disabled =
+      true;
+
+    closeButton.setAttribute(
+      "aria-busy",
+      "true"
+    );
+  }
 
   if (
-    dom.workoutDayDoneButton
+    Number.isInteger(
+      state.expandedExerciseIndex
+    )
   ) {
-    dom.workoutDayDoneButton
-      .disabled =
-        true;
-
-    dom.workoutDayDoneButton
-      .textContent =
-        "Saving...";
+    commitExerciseRowInputs(
+      state.expandedExerciseIndex
+    );
   }
+
+  updateDayFromEditor();
 
   const success =
     await saveNow();
 
-  if (
-    dom.workoutDayDoneButton
-  ) {
-    dom.workoutDayDoneButton
-      .disabled =
-        false;
+  if (closeButton) {
+    closeButton.disabled =
+      false;
 
-    dom.workoutDayDoneButton
-      .textContent =
-        "Save Workout";
+    closeButton.setAttribute(
+      "aria-busy",
+      "false"
+    );
   }
 
   closeDialog(
@@ -5694,6 +5845,9 @@ async function finishDayEditor() {
   state.expandedExerciseIndex =
     null;
 
+  state.savingDayEditor =
+    false;
+
   renderWeek();
 
   showToast(
@@ -5701,6 +5855,8 @@ async function finishDayEditor() {
       ? "Workout saved."
       : "Saved on this device."
   );
+
+  return success;
 }
 
 
@@ -5811,13 +5967,6 @@ function handleClick(
 
 
     case "close-day-editor":
-      closeDialog(
-        dom.workoutDayEditor
-      );
-      break;
-
-
-    case "done-day":
       void finishDayEditor();
       break;
 
@@ -5853,7 +6002,7 @@ function handleClick(
     }
 
 
-    case "done-exercise-row": {
+    case "save-exercise-row": {
       const index =
         Number(
           actionNode.dataset
@@ -5866,7 +6015,7 @@ function handleClick(
             ?.exerciseIndex
         );
 
-      collapseExerciseRow(
+      void saveExerciseRow(
         index
       );
 
@@ -6272,6 +6421,16 @@ function bindEvents() {
       }
     );
 
+  dom.workoutDayEditor
+    ?.addEventListener(
+      "cancel",
+      event => {
+        event.preventDefault();
+
+        void finishDayEditor();
+      }
+    );
+
   for (
     const dialog
     of [
@@ -6304,6 +6463,15 @@ function bindEvents() {
           dom.exerciseDetailDialog
         ) {
           closeDetailAndReturn();
+
+          return;
+        }
+
+        if (
+          dialog ===
+          dom.workoutDayEditor
+        ) {
+          void finishDayEditor();
 
           return;
         }
