@@ -117,26 +117,29 @@ export default async function handler(req, res) {
     }
 
     if (action === "log_weight") {
-      const entry = {
-        user_id,
-        weight: Number(payload.weight),
-        notes: payload.notes || "",
-        log_date: payload.log_date || new Date().toISOString().split("T")[0],
-        created_at: new Date().toISOString()
-      };
+      const numericWeight = Number(payload.weight_lbs ?? payload.weight);
 
-      if (!entry.weight || entry.weight <= 0) {
+      if (!Number.isFinite(numericWeight) || numericWeight <= 0) {
         return res.status(400).json({ error: "Valid weight is required." });
       }
 
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/weight_logs`, {
-        method: "POST",
-        headers: {
-          ...headers,
-          Prefer: "return=representation"
-        },
-        body: JSON.stringify(entry)
-      });
+      const entry = {
+        user_id,
+        weight_lbs: numericWeight,
+        log_date: payload.log_date || new Date().toISOString().split("T")[0]
+      };
+
+      const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/weight_logs?on_conflict=user_id%2Clog_date`,
+        {
+          method: "POST",
+          headers: {
+            ...headers,
+            Prefer: "resolution=merge-duplicates,return=representation"
+          },
+          body: JSON.stringify(entry)
+        }
+      );
 
       const data = await response.json();
 
