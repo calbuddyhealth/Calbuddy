@@ -1,9 +1,14 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.6.1
+// Version: 3.6.2
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V3.6.2:
+//   - Opens the current Sunday-Saturday week on a normal page visit.
+//   - Honors an explicit ?date=YYYY-MM-DD link from ARI Training.
+//   - Stops a previously browsed week from overriding today on refresh.
 //
 // V3.6.1:
 //   - Fixes the iPhone dialog race when View Exercise is opened.
@@ -36,7 +41,7 @@
 //   - The top-right close button now commits and saves the day.
 //   - Renames each exercise Done action to Save.
 //   - Exercise Save commits visible metric inputs immediately,
-//     saves the plan, collapses the card, and shows SAVED â.
+//     saves the plan, collapses the card, and shows SAVED.
 //   - Preserves V3.3.1 focus matching and the full registry.
 //
 // V3.3.1:
@@ -92,7 +97,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.6.1";
+  "3.6.2";
 
 const SOURCE =
   "js/workout-plans";
@@ -4018,7 +4023,7 @@ function exerciseMatchesFocus(
    *
    * "strength", "hypertrophy", "free_weight", "cable",
    * "machine_strength", etc. describe HOW an exercise is
-   * performed â not WHAT body part the workout targets.
+   * performed - not WHAT body part the workout targets.
    *
    * Using them as an OR condition causes Chest Day to
    * incorrectly include virtually every strength exercise.
@@ -7043,46 +7048,43 @@ function bindEvents() {
 ===================================================== */
 
 async function initializeSelectedWeek() {
-  let weekStart =
+  let requestedDate =
     null;
 
-  if (
-    typeof WorkoutPlanController
-      .getSelectedWeekStart ===
-    "function"
-  ) {
-    weekStart =
-      parseLocalDateKey(
-        WorkoutPlanController
-          .getSelectedWeekStart()
+  try {
+    const params =
+      new URLSearchParams(
+        window.location.search
       );
+
+    requestedDate =
+      parseLocalDateKey(
+        params.get(
+          "date"
+        ) ||
+        params.get(
+          "week"
+        ) ||
+        params.get(
+          "weekStart"
+        )
+      );
+  } catch {
+    requestedDate =
+      null;
   }
 
-  if (
-    !weekStart &&
-    typeof WorkoutPlanController
-      .getSelectedWeekKey ===
-    "function"
-  ) {
-    weekStart =
-      parseLocalDateKey(
-        WorkoutPlanController
-          .getSelectedWeekKey()
-      );
-  }
-
-  if (
-    !weekStart
-  ) {
-    weekStart =
-      getSundayStart(
-        new Date()
-      );
-  }
+  /*
+   * A normal visit always means the real current week.
+   * Only an explicit calendar link may open another week.
+   */
+  const weekAnchor =
+    requestedDate ||
+    new Date();
 
   state.selectedWeekStart =
     getSundayStart(
-      weekStart
+      weekAnchor
     );
 
   await selectControllerWeek(
