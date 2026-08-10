@@ -1,9 +1,17 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/workout-plans.css
-   Version: 3.4.0
+   Version: 3.5.0
    Purpose:
    Premium scientific-lab Workout Plans interface.
+
+   V3.5.0:
+   - Replaces the header Save styling with a professional options menu.
+   - Adds accessible View Exercises and protected Clear Week actions.
+   - Moves Clear Week out of the exposed week-action row.
+   - Adds a dedicated high-contrast confirmation dialog.
+   - Keeps Repeat Last Week as the only visible week-level action.
+   - Preserves all V3.4.0 appearance, layout, and exercise-card styling.
 
    V3.4.0:
    - Appearance-only professional visual polish.
@@ -491,7 +499,7 @@ img {
     nowrap;
 }
 
-.workout-plans-header__save {
+.workout-plans-header__menu-button {
   min-width: 56px;
   height: 40px;
 
@@ -557,17 +565,17 @@ img {
       ease;
 }
 
-.workout-plans-header__save:hover {
+.workout-plans-header__menu-button:hover {
   box-shadow:
     var(--wp-glow-blue);
 }
 
-.workout-plans-header__save:active {
+.workout-plans-header__menu-button:active {
   transform:
     scale(0.96);
 }
 
-.workout-plans-header__save:disabled {
+.workout-plans-header__menu-button:disabled {
   opacity: 0.55;
 
   cursor: default;
@@ -3999,7 +4007,7 @@ input::placeholder {
     height: 41px;
   }
 
-  .workout-plans-header__save {
+  .workout-plans-header__menu-button {
     min-width:
       51px;
 
@@ -4242,7 +4250,7 @@ body.ari-workout-plans-page::before {
 }
 
 .workout-plans-header__back,
-.workout-plans-header__save,
+.workout-plans-header__menu-button,
 .workout-week-nav-button {
   border-color: rgba(31, 62, 101, 0.135);
   background:
@@ -4258,7 +4266,7 @@ body.ari-workout-plans-page::before {
   -webkit-backdrop-filter: blur(14px);
 }
 
-.workout-plans-header__save {
+.workout-plans-header__menu-button {
   color: var(--wp-blue-deep);
   border-color: var(--wp-border-blue);
   background:
@@ -4509,4 +4517,706 @@ body.ari-workout-plans-page::before {
   box-shadow:
     0 11px 28px rgba(36, 87, 214, 0.17);
 }
+
+/* =====================================================
+   V3.5.0 HEADER OPTIONS MENU + PROTECTED CLEAR WEEK
+===================================================== */
+
+.workout-plans-header {
+  position: relative;
+  z-index: 70;
+}
+
+.workout-plans-header__menu {
+  position: relative;
+  z-index: 80;
+
+  display: grid;
+  place-items: center;
+}
+
+.workout-plans-header__menu-button {
+  display: grid;
+  place-items: center;
+
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+
+  padding: 0;
+
+  color: var(--wp-blue-deep);
+
+  cursor: pointer;
+}
+
+.workout-plans-header__menu-button > span {
+  display: block;
+
+  transform: translateY(-2px);
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.workout-plans-header__menu-button:hover,
+.workout-plans-header__menu-button:focus-visible {
+  color: var(--wp-blue);
+  border-color: var(--wp-border-blue);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    var(--wp-glow-blue);
+
+  outline: none;
+}
+
+.workout-plans-header__menu-button[aria-expanded="true"] {
+  color: var(--wp-blue);
+  border-color: rgba(36, 87, 214, 0.25);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(234, 248, 252, 0.99),
+      rgba(239, 244, 253, 0.98) 58%,
+      rgba(247, 242, 252, 0.98)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    var(--wp-glow-blue);
+}
+
+.workout-plans-options-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 90;
+
+  width:
+    min(
+      276px,
+      calc(100vw - 28px)
+    );
+
+  padding: 9px;
+
+  border:
+    1px solid
+    rgba(31, 62, 101, 0.15);
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.985),
+      rgba(246, 250, 253, 0.975)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.99),
+    0 24px 60px rgba(17, 48, 82, 0.18),
+    0 6px 18px rgba(17, 48, 82, 0.08);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  transform-origin: top right;
+
+  animation:
+    workoutPlansMenuEnter
+    180ms
+    var(--wp-ease);
+}
+
+.workout-plans-options-menu::before {
+  content: "";
+
+  position: absolute;
+  top: -6px;
+  right: 17px;
+
+  width: 11px;
+  height: 11px;
+
+  transform: rotate(45deg);
+
+  border-top:
+    1px solid
+    rgba(31, 62, 101, 0.13);
+
+  border-left:
+    1px solid
+    rgba(31, 62, 101, 0.13);
+
+  background:
+    rgba(254, 255, 255, 0.99);
+}
+
+@keyframes workoutPlansMenuEnter {
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(-5px)
+      scale(0.975);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+.workout-plans-options-menu__label {
+  margin:
+    0
+    8px
+    6px;
+
+  color: var(--wp-muted);
+
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+.workout-plans-options-menu__item {
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 10px;
+
+  width: 100%;
+  min-height: 58px;
+
+  padding:
+    8px
+    10px;
+
+  border: 1px solid transparent;
+  border-radius: 13px;
+
+  color: var(--wp-text-strong);
+
+  background: transparent;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    color
+      var(--wp-fast)
+      ease,
+    border-color
+      var(--wp-fast)
+      ease,
+    background
+      var(--wp-fast)
+      ease,
+    box-shadow
+      var(--wp-fast)
+      ease;
+}
+
+.workout-plans-options-menu__item:hover,
+.workout-plans-options-menu__item:focus-visible {
+  border-color: var(--wp-border-blue);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(237, 249, 252, 0.94),
+      rgba(242, 246, 253, 0.95)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+
+  outline: none;
+}
+
+.workout-plans-options-menu__item:active {
+  transform: scale(0.985);
+}
+
+.workout-plans-options-menu__icon {
+  display: grid;
+  place-items: center;
+
+  width: 38px;
+  height: 38px;
+
+  border:
+    1px solid
+    var(--wp-border-blue);
+
+  border-radius: 11px;
+
+  color: var(--wp-blue);
+
+  background: var(--wp-surface-blue);
+}
+
+.workout-plans-options-menu__icon svg {
+  width: 20px;
+  height: 20px;
+
+  overflow: visible;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.workout-plans-options-menu__copy {
+  display: grid;
+
+  min-width: 0;
+
+  gap: 3px;
+}
+
+.workout-plans-options-menu__copy strong {
+  overflow: hidden;
+
+  color: inherit;
+
+  font-size: 0.66rem;
+  font-weight: 900;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workout-plans-options-menu__copy small {
+  overflow: hidden;
+
+  color: var(--wp-muted);
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  font-size: 0.70rem;
+  line-height: 1.25;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workout-plans-options-menu__divider {
+  height: 1px;
+
+  margin:
+    5px
+    8px;
+
+  background:
+    rgba(31, 62, 101, 0.09);
+}
+
+.workout-plans-options-menu__item--danger {
+  color: var(--wp-danger);
+}
+
+.workout-plans-options-menu__item--danger:hover,
+.workout-plans-options-menu__item--danger:focus-visible {
+  border-color:
+    rgba(199, 53, 82, 0.17);
+
+  background:
+    rgba(255, 242, 244, 0.88);
+}
+
+.workout-plans-options-menu__item--danger
+.workout-plans-options-menu__icon {
+  color: var(--wp-danger);
+
+  border-color:
+    rgba(199, 53, 82, 0.17);
+
+  background: var(--wp-danger-soft);
+}
+
+
+/* =====================================================
+   SINGLE SAFE WEEK ACTION
+===================================================== */
+
+.workout-week-actions {
+  grid-template-columns: 1fr;
+}
+
+.workout-week-actions
+.workout-secondary-button {
+  width: 100%;
+}
+
+
+/* =====================================================
+   CLEAR WEEK CONFIRMATION DIALOG
+===================================================== */
+
+.workout-confirm-dialog {
+  width:
+    min(
+      calc(100% - 28px),
+      430px
+    );
+
+  max-width: 430px;
+
+  margin: auto;
+  padding: 0;
+
+  overflow: visible;
+
+  border: 0;
+
+  border-radius: 22px;
+
+  color: var(--wp-text);
+
+  background: transparent;
+}
+
+.workout-confirm-dialog::backdrop {
+  background:
+    rgba(6, 19, 38, 0.42);
+
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.workout-confirm-dialog__panel {
+  position: relative;
+
+  overflow: hidden;
+
+  padding:
+    25px
+    20px
+    calc(
+      20px +
+      env(safe-area-inset-bottom)
+    );
+
+  border:
+    1px solid
+    rgba(31, 62, 101, 0.16);
+
+  border-radius: 22px;
+
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.995),
+      rgba(248, 250, 253, 0.99)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 32px 85px rgba(6, 19, 38, 0.28);
+
+  text-align: center;
+}
+
+.workout-confirm-dialog__panel::before {
+  content: "";
+
+  position: absolute;
+  inset:
+    0
+    0
+    auto;
+
+  height: 3px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--wp-danger),
+      transparent
+    );
+}
+
+.workout-confirm-dialog__icon {
+  display: grid;
+  place-items: center;
+
+  width: 52px;
+  height: 52px;
+
+  margin:
+    0
+    auto
+    13px;
+
+  border:
+    1px solid
+    rgba(199, 53, 82, 0.18);
+
+  border-radius: 17px;
+
+  color: var(--wp-danger);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 244, 246, 0.99),
+      rgba(255, 235, 239, 0.96)
+    );
+
+  box-shadow:
+    0 10px 26px rgba(199, 53, 82, 0.10);
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.workout-confirm-dialog__eyebrow {
+  margin:
+    0
+    0
+    5px;
+
+  color: var(--wp-danger);
+
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+.workout-confirm-dialog h2 {
+  margin:
+    0
+    0
+    10px;
+
+  color: var(--wp-text-strong);
+
+  font-family:
+    "Audiowide",
+    sans-serif;
+
+  font-size:
+    clamp(
+      1.04rem,
+      5vw,
+      1.28rem
+    );
+
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.workout-confirm-dialog__description {
+  margin:
+    0
+    auto
+    20px;
+
+  max-width: 340px;
+
+  color: var(--wp-soft);
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  font-size: 0.80rem;
+  line-height: 1.55;
+}
+
+.workout-confirm-dialog__description strong {
+  color: var(--wp-text-strong);
+  font-weight: 800;
+}
+
+.workout-confirm-dialog__actions {
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1fr;
+
+  gap: 10px;
+}
+
+.workout-confirm-dialog__cancel,
+.workout-confirm-dialog__confirm {
+  min-height: 50px;
+
+  padding:
+    0
+    12px;
+
+  border-radius: 14px;
+
+  cursor: pointer;
+
+  font-size: 0.67rem;
+  font-weight: 900;
+
+  transition:
+    transform
+      var(--wp-fast)
+      var(--wp-ease),
+    border-color
+      var(--wp-fast)
+      ease,
+    box-shadow
+      var(--wp-fast)
+      ease;
+}
+
+.workout-confirm-dialog__cancel {
+  border:
+    1px solid
+    var(--wp-border-blue);
+
+  color: var(--wp-blue-deep);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(238, 248, 252, 0.98),
+      rgba(241, 245, 253, 0.98)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    var(--wp-shadow-xs);
+}
+
+.workout-confirm-dialog__confirm {
+  border:
+    1px solid
+    rgba(173, 41, 68, 0.18);
+
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--wp-danger-strong),
+      var(--wp-danger)
+    );
+
+  box-shadow:
+    0 11px 28px rgba(173, 41, 68, 0.20);
+}
+
+.workout-confirm-dialog__cancel:hover,
+.workout-confirm-dialog__cancel:focus-visible {
+  border-color:
+    rgba(36, 87, 214, 0.28);
+
+  box-shadow: var(--wp-glow-blue);
+
+  outline: none;
+}
+
+.workout-confirm-dialog__confirm:hover,
+.workout-confirm-dialog__confirm:focus-visible {
+  box-shadow:
+    0 14px 34px rgba(173, 41, 68, 0.26);
+
+  outline: none;
+}
+
+.workout-confirm-dialog__cancel:active,
+.workout-confirm-dialog__confirm:active {
+  transform: scale(0.975);
+}
+
+.workout-confirm-dialog__cancel:disabled,
+.workout-confirm-dialog__confirm:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+@media (
+  max-width:
+    390px
+) {
+  .workout-plans-header__menu-button {
+    width: 41px;
+    min-width: 41px;
+    height: 41px;
+  }
+
+  .workout-plans-options-menu {
+    right: -2px;
+
+    width:
+      min(
+        268px,
+        calc(100vw - 20px)
+      );
+  }
+
+  .workout-confirm-dialog__panel {
+    padding:
+      22px
+      16px
+      calc(
+        17px +
+        env(safe-area-inset-bottom)
+      );
+  }
+
+  .workout-confirm-dialog__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-confirm-dialog__cancel {
+    order: 1;
+  }
+
+  .workout-confirm-dialog__confirm {
+    order: 2;
+  }
+}
+
 
