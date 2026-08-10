@@ -1,8 +1,12 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.2.1
+// Version: 3.2.2
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
+//
+// V3.2.2:
+//   - Completely skips ari-thinking-3.png in both animation directions.
+//   - Holds frames 8 and 7 for eight seconds each while Ari is waiting.
 //
 // V3.2.1:
 //   - Slows the complete thinking transition for smoother visual movement.
@@ -48,16 +52,22 @@ const ARI_COMPOSER_PROMPT = "What are you working on?";
 const ARI_PREFERENCES_URL = "ari-preference-settings.html";
 
 const ARI_THINKING_SEQUENCE = Object.freeze({
-  frames: Array.from(
-    { length: 8 },
-    (_, index) => `assets/ari/ari-thinking-${index + 1}.png`
-  ),
+  frameNumbers: Object.freeze([1, 2, 4, 5, 6, 7, 8]),
+  frameSources: Object.freeze({
+    1: "assets/ari/ari-thinking-1.png",
+    2: "assets/ari/ari-thinking-2.png",
+    4: "assets/ari/ari-thinking-4.png",
+    5: "assets/ari/ari-thinking-5.png",
+    6: "assets/ari/ari-thinking-6.png",
+    7: "assets/ari/ari-thinking-7.png",
+    8: "assets/ari/ari-thinking-8.png"
+  }),
   firstFrame: 1,
   holdLowFrame: 7,
   lastFrame: 8,
   enterDelay: 240,
-  holdFrame8Delay: 1500,
-  holdFrame7Delay: 1000,
+  holdFrame8Delay: 8000,
+  holdFrame7Delay: 8000,
   exitDelay: 165
 });
 
@@ -104,7 +114,7 @@ window.addEventListener("calbuddy:mood", (event) => {
 function preloadAriAssets() {
   const sources = [
     ...Object.values(ARI_ASSETS),
-    ...ARI_THINKING_SEQUENCE.frames
+    ...Object.values(ARI_THINKING_SEQUENCE.frameSources)
   ];
 
   sources.forEach((src) => {
@@ -143,10 +153,10 @@ function setupAriThinkingSequence() {
 
 function renderAriThinkingFrame(frame, force = false) {
   const sequenceImage = document.getElementById("ariThinkingSequence");
-  const nextFrame = Math.max(
-    ARI_THINKING_SEQUENCE.firstFrame,
-    Math.min(ARI_THINKING_SEQUENCE.lastFrame, Number(frame) || 1)
-  );
+  const requestedFrame = Number(frame);
+  const nextFrame = ARI_THINKING_SEQUENCE.frameNumbers.includes(requestedFrame)
+    ? requestedFrame
+    : ARI_THINKING_SEQUENCE.firstFrame;
 
   if (
     !force &&
@@ -159,9 +169,20 @@ function renderAriThinkingFrame(frame, force = false) {
   ariThinkingSequenceFrame = nextFrame;
 
   if (sequenceImage) {
-    sequenceImage.src = ARI_THINKING_SEQUENCE.frames[nextFrame - 1];
+    sequenceImage.src = ARI_THINKING_SEQUENCE.frameSources[nextFrame];
     sequenceImage.dataset.frame = String(nextFrame);
   }
+}
+
+function getAdjacentAriThinkingFrame(frame, direction) {
+  const frames = ARI_THINKING_SEQUENCE.frameNumbers;
+  const currentIndex = Math.max(0, frames.indexOf(frame));
+  const nextIndex = Math.max(
+    0,
+    Math.min(frames.length - 1, currentIndex + direction)
+  );
+
+  return frames[nextIndex];
 }
 
 function clearAriThinkingSequenceTimer() {
@@ -207,9 +228,9 @@ function startAriThinkingSequence() {
 function advanceAriThinkingSequence() {
   if (ariThinkingSequencePhase !== "entering") return;
 
-  const nextFrame = Math.min(
-    ariThinkingSequenceFrame + 1,
-    ARI_THINKING_SEQUENCE.lastFrame
+  const nextFrame = getAdjacentAriThinkingFrame(
+    ariThinkingSequenceFrame,
+    1
   );
 
   renderAriThinkingFrame(nextFrame);
@@ -276,9 +297,9 @@ function finishAriThinkingSequence() {
 function reverseAriThinkingSequence() {
   if (ariThinkingSequencePhase !== "exiting") return;
 
-  const nextFrame = Math.max(
-    ariThinkingSequenceFrame - 1,
-    ARI_THINKING_SEQUENCE.firstFrame
+  const nextFrame = getAdjacentAriThinkingFrame(
+    ariThinkingSequenceFrame,
+    -1
   );
 
   renderAriThinkingFrame(nextFrame);
