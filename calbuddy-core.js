@@ -470,7 +470,7 @@ CalBuddy.logWeight = async function ({ weight, notes = "" }) {
     throw new Error("Valid weight is required.");
   }
   const entry = {
-    weight: Number(weight),
+    weight_lbs: Number(weight),
     notes,
     log_date: CalBuddy.formatLocalDate(new Date()),
     created_at: new Date().toISOString()
@@ -488,15 +488,26 @@ CalBuddy.logWeight = async function ({ weight, notes = "" }) {
 };
 CalBuddy.getRecentWeights = async function (limit = 8) {
   const user = await CalBuddy.getCurrentUser();
+
   if (user && window.calbuddySupabase) {
     const { data, error } = await window.calbuddySupabase
       .from("weight_logs")
-      .select("weight, log_date, created_at")
+      .select("weight_lbs, log_date")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+      .order("log_date", { ascending: false })
       .limit(limit);
-    if (!error && data) return data;
+
+    if (error) {
+      console.error("Could not load recent weights:", error);
+      return [];
+    }
+
+    return (data || []).map((entry) => ({
+      ...entry,
+      weight: Number(entry.weight_lbs || 0)
+    }));
   }
+
   return [];
 };
 /* -----------------------------
