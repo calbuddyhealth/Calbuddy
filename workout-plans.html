@@ -20,7 +20,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.5.0" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.6.0" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -1040,24 +1040,6 @@
           data-workout-action="open-exercise-detail"
         >
 
-          <div class="exercise-library-card__visual">
-
-            <img
-              class="exercise-library-card__image"
-              src=""
-              alt=""
-              hidden
-            />
-
-            <span
-              class="exercise-library-card__placeholder"
-              aria-hidden="true"
-            >
-              ARI
-            </span>
-
-          </div>
-
           <div class="exercise-library-card__body">
 
             <p class="exercise-library-card__type"></p>
@@ -1066,18 +1048,81 @@
 
             <p class="exercise-library-card__muscles"></p>
 
+            <span class="exercise-library-card__view-cue">
+              <span>View Exercise</span>
+
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M9 6l6 6-6 6"
+                  stroke="currentColor"
+                  stroke-width="2.25"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+
           </div>
 
         </button>
 
-        <button
-          class="exercise-library-card__add"
-          type="button"
-          data-workout-action="add-exercise"
+        <div
+          class="exercise-library-card__actions"
           hidden
         >
-          + Add
-        </button>
+
+          <button
+            class="exercise-library-card__add"
+            type="button"
+            data-workout-action="add-exercise"
+            aria-label="Add exercise to workout"
+          >
+            <span
+              class="exercise-library-card__add-icon"
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M12 5v14M5 12h14"
+                  stroke="currentColor"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+
+            <span
+              class="exercise-library-card__added-icon"
+              aria-hidden="true"
+              hidden
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M5 12.5l4.25 4.25L19 7"
+                  stroke="currentColor"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+
+            <span class="sr-only exercise-library-card__add-label">
+              Add exercise
+            </span>
+          </button>
+
+        </div>
 
       </article>
 
@@ -1105,7 +1150,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=3.5.0"
+    src="js/workout-plans.js?v=3.6.0"
   ></script>
 
 </body>
