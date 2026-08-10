@@ -1,9 +1,19 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.3.2
+// Version: 3.5.0
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V3.5.0:
+//   - Replaces the redundant header Save button with a protected
+//     three-dot Workout Plan Options menu.
+//   - Adds View Exercises for direct Exercise Library access.
+//   - Moves Clear Week out of the exposed week-action row.
+//   - Requires a dedicated confirmation dialog before clearing.
+//   - Defaults the confirmation focus to Keep My Plan.
+//   - Keeps autosave, Repeat Last Week, all planning features,
+//     and every V3.3.2 exercise-card improvement.
 //
 // V3.3.2:
 //   - Removes the duplicate Save Workout button from the day editor.
@@ -66,7 +76,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.3.2";
+  "3.5.0";
 
 const SOURCE =
   "js/workout-plans";
@@ -109,6 +119,12 @@ const DAY_SHORT_LABELS =
 const state = {
   activeTab:
     "week",
+
+  plansMenuOpen:
+    false,
+
+  clearingWeek:
+    false,
 
   activeDay:
     null,
@@ -179,7 +195,10 @@ function cacheDom() {
     "workoutPlansBackButton",
     "workoutPlansStatus",
     "workoutPlansToast",
-    "workoutPlansSaveButton",
+    "workoutPlansMenuButton",
+    "workoutPlansMenu",
+    "workoutMenuViewExercisesButton",
+    "workoutMenuClearWeekButton",
 
     "workoutPreviousWeekButton",
     "workoutNextWeekButton",
@@ -187,7 +206,11 @@ function cacheDom() {
     "workoutWeekDateRange",
 
     "workoutRepeatLastWeekButton",
-    "workoutClearWeekButton",
+
+    "workoutClearWeekDialog",
+    "workoutClearWeekRange",
+    "workoutCancelClearWeekButton",
+    "workoutConfirmClearWeekButton",
 
     "workoutWeekGrid",
 
@@ -1871,6 +1894,346 @@ function setActiveTab(
 
 
 /* =====================================================
+   HEADER OPTIONS MENU
+===================================================== */
+
+function getPlansMenuItems() {
+  if (
+    !dom.workoutPlansMenu
+  ) {
+    return [];
+  }
+
+  return Array.from(
+    dom.workoutPlansMenu
+      .querySelectorAll(
+        '[role="menuitem"]'
+      )
+  );
+}
+
+
+function setPlansMenuOpen(
+  open,
+  {
+    focusFirst =
+      false,
+
+    restoreFocus =
+      false
+  } = {}
+) {
+  const nextOpen =
+    Boolean(
+      open &&
+      dom.workoutPlansMenu &&
+      dom.workoutPlansMenuButton
+    );
+
+  state.plansMenuOpen =
+    nextOpen;
+
+  if (
+    dom.workoutPlansMenu
+  ) {
+    dom.workoutPlansMenu.hidden =
+      !nextOpen;
+  }
+
+  if (
+    dom.workoutPlansMenuButton
+  ) {
+    dom.workoutPlansMenuButton
+      .setAttribute(
+        "aria-expanded",
+        nextOpen
+          ? "true"
+          : "false"
+      );
+  }
+
+  if (
+    nextOpen &&
+    focusFirst
+  ) {
+    requestAnimationFrame(
+      () => {
+        getPlansMenuItems()
+          [0]
+          ?.focus();
+      }
+    );
+  } else if (
+    !nextOpen &&
+    restoreFocus
+  ) {
+    requestAnimationFrame(
+      () => {
+        dom.workoutPlansMenuButton
+          ?.focus();
+      }
+    );
+  }
+
+  return nextOpen;
+}
+
+
+function togglePlansMenu() {
+  return setPlansMenuOpen(
+    !state.plansMenuOpen
+  );
+}
+
+
+function closePlansMenu({
+  restoreFocus =
+    false
+} = {}) {
+  return setPlansMenuOpen(
+    false,
+    {
+      restoreFocus
+    }
+  );
+}
+
+
+function viewExercisesFromMenu() {
+  closePlansMenu();
+
+  setActiveTab(
+    "library"
+  );
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+
+  return true;
+}
+
+
+/* =====================================================
+   PROTECTED CLEAR WEEK
+===================================================== */
+
+function setClearWeekBusy(
+  busy
+) {
+  state.clearingWeek =
+    Boolean(
+      busy
+    );
+
+  if (
+    dom.workoutConfirmClearWeekButton
+  ) {
+    dom.workoutConfirmClearWeekButton
+      .disabled =
+        state.clearingWeek;
+
+    dom.workoutConfirmClearWeekButton
+      .setAttribute(
+        "aria-busy",
+        state.clearingWeek
+          ? "true"
+          : "false"
+      );
+
+    dom.workoutConfirmClearWeekButton
+      .textContent =
+        state.clearingWeek
+          ? "Clearing..."
+          : "Clear Week";
+  }
+
+  if (
+    dom.workoutCancelClearWeekButton
+  ) {
+    dom.workoutCancelClearWeekButton
+      .disabled =
+        state.clearingWeek;
+  }
+}
+
+
+function openClearWeekConfirmation() {
+  closePlansMenu();
+
+  if (
+    dom.workoutClearWeekRange
+  ) {
+    dom.workoutClearWeekRange
+      .textContent =
+        formatWeekRange(
+          state.selectedWeekStart
+        );
+  }
+
+  const opened =
+    openDialog(
+      dom.workoutClearWeekDialog
+    );
+
+  requestAnimationFrame(
+    () => {
+      dom.workoutCancelClearWeekButton
+        ?.focus();
+    }
+  );
+
+  return opened;
+}
+
+
+function cancelClearWeekConfirmation() {
+  if (
+    state.clearingWeek
+  ) {
+    return false;
+  }
+
+  closeDialog(
+    dom.workoutClearWeekDialog
+  );
+
+  requestAnimationFrame(
+    () => {
+      dom.workoutPlansMenuButton
+        ?.focus();
+    }
+  );
+
+  return true;
+}
+
+
+/* =====================================================
+   MENU KEYBOARD SUPPORT
+===================================================== */
+
+function handleKeydown(
+  event
+) {
+  if (
+    event.key ===
+      "ArrowDown" &&
+    event.target ===
+      dom.workoutPlansMenuButton
+  ) {
+    event.preventDefault();
+
+    setPlansMenuOpen(
+      true,
+      {
+        focusFirst:
+          true
+      }
+    );
+
+    return;
+  }
+
+  if (
+    !state.plansMenuOpen
+  ) {
+    return;
+  }
+
+  if (
+    event.key ===
+    "Escape"
+  ) {
+    event.preventDefault();
+
+    closePlansMenu({
+      restoreFocus:
+        true
+    });
+
+    return;
+  }
+
+  if (
+    event.key ===
+    "Tab"
+  ) {
+    closePlansMenu();
+
+    return;
+  }
+
+  const items =
+    getPlansMenuItems();
+
+  if (
+    !items.length
+  ) {
+    return;
+  }
+
+  const currentIndex =
+    items.indexOf(
+      document.activeElement
+    );
+
+  let nextIndex =
+    null;
+
+  if (
+    event.key ===
+    "ArrowDown"
+  ) {
+    nextIndex =
+      currentIndex < 0
+        ? 0
+        : (
+            currentIndex + 1
+          ) %
+          items.length;
+  } else if (
+    event.key ===
+    "ArrowUp"
+  ) {
+    nextIndex =
+      currentIndex < 0
+        ? items.length - 1
+        : (
+            currentIndex -
+            1 +
+            items.length
+          ) %
+          items.length;
+  } else if (
+    event.key ===
+    "Home"
+  ) {
+    nextIndex =
+      0;
+  } else if (
+    event.key ===
+    "End"
+  ) {
+    nextIndex =
+      items.length - 1;
+  }
+
+  if (
+    nextIndex !==
+    null
+  ) {
+    event.preventDefault();
+
+    items[
+      nextIndex
+    ].focus();
+  }
+}
+
+
+/* =====================================================
    SELECT POPULATION
 ===================================================== */
 
@@ -2615,19 +2978,25 @@ async function repeatLastWeek() {
 }
 
 
-async function clearSelectedWeek() {
-  const confirmed =
-    window.confirm(
-      `Clear ${formatWeekRange(
-        state.selectedWeekStart
-      )}? Every day in this week will become an Off Day.`
-    );
-
+async function clearSelectedWeek({
+  confirmed =
+    false
+} = {}) {
   if (
     !confirmed
   ) {
+    return openClearWeekConfirmation();
+  }
+
+  if (
+    state.clearingWeek
+  ) {
     return false;
   }
+
+  setClearWeekBusy(
+    true
+  );
 
   try {
     let result =
@@ -2715,6 +3084,10 @@ async function clearSelectedWeek() {
 
     await saveNow();
 
+    closeDialog(
+      dom.workoutClearWeekDialog
+    );
+
     showToast(
       "Week cleared."
     );
@@ -2737,6 +3110,10 @@ async function clearSelectedWeek() {
     );
 
     return false;
+  } finally {
+    setClearWeekBusy(
+      false
+    );
   }
 }
 
@@ -5694,18 +6071,6 @@ async function savePlan({
   state.saving =
     true;
 
-  if (
-    dom.workoutPlansSaveButton
-  ) {
-    dom.workoutPlansSaveButton
-      .disabled =
-        true;
-
-    dom.workoutPlansSaveButton
-      .textContent =
-        "Saving...";
-  }
-
   try {
     const success =
       await WorkoutPlanController
@@ -5745,21 +6110,8 @@ async function savePlan({
   } finally {
     state.saving =
       false;
-
-    if (
-      dom.workoutPlansSaveButton
-    ) {
-      dom.workoutPlansSaveButton
-        .disabled =
-          false;
-
-      dom.workoutPlansSaveButton
-        .textContent =
-          "Save";
-    }
   }
 }
-
 
 async function saveNow() {
   window.clearTimeout(
@@ -5891,6 +6243,18 @@ function renderAll() {
 function handleClick(
   event
 ) {
+  const insidePlansMenu =
+    event.target.closest(
+      ".workout-plans-header__menu"
+    );
+
+  if (
+    !insidePlansMenu &&
+    state.plansMenuOpen
+  ) {
+    closePlansMenu();
+  }
+
   const tab =
     event.target.closest(
       "[data-workout-tab]"
@@ -5899,6 +6263,8 @@ function handleClick(
   if (
     tab
   ) {
+    closePlansMenu();
+
     setActiveTab(
       tab.dataset
         .workoutTab
@@ -5925,6 +6291,35 @@ function handleClick(
   switch (
     action
   ) {
+    case "toggle-plans-menu":
+      togglePlansMenu();
+      break;
+
+
+    case "view-exercises":
+      viewExercisesFromMenu();
+      break;
+
+
+    case "request-clear-week":
+    case "clear-week":
+      openClearWeekConfirmation();
+      break;
+
+
+    case "cancel-clear-week":
+      cancelClearWeekConfirmation();
+      break;
+
+
+    case "confirm-clear-week":
+      void clearSelectedWeek({
+        confirmed:
+          true
+      });
+      break;
+
+
     case "previous-week":
       void goPreviousWeek();
       break;
@@ -5937,11 +6332,6 @@ function handleClick(
 
     case "repeat-last-week":
       void repeatLastWeek();
-      break;
-
-
-    case "clear-week":
-      void clearSelectedWeek();
       break;
 
 
@@ -6345,6 +6735,11 @@ function bindEvents() {
     handleInput
   );
 
+  document.addEventListener(
+    "keydown",
+    handleKeydown
+  );
+
   dom.workoutPlansBackButton
     ?.addEventListener(
       "click",
@@ -6354,11 +6749,42 @@ function bindEvents() {
       }
     );
 
-  dom.workoutPlansSaveButton
+  dom.workoutClearWeekDialog
     ?.addEventListener(
       "click",
+      event => {
+        if (
+          event.target ===
+            dom.workoutClearWeekDialog &&
+          !state.clearingWeek
+        ) {
+          cancelClearWeekConfirmation();
+        }
+      }
+    );
+
+  dom.workoutClearWeekDialog
+    ?.addEventListener(
+      "cancel",
+      event => {
+        if (
+          state.clearingWeek
+        ) {
+          event.preventDefault();
+        }
+      }
+    );
+
+  dom.workoutClearWeekDialog
+    ?.addEventListener(
+      "close",
       () => {
-        void savePlan();
+        requestAnimationFrame(
+          () => {
+            dom.workoutPlansMenuButton
+              ?.focus();
+          }
+        );
       }
     );
 
@@ -6571,6 +6997,12 @@ function getPageDiagnostics() {
     activeTab:
       state.activeTab,
 
+    plansMenuOpen:
+      state.plansMenuOpen,
+
+    clearingWeek:
+      state.clearingWeek,
+
     activeDay:
       state.activeDay,
 
@@ -6626,6 +7058,11 @@ function getPageDiagnostics() {
       detailOpen:
         isDialogOpen(
           dom.exerciseDetailDialog
+        ),
+
+      clearWeekOpen:
+        isDialogOpen(
+          dom.workoutClearWeekDialog
         )
     },
 
