@@ -1,9 +1,17 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.5.0
+// Version: 3.6.0
 // Purpose:
 //   Page controller for workout-plans.html.
+//
+// V3.6.0:
+//   - Rebuilds exercise selections as two unmistakable actions.
+//   - The full left content area opens View Exercise details.
+//   - A separate circular SVG plus button adds the exercise.
+//   - Removes ARI placeholder-tile behavior from exercise cards.
+//   - Keeps the picker open for fast multi-add selection.
+//   - Changes the plus to a green check when already added.
 //
 // V3.5.0:
 //   - Replaces the redundant header Save button with a protected
@@ -20,7 +28,7 @@
 //   - The top-right close button now commits and saves the day.
 //   - Renames each exercise Done action to Save.
 //   - Exercise Save commits visible metric inputs immediately,
-//     saves the plan, collapses the card, and shows SAVED ✓.
+//     saves the plan, collapses the card, and shows SAVED â.
 //   - Preserves V3.3.1 focus matching and the full registry.
 //
 // V3.3.1:
@@ -76,7 +84,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.5.0";
+  "3.6.0";
 
 const SOURCE =
   "js/workout-plans";
@@ -3578,14 +3586,24 @@ function renderExerciseCard(
       ".exercise-library-card__open"
     );
 
-  const image =
+  const actions =
     fragment.querySelector(
-      ".exercise-library-card__image"
+      ".exercise-library-card__actions"
     );
 
-  const placeholder =
+  const addIcon =
     fragment.querySelector(
-      ".exercise-library-card__placeholder"
+      ".exercise-library-card__add-icon"
+    );
+
+  const addedIcon =
+    fragment.querySelector(
+      ".exercise-library-card__added-icon"
+    );
+
+  const addLabel =
+    fragment.querySelector(
+      ".exercise-library-card__add-label"
     );
 
   const type =
@@ -3614,6 +3632,11 @@ function renderExerciseCard(
     card.dataset
       .exerciseId =
         exercise.id;
+
+    card.classList.toggle(
+      "exercise-library-card--add-enabled",
+      addEnabled
+    );
   }
 
   if (
@@ -3622,6 +3645,11 @@ function renderExerciseCard(
     open.dataset
       .exerciseId =
         exercise.id;
+
+    open.setAttribute(
+      "aria-label",
+      `View details for ${exercise.name}`
+    );
   }
 
   if (
@@ -3656,47 +3684,11 @@ function renderExerciseCard(
         );
   }
 
-  const imagePath =
-    exercise
-      .illustration
-      ?.anatomy ||
-    exercise
-      .illustration
-      ?.movement ||
-    null;
-
   if (
-    image
+    actions
   ) {
-    if (
-      imagePath
-    ) {
-      image.src =
-        imagePath;
-
-      image.alt =
-        `${exercise.name} illustration`;
-
-      image.hidden =
-        false;
-
-      if (
-        placeholder
-      ) {
-        placeholder.hidden =
-          true;
-      }
-    } else {
-      image.hidden =
-        true;
-
-      if (
-        placeholder
-      ) {
-        placeholder.hidden =
-          false;
-      }
-    }
+    actions.hidden =
+      !addEnabled;
   }
 
   if (
@@ -3720,10 +3712,45 @@ function renderExerciseCard(
       add.disabled =
         alreadyAdded;
 
-      add.textContent =
+      add.classList.toggle(
+        "is-added",
+        alreadyAdded
+      );
+
+      add.setAttribute(
+        "aria-label",
+        alreadyAdded
+          ? `${exercise.name} added to workout`
+          : `Add ${exercise.name} to workout`
+      );
+
+      add.title =
         alreadyAdded
           ? "Added"
-          : "Add";
+          : `Add ${exercise.name}`;
+
+      if (
+        addIcon
+      ) {
+        addIcon.hidden =
+          alreadyAdded;
+      }
+
+      if (
+        addedIcon
+      ) {
+        addedIcon.hidden =
+          !alreadyAdded;
+      }
+
+      if (
+        addLabel
+      ) {
+        addLabel.textContent =
+          alreadyAdded
+            ? `${exercise.name} added`
+            : `Add ${exercise.name}`;
+      }
     }
   }
 
@@ -3949,7 +3976,7 @@ function exerciseMatchesFocus(
    *
    * "strength", "hypertrophy", "free_weight", "cable",
    * "machine_strength", etc. describe HOW an exercise is
-   * performed — not WHAT body part the workout targets.
+   * performed â not WHAT body part the workout targets.
    *
    * Using them as an OR condition causes Chest Day to
    * incorrectly include virtually every strength exercise.
@@ -5575,7 +5602,11 @@ function openExerciseDetail(
 ===================================================== */
 
 function addExerciseToActiveDay(
-  exerciseId
+  exerciseId,
+  {
+    keepPickerOpen =
+      false
+  } = {}
 ) {
   if (
     !state.activeDay
@@ -5762,15 +5793,17 @@ function addExerciseToActiveDay(
       0
     );
 
-  closeDialog(
-    dom.exerciseDetailDialog
-  );
+  const keepPickerVisible =
+    Boolean(
+      keepPickerOpen ||
+      state.reopenPickerAfterDetail
+    );
 
   state.reopenPickerAfterDetail =
     false;
 
   closeDialog(
-    dom.workoutExercisePicker
+    dom.exerciseDetailDialog
   );
 
   renderWeek();
@@ -5780,6 +5813,32 @@ function addExerciseToActiveDay(
 
   showToast(
     `${exercise.name} added.`
+  );
+
+  if (
+    keepPickerVisible
+  ) {
+    renderExercisePicker();
+
+    if (
+      !isDialogOpen(
+        dom.workoutExercisePicker
+      )
+    ) {
+      requestAnimationFrame(
+        () => {
+          openDialog(
+            dom.workoutExercisePicker
+          );
+        }
+      );
+    }
+
+    return true;
+  }
+
+  closeDialog(
+    dom.workoutExercisePicker
   );
 
   requestAnimationFrame(
@@ -6454,7 +6513,16 @@ function handleClick(
     case "add-exercise":
       addExerciseToActiveDay(
         actionNode.dataset
-          .exerciseId
+          .exerciseId,
+
+        {
+          keepPickerOpen:
+            Boolean(
+              actionNode.closest(
+                "#workoutExercisePicker"
+              )
+            )
+        }
       );
       break;
 
@@ -6464,7 +6532,12 @@ function handleClick(
         state.activeExerciseId
       ) {
         addExerciseToActiveDay(
-          state.activeExerciseId
+          state.activeExerciseId,
+
+          {
+            keepPickerOpen:
+              state.reopenPickerAfterDetail
+          }
         );
       }
 
