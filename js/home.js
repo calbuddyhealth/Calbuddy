@@ -1,8 +1,13 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.2.0
+// Version: 3.2.1
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
+//
+// V3.2.1:
+//   - Slows the complete thinking transition for smoother visual movement.
+//   - Holds frames 8 and 7 much longer during the waiting loop.
+//   - Slows the return sequence from frame 8 to frame 1.
 //
 // V3.2.0:
 //   - Adds an eight-frame Ari thinking sequence behind conversation messages.
@@ -50,10 +55,10 @@ const ARI_THINKING_SEQUENCE = Object.freeze({
   firstFrame: 1,
   holdLowFrame: 7,
   lastFrame: 8,
-  enterDelay: 115,
-  holdFrame8Delay: 390,
-  holdFrame7Delay: 180,
-  exitDelay: 92
+  enterDelay: 240,
+  holdFrame8Delay: 1500,
+  holdFrame7Delay: 1000,
+  exitDelay: 165
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
