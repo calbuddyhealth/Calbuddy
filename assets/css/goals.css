@@ -1,3288 +1,259 @@
 /* =====================================================
-   ARI GOALS
-   File: goals.css
-   Version: 1.1.2
+   ARI REBIRTH
+   File: assets/css/goals.css
+   Version: 4.0.0
 
    Purpose:
-   - Style the My Goals page
-   - Style Health Goals and Health Progress tabs
-   - Style the Calories Left LED card
-   - Style health forms, panels, calculations, and actions
-   - Preserve mobile scrolling and safe-area spacing
-===================================================== */
-
-
-/* =====================================================
-   GOALS DOCUMENT
-===================================================== */
-
-html:has(.ari-goals-page) {
-  width: 100%;
-  min-height: 100%;
-  margin: 0;
-
-  overflow-x: hidden;
-
-  background: #020617;
-}
-
-body:has(.ari-goals-page) {
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-
-  margin: 0;
-
-  overflow-x: hidden;
-  overflow-y: auto;
-
-  background:
-    radial-gradient(
-      circle at 50% 8%,
-      rgba(34, 211, 238, 0.16),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 14% 30%,
-      rgba(59, 130, 246, 0.12),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      #020617 0%,
-      #07111f 50%,
-      #020617 100%
-    );
-
-  color: #f8fafc;
-
-  font-family:
-    Orbitron,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  touch-action: pan-y;
-  overscroll-behavior-y: auto;
-
-  -webkit-overflow-scrolling: touch;
-}
-
-body:has(.ari-goals-page) *,
-body:has(.ari-goals-page) *::before,
-body:has(.ari-goals-page) *::after {
-  box-sizing: border-box;
-}
-
-
-/* =====================================================
-   AMBIENT GRID
-===================================================== */
-
-body:has(.ari-goals-page)::before {
-  content: "";
-
-  position: fixed;
-  z-index: 0;
-  inset: 0;
-
-  background-image:
-    linear-gradient(
-      rgba(34, 211, 238, 0.05) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(34, 211, 238, 0.04) 1px,
-      transparent 1px
-    );
-
-  background-size: 34px 34px;
-
-  opacity: 0.24;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   GOALS PAGE
-===================================================== */
-
-.ari-goals-page {
-  position: relative;
-  z-index: 1;
-
-  display: block;
-
-  width: min(430px, 100%);
-  min-height: 100vh;
-  min-height: 100dvh;
-
-  margin: 0 auto;
-
-  padding:
-    calc(14px + env(safe-area-inset-top))
-    14px
-    calc(110px + env(safe-area-inset-bottom));
-
-  overflow: visible;
-}
-
-
-/* =====================================================
-   GOALS HEADER
-===================================================== */
-
-.ari-goals-header {
-  display: grid;
-  grid-template-columns:
-    58px
-    minmax(0, 1fr)
-    78px;
-
-  align-items: center;
-
-  width: 100%;
-  min-height: 88px;
-
-  gap: 10px;
-  margin-bottom: 26px;
-}
-
-
-/* =====================================================
-   HEADER BRAND
-===================================================== */
-
-.ari-goals-header .ari-brand-mark {
-  min-width: 0;
-
-  text-align: center;
-}
-
-.ari-goals-header .ari-brand-title {
-  margin: 0;
-
-  color: #e8ffff;
-
-  font-size: clamp(28px, 8vw, 38px);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: 0.08em;
-
-  text-shadow:
-    0 0 5px rgba(232, 255, 255, 1),
-    0 0 12px rgba(34, 211, 238, 0.9),
-    0 0 28px rgba(34, 211, 238, 0.46);
-}
-
-.ari-goals-header .ari-brand-subtitle {
-  margin: 6px 0 0;
-
-  color: rgba(103, 232, 249, 0.95);
-
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1.1;
-  letter-spacing: 0.24em;
-
-  text-shadow:
-    0 0 5px rgba(200, 255, 255, 0.9),
-    0 0 12px rgba(34, 211, 238, 0.7);
-}
-
-
-/* =====================================================
-   HEADER BUTTONS
-===================================================== */
-
-.ari-goals-page .ari-back-btn,
-.ari-goals-page .ari-mini-btn {
-  display: grid;
-  place-items: center;
-
-  min-height: 54px;
-
-  padding: 0 14px;
-
-  border: 1px solid rgba(103, 232, 249, 0.3);
-  border-radius: 18px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(10, 22, 42, 0.72),
-      rgba(2, 6, 23, 0.92)
-    );
-
-  color: #cffafe;
-
-  font-family: inherit;
-  font-weight: 900;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 0 18px rgba(34, 211, 238, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    filter 160ms ease,
-    opacity 160ms ease,
-    transform 120ms ease;
-
-  -webkit-tap-highlight-color: transparent;
-}
-
-.ari-goals-page .ari-back-btn {
-  width: 58px;
-  min-width: 58px;
-
-  padding: 0;
-
-  font-size: 22px;
-}
-
-.ari-goals-page .ari-mini-btn {
-  width: 78px;
-
-  font-size: 12px;
-}
-
-.ari-goals-page .ari-back-btn:not(:disabled):hover,
-.ari-goals-page .ari-mini-btn:not(:disabled):hover {
-  border-color: rgba(103, 232, 249, 0.66);
-
-  filter: brightness(1.08);
-
-  box-shadow:
-    0 0 24px rgba(34, 211, 238, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-}
-
-.ari-goals-page .ari-back-btn:not(:disabled):active,
-.ari-goals-page .ari-mini-btn:not(:disabled):active {
-  transform: scale(0.96);
-}
-
-.ari-goals-page .ari-back-btn:focus-visible,
-.ari-goals-page .ari-mini-btn:focus-visible {
-  outline: 2px solid #67e8f9;
-  outline-offset: 3px;
-}
-
-
-/* =====================================================
-   PAGE HERO
-===================================================== */
-
-.ari-goals-page .ari-page-hero {
-  position: relative;
-
-  margin-bottom: 20px;
-  padding: 26px 22px;
-
-  overflow: hidden;
-
-  border: 1px solid rgba(103, 232, 249, 0.22);
-  border-radius: 28px;
-
-  background:
-    radial-gradient(
-      circle at 14% 4%,
-      rgba(34, 211, 238, 0.13),
-      transparent 38%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(15, 23, 42, 0.9),
-      rgba(2, 6, 23, 0.82)
-    );
-
-  box-shadow:
-    0 0 30px rgba(34, 211, 238, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.ari-goals-page .ari-page-hero::before {
-  content: "";
-
-  position: absolute;
-
-  top: 0;
-  right: 26px;
-  left: 26px;
-
-  height: 1px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(103, 232, 249, 0.82),
-      transparent
-    );
-
-  box-shadow:
-    0 0 14px rgba(34, 211, 238, 0.48);
-
-  pointer-events: none;
-}
-
-.ari-goals-page .ari-page-kicker {
-  margin: 0 0 10px;
-
-  color: #67e8f9;
-
-  font-size: 0.72rem;
-  font-weight: 900;
-  line-height: 1.25;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-}
-
-.ari-goals-page .ari-page-title {
-  margin: 0;
-
-  color: #f8fafc;
-
-  font-size: clamp(2rem, 9vw, 2.8rem);
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-}
-
-.ari-goals-page .ari-page-description {
-  margin: 16px 0 0;
-
-  color: #aeb8cc;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.96rem;
-  font-weight: 700;
-  line-height: 1.55;
-
-  overflow-wrap: anywhere;
-}
-
-
-/* =====================================================
-   GOALS TABS
-===================================================== */
-
-.ari-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-
-  width: 100%;
-
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.ari-tab-btn {
-  min-width: 0;
-  min-height: 56px;
-
-  padding: 12px;
-
-  border: 1px solid rgba(103, 232, 249, 0.3);
-  border-radius: 20px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(10, 22, 42, 0.78),
-      rgba(2, 6, 23, 0.92)
-    );
-
-  color: #e6fbff;
-
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 900;
-  line-height: 1.25;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 0 18px rgba(34, 211, 238, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-
-  transition:
-    background 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    color 180ms ease,
-    filter 160ms ease,
-    transform 120ms ease;
-}
-
-.ari-tab-btn.active {
-  border-color: rgba(103, 232, 249, 0.88);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(6, 182, 212, 0.82),
-      rgba(14, 116, 144, 0.72)
-    );
-
-  color: #ffffff;
-
-  box-shadow:
-    0 0 24px rgba(34, 211, 238, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
-}
-
-.ari-tab-btn:not(:disabled):hover {
-  border-color: rgba(103, 232, 249, 0.66);
-
-  filter: brightness(1.08);
-}
-
-.ari-tab-btn:not(:disabled):active {
-  transform: scale(0.98);
-}
-
-.ari-tab-btn:focus-visible {
-  outline: 2px solid #67e8f9;
-  outline-offset: 3px;
-}
-
-
-/* =====================================================
-   TAB PANELS
-===================================================== */
-
-.ari-tab-panel {
-  display: none;
-}
-
-.ari-tab-panel.active {
-  display: block;
-}
-
-
-/* =====================================================
-   CALORIES LEFT CARD
-===================================================== */
-
-.ari-meter-card {
-  position: relative;
-
-  display: block;
-
-  width: 100%;
-  min-height: 196px;
-
-  margin-bottom: 18px;
-  padding: 28px 24px 22px;
-
-  overflow: hidden;
-
-  border: 2px solid rgba(34, 211, 238, 0.94);
-  border-radius: 28px;
-
-  background:
-    radial-gradient(
-      circle at 50% 10%,
-      rgba(34, 211, 238, 0.12),
-      transparent 38%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(8, 20, 39, 0.96),
-      rgba(2, 6, 23, 0.96)
-    );
-
-  color: inherit;
-  text-align: center;
-  text-decoration: none;
-
-  box-shadow:
-    0 0 0 4px rgba(34, 211, 238, 0.08),
-    0 0 32px rgba(34, 211, 238, 0.3),
-    inset 0 0 32px rgba(34, 211, 238, 0.055),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    filter 160ms ease,
-    transform 140ms ease;
-
-  -webkit-tap-highlight-color: transparent;
-}
-
-.ari-meter-card::after {
-  content: "";
-
-  position: absolute;
-
-  inset: 9px;
-
-  border: 1px solid rgba(103, 232, 249, 0.16);
-  border-radius: 22px;
-
-  pointer-events: none;
-}
-
-.ari-meter-card:not(:active):hover {
-  border-color: rgba(165, 243, 252, 1);
-
-  filter: brightness(1.06);
-
-  box-shadow:
-    0 0 0 4px rgba(34, 211, 238, 0.1),
-    0 0 40px rgba(34, 211, 238, 0.38),
-    inset 0 0 36px rgba(34, 211, 238, 0.07);
-}
-
-.ari-meter-card:active {
-  transform: scale(0.99);
-}
-
-.ari-meter-card:focus-visible {
-  outline: 2px solid #a5f3fc;
-  outline-offset: 4px;
-}
-
-
-/* =====================================================
-   CALORIE LED
-===================================================== */
-
-.ari-calorie-led {
-  position: absolute;
-  z-index: 2;
-
-  top: 13px;
-  right: 24px;
-  left: 24px;
-
-  height: 3px;
-
-  border-radius: 999px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(103, 232, 249, 0.45),
-      rgba(34, 211, 238, 1),
-      rgba(165, 243, 252, 0.95),
-      rgba(34, 211, 238, 1),
-      rgba(103, 232, 249, 0.45),
-      transparent
-    );
-
-  box-shadow:
-    0 0 8px rgba(34, 211, 238, 0.9),
-    0 0 18px rgba(34, 211, 238, 0.58),
-    0 0 30px rgba(34, 211, 238, 0.28);
-
-  animation:
-    ariGoalLedPulse 4.8s ease-in-out infinite;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   CALORIE CARD CONTENT
-===================================================== */
-
-.ari-meter-label {
-  position: relative;
-  z-index: 3;
-
-  margin: 4px 0 6px;
-
-  color: #67e8f9;
-
-  font-size: 0.78rem;
-  font-weight: 900;
-  line-height: 1.25;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-
-  text-shadow:
-    0 0 8px rgba(103, 232, 249, 0.64);
-}
-
-.ari-meter-number {
-  position: relative;
-  z-index: 3;
-
-  margin: 0;
-
-  color: #d9ffff;
-
-  font-size: clamp(3rem, 15vw, 4.5rem);
-  font-weight: 900;
-  line-height: 0.98;
-  letter-spacing: -0.05em;
-
-  text-shadow:
-    0 0 7px rgba(232, 255, 255, 0.95),
-    0 0 18px rgba(34, 211, 238, 0.86),
-    0 0 40px rgba(34, 211, 238, 0.42);
-}
-
-.ari-meter-subtext {
-  position: relative;
-  z-index: 3;
-
-  margin: 10px 0 0;
-
-  color: #aeb8cc;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.88rem;
-  font-weight: 800;
-  line-height: 1.35;
-}
-
-.ari-log-intake-label {
-  position: absolute;
-  z-index: 3;
-
-  right: 24px;
-  bottom: 18px;
-
-  color: #d8fbff;
-
-  font-size: 0.7rem;
-  font-weight: 900;
-  line-height: 1.2;
-  letter-spacing: 0.18em;
-
-  text-shadow:
-    0 0 7px rgba(103, 232, 249, 0.62);
-}
-
-
-/* =====================================================
-   CALORIE CARD STATES
-===================================================== */
-
-.ari-calorie-card.warning,
-.ari-calorie-card.is-warning {
-  border-color: rgba(250, 204, 21, 0.92);
-
-  box-shadow:
-    0 0 0 4px rgba(250, 204, 21, 0.07),
-    0 0 32px rgba(250, 204, 21, 0.24),
-    inset 0 0 32px rgba(250, 204, 21, 0.04);
-}
-
-.ari-calorie-card.warning .ari-calorie-led,
-.ari-calorie-card.is-warning .ari-calorie-led {
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(250, 204, 21, 0.4),
-      rgba(253, 224, 71, 1),
-      rgba(250, 204, 21, 0.4),
-      transparent
-    );
-
-  box-shadow:
-    0 0 10px rgba(250, 204, 21, 0.8),
-    0 0 22px rgba(250, 204, 21, 0.46);
-}
-
-.ari-calorie-card.over,
-.ari-calorie-card.is-over {
-  border-color: rgba(248, 113, 113, 0.92);
-
-  box-shadow:
-    0 0 0 4px rgba(239, 68, 68, 0.07),
-    0 0 32px rgba(239, 68, 68, 0.24),
-    inset 0 0 32px rgba(239, 68, 68, 0.04);
-}
-
-.ari-calorie-card.over .ari-calorie-led,
-.ari-calorie-card.is-over .ari-calorie-led {
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(248, 113, 113, 0.4),
-      rgba(248, 113, 113, 1),
-      rgba(248, 113, 113, 0.4),
-      transparent
-    );
-
-  box-shadow:
-    0 0 10px rgba(239, 68, 68, 0.8),
-    0 0 22px rgba(239, 68, 68, 0.46);
-}
-
-
-/* =====================================================
-   SHARED PANELS
-===================================================== */
-
-.ari-panel {
-  position: relative;
-
-  width: 100%;
-
-  margin-bottom: 18px;
-  padding: 22px 18px;
-
-  overflow: hidden;
-
-  border: 1px solid rgba(103, 232, 249, 0.2);
-  border-radius: 26px;
-
-  background:
-    linear-gradient(
-      180deg,
-      rgba(15, 23, 42, 0.86),
-      rgba(2, 6, 23, 0.74)
-    );
-
-  box-shadow:
-    0 0 26px rgba(34, 211, 238, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.ari-panel::before {
-  content: "";
-
-  position: absolute;
-
-  top: 0;
-  right: 22px;
-  left: 22px;
-
-  height: 1px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(103, 232, 249, 0.42),
-      transparent
-    );
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   PANEL HEADER
-===================================================== */
-
-.ari-panel-header {
-  margin-bottom: 18px;
-}
-
-.ari-section-title {
-  margin: 0;
-
-  color: #67e8f9;
-
-  font-size: 0.82rem;
-  font-weight: 900;
-  line-height: 1.3;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.ari-section-subtitle {
-  margin: 10px 0 0;
-
-  color: #aeb8cc;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.9rem;
-  font-weight: 700;
-  line-height: 1.5;
-
-  overflow-wrap: anywhere;
-}
-
-
-/* =====================================================
-   FORMS
-===================================================== */
-
-.ari-form {
-  display: grid;
-
-  width: 100%;
-
-  gap: 14px;
-}
-
-.ari-field {
-  display: grid;
-
-  width: 100%;
-
-  gap: 8px;
-}
-
-
-/* =====================================================
-   LABELS AND HINTS
-===================================================== */
-
-.ari-label {
-  display: block;
-
-  color: #bff8ff;
-
-  font-size: 0.68rem;
-  font-weight: 900;
-  line-height: 1.35;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.ari-hint {
-  margin: 0;
-
-  color: #7f8ca3;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.78rem;
-  font-weight: 650;
-  line-height: 1.45;
-
-  overflow-wrap: anywhere;
-}
-
-
-/* =====================================================
-   INPUTS
-===================================================== */
-
-.ari-input,
-.ari-select,
-.ari-textarea {
-  width: 100%;
-
-  border: 1px solid rgba(103, 232, 249, 0.2);
-  border-radius: 18px;
-
-  outline: none;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(4, 12, 28, 0.94),
-      rgba(2, 6, 23, 0.92)
-    );
-
-  color: #f8fafc;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 1rem;
-  font-weight: 700;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 0 14px rgba(34, 211, 238, 0.03);
-
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    opacity 160ms ease;
-
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.ari-input,
-.ari-select {
-  min-height: 54px;
-
-  padding: 0 15px;
-}
-
-.ari-textarea {
-  min-height: 112px;
-
-  padding: 14px 15px;
-
-  resize: vertical;
-  line-height: 1.5;
-}
-
-.ari-select {
-  padding-right: 42px;
-
-  background-image:
-    linear-gradient(
-      45deg,
-      transparent 50%,
-      #67e8f9 50%
-    ),
-    linear-gradient(
-      135deg,
-      #67e8f9 50%,
-      transparent 50%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(4, 12, 28, 0.94),
-      rgba(2, 6, 23, 0.92)
-    );
-
-  background-position:
-    calc(100% - 20px) 23px,
-    calc(100% - 14px) 23px,
-    0 0;
-
-  background-size:
-    6px 6px,
-    6px 6px,
-    100% 100%;
-
-  background-repeat: no-repeat;
-}
-
-.ari-input::placeholder,
-.ari-textarea::placeholder {
-  color: rgba(174, 184, 204, 0.45);
-
-  opacity: 1;
-}
-
-.ari-input:focus,
-.ari-select:focus,
-.ari-textarea:focus {
-  border-color: rgba(103, 232, 249, 0.72);
-
-  box-shadow:
-    0 0 0 1px rgba(103, 232, 249, 0.12),
-    0 0 22px rgba(34, 211, 238, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-
-.ari-input:focus-visible,
-.ari-select:focus-visible,
-.ari-textarea:focus-visible {
-  outline: 2px solid rgba(103, 232, 249, 0.2);
-  outline-offset: 2px;
-}
-
-.ari-input:disabled,
-.ari-select:disabled,
-.ari-textarea:disabled {
-  opacity: 0.52;
-
-  cursor: not-allowed;
-}
-
-
-/* =====================================================
-   ACTION BUTTONS
-===================================================== */
-
-.ari-primary-action,
-.ari-secondary-action {
-  width: 100%;
-  min-height: 54px;
-
-  padding: 12px 16px;
-
-  border-radius: 18px;
-
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 900;
-  line-height: 1.3;
-
-  cursor: pointer;
-
-  transition:
-    background 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    color 180ms ease,
-    filter 160ms ease,
-    opacity 160ms ease,
-    transform 120ms ease;
-}
-
-.ari-secondary-action {
-  border: 1px solid rgba(103, 232, 249, 0.22);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(4, 12, 28, 0.92),
-      rgba(2, 6, 23, 0.96)
-    );
-
-  color: #e5fbff;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.ari-primary-action {
-  border: 1px solid rgba(103, 232, 249, 0.76);
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(34, 211, 238, 0.94),
-      rgba(14, 116, 144, 0.84)
-    );
-
-  color: #02131c;
-
-  box-shadow:
-    0 0 26px rgba(34, 211, 238, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
-}
-
-.ari-primary-action:not(:disabled):hover,
-.ari-secondary-action:not(:disabled):hover {
-  border-color: rgba(165, 243, 252, 0.72);
-
-  filter: brightness(1.08);
-}
-
-.ari-primary-action:not(:disabled):active,
-.ari-secondary-action:not(:disabled):active {
-  transform: scale(0.985);
-}
-
-.ari-primary-action:focus-visible,
-.ari-secondary-action:focus-visible {
-  outline: 2px solid #67e8f9;
-  outline-offset: 3px;
-}
-
-.ari-primary-action:disabled,
-.ari-secondary-action:disabled {
-  opacity: 0.5;
-
-  cursor: not-allowed;
-
-  filter: none;
-}
-
-
-/* =====================================================
-   RESULT GRID
-===================================================== */
-
-.ari-result-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-
-  width: 100%;
-
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-
-/* =====================================================
-   STAT CARDS
-===================================================== */
-
-.ari-stat-card {
-  width: 100%;
-
-  padding: 18px 16px;
-
-  border: 1px solid rgba(103, 232, 249, 0.2);
-  border-radius: 20px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(4, 12, 28, 0.94),
-      rgba(2, 6, 23, 0.96)
-    );
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.ari-stat-label {
-  margin: 0;
-
-  color: #67e8f9;
-
-  font-size: 0.68rem;
-  font-weight: 900;
-  line-height: 1.3;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.ari-stat-value {
-  margin: 9px 0 0;
-
-  color: #f8fafc;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 1.08rem;
-  font-weight: 900;
-  line-height: 1.35;
-
-  overflow-wrap: anywhere;
-}
-
-
-/* =====================================================
-   WARNING
-===================================================== */
-
-.ari-warning {
-  display: none;
-
-  width: 100%;
-
-  margin-bottom: 16px;
-  padding: 14px 15px;
-
-  border: 1px solid rgba(250, 204, 21, 0.34);
-  border-radius: 16px;
-
-  background: rgba(250, 204, 21, 0.08);
-  color: #fef3c7;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.84rem;
-  font-weight: 750;
-  line-height: 1.45;
-}
-
-.ari-warning.show,
-.ari-warning.active {
-  display: block;
-}
-
-
-/* =====================================================
-   STATUS MESSAGE
-===================================================== */
-
-.ari-status {
-  min-height: 22px;
-
-  color: #aeb8cc;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.4;
-  text-align: center;
-}
-
-.ari-status.success {
-  color: #bbf7d0;
-}
-
-.ari-status.error {
-  color: #fecaca;
-}
-
-
-/* =====================================================
-   FOOTER NOTE
-===================================================== */
-
-.ari-footer-note {
-  margin: 18px 4px 0;
-
-  color: #6f7c92;
-
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.78rem;
-  font-weight: 650;
-  line-height: 1.5;
-  text-align: center;
-
-  overflow-wrap: anywhere;
-}
-
-
-/* =====================================================
-   GOALS LED ANIMATION
-===================================================== */
-
-@keyframes ariGoalLedPulse {
-  0%,
-  100% {
-    opacity: 0.56;
-    filter: brightness(0.9);
-  }
-
-  50% {
-    opacity: 1;
-    filter: brightness(1.28);
-  }
-}
-
-
-/* =====================================================
-   SMALL MOBILE SCREENS
-===================================================== */
-
-@media (max-width: 380px) {
-  .ari-goals-page {
-    padding-right: 10px;
-    padding-left: 10px;
-  }
-
-  .ari-goals-header {
-    grid-template-columns:
-      54px
-      minmax(0, 1fr)
-      70px;
-
-    gap: 7px;
-  }
-
-  .ari-goals-page .ari-back-btn {
-    width: 54px;
-    min-width: 54px;
-  }
-
-  .ari-goals-page .ari-mini-btn {
-    width: 70px;
-
-    padding-right: 8px;
-    padding-left: 8px;
-
-    font-size: 11px;
-  }
-
-  .ari-goals-header .ari-brand-title {
-    font-size: 28px;
-  }
-
-  .ari-goals-header .ari-brand-subtitle {
-    font-size: 9px;
-    letter-spacing: 0.18em;
-  }
-
-  .ari-goals-page .ari-page-hero {
-    padding: 22px 18px;
-  }
-
-  .ari-tabs {
-    gap: 8px;
-  }
-
-  .ari-tab-btn {
-    min-height: 52px;
-
-    padding: 10px 8px;
-
-    font-size: 0.75rem;
-  }
-
-  .ari-meter-card {
-    min-height: 188px;
-
-    padding-right: 18px;
-    padding-left: 18px;
-  }
-
-  .ari-meter-number {
-    font-size: clamp(2.8rem, 15vw, 4rem);
-  }
-
-  .ari-log-intake-label {
-    right: 20px;
-  }
-
-  .ari-panel {
-    padding: 20px 16px;
-  }
-
-  .ari-section-subtitle {
-    font-size: 0.86rem;
-  }
-}
-
-
-/* =====================================================
-   TABLET / DESKTOP
-===================================================== */
-
-@media (min-width: 768px) {
-  .ari-goals-page {
-    width: min(540px, 100%);
-
-    padding-right: 22px;
-    padding-left: 22px;
-  }
-
-  .ari-result-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  .ari-result-grid .ari-stat-card:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
-}
-
-
-/* =====================================================
-   REDUCED MOTION
-===================================================== */
-
-@media (prefers-reduced-motion: reduce) {
-  .ari-calorie-led {
-    animation: none;
-  }
-
-  .ari-back-btn,
-  .ari-mini-btn,
-  .ari-tab-btn,
-  .ari-meter-card,
-  .ari-input,
-  .ari-select,
-  .ari-textarea,
-  .ari-primary-action,
-  .ari-secondary-action {
-    transition: none;
-  }
-}
-/* =====================================================
-   ARI GOALS
-   Version 1.1.0 â FUTURISTIC CLINICAL INTERFACE PATCH
-
-   Purpose:
-   - Convert Goals from dark command UI to bright clinical UI
-   - Preserve the existing layout, tabs, forms, and JavaScript
-   - Introduce white glass surfaces with cyan and purple accents
-   - Add restrained scientific symbols and biometric detailing
-===================================================== */
-
-
-/* =====================================================
-   CLINICAL DESIGN TOKENS
-===================================================== */
-
-body:has(.ari-goals-page) {
-  --ari-goals-white: #ffffff;
-  --ari-goals-surface: rgba(255, 255, 255, 0.86);
-  --ari-goals-surface-strong: rgba(255, 255, 255, 0.96);
-  --ari-goals-surface-soft: rgba(246, 251, 255, 0.88);
-
-  --ari-goals-navy: #10214b;
-  --ari-goals-navy-soft: #415174;
-  --ari-goals-muted: #71809d;
-  --ari-goals-faint: #98a5ba;
-
-  --ari-goals-cyan: #09cfea;
-  --ari-goals-cyan-bright: #00e2ff;
-  --ari-goals-cyan-soft: #dffbff;
-
-  --ari-goals-purple: #914cff;
-  --ari-goals-purple-bright: #b73cff;
-  --ari-goals-purple-soft: #f2eaff;
-
-  --ari-goals-green: #14b87a;
-  --ari-goals-yellow: #d9a400;
-  --ari-goals-red: #dc5364;
-
-  --ari-goals-border: rgba(51, 159, 226, 0.22);
-  --ari-goals-border-strong: rgba(0, 199, 234, 0.46);
-
-  --ari-goals-shadow:
-    0 18px 50px rgba(74, 112, 168, 0.11),
-    0 5px 18px rgba(74, 112, 168, 0.07);
-
-  --ari-goals-shadow-soft:
-    0 10px 28px rgba(74, 112, 168, 0.09);
-
-  --ari-goals-gradient:
-    linear-gradient(
-      125deg,
-      var(--ari-goals-cyan) 0%,
-      #4f9fff 48%,
-      var(--ari-goals-purple-bright) 100%
-    );
-}
-
-
-/* =====================================================
-   DOCUMENT AND CLINICAL BACKGROUND
-===================================================== */
-
-html:has(.ari-goals-page) {
-  background: #f8fcff;
-}
-
-body:has(.ari-goals-page) {
-  background:
-    radial-gradient(
-      circle at 12% 10%,
-      rgba(0, 217, 242, 0.11),
-      transparent 24%
-    ),
-    radial-gradient(
-      circle at 90% 17%,
-      rgba(145, 76, 255, 0.09),
-      transparent 27%
-    ),
-    radial-gradient(
-      circle at 58% 62%,
-      rgba(78, 164, 255, 0.06),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #f8fcff 42%,
-      #f2f8ff 100%
-    );
-
-  color: var(--ari-goals-navy);
-}
-
-
-/* =====================================================
-   SCIENTIFIC AMBIENT GRID
-===================================================== */
-
-body:has(.ari-goals-page)::before {
-  background-image:
-    linear-gradient(
-      rgba(27, 182, 222, 0.055) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(27, 182, 222, 0.045) 1px,
-      transparent 1px
-    ),
-    radial-gradient(
-      circle,
-      rgba(145, 76, 255, 0.11) 1px,
-      transparent 1.5px
-    );
-
-  background-size:
-    34px 34px,
-    34px 34px,
-    68px 68px;
-
-  background-position:
-    0 0,
-    0 0,
-    17px 17px;
-
-  opacity: 0.64;
-}
-
-
-/* =====================================================
-   PAGE SHELL
-===================================================== */
-
-.ari-goals-page {
-  isolation: isolate;
-}
-
-.ari-goals-page::before,
-.ari-goals-page::after {
-  position: fixed;
-  z-index: -1;
-
-  width: 190px;
-  height: 190px;
-
-  border-radius: 50%;
-
-  content: "";
-
-  pointer-events: none;
-
-  filter: blur(4px);
-}
-
-.ari-goals-page::before {
-  top: 120px;
-  left: -110px;
-
-  border: 1px solid rgba(0, 205, 236, 0.1);
-
-  background:
-    repeating-radial-gradient(
-      circle,
-      transparent 0 14px,
-      rgba(0, 205, 236, 0.055) 15px 16px
-    );
-}
-
-.ari-goals-page::after {
-  right: -118px;
-  bottom: 90px;
-
-  border: 1px solid rgba(145, 76, 255, 0.09);
-
-  background:
-    repeating-radial-gradient(
-      circle,
-      transparent 0 17px,
-      rgba(145, 76, 255, 0.045) 18px 19px
-    );
-}
-
-
-/* =====================================================
-   HEADER BRAND
-===================================================== */
-
-.ari-goals-header .ari-brand-title {
-  background:
-    linear-gradient(
-      115deg,
-      #09cfea 0%,
-      #28bce9 42%,
-      #944cff 100%
-    );
-
-  color: transparent;
-
-  text-shadow:
-    0 8px 22px rgba(21, 194, 227, 0.17);
-
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-
-.ari-goals-header .ari-brand-subtitle {
-  color: var(--ari-goals-purple);
-
-  text-shadow:
-    0 4px 12px rgba(145, 76, 255, 0.16);
-}
-
-
-/* =====================================================
-   HEADER BUTTONS
-===================================================== */
-
-.ari-goals-page .ari-back-btn,
-.ari-goals-page .ari-mini-btn {
-  border-color: rgba(58, 143, 220, 0.22);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(244, 249, 255, 0.88)
-    );
-
-  color: var(--ari-goals-navy);
-
-  box-shadow:
-    0 10px 24px rgba(74, 112, 168, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-goals-page .ari-back-btn {
-  color: #0ba9df;
-}
-
-.ari-goals-page .ari-back-btn:not(:disabled):hover,
-.ari-goals-page .ari-mini-btn:not(:disabled):hover {
-  border-color: rgba(0, 205, 236, 0.5);
-
-  background:
-    linear-gradient(
-      145deg,
-      #ffffff,
-      #effbff
-    );
-
-  box-shadow:
-    0 12px 30px rgba(48, 151, 214, 0.16),
-    0 0 0 4px rgba(0, 205, 236, 0.055),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-goals-page .ari-back-btn:focus-visible,
-.ari-goals-page .ari-mini-btn:focus-visible {
-  outline-color: var(--ari-goals-cyan);
-}
-
-
-/* =====================================================
-   PAGE HERO
-===================================================== */
-
-.ari-goals-page .ari-page-hero {
-  border-color: var(--ari-goals-border);
-
-  background:
-    radial-gradient(
-      circle at 10% 5%,
-      rgba(0, 213, 240, 0.12),
-      transparent 34%
-    ),
-    radial-gradient(
-      circle at 94% 90%,
-      rgba(145, 76, 255, 0.09),
-      transparent 33%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(245, 250, 255, 0.88)
-    );
-
-  box-shadow:
-    var(--ari-goals-shadow),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-goals-page .ari-page-hero::before {
-  height: 2px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      var(--ari-goals-cyan),
-      var(--ari-goals-purple),
-      transparent
-    );
-
-  box-shadow:
-    0 0 16px rgba(0, 205, 236, 0.22);
-}
-
-.ari-goals-page .ari-page-hero::after {
-  position: absolute;
-
-  right: 18px;
-  bottom: 14px;
-
-  width: 74px;
-  height: 74px;
-
-  border: 1px solid rgba(0, 205, 236, 0.12);
-  border-radius: 50%;
-
-  background:
-    repeating-radial-gradient(
-      circle,
-      transparent 0 8px,
-      rgba(0, 205, 236, 0.07) 9px 10px
-    );
-
-  content: "";
-
-  pointer-events: none;
-}
-
-.ari-goals-page .ari-page-kicker {
-  color: var(--ari-goals-cyan);
-
-  text-shadow: none;
-}
-
-.ari-goals-page .ari-page-title {
-  color: var(--ari-goals-navy);
-}
-
-.ari-goals-page .ari-page-description {
-  color: var(--ari-goals-muted);
-}
-
-
-/* =====================================================
-   GOALS TABS
-===================================================== */
-
-.ari-tab-btn {
-  border-color: rgba(58, 143, 220, 0.2);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(246, 250, 255, 0.9)
-    );
-
-  color: var(--ari-goals-navy);
-
-  box-shadow:
-    0 9px 25px rgba(74, 112, 168, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-tab-btn::before {
-  display: inline-grid;
-
-  width: 21px;
-  height: 21px;
-
-  margin-right: 7px;
-
-  place-items: center;
-
-  border: 1px solid rgba(0, 205, 236, 0.35);
-  border-radius: 50%;
-
-  color: var(--ari-goals-cyan);
-
-  content: "â";
-
-  font-size: 0.66rem;
-  line-height: 1;
-
-  vertical-align: -1px;
-}
-
-.ari-tab-btn.active {
-  border-color: rgba(255, 255, 255, 0.68);
-
-  background:
-    linear-gradient(
-      125deg,
-      #06cfe9 0%,
-      #399bf4 48%,
-      #ad3bff 100%
-    );
-
-  color: #ffffff;
-
-  box-shadow:
-    0 13px 34px rgba(65, 139, 231, 0.23),
-    0 8px 24px rgba(145, 76, 255, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.ari-tab-btn.active::before {
-  border-color: rgba(255, 255, 255, 0.7);
-
-  color: #ffffff;
-}
-
-.ari-tab-btn:not(:disabled):hover {
-  border-color: rgba(0, 205, 236, 0.5);
-}
-
-.ari-tab-btn:focus-visible {
-  outline-color: var(--ari-goals-cyan);
-}
-
-
-/* =====================================================
-   CALORIES LEFT BIOMETRIC CARD
-===================================================== */
-
-.ari-meter-card {
-  min-height: 218px;
-
-  border-color: rgba(0, 205, 236, 0.72);
-
-  background:
-    radial-gradient(
-      circle at 18% 54%,
-      rgba(0, 215, 242, 0.13),
-      transparent 31%
-    ),
-    radial-gradient(
-      circle at 92% 16%,
-      rgba(145, 76, 255, 0.1),
-      transparent 32%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(244, 251, 255, 0.92)
-    );
-
-  color: var(--ari-goals-navy);
-
-  box-shadow:
-    0 0 0 4px rgba(0, 205, 236, 0.055),
-    0 18px 50px rgba(49, 142, 205, 0.16),
-    0 8px 28px rgba(145, 76, 255, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-meter-card::before {
-  position: absolute;
-  z-index: 1;
-
-  top: 44px;
-  left: 20px;
-
-  width: 120px;
-  height: 120px;
-
-  border: 1px solid rgba(0, 205, 236, 0.16);
-  border-radius: 50%;
-
-  background:
-    radial-gradient(
-      circle,
-      rgba(0, 205, 236, 0.1) 0 3px,
-      transparent 4px
-    ),
-    repeating-radial-gradient(
-      circle,
-      transparent 0 12px,
-      rgba(0, 205, 236, 0.09) 13px 14px
-    );
-
-  content: "";
-
-  opacity: 0.82;
-
-  pointer-events: none;
-}
-
-.ari-meter-card::after {
-  inset: 9px;
-
-  border-color: rgba(47, 158, 218, 0.16);
-
-  background:
-    linear-gradient(
-      rgba(0, 205, 236, 0.03) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(0, 205, 236, 0.03) 1px,
-      transparent 1px
-    );
-
-  background-size: 22px 22px;
-}
-
-.ari-meter-card:not(:active):hover {
-  border-color: rgba(0, 213, 240, 0.98);
-
-  filter: brightness(1.015);
-
-  box-shadow:
-    0 0 0 5px rgba(0, 205, 236, 0.06),
-    0 23px 58px rgba(49, 142, 205, 0.19),
-    0 9px 30px rgba(145, 76, 255, 0.09),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-
-/* =====================================================
-   BIOMETRIC SCAN DETAIL
-===================================================== */
-
-.ari-meter-label::before {
-  display: inline-grid;
-
-  width: 24px;
-  height: 24px;
-
-  margin-right: 8px;
-
-  place-items: center;
-
-  border: 1px solid rgba(0, 205, 236, 0.52);
-  border-radius: 50%;
-
-  content: "â";
-
-  font-size: 0.72rem;
-
-  vertical-align: -2px;
-}
-
-.ari-calorie-led {
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(0, 205, 236, 0.35),
-      var(--ari-goals-cyan-bright),
-      #6d8dff,
-      var(--ari-goals-purple),
-      rgba(145, 76, 255, 0.35),
-      transparent
-    );
-
-  box-shadow:
-    0 0 8px rgba(0, 205, 236, 0.55),
-    0 0 18px rgba(0, 205, 236, 0.22);
-}
-
-
-/* =====================================================
-   CALORIE CARD CONTENT
-===================================================== */
-
-.ari-meter-label {
-  color: var(--ari-goals-cyan);
-
-  text-shadow: none;
-}
-
-.ari-meter-number {
-  background:
-    linear-gradient(
-      118deg,
-      #00cfe8 0%,
-      #31afea 42%,
-      #854cff 76%,
-      #b63cff 100%
-    );
-
-  color: transparent;
-
-  text-shadow:
-    0 10px 28px rgba(0, 192, 229, 0.14);
-
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-
-.ari-meter-subtext {
-  color: var(--ari-goals-navy-soft);
-}
-
-.ari-log-intake-label {
-  padding: 8px 12px;
-
-  border: 1px solid rgba(0, 205, 236, 0.35);
-  border-radius: 999px;
-
-  background: rgba(255, 255, 255, 0.76);
-
-  color: var(--ari-goals-cyan);
-
-  text-shadow: none;
-
-  box-shadow:
-    0 6px 16px rgba(51, 138, 196, 0.09);
-}
-
-
-/* =====================================================
-   CALORIE WARNING AND OVER STATES
-===================================================== */
-
-.ari-calorie-card.warning,
-.ari-calorie-card.is-warning {
-  border-color: rgba(217, 164, 0, 0.65);
-
-  box-shadow:
-    0 0 0 4px rgba(217, 164, 0, 0.055),
-    0 18px 46px rgba(217, 164, 0, 0.12);
-}
-
-.ari-calorie-card.over,
-.ari-calorie-card.is-over {
-  border-color: rgba(220, 83, 100, 0.65);
-
-  box-shadow:
-    0 0 0 4px rgba(220, 83, 100, 0.055),
-    0 18px 46px rgba(220, 83, 100, 0.12);
-}
-
-
-/* =====================================================
-   SHARED CLINICAL PANELS
-===================================================== */
-
-.ari-panel {
-  border-color: var(--ari-goals-border);
-
-  background:
-    radial-gradient(
-      circle at 100% 0,
-      rgba(145, 76, 255, 0.065),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 0 100%,
-      rgba(0, 205, 236, 0.075),
-      transparent 32%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.97),
-      rgba(245, 250, 255, 0.89)
-    );
-
-  box-shadow:
-    var(--ari-goals-shadow),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-}
-
-.ari-panel::before {
-  height: 2px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      var(--ari-goals-cyan),
-      #5f91ff,
-      var(--ari-goals-purple),
-      transparent
-    );
-
-  opacity: 0.76;
-}
-
-.ari-panel::after {
-  position: absolute;
-
-  top: 18px;
-  right: 18px;
-
-  width: 44px;
-  height: 44px;
-
-  border: 1px solid rgba(0, 205, 236, 0.1);
-  border-radius: 50%;
-
-  background:
-    repeating-radial-gradient(
-      circle,
-      transparent 0 5px,
-      rgba(0, 205, 236, 0.055) 6px 7px
-    );
-
-  content: "";
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   PANEL HEADERS
-===================================================== */
-
-.ari-section-title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-
-  color: var(--ari-goals-cyan);
-}
-
-.ari-section-title::before {
-  display: inline-grid;
-
-  width: 25px;
-  height: 25px;
-
-  flex: 0 0 auto;
-
-  place-items: center;
-
-  border: 1px solid rgba(0, 205, 236, 0.4);
-  border-radius: 8px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(0, 205, 236, 0.08),
-      rgba(145, 76, 255, 0.06)
-    );
-
-  color: var(--ari-goals-purple);
-
-  content: "â¬¡";
-
-  font-size: 0.75rem;
-  line-height: 1;
-}
-
-.ari-section-subtitle {
-  color: var(--ari-goals-muted);
-}
-
-
-/* =====================================================
-   LABELS AND HINTS
-===================================================== */
-
-.ari-label {
-  color: var(--ari-goals-navy);
-}
-
-.ari-label::before {
-  margin-right: 6px;
-
-  color: var(--ari-goals-cyan);
-
-  content: "â";
-
-  font-size: 0.62rem;
-}
-
-.ari-hint {
-  color: var(--ari-goals-muted);
-}
-
-
-/* =====================================================
-   CLINICAL INPUTS
-===================================================== */
-
-.ari-input,
-.ari-select,
-.ari-textarea {
-  border-color: rgba(71, 146, 207, 0.24);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.99),
-      rgba(244, 249, 255, 0.94)
-    );
-
-  color: var(--ari-goals-navy);
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    0 5px 14px rgba(78, 111, 158, 0.055);
-}
-
-.ari-select {
-  background-image:
-    linear-gradient(
-      45deg,
-      transparent 50%,
-      var(--ari-goals-cyan) 50%
-    ),
-    linear-gradient(
-      135deg,
-      var(--ari-goals-cyan) 50%,
-      transparent 50%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.99),
-      rgba(244, 249, 255, 0.94)
-    );
-}
-
-.ari-input::placeholder,
-.ari-textarea::placeholder {
-  color: rgba(113, 128, 157, 0.55);
-}
-
-.ari-input:focus,
-.ari-select:focus,
-.ari-textarea:focus {
-  border-color: rgba(0, 205, 236, 0.75);
-
-  background: #ffffff;
-
-  box-shadow:
-    0 0 0 4px rgba(0, 205, 236, 0.075),
-    0 8px 22px rgba(55, 144, 204, 0.11),
-    0 0 22px rgba(145, 76, 255, 0.055),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-input:focus-visible,
-.ari-select:focus-visible,
-.ari-textarea:focus-visible {
-  outline-color: rgba(145, 76, 255, 0.22);
-}
-
-
-/* =====================================================
-   ACTION BUTTONS
-===================================================== */
-
-.ari-secondary-action {
-  border-color: rgba(74, 143, 204, 0.24);
-
-  background:
-    linear-gradient(
-      145deg,
-      #ffffff,
-      #f2f8ff
-    );
-
-  color: var(--ari-goals-navy);
-
-  box-shadow:
-    0 7px 18px rgba(70, 109, 159, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-primary-action {
-  border-color: rgba(255, 255, 255, 0.66);
-
-  background:
-    linear-gradient(
-      125deg,
-      #06cee9 0%,
-      #379bf4 48%,
-      #a63dff 100%
-    );
-
-  color: #ffffff;
-
-  box-shadow:
-    0 12px 28px rgba(43, 149, 219, 0.2),
-    0 8px 24px rgba(145, 76, 255, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.32);
-}
-
-.ari-primary-action:not(:disabled):hover,
-.ari-secondary-action:not(:disabled):hover {
-  border-color: rgba(0, 205, 236, 0.52);
-
-  filter: brightness(1.025);
-}
-
-.ari-primary-action:focus-visible,
-.ari-secondary-action:focus-visible {
-  outline-color: var(--ari-goals-purple);
-}
-
-
-/* =====================================================
-   BIOMETRIC STAT CARDS
-===================================================== */
-
-.ari-stat-card {
-  position: relative;
-
-  overflow: hidden;
-
-  border-color: rgba(63, 145, 208, 0.2);
-
-  background:
-    radial-gradient(
-      circle at 100% 100%,
-      rgba(145, 76, 255, 0.075),
-      transparent 40%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.99),
-      rgba(243, 249, 255, 0.94)
-    );
-
-  box-shadow:
-    0 9px 24px rgba(66, 107, 160, 0.085),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-}
-
-.ari-stat-card::before {
-  position: absolute;
-
-  top: 14px;
-  right: 14px;
-
-  width: 46px;
-  height: 46px;
-
-  border: 1px solid rgba(0, 205, 236, 0.12);
-  border-radius: 50%;
-
-  background:
-    repeating-radial-gradient(
-      circle,
-      transparent 0 5px,
-      rgba(0, 205, 236, 0.065) 6px 7px
-    );
-
-  content: "";
-
-  pointer-events: none;
-}
-
-.ari-stat-card::after {
-  position: absolute;
-
-  right: 0;
-  bottom: 0;
-  left: 0;
-
-  height: 2px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(0, 205, 236, 0.74),
-      rgba(145, 76, 255, 0.54),
-      transparent
-    );
-
-  content: "";
-}
-
-.ari-stat-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-
-  color: var(--ari-goals-cyan);
-}
-
-.ari-stat-label::before {
-  display: inline-grid;
-
-  width: 19px;
-  height: 19px;
-
-  place-items: center;
-
-  border: 1px solid rgba(145, 76, 255, 0.3);
-  border-radius: 6px;
-
-  color: var(--ari-goals-purple);
-
-  content: "â¬";
-
-  font-size: 0.56rem;
-  line-height: 1;
-}
-
-.ari-stat-value {
-  position: relative;
-  z-index: 1;
-
-  color: var(--ari-goals-navy);
-
-  font-size: 1.22rem;
-}
-
-
-/* =====================================================
-   WARNING
-===================================================== */
-
-.ari-warning {
-  border-color: rgba(217, 164, 0, 0.28);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 250, 225, 0.96),
-      rgba(255, 247, 210, 0.84)
-    );
-
-  color: #755600;
-
-  box-shadow:
-    0 8px 18px rgba(180, 135, 0, 0.07);
-}
-
-
-/* =====================================================
-   STATUS MESSAGE
-===================================================== */
-
-.ari-status {
-  color: var(--ari-goals-muted);
-}
-
-.ari-status.success {
-  color: var(--ari-goals-green);
-}
-
-.ari-status.error {
-  color: var(--ari-goals-red);
-}
-
-
-/* =====================================================
-   FOOTER NOTE
-===================================================== */
-
-.ari-footer-note {
-  color: var(--ari-goals-muted);
-}
-
-
-/* =====================================================
-   MOBILE REFINEMENTS
-===================================================== */
-
-@media (max-width: 380px) {
-  .ari-meter-card {
-    min-height: 210px;
-  }
-
-  .ari-meter-card::before {
-    top: 48px;
-    left: 10px;
-
-    width: 96px;
-    height: 96px;
-
-    opacity: 0.56;
-  }
-
-  .ari-meter-label {
-    font-size: 0.7rem;
-    letter-spacing: 0.17em;
-  }
-
-  .ari-meter-label::before {
-    width: 21px;
-    height: 21px;
-
-    margin-right: 5px;
-  }
-
-  .ari-meter-number {
-    font-size: clamp(2.7rem, 15vw, 4rem);
-  }
-
-  .ari-log-intake-label {
-    padding: 7px 10px;
-
-    font-size: 0.62rem;
-  }
-
-  .ari-section-title {
-    letter-spacing: 0.14em;
-  }
-
-  .ari-panel::after {
-    width: 36px;
-    height: 36px;
-  }
-}
-
-
-/* =====================================================
-   TABLET / DESKTOP
-===================================================== */
-
-@media (min-width: 768px) {
-  .ari-goals-page {
-    width: min(600px, 100%);
-  }
-
-  .ari-meter-card {
-    min-height: 234px;
-  }
-
-  .ari-meter-card::before {
-    width: 144px;
-    height: 144px;
-  }
-
-  .ari-stat-card {
-    min-height: 128px;
-  }
-}
-
-
-/* =====================================================
-   REDUCED MOTION
-===================================================== */
-
-@media (prefers-reduced-motion: reduce) {
-  .ari-calorie-led {
-    animation: none;
-  }
-}
-/* =====================================================
-   ARI GOALS
-   Version 1.1.1 â GLASS DEPTH PATCH
-===================================================== */
-
-
-/* =====================================================
-   GLASS TOKENS
-===================================================== */
-
-body:has(.ari-goals-page) {
-  --ari-glass-white: rgba(255, 255, 255, 0.56);
-  --ari-glass-white-strong: rgba(255, 255, 255, 0.7);
-  --ari-glass-white-soft: rgba(255, 255, 255, 0.42);
-
-  --ari-glass-border: rgba(255, 255, 255, 0.72);
-  --ari-glass-border-cyan: rgba(0, 207, 234, 0.28);
-  --ari-glass-border-purple: rgba(145, 76, 255, 0.2);
-
-  --ari-glass-shadow:
-    0 22px 55px rgba(56, 104, 162, 0.14),
-    0 8px 24px rgba(56, 104, 162, 0.09);
-
-  --ari-glass-inset:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(104, 165, 211, 0.08);
-}
-
-
-/* =====================================================
-   STRONGER BACKGROUND DEPTH
-===================================================== */
-
-body:has(.ari-goals-page) {
-  background:
-    radial-gradient(
-      circle at 12% 12%,
-      rgba(0, 213, 240, 0.18),
-      transparent 27%
-    ),
-    radial-gradient(
-      circle at 88% 22%,
-      rgba(145, 76, 255, 0.15),
-      transparent 29%
-    ),
-    radial-gradient(
-      circle at 44% 67%,
-      rgba(66, 153, 255, 0.11),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      #f9fdff 0%,
-      #eef8ff 52%,
-      #f8f4ff 100%
-    );
-}
-
-body:has(.ari-goals-page)::before {
-  opacity: 0.82;
-}
-
-
-/* =====================================================
-   UNIVERSAL GLASS SURFACES
-===================================================== */
-
-.ari-goals-page .ari-page-hero,
-.ari-goals-page .ari-panel,
-.ari-goals-page .ari-stat-card,
-.ari-goals-page .ari-tab-btn,
-.ari-goals-page .ari-back-btn,
-.ari-goals-page .ari-mini-btn {
-  border-color:
-    rgba(255, 255, 255, 0.74);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.7),
-      rgba(255, 255, 255, 0.38)
-    );
-
-  box-shadow:
-    var(--ari-glass-shadow),
-    var(--ari-glass-inset);
-
-  -webkit-backdrop-filter:
-    blur(24px)
-    saturate(155%)
-    brightness(1.04);
-
-  backdrop-filter:
-    blur(24px)
-    saturate(155%)
-    brightness(1.04);
-}
-
-
-/* =====================================================
-   GLASS EDGE REFLECTION
-===================================================== */
-
-.ari-goals-page .ari-page-hero,
-.ari-goals-page .ari-panel,
-.ari-goals-page .ari-stat-card,
-.ari-goals-page .ari-meter-card {
-  position: relative;
-}
-
-.ari-goals-page .ari-page-hero {
-  background:
-    radial-gradient(
-      circle at 8% 3%,
-      rgba(0, 221, 246, 0.14),
-      transparent 34%
-    ),
-    radial-gradient(
-      circle at 94% 90%,
-      rgba(145, 76, 255, 0.12),
-      transparent 34%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.68),
-      rgba(255, 255, 255, 0.35)
-    );
-}
-
-.ari-goals-page .ari-panel {
-  background:
-    radial-gradient(
-      circle at 100% 0,
-      rgba(145, 76, 255, 0.1),
-      transparent 32%
-    ),
-    radial-gradient(
-      circle at 0 100%,
-      rgba(0, 205, 236, 0.11),
-      transparent 34%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.66),
-      rgba(255, 255, 255, 0.34)
-    );
-}
-
-
-/* =====================================================
-   CALORIE CARD â PREMIUM BIOMETRIC GLASS
-===================================================== */
-
-.ari-meter-card {
-  border-color: rgba(0, 211, 238, 0.76);
-
-  background:
-    radial-gradient(
-      circle at 18% 48%,
-      rgba(0, 215, 242, 0.17),
-      transparent 31%
-    ),
-    radial-gradient(
-      circle at 92% 16%,
-      rgba(145, 76, 255, 0.14),
-      transparent 31%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.57),
-      rgba(255, 255, 255, 0.25)
-    );
-
-  box-shadow:
-    0 0 0 4px rgba(0, 205, 236, 0.055),
-    0 26px 60px rgba(39, 131, 195, 0.18),
-    0 12px 32px rgba(145, 76, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(0, 205, 236, 0.14);
-
-  -webkit-backdrop-filter:
-    blur(28px)
-    saturate(170%)
-    brightness(1.04);
-
-  backdrop-filter:
-    blur(28px)
-    saturate(170%)
-    brightness(1.04);
-}
-
-.ari-meter-card::after {
-  border-color: rgba(255, 255, 255, 0.64);
-
-  background:
-    linear-gradient(
-      rgba(0, 205, 236, 0.035) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(0, 205, 236, 0.035) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      115deg,
-      rgba(255, 255, 255, 0.42),
-      transparent 32%
-    );
-
-  background-size:
-    22px 22px,
-    22px 22px,
-    100% 100%;
-}
-
-
-/* =====================================================
-   GLASS TABS
-===================================================== */
-
-.ari-tab-btn {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.68),
-      rgba(255, 255, 255, 0.34)
-    );
-}
-
-.ari-tab-btn.active {
-  border-color: rgba(255, 255, 255, 0.78);
-
-  background:
-    linear-gradient(
-      125deg,
-      rgba(0, 207, 234, 0.88),
-      rgba(64, 145, 245, 0.86) 48%,
-      rgba(174, 59, 255, 0.88)
-    );
-
-  box-shadow:
-    0 18px 42px rgba(52, 139, 224, 0.25),
-    0 10px 30px rgba(145, 76, 255, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.64),
-    inset 0 -1px 0 rgba(79, 52, 171, 0.16);
-
-  -webkit-backdrop-filter:
-    blur(20px)
-    saturate(170%);
-
-  backdrop-filter:
-    blur(20px)
-    saturate(170%);
-}
-
-
-/* =====================================================
-   GLASS INPUTS
-===================================================== */
-
-.ari-input,
-.ari-select,
-.ari-textarea {
-  border-color: rgba(255, 255, 255, 0.78);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.58),
-      rgba(245, 251, 255, 0.36)
-    );
-
-  box-shadow:
-    0 8px 22px rgba(60, 106, 157, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(85, 149, 199, 0.1);
-
-  -webkit-backdrop-filter:
-    blur(18px)
-    saturate(145%);
-
-  backdrop-filter:
-    blur(18px)
-    saturate(145%);
-}
-
-.ari-select {
-  background-image:
-    linear-gradient(
-      45deg,
-      transparent 50%,
-      var(--ari-goals-cyan) 50%
-    ),
-    linear-gradient(
-      135deg,
-      var(--ari-goals-cyan) 50%,
-      transparent 50%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.58),
-      rgba(245, 251, 255, 0.36)
-    );
-}
-
-
-/* =====================================================
-   GLASS STAT CARDS
-===================================================== */
-
-.ari-stat-card {
-  background:
-    radial-gradient(
-      circle at 100% 100%,
-      rgba(145, 76, 255, 0.1),
-      transparent 42%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.62),
-      rgba(245, 251, 255, 0.32)
-    );
-}
-
-
-/* =====================================================
-   GLASS BUTTONS
-===================================================== */
-
-.ari-secondary-action {
-  border-color: rgba(255, 255, 255, 0.76);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.68),
-      rgba(244, 250, 255, 0.34)
-    );
-
-  box-shadow:
-    0 12px 28px rgba(62, 105, 156, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
-
-  -webkit-backdrop-filter:
-    blur(18px)
-    saturate(150%);
-
-  backdrop-filter:
-    blur(18px)
-    saturate(150%);
-}
-
-
-/* =====================================================
-   EXTRA GLASS SHINE
-===================================================== */
-
-.ari-panel::before,
-.ari-goals-page .ari-page-hero::before {
-  height: 2px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.92),
-      var(--ari-goals-cyan),
-      rgba(145, 76, 255, 0.72),
-      rgba(255, 255, 255, 0.86),
-      transparent
-    );
-
-  opacity: 0.82;
-}
-/* =====================================================
-   ARI GOALS
-   Version 1.1.2 â CALORIES LEFT PNG BACKGROUND
-===================================================== */
-
-.ari-meter-card {
-  min-height: 218px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.34),
-      rgba(255, 255, 255, 0.12)
-    ),
-    url("../images/ari-calories-left-tab.png")
-      center / cover
-      no-repeat;
-
-  border-color: rgba(0, 211, 238, 0.8);
-
-  box-shadow:
-    0 0 0 4px rgba(0, 205, 236, 0.055),
-    0 26px 60px rgba(39, 131, 195, 0.2),
-    0 12px 34px rgba(145, 76, 255, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(0, 205, 236, 0.16);
-
-  -webkit-backdrop-filter:
-    blur(18px)
-    saturate(160%)
-    brightness(1.03);
-
-  backdrop-filter:
-    blur(18px)
-    saturate(160%)
-    brightness(1.03);
-}
-
-
-/* Remove the old CSS-generated scanner rings.
-   The PNG now supplies the card artwork. */
-
-.ari-meter-card::before {
-  display: none;
-}
-
-
-/* Keep the existing inner glass border and grid above the PNG. */
-
-.ari-meter-card::after {
-  z-index: 1;
-
-  border-color: rgba(255, 255, 255, 0.56);
-
-  background:
-    linear-gradient(
-      rgba(0, 205, 236, 0.028) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(0, 205, 236, 0.028) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      115deg,
-      rgba(255, 255, 255, 0.28),
-      transparent 34%
-    );
-
-  background-size:
-    22px 22px,
-    22px 22px,
-    100% 100%;
-}
-
-
-/* Keep card content above the PNG and glass overlays. */
-
-.ari-calorie-led,
-.ari-meter-label,
-.ari-meter-number,
-.ari-meter-subtext {
-  position: relative;
-  z-index: 3;
-}
-
-.ari-log-intake-label {
-  z-index: 3;
-}
-
-
-/* Improve readability over the artwork. */
-
-.ari-meter-label,
-.ari-meter-subtext {
-  text-shadow:
-    0 1px 2px rgba(255, 255, 255, 0.8),
-    0 0 14px rgba(255, 255, 255, 0.65);
-}
-
-.ari-meter-number {
-  filter:
-    drop-shadow(0 4px 12px rgba(255, 255, 255, 0.72));
-}
-
-
-/* Slightly reposition the artwork on narrow phones. */
-
-@media (max-width: 380px) {
-  .ari-meter-card {
-    background:
-      linear-gradient(
-        145deg,
-        rgba(255, 255, 255, 0.38),
-        rgba(255, 255, 255, 0.15)
-      ),
-      url("../images/ari-calories-left-tab.png")
-        center / cover
-        no-repeat;
-  }
-}
-/* =====================================================
-   DAILY NUTRITION TARGETS â SINGLE UNIFIED CARD
-   Append this block to assets/css/goals.css
-===================================================== */
-
-.ari-nutrition-targets-card {
-  display: block;
-  padding: 0;
-  overflow: hidden;
-}
-
-.ari-nutrition-strategy-row {
-  padding: 24px;
-  border-bottom: 1px solid rgba(84, 213, 229, 0.18);
-}
-
-.ari-nutrition-strategy-row .ari-stat-label,
-.ari-nutrition-strategy-row .ari-stat-value,
-.ari-nutrition-target-row .ari-stat-label,
-.ari-nutrition-target-row .ari-stat-value {
-  margin: 0;
-}
-
-.ari-nutrition-strategy-row .ari-stat-value {
-  margin-top: 10px;
-}
-
-.ari-nutrition-target-list {
-  display: block;
-}
-
-.ari-nutrition-target-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  min-height: 74px;
-  padding: 18px 24px;
-  border-bottom: 1px solid rgba(84, 213, 229, 0.14);
-}
-
-.ari-nutrition-target-row:last-child {
-  border-bottom: 0;
-}
-
-.ari-nutrition-target-row .ari-stat-label {
-  min-width: 0;
-}
-
-.ari-nutrition-target-row .ari-stat-value {
-  flex: 0 0 auto;
-  text-align: right;
-  font-size: clamp(1.2rem, 5vw, 1.65rem);
-}
-
-@media (max-width: 420px) {
-  .ari-nutrition-strategy-row,
-  .ari-nutrition-target-row {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
-}
-/* =====================================================
-   ARI GOALS 3.0 â CLINICAL LUXURY SYSTEM
-
-   The calorie artwork is intentionally an editable layer.
-   Adjust the four custom properties on .ari-calorie-hero
-   to resize or reposition the PNG without changing markup.
+   - Clean standalone Goals page design system.
+   - Premium white laboratory interface.
+   - Animated calorie Health Core built entirely with CSS.
+   - No PNG artwork.
+   - No Unicode-generated icons or symbols.
+   - Mobile-first and Safari-safe.
 ===================================================== */
 
 :root {
-  --goals-ink: #07172f;
-  --goals-muted: #6f7f98;
-  --goals-royal: #2456d8;
-  --goals-royal-deep: #143b9d;
-  --goals-cyan: #08c8e8;
-  --goals-cyan-soft: #dffaff;
-  --goals-violet: #7258e9;
-  --goals-violet-soft: #eeeaff;
-  --goals-mint: #24d39a;
-  --goals-coral: #ec6f83;
-  --goals-line: rgba(31, 81, 145, 0.13);
-  --goals-line-strong: rgba(33, 92, 174, 0.22);
   --goals-white: #ffffff;
-  --goals-ice: #f5fbff;
-  --goals-shadow: 0 24px 60px rgba(33, 72, 121, 0.11);
-  --goals-shadow-soft: 0 12px 30px rgba(33, 72, 121, 0.075);
+  --goals-ice: #f7fbff;
+  --goals-ice-strong: #eef7ff;
+  --goals-ink: #071a36;
+  --goals-ink-soft: #18375d;
+  --goals-muted: #6d7e98;
+  --goals-faint: #9aa8bb;
+  --goals-royal: #2456d8;
+  --goals-royal-deep: #153a9b;
+  --goals-cyan: #08c8e8;
+  --goals-cyan-rgb: 8, 200, 232;
+  --goals-cyan-soft: #dbfaff;
+  --goals-violet: #7258e9;
+  --goals-violet-rgb: 114, 88, 233;
+  --goals-mint: #24d39a;
+  --goals-mint-rgb: 36, 211, 154;
+  --goals-coral: #ec6f83;
+  --goals-coral-rgb: 236, 111, 131;
+  --goals-amber: #e9a83c;
+  --goals-line: rgba(32, 84, 151, 0.13);
+  --goals-line-strong: rgba(35, 94, 174, 0.22);
+  --goals-shadow-soft: 0 12px 34px rgba(35, 77, 129, 0.08);
+  --goals-shadow: 0 24px 64px rgba(32, 72, 124, 0.12);
+  --goals-radius-large: 30px;
+  --goals-radius-medium: 22px;
+  --goals-radius-small: 16px;
+  --goals-page-width: 960px;
 }
 
-body:has(.ari-goals-page) {
+html {
   min-height: 100%;
+  background: var(--goals-ice);
+  color-scheme: light;
+}
+
+body {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
   color: var(--goals-ink);
   background:
-    radial-gradient(circle at 8% 5%, rgba(8, 200, 232, 0.10), transparent 27rem),
-    radial-gradient(circle at 96% 18%, rgba(114, 88, 233, 0.09), transparent 31rem),
-    linear-gradient(180deg, #fbfeff 0%, #f5faff 48%, #fbfdff 100%) !important;
+    radial-gradient(circle at 8% 4%, rgba(var(--goals-cyan-rgb), 0.12), transparent 26rem),
+    radial-gradient(circle at 94% 12%, rgba(var(--goals-violet-rgb), 0.10), transparent 30rem),
+    radial-gradient(circle at 76% 92%, rgba(var(--goals-mint-rgb), 0.08), transparent 28rem),
+    linear-gradient(180deg, #fbfeff 0%, #f4f9ff 48%, #fbfdff 100%);
 }
 
-body:has(.ari-goals-page)::before {
-  content: "";
+body::before,
+body::after {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
-  opacity: 0.34;
+  content: "";
+}
+
+body::before {
+  opacity: 0.42;
   background-image:
-    linear-gradient(rgba(41, 109, 177, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(41, 109, 177, 0.035) 1px, transparent 1px);
+    linear-gradient(rgba(37, 91, 155, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 91, 155, 0.04) 1px, transparent 1px);
   background-size: 38px 38px;
-  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 74%);
-  mask-image: linear-gradient(to bottom, #000, transparent 74%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.48) 62%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.48) 62%, transparent 100%);
+}
+
+body::after {
+  inset: -20%;
+  opacity: 0.62;
+  background:
+    radial-gradient(circle at 20% 28%, rgba(var(--goals-cyan-rgb), 0.08), transparent 19%),
+    radial-gradient(circle at 78% 38%, rgba(var(--goals-violet-rgb), 0.07), transparent 21%),
+    radial-gradient(circle at 52% 78%, rgba(var(--goals-mint-rgb), 0.06), transparent 20%);
+  animation: goalsAmbientDrift 24s ease-in-out infinite alternate;
+}
+
+.ari-goals-page,
+.ari-goals-page *,
+.ari-goals-page *::before,
+.ari-goals-page *::after {
+  box-sizing: border-box;
 }
 
 .ari-goals-page {
-  width: min(100%, 980px) !important;
-  max-width: 980px !important;
+  position: relative;
+  z-index: 1;
+  width: min(100%, var(--goals-page-width));
   min-height: 100vh;
-  margin: 0 auto !important;
+  margin: 0 auto;
   padding:
     max(18px, env(safe-area-inset-top))
     clamp(14px, 4vw, 34px)
-    max(48px, env(safe-area-inset-bottom)) !important;
+    max(52px, env(safe-area-inset-bottom));
   color: var(--goals-ink);
+  font-family: Orbitron, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* Premium lab header */
+.ari-goals-page [hidden] {
+  display: none !important;
+}
 
-.ari-goals-header.ari-goals-header--lab {
+.ari-goals-page button,
+.ari-goals-page input,
+.ari-goals-page select,
+.ari-goals-page textarea {
+  font: inherit;
+}
+
+.ari-goals-page button {
+  cursor: pointer;
+}
+
+.ari-goals-page p,
+.ari-goals-page h1,
+.ari-goals-page h2,
+.ari-goals-page strong {
+  margin: 0;
+}
+
+/* =====================================================
+   PREMIUM LAB HEADER
+===================================================== */
+
+.ari-goals-header {
   position: relative;
-  display: grid !important;
-  grid-template-columns: 58px minmax(0, 1fr) 74px;
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) 72px;
   align-items: center;
-  min-height: 116px;
-  margin: 0 0 16px !important;
-  padding: 18px clamp(14px, 3vw, 24px) !important;
+  min-height: 124px;
+  margin-bottom: 18px;
+  padding: 20px clamp(16px, 3vw, 26px);
   overflow: hidden;
-  border: 1px solid rgba(35, 97, 169, 0.15) !important;
-  border-radius: 30px !important;
+  border: 1px solid rgba(34, 96, 169, 0.16);
+  border-radius: var(--goals-radius-large);
   background:
-    linear-gradient(118deg, rgba(8, 200, 232, 0.075), transparent 38%),
-    linear-gradient(238deg, rgba(114, 88, 233, 0.075), transparent 39%),
-    rgba(255, 255, 255, 0.91) !important;
-  box-shadow: var(--goals-shadow) !important;
-  backdrop-filter: blur(22px);
+    radial-gradient(circle at 18% 0%, rgba(var(--goals-cyan-rgb), 0.12), transparent 42%),
+    radial-gradient(circle at 88% 0%, rgba(var(--goals-violet-rgb), 0.10), transparent 43%),
+    rgba(255, 255, 255, 0.91);
+  box-shadow:
+    0 24px 60px rgba(35, 77, 128, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
   -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  animation: goalsCardArrive 520ms ease-out both;
 }
 
-.ari-goals-header--lab::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, transparent 7%, rgba(8, 200, 232, 0.35) 30%, rgba(114, 88, 233, 0.28) 70%, transparent 93%) top / 100% 2px no-repeat,
-    radial-gradient(circle at 17% 50%, rgba(8, 200, 232, 0.09), transparent 11rem);
+.ari-goals-header--lab {
+  isolation: isolate;
 }
 
-.ari-goals-header--lab::after {
-  content: "";
+.ari-goals-header::before {
   position: absolute;
-  width: 122px;
-  height: 122px;
-  right: 13%;
-  top: -89px;
-  border: 1px solid rgba(114, 88, 233, 0.15);
+  top: -76px;
+  right: 8%;
+  width: 190px;
+  height: 190px;
+  border: 1px solid rgba(var(--goals-violet-rgb), 0.13);
   border-radius: 50%;
-  box-shadow: 0 0 0 20px rgba(8, 200, 232, 0.025);
+  box-shadow:
+    0 0 0 22px rgba(var(--goals-cyan-rgb), 0.025),
+    0 0 0 44px rgba(var(--goals-violet-rgb), 0.02);
+  content: "";
 }
 
-.ari-goals-page .ari-header-control {
+.ari-goals-header::after {
+  position: absolute;
+  right: 22%;
+  bottom: 0;
+  left: 22%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--goals-cyan), var(--goals-royal), var(--goals-violet), transparent);
+  box-shadow: 0 0 14px rgba(var(--goals-cyan-rgb), 0.34);
+  content: "";
+  animation: goalsHeaderSignal 4.6s ease-in-out infinite;
+}
+
+.ari-header-control {
   position: relative;
   z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 52px;
-  min-height: 52px;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
   padding: 0;
+  border: 1px solid rgba(32, 86, 153, 0.16);
+  border-radius: 19px;
   color: var(--goals-ink);
-  border: 1px solid rgba(30, 81, 143, 0.15);
-  border-radius: 18px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow:
-    0 10px 22px rgba(33, 72, 121, 0.09),
+    0 10px 24px rgba(38, 82, 135, 0.10),
     inset 0 1px 0 #fff;
-  cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
 
-.ari-goals-page .ari-header-control:hover,
-.ari-goals-page .ari-header-control:focus-visible {
-  transform: translateY(-2px);
-  border-color: rgba(8, 200, 232, 0.48);
+.ari-header-control:hover {
+  color: var(--goals-royal);
+  border-color: rgba(var(--goals-cyan-rgb), 0.48);
   box-shadow:
-    0 13px 28px rgba(33, 72, 121, 0.13),
-    0 0 0 4px rgba(8, 200, 232, 0.08);
+    0 13px 30px rgba(38, 82, 135, 0.13),
+    0 0 0 4px rgba(var(--goals-cyan-rgb), 0.06);
+  transform: translateY(-2px);
 }
 
-.ari-goals-page .ari-header-control svg {
-  width: 24px;
-  height: 24px;
+.ari-header-control:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.ari-header-control:focus-visible {
+  outline: 3px solid rgba(var(--goals-cyan-rgb), 0.30);
+  outline-offset: 3px;
+}
+
+.ari-header-control svg {
+  width: 26px;
+  height: 26px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 2.1;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.ari-goals-page .ari-header-home {
-  flex-direction: column;
-  gap: 4px;
-  min-width: 64px;
-  min-height: 58px;
+.ari-header-home {
+  justify-self: end;
 }
 
-.ari-goals-page .ari-header-home svg {
-  width: 20px;
-  height: 20px;
-  stroke: var(--goals-royal);
+.ari-back-btn {
+  justify-self: start;
 }
 
-.ari-goals-page .ari-header-home span {
-  color: var(--goals-royal-deep);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+.ari-header-home span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ari-goals-heading {
@@ -3293,84 +264,118 @@ body:has(.ari-goals-page)::before {
   text-align: center;
 }
 
-.ari-goals-heading__eyebrow,
-.ari-section-kicker {
-  margin: 0 0 7px;
-  color: #088ca2;
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.67rem;
+.ari-goals-heading__eyebrow {
+  margin-bottom: 8px !important;
+  color: #148aa2;
+  font-size: clamp(0.68rem, 2.1vw, 0.82rem);
   font-weight: 800;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.21em;
+  text-transform: uppercase;
 }
 
 .ari-goals-heading__title {
-  margin: 0;
   color: var(--goals-ink);
-  font-family: "Audiowide", "Orbitron", sans-serif;
-  font-size: clamp(1.7rem, 5vw, 2.45rem);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(1.9rem, 6vw, 2.8rem);
   font-weight: 400;
-  line-height: 1.05;
+  line-height: 1.04;
   letter-spacing: -0.035em;
+  text-shadow: 0 12px 30px rgba(36, 86, 216, 0.10);
 }
 
 .ari-goals-heading__subtitle {
-  margin: 7px 0 0;
+  margin-top: 8px !important;
   color: var(--goals-muted);
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(0.62rem, 2vw, 0.74rem);
+  font-size: clamp(0.68rem, 2vw, 0.78rem);
   font-weight: 600;
   letter-spacing: 0.08em;
 }
 
-/* Navigation capsule */
+/* =====================================================
+   NAVIGATION
+===================================================== */
 
-.ari-tabs.ari-goals-nav {
-  display: grid !important;
+.ari-goals-nav {
+  position: relative;
+  z-index: 10;
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px !important;
-  margin: 0 0 18px !important;
-  padding: 7px !important;
-  border: 1px solid var(--goals-line) !important;
-  border-radius: 22px !important;
-  background: rgba(255, 255, 255, 0.82) !important;
-  box-shadow: var(--goals-shadow-soft) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-
-.ari-goals-nav .ari-tab-btn {
-  min-width: 0 !important;
-  min-height: 48px !important;
-  padding: 10px 8px !important;
-  color: #71809a !important;
-  border: 1px solid transparent !important;
-  border-radius: 16px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  font-family: "Orbitron", sans-serif !important;
-  font-size: clamp(0.68rem, 2.2vw, 0.82rem) !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-  letter-spacing: -0.02em !important;
-  cursor: pointer;
-  transition: 180ms ease !important;
-}
-
-.ari-goals-nav .ari-tab-btn:hover,
-.ari-goals-nav .ari-tab-btn:focus-visible {
-  color: var(--goals-royal) !important;
-  background: rgba(36, 86, 216, 0.055) !important;
-}
-
-.ari-goals-nav .ari-tab-btn.active {
-  color: var(--goals-royal-deep) !important;
-  border-color: rgba(36, 86, 216, 0.16) !important;
-  background:
-    linear-gradient(135deg, rgba(8, 200, 232, 0.105), rgba(114, 88, 233, 0.075)),
-    #fff !important;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 8px;
+  border: 1px solid rgba(33, 92, 163, 0.14);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.88);
   box-shadow:
-    0 8px 18px rgba(36, 86, 216, 0.09),
-    inset 0 -3px 0 rgba(36, 86, 216, 0.84) !important;
+    0 18px 44px rgba(36, 76, 124, 0.09),
+    inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  animation: goalsCardArrive 520ms 80ms ease-out both;
+}
+
+.ari-tabs {
+  list-style: none;
+}
+
+.ari-tab-btn {
+  position: relative;
+  min-width: 0;
+  min-height: 54px;
+  padding: 10px 8px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  color: #64728a;
+  background: transparent;
+  font-size: clamp(0.68rem, 2vw, 0.82rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+
+.ari-tab-btn::before {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: linear-gradient(118deg, rgba(var(--goals-cyan-rgb), 0.16), rgba(var(--goals-violet-rgb), 0.10));
+  content: "";
+  transition: opacity 180ms ease;
+}
+
+.ari-tab-btn:hover {
+  color: var(--goals-royal);
+  border-color: rgba(var(--goals-cyan-rgb), 0.20);
+  transform: translateY(-1px);
+}
+
+.ari-tab-btn:hover::before {
+  opacity: 1;
+}
+
+.ari-tab-btn.active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.74);
+  background: linear-gradient(125deg, var(--goals-royal-deep), var(--goals-royal) 46%, var(--goals-violet));
+  box-shadow:
+    0 10px 24px rgba(36, 86, 216, 0.24),
+    0 5px 18px rgba(var(--goals-violet-rgb), 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.ari-tab-btn.active::before {
+  opacity: 0;
+}
+
+.ari-tab-btn:active {
+  transform: scale(0.98);
+}
+
+.ari-tab-btn:focus-visible {
+  outline: 3px solid rgba(var(--goals-cyan-rgb), 0.27);
+  outline-offset: 2px;
 }
 
 .ari-tab-panel {
@@ -3379,80 +384,203 @@ body:has(.ari-goals-page)::before {
 
 .ari-tab-panel.active {
   display: block;
+  animation: goalsPanelReveal 360ms ease-out both;
 }
 
-/* Calories Left laboratory hero */
+/* =====================================================
+   ANIMATED CALORIE HEALTH CORE
+===================================================== */
 
 .ari-calorie-hero {
-  --ari-calorie-art-scale: 1.04;
-  --ari-calorie-art-x: 0%;
-  --ari-calorie-art-y: 0%;
-  --ari-calorie-art-position: center center;
+  --core-color: var(--goals-cyan);
+  --core-rgb: var(--goals-cyan-rgb);
+  --core-size: clamp(250px, 48vw, 340px);
+  --calorie-left-percent: 100%;
+  --calorie-flicker-speed: 4s;
 
-  position: relative !important;
+  position: relative;
   isolation: isolate;
-  min-height: clamp(382px, 56vw, 470px) !important;
-  margin: 0 0 18px !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  color: var(--goals-ink) !important;
-  border: 1px solid rgba(33, 101, 174, 0.18) !important;
-  border-radius: 32px !important;
-  background: #fff !important;
-  box-shadow: var(--goals-shadow) !important;
+  min-height: clamp(505px, 62vw, 570px);
+  margin: 0 0 22px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(31, 91, 160, 0.17);
+  border-radius: 34px;
+  color: var(--goals-ink);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(var(--core-rgb), 0.12), transparent 24%),
+    radial-gradient(circle at 6% 2%, rgba(var(--goals-cyan-rgb), 0.10), transparent 31%),
+    radial-gradient(circle at 96% 7%, rgba(var(--goals-violet-rgb), 0.09), transparent 31%),
+    linear-gradient(145deg, #ffffff 0%, #f7fcff 52%, #fbf9ff 100%);
+  box-shadow:
+    0 28px 72px rgba(31, 75, 127, 0.13),
+    inset 0 1px 0 #fff;
+  animation: goalsCardArrive 560ms 130ms ease-out both;
+}
+
+.ari-meter-card,
+.ari-calorie-card {
+  width: 100%;
+}
+
+.ari-calorie-hero.calorie-low {
+  --core-color: var(--goals-amber);
+  --core-rgb: 233, 168, 60;
+}
+
+.ari-calorie-hero.calorie-critical,
+.ari-calorie-hero.calorie-over {
+  --core-color: var(--goals-coral);
+  --core-rgb: var(--goals-coral-rgb);
 }
 
 .ari-calorie-hero::before,
 .ari-calorie-hero::after {
-  content: none !important;
-}
-
-.ari-calorie-hero__art {
   position: absolute;
-  inset: 0;
-  z-index: -3;
-  overflow: hidden;
+  top: 45%;
+  left: 50%;
+  z-index: 1;
+  width: var(--core-size);
+  aspect-ratio: 1;
+  pointer-events: none;
+  border-radius: 50%;
+  content: "";
 }
 
-.ari-calorie-hero__art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: var(--ari-calorie-art-position);
-  transform:
-    translate(var(--ari-calorie-art-x), var(--ari-calorie-art-y))
-    scale(var(--ari-calorie-art-scale));
-  filter: saturate(0.92) contrast(0.98) brightness(1.025);
-  transition: transform 260ms ease, object-position 260ms ease;
+.ari-calorie-hero::before {
+  background:
+    conic-gradient(
+      from -90deg,
+      var(--core-color) 0 var(--calorie-left-percent),
+      rgba(58, 91, 138, 0.10) var(--calorie-left-percent) 100%
+    );
+  filter: drop-shadow(0 0 13px rgba(var(--core-rgb), 0.33));
+  transform: translate(-50%, -50%);
+  -webkit-mask: radial-gradient(farthest-side, transparent 75%, #000 76% 83%, transparent 84%);
+  mask: radial-gradient(farthest-side, transparent 75%, #000 76% 83%, transparent 84%);
+  animation: goalsCoreBreathe var(--calorie-flicker-speed) ease-in-out infinite;
 }
 
+.ari-calorie-hero::after {
+  width: calc(var(--core-size) + 36px);
+  opacity: 0.56;
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(36, 86, 216, 0.68) 0deg 1.2deg,
+      transparent 1.2deg 8deg
+    );
+  transform: translate(-50%, -50%);
+  -webkit-mask: radial-gradient(farthest-side, transparent 88%, #000 89% 91%, transparent 92%);
+  mask: radial-gradient(farthest-side, transparent 88%, #000 89% 91%, transparent 92%);
+  animation: goalsCoreRotate 30s linear infinite;
+}
+
+.ari-calorie-hero__art,
 .ari-calorie-hero__wash {
   position: absolute;
   inset: 0;
-  z-index: -2;
   pointer-events: none;
+}
+
+.ari-calorie-hero__art img {
+  display: none !important;
+}
+
+.ari-calorie-hero__art {
+  z-index: 0;
+  opacity: 0.72;
+  background-image:
+    linear-gradient(rgba(36, 86, 216, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(36, 86, 216, 0.035) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 73%);
+  mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 73%);
+  animation: goalsGridDrift 18s linear infinite;
+}
+
+.ari-calorie-hero__art::before,
+.ari-calorie-hero__art::after {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  content: "";
+}
+
+.ari-calorie-hero__art::before {
+  width: calc(var(--core-size) + 72px);
+  border: 1px dashed rgba(var(--goals-violet-rgb), 0.25);
+  box-shadow:
+    0 0 0 12px rgba(var(--goals-cyan-rgb), 0.018),
+    inset 0 0 34px rgba(var(--goals-violet-rgb), 0.04);
+  transform: translate(-50%, -50%);
+  animation: goalsCoreRotateReverse 36s linear infinite;
+}
+
+.ari-calorie-hero__art::after {
+  width: calc(var(--core-size) - 38px);
+  border: 1px solid rgba(var(--core-rgb), 0.17);
+  border-right-color: rgba(var(--goals-violet-rgb), 0.58);
+  border-bottom-color: transparent;
+  box-shadow:
+    0 0 24px rgba(var(--core-rgb), 0.07),
+    inset 0 0 20px rgba(var(--core-rgb), 0.05);
+  transform: translate(-50%, -50%);
+  animation: goalsCoreRotate 15s linear infinite;
+}
+
+.ari-calorie-hero__wash {
+  z-index: 2;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.94) 34%, rgba(255, 255, 255, 0.96) 66%, rgba(255, 255, 255, 0.36)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(244, 251, 255, 0.42));
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(249, 253, 255, 0.95) 21%,
+      rgba(var(--core-rgb), 0.08) 30%,
+      transparent 48%
+    );
+}
+
+.ari-calorie-hero__wash::before {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  width: calc(var(--core-size) - 108px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(var(--core-rgb), 0.15);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 43%, rgba(var(--core-rgb), 0.08) 67%, transparent 70%);
+  box-shadow:
+    0 0 38px rgba(var(--core-rgb), 0.13),
+    inset 0 0 25px rgba(var(--core-rgb), 0.06);
+  content: "";
+  transform: translate(-50%, -50%);
+  animation: goalsCoreOrb 4s ease-in-out infinite;
 }
 
 .ari-calorie-hero__wash::after {
-  content: "";
   position: absolute;
-  inset: 16px;
-  border: 1px solid rgba(41, 110, 179, 0.12);
-  border-radius: 24px;
-  pointer-events: none;
+  right: 18px;
+  bottom: 20px;
+  left: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(var(--goals-cyan-rgb), 0.24), var(--goals-royal), rgba(var(--goals-violet-rgb), 0.50), transparent);
+  box-shadow: 0 0 13px rgba(36, 86, 216, 0.19);
+  content: "";
+  transform: scaleX(0.34);
+  animation: goalsDataScan 5s ease-in-out infinite;
 }
 
 .ari-calorie-hero__content {
   position: relative;
-  z-index: 1;
+  z-index: 4;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   min-height: inherit;
-  padding: clamp(25px, 5vw, 42px) clamp(24px, 6vw, 58px) 27px;
+  padding: 24px clamp(18px, 4vw, 34px) 28px;
 }
 
 .ari-calorie-hero__topline {
@@ -3460,218 +588,317 @@ body:has(.ari-goals-page)::before {
   align-items: center;
   justify-content: center;
   gap: 12px;
+  min-height: 38px;
 }
 
 .ari-live-chip,
-.ari-estimate-chip,
-.ari-sync-date {
+.ari-sync-date,
+.ari-estimate-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 28px;
-  padding: 6px 10px;
-  color: #087f94;
-  border: 1px solid rgba(8, 178, 207, 0.18);
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid var(--goals-line);
   border-radius: 999px;
-  background: rgba(232, 252, 255, 0.83);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.6rem;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--goals-muted);
+  font-size: 0.68rem;
   font-weight: 800;
+  letter-spacing: 0.06em;
   line-height: 1;
-  letter-spacing: 0.13em;
   white-space: nowrap;
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.ari-live-chip {
+  gap: 8px;
+  padding: 0 15px;
+  border-color: rgba(var(--goals-cyan-rgb), 0.23);
+  color: #147e93;
+  background: rgba(224, 252, 255, 0.74);
+  letter-spacing: 0.16em;
+}
+
+.ari-sync-date {
+  padding: 0 14px;
 }
 
 .ari-live-chip__dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
   border-radius: 50%;
   background: var(--goals-mint);
-  box-shadow: 0 0 0 4px rgba(36, 211, 154, 0.12), 0 0 13px rgba(36, 211, 154, 0.55);
-}
-
-.ari-sync-date {
-  color: #5e6f89;
-  border-color: rgba(77, 102, 142, 0.11);
-  background: rgba(255, 255, 255, 0.76);
-  letter-spacing: 0.04em;
+  box-shadow: 0 0 0 5px rgba(var(--goals-mint-rgb), 0.12), 0 0 12px rgba(var(--goals-mint-rgb), 0.42);
+  animation: goalsLivePulse 2s ease-out infinite;
 }
 
 .ari-calorie-hero__reading {
-  padding: 25px 0 20px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 278px;
+  padding: 28px 0 12px;
   text-align: center;
+  animation: goalsReadingFloat 4.8s ease-in-out infinite;
 }
 
-.ari-calorie-hero .ari-meter-label {
-  margin: 0 0 7px !important;
-  color: var(--goals-royal-deep) !important;
-  font-family: "Orbitron", sans-serif !important;
-  font-size: clamp(0.83rem, 2.3vw, 1rem) !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.13em !important;
+.ari-meter-label {
+  color: var(--goals-royal-deep);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(0.8rem, 2.5vw, 1.08rem);
+  font-weight: 400;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 
-.ari-calorie-hero .ari-meter-number {
-  margin: 0 !important;
-  color: var(--goals-ink) !important;
-  font-family: "Audiowide", "Orbitron", sans-serif !important;
-  font-size: clamp(3.8rem, 13vw, 7.2rem) !important;
-  font-weight: 400 !important;
-  line-height: 0.96 !important;
-  letter-spacing: -0.055em !important;
-  text-shadow: 0 10px 35px rgba(36, 86, 216, 0.12) !important;
+.ari-meter-number {
+  margin-top: 12px !important;
+  color: var(--goals-ink);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(3.7rem, 13vw, 7rem);
+  font-weight: 400;
+  line-height: 0.94;
+  letter-spacing: -0.07em;
+  text-shadow:
+    0 0 26px rgba(var(--core-rgb), 0.15),
+    0 16px 34px rgba(36, 86, 216, 0.10);
+}
+
+.calorie-low .ari-meter-number,
+.calorie-critical .ari-meter-number,
+.calorie-over .ari-meter-number {
+  color: var(--core-color);
 }
 
 .ari-meter-unit {
-  margin: 10px 0 0;
-  color: #8290a6;
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
+  margin-top: 13px !important;
+  color: #8190a7;
+  font-size: clamp(0.62rem, 2vw, 0.76rem);
+  font-weight: 700;
+  letter-spacing: 0.20em;
 }
 
 .ari-calorie-hero__metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  width: min(100%, 600px);
-  margin: 0 auto;
+  gap: 12px;
+  margin-top: auto;
 }
 
 .ari-calorie-metric {
+  position: relative;
   min-width: 0;
-  padding: 15px 16px;
-  border: 1px solid rgba(36, 86, 216, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: inset 0 1px 0 #fff, 0 8px 18px rgba(33, 72, 121, 0.05);
+  padding: 16px 14px;
+  overflow: hidden;
+  border: 1px solid rgba(34, 91, 161, 0.15);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.80);
   text-align: center;
-  backdrop-filter: blur(10px);
+  box-shadow:
+    0 8px 22px rgba(34, 75, 123, 0.07),
+    inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(15px);
 }
 
 .ari-calorie-metric--training {
-  border-color: rgba(8, 178, 207, 0.17);
-  background: rgba(235, 253, 255, 0.80);
+  border-color: rgba(var(--goals-cyan-rgb), 0.20);
+  background: rgba(231, 252, 255, 0.72);
+}
+
+.ari-calorie-metric::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 25%, rgba(255, 255, 255, 0.82) 49%, transparent 73%);
+  content: "";
+  transform: translateX(-130%);
+  animation: goalsMetricShine 7.5s ease-in-out infinite;
+}
+
+.ari-calorie-metric--training::after {
+  animation-delay: 1.2s;
 }
 
 .ari-calorie-metric p {
-  margin: 0 0 5px;
-  color: #74839a;
-  font-size: 0.72rem;
+  position: relative;
+  z-index: 1;
+  margin-bottom: 7px !important;
+  color: var(--goals-muted);
+  font-size: 0.68rem;
   font-weight: 700;
 }
 
 .ari-calorie-metric strong {
-  color: var(--goals-ink);
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(0.98rem, 3.3vw, 1.25rem);
+  position: relative;
+  z-index: 1;
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--goals-ink-soft);
+  font-size: clamp(0.92rem, 3vw, 1.2rem);
   font-weight: 800;
+  line-height: 1.25;
 }
 
 .ari-calorie-metric--training strong {
-  color: #078fa6;
+  color: #078ca5;
 }
 
 .ari-calorie-metric small {
-  color: #7d8ba1;
-  font-size: 0.65em;
-  font-weight: 700;
+  color: #8391a6;
+  font-size: 0.68em;
+  font-weight: 650;
 }
 
 .ari-calorie-rule {
-  width: min(100%, 650px);
-  margin: 14px auto 0;
-  color: #7a899f;
-  font-size: 0.69rem;
-  line-height: 1.45;
+  margin-top: 16px !important;
+  color: #7788a0;
+  font-size: clamp(0.62rem, 2vw, 0.72rem);
+  font-weight: 500;
+  line-height: 1.55;
   text-align: center;
 }
 
-.ari-calorie-hero.calorie-low .ari-meter-number {
-  color: #be7918 !important;
-}
-
-.ari-calorie-hero.calorie-critical .ari-meter-number,
-.ari-calorie-hero.calorie-over .ari-meter-number {
-  color: #d74f67 !important;
-}
-
-/* Shared porcelain cards */
+/* =====================================================
+   SHARED PANELS
+===================================================== */
 
 .ari-panel {
-  margin: 0 0 18px !important;
-  padding: clamp(22px, 5vw, 36px) !important;
-  color: var(--goals-ink) !important;
-  border: 1px solid var(--goals-line) !important;
-  border-radius: 28px !important;
+  position: relative;
+  margin: 0 0 22px;
+  padding: clamp(22px, 4vw, 36px);
+  overflow: hidden;
+  border: 1px solid rgba(31, 85, 151, 0.14);
+  border-radius: var(--goals-radius-large);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 255, 0.95)) !important;
-  box-shadow: var(--goals-shadow-soft) !important;
+    radial-gradient(circle at 100% 0%, rgba(var(--goals-violet-rgb), 0.055), transparent 29%),
+    radial-gradient(circle at 0 100%, rgba(var(--goals-cyan-rgb), 0.065), transparent 31%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow:
+    var(--goals-shadow),
+    inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  animation: goalsCardArrive 540ms ease-out both;
+}
+
+.ari-panel::before {
+  position: absolute;
+  top: 0;
+  right: 14%;
+  left: 14%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--goals-cyan), var(--goals-royal), var(--goals-violet), transparent);
+  content: "";
+  opacity: 0.74;
+}
+
+.ari-health-profile-card {
+  animation-delay: 70ms;
+}
+
+.ari-weight-goal-card {
+  animation-delay: 110ms;
+}
+
+.ari-daily-calorie-settings {
+  animation-delay: 150ms;
+}
+
+.ari-health-summary-card {
+  animation-delay: 190ms;
+}
+
+.ari-panel-header {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 26px;
 }
 
 .ari-panel-header--numbered {
-  display: grid !important;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 14px;
   align-items: start;
-  margin: 0 0 24px !important;
 }
 
 .ari-section-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(36, 86, 216, 0.18);
+  border-radius: 16px;
   color: var(--goals-royal);
-  border: 1px solid rgba(36, 86, 216, 0.15);
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(8, 200, 232, 0.11), rgba(114, 88, 233, 0.08));
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.68rem;
+  background:
+    linear-gradient(145deg, rgba(var(--goals-cyan-rgb), 0.10), rgba(var(--goals-violet-rgb), 0.08)),
+    #fff;
+  font-size: 0.72rem;
   font-weight: 900;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  box-shadow:
+    0 8px 20px rgba(36, 86, 216, 0.08),
+    inset 0 1px 0 #fff;
 }
 
-.ari-panel .ari-section-title {
-  margin: 0 !important;
-  color: var(--goals-ink) !important;
-  font-family: "Audiowide", "Orbitron", sans-serif !important;
-  font-size: clamp(1.22rem, 4vw, 1.72rem) !important;
-  font-weight: 400 !important;
-  line-height: 1.18 !important;
-  letter-spacing: -0.035em !important;
+.ari-section-kicker {
+  margin: 2px 0 7px !important;
+  color: #148aa2;
+  font-size: clamp(0.63rem, 2vw, 0.74rem);
+  font-weight: 900;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
 }
 
-.ari-panel .ari-section-subtitle {
-  max-width: 690px;
-  margin: 9px 0 0 !important;
-  color: var(--goals-muted) !important;
-  font-size: 0.82rem !important;
-  line-height: 1.55 !important;
+.ari-section-title {
+  color: var(--goals-ink);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(1.24rem, 4vw, 1.8rem);
+  font-weight: 400;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
 }
+
+.ari-section-subtitle {
+  max-width: 680px;
+  margin-top: 9px !important;
+  color: var(--goals-muted);
+  font-size: clamp(0.72rem, 2vw, 0.84rem);
+  font-weight: 550;
+  line-height: 1.58;
+}
+
+/* =====================================================
+   FORMS
+===================================================== */
 
 .ari-form {
-  gap: 16px !important;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
 }
 
 .ari-profile-grid,
-.ari-goal-grid,
-.ari-details-grid {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px !important;
+.ari-goal-grid {
+  align-items: start;
 }
 
 .ari-field {
   min-width: 0;
-  margin: 0 !important;
 }
 
 .ari-field--full {
   grid-column: 1 / -1;
+}
+
+.ari-field--max-heart-rate {
+  min-width: 0;
 }
 
 .ari-label-row {
@@ -3679,56 +906,80 @@ body:has(.ari-goals-page)::before {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
 }
 
-.ari-label-row .ari-label {
-  margin: 0 !important;
-}
-
-.ari-panel .ari-label {
+.ari-label {
   display: block;
-  margin: 0 0 8px !important;
-  color: #40516d !important;
-  font-family: "Orbitron", sans-serif !important;
-  font-size: 0.67rem !important;
-  font-weight: 800 !important;
-  line-height: 1.3 !important;
-  letter-spacing: 0.045em !important;
-  text-transform: uppercase;
+  margin: 0 0 9px;
+  color: var(--goals-ink-soft);
+  font-size: 0.70rem;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.045em;
 }
 
-.ari-panel .ari-input,
-.ari-panel .ari-select,
-.ari-panel .ari-textarea {
-  width: 100% !important;
-  min-height: 54px !important;
-  color: var(--goals-ink) !important;
-  border: 1px solid rgba(37, 88, 151, 0.16) !important;
-  border-radius: 16px !important;
-  outline: none !important;
-  background: rgba(247, 251, 255, 0.86) !important;
+.ari-input,
+.ari-select,
+.ari-textarea {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(31, 82, 146, 0.17);
+  border-radius: var(--goals-radius-small);
+  outline: none;
+  color: var(--goals-ink);
+  background-color: rgba(248, 252, 255, 0.92);
   box-shadow:
-    inset 0 1px 0 #fff,
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
-  font-family: inherit !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  transition: border-color 170ms ease, box-shadow 170ms ease, background 170ms ease !important;
+    inset 0 1px 2px rgba(34, 73, 120, 0.035),
+    0 6px 16px rgba(34, 73, 120, 0.035);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, transform 180ms ease;
 }
 
-.ari-panel .ari-input:focus,
-.ari-panel .ari-select:focus,
-.ari-panel .ari-textarea:focus {
-  border-color: rgba(8, 177, 207, 0.60) !important;
-  background: #fff !important;
-  box-shadow: 0 0 0 4px rgba(8, 200, 232, 0.10) !important;
+.ari-input,
+.ari-select {
+  min-height: 58px;
+  padding: 0 16px;
+  font-size: 0.92rem;
+  font-weight: 750;
 }
 
-.ari-panel .ari-textarea {
-  min-height: 96px !important;
-  padding: 15px !important;
+.ari-select {
+  padding-right: 46px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #52709a 50%),
+    linear-gradient(135deg, #52709a 50%, transparent 50%);
+  background-position:
+    calc(100% - 21px) 26px,
+    calc(100% - 15px) 26px;
+  background-repeat: no-repeat;
+  background-size: 6px 6px, 6px 6px;
+}
+
+.ari-textarea {
+  min-height: 112px;
+  padding: 16px;
   resize: vertical;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.ari-input::placeholder,
+.ari-textarea::placeholder {
+  color: #a2afc0;
+  opacity: 1;
+}
+
+.ari-input:focus,
+.ari-select:focus,
+.ari-textarea:focus {
+  border-color: rgba(var(--goals-cyan-rgb), 0.74);
+  background-color: #fff;
+  box-shadow:
+    0 0 0 4px rgba(var(--goals-cyan-rgb), 0.10),
+    0 12px 28px rgba(36, 86, 216, 0.08),
+    inset 0 1px 0 #fff;
 }
 
 .ari-input-with-unit {
@@ -3736,224 +987,284 @@ body:has(.ari-goals-page)::before {
 }
 
 .ari-input-with-unit .ari-input {
-  padding-right: 58px !important;
+  padding-right: 64px;
 }
 
 .ari-input-with-unit > span {
   position: absolute;
-  right: 17px;
   top: 50%;
-  transform: translateY(-50%);
-  color: #7a899f;
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.65rem;
+  right: 16px;
+  color: #71839d;
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .ari-field-note,
-.ari-details-intro,
-.ari-panel .ari-hint {
-  margin: 7px 0 0 !important;
-  color: #8390a5 !important;
-  font-size: 0.7rem !important;
-  line-height: 1.5 !important;
+.ari-hint,
+.ari-details-intro {
+  margin-top: 9px !important;
+  color: var(--goals-muted);
+  font-size: 0.67rem;
+  font-weight: 550;
+  line-height: 1.5;
 }
 
 .ari-estimate-chip {
-  min-height: 23px;
-  padding: 5px 8px;
-  color: var(--goals-violet);
-  border-color: rgba(114, 88, 233, 0.17);
-  background: var(--goals-violet-soft);
-  font-size: 0.52rem;
+  min-height: 26px;
+  padding: 0 10px;
+  border-color: rgba(var(--goals-cyan-rgb), 0.23);
+  color: #107f95;
+  background: rgba(225, 251, 255, 0.78);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
 }
 
-/* Collapsed advanced options */
+/* =====================================================
+   EXPANDABLE DETAILS
+===================================================== */
 
 .ari-advanced-details {
-  margin-top: 20px;
-  border: 1px solid rgba(37, 88, 151, 0.12);
-  border-radius: 17px;
-  background: rgba(246, 250, 255, 0.74);
-}
-
-.ari-advanced-details > summary {
   position: relative;
-  padding: 16px 46px 16px 18px;
-  color: var(--goals-royal-deep);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.035em;
-  list-style: none;
-  cursor: pointer;
+  z-index: 1;
+  margin-top: 24px;
+  border: 1px solid rgba(31, 83, 148, 0.13);
+  border-radius: 20px;
+  background: rgba(247, 251, 255, 0.74);
+  overflow: hidden;
 }
 
-.ari-advanced-details > summary::-webkit-details-marker {
+.ari-advanced-details summary {
+  position: relative;
+  min-height: 58px;
+  padding: 20px 54px 18px 20px;
+  color: var(--goals-royal-deep);
+  font-size: 0.73rem;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.ari-advanced-details summary::-webkit-details-marker {
   display: none;
 }
 
-.ari-advanced-details > summary::after {
-  content: "+";
+.ari-advanced-details summary::before,
+.ari-advanced-details summary::after {
   position: absolute;
-  right: 18px;
   top: 50%;
+  right: 22px;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--goals-royal);
+  content: "";
   transform: translateY(-50%);
-  color: var(--goals-cyan);
-  font-size: 1.25rem;
-  font-weight: 500;
+  transition: transform 180ms ease;
 }
 
-.ari-advanced-details[open] > summary::after {
-  content: "â";
+.ari-advanced-details summary::after {
+  transform: translateY(-50%) rotate(90deg);
 }
 
-.ari-advanced-details[open] {
-  padding-bottom: 18px;
+.ari-advanced-details[open] summary::after {
+  transform: translateY(-50%) rotate(0deg);
 }
 
-.ari-advanced-details .ari-details-intro,
-.ari-advanced-details .ari-details-grid,
-.ari-advanced-details .ari-nutrition-targets-card {
-  margin-right: 18px !important;
-  margin-left: 18px !important;
+.ari-advanced-details[open] summary {
+  border-bottom: 1px solid rgba(31, 83, 148, 0.11);
+  background: rgba(255, 255, 255, 0.66);
 }
 
-.ari-advanced-details .ari-details-grid {
-  margin-top: 15px;
+.ari-details-intro {
+  margin: 18px 20px 0 !important;
 }
 
-/* Daily calorie editor */
-
-.ari-daily-calorie-settings {
-  background:
-    radial-gradient(circle at 95% 12%, rgba(8, 200, 232, 0.11), transparent 16rem),
-    linear-gradient(145deg, #fff, #f8fcff) !important;
+.ari-details-grid {
+  padding: 20px;
 }
+
+/* =====================================================
+   DAILY CALORIE EDITOR
+===================================================== */
 
 .ari-calorie-goal-editor {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: center;
-  padding: clamp(18px, 4vw, 25px);
-  border: 1px solid rgba(36, 86, 216, 0.14);
+  grid-template-columns: minmax(0, 1.1fr) minmax(210px, 0.9fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.ari-calorie-goal-editor__value,
+.ari-calorie-goal-editor__meta {
+  min-width: 0;
+  border: 1px solid rgba(31, 86, 152, 0.15);
   border-radius: 21px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: inset 0 1px 0 #fff, 0 10px 24px rgba(33, 72, 121, 0.055);
+  background: rgba(248, 252, 255, 0.82);
+  box-shadow: inset 0 1px 0 #fff;
 }
 
 .ari-calorie-goal-editor__value {
-  display: flex;
-  align-items: baseline;
-  gap: 11px;
-  min-width: 0;
+  position: relative;
+  padding: 12px;
 }
 
 .ari-calorie-goal-editor__value .ari-input {
-  width: min(100%, 220px) !important;
-  min-height: 68px !important;
-  padding: 6px 10px !important;
-  color: var(--goals-royal-deep) !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  font-family: "Audiowide", "Orbitron", sans-serif !important;
-  font-size: clamp(2rem, 7vw, 3.2rem) !important;
-  font-weight: 400 !important;
-  letter-spacing: -0.05em;
+  min-height: 78px;
+  padding: 0 118px 0 20px;
+  border-color: rgba(var(--goals-cyan-rgb), 0.26);
+  color: var(--goals-royal-deep);
+  background: #fff;
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(1.55rem, 5vw, 2.35rem);
+  font-weight: 400;
+  letter-spacing: -0.04em;
 }
 
 .ari-calorie-goal-editor__value > span {
-  color: #8090a7;
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  white-space: nowrap;
+  position: absolute;
+  top: 50%;
+  right: 29px;
+  color: #70829c;
+  font-size: 0.60rem;
+  font-weight: 850;
+  letter-spacing: 0.10em;
+  pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .ari-calorie-goal-editor__meta {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 9px;
-  text-align: right;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 11px;
+  padding: 18px 20px;
 }
 
 .ari-calorie-goal-editor__meta p {
-  margin: 0;
-  color: #8290a4;
-  font-size: 0.68rem;
+  color: var(--goals-muted);
+  font-size: 0.67rem;
+  font-weight: 650;
+  line-height: 1.45;
 }
 
 .ari-calorie-goal-editor__meta strong {
-  display: block;
-  margin-top: 3px;
-  color: var(--goals-ink);
+  color: var(--goals-ink-soft);
 }
 
 .ari-status {
-  min-height: 0 !important;
-  margin-top: 9px !important;
+  min-height: 0;
+  margin-top: 12px;
+  padding: 0;
+  border: 0 solid transparent;
+  border-radius: 14px;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.45;
+  transition: padding 180ms ease, border-width 180ms ease, background 180ms ease;
 }
 
-/* Goal projection */
+.ari-status:not(:empty) {
+  padding: 12px 14px;
+  border-width: 1px;
+}
+
+.ari-status.success {
+  border-color: rgba(var(--goals-mint-rgb), 0.24);
+  color: #117b59;
+  background: rgba(var(--goals-mint-rgb), 0.08);
+}
+
+.ari-status.error {
+  border-color: rgba(var(--goals-coral-rgb), 0.28);
+  color: #b64e62;
+  background: rgba(var(--goals-coral-rgb), 0.08);
+}
+
+/* =====================================================
+   WARNING
+===================================================== */
 
 .ari-warning {
+  position: relative;
+  z-index: 1;
   display: none;
-  margin: 0 0 18px !important;
-  padding: 14px 16px !important;
-  color: #9b4052 !important;
-  border: 1px solid rgba(236, 111, 131, 0.24) !important;
-  border-radius: 15px !important;
-  background: rgba(255, 240, 243, 0.86) !important;
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid rgba(233, 168, 60, 0.28);
+  border-radius: 16px;
+  color: #8a5c13;
+  background: rgba(255, 245, 222, 0.78);
+  font-size: 0.70rem;
+  font-weight: 650;
+  line-height: 1.55;
 }
 
-.ari-warning.show {
-  display: block;
+/* =====================================================
+   WEIGHT GOAL PATH
+===================================================== */
+
+.ari-goal-path,
+.ari-progress-weight-path {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(100px, auto) minmax(70px, 1fr) minmax(100px, auto);
+  gap: 16px;
+  align-items: center;
 }
 
 .ari-goal-path {
-  display: grid;
-  grid-template-columns: auto minmax(80px, 1fr) auto;
-  gap: 14px;
-  align-items: center;
-  margin-bottom: 19px;
-  padding: 19px;
-  border: 1px solid rgba(36, 86, 216, 0.12);
-  border-radius: 20px;
-  background: linear-gradient(120deg, rgba(8, 200, 232, 0.055), rgba(114, 88, 233, 0.055));
+  margin: 4px 0 22px;
+  padding: 18px;
+  border: 1px solid rgba(31, 85, 151, 0.13);
+  border-radius: 22px;
+  background: linear-gradient(115deg, rgba(var(--goals-cyan-rgb), 0.06), rgba(255, 255, 255, 0.82), rgba(var(--goals-violet-rgb), 0.055));
 }
 
-.ari-goal-path__node {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.ari-goal-path__node,
+.ari-progress-weight-path > div:not(.ari-progress-weight-path__beam) {
+  min-width: 0;
 }
 
-.ari-goal-path__node--target {
+.ari-goal-path__node--current {
+  text-align: left;
+}
+
+.ari-goal-path__node--target,
+.ari-progress-weight-path > div:last-child {
   text-align: right;
 }
 
 .ari-goal-path__node span,
-.ari-progress-weight-path span {
-  color: #8290a5;
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.55rem;
-  font-weight: 800;
-  letter-spacing: 0.13em;
+.ari-progress-weight-path > div > span {
+  display: block;
+  margin-bottom: 6px;
+  color: #7a8ba2;
+  font-size: 0.58rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
 }
 
-.ari-goal-path__node strong {
+.ari-goal-path__node strong,
+.ari-progress-weight-path > div > strong {
+  display: block;
+  overflow-wrap: anywhere;
   color: var(--goals-ink);
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(0.95rem, 3vw, 1.2rem);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(1rem, 3.4vw, 1.5rem);
+  font-weight: 400;
 }
 
-.ari-goal-path__node--target strong {
+.ari-goal-path__node--target strong,
+.ari-progress-weight-path > div:last-child > strong {
   color: var(--goals-violet);
 }
 
@@ -3961,106 +1272,141 @@ body:has(.ari-goals-page)::before {
 .ari-progress-weight-path__beam {
   position: relative;
   height: 4px;
-  overflow: visible;
+  overflow: hidden;
   border-radius: 999px;
-  background: rgba(36, 86, 216, 0.11);
+  background: rgba(52, 93, 145, 0.10);
 }
 
 .ari-goal-path__line span,
 .ari-progress-weight-path__beam span {
   position: absolute;
   inset: 0;
-  width: 66%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--goals-cyan), var(--goals-royal), var(--goals-violet));
-  box-shadow: 0 0 14px rgba(36, 86, 216, 0.22);
+  transform-origin: left center;
+  animation: goalsPathCharge 3.8s ease-in-out infinite;
 }
 
-.ari-goal-path__line::before,
-.ari-goal-path__line::after,
-.ari-progress-weight-path__beam::before,
-.ari-progress-weight-path__beam::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  transform: translateY(-50%);
-  border: 3px solid #fff;
-  border-radius: 50%;
-  background: var(--goals-cyan);
-  box-shadow: 0 0 0 1px rgba(8, 179, 208, 0.25);
-}
+/* =====================================================
+   SUMMARY CARDS
+===================================================== */
 
-.ari-goal-path__line::before,
-.ari-progress-weight-path__beam::before {
-  left: 0;
-}
-
-.ari-goal-path__line::after,
-.ari-progress-weight-path__beam::after {
-  right: 0;
-  background: var(--goals-violet);
-}
-
-.ari-result-grid.ari-summary-grid {
-  display: grid !important;
+.ari-result-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px !important;
+  gap: 14px;
 }
 
-.ari-summary-grid .ari-stat-card,
-.ari-nutrition-targets-card {
-  min-height: 112px !important;
-  padding: 18px !important;
-  border: 1px solid rgba(36, 86, 216, 0.11) !important;
-  border-radius: 18px !important;
-  background: rgba(247, 251, 255, 0.78) !important;
-  box-shadow: inset 0 1px 0 #fff !important;
+.ari-summary-grid {
+  align-items: stretch;
 }
 
-.ari-summary-grid .ari-stat-card--violet,
-.ari-summary-grid .ari-stat-card--goal-date {
-  border-color: rgba(114, 88, 233, 0.14) !important;
-  background: linear-gradient(135deg, rgba(238, 234, 255, 0.68), rgba(250, 248, 255, 0.9)) !important;
+.ari-stat-card {
+  position: relative;
+  min-width: 0;
+  min-height: 132px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 85, 151, 0.13);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--goals-cyan-rgb), 0.10), transparent 45%),
+    rgba(248, 252, 255, 0.84);
+  box-shadow:
+    0 9px 23px rgba(34, 75, 124, 0.06),
+    inset 0 1px 0 #fff;
 }
 
-.ari-summary-grid .ari-stat-label,
-.ari-nutrition-targets-card .ari-stat-label {
-  margin: 0 0 8px !important;
-  color: #7b899f !important;
-  font-size: 0.63rem !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase;
+.ari-stat-card::after {
+  position: absolute;
+  right: 18px;
+  bottom: 0;
+  left: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(var(--goals-cyan-rgb), 0.72), transparent);
+  content: "";
 }
 
-.ari-summary-grid .ari-stat-value,
-.ari-nutrition-targets-card .ari-stat-value {
-  margin: 0 !important;
-  color: var(--goals-ink) !important;
-  font-family: "Orbitron", sans-serif !important;
-  font-size: clamp(0.9rem, 2.8vw, 1.12rem) !important;
-  font-weight: 800 !important;
-  line-height: 1.35 !important;
+.ari-stat-card--violet,
+.ari-stat-card--goal-date {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--goals-violet-rgb), 0.10), transparent 46%),
+    rgba(250, 249, 255, 0.86);
+}
+
+.ari-stat-card--violet::after,
+.ari-stat-card--goal-date::after {
+  background: linear-gradient(90deg, transparent, rgba(var(--goals-violet-rgb), 0.72), transparent);
+}
+
+.ari-stat-label {
+  color: #75879f;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  line-height: 1.4;
+}
+
+.ari-stat-value {
+  margin-top: 13px !important;
+  overflow-wrap: anywhere;
+  color: var(--goals-ink);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(1.08rem, 4vw, 1.7rem);
+  font-weight: 400;
+  line-height: 1.24;
 }
 
 .ari-nutrition-targets-details {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
-.ari-nutrition-targets-details .ari-nutrition-targets-card {
-  min-height: 0 !important;
+.ari-nutrition-targets-card {
+  min-height: 0;
+  margin: 20px;
+  padding: 0;
+  overflow: hidden;
 }
 
-/* Progress dashboard */
+.ari-nutrition-strategy-row {
+  padding: 20px;
+  border-bottom: 1px solid rgba(31, 85, 151, 0.11);
+}
+
+.ari-nutrition-target-list {
+  display: grid;
+}
+
+.ari-nutrition-target-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 66px;
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(31, 85, 151, 0.09);
+}
+
+.ari-nutrition-target-row:last-child {
+  border-bottom: 0;
+}
+
+.ari-nutrition-target-row .ari-stat-value {
+  flex: 0 0 auto;
+  margin-top: 0 !important;
+  text-align: right;
+  font-size: clamp(0.94rem, 3vw, 1.24rem);
+}
+
+/* =====================================================
+   PROGRESS DASHBOARD
+===================================================== */
 
 .ari-progress-panel {
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 100% 0, rgba(114, 88, 233, 0.10), transparent 22rem),
-    radial-gradient(circle at 0 48%, rgba(8, 200, 232, 0.08), transparent 22rem),
-    #fff !important;
+  animation-delay: 80ms;
 }
 
 .ari-progress-heading {
@@ -4071,98 +1417,104 @@ body:has(.ari-goals-page)::before {
   margin-bottom: 24px;
 }
 
+.ari-progress-heading .ari-sync-date {
+  flex: 0 0 auto;
+}
+
 .ari-progress-weight-path {
-  display: grid;
-  grid-template-columns: auto minmax(70px, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  margin: 0 0 17px;
-  padding: clamp(18px, 4vw, 25px);
-  border: 1px solid rgba(36, 86, 216, 0.13);
-  border-radius: 21px;
-  background: rgba(249, 252, 255, 0.86);
-}
-
-.ari-progress-weight-path > div:last-child {
-  text-align: right;
-}
-
-.ari-progress-weight-path strong {
-  display: block;
-  margin-top: 5px;
-  color: var(--goals-ink);
-  font-family: "Audiowide", "Orbitron", sans-serif;
-  font-size: clamp(1.2rem, 4vw, 1.75rem);
-  font-weight: 400;
-}
-
-.ari-progress-weight-path > div:last-child strong {
-  color: var(--goals-violet);
+  margin-bottom: 20px;
+  padding: 19px 20px;
+  border: 1px solid rgba(31, 85, 151, 0.13);
+  border-radius: 22px;
+  background: linear-gradient(115deg, rgba(var(--goals-cyan-rgb), 0.065), rgba(255, 255, 255, 0.82), rgba(var(--goals-violet-rgb), 0.06));
 }
 
 .ari-progress-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .ari-progress-tile {
+  position: relative;
   min-width: 0;
-  min-height: 142px;
-  padding: 19px;
-  border: 1px solid rgba(36, 86, 216, 0.11);
-  border-radius: 19px;
-  background: rgba(247, 251, 255, 0.78);
-  box-shadow: inset 0 1px 0 #fff;
+  min-height: 146px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 85, 151, 0.13);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(36, 86, 216, 0.07), transparent 45%),
+    rgba(249, 252, 255, 0.88);
+  box-shadow:
+    0 9px 24px rgba(34, 75, 124, 0.055),
+    inset 0 1px 0 #fff;
+}
+
+.ari-progress-tile::after {
+  position: absolute;
+  right: 20px;
+  bottom: 0;
+  left: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--goals-royal), transparent);
+  content: "";
+  opacity: 0.55;
 }
 
 .ari-progress-tile--wide {
   grid-column: 1 / -1;
-  min-height: 126px;
-  background:
-    linear-gradient(125deg, rgba(36, 86, 216, 0.075), rgba(8, 200, 232, 0.055)),
-    #fbfdff;
+  min-height: 128px;
 }
 
 .ari-progress-tile--cyan {
-  border-color: rgba(8, 178, 207, 0.15);
-  background: linear-gradient(140deg, rgba(223, 250, 255, 0.82), rgba(250, 254, 255, 0.92));
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--goals-cyan-rgb), 0.12), transparent 48%),
+    rgba(244, 253, 255, 0.90);
+}
+
+.ari-progress-tile--status {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--goals-mint-rgb), 0.09), transparent 48%),
+    rgba(249, 253, 252, 0.90);
+}
+
+.ari-progress-tile--cyan::after {
+  background: linear-gradient(90deg, transparent, var(--goals-cyan), transparent);
 }
 
 .ari-progress-tile--violet {
-  border-color: rgba(114, 88, 233, 0.15);
-  background: linear-gradient(140deg, rgba(238, 234, 255, 0.75), rgba(252, 251, 255, 0.92));
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--goals-violet-rgb), 0.12), transparent 48%),
+    rgba(250, 248, 255, 0.90);
+}
+
+.ari-progress-tile--violet::after {
+  background: linear-gradient(90deg, transparent, var(--goals-violet), transparent);
 }
 
 .ari-progress-tile p {
-  margin: 0 0 12px;
-  color: #71819a;
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.63rem;
+  color: #72839b;
+  font-size: 0.65rem;
   font-weight: 800;
   letter-spacing: 0.055em;
-  text-transform: uppercase;
+  line-height: 1.4;
 }
 
 .ari-progress-tile strong {
   display: block;
-  margin: 0 0 8px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
   color: var(--goals-ink);
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(1rem, 3.2vw, 1.36rem);
-  font-weight: 800;
-  line-height: 1.32;
-}
-
-.ari-progress-tile--wide strong {
-  color: var(--goals-royal-deep);
-  font-family: "Audiowide", "Orbitron", sans-serif;
-  font-size: clamp(1.45rem, 5vw, 2.2rem);
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: clamp(1.1rem, 4.2vw, 1.8rem);
   font-weight: 400;
+  line-height: 1.22;
 }
 
 .ari-progress-tile--cyan strong {
-  color: #087f94;
+  color: #078ca5;
 }
 
 .ari-progress-tile--violet strong {
@@ -4170,94 +1522,256 @@ body:has(.ari-goals-page)::before {
 }
 
 .ari-progress-tile > span {
-  color: #8592a6;
-  font-size: 0.69rem;
+  display: block;
+  margin-top: 9px;
+  color: #8796aa;
+  font-size: 0.62rem;
+  font-weight: 550;
   line-height: 1.45;
 }
 
 .ari-workout-status.is-complete {
-  color: #118b68 !important;
+  color: #0d9a6e;
 }
 
 .ari-workout-status.is-incomplete {
-  color: #b46b15 !important;
+  color: #c26677;
 }
 
 .ari-workout-status.is-off {
-  color: var(--goals-violet) !important;
+  color: var(--goals-royal);
 }
 
 .ari-progress-note {
-  margin: 17px 2px 0;
-  color: #8090a7;
-  font-size: 0.7rem;
+  margin-top: 18px !important;
+  padding: 14px 16px;
+  border: 1px solid rgba(31, 85, 151, 0.10);
+  border-radius: 15px;
+  color: #7c8da4;
+  background: rgba(247, 251, 255, 0.68);
+  font-size: 0.65rem;
+  font-weight: 550;
   line-height: 1.55;
   text-align: center;
 }
 
-@media (max-width: 680px) {
-  .ari-goals-page {
-    padding-right: 12px !important;
-    padding-left: 12px !important;
+/* =====================================================
+   MOTION
+===================================================== */
+
+@keyframes goalsAmbientDrift {
+  0% {
+    transform: translate3d(-1%, -1%, 0) scale(1);
   }
 
-  .ari-goals-header.ari-goals-header--lab {
-    grid-template-columns: 52px minmax(0, 1fr) 58px;
-    min-height: 106px;
-    padding-right: 12px !important;
-    padding-left: 12px !important;
-    border-radius: 25px !important;
+  100% {
+    transform: translate3d(2%, 1.5%, 0) scale(1.04);
+  }
+}
+
+@keyframes goalsCardArrive {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.986);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes goalsPanelReveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes goalsHeaderSignal {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scaleX(0.45);
+  }
+
+  50% {
+    opacity: 0.92;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes goalsCoreRotate {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes goalsCoreRotateReverse {
+  to {
+    transform: translate(-50%, -50%) rotate(-360deg);
+  }
+}
+
+@keyframes goalsCoreBreathe {
+  0%,
+  100% {
+    opacity: 0.82;
+    filter: drop-shadow(0 0 10px rgba(var(--core-rgb), 0.24));
+  }
+
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 19px rgba(var(--core-rgb), 0.43));
+  }
+}
+
+@keyframes goalsCoreOrb {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+}
+
+@keyframes goalsGridDrift {
+  to {
+    background-position: 26px 26px;
+  }
+}
+
+@keyframes goalsDataScan {
+  0%,
+  100% {
+    opacity: 0.30;
+    transform: scaleX(0.28);
+  }
+
+  50% {
+    opacity: 0.86;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes goalsLivePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--goals-mint-rgb), 0.36), 0 0 10px rgba(var(--goals-mint-rgb), 0.35);
+  }
+
+  75%,
+  100% {
+    box-shadow: 0 0 0 8px rgba(var(--goals-mint-rgb), 0), 0 0 12px rgba(var(--goals-mint-rgb), 0.30);
+  }
+}
+
+@keyframes goalsReadingFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes goalsMetricShine {
+  0%,
+  58% {
+    transform: translateX(-130%);
+  }
+
+  78%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes goalsPathCharge {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scaleX(0.35);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 720px) {
+  .ari-goals-page {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .ari-goals-header {
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    min-height: 116px;
+    padding: 18px 14px;
+    border-radius: 27px;
   }
 
   .ari-header-control {
-    min-width: 48px;
-    min-height: 48px;
-    border-radius: 16px;
-  }
-
-  .ari-header-home {
-    min-width: 52px;
-    min-height: 52px;
-  }
-
-  .ari-header-home span {
-    display: none;
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
   }
 
   .ari-goals-heading {
-    padding: 0 5px;
+    padding: 0 8px;
   }
 
-  .ari-goals-nav .ari-tab-btn {
-    min-height: 46px !important;
-    padding-right: 4px !important;
-    padding-left: 4px !important;
+  .ari-goals-nav {
+    gap: 5px;
+    padding: 7px;
+    border-radius: 22px;
+  }
+
+  .ari-tab-btn {
+    min-height: 52px;
+    padding-right: 4px;
+    padding-left: 4px;
+    border-radius: 16px;
+    font-size: clamp(0.61rem, 2.5vw, 0.74rem);
   }
 
   .ari-calorie-hero {
-    --ari-calorie-art-scale: 1.20;
-    min-height: 410px !important;
-    border-radius: 27px !important;
-  }
-
-  .ari-calorie-hero__wash {
-    background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.33), rgba(255, 255, 255, 0.95) 25%, rgba(255, 255, 255, 0.96) 75%, rgba(255, 255, 255, 0.34)),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(244, 251, 255, 0.48));
+    --core-size: min(76vw, 312px);
+    min-height: 515px;
+    border-radius: 30px;
   }
 
   .ari-calorie-hero__content {
-    padding: 26px 20px 23px;
+    padding: 22px 18px 26px;
+  }
+
+  .ari-calorie-hero__reading {
+    min-height: 278px;
   }
 
   .ari-panel {
-    padding: 22px 18px !important;
-    border-radius: 24px !important;
+    padding: 24px 20px;
+    border-radius: 27px;
   }
 
-  .ari-profile-grid,
-  .ari-goal-grid,
-  .ari-details-grid {
+  .ari-form,
+  .ari-calorie-goal-editor {
     grid-template-columns: 1fr;
   }
 
@@ -4265,91 +1779,77 @@ body:has(.ari-goals-page)::before {
     grid-column: auto;
   }
 
-  .ari-calorie-goal-editor {
-    grid-template-columns: 1fr;
-    gap: 7px;
-  }
-
   .ari-calorie-goal-editor__meta {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    text-align: right;
-  }
-
-  .ari-calorie-goal-editor__meta p {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .ari-calorie-goal-editor__meta strong {
-    display: inline;
-    margin: 0;
+    min-height: 104px;
   }
 }
 
-@media (max-width: 440px) {
-  .ari-goals-heading__eyebrow {
-    font-size: 0.56rem;
-    letter-spacing: 0.18em;
-  }
-
-  .ari-goals-heading__title {
-    font-size: 1.55rem;
+@media (max-width: 480px) {
+  .ari-goals-page {
+    padding-top: max(14px, env(safe-area-inset-top));
   }
 
   .ari-goals-heading__subtitle {
-    font-size: 0.56rem;
+    letter-spacing: 0.04em;
   }
 
-  .ari-tabs.ari-goals-nav {
-    gap: 4px !important;
-    padding: 5px !important;
+  .ari-calorie-hero {
+    --core-size: min(75vw, 288px);
+    min-height: 500px;
   }
 
-  .ari-goals-nav .ari-tab-btn {
-    font-size: 0.63rem !important;
+  .ari-calorie-hero::before,
+  .ari-calorie-hero::after,
+  .ari-calorie-hero__art::before,
+  .ari-calorie-hero__art::after,
+  .ari-calorie-hero__wash::before {
+    top: 44%;
+  }
+
+  .ari-calorie-hero__wash {
+    background:
+      radial-gradient(
+        circle at 50% 44%,
+        rgba(255, 255, 255, 0.98) 0%,
+        rgba(249, 253, 255, 0.95) 21%,
+        rgba(var(--core-rgb), 0.08) 30%,
+        transparent 48%
+      );
+  }
+
+  .ari-calorie-hero__reading {
+    min-height: 262px;
+    padding-top: 22px;
   }
 
   .ari-calorie-hero__metrics {
-    gap: 7px;
+    gap: 9px;
   }
 
   .ari-calorie-metric {
-    padding: 13px 9px;
+    padding: 14px 9px;
+    border-radius: 17px;
   }
 
-  .ari-calorie-metric p {
-    font-size: 0.63rem;
-  }
-
-  .ari-calorie-metric strong {
-    font-size: 0.86rem;
-  }
-
-  .ari-calorie-rule {
-    font-size: 0.62rem;
-  }
-
-  .ari-panel-header--numbered {
-    grid-template-columns: 36px minmax(0, 1fr);
-    gap: 11px;
+  .ari-panel-header {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 13px;
   }
 
   .ari-section-index {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
   }
 
   .ari-goal-path,
   .ari-progress-weight-path {
-    gap: 9px;
-    padding: 15px;
+    grid-template-columns: minmax(76px, auto) minmax(34px, 1fr) minmax(76px, auto);
+    gap: 10px;
+    padding: 16px 14px;
   }
 
-  .ari-result-grid.ari-summary-grid,
+  .ari-result-grid,
   .ari-progress-grid {
     grid-template-columns: 1fr;
   }
@@ -4358,24 +1858,85 @@ body:has(.ari-goals-page)::before {
     grid-column: auto;
   }
 
+  .ari-stat-card,
   .ari-progress-tile {
-    min-height: 122px;
+    min-height: 124px;
   }
 
   .ari-progress-heading {
-    flex-direction: column;
-    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .ari-progress-heading .ari-sync-date {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 0.58rem;
+  }
+}
+
+@media (max-width: 370px) {
+  .ari-goals-header {
+    grid-template-columns: 50px minmax(0, 1fr) 50px;
+    padding-right: 11px;
+    padding-left: 11px;
+  }
+
+  .ari-header-control {
+    width: 48px;
+    height: 48px;
+  }
+
+  .ari-goals-heading__eyebrow {
+    letter-spacing: 0.13em;
+  }
+
+  .ari-tab-btn {
+    font-size: 0.57rem;
+  }
+
+  .ari-calorie-hero {
+    --core-size: min(76vw, 264px);
+    min-height: 486px;
+  }
+
+  .ari-meter-number {
+    font-size: 3.45rem;
+  }
+
+  .ari-calorie-hero__art::before {
+    width: calc(var(--core-size) + 54px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body::after,
+  .ari-goals-header,
+  .ari-goals-header::after,
+  .ari-goals-nav,
+  .ari-tab-panel.active,
+  .ari-calorie-hero,
+  .ari-calorie-hero::before,
+  .ari-calorie-hero::after,
+  .ari-calorie-hero__art,
+  .ari-calorie-hero__art::before,
+  .ari-calorie-hero__art::after,
+  .ari-calorie-hero__wash::before,
+  .ari-calorie-hero__wash::after,
+  .ari-calorie-hero__reading,
+  .ari-live-chip__dot,
+  .ari-calorie-metric::after,
+  .ari-panel,
+  .ari-goal-path__line span,
+  .ari-progress-weight-path__beam span {
+    animation: none !important;
+  }
+
   .ari-header-control,
-  .ari-goals-nav .ari-tab-btn,
-  .ari-calorie-hero__art img,
-  .ari-panel .ari-input,
-  .ari-panel .ari-select,
-  .ari-panel .ari-textarea {
+  .ari-tab-btn,
+  .ari-input,
+  .ari-select,
+  .ari-textarea,
+  .ari-advanced-details summary::after {
     transition: none !important;
   }
 }
- 
