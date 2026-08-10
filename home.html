@@ -1,132 +1,296 @@
 <!DOCTYPE html>
-<html lang="en"> 
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<title>ARI Rebirth</title>
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+/>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<meta name="theme-color" content="#f7f9ff" />
+
+<title>ARI Experience</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
 <link
   href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap"
   rel="stylesheet"
->
+/>
 
-<link rel="stylesheet" href="assets/css/base.css?v=16">
-<link rel="stylesheet" href="assets/css/animations.css?v=16">
-<link rel="stylesheet" href="assets/css/home.css?v=1.1.2">
-<link rel="stylesheet" href="assets/css/header.css?v=17">
-<link rel="stylesheet" href="assets/css/nav-menu.css?v=16">
-<link rel="stylesheet" href="assets/css/avatar.css?v=16">
-<link rel="stylesheet" href="assets/css/composer.css?v=1.2.1">
-<link rel="stylesheet" href="assets/css/conversation-history.css?v=16">
+<!-- Shared foundation -->
+<link rel="stylesheet" href="assets/css/base.css?v=16" />
+<link rel="stylesheet" href="assets/css/animations.css?v=16" />
+
+<!-- Complete homepage design -->
+<link rel="stylesheet" href="assets/css/home.css?v=2.0.0" />
 </head>
 
-<body>
+<body class="ari-home-page">
 
 <main class="ari-v1-home welcome-mode" id="ariApp">
 
-<header class="top-bar ari-header ari-header-v4">
-  <button class="menu-btn ari-menu-toggle" type="button" onclick="toggleMenu()" aria-label="Open menu">
-    <span></span>
-    <span></span>
-    <span></span>
-  </button>
-
-  <div class="ari-header-avatar-shell" id="ariHeaderAvatarShell">
-    <img id="ariHeaderAvatar" src="assets/ari/avatar-idle-open.png" alt="Ari avatar">
-  </div>
-
-  <a class="ari-brand-right" href="home.html" aria-label="ARI Home">
-    <span class="ari-brand-title">ARI</span>
-    <span class="ari-brand-subtitle">EXPERIENCE</span>
-  </a>
-</header>
-
-<nav id="sideMenu" class="side-menu ari-side-menu">
-  <button class="close-menu ari-close-menu" type="button" onclick="toggleMenu()">Ã</button>
-
-  <a href="ari-circle.html" class="ari-nav-link nav-circle">
-  <span class="ari-nav-icon"></span>
-  <span>ARI Circle</span>
-</a>
-
-  <a href="goals.html" class="ari-nav-link nav-goals">
-    <span class="ari-nav-icon"></span>
-    <span>My Goals</span>
-  </a>
-
-  <a href="conversation-history.html" class="ari-nav-link nav-conversations">
-  <span class="ari-nav-icon"></span>
-  <span>Conversations</span>
-</a>
-
-  <a href="account.html" class="ari-nav-link nav-account">
-    <span class="ari-nav-icon"></span>
-    <span>Account</span>
-  </a>
-<a href="ari-preference-settings.html" class="ari-nav-link nav-preferences">
-  <span class="ari-nav-icon">â</span>
-  <span>Ari Preferences</span>
-</a>
-</nav>
-
-
-<div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()"></div>
-
-<section class="ari-welcome" id="ariWelcome">
-  <img
-    id="ariHero"
-    class="ari-hero-img"
-    data-ari-mascot
-    src="assets/ari/ari-idle-open.png"
-    alt="Ari"
-  >
-
-  <div class="ari-welcome-prompt">
-    <h1 id="ariWelcomeQuestion" class="ari-welcome-question">
-      Tell me about yourself.
-    </h1>
-  </div>
-</section>
-
-<section class="ari-conversation-shell" id="ariConversationShell">
-  <div id="ariMessages" class="ari-thread"></div>
-
-  <div id="pendingActionBar" class="pending-action-bar">
-    <p id="pendingActionText">Want me to log that?</p>
-
-    <div class="pending-action-buttons">
-      <button type="button" onclick="confirmAriAction()">Yes</button>
-      <button type="button" onclick="cancelAriAction()">Cancel</button>
-    </div>
-  </div>
-</section>
-
-<div class="ari-bottom-input">
-  <div class="ari-input-shell">
-    <textarea
-      id="ariInput"
-      rows="1"
-      placeholder="Tell Ari something..."
-      oninput="autoResizeAriInput()"
-      onkeydown="handleAriEnter(event)"
-    ></textarea>
+  <!-- =================================================
+       HOME HEADER
+  ================================================== -->
+  <header class="top-bar ari-header ari-header-v5">
 
     <button
-      id="ariSendBtn"
-      class="ari-send-btn"
+      id="ariMenuToggle"
+      class="menu-btn ari-menu-toggle"
       type="button"
-      onclick="sendAriMessage()">
-      â¤
+      onclick="toggleMenu()"
+      aria-label="Open ARI navigation"
+      aria-controls="sideMenu"
+      aria-expanded="false"
+    >
+      <span class="ari-menu-label">MENU</span>
+      <span class="ari-menu-dot" aria-hidden="true"></span>
     </button>
+
+    <a
+      class="ari-brand-right"
+      href="home.html"
+      aria-label="ARI Experience home"
+    >
+      <span class="ari-brand-title">ARI</span>
+      <span class="ari-brand-subtitle">EXPERIENCE</span>
+      <span class="ari-brand-line" aria-hidden="true"></span>
+    </a>
+
+    <!--
+      Temporary compatibility hook for the current home.js.
+      This remains hidden and can be removed when home.js is updated.
+    -->
+    <div id="ariHeaderAvatarShell" hidden aria-hidden="true">
+      <img
+        id="ariHeaderAvatar"
+        src="assets/ari/avatar-idle-open.png"
+        alt=""
+      />
+    </div>
+
+  </header>
+
+
+  <!-- =================================================
+       FULL-SCREEN NAVIGATION
+  ================================================== -->
+  <nav
+    id="sideMenu"
+    class="side-menu ari-side-menu"
+    aria-label="ARI navigation"
+    aria-hidden="true"
+  >
+
+    <div class="ari-menu-header">
+      <button
+        class="close-menu ari-close-menu"
+        type="button"
+        onclick="toggleMenu()"
+        aria-label="Close ARI navigation"
+      >
+        CLOSE
+      </button>
+    </div>
+
+    <div class="ari-menu-content">
+
+      <a
+        href="ari-circle.html"
+        class="ari-nav-link nav-circle"
+      >
+        <span class="ari-nav-copy">
+          <span class="ari-nav-title">ARI CIRCLE</span>
+          <span class="ari-nav-description">
+            SOCIALIZE WITH OTHERS
+          </span>
+        </span>
+
+        <span class="ari-nav-dot" aria-hidden="true"></span>
+      </a>
+
+
+      <a
+        href="goals.html"
+        class="ari-nav-link nav-goals ari-nav-featured"
+      >
+        <span class="ari-nav-copy">
+          <span class="ari-nav-title">MY GOALS</span>
+          <span class="ari-nav-description">
+            LOG INTAKE / LOG WORKOUT
+          </span>
+          <span class="ari-nav-accent-line" aria-hidden="true"></span>
+        </span>
+
+        <span class="ari-nav-dot" aria-hidden="true"></span>
+      </a>
+
+
+      <a
+        href="ari-preference-settings.html"
+        class="ari-nav-link nav-preferences"
+      >
+        <span class="ari-nav-copy">
+          <span class="ari-nav-title">ARI PREFERENCES</span>
+          <span class="ari-nav-description">
+            PERSONALIZE YOUR EXPERIENCE
+          </span>
+        </span>
+
+        <span class="ari-nav-dot" aria-hidden="true"></span>
+      </a>
+
+
+      <a
+        href="account.html"
+        class="ari-nav-link nav-account"
+      >
+        <span class="ari-nav-copy">
+          <span class="ari-nav-title">ACCOUNT SETTINGS</span>
+          <span class="ari-nav-description">
+            PROFILE, PRIVACY AND SECURITY
+          </span>
+        </span>
+
+        <span class="ari-nav-dot" aria-hidden="true"></span>
+      </a>
+
+    </div>
+
+  </nav>
+
+
+  <div
+    id="menuOverlay"
+    class="menu-overlay"
+    onclick="toggleMenu()"
+    aria-hidden="true"
+  ></div>
+
+
+  <!-- =================================================
+       ARI HERO
+  ================================================== -->
+  <section class="ari-welcome" id="ariWelcome">
+
+    <div class="ari-hero-stage">
+
+      <div class="ari-hero-halo" aria-hidden="true"></div>
+
+      <img
+        id="ariHero"
+        class="ari-hero-img"
+        data-ari-mascot
+        src="assets/ari/ari-idle-open.png"
+        alt="Ari"
+      />
+
+    </div>
+
+    <!--
+      Temporary compatibility hook for the current home.js.
+      The question now appears through the composer placeholder.
+    -->
+    <p
+      id="ariWelcomeQuestion"
+      class="ari-welcome-question"
+      aria-live="polite"
+      hidden
+    >
+      What are you working on?
+    </p>
+
+  </section>
+
+
+  <!-- =================================================
+       CONVERSATION
+  ================================================== -->
+  <section
+    class="ari-conversation-shell"
+    id="ariConversationShell"
+    aria-live="polite"
+  >
+
+    <div id="ariMessages" class="ari-thread"></div>
+
+    <div id="pendingActionBar" class="pending-action-bar">
+
+      <p id="pendingActionText">
+        Want me to log that?
+      </p>
+
+      <div class="pending-action-buttons">
+
+        <button
+          type="button"
+          onclick="confirmAriAction()"
+        >
+          YES
+        </button>
+
+        <button
+          type="button"
+          onclick="cancelAriAction()"
+        >
+          CANCEL
+        </button>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =================================================
+       ASK ARI COMPOSER
+  ================================================== -->
+  <div class="ari-bottom-input">
+
+    <div class="ari-input-shell">
+
+      <label class="ari-input-label" for="ariInput">
+        ASK ARI
+      </label>
+
+      <div class="ari-input-row">
+
+        <textarea
+          id="ariInput"
+          rows="1"
+          maxlength="4000"
+          placeholder="What are you working on?"
+          aria-label="Ask Ari"
+          oninput="autoResizeAriInput()"
+          onkeydown="handleAriEnter(event)"
+        ></textarea>
+
+        <button
+          id="ariSendBtn"
+          class="ari-send-btn"
+          type="button"
+          onclick="sendAriMessage()"
+          aria-label="Send message to Ari"
+        >
+          SEND
+        </button>
+
+      </div>
+
+    </div>
+
   </div>
-</div>
 
 </main>
 
+
+<!-- =================================================
+     APPLICATION SCRIPTS
+================================================== -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="js/auth.js"></script>
