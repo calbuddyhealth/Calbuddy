@@ -3980,6 +3980,12 @@ function calculateNutritionTotals() {
       )
     )
   );
+
+  localStorage.setItem(
+    "calbuddyCaloriesConsumedDate",
+    nutritionState.currentWindow?.nutritionDate ||
+      formatLocalDate(new Date())
+  );
 }
 
 
