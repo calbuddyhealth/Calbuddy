@@ -1,7 +1,16 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Purpose: Home page behavior, Ari avatar, menu, chat, and dashboard.
+// Version: 3.1.0
+// Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
+//
+// V3.1.0:
+//   - Makes the visible Ari hero open Ari Preferences when selected.
+//   - Adds keyboard-accessible Ari preference navigation.
+//   - Uses only Ari's open-eye and closed-eye homepage PNGs.
+//   - Synchronizes the full-screen menu's visual and ARIA state.
+//   - Replaces composer symbols with SEND and STOP text.
+//   - Adds functional textarea auto-resizing.
 // =====================================================
 
 let ariChatHistory = [];
@@ -17,35 +26,11 @@ let ariStopped = false;
 
 const ARI_ASSETS = {
   heroOpen: "assets/ari/ari-idle-open.png",
-  heroClosed: "assets/ari/ari-idle-closed.png",
-  avatarOpen: "assets/ari/avatar-idle-open.png",
-  avatarClosed: "assets/ari/avatar-idle-closed.png",
-  thinking: "assets/ari/ari-thinking.png",
-  goodNews: "assets/ari/ari-good-news.png",
-  badNews: "assets/ari/ari-bad-news.png",
-  concerned: "assets/ari/ari-concerned.png",
-  celebrate: "assets/ari/ari-celebrate.png",
-  excited: "assets/ari/ari-excited.png",
-  shocked: "assets/ari/ari-shocked.png",
-  shrug: "assets/ari/ari-shrug.png",
-  shy: "assets/ari/ari-shy.png",
-  sad: "assets/ari/ari-sad.png",
-  armsCrossed: "assets/ari/ari-arms-crossed.png",
-  disappointed: "assets/ari/ari-disappointed.png",
-  knifeHand: "assets/ari/ari-knife-hand.png",
-  pointing: "assets/ari/ari-pointing-finger.png"
+  heroClosed: "assets/ari/ari-idle-closed.png"
 };
 
-const ARI_WELCOME_QUESTIONS = [
-  "Ask me anything.",
-  "What's on your mind?",
-  "Tell me about yourself.",
-  "What are you working on?",
-  "Need help with something?",
-  "What's your next goal?",
-  "What should we solve today?",
-  "Teach me something."
-];
+const ARI_COMPOSER_PROMPT = "What are you working on?";
+const ARI_PREFERENCES_URL = "ari-preference-settings.html";
 
 document.addEventListener("DOMContentLoaded", async () => {
   openRequestedHomeMenu();
@@ -55,6 +40,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   setRotatingWelcomeQuestion();
   startAriBlinkLoop();
   setupAriKeyboardStability();
+  setupAriPreferenceNavigation();
+  setupHomeMenuKeyboardControls();
 
   await setupHomeAuth();
   await refreshHomeDashboard();
@@ -97,18 +84,9 @@ function setRotatingWelcomeQuestion() {
 
   if (!input) return;
 
-  const savedIndex = Number(localStorage.getItem("ariWelcomeQuestionIndex") || 0);
-  const nextIndex = savedIndex % ARI_WELCOME_QUESTIONS.length;
-  const prompt = ARI_WELCOME_QUESTIONS[nextIndex];
-
-  input.placeholder = prompt;
+  input.placeholder = ARI_COMPOSER_PROMPT;
 
   if (question) question.textContent = "";
-
-  localStorage.setItem(
-    "ariWelcomeQuestionIndex",
-    String((nextIndex + 1) % ARI_WELCOME_QUESTIONS.length)
-  );
 }
 
 function enterAriWelcomeMode() {
@@ -119,7 +97,6 @@ function enterAriWelcomeMode() {
   ariFirstReplyCompleted = false;
 
   setAriHero("heroOpen");
-  setAriAvatar("avatarOpen");
 }
 
 function enterAriConversationMode() {
@@ -128,8 +105,6 @@ function enterAriConversationMode() {
 
   app.classList.remove("welcome-mode");
   app.classList.add("conversation-mode");
-
-  setAriAvatar("avatarOpen");
 }
 
 function setAriHero(assetKey) {
@@ -139,39 +114,8 @@ function setAriHero(assetKey) {
   img.src = ARI_ASSETS[assetKey];
 }
 
-function setAriAvatar(assetKey) {
-  const img = document.getElementById("ariHeaderAvatar");
-  if (!img || !ARI_ASSETS[assetKey]) return;
-
-  img.src = ARI_ASSETS[assetKey];
-}
-
 function setAriPose(poseKey) {
-  if (ariFirstReplyCompleted) {
-    updateAriAvatarMood(poseKey);
-    return;
-  }
-
-  const heroPoseMap = {
-    idleOpen: "heroOpen",
-    idleClosed: "heroClosed",
-    thinking: "thinking",
-    goodNews: "goodNews",
-    badNews: "badNews",
-    concerned: "concerned",
-    celebrate: "celebrate",
-    excited: "excited",
-    shocked: "shocked",
-    shrug: "shrug",
-    shy: "shy",
-    sad: "sad",
-    armsCrossed: "armsCrossed",
-    disappointed: "disappointed",
-    knifeHand: "knifeHand",
-    pointing: "pointing"
-  };
-
-  setAriHero(heroPoseMap[poseKey] || "heroOpen");
+  setAriHero(poseKey === "idleClosed" ? "heroClosed" : "heroOpen");
 }
 
 function updateAriAvatarMood(mood = "idle") {
@@ -184,7 +128,7 @@ function updateAriAvatarMood(mood = "idle") {
     app.classList.remove("ari-thinking-mode");
   }
 
-  setAriAvatar("avatarOpen");
+  setAriHero("heroOpen");
 }
 
 function startAriBlinkLoop() {
@@ -238,19 +182,11 @@ function performAriBlink() {
 }
 
 function closeAriEyes() {
-  if (ariFirstReplyCompleted) {
-    setAriAvatar("avatarClosed");
-  } else {
-    setAriHero("heroClosed");
-  }
+  setAriHero("heroClosed");
 }
 
 function openAriEyes() {
-  if (ariFirstReplyCompleted) {
-    setAriAvatar("avatarOpen");
-  } else {
-    setAriHero("heroOpen");
-  }
+  setAriHero("heroOpen");
 }
 
 function interruptAri(poseKey) {
@@ -266,12 +202,7 @@ function resetAriAfterDelay(delay = 120000) {
 
   ariResetTimeout = setTimeout(() => {
     ariBusy = false;
-
-    if (ariFirstReplyCompleted) {
-      setAriAvatar("avatarOpen");
-    } else {
-      setAriHero("heroOpen");
-    }
+    setAriHero("heroOpen");
   }, delay);
 }
 
@@ -281,22 +212,52 @@ function chooseAriReaction(message = "") {
 
 function applyAriAfterResponseEmotion(message = "", reply = "") {
   ariBusy = false;
-
-  if (ariFirstReplyCompleted) {
-    setAriAvatar("avatarOpen");
-  } else {
-    setAriHero("heroOpen");
-  }
+  setAriHero("heroOpen");
 }
 
 function toggleMenu() {
   const menu = document.getElementById("sideMenu");
+  if (!menu) return;
+
+  setHomeMenuState(!menu.classList.contains("open"));
+}
+
+function setHomeMenuState(isOpen, moveFocus = true) {
+  const menu = document.getElementById("sideMenu");
   const overlay = document.getElementById("menuOverlay");
   const toggle = document.querySelector(".ari-menu-toggle");
+  const closeButton = menu?.querySelector(".ari-close-menu");
 
-  menu?.classList.toggle("open");
-  overlay?.classList.toggle("show");
-  toggle?.classList.toggle("open");
+  menu?.classList.toggle("open", isOpen);
+  overlay?.classList.toggle("show", isOpen);
+  toggle?.classList.toggle("open", isOpen);
+  document.body.classList.toggle("ari-menu-open", isOpen);
+
+  menu?.setAttribute("aria-hidden", String(!isOpen));
+  overlay?.setAttribute("aria-hidden", String(!isOpen));
+  toggle?.setAttribute("aria-expanded", String(isOpen));
+
+  if (!moveFocus) return;
+
+  requestAnimationFrame(() => {
+    if (isOpen) {
+      closeButton?.focus();
+    } else {
+      toggle?.focus();
+    }
+  });
+}
+
+function setupHomeMenuKeyboardControls() {
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+
+    const menu = document.getElementById("sideMenu");
+    if (!menu?.classList.contains("open")) return;
+
+    event.preventDefault();
+    setHomeMenuState(false);
+  });
 }
 
 function openRequestedHomeMenu() {
@@ -309,17 +270,7 @@ function openRequestedHomeMenu() {
     return;
   }
 
-  document
-    .getElementById("sideMenu")
-    ?.classList.add("open");
-
-  document
-    .getElementById("menuOverlay")
-    ?.classList.add("show");
-
-  document
-    .querySelector(".ari-menu-toggle")
-    ?.classList.add("open");
+  setHomeMenuState(true, false);
 
   window.history.replaceState(
     {},
@@ -398,6 +349,9 @@ function setText(id, value) {
 function autoResizeAriInput() {
   const input = document.getElementById("ariInput");
   if (!input) return;
+
+  input.style.height = "auto";
+  input.style.height = `${Math.min(input.scrollHeight, 144)}px`;
 }
 
 function handleAriEnter(event) {
@@ -459,13 +413,13 @@ function setAriComposerThinking(isThinking) {
   if (isThinking) {
     input.disabled = true;
     input.placeholder = "Ari is thinking...";
-    button.textContent = "â ";
+    button.textContent = "STOP";
     button.classList.add("ari-stop-btn");
     button.onclick = stopAriThinking;
   } else {
     input.disabled = false;
     setRotatingWelcomeQuestion();
-    button.textContent = "â¤";
+    button.textContent = "SEND";
     button.classList.remove("ari-stop-btn");
     button.onclick = sendAriMessage;
   }
@@ -518,6 +472,30 @@ function setupAriKeyboardStability() {
 
   input.addEventListener("focus", () => setAriTypingMode(true));
   input.addEventListener("blur", () => setAriTypingMode(false));
+}
+
+function setupAriPreferenceNavigation() {
+  const ariHero = document.getElementById("ariHero");
+  if (!ariHero) return;
+
+  ariHero.tabIndex = 0;
+  ariHero.setAttribute("role", "link");
+  ariHero.setAttribute("aria-label", "Open Ari Preferences");
+  ariHero.setAttribute("title", "Open Ari Preferences");
+  ariHero.dataset.ariPreferencesLink = "true";
+
+  ariHero.addEventListener("click", openAriPreferences);
+
+  ariHero.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    event.preventDefault();
+    openAriPreferences();
+  });
+}
+
+function openAriPreferences() {
+  window.location.assign(ARI_PREFERENCES_URL);
 }
 
 async function sendAriMessage() {
