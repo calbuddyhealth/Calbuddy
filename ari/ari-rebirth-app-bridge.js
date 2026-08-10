@@ -1,22 +1,20 @@
 // =====================================================
 // ARI REBIRTH
 // Experimental OpenAI-Authority App Bridge
-// Version 3.0.0-experimental
+// Version 3.1.0-experimental
 // =====================================================
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "3.0.0-experimental",
+  version: "3.1.0-experimental",
   source: "ari-rebirth-app-bridge-openai-authority",
 
-  // Deliberately small runtime. OpenAI performs semantic interpretation,
-  // reasoning, response strategy, and conversational drafting. Local modules
-  // provide evidence, continuity, restrictions, actions, persistence/delivery.
+  // The legacy ari-loader loads markdown architecture, not JavaScript modules.
+  // This bridge therefore owns its own tiny deterministic JS bootstrapper.
   requiredScripts: [
     "ari/diagnostics/ari-execution-trace.js",
-    "ari/system/ari-loader.js",
     "ari/system/ari-authority.js",
     "ari/contracts/ari-operation-registry.js",
     "ari/contracts/ari-application-operation-registry.js?v=1.0.0",
@@ -48,7 +46,6 @@ window.AriRebirthAppBridge = {
     "ari/reasoning/ari-reasoning-context-engine.js",
     "ari/reasoning/ari-openai-reasoning-client.js",
     "ari/reasoning/ari-openai-cognitive-orchestrator.js",
-    "ari/reasoning/ari-reasoning-engine.js",
     "ari/understanding/ari-response-planner.js",
     "ari/character/ari-constitution.js",
     "ari/character/ari-character-core.js",
@@ -63,11 +60,8 @@ window.AriRebirthAppBridge = {
     "ari/pipeline-stages/deliberation/ari-safety-stage.js",
     "ari/pipeline-stages/deliberation/ari-reasoning-stage.js",
     "ari/pipeline-stages/deliberation/ari-memory-stage.js",
-    "ari/pipeline-stages/deliberation/ari-response-planning-stage.js",
     "ari/pipelines/ari-deliberation-pipeline.js",
-    "ari/realization/ari-response-realization-engine.js",
     "ari/language/ari-language-composer.js",
-    "ari/pipeline-stages/expression/ari-response-realization-stage.js",
     "ari/pipeline-stages/expression/ari-final-composition-stage.js",
     "ari/pipelines/ari-expression-pipeline.js",
     "ari/pipeline-stages/delivery/ari-action-delivery-stage.js",
@@ -78,34 +72,97 @@ window.AriRebirthAppBridge = {
   ],
 
   _bootPromise: null,
+  _loadedScripts: new Set(),
+
+  normalizeSrc(src) {
+    return String(src || "").trim();
+  },
+
+  isScriptPresent(src) {
+    const clean = this.normalizeSrc(src);
+    if (!clean) return true;
+    const targetPath = clean.split("?")[0];
+    return Array.from(document.scripts || []).some((script) => {
+      const raw = script.getAttribute("src") || "";
+      if (!raw) return false;
+      try {
+        const path = new URL(raw, window.location.href).pathname.replace(/^\//, "");
+        return path === targetPath.replace(/^\//, "");
+      } catch {
+        return raw.split("?")[0].replace(/^\//, "") === targetPath.replace(/^\//, "");
+      }
+    });
+  },
+
+  loadScript(src) {
+    const clean = this.normalizeSrc(src);
+    if (!clean || this._loadedScripts.has(clean) || this.isScriptPresent(clean)) {
+      this._loadedScripts.add(clean);
+      return Promise.resolve(true);
+    }
+
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = clean;
+      script.async = false;
+      script.dataset.ariExperimentalRuntime = "true";
+      script.onload = () => {
+        this._loadedScripts.add(clean);
+        resolve(true);
+      };
+      script.onerror = () => reject(new Error(`ari_runtime_script_load_failed:${clean}`));
+      (document.head || document.documentElement).appendChild(script);
+    });
+  },
+
+  async loadRuntimeScripts() {
+    for (const src of this.requiredScripts) {
+      await this.loadScript(src);
+    }
+    return true;
+  },
 
   async ensureReady() {
     if (this._bootPromise) return this._bootPromise;
+
     this._bootPromise = (async () => {
-      const loader = window.AriLoader || window.Ari?.loader;
-      if (!loader) throw new Error("ari_loader_unavailable");
-      if (typeof loader.loadScripts === "function") {
-        await loader.loadScripts(this.requiredScripts);
-      } else if (typeof loader.load === "function") {
-        for (const src of this.requiredScripts) await loader.load(src);
-      } else if (typeof loader.ensure === "function") {
-        for (const src of this.requiredScripts) await loader.ensure(src);
-      } else {
-        throw new Error("ari_loader_has_no_supported_load_method");
+      await this.loadRuntimeScripts();
+
+      const requestBuilder = window.AriRuntimeRequest || window.Ari?.runtimeRequest;
+      const pipeline = window.AriRebirthPipeline || window.Ari?.rebirthPipeline;
+      const delivery = window.AriRuntimeDelivery || window.Ari?.runtimeDelivery;
+      const openAIClient = window.AriOpenAIReasoningClient || window.Ari?.openAIReasoningClient;
+      const orchestrator = window.AriOpenAICognitiveOrchestrator || window.Ari?.openAICognitiveOrchestrator;
+
+      const missing = [];
+      if (!requestBuilder) missing.push("runtime_request");
+      if (!pipeline) missing.push("rebirth_pipeline");
+      if (!delivery) missing.push("runtime_delivery");
+      if (!openAIClient) missing.push("openai_reasoning_client");
+      if (!orchestrator) missing.push("openai_cognitive_orchestrator");
+
+      if (missing.length) {
+        throw new Error(`ari_runtime_boot_incomplete:${missing.join(",")}`);
       }
+
       return true;
     })();
-    try { return await this._bootPromise; }
-    catch (error) { this._bootPromise = null; throw error; }
+
+    try {
+      return await this._bootPromise;
+    } catch (error) {
+      this._bootPromise = null;
+      throw error;
+    }
   },
 
   async ask(input = {}) {
     try {
       await this.ensureReady();
+
       const requestBuilder = window.AriRuntimeRequest || window.Ari?.runtimeRequest;
       const pipeline = window.AriRebirthPipeline || window.Ari?.rebirthPipeline;
       const delivery = window.AriRuntimeDelivery || window.Ari?.runtimeDelivery;
-      if (!requestBuilder || !pipeline || !delivery) throw new Error("ari_runtime_boundary_unavailable");
 
       const request = typeof requestBuilder.create === "function"
         ? await requestBuilder.create(input)
@@ -120,6 +177,7 @@ window.AriRebirthAppBridge = {
           : null;
 
       if (!result) throw new Error("ari_pipeline_returned_no_result");
+
       if (typeof delivery.read === "function") return delivery.read(result);
       if (typeof delivery.deliver === "function") return delivery.deliver(result);
       if (typeof delivery.adapt === "function") return delivery.adapt(result);
@@ -131,6 +189,7 @@ window.AriRebirthAppBridge = {
         success: false,
         complete: false,
         source: this.source,
+        bridgeVersion: this.version,
         error: error?.message || String(error),
         failureType: error?.code || "ari_rebirth_experimental_bridge_failure"
       };
