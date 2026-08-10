@@ -4,9 +4,10 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.6.1";
+CalBuddy.version = "3.6.2";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
+CalBuddy.dashboardRefreshPromise = null;
 
 CalBuddy.exposeSupabaseToAri = function () {
   const client =
@@ -466,24 +467,46 @@ CalBuddy.updateProfile = async function (updates = {}) {
 };
 CalBuddy.logWeight = async function ({ weight, notes = "" }) {
   const user = await CalBuddy.getCurrentUser();
-  if (!weight || Number(weight) <= 0) {
+  const numericWeight = CalBuddy.safeNumber(weight, 0);
+
+  if (numericWeight <= 0) {
     throw new Error("Valid weight is required.");
   }
+
   const entry = {
-    weight_lbs: Number(weight),
-    notes,
+    // Keep "weight" for existing Ari callers; Supabase uses weight_lbs.
+    weight: numericWeight,
+    weight_lbs: numericWeight,
+    notes: CalBuddy.cleanText(notes),
     log_date: CalBuddy.formatLocalDate(new Date()),
     created_at: new Date().toISOString()
   };
-  localStorage.setItem("calbuddyCurrentWeight", entry.weight);
-  localStorage.setItem("calbuddyLatestWeight", entry.weight);
+
+  localStorage.setItem("calbuddyCurrentWeight", String(numericWeight));
+  localStorage.setItem("calbuddyLatestWeight", String(numericWeight));
+
   if (user && window.calbuddySupabase) {
-    await window.calbuddySupabase
+    const { error } = await window.calbuddySupabase
       .from("weight_logs")
-      .insert({ user_id: user.id, ...entry });
-    await CalBuddy.updateProfile({ weight_lbs: entry.weight, current_weight: entry.weight });
+      .upsert(
+        {
+          user_id: user.id,
+          weight_lbs: numericWeight,
+          log_date: entry.log_date
+        },
+        { onConflict: "user_id,log_date" }
+      );
+
+    if (error) {
+      throw new Error(error.message || "Could not save weight.");
+    }
   }
-  await CalBuddy.refreshDashboard();
+
+  // updateProfile persists the current weight and refreshes the dashboard once.
+  await CalBuddy.updateProfile({
+    weight_lbs: numericWeight
+  });
+
   return entry;
 };
 CalBuddy.getRecentWeights = async function (limit = 8) {
@@ -2589,12 +2612,28 @@ CalBuddy.saveDeveloperIntentLocally = function (developerIntent) {
 /* -----------------------------
 DASHBOARD REFRESH
 ----------------------------- */
-CalBuddy.refreshDashboard = async function () {
-  const context = await CalBuddy.getUserContext();
-  window.dispatchEvent(new CustomEvent("calbuddy:dashboardUpdated", {
-    detail: context
-  }));
-  return context;
+CalBuddy.refreshDashboard = function () {
+  if (CalBuddy.dashboardRefreshPromise) {
+    return CalBuddy.dashboardRefreshPromise;
+  }
+
+  const refreshPromise = (async () => {
+    const context = await CalBuddy.getUserContext();
+
+    window.dispatchEvent(new CustomEvent("calbuddy:dashboardUpdated", {
+      detail: context
+    }));
+
+    return context;
+  })();
+
+  CalBuddy.dashboardRefreshPromise = refreshPromise;
+
+  return refreshPromise.finally(() => {
+    if (CalBuddy.dashboardRefreshPromise === refreshPromise) {
+      CalBuddy.dashboardRefreshPromise = null;
+    }
+  });
 };
 /* -----------------------------
 INIT
