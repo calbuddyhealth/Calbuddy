@@ -1,18 +1,13 @@
 // =====================================================
 // ARI REBIRTH
 // Experimental OpenAI-Authority App Bridge
-// Version 3.1.0-experimental
+// Version 3.2.0-experimental
 // =====================================================
-
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
-
 window.AriRebirthAppBridge = {
-  version: "3.1.0-experimental",
+  version: "3.2.0-experimental",
   source: "ari-rebirth-app-bridge-openai-authority",
-
-  // The legacy ari-loader loads markdown architecture, not JavaScript modules.
-  // This bridge therefore owns its own tiny deterministic JS bootstrapper.
   requiredScripts: [
     "ari/diagnostics/ari-execution-trace.js",
     "ari/system/ari-authority.js",
@@ -30,9 +25,12 @@ window.AriRebirthAppBridge = {
     "ari/profile/ari-preference-resolver.js?v=2.1.0",
     "ari/profile/ari-preference-runtime.js?v=1.1.0",
     "ari/conversation/ari-turn-packet.js",
+    "ari/conversation/ari-turn-intake-engine.js",
     "ari/continuity/ari-conversation-operating-state.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
+    "ari/continuity/ari-elliptical-follow-up-resolver.js",
+    "ari/continuity/ari-continuity-entry-point.js",
     "ari/context/ari-reference-packet.js",
     "ari/context/ari-entity-reference-resolver.js",
     "ari/memory/ari-memory-ranking-engine.js",
@@ -70,132 +68,66 @@ window.AriRebirthAppBridge = {
     "ari/pipelines/ari-delivery-pipeline.js",
     "ari/integration/ari-rebirth-pipeline.js"
   ],
-
   _bootPromise: null,
   _loadedScripts: new Set(),
-
-  normalizeSrc(src) {
-    return String(src || "").trim();
-  },
-
+  normalizeSrc(src) { return String(src || "").trim(); },
   isScriptPresent(src) {
-    const clean = this.normalizeSrc(src);
-    if (!clean) return true;
+    const clean = this.normalizeSrc(src); if (!clean) return true;
     const targetPath = clean.split("?")[0];
     return Array.from(document.scripts || []).some((script) => {
-      const raw = script.getAttribute("src") || "";
-      if (!raw) return false;
-      try {
-        const path = new URL(raw, window.location.href).pathname.replace(/^\//, "");
-        return path === targetPath.replace(/^\//, "");
-      } catch {
-        return raw.split("?")[0].replace(/^\//, "") === targetPath.replace(/^\//, "");
-      }
+      const raw = script.getAttribute("src") || ""; if (!raw) return false;
+      try { return new URL(raw, window.location.href).pathname.replace(/^\//, "") === targetPath.replace(/^\//, ""); }
+      catch { return raw.split("?")[0].replace(/^\//, "") === targetPath.replace(/^\//, ""); }
     });
   },
-
   loadScript(src) {
     const clean = this.normalizeSrc(src);
-    if (!clean || this._loadedScripts.has(clean) || this.isScriptPresent(clean)) {
-      this._loadedScripts.add(clean);
-      return Promise.resolve(true);
-    }
-
+    if (!clean || this._loadedScripts.has(clean) || this.isScriptPresent(clean)) { this._loadedScripts.add(clean); return Promise.resolve(true); }
     return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = clean;
-      script.async = false;
-      script.dataset.ariExperimentalRuntime = "true";
-      script.onload = () => {
-        this._loadedScripts.add(clean);
-        resolve(true);
-      };
+      const script = document.createElement("script"); script.src = clean; script.async = false; script.dataset.ariExperimentalRuntime = "true";
+      script.onload = () => { this._loadedScripts.add(clean); resolve(true); };
       script.onerror = () => reject(new Error(`ari_runtime_script_load_failed:${clean}`));
       (document.head || document.documentElement).appendChild(script);
     });
   },
-
-  async loadRuntimeScripts() {
-    for (const src of this.requiredScripts) {
-      await this.loadScript(src);
-    }
-    return true;
-  },
-
+  async loadRuntimeScripts() { for (const src of this.requiredScripts) await this.loadScript(src); return true; },
   async ensureReady() {
     if (this._bootPromise) return this._bootPromise;
-
     this._bootPromise = (async () => {
       await this.loadRuntimeScripts();
-
-      const requestBuilder = window.AriRuntimeRequest || window.Ari?.runtimeRequest;
-      const pipeline = window.AriRebirthPipeline || window.Ari?.rebirthPipeline;
-      const delivery = window.AriRuntimeDelivery || window.Ari?.runtimeDelivery;
-      const openAIClient = window.AriOpenAIReasoningClient || window.Ari?.openAIReasoningClient;
-      const orchestrator = window.AriOpenAICognitiveOrchestrator || window.Ari?.openAICognitiveOrchestrator;
-
-      const missing = [];
-      if (!requestBuilder) missing.push("runtime_request");
-      if (!pipeline) missing.push("rebirth_pipeline");
-      if (!delivery) missing.push("runtime_delivery");
-      if (!openAIClient) missing.push("openai_reasoning_client");
-      if (!orchestrator) missing.push("openai_cognitive_orchestrator");
-
-      if (missing.length) {
-        throw new Error(`ari_runtime_boot_incomplete:${missing.join(",")}`);
-      }
-
+      const required = {
+        runtime_request: window.AriRuntimeRequest || window.Ari?.runtimeRequest,
+        rebirth_pipeline: window.AriRebirthPipeline || window.Ari?.rebirthPipeline,
+        runtime_delivery: window.AriRuntimeDelivery || window.Ari?.runtimeDelivery,
+        openai_reasoning_client: window.AriOpenAIReasoningClient || window.Ari?.openAIReasoningClient,
+        openai_cognitive_orchestrator: window.AriOpenAICognitiveOrchestrator || window.Ari?.openAICognitiveOrchestrator,
+        turn_intake: window.AriTurnIntakeEngine || window.Ari?.turnIntakeEngine,
+        follow_up_resolver: window.AriEllipticalFollowUpResolver || window.Ari?.ellipticalFollowUpResolver
+      };
+      const missing = Object.entries(required).filter(([, value]) => !value).map(([name]) => name);
+      if (missing.length) throw new Error(`ari_runtime_boot_incomplete:${missing.join(",")}`);
       return true;
     })();
-
-    try {
-      return await this._bootPromise;
-    } catch (error) {
-      this._bootPromise = null;
-      throw error;
-    }
+    try { return await this._bootPromise; } catch (error) { this._bootPromise = null; throw error; }
   },
-
   async ask(input = {}) {
     try {
       await this.ensureReady();
-
       const requestBuilder = window.AriRuntimeRequest || window.Ari?.runtimeRequest;
       const pipeline = window.AriRebirthPipeline || window.Ari?.rebirthPipeline;
       const delivery = window.AriRuntimeDelivery || window.Ari?.runtimeDelivery;
-
-      const request = typeof requestBuilder.create === "function"
-        ? await requestBuilder.create(input)
-        : typeof requestBuilder.build === "function"
-          ? await requestBuilder.build(input)
-          : input;
-
-      const result = typeof pipeline.run === "function"
-        ? await pipeline.run(request)
-        : typeof pipeline.execute === "function"
-          ? await pipeline.execute(request)
-          : null;
-
+      const request = typeof requestBuilder.create === "function" ? await requestBuilder.create(input) : typeof requestBuilder.build === "function" ? await requestBuilder.build(input) : input;
+      const result = typeof pipeline.run === "function" ? await pipeline.run(request) : typeof pipeline.execute === "function" ? await pipeline.execute(request) : null;
       if (!result) throw new Error("ari_pipeline_returned_no_result");
-
       if (typeof delivery.read === "function") return delivery.read(result);
       if (typeof delivery.deliver === "function") return delivery.deliver(result);
       if (typeof delivery.adapt === "function") return delivery.adapt(result);
       return result;
     } catch (error) {
       console.error("ARI REBIRTH EXPERIMENTAL BRIDGE FAILURE", error);
-      return {
-        ok: false,
-        success: false,
-        complete: false,
-        source: this.source,
-        bridgeVersion: this.version,
-        error: error?.message || String(error),
-        failureType: error?.code || "ari_rebirth_experimental_bridge_failure"
-      };
+      return { ok: false, success: false, complete: false, source: this.source, bridgeVersion: this.version, error: error?.message || String(error), failureType: error?.code || "ari_rebirth_experimental_bridge_failure" };
     }
   }
 };
-
 window.Ari.appBridge = window.AriRebirthAppBridge;
 window.CalBuddy.askAri = (...args) => window.AriRebirthAppBridge.ask(...args);
