@@ -1,9 +1,20 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/workout-plans.css
-   Version: 3.3.0
+   Version: 3.4.0
    Purpose:
    Premium scientific-lab Workout Plans interface.
+
+   V3.4.0:
+   - Appearance-only professional visual polish.
+   - Deepens navy typography and improves secondary-text contrast.
+   - Refines the royal-blue action system.
+   - Restrains cyan and violet to selected and status accents.
+   - Standardizes premium glass borders, highlights, and shadows.
+   - Reserves the cyan-to-violet surface gradient for Workout days.
+   - Keeps Off Day cards quiet, neutral, and easy to distinguish.
+   - Cleans up status badges and control-button treatments.
+   - Preserves all V3.3.0 layout, HTML, JavaScript, and behavior.
 
    V3.3.0:
    - Enlarges exercise cards and all card typography on mobile.
@@ -4127,3 +4138,375 @@ input::placeholder {
       1ms !important;
   }
 }
+
+/* =====================================================
+   V3.4.0 PROFESSIONAL VISUAL POLISH
+   Appearance-only overrides. Layout and behavior remain
+   intentionally unchanged.
+===================================================== */
+
+:root {
+  --wp-bg: #f4f8fc;
+  --wp-bg-top: #fbfdff;
+  --wp-bg-soft: #edf4fb;
+
+  --wp-surface: rgba(255, 255, 255, 0.92);
+  --wp-surface-strong: rgba(255, 255, 255, 0.975);
+  --wp-surface-cyan: rgba(232, 248, 252, 0.90);
+  --wp-surface-blue: rgba(236, 242, 252, 0.92);
+  --wp-surface-violet: rgba(245, 241, 252, 0.91);
+
+  --wp-text: #08172a;
+  --wp-text-strong: #061326;
+  --wp-soft: #42526a;
+  --wp-muted: #68778c;
+  --wp-faint: #99a6b6;
+
+  --wp-cyan: #12b7d0;
+  --wp-cyan-strong: #079cb6;
+  --wp-cyan-deep: #06788d;
+
+  --wp-blue: #2457d6;
+  --wp-blue-strong: #1e4fc0;
+  --wp-blue-deep: #173a8c;
+
+  --wp-violet: #7c5ce0;
+  --wp-violet-strong: #6748c7;
+  --wp-violet-deep: #4f3496;
+
+  --wp-success: #16805b;
+  --wp-success-soft: #ebf8f3;
+
+  --wp-danger: #c73552;
+  --wp-danger-strong: #ad2944;
+  --wp-danger-soft: #fff2f4;
+
+  --wp-border: rgba(31, 62, 101, 0.14);
+  --wp-border-soft: rgba(31, 62, 101, 0.085);
+  --wp-border-cyan: rgba(18, 183, 208, 0.22);
+  --wp-border-blue: rgba(36, 87, 214, 0.19);
+  --wp-border-violet: rgba(124, 92, 224, 0.18);
+
+  --wp-shadow-xs:
+    0 2px 8px rgba(17, 48, 82, 0.055),
+    0 1px 2px rgba(17, 48, 82, 0.035);
+
+  --wp-shadow-sm:
+    0 10px 28px rgba(17, 48, 82, 0.085),
+    0 2px 6px rgba(17, 48, 82, 0.045);
+
+  --wp-shadow-md:
+    0 18px 48px rgba(17, 48, 82, 0.11),
+    0 4px 12px rgba(17, 48, 82, 0.055);
+
+  --wp-shadow-lg:
+    0 28px 72px rgba(17, 48, 82, 0.145),
+    0 8px 20px rgba(17, 48, 82, 0.065);
+
+  --wp-glow-cyan:
+    0 0 0 1px rgba(18, 183, 208, 0.08),
+    0 10px 28px rgba(18, 183, 208, 0.09);
+
+  --wp-glow-blue:
+    0 0 0 1px rgba(36, 87, 214, 0.075),
+    0 12px 30px rgba(36, 87, 214, 0.095);
+}
+
+html {
+  background:
+    radial-gradient(
+      circle at 2% 0%,
+      rgba(18, 183, 208, 0.075),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 98% 2%,
+      rgba(124, 92, 224, 0.065),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 50% 100%,
+      rgba(36, 87, 214, 0.04),
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      var(--wp-bg-top) 0%,
+      var(--wp-bg) 44%,
+      #f8fbfe 100%
+    );
+}
+
+body.ari-workout-plans-page::before {
+  opacity: 0.30;
+}
+
+.workout-plans-header__back,
+.workout-plans-header__save,
+.workout-week-nav-button {
+  border-color: rgba(31, 62, 101, 0.135);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(245, 249, 253, 0.94)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    var(--wp-shadow-xs);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.workout-plans-header__save {
+  color: var(--wp-blue-deep);
+  border-color: var(--wp-border-blue);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(240, 250, 253, 0.98),
+      rgba(241, 245, 253, 0.97) 58%,
+      rgba(247, 244, 252, 0.96)
+    );
+}
+
+.workout-plans-tabs {
+  border-color: rgba(31, 62, 101, 0.095);
+  background: rgba(255, 255, 255, 0.79);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 9px 26px rgba(17, 48, 82, 0.065);
+}
+
+.workout-plans-tab {
+  color: var(--wp-muted);
+}
+
+.workout-plans-tab.active {
+  color: var(--wp-blue-deep);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(235, 249, 252, 0.97),
+      rgba(241, 245, 252, 0.98) 57%,
+      rgba(247, 243, 252, 0.97)
+    );
+  box-shadow:
+    0 7px 20px rgba(25, 64, 108, 0.085),
+    inset 0 0 0 1px rgba(18, 183, 208, 0.105),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+
+.workout-plans-tab::after {
+  background:
+    linear-gradient(
+      90deg,
+      var(--wp-cyan),
+      var(--wp-blue) 58%,
+      var(--wp-violet)
+    );
+}
+
+.workout-week-toolbar {
+  border-color: rgba(36, 87, 214, 0.125);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(242, 249, 252, 0.95) 56%,
+      rgba(248, 245, 252, 0.94)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 11px 30px rgba(17, 48, 82, 0.075);
+}
+
+.workout-week-nav-button {
+  color: var(--wp-blue);
+}
+
+.workout-secondary-button {
+  color: var(--wp-blue-deep);
+  border-color: var(--wp-border-blue);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(239, 247, 252, 0.97),
+      rgba(244, 242, 252, 0.96)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    var(--wp-shadow-xs);
+}
+
+.workout-danger-button {
+  color: var(--wp-danger);
+  border-color: rgba(199, 53, 82, 0.17);
+  background: rgba(255, 242, 244, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    var(--wp-shadow-xs);
+}
+
+.workout-day-card {
+  border-color: rgba(31, 62, 101, 0.135);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.975),
+      rgba(248, 250, 253, 0.945)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    var(--wp-shadow-xs);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.workout-day-card[data-type="workout"] {
+  border-color: rgba(36, 87, 214, 0.17);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(237, 250, 253, 0.985) 0%,
+      rgba(249, 252, 255, 0.985) 52%,
+      rgba(247, 243, 253, 0.975) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.99),
+    0 0 0 1px rgba(18, 183, 208, 0.035),
+    0 12px 32px rgba(23, 58, 105, 0.095);
+}
+
+.workout-day-card[data-type="workout"]::before {
+  background:
+    linear-gradient(
+      180deg,
+      var(--wp-cyan) 0%,
+      var(--wp-blue) 62%,
+      var(--wp-violet) 100%
+    );
+  opacity: 1;
+}
+
+.workout-day-card[data-type="off"] {
+  border-color: rgba(71, 88, 111, 0.115);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(248, 250, 252, 0.95)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 5px 16px rgba(31, 55, 82, 0.05);
+}
+
+.workout-day-card[data-type="off"]::before {
+  background:
+    linear-gradient(
+      180deg,
+      #c5ced9,
+      #9daaba
+    );
+  opacity: 0.62;
+}
+
+.workout-day-card[data-type="recovery"] {
+  border-color: rgba(124, 92, 224, 0.16);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(250, 248, 255, 0.98),
+      rgba(242, 247, 253, 0.965)
+    );
+}
+
+.workout-day-card[data-type="workout"]:hover {
+  border-color: rgba(18, 183, 208, 0.29);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.99),
+    0 14px 36px rgba(23, 58, 105, 0.12);
+}
+
+.workout-day-card[data-type="off"]:hover {
+  border-color: rgba(71, 88, 111, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 8px 22px rgba(31, 55, 82, 0.065);
+}
+
+.workout-day-card__day,
+.workout-day-card__title {
+  color: var(--wp-text-strong);
+}
+
+.workout-day-card__summary {
+  color: var(--wp-muted);
+}
+
+.workout-day-card__open {
+  color: var(--wp-blue);
+}
+
+.workout-day-card__type {
+  color: var(--wp-cyan-deep);
+  border-color: var(--wp-border-cyan);
+  background: rgba(232, 248, 252, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.workout-day-card[data-type="off"]
+.workout-day-card__type {
+  color: #68778c;
+  border-color: rgba(104, 119, 140, 0.16);
+  background: rgba(244, 247, 249, 0.97);
+}
+
+.workout-day-card[data-type="recovery"]
+.workout-day-card__type {
+  color: var(--wp-violet-deep);
+  border-color: var(--wp-border-violet);
+  background: rgba(245, 241, 252, 0.95);
+}
+
+.workout-plans-status {
+  color: var(--wp-cyan-deep);
+  border-color: var(--wp-border-cyan);
+  background: rgba(235, 249, 252, 0.91);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    var(--wp-shadow-xs);
+}
+
+.workout-exercise-row {
+  border-color: rgba(31, 62, 101, 0.13);
+  background: rgba(255, 255, 255, 0.955);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    var(--wp-shadow-xs);
+}
+
+.workout-exercise-row__saved-badge {
+  color: var(--wp-success);
+  border-color: rgba(22, 128, 91, 0.17);
+  background: var(--wp-success-soft);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.91);
+}
+
+.workout-primary-button,
+.workout-primary-action,
+.workout-exercise-row__save {
+  background:
+    linear-gradient(
+      135deg,
+      var(--wp-cyan-strong) 0%,
+      var(--wp-blue) 58%,
+      var(--wp-violet-strong) 100%
+    );
+  box-shadow:
+    0 11px 28px rgba(36, 87, 214, 0.17);
+}
+
