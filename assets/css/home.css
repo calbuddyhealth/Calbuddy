@@ -1,1890 +1,1545 @@
 /* =====================================================
-   ARI HOME PAGE
-   File: home.css
+   ARI REBIRTH
+   File: assets/css/home.css
    Version: 2.0.0
-
    Purpose:
-   - Build the ARI alien-tech home environment
-   - Control welcome and conversation page states
-   - Preserve safe-area spacing
-   - Lower ARI and the interaction zone
-   - Create atmospheric depth without additional HTML
-   - Style pending-action confirmations
-   - Provide visual integration hooks for composer/navigation
+   Premium white futuristic space-lab homepage.
 
-   Architecture:
-   - Environmental layers are created with CSS gradients
-     and pseudo-elements.
-   - Permanent ARI positioning belongs here.
-   - Motion keyframes belong in animations.css.
-   - Dedicated component CSS may override composer,
-     avatar, and navigation details later.
+   Required homepage PNGs:
+   - assets/ari/ari-idle-open.png
+   - assets/ari/ari-idle-closed.png
 
-   Animation dependencies:
-   - ariAlienNebulaDrift
-   - ariAlienSkyBreathe
-   - ariAlienStarDrift
-   - ariAlienFogDrift
-   - ariAlienRingRotate
-   - ariAlienRingRotateReverse
-   - ariAlienRingPulse
-   - ariAlienPortalIdle
-   - ariAlienBeamBreathe
-   - ariAlienBeamTravel
-   - ariAlienPlatformPulse
-   - ariAlienPlatformRotate
-   - ariAlienGlyphStream
-   - ariAlienGlyphPulse
-   - ariAlienParticleTwinkle
-   - ariAlienAtmosphericFlash
-   - ariGridPerspectiveTravel
-   - ariAmbientVignetteBreathe
-   - ariComposerBreath
-   - ariComposerMaterialize
-   - ariComposerCircuitFlow
-   - ariGlassReflectionSweep
+   This stylesheet replaces the old homepage-specific
+   header, navigation, avatar, and composer styles.
 ===================================================== */
 
-
-/* =====================================================
-   PAGE TOKENS
-===================================================== */
-
-main#ariApp.ari-v1-home {
-  --ari-cyan: 34, 211, 238;
-  --ari-cyan-bright: 200, 255, 255;
-  --ari-electric-blue: 59, 130, 246;
-  --ari-violet: 113, 76, 255;
-  --ari-indigo: 69, 61, 180;
-  --ari-deep-blue: 3, 13, 32;
-  --ari-black: 1, 4, 13;
-
-  --ari-page-width: 430px;
-
-  --ari-header-space: 92px;
-  --ari-bottom-space: 138px;
-
-  --ari-hero-drop: 0px;
-  --ari-prompt-bottom: 148px;
-
-  --ari-world-glow:
-    rgba(var(--ari-cyan), 0.24);
-
-  --ari-world-violet:
-    rgba(var(--ari-violet), 0.18);
-
-  --ari-panel-background:
-    rgba(3, 11, 27, 0.72);
-
-  --ari-panel-edge:
-    rgba(var(--ari-cyan), 0.22);
+:root {
+  --ari-lab-white: #fbfcff;
+  --ari-lab-white-soft: #f4f6ff;
+  --ari-lab-ice: #eaf9ff;
+  --ari-lab-navy: #071253;
+  --ari-lab-navy-soft: #17226d;
+  --ari-lab-blue: #397dff;
+  --ari-lab-cyan: #20e4f1;
+  --ari-lab-cyan-soft: #8ff9ff;
+  --ari-lab-violet: #a968ff;
+  --ari-lab-pink: #e2a8ff;
+  --ari-lab-text: #071253;
+  --ari-lab-muted: #52618f;
+  --ari-lab-border: rgba(109, 129, 220, 0.24);
+  --ari-lab-border-soft: rgba(255, 255, 255, 0.92);
+  --ari-lab-shadow:
+    0 18px 45px rgba(57, 68, 133, 0.13),
+    0 5px 14px rgba(55, 73, 142, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(122, 139, 214, 0.10);
+  --ari-header-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  --ari-header-height: clamp(96px, 13.5vw, 124px);
+  --ari-composer-height: clamp(148px, 18svh, 184px);
+  --ari-page-max: 760px;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
-/* =====================================================
-   VIEWPORT FOUNDATION
-===================================================== */
-
-html:has(main#ariApp.welcome-mode),
-body:has(main#ariApp.welcome-mode) {
+html {
   width: 100%;
   height: 100%;
+  background: var(--ari-lab-white);
+  color-scheme: light;
+  overflow: hidden;
+}
+
+body.ari-home-page {
+  width: 100%;
+  min-width: 280px;
+  height: 100%;
   min-height: 100%;
-
-  overflow: hidden;
-
-  overscroll-behavior: none;
-}
-
-body:has(main#ariApp.welcome-mode) {
   margin: 0;
-
+  overflow: hidden;
+  overscroll-behavior: none;
   background:
-    #01040d;
+    radial-gradient(circle at 18% 82%, rgba(69, 239, 242, 0.14), transparent 24%),
+    radial-gradient(circle at 89% 28%, rgba(177, 112, 255, 0.10), transparent 27%),
+    radial-gradient(circle at 50% 44%, #ffffff 0%, #f9faff 52%, #f1f3fb 100%);
+  color: var(--ari-lab-text);
+  font-family: "Orbitron", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-
-/* =====================================================
-   HOME PAGE CONTAINER
-===================================================== */
-
-main#ariApp.ari-v1-home {
-  position: relative;
-  isolation: isolate;
-
-  width: min(var(--ari-page-width), 100%);
-  min-height: 100vh;
-  min-height: 100dvh;
-
-  margin: 0 auto;
-
-  padding:
-    calc(6px + env(safe-area-inset-top))
-    14px
-    calc(var(--ari-bottom-space) + env(safe-area-inset-bottom));
-
-  overflow-x: hidden;
-
-  background:
-    radial-gradient(
-      ellipse at 50% -10%,
-      rgba(var(--ari-cyan-bright), 0.12) 0%,
-      rgba(var(--ari-cyan), 0.09) 18%,
-      transparent 47%
-    ),
-    radial-gradient(
-      ellipse at 15% 24%,
-      rgba(var(--ari-electric-blue), 0.15),
-      transparent 38%
-    ),
-    radial-gradient(
-      ellipse at 88% 34%,
-      rgba(var(--ari-violet), 0.14),
-      transparent 40%
-    ),
-    radial-gradient(
-      ellipse at 50% 78%,
-      rgba(var(--ari-cyan), 0.08),
-      transparent 48%
-    ),
-    linear-gradient(
-      180deg,
-      #01030b 0%,
-      #020817 22%,
-      #061225 48%,
-      #030a18 72%,
-      #01040d 100%
-    );
-
-  color: #f8fafc;
-
-  font-family:
-    Orbitron,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  transform: translateZ(0);
-}
-
-
-/* =====================================================
-   DEEP SPACE / NEBULA LAYER
-===================================================== */
-
-main#ariApp.ari-v1-home::before {
-  content: "";
-
+body.ari-home-page::before,
+body.ari-home-page::after {
   position: fixed;
-  z-index: -4;
-
-  inset: -8%;
-
-  background:
-    radial-gradient(
-      ellipse at 50% 17%,
-      rgba(var(--ari-cyan), 0.19) 0%,
-      rgba(var(--ari-electric-blue), 0.08) 22%,
-      transparent 47%
-    ),
-    radial-gradient(
-      ellipse at 12% 46%,
-      rgba(var(--ari-violet), 0.12),
-      transparent 34%
-    ),
-    radial-gradient(
-      ellipse at 90% 54%,
-      rgba(24, 116, 255, 0.11),
-      transparent 36%
-    ),
-    radial-gradient(
-      ellipse at 54% 74%,
-      rgba(var(--ari-indigo), 0.11),
-      transparent 46%
-    ),
-    linear-gradient(
-      125deg,
-      transparent 10%,
-      rgba(var(--ari-cyan), 0.025) 33%,
-      transparent 52%,
-      rgba(var(--ari-violet), 0.028) 74%,
-      transparent 92%
-    );
-
-  background-size:
-    120% 110%,
-    100% 100%,
-    110% 100%,
-    120% 110%,
-    160% 160%;
-
-  opacity: 0.86;
-
-  filter:
-    blur(2px)
-    saturate(1.12);
-
-  animation:
-    ariAlienNebulaDrift 28s ease-in-out infinite alternate,
-    ariAlienSkyBreathe 10s ease-in-out infinite;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   STARFIELD / ENERGY DUST / VIGNETTE
-===================================================== */
-
-main#ariApp.ari-v1-home::after {
-  content: "";
-
-  position: fixed;
-  z-index: -3;
-
   inset: 0;
-
-  background-image:
-    radial-gradient(
-      circle at 11% 12%,
-      rgba(255, 255, 255, 0.85) 0 1px,
-      transparent 1.6px
-    ),
-    radial-gradient(
-      circle at 78% 18%,
-      rgba(var(--ari-cyan-bright), 0.70) 0 1px,
-      transparent 1.5px
-    ),
-    radial-gradient(
-      circle at 34% 29%,
-      rgba(var(--ari-cyan), 0.58) 0 1px,
-      transparent 1.6px
-    ),
-    radial-gradient(
-      circle at 89% 42%,
-      rgba(var(--ari-violet), 0.62) 0 1px,
-      transparent 1.8px
-    ),
-    radial-gradient(
-      circle at 21% 58%,
-      rgba(255, 255, 255, 0.52) 0 1px,
-      transparent 1.5px
-    ),
-    radial-gradient(
-      circle at 67% 68%,
-      rgba(var(--ari-cyan), 0.55) 0 1px,
-      transparent 1.7px
-    ),
-    radial-gradient(
-      ellipse at center,
-      transparent 30%,
-      rgba(1, 4, 13, 0.22) 68%,
-      rgba(1, 4, 13, 0.74) 100%
-    );
-
-  background-size:
-    97px 113px,
-    131px 149px,
-    173px 137px,
-    211px 179px,
-    151px 197px,
-    233px 211px,
-    100% 100%;
-
-  opacity: 0.70;
-
-  animation:
-    ariAlienStarDrift 38s linear infinite,
-    ariAmbientVignetteBreathe 9s ease-in-out infinite;
-
+  z-index: 0;
+  content: "";
   pointer-events: none;
 }
 
-
-/* =====================================================
-   PAGE STATES
-===================================================== */
-
-main#ariApp.welcome-mode {
-  height: 100vh;
-  height: 100dvh;
-  min-height: 100dvh;
-
-  overflow: hidden;
-
-  overscroll-behavior: none;
-}
-
-main#ariApp.conversation-mode {
-  height: auto;
-  min-height: 100vh;
-  min-height: 100dvh;
-
-  overflow-x: hidden;
-  overflow-y: visible;
-}
-
-
-/* =====================================================
-   PERSPECTIVE GRID
-===================================================== */
-
-main#ariApp.ari-v1-home > .ari-welcome,
-main#ariApp.ari-v1-home > .ari-conversation-shell {
-  position: relative;
-  z-index: 4;
-}
-
-main#ariApp.ari-v1-home > .ari-header-v4 {
-  position: relative;
-  z-index: 50;
-}
-
-main#ariApp.ari-v1-home .ari-welcome {
-  --ari-grid-opacity: 0.25;
-}
-
-main#ariApp.ari-v1-home .ari-welcome::before {
-  content: "";
-
-  position: absolute;
-  z-index: -3;
-
-  top: -108px;
-  left: 50%;
-
-  width: min(128vw, 610px);
-  height: min(128vw, 610px);
-
-  border:
-    1px solid
-    rgba(var(--ari-cyan), 0.14);
-
-  border-radius: 50%;
-
-  background:
-    repeating-conic-gradient(
-      from 0deg,
-      rgba(var(--ari-cyan), 0.00) 0deg 10deg,
-      rgba(var(--ari-cyan), 0.18) 10.5deg 11deg,
-      rgba(var(--ari-cyan), 0.00) 11.5deg 24deg
-    ),
-    repeating-radial-gradient(
-      circle,
-      transparent 0 30px,
-      rgba(var(--ari-cyan), 0.06) 31px,
-      transparent 32px 54px
-    ),
-    conic-gradient(
-      from 90deg,
-      transparent 0deg 38deg,
-      rgba(var(--ari-cyan), 0.12) 39deg 50deg,
-      transparent 51deg 124deg,
-      rgba(var(--ari-violet), 0.13) 125deg 138deg,
-      transparent 139deg 220deg,
-      rgba(var(--ari-cyan), 0.12) 221deg 232deg,
-      transparent 233deg 318deg,
-      rgba(255, 255, 255, 0.09) 319deg 326deg,
-      transparent 327deg 360deg
-    ),
-    radial-gradient(
-      circle,
-      rgba(var(--ari-cyan), 0.06) 0%,
-      rgba(var(--ari-electric-blue), 0.035) 34%,
-      transparent 68%
-    );
-
-  box-shadow:
-    0 0 45px rgba(var(--ari-cyan), 0.08),
-    inset 0 0 38px rgba(var(--ari-cyan), 0.07);
-
-  opacity: 0.74;
-
-  transform:
-    translateX(-50%)
-    rotateX(68deg)
-    rotateZ(0deg);
-
-  transform-origin: center;
-
-  animation:
-    ariAlienRingRotate 70s linear infinite,
-    ariAlienRingPulse 8s ease-in-out infinite;
-
-  -webkit-mask:
-    radial-gradient(
-      circle,
-      transparent 0 15%,
-      #000 18% 72%,
-      transparent 79%
-    );
-
-  mask:
-    radial-gradient(
-      circle,
-      transparent 0 15%,
-      #000 18% 72%,
-      transparent 79%
-    );
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   ALIEN PLATFORM / LOWER WORLD
-===================================================== */
-
-main#ariApp.ari-v1-home .ari-welcome::after {
-  content: "";
-
-  position: absolute;
-  z-index: -2;
-
-  left: 50%;
-  bottom: 92px;
-
-  width: min(116%, 500px);
-  height: 185px;
-
-  border-radius: 50%;
-
-  background:
-    repeating-radial-gradient(
-      ellipse at center,
-      transparent 0 18px,
-      rgba(var(--ari-cyan), 0.08) 19px,
-      transparent 21px 34px
-    ),
-    repeating-conic-gradient(
-      from 10deg,
-      transparent 0deg 19deg,
-      rgba(var(--ari-cyan), 0.12) 20deg 21deg,
-      transparent 22deg 44deg
-    ),
-    radial-gradient(
-      ellipse at center,
-      rgba(var(--ari-cyan-bright), 0.20) 0%,
-      rgba(var(--ari-cyan), 0.12) 16%,
-      rgba(var(--ari-electric-blue), 0.07) 34%,
-      transparent 68%
-    );
-
-  border:
-    1px solid
-    rgba(var(--ari-cyan), 0.18);
-
-  box-shadow:
-    0 0 18px rgba(var(--ari-cyan), 0.16),
-    0 0 52px rgba(var(--ari-cyan), 0.12),
-    0 0 90px rgba(var(--ari-violet), 0.07),
-    inset 0 0 32px rgba(var(--ari-cyan), 0.09);
-
-  opacity: 0.76;
-
-  transform:
-    translateX(-50%)
-    perspective(560px)
-    rotateX(70deg);
-
-  transform-origin: center;
-
-  animation:
-    ariAlienPlatformPulse 6.5s ease-in-out infinite;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   WELCOME STATE
-===================================================== */
-
-.ari-welcome {
-  position: relative;
-  z-index: 3;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-
-  width: 100%;
-  min-height:
-    calc(
-      100vh -
-      var(--ari-header-space)
-    );
-  min-height:
-    calc(
-      100dvh -
-      var(--ari-header-space)
-    );
-
-  padding-top: var(--ari-hero-drop);
-  padding-bottom: 112px;
-
-  text-align: center;
-
-  transition:
-    opacity 450ms ease,
-    transform 600ms ease,
-    visibility 450ms ease;
-
-  transform: translateZ(0);
-}
-
-
-/* =====================================================
-   ARI HERO POSITIONING HOOKS
-
-   These selectors support common hero/avatar wrappers.
-   Placement occurs here; organic motion occurs in
-   animations.css.
-===================================================== */
-
-main#ariApp.welcome-mode
-  .ari-welcome
-  :is(
-    .ari-hero,
-    .ari-hero-shell,
-    .ari-welcome-avatar,
-    .ari-avatar-stage,
-    #ariHero,
-    #ariHeroShell
-  ) {
-  position: relative;
-  z-index: 4;
-
-  transform: translate3d(0, 0, 0);
-
-  transform-origin: center bottom;
-}
-
-
-/* =====================================================
-   ENERGY BEAM BEHIND ARI
-===================================================== */
-
-main#ariApp.welcome-mode
-  .ari-welcome
-  :is(
-    .ari-hero,
-    .ari-hero-shell,
-    .ari-welcome-avatar,
-    .ari-avatar-stage,
-    #ariHero,
-    #ariHeroShell
-  )::before {
-  content: "";
-
-  position: absolute;
-  z-index: -2;
-
-  top: -46%;
-  left: 50%;
-
-  width: 34%;
-  height: 158%;
-
-  border-radius: 50%;
-
-  background:
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(var(--ari-cyan), 0.025) 12%,
-      rgba(var(--ari-cyan), 0.17) 44%,
-      rgba(var(--ari-cyan-bright), 0.30) 52%,
-      rgba(var(--ari-violet), 0.13) 67%,
-      transparent 100%
-    );
-
-  filter:
-    blur(10px)
-    brightness(1.12);
-
+body.ari-home-page::before {
   opacity: 0.52;
-
-  transform:
-    translateX(-50%)
-    scaleX(0.84);
-
-  animation:
-    ariAlienBeamBreathe 5.8s ease-in-out infinite;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   ARI GROUND AURA
-===================================================== */
-
-main#ariApp.welcome-mode
-  .ari-welcome
-  :is(
-    .ari-hero,
-    .ari-hero-shell,
-    .ari-welcome-avatar,
-    .ari-avatar-stage,
-    #ariHero,
-    #ariHeroShell
-  )::after {
-  content: "";
-
-  position: absolute;
-  z-index: -1;
-
-  left: 50%;
-  bottom: -20px;
-
-  width: 78%;
-  height: 52px;
-
-  border-radius: 50%;
-
   background:
-    radial-gradient(
-      ellipse,
-      rgba(var(--ari-cyan-bright), 0.32),
-      rgba(var(--ari-cyan), 0.15) 30%,
-      rgba(var(--ari-violet), 0.08) 52%,
-      transparent 74%
-    );
-
-  filter: blur(9px);
-
-  opacity: 0.60;
-
-  transform:
-    translateX(-50%)
-    scaleX(0.92);
-
-  animation:
-    ariHeroGroundAura 5.4s ease-in-out infinite;
-
-  pointer-events: none;
+    linear-gradient(rgba(68, 88, 177, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(68, 88, 177, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(circle at center, #000 8%, transparent 78%);
+  mask-image: radial-gradient(circle at center, #000 8%, transparent 78%);
 }
 
-
-/* =====================================================
-   WELCOME PROMPT
-===================================================== */
-
-.ari-welcome-prompt {
-  position: absolute;
-  z-index: 8;
-
-  right: 0;
-  bottom: var(--ari-prompt-bottom);
-  left: 0;
-
-  width: min(100%, 390px);
-
-  margin: 0 auto;
-  padding: 0 14px;
-
-  transition:
-    opacity 250ms ease,
-    visibility 250ms ease,
-    transform 250ms ease;
-}
-
-
-/* =====================================================
-   PROMPT ENERGY MARKER
-===================================================== */
-
-.ari-welcome-prompt::before {
-  content: "";
-
-  display: block;
-
-  width: 84px;
-  height: 2px;
-
-  margin:
-    0 auto
-    11px;
-
-  border-radius: 999px;
-
+body.ari-home-page::after {
+  opacity: 0.75;
   background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--ari-cyan), 0.70),
-      rgba(var(--ari-cyan-bright), 1),
-      rgba(var(--ari-violet), 0.62),
-      transparent
-    );
-
-  background-size: 220% 100%;
-
-  box-shadow:
-    0 0 8px rgba(var(--ari-cyan), 0.60),
-    0 0 22px rgba(var(--ari-cyan), 0.22);
-
-  animation:
-    ariBrandEnergySweep 6s linear infinite;
-
-  pointer-events: none;
+    radial-gradient(circle at 6% 17%, rgba(99, 68, 240, 0.75) 0 1.3px, transparent 1.8px),
+    radial-gradient(circle at 16% 42%, rgba(21, 199, 236, 0.72) 0 1.2px, transparent 1.8px),
+    radial-gradient(circle at 91% 20%, rgba(176, 99, 255, 0.68) 0 1.2px, transparent 1.8px),
+    radial-gradient(circle at 84% 68%, rgba(18, 218, 232, 0.68) 0 1.2px, transparent 1.8px),
+    radial-gradient(circle at 12% 92%, rgba(37, 121, 255, 0.58) 0 1.1px, transparent 1.7px),
+    radial-gradient(circle at 72% 88%, rgba(175, 94, 255, 0.56) 0 1.1px, transparent 1.7px);
 }
 
-
-/* =====================================================
-   WELCOME QUESTION
-===================================================== */
-
-.ari-welcome-question {
-  margin: 0;
-
-  color: rgba(226, 246, 255, 0.90);
-
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: clamp(1rem, 4.3vw, 1.14rem);
-  font-weight: 750;
-  line-height: 1.38;
-  letter-spacing: 0.01em;
-
-  overflow-wrap: anywhere;
-
-  text-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.84),
-    0 0 12px rgba(var(--ari-cyan), 0.12);
-
-  animation:
-    ariTextMaterialize 700ms ease-out both;
-}
-
-
-/* =====================================================
-   COMPOSER INTEGRATION HOOKS
-
-   Dedicated composer.css may override these properties.
-===================================================== */
-
-main#ariApp.welcome-mode
-  :is(
-    .ari-composer,
-    .ari-composer-shell,
-    .ari-composer-wrap,
-    #ariComposer
-  ) {
-  position: relative;
-  z-index: 12;
-
-  border-color:
-    rgba(var(--ari-cyan), 0.25);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.07),
-      rgba(var(--ari-cyan), 0.035) 24%,
-      rgba(3, 12, 30, 0.82) 58%,
-      rgba(2, 7, 18, 0.92)
-    );
-
-  box-shadow:
-    0 0 20px rgba(var(--ari-cyan), 0.14),
-    0 0 48px rgba(var(--ari-violet), 0.07),
-    0 24px 60px rgba(0, 0, 0, 0.48),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -16px 30px rgba(0, 0, 0, 0.24);
-
-  animation:
-    ariComposerMaterialize 850ms ease-out both,
-    ariComposerBreath 6.8s ease-in-out 900ms infinite;
-}
-
-
-/* =====================================================
-   COMPOSER GLASS REFLECTION
-===================================================== */
-
-main#ariApp.welcome-mode
-  :is(
-    .ari-composer,
-    .ari-composer-shell,
-    .ari-composer-wrap,
-    #ariComposer
-  )::before {
-  content: "";
-
-  position: absolute;
-  z-index: 1;
-
-  top: 0;
-  bottom: 0;
-  left: -24%;
-
-  width: 18%;
-
-  border-radius: inherit;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.14),
-      rgba(var(--ari-cyan), 0.14),
-      transparent
-    );
-
-  opacity: 0;
-
-  transform:
-    skewX(-18deg);
-
-  animation:
-    ariGlassReflectionSweep 9s ease-in-out 2.8s infinite;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   NAVIGATION DOCK INTEGRATION HOOKS
-===================================================== */
-
-main#ariApp
-  :is(
-    .ari-bottom-nav,
-    .ari-navigation-dock,
-    .ari-nav-dock,
-    .bottom-navigation
-  ) {
-  position: relative;
-  z-index: 20;
-
-  border-top:
-    1px solid
-    rgba(var(--ari-cyan), 0.18);
-
-  background:
-    linear-gradient(
-      180deg,
-      rgba(var(--ari-cyan), 0.035),
-      rgba(3, 10, 24, 0.82) 38%,
-      rgba(1, 5, 14, 0.95)
-    );
-
-  box-shadow:
-    0 -10px 34px rgba(0, 0, 0, 0.32),
-    0 -2px 22px rgba(var(--ari-cyan), 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-
-  backdrop-filter:
-    blur(18px)
-    saturate(1.18);
-
-  -webkit-backdrop-filter:
-    blur(18px)
-    saturate(1.18);
-}
-
-
-/* =====================================================
-   AMBIENT GRID
-===================================================== */
-
-.ari-v1-home .ari-welcome-prompt::after {
-  content: "";
-
-  position: fixed;
-  z-index: -2;
-
-  right: 0;
-  bottom: -18%;
-  left: 0;
-
-  height: 62%;
-
-  background-image:
-    linear-gradient(
-      rgba(var(--ari-cyan), 0.085) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(var(--ari-cyan), 0.07) 1px,
-      transparent 1px
-    );
-
-  background-size:
-    36px 36px,
-    36px 36px;
-
-  background-position:
-    center 0,
-    center 0;
-
-  opacity: 0.23;
-
-  transform:
-    perspective(350px)
-    rotateX(64deg)
-    scaleX(1.36);
-
-  transform-origin:
-    center bottom;
-
-  -webkit-mask:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgba(0, 0, 0, 0.75) 26%,
-      #000
-    );
-
-  mask:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgba(0, 0, 0, 0.75) 26%,
-      #000
-    );
-
-  animation:
-    ariGridPerspectiveTravel 8s linear infinite;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   PENDING ACTION BAR
-===================================================== */
-
-.pending-action-bar {
-  position: relative;
-  isolation: isolate;
-
-  display: none;
-
-  width: 100%;
-
-  margin: 14px 2px 0;
-  padding: 15px;
-
-  overflow: hidden;
-
-  border:
-    1px solid
-    rgba(var(--ari-cyan), 0.30);
-
-  border-radius: 20px;
-
-  background:
-    radial-gradient(
-      circle at 18% 0%,
-      rgba(var(--ari-cyan), 0.10),
-      transparent 42%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(8, 24, 48, 0.88),
-      rgba(2, 7, 20, 0.92)
-    );
-
-  box-shadow:
-    0 0 22px rgba(var(--ari-cyan), 0.14),
-    0 18px 42px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.11),
-    inset 0 -14px 26px rgba(0, 0, 0, 0.20);
-
-  backdrop-filter:
-    blur(16px)
-    saturate(1.16);
-
-  -webkit-backdrop-filter:
-    blur(16px)
-    saturate(1.16);
-}
-
-.pending-action-bar::before {
-  content: "";
-
-  position: absolute;
-  z-index: -1;
-
-  top: 0;
-  right: 18px;
-  left: 18px;
-
-  height: 1px;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--ari-cyan), 0.74),
-      rgba(var(--ari-cyan-bright), 1),
-      rgba(var(--ari-violet), 0.60),
-      transparent
-    );
-
-  box-shadow:
-    0 0 12px rgba(var(--ari-cyan), 0.56);
-
-  pointer-events: none;
-}
-
-.pending-action-bar.show {
-  display: block;
-
-  animation:
-    ariConversationMaterialize 520ms ease-out both;
-}
-
-.pending-action-bar p {
-  margin: 0 0 13px;
-
-  color: #e0f7ff;
-
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-
-  font-size: 0.88rem;
-  font-weight: 750;
-  line-height: 1.42;
-
-  overflow-wrap: anywhere;
-
-  text-shadow:
-    0 1px 8px rgba(0, 0, 0, 0.75);
-}
-
-
-/* =====================================================
-   PENDING ACTION BUTTONS
-===================================================== */
-
-.pending-action-buttons {
-  display: flex;
-  align-items: stretch;
-
-  gap: 10px;
-}
-
-.pending-action-buttons button {
-  position: relative;
-
-  flex: 1 1 0;
-
-  min-width: 0;
-  min-height: 44px;
-
-  padding: 10px 12px;
-
-  overflow: hidden;
-
-  border:
-    1px solid
-    rgba(var(--ari-cyan), 0.30);
-
-  border-radius: 14px;
-
-  background:
-    radial-gradient(
-      circle at 30% 15%,
-      rgba(255, 255, 255, 0.12),
-      transparent 28%
-    ),
-    linear-gradient(
-      145deg,
-      rgba(var(--ari-cyan), 0.15),
-      rgba(var(--ari-electric-blue), 0.06),
-      rgba(3, 11, 27, 0.72)
-    );
-
-  color: #d7fbff;
-
-  font-family: inherit;
-  font-size: 0.80rem;
-  font-weight: 850;
-  letter-spacing: 0.035em;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 0 14px rgba(var(--ari-cyan), 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10);
-
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    filter 160ms ease,
-    opacity 160ms ease,
-    transform 140ms ease;
-
+button,
+textarea,
+a {
   -webkit-tap-highlight-color: transparent;
 }
 
-.pending-action-buttons button::after {
-  content: "";
-
-  position: absolute;
-
-  top: 0;
-  bottom: 0;
-  left: -34%;
-
-  width: 24%;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.18),
-      rgba(var(--ari-cyan), 0.18),
-      transparent
-    );
-
-  opacity: 0;
-
-  transform:
-    skewX(-18deg);
-
-  pointer-events: none;
+button,
+textarea {
+  font: inherit;
 }
 
-.pending-action-buttons button:not(:disabled):hover {
-  border-color:
-    rgba(var(--ari-cyan-bright), 0.60);
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(var(--ari-cyan), 0.22),
-      rgba(var(--ari-violet), 0.08),
-      rgba(3, 11, 27, 0.78)
-    );
-
-  box-shadow:
-    0 0 20px rgba(var(--ari-cyan), 0.21),
-    0 0 38px rgba(var(--ari-violet), 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-
-  filter:
-    brightness(1.10);
-
-  transform:
-    translateY(-1px);
+button {
+  border: 0;
 }
 
-.pending-action-buttons button:not(:disabled):hover::after {
-  animation:
-    ariGlassReflectionSweep 700ms ease-out both;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-.pending-action-buttons button:not(:disabled):active {
-  transform:
-    translateY(1px)
-    scale(0.96);
-}
-
-.pending-action-buttons button:focus-visible {
-  outline:
-    2px solid
-    rgba(var(--ari-cyan), 0.96);
-
-  outline-offset: 3px;
-}
-
-.pending-action-buttons button:disabled {
-  opacity: 0.46;
-
-  cursor: not-allowed;
-
-  filter:
-    grayscale(0.35)
-    brightness(0.76);
-}
-
-
-/* =====================================================
-   THINKING STATE ENVIRONMENT
-===================================================== */
-
-main#ariApp.ari-thinking-mode::before,
-main#ariApp:has(#ariInput:disabled)::before {
-  opacity: 1;
-
-  filter:
-    blur(1px)
-    brightness(1.10)
-    saturate(1.28);
-
-  animation-duration:
-    12s,
-    2.8s;
-}
-
-main#ariApp.ari-thinking-mode
-  .ari-welcome::before,
-main#ariApp:has(#ariInput:disabled)
-  .ari-welcome::before {
-  opacity: 0.94;
-
-  filter:
-    brightness(1.35)
-    drop-shadow(
-      0 0 24px
-      rgba(var(--ari-cyan), 0.20)
-    );
-
-  animation-duration:
-    18s,
-    2.2s;
-}
-
-main#ariApp.ari-thinking-mode
-  .ari-welcome::after,
-main#ariApp:has(#ariInput:disabled)
-  .ari-welcome::after {
-  opacity: 1;
-
-  filter:
-    brightness(1.30);
-
-  animation-duration:
-    2.3s;
-}
-
-
-/* =====================================================
-   STATE HELPERS
-===================================================== */
-
-.welcome-mode .ari-conversation-shell {
-  display: none;
-}
-
-main#ariApp.conversation-mode .ari-welcome {
+[hidden] {
   display: none !important;
 }
 
-.ari-keyboard-mode .ari-welcome-prompt {
-  opacity: 0;
+.ari-v1-home {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 47%, rgba(255, 255, 255, 0.96) 0 18%, transparent 50%),
+    radial-gradient(circle at 51% 72%, rgba(41, 224, 238, 0.07), transparent 34%);
+}
 
-  visibility: hidden;
+.ari-v1-home::before,
+.ari-v1-home::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
+}
 
-  transform:
-    translateY(8px);
+.ari-v1-home::before {
+  top: 24%;
+  left: 50%;
+  width: min(104vw, 900px);
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border: 1px solid rgba(91, 111, 202, 0.08);
+  box-shadow:
+    0 0 0 56px rgba(101, 127, 219, 0.025),
+    0 0 0 112px rgba(82, 221, 235, 0.022),
+    0 0 0 190px rgba(165, 102, 239, 0.018);
+}
 
+.ari-v1-home::after {
+  right: -32%;
+  bottom: -28%;
+  width: min(82vw, 660px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(74, 105, 211, 0.10);
+  border-left-color: rgba(30, 222, 239, 0.22);
+  border-top-color: rgba(175, 99, 255, 0.16);
+}
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.ari-header-v5 {
+  position: fixed;
+  top: var(--ari-header-top);
+  left: 50%;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: stretch;
+  gap: clamp(10px, 2.7vw, 22px);
+  width: min(calc(100% - 30px), var(--ari-page-max));
+  height: var(--ari-header-height);
+  padding: clamp(10px, 2.4vw, 18px);
+  transform: translateX(-50%);
+  border: 1px solid rgba(119, 135, 213, 0.22);
+  border-radius: clamp(20px, 5vw, 30px);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(245, 247, 255, 0.89)),
+    rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 22px 54px rgba(54, 65, 128, 0.14),
+    0 5px 14px rgba(61, 75, 147, 0.08),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(109, 124, 199, 0.10);
+  -webkit-backdrop-filter: blur(25px) saturate(145%);
+  backdrop-filter: blur(25px) saturate(145%);
+}
+
+.ari-header-v5::before {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  padding: 1px;
+  content: "";
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    rgba(174, 104, 255, 0.35),
+    rgba(255, 255, 255, 0.94) 33%,
+    rgba(35, 226, 241, 0.48) 68%,
+    rgba(161, 99, 255, 0.28)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.ari-menu-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2.4vw, 19px);
+  min-width: 0;
+  height: 100%;
+  padding: 0 clamp(12px, 3vw, 26px);
+  cursor: pointer;
+  color: var(--ari-lab-navy);
+  border: 1px solid rgba(52, 114, 223, 0.62);
+  border-radius: clamp(17px, 4.5vw, 25px);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.98), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(241, 245, 255, 0.90));
+  box-shadow:
+    0 14px 28px rgba(55, 76, 157, 0.15),
+    0 0 17px rgba(25, 225, 239, 0.16),
+    0 0 20px rgba(164, 91, 255, 0.10),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(70, 106, 211, 0.13);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.ari-menu-toggle::before,
+.ari-menu-toggle::after {
+  position: absolute;
+  content: "";
   pointer-events: none;
 }
 
+.ari-menu-toggle::before {
+  right: 12%;
+  bottom: -2px;
+  left: 12%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--ari-lab-cyan), var(--ari-lab-violet), transparent);
+  box-shadow: 0 0 12px rgba(33, 228, 241, 0.72);
+}
+
+.ari-menu-toggle::after {
+  top: 13%;
+  left: 13%;
+  width: 38%;
+  height: 1px;
+  opacity: 0.78;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), transparent);
+}
+
+.ari-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(17px, 4.6vw, 31px);
+  font-weight: 600;
+  letter-spacing: clamp(0.16em, 1vw, 0.29em);
+  line-height: 1;
+  text-indent: clamp(0.16em, 1vw, 0.29em);
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.ari-menu-dot,
+.ari-nav-dot {
+  flex: 0 0 auto;
+  width: clamp(6px, 1.7vw, 10px);
+  aspect-ratio: 1;
+  border: 2px solid var(--ari-lab-cyan);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 0 8px rgba(23, 225, 239, 0.95),
+    inset 0 0 4px rgba(34, 222, 237, 0.32);
+}
+
+.ari-brand-right {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 2px 0 6px;
+  color: var(--ari-lab-navy);
+}
+
+.ari-brand-title {
+  display: block;
+  padding-left: 0.22em;
+  font-family: "Audiowide", "Orbitron", sans-serif;
+  font-size: clamp(35px, 9.5vw, 64px);
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  line-height: 0.96;
+  white-space: nowrap;
+  text-shadow:
+    0 5px 18px rgba(48, 71, 159, 0.09),
+    0 0 22px rgba(42, 220, 238, 0.06);
+}
+
+.ari-brand-subtitle {
+  display: block;
+  max-width: 100%;
+  margin-top: clamp(7px, 1.5vw, 12px);
+  overflow: hidden;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(9px, 2.5vw, 17px);
+  font-weight: 500;
+  letter-spacing: clamp(0.22em, 1.3vw, 0.42em);
+  line-height: 1;
+  text-indent: clamp(0.22em, 1.3vw, 0.42em);
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.ari-brand-line {
+  width: min(86%, 250px);
+  height: 2px;
+  margin-top: clamp(8px, 1.8vw, 13px);
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--ari-lab-cyan), var(--ari-lab-violet), transparent);
+  box-shadow: 0 0 10px rgba(37, 220, 238, 0.35);
+}
+
+.ari-menu-toggle:focus-visible,
+.ari-brand-right:focus-visible,
+.ari-close-menu:focus-visible,
+.ari-nav-link:focus-visible,
+.ari-send-btn:focus-visible,
+.ari-hero-img:focus-visible,
+.pending-action-buttons button:focus-visible {
+  outline: 3px solid rgba(27, 216, 235, 0.78);
+  outline-offset: 4px;
+}
 
 /* =====================================================
-   CONVERSATION MODE BACKGROUND
+   ARI HERO
 ===================================================== */
 
-main#ariApp.conversation-mode {
+.ari-welcome {
+  position: fixed;
+  top: calc(var(--ari-header-top) + var(--ari-header-height) + clamp(12px, 2.7vh, 28px));
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 34px);
+  left: 0;
+  z-index: 4;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    opacity 260ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 260ms ease;
+}
+
+.ari-hero-stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: min(100%, 820px);
+  height: 100%;
+  pointer-events: none;
+}
+
+.ari-hero-halo {
+  position: absolute;
+  top: 11%;
+  left: 50%;
+  width: min(92vw, 680px);
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
+  border: 1px solid rgba(87, 111, 201, 0.10);
+  border-radius: 50%;
   background:
-    radial-gradient(
-      ellipse at 50% 0%,
-      rgba(var(--ari-cyan), 0.12),
-      transparent 38%
-    ),
-    radial-gradient(
-      ellipse at 90% 34%,
-      rgba(var(--ari-violet), 0.08),
-      transparent 40%
-    ),
-    linear-gradient(
-      180deg,
-      #020716,
-      #04101f 44%,
-      #020713
-    );
+    radial-gradient(circle, transparent 0 33%, rgba(65, 215, 233, 0.05) 33.3% 33.7%, transparent 34% 44%, rgba(152, 91, 229, 0.045) 44.3% 44.7%, transparent 45% 56%, rgba(69, 113, 211, 0.04) 56.3% 56.7%, transparent 57%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.82), rgba(244, 250, 255, 0.28) 48%, transparent 70%);
+  box-shadow:
+    inset 0 0 75px rgba(255, 255, 255, 0.72),
+    0 0 90px rgba(47, 218, 232, 0.05);
+  animation: ariHaloBreath 7s ease-in-out infinite;
 }
 
-main#ariApp.conversation-mode::before {
-  opacity: 0.52;
-
-  animation-duration:
-    42s,
-    14s;
+.ari-hero-halo::before,
+.ari-hero-halo::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
 }
 
+.ari-hero-halo::before {
+  inset: 14%;
+  border: 1px solid rgba(136, 102, 224, 0.09);
+  border-top-color: rgba(34, 220, 238, 0.18);
+  border-right-color: transparent;
+  transform: rotate(18deg);
+}
+
+.ari-hero-halo::after {
+  inset: 28%;
+  border: 1px solid rgba(44, 214, 234, 0.10);
+  border-bottom-color: transparent;
+  transform: rotate(-20deg);
+}
+
+.ari-hero-img {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: auto;
+  max-width: min(91vw, 680px);
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter:
+    drop-shadow(0 18px 24px rgba(24, 42, 101, 0.12))
+    drop-shadow(0 0 22px rgba(30, 224, 239, 0.08));
+  transform-origin: center bottom;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 220ms ease;
+}
+
+.ari-hero-img:active {
+  transform: scale(0.985);
+}
+
+.ari-thinking-mode .ari-hero-img {
+  filter:
+    drop-shadow(0 18px 25px rgba(24, 42, 101, 0.13))
+    drop-shadow(0 0 27px rgba(31, 226, 241, 0.18));
+}
+
+.conversation-mode .ari-welcome {
+  visibility: hidden;
+  opacity: 0;
+  transform: scale(0.97) translateY(-10px);
+  pointer-events: none;
+}
 
 /* =====================================================
-   SHORT MOBILE VIEWPORTS
+   ASK ARI COMPOSER
 ===================================================== */
 
-@media (max-height: 760px) {
-  main#ariApp.ari-v1-home {
-    --ari-hero-drop: clamp(34px, 5dvh, 54px);
-    --ari-prompt-bottom: 132px;
-    --ari-bottom-space: 120px;
+.ari-bottom-input {
+  position: fixed;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  left: 0;
+  z-index: 32;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0 15px;
+  pointer-events: none;
+}
+
+.ari-input-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(100%, 720px);
+  min-height: var(--ari-composer-height);
+  padding: clamp(20px, 4.8vw, 34px) clamp(20px, 5vw, 38px);
+  pointer-events: auto;
+  border: 1px solid rgba(76, 124, 221, 0.56);
+  border-radius: clamp(24px, 6vw, 34px);
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255, 255, 255, 0.98), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 246, 255, 0.92));
+  box-shadow:
+    0 24px 55px rgba(47, 60, 126, 0.18),
+    0 8px 20px rgba(55, 75, 149, 0.10),
+    0 0 24px rgba(25, 226, 239, 0.12),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(109, 125, 204, 0.12);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.ari-input-shell::before {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  padding: 1px;
+  content: "";
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    110deg,
+    var(--ari-lab-cyan),
+    rgba(255, 255, 255, 0.88) 31%,
+    rgba(109, 139, 235, 0.32) 68%,
+    var(--ari-lab-violet)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.ari-input-shell::after {
+  position: absolute;
+  right: 7%;
+  bottom: -3px;
+  left: 7%;
+  height: 3px;
+  content: "";
+  pointer-events: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--ari-lab-cyan), rgba(255, 255, 255, 0.9), var(--ari-lab-violet), transparent);
+  box-shadow:
+    0 4px 14px rgba(22, 225, 239, 0.52),
+    0 8px 22px rgba(143, 89, 237, 0.18);
+}
+
+.ari-input-shell:focus-within {
+  border-color: rgba(30, 209, 230, 0.76);
+  box-shadow:
+    0 26px 58px rgba(47, 60, 126, 0.19),
+    0 8px 20px rgba(55, 75, 149, 0.10),
+    0 0 30px rgba(25, 226, 239, 0.18),
+    inset 0 1px 0 #ffffff;
+}
+
+.ari-input-shell.thinking {
+  border-color: rgba(38, 214, 232, 0.72);
+  animation: ariComposerThinking 1.9s ease-in-out infinite;
+}
+
+.ari-input-label {
+  display: block;
+  width: fit-content;
+  margin-bottom: clamp(14px, 3vw, 22px);
+  color: #2460bd;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(10px, 2.6vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ari-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: clamp(12px, 3.4vw, 24px);
+  width: 100%;
+}
+
+#ariInput {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  max-height: 144px;
+  margin: 0;
+  padding: 4px 0;
+  resize: none;
+  overflow-y: auto;
+  color: var(--ari-lab-navy);
+  caret-color: #118fbc;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: clamp(19px, 5.1vw, 28px);
+  font-weight: 450;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  scrollbar-width: thin;
+}
+
+#ariInput::placeholder {
+  color: rgba(7, 18, 83, 0.91);
+  opacity: 1;
+}
+
+#ariInput:disabled {
+  cursor: default;
+  color: var(--ari-lab-muted);
+  -webkit-text-fill-color: var(--ari-lab-muted);
+  opacity: 1;
+}
+
+.ari-send-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: clamp(88px, 21vw, 122px);
+  min-height: clamp(50px, 12vw, 62px);
+  padding: 0 clamp(18px, 4vw, 28px);
+  cursor: pointer;
+  color: var(--ari-lab-navy);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: clamp(17px, 5vw, 25px);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(238, 241, 251, 0.92));
+  box-shadow:
+    0 11px 22px rgba(53, 67, 132, 0.18),
+    0 2px 6px rgba(54, 72, 145, 0.10),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(103, 120, 195, 0.11);
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(11px, 2.8vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  line-height: 1;
+  text-indent: 0.25em;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
+}
+
+.ari-send-btn:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow:
+    0 6px 13px rgba(53, 67, 132, 0.15),
+    inset 0 1px 0 #ffffff;
+}
+
+.ari-send-btn.ari-stop-btn {
+  color: #7d2445;
+  border-color: rgba(219, 126, 158, 0.28);
+  background: linear-gradient(145deg, #ffffff, #fff2f6);
+}
+
+/* =====================================================
+   CONVERSATION
+===================================================== */
+
+.ari-conversation-shell {
+  position: fixed;
+  top: calc(var(--ari-header-top) + var(--ari-header-height) + 18px);
+  right: 15px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--ari-composer-height) + 42px);
+  left: 15px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  width: min(calc(100% - 30px), 720px);
+  margin: 0 auto;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+  transition:
+    opacity 240ms ease,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 240ms ease;
+}
+
+.conversation-mode .ari-conversation-shell {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.ari-thread {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 13px;
+  min-height: 0;
+  padding: 4px 3px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-color: rgba(72, 112, 205, 0.28) transparent;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ari-thread::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ari-thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ari-thread::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(72, 112, 205, 0.25);
+}
+
+.ari-message {
+  width: fit-content;
+  max-width: min(88%, 590px);
+  padding: 14px 17px 15px;
+  border: 1px solid rgba(102, 126, 210, 0.19);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 10px 24px rgba(52, 66, 128, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.ari-message.ari-ai {
+  align-self: flex-start;
+  border-bottom-left-radius: 7px;
+}
+
+.ari-message.ari-user {
+  align-self: flex-end;
+  color: #ffffff;
+  border-color: rgba(71, 111, 218, 0.22);
+  border-bottom-right-radius: 7px;
+  background: linear-gradient(145deg, #11226d, #263b98);
+  box-shadow:
+    0 12px 25px rgba(23, 41, 113, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.ari-message-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #3169bd;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.23em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ari-user .ari-message-label {
+  color: rgba(178, 243, 255, 0.88);
+}
+
+.ari-message p {
+  margin: 0;
+  color: inherit;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: clamp(14px, 3.8vw, 17px);
+  font-weight: 430;
+  line-height: 1.54;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ari-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 18px;
+}
+
+.ari-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3e7fce;
+  animation: ariTypingDot 1.1s ease-in-out infinite;
+}
+
+.ari-typing-dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.ari-typing-dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+.pending-action-bar {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px 14px 13px 17px;
+  border: 1px solid rgba(72, 131, 221, 0.22);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.91);
+  box-shadow: var(--ari-lab-shadow);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.pending-action-bar.show {
+  display: flex;
+}
+
+.pending-action-bar p {
+  margin: 0;
+  color: var(--ari-lab-navy);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pending-action-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.pending-action-buttons button {
+  min-height: 38px;
+  padding: 0 13px;
+  cursor: pointer;
+  color: var(--ari-lab-navy);
+  border: 1px solid rgba(76, 110, 201, 0.17);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #ffffff, #eef2fc);
+  box-shadow: 0 5px 12px rgba(51, 65, 129, 0.10);
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+
+/* =====================================================
+   FULL-SCREEN NAVIGATION
+===================================================== */
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(240, 243, 252, 0.78);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  transition:
+    opacity 250ms ease,
+    visibility 250ms ease;
+}
+
+.menu-overlay.show {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ari-side-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-12px) scale(0.992);
+  background:
+    radial-gradient(circle at 15% 80%, rgba(25, 232, 241, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 25%, rgba(174, 104, 255, 0.10), transparent 30%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.985), rgba(245, 247, 255, 0.98));
+  transition:
+    opacity 260ms ease,
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 260ms ease;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ari-side-menu::before,
+.ari-side-menu::after {
+  position: fixed;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.ari-side-menu::before {
+  top: -18%;
+  left: -29%;
+  width: min(102vw, 800px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(80, 105, 202, 0.10);
+  box-shadow:
+    0 0 0 70px rgba(95, 123, 218, 0.018),
+    0 0 0 140px rgba(34, 218, 234, 0.014);
+}
+
+.ari-side-menu::after {
+  right: -35%;
+  bottom: -20%;
+  width: min(94vw, 720px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(141, 95, 224, 0.11);
+  border-top-color: rgba(27, 220, 238, 0.18);
+}
+
+.ari-side-menu.open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+body.ari-menu-open {
+  overflow: hidden;
+}
+
+.ari-menu-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  width: 100%;
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 18px)
+    clamp(18px, 4vw, 34px)
+    12px;
+  pointer-events: none;
+}
+
+.ari-close-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: clamp(104px, 27vw, 140px);
+  min-height: clamp(46px, 11vw, 58px);
+  padding: 0 23px;
+  pointer-events: auto;
+  cursor: pointer;
+  color: var(--ari-lab-navy);
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(238, 241, 250, 0.92));
+  box-shadow:
+    0 12px 24px rgba(50, 62, 122, 0.17),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(104, 119, 190, 0.10);
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(10px, 2.7vw, 13px);
+  font-weight: 700;
+  letter-spacing: 0.30em;
+  line-height: 1;
+  text-indent: 0.30em;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.ari-close-menu:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.ari-menu-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(16px, 2.8vh, 28px);
+  width: min(calc(100% - 34px), 680px);
+  min-height: calc(100svh - 100px);
+  margin: 0 auto;
+  padding:
+    clamp(30px, 7vh, 94px)
+    0
+    calc(env(safe-area-inset-bottom, 0px) + clamp(38px, 7vh, 88px));
+}
+
+.ari-nav-link {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  min-height: clamp(104px, 14.5vh, 142px);
+  padding: clamp(22px, 5vw, 38px) clamp(24px, 6vw, 48px);
+  overflow: hidden;
+  color: var(--ari-lab-navy);
+  border: 1px solid rgba(112, 127, 207, 0.20);
+  border-radius: clamp(23px, 5vw, 31px);
+  background:
+    radial-gradient(circle at 94% 10%, rgba(255, 255, 255, 0.98), transparent 38%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.94), rgba(242, 245, 253, 0.88));
+  box-shadow:
+    0 18px 34px rgba(48, 59, 119, 0.13),
+    0 5px 12px rgba(56, 72, 142, 0.07),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(105, 123, 198, 0.11);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.ari-nav-link::before {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  padding: 1px;
+  content: "";
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    110deg,
+    rgba(160, 96, 247, 0.35),
+    rgba(255, 255, 255, 0.9) 35%,
+    rgba(31, 222, 239, 0.35)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.ari-nav-link::after {
+  position: absolute;
+  top: 0;
+  left: -32%;
+  width: 26%;
+  height: 100%;
+  content: "";
+  pointer-events: none;
+  opacity: 0;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.80), transparent);
+  transition:
+    left 520ms ease,
+    opacity 180ms ease;
+}
+
+.ari-nav-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.ari-nav-title {
+  display: block;
+  max-width: 100%;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(19px, 5vw, 35px);
+  font-weight: 500;
+  letter-spacing: clamp(0.10em, 1vw, 0.21em);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.ari-nav-description {
+  display: block;
+  max-width: 100%;
+  margin-top: clamp(10px, 2.3vw, 16px);
+  color: rgba(18, 35, 99, 0.78);
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(9px, 2.4vw, 14px);
+  font-weight: 500;
+  letter-spacing: clamp(0.16em, 0.8vw, 0.29em);
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.ari-nav-featured {
+  min-height: clamp(122px, 17vh, 166px);
+  border-color: rgba(44, 175, 230, 0.55);
+  background:
+    radial-gradient(circle at 8% 100%, rgba(47, 238, 240, 0.09), transparent 34%),
+    radial-gradient(circle at 92% 7%, rgba(173, 99, 255, 0.08), transparent 34%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.98), rgba(244, 246, 255, 0.94));
+  box-shadow:
+    0 22px 42px rgba(45, 60, 128, 0.17),
+    0 0 22px rgba(29, 222, 237, 0.15),
+    0 0 20px rgba(162, 87, 246, 0.08),
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 rgba(93, 123, 210, 0.12);
+}
+
+.ari-nav-featured .ari-nav-title {
+  font-size: clamp(27px, 7vw, 47px);
+  font-weight: 600;
+  letter-spacing: clamp(0.08em, 0.9vw, 0.16em);
+}
+
+.ari-nav-accent-line {
+  display: block;
+  width: min(100%, 470px);
+  height: 3px;
+  margin-top: clamp(15px, 3.2vw, 22px);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ari-lab-cyan), #5decdd 56%, transparent);
+  box-shadow: 0 0 12px rgba(28, 224, 237, 0.42);
+}
+
+.ari-side-menu.open .ari-nav-link {
+  animation: ariMenuCardReveal 460ms both cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ari-side-menu.open .ari-nav-link:nth-child(1) {
+  animation-delay: 50ms;
+}
+
+.ari-side-menu.open .ari-nav-link:nth-child(2) {
+  animation-delay: 95ms;
+}
+
+.ari-side-menu.open .ari-nav-link:nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.ari-side-menu.open .ari-nav-link:nth-child(4) {
+  animation-delay: 185ms;
+}
+
+/* =====================================================
+   INTERACTION EFFECTS
+===================================================== */
+
+@media (hover: hover) and (pointer: fine) {
+  .ari-menu-toggle:hover {
+    transform: translateY(-2px);
+    border-color: rgba(31, 203, 231, 0.72);
+    box-shadow:
+      0 18px 34px rgba(55, 76, 157, 0.17),
+      0 0 22px rgba(25, 225, 239, 0.22),
+      0 0 20px rgba(164, 91, 255, 0.12),
+      inset 0 1px 0 #ffffff;
   }
 
-  .ari-welcome {
-    padding-bottom: 96px;
+  .ari-brand-right:hover .ari-brand-line {
+    box-shadow: 0 0 16px rgba(37, 220, 238, 0.52);
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -138px;
-
-    width: min(112vw, 510px);
-    height: min(112vw, 510px);
+  .ari-hero-img:hover {
+    transform: translateY(-5px) scale(1.008);
+    filter:
+      drop-shadow(0 23px 30px rgba(24, 42, 101, 0.14))
+      drop-shadow(0 0 28px rgba(30, 224, 239, 0.13));
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::after {
-    bottom: 74px;
+  .ari-send-btn:hover,
+  .ari-close-menu:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 15px 28px rgba(53, 67, 132, 0.20),
+      inset 0 1px 0 #ffffff;
+  }
+
+  .ari-nav-link:hover {
+    transform: translateY(-4px);
+    border-color: rgba(35, 206, 230, 0.55);
+    box-shadow:
+      0 24px 45px rgba(48, 59, 119, 0.16),
+      0 0 20px rgba(29, 222, 237, 0.12),
+      inset 0 1px 0 #ffffff;
+  }
+
+  .ari-nav-link:hover::after {
+    left: 112%;
+    opacity: 0.82;
   }
 }
 
-
 /* =====================================================
-   VERY SHORT MOBILE VIEWPORTS
+   RESPONSIVE LAYOUT
 ===================================================== */
 
-@media (max-height: 650px) {
-  main#ariApp.ari-v1-home {
-    --ari-hero-drop: 18px;
-    --ari-prompt-bottom: 116px;
-    --ari-bottom-space: 108px;
+@media (max-width: 520px) {
+  :root {
+    --ari-header-height: clamp(96px, 27vw, 112px);
+    --ari-composer-height: clamp(146px, 19svh, 168px);
   }
 
-  .ari-welcome {
-    padding-bottom: 80px;
+  .ari-header-v5 {
+    grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+    gap: 9px;
+    width: calc(100% - 24px);
+    padding: 10px;
+    border-radius: 22px;
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -170px;
-
-    opacity: 0.58;
+  .ari-menu-toggle {
+    gap: 9px;
+    padding: 0 11px;
+    border-radius: 17px;
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::after {
-    bottom: 60px;
-
-    height: 145px;
-  }
-}
-
-
-/* =====================================================
-   SMALL MOBILE SCREENS
-===================================================== */
-
-@media (max-width: 380px) {
-  main#ariApp.ari-v1-home {
-    --ari-page-width: 100%;
-    --ari-hero-drop: clamp(52px, 7dvh, 84px);
-    --ari-prompt-bottom: 138px;
-
-    padding-right: 10px;
-    padding-left: 10px;
+  .ari-menu-label {
+    font-size: clamp(16px, 5vw, 23px);
+    letter-spacing: 0.18em;
+    text-indent: 0.18em;
   }
 
-  .ari-welcome-prompt {
-    padding-right: 8px;
-    padding-left: 8px;
+  .ari-brand-title {
+    font-size: clamp(31px, 10.5vw, 45px);
+    letter-spacing: 0.17em;
+    padding-left: 0.17em;
   }
 
-  .ari-welcome-question {
-    font-size: 0.98rem;
+  .ari-brand-subtitle {
+    margin-top: 7px;
+    font-size: clamp(8px, 2.6vw, 11px);
+    letter-spacing: 0.24em;
+    text-indent: 0.24em;
   }
 
-  .pending-action-buttons {
+  .ari-brand-line {
+    width: 88%;
+    margin-top: 8px;
+  }
+
+  .ari-hero-img {
+    max-width: 96vw;
+  }
+
+  .ari-input-shell {
+    padding: 21px 20px 23px;
+    border-radius: 25px;
+  }
+
+  .ari-input-label {
+    margin-bottom: 14px;
+  }
+
+  .ari-input-row {
+    gap: 11px;
+  }
+
+  #ariInput {
+    font-size: clamp(18px, 5.2vw, 23px);
+  }
+
+  .ari-send-btn {
+    min-width: 86px;
+    min-height: 50px;
+    padding: 0 16px;
+    border-radius: 18px;
+    font-size: 10px;
+    letter-spacing: 0.20em;
+    text-indent: 0.20em;
+  }
+
+  .ari-menu-content {
+    width: calc(100% - 28px);
+  }
+
+  .ari-nav-link {
+    padding: 22px 22px;
+    border-radius: 24px;
+  }
+
+  .ari-nav-title {
+    font-size: clamp(18px, 5.2vw, 25px);
+    letter-spacing: 0.10em;
+  }
+
+  .ari-nav-featured .ari-nav-title {
+    font-size: clamp(25px, 7.4vw, 34px);
+  }
+
+  .ari-nav-description {
+    font-size: clamp(8px, 2.45vw, 11px);
+    letter-spacing: 0.15em;
+  }
+
+  .pending-action-bar {
+    align-items: flex-start;
     flex-direction: column;
   }
 
-  .pending-action-buttons button {
+  .pending-action-buttons {
     width: 100%;
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    width: 138vw;
-    height: 138vw;
+  .pending-action-buttons button {
+    flex: 1 1 0;
   }
 }
 
-
-/* =====================================================
-   VERY SMALL MOBILE SCREENS
-===================================================== */
-
-@media (max-width: 340px) {
-  main#ariApp.ari-v1-home {
-    --ari-hero-drop: 42px;
-    --ari-prompt-bottom: 130px;
-
-    padding-right: 8px;
-    padding-left: 8px;
+@media (max-width: 350px) {
+  .ari-header-v5 {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
 
-  .ari-welcome-question {
-    font-size: 0.91rem;
+  .ari-menu-dot {
+    display: none;
   }
 
-  .ari-welcome-prompt::before {
-    width: 66px;
+  .ari-menu-label {
+    font-size: 15px;
+    letter-spacing: 0.13em;
+    text-indent: 0.13em;
+  }
 
-    margin-bottom: 8px;
+  .ari-brand-title {
+    font-size: 29px;
+  }
+
+  .ari-input-shell {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .ari-send-btn {
+    min-width: 76px;
+    padding: 0 12px;
+    font-size: 9px;
   }
 }
 
-
-/* =====================================================
-   TABLET / DESKTOP
-===================================================== */
-
-@media (min-width: 768px) {
-  main#ariApp.ari-v1-home {
-    --ari-page-width: 540px;
-    --ari-hero-drop: clamp(84px, 10dvh, 130px);
-    --ari-prompt-bottom: 158px;
-
-    padding-right: 22px;
-    padding-left: 22px;
+@media (max-height: 740px) and (orientation: portrait) {
+  :root {
+    --ari-header-top: calc(env(safe-area-inset-top, 0px) + 9px);
+    --ari-header-height: 90px;
+    --ari-composer-height: 136px;
   }
 
   .ari-welcome {
-    min-height:
-      calc(
-        100vh -
-        108px
-      );
-    min-height:
-      calc(
-        100dvh -
-        108px
-      );
+    top: calc(var(--ari-header-top) + var(--ari-header-height) + 8px);
   }
 
-  .ari-welcome-question {
-    font-size: 1.18rem;
+  .ari-bottom-input {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -128px;
-
-    width: 660px;
-    height: 660px;
+  .ari-input-shell {
+    min-height: 136px;
+    padding-top: 17px;
+    padding-bottom: 18px;
   }
 
-  main#ariApp.ari-v1-home .ari-welcome::after {
-    width: 580px;
+  .ari-input-label {
+    margin-bottom: 10px;
+  }
+
+  .ari-menu-content {
+    gap: 12px;
+    min-height: auto;
+    padding-top: 20px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  }
+
+  .ari-nav-link {
+    min-height: 88px;
+    padding-top: 17px;
+    padding-bottom: 17px;
+  }
+
+  .ari-nav-featured {
+    min-height: 104px;
+  }
+
+  .ari-nav-description {
+    margin-top: 7px;
+  }
+
+  .ari-nav-accent-line {
+    margin-top: 10px;
   }
 }
 
+@media (orientation: landscape) and (max-height: 560px) {
+  :root {
+    --ari-header-top: calc(env(safe-area-inset-top, 0px) + 8px);
+    --ari-header-height: 82px;
+    --ari-composer-height: 118px;
+  }
+
+  .ari-header-v5 {
+    width: min(calc(100% - 28px), 680px);
+    padding: 8px;
+  }
+
+  .ari-welcome {
+    top: calc(var(--ari-header-top) + var(--ari-header-height) + 4px);
+  }
+
+  .ari-hero-img {
+    max-width: min(52vw, 450px);
+  }
+
+  .ari-input-shell {
+    min-height: 112px;
+    padding: 14px 22px 16px;
+  }
+
+  .ari-input-label {
+    margin-bottom: 8px;
+  }
+
+  .ari-side-menu {
+    padding: 0 max(env(safe-area-inset-left, 0px), 12px);
+  }
+
+  .ari-menu-header {
+    position: fixed;
+    right: max(env(safe-area-inset-right, 0px), 12px);
+    width: auto;
+  }
+
+  .ari-menu-content {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: center;
+    gap: 12px;
+    width: min(calc(100% - 36px), 880px);
+    min-height: 100svh;
+    padding: 28px 0;
+  }
+
+  .ari-nav-link,
+  .ari-nav-featured {
+    min-height: 110px;
+  }
+}
+
+.ari-keyboard-mode .ari-welcome {
+  opacity: 0.14;
+  transform: translateY(-4%) scale(0.94);
+}
 
 /* =====================================================
-   TOUCH DEVICES
+   ANIMATIONS
 ===================================================== */
 
-@media (hover: none) {
-  .pending-action-buttons button:not(:disabled):hover {
-    border-color:
-      rgba(var(--ari-cyan), 0.30);
+@keyframes ariHaloBreath {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: translateX(-50%) scale(0.985);
+  }
 
-    background:
-      radial-gradient(
-        circle at 30% 15%,
-        rgba(255, 255, 255, 0.12),
-        transparent 28%
-      ),
-      linear-gradient(
-        145deg,
-        rgba(var(--ari-cyan), 0.15),
-        rgba(var(--ari-electric-blue), 0.06),
-        rgba(3, 11, 27, 0.72)
-      );
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.015);
+  }
+}
 
+@keyframes ariComposerThinking {
+  0%,
+  100% {
     box-shadow:
-      0 0 14px rgba(var(--ari-cyan), 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.10);
+      0 24px 55px rgba(47, 60, 126, 0.18),
+      0 0 20px rgba(25, 226, 239, 0.10),
+      inset 0 1px 0 #ffffff;
+  }
 
-    filter: none;
-
-    transform: none;
+  50% {
+    box-shadow:
+      0 26px 58px rgba(47, 60, 126, 0.20),
+      0 0 34px rgba(25, 226, 239, 0.22),
+      inset 0 1px 0 #ffffff;
   }
 }
 
+@keyframes ariTypingDot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.34;
+    transform: translateY(0);
+  }
 
-/* =====================================================
-   REDUCED MOTION
-===================================================== */
+  35% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ariMenuCardReveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  main#ariApp.ari-v1-home::before,
-  main#ariApp.ari-v1-home::after,
-  main#ariApp.ari-v1-home .ari-welcome::before,
-  main#ariApp.ari-v1-home .ari-welcome::after,
-  main#ariApp.ari-v1-home .ari-welcome-prompt::before,
-  main#ariApp.ari-v1-home .ari-welcome-prompt::after,
-  main#ariApp.welcome-mode
-    :is(
-      .ari-composer,
-      .ari-composer-shell,
-      .ari-composer-wrap,
-      #ariComposer
-    ),
-  main#ariApp.welcome-mode
-    :is(
-      .ari-composer,
-      .ari-composer-shell,
-      .ari-composer-wrap,
-      #ariComposer
-    )::before,
-  .pending-action-bar.show {
-    animation: none;
-  }
-
-  .ari-welcome,
-  .ari-welcome-prompt,
-  .pending-action-buttons button {
-    transition: none;
-  }
-}
-/* =====================================================
-   ARI QUANTUM NEXUS ENVIRONMENT
-   Image:
-   assets/ari/ari-quantum-nexus.png
-
-   Layer order:
-   - Pitch-black space
-   - Stars / atmospheric dust
-   - Quantum Nexus environment
-   - Ari avatar
-   - Prompt / composer
-===================================================== */
-
-
-/* =====================================================
-   FINAL HOME POSITIONING
-===================================================== */
-
-main#ariApp.ari-v1-home {
-  --ari-hero-drop: 0px !important;
-
-  background: #000;
-}
-
-body:has(main#ariApp.welcome-mode) {
-  background: #000;
-}
-
-
-/* =====================================================
-   CREATE LOCAL STACKING CONTEXT
-===================================================== */
-
-main#ariApp.ari-v1-home .ari-welcome {
-  isolation: isolate;
-}
-
-
-/* =====================================================
-   QUANTUM NEXUS BEHIND ARI
-===================================================== */
-
-main#ariApp.ari-v1-home .ari-welcome::before {
-  content: "";
-
-  display: block !important;
-
-  position: absolute;
-  z-index: -1;
-
-  top: 10px;
-  left: 50%;
-
- width: 230vw;
-max-width: 980px;
-height: 100%;
-
-
-  background-image:
-    url("../ari/ari-quantum-nexus.png");
-
-  background-repeat: no-repeat;
-background-position: center 24%;
-background-size: 100% auto;
-
-  opacity: 0.76;
-
-  filter:
-    brightness(0.72)
-    contrast(1.12)
-    saturate(1.12);
-
-  transform:
-    translate3d(-50%, 0, 0)
-    scale(1);
-
-  transform-origin: center top;
-
-  -webkit-mask-image:
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(0, 0, 0, 0.90) 5%,
-      #000 15%,
-      #000 78%,
-      rgba(0, 0, 0, 0.78) 91%,
-      transparent 100%
-    );
-
-  mask-image:
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(0, 0, 0, 0.90) 5%,
-      #000 15%,
-      #000 78%,
-      rgba(0, 0, 0, 0.78) 91%,
-      transparent 100%
-    );
-
-  animation: none;
-
-  pointer-events: none;
-}
-
-
-/* =====================================================
-   KEEP OLD PLATFORM REMOVED
-===================================================== */
-
-main#ariApp.ari-v1-home .ari-welcome::after {
-  display: none !important;
-}
-
-
-/* =====================================================
-   KEEP PROMPT ENERGY LINE REMOVED
-===================================================== */
-
-main#ariApp .ari-welcome-prompt::before {
-  display: none !important;
-}
-
-
-/* =====================================================
-   GUARANTEE ARI REMAINS ABOVE THE ENVIRONMENT
-===================================================== */
-
-main#ariApp.welcome-mode
-  .ari-welcome
-  :is(
-    .ari-hero,
-    .ari-hero-shell,
-    .ari-welcome-avatar,
-    .ari-avatar-stage,
-    #ariHero,
-    #ariHeroShell
-  ) {
-  position: relative;
-  z-index: 4;
-}
-
-
-/* =====================================================
-   MOBILE ENVIRONMENT SCALE
-===================================================== */
-
-@media (max-width: 430px) {
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -10px;
-
-    width: 235vw;
-    max-width: none;
-    height: 100%;
-
-    background-position: center 22%;
-    background-size: 100% auto;
-
-    opacity: 0.78;
-  }
-}
-
-
-/* =====================================================
-   SHORT MOBILE VIEWPORTS
-===================================================== */
-
-@media (max-height: 760px) {
-  main#ariApp.ari-v1-home {
-    --ari-hero-drop: 0px !important;
-  }
-
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: 6px;
-
-    width: 158vw;
-    height: calc(100% - 54px);
-
-    opacity: 0.68;
-  }
-}
-
-
-/* =====================================================
-   VERY SHORT MOBILE VIEWPORTS
-===================================================== */
-
-@media (max-height: 650px) {
-  main#ariApp.ari-v1-home {
-    --ari-hero-drop: 0px !important;
-  }
-
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: 0;
-
-    width: 148vw;
-    height: calc(100% - 40px);
-
-    opacity: 0.64;
-  }
-}
-
-
-/* =====================================================
-   TABLET / DESKTOP ENVIRONMENT
-===================================================== */
-
-@media (min-width: 768px) {
-  main#ariApp.ari-v1-home {
-    --ari-hero-drop: 0px !important;
-  }
-
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: 0;
-
-    width: 720px;
-    height: calc(100% - 60px);
-
-    opacity: 0.78;
-  }
-}
-
-
-/* =====================================================
-   REDUCED MOTION
-===================================================== */
-
-@media (prefers-reduced-motion: reduce) {
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    animation: none;
-    transform: translate3d(-50%, 0, 0);
-  }
-}
-/* =====================================================
-   FINAL QUANTUM NEXUS SIZE OVERRIDE
-   Must remain at the bottom of home.css
-===================================================== */
-
-main#ariApp.ari-v1-home {
-  --ari-hero-drop: 0px !important;
-  --ari-nexus-width: 285vw;
-  --ari-nexus-top: -54px;
-}
-
-main#ariApp.ari-v1-home .ari-welcome::before {
-  top: var(--ari-nexus-top) !important;
-  left: 50% !important;
-
-  width: var(--ari-nexus-width) !important;
-  max-width: none !important;
-  height: 110% !important;
-
-  background-position: center top !important;
-  background-size: 100% auto !important;
-
-  opacity: 0.82 !important;
-
-  filter:
-    brightness(0.78)
-    contrast(1.14)
-    saturate(1.18);
-
-  transform:
-    translate3d(-50%, 0, 0) !important;
-}
-
-
-/* =====================================================
-   SMALL MOBILE TUNING
-===================================================== */
-
-@media (max-width: 430px) {
-  main#ariApp.ari-v1-home {
-    --ari-nexus-width: 285vw;
-    --ari-nexus-top: -54px;
-  }
-}
-
-
-/* =====================================================
-   SHORT MOBILE TUNING
-   Prevent earlier height rules from shrinking the PNG
-===================================================== */
-
-@media (max-width: 430px) and (max-height: 760px) {
-  main#ariApp.ari-v1-home {
-    --ari-nexus-width: 295vw;
-    --ari-nexus-top: -64px;
-  }
-
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    height: 118% !important;
-  }
-}
-
-
-/* =====================================================
-   VERY SHORT MOBILE TUNING
-===================================================== */
-
-@media (max-width: 430px) and (max-height: 650px) {
-  main#ariApp.ari-v1-home {
-    --ari-nexus-width: 305vw;
-    --ari-nexus-top: -72px;
-  }
-}
-/* =====================================================
-   FINAL QUANTUM NEXUS COMPOSITION
-   Keep this as the last rule in home.css
-===================================================== */
-
-@media (max-width: 430px) {
-  main#ariApp.ari-v1-home {
-    --ari-nexus-width: 120vw;
-  }
-
-  main#ariApp.ari-v1-home .ari-welcome::before {
-    top: -240px !important;
-
-    width: var(--ari-nexus-width) !important;
-    max-width: none !important;
-    height: 145% !important;
-
-    background-position: center top !important;
-    background-size: 100% auto !important;
-
-    opacity: 0.60 !important;
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
