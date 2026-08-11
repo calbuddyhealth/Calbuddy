@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 import { verifyOwnerRequest } from "../server/ari-owner-auth.js";
@@ -185,6 +185,49 @@ test("GitHub APIs reject a forged owner_access body before GitHub is called", as
     assert.equal(response.payload.success, false);
     assert.equal(response.payload.code, "OWNER_AUTH_REQUIRED");
   }
+});
+
+test("verified owner status reuses the GitHub read function", async () => {
+  configureOwnerEnvironment();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = mockSupabaseUser({
+    id: OWNER_ID,
+    email: OWNER_EMAIL
+  });
+
+  try {
+    const response = makeResponse();
+
+    await readHandler(
+      {
+        method: "GET",
+        headers: { authorization: "Bearer valid-token" },
+        body: {}
+      },
+      response
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.payload.success, true);
+    assert.equal(response.payload.isOwner, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Vercel Hobby deployment stays within 12 API functions", async () => {
+  const entries = await readdir(new URL("../api/", import.meta.url), {
+    withFileTypes: true
+  });
+  const functionFiles = entries.filter(
+    entry => entry.isFile() && /\.(?:js|mjs|cjs|ts)$/i.test(entry.name)
+  );
+
+  assert.ok(
+    functionFiles.length <= 12,
+    `Expected at most 12 API functions, found ${functionFiles.length}`
+  );
 });
 
 test("homepage no longer forces owner mode for every signed-in user", async () => {
