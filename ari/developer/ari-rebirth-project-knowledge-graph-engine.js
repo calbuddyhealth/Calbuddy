@@ -147,6 +147,8 @@ window.AriRebirthProjectKnowledgeGraphEngine = {
           name: "GitHub Tooling",
           purpose: "Owner-gated read, search, edit, commit, preview, and undo workflows.",
           files: [
+            "server/ari-owner-auth.js",
+            "api/ari-owner-status.js",
             "api/ari-github-read.js",
             "api/ari-github-search.js",
             "api/ari-github-edit.js",
@@ -161,7 +163,13 @@ window.AriRebirthProjectKnowledgeGraphEngine = {
             "Undo mode",
             "Owner confirmation gate"
           ],
-          dependsOn: ["GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_BRANCH", "owner_access"],
+          dependsOn: [
+            "GITHUB_TOKEN",
+            "GITHUB_REPO",
+            "GITHUB_BRANCH",
+            "Supabase access token",
+            "ARI_OWNER_USER_ID"
+          ],
           riskLevel: "critical"
         },
 
@@ -443,7 +451,7 @@ window.AriRebirthProjectKnowledgeGraphEngine = {
       github_tools: [
         "Read calbuddy-core.js developer handoff first.",
         "Read involved GitHub endpoint.",
-        "Verify owner_access and confirmation gate.",
+        "Verify the Supabase owner JWT and confirmation gate.",
         "Use preview or exact replace only."
       ],
 
