@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: api/knowledge.js
-// Version: 8.1.0-experimental
+// Version: 8.2.0-experimental
 // Purpose: lean server-side OpenAI cognitive authority transport.
 // =====================================================
 const OPENAI_URL = process.env.OPENAI_CHAT_COMPLETIONS_URL || "https://api.openai.com/v1/chat/completions";
@@ -29,10 +29,7 @@ export default async function handler(req, res) {
       packet.currentTurn?.originalText,
       body.message
     ]);
-
-    if (!requestText) {
-      return res.status(400).json(failure("request_text_missing", "No usable user request was supplied."));
-    }
+    if (!requestText) return res.status(400).json(failure("request_text_missing", "No usable user request was supplied."));
 
     const context = {
       request: packet.request || { effective: requestText },
@@ -59,10 +56,29 @@ Do not require a canonical semantic-operation registry merely to answer conversa
 ARI APPLICATION ACCESS:
 The applicationContext may contain applicationAccess, ariAppAccess, actionCapabilities, or a capability manifest. Those are authoritative descriptions of the signed-in user's own CalBuddy state and the registered operations Ari is allowed to request.
 When the user asks about their goals, nutrition, workout plan, ARI Training, ARI Circle, or Ari preferences, answer from the supplied application snapshot. Do not invent app data that is absent.
-When the user explicitly asks Ari to CHANGE something in their own app, use an exact registered operation from the supplied capability manifest and add it to proposedActions. Each proposed action must be an object with: operation, payload, authorization. Set authorization to "explicit_user_request" only when the current user request actually asks for that change. Do not invent record IDs, exercise IDs, connection IDs, or other identifiers that are required for execution.
+When the user explicitly asks Ari to CHANGE something in their own app, use an exact registered operation from the supplied capability manifest and add it to proposedActions. Each proposed action must be an object with: operation, payload, authorization. Set authorization to "explicit_user_request" only when the current user request actually asks for that change. Do not invent record IDs, exercise IDs, connection IDs, or other identifiers required for execution.
 If the user is merely discussing, considering, asking what they should do, or asking for advice, do not create a write action unless they explicitly ask Ari to perform the change.
 Never propose arbitrary database operations. Never write another user's private data. Social, destructive, deletion, blocking, clearing, and relationship changes must remain registered application operations and will require application confirmation.
 Do not claim an app action, tool call, persistence operation, or external side effect already occurred. The local application executes approved proposedActions after this response.
+
+NUTRITION ACTION CONTRACT:
+For operation "log_meal", do not require the user to know calories or macros. Parse the meal into separate food items so the local ARI Nutrition database can resolve each food before confirmation.
+Use payload shape:
+{
+  "name": "natural combined meal description",
+  "category": "Meal|Breakfast|Lunch|Dinner|Snack",
+  "items": [
+    {
+      "query": "database-searchable food name without quantity words",
+      "name": "human food name",
+      "amount": number,
+      "unit": "g|oz|cup|piece|slice|serving|etc",
+      "estimatedGrams": number|null,
+      "estimatedNutrition": {"calories":number,"protein":number,"carbs":number,"fat":number}
+    }
+  ]
+}
+For ordinary units such as pieces, slices, cups, ounces, or grams, preserve the user's amount and unit. For vague household measures such as handful, scoop, small bowl, or plate, provide a reasonable estimatedGrams so AriFoodCalculator can use the database food's per-gram nutrition. estimatedNutrition is a fallback only if the local database cannot match/calculate the item. Do not combine several foods into one item. Do not claim the meal has been logged; the application will calculate, ask for confirmation, and save it.
 
 Return JSON only with: interpretation, semanticFrame, reasoningDecision, responseStrategy, authoritativeDraft, proposedActions, evidenceReferences, warnings.`;
 
@@ -95,11 +111,7 @@ Return JSON only with: interpretation, semanticFrame, reasoningDecision, respons
 
     const raw = await response.text();
     let provider;
-    try {
-      provider = raw ? JSON.parse(raw) : {};
-    } catch {
-      provider = {};
-    }
+    try { provider = raw ? JSON.parse(raw) : {}; } catch { provider = {}; }
 
     if (!response.ok) {
       return res.status(response.status || 502).json({
@@ -110,14 +122,8 @@ Return JSON only with: interpretation, semanticFrame, reasoningDecision, respons
       });
     }
 
-    const modelText = firstText([
-      provider?.choices?.[0]?.message?.content,
-      provider?.output_text
-    ]);
-
-    if (!modelText) {
-      return res.status(502).json(failure("openai_empty_output", "OpenAI returned no cognitive output."));
-    }
+    const modelText = firstText([provider?.choices?.[0]?.message?.content, provider?.output_text]);
+    if (!modelText) return res.status(502).json(failure("openai_empty_output", "OpenAI returned no cognitive output."));
 
     let result;
     try {
@@ -135,15 +141,8 @@ Return JSON only with: interpretation, semanticFrame, reasoningDecision, respons
       };
     }
 
-    const draft = firstText([
-      result.authoritativeDraft,
-      result.draftResponse,
-      result.responseText
-    ]);
-
-    if (!draft) {
-      return res.status(502).json(failure("authoritative_draft_missing", "OpenAI did not return an authoritative response draft."));
-    }
+    const draft = firstText([result.authoritativeDraft, result.draftResponse, result.responseText]);
+    if (!draft) return res.status(502).json(failure("authoritative_draft_missing", "OpenAI did not return an authoritative response draft."));
 
     const cognitiveReasoningResult = {
       ...result,
@@ -186,33 +185,18 @@ Return JSON only with: interpretation, semanticFrame, reasoningDecision, respons
   } catch (error) {
     const timeout = error?.name === "AbortError";
     return res.status(timeout ? 504 : 500).json({
-      ...failure(
-        timeout ? "openai_reasoning_timeout" : "knowledge_api_failure",
-        timeout ? "OpenAI reasoning request timed out." : (error?.message || "Knowledge API failure.")
-      ),
+      ...failure(timeout ? "openai_reasoning_timeout" : "knowledge_api_failure", timeout ? "OpenAI reasoning request timed out." : (error?.message || "Knowledge API failure.")),
       model: MODEL,
       timing: { totalMs: Date.now() - started }
     });
   }
 }
 
-function failure(code, message) {
-  return { success: false, ready: false, error: message, failureType: code, source: "knowledge_api" };
-}
-function object(value, fallback = {}) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
-}
-function firstText(values = []) {
-  for (const value of values) if (typeof value === "string" && value.trim()) return value.trim();
-  return "";
-}
-function positiveInt(value, fallback) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
-}
-function safeJson(value) {
-  try { return JSON.stringify(value); } catch { return "{}"; }
-}
+function failure(code, message) { return { success: false, ready: false, error: message, failureType: code, source: "knowledge_api" }; }
+function object(value, fallback = {}) { return value && typeof value === "object" && !Array.isArray(value) ? value : fallback; }
+function firstText(values = []) { for (const value of values) if (typeof value === "string" && value.trim()) return value.trim(); return ""; }
+function positiveInt(value, fallback) { const n = Number(value); return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback; }
+function safeJson(value) { try { return JSON.stringify(value); } catch { return "{}"; } }
 async function bodyOf(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string") return JSON.parse(req.body || "{}");
