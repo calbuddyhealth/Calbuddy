@@ -4,10 +4,12 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.6.2";
+CalBuddy.version = "3.6.3";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 CalBuddy.dashboardRefreshPromise = null;
+CalBuddy.ownerSessionCache = null;
+CalBuddy.ownerSessionVerification = null;
 
 CalBuddy.exposeSupabaseToAri = function () {
   const client =
@@ -73,12 +75,99 @@ CalBuddy.api = async function (endpoint, body = {}, options = {}) {
 /* -----------------------------
 AUTH
 ----------------------------- */
-CalBuddy.getCurrentUser = async function () {
-  if (window.getCurrentUser) return await window.getCurrentUser();
+CalBuddy.getCurrentSession = async function () {
+  if (typeof window.getCurrentSession === "function") {
+    return await window.getCurrentSession();
+  }
+
   if (!window.calbuddySupabase) return null;
-  const { data, error } = await window.calbuddySupabase.auth.getSession();
-  if (error || !data.session) return null;
-  return data.session.user;
+
+  const { data, error } =
+    await window.calbuddySupabase.auth.getSession();
+
+  if (error || !data?.session) return null;
+
+  return data.session;
+};
+CalBuddy.getCurrentUser = async function () {
+  const session = await CalBuddy.getCurrentSession();
+  return session?.user || null;
+};
+CalBuddy.getOwnerRequestHeaders = async function () {
+  const session = await CalBuddy.getCurrentSession();
+  const accessToken = String(session?.access_token || "").trim();
+
+  if (!accessToken) {
+    throw new Error("A signed-in Supabase session is required.");
+  }
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`
+  };
+};
+CalBuddy.verifyOwnerSession = async function ({ force = false } = {}) {
+  const session = await CalBuddy.getCurrentSession();
+  const userId = String(session?.user?.id || "").trim();
+
+  if (!session?.access_token || !userId) {
+    CalBuddy.ownerSessionCache = null;
+    return false;
+  }
+
+  const cached = CalBuddy.ownerSessionCache;
+
+  if (
+    !force &&
+    cached?.userId === userId &&
+    cached.expiresAt > Date.now()
+  ) {
+    return cached.isOwner === true;
+  }
+
+  if (CalBuddy.ownerSessionVerification?.userId === userId) {
+    return await CalBuddy.ownerSessionVerification.promise;
+  }
+
+  const verificationPromise = (async () => {
+    let isOwner = false;
+
+    try {
+      const response = await fetch("/api/ari-owner-status", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        },
+        cache: "no-store"
+      });
+
+      const data = await response.json().catch(() => ({}));
+      isOwner = response.ok && data?.isOwner === true;
+    } catch (error) {
+      console.warn("Owner verification unavailable:", error?.message || error);
+    }
+
+    CalBuddy.ownerSessionCache = {
+      userId,
+      isOwner,
+      expiresAt: Date.now() + (isOwner ? 60_000 : 10_000)
+    };
+
+    return isOwner;
+  })();
+
+  CalBuddy.ownerSessionVerification = {
+    userId,
+    promise: verificationPromise
+  };
+
+  try {
+    return await verificationPromise;
+  } finally {
+    if (CalBuddy.ownerSessionVerification?.promise === verificationPromise) {
+      CalBuddy.ownerSessionVerification = null;
+    }
+  }
 };
 CalBuddy.requireUser = async function () {
   const user = await CalBuddy.getCurrentUser();
@@ -583,6 +672,9 @@ Current user context:
 };
 CalBuddy.getUserContext = async function () {
   const user = await CalBuddy.getCurrentUser();
+  const ownerVerificationPromise = user
+    ? CalBuddy.verifyOwnerSession()
+    : Promise.resolve(false);
   const windowInfo = await CalBuddy.getNutritionWindow();
   let goals = {};
   try {
@@ -611,6 +703,7 @@ CalBuddy.getUserContext = async function () {
   const recentMeals = await CalBuddy.getRecentMeals(12);
   const favoriteFoods = await CalBuddy.getFavoriteFoods(10);
   const recentWeights = await CalBuddy.getRecentWeights(8);
+  const ownerVerified = await ownerVerificationPromise;
   const context = {
     userId: user?.id || null,
     email: user?.email || null,
@@ -661,10 +754,11 @@ CalBuddy.getUserContext = async function () {
     recentMeals,
     favoriteFoods,
     recentWeights,
+    ownerVerified,
     profile
   };
-  context.ariPermissions = CalBuddy.getAriPermissions(context);
 context.ownerMode = CalBuddy.isOwner(context);
+context.ariPermissions = CalBuddy.getAriPermissions(context);
 context.ariModeLabel = CalBuddy.getAriModeLabel(context);
 
 context.coachMemorySummary = CalBuddy.buildCoachMemorySummary(context);
@@ -914,7 +1008,6 @@ if (context.ownerMode !== true) {
   }
 
   const result = await CalBuddy.sendGithubEditRequest({
-    owner_access: context.ownerMode === true,
     mode: githubEdit.mode || "commit",
     filePath: githubEdit.filePath,
     operation: githubEdit.operation,
@@ -1707,8 +1800,7 @@ Dynamic greetings, owner mode, simple patterns
 ----------------------------- */
 
 CalBuddy.isOwner = function (context = {}) {
-  const profile = context.profile || {};
-  return profile.owner_access === true;
+  return context.ownerVerified === true;
 };
 CalBuddy.getAriPermissions = function (context = {}) {
   const owner = CalBuddy.isOwner(context);
@@ -2366,21 +2458,24 @@ CalBuddy.searchGithubCode = async function (
     const context =
       await CalBuddy.getUserContext();
 
+    if (context.ownerMode !== true) {
+      return {
+        success: false,
+        error: "Developer tools are only available in Owner Mode.",
+        code: "OWNER_ACCESS_DENIED"
+      };
+    }
+
     const response =
       await fetch(
         "/api/ari-github-read",
         {
           method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
+          headers:
+            await CalBuddy.getOwnerRequestHeaders(),
 
           body: JSON.stringify({
-            owner_access:
-              context.ownerMode === true,
-
             operation:
               "search_code",
 
@@ -2473,15 +2568,16 @@ CalBuddy.searchGithubCode = async function (
 
 CalBuddy.sendGithubEditRequest = async function (payload) {
   try {
+    const safePayload = { ...(payload || {}) };
+    delete safePayload.owner_access;
+
     const response = await fetch("/api/ari-github-edit", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
+      headers: await CalBuddy.getOwnerRequestHeaders(),
+      body: JSON.stringify(safePayload)
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     console.log("GitHub Edit Response:", data);
 
@@ -2506,21 +2602,25 @@ CalBuddy.readGithubFile = async function (
     const context =
       await CalBuddy.getUserContext();
 
+    if (context.ownerMode !== true) {
+      return {
+        success: false,
+        error: "Developer tools are only available in Owner Mode.",
+        code: "OWNER_ACCESS_DENIED",
+        filePath
+      };
+    }
+
     const response =
       await fetch(
         "/api/ari-github-read",
         {
           method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
+          headers:
+            await CalBuddy.getOwnerRequestHeaders(),
 
           body: JSON.stringify({
-            owner_access:
-              context.ownerMode === true,
-
             operation:
               "read_file",
 
