@@ -6,7 +6,7 @@
 // and adapt it into the stable application response contract expected by
 // CalBuddy Health, Ari Lab, and the Ari Rebirth App Bridge.
 //
-// V2.0.0 — Canonical Five-Layer Runtime State / Rebirth-Native Diagnostics
+// V2.0.1 — Public Failure Redaction / Rebirth-Native Diagnostics
 //
 // Responsibilities:
 // - Resolve the canonical completed runtime state.
@@ -28,7 +28,7 @@
 window.Ari = window.Ari || {};
 
 window.AriRuntimeDelivery = {
-  version: "2.0.0",
+  version: "2.0.1",
   schemaVersion: "3.0.0",
   source: "ari-runtime-delivery",
   authorityLevel:
@@ -2418,14 +2418,25 @@ window.AriRuntimeDelivery = {
       delivery.error ||
       null;
 
-    const message =
+    const internalMessage =
       this.cleanText(
         runtimeError?.message
-      ) ||
+      );
+
+    const publicMessage =
       this.resolveFailureMessage({
         delivery,
         validation
       });
+
+    const exposeInternalError =
+      options.debug === true ||
+      options.exposeInternalErrors === true;
+
+    const message =
+      exposeInternalError
+        ? internalMessage || publicMessage
+        : publicMessage;
 
     const errorCode =
       runtimeError?.code ||
@@ -2473,7 +2484,8 @@ window.AriRuntimeDelivery = {
           ) ||
           "runtime_delivery_failed",
 
-        message,
+        message:
+          internalMessage || message,
 
         errors:
           this.toArray(
