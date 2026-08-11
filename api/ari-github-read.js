@@ -65,7 +65,9 @@ export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
 
   try {
-    if (req.method !== "POST") {
+    const isOwnerStatusRequest = req.method === "GET";
+
+    if (!isOwnerStatusRequest && req.method !== "POST") {
       return res.status(405).json({
         success: false,
         error: "Method not allowed",
@@ -81,6 +83,14 @@ export default async function handler(req, res) {
         res,
         authorization
       );
+    }
+
+    if (isOwnerStatusRequest) {
+      return res.status(200).json({
+        success: true,
+        isOwner: true,
+        authorizationMode: authorization.mode
+      });
     }
 
     const token =
