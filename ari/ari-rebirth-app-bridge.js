@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // Experimental OpenAI-Authority App Bridge
-// Version 3.3.0-experimental
+// Version 3.3.1-experimental
 // =====================================================
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
@@ -14,7 +14,7 @@ const __ariExistingCoreAskAri =
     : null;
 
 window.AriRebirthAppBridge = {
-  version: "3.3.0-experimental",
+  version: "3.3.1-experimental",
   source: "ari-rebirth-app-bridge-openai-authority",
   requiredScripts: [
     "ari/diagnostics/ari-execution-trace.js",
@@ -37,6 +37,7 @@ window.AriRebirthAppBridge = {
     // conversation pipeline so CalBuddy.getUserContext can expose the user's
     // current app state to OpenAI on the very first turn.
     "ari/actions/ari-app-control-runtime.js?v=1.0.0",
+    "ari/actions/ari-openai-action-authority-patch.js?v=1.0.0",
 
     "ari/conversation/ari-turn-packet.js",
     "ari/conversation/ari-turn-intake-engine.js",
@@ -176,9 +177,6 @@ window.AriRebirthAppBridge = {
         throw new Error(`ari_runtime_boot_incomplete:${missing.join(",")}`);
       }
 
-      // A few objects are loaded before their patching target. Reasserting the
-      // install here is harmless and guarantees runtime-request permissions are
-      // patched before the first request is built.
       window.AriAppControlRuntime?.install?.();
       window.AriAppControlRuntime?.patchRuntimeRequest?.();
 
