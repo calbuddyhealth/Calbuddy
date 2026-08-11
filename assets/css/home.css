@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/home.css
-   Version: 2.1.0
+   Version: 2.2.0
    Purpose:
    Premium white futuristic space-lab homepage.
 
@@ -16,6 +16,11 @@
    - Raises Ari higher on the welcome screen.
    - Adds the eight-frame conversation thinking backdrop.
    - Makes conversation messages more translucent.
+
+   V2.2.0:
+   - Adds the ARI Presence compact-conversation experience.
+   - Adds cognitive status, thread recall, and background focus mode.
+   - Adds cinematic thinking light and long-response disclosure.
 ===================================================== */
 
 :root {
@@ -744,6 +749,50 @@ a {
   );
 }
 
+.ari-thinking-backdrop::before {
+  position: absolute;
+  bottom: 7%;
+  left: 50%;
+  z-index: 0;
+  width: min(78%, 510px);
+  aspect-ratio: 1;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from 18deg,
+      transparent 0deg 32deg,
+      rgba(34, 224, 239, 0.40) 46deg,
+      transparent 72deg 171deg,
+      rgba(132, 88, 234, 0.28) 194deg,
+      transparent 224deg 326deg,
+      rgba(89, 139, 255, 0.30) 342deg,
+      transparent 360deg
+    );
+  opacity: 0.32;
+  transform: translateX(-50%) rotate(0deg) scale(0.96);
+  -webkit-mask: radial-gradient(
+    circle,
+    transparent 0 62%,
+    #000 63% 64%,
+    transparent 65% 73%,
+    #000 74% 74.6%,
+    transparent 75.6%
+  );
+  mask: radial-gradient(
+    circle,
+    transparent 0 62%,
+    #000 63% 64%,
+    transparent 65% 73%,
+    #000 74% 74.6%,
+    transparent 75.6%
+  );
+  transition:
+    opacity 500ms ease,
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .ari-thinking-backdrop::after {
   position: absolute;
   inset: 0;
@@ -761,8 +810,14 @@ a {
 }
 
 .conversation-mode .ari-thinking-backdrop.is-active {
-  opacity: 0.40;
-  filter: saturate(1.04) contrast(1.02);
+  opacity: 0.48;
+  filter: saturate(1.06) contrast(1.025);
+}
+
+.conversation-mode .ari-thinking-backdrop.is-active::before {
+  opacity: 0.86;
+  transform: translateX(-50%) rotate(360deg) scale(1.015);
+  animation: ariCognitiveOrbit 10s linear infinite;
 }
 
 .conversation-mode .ari-thinking-backdrop.is-settling {
@@ -786,6 +841,168 @@ a {
     drop-shadow(0 0 22px rgba(34, 220, 237, 0.10));
   transform: translateY(2%);
   transform-origin: center bottom;
+  transition:
+    opacity 260ms ease,
+    filter 420ms ease,
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.conversation-mode .ari-thinking-backdrop.is-active .ari-thinking-sequence-img {
+  filter:
+    drop-shadow(0 20px 30px rgba(28, 43, 104, 0.14))
+    drop-shadow(0 0 30px rgba(34, 220, 237, 0.17))
+    drop-shadow(0 0 54px rgba(126, 83, 231, 0.08));
+}
+
+.ari-thread-toggle {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 13px;
+  cursor: pointer;
+  color: rgba(24, 67, 154, 0.84);
+  border: 1px solid rgba(88, 126, 207, 0.20);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 7px 19px rgba(49, 66, 133, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-indent: 0.18em;
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  transition:
+    opacity 220ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.ari-thread-toggle[hidden] {
+  display: none;
+}
+
+.ari-thread-toggle:active {
+  transform: translateX(-50%) scale(0.97);
+}
+
+.ari-thread-separator {
+  color: rgba(28, 215, 232, 0.92);
+  font-size: 12px;
+  text-indent: 0;
+}
+
+.ari-thinking-status {
+  position: absolute;
+  top: 7px;
+  left: 3px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  color: #234d9f;
+  border: 1px solid rgba(75, 126, 216, 0.20);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 8px 22px rgba(50, 66, 132, 0.10),
+    0 0 22px rgba(33, 222, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-5px) scale(0.97);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  backdrop-filter: blur(18px) saturate(145%);
+  transition:
+    opacity 240ms ease,
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ari-thinking-status.is-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.ari-thinking-status-name,
+.ari-thinking-status-copy {
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  line-height: 1;
+  text-indent: 0.19em;
+}
+
+.ari-thinking-status-name {
+  color: #3072c5;
+}
+
+.ari-thinking-status-copy {
+  color: rgba(7, 18, 83, 0.74);
+}
+
+.ari-thinking-particles {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ari-thinking-particles span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #20dce9;
+  box-shadow: 0 0 7px rgba(32, 220, 233, 0.72);
+  animation: ariCognitiveParticle 1.35s ease-in-out infinite;
+}
+
+.ari-thinking-particles span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.ari-thinking-particles span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+.ari-presence-hint {
+  position: absolute;
+  right: 0;
+  bottom: 5px;
+  left: 0;
+  z-index: 7;
+  width: fit-content;
+  margin: auto;
+  padding: 7px 11px;
+  color: rgba(32, 84, 161, 0.68);
+  border: 1px solid rgba(74, 128, 213, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  line-height: 1;
+  text-indent: 0.19em;
+  transform: translateY(5px);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  transition:
+    opacity 260ms ease,
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ari-thread {
@@ -804,6 +1021,22 @@ a {
   scrollbar-color: rgba(72, 112, 205, 0.28) transparent;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
+  transition:
+    opacity 260ms ease,
+    filter 260ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding-top 260ms ease;
+}
+
+.ari-conversation-shell.has-archived-messages .ari-thread,
+.ari-system-thinking .ari-thread {
+  padding-top: 47px;
+}
+
+.ari-system-thinking .ari-thread-toggle {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(-4px) scale(0.96);
 }
 
 .ari-thread::-webkit-scrollbar {
@@ -831,6 +1064,34 @@ a {
     inset 0 1px 0 rgba(255, 255, 255, 0.84);
   -webkit-backdrop-filter: blur(11px) saturate(125%);
   backdrop-filter: blur(11px) saturate(125%);
+  transition:
+    opacity 260ms ease,
+    filter 260ms ease,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ari-message.is-arriving {
+  animation: ariMessageArrival 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ari-message.is-retiring {
+  opacity: 0;
+  filter: blur(5px);
+  pointer-events: none;
+  transform: translateY(-7px) scale(0.985);
+}
+
+.ari-message.is-archived {
+  display: none;
+}
+
+.ari-message.is-returning {
+  animation: ariMessageReturn 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ari-message.is-current {
+  position: relative;
+  z-index: 1;
 }
 
 .ari-message.ari-ai {
@@ -878,6 +1139,63 @@ a {
   line-height: 1.54;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.ari-message.is-long-response:not(.is-response-expanded) p {
+  max-height: var(--ari-response-collapsed-height, 280px);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0 78%, transparent 100%);
+}
+
+.ari-response-disclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin-top: 12px;
+  padding: 0 12px;
+  cursor: pointer;
+  color: #2c64b5;
+  border: 1px solid rgba(78, 126, 210, 0.20);
+  border-radius: 999px;
+  background: rgba(249, 252, 255, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-indent: 0.16em;
+}
+
+.ari-presence-focus .ari-thread,
+.ari-presence-focus .pending-action-bar {
+  opacity: 0;
+  filter: blur(7px);
+  pointer-events: none;
+  transform: translateY(8px) scale(0.985);
+}
+
+.ari-presence-focus .ari-thread-toggle {
+  opacity: 0;
+  filter: blur(7px);
+  pointer-events: none;
+  transform: translateX(-50%) translateY(8px) scale(0.985);
+}
+
+.ari-presence-focus .ari-presence-hint {
+  opacity: 0.72;
+  transform: translateY(0);
+}
+
+.ari-presence-focus .ari-thinking-backdrop {
+  opacity: 0.54;
+  filter: saturate(1.06) contrast(1.02);
+}
+
+.ari-presence-focus .ari-thinking-backdrop.is-active {
+  opacity: 0.68;
 }
 
 .ari-typing-dots {
@@ -1422,6 +1740,17 @@ body.ari-menu-open {
   .pending-action-buttons button {
     flex: 1 1 0;
   }
+
+  .ari-thinking-status {
+    left: 0;
+    gap: 6px;
+    padding: 0 10px;
+  }
+
+  .ari-thread-toggle {
+    min-height: 29px;
+    padding: 0 11px;
+  }
 }
 
 @media (max-width: 350px) {
@@ -1571,6 +1900,57 @@ body.ari-menu-open {
 /* =====================================================
    ANIMATIONS
 ===================================================== */
+
+@keyframes ariMessageArrival {
+  from {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateY(13px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ariMessageReturn {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(-5px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ariCognitiveParticle {
+  0%,
+  100% {
+    opacity: 0.36;
+    transform: translateY(1px) scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.1);
+  }
+}
+
+@keyframes ariCognitiveOrbit {
+  from {
+    transform: translateX(-50%) rotate(0deg) scale(1.015);
+  }
+
+  to {
+    transform: translateX(-50%) rotate(360deg) scale(1.015);
+  }
+}
 
 @keyframes ariHaloBreath {
   0%,
