@@ -1,29 +1,18 @@
 // =====================================================
 // ARI REBIRTH
 // File: ari/actions/ari-rebirth-action-planner.js
-// Version: 2.0.0-experimental
-// Purpose:
-//   Convert OpenAI-proposed application operations into a deterministic,
-//   registered CalBuddy action handoff.
-//
-// IMPORTANT:
-//   This planner does not interpret user language and does not use regex
-//   intent detection. OpenAI owns semantic interpretation. Local code only
-//   validates proposed operations against AriAppControlRuntime.
+// Version: 2.1.0-experimental
+// Purpose: validate OpenAI-proposed app operations and prepare executable
+// user-owned actions before confirmation.
 // =====================================================
-
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "2.0.0-experimental",
+  version: "2.1.0-experimental",
   source: "ari-rebirth-action-planner-openai-proposed-actions",
 
-  plan(summary = {}) {
-    const appControl =
-      window.AriAppControlRuntime ||
-      window.Ari?.appControlRuntime ||
-      null;
-
+  async plan(summary = {}) {
+    const appControl = window.AriAppControlRuntime || window.Ari?.appControlRuntime || null;
     const rawActions = this.firstArray([
       summary.cognitiveReasoningResult?.proposedActions,
       summary.reasoningResult?.proposedActions,
@@ -36,22 +25,24 @@ window.Ari.rebirthActionPlanner = {
     const rejectedActions = [];
 
     for (const rawAction of rawActions) {
-      const normalized =
-        appControl?.normalizeProposedAction?.(rawAction) ||
-        null;
-
+      let normalized = appControl?.normalizeProposedAction?.(rawAction) || null;
       if (!normalized) {
-        rejectedActions.push({
-          action: rawAction,
-          reason: "unregistered_application_operation"
-        });
+        rejectedActions.push({ action: rawAction, reason: "unregistered_application_operation" });
         continue;
       }
 
-      // Read access is supplied to OpenAI in the application snapshot before
-      // reasoning. It is not a post-response side effect, so it should not be
-      // handed to CalBuddy as a pending action.
-      if (normalized.capability?.mode === "read") {
+      if (normalized.capability?.mode === "read") continue;
+
+      try {
+        if (typeof appControl?.prepareAction === "function") {
+          normalized = await appControl.prepareAction(normalized, summary);
+        }
+      } catch (error) {
+        rejectedActions.push({
+          action: rawAction,
+          normalizedAction: normalized,
+          reason: error?.message || "application_action_preparation_failed"
+        });
         continue;
       }
 
@@ -67,7 +58,7 @@ window.Ari.rebirthActionPlanner = {
 
     const plan = {
       schema: "ari_rebirth_action_plan",
-      schemaVersion: "2.0.0-experimental",
+      schemaVersion: "2.1.0-experimental",
       source: this.source,
       ready: true,
       actionCount: actions.length,
@@ -77,6 +68,7 @@ window.Ari.rebirthActionPlanner = {
       authority: {
         semanticInterpretation: "openai",
         actionProposal: "openai",
+        nutritionResolution: "ari-nutrition-runtime",
         operationValidation: "ari-app-control-runtime",
         execution: "calbuddy-application-boundary",
         arbitraryOperationsAllowed: false
@@ -98,9 +90,7 @@ window.Ari.rebirthActionPlanner = {
   },
 
   firstArray(values = []) {
-    for (const value of values) {
-      if (Array.isArray(value)) return value;
-    }
+    for (const value of values) if (Array.isArray(value)) return value;
     return [];
   }
 };
