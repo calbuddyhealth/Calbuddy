@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: nutrition.js
-// Version: 4.2.1
+// Version: 4.2.2
 // Purpose:
 //   Functional controller for the Nutrition page.
 //
@@ -572,8 +572,8 @@ function setNutritionComposerBusy(
 
     input.placeholder =
       isBusy
-        ? "Receiving Ari transmission..."
-        : "Enter your question...";
+        ? "Ari is thinking..."
+        : "Ask Ari anything...";
   }
 
   if (button) {
@@ -588,8 +588,8 @@ function setNutritionComposerBusy(
     button.setAttribute(
       "aria-label",
       isBusy
-        ? "Receiving transmission from Ari"
-        : "Transmit message to Ari"
+        ? "Ari is thinking"
+        : "Send message to Ari"
     );
   }
 
@@ -603,8 +603,8 @@ function setNutritionComposerBusy(
   if (sendLabel) {
     sendLabel.textContent =
       isBusy
-        ? "RECEIVING"
-        : "TRANSMIT";
+        ? "Thinking"
+        : "Send";
   }
 
   if (transmissionReady) {
@@ -3237,8 +3237,8 @@ function updateManualFormMode() {
   if (label) {
     label.textContent =
       isEditing
-        ? "UPDATE MEAL"
-        : "SAVE MEAL";
+        ? "Update meal"
+        : "Save meal";
   }
 }
 
