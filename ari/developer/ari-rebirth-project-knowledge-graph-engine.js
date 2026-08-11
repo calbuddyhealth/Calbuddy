@@ -148,7 +148,6 @@ window.AriRebirthProjectKnowledgeGraphEngine = {
           purpose: "Owner-gated read, search, edit, commit, preview, and undo workflows.",
           files: [
             "server/ari-owner-auth.js",
-            "api/ari-owner-status.js",
             "api/ari-github-read.js",
             "api/ari-github-search.js",
             "api/ari-github-edit.js",
