@@ -1,4 +1,8 @@
-import { timingSafeEqual } from "crypto";
+import {
+  sendOwnerAuthorizationError,
+  setOwnerSecurityHeaders,
+  verifyOwnerRequest
+} from "../server/ari-owner-auth.js";
 
 // api/ari-github-read.js
 // Ari GitHub Read Endpoint
@@ -58,8 +62,12 @@ const SEARCHABLE_EXTENSIONS = new Set([
 ]);
 
 export default async function handler(req, res) {
+  setOwnerSecurityHeaders(res);
+
   try {
-    if (req.method !== "POST") {
+    const isOwnerStatusRequest = req.method === "GET";
+
+    if (!isOwnerStatusRequest && req.method !== "POST") {
       return res.status(405).json({
         success: false,
         error: "Method not allowed",
@@ -67,38 +75,49 @@ export default async function handler(req, res) {
       });
     }
 
-    const token =
-  process.env.GITHUB_TOKEN;
-
-const repo =
-  process.env.GITHUB_REPO;
-
-const branch =
-  cleanString(
-    req.body?.branch
-  ) ||
-  cleanString(
-    process.env.GITHUB_BRANCH
-  );
-
-if (!branch) {
-  return res.status(500).json({
-    success: false,
-    error:
-      "GitHub branch is not configured.",
-    code:
-      "MISSING_GITHUB_BRANCH"
-  });
-}
-
     const authorization =
-      verifyOwnerAuthorization(req);
+      await verifyOwnerRequest(req);
 
     if (!authorization.authorized) {
-      return res.status(403).json({
+      return sendOwnerAuthorizationError(
+        res,
+        authorization
+      );
+    }
+
+    if (isOwnerStatusRequest) {
+      return res.status(200).json({
+        success: true,
+        isOwner: true,
+        authorizationMode: authorization.mode
+      });
+    }
+
+    const token =
+      cleanString(
+        process.env.GITHUB_TOKEN
+      );
+
+    const repo =
+      cleanString(
+        process.env.GITHUB_REPO
+      );
+
+    const branch =
+      cleanString(
+        req.body?.branch
+      ) ||
+      cleanString(
+        process.env.GITHUB_BRANCH
+      );
+
+    if (!branch) {
+      return res.status(500).json({
         success: false,
-        error: "Owner authorization required",
-        code: "OWNER_AUTH_REQUIRED"
+        error:
+          "GitHub branch is not configured.",
+        code:
+          "MISSING_GITHUB_BRANCH"
       });
     }
 
@@ -1183,110 +1202,6 @@ async function parseJsonResponse(
   return response
     .json()
     .catch(() => ({}));
-}
-
-/* =====================================================
-   AUTHORIZATION
-===================================================== */
-
-function verifyOwnerAuthorization(
-  req
-) {
-  /*
-   * Preferred production mode:
-   * Set ARI_GITHUB_READ_SECRET and send:
-   * Authorization: Bearer <secret>
-   *
-   * Legacy owner_access remains available for existing
-   * owner-only application flows. Replace this fallback
-   * with your authenticated Supabase owner lookup when
-   * that server-side identity helper is available.
-   */
-
-  const configuredSecret =
-    cleanString(
-      process.env
-        .ARI_GITHUB_READ_SECRET
-    );
-
-  const authorizationHeader =
-    cleanString(
-      req.headers
-        ?.authorization
-    );
-
-  const bearerToken =
-    authorizationHeader
-      .toLowerCase()
-      .startsWith(
-        "bearer "
-      )
-      ? authorizationHeader
-          .slice(7)
-          .trim()
-      : "";
-
-  if (
-    configuredSecret &&
-    bearerToken &&
-    timingSafeEqualStrings(
-      bearerToken,
-      configuredSecret
-    )
-  ) {
-    return {
-      authorized:
-        true,
-      mode:
-        "server_secret"
-    };
-  }
-
-  if (
-    req.body?.owner_access ===
-    true
-  ) {
-    return {
-      authorized:
-        true,
-      mode:
-        "legacy_owner_access"
-    };
-  }
-
-  return {
-    authorized:
-      false,
-    mode:
-      null
-  };
-}
-
-function timingSafeEqualStrings(
-  left,
-  right
-) {
-  const leftBuffer =
-    Buffer.from(
-      String(left || "")
-    );
-
-  const rightBuffer =
-    Buffer.from(
-      String(right || "")
-    );
-
-  if (
-    leftBuffer.length !==
-    rightBuffer.length
-  ) {
-    return false;
-  }
-
-  return timingSafeEqual(
-    leftBuffer,
-    rightBuffer
-  );
 }
 
 /* =====================================================

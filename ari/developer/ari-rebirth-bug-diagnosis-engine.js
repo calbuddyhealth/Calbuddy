@@ -212,7 +212,7 @@ window.AriRebirthBugDiagnosisEngine = {
 
       github_workflow: [
         {
-          cause: "GitHub read/search/edit endpoint may be blocked by owner_access or env variables.",
+          cause: "GitHub read/search/edit may be blocked by Supabase owner verification or env variables.",
           confidence: 0.8,
           evidenceNeeded: ["Read api/ari-github-read.js", "Read api/ari-github-edit.js"]
         },
@@ -321,7 +321,7 @@ window.AriRebirthBugDiagnosisEngine = {
         "Authenticated user ID."
       ],
       github_workflow: [
-        "owner_access value.",
+        "Supabase owner authorization response.",
         "GitHub endpoint response.",
         "Exact filePath/find text."
       ],
@@ -364,7 +364,7 @@ window.AriRebirthBugDiagnosisEngine = {
       github_workflow: [
         "Read calbuddy-core.js developer handoff.",
         "Read GitHub endpoint involved.",
-        "Confirm owner_access and env variables.",
+        "Confirm the Supabase owner JWT and env variables.",
         "Patch endpoint/core handoff only after exact failure."
       ],
       tooling: [
