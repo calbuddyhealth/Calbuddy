@@ -1,8 +1,14 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.3.0
+// Version: 3.4.0
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
+//
+// V3.4.0:
+//   - Restores one ordinary chronological, continuously scrollable thread.
+//   - Removes thread segmentation, message archiving, and long-card disclosure.
+//   - Fades the conversation layer while Ari's thinking sequence takes focus.
+//   - Restores the complete thread at the newest answer after delivery.
 //
 // V3.3.0:
 //   - Adds ARI Presence conversation mode.
@@ -56,7 +62,6 @@ let ariStopped = false;
 let ariThinkingSequenceTimer = null;
 let ariThinkingSequenceFrame = 1;
 let ariThinkingSequencePhase = "idle";
-let ariThreadExpanded = false;
 let ariPresenceFocus = false;
 
 const ARI_ASSETS = {
@@ -352,14 +357,8 @@ function reverseAriThinkingSequence() {
 
 function setupAriPresenceConversation() {
   const shell = document.getElementById("ariConversationShell");
-  const threadToggle = document.getElementById("ariThreadToggle");
 
   if (!shell) return;
-
-  threadToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    setAriThreadExpanded(!ariThreadExpanded);
-  });
 
   shell.addEventListener("click", (event) => {
     const target = event.target;
@@ -380,15 +379,8 @@ function setupAriPresenceConversation() {
 
     if (ariPresenceFocus) {
       setAriPresenceFocus(false);
-      return;
-    }
-
-    if (ariThreadExpanded) {
-      setAriThreadExpanded(false);
     }
   });
-
-  updateAriThreadPresentation(false);
 }
 
 function setAriPresenceFocus(isActive) {
@@ -398,161 +390,9 @@ function setAriPresenceFocus(isActive) {
 
   ariPresenceFocus = Boolean(isActive);
 
-  if (ariPresenceFocus && ariThreadExpanded) {
-    setAriThreadExpanded(false);
-  }
-
   app?.classList.toggle("ari-presence-focus", ariPresenceFocus);
   thread?.setAttribute("aria-hidden", String(ariPresenceFocus));
   hint?.setAttribute("aria-hidden", String(!ariPresenceFocus));
-}
-
-function setAriThreadExpanded(isExpanded) {
-  const thread = document.getElementById("ariMessages");
-  const toggle = document.getElementById("ariThreadToggle");
-
-  ariThreadExpanded = Boolean(isExpanded);
-
-  if (ariThreadExpanded && ariPresenceFocus) {
-    setAriPresenceFocus(false);
-  }
-
-  thread?.classList.toggle("is-expanded", ariThreadExpanded);
-  toggle?.setAttribute("aria-expanded", String(ariThreadExpanded));
-
-  updateAriThreadPresentation(true);
-}
-
-function setAriMessageArchived(message, shouldArchive, animate = true) {
-  if (!message) return;
-
-  if (message._ariArchiveTimer) {
-    clearTimeout(message._ariArchiveTimer);
-    message._ariArchiveTimer = null;
-  }
-
-  message.dataset.ariArchived = String(shouldArchive);
-
-  if (!shouldArchive) {
-    const wasArchived = message.classList.contains("is-archived");
-
-    message.classList.remove("is-archived", "is-retiring");
-
-    if (animate && wasArchived) {
-      message.classList.add("is-returning");
-      message.addEventListener(
-        "animationend",
-        () => message.classList.remove("is-returning"),
-        { once: true }
-      );
-    }
-
-    return;
-  }
-
-  if (message.classList.contains("is-archived")) return;
-
-  if (!animate) {
-    message.classList.remove("is-retiring");
-    message.classList.add("is-archived");
-    return;
-  }
-
-  message.classList.add("is-retiring");
-
-  message._ariArchiveTimer = setTimeout(() => {
-    message.classList.remove("is-retiring");
-    message.classList.add("is-archived");
-    message._ariArchiveTimer = null;
-  }, 280);
-}
-
-function updateAriThreadPresentation(animate = true) {
-  const shell = document.getElementById("ariConversationShell");
-  const thread = document.getElementById("ariMessages");
-  const toggle = document.getElementById("ariThreadToggle");
-  const toggleLabel = document.getElementById("ariThreadToggleLabel");
-  const count = document.getElementById("ariThreadCount");
-  const messages = Array.from(thread?.querySelectorAll(".ari-message") || []);
-  const currentMessage = messages.at(-1) || null;
-
-  messages.forEach((message) => {
-    const shouldArchive = !ariThreadExpanded && message !== currentMessage;
-
-    message.classList.toggle("is-current", !shouldArchive);
-    setAriMessageArchived(message, shouldArchive, animate);
-  });
-
-  const hiddenCount = ariThreadExpanded
-    ? 0
-    : Math.max(0, messages.length - (currentMessage ? 1 : 0));
-
-  const hasThread = messages.length > 1;
-
-  shell?.classList.toggle("has-archived-messages", hasThread);
-
-  if (toggle) {
-    toggle.hidden = !hasThread;
-    toggle.setAttribute(
-      "aria-label",
-      ariThreadExpanded
-        ? `Close conversation thread with ${messages.length} messages`
-        : `Open ${hiddenCount} previous conversation messages`
-    );
-  }
-
-  if (toggleLabel) {
-    toggleLabel.textContent = ariThreadExpanded ? "CLOSE THREAD" : "THREAD";
-  }
-
-  if (count) {
-    count.textContent = String(ariThreadExpanded ? messages.length : hiddenCount);
-  }
-}
-
-function enhanceAriResponseCard(message) {
-  const body = message?.querySelector("p");
-  if (!message || !body) return;
-
-  requestAnimationFrame(() => {
-    const collapsedHeight = Math.min(
-      320,
-      Math.max(190, Math.round(window.innerHeight * 0.32))
-    );
-
-    if (body.scrollHeight <= collapsedHeight + 12) return;
-
-    message.classList.add("is-long-response");
-    body.style.setProperty(
-      "--ari-response-collapsed-height",
-      `${collapsedHeight}px`
-    );
-
-    const disclosure = document.createElement("button");
-    disclosure.type = "button";
-    disclosure.className = "ari-response-disclosure";
-    disclosure.textContent = "CONTINUE READING";
-    disclosure.setAttribute("aria-expanded", "false");
-
-    disclosure.addEventListener("click", (event) => {
-      event.stopPropagation();
-
-      const isExpanded = message.classList.toggle("is-response-expanded");
-
-      disclosure.textContent = isExpanded ? "COLLAPSE" : "CONTINUE READING";
-      disclosure.setAttribute("aria-expanded", String(isExpanded));
-
-      if (!isExpanded) {
-        message.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-          inline: "nearest"
-        });
-      }
-    });
-
-    message.appendChild(disclosure);
-  });
 }
 
 function setRotatingWelcomeQuestion() {
@@ -846,7 +686,6 @@ function addAriMessage(text, sender = "ari") {
 
   div.className =
     `ari-message ${sender === "user" ? "ari-user" : "ari-ai"}`;
-  div.dataset.sender = sender === "user" ? "user" : "ari";
   div.classList.add("is-arriving");
 
   const label = document.createElement("span");
@@ -865,12 +704,6 @@ function addAriMessage(text, sender = "ari") {
     () => div.classList.remove("is-arriving"),
     { once: true }
   );
-
-  updateAriThreadPresentation(true);
-
-  if (sender !== "user" && text) {
-    enhanceAriResponseCard(div);
-  }
 
   /*
     Wait until conversation mode has rendered before scrolling.
@@ -988,7 +821,6 @@ async function sendAriMessage() {
   ariBusy = false;
 
   setAriPresenceFocus(false);
-  setAriThreadExpanded(false);
 
   setAriPose("idleOpen");
 
