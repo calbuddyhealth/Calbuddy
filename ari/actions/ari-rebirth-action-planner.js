@@ -1,335 +1,173 @@
-// ari/actions/ari-rebirth-action-planner.js
-// Purpose: Convert Rebirth understanding into safe CalBuddy proposed actions.
-// V1.3.0 — Structured Meal Action Planner / Full Total + Single Item Support
-
+// =====================================================
+// ARI REBIRTH
+// File: ari/actions/ari-rebirth-action-planner.js
+// Version: 2.2.0-experimental
+// Purpose: validate OpenAI-proposed app operations and prepare executable
+// user-owned actions before confirmation.
+// =====================================================
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "1.3.0",
+  version: "2.2.0-experimental",
+  source: "ari-rebirth-action-planner-openai-proposed-actions",
+  _mealResolverPromise: null,
 
-  plan(summary = {}) {
-    const text = String(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
-    ).trim();
+  async plan(summary = {}) {
+    const appControl = window.AriAppControlRuntime || window.Ari?.appControlRuntime || null;
+    const rawActions = this.firstArray([
+      summary.cognitiveReasoningResult?.proposedActions,
+      summary.reasoningResult?.proposedActions,
+      summary.reasoningStagePacket?.proposedActions,
+      summary.modelProposedActions,
+      summary.proposedActions
+    ]);
 
-    const normalized = text.toLowerCase().replace(/,/g, "");
     const actions = [];
+    const rejectedActions = [];
 
-    const mealAction = this.detectMealLog(normalized, summary);
-    if (mealAction) actions.push(mealAction);
+    for (const rawAction of rawActions) {
+      let normalized = appControl?.normalizeProposedAction?.(rawAction) || null;
+      if (!normalized) {
+        rejectedActions.push({ action: rawAction, reason: "unregistered_application_operation" });
+        continue;
+      }
 
-    const weightAction = this.detectWeightLog(normalized);
-    if (weightAction) actions.push(weightAction);
+      if (normalized.capability?.mode === "read") continue;
 
-    const calorieGoalAction = this.detectCalorieGoal(normalized);
-    if (calorieGoalAction) actions.push(calorieGoalAction);
+      try {
+        normalized = await this.prepareAction(normalized, summary, appControl);
+      } catch (error) {
+        rejectedActions.push({
+          action: rawAction,
+          normalizedAction: normalized,
+          reason: error?.message || "application_action_preparation_failed"
+        });
+        continue;
+      }
+
+      actions.push({
+        ...normalized,
+        blocked: false,
+        requiresApproval: true,
+        executionAuthority: "ari-app-control-runtime",
+        semanticAuthority: "openai",
+        source: this.source
+      });
+    }
+
+    const plan = {
+      schema: "ari_rebirth_action_plan",
+      schemaVersion: "2.2.0-experimental",
+      source: this.source,
+      ready: true,
+      actionCount: actions.length,
+      actions,
+      rejectedActions,
+      requiresApproval: actions.length > 0,
+      authority: {
+        semanticInterpretation: "openai",
+        actionProposal: "openai",
+        nutritionResolution: "ari-nutrition-runtime",
+        operationValidation: "ari-app-control-runtime",
+        execution: "calbuddy-application-boundary",
+        arbitraryOperationsAllowed: false
+      }
+    };
 
     return {
       ...summary,
-      proposedActions: actions
+      actionPlannerRan: true,
+      actionPlannerSource: this.source,
+      actionPlannerVersion: this.version,
+      rebirthActionPlan: plan,
+      actionPlan: plan,
+      actions,
+      plannedActions: actions,
+      proposedActions: rawActions,
+      rejectedProposedActions: rejectedActions
     };
   },
 
-  detectMealLog(text = "", summary = {}) {
-    if (!this.userWantsMealLog(text)) return null;
+  async prepareAction(action = {}, summary = {}, appControl = null) {
+    let prepared = { ...action, payload: { ...(action.payload || {}) } };
 
-    const mealEstimate = this.getMealEstimate(summary);
-    const selectedFood = this.resolveSelectedFoodFromMealEstimate(text, mealEstimate);
-
-    if (selectedFood) {
-      return this.makeMealAction(
-        selectedFood.name,
-        selectedFood.calories,
-        "Selected from Ari Rebirth estimate"
-      );
+    if (typeof appControl?.prepareAction === "function") {
+      prepared = await appControl.prepareAction(prepared, summary);
     }
 
-    const calories = this.resolveMealTotalCalories(summary, text, mealEstimate);
-    const foodName = this.resolveMealDescription(summary, text, mealEstimate);
+    const operation = appControl?.normalizeOperation?.(
+      prepared.operation || prepared.action_type || prepared.type
+    ) || prepared.operation || prepared.action_type || prepared.type;
 
-    if (!calories || !foodName) return null;
+    if (operation !== "log_meal") return prepared;
 
-    return this.makeMealAction(foodName, calories, "Estimated by Ari Rebirth");
-  },
-
-  userWantsMealLog(text = "") {
-    return (
-      /\b(log|add|save|track)\b/.test(text) &&
-      (
-        text.includes("meal") ||
-        text.includes("food") ||
-        text.includes("calories") ||
-        text.includes("calorie") ||
-        text.includes("kcal") ||
-        text.includes("cals") ||
-        text.includes("that") ||
-        text.includes("it") ||
-        text.includes("total") ||
-        text.includes("estimate") ||
-        text.includes("intake") ||
-        text.includes("just") ||
-        text.includes("only")
-      )
-    );
-  },
-
-  getMealEstimate(summary = {}) {
-    return (
-      summary.mealEstimate ||
-      summary.lastMealEstimate ||
-      summary.foodAnalysis ||
-      summary.nutritionEstimate ||
-      summary.calorieEstimate ||
-      summary.appContext?.mealEstimate ||
-      summary.appContext?.lastMealEstimate ||
-      summary.threadState?.lastMealEstimate ||
-      null
-    );
-  },
-
-  resolveSelectedFoodFromMealEstimate(text = "", mealEstimate = null) {
-    const foods = Array.isArray(mealEstimate?.foods)
-      ? mealEstimate.foods
-      : [];
-
-    if (!foods.length) return null;
-
-    const wantsPartial =
-      text.includes("just") ||
-      text.includes("only") ||
-      text.includes("the ");
-
-    if (!wantsPartial) return null;
-
-    const cleanText = this.normalizeText(text);
-
-    const scored = foods
-      .map(food => {
-        const name = this.cleanFoodName(food?.name || food?.food || "");
-        const calories = Number(food?.calories || food?.totalCalories);
-
-        if (!name || !Number.isFinite(calories)) return null;
-
-        const normalizedName = this.normalizeText(name);
-        const tokens = normalizedName
-          .split(/\s+/)
-          .filter(token => token.length >= 3);
-
-        let score = 0;
-
-        if (cleanText.includes(normalizedName)) score += 10;
-
-        tokens.forEach(token => {
-          if (cleanText.includes(token)) score += 2;
-        });
-
-        return {
-          name,
-          calories: Math.round(calories),
-          score
-        };
-      })
-      .filter(Boolean)
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    return scored[0] || null;
-  },
-
-  resolveMealTotalCalories(summary = {}, text = "", mealEstimate = null) {
-    const structuredCandidates = [
-      mealEstimate?.totalCalories,
-      summary.mealEstimate?.totalCalories,
-      summary.lastMealEstimate?.totalCalories,
-      summary.foodAnalysis?.totalCalories,
-      summary.nutritionEstimate?.totalCalories,
-      summary.calorieEstimate?.totalCalories,
-      summary.totalCalories,
-      summary.appContext?.lastMealEstimate?.totalCalories,
-      summary.appContext?.mealEstimate?.totalCalories,
-      summary.threadState?.lastMealEstimate?.totalCalories
-    ];
-
-    for (const value of structuredCandidates) {
-      const number = Number(value);
-      if (Number.isFinite(number) && number >= 10 && number <= 5000) {
-        return Math.round(number);
-      }
+    const resolver = await this.ensureMealResolver();
+    const payload = await resolver.resolveMeal(prepared.payload || {});
+    const calories = Number(payload.calories || 0);
+    if (!Number.isFinite(calories) || calories <= 0) {
+      throw new Error("meal_calories_unresolved");
     }
 
-    const directCalories = this.extractTotalCaloriesFromText(text);
-    if (directCalories) return directCalories;
+    const databaseOnly = payload.nutritionResolution?.allDatabaseMatched === true;
+    const confirmation = databaseOnly
+      ? `I estimate that meal at about ${Math.round(calories).toLocaleString()} calories from the ARI Nutrition database. Log it?`
+      : `I estimate that meal at about ${Math.round(calories).toLocaleString()} calories. I matched what I could to the ARI Nutrition database and estimated the rest. Log it?`;
 
-    const history = Array.isArray(summary.appContext?.history)
-      ? summary.appContext.history
-      : [];
-
-    for (let i = history.length - 1; i >= 0; i--) {
-      const item = history[i] || {};
-      const historyText = String(
-        item.reply ||
-        item.content ||
-        item.message ||
-        item.assistantMessage ||
-        ""
-      );
-
-      const calories = this.extractTotalCaloriesFromText(historyText);
-      if (calories) return calories;
-    }
-
-    return null;
-  },
-
-  resolveMealDescription(summary = {}, text = "", mealEstimate = null) {
-    const structuredCandidates = [
-      mealEstimate?.description,
-      summary.mealEstimate?.description,
-      summary.lastMealEstimate?.description,
-      summary.foodAnalysis?.description,
-      summary.nutritionEstimate?.description,
-      summary.calorieEstimate?.description,
-      summary.appContext?.lastMealEstimate?.description,
-      summary.appContext?.mealEstimate?.description,
-      summary.threadState?.lastMealEstimate?.description
-    ];
-
-    for (const value of structuredCandidates) {
-      const clean = this.cleanFoodName(value);
-      if (clean) return clean;
-    }
-
-    const directFood = this.extractFoodFromDirectLog(text);
-    if (directFood) return directFood;
-
-    const history = Array.isArray(summary.appContext?.history)
-      ? summary.appContext.history
-      : [];
-
-    for (let i = history.length - 1; i >= 0; i--) {
-      const item = history[i] || {};
-      const historyText = String(
-        item.userMessage ||
-        item.message ||
-        item.content ||
-        ""
-      );
-
-      const food = this.extractFoodFromEatingText(historyText);
-      if (food) return food;
-    }
-
-    return "Meal estimated by Ari";
-  },
-
-  extractFoodFromDirectLog(text = "") {
-    const match =
-      text.match(/\b(?:log|add|save|track)\s+(.{2,120}?)\s+(?:for\s+)?\d{2,5}\s*(?:calories|calorie|kcal|cals)?\b/) ||
-      text.match(/\b(?:log|add|save|track)\s+\d{2,5}\s*(?:calories|calorie|kcal|cals)\s+(?:for\s+)?(.{2,120})\b/);
-
-    if (!match) return null;
-
-    return this.cleanFoodName(match[1] || match[2]);
-  },
-
-  extractFoodFromEatingText(text = "") {
-    const match = String(text || "").match(/\b(?:i ate|i had|ate|had)\s+(.{2,180})\b/i);
-    if (!match) return null;
-
-    return this.cleanFoodName(match[1]);
-  },
-
-  extractTotalCaloriesFromText(text = "") {
-    const clean = String(text || "").replace(/,/g, "").toLowerCase();
-
-    const patterns = [
-      /total:\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
-      /total\s*(?:is|would be|comes to)?\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
-      /approximately\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
-      /about\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i
-    ];
-
-    for (const pattern of patterns) {
-      const match = clean.match(pattern);
-      if (!match) continue;
-
-      const calories = Number(match[1]);
-      if (Number.isFinite(calories) && calories >= 10 && calories <= 5000) {
-        return Math.round(calories);
-      }
-    }
-
-    return null;
-  },
-
-  makeMealAction(foodName, calories, servingSize = "Estimated by Ari Rebirth") {
     return {
+      ...prepared,
+      operation: "log_meal",
       action_type: "log_meal",
-      payload: {
-        name: foodName,
-        calories,
-        category: "Meal",
-        serving_size: servingSize
-      },
-      confirmation_text: `Log ${foodName} for about ${calories.toLocaleString()} calories?`
+      payload,
+      confirmation_text: confirmation,
+      confirmationText: confirmation,
+      nutritionResolved: true,
+      nutritionResolution: payload.nutritionResolution || null
     };
   },
 
-  detectWeightLog(text = "") {
-    const match =
-      text.match(/\b(?:i weigh|my weight is|weighed|current weight is|update my weight to|set my weight to)\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/);
+  async ensureMealResolver() {
+    const existing = window.AriMealResolutionRuntime || window.Ari?.mealResolutionRuntime;
+    if (existing?.resolveMeal) return existing;
 
-    if (!match) return null;
+    if (!this._mealResolverPromise) {
+      this._mealResolverPromise = new Promise((resolve, reject) => {
+        const src = "ari/nutrition/ari-meal-resolution-runtime.js?v=1.0.0";
+        const already = Array.from(document.scripts || []).find(script =>
+          (script.getAttribute("src") || "").split("?")[0].endsWith("ari/nutrition/ari-meal-resolution-runtime.js")
+        );
 
-    const weight = Number(match[1]);
-    if (!weight || weight < 70 || weight > 700) return null;
+        const finish = () => {
+          const runtime = window.AriMealResolutionRuntime || window.Ari?.mealResolutionRuntime;
+          if (runtime?.resolveMeal) resolve(runtime);
+          else reject(new Error("ari_meal_resolution_runtime_unavailable"));
+        };
 
-    return {
-      action_type: "log_weight",
-      payload: {
-        weight,
-        notes: "Logged through Ari Rebirth"
-      },
-      confirmation_text: `Log your current weight as ${weight} lb?`
-    };
+        if (already) {
+          if (window.AriMealResolutionRuntime?.resolveMeal) finish();
+          else {
+            already.addEventListener("load", finish, { once: true });
+            already.addEventListener("error", () => reject(new Error("ari_meal_resolution_runtime_load_failed")), { once: true });
+          }
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = false;
+        script.onload = finish;
+        script.onerror = () => reject(new Error("ari_meal_resolution_runtime_load_failed"));
+        (document.head || document.documentElement).appendChild(script);
+      }).catch(error => {
+        this._mealResolverPromise = null;
+        throw error;
+      });
+    }
+
+    return this._mealResolverPromise;
   },
 
-  detectCalorieGoal(text = "") {
-    const match =
-      text.match(/\b(?:set|change|update)?\s*(?:my)?\s*(?:daily)?\s*(?:calorie|calories|kcal)\s*(?:goal|target)?\s*(?:to|is|at)?\s*(\d{4,5})\b/) ||
-      text.match(/\b(\d{4,5})\s*(?:calories|kcal)\b/);
-
-    if (!match) return null;
-
-    const calorieGoal = Number(match[1]);
-    if (!calorieGoal || calorieGoal < 1000 || calorieGoal > 6000) return null;
-
-    return {
-      action_type: "update_profile",
-      payload: {
-        daily_calorie_goal: calorieGoal,
-        calorieGoal
-      },
-      confirmation_text: `Change your daily calorie goal to ${calorieGoal.toLocaleString()} kcal?`
-    };
-  },
-
-  cleanFoodName(foodName = "") {
-    return String(foodName || "")
-      .replace(/\b(calories|calorie|kcal|cals)\b/g, "")
-      .replace(/\b(total|approximately|about|around)\b/g, "")
-      .replace(/[.!?]+$/g, "")
-      .trim();
-  },
-
-  normalizeText(text = "") {
-    return String(text || "")
-      .toLowerCase()
-      .replace(/[^\w\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+  firstArray(values = []) {
+    for (const value of values) if (Array.isArray(value)) return value;
+    return [];
   }
 };
