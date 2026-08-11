@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.2.3
+// Version: 3.2.4
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
 //
 // V3.2.3:
@@ -795,10 +795,6 @@ async function sendAriMessage() {
     const response = await CalBuddy.askAri({
       message,
       history: ariChatHistory,
-      ownerMode: true,
-      appContext: {
-        ownerMode: true
-      },
       debugTiming: true
     });
 
