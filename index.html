@@ -11,6 +11,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
+<script src="js/auth.js?v=2.0.0"></script>
 
 <script>
 (async function routeAriUser() {
@@ -25,7 +26,12 @@
     }
 
     if (session?.user) {
-      window.location.replace("home.html");
+      const accountState = await getAriAccountState(session.user.id);
+      window.location.replace(
+        accountState?.status && accountState.status !== "active"
+          ? "account.html"
+          : "home.html"
+      );
       return;
     }
 

@@ -415,6 +415,22 @@ async function handleLogin() {
       data.user
     );
 
+    const accountState =
+      await getAriAccountState(
+        data.user.id
+      );
+
+    if (
+      accountState?.status &&
+      accountState.status !== "active"
+    ) {
+      window.location.replace(
+        "account.html"
+      );
+
+      return;
+    }
+
     const name =
       data.user
         .user_metadata
@@ -805,8 +821,16 @@ async function initializeSignInPage() {
      * signed in and intentionally visits signin.html.
      */
     if (session?.user) {
+      const accountState =
+        await getAriAccountState(
+          session.user.id
+        );
+
       window.location.replace(
-        "home.html"
+        accountState?.status &&
+        accountState.status !== "active"
+          ? "account.html"
+          : "home.html"
       );
 
       return;

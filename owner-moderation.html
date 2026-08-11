@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>Owner Moderation · ARI Rebirth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+</head>
+<body>
+  <main class="ari-account-page">
+    <header class="ari-account-header">
+      <a class="ari-icon-button" href="account.html" aria-label="Back to account">←</a>
+      <a class="ari-brand-mark" href="index.html" aria-label="ARI Rebirth home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">REBIRTH</span></a>
+      <a class="ari-header-button" href="account.html">Account</a>
+    </header>
+
+    <section class="ari-page-hero">
+      <div class="ari-page-symbol" aria-hidden="true">◆</div>
+      <p class="ari-page-kicker">OWNER ONLY</p>
+      <h1 class="ari-page-title">Moderation inbox</h1>
+      <p class="ari-page-description">Private reports and a simple review trail.</p>
+    </section>
+
+    <div class="ari-status" id="moderationStatus" role="status" aria-live="polite"></div>
+
+    <section id="moderationWorkspace" hidden>
+      <div class="ari-filter-row" role="group" aria-label="Filter reports">
+        <button class="ari-filter-button is-active" type="button" data-status="open">Open</button>
+        <button class="ari-filter-button" type="button" data-status="pending">Pending</button>
+        <button class="ari-filter-button" type="button" data-status="reviewing">Reviewing</button>
+        <button class="ari-filter-button" type="button" data-status="resolved">Resolved</button>
+        <button class="ari-filter-button" type="button" data-status="all">All</button>
+      </div>
+      <div class="ari-report-list" id="moderationReportList"></div>
+    </section>
+
+    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Owner access is verified by Supabase UID.</p></footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/settings-shared.js?v=1.0.0"></script>
+  <script src="js/owner-moderation.js?v=1.0.0"></script>
+</body>
+</html>

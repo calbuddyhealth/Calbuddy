@@ -105,7 +105,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupAriPreferenceNavigation();
   setupHomeMenuKeyboardControls();
 
-  await setupHomeAuth();
+  const authorized = await setupHomeAuth();
+  if (!authorized) return;
   await refreshHomeDashboard();
 
   const savedPending = window.CalBuddy?.getPendingAction?.();
@@ -598,17 +599,19 @@ function openRequestedHomeMenu() {
 
 async function setupHomeAuth() {
   if (typeof requireAuth === "function") {
-    await requireAuth();
-    return;
+    return Boolean(await requireAuth());
   }
 
-  if (!window.calbuddySupabase) return;
+  if (!window.calbuddySupabase) return false;
 
   const { data } = await window.calbuddySupabase.auth.getSession();
 
   if (!data?.session) {
     window.location.replace("signin.html");
+    return false;
   }
+
+  return true;
 }
 
 async function refreshHomeDashboard() {

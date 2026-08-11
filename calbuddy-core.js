@@ -61,9 +61,22 @@ API HELPER
 ----------------------------- */
 CalBuddy.api = async function (endpoint, body = {}, options = {}) {
   const method = options.method || "POST";
+  const headers = { "Content-Type": "application/json" };
+
+  if (options.authenticated === true) {
+    const session = await CalBuddy.getCurrentSession();
+    const accessToken = String(session?.access_token || "").trim();
+
+    if (!accessToken) {
+      throw new Error("A signed-in session is required.");
+    }
+
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const response = await fetch(endpoint, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: method === "GET" ? undefined : JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
@@ -835,14 +848,14 @@ CalBuddy.saveMemory = async function ({ memory_type, memory_key = null, memory_v
     memory_key,
     memory_value,
     source
-  });
+  }, { authenticated: true });
 };
 CalBuddy.getMemories = async function () {
   const user = await CalBuddy.requireUser();
   return await CalBuddy.api("/api/memory", {
     action: "get_memories",
     user_id: user.id
-  });
+  }, { authenticated: true });
 };
 CalBuddy.searchKnowledge = async function (query) {
   const user = await CalBuddy.requireUser();
@@ -1241,7 +1254,104 @@ CalBuddy.captureAriTemporarySuggestions = function ({
 /* -----------------------------
 ASK ARI
 ----------------------------- */
-CalBuddy.askAri = async function ({ message, history = [], debugTiming = false }) {
+CalBuddy.getConversationId = function () {
+  const storageKey = "ari_conversation_id";
+  let conversationId = sessionStorage.getItem(storageKey);
+
+  if (!conversationId) {
+    conversationId =
+      typeof window.crypto?.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : "00000000-0000-4000-8000-" +
+          Math.random().toString(16).slice(2).padEnd(12, "0").slice(0, 12);
+    sessionStorage.setItem(storageKey, conversationId);
+  }
+
+  return conversationId;
+};
+
+CalBuddy.loadRecentConversationHistory = async function () {
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  const session = await CalBuddy.getCurrentSession();
+
+  if (!client || !session?.user?.id) return [];
+
+  try {
+    const { data, error } = await client
+      .from("ari_conversation_turns")
+      .select("user_message,assistant_message,created_at")
+      .eq("user_id", session.user.id)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.warn("Recent Ari continuity is not available:", error.message);
+      return [];
+    }
+
+    return (Array.isArray(data) ? data.slice().reverse() : []).flatMap((turn) => [
+      { role: "user", content: String(turn.user_message || "") },
+      { role: "assistant", content: String(turn.assistant_message || "") }
+    ]).filter((item) => item.content.trim());
+  } catch (error) {
+    console.warn("Recent Ari continuity load failed:", error);
+    return [];
+  }
+};
+
+CalBuddy.mergeConversationHistory = function (recent = [], current = []) {
+  const merged = [];
+  const seen = new Set();
+
+  [...recent, ...(Array.isArray(current) ? current : [])].forEach((item) => {
+    const role = item?.role === "assistant" ? "assistant" : "user";
+    const content = String(item?.content || "").trim();
+    if (!content) return;
+
+    const key = `${role}:${content.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push({ role, content });
+  });
+
+  return merged.slice(-20);
+};
+
+CalBuddy.saveConversationTurn = async function ({ message, reply }) {
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  const session = await CalBuddy.getCurrentSession();
+  const userMessage = String(message || "").trim();
+  const assistantMessage = String(reply || "").trim();
+
+  if (!client || !session?.user?.id || !userMessage || !assistantMessage) {
+    return false;
+  }
+
+  try {
+    const { error } = await client
+      .from("ari_conversation_turns")
+      .insert({
+        user_id: session.user.id,
+        conversation_id: CalBuddy.getConversationId(),
+        user_message: userMessage,
+        assistant_message: assistantMessage,
+        page_path: window.location.pathname || "unknown"
+      });
+
+    if (error) {
+      console.warn("Recent Ari continuity was not saved:", error.message);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn("Recent Ari continuity save failed:", error);
+    return false;
+  }
+};
+
+CalBuddy._askAriInternal = async function ({ message, history = [], debugTiming = false }) {
   const timingStart = performance.now();
   const timing = [];
 
@@ -1792,6 +1902,35 @@ const mood =
 
 finishTiming();
 return response;
+};
+
+CalBuddy.askAri = async function (input = {}) {
+  const recentHistory = await CalBuddy.loadRecentConversationHistory();
+  const history = CalBuddy.mergeConversationHistory(
+    recentHistory,
+    input.history || []
+  );
+
+  const result = await CalBuddy._askAriInternal({
+    ...input,
+    history
+  });
+
+  const reply = String(
+    result?.reply ||
+    result?.text ||
+    result?.message ||
+    ""
+  ).trim();
+
+  if (reply) {
+    void CalBuddy.saveConversationTurn({
+      message: input.message,
+      reply
+    });
+  }
+
+  return result;
 };
 
 /* -----------------------------

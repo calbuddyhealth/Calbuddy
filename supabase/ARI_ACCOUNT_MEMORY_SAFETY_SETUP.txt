@@ -1,0 +1,645 @@
+-- =============================================================
+-- ARI REBIRTH — ACCOUNT, MEMORY, SAFETY & NOTIFICATION SETUP
+-- Version: 1.0.0
+--
+-- Run this entire file once in the Supabase SQL Editor.
+-- It is safe to run again if a deployment needs to be repaired.
+--
+-- Sole owner / moderation administrator:
+-- Jose — 0b3b0f56-676f-4859-a9f4-b377dd73544f
+-- =============================================================
+
+begin;
+
+create extension if not exists pgcrypto with schema extensions;
+
+-- -------------------------------------------------------------
+-- Shared updated_at helper
+-- -------------------------------------------------------------
+
+create or replace function public.ari_set_updated_at()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+-- -------------------------------------------------------------
+-- 1. Seven-day conversational continuity
+-- -------------------------------------------------------------
+
+create table if not exists public.ari_conversation_turns (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  conversation_id uuid not null default gen_random_uuid(),
+  user_message text not null check (char_length(user_message) between 1 and 50000),
+  assistant_message text not null check (char_length(assistant_message) between 1 and 100000),
+  page_path text not null default 'unknown',
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '7 days')
+);
+
+create index if not exists ari_conversation_turns_user_created_idx
+  on public.ari_conversation_turns (user_id, created_at desc);
+
+create index if not exists ari_conversation_turns_expiry_idx
+  on public.ari_conversation_turns (expires_at);
+
+alter table public.ari_conversation_turns enable row level security;
+
+drop policy if exists "Users read their own recent Ari conversations"
+  on public.ari_conversation_turns;
+create policy "Users read their own recent Ari conversations"
+  on public.ari_conversation_turns
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users save their own recent Ari conversations"
+  on public.ari_conversation_turns;
+create policy "Users save their own recent Ari conversations"
+  on public.ari_conversation_turns
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users erase their own recent Ari conversations"
+  on public.ari_conversation_turns;
+create policy "Users erase their own recent Ari conversations"
+  on public.ari_conversation_turns
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+grant select, insert, delete on public.ari_conversation_turns to authenticated;
+
+-- -------------------------------------------------------------
+-- 2. Durable Ari memory
+-- Existing installations are upgraded without discarding memories.
+-- -------------------------------------------------------------
+
+create table if not exists public.ari_user_memory (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  memory_type text not null default 'general',
+  topic text not null default 'general',
+  content text not null,
+  importance integer not null default 5 check (importance between 1 and 10),
+  confidence numeric not null default 0.75 check (confidence between 0 and 1),
+  tags text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.ari_user_memory
+  add column if not exists memory_type text not null default 'general',
+  add column if not exists topic text not null default 'general',
+  add column if not exists content text,
+  add column if not exists importance integer not null default 5,
+  add column if not exists confidence numeric not null default 0.75,
+  add column if not exists tags text[] not null default '{}',
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+-- Remove only exact duplicate memories so the required unique index can exist.
+delete from public.ari_user_memory newer
+using public.ari_user_memory older
+where newer.ctid < older.ctid
+  and newer.user_id = older.user_id
+  and newer.content = older.content;
+
+create unique index if not exists ari_user_memory_user_content_uidx
+  on public.ari_user_memory (user_id, content);
+
+create index if not exists ari_user_memory_user_updated_idx
+  on public.ari_user_memory (user_id, updated_at desc);
+
+alter table public.ari_user_memory enable row level security;
+
+-- Remove any legacy memory policies before installing the strict owner-only
+-- set below. This closes older permissive policies instead of leaving them
+-- combined with the new rules.
+do $ari_memory_policy_cleanup$
+declare
+  policy_row record;
+begin
+  for policy_row in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'ari_user_memory'
+  loop
+    execute format(
+      'drop policy %I on public.ari_user_memory',
+      policy_row.policyname
+    );
+  end loop;
+end;
+$ari_memory_policy_cleanup$;
+
+drop policy if exists "Users read their own Ari memories"
+  on public.ari_user_memory;
+create policy "Users read their own Ari memories"
+  on public.ari_user_memory
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users create their own Ari memories"
+  on public.ari_user_memory;
+create policy "Users create their own Ari memories"
+  on public.ari_user_memory
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users update their own Ari memories"
+  on public.ari_user_memory;
+create policy "Users update their own Ari memories"
+  on public.ari_user_memory
+  for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users erase their own Ari memories"
+  on public.ari_user_memory;
+create policy "Users erase their own Ari memories"
+  on public.ari_user_memory
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+grant select, insert, update, delete on public.ari_user_memory to authenticated;
+
+drop trigger if exists ari_user_memory_set_updated_at
+  on public.ari_user_memory;
+create trigger ari_user_memory_set_updated_at
+before update on public.ari_user_memory
+for each row execute function public.ari_set_updated_at();
+
+create or replace function public.erase_my_ari_conversation_memory()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  recent_count integer := 0;
+  durable_count integer := 0;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  delete from public.ari_conversation_turns
+  where user_id = auth.uid();
+  get diagnostics recent_count = row_count;
+
+  delete from public.ari_user_memory
+  where user_id = auth.uid();
+  get diagnostics durable_count = row_count;
+
+  return jsonb_build_object(
+    'success', true,
+    'recent_turns_deleted', recent_count,
+    'durable_memories_deleted', durable_count
+  );
+end;
+$$;
+
+revoke all on function public.erase_my_ari_conversation_memory() from public;
+grant execute on function public.erase_my_ari_conversation_memory() to authenticated;
+
+-- Called by the authenticated Vercel daily maintenance job.
+create or replace function public.purge_expired_ari_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  deleted_count integer := 0;
+begin
+  delete from public.ari_conversation_turns
+  where expires_at <= now();
+  get diagnostics deleted_count = row_count;
+
+  return jsonb_build_object(
+    'success', true,
+    'expired_turns_deleted', deleted_count,
+    'completed_at', now()
+  );
+end;
+$$;
+
+revoke all on function public.purge_expired_ari_data() from public, anon, authenticated;
+grant execute on function public.purge_expired_ari_data() to service_role;
+
+-- -------------------------------------------------------------
+-- 3. Account pause and seven-day deletion recovery
+-- -------------------------------------------------------------
+
+create table if not exists public.ari_account_state (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  status text not null default 'active'
+    check (status in ('active', 'paused', 'pending_deletion', 'suspended_by_admin')),
+  paused_at timestamptz,
+  deletion_requested_at timestamptz,
+  deletion_scheduled_for timestamptz,
+  deletion_attempts integer not null default 0,
+  last_deletion_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists ari_account_state_due_deletion_idx
+  on public.ari_account_state (deletion_scheduled_for)
+  where status = 'pending_deletion';
+
+alter table public.ari_account_state enable row level security;
+
+drop policy if exists "Users read their own ARI account state"
+  on public.ari_account_state;
+create policy "Users read their own ARI account state"
+  on public.ari_account_state
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+grant select on public.ari_account_state to authenticated;
+
+insert into public.ari_account_state (user_id, status)
+select id, 'active'
+from auth.users
+on conflict (user_id) do nothing;
+
+create or replace function public.ari_create_account_state_for_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  insert into public.ari_account_state (user_id, status)
+  values (new.id, 'active')
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists ari_create_account_state_after_signup on auth.users;
+create trigger ari_create_account_state_after_signup
+after insert on auth.users
+for each row execute function public.ari_create_account_state_for_new_user();
+
+drop trigger if exists ari_account_state_set_updated_at
+  on public.ari_account_state;
+create trigger ari_account_state_set_updated_at
+before update on public.ari_account_state
+for each row execute function public.ari_set_updated_at();
+
+create or replace function public.pause_my_ari_account()
+returns public.ari_account_state
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result public.ari_account_state;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  insert into public.ari_account_state (
+    user_id, status, paused_at,
+    deletion_requested_at, deletion_scheduled_for,
+    deletion_attempts, last_deletion_error
+  ) values (
+    auth.uid(), 'paused', now(),
+    null, null,
+    0, null
+  )
+  on conflict (user_id) do update set
+    status = 'paused',
+    paused_at = now(),
+    deletion_requested_at = null,
+    deletion_scheduled_for = null,
+    deletion_attempts = 0,
+    last_deletion_error = null
+  where public.ari_account_state.status <> 'suspended_by_admin'
+  returning * into result;
+
+  if result.user_id is null then
+    raise exception 'This account cannot be paused while administratively suspended';
+  end if;
+
+  return result;
+end;
+$$;
+
+create or replace function public.request_my_ari_account_deletion()
+returns public.ari_account_state
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result public.ari_account_state;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  insert into public.ari_account_state (
+    user_id, status, paused_at,
+    deletion_requested_at, deletion_scheduled_for,
+    deletion_attempts, last_deletion_error
+  ) values (
+    auth.uid(), 'pending_deletion', null,
+    now(), now() + interval '7 days',
+    0, null
+  )
+  on conflict (user_id) do update set
+    status = 'pending_deletion',
+    paused_at = null,
+    deletion_requested_at = now(),
+    deletion_scheduled_for = now() + interval '7 days',
+    deletion_attempts = 0,
+    last_deletion_error = null
+  where public.ari_account_state.status <> 'suspended_by_admin'
+  returning * into result;
+
+  if result.user_id is null then
+    raise exception 'This account cannot be deleted while administratively suspended';
+  end if;
+
+  return result;
+end;
+$$;
+
+create or replace function public.restore_my_ari_account()
+returns public.ari_account_state
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  result public.ari_account_state;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  update public.ari_account_state
+  set
+    status = 'active',
+    paused_at = null,
+    deletion_requested_at = null,
+    deletion_scheduled_for = null,
+    deletion_attempts = 0,
+    last_deletion_error = null
+  where user_id = auth.uid()
+    and status in ('paused', 'pending_deletion')
+  returning * into result;
+
+  if result.user_id is null then
+    select * into result
+    from public.ari_account_state
+    where user_id = auth.uid();
+  end if;
+
+  return result;
+end;
+$$;
+
+revoke all on function public.pause_my_ari_account() from public;
+revoke all on function public.request_my_ari_account_deletion() from public;
+revoke all on function public.restore_my_ari_account() from public;
+grant execute on function public.pause_my_ari_account() to authenticated;
+grant execute on function public.request_my_ari_account_deletion() to authenticated;
+grant execute on function public.restore_my_ari_account() to authenticated;
+
+-- -------------------------------------------------------------
+-- 4. The sole owner and owner-only moderation authority
+-- -------------------------------------------------------------
+
+create table if not exists public.ari_app_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'owner' check (role in ('owner', 'moderator')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.ari_app_admins enable row level security;
+
+-- Enforce Jose's Supabase UID as the only owner/admin configured here.
+delete from public.ari_app_admins
+where user_id <> '0b3b0f56-676f-4859-a9f4-b377dd73544f'::uuid;
+
+insert into public.ari_app_admins (user_id, role)
+values ('0b3b0f56-676f-4859-a9f4-b377dd73544f'::uuid, 'owner')
+on conflict (user_id) do update set role = 'owner';
+
+create or replace function public.is_ari_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1
+    from public.ari_app_admins
+    where user_id = auth.uid()
+      and role in ('owner', 'moderator')
+  );
+$$;
+
+revoke all on table public.ari_app_admins from anon, authenticated;
+revoke all on function public.is_ari_admin() from public;
+grant execute on function public.is_ari_admin() to authenticated;
+
+-- -------------------------------------------------------------
+-- 5. Help, safety reports, and the owner moderation inbox
+-- -------------------------------------------------------------
+
+create table if not exists public.ari_reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_user_id uuid references auth.users(id) on delete set null,
+  reporter_contact_email text,
+  target_type text not null default 'app'
+    check (target_type in ('app', 'user', 'content', 'safety', 'billing', 'other')),
+  reported_user_id uuid references auth.users(id) on delete set null,
+  target_id text,
+  category text not null
+    check (category in (
+      'technical_problem', 'harassment', 'hate_or_abuse', 'spam_or_scam',
+      'unsafe_content', 'privacy_concern', 'account_help', 'other'
+    )),
+  details text not null check (char_length(details) between 10 and 5000),
+  evidence jsonb not null default '{}'::jsonb,
+  status text not null default 'pending'
+    check (status in ('pending', 'reviewing', 'resolved', 'dismissed')),
+  priority text not null default 'normal'
+    check (priority in ('normal', 'urgent')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists ari_reports_status_created_idx
+  on public.ari_reports (status, created_at desc);
+
+create index if not exists ari_reports_reporter_created_idx
+  on public.ari_reports (reporter_user_id, created_at desc);
+
+alter table public.ari_reports enable row level security;
+
+drop policy if exists "Users submit their own ARI reports"
+  on public.ari_reports;
+create policy "Users submit their own ARI reports"
+  on public.ari_reports
+  for insert
+  to authenticated
+  with check (
+    auth.uid() = reporter_user_id
+    and status = 'pending'
+  );
+
+drop policy if exists "Users read their own ARI reports"
+  on public.ari_reports;
+create policy "Users read their own ARI reports"
+  on public.ari_reports
+  for select
+  to authenticated
+  using (
+    auth.uid() = reporter_user_id
+    or public.is_ari_admin()
+  );
+
+drop policy if exists "ARI admins update reports"
+  on public.ari_reports;
+create policy "ARI admins update reports"
+  on public.ari_reports
+  for update
+  to authenticated
+  using (public.is_ari_admin())
+  with check (public.is_ari_admin());
+
+grant select, insert, update on public.ari_reports to authenticated;
+
+drop trigger if exists ari_reports_set_updated_at
+  on public.ari_reports;
+create trigger ari_reports_set_updated_at
+before update on public.ari_reports
+for each row execute function public.ari_set_updated_at();
+
+create table if not exists public.ari_moderation_actions (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid not null references public.ari_reports(id) on delete cascade,
+  admin_user_id uuid not null references auth.users(id) on delete restrict,
+  action text not null
+    check (action in ('opened', 'reviewing', 'resolved', 'dismissed', 'note')),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists ari_moderation_actions_report_idx
+  on public.ari_moderation_actions (report_id, created_at desc);
+
+alter table public.ari_moderation_actions enable row level security;
+
+drop policy if exists "ARI admins read moderation actions"
+  on public.ari_moderation_actions;
+create policy "ARI admins read moderation actions"
+  on public.ari_moderation_actions
+  for select
+  to authenticated
+  using (public.is_ari_admin());
+
+drop policy if exists "ARI admins create moderation actions"
+  on public.ari_moderation_actions;
+create policy "ARI admins create moderation actions"
+  on public.ari_moderation_actions
+  for insert
+  to authenticated
+  with check (
+    public.is_ari_admin()
+    and admin_user_id = auth.uid()
+  );
+
+grant select, insert on public.ari_moderation_actions to authenticated;
+
+-- -------------------------------------------------------------
+-- 6. Simple notification preference
+-- -------------------------------------------------------------
+
+create table if not exists public.ari_notification_preferences (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  circle_activity_enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.ari_notification_preferences enable row level security;
+
+drop policy if exists "Users read their own notification preferences"
+  on public.ari_notification_preferences;
+create policy "Users read their own notification preferences"
+  on public.ari_notification_preferences
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users create their own notification preferences"
+  on public.ari_notification_preferences;
+create policy "Users create their own notification preferences"
+  on public.ari_notification_preferences
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users update their own notification preferences"
+  on public.ari_notification_preferences;
+create policy "Users update their own notification preferences"
+  on public.ari_notification_preferences
+  for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+grant select, insert, update on public.ari_notification_preferences to authenticated;
+
+drop trigger if exists ari_notification_preferences_set_updated_at
+  on public.ari_notification_preferences;
+create trigger ari_notification_preferences_set_updated_at
+before update on public.ari_notification_preferences
+for each row execute function public.ari_set_updated_at();
+
+commit;
+
+-- -------------------------------------------------------------
+-- Verification — these should return rows without an error.
+-- -------------------------------------------------------------
+
+select user_id, role
+from public.ari_app_admins;
+
+select table_name
+from information_schema.tables
+where table_schema = 'public'
+  and table_name in (
+    'ari_conversation_turns',
+    'ari_user_memory',
+    'ari_account_state',
+    'ari_app_admins',
+    'ari_reports',
+    'ari_moderation_actions',
+    'ari_notification_preferences'
+  )
+order by table_name;

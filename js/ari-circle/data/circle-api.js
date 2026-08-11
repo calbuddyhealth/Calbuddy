@@ -3220,6 +3220,26 @@ const CircleApi = {
     const client =
       this.getClient();
 
+    /*
+     * Notification delivery remains opt-out and user-scoped. If the new
+     * preference table has not been installed yet, preserve the historical
+     * default and continue loading notifications.
+     */
+    const {
+      data: notificationPreference,
+      error: notificationPreferenceError
+    } = await client
+      .from("ari_notification_preferences")
+      .select("circle_activity_enabled")
+      .eq("user_id", id)
+      .maybeSingle();
+
+    if (!notificationPreferenceError && notificationPreference) {
+      const enabled = notificationPreference.circle_activity_enabled !== false;
+      localStorage.setItem("ari_circle_activity_enabled", String(enabled));
+      if (!enabled) return [];
+    }
+
     const {
       data,
       error

@@ -974,6 +974,39 @@ const ConnectionsController = {
         "profile"
       );
 
+    const reportedUserId =
+      normalizeString(
+        profile?.user_id ||
+        profile?.userId
+      );
+
+    const params =
+      new URLSearchParams({
+        type:
+          "user",
+
+        display:
+          getDisplayName(
+            profile
+          )
+      });
+
+    if (reportedUserId) {
+      params.set(
+        "reported_user_id",
+        reportedUserId
+      );
+    }
+
+    if (profile?.id) {
+      params.set(
+        "target_id",
+        String(
+          profile.id
+        )
+      );
+    }
+
     CircleEvents.emit(
       "circle:report-user",
       {
@@ -987,7 +1020,11 @@ const ConnectionsController = {
     this.closeProfileMenuIfOpen();
 
     CircleEvents.showToast(
-      "Report started."
+      "Opening private report."
+    );
+
+    window.location.assign(
+      `help-safety.html?${params.toString()}`
     );
 
     return true;

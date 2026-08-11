@@ -1,582 +1,965 @@
-/* =====================================================
-   ARI ACCOUNT PAGE
-   Version: 1.1.0
-   Purpose:
-   - Account page visual system
-   - Stable page scrolling
-   - Mobile safe-area support
-   - Tablet and desktop layout
-===================================================== */
-/* =====================================================
-   Design Tokens
-===================================================== */
+/* =============================================================
+   ARI REBIRTH — PREMIUM ACCOUNT & SETTINGS SYSTEM
+   Version: 3.0.0
+   Soft white / royal blue / cyan / violet. No image assets.
+============================================================= */
+
 :root {
-  --ari-bg: #020617;
-  --ari-panel: rgba(8, 20, 38, 0.78);
-  --ari-panel-strong: rgba(15, 23, 42, 0.94);
-  --ari-cyan: #22d3ee;
-  --ari-cyan-soft: #67e8f9;
-  --ari-cyan-pale: #cffafe;
-  --ari-text: #f8fafc;
-  --ari-muted: #94a3b8;
-  --ari-border: rgba(103, 232, 249, 0.24);
-  --ari-danger: #ef4444;
-  --ari-warning: #f97316;
-  --ari-success: #22c55e;
+  color-scheme: light;
+  --ari-ink: #09164a;
+  --ari-ink-soft: #33416f;
+  --ari-muted: #6f7899;
+  --ari-royal: #3049c9;
+  --ari-royal-deep: #1f3198;
+  --ari-cyan: #20d6e9;
+  --ari-violet: #8d66ef;
+  --ari-rose: #e35c8e;
+  --ari-gold: #c89837;
+  --ari-danger: #d83e59;
+  --ari-success: #16886f;
+  --ari-canvas: #f5f7ff;
+  --ari-surface: #ffffff;
+  --ari-surface-soft: #f8f9ff;
+  --ari-line: #e4e8f5;
+  --ari-line-strong: #d4daf0;
+  --ari-shadow: 0 16px 42px rgba(45, 64, 139, 0.09);
+  --ari-shadow-soft: 0 8px 24px rgba(45, 64, 139, 0.07);
+  --ari-radius-xl: 30px;
+  --ari-radius-lg: 23px;
+  --ari-radius-md: 18px;
 }
-/* =====================================================
-   Box Sizing
-===================================================== */
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
-/* =====================================================
-   Account Page Body Reset
-===================================================== */
-html:has(.ari-account-page) {
-  height: auto;
+
+html {
   min-height: 100%;
+  background: var(--ari-canvas);
   overflow-x: hidden;
-  overflow-y: auto;
 }
-body:has(.ari-account-page) {
-  position: static !important;
-  display: block !important;
-  width: 100%;
-  height: auto !important;
+
+body {
+  min-width: 320px;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-x: hidden;
   background:
-    radial-gradient(
-      circle at 50% 0%,
-      rgba(34, 211, 238, 0.18),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 15% 25%,
-      rgba(34, 211, 238, 0.10),
-      transparent 28%
-    ),
-    radial-gradient(
-      circle at 85% 75%,
-      rgba(103, 232, 249, 0.08),
-      transparent 30%
-    ),
-    linear-gradient(
-      180deg,
-      #020617 0%,
-      #07111f 48%,
-      #020617 100%
-    );
-  color: var(--ari-text);
-  font-family:
-    Orbitron,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+    radial-gradient(circle at 8% 5%, rgba(32, 214, 233, 0.11), transparent 25rem),
+    radial-gradient(circle at 94% 14%, rgba(141, 102, 239, 0.10), transparent 27rem),
+    linear-gradient(180deg, #fbfcff 0%, #f4f7ff 58%, #f8f9ff 100%);
+  color: var(--ari-ink);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
-/* =====================================================
-   Background Effects
-===================================================== */
-body:has(.ari-account-page)::before {
-  content: "";
-  position: fixed;
-  z-index: 0;
-  inset: 0;
-  background-image:
-    linear-gradient(
-      rgba(103, 232, 249, 0.045) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(103, 232, 249, 0.045) 1px,
-      transparent 1px
-    );
-  background-size: 42px 42px;
-  -webkit-mask-image:
-    radial-gradient(
-      circle at center,
-      black 0%,
-      transparent 76%
-    );
-  mask-image:
-    radial-gradient(
-      circle at center,
-      black 0%,
-      transparent 76%
-    );
-  pointer-events: none;
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
-body:has(.ari-account-page)::after {
-  content: "";
-  position: fixed;
-  z-index: 0;
-  inset: -30%;
-  background:
-    linear-gradient(
-      115deg,
-      transparent 42%,
-      rgba(103, 232, 249, 0.10) 50%,
-      transparent 58%
-    );
-  animation: ariAccountSweep 8s linear infinite;
-  pointer-events: none;
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
-/* =====================================================
-   Main Account Layout
-===================================================== */
+
+button {
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .ari-account-page {
   position: relative;
-  z-index: 2;
-  width: min(430px, 100%);
+  width: min(100%, 680px);
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
-  padding:
-    14px
-    16px
-    calc(120px + env(safe-area-inset-bottom));
-  overflow: visible;
+  padding: max(18px, env(safe-area-inset-top)) 18px calc(80px + env(safe-area-inset-bottom));
 }
-/* =====================================================
-   Header
-===================================================== */
+
+.ari-account-page::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  top: -120px;
+  left: 50%;
+  width: min(840px, 130vw);
+  height: 420px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: linear-gradient(110deg, rgba(32, 214, 233, 0.12), rgba(67, 85, 205, 0.06) 45%, rgba(141, 102, 239, 0.13));
+  filter: blur(32px);
+  pointer-events: none;
+}
+
 .ari-account-header {
+  display: grid;
+  grid-template-columns: 48px 1fr 72px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.ari-icon-button,
+.ari-header-button,
+.ari-dialog-close {
+  border: 1px solid var(--ari-line);
+  background: var(--ari-surface);
+  box-shadow: var(--ari-shadow-soft);
+  cursor: pointer;
+}
+
+.ari-icon-button {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 17px;
+  color: var(--ari-ink);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.ari-header-button {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  color: var(--ari-royal-deep);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ari-brand-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.ari-brand-title {
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+.ari-brand-subtitle {
+  color: var(--ari-royal);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.27em;
+}
+
+.ari-page-hero {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 30px 27px 28px;
+  overflow: hidden;
+  border: 1px solid rgba(211, 218, 241, 0.88);
+  border-radius: var(--ari-radius-xl);
+  background: var(--ari-surface);
+  box-shadow: var(--ari-shadow);
+}
+
+.ari-page-hero::after {
+  content: "";
+  position: absolute;
+  right: -52px;
+  bottom: -74px;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(32, 214, 233, 0.17), rgba(141, 102, 239, 0.07) 49%, transparent 70%);
+  pointer-events: none;
+}
+
+.ari-page-symbol {
+  position: absolute;
+  top: 23px;
+  right: 25px;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 15px;
+  background: linear-gradient(145deg, var(--ari-royal), var(--ari-violet));
+  box-shadow: 0 10px 24px rgba(69, 71, 190, 0.25);
+  color: white;
+  font-family: Audiowide, sans-serif;
+  font-size: 0.86rem;
+}
+
+.ari-page-kicker,
+.ari-section-kicker {
+  margin: 0;
+  color: var(--ari-royal);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.19em;
+}
+
+.ari-page-title {
+  max-width: calc(100% - 56px);
+  margin: 10px 0 9px;
+  font-size: clamp(2rem, 7.5vw, 3rem);
+  letter-spacing: -0.045em;
+  line-height: 1.03;
+}
+
+.ari-page-description {
+  max-width: 460px;
+  margin: 0;
+  color: var(--ari-ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.62;
+}
+
+.ari-status {
+  margin: 0 0 16px;
+  padding: 13px 16px;
+  border: 1px solid var(--ari-line);
+  border-radius: 15px;
+  background: var(--ari-surface);
+  color: var(--ari-ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  box-shadow: var(--ari-shadow-soft);
+}
+
+.ari-status:empty {
+  display: none;
+}
+
+.ari-status--success {
+  border-color: rgba(22, 136, 111, 0.22);
+  background: #f0fbf7;
+  color: #0b6b57;
+}
+
+.ari-status--error {
+  border-color: rgba(216, 62, 89, 0.22);
+  background: #fff5f6;
+  color: #a4253c;
+}
+
+.ari-status--working,
+.ari-status--info {
+  border-color: rgba(48, 73, 201, 0.18);
+  background: #f4f6ff;
+  color: var(--ari-royal-deep);
+}
+
+.ari-panel,
+.ari-recovery-card {
+  border: 1px solid var(--ari-line);
+  border-radius: var(--ari-radius-lg);
+  background: var(--ari-surface);
+  box-shadow: var(--ari-shadow-soft);
+}
+
+.ari-identity-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding: 20px;
+}
+
+.ari-avatar {
+  display: grid;
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid rgba(54, 92, 212, 0.12);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #eefaff, #f2edff);
+  color: var(--ari-royal);
+  font-family: Audiowide, sans-serif;
+  font-size: 1.08rem;
+}
+
+.ari-identity-copy {
+  min-width: 0;
+}
+
+.ari-email-value {
+  margin: 5px 0 7px;
+  overflow: hidden;
+  color: var(--ari-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ari-session-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ari-muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+}
+
+.ari-session-badge span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ari-success);
+  box-shadow: 0 0 0 4px rgba(22, 136, 111, 0.09);
+}
+
+.ari-settings-section {
+  margin-top: 28px;
+}
+
+.ari-section-heading {
+  padding: 0 5px 11px;
+}
+
+.ari-section-heading h2,
+.ari-recovery-card h2,
+.ari-content-card h2,
+.ari-dialog-card h2 {
+  margin: 6px 0 0;
+  color: var(--ari-ink);
+  font-size: 1.18rem;
+  letter-spacing: -0.018em;
+}
+
+.ari-section-heading > p:last-child:not(.ari-section-kicker) {
+  margin: 6px 0 0;
+  color: var(--ari-muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.ari-action-list {
+  overflow: hidden;
+  border: 1px solid var(--ari-line);
+  border-radius: var(--ari-radius-lg);
+  background: var(--ari-surface);
+  box-shadow: var(--ari-shadow-soft);
+}
+
+.ari-action-card {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 78px;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 17px;
+  border: 0;
+  border-bottom: 1px solid var(--ari-line);
+  background: var(--ari-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms ease, transform 120ms ease;
+}
+
+.ari-action-card:last-child {
+  border-bottom: 0;
+}
+
+.ari-action-icon {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  place-items: center;
+  border-radius: 15px;
+  background: #eef2ff;
+  color: var(--ari-royal);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.ari-action-icon--cyan { background: #e8fbfd; color: #078b9c; }
+.ari-action-icon--violet { background: #f1edff; color: #7046d5; }
+.ari-action-icon--blue { background: #edf1ff; color: #3049c9; }
+.ari-action-icon--rose { background: #fff0f6; color: #c73973; }
+.ari-action-icon--gold { background: #fff8e7; color: #9a6b12; }
+.ari-action-icon--muted { background: #f0f2f7; color: #67708c; }
+.ari-action-icon--danger { background: #fff0f2; color: var(--ari-danger); }
+
+.ari-action-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ari-action-copy strong {
+  color: var(--ari-ink);
+  font-size: 0.94rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.ari-action-copy small {
+  overflow: hidden;
+  color: var(--ari-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.ari-action-arrow {
+  color: #9aa3c2;
+  font-size: 1.75rem;
+  font-weight: 300;
+}
+
+.ari-owner-pill,
+.ari-report-pill {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #fff8e7;
+  color: #8d6110;
+  font-family: Orbitron, sans-serif;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.ari-danger-card .ari-action-copy strong {
+  color: #ae2941;
+}
+
+.ari-primary-action,
+.ari-secondary-action,
+.ari-danger-action {
+  display: inline-flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 20px;
+  border-radius: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.ari-primary-action {
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, var(--ari-royal) 0%, #415ad8 52%, var(--ari-violet) 100%);
+  box-shadow: 0 12px 25px rgba(48, 73, 201, 0.22);
+  color: white;
+}
+
+.ari-secondary-action {
+  width: 100%;
+  border: 1px solid var(--ari-line-strong);
+  background: var(--ari-surface);
+  box-shadow: var(--ari-shadow-soft);
+  color: var(--ari-royal-deep);
+}
+
+.ari-danger-action {
+  width: 100%;
+  border: 1px solid transparent;
+  background: var(--ari-danger);
+  box-shadow: 0 12px 25px rgba(216, 62, 89, 0.2);
+  color: white;
+}
+
+.ari-primary-action:disabled,
+.ari-secondary-action:disabled,
+.ari-danger-action:disabled,
+.ari-action-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.ari-action-card:active,
+.ari-icon-button:active,
+.ari-header-button:active,
+.ari-primary-action:active,
+.ari-secondary-action:active,
+.ari-danger-action:active {
+  transform: scale(0.982);
+}
+
+.ari-action-card:hover {
+  background: #fbfcff;
+}
+
+.ari-action-card:focus-visible,
+.ari-icon-button:focus-visible,
+.ari-header-button:focus-visible,
+.ari-primary-action:focus-visible,
+.ari-secondary-action:focus-visible,
+.ari-danger-action:focus-visible,
+.ari-field input:focus-visible,
+.ari-field textarea:focus-visible,
+.ari-field select:focus-visible,
+.ari-toggle input:focus-visible + .ari-toggle-track {
+  outline: 3px solid rgba(32, 214, 233, 0.32);
+  outline-offset: 3px;
+}
+
+.ari-recovery-card {
+  position: relative;
+  padding: 30px 25px 25px;
+  text-align: center;
+}
+
+.ari-recovery-card p:not(.ari-section-kicker) {
+  margin: 10px auto 22px;
+  color: var(--ari-ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.ari-recovery-card .ari-primary-action {
+  width: 100%;
+}
+
+.ari-recovery-orb {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  border: 10px solid #edf3ff;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--ari-cyan), var(--ari-violet));
+  box-shadow: 0 10px 25px rgba(80, 93, 205, 0.2);
+}
+
+.ari-settings-footer {
+  padding: 48px 0 12px;
+  color: var(--ari-muted);
+  text-align: center;
+}
+
+.ari-footer-mark {
+  font-family: Audiowide, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+}
+
+.ari-settings-footer p {
+  margin: 7px 0 0;
+  font-size: 0.72rem;
+}
+
+/* Content pages */
+.ari-content-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.ari-content-card {
+  padding: 23px;
+  border: 1px solid var(--ari-line);
+  border-radius: var(--ari-radius-lg);
+  background: var(--ari-surface);
+  box-shadow: var(--ari-shadow-soft);
+}
+
+.ari-content-card > p:not(.ari-section-kicker),
+.ari-content-card li {
+  color: var(--ari-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.ari-content-card > p:last-child {
+  margin-bottom: 0;
+}
+
+.ari-memory-flow {
+  display: grid;
+  gap: 0;
+  margin-top: 19px;
+}
+
+.ari-memory-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 13px;
+  padding-bottom: 19px;
+}
+
+.ari-memory-step:last-child {
+  padding-bottom: 0;
+}
+
+.ari-memory-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  bottom: 0;
+  left: 18px;
+  width: 1px;
+  background: var(--ari-line-strong);
+}
+
+.ari-memory-step span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #eafbff, #f1edff);
+  color: var(--ari-royal);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.ari-memory-step strong {
+  display: block;
+  margin: 1px 0 4px;
+  font-size: 0.9rem;
+}
+
+.ari-memory-step p {
+  margin: 0;
+  color: var(--ari-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.ari-warning-card {
+  border-color: rgba(216, 62, 89, 0.17);
+  background: linear-gradient(180deg, #fff, #fffafb);
+}
+
+.ari-warning-card .ari-section-kicker {
+  color: var(--ari-danger);
+}
+
+.ari-notice {
+  padding: 15px 17px;
+  border-radius: 16px;
+  background: #f3f7ff;
+  color: var(--ari-ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.ari-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.ari-field > span {
+  color: var(--ari-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.ari-field input,
+.ari-field textarea,
+.ari-field select {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid var(--ari-line-strong);
+  border-radius: 16px;
+  background: #fbfcff;
+  color: var(--ari-ink);
+  outline: none;
+}
+
+.ari-field input,
+.ari-field select {
+  padding: 0 15px;
+}
+
+.ari-field textarea {
+  min-height: 144px;
+  padding: 14px 15px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.ari-form-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.ari-choice-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0 18px;
+  gap: 18px;
 }
-.ari-back-btn,
-.ari-mini-btn {
-  min-height: 42px;
-  padding: 10px 14px;
-  border: 1px solid var(--ari-border);
-  border-radius: 16px;
-  background: rgba(2, 6, 23, 0.72);
-  color: var(--ari-cyan-pale);
-  font-family: inherit;
-  font-weight: 900;
-  cursor: pointer;
-  box-shadow:
-    0 0 18px rgba(34, 211, 238, 0.08);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 120ms ease;
+
+.ari-choice-copy strong {
+  display: block;
+  font-size: 0.94rem;
 }
-.ari-back-btn:hover,
-.ari-mini-btn:hover {
-  border-color: rgba(103, 232, 249, 0.5);
-  box-shadow:
-    0 0 22px rgba(34, 211, 238, 0.16);
+
+.ari-choice-copy small {
+  display: block;
+  margin-top: 5px;
+  color: var(--ari-muted);
+  font-size: 0.77rem;
+  line-height: 1.45;
 }
-.ari-back-btn:active,
-.ari-mini-btn:active {
-  transform: scale(0.985);
-}
-.ari-back-btn:focus-visible,
-.ari-mini-btn:focus-visible,
-.ari-action-card:focus-visible,
-.ari-primary-action:focus-visible {
-  outline: 2px solid var(--ari-cyan-soft);
-  outline-offset: 3px;
-}
-/* =====================================================
-   Brand
-===================================================== */
-.ari-brand-mark {
-  flex: 1;
-  text-align: center;
-}
-.ari-brand-title {
-  margin: 0;
-  color: var(--ari-text);
-  font-family:
-    Audiowide,
-    Orbitron,
-    sans-serif;
-  font-size: 1.24rem;
-  letter-spacing: 0.10em;
-  text-shadow:
-    0 0 18px rgba(34, 211, 238, 0.28);
-}
-.ari-brand-subtitle {
-  margin: 3px 0 0;
-  color: var(--ari-cyan-soft);
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.22em;
-}
-/* =====================================================
-   Page Hero
-===================================================== */
-.ari-page-hero {
+
+.ari-toggle {
   position: relative;
-  margin: 8px 0 18px;
-  padding: 24px 20px;
-  overflow: hidden;
-  border: 1px solid var(--ari-border);
-  border-radius: 28px;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(15, 23, 42, 0.92),
-      rgba(2, 6, 23, 0.72)
-    );
-  box-shadow:
-    0 0 34px rgba(34, 211, 238, 0.12),
-    inset 0 0 30px rgba(103, 232, 249, 0.04);
+  flex: 0 0 auto;
+  width: 54px;
+  height: 32px;
 }
-.ari-page-hero::before {
+
+.ari-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.ari-toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #dfe3ef;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.ari-toggle-track::after {
   content: "";
   position: absolute;
-  top: 0;
-  left: 12%;
-  right: 12%;
-  height: 1px;
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      var(--ari-cyan-soft),
-      transparent
-    );
-  opacity: 0.8;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 3px 8px rgba(24, 34, 78, 0.2);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.ari-page-kicker {
-  margin: 0 0 8px;
-  color: var(--ari-cyan-soft);
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
+
+.ari-toggle input:checked + .ari-toggle-track {
+  background: linear-gradient(110deg, var(--ari-royal), var(--ari-violet));
 }
-.ari-page-title {
-  margin: 0;
-  font-family:
-    Audiowide,
-    Orbitron,
-    sans-serif;
-  font-size: 2rem;
-  line-height: 1;
-  letter-spacing: 0.05em;
+
+.ari-toggle input:checked + .ari-toggle-track::after {
+  transform: translateX(22px);
 }
-.ari-page-description {
-  margin: 12px 0 0;
-  color: var(--ari-muted);
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-size: 0.92rem;
-  font-weight: 600;
-  line-height: 1.55;
+
+.ari-link-inline {
+  color: var(--ari-royal);
+  font-weight: 750;
+  text-decoration: underline;
+  text-decoration-color: rgba(48, 73, 201, 0.25);
+  text-underline-offset: 3px;
 }
-/* =====================================================
-   Panels
-===================================================== */
-.ari-panel {
-  margin-top: 16px;
-  overflow: hidden;
-  border: 1px solid var(--ari-border);
-  border-radius: 26px;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(15, 23, 42, 0.88),
-      rgba(2, 6, 23, 0.70)
-    );
-  box-shadow:
-    0 0 26px rgba(34, 211, 238, 0.10),
-    inset 0 0 24px rgba(103, 232, 249, 0.035);
+
+/* Moderation inbox */
+.ari-filter-row {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.ari-panel-header {
-  padding: 18px 18px 10px;
-}
-.ari-section-title {
-  margin: 0;
-  color: var(--ari-cyan-soft);
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.20em;
-  text-transform: uppercase;
-}
-.ari-section-subtitle {
-  margin: 8px 0 0;
-  color: var(--ari-muted);
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-size: 0.84rem;
-  font-weight: 600;
-  line-height: 1.45;
-}
-/* =====================================================
-   Account Email
-===================================================== */
-.ari-account-email-box {
-  margin: 0 18px 18px;
-  padding: 16px;
-  border: 1px solid rgba(103, 232, 249, 0.18);
-  border-radius: 18px;
-  background: rgba(2, 6, 23, 0.72);
-}
-.ari-field-label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--ari-cyan-soft);
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.ari-email-value {
-  color: var(--ari-text);
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-size: 0.96rem;
-  font-weight: 800;
-  overflow-wrap: anywhere;
-}
-/* =====================================================
-   Action List
-===================================================== */
-.ari-action-list {
-  display: grid;
-  gap: 10px;
-  padding: 0 14px 16px;
-}
-.ari-action-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  width: 100%;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid rgba(103, 232, 249, 0.18);
-  border-radius: 20px;
-  background:
-    linear-gradient(
-      135deg,
-      rgba(2, 6, 23, 0.86),
-      rgba(8, 47, 73, 0.46)
-    );
-  color: var(--ari-text);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 120ms ease;
-}
-.ari-action-card:not(:disabled):hover {
-  border-color: rgba(103, 232, 249, 0.5);
-  box-shadow:
-    0 0 22px rgba(34, 211, 238, 0.16);
-}
-.ari-action-card:not(:disabled):active {
-  transform: scale(0.985);
-}
-.ari-action-card:disabled,
-.ari-action-card[disabled] {
-  opacity: 0.56;
-  cursor: not-allowed;
-}
-.ari-action-title {
-  margin: 0;
-  color: #ffffff;
-  font-size: 0.92rem;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-}
-.ari-action-text {
-  margin: 6px 0 0;
-  color: var(--ari-muted);
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-.ari-action-arrow {
-  color: var(--ari-cyan-soft);
-  font-size: 1.4rem;
-  font-weight: 900;
-}
-.ari-coming-soon {
-  padding: 5px 9px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+
+.ari-filter-row::-webkit-scrollbar { display: none; }
+
+.ari-filter-button {
+  flex: 0 0 auto;
+  padding: 9px 13px;
+  border: 1px solid var(--ari-line);
   border-radius: 999px;
+  background: white;
   color: var(--ari-muted);
-  font-size: 0.62rem;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  white-space: nowrap;
-}
-/* =====================================================
-   Primary Action
-===================================================== */
-.ari-primary-action {
-  width: calc(100% - 28px);
-  min-height: 54px;
-  margin: 2px 14px 16px;
-  border: 1px solid rgba(103, 232, 249, 0.44);
-  border-radius: 20px;
-  background:
-    linear-gradient(
-      135deg,
-      rgba(8, 145, 178, 0.95),
-      rgba(34, 211, 238, 0.88)
-    );
-  color: #ffffff;
-  font-family: inherit;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 750;
   cursor: pointer;
-  box-shadow:
-    0 0 24px rgba(34, 211, 238, 0.26),
-    inset 0 0 20px rgba(255, 255, 255, 0.10);
-  transition:
-    filter 160ms ease,
-    box-shadow 160ms ease,
-    transform 120ms ease;
 }
-.ari-primary-action:hover {
-  filter: brightness(1.06);
-  box-shadow:
-    0 0 30px rgba(34, 211, 238, 0.34),
-    inset 0 0 20px rgba(255, 255, 255, 0.12);
+
+.ari-filter-button.is-active {
+  border-color: transparent;
+  background: var(--ari-ink);
+  color: white;
 }
-.ari-primary-action:active {
-  transform: scale(0.985);
+
+.ari-report-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 17px;
 }
-.ari-primary-action:disabled {
-  opacity: 0.56;
-  cursor: not-allowed;
-  filter: none;
+
+.ari-report-card {
+  padding: 18px;
+  border: 1px solid var(--ari-line);
+  border-radius: 18px;
+  background: white;
+  box-shadow: var(--ari-shadow-soft);
 }
-/* =====================================================
-   Danger State
-===================================================== */
-.ari-danger-panel {
-  border-color: rgba(239, 68, 68, 0.30);
+
+.ari-report-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
-.ari-danger-card {
-  border-color: rgba(239, 68, 68, 0.26);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(30, 6, 8, 0.88),
-      rgba(69, 10, 10, 0.48)
-    );
+
+.ari-report-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  text-transform: capitalize;
 }
-.ari-danger-card:not(:disabled):hover {
-  border-color: rgba(248, 113, 113, 0.52);
-  box-shadow:
-    0 0 22px rgba(239, 68, 68, 0.14);
+
+.ari-report-card p {
+  margin: 11px 0;
+  color: var(--ari-ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
-.ari-danger-card .ari-action-title,
-.ari-danger-card .ari-action-arrow {
-  color: #fecaca;
-}
-/* =====================================================
-   Status Messages
-===================================================== */
-.ari-status {
-  min-height: 22px;
-  margin: 8px 16px 0;
-  color: var(--ari-cyan-pale);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-.ari-status.error {
-  color: #fecaca;
-}
-.ari-status.success {
-  color: #bbf7d0;
-}
-/* =====================================================
-   Footer
-===================================================== */
-.ari-footer-note {
-  margin: 18px 4px 0;
+
+.ari-report-meta {
   color: var(--ari-muted);
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-size: 0.74rem;
-  line-height: 1.45;
+  font-size: 0.68rem;
+}
+
+.ari-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.ari-report-actions button {
+  padding: 8px 11px;
+  border: 1px solid var(--ari-line);
+  border-radius: 10px;
+  background: #f8f9ff;
+  color: var(--ari-royal-deep);
+  font-size: 0.69rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ari-empty-state {
+  padding: 30px 20px;
+  color: var(--ari-muted);
   text-align: center;
+  font-size: 0.86rem;
 }
-/* =====================================================
-   Animations
-===================================================== */
-@keyframes ariAccountSweep {
-  0% {
-    transform: translate3d(-8%, -4%, 0);
-  }
-  50% {
-    transform: translate3d(8%, 4%, 0);
-  }
-  100% {
-    transform: translate3d(-8%, -4%, 0);
-  }
+
+/* Dialogs */
+.ari-dialog {
+  width: min(calc(100% - 30px), 470px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 27px;
+  background: transparent;
+  color: var(--ari-ink);
 }
-/* =====================================================
-   Reduced Motion
-===================================================== */
-@media (prefers-reduced-motion: reduce) {
-  body:has(.ari-account-page)::after {
-    animation: none;
-  }
-  .ari-action-card,
-  .ari-primary-action,
-  .ari-back-btn,
-  .ari-mini-btn {
-    transition: none;
-  }
+
+.ari-dialog::backdrop {
+  background: rgba(11, 18, 55, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
-/* =====================================================
-   Tablet / Desktop
-===================================================== */
-@media (min-width: 768px) {
+
+.ari-dialog-card {
+  position: relative;
+  max-height: calc(100dvh - 32px);
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid rgba(226, 230, 244, 0.95);
+  border-radius: 27px;
+  background: white;
+  box-shadow: 0 28px 80px rgba(20, 31, 85, 0.25);
+}
+
+.ari-dialog-card > p:not(.ari-section-kicker) {
+  margin: 10px 0 0;
+  color: var(--ari-ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.58;
+}
+
+.ari-dialog-close {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--ari-muted);
+  font-size: 1.35rem;
+}
+
+.ari-dialog-card > .ari-primary-action,
+.ari-dialog-card > .ari-danger-action {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.ari-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.ari-dialog-actions .ari-secondary-action {
+  box-shadow: none;
+}
+
+@media (min-width: 700px) {
   .ari-account-page {
-    width: min(520px, 100%);
-    padding-top: 24px;
-    padding-left: 20px;
-    padding-right: 20px;
+    padding-top: 28px;
   }
-  .ari-page-title {
-    font-size: 2.4rem;
+
+  .ari-page-hero {
+    padding: 36px 34px;
   }
-  .ari-page-hero,
-  .ari-panel {
-    border-radius: 30px;
+
+  .ari-action-card {
+    min-height: 82px;
+    padding-inline: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
