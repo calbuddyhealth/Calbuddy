@@ -1,8 +1,16 @@
 // api/ari-github-edit.js
 // Ari GitHub Edit Endpoint
-// V2.0.0 — Safer Replace / Better Errors / Preview First / Undo Ready
+// V2.1.0 — Supabase-verified owner authorization
+
+import {
+  sendOwnerAuthorizationError,
+  setOwnerSecurityHeaders,
+  verifyOwnerRequest
+} from "../server/ari-owner-auth.js";
 
 export default async function handler(req, res) {
+  setOwnerSecurityHeaders(res);
+
   try {
     if (req.method !== "POST") {
       return res.status(405).json({
@@ -12,13 +20,17 @@ export default async function handler(req, res) {
       });
     }
 
-    const token = process.env.GITHUB_TOKEN;
-    const repo = process.env.GITHUB_REPO;
-    const branch =
-      process.env.GITHUB_BRANCH ||
-      "1-build-calbuddy-v02--supabase-login-and-data-saving";
+    const authorization = await verifyOwnerRequest(req);
 
-    if (!token || !repo) {
+    if (!authorization.authorized) {
+      return sendOwnerAuthorizationError(res, authorization);
+    }
+
+    const token = String(process.env.GITHUB_TOKEN || "").trim();
+    const repo = String(process.env.GITHUB_REPO || "").trim();
+    const branch = String(process.env.GITHUB_BRANCH || "").trim();
+
+    if (!token || !repo || !branch) {
       return res.status(500).json({
         success: false,
         error: "GitHub env variables missing",
@@ -27,7 +39,6 @@ export default async function handler(req, res) {
     }
 
     const {
-      owner_access,
       mode,
       filePath,
       newContent,
@@ -39,14 +50,6 @@ export default async function handler(req, res) {
       previousContent,
       replaceAll = false
     } = req.body || {};
-
-    if (owner_access !== true) {
-      return res.status(403).json({
-        success: false,
-        error: "Owner authorization required",
-        code: "OWNER_AUTH_REQUIRED"
-      });
-    }
 
     if (!["preview", "commit", "undo"].includes(mode)) {
       return res.status(400).json({
