@@ -146,7 +146,6 @@ window.AriRebirthCapabilityRegistryEngine = {
         ownerFiles: [
           "calbuddy-core.js",
           "server/ari-owner-auth.js",
-          "api/ari-owner-status.js",
           "api/ari-github-read.js",
           "api/ari-github-search.js",
           "api/ari-github-edit.js"
