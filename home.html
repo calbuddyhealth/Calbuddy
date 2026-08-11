@@ -25,7 +25,7 @@
 <link rel="stylesheet" href="assets/css/animations.css?v=16" />
 
 <!-- Complete homepage design -->
-<link rel="stylesheet" href="assets/css/home.css?v=2.0.0" />
+<link rel="stylesheet" href="assets/css/home.css?v=2.2.0" />
 </head>
 
 <body class="ari-home-page">
@@ -215,7 +215,38 @@
     aria-live="polite"
   >
 
+    <button
+      id="ariThreadToggle"
+      class="ari-thread-toggle"
+      type="button"
+      aria-controls="ariMessages"
+      aria-expanded="false"
+      hidden
+    >
+      <span id="ariThreadToggleLabel">THREAD</span>
+      <span class="ari-thread-separator" aria-hidden="true">·</span>
+      <span id="ariThreadCount">0</span>
+    </button>
+
+    <div
+      id="ariThinkingStatus"
+      class="ari-thinking-status"
+      role="status"
+      aria-live="polite"
+      aria-hidden="true"
+    >
+      <span class="ari-thinking-status-name">ARI</span>
+      <span class="ari-thinking-status-copy">THINKING</span>
+      <span class="ari-thinking-particles" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+    </div>
+
     <div id="ariMessages" class="ari-thread"></div>
+
+    <p id="ariPresenceHint" class="ari-presence-hint" aria-hidden="true">
+      TAP TO RETURN
+    </p>
 
     <div id="pendingActionBar" class="pending-action-bar">
 
@@ -296,7 +327,7 @@
 <script src="js/auth.js"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script src="ari/ari-rebirth-app-bridge.js?v=1.8.0"></script>
-<script src="js/home.js?v=3.2.4"></script>
+<script src="js/home.js?v=3.3.0"></script>
 
 </body>
 </html>
