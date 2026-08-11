@@ -145,6 +145,8 @@ window.AriRebirthCapabilityRegistryEngine = {
         category: "developer",
         ownerFiles: [
           "calbuddy-core.js",
+          "server/ari-owner-auth.js",
+          "api/ari-owner-status.js",
           "api/ari-github-read.js",
           "api/ari-github-search.js",
           "api/ari-github-edit.js"
@@ -154,7 +156,7 @@ window.AriRebirthCapabilityRegistryEngine = {
         requiresConfirmation: true,
         riskLevel: "high",
         allowedActions: ["search_repo", "read_file", "preview_edit", "commit_after_confirmation"],
-        forbiddenActions: ["secret_commit", "edit_without_owner_access", "guess_patch"]
+        forbiddenActions: ["secret_commit", "edit_without_verified_owner", "guess_patch"]
       },
       {
         name: "barcode_scanning",
