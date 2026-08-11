@@ -1,29 +1,48 @@
+import {
+  sendOwnerAuthorizationError,
+  setOwnerSecurityHeaders,
+  verifyOwnerRequest
+} from "../server/ari-owner-auth.js";
+
 export default async function handler(req, res) {
+  setOwnerSecurityHeaders(res);
+
   if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+      code: "METHOD_NOT_ALLOWED"
+    });
   }
 
   try {
-    const token = process.env.GITHUB_TOKEN;
-    const repo = process.env.GITHUB_REPO;
-    const branch =
-      process.env.GITHUB_BRANCH ||
-      "1-build-calbuddy-v02--supabase-login-and-data-saving";
+    const authorization = await verifyOwnerRequest(req);
 
-    const { owner_access, query, limit = 10 } = req.body || {};
-
-    if (owner_access !== true) {
-      return res.status(403).json({ success: false, error: "Owner authorization required" });
+    if (!authorization.authorized) {
+      return sendOwnerAuthorizationError(res, authorization);
     }
 
-    if (!token || !repo) {
-      return res.status(500).json({ success: false, error: "GitHub env variables missing" });
+    const token = String(process.env.GITHUB_TOKEN || "").trim();
+    const repo = String(process.env.GITHUB_REPO || "").trim();
+    const branch = String(process.env.GITHUB_BRANCH || "").trim();
+    const { query, limit = 10 } = req.body || {};
+
+    if (!token || !repo || !branch) {
+      return res.status(500).json({
+        success: false,
+        error: "GitHub env variables missing",
+        code: "MISSING_GITHUB_ENV"
+      });
     }
 
     const cleanQuery = String(query || "").trim();
 
     if (!cleanQuery) {
-      return res.status(400).json({ success: false, error: "query is required" });
+      return res.status(400).json({
+        success: false,
+        error: "query is required",
+        code: "MISSING_QUERY"
+      });
     }
 
     const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 20);
@@ -80,6 +99,7 @@ export default async function handler(req, res) {
       branch,
       count: results.length,
       results,
+      authorizationMode: authorization.mode,
       message:
         results.length > 0
           ? `Found ${results.length} matching file(s).`
@@ -88,7 +108,8 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      error: error.message || "GitHub search failed"
+      error: error.message || "GitHub search failed",
+      code: "ARI_GITHUB_SEARCH_FAILED"
     });
   }
 }

@@ -224,7 +224,8 @@ window.AriRebirthDependencyMapEngine = {
           "GITHUB_TOKEN",
           "GITHUB_REPO",
           "GITHUB_BRANCH",
-          "owner_access"
+          "Supabase access token",
+          "ARI_OWNER_USER_ID"
         ],
         affects: [
           "Developer investigation",
@@ -249,7 +250,8 @@ window.AriRebirthDependencyMapEngine = {
           "GITHUB_TOKEN",
           "GITHUB_REPO",
           "GITHUB_BRANCH",
-          "owner_access"
+          "Supabase access token",
+          "ARI_OWNER_USER_ID"
         ],
         affects: [
           "Evidence gathering",
@@ -274,7 +276,8 @@ window.AriRebirthDependencyMapEngine = {
           "GITHUB_TOKEN",
           "GITHUB_REPO",
           "GITHUB_BRANCH",
-          "owner_access",
+          "Supabase access token",
+          "ARI_OWNER_USER_ID",
           "CONFIRM GITHUB EDIT"
         ],
         affects: [
@@ -521,7 +524,7 @@ window.AriRebirthDependencyMapEngine = {
 
       if (path.includes("github")) {
         [
-          "Test owner_access false rejection.",
+          "Test missing or non-owner Supabase JWT rejection.",
           "Test read/search endpoint with valid file/query.",
           "Test edit preview before commit.",
           "Test missing find text error."

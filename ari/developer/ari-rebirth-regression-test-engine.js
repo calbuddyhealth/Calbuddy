@@ -206,8 +206,8 @@ window.AriRebirthRegressionTestEngine = {
 
     if (path.includes("ari-github-read")) {
       return [
-        "Read valid file with owner_access true.",
-        "Reject read with owner_access false.",
+        "Read valid file with a verified owner Supabase JWT.",
+        "Reject read with a missing or non-owner Supabase JWT.",
         "Reject missing filePath.",
         "Return filePath, branch, sha, and content."
       ];
@@ -215,8 +215,8 @@ window.AriRebirthRegressionTestEngine = {
 
     if (path.includes("ari-github-search")) {
       return [
-        "Search valid query with owner_access true.",
-        "Reject search with owner_access false.",
+        "Search valid query with a verified owner Supabase JWT.",
+        "Reject search with a missing or non-owner Supabase JWT.",
         "Return result count and file paths.",
         "Handle no matches safely."
       ];
@@ -224,7 +224,7 @@ window.AriRebirthRegressionTestEngine = {
 
     if (path.includes("ari-github-edit")) {
       return [
-        "Reject edit with owner_access false.",
+        "Reject edit with a missing or non-owner Supabase JWT.",
         "Reject unsafe file path.",
         "Reject missing confirmation text.",
         "Reject missing find text.",
