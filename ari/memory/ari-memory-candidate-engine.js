@@ -1,12 +1,12 @@
 // ari/memory/ari-memory-candidate-engine.js
 // Ari Memory Candidate Engine
 // Purpose: Decide what is worth remembering.
-// V1.1.0 — Detect API / User-Scoped / Supabase-Ready Candidates
+// V1.2.0 — Durable-event filter with explicit sensitive-data exclusions
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryCandidateEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   detect(input = {}) {
     return this.analyze(input);
@@ -32,7 +32,12 @@ window.AriMemoryCandidateEngine = {
     const userId = this.resolveUserId(summary);
     const candidates = [];
 
-    if (!text || this.looksTransient(text)) {
+    if (
+      !text ||
+      this.looksTransient(text) ||
+      this.containsSensitiveCredential(text) ||
+      this.looksLikeCodeOrFilePayload(rawText)
+    ) {
       return this.returnResult([], userId, "no_stable_memory_candidate");
     }
 
@@ -45,8 +50,8 @@ window.AriMemoryCandidateEngine = {
 });
 
     this.addIf(candidates, this.containsAny(text, [
-      "i prefer", "i like", "i love", "my favorite", "i hate",
-      "i don't like", "i do not like", "i dislike"
+      "i prefer", "my favorite", "i always prefer", "i never want",
+      "i hate", "i don't like", "i do not like", "i dislike"
     ]), {
       type: "user_preference",
       importance: 8,
@@ -56,8 +61,9 @@ window.AriMemoryCandidateEngine = {
     });
 
     this.addIf(candidates, this.containsAny(text, [
-      "ari rebirth", "calbuddy", "my app", "my project", "roadmap",
-      "supabase", "pipeline", "memory engine"
+      "my app", "my project", "our app", "our project",
+      "i'm building", "i am building", "we're building",
+      "we are building", "our roadmap", "the project uses"
     ]), {
       type: "project_fact",
       importance: 9,
@@ -75,6 +81,31 @@ window.AriMemoryCandidateEngine = {
       confidence: 0.92,
       claim: rawText,
       reason: "User made or confirmed a durable decision."
+    });
+
+    this.addIf(candidates, this.containsAny(text, [
+      "my goal is", "i'm working toward", "i am working toward",
+      "i want to achieve", "i plan to", "i'm training for",
+      "i am training for", "i'm building", "i am building"
+    ]), {
+      type: "ongoing_goal",
+      importance: 9,
+      confidence: 0.9,
+      claim: rawText,
+      reason: "User shared an ongoing goal or commitment."
+    });
+
+    this.addIf(candidates, this.containsAny(text, [
+      "my birthday is", "our anniversary is", "i got married",
+      "i'm getting married", "i am getting married", "i moved to",
+      "i started a new job", "i graduated", "i had a baby",
+      "my partner", "my husband", "my wife", "my son", "my daughter"
+    ]), {
+      type: "important_life_event",
+      importance: 9,
+      confidence: 0.88,
+      claim: rawText,
+      reason: "User shared a potentially important life event or relationship."
     });
 
     this.addIf(candidates, this.containsAny(text, [
@@ -138,6 +169,31 @@ window.AriMemoryCandidateEngine = {
   "send code",
   "replace this file"
 ]);
+  },
+
+  containsSensitiveCredential(text = "") {
+    const value = this.normalize(text);
+
+    return (
+      /\b(password|passcode|security code|one[- ]time code|otp|pin number|cvv|cvc)\b/i.test(value) ||
+      /\b(api key|access token|refresh token|private key|secret key|github token|service role key)\b/i.test(value) ||
+      /\b(social security|ssn|tax id|passport number|driver'?s license number)\b/i.test(value) ||
+      /\b(credit card|debit card|card number|routing number|bank account number)\b/i.test(value) ||
+      /\b(?:\d[ -]*?){13,19}\b/.test(value) ||
+      /\b\d{3}-\d{2}-\d{4}\b/.test(value)
+    );
+  },
+
+  looksLikeCodeOrFilePayload(text = "") {
+    const value = String(text || "");
+    if (value.length > 1200 && !this.isExplicitMemoryRequest(value)) return true;
+
+    const codeSignals = [
+      "<!doctype html", "<script", "function ", "const ", "let ",
+      "import ", "export default", "create table", "alter table"
+    ];
+
+    return codeSignals.filter(signal => value.toLowerCase().includes(signal)).length >= 2;
   },
 
   addIf(array, condition, object) {

@@ -783,7 +783,10 @@ const CircleRealtime = {
     const viewerUserId =
       this.state.viewerUserId;
 
-    if (!viewerUserId) {
+    if (
+      !viewerUserId ||
+      localStorage.getItem("ari_circle_activity_enabled") === "false"
+    ) {
       return null;
     }
 

@@ -1,17 +1,45 @@
-// api/memory.js
-// Ari / CalBuddy Memory API
-// Purpose: Save and retrieve user-scoped Ari memories.
-// V2.0.0 — ari_user_memory schema aligned
+// ARI / CalBuddy Memory API
+// V3.0.0 — authenticated user identity; no caller-supplied authority
+
+async function getAuthenticatedUser(req) {
+  const authorization = String(req.headers.authorization || "").trim();
+
+  if (!authorization.toLowerCase().startsWith("bearer ")) {
+    return null;
+  }
+
+  const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: authorization
+    }
+  });
+
+  if (!response.ok) return null;
+  const user = await response.json().catch(() => null);
+  return user?.id ? user : null;
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({
+        error: "Missing Supabase server environment variables."
+      });
+    }
+
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "A valid signed-in session is required." });
+    }
+
     const {
       action,
-      user_id,
       memory_type = "general",
       memory_key = null,
       memory_value,
@@ -21,16 +49,6 @@ export default async function handler(req, res) {
       confidence = 0.75,
       tags = []
     } = req.body || {};
-
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return res.status(500).json({
-        error: "Missing Supabase server environment variables."
-      });
-    }
-
-    if (!user_id) {
-      return res.status(400).json({ error: "Missing user_id." });
-    }
 
     const headers = {
       apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -60,23 +78,20 @@ export default async function handler(req, res) {
             Prefer: "resolution=merge-duplicates,return=representation"
           },
           body: JSON.stringify({
-            user_id,
+            user_id: user.id,
             memory_type,
             topic: memoryTopic,
             content: memoryContent,
-            importance: Number(importance || 5),
-            confidence: Number(confidence || 0.75),
+            importance: Math.min(10, Math.max(1, Number(importance || 5))),
+            confidence: Math.min(1, Math.max(0, Number(confidence || 0.75))),
             tags: Array.isArray(tags) ? tags : [],
             updated_at: new Date().toISOString()
           })
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        return res.status(response.status).json({ error: data });
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return res.status(response.status).json({ error: data });
 
       return res.status(200).json({
         success: true,
@@ -86,28 +101,17 @@ export default async function handler(req, res) {
 
     if (action === "get_memories") {
       const response = await fetch(
-        `${process.env.SUPABASE_URL}/rest/v1/ari_user_memory?user_id=eq.${user_id}&order=updated_at.desc&limit=50`,
-        {
-          method: "GET",
-          headers
-        }
+        `${process.env.SUPABASE_URL}/rest/v1/ari_user_memory?user_id=eq.${user.id}&order=updated_at.desc&limit=50`,
+        { method: "GET", headers }
       );
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return res.status(response.status).json({ error: data });
 
-      if (!response.ok) {
-        return res.status(response.status).json({ error: data });
-      }
-
-      return res.status(200).json({
-        success: true,
-        memories: data || []
-      });
+      return res.status(200).json({ success: true, memories: data || [] });
     }
 
-    return res.status(400).json({
-      error: "Unknown memory action."
-    });
+    return res.status(400).json({ error: "Unknown memory action." });
   } catch (error) {
     return res.status(500).json({
       error: error.message || "Memory API failed."

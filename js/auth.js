@@ -109,11 +109,72 @@ async function getCurrentUser() {
   return session?.user || null;
 }
 
+async function getAriAccountState(userId = null) {
+  const resolvedUserId =
+    userId ||
+    (await getCurrentUser())?.id ||
+    null;
+
+  if (!resolvedUserId || !window.calbuddySupabase) {
+    return null;
+  }
+
+  const { data, error } = await window.calbuddySupabase
+    .from("ari_account_state")
+    .select("*")
+    .eq("user_id", resolvedUserId)
+    .maybeSingle();
+
+  if (error) {
+    /*
+     * During the one-time database rollout, treat a missing table as active
+     * so the existing application remains usable. The account page surfaces
+     * the setup reminder to the owner.
+     */
+    console.warn("ARI account state unavailable:", error.message);
+    return {
+      user_id: resolvedUserId,
+      status: "active",
+      setupPending: true
+    };
+  }
+
+  return data || {
+    user_id: resolvedUserId,
+    status: "active",
+    setupPending: true
+  };
+}
+
+function isAriAccountRecoveryPage(pathname = window.location.pathname) {
+  const page = String(pathname || "")
+    .split("/")
+    .pop()
+    .toLowerCase();
+
+  return [
+    "account.html",
+    "help-safety.html",
+    "community-guidelines.html"
+  ].includes(page);
+}
+
 async function requireAuth() {
   const session = await getCurrentSession();
 
   if (!session) {
     window.location.replace("signin.html");
+    return null;
+  }
+
+  const accountState = await getAriAccountState(session.user.id);
+
+  if (
+    accountState?.status &&
+    accountState.status !== "active" &&
+    !isAriAccountRecoveryPage()
+  ) {
+    window.location.replace("account.html");
     return null;
   }
 

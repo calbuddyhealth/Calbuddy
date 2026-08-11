@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>Privacy &amp; Ari Memory · ARI Rebirth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+</head>
+<body>
+  <main class="ari-account-page">
+    <header class="ari-account-header">
+      <a class="ari-icon-button" href="account.html" aria-label="Back to account">←</a>
+      <a class="ari-brand-mark" href="index.html" aria-label="ARI Rebirth home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">REBIRTH</span></a>
+      <a class="ari-header-button" href="account.html">Account</a>
+    </header>
+
+    <section class="ari-page-hero">
+      <div class="ari-page-symbol" aria-hidden="true">✦</div>
+      <p class="ari-page-kicker">PRIVACY</p>
+      <h1 class="ari-page-title">Ari memory</h1>
+      <p class="ari-page-description">Continuity without keeping every conversation forever.</p>
+    </section>
+
+    <div class="ari-status" id="memoryStatus" role="status" aria-live="polite"></div>
+
+    <div class="ari-content-stack">
+      <section class="ari-content-card">
+        <p class="ari-section-kicker">HOW IT WORKS</p>
+        <h2>Recent context fades. Important context stays.</h2>
+
+        <div class="ari-memory-flow">
+          <div class="ari-memory-step"><span>01</span><div><strong>You talk with Ari</strong><p>Recent conversation helps Ari follow along naturally.</p></div></div>
+          <div class="ari-memory-step"><span>07</span><div><strong>Seven-day reset</strong><p>Full conversation turns automatically expire after seven days.</p></div></div>
+          <div class="ari-memory-step"><span>∞</span><div><strong>Meaningful memories remain</strong><p>Stable preferences, goals, decisions, and important life events may remain to improve your experience.</p></div></div>
+        </div>
+      </section>
+
+      <section class="ari-content-card">
+        <p class="ari-section-kicker">BUILT-IN BOUNDARY</p>
+        <h2>Secrets are not long-term memories.</h2>
+        <p>Ari's memory filter rejects passwords, access tokens, payment-card numbers, government identification numbers, and similar credentials. Avoid sending highly sensitive information in any chat.</p>
+      </section>
+
+      <section class="ari-content-card ari-warning-card">
+        <p class="ari-section-kicker">YOUR CONTROL</p>
+        <h2>Erase Ari's conversation memory</h2>
+        <p>This clears your recent conversation turns and Ari's durable conversation memories. Your account, meals, health goals, profile, and Circle content are not deleted.</p>
+        <button class="ari-danger-action" id="eraseMemoryButton" type="button">Erase conversation memory</button>
+      </section>
+    </div>
+
+    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Your memory. Your control.</p></footer>
+  </main>
+
+  <dialog class="ari-dialog ari-dialog--danger" id="eraseMemoryDialog">
+    <form method="dialog" class="ari-dialog-card" id="eraseMemoryForm">
+      <button class="ari-dialog-close" type="button" data-dialog-close aria-label="Close">×</button>
+      <p class="ari-section-kicker">ERASE MEMORY</p>
+      <h2>Start fresh with Ari?</h2>
+      <p>This cannot be undone. It removes recent conversation context and important conversation memories, but leaves the rest of your account intact.</p>
+      <div class="ari-dialog-actions">
+        <button class="ari-secondary-action" type="button" data-dialog-close>Cancel</button>
+        <button class="ari-danger-action" id="confirmEraseMemoryButton" type="submit" value="default">Erase now</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/settings-shared.js?v=1.0.0"></script>
+  <script src="js/privacy-memory.js?v=1.0.0"></script>
+</body>
+</html>

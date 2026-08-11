@@ -130,7 +130,12 @@ document.addEventListener(
 
       setManualMealDateTimeDefaults();
 
-      await setupNutritionAuth();
+      const authorized =
+        await setupNutritionAuth();
+
+      if (!authorized) {
+        return;
+      }
 
       nutritionState.currentUser =
         await getNutritionUser();
@@ -199,12 +204,13 @@ async function setupNutritionAuth() {
     typeof window.requireAuth ===
     "function"
   ) {
-    await window.requireAuth();
-    return;
+    return Boolean(
+      await window.requireAuth()
+    );
   }
 
   if (!window.calbuddySupabase) {
-    return;
+    return false;
   }
 
   const {
@@ -222,14 +228,18 @@ async function setupNutritionAuth() {
       error.message
     );
 
-    return;
+    return false;
   }
 
   if (!data?.session) {
     window.location.replace(
       "signin.html"
     );
+
+    return false;
   }
+
+  return true;
 }
 
 
