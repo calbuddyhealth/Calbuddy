@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.6.3";
+CalBuddy.version = "3.6.4";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 CalBuddy.dashboardRefreshPromise = null;
@@ -133,7 +133,7 @@ CalBuddy.verifyOwnerSession = async function ({ force = false } = {}) {
     let isOwner = false;
 
     try {
-      const response = await fetch("/api/ari-owner-status", {
+      const response = await fetch("/api/ari-github-read", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${session.access_token}`
