@@ -1,4 +1,4 @@
-/* ARI Rebirth — My Account v3.0.0 */
+/* ARI Rebirth — My Account v3.1.0 */
 
 (() => {
   "use strict";
@@ -19,6 +19,22 @@
   function closeDialog(id) {
     const dialog = $(id);
     if (dialog?.open) dialog.close();
+  }
+
+  function setAccountControlExpanded(expanded) {
+    const toggle = $("accountControlToggle");
+    const content = $("accountControlContent");
+    const icon = $("accountControlToggleIcon");
+    const arrow = $("accountControlToggleArrow");
+
+    if (!toggle || !content) return;
+
+    const isExpanded = Boolean(expanded);
+    toggle.setAttribute("aria-expanded", String(isExpanded));
+    content.hidden = !isExpanded;
+
+    if (icon) icon.textContent = isExpanded ? "−" : "+";
+    if (arrow) arrow.textContent = isExpanded ? "⌄" : "›";
   }
 
   function formatDeletionDate(value) {
@@ -205,6 +221,10 @@
       changeEmail();
     });
     $("changePasswordButton").addEventListener("click", resetPassword);
+    $("accountControlToggle").addEventListener("click", () => {
+      const expanded = $("accountControlToggle").getAttribute("aria-expanded") === "true";
+      setAccountControlExpanded(!expanded);
+    });
     $("signOutButton").addEventListener("click", () => signOut("local"));
     $("pauseAccountButton").addEventListener("click", () => openDialog("pauseDialog"));
     $("confirmPauseButton").addEventListener("click", (event) => {
@@ -230,6 +250,8 @@
   async function init() {
     bindEvents();
     configureSupportLink();
+    setAccountControlExpanded(false);
+
     currentSession = await window.AriSettings.requireSession();
     if (!currentSession) return;
 
