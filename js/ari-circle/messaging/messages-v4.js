@@ -1,12 +1,15 @@
 /* =============================================================
    ARI CIRCLE — UNIFIED MESSAGES
-   Version: 1.2.0
+   Version: 1.3.0
 
-   V1.2:
-   - Keeps the inbox-first Messenger-style experience.
-   - Adds true realtime presence using the shared ARI Circle channel.
+   V1.3:
+   - Inbox is the default view and clearly identifies itself as Messages.
+   - Thread Back is a real link to the inbox (Safari-safe).
+   - Composer only appears for a valid active conversation.
+   - Empty threads show a proper "No messages yet" state.
+   - Direct-message links can build a valid thread identity even before the
+     conversation appears in the inbox list.
    - Green means online; grey means offline.
-   - Shows presence on conversation avatars and the open thread.
 ============================================================= */
 (() => {
   "use strict";
@@ -126,7 +129,7 @@
       if (clean(row.conversation_id) === state.activeConversationId) button.classList.add("is-active");
 
       const unread = Number(row.unread_count) || 0;
-      const preview = clean(row.last_message_body) || (row.handle ? `@${clean(row.handle).replace(/^@+/, "")}` : "Conversation");
+      const preview = clean(row.last_message_body) || (row.handle ? `@${clean(row.handle).replace(/^@+/, "")}` : "New conversation");
       const presence = presenceStatus(row.other_user_id);
       button.innerHTML = `
         <span class="circle-conversation__avatar-wrap">
@@ -198,14 +201,21 @@
     syncThreadPresence();
   }
 
+  function setComposerVisible(visible) {
+    const form = $("messageForm");
+    if (form) form.hidden = !visible;
+  }
+
   function renderThread(messages) {
     const host = $("threadMessages");
     const empty = $("threadEmpty");
-    if (!host) return;
-    host.replaceChildren();
-    if (empty) empty.hidden = true;
+    if (!host || !empty) return;
 
-    messages.forEach((msg) => {
+    host.replaceChildren();
+    const rows = Array.isArray(messages) ? messages : [];
+    empty.hidden = rows.length > 0;
+
+    rows.forEach((msg) => {
       const mine = clean(msg.sender_user_id) === clean(state.user?.id);
       const row = document.createElement("div");
       row.className = `circle-message-row${mine ? " is-mine" : ""}`;
@@ -237,10 +247,13 @@
 
   async function openConversation(row) {
     const id = clean(row?.conversation_id);
-    if (!id) return;
+    const otherUserId = clean(row?.other_user_id);
+    if (!id || !otherUserId) return;
+
     state.activeConversationId = id;
     state.activeConversation = row;
     setThreadIdentity(row);
+    setComposerVisible(true);
     $("circleThread").hidden = false;
     $("messagesPage").classList.add("has-thread");
     renderInbox();
@@ -250,9 +263,35 @@
   function closeThread() {
     state.activeConversationId = null;
     state.activeConversation = null;
+    setComposerVisible(false);
     $("circleThread").hidden = true;
     $("messagesPage").classList.remove("has-thread");
     renderInbox();
+  }
+
+  async function profileRowForDirectUser(userId, conversationId) {
+    try {
+      const { data, error } = await state.client
+        .from("ari_circle_profiles")
+        .select("user_id, display_name, handle, avatar_url")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.user_id) return null;
+      return {
+        conversation_id: conversationId,
+        other_user_id: data.user_id,
+        display_name: data.display_name || "ARI User",
+        handle: data.handle || "",
+        avatar_url: data.avatar_url || "",
+        unread_count: 0,
+        last_message_body: "",
+        last_message_at: null
+      };
+    } catch (error) {
+      console.warn("ARI Circle direct-message identity unavailable:", error);
+      return null;
+    }
   }
 
   async function openRequestedUser() {
@@ -264,17 +303,24 @@
         requested_user_id: userId
       });
       await loadInbox();
-      const row = state.conversations.find((item) => clean(item.conversation_id) === clean(conversationId));
-      if (row) await openConversation(row);
+      let row = state.conversations.find((item) => clean(item.conversation_id) === clean(conversationId));
+      if (!row) row = await profileRowForDirectUser(userId, conversationId);
+      if (row) {
+        await openConversation(row);
+      } else {
+        closeThread();
+        toast("That conversation is not available yet.");
+      }
     } catch (error) {
       console.error("ARI Circle direct message open failed:", error);
+      closeThread();
       toast(error.message || "Could not open that conversation.");
     }
   }
 
   async function sendMessage(event) {
     event.preventDefault();
-    if (state.busy || !state.activeConversationId) return;
+    if (state.busy || !state.activeConversationId || !state.activeConversation?.other_user_id) return;
     const input = $("messageInput");
     const body = clean(input?.value);
     if (!body) return;
@@ -352,16 +398,13 @@
     const channel = state.presenceChannel;
     state.presenceChannel = null;
     if (!channel || !state.client) return;
-    try {
-      await channel.untrack?.();
-    } catch {}
-    try {
-      await state.client.removeChannel(channel);
-    } catch {}
+    try { await channel.untrack?.(); } catch {}
+    try { await state.client.removeChannel(channel); } catch {}
   }
 
   function bind() {
-    $("threadBack")?.addEventListener("click", closeThread);
+    // threadBack is intentionally a normal anchor. A hard navigation back to
+    // the inbox is the most reliable behavior on iOS Safari.
     $("messageForm")?.addEventListener("submit", sendMessage);
     $("messageSearch")?.addEventListener("input", (event) => {
       state.query = clean(event.currentTarget.value);
@@ -396,6 +439,7 @@
       if (!user) return;
       bind();
       connectPresence();
+      setComposerVisible(false);
       await loadInbox();
       $("messagesPage").hidden = false;
       $("messagesLoading").hidden = true;
