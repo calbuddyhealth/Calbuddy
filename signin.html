@@ -16,7 +16,7 @@
     href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/assets/css/auth.css?v=20" />
+  <link rel="stylesheet" href="/assets/css/auth.css?v=21" />
 </head>
 
 <body class="ari-auth-body">
@@ -32,193 +32,51 @@
       </header>
 
       <div class="ari-auth-tabs" role="tablist" aria-label="Account access">
-        <button
-          id="showLoginBtn"
-          class="ari-auth-tab active"
-          type="button"
-          role="tab"
-          aria-controls="loginPanel"
-          aria-selected="true"
-        >
-          SIGN IN
-        </button>
-        <button
-          id="showSignupBtn"
-          class="ari-auth-tab"
-          type="button"
-          role="tab"
-          aria-controls="signupFlow"
-          aria-selected="false"
-        >
-          CREATE ACCOUNT
-        </button>
+        <button id="showLoginBtn" class="ari-auth-tab active" type="button" role="tab" aria-controls="loginPanel" aria-selected="true">SIGN IN</button>
+        <button id="showSignupBtn" class="ari-auth-tab" type="button" role="tab" aria-controls="signupFlow" aria-selected="false">CREATE ACCOUNT</button>
       </div>
 
       <form id="loginPanel" class="ari-auth-panel" novalidate>
-        <label class="ari-auth-field" for="email">
-          <span>Email</span>
-          <input
-            id="email"
-            type="email"
-            autocomplete="email"
-            inputmode="email"
-            autocapitalize="none"
-            spellcheck="false"
-            required
-          />
-        </label>
-
-        <label class="ari-auth-field" for="password">
-          <span>Password</span>
-          <input
-            id="password"
-            type="password"
-            autocomplete="current-password"
-            minlength="8"
-            required
-          />
-        </label>
-
-        <button id="loginBtn" class="ari-auth-main-btn" type="submit">
-          Sign in
-        </button>
-
-        <button id="forgotPasswordBtn" class="ari-auth-link-btn" type="button">
-          Forgot password?
-        </button>
+        <label class="ari-auth-field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required /></label>
+        <label class="ari-auth-field" for="password"><span>Password</span><input id="password" type="password" autocomplete="current-password" minlength="8" required /></label>
+        <button id="loginBtn" class="ari-auth-main-btn" type="submit">Sign in</button>
+        <button id="forgotPasswordBtn" class="ari-auth-link-btn" type="button">Forgot password?</button>
       </form>
 
       <div id="signupFlow" class="ari-auth-panel hidden">
         <section id="ageStep" class="ari-signup-step" aria-labelledby="ageStepTitle">
           <p class="ari-step-count">1 / 2</p>
           <h2 id="ageStepTitle">Date of birth</h2>
-
           <div class="ari-dob-fields" role="group" aria-label="Date of birth">
-            <label>
-              <span class="ari-visually-hidden">Month</span>
-              <input
-                id="birthMonth"
-                type="text"
-                inputmode="numeric"
-                autocomplete="bday-month"
-                maxlength="2"
-                placeholder="MM"
-                aria-label="Birth month"
-              />
-            </label>
-            <label>
-              <span class="ari-visually-hidden">Day</span>
-              <input
-                id="birthDay"
-                type="text"
-                inputmode="numeric"
-                autocomplete="bday-day"
-                maxlength="2"
-                placeholder="DD"
-                aria-label="Birth day"
-              />
-            </label>
-            <label class="ari-dob-year">
-              <span class="ari-visually-hidden">Year</span>
-              <input
-                id="birthYear"
-                type="text"
-                inputmode="numeric"
-                autocomplete="bday-year"
-                maxlength="4"
-                placeholder="YYYY"
-                aria-label="Birth year"
-              />
-            </label>
+            <label><span class="ari-visually-hidden">Month</span><input id="birthMonth" type="text" inputmode="numeric" autocomplete="bday-month" maxlength="2" placeholder="MM" aria-label="Birth month" /></label>
+            <label><span class="ari-visually-hidden">Day</span><input id="birthDay" type="text" inputmode="numeric" autocomplete="bday-day" maxlength="2" placeholder="DD" aria-label="Birth day" /></label>
+            <label class="ari-dob-year"><span class="ari-visually-hidden">Year</span><input id="birthYear" type="text" inputmode="numeric" autocomplete="bday-year" maxlength="4" placeholder="YYYY" aria-label="Birth year" /></label>
           </div>
-
           <p class="ari-private-note">Private. Never displayed.</p>
-
-          <button id="ageContinueBtn" class="ari-auth-main-btn" type="button">
-            Continue
-          </button>
-
-          <button id="signupSignInBtn" class="ari-auth-link-btn" type="button">
-            Sign in
-          </button>
+          <button id="ageContinueBtn" class="ari-auth-main-btn" type="button">Continue</button>
+          <button id="signupSignInBtn" class="ari-auth-link-btn" type="button">Sign in</button>
         </section>
 
         <form id="signupDetailsStep" class="ari-signup-step hidden" novalidate>
           <p class="ari-step-count">2 / 2</p>
           <h2>Create account</h2>
-
-          <label class="ari-auth-field" for="displayName">
-            <span>Display name</span>
-            <input
-              id="displayName"
-              type="text"
-              autocomplete="name"
-              maxlength="50"
-              required
-            />
-          </label>
-
-          <label class="ari-auth-field" for="signupEmail">
-            <span>Email</span>
-            <input
-              id="signupEmail"
-              type="email"
-              autocomplete="email"
-              inputmode="email"
-              autocapitalize="none"
-              spellcheck="false"
-              required
-            />
-          </label>
-
-          <label class="ari-auth-field" for="signupPassword">
-            <span>Password</span>
-            <input
-              id="signupPassword"
-              type="password"
-              autocomplete="new-password"
-              minlength="8"
-              required
-            />
-          </label>
-
-          <label class="ari-auth-field" for="confirmPassword">
-            <span>Confirm password</span>
-            <input
-              id="confirmPassword"
-              type="password"
-              autocomplete="new-password"
-              minlength="8"
-              required
-            />
-          </label>
-
+          <label class="ari-auth-field" for="displayName"><span>Display name</span><input id="displayName" type="text" autocomplete="name" maxlength="50" required /></label>
+          <label class="ari-auth-field" for="signupEmail"><span>Email</span><input id="signupEmail" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required /></label>
+          <label class="ari-auth-field" for="signupPassword"><span>Password</span><input id="signupPassword" type="password" autocomplete="new-password" minlength="8" required /></label>
+          <label class="ari-auth-field" for="confirmPassword"><span>Confirm password</span><input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" required /></label>
           <label class="ari-consent-row" for="legalConsent">
             <input id="legalConsent" type="checkbox" required />
-            <span>
-              I agree to the
-              <a href="/terms.html" target="_blank" rel="noopener">Terms</a>,
-              <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a>, and
-              <a href="/community-guidelines.html" target="_blank" rel="noopener">Community Guidelines</a>.
-            </span>
+            <span>I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms</a>, <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a>, and <a href="/community-guidelines.html" target="_blank" rel="noopener">Community Guidelines</a>.</span>
           </label>
-
-          <button id="signupBtn" class="ari-auth-main-btn" type="submit">
-            Create account
-          </button>
-
-          <button id="signupBackBtn" class="ari-auth-link-btn" type="button">
-            Back
-          </button>
+          <button id="signupBtn" class="ari-auth-main-btn" type="submit">Create account</button>
+          <button id="signupBackBtn" class="ari-auth-link-btn" type="button">Back</button>
         </form>
       </div>
 
       <p id="authMessage" class="ari-auth-message" role="status" aria-live="polite"></p>
 
       <footer class="ari-auth-footer" aria-label="Legal">
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/help-safety.html">Safety</a>
+        <a href="/terms.html">Terms</a><a href="/privacy.html">Privacy</a><a href="/help-safety.html">Safety</a>
       </footer>
     </section>
 
@@ -229,22 +87,35 @@
         <p class="ari-experience-label">EXPERIENCE</p>
         <span class="ari-brand-line" aria-hidden="true"></span>
       </header>
+
+      <div class="ari-verify-status" aria-hidden="true">✉</div>
       <h2>Check your email</h2>
-      <p>Open the confirmation link, then return to sign in.</p>
-      <a class="ari-auth-main-btn ari-auth-return-link" href="/signin.html">Return to sign in</a>
+      <p class="ari-verify-copy">We sent a confirmation to <strong id="verifyEmailLabel">your email</strong>.</p>
+      <p class="ari-verify-copy">Tap <strong>Confirm email address</strong> in the message. After confirmation, ARI XP will bring you to a clean success screen.</p>
+
+      <div class="ari-verify-divider"><span>or use the code</span></div>
+
+      <label class="ari-auth-field ari-code-field" for="verifyCodeInput">
+        <span>6-digit confirmation code</span>
+        <input id="verifyCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" aria-label="6-digit confirmation code" />
+      </label>
+
+      <button id="verifyCodeButton" class="ari-auth-main-btn" type="button">Verify code</button>
+      <button id="resendConfirmationButton" class="ari-auth-link-btn" type="button">Resend email</button>
+      <p id="verificationMessage" class="ari-auth-message" role="status" aria-live="polite"></p>
+      <a class="ari-auth-link-btn ari-auth-return-link" href="/signin.html">Return to sign in</a>
     </section>
 
     <section class="ari-init-screen hidden" id="initScreen" aria-live="polite">
-      <div class="ari-terminal-shell">
-        <div id="initTerminal" class="ari-init-terminal"></div>
-      </div>
+      <div class="ari-terminal-shell"><div id="initTerminal" class="ari-init-terminal"></div></div>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="/supabase-config.js?v=10" defer></script>
-  <script src="/js/auth.js?v=14" defer></script>
+  <script src="/js/auth.js?v=15" defer></script>
   <script src="/js/arixp-age-gate.js?v=1" defer></script>
   <script src="/js/signin.js?v=20" defer></script>
+  <script src="/js/email-verification.js?v=1" defer></script>
 </body>
 </html>
