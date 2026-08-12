@@ -39,7 +39,7 @@
 
     <nav class="partner-tabs" aria-label="ARI Circle sections">
       <a class="partner-tab" href="ari-circle-feed.html">Feed</a>
-      <a class="partner-tab" href="ari-circle.html">Me</a>
+      <a class="partner-tab" href="ari-circle.html">Profile</a>
       <button type="button" class="partner-tab is-active" aria-current="page">Buddies</button>
       <a class="partner-tab" href="ari-circle-challenges.html">Challenges</a>
     </nav>
@@ -47,8 +47,8 @@
     <section class="partner-hero" aria-labelledby="partnerTitle">
       <p class="partner-kicker">FIND YOUR PEOPLE</p>
       <h1 id="partnerTitle">Buddies</h1>
-      <p>Find friends for the gym, trails, runs, rides, sports, walking, or simple accountability.</p>
-      <button class="partner-primary" id="openIntentButton" type="button">Find an Activity Buddy</button>
+      <p>Find someone for coffee, a movie, the gym, a game, an event, a hike, food, or whatever sounds fun.</p>
+      <button class="partner-primary" id="openIntentButton" type="button">Find a Buddy</button>
     </section>
 
     <section class="partner-safety-card" id="partnerSafetyCard" aria-live="polite">
@@ -63,7 +63,7 @@
       <div class="partner-section-heading">
         <div>
           <p class="partner-kicker">YOUR LISTING</p>
-          <h2>You’re open to buddy invites</h2>
+          <h2>You’re open to Buddy invites</h2>
         </div>
         <button class="partner-text-button" id="editIntentButton" type="button">Edit</button>
       </div>
@@ -83,13 +83,20 @@
     <section class="partner-discover" aria-labelledby="discoverTitle">
       <div class="partner-section-heading">
         <div>
-          <p class="partner-kicker">ACTIVITY BUDDIES</p>
-          <h2 id="discoverTitle">Find an activity buddy</h2>
+          <p class="partner-kicker">FIND SOMETHING TO DO</p>
+          <h2 id="discoverTitle">Find a Buddy</h2>
         </div>
       </div>
 
-      <div class="partner-activity-strip" id="activityStrip" role="list" aria-label="Activity filters">
+      <div class="partner-activity-strip" id="activityStrip" role="list" aria-label="Buddy activity filters">
         <button class="partner-chip is-active" type="button" data-activity="">All</button>
+        <button class="partner-chip" type="button" data-activity="coffee">☕ Coffee</button>
+        <button class="partner-chip" type="button" data-activity="food">🍴 Food</button>
+        <button class="partner-chip" type="button" data-activity="movies">🎬 Movies</button>
+        <button class="partner-chip" type="button" data-activity="gaming">🎮 Gaming</button>
+        <button class="partner-chip" type="button" data-activity="events">🎟️ Events</button>
+        <button class="partner-chip" type="button" data-activity="concerts">🎵 Concerts</button>
+        <button class="partner-chip" type="button" data-activity="drinks" data-adult-only>🍸 Drinks</button>
         <button class="partner-chip" type="button" data-activity="gym">🏋️ Gym</button>
         <button class="partner-chip" type="button" data-activity="hiking">🥾 Hiking</button>
         <button class="partner-chip" type="button" data-activity="running">🏃 Running</button>
@@ -108,7 +115,7 @@
       </form>
 
       <div class="partner-result-meta">
-        <p id="partnerResultStatus" role="status" aria-live="polite">Loading people looking for activities…</p>
+        <p id="partnerResultStatus" role="status" aria-live="polite">Loading people looking to hang out…</p>
         <button class="partner-text-button" id="refreshPartnersButton" type="button">Refresh</button>
       </div>
 
@@ -117,14 +124,14 @@
       <div id="partnerEmpty" class="partner-empty" hidden>
         <span aria-hidden="true">◎</span>
         <h3>No matches yet.</h3>
-        <p>Try another activity or area — or create your own listing so people can find you.</p>
+        <p>Try another plan or area — or create your own listing so people can find you.</p>
         <button class="partner-primary" id="emptyCreateButton" type="button">Create my listing</button>
       </div>
     </section>
 
     <footer class="partner-footer">
       <span>ARI CIRCLE</span>
-      <p>Meet through mutual intent. Share details only when you’re comfortable.</p>
+      <p>Meet through mutual interest. Share details only when you’re comfortable.</p>
     </footer>
   </main>
 
@@ -137,12 +144,12 @@
     <form class="partner-dialog__card" id="ageForm">
       <p class="partner-kicker">ONE-TIME SAFETY CHECK</p>
       <h2>Verify your age</h2>
-      <p>Your date of birth stays private. We use it to keep adult and teen buddy discovery separated.</p>
+      <p>Your date of birth stays private. We use it to keep adult and teen Buddy discovery separated.</p>
       <label class="partner-field" for="ageDateInput">
         <span>Date of birth</span>
         <input id="ageDateInput" type="date" autocomplete="bday" required />
       </label>
-      <p class="partner-inline-note">Your birth date is not shown on your Buddy profile.</p>
+      <p class="partner-inline-note">Your birth date is not shown on your profile.</p>
       <button class="partner-primary partner-full" id="verifyAgeButton" type="submit">Continue</button>
     </form>
   </dialog>
@@ -151,11 +158,18 @@
     <form class="partner-dialog__card" id="intentForm">
       <button class="partner-close" type="button" data-close-dialog="intentDialog" aria-label="Close">×</button>
       <p class="partner-kicker">OPEN TO INVITES</p>
-      <h2>What are you looking for?</h2>
+      <h2>What sounds fun?</h2>
 
       <label class="partner-field" for="intentActivity">
-        <span>Activity</span>
+        <span>Plan</span>
         <select id="intentActivity" required>
+          <option value="coffee">Coffee</option>
+          <option value="food">Food</option>
+          <option value="movies">Movies</option>
+          <option value="gaming">Gaming</option>
+          <option value="events">Event</option>
+          <option value="concerts">Concert</option>
+          <option value="drinks" data-adult-only>Drinks / Bar</option>
           <option value="gym">Gym</option>
           <option value="hiking">Hiking</option>
           <option value="running">Running</option>
@@ -163,7 +177,7 @@
           <option value="sports">Sports</option>
           <option value="walking">Walking</option>
           <option value="accountability">Accountability</option>
-          <option value="other">Other activity</option>
+          <option value="other">Something else</option>
         </select>
       </label>
 
@@ -171,18 +185,9 @@
         <legend>How do you want to connect?</legend>
         <label><input type="radio" name="intentMode" value="one_on_one" checked /><span>1-on-1</span></label>
         <label><input type="radio" name="intentMode" value="group" /><span>Group</span></label>
-        <label><input type="radio" name="intentMode" value="accountability" /><span>Accountability</span></label>
       </fieldset>
 
-      <label class="partner-field" for="intentExperience">
-        <span>Experience</span>
-        <select id="intentExperience">
-          <option value="any">Any level</option>
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
-        </select>
-      </label>
+      <input id="intentExperience" type="hidden" value="any" />
 
       <label class="partner-field" for="intentArea">
         <span>General area</span>
@@ -201,11 +206,11 @@
 
       <label class="partner-field" for="intentNote">
         <span>Short note <small>optional</small></span>
-        <textarea id="intentNote" maxlength="280" rows="3" placeholder="What kind of buddy would make this more fun?"></textarea>
+        <textarea id="intentNote" maxlength="280" rows="3" placeholder="What would make this fun?"></textarea>
       </label>
 
       <div class="partner-teen-note" id="teenIntentNote" hidden>
-        Teen Buddy discovery is limited to group activities or accountability. Keep your public area broad and don’t post contact information.
+        Teen Buddy discovery is limited to group plans or accountability. Keep your public area broad and don’t post contact information.
       </div>
 
       <button class="partner-primary partner-full" id="saveIntentButton" type="submit">Make me discoverable</button>
@@ -222,7 +227,7 @@
         <button type="button" data-starter="same_schedule">Looks like our schedules match</button>
         <button type="button" data-starter="this_week">Want to do this sometime this week?</button>
         <button type="button" data-starter="accountability">I’m looking for accountability too</button>
-        <button type="button" data-starter="say_hey">Hey — I’m interested too</button>
+        <button type="button" data-starter="say_hey">Hey — this sounds fun</button>
       </div>
       <p class="partner-inline-note">Nothing becomes a DM until they accept.</p>
     </div>
@@ -233,11 +238,11 @@
       <span class="partner-match-symbol" aria-hidden="true">✦</span>
       <p class="partner-kicker">MUTUAL INTEREST</p>
       <h2>You connected.</h2>
-      <p id="matchDialogText">You’re both interested in the same activity.</p>
+      <p id="matchDialogText">You’re both interested in the same plan.</p>
       <div class="partner-starter-preview">
         <strong>Easy ways to start</strong>
-        <span>What days work best for you?</span>
-        <span>What does your usual session look like?</span>
+        <span>What day works best for you?</span>
+        <span>What sounds good?</span>
         <span>Want to plan something this week?</span>
       </div>
       <a class="partner-primary partner-full" href="ari-circle.html?panel=messages">Open Messages</a>
@@ -249,7 +254,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
-  <script src="js/ari-circle/partners/partner-finder.js?v=1.0.0" defer></script>
-  <script src="js/ari-circle/v4-ui.js?v=4.1.2" defer></script>
+  <script src="js/ari-circle/partners/partner-finder.js?v=1.1.0" defer></script>
+  <script src="js/ari-circle/v4-ui.js?v=4.2.0" defer></script>
 </body>
 </html>
