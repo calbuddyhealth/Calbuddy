@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED POLISH
-   Version: 1.0.0
+   Version: 1.0.1
 
    - Cleaner composer copy
    - Inline recent comments without extra taps
@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const STYLE_ID = "ari-circle-feed-polish-style";
 
   const state = {
@@ -22,7 +22,8 @@
     touchStartY: 0,
     pulling: false,
     refreshing: false,
-    observer: null
+    feedObserver: null,
+    momentObserver: null
   };
 
   const $ = (id) => document.getElementById(id);
@@ -194,7 +195,7 @@
       preview.append(row);
     });
 
-    const countText = [...(article.querySelectorAll(".feed-post__actions button") || [])]
+    const countText = [...article.querySelectorAll(".feed-post__actions button")]
       .map((button) => clean(button.textContent))
       .find((text) => /^comment/i.test(text));
     const countMatch = countText?.match(/(\d+)\s*$/);
@@ -264,19 +265,22 @@
   }
 
   function watchFeed() {
-    if (state.observer) return;
-    state.observer = new MutationObserver(() => {
-      simplifyComposer();
-      ensureMomentCameraEntry();
-      scheduleCommentPreviews();
-    });
+    const list = $("feedList");
+    if (list && !state.feedObserver) {
+      state.feedObserver = new MutationObserver((mutations) => {
+        const feedChanged = mutations.some((mutation) => mutation.type === "childList" && (mutation.addedNodes.length || mutation.removedNodes.length));
+        if (feedChanged) scheduleCommentPreviews(90);
+      });
+      state.feedObserver.observe(list, { childList: true });
+    }
 
-    state.observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["hidden"]
-    });
+    const moments = $("momentsSection");
+    const strip = $("momentsStrip");
+    if (moments && strip && !state.momentObserver) {
+      state.momentObserver = new MutationObserver(() => ensureMomentCameraEntry());
+      state.momentObserver.observe(moments, { attributes: true, attributeFilter: ["hidden"] });
+      state.momentObserver.observe(strip, { childList: true });
+    }
   }
 
   function init() {
@@ -297,6 +301,7 @@
     version: VERSION,
     refresh: () => {
       simplifyComposer();
+      watchFeed();
       ensureMomentCameraEntry();
       scheduleCommentPreviews(40);
     }
