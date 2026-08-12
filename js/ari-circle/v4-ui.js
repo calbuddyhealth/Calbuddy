@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.1
+   Version: 4.6.2
 
    Important V4.6 changes:
    - Keeps one stable Circle header/messages route everywhere.
@@ -13,7 +13,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.6.1";
+  const VERSION = "4.6.2";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -232,7 +232,7 @@
   function loadModules() {
     if (!flowFixesLoaded) {
       flowFixesLoaded = true;
-      import("/js/ari-circle/v4-flow-fixes.js?v=1.2.0").catch((error) => {
+      import("/js/ari-circle/v4-flow-fixes.js?v=1.2.1").catch((error) => {
         flowFixesLoaded = false;
         console.warn("ARI Circle flow fixes failed to load:", error);
       });
