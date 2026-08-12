@@ -1,0 +1,130 @@
+-- ARI XP AGE GATE
+-- Run this complete file once in the Supabase SQL Editor.
+-- It is idempotent and can be run again safely.
+
+begin;
+
+alter table public.ari_account_state
+  add column if not exists date_of_birth date,
+  add column if not exists age_verified_at timestamptz,
+  add column if not exists age_gate_version text,
+  add column if not exists terms_accepted_at timestamptz,
+  add column if not exists privacy_accepted_at timestamptz,
+  add column if not exists community_guidelines_accepted_at timestamptz;
+
+comment on column public.ari_account_state.date_of_birth is
+  'Private date of birth captured during the neutral ARI XP age screen.';
+
+create or replace function public.arixp_validate_new_user_registration()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  raw_date_of_birth text;
+  parsed_date_of_birth date;
+begin
+  raw_date_of_birth := nullif(
+    btrim(new.raw_user_meta_data ->> 'date_of_birth'),
+    ''
+  );
+
+  if raw_date_of_birth is null then
+    raise exception 'ARI XP registration requirements were not met.'
+      using errcode = 'P0001';
+  end if;
+
+  begin
+    parsed_date_of_birth := raw_date_of_birth::date;
+  exception
+    when others then
+      raise exception 'ARI XP registration requirements were not met.'
+        using errcode = 'P0001';
+  end;
+
+  if parsed_date_of_birth > current_date
+     or parsed_date_of_birth < (current_date - interval '120 years')::date
+     or parsed_date_of_birth > (current_date - interval '13 years')::date then
+    raise exception 'ARI XP registration eligibility was not met.'
+      using errcode = 'P0001';
+  end if;
+
+  if lower(coalesce(new.raw_user_meta_data ->> 'terms_accepted', 'false')) <> 'true'
+     or lower(coalesce(new.raw_user_meta_data ->> 'privacy_accepted', 'false')) <> 'true'
+     or lower(coalesce(
+       new.raw_user_meta_data ->> 'community_guidelines_accepted',
+       'false'
+     )) <> 'true' then
+    raise exception 'ARI XP registration requirements were not met.'
+      using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.arixp_validate_new_user_registration() from public;
+
+drop trigger if exists arixp_validate_registration_before_signup on auth.users;
+create trigger arixp_validate_registration_before_signup
+before insert on auth.users
+for each row execute function public.arixp_validate_new_user_registration();
+
+create or replace function public.ari_create_account_state_for_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  parsed_date_of_birth date;
+  accepted_at timestamptz := coalesce(new.created_at, now());
+begin
+  parsed_date_of_birth := nullif(
+    btrim(new.raw_user_meta_data ->> 'date_of_birth'),
+    ''
+  )::date;
+
+  insert into public.ari_account_state (
+    user_id,
+    status,
+    date_of_birth,
+    age_verified_at,
+    age_gate_version,
+    terms_accepted_at,
+    privacy_accepted_at,
+    community_guidelines_accepted_at
+  )
+  values (
+    new.id,
+    'active',
+    parsed_date_of_birth,
+    accepted_at,
+    '2026-08-11',
+    accepted_at,
+    accepted_at,
+    accepted_at
+  )
+  on conflict (user_id) do update
+  set
+    date_of_birth = excluded.date_of_birth,
+    age_verified_at = excluded.age_verified_at,
+    age_gate_version = excluded.age_gate_version,
+    terms_accepted_at = excluded.terms_accepted_at,
+    privacy_accepted_at = excluded.privacy_accepted_at,
+    community_guidelines_accepted_at = excluded.community_guidelines_accepted_at,
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+revoke all on function public.ari_create_account_state_for_new_user() from public;
+
+drop trigger if exists ari_create_account_state_after_signup on auth.users;
+create trigger ari_create_account_state_after_signup
+after insert on auth.users
+for each row execute function public.ari_create_account_state_for_new_user();
+
+commit;

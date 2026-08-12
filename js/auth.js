@@ -1,5 +1,5 @@
 // =====================================================
-// ARI REBIRTH
+// ARI XP
 // File: auth.js
 // Purpose:
 //   Shared Supabase auth helpers for ARI Rebirth.
@@ -48,10 +48,16 @@ async function signInUser(email, password) {
   });
 }
 
-async function signUpUser(email, password, displayName = "") {
+async function signUpUser(
+  email,
+  password,
+  displayName = "",
+  registration = {}
+) {
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
   const cleanDisplayName = String(displayName || "").trim();
+  const cleanDateOfBirth = String(registration.dateOfBirth || "").trim();
 
   return await window.calbuddySupabase.auth.signUp({
     email: cleanEmail,
@@ -77,7 +83,14 @@ async function signUpUser(email, password, displayName = "") {
         `${window.location.origin}/email-confirmed.html`,
 
       data: {
-        display_name: cleanDisplayName
+        display_name: cleanDisplayName,
+        date_of_birth: cleanDateOfBirth,
+        arixp_registration: "age-gated-v1",
+        age_gate_version: "2026-08-11",
+        terms_accepted: registration.termsAccepted === true,
+        privacy_accepted: registration.privacyAccepted === true,
+        community_guidelines_accepted:
+          registration.communityGuidelinesAccepted === true
       }
     }
   });
