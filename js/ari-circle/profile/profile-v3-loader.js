@@ -11,9 +11,13 @@ const PROFILE_BOOT_STYLE_ID = "ari-circle-profile-boot-style";
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 if (themeMeta) themeMeta.setAttribute("content", "#f8faff");
 
+const routeParams = new URLSearchParams(window.location.search);
+const isOwnProfileRoute = !routeParams.get("user") && !routeParams.get("handle");
+
 // Prevent visitor/owner controls and presence from flashing the wrong state
 // while legacy profile code and the V4 relationship resolver finish.
 document.documentElement.classList.add("circle-profile-hydrating");
+if (isOwnProfileRoute) document.documentElement.classList.add("circle-profile-own-route");
 
 if (!document.getElementById(PROFILE_BOOT_STYLE_ID)) {
   const style = document.createElement("style");
@@ -27,7 +31,20 @@ if (!document.getElementById(PROFILE_BOOT_STYLE_ID)) {
       pointer-events: none !important;
     }
 
-    .circle-profile-hydrating .circle-profile__body::after {
+    /* No ?user / ?handle means this is definitively the signed-in user's
+       own profile. Do not make Edit Profile wait for relationship RPCs. */
+    .circle-profile-hydrating.circle-profile-own-route #circle-owner-actions {
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    .circle-profile-hydrating.circle-profile-own-route #circle-visitor-actions,
+    .circle-profile-hydrating.circle-profile-own-route #circle-presence[hidden] {
+      display: none !important;
+    }
+
+    .circle-profile-hydrating:not(.circle-profile-own-route) .circle-profile__body::after {
       content: "";
       display: block;
       width: min(100%, 360px);
@@ -49,7 +66,7 @@ if (!document.getElementById(PROFILE_BOOT_STYLE_ID)) {
     html:not(.circle-profile-hydrating) #circle-owner-actions,
     html:not(.circle-profile-hydrating) #circle-visitor-actions,
     html:not(.circle-profile-hydrating) #circle-presence {
-      transition: opacity 180ms ease, transform 180ms ease;
+      transition: opacity 160ms ease, transform 160ms ease;
     }
 
     body.ari-circle-page #circle-owner-actions {
@@ -108,8 +125,42 @@ if (!document.getElementById(MEDIA_STYLE_ID)) {
   document.head.append(link);
 }
 
+function primeOwnProfileActions() {
+  if (!isOwnProfileRoute) return;
+
+  const ownerActions = document.getElementById("circle-owner-actions");
+  const visitorActions = document.getElementById("circle-visitor-actions");
+  const edit = document.getElementById("circle-edit-profile-action");
+
+  if (visitorActions) {
+    visitorActions.hidden = true;
+    visitorActions.style.display = "none";
+  }
+
+  if (ownerActions) {
+    ownerActions.hidden = false;
+    ownerActions.style.display = "grid";
+  }
+
+  if (edit) {
+    edit.hidden = false;
+    edit.disabled = false;
+    edit.textContent = "Edit Profile";
+  }
+}
+
 function finishProfessionalProfileBoot() {
   const started = performance.now();
+
+  // Own profile is unambiguous from the route, so reveal its action row now.
+  // Relationship/network work can continue quietly in the background.
+  if (isOwnProfileRoute) {
+    primeOwnProfileActions();
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove("circle-profile-hydrating");
+    });
+    return;
+  }
 
   const finish = () => {
     const flow = window.AriCircleV4FlowFixes;
@@ -117,8 +168,6 @@ function finishProfessionalProfileBoot() {
     const ownerActions = document.getElementById("circle-owner-actions");
     const visitorActions = document.getElementById("circle-visitor-actions");
 
-    // Relationship controls are the last state-sensitive part of the profile.
-    // Only reveal once V4 has resolved them so users never see buttons vanish.
     if (relationship !== "unknown" && ownerActions && visitorActions) {
       requestAnimationFrame(() => {
         document.documentElement.classList.remove("circle-profile-hydrating");
@@ -126,9 +175,9 @@ function finishProfessionalProfileBoot() {
       return;
     }
 
-    // Never leave a permanent skeleton if a network request fails. The V4
-    // renderer will still keep the inappropriate action group hidden.
-    if (performance.now() - started > 5000) {
+    // Shorter fallback than before. Never leave a visitor profile skeleton
+    // hanging for several seconds if a request is slow or unavailable.
+    if (performance.now() - started > 2200) {
       document.documentElement.classList.remove("circle-profile-hydrating");
       return;
     }
@@ -139,13 +188,17 @@ function finishProfessionalProfileBoot() {
   requestAnimationFrame(finish);
 }
 
-// v4-ui owns the social-flow modules so Profile only gets one copy of each.
+// Load the relationship/action resolver in parallel instead of waiting for
+// v4-ui to import it afterward. ES modules are cached, so v4-ui can safely
+// request the same module without executing a second copy.
 Promise.all([
   import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.6.5")
+  import("../v4-ui.js?v=4.6.5"),
+  import("../v4-flow-fixes.js?v=1.2.1")
 ])
   .then(() => finishProfessionalProfileBoot())
   .catch((error) => {
+    primeOwnProfileActions();
     document.documentElement.classList.remove("circle-profile-hydrating");
     console.error("ARI Circle profile enhancement failed to load:", error);
   });
