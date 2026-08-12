@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f8faff" />
+  <title>Messages | ARI Circle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-messages-v4.css?v=1.0.0" />
+</head>
+<body>
+  <main class="circle-messages-page" id="messagesPage" hidden>
+    <header class="circle-messages-header">
+      <a class="circle-messages-back" href="ari-circle-feed.html" aria-label="Back to ARI Circle">‹</a>
+      <a class="circle-messages-brand" href="ari-circle-feed.html">ARI CIRCLE</a>
+      <span class="circle-messages-header__spacer" aria-hidden="true"></span>
+    </header>
+
+    <section class="circle-messages-shell">
+      <aside class="circle-inbox" id="circleInbox">
+        <div class="circle-inbox__heading">
+          <div>
+            <p>ARI CIRCLE</p>
+            <h1>Messages</h1>
+          </div>
+        </div>
+        <p class="circle-message-status" id="inboxStatus">Loading conversations…</p>
+        <div class="circle-conversation-list" id="conversationList"></div>
+        <div class="circle-message-empty" id="conversationEmpty" hidden>
+          <strong>No conversations yet.</strong>
+          <span>Message a friend from their profile to get started.</span>
+        </div>
+      </aside>
+
+      <section class="circle-thread" id="circleThread" hidden>
+        <header class="circle-thread__header">
+          <button class="circle-thread__back" id="threadBack" type="button" aria-label="Back to conversations">‹</button>
+          <a class="circle-thread__person" id="threadProfileLink" href="ari-circle.html">
+            <span class="circle-thread__avatar" id="threadAvatar">A</span>
+            <span>
+              <strong id="threadName">Conversation</strong>
+              <small id="threadHandle"></small>
+            </span>
+          </a>
+        </header>
+
+        <div class="circle-thread__messages" id="threadMessages" aria-live="polite"></div>
+        <div class="circle-message-empty circle-message-empty--thread" id="threadEmpty" hidden>
+          <strong>Start the conversation.</strong>
+          <span>Say hey.</span>
+        </div>
+
+        <form class="circle-thread__composer" id="messageForm">
+          <label class="sr-only" for="messageInput">Message</label>
+          <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Message…" required></textarea>
+          <button type="submit" id="sendMessageButton">Send</button>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <section class="circle-messages-loading" id="messagesLoading">
+    <span></span>
+    <strong>Opening Messages</strong>
+  </section>
+
+  <div class="circle-messages-toast" id="messagesToast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/ari-circle/messaging/messages-v4.js?v=1.0.0" defer></script>
+</body>
+</html>
