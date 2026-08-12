@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/ari-circle-messages-v4.css?v=1.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-messages-v4.css?v=1.2.0" />
 </head>
 <body>
   <main class="circle-messages-page" id="messagesPage" hidden>
@@ -49,10 +49,14 @@
         <header class="circle-thread__header">
           <button class="circle-thread__back" id="threadBack" type="button" aria-label="Back to messages">‹</button>
           <a class="circle-thread__person" id="threadProfileLink" href="ari-circle.html">
-            <span class="circle-thread__avatar" id="threadAvatar">A</span>
-            <span>
+            <span class="circle-thread__avatar-wrap">
+              <span class="circle-thread__avatar" id="threadAvatar">A</span>
+              <span class="circle-thread__presence-dot" id="threadPresenceDot" data-status="offline" aria-label="Offline"></span>
+            </span>
+            <span class="circle-thread__identity">
               <strong id="threadName">Conversation</strong>
               <small id="threadHandle"></small>
+              <small class="circle-thread__presence-text" id="threadPresenceText" data-status="offline">Offline</small>
             </span>
           </a>
         </header>
@@ -78,6 +82,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
-  <script src="js/ari-circle/messaging/messages-v4.js?v=1.1.0" defer></script>
+  <script src="js/ari-circle/messaging/messages-v4.js?v=1.2.0" defer></script>
 </body>
 </html>
