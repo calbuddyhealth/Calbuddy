@@ -2,45 +2,92 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f7f9ff">
-  <title>Support ARI · ARI Rebirth</title>
+  <title>Support ARI · ARI XP</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/support-ari.css?v=1.0.0">
 </head>
-<body>
+
+<body class="ari-support-page">
   <main class="ari-account-page">
     <header class="ari-account-header">
-      <a class="ari-icon-button" href="account.html" aria-label="Back to account">←</a>
-      <a class="ari-brand-mark" href="index.html" aria-label="ARI Rebirth home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">REBIRTH</span></a>
-      <a class="ari-header-button" href="account.html">Account</a>
+      <a class="ari-icon-button" href="home.html?menu=open" aria-label="Back to ARI navigation">←</a>
+
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI Experience home">
+        <span class="ari-brand-title">ARI</span>
+        <span class="ari-brand-subtitle">EXPERIENCE</span>
+      </a>
+
+      <a class="ari-header-button" href="home.html">Home</a>
     </header>
 
-    <section class="ari-page-hero">
+    <section class="ari-page-hero ari-support-hero-copy" aria-labelledby="supportTitle">
       <div class="ari-page-symbol" aria-hidden="true">♥</div>
       <p class="ari-page-kicker">SUPPORT ARI</p>
-      <h1 class="ari-page-title">Keep the signal alive.</h1>
-      <p class="ari-page-description">Optional support helps fund AI usage, infrastructure, safety, and continued free public access.</p>
+      <h1 class="ari-page-title" id="supportTitle">Help keep ARI active.</h1>
+      <p class="ari-page-description">A little support can help keep the experience available and growing.</p>
     </section>
 
     <div class="ari-content-stack">
-      <section class="ari-content-card">
-        <p class="ari-section-kicker">ENTIRELY OPTIONAL</p>
-        <h2>ARI works the same whether you contribute or not.</h2>
-        <p>A contribution does not unlock features, improve response priority, or change your account. Only contribute if it is comfortable for you.</p>
-        <a class="ari-primary-action" id="donationButton" href="#" target="_blank" rel="noopener noreferrer" hidden>Continue securely</a>
-        <div class="ari-notice" id="donationUnavailable">The secure contribution link has not been connected yet.</div>
-      </section>
+      <section class="ari-content-card ari-support-card" aria-labelledby="supportMessageTitle">
+        <p class="ari-section-kicker">ARI XP</p>
+        <h2 id="supportMessageTitle">Free to use. Independently owned.</h2>
 
-      <div class="ari-notice">Contributions are not represented as tax-deductible unless ARI later operates through a qualified nonprofit organization.</div>
+        <p class="ari-support-message">
+          ARI XP is a free, independently owned mobile app. The AI services that power ARI have ongoing costs, and your support helps keep ARI active. If you enjoy ARI XP, please consider making a voluntary donation.
+        </p>
+
+        <div class="ari-support-free-note">Support is optional. ARI XP remains free to use.</div>
+
+        <div class="ari-support-methods" id="supportMethods" aria-label="Ways to support ARI">
+          <a
+            class="ari-support-method ari-support-method--cash"
+            id="cashAppSupportButton"
+            href="https://cash.app/$arixp1"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span class="ari-support-method-label">Cash App</span>
+            <span class="ari-support-method-handle" data-support-handle>$arixp1</span>
+            <span class="ari-support-method-copy">Tap to support ARI</span>
+          </a>
+
+          <a
+            class="ari-support-method ari-support-method--venmo"
+            id="venmoSupportButton"
+            href="https://venmo.com/u/Ari-Xp"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span class="ari-support-method-label">Venmo</span>
+            <span class="ari-support-method-handle" data-support-handle>@Ari-Xp</span>
+            <span class="ari-support-method-copy">Tap to support ARI</span>
+          </a>
+        </div>
+
+        <div class="ari-notice" id="supportUnavailable" hidden>
+          Support links are temporarily unavailable.
+        </div>
+
+        <p class="ari-support-privacy-note">
+          Cash App and Venmo open outside ARI XP to complete your contribution. ARI XP does not collect your payment credentials on this page.
+        </p>
+      </section>
     </div>
 
-    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Thank you for believing in the mission.</p></footer>
+    <footer class="ari-settings-footer">
+      <span class="ari-footer-mark">ARI</span>
+      <p>Thank you for helping keep ARI active.</p>
+    </footer>
   </main>
 
-  <script src="js/support-ari-config.js?v=1.0.0"></script>
-  <script src="js/support-ari.js?v=1.0.0"></script>
+  <script src="js/support-ari-config.js?v=2.0.0"></script>
+  <script src="js/support-ari.js?v=2.0.0"></script>
 </body>
 </html>
