@@ -1,79 +1,44 @@
 /* =============================================================
    ARI CIRCLE — FEED
-   Version: 1.0.0
+   Version: 2.0.0
 
-   Functional social feed for ARI Circle V3.
-   - Verified-age cohort separation is enforced by Supabase RPCs.
-   - Posts, comments, and emoji reactions are live database records.
-   - Adults and teens never share a discovery feed.
-   - Blocked accounts are excluded from feed interactions.
-   - Rewards are read from ari_circle_user_rewards.
+   V2:
+   - One simple composer: text, photo, or short video.
+   - Removes post categories and manual activity labels.
+   - Private Supabase Storage media with signed read URLs.
+   - 30-second video limit.
+   - 24-hour ARI Circle Moments.
+   - Keeps comments, native emoji reactions, age separation, and blocking.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "2.0.0";
+  const MEDIA_BUCKET = "ari-circle-post-media";
+  const SIGNED_URL_SECONDS = 60 * 60;
+  const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+  const MAX_VIDEO_SECONDS = 30;
+
   const $ = (id) => document.getElementById(id);
-
-  const POST_META = Object.freeze({
-    thought: { label: "Thought", icon: "✦" },
-    workout: { label: "Workout", icon: "💪" },
-    progress: { label: "Progress", icon: "↗" },
-    meal: { label: "Meal", icon: "🍽️" },
-    activity: { label: "Activity", icon: "⚡" },
-    partner: { label: "Partner", icon: "◎" }
-  });
-
-  const REWARD_META = Object.freeze({
-    first_share: {
-      title: "First Share",
-      copy: "Posted your first ARI Circle moment.",
-      asset: "assets/ari-circle/rewards/first-share.svg"
-    },
-    momentum_5: {
-      title: "Momentum",
-      copy: "Shared 5 moments with your Circle.",
-      asset: "assets/ari-circle/rewards/momentum.svg"
-    },
-    signal_10: {
-      title: "Signal Strong",
-      copy: "Shared 10 moments. You’re showing up.",
-      asset: "assets/ari-circle/rewards/signal.svg"
-    },
-    hype_10: {
-      title: "Hype Machine",
-      copy: "Reacted to 10 Circle moments.",
-      asset: "assets/ari-circle/rewards/hype.svg"
-    },
-    community_voice_5: {
-      title: "Community Voice",
-      copy: "Left 5 comments that kept the conversation moving.",
-      asset: "assets/ari-circle/rewards/community.svg"
-    }
-  });
-
-  const REWARD_ORDER = [
-    "first_share",
-    "momentum_5",
-    "signal_10",
-    "hype_10",
-    "community_voice_5"
-  ];
 
   const state = {
     client: null,
     user: null,
     profile: null,
     age: null,
-    postType: "thought",
     posts: [],
-    rewards: [],
+    moments: [],
     nextBefore: null,
     activeReactionPostId: null,
     activeCommentsPost: null,
+    selectedMedia: null,
+    previewUrl: null,
+    momentIndex: 0,
     busy: false,
-    toastTimer: null
+    toastTimer: null,
+    signedUrlCache: new Map()
   };
 
   function clean(value) {
@@ -107,6 +72,25 @@
     return value ? value.charAt(0).toUpperCase() : "A";
   }
 
+  function formatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function relativeTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Recently";
+
+    const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+    if (seconds < 45) return "Just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
+
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
   function showToast(message, duration = 3200) {
     const toast = $("feedToast");
     if (!toast) return;
@@ -123,9 +107,7 @@
   function openDialog(id) {
     const dialog = $(id);
     if (!dialog) return;
-    if (typeof dialog.showModal === "function" && !dialog.open) {
-      dialog.showModal();
-    }
+    if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
   }
 
   function closeDialog(id) {
@@ -135,7 +117,12 @@
 
   function setBusy(isBusy) {
     state.busy = Boolean(isBusy);
-    [$("publishPostButton"), $("verifyAgeButton")]
+    [
+      $("publishPostButton"),
+      $("verifyAgeButton"),
+      $("shareMomentButton"),
+      $("feedMediaButton")
+    ]
       .filter(Boolean)
       .forEach((button) => {
         button.disabled = state.busy;
@@ -198,7 +185,7 @@
 
   async function verifyAge(event) {
     event.preventDefault();
-    const value = clean($("ageDateInput").value);
+    const value = clean($("ageDateInput")?.value);
 
     if (!value) {
       showToast("Enter your date of birth to continue.");
@@ -212,8 +199,7 @@
       });
       closeDialog("ageDialog");
       showToast("Age verified. Your birthday stays private.");
-      await refreshFeed();
-      await loadRewards();
+      await Promise.all([refreshFeed(), loadMoments()]);
     } catch (error) {
       console.error("ARI Circle feed age verification failed:", error);
       showToast(error.message || "Could not verify age.", 4500);
@@ -222,45 +208,186 @@
     }
   }
 
-  function relativeTime(value) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Recently";
-
-    const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-    if (seconds < 45) return "Just now";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
-
-    return date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric"
-    });
+  function mediaKind(file) {
+    const type = clean(file?.type).toLowerCase();
+    if (type.startsWith("image/")) return "image";
+    if (type.startsWith("video/")) return "video";
+    return null;
   }
 
-  function syncPostTypeChips() {
-    document.querySelectorAll("[data-post-type]").forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.postType === state.postType);
-    });
+  function mediaExtension(file, kind) {
+    const mime = clean(file?.type).toLowerCase();
+    const known = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/heic": "heic",
+      "image/heif": "heif",
+      "video/mp4": "mp4",
+      "video/quicktime": "mov",
+      "video/webm": "webm"
+    };
+
+    if (known[mime]) return known[mime];
+
+    const fromName = clean(file?.name).split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (fromName && fromName.length <= 5) return fromName;
+    return kind === "video" ? "mp4" : "jpg";
   }
 
-  function bindPostTypes() {
-    $("postTypeStrip")?.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-post-type]");
-      if (!button) return;
-      state.postType = button.dataset.postType || "thought";
-      syncPostTypeChips();
+  function readVideoDuration(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.muted = true;
+      video.playsInline = true;
 
-      const placeholders = {
-        thought: "Share something worth showing up for…",
-        workout: "What did you train today?",
-        progress: "What changed? What are you proud of?",
-        meal: "What did you make or discover?",
-        activity: "What are you getting into?",
-        partner: "What do you want someone to join you for?"
+      const cleanup = () => URL.revokeObjectURL(url);
+
+      video.onloadedmetadata = () => {
+        const duration = Number(video.duration);
+        cleanup();
+        if (!Number.isFinite(duration)) reject(new Error("Could not read video length."));
+        else resolve(duration);
       };
-      $("feedPostBody").placeholder = placeholders[state.postType] || placeholders.thought;
+
+      video.onerror = () => {
+        cleanup();
+        reject(new Error("That video could not be opened."));
+      };
+
+      video.src = url;
     });
+  }
+
+  async function selectMedia(file) {
+    if (!file) return;
+
+    const kind = mediaKind(file);
+    if (!kind) {
+      showToast("Choose a photo or short video.");
+      return;
+    }
+
+    if (kind === "image" && file.size > MAX_IMAGE_BYTES) {
+      showToast("Photos can be up to 8 MB.", 4200);
+      return;
+    }
+
+    if (kind === "video" && file.size > MAX_VIDEO_BYTES) {
+      showToast("Videos can be up to 25 MB.", 4200);
+      return;
+    }
+
+    let duration = null;
+    if (kind === "video") {
+      try {
+        duration = await readVideoDuration(file);
+      } catch (error) {
+        showToast(error.message || "Could not open that video.", 4200);
+        return;
+      }
+
+      if (duration > MAX_VIDEO_SECONDS + 0.15) {
+        showToast("Keep Circle videos to 30 seconds or less.", 4500);
+        return;
+      }
+    }
+
+    clearSelectedMedia();
+    state.selectedMedia = { file, kind, duration };
+    state.previewUrl = URL.createObjectURL(file);
+    renderSelectedMedia();
+  }
+
+  function renderSelectedMedia() {
+    const preview = $("feedMediaPreview");
+    const stage = $("feedMediaPreviewStage");
+    const meta = $("feedMediaPreviewMeta");
+    const momentAction = $("feedMomentAction");
+    if (!preview || !stage || !meta || !momentAction) return;
+
+    const selected = state.selectedMedia;
+    if (!selected || !state.previewUrl) {
+      preview.hidden = true;
+      momentAction.hidden = true;
+      stage.replaceChildren();
+      meta.replaceChildren();
+      return;
+    }
+
+    preview.hidden = false;
+    momentAction.hidden = false;
+    stage.replaceChildren();
+
+    if (selected.kind === "video") {
+      const video = document.createElement("video");
+      video.src = state.previewUrl;
+      video.controls = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      stage.append(video);
+    } else {
+      const image = document.createElement("img");
+      image.src = state.previewUrl;
+      image.alt = "Selected photo preview";
+      stage.append(image);
+    }
+
+    const left = selected.kind === "video"
+      ? `Video · ${Math.ceil(selected.duration || 0)}s`
+      : "Photo";
+
+    meta.innerHTML = `<span>${escapeHtml(left)}</span><span>${escapeHtml(formatBytes(selected.file.size))}</span>`;
+  }
+
+  function clearSelectedMedia() {
+    if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
+    state.previewUrl = null;
+    state.selectedMedia = null;
+    if ($("feedMediaInput")) $("feedMediaInput").value = "";
+    renderSelectedMedia();
+  }
+
+  function clearComposer() {
+    if ($("feedPostBody")) $("feedPostBody").value = "";
+    if ($("postCharCount")) $("postCharCount").textContent = "0";
+    clearSelectedMedia();
+  }
+
+  async function uploadSelectedMedia(folder) {
+    const selected = state.selectedMedia;
+    if (!selected || !state.user) return null;
+
+    const extension = mediaExtension(selected.file, selected.kind);
+    const path = `${state.user.id}/${folder}/${crypto.randomUUID()}.${extension}`;
+
+    const { error } = await state.client.storage
+      .from(MEDIA_BUCKET)
+      .upload(path, selected.file, {
+        cacheControl: "3600",
+        contentType: selected.file.type || undefined,
+        upsert: false
+      });
+
+    if (error) throw error;
+
+    return {
+      path,
+      type: selected.kind,
+      duration: selected.kind === "video" ? selected.duration : null
+    };
+  }
+
+  async function removeUploadedPath(path) {
+    if (!path) return;
+    try {
+      await state.client.storage.from(MEDIA_BUCKET).remove([path]);
+    } catch (error) {
+      console.warn("ARI Circle could not clean up an unused upload:", error);
+    }
   }
 
   async function publishPost(event) {
@@ -272,35 +399,32 @@
       return;
     }
 
-    const body = clean($("feedPostBody").value);
-    const activity = clean($("feedPostActivity").value);
-
-    if (!body) {
-      showToast("Write something before sharing.");
+    const body = clean($("feedPostBody")?.value);
+    if (!body && !state.selectedMedia) {
+      showToast("Write something or add a photo or video.");
       return;
     }
 
+    let uploaded = null;
     setBusy(true);
     try {
-      await rpc("ari_circle_feed_create_post", {
-        requested_post_type: state.postType,
-        requested_body: body,
-        requested_media_url: null,
-        requested_activity: activity || null
+      if (state.selectedMedia) {
+        showToast("Uploading media…", 1200);
+        uploaded = await uploadSelectedMedia("posts");
+      }
+
+      await rpc("ari_circle_feed_create_post_v2", {
+        requested_body: body || null,
+        requested_media_path: uploaded?.path || null,
+        requested_media_type: uploaded?.type || null,
+        requested_media_duration_seconds: uploaded?.duration ?? null
       });
 
-      $("feedPostBody").value = "";
-      $("feedPostActivity").value = "";
-      $("postCharCount").textContent = "0";
-      state.postType = "thought";
-      syncPostTypeChips();
+      clearComposer();
       showToast("Shared to your Circle.");
-
-      await Promise.all([
-        refreshFeed(),
-        loadRewards()
-      ]);
+      await refreshFeed();
     } catch (error) {
+      if (uploaded?.path) await removeUploadedPath(uploaded.path);
       console.error("ARI Circle feed post failed:", error);
       showToast(error.message || "Could not share that post.", 4500);
     } finally {
@@ -308,29 +432,102 @@
     }
   }
 
-  async function loadFeed({ append = false } = {}) {
-    const status = $("feedStatus");
-    if (!append) status.textContent = "Loading your Circle…";
+  async function publishMoment() {
+    if (state.busy) return;
+
+    if (!state.age?.verified) {
+      openDialog("ageDialog");
+      return;
+    }
+
+    if (!state.selectedMedia) {
+      showToast("Add a photo or video first.");
+      return;
+    }
+
+    const caption = clean($("feedPostBody")?.value);
+    if (caption.length > 280) {
+      showToast("Moment captions can be up to 280 characters.", 4500);
+      return;
+    }
+
+    let uploaded = null;
+    setBusy(true);
+    try {
+      showToast("Adding your Moment…", 1200);
+      uploaded = await uploadSelectedMedia("moments");
+
+      await rpc("ari_circle_moment_create", {
+        requested_media_path: uploaded.path,
+        requested_media_type: uploaded.type,
+        requested_caption: caption || null,
+        requested_media_duration_seconds: uploaded.duration ?? null
+      });
+
+      clearComposer();
+      showToast("Moment added for 24 hours.");
+      await loadMoments();
+    } catch (error) {
+      if (uploaded?.path) await removeUploadedPath(uploaded.path);
+      console.error("ARI Circle Moment failed:", error);
+      showToast(error.message || "Could not add that Moment.", 4500);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signedMediaUrl(path) {
+    const cleanPath = clean(path);
+    if (!cleanPath) return "";
+    if (state.signedUrlCache.has(cleanPath)) return state.signedUrlCache.get(cleanPath);
 
     try {
-      const data = await rpc("ari_circle_feed_list", {
+      const { data, error } = await state.client.storage
+        .from(MEDIA_BUCKET)
+        .createSignedUrl(cleanPath, SIGNED_URL_SECONDS);
+
+      if (error) throw error;
+      const url = clean(data?.signedUrl);
+      if (url) state.signedUrlCache.set(cleanPath, url);
+      return url;
+    } catch (error) {
+      console.warn("ARI Circle media URL unavailable:", error);
+      return "";
+    }
+  }
+
+  async function hydrateMediaRows(rows) {
+    await Promise.all(rows.map(async (row) => {
+      row.signed_media_url = clean(row.media_path)
+        ? await signedMediaUrl(row.media_path)
+        : clean(row.legacy_media_url || row.media_url);
+    }));
+    return rows;
+  }
+
+  async function loadFeed({ append = false } = {}) {
+    const status = $("feedStatus");
+    if (!append && status) status.textContent = "Loading your Circle…";
+
+    try {
+      const data = await rpc("ari_circle_feed_list_v2", {
         result_limit: 20,
         before_created_at: append ? state.nextBefore : null
       });
 
       const rows = Array.isArray(data) ? data : [];
+      await hydrateMediaRows(rows);
+
       state.posts = append ? [...state.posts, ...rows] : rows;
-      state.nextBefore = rows.length
-        ? rows[rows.length - 1].created_at
-        : null;
+      state.nextBefore = rows.length ? rows[rows.length - 1].created_at : null;
 
       renderFeed();
-      $("loadMoreButton").hidden = rows.length < 20;
+      if ($("loadMoreButton")) $("loadMoreButton").hidden = rows.length < 20;
     } catch (error) {
       console.error("ARI Circle feed loading failed:", error);
       if (!append) state.posts = [];
       renderFeed();
-      status.textContent = error.message || "Feed unavailable right now.";
+      if (status) status.textContent = error.message || "Feed unavailable right now.";
     }
   }
 
@@ -343,6 +540,7 @@
     const host = $("feedList");
     const empty = $("feedEmpty");
     const status = $("feedStatus");
+    if (!host || !empty || !status) return;
 
     host.replaceChildren();
 
@@ -353,7 +551,7 @@
     }
 
     empty.hidden = true;
-    status.textContent = `${state.posts.length} ${state.posts.length === 1 ? "moment" : "moments"}`;
+    status.textContent = `${state.posts.length} ${state.posts.length === 1 ? "post" : "posts"}`;
     state.posts.forEach((post) => host.append(createPostCard(post)));
   }
 
@@ -371,19 +569,56 @@
     return link;
   }
 
+  const videoObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target;
+          if (!(video instanceof HTMLVideoElement)) return;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+          }
+        });
+      }, { threshold: [0, 0.65, 1] })
+    : null;
+
+  function appendPostMedia(article, post) {
+    const url = clean(post.signed_media_url);
+    if (!url) return;
+
+    if (post.media_type === "video") {
+      const video = document.createElement("video");
+      video.className = "feed-post__video";
+      video.src = url;
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.controls = true;
+      video.preload = "metadata";
+      article.append(video);
+      videoObserver?.observe(video);
+      return;
+    }
+
+    const image = document.createElement("img");
+    image.className = "feed-post__media";
+    image.src = url;
+    image.alt = "Shared ARI Circle photo";
+    image.loading = "lazy";
+    article.append(image);
+  }
+
   function createPostCard(post) {
     const article = document.createElement("article");
     article.className = "feed-post";
     article.dataset.postId = post.post_id;
 
-    const meta = POST_META[post.post_type] || POST_META.thought;
     const handle = clean(post.handle)
       ? `@${clean(post.handle).replace(/^@+/, "")}`
       : "ARI Circle";
 
-    const reactions = Array.isArray(post.reaction_summary)
-      ? post.reaction_summary
-      : [];
+    const reactions = Array.isArray(post.reaction_summary) ? post.reaction_summary : [];
     const viewerReactions = new Set(Array.isArray(post.viewer_reactions) ? post.viewer_reactions : []);
 
     const header = document.createElement("div");
@@ -399,32 +634,22 @@
     `;
     header.append(identity);
 
-    const kind = document.createElement("span");
-    kind.className = "feed-post__kind";
-    kind.textContent = `${meta.icon} ${meta.label}`;
-    header.append(kind);
+    const reportLink = document.createElement("a");
+    reportLink.className = "feed-report-link";
+    reportLink.href = reportUrl(post);
+    reportLink.setAttribute("aria-label", "Post options and safety");
+    reportLink.textContent = "•••";
+    header.append(reportLink);
     article.append(header);
 
-    const body = document.createElement("div");
-    body.className = "feed-post__body";
-    body.innerHTML = `<p>${escapeHtml(post.body || "")}</p>`;
-
-    if (clean(post.activity)) {
-      const activity = document.createElement("span");
-      activity.className = "feed-post__activity";
-      activity.textContent = post.activity;
-      body.append(activity);
+    if (clean(post.body)) {
+      const body = document.createElement("div");
+      body.className = "feed-post__body";
+      body.innerHTML = `<p>${escapeHtml(post.body)}</p>`;
+      article.append(body);
     }
-    article.append(body);
 
-    if (clean(post.media_url)) {
-      const image = document.createElement("img");
-      image.className = "feed-post__media";
-      image.src = post.media_url;
-      image.alt = "Shared ARI Circle media";
-      image.loading = "lazy";
-      article.append(image);
-    }
+    appendPostMedia(article, post);
 
     const reactionHost = document.createElement("div");
     reactionHost.className = "feed-post__reactions";
@@ -458,20 +683,122 @@
     commentButton.addEventListener("click", () => openComments(post));
     actions.append(commentButton);
 
-    const reportLink = document.createElement("a");
-    reportLink.className = "feed-report-link";
-    reportLink.href = reportUrl(post);
-    reportLink.setAttribute("aria-label", "Report post or get safety help");
-    reportLink.textContent = "•••";
-    actions.append(reportLink);
-
     article.append(actions);
     return article;
   }
 
+  async function loadMoments() {
+    const section = $("momentsSection");
+    try {
+      const data = await rpc("ari_circle_moments_list", { result_limit: 80 });
+      const rows = Array.isArray(data) ? data : [];
+      await hydrateMediaRows(rows);
+      state.moments = rows.filter((row) => clean(row.signed_media_url));
+      renderMoments();
+    } catch (error) {
+      console.warn("ARI Circle Moments unavailable:", error);
+      state.moments = [];
+      if (section) section.hidden = true;
+    }
+  }
+
+  function renderMoments() {
+    const section = $("momentsSection");
+    const strip = $("momentsStrip");
+    if (!section || !strip) return;
+
+    strip.replaceChildren();
+    if (!state.moments.length) {
+      section.hidden = true;
+      return;
+    }
+
+    section.hidden = false;
+
+    const latestByAuthor = new Map();
+    state.moments.forEach((moment, index) => {
+      if (!latestByAuthor.has(moment.author_user_id)) {
+        latestByAuthor.set(moment.author_user_id, { moment, index });
+      }
+    });
+
+    [...latestByAuthor.values()].forEach(({ moment, index }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "feed-moment-bubble";
+      button.setAttribute("aria-label", `Open ${clean(moment.display_name) || "user"}'s Moment`);
+
+      const avatar = clean(moment.avatar_url);
+      button.innerHTML = `
+        <span class="feed-moment-bubble__ring">
+          <span class="feed-moment-bubble__avatar">
+            ${avatar ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span>${escapeHtml(initialFor(moment.display_name))}</span>`}
+          </span>
+        </span>
+        <strong>${escapeHtml(moment.author_user_id === state.user?.id ? "You" : (moment.display_name || "ARI User"))}</strong>
+      `;
+
+      button.addEventListener("click", () => openMoment(index));
+      strip.append(button);
+    });
+  }
+
+  function openMoment(index) {
+    if (!state.moments.length) return;
+    state.momentIndex = Math.max(0, Math.min(Number(index) || 0, state.moments.length - 1));
+    renderMomentViewer();
+    openDialog("momentViewer");
+  }
+
+  function renderMomentViewer() {
+    const moment = state.moments[state.momentIndex];
+    const identity = $("momentViewerIdentity");
+    const media = $("momentViewerMedia");
+    const caption = $("momentViewerCaption");
+    if (!moment || !identity || !media || !caption) return;
+
+    const avatar = clean(moment.avatar_url);
+    identity.innerHTML = `
+      ${avatar ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span class="moment-initial">${escapeHtml(initialFor(moment.display_name))}</span>`}
+      <div>
+        <strong>${escapeHtml(moment.display_name || "ARI User")}</strong>
+        <span>${escapeHtml(relativeTime(moment.created_at))}</span>
+      </div>
+    `;
+
+    media.replaceChildren();
+    const url = clean(moment.signed_media_url);
+
+    if (moment.media_type === "video") {
+      const video = document.createElement("video");
+      video.src = url;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.controls = true;
+      video.preload = "metadata";
+      media.append(video);
+      video.play().catch(() => {});
+    } else {
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = "ARI Circle Moment";
+      media.append(image);
+    }
+
+    caption.textContent = clean(moment.caption);
+    caption.hidden = !clean(moment.caption);
+  }
+
+  function moveMoment(direction) {
+    if (!state.moments.length) return;
+    const total = state.moments.length;
+    state.momentIndex = (state.momentIndex + direction + total) % total;
+    renderMomentViewer();
+  }
+
   function openReactionPicker(postId) {
     state.activeReactionPostId = postId;
-    $("customReactionInput").value = "";
+    if ($("customReactionInput")) $("customReactionInput").value = "";
     openDialog("reactionDialog");
   }
 
@@ -486,7 +813,7 @@
         requested_emoji: cleanEmoji
       });
       closeDialog("reactionDialog");
-      await Promise.all([refreshFeed(), loadRewards()]);
+      await refreshFeed();
     } catch (error) {
       console.error("ARI Circle reaction failed:", error);
       showToast(error.message || "Could not react.", 4200);
@@ -504,7 +831,7 @@
 
     $("customReactionForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
-      const value = clean($("customReactionInput").value);
+      const value = clean($("customReactionInput")?.value);
       if (!value) {
         showToast("Choose or enter an emoji.");
         return;
@@ -515,7 +842,7 @@
 
   async function openComments(post) {
     state.activeCommentsPost = post;
-    $("commentInput").value = "";
+    if ($("commentInput")) $("commentInput").value = "";
     openDialog("commentsDialog");
     await loadComments(post.post_id);
   }
@@ -523,6 +850,8 @@
   async function loadComments(postId) {
     const host = $("commentsList");
     const empty = $("commentsEmpty");
+    if (!host || !empty) return;
+
     host.innerHTML = `<p class="feed-status">Loading comments…</p>`;
     empty.hidden = true;
 
@@ -543,6 +872,8 @@
   function renderComments(comments) {
     const host = $("commentsList");
     const empty = $("commentsEmpty");
+    if (!host || !empty) return;
+
     host.replaceChildren();
 
     if (!comments.length) {
@@ -572,7 +903,7 @@
   async function addComment(event) {
     event.preventDefault();
     const post = state.activeCommentsPost;
-    const body = clean($("commentInput").value);
+    const body = clean($("commentInput")?.value);
 
     if (!post || !body || state.busy) return;
     state.busy = true;
@@ -583,11 +914,7 @@
         requested_body: body
       });
       $("commentInput").value = "";
-      await Promise.all([
-        loadComments(post.post_id),
-        refreshFeed(),
-        loadRewards()
-      ]);
+      await Promise.all([loadComments(post.post_id), refreshFeed()]);
     } catch (error) {
       console.error("ARI Circle comment failed:", error);
       showToast(error.message || "Could not add comment.", 4200);
@@ -596,38 +923,11 @@
     }
   }
 
-  async function loadRewards() {
-    try {
-      const data = await rpc("ari_circle_my_feed_rewards");
-      state.rewards = Array.isArray(data) ? data : [];
-      renderRewards();
-    } catch (error) {
-      console.warn("ARI Circle rewards unavailable:", error);
-      state.rewards = [];
-      renderRewards();
-    }
-  }
-
-  function renderRewards() {
-    const host = $("rewardStrip");
-    const unlocked = new Set(state.rewards.map((reward) => reward.reward_key));
-    host.replaceChildren();
-
-    REWARD_ORDER.forEach((key) => {
-      const meta = REWARD_META[key];
-      const card = document.createElement("article");
-      card.className = "feed-reward-card";
-      if (!unlocked.has(key)) card.classList.add("is-locked");
-
-      card.innerHTML = `
-        <img src="${escapeHtml(meta.asset)}" alt="" />
-        <strong>${escapeHtml(meta.title)}</strong>
-        <small>${escapeHtml(unlocked.has(key) ? meta.copy : `Locked · ${meta.copy}`)}</small>
-      `;
-      host.append(card);
-    });
-
-    $("rewardCount").textContent = `${unlocked.size} unlocked`;
+  function bindMediaUi() {
+    $("feedMediaButton")?.addEventListener("click", () => $("feedMediaInput")?.click());
+    $("feedMediaInput")?.addEventListener("change", (event) => selectMedia(event.target.files?.[0] || null));
+    $("removeFeedMedia")?.addEventListener("click", clearSelectedMedia);
+    $("shareMomentButton")?.addEventListener("click", publishMoment);
   }
 
   function bindCommonUi() {
@@ -637,24 +937,21 @@
     });
 
     $("feedPostBody")?.addEventListener("input", () => {
-      $("postCharCount").textContent = String($("feedPostBody").value.length);
+      if ($("postCharCount")) $("postCharCount").textContent = String($("feedPostBody").value.length);
     });
 
     $("feedComposerForm")?.addEventListener("submit", publishPost);
     $("ageForm")?.addEventListener("submit", verifyAge);
     $("commentForm")?.addEventListener("submit", addComment);
-    $("refreshFeedButton")?.addEventListener("click", refreshFeed);
+    $("refreshFeedButton")?.addEventListener("click", () => Promise.all([refreshFeed(), loadMoments()]));
     $("loadMoreButton")?.addEventListener("click", () => loadFeed({ append: true }));
     $("emptyComposeButton")?.addEventListener("click", () => {
       $("feedPostBody")?.focus();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
 
-    document.querySelectorAll("[data-coming-soon]").forEach((button) => {
-      button.addEventListener("click", () => {
-        showToast(`${button.dataset.comingSoon} is the next ARI Circle layer.`);
-      });
-    });
+    $("momentPrevButton")?.addEventListener("click", () => moveMoment(-1));
+    $("momentNextButton")?.addEventListener("click", () => moveMoment(1));
   }
 
   async function init() {
@@ -665,14 +962,11 @@
       const user = await requireUser();
       if (!user) return;
 
-      bindPostTypes();
+      bindMediaUi();
       bindReactionPicker();
       bindCommonUi();
 
-      await Promise.all([
-        loadOwnProfile(),
-        loadAgeState()
-      ]);
+      await Promise.all([loadOwnProfile(), loadAgeState()]);
 
       $("feedPage").hidden = false;
       $("feedLoading").hidden = true;
@@ -680,14 +974,10 @@
       if (!state.age?.verified) {
         $("feedStatus").textContent = "Verify your age to open your Circle feed.";
         openDialog("ageDialog");
-        renderRewards();
         return;
       }
 
-      await Promise.all([
-        refreshFeed(),
-        loadRewards()
-      ]);
+      await Promise.all([refreshFeed(), loadMoments()]);
     } catch (error) {
       console.error("ARI Circle feed failed to start:", error);
       $("feedLoading").innerHTML = `
@@ -700,7 +990,7 @@
 
   window.AriCircleFeed = Object.freeze({
     version: VERSION,
-    refresh: refreshFeed
+    refresh: () => Promise.all([refreshFeed(), loadMoments()])
   });
 
   document.addEventListener("DOMContentLoaded", init);
