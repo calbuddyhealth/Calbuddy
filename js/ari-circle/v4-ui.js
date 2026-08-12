@@ -1,19 +1,18 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.5.1
+   Version: 4.6.0
 
-   Important V4.5 changes:
-   - Removes the whole-document MutationObserver that could repeatedly
-     rebuild Profile navigation and freeze Safari.
-   - Routes every Circle message icon to one Messages page.
-   - Keeps Feed / Profile / Buddies / Challenges labels consistent.
-   - Loads V4 feature modules once instead of on every DOM mutation.
+   Important V4.6 changes:
+   - Keeps one stable Circle header/messages route everywhere.
+   - Loads deterministic relationship actions for Profile.
+   - Loads the cleaner V4 notification experience.
+   - Keeps feature modules one-shot to avoid Safari render loops.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.5.1";
+  const VERSION = "4.6.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let appReady = false;
   let panelHandled = false;
@@ -22,6 +21,7 @@
   let feedCameraLoaded = false;
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
+  let notificationsLoaded = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -64,9 +64,9 @@
 
   function standardizeMenus() {
     document.querySelectorAll(".feed-header > .circle-v4-menu, .partner-header > .circle-v4-menu, .challenge-header > .circle-v4-menu").forEach((details) => {
-      if (details.dataset.v45Menu === "true") return;
+      if (details.dataset.v46Menu === "true") return;
       details.innerHTML = circleMenuMarkup(false);
-      details.dataset.v45Menu = "true";
+      details.dataset.v46Menu = "true";
     });
   }
 
@@ -78,21 +78,21 @@
 
   function standardizeMessages() {
     document.querySelectorAll(".circle-v4-message").forEach((el) => {
-      if (el.dataset.v45Message === "true") return;
+      if (el.dataset.v46Message === "true") return;
       el.innerHTML = MESSAGE_ICON;
       el.setAttribute("aria-label", "Messages");
       if (el.tagName === "A") el.setAttribute("href", "ari-circle-messages.html");
-      el.dataset.v45Message = "true";
+      el.dataset.v46Message = "true";
     });
 
     const profileButton = $("circle-messages-button");
-    if (profileButton && profileButton.dataset.v45Message !== "true") {
+    if (profileButton && profileButton.dataset.v46Message !== "true") {
       const icon = profileButton.querySelector('span[aria-hidden="true"]');
       if (icon) icon.innerHTML = MESSAGE_ICON;
       profileButton.removeAttribute("data-circle-action");
       profileButton.setAttribute("aria-label", "Messages");
       profileButton.addEventListener("click", routeToMessages, true);
-      profileButton.dataset.v45Message = "true";
+      profileButton.dataset.v46Message = "true";
     }
   }
 
@@ -129,14 +129,14 @@
 
   function ensureProfileNav() {
     const nav = $("circleV3Nav");
-    if (!nav || nav.dataset.v45Ready === "true") return;
+    if (!nav || nav.dataset.v46Ready === "true") return;
     nav.innerHTML = `
       <a href="ari-circle-feed.html">Feed</a>
       <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
       <a href="ari-circle-partners.html">Buddies</a>
       <a href="ari-circle-challenges.html">Challenges</a>
     `;
-    nav.dataset.v45Ready = "true";
+    nav.dataset.v46Ready = "true";
   }
 
   function simplifyProfile() {
@@ -157,8 +157,8 @@
 
   function bindProfileOptions() {
     document.querySelectorAll("[data-v4-profile-options]").forEach((button) => {
-      if (button.dataset.v45Bound === "true") return;
-      button.dataset.v45Bound = "true";
+      if (button.dataset.v46Bound === "true") return;
+      button.dataset.v46Bound = "true";
       button.addEventListener("click", () => {
         $("circle-profile-menu-button")?.click();
         button.closest("details")?.removeAttribute("open");
@@ -168,7 +168,7 @@
 
   function cleanProfileEditorLabels() {
     const editor = $("circle-profile-editor");
-    if (!editor || editor.dataset.v45Labels === "true") return;
+    if (!editor || editor.dataset.v46Labels === "true") return;
     const prompts = [
       ["ask me about", "Ask me about..."],
       ["current obsession", "Current obsession..."],
@@ -186,7 +186,7 @@
       const match = prompts.find(([needle]) => lower.includes(needle));
       if (match) el.textContent = match[1];
     });
-    editor.dataset.v45Labels = "true";
+    editor.dataset.v46Labels = "true";
   }
 
   function openRequestedPanel() {
@@ -225,9 +225,17 @@
   function loadModules() {
     if (!flowFixesLoaded) {
       flowFixesLoaded = true;
-      import("/js/ari-circle/v4-flow-fixes.js?v=1.1.0").catch((error) => {
+      import("/js/ari-circle/v4-flow-fixes.js?v=1.2.0").catch((error) => {
         flowFixesLoaded = false;
         console.warn("ARI Circle flow fixes failed to load:", error);
+      });
+    }
+
+    if (!notificationsLoaded && document.body.classList.contains("ari-circle-page")) {
+      notificationsLoaded = true;
+      import("/js/ari-circle/notifications/notifications-v4.js?v=1.0.0").catch((error) => {
+        notificationsLoaded = false;
+        console.warn("ARI Circle notifications V4 failed to load:", error);
       });
     }
 
@@ -257,7 +265,7 @@
 
     if (!feedModerationLoaded && document.querySelector(".feed-page")) {
       feedModerationLoaded = true;
-      import("/js/ari-circle/feed/feed-moderation.js?v=1.0.0").catch((error) => {
+      import("/js/ari-circle/feed/feed-moderation.js?v=1.1.0").catch((error) => {
         feedModerationLoaded = false;
         console.warn("ARI Circle feed ownership controls failed to load:", error);
       });
