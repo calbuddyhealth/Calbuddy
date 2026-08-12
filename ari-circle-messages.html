@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/ari-circle-messages-v4.css?v=1.2.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-messages-v4.css?v=1.3.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-messages-presence.css?v=1.0.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-messages-launch.css?v=1.0.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle-messages-launch.css?v=1.1.0" />
 </head>
 <body>
   <main class="circle-messages-page" id="messagesPage" hidden>
@@ -26,6 +26,7 @@
           <div>
             <p>ARI CIRCLE</p>
             <h1>Messages</h1>
+            <span class="circle-inbox__subtitle">Your conversations</span>
           </div>
           <a class="circle-inbox__new" href="ari-circle-partners.html" aria-label="Find someone to message">New</a>
         </div>
@@ -42,14 +43,18 @@
         <p class="circle-message-status" id="inboxStatus"></p>
         <div class="circle-conversation-list" id="conversationList"></div>
         <div class="circle-message-empty" id="conversationEmpty" hidden>
-          <strong>No messages yet.</strong>
-          <span>Find a friend in Buddies or message someone from their profile.</span>
+          <div class="circle-message-empty__icon" aria-hidden="true">💬</div>
+          <strong>No conversations yet.</strong>
+          <span>When you message someone from their profile or Buddies, the conversation will appear here.</span>
+          <a class="circle-message-empty__action" href="ari-circle-partners.html">Find someone</a>
         </div>
       </aside>
 
       <section class="circle-thread" id="circleThread" hidden>
         <header class="circle-thread__header">
-          <a class="circle-thread__back" id="threadBack" href="ari-circle-messages.html" aria-label="Back to messages">‹</a>
+          <a class="circle-thread__back" id="threadBack" href="ari-circle-messages.html" aria-label="Back to Messages">
+            <span aria-hidden="true">‹</span><span>Messages</span>
+          </a>
           <a class="circle-thread__person" id="threadProfileLink" href="ari-circle.html">
             <span class="circle-thread__avatar-wrap">
               <span class="circle-thread__avatar" id="threadAvatar">A</span>
@@ -64,9 +69,12 @@
         </header>
 
         <div class="circle-thread__messages" id="threadMessages" aria-live="polite"></div>
-        <div id="threadEmpty" hidden></div>
+        <div class="circle-thread-empty" id="threadEmpty" hidden>
+          <strong>No messages yet.</strong>
+          <span>Say hello when you're ready.</span>
+        </div>
 
-        <form class="circle-thread__composer" id="messageForm">
+        <form class="circle-thread__composer" id="messageForm" hidden>
           <label class="sr-only" for="messageInput">Message</label>
           <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Message…" required></textarea>
           <button type="submit" id="sendMessageButton" aria-label="Send message">Send</button>
@@ -84,7 +92,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
-  <script src="js/ari-circle/messaging/messages-v4.js?v=1.2.0" defer></script>
-  <script src="js/ari-circle/messaging/messages-launch.js?v=1.0.1" defer></script>
+  <script src="js/ari-circle/messaging/messages-v4.js?v=1.3.0" defer></script>
+  <script src="js/ari-circle/messaging/messages-launch.js?v=1.1.0" defer></script>
 </body>
 </html>
