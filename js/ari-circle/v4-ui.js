@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.2.0
+   Version: 4.3.0
 
    UI-only enhancement layer. It intentionally leaves the existing
    Supabase tables, RPCs, stores, and persistence behavior untouched.
@@ -9,11 +9,13 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.2.0";
+  const VERSION = "4.3.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let scheduled = false;
   let panelHandled = false;
   let buddiesLoaded = false;
+  let flowFixesLoaded = false;
+  let appReady = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -64,16 +66,18 @@
 
   function standardizeMessageIcons() {
     document.querySelectorAll(".circle-v4-message").forEach((element) => {
-      if (element.dataset.v41Message === "true") return;
       element.innerHTML = MESSAGE_ICON;
       element.dataset.v41Message = "true";
+      if (element.tagName === "A") element.href = "ari-circle.html?panel=messages";
+      element.setAttribute("aria-label", "Messages");
     });
 
     const button = $("circle-messages-button");
-    if (button && button.dataset.v41Message !== "true") {
+    if (button) {
       const icon = button.querySelector('span[aria-hidden="true"]');
       if (icon) icon.innerHTML = MESSAGE_ICON;
       button.dataset.v41Message = "true";
+      button.setAttribute("aria-label", "Messages");
     }
   }
 
@@ -167,12 +171,18 @@
     const message = $("circle-message-action");
     if (!actions || !connection || !message) return;
 
+    const connected = connection.dataset.v4TargetFriends === "true" || /friends?\s*✓|see friends|in your circle/i.test(connection.textContent || "");
+    if (connected) {
+      if (actions.firstElementChild !== message) actions.insertBefore(message, connection);
+      return;
+    }
+
     if (actions.firstElementChild !== connection) actions.insertBefore(connection, message);
   }
 
   function simplifyProfile() {
     const nav = $("circleV3Nav");
-    if (nav && nav.dataset.v4Ready !== "true") {
+    if (nav) {
       nav.innerHTML = `
         <a href="ari-circle-feed.html">Feed</a>
         <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
@@ -279,7 +289,7 @@
   }
 
   function openRequestedPanel() {
-    if (panelHandled) return;
+    if (panelHandled || !appReady) return;
     if (!document.body.classList.contains("ari-circle-page")) return;
 
     const panel = new URLSearchParams(window.location.search).get("panel");
@@ -306,7 +316,16 @@
       const button = $("circle-messages-button");
       if (button) {
         panelHandled = true;
-        button.click();
+        window.setTimeout(() => button.click(), 40);
+      }
+      return;
+    }
+
+    if (panel === "message") {
+      const button = $("circle-message-action");
+      if (button) {
+        panelHandled = true;
+        window.setTimeout(() => button.click(), 60);
       }
     }
   }
@@ -317,6 +336,15 @@
     import("/js/ari-circle/buddies/buddies-social.js?v=1.0.0").catch((error) => {
       buddiesLoaded = false;
       console.warn("ARI Circle Buddies social discovery failed to load:", error);
+    });
+  }
+
+  function loadFlowFixes() {
+    if (flowFixesLoaded) return;
+    flowFixesLoaded = true;
+    import("/js/ari-circle/v4-flow-fixes.js?v=1.0.0").catch((error) => {
+      flowFixesLoaded = false;
+      console.warn("ARI Circle V4 flow fixes failed to load:", error);
     });
   }
 
@@ -333,6 +361,7 @@
     closeMenuOnNavigation();
     openRequestedPanel();
     loadBuddiesSocial();
+    loadFlowFixes();
   }
 
   function schedule() {
@@ -342,7 +371,10 @@
   }
 
   document.addEventListener("DOMContentLoaded", schedule, { once: true });
-  document.addEventListener("circle:app-ready", schedule);
+  document.addEventListener("circle:app-ready", () => {
+    appReady = true;
+    schedule();
+  });
 
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement, {
