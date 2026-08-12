@@ -1,17 +1,16 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.6
+   Version: 4.6.7
 
-   V4.6.6:
-   - Close any open Circle navigation menu when the user taps
-     anywhere outside the menu.
-   - Only one Circle menu may remain open at a time.
+   V4.6.7:
+   - Loads Moment private replies/reactions on Feed.
+   - Keeps outside-tap menu closing from V4.6.6.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.6.6";
+  const VERSION = "4.6.7";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -21,6 +20,7 @@
   let flowFixesLoaded = false;
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
+  let momentRepliesLoaded = false;
   let notificationsLoaded = false;
   let outsideMenuBound = false;
 
@@ -280,6 +280,13 @@
       import("/js/ari-circle/feed/feed-moderation.js?v=1.1.0").catch((error) => {
         feedModerationLoaded = false;
         console.warn("ARI Circle feed ownership controls failed to load:", error);
+      });
+    }
+    if (!momentRepliesLoaded && document.querySelector(".feed-page")) {
+      momentRepliesLoaded = true;
+      import("/js/ari-circle/feed/moment-replies.js?v=1.0.0").catch((error) => {
+        momentRepliesLoaded = false;
+        console.warn("ARI Circle Moment replies failed to load:", error);
       });
     }
   }
