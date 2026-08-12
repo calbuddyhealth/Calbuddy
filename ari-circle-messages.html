@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/ari-circle-messages-v4.css?v=1.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-messages-presence.css?v=1.0.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-messages-launch.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-messages-launch.css?v=1.0.1" />
 </head>
 <body>
   <main class="circle-messages-page" id="messagesPage" hidden>
@@ -49,7 +49,7 @@
 
       <section class="circle-thread" id="circleThread" hidden>
         <header class="circle-thread__header">
-          <button class="circle-thread__back" id="threadBack" type="button" aria-label="Back to messages">‹</button>
+          <a class="circle-thread__back" id="threadBack" href="ari-circle-messages.html" aria-label="Back to messages">‹</a>
           <a class="circle-thread__person" id="threadProfileLink" href="ari-circle.html">
             <span class="circle-thread__avatar-wrap">
               <span class="circle-thread__avatar" id="threadAvatar">A</span>
@@ -85,6 +85,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/ari-circle/messaging/messages-v4.js?v=1.2.0" defer></script>
-  <script src="js/ari-circle/messaging/messages-launch.js?v=1.0.0" defer></script>
+  <script src="js/ari-circle/messaging/messages-launch.js?v=1.0.1" defer></script>
 </body>
 </html>
