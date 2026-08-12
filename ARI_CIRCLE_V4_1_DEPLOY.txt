@@ -1,0 +1,29 @@
+ARI CIRCLE V4.1
+
+Social simplification release marker.
+
+Primary navigation:
+Feed | Me | Buddies | Challenges
+
+Profile:
+- Own profile: Edit Profile | See Friends
+- Visitor: Add Friend | Message
+- Requested: Requested ✓ | Message
+- Connected: Friends ✓ | Message
+- Posts | About only
+- Profile flair and reaction score removed from the visible profile
+
+Buddies:
+- Search by display name or @handle
+- See Friends
+- Requests
+- People to Discover
+- Activity Buddies retained
+
+Shared UI:
+- Unified ARI Circle header
+- Unified messenger SVG
+- Unified Circle menu
+- Pearl / cyan / royal blue / violet V4 styling
+
+Release UI: 4.1.2
