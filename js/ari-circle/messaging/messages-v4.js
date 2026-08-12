@@ -1,12 +1,12 @@
 /* =============================================================
    ARI CIRCLE — UNIFIED MESSAGES
-   Version: 1.1.0
+   Version: 1.2.0
 
-   V1.1:
-   - Header message cloud always lands on the inbox.
-   - Direct ?user links open only that person's thread.
-   - No giant empty "start conversation" state.
-   - Adds Messenger-style search, previews, timestamps, unread dots.
+   V1.2:
+   - Keeps the inbox-first Messenger-style experience.
+   - Adds true realtime presence using the shared ARI Circle channel.
+   - Green means online; grey means offline.
+   - Shows presence on conversation avatars and the open thread.
 ============================================================= */
 (() => {
   "use strict";
@@ -20,7 +20,9 @@
     activeConversation: null,
     query: "",
     busy: false,
-    refreshTimer: 0
+    refreshTimer: 0,
+    presenceChannel: null,
+    onlineUserIds: new Set()
   };
 
   const clean = (v) => String(v ?? "").trim();
@@ -83,6 +85,14 @@
     return `<span class="${className}">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" />` : escapeHtml(initial(name))}</span>`;
   }
 
+  function isOnline(userId) {
+    return state.onlineUserIds.has(clean(userId));
+  }
+
+  function presenceStatus(userId) {
+    return isOnline(userId) ? "online" : "offline";
+  }
+
   function filteredConversations() {
     const q = state.query.toLowerCase();
     if (!q) return state.conversations;
@@ -117,10 +127,11 @@
 
       const unread = Number(row.unread_count) || 0;
       const preview = clean(row.last_message_body) || (row.handle ? `@${clean(row.handle).replace(/^@+/, "")}` : "Conversation");
+      const presence = presenceStatus(row.other_user_id);
       button.innerHTML = `
         <span class="circle-conversation__avatar-wrap">
           ${avatarMarkup(row)}
-          ${unread > 0 ? '<span class="circle-conversation__online-dot circle-conversation__online-dot--unread" aria-hidden="true"></span>' : ''}
+          <span class="circle-conversation__presence-dot" data-status="${presence}" aria-label="${presence === "online" ? "Online" : "Offline"}"></span>
         </span>
         <span class="circle-conversation__copy">
           <strong>${escapeHtml(row.display_name || "ARI User")}</strong>
@@ -147,6 +158,23 @@
     }
   }
 
+  function syncThreadPresence() {
+    const userId = clean(state.activeConversation?.other_user_id);
+    const status = presenceStatus(userId);
+    const dot = $("threadPresenceDot");
+    const text = $("threadPresenceText");
+
+    if (dot) {
+      dot.dataset.status = status;
+      dot.setAttribute("aria-label", status === "online" ? "Online" : "Offline");
+    }
+
+    if (text) {
+      text.dataset.status = status;
+      text.textContent = status === "online" ? "Online" : "Offline";
+    }
+  }
+
   function setThreadIdentity(row) {
     const name = clean(row?.display_name) || "ARI User";
     const handle = clean(row?.handle).replace(/^@+/, "");
@@ -167,6 +195,7 @@
     $("threadHandle").textContent = handle ? `@${handle}` : "";
     const link = $("threadProfileLink");
     if (link && row?.other_user_id) link.href = `ari-circle.html?user=${encodeURIComponent(row.other_user_id)}`;
+    syncThreadPresence();
   }
 
   function renderThread(messages) {
@@ -269,6 +298,68 @@
     }
   }
 
+  function syncPresenceState(channel) {
+    const raw = channel?.presenceState?.() || {};
+    const online = new Set();
+
+    Object.entries(raw).forEach(([key, entries]) => {
+      const fallbackId = clean(key).replace(/^user:/, "");
+      const list = Array.isArray(entries) ? entries : [];
+      if (!list.length && fallbackId) online.add(fallbackId);
+      list.forEach((entry) => {
+        if (entry?.visible === false) return;
+        const userId = clean(entry?.user_id) || fallbackId;
+        const status = clean(entry?.status).toLowerCase();
+        if (userId && status !== "offline") online.add(userId);
+      });
+    });
+
+    state.onlineUserIds = online;
+    renderInbox();
+    syncThreadPresence();
+  }
+
+  function connectPresence() {
+    if (!state.client || !state.user || state.presenceChannel) return;
+
+    const key = `user:${state.user.id}`;
+    const channel = state.client.channel("ari-circle:presence", {
+      config: { presence: { key } }
+    });
+
+    channel
+      .on("presence", { event: "sync" }, () => syncPresenceState(channel))
+      .on("presence", { event: "join" }, () => syncPresenceState(channel))
+      .on("presence", { event: "leave" }, () => syncPresenceState(channel))
+      .subscribe(async (status) => {
+        if (status !== "SUBSCRIBED") return;
+        try {
+          await channel.track({
+            user_id: state.user.id,
+            status: "online",
+            online_at: new Date().toISOString(),
+            visible: true
+          });
+        } catch (error) {
+          console.warn("ARI Circle message presence track failed:", error);
+        }
+      });
+
+    state.presenceChannel = channel;
+  }
+
+  async function disconnectPresence() {
+    const channel = state.presenceChannel;
+    state.presenceChannel = null;
+    if (!channel || !state.client) return;
+    try {
+      await channel.untrack?.();
+    } catch {}
+    try {
+      await state.client.removeChannel(channel);
+    } catch {}
+  }
+
   function bind() {
     $("threadBack")?.addEventListener("click", closeThread);
     $("messageForm")?.addEventListener("submit", sendMessage);
@@ -289,6 +380,8 @@
         if (state.activeConversationId) await loadThread(state.activeConversationId);
       }, 120);
     });
+
+    window.addEventListener("pagehide", () => { disconnectPresence(); }, { once: true });
   }
 
   async function init() {
@@ -302,6 +395,7 @@
       const user = await requireUser();
       if (!user) return;
       bind();
+      connectPresence();
       await loadInbox();
       $("messagesPage").hidden = false;
       $("messagesLoading").hidden = true;
