@@ -1,0 +1,717 @@
+/* =============================================================
+   ARI CIRCLE V4 — FLUID SOCIAL LAYER
+   Version: 4.0.0
+
+   Shared visual simplification for Feed / Me / Buddies / Challenges.
+   Keeps the existing Supabase/controllers intact while reducing visual
+   redundancy and making Circle feel fast, familiar, and distinctly ARI.
+============================================================= */
+
+:root {
+  --circle4-bg: #f5f7fc;
+  --circle4-pearl: #ffffff;
+  --circle4-ink: #0b1022;
+  --circle4-soft: #657086;
+  --circle4-muted: #9199aa;
+  --circle4-line: rgba(37, 71, 145, 0.11);
+  --circle4-blue: #2358ff;
+  --circle4-cyan: #19cfff;
+  --circle4-violet: #8453ff;
+  --circle4-shadow: 0 12px 34px rgba(35, 57, 113, 0.075);
+  --circle4-shadow-soft: 0 7px 22px rgba(35, 57, 113, 0.055);
+}
+
+html,
+body,
+.ari-circle-page {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(25,207,255,.07), transparent 25rem),
+    radial-gradient(circle at 100% 8%, rgba(132,83,255,.065), transparent 26rem),
+    var(--circle4-bg) !important;
+}
+
+body {
+  color: var(--circle4-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* =============================================================
+   SHARED HEADER + PRIMARY NAV
+============================================================= */
+.feed-page,
+.partner-page,
+.challenge-page {
+  width: min(100%, 760px) !important;
+  margin: 0 auto !important;
+  padding-right: 12px !important;
+  padding-left: 12px !important;
+}
+
+.feed-header,
+.partner-header,
+.challenge-header,
+.ari-circle-page .circle-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 90 !important;
+  min-height: 62px !important;
+  border-bottom: 1px solid rgba(37,71,145,.07) !important;
+  background: rgba(250,252,255,.90) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(22px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
+}
+
+.feed-header,
+.partner-header,
+.challenge-header {
+  display: grid !important;
+  grid-template-columns: 44px 1fr 44px !important;
+  gap: 10px !important;
+  align-items: center !important;
+  margin: 0 -2px !important;
+  padding: 7px 2px !important;
+}
+
+.feed-brand,
+.partner-brand,
+.challenge-brand {
+  justify-self: center !important;
+  font-size: .86rem !important;
+  letter-spacing: .09em !important;
+}
+
+.feed-icon-button,
+.partner-icon-button,
+.challenge-icon-button,
+.circle-v4-message {
+  display: inline-grid !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  place-items: center !important;
+  padding: 0 !important;
+  color: var(--circle4-ink) !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: rgba(255,255,255,.78) !important;
+  box-shadow: inset 0 0 0 1px rgba(37,71,145,.08), var(--circle4-shadow-soft) !important;
+  font-size: 1.15rem !important;
+  text-decoration: none !important;
+}
+
+.feed-header-link,
+.partner-header-link,
+.challenge-header-link {
+  display: none !important;
+}
+
+.feed-tabs,
+.partner-tabs,
+.challenge-tabs,
+.circle-v3-nav {
+  position: sticky !important;
+  z-index: 82 !important;
+  top: 62px !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+  gap: 0 !important;
+  margin: 0 0 12px !important;
+  padding: 0 2px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(37,71,145,.09) !important;
+  border-radius: 0 !important;
+  background: rgba(250,252,255,.94) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(20px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(145%) !important;
+}
+
+.feed-tab,
+.partner-tab,
+.challenge-tab,
+.circle-v3-nav a {
+  position: relative !important;
+  display: grid !important;
+  min-height: 48px !important;
+  place-items: center !important;
+  padding: 0 4px !important;
+  color: #697388 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: .76rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .005em !important;
+  text-decoration: none !important;
+}
+
+.feed-tab::after,
+.partner-tab::after,
+.challenge-tab::after,
+.circle-v3-nav a::after {
+  position: absolute;
+  right: 22%;
+  bottom: -1px;
+  left: 22%;
+  height: 3px;
+  border-radius: 999px;
+  content: "";
+  opacity: 0;
+  transform: scaleX(.45);
+  background: linear-gradient(90deg, var(--circle4-cyan), var(--circle4-blue) 55%, var(--circle4-violet));
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.feed-tab.is-active,
+.partner-tab.is-active,
+.challenge-tab.is-active,
+.circle-v3-nav a.is-active {
+  color: var(--circle4-ink) !important;
+  background: transparent !important;
+}
+
+.feed-tab.is-active::after,
+.partner-tab.is-active::after,
+.challenge-tab.is-active::after,
+.circle-v3-nav a.is-active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* =============================================================
+   LIGHTWEIGHT CIRCLE MENU
+============================================================= */
+.circle-v4-menu {
+  position: relative;
+  width: 42px;
+  height: 42px;
+}
+
+.circle-v4-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.circle-v4-menu > summary::-webkit-details-marker { display: none; }
+
+.circle-v4-menu__panel {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  z-index: 120;
+  width: min(278px, calc(100vw - 34px));
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid rgba(37,71,145,.10);
+  border-radius: 20px;
+  background: rgba(255,255,255,.97);
+  box-shadow: 0 24px 64px rgba(20,35,76,.16);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.circle-v4-menu__panel a {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 13px;
+  color: #202a41;
+  border-radius: 13px;
+  font-size: .82rem;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.circle-v4-menu__panel a:hover,
+.circle-v4-menu__panel a:focus-visible {
+  color: var(--circle4-blue);
+  background: #f4f7ff;
+}
+
+.circle-v4-menu__panel small {
+  color: var(--circle4-muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.circle-v4-menu__divider {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--circle4-line);
+}
+
+/* =============================================================
+   FEED — CONTENT FIRST
+============================================================= */
+.feed-hero,
+.feed-rewards,
+.feed-safety-note,
+.feed-footer {
+  display: none !important;
+}
+
+.feed-composer {
+  margin: 10px 0 12px !important;
+  padding: 12px !important;
+  border: 1px solid rgba(37,71,145,.09) !important;
+  border-radius: 22px !important;
+  background: rgba(255,255,255,.96) !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+  transition: box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease !important;
+}
+
+.feed-composer:focus-within {
+  border-color: rgba(35,88,255,.18) !important;
+  box-shadow: 0 18px 48px rgba(35,57,113,.10) !important;
+}
+
+.feed-composer__top {
+  margin: 0 0 10px !important;
+}
+
+.feed-composer__top .feed-kicker { display: none !important; }
+.feed-composer__top h2 {
+  font-size: .93rem !important;
+  font-weight: 780 !important;
+  letter-spacing: -.02em !important;
+}
+
+.feed-avatar {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+#feedPostBody {
+  min-height: 54px !important;
+  padding: 15px 16px !important;
+  resize: none !important;
+  border-radius: 17px !important;
+  background: #f5f7fb !important;
+  font-size: .96rem !important;
+  transition: min-height 180ms ease, background 180ms ease !important;
+}
+
+.feed-composer:focus-within #feedPostBody {
+  min-height: 108px !important;
+  background: #f8faff !important;
+}
+
+.feed-composer:not(:focus-within) .feed-type-strip,
+.feed-composer:not(:focus-within) .feed-composer__meta,
+.feed-composer:not(:focus-within) .feed-composer__actions {
+  display: none !important;
+}
+
+.feed-type-strip { padding-top: 10px !important; }
+.feed-type-chip {
+  min-height: 36px !important;
+  border-radius: 12px !important;
+  background: #f5f7fc !important;
+}
+.feed-type-chip.is-active {
+  color: var(--circle4-blue) !important;
+  border-color: rgba(35,88,255,.16) !important;
+  background: linear-gradient(135deg, rgba(25,207,255,.08), rgba(132,83,255,.07)) !important;
+}
+
+.feed-stream {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.feed-section-heading {
+  min-height: 44px;
+  align-items: center !important;
+  margin: 0 2px 6px !important;
+}
+.feed-section-heading .feed-kicker { display: none !important; }
+.feed-section-heading h2 { font-size: 1.05rem !important; }
+.feed-status { margin: 0 4px 10px !important; }
+.feed-list { gap: 10px !important; }
+
+.feed-post {
+  border-color: rgba(37,71,145,.08) !important;
+  border-radius: 22px !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+.feed-post img {
+  max-width: 100%;
+}
+
+/* =============================================================
+   BUDDIES — PEOPLE + ACTIVITY MATCHING IN ONE PLACE
+============================================================= */
+.partner-hero {
+  margin: 10px 0 12px !important;
+  padding: 18px !important;
+  border: 1px solid rgba(37,71,145,.09) !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(132,83,255,.10), transparent 16rem),
+    radial-gradient(circle at 0% 100%, rgba(25,207,255,.09), transparent 15rem),
+    #fff !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+.partner-hero .partner-kicker { display: none !important; }
+.partner-hero h1 {
+  font-size: clamp(1.75rem, 7vw, 2.45rem) !important;
+  line-height: 1 !important;
+  letter-spacing: -.045em !important;
+}
+.partner-hero p {
+  max-width: 560px;
+  margin: 9px 0 14px !important;
+  color: var(--circle4-soft) !important;
+  line-height: 1.5 !important;
+}
+
+.partner-safety-card {
+  margin: 0 0 12px !important;
+  padding: 12px 14px !important;
+  border-radius: 17px !important;
+  box-shadow: none !important;
+}
+
+.partner-own-listing,
+.partner-invites,
+.partner-discover {
+  margin-top: 12px !important;
+  border-radius: 22px !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+.partner-footer { display: none !important; }
+
+/* =============================================================
+   CHALLENGES — SHOW THE ACTION, NOT A MARKETING HERO
+============================================================= */
+.challenge-hero {
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  gap: 10px 14px !important;
+  align-items: end !important;
+  margin: 10px 0 12px !important;
+  padding: 17px 18px !important;
+  border: 1px solid rgba(37,71,145,.09) !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(132,83,255,.10), transparent 16rem),
+    #fff !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+.challenge-hero .challenge-kicker { display: none !important; }
+.challenge-hero h1 {
+  grid-column: 1;
+  font-size: clamp(1.7rem, 7vw, 2.35rem) !important;
+  line-height: 1 !important;
+  letter-spacing: -.045em !important;
+}
+.challenge-hero > p {
+  grid-column: 1;
+  margin: 0 !important;
+  color: var(--circle4-soft) !important;
+  font-size: .82rem !important;
+  line-height: 1.45 !important;
+}
+.challenge-hero > button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.challenge-flair,
+.challenge-safety-note,
+.challenge-footer {
+  display: none !important;
+}
+
+.challenge-stream {
+  margin-top: 0 !important;
+  border-radius: 22px !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+/* =============================================================
+   PROFILE — PERSON FIRST, REDUNDANCY GONE
+============================================================= */
+.ari-circle-page .ari-circle-shell {
+  width: min(100%, 760px) !important;
+}
+
+.ari-circle-page .circle-header {
+  padding-right: 12px !important;
+  padding-left: 12px !important;
+}
+
+.circle-v3-nav {
+  margin: 0 12px 12px !important;
+}
+
+.circle-v3-hubs,
+#circle-top,
+#circle-love,
+#circle-details,
+#circleV3AchievementsPanel {
+  display: none !important;
+}
+
+.ari-circle-page .circle-profile {
+  margin: 10px 12px 12px !important;
+  overflow: visible !important;
+  border: 1px solid rgba(37,71,145,.08) !important;
+  border-radius: 26px !important;
+  background: rgba(255,255,255,.97) !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+.ari-circle-page .circle-profile__cover {
+  display: none !important;
+}
+
+.ari-circle-page .circle-profile__body {
+  padding: 24px 18px 22px !important;
+  text-align: center !important;
+}
+
+.ari-circle-page .circle-profile__avatar-wrap {
+  width: 112px !important;
+  height: 112px !important;
+  margin: 0 auto 13px !important;
+}
+
+.ari-circle-page .circle-profile__avatar-button,
+.ari-circle-page .circle-profile__avatar,
+.ari-circle-page .circle-profile__avatar-fallback {
+  width: 112px !important;
+  height: 112px !important;
+  border-radius: 28px !important;
+}
+
+.ari-circle-page .circle-profile__avatar-button {
+  overflow: hidden !important;
+  border: 3px solid rgba(255,255,255,.95) !important;
+  box-shadow:
+    0 0 0 1px rgba(35,88,255,.10),
+    0 12px 30px rgba(35,57,113,.11) !important;
+}
+
+.ari-circle-page .circle-profile__name {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  margin-top: 0 !important;
+  font-size: clamp(1.65rem, 7vw, 2.15rem) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -.045em !important;
+}
+
+.ari-circle-page .circle-profile__handle {
+  margin-top: 6px !important;
+  color: var(--circle4-muted) !important;
+  font-size: .86rem !important;
+}
+
+.ari-circle-page .circle-profile__bio {
+  max-width: 470px !important;
+  margin: 11px auto 0 !important;
+  color: #3f4a61 !important;
+  font-size: .9rem !important;
+  line-height: 1.5 !important;
+}
+
+.ari-circle-page .circle-profile__actions {
+  width: min(100%, 390px) !important;
+  margin: 17px auto 0 !important;
+  gap: 9px !important;
+}
+
+.ari-circle-page .circle-profile__actions .circle-button {
+  min-height: 45px !important;
+  border-radius: 14px !important;
+  font-size: .8rem !important;
+  font-weight: 780 !important;
+}
+
+.circle-v3-name-flair {
+  display: inline-grid !important;
+  width: 29px !important;
+  height: 29px !important;
+  place-items: center !important;
+  border-radius: 9px !important;
+  background: linear-gradient(145deg,#f4fbff,#f4f0ff) !important;
+  box-shadow: inset 0 0 0 1px rgba(35,88,255,.08) !important;
+}
+.circle-v3-name-flair img { width: 23px !important; height: 23px !important; }
+
+.circle-v3-summary {
+  display: flex !important;
+  width: auto !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  margin: 16px auto 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.circle-v3-summary__item {
+  min-width: 84px !important;
+  padding: 5px 12px !important;
+}
+.circle-v3-summary__item + .circle-v3-summary__item {
+  border-left: 1px solid var(--circle4-line) !important;
+}
+.circle-v3-summary__item strong { font-size: .98rem !important; }
+.circle-v3-summary__item span {
+  color: var(--circle4-muted) !important;
+  font-size: .61rem !important;
+  letter-spacing: .06em !important;
+}
+
+.circle-v3-profile-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 0 !important;
+  margin: 2px 14px 8px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--circle4-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.circle-v3-profile-tabs button {
+  position: relative !important;
+  min-height: 48px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: .77rem !important;
+}
+.circle-v3-profile-tabs button.is-active { color: var(--circle4-ink) !important; }
+.circle-v3-profile-tabs button.is-active::after {
+  position: absolute;
+  right: 30%;
+  bottom: -1px;
+  left: 30%;
+  height: 3px;
+  border-radius: 999px;
+  content: "";
+  background: linear-gradient(90deg,var(--circle4-cyan),var(--circle4-blue),var(--circle4-violet));
+}
+
+.circle-v3-panel {
+  margin: 0 12px 16px !important;
+  padding: 14px 0 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.circle-v3-panel__header {
+  margin: 0 4px 10px !important;
+  padding: 0 2px !important;
+}
+.circle-v3-panel__eyebrow { display: none !important; }
+.circle-v3-panel h2 { font-size: 1.08rem !important; }
+
+.circle-v3-posts { gap: 10px !important; }
+.circle-v3-post {
+  padding: 16px !important;
+  border: 1px solid rgba(37,71,145,.08) !important;
+  border-radius: 20px !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+.circle-v3-post__media {
+  border-radius: 15px !important;
+}
+
+/* About becomes a simple stack; empty legacy sections simply disappear. */
+#circle-about,
+#circle-interests,
+#circle-icebreakers {
+  margin: 10px 12px !important;
+  padding: 16px 18px !important;
+  border: 1px solid rgba(37,71,145,.08) !important;
+  border-radius: 19px !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+#circle-about .circle-section-eyebrow,
+#circle-interests .circle-section-eyebrow,
+#circle-icebreakers .circle-section-eyebrow {
+  display: none !important;
+}
+
+#circle-about .circle-section-header,
+#circle-interests .circle-section-header,
+#circle-icebreakers .circle-section-header {
+  margin-bottom: 9px !important;
+}
+
+#circle-about h2,
+#circle-interests h2,
+#circle-icebreakers h2 {
+  font-size: 1.02rem !important;
+}
+
+.circle-v3-safety-gate {
+  margin: 10px 12px 14px !important;
+  border-radius: 20px !important;
+  box-shadow: var(--circle4-shadow-soft) !important;
+}
+
+@media (max-width: 520px) {
+  .feed-page,
+  .partner-page,
+  .challenge-page {
+    padding-right: 8px !important;
+    padding-left: 8px !important;
+  }
+
+  .feed-tab,
+  .partner-tab,
+  .challenge-tab,
+  .circle-v3-nav a {
+    font-size: .70rem !important;
+  }
+
+  .challenge-hero {
+    grid-template-columns: 1fr !important;
+  }
+  .challenge-hero > button {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+  }
+
+  .ari-circle-page .circle-profile__body {
+    padding-right: 14px !important;
+    padding-left: 14px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
