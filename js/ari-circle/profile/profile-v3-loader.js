@@ -46,7 +46,8 @@ if (!document.getElementById(MEDIA_STYLE_ID)) {
 
 Promise.all([
   import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.2.0")
+  import("../v4-ui.js?v=4.3.0"),
+  import("../v4-flow-fixes.js?v=1.0.0")
 ]).catch((error) => {
   console.error("ARI Circle profile enhancement failed to load:", error);
 });
