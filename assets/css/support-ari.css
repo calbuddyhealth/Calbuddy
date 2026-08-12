@@ -1,6 +1,6 @@
 /* =============================================================
    ARI XP — SUPPORT ARI
-   Version: 1.0.0
+   Version: 1.0.1
    Premium support card + homepage navigation treatment.
 ============================================================= */
 
@@ -74,6 +74,10 @@
     0 0 10px rgba(34, 222, 239, 0.95),
     0 0 20px rgba(132, 85, 239, 0.44),
     inset 0 0 5px rgba(30, 220, 239, 0.24);
+}
+
+.ari-side-menu.open .ari-nav-link:nth-child(5) {
+  animation-delay: 230ms;
 }
 
 @keyframes ariSupportPulse {
