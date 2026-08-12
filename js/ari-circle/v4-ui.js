@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.5.0
+   Version: 4.5.1
 
    Important V4.5 changes:
    - Removes the whole-document MutationObserver that could repeatedly
@@ -13,7 +13,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.5.0";
+  const VERSION = "4.5.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let appReady = false;
   let panelHandled = false;
@@ -21,6 +21,7 @@
   let flowFixesLoaded = false;
   let feedCameraLoaded = false;
   let feedPolishLoaded = false;
+  let feedModerationLoaded = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -251,6 +252,14 @@
       import("/js/ari-circle/feed/feed-polish.js?v=1.0.1").catch((error) => {
         feedPolishLoaded = false;
         console.warn("ARI Circle feed polish failed to load:", error);
+      });
+    }
+
+    if (!feedModerationLoaded && document.querySelector(".feed-page")) {
+      feedModerationLoaded = true;
+      import("/js/ari-circle/feed/feed-moderation.js?v=1.0.0").catch((error) => {
+        feedModerationLoaded = false;
+        console.warn("ARI Circle feed ownership controls failed to load:", error);
       });
     }
   }
