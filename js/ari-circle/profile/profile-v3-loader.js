@@ -40,13 +40,13 @@ if (!document.getElementById(MEDIA_STYLE_ID)) {
   const link = document.createElement("link");
   link.id = MEDIA_STYLE_ID;
   link.rel = "stylesheet";
-  link.href = "assets/css/ari-circle-media.css?v=1.0.0";
+  link.href = "assets/css/ari-circle-media.css?v=1.0.1";
   document.head.append(link);
 }
 
 Promise.all([
   import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.3.0"),
+  import("../v4-ui.js?v=4.4.0"),
   import("../v4-flow-fixes.js?v=1.0.0")
 ]).catch((error) => {
   console.error("ARI Circle profile enhancement failed to load:", error);
