@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED POLISH
-   Version: 1.0.1
+   Version: 1.0.2
 ============================================================= */
 
 .feed-composer__top h2 {
@@ -137,6 +137,17 @@
   display: none !important;
 }
 
+.ari-camera__shell {
+  --camera-drag-y: 0px;
+  transform: translateY(0);
+  transition: transform 180ms cubic-bezier(.2,.75,.22,1);
+}
+
+.ari-camera__shell.is-dragging {
+  transform: translateY(var(--camera-drag-y));
+  transition: none;
+}
+
 @media (max-width: 520px) {
   .feed-comment-preview {
     padding-inline: 15px;
@@ -144,7 +155,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .circle-pull-refresh {
+  .circle-pull-refresh,
+  .ari-camera__shell {
     transition: none;
   }
 
