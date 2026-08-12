@@ -1,0 +1,116 @@
+/* =============================================================
+   ARI CIRCLE V4 — UX FIXES
+   Version: 1.0.0
+============================================================= */
+
+/* Always keep accessibility-only labels out of the visual layout. */
+.partner-page .sr-only,
+.ari-circle-page .sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Profile actions: exactly two clean actions when appropriate. */
+#circle-owner-actions,
+#circle-visitor-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+#circle-owner-actions[hidden],
+#circle-visitor-actions[hidden] {
+  display: none !important;
+}
+
+#circle-owner-actions .circle-button,
+#circle-visitor-actions .circle-button {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Presence is binary visually: green when online, neutral grey otherwise. */
+#circle-avatar-presence,
+#circle-presence-indicator,
+.circle-presence-dot {
+  background: #a7b0bf !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.96) !important;
+}
+
+#circle-avatar-presence[data-status="online"],
+#circle-presence-indicator[data-status="online"],
+.circle-presence-dot.circle-presence-dot--online {
+  background: #18b86b !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.96), 0 0 0 5px rgba(24,184,107,.10) !important;
+}
+
+#circle-avatar-presence[data-status="offline"],
+#circle-avatar-presence[data-status="away"],
+#circle-presence-indicator[data-status="offline"],
+#circle-presence-indicator[data-status="away"],
+.circle-presence-dot.circle-presence-dot--offline,
+.circle-presence-dot.circle-presence-dot--away {
+  background: #a7b0bf !important;
+}
+
+#circle-presence-text {
+  color: #748095;
+}
+
+/* Buddies quick actions should look like first-class controls, not grey pills. */
+.buddy-social__quick button,
+.buddy-social__quick a {
+  display: flex !important;
+  width: 100%;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 15px !important;
+  color: #0b1730 !important;
+  border: 1px solid rgba(36,88,255,.10) !important;
+  border-radius: 16px !important;
+  background: rgba(255,255,255,.88) !important;
+  box-shadow: 0 7px 20px rgba(29,51,105,.04) !important;
+  text-decoration: none;
+  font: inherit;
+  text-align: left;
+}
+
+.buddy-social__quick button strong,
+.buddy-social__quick a strong {
+  font-size: .82rem;
+  font-weight: 820;
+}
+
+.buddy-social__quick button span,
+.buddy-social__quick a span {
+  min-width: 24px;
+  color: #2458ff !important;
+  font-size: .86rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.buddy-social__search {
+  align-items: center;
+}
+
+.buddy-social__search input {
+  min-height: 48px;
+  border-radius: 15px;
+}
+
+@media (max-width: 520px) {
+  #circle-owner-actions,
+  #circle-visitor-actions {
+    gap: 10px !important;
+  }
+}
