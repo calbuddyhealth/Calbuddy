@@ -8,7 +8,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" href="assets/css/ari-circle-feed.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v4-polish.css?v=4.1.0" />
@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-launch-hardening.css?v=1.0.1" />
 </head>
 <body>
-  <main class="feed-page" id="feedPage" hidden>
+  <main class="feed-page" id="feedPage">
     <header class="feed-header">
       <details class="circle-v4-menu">
         <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
@@ -124,7 +124,7 @@
     </section>
   </main>
 
-  <section class="feed-loading" id="feedLoading" aria-live="polite">
+  <section class="feed-loading" id="feedLoading" aria-live="polite" hidden>
     <div class="feed-loading__orb" aria-hidden="true"></div>
     <strong>Opening your Circle</strong>
   </section>
@@ -203,7 +203,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
-  <script src="js/ari-circle/feed/feed-entry-guard.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>
   <script src="js/ari-circle/media/camera-v2.js?v=2.0.0" defer></script>
   <script src="js/ari-circle/media/camera-gestures.js?v=1.0.0" defer></script>
