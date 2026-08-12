@@ -1,23 +1,26 @@
 /* =============================================================
-   ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.4.0
+   ARI CIRCLE V4 — STABLE UI SHELL
+   Version: 4.5.0
 
-   UI-only enhancement layer. It intentionally leaves the existing
-   Supabase tables, RPCs, stores, and persistence behavior untouched.
+   Important V4.5 changes:
+   - Removes the whole-document MutationObserver that could repeatedly
+     rebuild Profile navigation and freeze Safari.
+   - Routes every Circle message icon to one Messages page.
+   - Keeps Feed / Profile / Buddies / Challenges labels consistent.
+   - Loads V4 feature modules once instead of on every DOM mutation.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.4.0";
+  const VERSION = "4.5.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
-  let scheduled = false;
+  let appReady = false;
   let panelHandled = false;
   let buddiesLoaded = false;
   let flowFixesLoaded = false;
   let feedCameraLoaded = false;
   let feedPolishLoaded = false;
-  let appReady = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -28,12 +31,12 @@
   `;
 
   function hide(id) {
-    const element = $(id);
-    if (element) element.hidden = true;
+    const el = $(id);
+    if (el && !el.hidden) el.hidden = true;
   }
 
   function ensurePolishStyle() {
-    if (document.getElementById(POLISH_STYLE_ID)) return;
+    if ($(POLISH_STYLE_ID)) return;
     const link = document.createElement("link");
     link.id = POLISH_STYLE_ID;
     link.rel = "stylesheet";
@@ -58,35 +61,43 @@
     `;
   }
 
-  function standardizeExistingMenus() {
+  function standardizeMenus() {
     document.querySelectorAll(".feed-header > .circle-v4-menu, .partner-header > .circle-v4-menu, .challenge-header > .circle-v4-menu").forEach((details) => {
-      if (details.dataset.v41Menu === "true") return;
+      if (details.dataset.v45Menu === "true") return;
       details.innerHTML = circleMenuMarkup(false);
-      details.dataset.v41Menu = "true";
+      details.dataset.v45Menu = "true";
     });
   }
 
-  function standardizeMessageIcons() {
-    document.querySelectorAll(".circle-v4-message").forEach((element) => {
-      element.innerHTML = MESSAGE_ICON;
-      element.dataset.v41Message = "true";
-      if (element.tagName === "A") element.href = "ari-circle.html?panel=messages";
-      element.setAttribute("aria-label", "Messages");
+  function routeToMessages(event) {
+    event?.preventDefault?.();
+    event?.stopImmediatePropagation?.();
+    window.location.href = "ari-circle-messages.html";
+  }
+
+  function standardizeMessages() {
+    document.querySelectorAll(".circle-v4-message").forEach((el) => {
+      if (el.dataset.v45Message === "true") return;
+      el.innerHTML = MESSAGE_ICON;
+      el.setAttribute("aria-label", "Messages");
+      if (el.tagName === "A") el.setAttribute("href", "ari-circle-messages.html");
+      el.dataset.v45Message = "true";
     });
 
-    const button = $("circle-messages-button");
-    if (button) {
-      const icon = button.querySelector('span[aria-hidden="true"]');
+    const profileButton = $("circle-messages-button");
+    if (profileButton && profileButton.dataset.v45Message !== "true") {
+      const icon = profileButton.querySelector('span[aria-hidden="true"]');
       if (icon) icon.innerHTML = MESSAGE_ICON;
-      button.dataset.v41Message = "true";
-      button.setAttribute("aria-label", "Messages");
+      profileButton.removeAttribute("data-circle-action");
+      profileButton.setAttribute("aria-label", "Messages");
+      profileButton.addEventListener("click", routeToMessages, true);
+      profileButton.dataset.v45Message = "true";
     }
   }
 
   function ensureProfileHeader() {
     const header = $("circle-header");
     if (!header) return;
-
     header.classList.add("circle-v4-profile-header");
 
     let menu = header.querySelector(":scope > .circle-v4-menu");
@@ -109,117 +120,54 @@
 
     const left = header.querySelector(".circle-header__left");
     if (left) left.hidden = true;
-
     const actions = header.querySelector(".circle-header__actions");
     if (actions) actions.hidden = true;
-
     hide("circle-profile-menu-button");
     hide("circle-back-button");
   }
 
+  function ensureProfileNav() {
+    const nav = $("circleV3Nav");
+    if (!nav || nav.dataset.v45Ready === "true") return;
+    nav.innerHTML = `
+      <a href="ari-circle-feed.html">Feed</a>
+      <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
+      <a href="ari-circle-partners.html">Buddies</a>
+      <a href="ari-circle-challenges.html">Challenges</a>
+    `;
+    nav.dataset.v45Ready = "true";
+  }
+
+  function simplifyProfile() {
+    if (!document.body.classList.contains("ari-circle-page")) return;
+    ensureProfileNav();
+    ensureProfileHeader();
+
+    ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel"].forEach(hide);
+    $("circleV3Summary")?.remove();
+    document.querySelector(".circle-v3-name-flair")?.remove();
+    document.querySelector('[data-v3-profile-tab="achievements"]')?.remove();
+
+    const share = $("circle-share-profile-button");
+    if (share && share.textContent.trim() !== "Share Profile") share.textContent = "Share Profile";
+    const remove = $("circle-remove-connection-button");
+    if (remove && remove.textContent.trim() !== "Remove Friend") remove.textContent = "Remove Friend";
+  }
+
   function bindProfileOptions() {
     document.querySelectorAll("[data-v4-profile-options]").forEach((button) => {
-      if (button.dataset.v41Bound === "true") return;
-      button.dataset.v41Bound = "true";
+      if (button.dataset.v45Bound === "true") return;
+      button.dataset.v45Bound = "true";
       button.addEventListener("click", () => {
-        const original = $("circle-profile-menu-button");
-        original?.click();
+        $("circle-profile-menu-button")?.click();
         button.closest("details")?.removeAttribute("open");
       });
     });
   }
 
-  function renameConnectionButton() {
-    const button = $("circle-connection-action");
-    if (!button) return;
-
-    const replacements = new Map([
-      ["Add to Circle", "Add Friend"],
-      ["In Your Circle ✓", "Friends ✓"],
-      ["Sign in to Connect", "Sign in to Add Friend"],
-      ["Respond to Request", "Respond"],
-      ["Requested ✓", "Requested ✓"]
-    ]);
-
-    const current = String(button.textContent || "").trim();
-    const next = replacements.get(current);
-    if (next && next !== current) button.textContent = next;
-  }
-
-  function simplifyProfileMenu() {
-    const share = $("circle-share-profile-button");
-    if (share && share.textContent.trim() !== "Share Profile") share.textContent = "Share Profile";
-
-    const remove = $("circle-remove-connection-button");
-    if (remove && remove.textContent.trim() !== "Remove Friend") remove.textContent = "Remove Friend";
-  }
-
-  function ensureSeeFriendsButton() {
-    const ownerActions = $("circle-owner-actions");
-    if (!ownerActions || $("circle-see-friends-action")) return;
-
-    const button = document.createElement("button");
-    button.id = "circle-see-friends-action";
-    button.className = "circle-button circle-button--secondary";
-    button.type = "button";
-    button.dataset.circleAction = "view-entire-circle";
-    button.textContent = "See Friends";
-    ownerActions.append(button);
-  }
-
-  function reorderVisitorActions() {
-    const actions = $("circle-visitor-actions");
-    const connection = $("circle-connection-action");
-    const message = $("circle-message-action");
-    if (!actions || !connection || !message) return;
-
-    const connected = connection.dataset.v4TargetFriends === "true" || /friends?\s*✓|see friends|in your circle/i.test(connection.textContent || "");
-    if (connected) {
-      if (actions.firstElementChild !== message) actions.insertBefore(message, connection);
-      return;
-    }
-
-    if (actions.firstElementChild !== connection) actions.insertBefore(connection, message);
-  }
-
-  function simplifyProfile() {
-    const nav = $("circleV3Nav");
-    if (nav) {
-      nav.innerHTML = `
-        <a href="ari-circle-feed.html">Feed</a>
-        <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
-        <a href="ari-circle-partners.html">Buddies</a>
-        <a href="ari-circle-challenges.html">Challenges</a>
-      `;
-      nav.dataset.v4Ready = "true";
-    }
-
-    hide("circleV3Hubs");
-    hide("circle-top");
-    hide("circle-love");
-    hide("circle-details");
-    hide("circleV3AchievementsPanel");
-
-    $("circleV3Summary")?.remove();
-    document.querySelector(".circle-v3-name-flair")?.remove();
-    document.querySelector('[data-v3-profile-tab="achievements"]')?.remove();
-
-    const tabs = $("circleV3ProfileTabs");
-    if (tabs && !tabs.querySelector('[data-v3-profile-tab="posts"].is-active') && !tabs.querySelector('[data-v3-profile-tab="about"].is-active')) {
-      tabs.querySelector('[data-v3-profile-tab="posts"]')?.click();
-    }
-
-    ensureProfileHeader();
-    ensureSeeFriendsButton();
-    reorderVisitorActions();
-    renameConnectionButton();
-    simplifyProfileMenu();
-  }
-
   function cleanProfileEditorLabels() {
     const editor = $("circle-profile-editor");
-    if (!editor) return;
-
+    if (!editor || editor.dataset.v45Labels === "true") return;
     const prompts = [
       ["ask me about", "Ask me about..."],
       ["current obsession", "Current obsession..."],
@@ -232,76 +180,35 @@
       ["weirdly good at", "Weirdly good at..."],
       ["perfect night looks like", "Perfect night looks like..."]
     ];
-
-    editor.querySelectorAll("label, legend, .circle-editor-field__label").forEach((element) => {
-      const text = String(element.textContent || "").trim();
-      const lower = text.toLowerCase();
+    editor.querySelectorAll("label, legend, .circle-editor-field__label").forEach((el) => {
+      const lower = String(el.textContent || "").trim().toLowerCase();
       const match = prompts.find(([needle]) => lower.includes(needle));
-      if (match && text !== match[1]) element.textContent = match[1];
+      if (match) el.textContent = match[1];
     });
-  }
-
-  function simplifyFriendsDialog() {
-    const dialog = $("circle-members-dialog");
-    if (!dialog) return;
-
-    const eyebrow = dialog.querySelector(".circle-section-eyebrow");
-    if (eyebrow && eyebrow.textContent.trim() !== "YOUR SOCIAL CIRCLE") eyebrow.textContent = "YOUR SOCIAL CIRCLE";
-
-    const title = dialog.querySelector(".circle-dialog__header h2");
-    if (title) {
-      const count = $("circle-members-title-count");
-      const first = title.firstChild;
-      if (first?.nodeType === Node.TEXT_NODE && first.textContent.trim() !== "Friends") first.textContent = "Friends ";
-      if (count && count.parentElement !== title) title.append(count);
-    }
-  }
-
-  function renameLegacyPartnerLabels() {
-    document.querySelectorAll(".feed-post__type, .circle-v3-post__type").forEach((element) => {
-      const current = String(element.textContent || "");
-      if (/\bPartner\b/i.test(current)) element.textContent = current.replace(/Partner/gi, "Buddy");
-    });
-  }
-
-  function closeMenuOnNavigation() {
-    document.querySelectorAll(".circle-v4-menu").forEach((details) => {
-      if (details.dataset.v4Bound === "true") return;
-      details.dataset.v4Bound = "true";
-      details.addEventListener("click", (event) => {
-        if (event.target.closest("a")) details.open = false;
-      });
-    });
-  }
-
-  function openMembersPanel(panel) {
-    const button = $("circle-see-friends-action") || document.querySelector('[data-circle-action="view-entire-circle"]');
-    if (!button) return false;
-
-    button.click();
-    panelHandled = true;
-
-    if (panel === "requests" || panel === "sent") {
-      window.setTimeout(() => {
-        document.querySelector(`[data-circle-members-tab="${panel}"]`)?.click();
-      }, 80);
-    }
-
-    return true;
+    editor.dataset.v45Labels = "true";
   }
 
   function openRequestedPanel() {
-    if (panelHandled || !appReady) return;
-    if (!document.body.classList.contains("ari-circle-page")) return;
-
+    if (panelHandled || !appReady || !document.body.classList.contains("ari-circle-page")) return;
     const panel = new URLSearchParams(window.location.search).get("panel");
-    if (!panel) {
+    if (!panel) { panelHandled = true; return; }
+
+    if (panel === "messages" || panel === "message") {
       panelHandled = true;
+      const user = new URLSearchParams(window.location.search).get("user");
+      window.location.replace(user
+        ? `ari-circle-messages.html?user=${encodeURIComponent(user)}`
+        : "ari-circle-messages.html");
       return;
     }
 
-    if (["friends", "requests", "sent"].includes(panel)) {
-      openMembersPanel(panel);
+    if (["friends","requests","sent"].includes(panel)) {
+      const button = $("circle-see-friends-action") || document.querySelector('[data-circle-action="view-entire-circle"]');
+      if (button) {
+        panelHandled = true;
+        button.click();
+        if (panel !== "friends") setTimeout(() => document.querySelector(`[data-circle-members-tab="${panel}"]`)?.click(), 80);
+      }
       return;
     }
 
@@ -311,108 +218,64 @@
         panelHandled = true;
         button.click();
       }
-      return;
-    }
-
-    if (panel === "messages") {
-      const button = $("circle-messages-button");
-      if (button) {
-        panelHandled = true;
-        window.setTimeout(() => button.click(), 40);
-      }
-      return;
-    }
-
-    if (panel === "message") {
-      const button = $("circle-message-action");
-      if (button) {
-        panelHandled = true;
-        window.setTimeout(() => button.click(), 60);
-      }
     }
   }
 
-  function loadBuddiesSocial() {
-    if (buddiesLoaded || !document.querySelector(".partner-page")) return;
-    buddiesLoaded = true;
-    import("/js/ari-circle/buddies/buddies-social.js?v=1.0.0").catch((error) => {
-      buddiesLoaded = false;
-      console.warn("ARI Circle Buddies social discovery failed to load:", error);
-    });
-  }
-
-  function loadFlowFixes() {
-    if (flowFixesLoaded) return;
-    flowFixesLoaded = true;
-    import("/js/ari-circle/v4-flow-fixes.js?v=1.0.0")
-      .then(() => window.AriCircleV4FlowFixes?.refresh?.())
-      .catch((error) => {
+  function loadModules() {
+    if (!flowFixesLoaded) {
+      flowFixesLoaded = true;
+      import("/js/ari-circle/v4-flow-fixes.js?v=1.1.0").catch((error) => {
         flowFixesLoaded = false;
-        console.warn("ARI Circle V4 flow fixes failed to load:", error);
+        console.warn("ARI Circle flow fixes failed to load:", error);
       });
-  }
+    }
 
-  function loadFeedCamera() {
-    if (feedCameraLoaded || !document.querySelector(".feed-page")) return;
-    feedCameraLoaded = true;
-    import("/js/ari-circle/media/camera-capture.js?v=1.0.0")
-      .then(() => window.AriCircleCamera?.refresh?.())
-      .catch((error) => {
+    if (!buddiesLoaded && document.querySelector(".partner-page")) {
+      buddiesLoaded = true;
+      import("/js/ari-circle/buddies/buddies-social.js?v=1.2.0").catch((error) => {
+        buddiesLoaded = false;
+        console.warn("ARI Circle Buddies social discovery failed to load:", error);
+      });
+    }
+
+    if (!feedCameraLoaded && document.querySelector(".feed-page")) {
+      feedCameraLoaded = true;
+      import("/js/ari-circle/media/camera-capture.js?v=1.0.1").catch((error) => {
         feedCameraLoaded = false;
         console.warn("ARI Circle camera failed to load:", error);
       });
-  }
+    }
 
-  function loadFeedPolish() {
-    if (feedPolishLoaded || !document.querySelector(".feed-page")) return;
-    feedPolishLoaded = true;
-    import("/js/ari-circle/feed/feed-polish.js?v=1.0.0")
-      .then(() => window.AriCircleFeedPolish?.refresh?.())
-      .catch((error) => {
+    if (!feedPolishLoaded && document.querySelector(".feed-page")) {
+      feedPolishLoaded = true;
+      import("/js/ari-circle/feed/feed-polish.js?v=1.0.1").catch((error) => {
         feedPolishLoaded = false;
         console.warn("ARI Circle feed polish failed to load:", error);
       });
+    }
   }
 
   function run() {
-    scheduled = false;
     ensurePolishStyle();
-    standardizeExistingMenus();
-    standardizeMessageIcons();
+    standardizeMenus();
+    standardizeMessages();
     simplifyProfile();
     cleanProfileEditorLabels();
-    simplifyFriendsDialog();
-    renameLegacyPartnerLabels();
     bindProfileOptions();
-    closeMenuOnNavigation();
+    loadModules();
     openRequestedPanel();
-    loadBuddiesSocial();
-    loadFlowFixes();
-    loadFeedCamera();
-    loadFeedPolish();
   }
 
-  function schedule() {
-    if (scheduled) return;
-    scheduled = true;
-    window.requestAnimationFrame(run);
-  }
+  document.addEventListener("DOMContentLoaded", () => {
+    run();
+    setTimeout(run, 120);
+  }, { once: true });
 
-  document.addEventListener("DOMContentLoaded", schedule, { once: true });
   document.addEventListener("circle:app-ready", () => {
     appReady = true;
-    schedule();
+    run();
+    setTimeout(run, 120);
   });
 
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true
-  });
-
-  window.AriCircleV4 = Object.freeze({
-    version: VERSION,
-    refresh: schedule
-  });
+  window.AriCircleV4 = Object.freeze({ version: VERSION, refresh: run });
 })();
