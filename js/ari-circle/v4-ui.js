@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.1.0
+   Version: 4.1.1
 
    UI-only enhancement layer. It intentionally leaves the existing
    Supabase tables, RPCs, stores, and persistence behavior untouched.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.1.0";
+  const VERSION = "4.1.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let scheduled = false;
   let panelHandled = false;
@@ -188,8 +188,6 @@
       nav.dataset.v4Ready = "true";
     }
 
-    // Keep the hub element in the DOM as an anchor for the existing
-    // one-time age-safety gate, but keep its redundant cards invisible.
     hide("circleV3Hubs");
     hide("circle-top");
     hide("circle-love");
@@ -242,12 +240,17 @@
     if (!dialog) return;
 
     const eyebrow = dialog.querySelector(".circle-section-eyebrow");
-    if (eyebrow) eyebrow.textContent = "YOUR SOCIAL CIRCLE";
+    if (eyebrow && eyebrow.textContent.trim() !== "YOUR SOCIAL CIRCLE") {
+      eyebrow.textContent = "YOUR SOCIAL CIRCLE";
+    }
 
     const title = dialog.querySelector(".circle-dialog__header h2");
     if (title) {
       const count = $("circle-members-title-count");
-      title.firstChild.textContent = "Friends ";
+      const first = title.firstChild;
+      if (first?.nodeType === Node.TEXT_NODE && first.textContent.trim() !== "Friends") {
+        first.textContent = "Friends ";
+      }
       if (count && count.parentElement !== title) title.append(count);
     }
   }
