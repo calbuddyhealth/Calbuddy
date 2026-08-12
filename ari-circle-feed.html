@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f8faff" />
+  <title>Feed | ARI Circle</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-feed.css?v=1.0.0" />
+</head>
+<body>
+  <main class="feed-page" id="feedPage" hidden>
+    <header class="feed-header">
+      <a class="feed-icon-button" href="ari-circle.html" aria-label="Back to ARI Circle">←</a>
+      <a class="feed-brand" href="ari-circle.html" aria-label="ARI Circle">
+        <span class="feed-brand__mark" aria-hidden="true"><i></i><i></i></span>
+        <span>ARI CIRCLE</span>
+      </a>
+      <a class="feed-header-link" href="ari-circle.html">Circle</a>
+    </header>
+
+    <nav class="feed-tabs" aria-label="ARI Circle sections">
+      <a class="feed-tab is-active" href="ari-circle-feed.html" aria-current="page">Feed</a>
+      <a class="feed-tab" href="ari-circle-partners.html">Partners</a>
+      <button type="button" class="feed-tab" data-coming-soon="Challenges">Challenges</button>
+      <a class="feed-tab" href="ari-circle.html">Me</a>
+    </nav>
+
+    <section class="feed-hero" aria-labelledby="feedTitle">
+      <p class="feed-kicker">ARI CIRCLE FEED</p>
+      <h1 id="feedTitle">Share the moment.</h1>
+      <p>Workouts, wins, meals, progress, plans, and the little things that keep people moving.</p>
+    </section>
+
+    <section class="feed-composer" aria-labelledby="composerTitle">
+      <div class="feed-composer__top">
+        <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
+        <div>
+          <p class="feed-kicker">POST TO YOUR CIRCLE</p>
+          <h2 id="composerTitle">What happened?</h2>
+        </div>
+      </div>
+
+      <div class="feed-type-strip" id="postTypeStrip" role="list" aria-label="Post type">
+        <button type="button" class="feed-type-chip is-active" data-post-type="thought">Thought</button>
+        <button type="button" class="feed-type-chip" data-post-type="workout">Workout</button>
+        <button type="button" class="feed-type-chip" data-post-type="progress">Progress</button>
+        <button type="button" class="feed-type-chip" data-post-type="meal">Meal</button>
+        <button type="button" class="feed-type-chip" data-post-type="activity">Activity</button>
+        <button type="button" class="feed-type-chip" data-post-type="partner">Partner request</button>
+      </div>
+
+      <form id="feedComposerForm">
+        <label class="sr-only" for="feedPostBody">Write a post</label>
+        <textarea id="feedPostBody" maxlength="1200" rows="4" placeholder="Share something worth showing up for…" required></textarea>
+
+        <div class="feed-composer__meta">
+          <label class="feed-inline-field" for="feedPostActivity">
+            <span>Activity <small>optional</small></span>
+            <input id="feedPostActivity" maxlength="60" type="text" placeholder="Chest day, trail run, meal prep…" />
+          </label>
+          <div class="feed-composer__counter"><span id="postCharCount">0</span>/1200</div>
+        </div>
+
+        <div class="feed-composer__actions">
+          <span class="feed-composer__privacy">Visible only inside your verified age group.</span>
+          <button class="feed-primary" id="publishPostButton" type="submit">Share</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="feed-rewards" aria-labelledby="rewardsTitle">
+      <div class="feed-section-heading">
+        <div>
+          <p class="feed-kicker">ARI FLAIR</p>
+          <h2 id="rewardsTitle">Your signal</h2>
+        </div>
+        <span class="feed-section-note" id="rewardCount">0 unlocked</span>
+      </div>
+      <div class="feed-reward-strip" id="rewardStrip" aria-live="polite"></div>
+    </section>
+
+    <section class="feed-stream" aria-labelledby="streamTitle">
+      <div class="feed-section-heading">
+        <div>
+          <p class="feed-kicker">WHAT’S HAPPENING</p>
+          <h2 id="streamTitle">Feed</h2>
+        </div>
+        <button class="feed-text-button" id="refreshFeedButton" type="button">Refresh</button>
+      </div>
+
+      <p class="feed-status" id="feedStatus" role="status" aria-live="polite">Loading your Circle…</p>
+      <div class="feed-list" id="feedList" aria-live="polite"></div>
+
+      <div class="feed-empty" id="feedEmpty" hidden>
+        <span aria-hidden="true">✦</span>
+        <h3>Quiet in here.</h3>
+        <p>Be the first person to post something worth celebrating.</p>
+        <button class="feed-primary" id="emptyComposeButton" type="button">Share something</button>
+      </div>
+
+      <button class="feed-secondary feed-full" id="loadMoreButton" type="button" hidden>Load more</button>
+    </section>
+
+    <section class="feed-safety-note">
+      <span aria-hidden="true">◎</span>
+      <div>
+        <strong>Different ages, different Circles.</strong>
+        <p>Teen and adult feeds are separated. Blocked accounts are excluded from your feed and interactions.</p>
+      </div>
+    </section>
+
+    <footer class="feed-footer">
+      <span>ARI CIRCLE</span>
+      <p>Show up. Share progress. Hype each other up.</p>
+    </footer>
+  </main>
+
+  <section class="feed-loading" id="feedLoading" aria-live="polite">
+    <div class="feed-loading__orb" aria-hidden="true"></div>
+    <strong>Opening your Circle</strong>
+  </section>
+
+  <dialog class="feed-dialog" id="ageDialog">
+    <form class="feed-dialog__card" id="ageForm">
+      <p class="feed-kicker">ONE-TIME SAFETY CHECK</p>
+      <h2>Verify your age</h2>
+      <p>Your birthday stays private. ARI uses it to keep teen and adult social spaces separate.</p>
+      <label class="feed-field" for="ageDateInput">
+        <span>Date of birth</span>
+        <input id="ageDateInput" type="date" autocomplete="bday" required />
+      </label>
+      <button class="feed-primary feed-full" id="verifyAgeButton" type="submit">Continue</button>
+    </form>
+  </dialog>
+
+  <dialog class="feed-dialog feed-sheet" id="reactionDialog">
+    <div class="feed-dialog__card">
+      <button class="feed-close" type="button" data-close-dialog="reactionDialog" aria-label="Close">×</button>
+      <p class="feed-kicker">REACT YOUR WAY</p>
+      <h2>Add a reaction</h2>
+      <div class="feed-emoji-grid" id="quickReactionGrid">
+        <button type="button" data-reaction="🔥">🔥</button>
+        <button type="button" data-reaction="💪">💪</button>
+        <button type="button" data-reaction="👏">👏</button>
+        <button type="button" data-reaction="❤️">❤️</button>
+        <button type="button" data-reaction="⚡">⚡</button>
+        <button type="button" data-reaction="😂">😂</button>
+        <button type="button" data-reaction="🎉">🎉</button>
+        <button type="button" data-reaction="🧠">🧠</button>
+      </div>
+      <form id="customReactionForm" class="feed-custom-reaction">
+        <label for="customReactionInput">Any emoji</label>
+        <div>
+          <input id="customReactionInput" maxlength="16" inputmode="text" autocomplete="off" placeholder="🫡" />
+          <button class="feed-primary" type="submit">React</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog class="feed-dialog feed-sheet" id="commentsDialog">
+    <div class="feed-dialog__card feed-comments-card">
+      <button class="feed-close" type="button" data-close-dialog="commentsDialog" aria-label="Close">×</button>
+      <p class="feed-kicker">CONVERSATION</p>
+      <h2>Comments</h2>
+      <div class="feed-comments-list" id="commentsList"></div>
+      <div class="feed-empty feed-empty--compact" id="commentsEmpty" hidden>
+        <p>No comments yet. Say something.</p>
+      </div>
+      <form class="feed-comment-form" id="commentForm">
+        <label class="sr-only" for="commentInput">Write a comment</label>
+        <input id="commentInput" maxlength="600" autocomplete="off" placeholder="Add a comment…" required />
+        <button class="feed-primary" type="submit">Send</button>
+      </form>
+    </div>
+  </dialog>
+
+  <div class="feed-toast" id="feedToast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/ari-circle/feed/feed.js?v=1.0.0" defer></script>
+</body>
+</html>
