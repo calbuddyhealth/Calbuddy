@@ -1,20 +1,30 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE SOCIAL FLOW
-   Version: 1.1.0
+   Version: 1.2.0
 
-   No whole-page observer. Keeps Profile ownership, friend lists,
-   post options, and direct messaging deterministic on iOS Safari.
+   V1.2:
+   - Resolves one relationship state for every viewed profile.
+   - Own profile can only show Edit Profile + See Friends.
+   - Friend profiles show Message + See Friends.
+   - New profiles show Add Friend + Message.
+   - Pending/blocked states are deterministic instead of label-driven.
+   - Uses a narrow action-only observer to stop legacy UI from
+     re-exposing visitor controls without freezing Safari.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const STYLE_ID = "ari-circle-v4-flow-fixes-style";
   const state = {
     client: null,
     viewerUserId: null,
     profileUserId: null,
+    relationship: "unknown",
+    connectionId: null,
+    applyingActions: false,
+    actionObserver: null,
     postId: null,
     postOwner: false,
     postMediaPath: null,
@@ -35,7 +45,7 @@
     const link = document.createElement("link");
     link.id = STYLE_ID;
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-v4-flow-fixes.css?v=1.0.0";
+    link.href = "assets/css/ari-circle-v4-flow-fixes.css?v=1.1.0";
     document.head.append(link);
   }
 
@@ -86,71 +96,178 @@
     state.profileUserId = state.viewerUserId;
   }
 
+  async function resolveRelationship() {
+    if (!state.viewerUserId || !state.profileUserId) return;
+    if (state.viewerUserId === state.profileUserId) {
+      state.relationship = "self";
+      state.connectionId = null;
+      return;
+    }
+
+    try {
+      const result = await rpc("ari_circle_relationship_state", {
+        requested_user_id: state.profileUserId
+      });
+      const row = Array.isArray(result) ? result[0] : result;
+      state.relationship = clean(row?.relationship_state) || "stranger";
+      state.connectionId = clean(row?.connection_id) || null;
+    } catch (error) {
+      console.warn("ARI Circle relationship state unavailable:", error);
+      state.relationship = "stranger";
+      state.connectionId = null;
+    }
+  }
+
   function ensureOwnSeeFriends() {
     const actions = $("circle-owner-actions");
-    if (!actions || $("circle-see-friends-action")) return;
-    const button = document.createElement("button");
-    button.id = "circle-see-friends-action";
-    button.className = "circle-button circle-button--secondary";
-    button.type = "button";
-    button.dataset.circleAction = "view-entire-circle";
+    if (!actions) return null;
+    let button = $("circle-see-friends-action");
+    if (!button) {
+      button = document.createElement("button");
+      button.id = "circle-see-friends-action";
+      button.className = "circle-button circle-button--secondary";
+      button.type = "button";
+      button.dataset.circleAction = "view-entire-circle";
+      button.textContent = "See Friends";
+      actions.append(button);
+    }
+    return button;
+  }
+
+  function wireProfileMessage(button) {
+    if (!button || !state.profileUserId) return;
+    button.disabled = false;
+    button.hidden = false;
+    button.textContent = "Message";
+    button.removeAttribute("data-circle-action");
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      location.href = `ari-circle-messages.html?user=${encodeURIComponent(state.profileUserId)}`;
+    };
+  }
+
+  function wireTargetFriends(button) {
+    if (!button || !state.profileUserId) return;
+    button.disabled = false;
+    button.hidden = false;
     button.textContent = "See Friends";
-    actions.append(button);
+    button.dataset.v4TargetFriends = "true";
+    button.removeAttribute("data-circle-action");
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openProfileFriends(state.profileUserId);
+    };
+  }
+
+  function restoreLegacyConnectionAction(button) {
+    if (!button) return;
+    button.dataset.v4TargetFriends = "false";
+    button.onclick = null;
+    button.disabled = false;
+    button.hidden = false;
+    button.dataset.circleAction = "connection";
+  }
+
+  function applyProfileActions() {
+    if (state.applyingActions || !document.body.classList.contains("ari-circle-page")) return;
+    const ownerActions = $("circle-owner-actions");
+    const visitorActions = $("circle-visitor-actions");
+    if (!ownerActions || !visitorActions) return;
+
+    state.applyingActions = true;
+    try {
+      const edit = $("circle-edit-profile-action");
+      const connection = $("circle-connection-action");
+      const message = $("circle-message-action");
+      const owner = state.relationship === "self" || state.viewerUserId === state.profileUserId;
+
+      ownerActions.hidden = !owner;
+      ownerActions.style.display = owner ? "grid" : "none";
+      visitorActions.hidden = owner;
+      visitorActions.style.display = owner ? "none" : "grid";
+
+      if (owner) {
+        if (edit) {
+          edit.hidden = false;
+          edit.disabled = false;
+          edit.textContent = "Edit Profile";
+        }
+        ensureOwnSeeFriends();
+        return;
+      }
+
+      if (!connection || !message) return;
+      visitorActions.classList.toggle("is-connected", state.relationship === "friend");
+      wireProfileMessage(message);
+
+      switch (state.relationship) {
+        case "friend":
+          wireTargetFriends(connection);
+          if (visitorActions.firstElementChild !== message) visitorActions.insertBefore(message, connection);
+          break;
+
+        case "outgoing_pending":
+          restoreLegacyConnectionAction(connection);
+          connection.removeAttribute("data-circle-action");
+          connection.textContent = "Requested ✓";
+          connection.disabled = true;
+          if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
+          break;
+
+        case "incoming_pending":
+          restoreLegacyConnectionAction(connection);
+          connection.textContent = "Respond";
+          if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
+          break;
+
+        case "blocked":
+          connection.hidden = true;
+          message.hidden = true;
+          break;
+
+        case "stranger":
+        default:
+          restoreLegacyConnectionAction(connection);
+          connection.textContent = "Add Friend";
+          if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
+          break;
+      }
+    } finally {
+      state.applyingActions = false;
+    }
+  }
+
+  function bindProfileActionGuard() {
+    if (state.actionObserver || !document.body.classList.contains("ari-circle-page")) return;
+    const ownerActions = $("circle-owner-actions");
+    const visitorActions = $("circle-visitor-actions");
+    if (!ownerActions || !visitorActions) return;
+
+    state.actionObserver = new MutationObserver(() => {
+      if (state.applyingActions) return;
+      requestAnimationFrame(applyProfileActions);
+    });
+
+    [ownerActions, visitorActions].forEach((node) => {
+      state.actionObserver.observe(node, {
+        attributes: true,
+        attributeFilter: ["hidden", "style", "class"],
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    });
   }
 
   async function syncProfileActions() {
     if (!document.body.classList.contains("ari-circle-page")) return;
     await resolveProfileContext();
     if (!state.viewerUserId || !state.profileUserId) return;
-
-    const owner = state.viewerUserId === state.profileUserId;
-    const ownerActions = $("circle-owner-actions");
-    const visitorActions = $("circle-visitor-actions");
-    const connection = $("circle-connection-action");
-    const message = $("circle-message-action");
-
-    if (ownerActions) {
-      if (ownerActions.hidden !== !owner) ownerActions.hidden = !owner;
-      ownerActions.style.display = owner ? "grid" : "none";
-    }
-    if (visitorActions) {
-      if (visitorActions.hidden !== owner) visitorActions.hidden = owner;
-      visitorActions.style.display = owner ? "none" : "grid";
-    }
-
-    if (owner) {
-      ensureOwnSeeFriends();
-      return;
-    }
-
-    if (!connection || !message || !visitorActions) return;
-    const label = clean(connection.textContent);
-    const connected = /friends?\s*✓|in your circle|see friends/i.test(label) || connection.dataset.v4TargetFriends === "true";
-
-    message.disabled = false;
-    message.textContent = "Message";
-    message.removeAttribute("data-circle-action");
-    message.onclick = (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      location.href = `ari-circle-messages.html?user=${encodeURIComponent(state.profileUserId)}`;
-    };
-
-    if (connected) {
-      connection.textContent = "See Friends";
-      connection.dataset.v4TargetFriends = "true";
-      connection.removeAttribute("data-circle-action");
-      connection.onclick = (event) => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        openProfileFriends(state.profileUserId);
-      };
-      if (visitorActions.firstElementChild !== message) visitorActions.insertBefore(message, connection);
-    } else {
-      connection.dataset.v4TargetFriends = "false";
-      if (/add to circle/i.test(label)) connection.textContent = "Add Friend";
-      if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
-    }
+    await resolveRelationship();
+    applyProfileActions();
+    bindProfileActionGuard();
   }
 
   function friendsDialog() {
@@ -181,7 +298,7 @@
     const status = $("circleProfileFriendsStatus");
     const host = $("circleProfileFriendsList");
     const name = clean($("circle-display-name")?.textContent) || "Their";
-    title.textContent = `${name}'s Friends`;
+    title.textContent = id === state.viewerUserId ? "Your Friends" : `${name}'s Friends`;
     status.textContent = "Loading friends…";
     host.replaceChildren();
     if (!dialog.open) dialog.showModal();
@@ -337,5 +454,10 @@
   document.addEventListener("DOMContentLoaded", init, { once: true });
   document.addEventListener("circle:app-ready", () => { run(); setTimeout(run, 100); });
 
-  window.AriCircleV4FlowFixes = Object.freeze({ version: VERSION, refresh: run, openProfileFriends });
+  window.AriCircleV4FlowFixes = Object.freeze({
+    version: VERSION,
+    refresh: run,
+    openProfileFriends,
+    relationship: () => state.relationship
+  });
 })();
