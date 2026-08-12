@@ -1,0 +1,205 @@
+/* =============================================================
+   ARI CIRCLE — LAUNCH HARDENING
+   Version: 1.0.0
+   Purpose:
+   - Keep Moment controls safely grouped at the top-right.
+   - Make ARI Camera feel like a true full-view social camera.
+   - Preserve a comfortable full field of view while avoiding letterbox bars.
+   - Polish the post options sheet for launch.
+============================================================= */
+
+/* -----------------------------
+   POST OPTIONS
+----------------------------- */
+.circle-launch-post-options {
+  width: min(calc(100vw - 24px), 430px);
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: transparent;
+}
+
+.circle-launch-post-options::backdrop {
+  background: rgba(7, 12, 25, .34);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.circle-launch-post-options__panel {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.96);
+  border-radius: 24px;
+  background: rgba(251, 252, 255, .98);
+  box-shadow: 0 26px 90px rgba(20, 35, 78, .18);
+}
+
+.circle-launch-post-options__title {
+  padding: 17px 18px 10px;
+  color: #7b879c;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+.circle-launch-post-options__panel button {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border: 0;
+  border-top: 1px solid rgba(34, 73, 151, .08);
+  color: #111d35;
+  background: transparent;
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 760;
+  text-align: left;
+}
+
+.circle-launch-post-options__panel button:active {
+  background: #f1f5ff;
+}
+
+.circle-launch-post-options__panel button[data-danger="true"] {
+  color: #c93f55;
+}
+
+/* -----------------------------
+   MOMENT VIEWER
+----------------------------- */
+.feed-moment-viewer__top {
+  position: absolute !important;
+  top: max(14px, env(safe-area-inset-top)) !important;
+  left: 14px !important;
+  right: 14px !important;
+  bottom: auto !important;
+  z-index: 20 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  pointer-events: none;
+}
+
+.feed-moment-viewer__top > * {
+  pointer-events: auto;
+}
+
+.feed-moment-viewer__identity {
+  order: 1;
+  margin-right: auto;
+}
+
+#momentOptionsButton {
+  order: 2;
+  margin: 0 !important;
+}
+
+.feed-moment-viewer__top > button[data-close-dialog="momentViewer"] {
+  order: 3;
+  margin: 0 !important;
+}
+
+.feed-moment-options {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 50% !important;
+  background: rgba(6, 10, 18, .50) !important;
+}
+
+/* Keep the media under the controls rather than pushing controls around. */
+.feed-moment-viewer__card {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* -----------------------------
+   FULL-VIEW ARI CAMERA
+----------------------------- */
+.ari-camera,
+.ari-camera__shell,
+.ari-camera__stage {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+}
+
+.ari-camera__shell {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.ari-camera__stage {
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+#ariCameraVideo {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  background: #000 !important;
+  transform: none !important;
+}
+
+.ari-camera__review,
+.ari-camera__review-media {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.ari-camera__review-media img,
+.ari-camera__review-media video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  background: #000 !important;
+}
+
+.ari-camera__topbar {
+  top: max(12px, env(safe-area-inset-top)) !important;
+  left: 14px !important;
+  right: 14px !important;
+}
+
+.ari-camera__status {
+  background: rgba(7, 10, 18, .34) !important;
+}
+
+.ari-camera__controls {
+  bottom: max(22px, env(safe-area-inset-bottom)) !important;
+}
+
+.ari-camera__record-meta {
+  bottom: calc(max(132px, env(safe-area-inset-bottom) + 118px)) !important;
+}
+
+@media (max-width: 520px) {
+  .circle-launch-post-options {
+    width: calc(100vw - 18px);
+    margin: auto 9px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .feed-moment-viewer__top {
+    left: 10px !important;
+    right: 10px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-launch-post-options__panel button {
+    transition: none !important;
+  }
+}
