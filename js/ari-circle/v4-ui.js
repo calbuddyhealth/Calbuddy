@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.0.0
+   Version: 4.0.1
 
    UI-only enhancement layer. It intentionally leaves the existing
    Supabase tables, RPCs, stores, and persistence behavior untouched.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.0.0";
+  const VERSION = "4.0.1";
   let scheduled = false;
   let panelHandled = false;
 
@@ -60,7 +60,9 @@
       nav.dataset.v4Ready = "true";
     }
 
-    $("circleV3Hubs")?.remove();
+    // Keep the hub element in the DOM as an anchor for the existing
+    // one-time age-safety gate, but keep the redundant cards invisible.
+    hide("circleV3Hubs");
     hide("circle-top");
     hide("circle-love");
     hide("circle-details");
