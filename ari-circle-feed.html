@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-feed.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v4-polish.css?v=4.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-media.css?v=1.0.0" />
 </head>
 <body>
   <main class="feed-page" id="feedPage" hidden>
@@ -39,64 +40,73 @@
 
     <nav class="feed-tabs" aria-label="ARI Circle sections">
       <a class="feed-tab is-active" href="ari-circle-feed.html" aria-current="page">Feed</a>
-      <a class="feed-tab" href="ari-circle.html">Me</a>
+      <a class="feed-tab" href="ari-circle.html">Profile</a>
       <a class="feed-tab" href="ari-circle-partners.html">Buddies</a>
       <a class="feed-tab" href="ari-circle-challenges.html">Challenges</a>
     </nav>
 
     <section class="feed-composer" aria-labelledby="composerTitle">
-      <div class="feed-composer__top">
-        <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
-        <div>
-          <p class="feed-kicker">POST TO YOUR CIRCLE</p>
-          <h2 id="composerTitle">Share with your Circle</h2>
-        </div>
-      </div>
-
       <form id="feedComposerForm">
+        <div class="feed-composer__top">
+          <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
+          <div>
+            <h2 id="composerTitle">Share with your Circle</h2>
+            <p>Text, photo, or a short video.</p>
+          </div>
+        </div>
+
         <label class="sr-only" for="feedPostBody">Write a post</label>
-        <textarea id="feedPostBody" maxlength="1200" rows="2" placeholder="What are you up to?" required></textarea>
+        <textarea id="feedPostBody" maxlength="1200" rows="2" placeholder="What are you up to?"></textarea>
 
-        <div class="feed-type-strip" id="postTypeStrip" role="list" aria-label="Post type">
-          <button type="button" class="feed-type-chip is-active" data-post-type="thought">Text</button>
-          <button type="button" class="feed-type-chip" data-post-type="workout">💪 Workout</button>
-          <button type="button" class="feed-type-chip" data-post-type="progress">↗ Progress</button>
-          <button type="button" class="feed-type-chip" data-post-type="meal">🍽️ Meal</button>
-          <button type="button" class="feed-type-chip" data-post-type="activity">⚡ Activity</button>
+        <div class="feed-media-preview" id="feedMediaPreview" hidden>
+          <div class="feed-media-preview__stage" id="feedMediaPreviewStage"></div>
+          <button class="feed-media-preview__remove" id="removeFeedMedia" type="button" aria-label="Remove selected media">×</button>
+          <div class="feed-media-preview__meta" id="feedMediaPreviewMeta"></div>
         </div>
 
-        <div class="feed-composer__meta">
-          <label class="feed-inline-field" for="feedPostActivity">
-            <span>Activity <small>optional</small></span>
-            <input id="feedPostActivity" maxlength="60" type="text" placeholder="Chest day, trail run, meal prep…" />
-          </label>
+        <input
+          id="feedMediaInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+          hidden
+        />
+
+        <div class="feed-composer__toolbar">
+          <button class="feed-media-button" id="feedMediaButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4.5 7.5A2.5 2.5 0 0 1 7 5h1.15l1-1.5h5.7l1 1.5H17a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z"></path>
+              <circle cx="12" cy="12" r="3.2"></circle>
+            </svg>
+            <span>Photo / Video</span>
+          </button>
+
           <div class="feed-composer__counter"><span id="postCharCount">0</span>/1200</div>
-        </div>
-
-        <div class="feed-composer__actions">
-          <span class="feed-composer__privacy">Visible only inside your verified age group.</span>
           <button class="feed-primary" id="publishPostButton" type="submit">Share</button>
         </div>
+
+        <div class="feed-moment-action" id="feedMomentAction" hidden>
+          <div>
+            <strong>Make it a Moment</strong>
+            <span>Photo or video · disappears after 24 hours</span>
+          </div>
+          <button class="feed-moment-button" id="shareMomentButton" type="button">Add to Moment</button>
+        </div>
+
+        <span class="feed-composer__privacy">Shared only inside your verified age group.</span>
       </form>
     </section>
 
-    <section class="feed-rewards" aria-labelledby="rewardsTitle">
-      <div class="feed-section-heading">
-        <div>
-          <p class="feed-kicker">ARI FLAIR</p>
-          <h2 id="rewardsTitle">Your signal</h2>
-        </div>
-        <span class="feed-section-note" id="rewardCount">0 unlocked</span>
+    <section class="feed-moments" id="momentsSection" aria-labelledby="momentsTitle" hidden>
+      <div class="feed-moments__heading">
+        <h2 id="momentsTitle">Moments</h2>
+        <span>24h</span>
       </div>
-      <div class="feed-reward-strip" id="rewardStrip" aria-live="polite"></div>
+      <div class="feed-moments__strip" id="momentsStrip" aria-live="polite"></div>
     </section>
 
     <section class="feed-stream" aria-labelledby="streamTitle">
       <div class="feed-section-heading">
-        <div>
-          <p class="feed-kicker">WHAT’S HAPPENING</p>
-          <h2 id="streamTitle">Feed</h2>
-        </div>
+        <div><h2 id="streamTitle">Feed</h2></div>
         <button class="feed-text-button" id="refreshFeedButton" type="button">Refresh</button>
       </div>
 
@@ -106,25 +116,12 @@
       <div class="feed-empty" id="feedEmpty" hidden>
         <span aria-hidden="true">✦</span>
         <h3>Quiet in here.</h3>
-        <p>Be the first person to post something worth celebrating.</p>
+        <p>Be the first person to share something.</p>
         <button class="feed-primary" id="emptyComposeButton" type="button">Share something</button>
       </div>
 
       <button class="feed-secondary feed-full" id="loadMoreButton" type="button" hidden>Load more</button>
     </section>
-
-    <section class="feed-safety-note">
-      <span aria-hidden="true">◎</span>
-      <div>
-        <strong>Different ages, different Circles.</strong>
-        <p>Teen and adult feeds are separated. Blocked accounts are excluded from your feed and interactions.</p>
-      </div>
-    </section>
-
-    <footer class="feed-footer">
-      <span>ARI CIRCLE</span>
-      <p>Show up. Share progress. Hype each other up.</p>
-    </footer>
   </main>
 
   <section class="feed-loading" id="feedLoading" aria-live="polite">
@@ -148,8 +145,8 @@
   <dialog class="feed-dialog feed-sheet" id="reactionDialog">
     <div class="feed-dialog__card">
       <button class="feed-close" type="button" data-close-dialog="reactionDialog" aria-label="Close">×</button>
-      <p class="feed-kicker">REACT YOUR WAY</p>
-      <h2>Add a reaction</h2>
+      <p class="feed-kicker">REACT</p>
+      <h2>Pick a reaction</h2>
       <div class="feed-emoji-grid" id="quickReactionGrid">
         <button type="button" data-reaction="🔥">🔥</button>
         <button type="button" data-reaction="💪">💪</button>
@@ -187,11 +184,26 @@
     </div>
   </dialog>
 
+  <dialog class="feed-moment-viewer" id="momentViewer">
+    <div class="feed-moment-viewer__card">
+      <div class="feed-moment-viewer__top">
+        <div class="feed-moment-viewer__identity" id="momentViewerIdentity"></div>
+        <button type="button" data-close-dialog="momentViewer" aria-label="Close Moment">×</button>
+      </div>
+      <div class="feed-moment-viewer__media" id="momentViewerMedia"></div>
+      <p class="feed-moment-viewer__caption" id="momentViewerCaption"></p>
+      <div class="feed-moment-viewer__controls">
+        <button id="momentPrevButton" type="button" aria-label="Previous Moment">‹</button>
+        <button id="momentNextButton" type="button" aria-label="Next Moment">›</button>
+      </div>
+    </div>
+  </dialog>
+
   <div class="feed-toast" id="feedToast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
-  <script src="js/ari-circle/feed/feed.js?v=1.0.0" defer></script>
-  <script src="js/ari-circle/v4-ui.js?v=4.1.2" defer></script>
+  <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>
+  <script src="js/ari-circle/v4-ui.js?v=4.2.0" defer></script>
 </body>
 </html>
