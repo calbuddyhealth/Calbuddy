@@ -1,0 +1,66 @@
+/* =============================================================
+   ARI CIRCLE — MESSAGE PRESENCE
+   Version: 1.0.0
+============================================================= */
+
+.circle-conversation__presence-dot,
+.circle-thread__presence-dot {
+  position: absolute;
+  z-index: 2;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid #f8faff;
+  border-radius: 50%;
+  background: #a7b0bf;
+  box-shadow: 0 0 0 1px rgba(15, 28, 58, 0.03);
+  transition: background 180ms ease, box-shadow 180ms ease;
+}
+
+.circle-conversation__presence-dot[data-status="online"],
+.circle-thread__presence-dot[data-status="online"] {
+  background: #18b86b;
+  box-shadow:
+    0 0 0 1px rgba(15, 28, 58, 0.03),
+    0 0 0 4px rgba(24, 184, 107, 0.09);
+}
+
+.circle-conversation__presence-dot[data-status="offline"],
+.circle-thread__presence-dot[data-status="offline"] {
+  background: #a7b0bf;
+}
+
+.circle-thread__avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+}
+
+.circle-thread__identity {
+  min-width: 0;
+}
+
+.circle-thread__identity strong,
+.circle-thread__identity small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.circle-thread__presence-text {
+  margin-top: 2px;
+  color: #7f899b;
+  font-size: 0.61rem;
+  font-weight: 650;
+}
+
+.circle-thread__presence-text[data-status="online"] {
+  color: #18a963;
+}
+
+.circle-thread__presence-text[data-status="offline"] {
+  color: #7f899b;
+}
