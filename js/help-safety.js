@@ -1,4 +1,4 @@
-/* ARI Rebirth — Help & Safety v1.0.0 */
+/* ARI Rebirth — Help & Safety v1.0.1 */
 
 (() => {
   "use strict";
@@ -36,8 +36,38 @@
     }
   }
 
+  function enterGuestMode() {
+    const submitButton = $("submitReportButton");
+
+    document.querySelectorAll('a[href="account.html"]').forEach((link) => {
+      link.href = "/signin.html";
+      if (link.classList.contains("ari-header-button")) {
+        link.textContent = "Sign in";
+      }
+    });
+
+    if (submitButton) {
+      submitButton.type = "button";
+      submitButton.textContent = "Sign in to send report";
+      submitButton.addEventListener("click", () => {
+        window.location.assign("/signin.html");
+      });
+    }
+
+    setStatus(
+      "Safety is available without an account. Sign in if you want to send a private report.",
+      "info"
+    );
+  }
+
   async function submitReport(event) {
     event.preventDefault();
+
+    if (!session?.user?.id) {
+      window.location.assign("/signin.html");
+      return;
+    }
+
     const details = String($("reportDetails").value || "").trim();
     const email = String($("reportEmail").value || "").trim();
 
@@ -92,10 +122,21 @@
   }
 
   async function init() {
-    session = await window.AriSettings.requireSession();
-    if (!session) return;
-    $("reportEmail").value = session.user.email || "";
+    try {
+      session = await window.AriSettings.getSession();
+    } catch (error) {
+      console.error("ARI safety session check failed:", error);
+      session = null;
+    }
+
     readContext();
+
+    if (!session) {
+      enterGuestMode();
+      return;
+    }
+
+    $("reportEmail").value = session.user.email || "";
     $("reportForm").addEventListener("submit", submitReport);
   }
 
