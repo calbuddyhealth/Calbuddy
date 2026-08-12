@@ -10,52 +10,59 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/ari-circle-feed.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
 </head>
 <body>
   <main class="feed-page" id="feedPage" hidden>
     <header class="feed-header">
-      <a class="feed-icon-button" href="ari-circle.html" aria-label="Back to ARI Circle">←</a>
-      <a class="feed-brand" href="ari-circle.html" aria-label="ARI Circle">
+      <details class="circle-v4-menu">
+        <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu">
+          <a href="ari-circle.html?panel=notifications"><span>Notifications</span><small>Activity</small></a>
+          <a href="ari-circle-partners.html"><span>Find People</span><small>Buddies</small></a>
+          <div class="circle-v4-menu__divider"></div>
+          <a href="account.html"><span>Account Settings</span><small>Privacy</small></a>
+          <a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a>
+          <div class="circle-v4-menu__divider"></div>
+          <a href="home.html"><span>Exit ARI Circle</span><small>ARI XP</small></a>
+        </nav>
+      </details>
+
+      <a class="feed-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed">
         <span class="feed-brand__mark" aria-hidden="true"><i></i><i></i></span>
         <span>ARI CIRCLE</span>
       </a>
-      <a class="feed-header-link" href="ari-circle.html">Circle</a>
+
+      <a class="circle-v4-message" href="ari-circle.html?panel=messages" aria-label="Messages">💬</a>
     </header>
 
     <nav class="feed-tabs" aria-label="ARI Circle sections">
       <a class="feed-tab is-active" href="ari-circle-feed.html" aria-current="page">Feed</a>
-      <a class="feed-tab" href="ari-circle-partners.html">Partners</a>
-      <a class="feed-tab" href="ari-circle-challenges.html">Challenges</a>
       <a class="feed-tab" href="ari-circle.html">Me</a>
+      <a class="feed-tab" href="ari-circle-partners.html">Buddies</a>
+      <a class="feed-tab" href="ari-circle-challenges.html">Challenges</a>
     </nav>
-
-    <section class="feed-hero" aria-labelledby="feedTitle">
-      <p class="feed-kicker">ARI CIRCLE FEED</p>
-      <h1 id="feedTitle">Share the moment.</h1>
-      <p>Workouts, wins, meals, progress, plans, and the little things that keep people moving.</p>
-    </section>
 
     <section class="feed-composer" aria-labelledby="composerTitle">
       <div class="feed-composer__top">
         <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
         <div>
           <p class="feed-kicker">POST TO YOUR CIRCLE</p>
-          <h2 id="composerTitle">What happened?</h2>
+          <h2 id="composerTitle">Share with your Circle</h2>
         </div>
-      </div>
-
-      <div class="feed-type-strip" id="postTypeStrip" role="list" aria-label="Post type">
-        <button type="button" class="feed-type-chip is-active" data-post-type="thought">Thought</button>
-        <button type="button" class="feed-type-chip" data-post-type="workout">Workout</button>
-        <button type="button" class="feed-type-chip" data-post-type="progress">Progress</button>
-        <button type="button" class="feed-type-chip" data-post-type="meal">Meal</button>
-        <button type="button" class="feed-type-chip" data-post-type="activity">Activity</button>
-        <button type="button" class="feed-type-chip" data-post-type="partner">Partner request</button>
       </div>
 
       <form id="feedComposerForm">
         <label class="sr-only" for="feedPostBody">Write a post</label>
-        <textarea id="feedPostBody" maxlength="1200" rows="4" placeholder="Share something worth showing up for…" required></textarea>
+        <textarea id="feedPostBody" maxlength="1200" rows="2" placeholder="What are you up to?" required></textarea>
+
+        <div class="feed-type-strip" id="postTypeStrip" role="list" aria-label="Post type">
+          <button type="button" class="feed-type-chip is-active" data-post-type="thought">Text</button>
+          <button type="button" class="feed-type-chip" data-post-type="workout">💪 Workout</button>
+          <button type="button" class="feed-type-chip" data-post-type="progress">↗ Progress</button>
+          <button type="button" class="feed-type-chip" data-post-type="meal">🍽️ Meal</button>
+          <button type="button" class="feed-type-chip" data-post-type="activity">⚡ Activity</button>
+        </div>
 
         <div class="feed-composer__meta">
           <label class="feed-inline-field" for="feedPostActivity">
@@ -184,5 +191,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/ari-circle/feed/feed.js?v=1.0.0" defer></script>
+  <script src="js/ari-circle/v4-ui.js?v=4.0.0" defer></script>
 </body>
 </html>
