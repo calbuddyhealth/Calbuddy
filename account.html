@@ -112,34 +112,50 @@
         </div>
       </section>
 
+      <section class="ari-settings-section ari-danger-section" aria-labelledby="accountControlTitle">
+        <div class="ari-section-heading">
+          <p class="ari-section-kicker">ACCOUNT CONTROL</p>
+          <h2 id="accountControlTitle">Pause or leave</h2>
+        </div>
+
+        <div class="ari-action-list">
+          <button
+            class="ari-action-card"
+            id="accountControlToggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="accountControlContent"
+          >
+            <span class="ari-action-icon ari-action-icon--muted" id="accountControlToggleIcon" aria-hidden="true">+</span>
+            <span class="ari-action-copy">
+              <strong>Account control</strong>
+              <small>Pause or permanently delete your account</small>
+            </span>
+            <span class="ari-action-arrow" id="accountControlToggleArrow" aria-hidden="true">›</span>
+          </button>
+
+          <div id="accountControlContent" hidden>
+            <button class="ari-action-card" id="pauseAccountButton" type="button">
+              <span class="ari-action-icon ari-action-icon--muted" aria-hidden="true">Ⅱ</span>
+              <span class="ari-action-copy"><strong>Pause account</strong><small>Hide your account until you return</small></span>
+              <span class="ari-action-arrow" aria-hidden="true">›</span>
+            </button>
+
+            <button class="ari-action-card ari-danger-card" id="deleteAccountButton" type="button">
+              <span class="ari-action-icon ari-action-icon--danger" aria-hidden="true">×</span>
+              <span class="ari-action-copy"><strong>Delete account</strong><small>Permanently delete after 7 days</small></span>
+              <span class="ari-action-arrow" aria-hidden="true">›</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section class="ari-settings-section" aria-labelledby="sessionTitle">
         <div class="ari-section-heading">
           <p class="ari-section-kicker">SESSION</p>
           <h2 id="sessionTitle">This device</h2>
         </div>
         <button class="ari-secondary-action" id="signOutButton" type="button">Sign out</button>
-      </section>
-
-      <section class="ari-settings-section ari-danger-section" aria-labelledby="accountControlTitle">
-        <div class="ari-section-heading">
-          <p class="ari-section-kicker">ACCOUNT CONTROL</p>
-          <h2 id="accountControlTitle">Pause or leave</h2>
-          <p>Pause is reversible. Deletion has a seven-day recovery period.</p>
-        </div>
-
-        <div class="ari-action-list">
-          <button class="ari-action-card" id="pauseAccountButton" type="button">
-            <span class="ari-action-icon ari-action-icon--muted" aria-hidden="true">Ⅱ</span>
-            <span class="ari-action-copy"><strong>Pause account</strong><small>Hide your account until you return</small></span>
-            <span class="ari-action-arrow" aria-hidden="true">›</span>
-          </button>
-
-          <button class="ari-action-card ari-danger-card" id="deleteAccountButton" type="button">
-            <span class="ari-action-icon ari-action-icon--danger" aria-hidden="true">×</span>
-            <span class="ari-action-copy"><strong>Delete account</strong><small>Permanently delete after 7 days</small></span>
-            <span class="ari-action-arrow" aria-hidden="true">›</span>
-          </button>
-        </div>
       </section>
     </div>
 
@@ -194,6 +210,6 @@
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/support-ari-config.js?v=1.0.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/account.js?v=3.0.0"></script>
+  <script src="js/account.js?v=3.1.0"></script>
 </body>
 </html>
