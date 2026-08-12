@@ -1,21 +1,21 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE SOCIAL FLOW
-   Version: 1.2.0
+   Version: 1.2.1
 
-   V1.2:
+   V1.2.1:
    - Resolves one relationship state for every viewed profile.
    - Own profile can only show Edit Profile + See Friends.
    - Friend profiles show Message + See Friends.
    - New profiles show Add Friend + Message.
    - Pending/blocked states are deterministic instead of label-driven.
-   - Uses a narrow action-only observer to stop legacy UI from
-     re-exposing visitor controls without freezing Safari.
+   - Watches only owner/visitor container visibility so legacy rendering
+     cannot re-expose the wrong controls and Safari cannot enter a DOM loop.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.2.1";
   const STYLE_ID = "ari-circle-v4-flow-fixes-style";
   const state = {
     client: null,
@@ -134,11 +134,15 @@
     return button;
   }
 
+  function setText(element, text) {
+    if (element && clean(element.textContent) !== text) element.textContent = text;
+  }
+
   function wireProfileMessage(button) {
     if (!button || !state.profileUserId) return;
     button.disabled = false;
     button.hidden = false;
-    button.textContent = "Message";
+    setText(button, "Message");
     button.removeAttribute("data-circle-action");
     button.onclick = (event) => {
       event.preventDefault();
@@ -151,7 +155,7 @@
     if (!button || !state.profileUserId) return;
     button.disabled = false;
     button.hidden = false;
-    button.textContent = "See Friends";
+    setText(button, "See Friends");
     button.dataset.v4TargetFriends = "true";
     button.removeAttribute("data-circle-action");
     button.onclick = (event) => {
@@ -183,16 +187,18 @@
       const message = $("circle-message-action");
       const owner = state.relationship === "self" || state.viewerUserId === state.profileUserId;
 
-      ownerActions.hidden = !owner;
-      ownerActions.style.display = owner ? "grid" : "none";
-      visitorActions.hidden = owner;
-      visitorActions.style.display = owner ? "none" : "grid";
+      if (ownerActions.hidden !== !owner) ownerActions.hidden = !owner;
+      if (visitorActions.hidden !== owner) visitorActions.hidden = owner;
+      const ownerDisplay = owner ? "grid" : "none";
+      const visitorDisplay = owner ? "none" : "grid";
+      if (ownerActions.style.display !== ownerDisplay) ownerActions.style.display = ownerDisplay;
+      if (visitorActions.style.display !== visitorDisplay) visitorActions.style.display = visitorDisplay;
 
       if (owner) {
         if (edit) {
           edit.hidden = false;
           edit.disabled = false;
-          edit.textContent = "Edit Profile";
+          setText(edit, "Edit Profile");
         }
         ensureOwnSeeFriends();
         return;
@@ -211,14 +217,14 @@
         case "outgoing_pending":
           restoreLegacyConnectionAction(connection);
           connection.removeAttribute("data-circle-action");
-          connection.textContent = "Requested ✓";
+          setText(connection, "Requested ✓");
           connection.disabled = true;
           if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
           break;
 
         case "incoming_pending":
           restoreLegacyConnectionAction(connection);
-          connection.textContent = "Respond";
+          setText(connection, "Respond");
           if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
           break;
 
@@ -230,7 +236,7 @@
         case "stranger":
         default:
           restoreLegacyConnectionAction(connection);
-          connection.textContent = "Add Friend";
+          setText(connection, "Add Friend");
           if (visitorActions.firstElementChild !== connection) visitorActions.insertBefore(connection, message);
           break;
       }
@@ -253,10 +259,7 @@
     [ownerActions, visitorActions].forEach((node) => {
       state.actionObserver.observe(node, {
         attributes: true,
-        attributeFilter: ["hidden", "style", "class"],
-        childList: true,
-        subtree: true,
-        characterData: true
+        attributeFilter: ["hidden", "style", "class"]
       });
     });
   }
