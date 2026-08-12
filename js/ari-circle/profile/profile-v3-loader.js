@@ -45,7 +45,7 @@ if (!document.getElementById(MEDIA_STYLE_ID)) {
 // v4-ui owns the social-flow modules so Profile only gets one copy of each.
 Promise.all([
   import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.6.2")
+  import("../v4-ui.js?v=4.6.4")
 ]).catch((error) => {
   console.error("ARI Circle profile enhancement failed to load:", error);
 });
