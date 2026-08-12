@@ -1,5 +1,6 @@
-// ARI Circle V3 profile data layer + V4 visual simplification loader.
-// Loaded only by the ARI Circle module graph.
+// ARI Circle lightweight V4 profile loader.
+// Keeps the legacy profile renderer/controllers while loading only the
+// social data the simplified profile actually displays.
 
 const PROFILE_STYLE_ID = "ari-circle-profile-v3-style";
 const V4_STYLE_ID = "ari-circle-v4-style";
@@ -35,7 +36,7 @@ if (!document.getElementById(V4_POLISH_STYLE_ID)) {
 }
 
 Promise.all([
-  import("./profile-v3.js?v=1.0.0"),
+  import("./profile-v4.js?v=4.1.0"),
   import("../v4-ui.js?v=4.1.2")
 ]).catch((error) => {
   console.error("ARI Circle profile enhancement failed to load:", error);
