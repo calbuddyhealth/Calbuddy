@@ -1,6 +1,12 @@
 /* =============================================================
    ARI CIRCLE — UNIFIED MESSAGES
-   Version: 1.0.0
+   Version: 1.1.0
+
+   V1.1:
+   - Header message cloud always lands on the inbox.
+   - Direct ?user links open only that person's thread.
+   - No giant empty "start conversation" state.
+   - Adds Messenger-style search, previews, timestamps, unread dots.
 ============================================================= */
 (() => {
   "use strict";
@@ -12,6 +18,7 @@
     conversations: [],
     activeConversationId: null,
     activeConversation: null,
+    query: "",
     busy: false,
     refreshTimer: 0
   };
@@ -30,6 +37,7 @@
   }
 
   function relativeTime(value) {
+    if (!value) return "";
     const date = new Date(value);
     const diff = Date.now() - date.getTime();
     if (!Number.isFinite(diff)) return "";
@@ -75,34 +83,52 @@
     return `<span class="${className}">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" />` : escapeHtml(initial(name))}</span>`;
   }
 
+  function filteredConversations() {
+    const q = state.query.toLowerCase();
+    if (!q) return state.conversations;
+    return state.conversations.filter((row) => {
+      return [row.display_name, row.handle, row.last_message_body]
+        .some((value) => clean(value).toLowerCase().includes(q));
+    });
+  }
+
   function renderInbox() {
     const host = $("conversationList");
     const empty = $("conversationEmpty");
     const status = $("inboxStatus");
     if (!host || !empty || !status) return;
 
+    const rows = filteredConversations();
     host.replaceChildren();
-    empty.hidden = state.conversations.length > 0;
-    status.textContent = state.conversations.length
-      ? `${state.conversations.length} conversation${state.conversations.length === 1 ? "" : "s"}`
-      : "";
 
-    state.conversations.forEach((row) => {
+    if (state.query && !rows.length) {
+      empty.hidden = true;
+      status.textContent = "No matching conversations.";
+    } else {
+      empty.hidden = state.conversations.length > 0;
+      status.textContent = "";
+    }
+
+    rows.forEach((row) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "circle-conversation";
       if (clean(row.conversation_id) === state.activeConversationId) button.classList.add("is-active");
 
       const unread = Number(row.unread_count) || 0;
+      const preview = clean(row.last_message_body) || (row.handle ? `@${clean(row.handle).replace(/^@+/, "")}` : "Conversation");
       button.innerHTML = `
-        ${avatarMarkup(row)}
+        <span class="circle-conversation__avatar-wrap">
+          ${avatarMarkup(row)}
+          ${unread > 0 ? '<span class="circle-conversation__online-dot circle-conversation__online-dot--unread" aria-hidden="true"></span>' : ''}
+        </span>
         <span class="circle-conversation__copy">
           <strong>${escapeHtml(row.display_name || "ARI User")}</strong>
-          <span>${escapeHtml(row.last_message_body || (row.handle ? `@${row.handle}` : "Open conversation"))}</span>
+          <span>${escapeHtml(preview)}</span>
         </span>
         <span class="circle-conversation__meta">
           <span>${escapeHtml(relativeTime(row.last_message_at))}</span>
-          ${unread > 0 ? `<span class="circle-conversation__badge">${unread > 99 ? "99+" : unread}</span>` : ""}
+          ${unread > 0 ? '<span class="circle-conversation__unread-dot" aria-label="Unread message"></span>' : ""}
         </span>
       `;
       button.addEventListener("click", () => openConversation(row));
@@ -146,9 +172,9 @@
   function renderThread(messages) {
     const host = $("threadMessages");
     const empty = $("threadEmpty");
-    if (!host || !empty) return;
+    if (!host) return;
     host.replaceChildren();
-    empty.hidden = messages.length > 0;
+    if (empty) empty.hidden = true;
 
     messages.forEach((msg) => {
       const mine = clean(msg.sender_user_id) === clean(state.user?.id);
@@ -202,7 +228,7 @@
 
   async function openRequestedUser() {
     const userId = clean(new URLSearchParams(window.location.search).get("user"));
-    if (!userId) return;
+    if (!userId || userId === clean(state.user?.id)) return;
 
     try {
       const conversationId = await rpc("ari_circle_messages_open_direct", {
@@ -213,7 +239,7 @@
       if (row) await openConversation(row);
     } catch (error) {
       console.error("ARI Circle direct message open failed:", error);
-      toast(error.message || "Could not start that conversation.");
+      toast(error.message || "Could not open that conversation.");
     }
   }
 
@@ -246,6 +272,10 @@
   function bind() {
     $("threadBack")?.addEventListener("click", closeThread);
     $("messageForm")?.addEventListener("submit", sendMessage);
+    $("messageSearch")?.addEventListener("input", (event) => {
+      state.query = clean(event.currentTarget.value);
+      renderInbox();
+    });
     $("messageInput")?.addEventListener("input", (event) => {
       const el = event.currentTarget;
       el.style.height = "auto";
