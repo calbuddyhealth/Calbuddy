@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.1.2
+   Version: 4.2.0
 
    UI-only enhancement layer. It intentionally leaves the existing
    Supabase tables, RPCs, stores, and persistence behavior untouched.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.1.2";
+  const VERSION = "4.2.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let scheduled = false;
   let panelHandled = false;
@@ -142,14 +142,10 @@
 
   function simplifyProfileMenu() {
     const share = $("circle-share-profile-button");
-    if (share && share.textContent.trim() !== "Share Profile") {
-      share.textContent = "Share Profile";
-    }
+    if (share && share.textContent.trim() !== "Share Profile") share.textContent = "Share Profile";
 
     const remove = $("circle-remove-connection-button");
-    if (remove && remove.textContent.trim() !== "Remove Friend") {
-      remove.textContent = "Remove Friend";
-    }
+    if (remove && remove.textContent.trim() !== "Remove Friend") remove.textContent = "Remove Friend";
   }
 
   function ensureSeeFriendsButton() {
@@ -171,9 +167,7 @@
     const message = $("circle-message-action");
     if (!actions || !connection || !message) return;
 
-    if (actions.firstElementChild !== connection) {
-      actions.insertBefore(connection, message);
-    }
+    if (actions.firstElementChild !== connection) actions.insertBefore(connection, message);
   }
 
   function simplifyProfile() {
@@ -181,7 +175,7 @@
     if (nav && nav.dataset.v4Ready !== "true") {
       nav.innerHTML = `
         <a href="ari-circle-feed.html">Feed</a>
-        <a class="is-active" href="ari-circle.html" aria-current="page">Me</a>
+        <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
         <a href="ari-circle-partners.html">Buddies</a>
         <a href="ari-circle-challenges.html">Challenges</a>
       `;
@@ -240,17 +234,13 @@
     if (!dialog) return;
 
     const eyebrow = dialog.querySelector(".circle-section-eyebrow");
-    if (eyebrow && eyebrow.textContent.trim() !== "YOUR SOCIAL CIRCLE") {
-      eyebrow.textContent = "YOUR SOCIAL CIRCLE";
-    }
+    if (eyebrow && eyebrow.textContent.trim() !== "YOUR SOCIAL CIRCLE") eyebrow.textContent = "YOUR SOCIAL CIRCLE";
 
     const title = dialog.querySelector(".circle-dialog__header h2");
     if (title) {
       const count = $("circle-members-title-count");
       const first = title.firstChild;
-      if (first?.nodeType === Node.TEXT_NODE && first.textContent.trim() !== "Friends") {
-        first.textContent = "Friends ";
-      }
+      if (first?.nodeType === Node.TEXT_NODE && first.textContent.trim() !== "Friends") first.textContent = "Friends ";
       if (count && count.parentElement !== title) title.append(count);
     }
   }
@@ -258,9 +248,7 @@
   function renameLegacyPartnerLabels() {
     document.querySelectorAll(".feed-post__type, .circle-v3-post__type").forEach((element) => {
       const current = String(element.textContent || "");
-      if (/\bPartner\b/i.test(current)) {
-        element.textContent = current.replace(/Partner/gi, "Buddy");
-      }
+      if (/\bPartner\b/i.test(current)) element.textContent = current.replace(/Partner/gi, "Buddy");
     });
   }
 
