@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fbfcff" />
+  <title>Email Confirmed | ARI XP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --navy:#101d49;
+      --muted:#697394;
+      --cyan:#20d9ee;
+      --blue:#315ddd;
+      --violet:#8657e8;
+      --gradient:linear-gradient(100deg,#18d8ec 0%,#315ddd 50%,#8754e8 100%);
+    }
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0;background:#fbfcff}
+    body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--navy);-webkit-font-smoothing:antialiased}
+    main{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:calc(28px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));background:radial-gradient(circle at 50% 12%,rgba(32,217,238,.12),transparent 27rem),linear-gradient(180deg,#fff,#f7f9ff)}
+    .card{width:min(100%,410px);padding:36px 28px 30px;border:1px solid rgba(62,85,161,.12);border-radius:30px;background:rgba(255,255,255,.96);box-shadow:0 22px 60px rgba(39,66,147,.12);text-align:center}
+    .meaning{margin:0 0 10px;color:#65739c;font-size:.54rem;font-weight:800;letter-spacing:.19em;white-space:nowrap}
+    .brand{margin:0;font-family:Audiowide,Inter,sans-serif;font-weight:400;font-size:clamp(2.15rem,10vw,3.1rem);letter-spacing:.04em}
+    .brand span:last-child{background:var(--gradient);background-clip:text;-webkit-background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+    .experience{margin:9px 0 0;color:#485a94;font-size:.63rem;font-weight:800;letter-spacing:.25em}
+    .line{display:block;width:92px;height:2px;margin:18px auto 28px;border-radius:999px;background:var(--gradient)}
+    .check{display:grid;place-items:center;width:76px;height:76px;margin:0 auto 22px;border-radius:24px;background:linear-gradient(145deg,#fff,#eef8ff);box-shadow:0 15px 36px rgba(49,93,221,.13),inset 0 1px 0 #fff;color:#19ae79;font-size:2rem;font-weight:900}
+    h1{margin:0;font-size:1.65rem;letter-spacing:-.04em}
+    p{margin:12px auto 0;max-width:310px;color:var(--muted);font-size:.91rem;line-height:1.55}
+    a{display:flex;align-items:center;justify-content:center;min-height:58px;margin-top:27px;border-radius:18px;background:var(--gradient);box-shadow:0 13px 28px rgba(49,93,221,.2);color:#fff;font-weight:800;text-decoration:none}
+    .small{margin-top:15px;font-size:.72rem}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card" aria-labelledby="confirmedTitle">
+      <p class="meaning">ARTIFICIAL REASONING INTELLIGENCE</p>
+      <div class="brand" aria-label="ARI XP"><span>ARI</span> <span>XP</span></div>
+      <p class="experience">EXPERIENCE</p>
+      <span class="line" aria-hidden="true"></span>
+      <div class="check" aria-hidden="true">✓</div>
+      <h1 id="confirmedTitle">Email confirmed</h1>
+      <p>Your ARI XP account is verified and ready. Return to ARI XP and sign in with the email and password you created.</p>
+      <a href="/signin.html">Continue to ARI XP</a>
+      <p class="small">You can safely close this page after continuing.</p>
+    </section>
+  </main>
+</body>
+</html>
