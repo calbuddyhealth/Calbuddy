@@ -1,0 +1,90 @@
+.ari-verification {
+  position: relative;
+  overflow: hidden;
+}
+
+.ari-verification::before {
+  content: "";
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(32, 217, 238, 0.13), rgba(134, 87, 232, 0.04) 58%, transparent 72%);
+  pointer-events: none;
+}
+
+.ari-verify-status {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 18px;
+  border: 1px solid rgba(49, 93, 221, 0.14);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(242,247,255,.92));
+  color: #315ddd;
+  font-size: 1.55rem;
+  box-shadow: 0 12px 30px rgba(49, 93, 221, 0.10), inset 0 1px 0 #fff;
+}
+
+.ari-verification .ari-verify-copy {
+  margin: 0 auto 10px;
+  max-width: 330px;
+}
+
+.ari-verification .ari-verify-copy strong {
+  color: #101d49;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.ari-verify-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 2px;
+  color: #8b93ab;
+  font-size: .69rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.ari-verify-divider::before,
+.ari-verify-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e4e9f5;
+}
+
+.ari-code-field input {
+  text-align: center;
+  font-size: 1.2rem;
+  letter-spacing: .34em;
+  padding-left: calc(16px + .34em);
+}
+
+.ari-verification #verifyCodeButton {
+  margin-top: 16px;
+}
+
+.ari-verification #resendConfirmationButton {
+  margin-top: 10px;
+}
+
+.ari-verification .ari-auth-return-link {
+  margin-top: 5px;
+  text-decoration: none;
+}
+
+@media (max-width: 460px) {
+  .ari-verify-status {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+  }
+}
