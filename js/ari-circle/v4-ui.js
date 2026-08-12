@@ -1,19 +1,21 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.0
+   Version: 4.6.1
 
    Important V4.6 changes:
    - Keeps one stable Circle header/messages route everywhere.
    - Loads deterministic relationship actions for Profile.
    - Loads the cleaner V4 notification experience.
+   - Loads shared V4 UX consistency styles.
    - Keeps feature modules one-shot to avoid Safari render loops.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.6.0";
+  const VERSION = "4.6.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
+  const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
   let panelHandled = false;
   let buddiesLoaded = false;
@@ -36,13 +38,18 @@
     if (el && !el.hidden) el.hidden = true;
   }
 
-  function ensurePolishStyle() {
-    if ($(POLISH_STYLE_ID)) return;
+  function ensureStyle(id, href) {
+    if ($(id)) return;
     const link = document.createElement("link");
-    link.id = POLISH_STYLE_ID;
+    link.id = id;
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-v4-polish.css?v=4.1.0";
+    link.href = href;
     document.head.append(link);
+  }
+
+  function ensureStyles() {
+    ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
+    ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.0");
   }
 
   function circleMenuMarkup(includeProfileOptions = false) {
@@ -273,7 +280,7 @@
   }
 
   function run() {
-    ensurePolishStyle();
+    ensureStyles();
     standardizeMenus();
     standardizeMessages();
     simplifyProfile();
