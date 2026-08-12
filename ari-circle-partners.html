@@ -4,43 +4,57 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f8faff" />
-  <title>Find a Partner | ARI Circle</title>
+  <title>Buddies | ARI Circle</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/ari-circle-partners.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
 </head>
 <body>
   <main class="partner-page" id="partnerPage" hidden>
     <header class="partner-header">
-      <a class="partner-icon-button" href="ari-circle.html" aria-label="Back to ARI Circle">←</a>
-      <a class="partner-brand" href="ari-circle.html" aria-label="ARI Circle">
+      <details class="circle-v4-menu">
+        <summary class="partner-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu">
+          <a href="ari-circle.html?panel=notifications"><span>Notifications</span><small>Activity</small></a>
+          <a href="ari-circle-partners.html"><span>Find People</span><small>Buddies</small></a>
+          <div class="circle-v4-menu__divider"></div>
+          <a href="account.html"><span>Account Settings</span><small>Privacy</small></a>
+          <a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a>
+          <div class="circle-v4-menu__divider"></div>
+          <a href="home.html"><span>Exit ARI Circle</span><small>ARI XP</small></a>
+        </nav>
+      </details>
+
+      <a class="partner-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed">
         <span class="partner-brand__mark" aria-hidden="true"><i></i><i></i></span>
         <span>ARI CIRCLE</span>
       </a>
-      <a class="partner-header-link" href="ari-circle.html">Circle</a>
+
+      <a class="circle-v4-message" href="ari-circle.html?panel=messages" aria-label="Messages">💬</a>
     </header>
 
     <nav class="partner-tabs" aria-label="ARI Circle sections">
       <a class="partner-tab" href="ari-circle-feed.html">Feed</a>
-      <button type="button" class="partner-tab is-active" aria-current="page">Partners</button>
-      <a class="partner-tab" href="ari-circle-challenges.html">Challenges</a>
       <a class="partner-tab" href="ari-circle.html">Me</a>
+      <button type="button" class="partner-tab is-active" aria-current="page">Buddies</button>
+      <a class="partner-tab" href="ari-circle-challenges.html">Challenges</a>
     </nav>
 
     <section class="partner-hero" aria-labelledby="partnerTitle">
-      <p class="partner-kicker">DO SOMETHING TOGETHER</p>
-      <h1 id="partnerTitle">Find your people.</h1>
-      <p>Gym. Trail. Run. Ride. Accountability. Find people who are already looking for the same thing.</p>
-      <button class="partner-primary" id="openIntentButton" type="button">I’m looking for a partner</button>
+      <p class="partner-kicker">FIND YOUR PEOPLE</p>
+      <h1 id="partnerTitle">Buddies</h1>
+      <p>Find friends for the gym, trails, runs, rides, sports, walking, or simple accountability.</p>
+      <button class="partner-primary" id="openIntentButton" type="button">Find an Activity Buddy</button>
     </section>
 
     <section class="partner-safety-card" id="partnerSafetyCard" aria-live="polite">
       <span class="partner-safety-card__icon" aria-hidden="true">✦</span>
       <div>
         <strong id="partnerSafetyTitle">Private by design</strong>
-        <p id="partnerSafetyText">Partner Finder uses a general area, never your precise location.</p>
+        <p id="partnerSafetyText">Buddy discovery uses a general area, never your precise location.</p>
       </div>
     </section>
 
@@ -48,7 +62,7 @@
       <div class="partner-section-heading">
         <div>
           <p class="partner-kicker">YOUR LISTING</p>
-          <h2>You’re open to invites</h2>
+          <h2>You’re open to buddy invites</h2>
         </div>
         <button class="partner-text-button" id="editIntentButton" type="button">Edit</button>
       </div>
@@ -68,8 +82,8 @@
     <section class="partner-discover" aria-labelledby="discoverTitle">
       <div class="partner-section-heading">
         <div>
-          <p class="partner-kicker">PARTNER FINDER</p>
-          <h2 id="discoverTitle">Who are you looking for?</h2>
+          <p class="partner-kicker">ACTIVITY BUDDIES</p>
+          <h2 id="discoverTitle">Find an activity buddy</h2>
         </div>
       </div>
 
@@ -115,19 +129,19 @@
 
   <section class="partner-loading" id="partnerLoading" aria-live="polite">
     <div class="partner-loading__orb" aria-hidden="true"></div>
-    <strong>Opening Partner Finder</strong>
+    <strong>Opening Buddies</strong>
   </section>
 
   <dialog class="partner-dialog" id="ageDialog">
     <form class="partner-dialog__card" id="ageForm">
       <p class="partner-kicker">ONE-TIME SAFETY CHECK</p>
       <h2>Verify your age</h2>
-      <p>Your date of birth stays private. We use it to keep adult and teen partner discovery separated.</p>
+      <p>Your date of birth stays private. We use it to keep adult and teen buddy discovery separated.</p>
       <label class="partner-field" for="ageDateInput">
         <span>Date of birth</span>
         <input id="ageDateInput" type="date" autocomplete="bday" required />
       </label>
-      <p class="partner-inline-note">Your birth date is not shown on your Partner Finder profile.</p>
+      <p class="partner-inline-note">Your birth date is not shown on your Buddy profile.</p>
       <button class="partner-primary partner-full" id="verifyAgeButton" type="submit">Continue</button>
     </form>
   </dialog>
@@ -186,11 +200,11 @@
 
       <label class="partner-field" for="intentNote">
         <span>Short note <small>optional</small></span>
-        <textarea id="intentNote" maxlength="280" rows="3" placeholder="What kind of partner would make this more fun?"></textarea>
+        <textarea id="intentNote" maxlength="280" rows="3" placeholder="What kind of buddy would make this more fun?"></textarea>
       </label>
 
       <div class="partner-teen-note" id="teenIntentNote" hidden>
-        Teen Partner Finder is limited to group activities or accountability. Keep your public area broad and don’t post contact information.
+        Teen Buddy discovery is limited to group activities or accountability. Keep your public area broad and don’t post contact information.
       </div>
 
       <button class="partner-primary partner-full" id="saveIntentButton" type="submit">Make me discoverable</button>
@@ -217,7 +231,7 @@
     <div class="partner-dialog__card partner-match-card">
       <span class="partner-match-symbol" aria-hidden="true">✦</span>
       <p class="partner-kicker">MUTUAL INTEREST</p>
-      <h2>You matched.</h2>
+      <h2>You connected.</h2>
       <p id="matchDialogText">You’re both interested in the same activity.</p>
       <div class="partner-starter-preview">
         <strong>Easy ways to start</strong>
@@ -225,7 +239,7 @@
         <span>What does your usual session look like?</span>
         <span>Want to plan something this week?</span>
       </div>
-      <a class="partner-primary partner-full" href="ari-circle.html">Open Messages</a>
+      <a class="partner-primary partner-full" href="ari-circle.html?panel=messages">Open Messages</a>
       <button class="partner-secondary partner-full" type="button" data-close-dialog="matchDialog">Not now</button>
     </div>
   </dialog>
@@ -235,5 +249,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/ari-circle/partners/partner-finder.js?v=1.0.0" defer></script>
+  <script src="js/ari-circle/v4-ui.js?v=4.0.0" defer></script>
 </body>
 </html>
