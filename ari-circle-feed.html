@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-feed.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v4-polish.css?v=4.1.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-media.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-media.css?v=1.0.1" />
 </head>
 <body>
   <main class="feed-page" id="feedPage" hidden>
@@ -50,8 +50,7 @@
         <div class="feed-composer__top">
           <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
           <div>
-            <h2 id="composerTitle">Share with your Circle</h2>
-            <p>Text, photo, or a short video.</p>
+            <h2 id="composerTitle">Share something</h2>
           </div>
         </div>
 
@@ -72,12 +71,12 @@
         />
 
         <div class="feed-composer__toolbar">
-          <button class="feed-media-button" id="feedMediaButton" type="button">
+          <button class="feed-media-button" id="feedMediaButton" type="button" aria-label="Open camera or media library">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4.5 7.5A2.5 2.5 0 0 1 7 5h1.15l1-1.5h5.7l1 1.5H17a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z"></path>
               <circle cx="12" cy="12" r="3.2"></circle>
             </svg>
-            <span>Photo / Video</span>
+            <span>Camera</span>
           </button>
 
           <div class="feed-composer__counter"><span id="postCharCount">0</span>/1200</div>
@@ -107,7 +106,7 @@
     <section class="feed-stream" aria-labelledby="streamTitle">
       <div class="feed-section-heading">
         <div><h2 id="streamTitle">Feed</h2></div>
-        <button class="feed-text-button" id="refreshFeedButton" type="button">Refresh</button>
+        <button class="feed-text-button" id="refreshFeedButton" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button>
       </div>
 
       <p class="feed-status" id="feedStatus" role="status" aria-live="polite">Loading your Circle…</p>
@@ -204,6 +203,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>
-  <script src="js/ari-circle/v4-ui.js?v=4.3.0" defer></script>
+  <script src="js/ari-circle/v4-ui.js?v=4.4.0" defer></script>
 </body>
 </html>
