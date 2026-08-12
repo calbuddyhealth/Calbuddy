@@ -1,11 +1,12 @@
 /* =============================================================
    ARI CIRCLE — PROFILE V4
-   Version: 4.1.0
+   Version: 4.2.0
 
    Lightweight social profile layer.
-   - Feed / Me / Buddies / Challenges navigation
+   - Feed / Profile / Buddies / Challenges navigation
    - Posts + About only
-   - No profile flair, reward, or reaction-score queries
+   - No profile flair or reaction scoring
+   - Supports private photo/video posts with signed media URLs
    - Keeps the existing legacy profile renderer/editor/controllers
    - Keeps the existing one-time age safety boundary
 ============================================================= */
@@ -13,17 +14,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.1.0";
+  const VERSION = "4.2.0";
+  const MEDIA_BUCKET = "ari-circle-post-media";
+  const SIGNED_URL_SECONDS = 60 * 60;
   const $ = (id) => document.getElementById(id);
-
-  const POST_META = Object.freeze({
-    thought: { label: "Post", icon: "" },
-    workout: { label: "Workout", icon: "💪" },
-    progress: { label: "Progress", icon: "↗" },
-    meal: { label: "Meal", icon: "🍽️" },
-    activity: { label: "Activity", icon: "⚡" },
-    partner: { label: "Buddy", icon: "◎" }
-  });
 
   const ABOUT_SECTION_IDS = [
     "circle-about",
@@ -40,7 +34,8 @@
     posts: [],
     tab: "posts",
     started: false,
-    socialAvailable: true
+    socialAvailable: true,
+    signedUrlCache: new Map()
   };
 
   function clean(value) {
@@ -127,7 +122,7 @@
     nav.setAttribute("aria-label", "ARI Circle sections");
     nav.innerHTML = `
       <a href="ari-circle-feed.html">Feed</a>
-      <a class="is-active" href="ari-circle.html" aria-current="page">Me</a>
+      <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
       <a href="ari-circle-partners.html">Buddies</a>
       <a href="ari-circle-challenges.html">Challenges</a>
     `;
@@ -245,16 +240,45 @@
     }
   }
 
+  async function signedMediaUrl(path) {
+    const cleanPath = clean(path);
+    if (!cleanPath) return "";
+    if (state.signedUrlCache.has(cleanPath)) return state.signedUrlCache.get(cleanPath);
+
+    try {
+      const { data, error } = await state.client.storage
+        .from(MEDIA_BUCKET)
+        .createSignedUrl(cleanPath, SIGNED_URL_SECONDS);
+      if (error) throw error;
+      const url = clean(data?.signedUrl);
+      if (url) state.signedUrlCache.set(cleanPath, url);
+      return url;
+    } catch (error) {
+      console.warn("ARI Circle profile media unavailable:", error);
+      return "";
+    }
+  }
+
+  async function hydratePosts(posts) {
+    await Promise.all(posts.map(async (post) => {
+      post.signed_media_url = clean(post.media_path)
+        ? await signedMediaUrl(post.media_path)
+        : clean(post.legacy_media_url || post.media_url);
+    }));
+    return posts;
+  }
+
   async function loadPosts() {
     if (!state.profileUserId) return;
 
     try {
-      const result = await rpc("ari_circle_profile_posts", {
+      const result = await rpc("ari_circle_profile_posts_v2", {
         requested_user_id: state.profileUserId,
         result_limit: 30
       });
       state.socialAvailable = true;
       state.posts = Array.isArray(result) ? result : [];
+      await hydratePosts(state.posts);
       renderPosts();
     } catch (error) {
       console.warn("ARI Circle V4 profile posts unavailable:", error);
@@ -262,6 +286,29 @@
       state.posts = [];
       renderUnavailableSocial();
     }
+  }
+
+  function appendPostMedia(card, post) {
+    const url = clean(post.signed_media_url);
+    if (!url) return;
+
+    if (post.media_type === "video") {
+      const video = document.createElement("video");
+      video.className = "circle-v3-post__media circle-v3-post__video";
+      video.src = url;
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      card.append(video);
+      return;
+    }
+
+    const image = document.createElement("img");
+    image.className = "circle-v3-post__media";
+    image.src = url;
+    image.alt = "Shared ARI Circle photo";
+    image.loading = "lazy";
+    card.append(image);
   }
 
   function renderPosts() {
@@ -275,26 +322,22 @@
     }
 
     state.posts.forEach((post) => {
-      const meta = POST_META[post.post_type] || POST_META.thought;
       const card = document.createElement("article");
       card.className = "circle-v3-post";
 
-      const reactions = Array.isArray(post.reaction_summary) ? post.reaction_summary : [];
-      const typeText = [meta.icon, meta.label].filter(Boolean).join(" ");
+      const meta = document.createElement("div");
+      meta.className = "circle-v3-post__meta";
+      meta.innerHTML = `<time class="circle-v3-post__time">${escapeHtml(relativeTime(post.created_at))}</time>`;
+      card.append(meta);
 
-      card.innerHTML = `
-        <div class="circle-v3-post__meta">
-          <span class="circle-v3-post__type">${escapeHtml(typeText)}</span>
-          <time class="circle-v3-post__time">${escapeHtml(relativeTime(post.created_at))}</time>
-        </div>
-        <p class="circle-v3-post__body">${escapeHtml(post.body || "")}</p>
-        ${post.activity ? `<span class="circle-v3-post__activity">${escapeHtml(post.activity)}</span>` : ""}
-        ${post.media_url ? `<img class="circle-v3-post__media" src="${escapeHtml(post.media_url)}" alt="Shared ARI Circle media" loading="lazy" />` : ""}
-        <div class="circle-v3-post__footer">
-          ${reactions.slice(0,5).map((item) => `<span class="circle-v3-reaction-pill">${escapeHtml(item.emoji)} ${Number(item.count) || 0}</span>`).join("")}
-          <span>${Number(post.comment_count) || 0} comments</span>
-        </div>
-      `;
+      if (clean(post.body)) {
+        const body = document.createElement("p");
+        body.className = "circle-v3-post__body";
+        body.textContent = post.body;
+        card.append(body);
+      }
+
+      appendPostMedia(card, post);
       host.append(card);
     });
   }
