@@ -1,109 +1,51 @@
 /* =============================================================
-   ARI CIRCLE — CAMERA ENTRY BRIDGE
-   Version: 2.0.0
+   ARI CIRCLE — LAUNCH-SAFE NATIVE MEDIA CAPTURE
+   Version: 3.0.0
 
-   Launch-safe architecture:
-   - Does NOT initialize camera APIs during ARI Circle startup.
-   - Camera V2 is downloaded only after the user taps Camera.
-   - Prevents camera failures from blocking Feed/Profile/Buddies/Challenges.
-   - Falls back to the normal media picker if Camera V2 cannot load.
+   Web launch architecture:
+   - No getUserMedia()
+   - No MediaRecorder
+   - No custom live camera preview
+   - Uses the device/browser native photo/video capture picker
+   - Keeps Camera V2 completely out of the web launch path
+   - Selected media still flows through feed.js preview/upload logic
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
-  const SCRIPT_ID = "ari-circle-camera-v2-script";
-  const SCRIPT_SRC = "js/ari-circle/media/camera-v2.js?v=2.0.1";
-  let loadPromise = null;
+  const VERSION = "3.0.0";
   let opening = false;
 
-  function toast(message) {
-    const host = document.getElementById("feedToast") || document.getElementById("circle-toast");
-    if (!host) return;
-    host.textContent = message;
-    host.hidden = false;
-    clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => { host.hidden = true; }, 3200);
+  function mediaInput() {
+    return document.getElementById("feedMediaInput");
   }
 
-  function loadCameraV2() {
-    if (window.AriCircleCameraV2?.open) {
-      return Promise.resolve(window.AriCircleCameraV2);
+  function openNativeCapture() {
+    if (opening) return;
+
+    const input = mediaInput();
+    if (!input) {
+      console.warn("ARI Circle native capture input is unavailable.");
+      return;
     }
 
-    if (loadPromise) return loadPromise;
-
-    loadPromise = new Promise((resolve, reject) => {
-      const existing = document.getElementById(SCRIPT_ID);
-      if (existing) {
-        const started = Date.now();
-        const timer = setInterval(() => {
-          if (window.AriCircleCameraV2?.open) {
-            clearInterval(timer);
-            resolve(window.AriCircleCameraV2);
-            return;
-          }
-          if (Date.now() - started > 5000) {
-            clearInterval(timer);
-            reject(new Error("Camera module timed out."));
-          }
-        }, 50);
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.id = SCRIPT_ID;
-      script.src = SCRIPT_SRC;
-      script.async = true;
-      script.onload = () => {
-        if (window.AriCircleCameraV2?.open) {
-          resolve(window.AriCircleCameraV2);
-        } else {
-          reject(new Error("Camera module loaded without an API."));
-        }
-      };
-      script.onerror = () => reject(new Error("Camera module could not load."));
-      document.head.appendChild(script);
-    }).catch((error) => {
-      loadPromise = null;
-      throw error;
-    });
-
-    return loadPromise;
-  }
-
-  async function openCamera(target = "feed") {
-    if (opening) return;
     opening = true;
 
-    const button = document.getElementById("feedMediaButton");
-    if (button) {
-      button.disabled = true;
-      button.setAttribute("aria-busy", "true");
-    }
-
+    // Keep this call synchronous with the user's tap. iOS Safari is much
+    // more reliable when the file/camera chooser is opened directly from
+    // the trusted user gesture rather than after async permission work.
     try {
-      // Give Safari a paint before any camera work begins.
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const camera = await loadCameraV2();
-      await camera.open({ target });
-    } catch (error) {
-      console.error("ARI Circle camera could not open:", error);
-      toast("Camera couldn't open. Choose a photo or video instead.");
-      document.getElementById("feedMediaInput")?.click();
+      input.click();
     } finally {
-      opening = false;
-      if (button) {
-        button.disabled = false;
-        button.removeAttribute("aria-busy");
-      }
+      window.setTimeout(() => {
+        opening = false;
+      }, 350);
     }
   }
 
-  // Capture phase is intentional: feed.js also has a legacy media-picker
-  // click handler. We stop that handler only when the user explicitly taps
-  // Camera, then lazy-load Camera V2.
+  // Capture phase prevents feed.js or any older camera bridge from turning
+  // this tap into a getUserMedia / Camera V2 request.
   document.addEventListener("click", (event) => {
     const button = event.target.closest?.("#feedMediaButton");
     if (!button) return;
@@ -111,12 +53,11 @@
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    openCamera("feed");
+    openNativeCapture();
   }, true);
 
   window.AriCircleCameraEntry = Object.freeze({
     version: VERSION,
-    load: loadCameraV2,
-    open: openCamera
+    open: openNativeCapture
   });
 })();
