@@ -1,16 +1,15 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.7.0
+   Version: 4.7.1
 
-   V4.7:
-   - Loads Launch Social V5 across Feed/Profile/Buddies/Challenges.
-   - Loads the launch Buddy workflow V1.1.
+   V4.7.1:
+   - Loads Launch Social V5.0.1 freeze fix.
    - Keeps unified menus, messages, profile polish and feed modules.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.7.0";
+  const VERSION = "4.7.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -87,9 +86,9 @@
 
   function standardizeMenus() {
     document.querySelectorAll(".feed-header > .circle-v4-menu, .partner-header > .circle-v4-menu, .challenge-header > .circle-v4-menu").forEach((details) => {
-      if (details.dataset.v47Menu === "true") return;
+      if (details.dataset.v471Menu === "true") return;
       details.innerHTML = circleMenuMarkup(false);
-      details.dataset.v47Menu = "true";
+      details.dataset.v471Menu = "true";
     });
     bindOutsideMenuClose();
   }
@@ -102,20 +101,20 @@
 
   function standardizeMessages() {
     document.querySelectorAll(".circle-v4-message").forEach((el) => {
-      if (el.dataset.v47Message === "true") return;
+      if (el.dataset.v471Message === "true") return;
       el.innerHTML = MESSAGE_ICON;
       el.setAttribute("aria-label", "Messages");
       if (el.tagName === "A") el.setAttribute("href", "ari-circle-messages.html");
-      el.dataset.v47Message = "true";
+      el.dataset.v471Message = "true";
     });
     const profileButton = $("circle-messages-button");
-    if (profileButton && profileButton.dataset.v47Message !== "true") {
+    if (profileButton && profileButton.dataset.v471Message !== "true") {
       const icon = profileButton.querySelector('span[aria-hidden="true"]');
       if (icon) icon.innerHTML = MESSAGE_ICON;
       profileButton.removeAttribute("data-circle-action");
       profileButton.setAttribute("aria-label", "Messages");
       profileButton.addEventListener("click", routeToMessages, true);
-      profileButton.dataset.v47Message = "true";
+      profileButton.dataset.v471Message = "true";
     }
   }
 
@@ -148,9 +147,9 @@
 
   function ensureProfileNav() {
     const nav = $("circleV3Nav");
-    if (!nav || nav.dataset.v47Ready === "true") return;
+    if (!nav || nav.dataset.v471Ready === "true") return;
     nav.innerHTML = `<a href="ari-circle-feed.html">Feed</a><a class="is-active" href="ari-circle.html" aria-current="page">Profile</a><a href="ari-circle-partners.html">Buddies</a><a href="ari-circle-challenges.html">Challenges</a>`;
-    nav.dataset.v47Ready = "true";
+    nav.dataset.v471Ready = "true";
   }
 
   function simplifyProfile() {
@@ -169,8 +168,8 @@
 
   function bindProfileOptions() {
     document.querySelectorAll("[data-v4-profile-options]").forEach((button) => {
-      if (button.dataset.v47Bound === "true") return;
-      button.dataset.v47Bound = "true";
+      if (button.dataset.v471Bound === "true") return;
+      button.dataset.v471Bound = "true";
       button.addEventListener("click", () => {
         $("circle-profile-menu-button")?.click();
         button.closest("details")?.removeAttribute("open");
@@ -180,7 +179,7 @@
 
   function cleanProfileEditorLabels() {
     const editor = $("circle-profile-editor");
-    if (!editor || editor.dataset.v47Labels === "true") return;
+    if (!editor || editor.dataset.v471Labels === "true") return;
     const prompts = [
       ["ask me about", "Ask me about..."], ["current obsession", "Current obsession..."],
       ["dream trip", "Dream trip..."], ["best way to make me laugh", "Best way to make me laugh..."],
@@ -193,7 +192,7 @@
       const match = prompts.find(([needle]) => lower.includes(needle));
       if (match) el.textContent = match[1];
     });
-    editor.dataset.v47Labels = "true";
+    editor.dataset.v471Labels = "true";
   }
 
   function openRequestedPanel() {
@@ -224,7 +223,7 @@
   function loadModules() {
     if (!launchSocialLoaded) {
       launchSocialLoaded = true;
-      import("/js/ari-circle/launch-social-v5.js?v=5.0.0").catch((error) => {
+      import("/js/ari-circle/launch-social-v5.js?v=5.0.1").catch((error) => {
         launchSocialLoaded = false;
         console.warn("ARI Circle Launch Social V5 failed to load:", error);
       });
