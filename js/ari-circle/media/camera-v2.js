@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — CAMERA V2
-   Version: 2.0.0
+   Version: 2.0.0 
 
    Launch-safe camera pipeline for iPhone/Safari:
    - Camera permission only when opening the camera.
