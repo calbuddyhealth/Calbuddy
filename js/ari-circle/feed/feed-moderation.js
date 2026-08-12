@@ -1,16 +1,16 @@
 /* =============================================================
    ARI CIRCLE — FEED OWNERSHIP CONTROLS
-   Version: 1.0.0
+   Version: 1.1.0
 
    Adds:
    - Delete for your comments (and comments on your own post)
-   - Delete for your own Moments
-   - Stable ownership-aware controls without rebuilding Feed
+   - Safe Moment options menu for your own Moments
+   - Keeps destructive controls away from the close button
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const STYLE_ID = "ari-circle-feed-moderation-style";
   const $ = (id) => document.getElementById(id);
   const clean = (v) => String(v ?? "").trim();
@@ -33,7 +33,7 @@
     const link = document.createElement("link");
     link.id = STYLE_ID;
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-feed-moderation.css?v=1.0.0";
+    link.href = "assets/css/ari-circle-feed-moderation.css?v=1.1.0";
     document.head.append(link);
   }
 
@@ -121,7 +121,7 @@
       const rows = await rpc("ari_circle_moments_list", { result_limit: 120 });
       state.moments = Array.isArray(rows) ? rows : [];
       mapMomentBubbles();
-      syncMomentDelete();
+      syncMomentOptions();
     } catch (error) {
       console.warn("ARI Circle Moment ownership controls unavailable:", error);
     }
@@ -147,23 +147,49 @@
     return state.moments[state.activeMomentIndex] || null;
   }
 
-  function syncMomentDelete() {
+  function momentOptionsDialog() {
+    let dialog = $("momentOptionsDialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "momentOptionsDialog";
+    dialog.className = "feed-moment-options-dialog";
+    dialog.innerHTML = `
+      <div class="feed-moment-options-dialog__panel">
+        <button id="momentDeleteOption" class="feed-moment-options-dialog__danger" type="button">Delete Moment</button>
+        <button id="momentCancelOption" type="button">Cancel</button>
+      </div>`;
+    document.body.append(dialog);
+    $("momentCancelOption")?.addEventListener("click", () => dialog.close());
+    $("momentDeleteOption")?.addEventListener("click", async () => {
+      dialog.close();
+      const moment = currentMoment();
+      if (moment) await deleteMoment(moment);
+    });
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+    return dialog;
+  }
+
+  function syncMomentOptions() {
     const viewer = $("momentViewer");
     const top = viewer?.querySelector(".feed-moment-viewer__top");
     if (!top) return;
-    top.querySelector("#deleteMomentButton")?.remove();
+    top.querySelector("#momentOptionsButton")?.remove();
+
     const moment = currentMoment();
     if (!moment || clean(moment.author_user_id) !== clean(state.user?.id)) return;
 
     const button = document.createElement("button");
-    button.id = "deleteMomentButton";
-    button.className = "feed-moment-delete";
+    button.id = "momentOptionsButton";
+    button.className = "feed-moment-options";
     button.type = "button";
-    button.setAttribute("aria-label", "Delete Moment");
-    button.textContent = "Delete";
-    button.addEventListener("click", () => deleteMoment(moment));
-    const close = top.querySelector("[data-close-dialog='momentViewer']");
-    top.insertBefore(button, close || null);
+    button.setAttribute("aria-label", "Moment options");
+    button.textContent = "•••";
+    button.addEventListener("click", () => {
+      const dialog = momentOptionsDialog();
+      if (!dialog.open) dialog.showModal();
+    });
+
+    top.prepend(button);
   }
 
   async function deleteMoment(moment) {
@@ -205,16 +231,16 @@
       const bubble = event.target.closest(".feed-moment-bubble:not(.feed-moment-add)");
       if (bubble?.dataset.v4MomentIndex != null) {
         state.activeMomentIndex = Number(bubble.dataset.v4MomentIndex);
-        setTimeout(syncMomentDelete, 50);
+        setTimeout(syncMomentOptions, 50);
       }
 
       if (event.target.closest("#momentPrevButton")) {
         if (state.moments.length) state.activeMomentIndex = (state.activeMomentIndex - 1 + state.moments.length) % state.moments.length;
-        setTimeout(syncMomentDelete, 40);
+        setTimeout(syncMomentOptions, 40);
       }
       if (event.target.closest("#momentNextButton")) {
         if (state.moments.length) state.activeMomentIndex = (state.activeMomentIndex + 1) % state.moments.length;
-        setTimeout(syncMomentDelete, 40);
+        setTimeout(syncMomentOptions, 40);
       }
     }, true);
 
@@ -241,5 +267,8 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 
-  window.AriCircleFeedModeration = Object.freeze({ version: VERSION, refresh: () => { scheduleComments(40); scheduleMoments(40); } });
+  window.AriCircleFeedModeration = Object.freeze({
+    version: VERSION,
+    refresh: () => { scheduleComments(40); scheduleMoments(40); }
+  });
 })();
