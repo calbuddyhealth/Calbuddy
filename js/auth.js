@@ -4,12 +4,16 @@
 // Purpose:
 //   Shared Supabase auth helpers for ARI Rebirth.
 //
-// V1.0.0
+// V1.1.0
 // Email confirmation handoff:
-// - New account confirmation redirects to email-confirmed.html.
+// - Uses the canonical ARI XP production confirmation URL.
+// - Confirmation redirects to email-confirmed.html.
 // - email-confirmed.html intentionally does NOT initialize Supabase.
 // - The user returns to ARI and signs in manually after confirmation.
 // =====================================================
+
+const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
+const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -63,25 +67,7 @@ async function signUpUser(
     email: cleanEmail,
     password: cleanPassword,
     options: {
-      /*
-       * IMPORTANT:
-       *
-       * Do NOT redirect email confirmation back into signin.html or any
-       * page that initializes the Supabase client.
-       *
-       * Supabase confirms the email first, then redirects here.
-       * email-confirmed.html does not initialize Supabase, so the returned
-       * auth payload is never consumed into ARI's browser session.
-       *
-       * Result:
-       *   1. User confirms email.
-       *   2. Confirmation page says thank you.
-       *   3. User returns to ARI manually.
-       *   4. User signs in normally with email + password.
-       */
-      emailRedirectTo:
-        `${window.location.origin}/email-confirmed.html`,
-
+      emailRedirectTo: ARI_XP_EMAIL_CONFIRM_URL,
       data: {
         display_name: cleanDisplayName,
         date_of_birth: cleanDateOfBirth,
@@ -96,11 +82,34 @@ async function signUpUser(
   });
 }
 
+async function resendSignupConfirmation(email) {
+  const cleanEmail = String(email || "").trim();
+
+  return await window.calbuddySupabase.auth.resend({
+    type: "signup",
+    email: cleanEmail,
+    options: {
+      emailRedirectTo: ARI_XP_EMAIL_CONFIRM_URL
+    }
+  });
+}
+
+async function verifySignupCode(email, token) {
+  const cleanEmail = String(email || "").trim();
+  const cleanToken = String(token || "").replace(/\D/g, "").slice(0, 6);
+
+  return await window.calbuddySupabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: "signup"
+  });
+}
+
 async function sendPasswordReset(email) {
   const cleanEmail = String(email || "").trim();
 
   return await window.calbuddySupabase.auth.resetPasswordForEmail(cleanEmail, {
-    redirectTo: window.location.origin + "/reset-password.html"
+    redirectTo: `${ARI_XP_PUBLIC_ORIGIN}/reset-password.html`
   });
 }
 
@@ -139,11 +148,6 @@ async function getAriAccountState(userId = null) {
     .maybeSingle();
 
   if (error) {
-    /*
-     * During the one-time database rollout, treat a missing table as active
-     * so the existing application remains usable. The account page surfaces
-     * the setup reminder to the owner.
-     */
     console.warn("ARI account state unavailable:", error.message);
     return {
       user_id: resolvedUserId,
