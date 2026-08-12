@@ -1,4 +1,4 @@
--- ARI XP AGE GATE
+-- ARI XP AGE GATE 
 -- Run this complete file once in the Supabase SQL Editor.
 -- It is idempotent and can be run again safely.
 
