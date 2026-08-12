@@ -1,12 +1,13 @@
 // js/ari-circle/core/circle-context.js
 // ARI Circle
-// V1.0.1
+// V1.0.2
 //
 // Purpose:
 // - Resolve who is viewing ARI Circle.
 // - Resolve which profile the page is trying to display.
 // - Decide owner / visitor / guest mode.
 // - Keep URL interpretation out of profile, messaging, and connection modules.
+// - Load the V3 profile enhancement layer as part of the Circle module graph.
 //
 // This module does NOT:
 // - Query Supabase.
@@ -18,7 +19,9 @@
 // Authentication identity is injected by the caller once our auth/data
 // layer is connected.
 
-const VERSION = "1.0.1";
+import "../profile/profile-v3-loader.js";
+
+const VERSION = "1.0.2";
 const SOURCE = "ari-circle/core/circle-context";
 
 const VALID_PROFILE_REF_TYPES = new Set([
