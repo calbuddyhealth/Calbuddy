@@ -1,7 +1,7 @@
 /* =============================================================
    ARI CIRCLE — MESSAGES LAUNCH FIXES
-   Version: 1.0.0
-   iPhone/Safari keyboard, zoom, composer, and thread layout hardening.
+   Version: 1.1.0
+   iPhone/Safari keyboard, zoom, composer, inbox, and thread layout hardening.
 ============================================================= */
 
 :root {
@@ -9,10 +9,58 @@
   --ari-messages-viewport-top: 0px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .circle-message-search input,
 .circle-thread__composer textarea,
 .circle-thread__composer button {
   font-size: 16px !important;
+}
+
+.circle-inbox__subtitle {
+  display: block;
+  margin-top: 5px;
+  color: #8a95a8;
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+.circle-message-empty {
+  min-height: 48vh;
+  align-content: center;
+  gap: 10px !important;
+}
+
+.circle-message-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 4px;
+  border: 1px solid rgba(45,92,255,.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 14px 34px rgba(25,45,90,.06);
+  font-size: 1.45rem;
+}
+
+.circle-message-empty__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 0 18px;
+  border: 1px solid rgba(45,92,255,.10);
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg,#2458ff,#8255ff);
+  box-shadow: 0 12px 28px rgba(45,92,255,.16);
+  text-decoration: none;
+  font-size: .76rem;
+  font-weight: 800;
 }
 
 .circle-thread__composer {
@@ -47,6 +95,28 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.circle-thread-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 100px 24px 120px;
+  pointer-events: none;
+  color: #8a95a8;
+  text-align: center;
+}
+
+.circle-thread-empty strong {
+  color: #26334b;
+  font-size: 1rem;
+}
+
+.circle-thread-empty span {
+  font-size: .76rem;
+}
+
 @media (max-width: 700px) {
   html,
   body {
@@ -70,7 +140,8 @@
 
   .circle-thread__header {
     flex: 0 0 auto;
-    min-height: 64px;
+    min-height: 72px;
+    gap: 12px !important;
   }
 
   .circle-thread__messages {
@@ -90,7 +161,33 @@
   .circle-thread__back {
     position: relative;
     z-index: 4;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 3px;
+    width: auto !important;
+    min-width: 76px;
+    height: 42px !important;
+    padding: 0 10px 0 7px;
     cursor: pointer;
+    color: #2458ff;
+    border: 1px solid rgba(45,92,255,.08) !important;
+    border-radius: 14px;
+    background: #f2f5fb;
+    text-decoration: none;
     touch-action: manipulation;
+    font-size: .78rem !important;
+    font-weight: 800;
+  }
+
+  .circle-thread__back span:first-child {
+    font-size: 1.7rem;
+    font-weight: 400;
+    line-height: 1;
+    transform: translateY(-1px);
+  }
+
+  .circle-thread__person {
+    min-width: 0;
+    flex: 1;
   }
 }
