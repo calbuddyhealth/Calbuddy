@@ -1,0 +1,75 @@
+/* =============================================================
+   ARI CIRCLE — BUDDIES SOCIAL PLANS
+   Version: 1.0.0
+============================================================= */
+
+.partner-hero.circle-v4-activity-cta {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(29,205,246,.12), transparent 13rem),
+    radial-gradient(circle at 94% 4%, rgba(130,85,255,.12), transparent 14rem),
+    rgba(255,255,255,.94) !important;
+}
+
+.partner-activity-strip {
+  gap: 8px !important;
+  padding: 4px 2px 10px !important;
+  scroll-padding-inline: 2px;
+}
+
+.partner-chip {
+  min-height: 39px !important;
+  padding: 0 13px !important;
+  border: 1px solid rgba(36,88,255,.09) !important;
+  border-radius: 14px !important;
+  color: #55627a !important;
+  background: rgba(248,250,255,.92) !important;
+  box-shadow: 0 5px 14px rgba(24,48,100,.035) !important;
+  font-weight: 760 !important;
+  white-space: nowrap;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.partner-chip:active {
+  transform: scale(.975);
+}
+
+.partner-chip.is-active {
+  color: #1747e8 !important;
+  border-color: rgba(36,88,255,.19) !important;
+  background:
+    linear-gradient(135deg, rgba(29,205,246,.11), rgba(255,255,255,.96) 46%, rgba(130,85,255,.10)) !important;
+  box-shadow: 0 8px 20px rgba(43,70,183,.09) !important;
+}
+
+.partner-person-card__plan {
+  display: inline-flex;
+  align-items: center;
+  min-height: 29px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid rgba(36,88,255,.10);
+  border-radius: 999px;
+  color: #274262;
+  background: linear-gradient(135deg, rgba(29,205,246,.075), rgba(130,85,255,.065));
+  font-size: .7rem;
+  font-weight: 820;
+}
+
+.partner-person-card__note {
+  margin-top: 7px !important;
+}
+
+#intentActivity {
+  font-weight: 700;
+}
+
+.partner-teen-note {
+  border-color: rgba(36,88,255,.11) !important;
+  background: rgba(245,248,255,.9) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-chip {
+    transition: none;
+  }
+}
