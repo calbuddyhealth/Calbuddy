@@ -1,19 +1,19 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.2
+   Version: 4.6.3
 
    Important V4.6 changes:
    - Keeps one stable Circle header/messages route everywhere.
    - Loads deterministic relationship actions for Profile.
    - Loads the cleaner V4 notification experience.
-   - Loads shared V4 UX consistency styles.
+   - Loads shared V4 UX consistency and presence styles.
    - Keeps feature modules one-shot to avoid Safari render loops.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.6.2";
+  const VERSION = "4.6.3";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -49,7 +49,7 @@
 
   function ensureStyles() {
     ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
-    ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.0");
+    ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
   }
 
   function circleMenuMarkup(includeProfileOptions = false) {
