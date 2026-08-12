@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — LAUNCH SOCIAL V5
-   Version: 5.0.0
+   Version: 5.0.1
 
    Launch model:
    - Feed/Moments = friends + self.
@@ -9,11 +9,17 @@
    - Profile = identity + simple relationship/safety controls.
    - Mute and Block are intentionally separate actions.
    - Mobile form fields remain >=16px to prevent iOS Safari focus zoom.
+
+   V5.0.1:
+   - Removes the document-wide MutationObserver that could repeatedly
+     retrigger DOM patching and freeze ARI Circle on iPhone/Safari.
+   - Uses a few bounded startup refreshes instead.
+   - Camera code is intentionally untouched.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.0.0";
+  const VERSION = "5.0.1";
   const STYLE_ID = "ari-circle-launch-social-v5-style";
   const $ = (id) => document.getElementById(id);
   const clean = (v) => String(v ?? "").trim();
@@ -122,8 +128,6 @@
         box-shadow:0 18px 46px rgba(12,24,50,.22); font:700 .78rem/1.25 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
 
-      /* Challenges are ARI Circle's discovery/participation surface. Entries
-         become a swipe-friendly full-screen viewer instead of a cramped card. */
       #entriesDialog.challenge-entries-dialog[open] {
         width: 100vw !important; max-width:none !important; height:100dvh !important;
         max-height:100dvh !important; margin:0 !important; padding:0 !important;
@@ -281,6 +285,10 @@
     simplifyChallengeLanguage();
   }
 
+  function scheduleBoundedRefreshes() {
+    [80, 300, 900].forEach((delay) => setTimeout(run, delay));
+  }
+
   function start() {
     if (state.started) return;
     state.started = true;
@@ -288,9 +296,11 @@
     ensureStyle();
     bindFocusRecovery();
     run();
-    const observer = new MutationObserver(() => run());
-    observer.observe(document.documentElement, { childList:true, subtree:true });
-    document.addEventListener("circle:app-ready", run);
+    scheduleBoundedRefreshes();
+    document.addEventListener("circle:app-ready", () => {
+      run();
+      setTimeout(run, 120);
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once:true });
