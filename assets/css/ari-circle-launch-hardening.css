@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — LAUNCH HARDENING
-   Version: 1.0.0
+   Version: 1.0.1
    Purpose:
    - Keep Moment controls safely grouped at the top-right.
    - Make ARI Camera feel like a true full-view social camera.
@@ -110,7 +110,6 @@
   background: rgba(6, 10, 18, .50) !important;
 }
 
-/* Keep the media under the controls rather than pushing controls around. */
 .feed-moment-viewer__card {
   position: relative !important;
   overflow: hidden !important;
@@ -141,7 +140,8 @@
   inset: 0 !important;
 }
 
-#ariCameraVideo {
+/* Specificity is intentionally higher than the older moderation override. */
+body #ariCameraVideo {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
