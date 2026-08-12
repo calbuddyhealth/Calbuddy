@@ -3,11 +3,16 @@
 
 const STYLE_ID = "ari-circle-profile-v3-style";
 
+const themeMeta = document.querySelector('meta[name="theme-color"]');
+if (themeMeta) {
+  themeMeta.setAttribute("content", "#f8faff");
+}
+
 if (!document.getElementById(STYLE_ID)) {
   const link = document.createElement("link");
   link.id = STYLE_ID;
   link.rel = "stylesheet";
-  link.href = "assets/css/ari-circle-profile-v3.css?v=1.0.0";
+  link.href = "assets/css/ari-circle-profile-v3.css?v=1.0.1";
   document.head.append(link);
 }
 
