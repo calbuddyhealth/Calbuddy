@@ -1,20 +1,19 @@
 /* =============================================================
    ARI CIRCLE — BUDDIES SOCIAL DISCOVERY
-   Version: 1.0.0
+   Version: 1.1.0
 
-   Adds the ordinary friend layer to the existing Activity Buddies page:
+   Adds the ordinary friend layer to Buddies:
    - Search people by display name / @handle
    - Show eligible people to discover
    - Send friend requests
    - Surface Friends and Requests entry points
-
-   Existing activity-matching tables/RPCs remain untouched.
+   - Preserve the separate plans/activities lane below
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const DISCOVERY_LIMIT = 8;
 
   const state = {
@@ -90,7 +89,7 @@
       <div class="buddy-social__heading">
         <div>
           <h2 id="buddySocialTitle">People to Discover</h2>
-          <p>Eligible people in your ARI Circle social space.</p>
+          <p>Meet people in your ARI Circle social space.</p>
         </div>
         <button id="buddySocialMore" class="buddy-social__more" type="button">See More</button>
       </div>
@@ -103,17 +102,7 @@
     tabs.insertAdjacentElement("afterend", section);
 
     const hero = page.querySelector(".partner-hero");
-    if (hero) {
-      hero.classList.add("circle-v4-activity-cta");
-      const kicker = hero.querySelector(".partner-kicker");
-      const title = hero.querySelector("h1");
-      const copy = hero.querySelector("p:last-of-type");
-      const button = $("openIntentButton");
-      if (kicker) kicker.textContent = "ACTIVITY BUDDIES";
-      if (title) title.textContent = "Find an Activity Buddy";
-      if (copy) copy.textContent = "Looking for a gym, hiking, running, cycling, sports, walking, or accountability buddy?";
-      if (button) button.textContent = "Create Buddy Listing";
-    }
+    if (hero) hero.classList.add("circle-v4-activity-cta");
   }
 
   async function loadCounts() {
@@ -166,13 +155,13 @@
       } else {
         setStatus(state.query
           ? `${state.people.length} result${state.people.length === 1 ? "" : "s"}`
-          : "Recommended from eligible ARI Circle users");
+          : "People you can discover in ARI Circle");
       }
     } catch (error) {
       console.warn("ARI Circle friend discovery unavailable:", error);
       state.people = [];
       renderPeople();
-      setStatus("Friend discovery will appear when your Circle social access is ready.");
+      setStatus("Friend discovery is temporarily unavailable.");
     } finally {
       state.loading = false;
       if (more) more.disabled = false;
@@ -260,6 +249,7 @@
 
       button.textContent = "Requested ✓";
       button.classList.add("is-requested");
+      await loadCounts();
     } catch (error) {
       console.error("ARI Circle friend request failed:", error);
       button.disabled = false;
