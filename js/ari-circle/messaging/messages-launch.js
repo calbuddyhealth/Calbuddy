@@ -1,18 +1,17 @@
 /* =============================================================
    ARI CIRCLE — MESSAGES LAUNCH HARDENING
-   Version: 1.0.1
+   Version: 1.1.0
 
    Launch-critical iPhone fixes:
    - Prevent Safari's input-focus zoom by pairing with 16px form controls.
    - Keep the Send button inside the visible viewport while the keyboard is open.
-   - Make the in-thread back control reliably return to the inbox.
-   - Keep direct-message URLs from trapping users in an empty thread state.
-   - Preserve an href fallback so Back still works even if JS misses a tap.
+   - Leave the in-thread Back control as a normal href so Safari can always
+     navigate back to the Messages inbox reliably.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.1.0";
   const $ = (id) => document.getElementById(id);
   const root = document.documentElement;
 
@@ -24,53 +23,10 @@
     root.style.setProperty("--ari-messages-viewport-top", `${top}px`);
   }
 
-  function clearDirectUserFromUrl() {
-    try {
-      const url = new URL(window.location.href);
-      if (!url.searchParams.has("user")) return;
-      url.searchParams.delete("user");
-      history.replaceState({ ariCircleInbox: true }, "", `${url.pathname}${url.search}${url.hash}`);
-    } catch {}
-  }
-
-  function returnToInbox(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-
-    const thread = $("circleThread");
-    const page = $("messagesPage");
-    if (thread) thread.hidden = true;
-    page?.classList.remove("has-thread");
-    clearDirectUserFromUrl();
-
-    const active = document.activeElement;
-    if (active instanceof HTMLElement) active.blur();
-    updateVisualViewport();
-
-    requestAnimationFrame(() => {
-      const stillOpen = thread && !thread.hidden;
-      if (stillOpen) {
-        window.location.href = "ari-circle-messages.html";
-        return;
-      }
-      $("messageSearch")?.focus?.({ preventScroll: true });
-      $("messageSearch")?.blur?.();
-    });
-  }
-
-  function bindBackButton() {
-    const back = $("threadBack");
-    if (!back || back.dataset.launchBackBound === "true") return;
-    back.dataset.launchBackBound = "true";
-    back.addEventListener("click", returnToInbox, true);
-    back.addEventListener("pointerup", returnToInbox, true);
-    back.addEventListener("touchend", returnToInbox, { capture: true, passive: false });
-  }
-
   function keepComposerVisible() {
     updateVisualViewport();
     requestAnimationFrame(() => {
-      const composer = document.querySelector(".circle-thread__composer");
+      const composer = document.querySelector(".circle-thread__composer:not([hidden])");
       if (!composer) return;
       composer.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     });
@@ -95,26 +51,13 @@
     window.visualViewport?.addEventListener("scroll", updateVisualViewport, { passive: true });
   }
 
-  function bindHistory() {
-    window.addEventListener("popstate", () => {
-      const thread = $("circleThread");
-      const page = $("messagesPage");
-      if (thread && !thread.hidden && !new URLSearchParams(location.search).get("user")) {
-        thread.hidden = true;
-        page?.classList.remove("has-thread");
-      }
-    });
-  }
-
   function run() {
-    bindBackButton();
     bindKeyboard();
     updateVisualViewport();
   }
 
   function init() {
     bindViewport();
-    bindHistory();
     run();
 
     const observer = new MutationObserver(run);
@@ -129,7 +72,6 @@
 
   window.AriCircleMessagesLaunch = Object.freeze({
     version: VERSION,
-    refresh: run,
-    returnToInbox
+    refresh: run
   });
 })();
