@@ -9,30 +9,44 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/ari-circle-challenges.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
 </head>
 <body>
   <main class="challenge-page" id="challengePage" hidden>
     <header class="challenge-header">
-      <a class="challenge-icon-button" href="ari-circle.html" aria-label="Back to ARI Circle">←</a>
-      <a class="challenge-brand" href="ari-circle.html" aria-label="ARI Circle">
+      <details class="circle-v4-menu">
+        <summary class="challenge-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu">
+          <a href="ari-circle.html?panel=notifications"><span>Notifications</span><small>Activity</small></a>
+          <a href="ari-circle-partners.html"><span>Find People</span><small>Buddies</small></a>
+          <div class="circle-v4-menu__divider"></div>
+          <a href="account.html"><span>Account Settings</span><small>Privacy</small></a>
+          <a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a>
+          <div class="circle-v4-menu__divider"></div>
+          <a href="home.html"><span>Exit ARI Circle</span><small>ARI XP</small></a>
+        </nav>
+      </details>
+
+      <a class="challenge-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed">
         <span class="challenge-brand__mark" aria-hidden="true"><i></i><i></i></span>
         <span>ARI CIRCLE</span>
       </a>
-      <a class="challenge-header-link" href="ari-circle.html">Circle</a>
+
+      <a class="circle-v4-message" href="ari-circle.html?panel=messages" aria-label="Messages">💬</a>
     </header>
 
     <nav class="challenge-tabs" aria-label="ARI Circle sections">
       <a class="challenge-tab" href="ari-circle-feed.html">Feed</a>
-      <a class="challenge-tab" href="ari-circle-partners.html">Partners</a>
-      <a class="challenge-tab is-active" href="ari-circle-challenges.html" aria-current="page">Challenges</a>
       <a class="challenge-tab" href="ari-circle.html">Me</a>
+      <a class="challenge-tab" href="ari-circle-partners.html">Buddies</a>
+      <a class="challenge-tab is-active" href="ari-circle-challenges.html" aria-current="page">Challenges</a>
     </nav>
 
     <section class="challenge-hero" aria-labelledby="challengeTitle">
       <p class="challenge-kicker">MAKE IT A GAME</p>
-      <h1 id="challengeTitle">Compete with yourself. Together.</h1>
-      <p>Create a challenge, join one, log progress, and climb the board. No cash prizes — just ARI flair and bragging rights.</p>
-      <button class="challenge-primary" id="openCreateChallenge" type="button">Create a challenge</button>
+      <h1 id="challengeTitle">Challenges</h1>
+      <p>Join in, log progress, and keep each other moving.</p>
+      <button class="challenge-primary" id="openCreateChallenge" type="button">+ Create</button>
     </section>
 
     <section class="challenge-flair" id="challengeFlair" aria-labelledby="challengeFlairTitle">
@@ -183,5 +197,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/ari-circle/challenges/challenges.js?v=1.0.0" defer></script>
+  <script src="js/ari-circle/v4-ui.js?v=4.0.0" defer></script>
 </body>
 </html>
