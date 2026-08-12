@@ -1,24 +1,26 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.3
+   Version: 4.6.4
 
    Important V4.6 changes:
    - Keeps one stable Circle header/messages route everywhere.
    - Loads deterministic relationship actions for Profile.
    - Loads the cleaner V4 notification experience.
    - Loads shared V4 UX consistency and presence styles.
+   - Loads reliable friend/request counts in Buddies.
    - Keeps feature modules one-shot to avoid Safari render loops.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.6.3";
+  const VERSION = "4.6.4";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
   let panelHandled = false;
   let buddiesLoaded = false;
+  let buddyCountsLoaded = false;
   let flowFixesLoaded = false;
   let feedCameraLoaded = false;
   let feedPolishLoaded = false;
@@ -251,6 +253,14 @@
       import("/js/ari-circle/buddies/buddies-social.js?v=1.2.0").catch((error) => {
         buddiesLoaded = false;
         console.warn("ARI Circle Buddies social discovery failed to load:", error);
+      });
+    }
+
+    if (!buddyCountsLoaded && document.querySelector(".partner-page")) {
+      buddyCountsLoaded = true;
+      import("/js/ari-circle/buddies/buddy-counts-v4.js?v=1.0.0").catch((error) => {
+        buddyCountsLoaded = false;
+        console.warn("ARI Circle Buddy counts failed to load:", error);
       });
     }
 
