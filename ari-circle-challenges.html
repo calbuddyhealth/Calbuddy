@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f8faff" />
+  <title>Challenges | ARI Circle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-challenges.css?v=1.0.0" />
+</head>
+<body>
+  <main class="challenge-page" id="challengePage" hidden>
+    <header class="challenge-header">
+      <a class="challenge-icon-button" href="ari-circle.html" aria-label="Back to ARI Circle">←</a>
+      <a class="challenge-brand" href="ari-circle.html" aria-label="ARI Circle">
+        <span class="challenge-brand__mark" aria-hidden="true"><i></i><i></i></span>
+        <span>ARI CIRCLE</span>
+      </a>
+      <a class="challenge-header-link" href="ari-circle.html">Circle</a>
+    </header>
+
+    <nav class="challenge-tabs" aria-label="ARI Circle sections">
+      <a class="challenge-tab" href="ari-circle-feed.html">Feed</a>
+      <a class="challenge-tab" href="ari-circle-partners.html">Partners</a>
+      <a class="challenge-tab is-active" href="ari-circle-challenges.html" aria-current="page">Challenges</a>
+      <a class="challenge-tab" href="ari-circle.html">Me</a>
+    </nav>
+
+    <section class="challenge-hero" aria-labelledby="challengeTitle">
+      <p class="challenge-kicker">MAKE IT A GAME</p>
+      <h1 id="challengeTitle">Compete with yourself. Together.</h1>
+      <p>Create a challenge, join one, log progress, and climb the board. No cash prizes — just ARI flair and bragging rights.</p>
+      <button class="challenge-primary" id="openCreateChallenge" type="button">Create a challenge</button>
+    </section>
+
+    <section class="challenge-flair" id="challengeFlair" aria-labelledby="challengeFlairTitle">
+      <div class="challenge-section-heading">
+        <div>
+          <p class="challenge-kicker">ARI CHALLENGE FLAIR</p>
+          <h2 id="challengeFlairTitle">Earned by showing up</h2>
+        </div>
+      </div>
+      <div class="challenge-flair-grid" id="challengeFlairGrid"></div>
+    </section>
+
+    <section class="challenge-stream" aria-labelledby="challengeStreamTitle">
+      <div class="challenge-section-heading">
+        <div>
+          <p class="challenge-kicker">ACTIVE NOW</p>
+          <h2 id="challengeStreamTitle">Challenges</h2>
+        </div>
+        <button class="challenge-text-button" id="refreshChallenges" type="button">Refresh</button>
+      </div>
+
+      <p class="challenge-status" id="challengeStatus" role="status" aria-live="polite">Loading challenges…</p>
+      <div class="challenge-list" id="challengeList"></div>
+
+      <div class="challenge-empty" id="challengeEmpty" hidden>
+        <span aria-hidden="true">◇</span>
+        <h3>No challenges yet.</h3>
+        <p>Create the first one for your Circle.</p>
+        <button class="challenge-primary" id="emptyCreateChallenge" type="button">Start one</button>
+      </div>
+    </section>
+
+    <section class="challenge-safety-note">
+      <span aria-hidden="true">◎</span>
+      <div>
+        <strong>Age-separated by design.</strong>
+        <p>Teen and adult challenges never share participants or leaderboards. Challenge descriptions cannot be used to bypass those boundaries.</p>
+      </div>
+    </section>
+
+    <footer class="challenge-footer">
+      <span>ARI CIRCLE</span>
+      <p>Progress beats perfection.</p>
+    </footer>
+  </main>
+
+  <section class="challenge-loading" id="challengeLoading" aria-live="polite">
+    <div class="challenge-loading__orb" aria-hidden="true"></div>
+    <strong>Opening Challenges</strong>
+  </section>
+
+  <dialog class="challenge-dialog" id="ageDialog">
+    <form class="challenge-dialog__card" id="ageForm">
+      <p class="challenge-kicker">ONE-TIME SAFETY CHECK</p>
+      <h2>Verify your age</h2>
+      <p>Your birthday stays private. It only determines which Circle challenge space you can enter.</p>
+      <label class="challenge-field" for="ageDateInput">
+        <span>Date of birth</span>
+        <input id="ageDateInput" type="date" autocomplete="bday" required />
+      </label>
+      <button class="challenge-primary challenge-full" type="submit">Continue</button>
+    </form>
+  </dialog>
+
+  <dialog class="challenge-dialog challenge-sheet" id="createChallengeDialog">
+    <form class="challenge-dialog__card" id="createChallengeForm">
+      <button class="challenge-close" type="button" data-close-dialog="createChallengeDialog" aria-label="Close">×</button>
+      <p class="challenge-kicker">NEW CHALLENGE</p>
+      <h2>What are we chasing?</h2>
+
+      <label class="challenge-field" for="challengeName">
+        <span>Name</span>
+        <input id="challengeName" maxlength="80" placeholder="7 workouts in 14 days" required />
+      </label>
+
+      <div class="challenge-form-grid">
+        <label class="challenge-field" for="challengeMetric">
+          <span>Metric</span>
+          <select id="challengeMetric">
+            <option value="workouts">Workouts</option>
+            <option value="training_days">Training days</option>
+            <option value="miles">Miles</option>
+            <option value="minutes">Minutes</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+
+        <label class="challenge-field" for="challengeGoal">
+          <span>Goal</span>
+          <input id="challengeGoal" type="number" min="0.01" max="1000000" step="0.01" value="7" required />
+        </label>
+      </div>
+
+      <div class="challenge-form-grid">
+        <label class="challenge-field" for="challengeUnit">
+          <span>Unit</span>
+          <input id="challengeUnit" maxlength="30" value="workouts" required />
+        </label>
+
+        <label class="challenge-field" for="challengeDays">
+          <span>Duration</span>
+          <select id="challengeDays">
+            <option value="7">7 days</option>
+            <option value="14" selected>14 days</option>
+            <option value="21">21 days</option>
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90">90 days</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="challenge-field" for="challengeDescription">
+        <span>Description <small>optional</small></span>
+        <textarea id="challengeDescription" maxlength="360" rows="3" placeholder="What counts? What makes this fun?"></textarea>
+      </label>
+
+      <p class="challenge-inline-note">Challenges are social motivation, not betting. ARI Circle does not attach cash or monetary prizes.</p>
+      <button class="challenge-primary challenge-full" id="createChallengeButton" type="submit">Launch challenge</button>
+    </form>
+  </dialog>
+
+  <dialog class="challenge-dialog challenge-sheet" id="progressDialog">
+    <form class="challenge-dialog__card" id="progressForm">
+      <button class="challenge-close" type="button" data-close-dialog="progressDialog" aria-label="Close">×</button>
+      <p class="challenge-kicker">LOG PROGRESS</p>
+      <h2 id="progressChallengeTitle">Add progress</h2>
+      <p id="progressChallengeCopy"></p>
+      <label class="challenge-field" for="progressAmount">
+        <span id="progressAmountLabel">Amount</span>
+        <input id="progressAmount" type="number" min="0.01" max="100000" step="0.01" value="1" required />
+      </label>
+      <button class="challenge-primary challenge-full" type="submit">Add progress</button>
+    </form>
+  </dialog>
+
+  <dialog class="challenge-dialog challenge-sheet" id="leaderboardDialog">
+    <div class="challenge-dialog__card">
+      <button class="challenge-close" type="button" data-close-dialog="leaderboardDialog" aria-label="Close">×</button>
+      <p class="challenge-kicker">LEADERBOARD</p>
+      <h2 id="leaderboardTitle">Challenge board</h2>
+      <div class="challenge-leaderboard" id="leaderboardList"></div>
+    </div>
+  </dialog>
+
+  <div class="challenge-toast" id="challengeToast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/ari-circle/challenges/challenges.js?v=1.0.0" defer></script>
+</body>
+</html>
