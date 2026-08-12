@@ -42,11 +42,10 @@ if (!document.getElementById(MEDIA_STYLE_ID)) {
   document.head.append(link);
 }
 
-// V4.5: v4-ui owns loading v4-flow-fixes. Importing flow-fixes here too
-// created a second copy of the same runtime with duplicate listeners.
+// v4-ui owns the social-flow modules so Profile only gets one copy of each.
 Promise.all([
   import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.5.1")
+  import("../v4-ui.js?v=4.6.1")
 ]).catch((error) => {
   console.error("ARI Circle profile enhancement failed to load:", error);
 });
