@@ -1,19 +1,21 @@
 /* =============================================================
    ARI CIRCLE — FEED LAUNCH HARDENING
-   Version: 1.0.0
+   Version: 1.1.0
 
    Launch-critical behavior:
    - The post ••• button NEVER navigates directly to safety/reporting.
    - ••• opens only Delete / Hide / Report.
    - Delete appears only for the post owner.
-   - Camera always starts at the lowest exposed optical zoom.
+   - Camera starts at a true 1x field of view when supported.
+   - Live camera framing matches the captured photo/video framing.
    - Camera/Moment UI remains safe when legacy/V4 handlers are present.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
+  const CAMERA_FRAMING_STYLE_ID = "ari-circle-camera-framing-v11";
   const $ = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? "").trim();
 
@@ -191,26 +193,109 @@
     }, true);
   }
 
-  async function forceLowestCameraZoom() {
+  function ensureCameraFramingStyle() {
+    if ($(CAMERA_FRAMING_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = CAMERA_FRAMING_STYLE_ID;
+    style.textContent = `
+      #ariCircleCamera .ari-camera__stage {
+        background: #000 !important;
+      }
+
+      #ariCircleCamera #ariCameraVideo {
+        object-fit: contain !important;
+        object-position: 50% 50% !important;
+        transform: none !important;
+        background: #000 !important;
+      }
+
+      #ariCircleCamera .ari-camera__review-media img,
+      #ariCircleCamera .ari-camera__review-media video {
+        object-fit: contain !important;
+        object-position: 50% 50% !important;
+        background: #000 !important;
+      }
+
+      #ariCircleCamera .ari-camera__zoom-indicator {
+        position: absolute;
+        z-index: 8;
+        left: 50%;
+        bottom: calc(max(134px, env(safe-area-inset-bottom) + 120px));
+        transform: translateX(-50%);
+        display: grid;
+        place-items: center;
+        min-width: 38px;
+        height: 30px;
+        padding: 0 10px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 999px;
+        color: #fff;
+        background: rgba(4,7,14,.48);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        font: 800 .72rem/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        pointer-events: none;
+      }
+    `;
+    document.head.append(style);
+  }
+
+  function ensureOneXIndicator() {
+    const stage = $("ariCameraStage");
+    if (!stage) return;
+    let indicator = $("ariCameraOneX");
+    if (!indicator) {
+      indicator = document.createElement("div");
+      indicator.id = "ariCameraOneX";
+      indicator.className = "ari-camera__zoom-indicator";
+      indicator.setAttribute("aria-hidden", "true");
+      stage.append(indicator);
+    }
+    indicator.textContent = "1×";
+  }
+
+  async function forceOneXCameraZoom() {
     const video = $("ariCameraVideo");
     const track = video?.srcObject?.getVideoTracks?.()[0];
     if (!track) return;
+
+    /* ARI's default is the user's familiar 1× field of view. Never use
+       zoom.min as a synonym for 1×; multi-camera/virtual tracks can expose
+       a minimum value that does not correspond to the framing users expect. */
     try {
       const caps = track.getCapabilities?.();
       const min = Number(caps?.zoom?.min);
-      if (!Number.isFinite(min)) return;
-      await track.applyConstraints({ advanced: [{ zoom: min }] });
+      const max = Number(caps?.zoom?.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+      const oneX = Math.min(max, Math.max(min, 1));
+      await track.applyConstraints({ advanced: [{ zoom: oneX }] });
     } catch {
-      /* Some iPhone camera tracks do not expose writable zoom. */
+      /* Some iPhone/Safari camera tracks do not expose writable zoom. */
     }
   }
 
   function patchCamera() {
     const video = $("ariCameraVideo");
-    if (!video || video.dataset.launchCameraPatched === "true") return;
+    if (!video) return;
+
+    ensureCameraFramingStyle();
+    ensureOneXIndicator();
+
+    /* The live view must show the same complete stream frame that photo
+       capture and MediaRecorder save. This removes the old cover-vs-contain
+       jump where the live view looked zoomed and the review suddenly widened. */
+    video.style.setProperty("object-fit", "contain", "important");
+    video.style.setProperty("object-position", "50% 50%", "important");
+    video.style.setProperty("transform", "none", "important");
+
+    if (video.dataset.launchCameraPatched === "true") {
+      setTimeout(forceOneXCameraZoom, 20);
+      return;
+    }
+
     video.dataset.launchCameraPatched = "true";
-    video.addEventListener("loadedmetadata", () => setTimeout(forceLowestCameraZoom, 40));
-    video.addEventListener("playing", () => setTimeout(forceLowestCameraZoom, 40));
+    video.addEventListener("loadedmetadata", () => setTimeout(forceOneXCameraZoom, 30));
+    video.addEventListener("playing", () => setTimeout(forceOneXCameraZoom, 30));
   }
 
   function observeUi() {
@@ -234,6 +319,7 @@
     if (state.started || !document.querySelector(".feed-page")) return;
     state.started = true;
     state.client = client();
+    ensureCameraFramingStyle();
     if (state.client) {
       try {
         const { data } = await state.client.auth.getUser();
