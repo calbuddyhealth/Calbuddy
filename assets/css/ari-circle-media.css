@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — MEDIA + MOMENTS
-   Version: 1.0.0
+   Version: 1.0.1
 ============================================================= */
 
 :root {
@@ -325,16 +325,19 @@
   max-height: 680px;
   margin: 0 -1px;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   background: #0b1020;
-}
-
-.feed-post__video {
-  aspect-ratio: 9 / 12;
 }
 
 .feed-post__body:has(p:empty) {
   display: none;
+}
+
+.circle-v3-post__video {
+  width: 100%;
+  max-height: 620px;
+  object-fit: contain;
+  background: #0b1020;
 }
 
 .feed-moment-viewer {
@@ -459,17 +462,28 @@
 
 .feed-moment-viewer__controls {
   position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  top: 50%;
+  left: 10px;
+  right: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transform: translateY(-50%);
   pointer-events: none;
 }
 
 .feed-moment-viewer__controls button {
-  border: 0;
-  color: transparent;
-  background: transparent;
+  width: 40px;
+  height: 54px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 18px;
+  color: rgba(255,255,255,.88);
+  background: rgba(4,8,18,.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 2rem;
+  line-height: 1;
   pointer-events: auto;
 }
 
