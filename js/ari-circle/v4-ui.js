@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.3.0
+   Version: 4.4.0
 
    UI-only enhancement layer. It intentionally leaves the existing
    Supabase tables, RPCs, stores, and persistence behavior untouched.
@@ -9,12 +9,14 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.3.0";
+  const VERSION = "4.4.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let scheduled = false;
   let panelHandled = false;
   let buddiesLoaded = false;
   let flowFixesLoaded = false;
+  let feedCameraLoaded = false;
+  let feedPolishLoaded = false;
   let appReady = false;
 
   const $ = (id) => document.getElementById(id);
@@ -342,10 +344,34 @@
   function loadFlowFixes() {
     if (flowFixesLoaded) return;
     flowFixesLoaded = true;
-    import("/js/ari-circle/v4-flow-fixes.js?v=1.0.0").catch((error) => {
-      flowFixesLoaded = false;
-      console.warn("ARI Circle V4 flow fixes failed to load:", error);
-    });
+    import("/js/ari-circle/v4-flow-fixes.js?v=1.0.0")
+      .then(() => window.AriCircleV4FlowFixes?.refresh?.())
+      .catch((error) => {
+        flowFixesLoaded = false;
+        console.warn("ARI Circle V4 flow fixes failed to load:", error);
+      });
+  }
+
+  function loadFeedCamera() {
+    if (feedCameraLoaded || !document.querySelector(".feed-page")) return;
+    feedCameraLoaded = true;
+    import("/js/ari-circle/media/camera-capture.js?v=1.0.0")
+      .then(() => window.AriCircleCamera?.refresh?.())
+      .catch((error) => {
+        feedCameraLoaded = false;
+        console.warn("ARI Circle camera failed to load:", error);
+      });
+  }
+
+  function loadFeedPolish() {
+    if (feedPolishLoaded || !document.querySelector(".feed-page")) return;
+    feedPolishLoaded = true;
+    import("/js/ari-circle/feed/feed-polish.js?v=1.0.0")
+      .then(() => window.AriCircleFeedPolish?.refresh?.())
+      .catch((error) => {
+        feedPolishLoaded = false;
+        console.warn("ARI Circle feed polish failed to load:", error);
+      });
   }
 
   function run() {
@@ -362,6 +388,8 @@
     openRequestedPanel();
     loadBuddiesSocial();
     loadFlowFixes();
+    loadFeedCamera();
+    loadFeedPolish();
   }
 
   function schedule() {
