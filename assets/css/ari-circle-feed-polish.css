@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED POLISH
-   Version: 1.0.0
+   Version: 1.0.1
 ============================================================= */
 
 .feed-composer__top h2 {
@@ -122,6 +122,19 @@
 
 .feed-moment-add .feed-moment-bubble__ring {
   background: linear-gradient(135deg, rgba(33,215,255,.72), #2d5cff, #8656ff);
+}
+
+/* Camera hardening layered after the camera stylesheet. */
+.ari-camera__shutter {
+  position: relative;
+}
+
+.ari-camera__review[hidden],
+.ari-camera__discard[hidden],
+.ari-camera__review-actions[hidden],
+.ari-camera__controls[hidden],
+.ari-camera__record-meta[hidden] {
+  display: none !important;
 }
 
 @media (max-width: 520px) {
