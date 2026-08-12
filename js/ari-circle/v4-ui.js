@@ -1,20 +1,17 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.4
+   Version: 4.6.5
 
-   Important V4.6 changes:
-   - Keeps one stable Circle header/messages route everywhere.
-   - Loads deterministic relationship actions for Profile.
-   - Loads the cleaner V4 notification experience.
-   - Loads shared V4 UX consistency and presence styles.
-   - Loads reliable friend/request counts in Buddies.
-   - Keeps feature modules one-shot to avoid Safari render loops.
+   V4.6.5 launch change:
+   - Web Feed no longer imports the custom getUserMedia camera.
+   - Camera button uses the native device capture path instead.
+   - Keeps camera code out of Circle startup and avoids Safari camera stalls.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.6.4";
+  const VERSION = "4.6.5";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -22,7 +19,6 @@
   let buddiesLoaded = false;
   let buddyCountsLoaded = false;
   let flowFixesLoaded = false;
-  let feedCameraLoaded = false;
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
   let notificationsLoaded = false;
@@ -152,12 +148,10 @@
     if (!document.body.classList.contains("ari-circle-page")) return;
     ensureProfileNav();
     ensureProfileHeader();
-
     ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel"].forEach(hide);
     $("circleV3Summary")?.remove();
     document.querySelector(".circle-v3-name-flair")?.remove();
     document.querySelector('[data-v3-profile-tab="achievements"]')?.remove();
-
     const share = $("circle-share-profile-button");
     if (share && share.textContent.trim() !== "Share Profile") share.textContent = "Share Profile";
     const remove = $("circle-remove-connection-button");
@@ -179,16 +173,11 @@
     const editor = $("circle-profile-editor");
     if (!editor || editor.dataset.v46Labels === "true") return;
     const prompts = [
-      ["ask me about", "Ask me about..."],
-      ["current obsession", "Current obsession..."],
-      ["dream trip", "Dream trip..."],
-      ["best way to make me laugh", "Best way to make me laugh..."],
-      ["comfort show/movie", "My comfort show/movie..."],
-      ["song i know every word to", "Song I know every word to..."],
-      ["unpopular opinion", "Unpopular opinion..."],
-      ["something i want to learn", "Something I want to learn..."],
-      ["weirdly good at", "Weirdly good at..."],
-      ["perfect night looks like", "Perfect night looks like..."]
+      ["ask me about", "Ask me about..."], ["current obsession", "Current obsession..."],
+      ["dream trip", "Dream trip..."], ["best way to make me laugh", "Best way to make me laugh..."],
+      ["comfort show/movie", "My comfort show/movie..."], ["song i know every word to", "Song I know every word to..."],
+      ["unpopular opinion", "Unpopular opinion..."], ["something i want to learn", "Something I want to learn..."],
+      ["weirdly good at", "Weirdly good at..."], ["perfect night looks like", "Perfect night looks like..."]
     ];
     editor.querySelectorAll("label, legend, .circle-editor-field__label").forEach((el) => {
       const lower = String(el.textContent || "").trim().toLowerCase();
@@ -202,16 +191,12 @@
     if (panelHandled || !appReady || !document.body.classList.contains("ari-circle-page")) return;
     const panel = new URLSearchParams(window.location.search).get("panel");
     if (!panel) { panelHandled = true; return; }
-
     if (panel === "messages" || panel === "message") {
       panelHandled = true;
       const user = new URLSearchParams(window.location.search).get("user");
-      window.location.replace(user
-        ? `ari-circle-messages.html?user=${encodeURIComponent(user)}`
-        : "ari-circle-messages.html");
+      window.location.replace(user ? `ari-circle-messages.html?user=${encodeURIComponent(user)}` : "ari-circle-messages.html");
       return;
     }
-
     if (["friends","requests","sent"].includes(panel)) {
       const button = $("circle-see-friends-action") || document.querySelector('[data-circle-action="view-entire-circle"]');
       if (button) {
@@ -221,13 +206,9 @@
       }
       return;
     }
-
     if (panel === "notifications") {
       const button = $("circle-notifications-button");
-      if (button) {
-        panelHandled = true;
-        button.click();
-      }
+      if (button) { panelHandled = true; button.click(); }
     }
   }
 
@@ -239,7 +220,6 @@
         console.warn("ARI Circle flow fixes failed to load:", error);
       });
     }
-
     if (!notificationsLoaded && document.body.classList.contains("ari-circle-page")) {
       notificationsLoaded = true;
       import("/js/ari-circle/notifications/notifications-v4.js?v=1.0.0").catch((error) => {
@@ -247,7 +227,6 @@
         console.warn("ARI Circle notifications V4 failed to load:", error);
       });
     }
-
     if (!buddiesLoaded && document.querySelector(".partner-page")) {
       buddiesLoaded = true;
       import("/js/ari-circle/buddies/buddies-social.js?v=1.2.0").catch((error) => {
@@ -255,7 +234,6 @@
         console.warn("ARI Circle Buddies social discovery failed to load:", error);
       });
     }
-
     if (!buddyCountsLoaded && document.querySelector(".partner-page")) {
       buddyCountsLoaded = true;
       import("/js/ari-circle/buddies/buddy-counts-v4.js?v=1.0.0").catch((error) => {
@@ -264,13 +242,8 @@
       });
     }
 
-    if (!feedCameraLoaded && document.querySelector(".feed-page")) {
-      feedCameraLoaded = true;
-      import("/js/ari-circle/media/camera-capture.js?v=1.0.1").catch((error) => {
-        feedCameraLoaded = false;
-        console.warn("ARI Circle camera failed to load:", error);
-      });
-    }
+    // Camera V2/custom getUserMedia intentionally NOT imported for web launch.
+    // camera-ios26-recovery.js v3 opens the native capture picker directly.
 
     if (!feedPolishLoaded && document.querySelector(".feed-page")) {
       feedPolishLoaded = true;
@@ -279,7 +252,6 @@
         console.warn("ARI Circle feed polish failed to load:", error);
       });
     }
-
     if (!feedModerationLoaded && document.querySelector(".feed-page")) {
       feedModerationLoaded = true;
       import("/js/ari-circle/feed/feed-moderation.js?v=1.1.0").catch((error) => {
@@ -290,26 +262,11 @@
   }
 
   function run() {
-    ensureStyles();
-    standardizeMenus();
-    standardizeMessages();
-    simplifyProfile();
-    cleanProfileEditorLabels();
-    bindProfileOptions();
-    loadModules();
-    openRequestedPanel();
+    ensureStyles(); standardizeMenus(); standardizeMessages(); simplifyProfile();
+    cleanProfileEditorLabels(); bindProfileOptions(); loadModules(); openRequestedPanel();
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    run();
-    setTimeout(run, 120);
-  }, { once: true });
-
-  document.addEventListener("circle:app-ready", () => {
-    appReady = true;
-    run();
-    setTimeout(run, 120);
-  });
-
+  document.addEventListener("DOMContentLoaded", () => { run(); setTimeout(run, 120); }, { once: true });
+  document.addEventListener("circle:app-ready", () => { appReady = true; run(); setTimeout(run, 120); });
   window.AriCircleV4 = Object.freeze({ version: VERSION, refresh: run });
 })();
