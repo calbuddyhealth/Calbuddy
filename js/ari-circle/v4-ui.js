@@ -1,17 +1,17 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.6.5
+   Version: 4.6.6
 
-   V4.6.5 launch change:
-   - Web Feed no longer imports the custom getUserMedia camera.
-   - Camera button uses the native device capture path instead.
-   - Keeps camera code out of Circle startup and avoids Safari camera stalls.
+   V4.6.6:
+   - Close any open Circle navigation menu when the user taps
+     anywhere outside the menu.
+   - Only one Circle menu may remain open at a time.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "4.6.5";
+  const VERSION = "4.6.6";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -22,6 +22,7 @@
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
   let notificationsLoaded = false;
+  let outsideMenuBound = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -67,12 +68,37 @@
     `;
   }
 
+  function closeOtherMenus(current = null) {
+    document.querySelectorAll("details.circle-v4-menu[open]").forEach((details) => {
+      if (details !== current) details.removeAttribute("open");
+    });
+  }
+
+  function bindOutsideMenuClose() {
+    if (outsideMenuBound) return;
+    outsideMenuBound = true;
+
+    document.addEventListener("pointerdown", (event) => {
+      const menu = event.target.closest?.("details.circle-v4-menu");
+      if (menu) {
+        if (menu.open) closeOtherMenus(menu);
+        return;
+      }
+      closeOtherMenus();
+    }, true);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeOtherMenus();
+    });
+  }
+
   function standardizeMenus() {
     document.querySelectorAll(".feed-header > .circle-v4-menu, .partner-header > .circle-v4-menu, .challenge-header > .circle-v4-menu").forEach((details) => {
       if (details.dataset.v46Menu === "true") return;
       details.innerHTML = circleMenuMarkup(false);
       details.dataset.v46Menu = "true";
     });
+    bindOutsideMenuClose();
   }
 
   function routeToMessages(event) {
@@ -241,9 +267,6 @@
         console.warn("ARI Circle Buddy counts failed to load:", error);
       });
     }
-
-    // Camera V2/custom getUserMedia intentionally NOT imported for web launch.
-    // camera-ios26-recovery.js v3 opens the native capture picker directly.
 
     if (!feedPolishLoaded && document.querySelector(".feed-page")) {
       feedPolishLoaded = true;
