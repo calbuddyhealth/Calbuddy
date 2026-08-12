@@ -1,22 +1,29 @@
 /* =============================================================
-   ARI CIRCLE — PARTNER FINDER
-   Version: 1.0.0
+   ARI CIRCLE — BUDDIES
+   Version: 1.1.0
 
    Purpose:
-   - Let users publish an activity-partner intent.
-   - Discover people already looking for the same activity.
-   - Replace cold DMs with low-pressure mutual-interest invites.
+   - Let users publish a low-pressure social plan.
+   - Discover people already open to the same plan.
+   - Support fitness and everyday social activities.
+   - Replace cold DMs with mutual-interest invites.
    - Keep verified teens and adults separated at the database layer.
-   - Keep teen discovery group/accountability-only.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const $ = (id) => document.getElementById(id);
 
   const ACTIVITY_META = Object.freeze({
+    coffee: { label: "Coffee", emoji: "☕" },
+    food: { label: "Food", emoji: "🍴" },
+    movies: { label: "Movies", emoji: "🎬" },
+    gaming: { label: "Gaming", emoji: "🎮" },
+    events: { label: "Events", emoji: "🎟️" },
+    concerts: { label: "Concerts", emoji: "🎵" },
+    drinks: { label: "Drinks", emoji: "🍸" },
     gym: { label: "Gym", emoji: "🏋️" },
     hiking: { label: "Hiking", emoji: "🥾" },
     running: { label: "Running", emoji: "🏃" },
@@ -24,20 +31,13 @@
     sports: { label: "Sports", emoji: "🏀" },
     walking: { label: "Walking", emoji: "🚶" },
     accountability: { label: "Accountability", emoji: "⚡" },
-    other: { label: "Activity", emoji: "✦" }
+    other: { label: "Something fun", emoji: "✦" }
   });
 
   const MODE_LABELS = Object.freeze({
     one_on_one: "1-on-1",
     group: "Group",
     accountability: "Accountability"
-  });
-
-  const EXPERIENCE_LABELS = Object.freeze({
-    beginner: "Beginner",
-    intermediate: "Intermediate",
-    advanced: "Advanced",
-    any: "Any level"
   });
 
   const TIME_LABELS = Object.freeze({
@@ -110,9 +110,7 @@
   function openDialog(id) {
     const dialog = $(id);
     if (!dialog) return;
-    if (typeof dialog.showModal === "function" && !dialog.open) {
-      dialog.showModal();
-    }
+    if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
   }
 
   function closeDialog(id) {
@@ -163,28 +161,44 @@
 
     if (oneOnOne) {
       oneOnOne.disabled = isTeen;
-      if (isTeen && oneOnOne.checked && group) {
-        group.checked = true;
-      }
+      if (isTeen && oneOnOne.checked && group) group.checked = true;
     }
 
-    $("teenIntentNote").hidden = !isTeen;
+    document.querySelectorAll("[data-adult-only]").forEach((element) => {
+      if (element.tagName === "OPTION") {
+        element.disabled = isTeen;
+        element.hidden = isTeen;
+      } else {
+        element.hidden = isTeen;
+      }
+    });
+
+    if (isTeen && $("intentActivity")?.value === "drinks") {
+      $("intentActivity").value = "coffee";
+    }
+
+    if (isTeen && state.selectedActivity === "drinks") {
+      state.selectedActivity = "";
+      syncActivityChips();
+    }
+
+    if ($("teenIntentNote")) $("teenIntentNote").hidden = !isTeen;
 
     if (isTeen) {
       $("partnerSafetyTitle").textContent = "Teen-safe discovery";
       $("partnerSafetyText").textContent =
-        "Adult profiles are excluded. Partner Finder is limited to group activities and accountability, with only a general area shown.";
+        "Adult profiles are excluded. Teen Buddies uses group plans or accountability and only shows a general area.";
     } else {
       $("partnerSafetyTitle").textContent = "Private by design";
       $("partnerSafetyText").textContent =
-        "Partner Finder uses a general area, never your precise location. A DM opens only after mutual interest.";
+        "Buddies uses a general area, never your precise location. A DM opens only after mutual interest.";
     }
   }
 
   async function verifyAge(event) {
     event.preventDefault();
 
-    const value = clean($("ageDateInput").value);
+    const value = clean($("ageDateInput")?.value);
     if (!value) {
       showToast("Enter your date of birth to continue.");
       return;
@@ -202,7 +216,7 @@
       showToast("Age verified. Your birth date stays private.");
       await refreshAll();
     } catch (error) {
-      console.error("Partner Finder age verification failed:", error);
+      console.error("Buddies age verification failed:", error);
       showToast(error.message || "Could not verify age.", 4500);
     } finally {
       setBusy(false);
@@ -252,15 +266,19 @@
 
   function fillIntentForm(intent = null) {
     const source = intent || state.ownIntents.find((item) => item.status === "looking") || null;
+    const fallbackActivity = state.selectedActivity || "coffee";
 
-    $("intentActivity").value = source?.activity || state.selectedActivity || "gym";
-    $("intentExperience").value = source?.experience_level || "any";
+    $("intentActivity").value = source?.activity || fallbackActivity;
+    $("intentExperience").value = "any";
     $("intentArea").value = source?.area || state.area || "";
     $("intentNote").value = source?.note || "";
 
-    const mode = source?.mode || (state.age?.age_band === "teen" ? "group" : "one_on_one");
+    const activity = source?.activity || fallbackActivity;
+    const defaultMode = state.age?.age_band === "teen" ? "group" : "one_on_one";
+    const mode = activity === "accountability" ? "accountability" : (source?.mode || defaultMode);
+
     document.querySelectorAll('input[name="intentMode"]').forEach((input) => {
-      input.checked = input.value === mode;
+      input.checked = input.value === mode || (mode === "accountability" && input.value === defaultMode);
     });
 
     const selectedTimes = new Set(Array.isArray(source?.time_preferences) ? source.time_preferences : []);
@@ -284,17 +302,19 @@
   async function saveIntent(event) {
     event.preventDefault();
 
-    const mode = document.querySelector('input[name="intentMode"]:checked')?.value || "one_on_one";
+    const activity = clean($("intentActivity")?.value);
+    const selectedMode = document.querySelector('input[name="intentMode"]:checked')?.value || "one_on_one";
+    const mode = activity === "accountability" ? "accountability" : selectedMode;
     const times = [...document.querySelectorAll('input[name="intentTime"]:checked')]
       .map((input) => input.value);
 
     const payload = {
-      requested_activity: clean($("intentActivity").value),
+      requested_activity: activity,
       requested_mode: mode,
-      requested_experience_level: clean($("intentExperience").value) || "any",
-      requested_area: clean($("intentArea").value),
+      requested_experience_level: "any",
+      requested_area: clean($("intentArea")?.value),
       requested_time_preferences: times,
-      requested_note: clean($("intentNote").value) || null
+      requested_note: clean($("intentNote")?.value) || null
     };
 
     if (!payload.requested_area) {
@@ -307,12 +327,12 @@
     try {
       await rpc("ari_circle_upsert_partner_intent", payload);
       closeDialog("intentDialog");
-      showToast("You’re discoverable for this activity.");
+      showToast(`You’re discoverable for ${activityMeta(activity).label.toLowerCase()}.`);
       state.selectedActivity = payload.requested_activity;
       syncActivityChips();
       await refreshAll();
     } catch (error) {
-      console.error("Partner listing save failed:", error);
+      console.error("Buddy listing save failed:", error);
       showToast(error.message || "Could not save your listing.", 4500);
     } finally {
       setBusy(false);
@@ -330,7 +350,7 @@
     const empty = $("partnerEmpty");
     const status = $("partnerResultStatus");
 
-    status.textContent = "Finding people who are already looking…";
+    status.textContent = "Finding people who are already open to something…";
     empty.hidden = true;
 
     try {
@@ -343,11 +363,11 @@
       state.partners = Array.isArray(data) ? data : [];
       renderPartners();
     } catch (error) {
-      console.error("Partner discovery failed:", error);
+      console.error("Buddy discovery failed:", error);
       state.partners = [];
       host.replaceChildren();
       empty.hidden = false;
-      status.textContent = error.message || "Partner Finder is unavailable right now.";
+      status.textContent = error.message || "Buddies is unavailable right now.";
     }
   }
 
@@ -360,16 +380,14 @@
 
     if (!state.partners.length) {
       empty.hidden = false;
-      status.textContent = "No matching profiles yet.";
+      status.textContent = "No matching people yet.";
       return;
     }
 
     empty.hidden = true;
-    status.textContent = `${state.partners.length} ${state.partners.length === 1 ? "person is" : "people are"} open to an activity.`;
+    status.textContent = `${state.partners.length} ${state.partners.length === 1 ? "person is" : "people are"} open to connecting.`;
 
-    state.partners.forEach((partner) => {
-      host.append(createPartnerCard(partner));
-    });
+    state.partners.forEach((partner) => host.append(createPartnerCard(partner)));
   }
 
   function createPartnerCard(partner) {
@@ -389,7 +407,6 @@
     const pills = [
       partner.area ? `📍 ${partner.area}` : null,
       MODE_LABELS[partner.mode] || titleCase(partner.mode),
-      EXPERIENCE_LABELS[partner.experience_level] || titleCase(partner.experience_level),
       ...times.slice(0, 3)
     ].filter(Boolean);
 
@@ -405,6 +422,7 @@
         <span class="partner-person-card__activity-icon" aria-label="${escapeHtml(meta.label)}">${meta.emoji}</span>
       </div>
       <div class="partner-person-card__body">
+        <strong class="partner-person-card__plan">${meta.emoji} ${escapeHtml(meta.label)}</strong>
         ${partner.bio ? `<p class="partner-person-card__bio">${escapeHtml(partner.bio)}</p>` : ""}
         ${partner.note ? `<p class="partner-person-card__note">“${escapeHtml(partner.note)}”</p>` : ""}
         <div class="partner-meta-row">
@@ -417,10 +435,7 @@
       </div>
     `;
 
-    article.querySelector("[data-interest-intent]")?.addEventListener("click", () => {
-      openInviteFor(partner);
-    });
-
+    article.querySelector("[data-interest-intent]")?.addEventListener("click", () => openInviteFor(partner));
     return article;
   }
 
@@ -429,7 +444,7 @@
     const meta = activityMeta(partner.activity);
     $("inviteDialogTitle").textContent = `Say hey to ${clean(partner.display_name) || "them"}`;
     $("inviteDialogDescription").textContent =
-      `You’re both interested in ${meta.label.toLowerCase()}. Pick a low-pressure opener — they choose whether to connect.`;
+      `${meta.emoji} ${meta.label} sounds good to both of you. Pick a low-pressure opener — they choose whether to connect.`;
     openDialog("inviteDialog");
   }
 
@@ -446,10 +461,10 @@
       });
 
       closeDialog("inviteDialog");
-      showToast(`Invite sent to ${clean(partner.display_name) || "this person"}. No awkward cold DM.`);
+      showToast(`Invite sent to ${clean(partner.display_name) || "this person"}.`);
       state.activeInviteTarget = null;
     } catch (error) {
-      console.error("Partner invite failed:", error);
+      console.error("Buddy invite failed:", error);
       showToast(error.message || "Could not send the invite.", 4500);
     } finally {
       setBusy(false);
@@ -466,7 +481,7 @@
         .filter((invite) => invite.status === "pending");
       renderInvites();
     } catch (error) {
-      console.error("Partner invite loading failed:", error);
+      console.error("Buddy invite loading failed:", error);
       state.receivedInvites = [];
       renderInvites();
     }
@@ -514,14 +529,8 @@
         </div>
       `;
 
-      card.querySelector("[data-decline-invite]")?.addEventListener("click", () => {
-        respondToInvite(invite, false);
-      });
-
-      card.querySelector("[data-accept-invite]")?.addEventListener("click", () => {
-        respondToInvite(invite, true);
-      });
-
+      card.querySelector("[data-decline-invite]")?.addEventListener("click", () => respondToInvite(invite, false));
+      card.querySelector("[data-accept-invite]")?.addEventListener("click", () => respondToInvite(invite, true));
       host.append(card);
     });
   }
@@ -545,7 +554,7 @@
 
       const meta = activityMeta(invite.activity);
       $("matchDialogText").textContent =
-        `You and ${clean(invite.other_display_name) || "this person"} both want to connect around ${meta.label.toLowerCase()}.`;
+        `You and ${clean(invite.other_display_name) || "this person"} both picked ${meta.label.toLowerCase()}.`;
 
       if (result?.conversation_id) {
         sessionStorage.setItem("ariCirclePartnerConversationId", String(result.conversation_id));
@@ -553,7 +562,7 @@
 
       openDialog("matchDialog");
     } catch (error) {
-      console.error("Partner invite response failed:", error);
+      console.error("Buddy invite response failed:", error);
       showToast(error.message || "Could not update this invite.", 4500);
     } finally {
       setBusy(false);
@@ -562,17 +571,13 @@
 
   async function refreshAll() {
     if (!state.age?.verified) return;
-    await Promise.all([
-      loadOwnIntents(),
-      loadPartners(),
-      loadInvites()
-    ]);
+    await Promise.all([loadOwnIntents(), loadPartners(), loadInvites()]);
   }
 
   function bindActivityFilters() {
     $("activityStrip")?.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-activity]");
-      if (!button) return;
+      if (!button || button.hidden) return;
 
       state.selectedActivity = button.dataset.activity || "";
       syncActivityChips();
@@ -580,10 +585,19 @@
     });
   }
 
+  function bindIntentActivity() {
+    $("intentActivity")?.addEventListener("change", () => {
+      const activity = clean($("intentActivity").value);
+      const modeFieldset = $("modeFieldset");
+      if (!modeFieldset) return;
+      modeFieldset.hidden = activity === "accountability";
+    });
+  }
+
   function bindSearch() {
     $("partnerSearchForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      state.area = clean($("partnerAreaSearch").value);
+      state.area = clean($("partnerAreaSearch")?.value);
       await loadPartners();
     });
 
@@ -611,20 +625,12 @@
     [$("openIntentButton"), $("editIntentButton"), $("emptyCreateButton")]
       .filter(Boolean)
       .forEach((button) => button.addEventListener("click", openIntentEditor));
-
-    document.querySelectorAll("[data-coming-soon]").forEach((button) => {
-      button.addEventListener("click", () => {
-        showToast(`${button.dataset.comingSoon} is next in the ARI Circle rebuild.`);
-      });
-    });
   }
 
   async function init() {
     try {
       state.client = window.calbuddySupabase || window.supabaseClient || null;
-      if (!state.client) {
-        throw new Error("Supabase is unavailable.");
-      }
+      if (!state.client) throw new Error("Supabase is unavailable.");
 
       const user = await requireUser();
       if (!user) return;
@@ -635,21 +641,22 @@
       $("partnerLoading").hidden = true;
 
       bindActivityFilters();
+      bindIntentActivity();
       bindSearch();
       bindDialogs();
       bindLaunchers();
 
       if (!state.age?.verified) {
         openDialog("ageDialog");
-        $("partnerResultStatus").textContent = "Verify your age to use Partner Finder.";
+        $("partnerResultStatus").textContent = "Verify your age to use Buddies.";
         return;
       }
 
       await refreshAll();
     } catch (error) {
-      console.error("ARI Circle Partner Finder failed to start:", error);
+      console.error("ARI Circle Buddies failed to start:", error);
       $("partnerLoading").innerHTML = `
-        <strong>Partner Finder couldn’t open.</strong>
+        <strong>Buddies couldn’t open.</strong>
         <span>${escapeHtml(error.message || "Please try again.")}</span>
         <a class="partner-secondary" href="ari-circle.html">Back to ARI Circle</a>
       `;
