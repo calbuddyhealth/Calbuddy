@@ -1,17 +1,18 @@
 /* =============================================================
    ARI CIRCLE — MESSAGES LAUNCH HARDENING
-   Version: 1.0.0
+   Version: 1.0.1
 
    Launch-critical iPhone fixes:
    - Prevent Safari's input-focus zoom by pairing with 16px form controls.
    - Keep the Send button inside the visible viewport while the keyboard is open.
-   - Make the in-thread back button reliably return to the inbox.
+   - Make the in-thread back control reliably return to the inbox.
    - Keep direct-message URLs from trapping users in an empty thread state.
+   - Preserve an href fallback so Back still works even if JS misses a tap.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const $ = (id) => document.getElementById(id);
   const root = document.documentElement;
 
@@ -35,7 +36,6 @@
   function returnToInbox(event) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    event?.stopImmediatePropagation?.();
 
     const thread = $("circleThread");
     const page = $("messagesPage");
@@ -48,6 +48,11 @@
     updateVisualViewport();
 
     requestAnimationFrame(() => {
+      const stillOpen = thread && !thread.hidden;
+      if (stillOpen) {
+        window.location.href = "ari-circle-messages.html";
+        return;
+      }
       $("messageSearch")?.focus?.({ preventScroll: true });
       $("messageSearch")?.blur?.();
     });
@@ -58,6 +63,8 @@
     if (!back || back.dataset.launchBackBound === "true") return;
     back.dataset.launchBackBound = "true";
     back.addEventListener("click", returnToInbox, true);
+    back.addEventListener("pointerup", returnToInbox, true);
+    back.addEventListener("touchend", returnToInbox, { capture: true, passive: false });
   }
 
   function keepComposerVisible() {
