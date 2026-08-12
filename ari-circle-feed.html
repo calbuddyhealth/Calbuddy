@@ -50,9 +50,7 @@
       <form id="feedComposerForm">
         <div class="feed-composer__top">
           <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
-          <div>
-            <h2 id="composerTitle">Share something</h2>
-          </div>
+          <div><h2 id="composerTitle">Share something</h2></div>
         </div>
 
         <label class="sr-only" for="feedPostBody">Write a post</label>
@@ -64,145 +62,74 @@
           <div class="feed-media-preview__meta" id="feedMediaPreviewMeta"></div>
         </div>
 
-        <input
-          id="feedMediaInput"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
-          hidden
-        />
+        <input id="feedMediaInput" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm" hidden />
 
         <div class="feed-composer__toolbar">
           <button class="feed-media-button" id="feedMediaButton" type="button" aria-label="Open camera or media library">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4.5 7.5A2.5 2.5 0 0 1 7 5h1.15l1-1.5h5.7l1 1.5H17a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z"></path>
-              <circle cx="12" cy="12" r="3.2"></circle>
-            </svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7.5A2.5 2.5 0 0 1 7 5h1.15l1-1.5h5.7l1 1.5H17a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z"></path><circle cx="12" cy="12" r="3.2"></circle></svg>
             <span>Camera</span>
           </button>
-
           <div class="feed-composer__counter"><span id="postCharCount">0</span>/1200</div>
           <button class="feed-primary" id="publishPostButton" type="submit">Share</button>
         </div>
 
         <div class="feed-moment-action" id="feedMomentAction" hidden>
-          <div>
-            <strong>Make it a Moment</strong>
-            <span>Photo or video · disappears after 24 hours</span>
-          </div>
+          <div><strong>Make it a Moment</strong><span>Photo or video · disappears after 24 hours</span></div>
           <button class="feed-moment-button" id="shareMomentButton" type="button">Add to Moment</button>
         </div>
-
         <span class="feed-composer__privacy">Shared only inside your verified age group.</span>
       </form>
     </section>
 
     <section class="feed-moments" id="momentsSection" aria-labelledby="momentsTitle" hidden>
-      <div class="feed-moments__heading">
-        <h2 id="momentsTitle">Moments</h2>
-        <span>24h</span>
-      </div>
+      <div class="feed-moments__heading"><h2 id="momentsTitle">Moments</h2><span>24h</span></div>
       <div class="feed-moments__strip" id="momentsStrip" aria-live="polite"></div>
     </section>
 
     <section class="feed-stream" aria-labelledby="streamTitle">
-      <div class="feed-section-heading">
-        <div><h2 id="streamTitle">Feed</h2></div>
-        <button class="feed-text-button" id="refreshFeedButton" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button>
-      </div>
-
+      <div class="feed-section-heading"><div><h2 id="streamTitle">Feed</h2></div><button class="feed-text-button" id="refreshFeedButton" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button></div>
       <p class="feed-status" id="feedStatus" role="status" aria-live="polite">Loading your Circle…</p>
       <div class="feed-list" id="feedList" aria-live="polite"></div>
-
-      <div class="feed-empty" id="feedEmpty" hidden>
-        <span aria-hidden="true">✦</span>
-        <h3>Quiet in here.</h3>
-        <p>Be the first person to share something.</p>
-        <button class="feed-primary" id="emptyComposeButton" type="button">Share something</button>
-      </div>
-
+      <div class="feed-empty" id="feedEmpty" hidden><span aria-hidden="true">✦</span><h3>Quiet in here.</h3><p>Be the first person to share something.</p><button class="feed-primary" id="emptyComposeButton" type="button">Share something</button></div>
       <button class="feed-secondary feed-full" id="loadMoreButton" type="button" hidden>Load more</button>
     </section>
   </main>
 
-  <section class="feed-loading" id="feedLoading" aria-live="polite" hidden>
-    <div class="feed-loading__orb" aria-hidden="true"></div>
-    <strong>Opening your Circle</strong>
-  </section>
+  <section class="feed-loading" id="feedLoading" aria-live="polite" hidden><div class="feed-loading__orb" aria-hidden="true"></div><strong>Opening your Circle</strong></section>
 
   <dialog class="feed-dialog" id="ageDialog">
     <form class="feed-dialog__card" id="ageForm">
-      <p class="feed-kicker">ONE-TIME SAFETY CHECK</p>
-      <h2>Verify your age</h2>
-      <p>Your birthday stays private. ARI uses it to keep teen and adult social spaces separate.</p>
-      <label class="feed-field" for="ageDateInput">
-        <span>Date of birth</span>
-        <input id="ageDateInput" type="date" autocomplete="bday" required />
-      </label>
+      <p class="feed-kicker">ONE-TIME SAFETY CHECK</p><h2>Verify your age</h2><p>Your birthday stays private. ARI uses it to keep teen and adult social spaces separate.</p>
+      <label class="feed-field" for="ageDateInput"><span>Date of birth</span><input id="ageDateInput" type="date" autocomplete="bday" required /></label>
       <button class="feed-primary feed-full" id="verifyAgeButton" type="submit">Continue</button>
     </form>
   </dialog>
 
   <dialog class="feed-dialog feed-sheet" id="reactionDialog">
     <div class="feed-dialog__card">
-      <button class="feed-close" type="button" data-close-dialog="reactionDialog" aria-label="Close">×</button>
-      <p class="feed-kicker">REACT</p>
-      <h2>Pick a reaction</h2>
-      <div class="feed-emoji-grid" id="quickReactionGrid">
-        <button type="button" data-reaction="🔥">🔥</button>
-        <button type="button" data-reaction="💪">💪</button>
-        <button type="button" data-reaction="👏">👏</button>
-        <button type="button" data-reaction="❤️">❤️</button>
-        <button type="button" data-reaction="⚡">⚡</button>
-        <button type="button" data-reaction="😂">😂</button>
-        <button type="button" data-reaction="🎉">🎉</button>
-        <button type="button" data-reaction="🧠">🧠</button>
-      </div>
-      <form id="customReactionForm" class="feed-custom-reaction">
-        <label for="customReactionInput">Any emoji</label>
-        <div>
-          <input id="customReactionInput" maxlength="16" inputmode="text" autocomplete="off" placeholder="🫡" />
-          <button class="feed-primary" type="submit">React</button>
-        </div>
-      </form>
+      <button class="feed-close" type="button" data-close-dialog="reactionDialog" aria-label="Close">×</button><p class="feed-kicker">REACT</p><h2>Pick a reaction</h2>
+      <div class="feed-emoji-grid" id="quickReactionGrid"><button type="button" data-reaction="🔥">🔥</button><button type="button" data-reaction="💪">💪</button><button type="button" data-reaction="👏">👏</button><button type="button" data-reaction="❤️">❤️</button><button type="button" data-reaction="⚡">⚡</button><button type="button" data-reaction="😂">😂</button><button type="button" data-reaction="🎉">🎉</button><button type="button" data-reaction="🧠">🧠</button></div>
+      <form id="customReactionForm" class="feed-custom-reaction"><label for="customReactionInput">Any emoji</label><div><input id="customReactionInput" maxlength="16" inputmode="text" autocomplete="off" placeholder="🫡" /><button class="feed-primary" type="submit">React</button></div></form>
     </div>
   </dialog>
 
   <dialog class="feed-dialog feed-sheet" id="commentsDialog">
     <div class="feed-dialog__card feed-comments-card">
-      <button class="feed-close" type="button" data-close-dialog="commentsDialog" aria-label="Close">×</button>
-      <p class="feed-kicker">CONVERSATION</p>
-      <h2>Comments</h2>
-      <div class="feed-comments-list" id="commentsList"></div>
-      <div class="feed-empty feed-empty--compact" id="commentsEmpty" hidden>
-        <p>No comments yet. Say something.</p>
-      </div>
-      <form class="feed-comment-form" id="commentForm">
-        <label class="sr-only" for="commentInput">Write a comment</label>
-        <input id="commentInput" maxlength="600" autocomplete="off" placeholder="Add a comment…" required />
-        <button class="feed-primary" type="submit">Send</button>
-      </form>
+      <button class="feed-close" type="button" data-close-dialog="commentsDialog" aria-label="Close">×</button><p class="feed-kicker">CONVERSATION</p><h2>Comments</h2>
+      <div class="feed-comments-list" id="commentsList"></div><div class="feed-empty feed-empty--compact" id="commentsEmpty" hidden><p>No comments yet. Say something.</p></div>
+      <form class="feed-comment-form" id="commentForm"><label class="sr-only" for="commentInput">Write a comment</label><input id="commentInput" maxlength="600" autocomplete="off" placeholder="Add a comment…" required /><button class="feed-primary" type="submit">Send</button></form>
     </div>
   </dialog>
 
   <dialog class="feed-moment-viewer" id="momentViewer">
-    <div class="feed-moment-viewer__card">
-      <div class="feed-moment-viewer__top">
-        <div class="feed-moment-viewer__identity" id="momentViewerIdentity"></div>
-        <button type="button" data-close-dialog="momentViewer" aria-label="Close Moment">×</button>
-      </div>
-      <div class="feed-moment-viewer__media" id="momentViewerMedia"></div>
-      <p class="feed-moment-viewer__caption" id="momentViewerCaption"></p>
-      <div class="feed-moment-viewer__controls">
-        <button id="momentPrevButton" type="button" aria-label="Previous Moment">‹</button>
-        <button id="momentNextButton" type="button" aria-label="Next Moment">›</button>
-      </div>
-    </div>
+    <div class="feed-moment-viewer__card"><div class="feed-moment-viewer__top"><div class="feed-moment-viewer__identity" id="momentViewerIdentity"></div><button type="button" data-close-dialog="momentViewer" aria-label="Close Moment">×</button></div><div class="feed-moment-viewer__media" id="momentViewerMedia"></div><p class="feed-moment-viewer__caption" id="momentViewerCaption"></p><div class="feed-moment-viewer__controls"><button id="momentPrevButton" type="button" aria-label="Previous Moment">‹</button><button id="momentNextButton" type="button" aria-label="Next Moment">›</button></div></div>
   </dialog>
 
   <div class="feed-toast" id="feedToast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/ari-circle/feed/fast-auth.js?v=1.0.0"></script>
   <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>
   <script src="js/ari-circle/media/camera-v2.js?v=2.0.0" defer></script>
   <script src="js/ari-circle/media/camera-gestures.js?v=1.0.0" defer></script>
