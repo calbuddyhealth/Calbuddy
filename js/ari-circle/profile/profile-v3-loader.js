@@ -5,6 +5,7 @@
 const PROFILE_STYLE_ID = "ari-circle-profile-v3-style";
 const V4_STYLE_ID = "ari-circle-v4-style";
 const V4_POLISH_STYLE_ID = "ari-circle-v4-polish-style";
+const MEDIA_STYLE_ID = "ari-circle-media-style";
 
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 if (themeMeta) {
@@ -35,9 +36,17 @@ if (!document.getElementById(V4_POLISH_STYLE_ID)) {
   document.head.append(link);
 }
 
+if (!document.getElementById(MEDIA_STYLE_ID)) {
+  const link = document.createElement("link");
+  link.id = MEDIA_STYLE_ID;
+  link.rel = "stylesheet";
+  link.href = "assets/css/ari-circle-media.css?v=1.0.0";
+  document.head.append(link);
+}
+
 Promise.all([
-  import("./profile-v4.js?v=4.1.0"),
-  import("../v4-ui.js?v=4.1.2")
+  import("./profile-v4.js?v=4.2.0"),
+  import("../v4-ui.js?v=4.2.0")
 ]).catch((error) => {
   console.error("ARI Circle profile enhancement failed to load:", error);
 });
