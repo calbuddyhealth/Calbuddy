@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UX FIXES
-   Version: 1.0.0
+   Version: 1.0.1
 ============================================================= */
 
 /* Always keep accessibility-only labels out of the visual layout. */
@@ -36,12 +36,14 @@
   min-width: 0;
 }
 
-/* Presence is binary visually: green when online, neutral grey otherwise. */
+/* Presence is deliberately binary visually:
+   green = online, neutral grey = offline/away. */
 #circle-avatar-presence,
 #circle-presence-indicator,
 .circle-presence-dot {
   background: #a7b0bf !important;
   box-shadow: 0 0 0 3px rgba(255,255,255,.96) !important;
+  transition: background 180ms ease, box-shadow 180ms ease;
 }
 
 #circle-avatar-presence[data-status="online"],
@@ -62,6 +64,20 @@
 
 #circle-presence-text {
   color: #748095;
+  transition: color 180ms ease;
+}
+
+/* iOS Safari supports :has(); this lets the presence label mirror the dot
+   without introducing another DOM observer. */
+#circle-presence:has(#circle-presence-indicator[data-status="online"]) #circle-presence-text {
+  color: #18a963 !important;
+  font-weight: 700;
+}
+
+#circle-presence:has(#circle-presence-indicator[data-status="offline"]) #circle-presence-text,
+#circle-presence:has(#circle-presence-indicator[data-status="away"]) #circle-presence-text {
+  color: #748095 !important;
+  font-weight: 600;
 }
 
 /* Buddies quick actions should look like first-class controls, not grey pills. */
