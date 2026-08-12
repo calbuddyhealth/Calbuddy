@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE V4 — UI SIMPLIFICATION LAYER
-   Version: 4.1.1
+   Version: 4.1.2
 
    UI-only enhancement layer. It intentionally leaves the existing
    Supabase tables, RPCs, stores, and persistence behavior untouched.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.1.1";
+  const VERSION = "4.1.2";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   let scheduled = false;
   let panelHandled = false;
@@ -326,7 +326,7 @@
   function loadBuddiesSocial() {
     if (buddiesLoaded || !document.querySelector(".partner-page")) return;
     buddiesLoaded = true;
-    import("./buddies/buddies-social.js?v=1.0.0").catch((error) => {
+    import("/js/ari-circle/buddies/buddies-social.js?v=1.0.0").catch((error) => {
       buddiesLoaded = false;
       console.warn("ARI Circle Buddies social discovery failed to load:", error);
     });
