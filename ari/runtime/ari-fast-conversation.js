@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/runtime/ari-fast-conversation.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Add a lightweight conversational lane in front of the full Ari Rebirth
 //   runtime without changing CalBuddy's public askAri API.
@@ -14,7 +14,7 @@
 //   AriRebirthAppBridge.ask()  ← wrapped here
 //        ↓
 //   AriConversationRouter
-//      ├─ FAST → /api/ari-conversation → direct natural reply
+//      ├─ FAST → authenticated /api/ari-conversation → direct natural reply
 //      └─ DEEP → original AriRebirthAppBridge.ask()
 //
 // The full runtime remains the fallback authority. Fast mode never performs
@@ -27,7 +27,7 @@
   window.Ari = window.Ari || {};
 
   const AriFastConversation = {
-    version: "1.0.0",
+    version: "1.0.1",
     source: "ari-fast-conversation",
     endpoint: "/api/ari-conversation",
     installed: false,
@@ -117,10 +117,19 @@
       const timeoutId = window.setTimeout(() => controller.abort(), this.fastTimeoutMs);
 
       try {
+        const accessToken = await this.resolveAccessToken();
+
+        if (!accessToken) {
+          const authError = new Error("A signed-in session is required for fast conversation.");
+          authError.code = "ari_fast_conversation_auth_missing";
+          throw authError;
+        }
+
         const response = await fetch(this.endpoint, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`
           },
           signal: controller.signal,
           body: JSON.stringify(this.buildRequest(message, options, route))
@@ -184,6 +193,37 @@
       } finally {
         window.clearTimeout(timeoutId);
       }
+    },
+
+    async resolveAccessToken() {
+      try {
+        if (
+          window.CalBuddy &&
+          typeof window.CalBuddy.getCurrentSession === "function"
+        ) {
+          const session = await window.CalBuddy.getCurrentSession();
+          const token = String(session?.access_token || "").trim();
+          if (token) return token;
+        }
+
+        const client =
+          window.calbuddySupabase ||
+          window.supabaseClient ||
+          window.CalBuddy?.supabase ||
+          null;
+
+        if (client?.auth?.getSession) {
+          const { data } = await client.auth.getSession();
+          return String(data?.session?.access_token || "").trim();
+        }
+      } catch (error) {
+        console.warn(
+          "ARI FAST CONVERSATION: session token lookup failed:",
+          error?.message || error
+        );
+      }
+
+      return "";
     },
 
     buildRequest(message = "", options = {}, route = {}) {
