@@ -152,13 +152,14 @@
       <div class="ari-form ari-profile-grid">
         <div class="ari-field">
           <label class="ari-label" for="age">Age</label>
-          <input id="age" class="ari-input" type="number" inputmode="numeric" min="10" max="120" step="1" value="34">
+          <input id="age" class="ari-input" type="number" inputmode="numeric" min="10" max="120" step="1" placeholder="Enter age">
         </div>
 
         <div class="ari-field">
           <label class="ari-label" for="sex">Sex</label>
           <select id="sex" class="ari-select">
-            <option value="male" selected>Male</option>
+            <option value="" selected disabled>Select sex</option>
+            <option value="male">Male</option>
             <option value="female">Female</option>
           </select>
         </div>
@@ -166,7 +167,7 @@
         <div class="ari-field">
           <label class="ari-label" for="weight">Current Weight</label>
           <div class="ari-input-with-unit">
-            <input id="weight" class="ari-input" type="number" inputmode="decimal" min="50" max="1000" step="0.1" value="185.2">
+            <input id="weight" class="ari-input" type="number" inputmode="decimal" min="50" max="1000" step="0.1" placeholder="Enter weight">
             <span>lb</span>
           </div>
         </div>
@@ -174,7 +175,7 @@
         <div class="ari-field">
           <label class="ari-label" for="height">Height</label>
           <div class="ari-input-with-unit">
-            <input id="height" class="ari-input" type="number" inputmode="decimal" min="36" max="96" step="0.1" value="69.8">
+            <input id="height" class="ari-input" type="number" inputmode="decimal" min="36" max="96" step="0.1" placeholder="Enter height">
             <span>in</span>
           </div>
           <p id="heightConversion" class="ari-field-note">Equivalent: &#8212;</p>
@@ -183,7 +184,7 @@
         <div class="ari-field">
           <label class="ari-label" for="restingHeartRate">Resting Heart Rate</label>
           <div class="ari-input-with-unit">
-            <input id="restingHeartRate" class="ari-input" type="number" inputmode="numeric" min="30" max="220" step="1" placeholder="62">
+            <input id="restingHeartRate" class="ari-input" type="number" inputmode="numeric" min="30" max="220" step="1" placeholder="Optional">
             <span>bpm</span>
           </div>
         </div>
@@ -202,7 +203,7 @@
               min="80"
               max="260"
               step="1"
-              placeholder="186"
+              placeholder="Calculated from age"
             >
             <span>bpm</span>
           </div>
@@ -224,7 +225,8 @@
         <div class="ari-field">
           <label class="ari-label" for="goalMode">Goal</label>
           <select id="goalMode" class="ari-select">
-            <option value="lose" selected>Lose Weight</option>
+            <option value="" selected disabled>Select goal</option>
+            <option value="lose">Lose Weight</option>
             <option value="maintain">Maintain Weight</option>
             <option value="gain">Gain Weight</option>
           </select>
@@ -233,12 +235,12 @@
         <div class="ari-field">
           <label class="ari-label" for="targetWeight">Target Weight</label>
           <div class="ari-input-with-unit">
-            <input id="targetWeight" class="ari-input" type="number" inputmode="decimal" min="50" max="1000" step="0.1" value="175.0">
+            <input id="targetWeight" class="ari-input" type="number" inputmode="decimal" min="50" max="1000" step="0.1" placeholder="Enter target">
             <span>lb</span>
           </div>
         </div>
 
-        <div class="ari-field" id="weeklyChangeGroup">
+        <div class="ari-field" id="weeklyChangeGroup" style="display:none">
           <label class="ari-label" for="weeklyChange">Weekly Pace</label>
           <select id="weeklyChange" class="ari-select">
             <option value="0.25">0.25 lb/week</option>
@@ -247,15 +249,16 @@
             <option value="1.5">1.5 lb/week</option>
             <option value="2">2 lb/week</option>
           </select>
-          <p id="goalModeHelper" class="ari-field-note">Creates a measured calorie deficit.</p>
+          <p id="goalModeHelper" class="ari-field-note">Choose a goal to set your pace.</p>
         </div>
 
         <div class="ari-field">
           <label class="ari-label" for="activity">Daily Activity</label>
           <select id="activity" class="ari-select">
+            <option value="" selected disabled>Select activity</option>
             <option value="1.2">Sedentary</option>
             <option value="1.375">Lightly Active</option>
-            <option value="1.55" selected>Moderately Active</option>
+            <option value="1.55">Moderately Active</option>
             <option value="1.725">Very Active</option>
             <option value="1.9">Athlete / Extremely Active</option>
           </select>
@@ -333,7 +336,7 @@
             min="800"
             max="10000"
             step="10"
-            placeholder="2000"
+            placeholder="Complete profile first"
             aria-describedby="dailyCalorieGoalHint"
           >
           <span>KCAL / DAY</span>
@@ -346,7 +349,7 @@
       </div>
 
       <p id="dailyCalorieGoalHint" class="ari-hint">
-        Keep the estimate or enter the daily target you prefer.
+        Complete your health profile to calculate a personalized daily target.
       </p>
       <div id="dailyCalorieGoalMessage" class="ari-status" role="status" aria-live="polite"></div>
     </section>
