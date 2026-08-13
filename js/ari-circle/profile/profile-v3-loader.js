@@ -14,8 +14,6 @@ if (themeMeta) themeMeta.setAttribute("content", "#f8faff");
 const routeParams = new URLSearchParams(window.location.search);
 const isOwnProfileRoute = !routeParams.get("user") && !routeParams.get("handle");
 
-// Prevent visitor/owner controls and presence from flashing the wrong state
-// while legacy profile code and the V4 relationship resolver finish.
 document.documentElement.classList.add("circle-profile-hydrating");
 if (isOwnProfileRoute) document.documentElement.classList.add("circle-profile-own-route");
 
@@ -31,8 +29,6 @@ if (!document.getElementById(PROFILE_BOOT_STYLE_ID)) {
       pointer-events: none !important;
     }
 
-    /* No ?user / ?handle means this is definitively the signed-in user's
-       own profile. Do not make Edit Profile wait for relationship RPCs. */
     .circle-profile-hydrating.circle-profile-own-route #circle-owner-actions {
       visibility: visible !important;
       opacity: 1 !important;
@@ -152,8 +148,6 @@ function primeOwnProfileActions() {
 function finishProfessionalProfileBoot() {
   const started = performance.now();
 
-  // Own profile is unambiguous from the route, so reveal its action row now.
-  // Relationship/network work can continue quietly in the background.
   if (isOwnProfileRoute) {
     primeOwnProfileActions();
     requestAnimationFrame(() => {
@@ -175,8 +169,6 @@ function finishProfessionalProfileBoot() {
       return;
     }
 
-    // Shorter fallback than before. Never leave a visitor profile skeleton
-    // hanging for several seconds if a request is slow or unavailable.
     if (performance.now() - started > 2200) {
       document.documentElement.classList.remove("circle-profile-hydrating");
       return;
@@ -188,12 +180,9 @@ function finishProfessionalProfileBoot() {
   requestAnimationFrame(finish);
 }
 
-// Load the relationship/action resolver in parallel instead of waiting for
-// v4-ui to import it afterward. ES modules are cached, so v4-ui can safely
-// request the same module without executing a second copy.
 Promise.all([
   import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.6.5"),
+  import("../v4-ui.js?v=4.7.2"),
   import("../v4-flow-fixes.js?v=1.2.1")
 ])
   .then(() => finishProfessionalProfileBoot())
