@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.6.4";
+CalBuddy.version = "3.6.5";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 CalBuddy.dashboardRefreshPromise = null;
@@ -1251,6 +1251,18 @@ CalBuddy.captureAriTemporarySuggestions = function ({
   }
 };
 
+CalBuddy.isInternalAriFailureText = function (value = "") {
+  const text = String(value || "").trim();
+
+  if (!text) return false;
+
+  return (
+    /^(?:inside|outside)_[a-z0-9_:-]+$/i.test(text) ||
+    /^required_[a-z0-9_:-]+$/i.test(text) ||
+    /^[a-z0-9_:-]+_(?:not_ready|did_not_run|unavailable|failed|failure)$/i.test(text)
+  );
+};
+
 /* -----------------------------
 ASK ARI
 ----------------------------- */
@@ -1574,8 +1586,8 @@ mark("after detectAriActionFromMessage");
 mark("after checkUsage");
 /* -----------------------------
 ARI REBIRTH LOCAL BRIDGE
-Rebirth-only app brain. Old server Ari remains below as emergency API fallback
-only if Rebirth bridge is not loaded.
+Rebirth remains the primary app brain. The simpler server chat below is an
+emergency fallback when the bridge is missing, throws, or returns a failed turn.
 ----------------------------- */
 
 console.log("REBIRTH LOAD CHECK:", {
@@ -1595,11 +1607,14 @@ if (
 ) {
   mark("before AriRebirthAppBridge.ask");
 
-const rebirth = await window.AriRebirthAppBridge.ask(message, {
-  source: "calbuddy-core",
-  page: window.location.pathname || "unknown",
-  history,
-  debugTiming,
+let rebirth;
+
+try {
+  rebirth = await window.AriRebirthAppBridge.ask(message, {
+    source: "calbuddy-core",
+    page: window.location.pathname || "unknown",
+    history,
+    debugTiming,
 
     userContext,
 
@@ -1628,11 +1643,35 @@ const rebirth = await window.AriRebirthAppBridge.ask(message, {
 
     ownerMode: userContext.ownerMode === true,
     ariPermissions: userContext.ariPermissions || {},
-      coachMemorySummary: userContext.coachMemorySummary || ""
-});
+    coachMemorySummary: userContext.coachMemorySummary || ""
+  });
+} catch (error) {
+  rebirth = {
+    ok: false,
+    success: false,
+    complete: false,
+    deliveryStatus: "failed",
+    reply: "",
+    error: {
+      code: error?.code || "rebirth_bridge_exception",
+      message: error?.message || String(error)
+    }
+  };
+}
 
 mark("after AriRebirthAppBridge.ask");
 
+const rebirthReply = String(rebirth?.reply || "").trim();
+const rebirthSucceeded =
+  rebirth &&
+  rebirth.ok !== false &&
+  rebirth.success !== false &&
+  rebirth.complete !== false &&
+  rebirth.deliveryStatus !== "failed" &&
+  Boolean(rebirthReply) &&
+  !CalBuddy.isInternalAriFailureText(rebirthReply);
+
+if (rebirthSucceeded) {
   mark("before logUsage");
 await CalBuddy.logUsage({ message, usage_type: "chat" });
 mark("after logUsage");
@@ -1715,8 +1754,21 @@ return {
   rebirthSummary: rebirth.summary
 };
 }
-  
-  const response = await CalBuddy.api("/api/ask-calbuddy", {
+
+console.warn(
+  "ARI REBIRTH FAILED; USING EMERGENCY CHAT FALLBACK",
+  {
+    deliveryStatus: rebirth?.deliveryStatus || null,
+    error: rebirth?.error || null,
+    diagnostics: rebirth?.diagnostics || null
+  }
+);
+}
+
+let response;
+
+try {
+  response = await CalBuddy.api("/api/ask-calbuddy", {
     message,
     userContext,
     coachMemorySummary: userContext.coachMemorySummary,
@@ -1730,6 +1782,37 @@ return {
       photoAnalysisReady: true
     }
   });
+} catch (error) {
+  console.error("ARI EMERGENCY CHAT FALLBACK FAILED", error);
+  CalBuddy.setAriMood("concerned");
+  finishTiming();
+
+  return {
+    reply: "I hit a temporary connection problem. Please try that again.",
+    emotion: "concerned",
+    pendingAction: null,
+    memoryCandidate: null,
+    developerIntent: null
+  };
+}
+
+if (
+  !response ||
+  response.success === false ||
+  response.ok === false ||
+  !String(response.reply || "").trim() ||
+  CalBuddy.isInternalAriFailureText(response.reply)
+) {
+  response = {
+    ...(response && typeof response === "object" ? response : {}),
+    reply: "I couldn't finish that response. Please try again.",
+    emotion: "concerned",
+    pendingAction: null,
+    memoryCandidate: null,
+    developerIntent: null
+  };
+}
+
   mark("before logUsage");
 await CalBuddy.logUsage({ message, usage_type: "chat" });
 mark("after logUsage");

@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.5.1 — Application Operation Registry Integration
+// V2.5.2 — Reasoning Delivery Recovery
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.5.1",
-  schemaVersion: "2.5.1",
+  version: "2.5.2",
+  schemaVersion: "2.5.2",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -93,7 +93,7 @@ window.AriRebirthAppBridge = {
 
     "ari/bridge/ari-runtime-request.js",
     "ari/bridge/ari-runtime-readiness.js",
-    "ari/bridge/ari-runtime-delivery.js",
+    "ari/bridge/ari-runtime-delivery.js?v=2.0.1",
 
     // ===================================================
     // ACTION / INTENT
@@ -324,7 +324,7 @@ window.AriRebirthAppBridge = {
     "ari/knowledge/ari-openai-knowledge-client.js",
     "ari/knowledge/ari-supabase-knowledge-client.js",
     "ari/reasoning/ari-reasoning-context-engine.js",
-"ari/reasoning/ari-openai-reasoning-client.js",
+"ari/reasoning/ari-openai-reasoning-client.js?v=2.1.1",
 "ari/reasoning/ari-reasoning-engine.js",
 
     // Post-reasoning structural and contract validation.

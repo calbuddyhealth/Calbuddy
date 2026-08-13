@@ -42,9 +42,9 @@ test("thinking fades the thread while keeping Ari's presence visible", () => {
   assert.doesNotMatch(styles, /\.ari-response-disclosure/);
 });
 
-test("the UI release keeps the current production app bridge", () => {
+test("the UI release loads the corrected OpenAI-authority app bridge", () => {
   assert.match(
     html,
-    /ari\/ari-rebirth-app-bridge\.js\?v=1\.8\.0/
+    /ari\/ari-rebirth-app-bridge\.js\?v=2\.5\.2/
   );
 });

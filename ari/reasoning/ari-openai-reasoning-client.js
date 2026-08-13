@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: ari/reasoning/ari-openai-reasoning-client.js
-// Version: 2.1.0
+// Version: 2.1.1
 //
 // Ari OpenAI Reasoning Client
 //
@@ -10,7 +10,7 @@
 //   to the server-side OpenAI endpoint and return structured
 //   model output.
 //
-// V2.1.0 — Preference Context Preservation
+// V2.1.1 — Minimum-Disclosure Reasoning Transport
 //
 // Architectural flow:
 //
@@ -88,7 +88,7 @@
   window.Ari = window.Ari || {};
 
   const CLIENT_VERSION =
-    "2.1.0";
+    "2.1.1";
 
   const EXPECTED_PREFERENCE_SCHEMA_VERSION =
     "3.0.0";
@@ -121,6 +121,11 @@
     async reason(
       payload = {}
     ) {
+      payload =
+        this.buildMinimumDisclosurePayload(
+          payload
+        );
+
       const validation =
         this.validatePayload(
           payload
@@ -988,6 +993,108 @@
     // ===================================================
     // REQUEST BODY
     // ===================================================
+
+    buildMinimumDisclosurePayload(
+      payload = {}
+    ) {
+      const suppliedPacket =
+        this.normalizeObject(
+          payload.cognitivePacket
+        );
+
+      const requestText =
+        this.firstNonEmptyString([
+          this.resolvePacketRequestText(
+            suppliedPacket
+          ),
+          payload.requestText,
+          payload.message
+        ]);
+
+      if (!requestText) {
+        return payload;
+      }
+
+      return {
+        action:
+          "openai_reasoning",
+
+        task:
+          "ari_cognitive_reasoning",
+
+        cognitivePacket: {
+          schema:
+            "ari_cognitive_context_packet",
+
+          schemaVersion:
+            "privacy-minimal-1.0.0",
+
+          request: {
+            original:
+              requestText,
+
+            effective:
+              requestText
+          },
+
+          authority: {
+            safetyIsBinding:
+              true,
+
+            mayExecuteActions:
+              false,
+
+            mayPersistState:
+              false,
+
+            mayOverrideSafety:
+              false,
+
+            mayClaimToolSuccess:
+              false,
+
+            mayAuthorizeDelivery:
+              false,
+
+            mayExposePrivateChainOfThought:
+              false
+          }
+        },
+
+        responseSchema: {
+          schema:
+            "ari_cognitive_reasoning_result",
+
+          schemaVersion:
+            "2.1.1-minimal",
+
+          allowedOperations: [
+            "respond",
+            "clarify"
+          ]
+        },
+
+        operationContract: {
+          allowedOperations: [
+            "respond",
+            "clarify"
+          ],
+
+          actionsAreProposalsOnly:
+            true,
+
+          executionAuthority:
+            "application_only"
+        },
+
+        instructions: [
+          "Interpret and answer only the current request.",
+          "Do not claim access to stored memory, preferences, app state, or developer evidence.",
+          "Do not propose or claim any application write or external side effect.",
+          "Do not expose private chain-of-thought."
+        ]
+      };
+    },
 
     buildRequestBody(
       payload = {}
