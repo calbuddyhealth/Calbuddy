@@ -1,137 +1,174 @@
 /* =============================================================
    ARI CIRCLE — NOTIFICATIONS V4
-   Version: 1.2.0
+   Version: 1.3.0
 
-   V1.2.0:
-   - Compact Facebook-style notification rows.
-   - Small circular profile photos.
-   - Notification center shows previews only; full message/media attachments
-     are never expanded inside the notification list.
+   Compact social notification center.
+   - Small avatars only
+   - No expanded media
+   - Short text previews
+   - Fast inline request actions
 ============================================================= */
 
 #circle-notifications-dialog.circle-notifications-dialog {
-  width: min(calc(100vw - 24px), 620px);
-  max-height: min(82dvh, 780px);
+  width: min(calc(100vw - 20px), 640px);
+  max-height: min(88dvh, 820px);
   padding: 0;
   border: 0;
   background: transparent;
 }
 
 #circle-notifications-dialog::backdrop {
-  background: rgba(8, 14, 29, .28);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(8, 14, 29, .22);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
 
 #circle-notifications-dialog .circle-dialog__panel {
-  max-height: min(82dvh, 780px);
+  max-height: min(88dvh, 820px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 0;
-  border: 1px solid rgba(255,255,255,.96);
-  border-radius: 28px;
-  background: rgba(251,252,255,.985);
-  box-shadow: 0 30px 90px rgba(18,33,72,.18);
+  border: 1px solid rgba(255,255,255,.94);
+  border-radius: 26px;
+  background: rgba(252,253,255,.99);
+  box-shadow: 0 26px 80px rgba(20,37,78,.16);
 }
 
 #circle-notifications-dialog .circle-dialog__header {
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid rgba(35,75,160,.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(35,75,160,.07);
 }
 
 #circle-notifications-dialog .circle-section-eyebrow {
-  margin-bottom: 4px;
+  margin: 0 0 2px;
   color: #2b5dff;
-  font-size: .62rem;
+  font-size: .58rem;
+  font-weight: 800;
   letter-spacing: .16em;
 }
 
 #circle-notifications-dialog .circle-dialog__header h2 {
   margin: 0;
   color: #0b1730;
-  font-size: 1.6rem;
-  letter-spacing: -.04em;
+  font-size: 1.72rem;
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+#circle-notifications-dialog .circle-dialog__header .circle-icon-button {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 50%;
 }
 
 .circle-notifications-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
-  gap: 12px;
+  display: flex;
   align-items: center;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(35,75,160,.06);
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 48px;
+  padding: 7px 16px;
+  border-bottom: 1px solid rgba(35,75,160,.055);
 }
 
 .circle-notifications-toolbar .circle-section-note {
-  margin: 0;
-  color: #7d889d;
-  font-size: .72rem;
-  line-height: 1.4;
+  display: none !important;
 }
 
 .circle-notifications-toolbar__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .circle-notifications-toolbar__actions .circle-text-button {
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 10px;
-  border-radius: 11px;
+  border: 0;
+  border-radius: 10px;
   color: #2b5dff;
   background: rgba(45,92,255,.055);
+  font-family: inherit;
   font-size: .68rem;
   font-weight: 800;
 }
 
 .circle-notifications-toolbar__actions .circle-text-button:disabled {
-  opacity: .35;
+  opacity: .3;
 }
 
 .circle-notifications-clear {
-  color: #8a5360 !important;
-  background: rgba(184,75,98,.055) !important;
+  color: #7f5761 !important;
+  background: rgba(176,77,98,.055) !important;
 }
 
 .circle-notifications-list {
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 16px 18px;
+  padding: 4px 12px 14px;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .circle-notification-item {
-  display: grid;
-  grid-template-columns: 46px minmax(0,1fr);
-  gap: 11px;
-  align-items: start;
-  padding: 12px 5px;
-  border-bottom: 1px solid rgba(35,75,160,.075);
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 50px minmax(0,1fr) !important;
+  gap: 11px !important;
+  align-items: start !important;
+  width: 100% !important;
+  min-height: 70px;
+  margin: 0 !important;
+  padding: 11px 7px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(34,68,145,.065) !important;
+  border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+  overflow: visible !important;
 }
 
 .circle-notification-item:last-child {
-  border-bottom: 0;
+  border-bottom: 0 !important;
 }
 
 .circle-notification-item[data-read="false"] {
-  background: linear-gradient(90deg, rgba(33,215,255,.045), rgba(130,85,255,.025)) !important;
-  border-radius: 16px;
-  padding-inline: 9px;
+  margin: 2px 0 !important;
+  padding: 11px 8px !important;
+  border-bottom-color: transparent !important;
+  border-radius: 16px !important;
+  background: linear-gradient(90deg, rgba(217,245,255,.56), rgba(236,232,255,.42)) !important;
 }
 
-/* Profile photo is deliberately compact. Notification rows should read like
-   activity previews, not profile/media cards. */
+.circle-notification-item[data-read="false"]::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f64ff;
+  transform: translateY(-50%);
+}
+
 .circle-notification-item__avatar {
-  width: 46px !important;
-  height: 46px !important;
-  min-width: 46px !important;
-  min-height: 46px !important;
-  max-width: 46px !important;
-  max-height: 46px !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 50px !important;
+  height: 50px !important;
+  min-width: 50px !important;
+  min-height: 50px !important;
+  max-width: 50px !important;
+  max-height: 50px !important;
+  margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
   border: 1px solid rgba(36,88,255,.10) !important;
@@ -139,24 +176,35 @@
   color: #2458ff !important;
   background: #edf3ff !important;
   box-shadow: none !important;
+  flex: 0 0 50px !important;
 }
 
 .circle-notification-item__avatar img {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
+  display: block !important;
+  width: 50px !important;
+  height: 50px !important;
+  min-width: 50px !important;
+  min-height: 50px !important;
+  max-width: 50px !important;
+  max-height: 50px !important;
+  margin: 0 !important;
   object-fit: cover !important;
-  border-radius: inherit !important;
+  object-position: center !important;
+  border-radius: 50% !important;
+}
+
+.circle-notification-item__avatar span {
+  font-size: .82rem;
+  font-weight: 850;
 }
 
 .circle-notification-item__body {
-  min-width: 0;
-  overflow: hidden;
+  min-width: 0 !important;
+  padding: 1px 20px 0 0 !important;
+  overflow: hidden !important;
 }
 
-/* Never expand photos/videos/message attachments in the notification center.
-   Users get a compact preview and open the destination to see the content. */
+.circle-notification-item > img,
 .circle-notification-item__body img,
 .circle-notification-item__body video,
 .circle-notification-item__body picture,
@@ -167,12 +215,22 @@
 .circle-notification-item__photo,
 .circle-notification-item__preview-media {
   display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .circle-notification-item__meta {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 1px;
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-height: 0 !important;
+  margin: 0 0 2px !important;
+  padding: 0 !important;
 }
 
 .circle-notification-item__type {
@@ -180,54 +238,64 @@
 }
 
 .circle-notification-item__time {
-  color: #929caf !important;
-  font-size: .62rem !important;
+  color: #8e98aa !important;
+  font-size: .68rem !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
   white-space: nowrap;
 }
 
 .circle-notification-item__title {
-  display: block;
-  width: 100%;
+  display: block !important;
+  width: 100% !important;
   min-height: 0 !important;
+  margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
-  color: #142039 !important;
+  color: #111d35 !important;
   background: transparent !important;
   box-shadow: none !important;
-  font: inherit !important;
-  font-size: .86rem !important;
-  font-weight: 760 !important;
-  line-height: 1.28 !important;
+  font-family: inherit !important;
+  font-size: .88rem !important;
+  font-weight: 790 !important;
+  line-height: 1.3 !important;
   text-align: left !important;
   text-transform: none !important;
   letter-spacing: normal !important;
 }
 
 .circle-notification-item__text {
-  display: -webkit-box;
-  max-width: 100%;
+  display: -webkit-box !important;
+  max-width: 100% !important;
   margin: 3px 0 0 !important;
-  overflow: hidden;
-  color: #727f95 !important;
-  font-size: .72rem !important;
+  overflow: hidden !important;
+  color: #6f7b90 !important;
+  font-size: .74rem !important;
   line-height: 1.35 !important;
-  text-overflow: ellipsis;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 1 !important;
+}
+
+.circle-notification-item__text[hidden] {
+  display: none !important;
 }
 
 .circle-notification-item__actions {
   display: flex !important;
-  flex-wrap: wrap;
+  flex-wrap: wrap !important;
   gap: 7px !important;
-  margin-top: 8px !important;
+  margin: 8px 0 0 !important;
+  padding: 0 !important;
 }
 
 .circle-notification-item__actions .circle-button,
 .circle-notification-action {
-  min-height: 34px !important;
+  min-width: 0 !important;
+  min-height: 32px !important;
+  height: 32px !important;
   padding: 0 12px !important;
-  border-radius: 11px !important;
+  border-radius: 9px !important;
   font-family: inherit !important;
   font-size: .68rem !important;
   font-weight: 800 !important;
@@ -235,57 +303,90 @@
   text-transform: none !important;
 }
 
+.circle-notification-item__actions .circle-button--primary {
+  color: #fff !important;
+  background: linear-gradient(135deg, #2866ff, #7350ff) !important;
+  box-shadow: none !important;
+}
+
+.circle-notification-item__actions .circle-button--secondary {
+  color: #28436f !important;
+  background: #eef2f8 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .circle-notification-item__resolved {
   color: #778399;
-  font-size: .68rem;
+  font-size: .69rem;
   font-weight: 750;
 }
 
 #circle-notifications-empty {
-  margin: 20px;
-  padding: 38px 18px;
+  margin: 18px;
+  padding: 34px 18px;
   border: 1px dashed rgba(36,88,255,.12);
-  border-radius: 20px;
+  border-radius: 18px;
   color: #8390a5;
-  background: rgba(255,255,255,.55);
+  background: rgba(255,255,255,.58);
   text-align: center;
 }
 
 @media (max-width: 520px) {
   #circle-notifications-dialog.circle-notifications-dialog {
     width: 100%;
-    max-height: 84dvh;
+    max-height: 90dvh;
     margin: auto 0 0;
   }
 
   #circle-notifications-dialog .circle-dialog__panel {
-    max-height: 84dvh;
-    border-radius: 28px 28px 0 0;
+    max-height: 90dvh;
+    border-radius: 26px 26px 0 0;
+  }
+
+  #circle-notifications-dialog .circle-dialog__header {
+    padding: 17px 18px 13px;
+  }
+
+  #circle-notifications-dialog .circle-dialog__header h2 {
+    font-size: 1.62rem;
   }
 
   .circle-notifications-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .circle-notifications-toolbar__actions {
-    justify-content: flex-start;
+    min-height: 44px;
+    padding: 6px 12px;
   }
 
   .circle-notifications-list {
-    padding-inline: 12px;
+    padding: 3px 10px 14px;
   }
 
   .circle-notification-item {
-    grid-template-columns: 44px minmax(0,1fr);
-    gap: 10px;
+    grid-template-columns: 48px minmax(0,1fr) !important;
+    gap: 10px !important;
+    min-height: 67px;
+    padding: 10px 5px !important;
   }
 
-  .circle-notification-item__avatar {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    max-width: 44px !important;
-    max-height: 44px !important;
+  .circle-notification-item[data-read="false"] {
+    padding-inline: 7px !important;
+  }
+
+  .circle-notification-item__avatar,
+  .circle-notification-item__avatar img {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    max-width: 48px !important;
+    max-height: 48px !important;
+  }
+
+  .circle-notification-item__body {
+    padding-right: 16px !important;
+  }
+
+  .circle-notification-item__title {
+    font-size: .86rem !important;
   }
 }
