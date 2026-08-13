@@ -1,15 +1,15 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.7.1
+   Version: 4.7.2
 
-   V4.7.1:
-   - Loads Launch Social V5.0.1 freeze fix.
+   V4.7.2:
+   - Loads compact Notifications V4.1.3.0.
    - Keeps unified menus, messages, profile polish and feed modules.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.7.1";
+  const VERSION = "4.7.2";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -237,7 +237,7 @@
     }
     if (!notificationsLoaded && document.body.classList.contains("ari-circle-page")) {
       notificationsLoaded = true;
-      import("/js/ari-circle/notifications/notifications-v4.js?v=1.0.0").catch((error) => {
+      import("/js/ari-circle/notifications/notifications-v4.js?v=1.3.0").catch((error) => {
         notificationsLoaded = false;
         console.warn("ARI Circle notifications V4 failed to load:", error);
       });
