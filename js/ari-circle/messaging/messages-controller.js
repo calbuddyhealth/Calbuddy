@@ -1,37 +1,23 @@
 // js/ari-circle/messaging/messages-controller.js
 // ARI Circle
-// V1.0.1
+// V2.0.0
 //
-// Purpose:
-// - Own ARI Circle messaging entry points.
-// - Handle the profile "Message" action.
-// - Handle the header Messages button.
-// - Render the unread-message badge from CircleStore.
-// - Route messaging intent to conversations.js or message-requests.js.
-// - Keep messaging permissions and UI state coordinated.
+// Single routing authority for messaging entry points inside ari-circle.html.
+// ARI Messages is the ONLY direct-message UI.
 //
-// V1.0.1:
-// - Accepted Circle connections now resolve to DIRECT messaging unless
-//   the profile explicitly has messaging disabled with "nobody".
-// - Non-connections with "request" still use the message-request flow.
-// - "circle_only" remains unavailable to non-connections.
-// - "nobody" always disables messaging.
+// Header Messages -> ari-circle-messages.html
+// Visitor Profile Message -> ari-circle-messages.html?user=<id>
 //
-// This module does NOT:
-// - Query or write to Supabase directly.
-// - Store individual messages.
-// - Render a full conversation thread.
-// - Manage message request records.
-// - Subscribe to realtime message channels.
-//
-// CircleStore remains the client-side state authority.
+// This controller no longer opens the legacy in-page conversation system,
+// does not create local conversation shells, and does not open a separate
+// message-request composer. The canonical Messages page decides whether an
+// existing conversation should open or a new direct conversation should be
+// created.
 
 import CircleStore from "../core/circle-store.js";
-import CircleEvents, {
-  EVENT_NAMES
-} from "../core/circle-events.js";
+import CircleEvents from "../core/circle-events.js";
 
-const VERSION = "1.0.1";
+const VERSION = "2.0.0";
 const SOURCE = "ari-circle/messaging/messages-controller";
 
 const MESSAGE_ACCESS = Object.freeze({
@@ -41,79 +27,34 @@ const MESSAGE_ACCESS = Object.freeze({
   NOBODY: "nobody"
 });
 
-const VALID_MESSAGE_ACCESS =
-  new Set(
-    Object.values(
-      MESSAGE_ACCESS
-    )
-  );
-
-function normalizeString(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized =
-    value.trim();
-
-  return normalized
-    ? normalized
-    : null;
+function clean(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeMessageAccess(value) {
-  const normalized =
-    normalizeString(value)
-      ?.toLowerCase();
-
-  if (
-    normalized &&
-    VALID_MESSAGE_ACCESS.has(
-      normalized
-    )
-  ) {
-    return normalized;
-  }
-
-  return MESSAGE_ACCESS.REQUEST;
-}
-
-function getProfileUserId(profile) {
-  return normalizeString(
+function profileUserId(profile) {
+  return clean(
     profile?.user_id ||
     profile?.userId ||
-    profile?.id
+    profile?.id ||
+    ""
   );
 }
 
-function getDisplayName(profile) {
-  return normalizeString(
-    profile?.display_name ||
-    profile?.displayName ||
-    profile?.name
-  ) || "this person";
-}
-
-function getConnectionStatus(connection) {
-  return normalizeString(
-    connection?.status
-  ) || "none";
+function connectionStatus(connection) {
+  return clean(connection?.status || "none").toLowerCase() || "none";
 }
 
 function clampUnreadCount(value) {
   const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  return Math.min(Math.floor(number), 999);
+}
 
-  if (
-    !Number.isFinite(number) ||
-    number <= 0
-  ) {
-    return 0;
-  }
-
-  return Math.min(
-    Math.floor(number),
-    999
-  );
+function messagesUrl(userId = "") {
+  const id = clean(userId);
+  return id
+    ? `ari-circle-messages.html?user=${encodeURIComponent(id)}`
+    : "ari-circle-messages.html";
 }
 
 const MessagesController = {
@@ -122,7 +63,7 @@ const MessagesController = {
 
   state: {
     initialized: false,
-    busy: false,
+    navigating: false,
     unsubscribers: []
   },
 
@@ -133,87 +74,49 @@ const MessagesController = {
   },
 
   init() {
-    if (this.state.initialized) {
-      return this.getDiagnostics();
-    }
-
+    if (this.state.initialized) return this.getDiagnostics();
     this.cacheDom();
     this.bindActions();
     this.bindStore();
-
-    this.render(
-      CircleStore.getState()
-    );
-
+    this.render(CircleStore.getState());
     this.state.initialized = true;
-
     return this.getDiagnostics();
   },
 
   cacheDom() {
-    this.dom.inboxButton =
-      document.getElementById(
-        "circle-messages-button"
-      );
-
-    this.dom.profileMessageButton =
-      document.getElementById(
-        "circle-message-action"
-      );
-
-    this.dom.unreadBadge =
-      document.getElementById(
-        "circle-message-badge"
-      );
+    this.dom.inboxButton = document.getElementById("circle-messages-button");
+    this.dom.profileMessageButton = document.getElementById("circle-message-action");
+    this.dom.unreadBadge = document.getElementById("circle-message-badge");
   },
 
   bindActions() {
     this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "open-messages",
-        () => this.openInbox()
-      )
+      CircleEvents.onAction("open-messages", () => this.openInbox())
     );
 
     this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "message",
-        () => this.startProfileMessage()
-      )
+      CircleEvents.onAction("message", () => this.startProfileMessage())
     );
   },
 
   bindStore() {
-    const unsubscribe =
-      CircleStore.subscribe(
-        (state, change) => {
-          const keys =
-            Array.isArray(change?.keys)
-              ? change.keys
-              : [];
-
-          if (
-            !keys.length ||
-            keys.includes("messaging") ||
-            keys.includes("context") ||
-            keys.includes("profile") ||
-            keys.includes("connection")
-          ) {
-            this.render(state);
-          }
-        }
-      );
-
-    this.state.unsubscribers.push(
-      unsubscribe
-    );
+    const unsubscribe = CircleStore.subscribe((state, change) => {
+      const keys = Array.isArray(change?.keys) ? change.keys : [];
+      if (
+        !keys.length ||
+        keys.includes("messaging") ||
+        keys.includes("context") ||
+        keys.includes("profile") ||
+        keys.includes("connection")
+      ) {
+        this.render(state);
+      }
+    });
+    this.state.unsubscribers.push(unsubscribe);
   },
 
   render(state) {
-    this.renderUnreadBadge(
-      state?.messaging?.unreadCount
-    );
-
+    this.renderUnreadBadge(state?.messaging?.unreadCount);
     this.renderProfileMessageAction({
       context: state?.context,
       profile: state?.profile,
@@ -222,77 +125,33 @@ const MessagesController = {
   },
 
   renderUnreadBadge(value) {
-    const count =
-      clampUnreadCount(value);
+    const count = clampUnreadCount(value);
+    const badge = this.dom.unreadBadge;
+    const button = this.dom.inboxButton;
+    if (!badge) return;
 
-    if (!this.dom.unreadBadge) {
+    if (!count) {
+      badge.hidden = true;
+      badge.textContent = "";
+      button?.setAttribute("aria-label", "Messages");
       return;
     }
 
-    if (count <= 0) {
-      this.dom.unreadBadge.hidden = true;
-      this.dom.unreadBadge.textContent = "";
-
-      this.dom.inboxButton
-        ?.removeAttribute(
-          "aria-label"
-        );
-
-      this.dom.inboxButton
-        ?.setAttribute(
-          "aria-label",
-          "Messages"
-        );
-
-      return;
-    }
-
-    this.dom.unreadBadge.hidden = false;
-    this.dom.unreadBadge.textContent =
-      count > 99
-        ? "99+"
-        : String(count);
-
-    this.dom.inboxButton
-      ?.setAttribute(
-        "aria-label",
-        `Messages, ${count} unread`
-      );
+    badge.hidden = false;
+    badge.textContent = count > 99 ? "99+" : String(count);
+    button?.setAttribute("aria-label", `Messages, ${count} unread`);
   },
 
-  renderProfileMessageAction({
-    context,
-    profile,
-    connection
-  }) {
-    const button =
-      this.dom.profileMessageButton;
+  renderProfileMessageAction({ context, profile, connection }) {
+    const button = this.dom.profileMessageButton;
+    if (!button) return;
 
-    if (!button) {
-      return;
-    }
+    const targetUserId = profileUserId(profile);
+    const status = connectionStatus(connection);
 
-    const profileUserId =
-      getProfileUserId(profile);
-
-    const connectionStatus =
-      getConnectionStatus(connection);
-
-    const access =
-      this.resolveProfileMessageAccess(
-        profile,
-        connection
-      );
-
-    button.dataset.messageAccess = access;
-
-    if (
-      context?.isGuest ||
-      !context?.isAuthenticated
-    ) {
+    if (context?.isGuest || !context?.isAuthenticated) {
       button.disabled = true;
-      button.textContent =
-        "Sign in to Message";
+      button.textContent = "Sign in to Message";
       return;
     }
 
@@ -302,462 +161,140 @@ const MessagesController = {
       return;
     }
 
-    if (!profileUserId) {
+    if (!targetUserId || status === "blocked") {
       button.disabled = true;
       button.textContent = "Message";
       return;
     }
 
-    if (
-      connectionStatus ===
-      "blocked"
-    ) {
-      button.disabled = true;
-      button.textContent = "Message";
-      return;
-    }
-
-    if (
-      access ===
-      MESSAGE_ACCESS.NOBODY
-    ) {
-      button.disabled = true;
-      button.textContent =
-        "Messages Off";
-      return;
-    }
-
-    if (
-      access ===
-        MESSAGE_ACCESS.CIRCLE_ONLY &&
-      connectionStatus !==
-        "connected"
-    ) {
-      button.disabled = true;
-      button.textContent =
-        "Circle Only";
-      return;
-    }
-
-    button.disabled =
-      this.state.busy;
-
-    button.textContent =
-      "Message";
-  },
-
-  resolveProfileMessageAccess(
-    profile,
-    connection
-  ) {
-    const rawAccess =
+    const rawAccess = clean(
       profile?.messaging_visibility ||
       profile?.messagingVisibility ||
       profile?.message_access ||
       profile?.messageAccess ||
-      profile?.privacy?.messaging;
+      profile?.privacy?.messaging ||
+      "request"
+    ).toLowerCase();
 
-    const access =
-      normalizeMessageAccess(
-        rawAccess
-      );
-
-    const connectionStatus =
-      getConnectionStatus(
-        connection
-      );
-
-    /*
-     * V1.0.1:
-     * Accepted Circle friends use direct messaging unless the recipient
-     * explicitly disabled messaging entirely.
-     *
-     * This fixes accepted friends whose profile still has the default
-     * "request" visibility being incorrectly sent through first-contact
-     * message-request logic.
-     */
-    if (
-      connectionStatus ===
-        "connected" &&
-      access !==
-        MESSAGE_ACCESS.NOBODY
-    ) {
-      return MESSAGE_ACCESS.DIRECT;
+    // A recipient may explicitly disable all DMs. Otherwise ARI Messages is
+    // reachable even when the users are not friends; safety/block controls
+    // are handled by the canonical messaging backend and profile controls.
+    if (rawAccess === MESSAGE_ACCESS.NOBODY) {
+      button.disabled = true;
+      button.textContent = "Messages Off";
+      return;
     }
 
-    return access;
+    button.disabled = this.state.navigating;
+    button.textContent = "Message";
+    button.dataset.messagesDestination = messagesUrl(targetUserId);
+  },
+
+  navigate(url) {
+    if (this.state.navigating) return false;
+    this.state.navigating = true;
+    window.location.assign(url);
+    return true;
   },
 
   openInbox() {
-    const context =
-      CircleStore.get(
-        "context"
-      );
-
+    const context = CircleStore.get("context");
     if (!context?.isAuthenticated) {
-      CircleEvents.showToast(
-        "Sign in to open your messages."
-      );
-
+      CircleEvents.showToast("Sign in to open your messages.");
       return false;
     }
-
-    CircleEvents.emit(
-      "circle:open-messages",
-      {
-        viewerUserId:
-          context.viewerUserId
-      }
-    );
-
-    return true;
+    return this.navigate(messagesUrl());
   },
 
   startProfileMessage() {
-    if (this.state.busy) {
-      return false;
-    }
-
-    const state =
-      CircleStore.getState();
-
-    const context = state.context;
-    const profile = state.profile;
-    const connection =
-      state.connection || {};
+    const state = CircleStore.getState();
+    const context = state?.context;
+    const profile = state?.profile;
+    const connection = state?.connection || {};
 
     if (!context?.isAuthenticated) {
-      CircleEvents.showToast(
-        "Sign in to send messages."
-      );
-
+      CircleEvents.showToast("Sign in to send messages.");
       return false;
     }
 
-    if (context?.isOwner) {
+    if (context?.isOwner) return false;
+
+    const targetUserId = profileUserId(profile);
+    if (!targetUserId) {
+      CircleEvents.showToast("This profile is still loading.");
       return false;
     }
 
-    const profileUserId =
-      getProfileUserId(profile);
-
-    if (!profileUserId) {
-      CircleEvents.showToast(
-        "This Circle profile is still loading."
-      );
-
+    if (connectionStatus(connection) === "blocked") {
+      CircleEvents.showToast("Messaging is unavailable for this profile.");
       return false;
     }
 
-    if (
-      getConnectionStatus(
-        connection
-      ) === "blocked"
-    ) {
-      CircleEvents.showToast(
-        "Messaging is unavailable for this profile."
-      );
+    const rawAccess = clean(
+      profile?.messaging_visibility ||
+      profile?.messagingVisibility ||
+      profile?.message_access ||
+      profile?.messageAccess ||
+      profile?.privacy?.messaging ||
+      "request"
+    ).toLowerCase();
 
+    if (rawAccess === MESSAGE_ACCESS.NOBODY) {
+      CircleEvents.showToast("This person is not accepting messages.");
       return false;
     }
 
-    const access =
-      this.resolveProfileMessageAccess(
-        profile,
-        connection
-      );
-
-    switch (access) {
-      case MESSAGE_ACCESS.DIRECT:
-        return this.openOrCreateConversation(
-          profile
-        );
-
-      case MESSAGE_ACCESS.REQUEST:
-        return this.openMessageRequestComposer(
-          profile
-        );
-
-      case MESSAGE_ACCESS.CIRCLE_ONLY:
-        CircleEvents.showToast(
-          `${getDisplayName(profile)} only accepts messages from people in their Circle.`
-        );
-        return false;
-
-      case MESSAGE_ACCESS.NOBODY:
-        CircleEvents.showToast(
-          `${getDisplayName(profile)} is not accepting messages.`
-        );
-        return false;
-
-      default:
-        return false;
-    }
-  },
-
-  openOrCreateConversation(profile) {
-    const context =
-      CircleStore.get(
-        "context"
-      );
-
-    const recipientUserId =
-      getProfileUserId(profile);
-
-    if (
-      !context?.viewerUserId ||
-      !recipientUserId
-    ) {
-      return false;
-    }
-
-    CircleEvents.emit(
-      "circle:conversation-requested",
-      {
-        viewerUserId:
-          context.viewerUserId,
-
-        recipientUserId,
-
-        profile
-      }
-    );
-
-    return true;
-  },
-
-  openMessageRequestComposer(profile) {
-    const context =
-      CircleStore.get(
-        "context"
-      );
-
-    const recipientUserId =
-      getProfileUserId(profile);
-
-    if (
-      !context?.viewerUserId ||
-      !recipientUserId
-    ) {
-      return false;
-    }
-
-    CircleEvents.emit(
-      "circle:message-request-composer",
-      {
-        viewerUserId:
-          context.viewerUserId,
-
-        recipientUserId,
-
-        profile
-      }
-    );
-
-    return true;
+    return this.navigate(messagesUrl(targetUserId));
   },
 
   setUnreadCount(value) {
-    const count =
-      clampUnreadCount(value);
-
-    CircleStore.setMessagingState({
-      unreadCount: count
-    });
-
+    const count = clampUnreadCount(value);
+    CircleStore.setMessagingState({ unreadCount: count });
     return count;
   },
 
   incrementUnreadCount(amount = 1) {
-    const current =
-      clampUnreadCount(
-        CircleStore.get(
-          "messaging.unreadCount"
-        )
-      );
-
-    const delta =
-      Number.isFinite(
-        Number(amount)
-      )
-        ? Math.max(
-            0,
-            Math.floor(
-              Number(amount)
-            )
-          )
-        : 1;
-
-    return this.setUnreadCount(
-      current + delta
-    );
+    const current = clampUnreadCount(CircleStore.get("messaging.unreadCount"));
+    const delta = Number.isFinite(Number(amount))
+      ? Math.max(0, Math.floor(Number(amount)))
+      : 1;
+    return this.setUnreadCount(current + delta);
   },
 
   decrementUnreadCount(amount = 1) {
-    const current =
-      clampUnreadCount(
-        CircleStore.get(
-          "messaging.unreadCount"
-        )
-      );
-
-    const delta =
-      Number.isFinite(
-        Number(amount)
-      )
-        ? Math.max(
-            0,
-            Math.floor(
-              Number(amount)
-            )
-          )
-        : 1;
-
-    return this.setUnreadCount(
-      Math.max(
-        0,
-        current - delta
-      )
-    );
+    const current = clampUnreadCount(CircleStore.get("messaging.unreadCount"));
+    const delta = Number.isFinite(Number(amount))
+      ? Math.max(0, Math.floor(Number(amount)))
+      : 1;
+    return this.setUnreadCount(Math.max(0, current - delta));
   },
 
   handleIncomingMessage(message) {
-    if (
-      !message ||
-      typeof message !== "object"
-    ) {
-      return false;
-    }
-
-    const activeConversationId =
-      normalizeString(
-        CircleStore.get(
-          "messaging.activeConversationId"
-        )
-      );
-
-    const messageConversationId =
-      normalizeString(
-        message.conversation_id ||
-        message.conversationId
-      );
-
-    const isActiveConversation =
-      Boolean(
-        activeConversationId &&
-        messageConversationId &&
-        activeConversationId ===
-          messageConversationId
-      );
-
-    if (!isActiveConversation) {
-      this.incrementUnreadCount(1);
-    }
-
-    CircleEvents.emit(
-      EVENT_NAMES.MESSAGE_RECEIVED,
-      {
-        message
-      }
-    );
-
+    if (!message || typeof message !== "object") return false;
+    this.incrementUnreadCount(1);
     return true;
   },
 
-  setActiveConversation(
-    conversationId
-  ) {
-    const normalized =
-      normalizeString(
-        conversationId
-      );
-
-    CircleStore.setMessagingState({
-      activeConversationId:
-        normalized
-    });
-
-    return normalized;
-  },
-
-  clearActiveConversation() {
-    CircleStore.setMessagingState({
-      activeConversationId:
-        null
-    });
-  },
-
-  setBusy(value) {
-    this.state.busy =
-      Boolean(value);
-
-    this.render(
-      CircleStore.getState()
-    );
-  },
-
   destroy() {
-    for (
-      const unsubscribe
-      of this.state.unsubscribers
-    ) {
-      try {
-        unsubscribe?.();
-      } catch (error) {
-        console.warn(
-          "ARI Circle messages unsubscribe failed",
-          error
-        );
-      }
+    for (const unsubscribe of this.state.unsubscribers) {
+      try { unsubscribe?.(); } catch {}
     }
-
     this.state.unsubscribers = [];
     this.state.initialized = false;
-    this.state.busy = false;
+    this.state.navigating = false;
   },
 
   getDiagnostics() {
     return {
-      ready:
-        this.state.initialized,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      busy:
-        this.state.busy,
-
-      unreadCount:
-        clampUnreadCount(
-          CircleStore.get(
-            "messaging.unreadCount"
-          )
-        ),
-
-      activeConversationId:
-        CircleStore.get(
-          "messaging.activeConversationId"
-        ) || null,
-
-      inboxButtonFound:
-        Boolean(
-          this.dom.inboxButton
-        ),
-
-      profileMessageButtonFound:
-        Boolean(
-          this.dom.profileMessageButton
-        )
+      ready: this.state.initialized,
+      source: this.source,
+      version: this.version,
+      canonicalMessagesPage: "ari-circle-messages.html",
+      inboxButtonFound: Boolean(this.dom.inboxButton),
+      profileMessageButtonFound: Boolean(this.dom.profileMessageButton)
     };
   }
 };
 
-export {
-  MessagesController,
-  MESSAGE_ACCESS
-};
-
+export { MessagesController, MESSAGE_ACCESS };
 export default MessagesController;
