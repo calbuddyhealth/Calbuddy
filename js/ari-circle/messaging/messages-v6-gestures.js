@@ -1,16 +1,17 @@
 /* =============================================================
    ARI CIRCLE — MESSAGES V6 GESTURES
-   Version: 6.1.0
+   Version: 6.2.0
    Purpose:
    - Reliable iPhone touch swipe for conversation delete reveal.
+   - Keep delete reveal locked open until the user acts or taps away.
    - Double-tap an owned message to reveal ••• actions.
-   - Uses the existing server-enforced edit/delete RPC rules.
+   - Uses canonical messaging RPCs only; no direct message-table dependency.
    - No MutationObserver; event delegation only.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "6.1.0";
+  const VERSION = "6.2.0";
   const clean = (v) => String(v ?? "").trim();
   const client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
   if (!client) return;
@@ -42,8 +43,11 @@
   }
 
   function closeSwipe(except = null) {
-    document.querySelectorAll(".ari-swipe-row.is-open").forEach((row) => {
-      if (row !== except) row.classList.remove("is-open");
+    document.querySelectorAll(".ari-swipe-row.is-open,.ari-swipe-row.is-locked-open").forEach((row) => {
+      if (row !== except) {
+        row.classList.remove("is-open", "is-locked-open");
+        resetSwipeInline(row);
+      }
     });
   }
 
@@ -61,37 +65,40 @@
   function openSwipe(wrap) {
     closeSwipe(wrap);
     resetSwipeInline(wrap);
-    wrap?.classList.add("is-open");
+    wrap?.classList.add("is-open", "is-locked-open");
   }
 
   function cancelSwipe(wrap) {
     resetSwipeInline(wrap);
-    wrap?.classList.remove("is-open");
+    wrap?.classList.remove("is-open", "is-locked-open");
   }
 
   async function getMessageContext(messageId) {
     const id = clean(messageId);
     if (!id) throw new Error("Message unavailable.");
 
-    const { data: raw, error } = await client
-      .from("ari_circle_messages")
-      .select("id, conversation_id, sender_user_id, body, deleted_at")
-      .eq("id", id)
-      .maybeSingle();
-    if (error) throw error;
-    if (!raw?.id || !raw?.conversation_id) throw new Error("Message unavailable.");
+    const otherUserId = clean(new URLSearchParams(location.search).get("user"));
+    if (!otherUserId) throw new Error("Conversation unavailable.");
+
+    const conversationId = await rpc("ari_circle_messages_open_direct", {
+      requested_user_id: otherUserId
+    });
+    if (!conversationId) throw new Error("Conversation unavailable.");
 
     const rows = await rpc("ari_circle_messages_thread", {
-      requested_conversation_id: raw.conversation_id,
+      requested_conversation_id: conversationId,
       result_limit: 250
     });
-    const detailed = (Array.isArray(rows) ? rows : []).find((row) => clean(row.message_id) === id) || {};
+
+    const detailed = (Array.isArray(rows) ? rows : []).find((row) => clean(row.message_id) === id);
+    if (!detailed) throw new Error("Message unavailable.");
+
     return {
       message_id: id,
-      conversation_id: raw.conversation_id,
-      sender_user_id: raw.sender_user_id,
-      body: clean(detailed.body ?? raw.body),
-      deleted_at: detailed.deleted_at ?? raw.deleted_at,
+      conversation_id: conversationId,
+      sender_user_id: detailed.sender_user_id,
+      body: clean(detailed.body),
+      deleted_at: detailed.deleted_at,
       can_edit: detailed.can_edit === true
     };
   }
@@ -202,7 +209,7 @@
       if (Math.abs(dx) < 5) return;
       if (Math.abs(dy) > Math.abs(dx) * 1.15) return;
       gesture.moved = true;
-      const base = wrap.classList.contains("is-open") ? -96 : 0;
+      const base = wrap.classList.contains("is-locked-open") ? -96 : 0;
       const next = Math.max(-96, Math.min(0, base + dx));
       content.style.transform = `translateX(${next}px)`;
       event.preventDefault();
@@ -212,9 +219,9 @@
       const wrap = gesture.activeWrap;
       if (!wrap) return;
       const dx = gesture.currentX - gesture.startX;
-      const wasOpen = wrap.classList.contains("is-open");
-      const shouldOpen = wasOpen ? dx > -20 && dx < 35 : dx < -32;
-      gesture.suppressClickUntil = gesture.moved ? Date.now() + 350 : 0;
+      const wasOpen = wrap.classList.contains("is-locked-open");
+      const shouldOpen = wasOpen ? dx < 44 : dx < -30;
+      gesture.suppressClickUntil = gesture.moved ? Date.now() + 500 : 0;
       resetSwipeInline(wrap);
       if (shouldOpen) openSwipe(wrap); else cancelSwipe(wrap);
       gesture.activeWrap = null;
@@ -222,15 +229,18 @@
     }, { passive: true });
 
     inbox.addEventListener("click", (event) => {
+      const deleteButton = event.target.closest(".ari-swipe-delete");
+      if (deleteButton) {
+        // Let the original V6 delete handler receive the click.
+        return;
+      }
       if (Date.now() < gesture.suppressClickUntil) {
         event.preventDefault();
         event.stopImmediatePropagation();
         return;
       }
-      const deleteButton = event.target.closest(".ari-swipe-delete");
-      if (deleteButton) return;
       const wrap = event.target.closest(".ari-swipe-row");
-      if (wrap?.classList.contains("is-open")) {
+      if (wrap?.classList.contains("is-locked-open")) {
         event.preventDefault();
         event.stopImmediatePropagation();
         cancelSwipe(wrap);
@@ -246,7 +256,7 @@
       const row = bubble.closest(".circle-message-row");
       const id = clean(row?.dataset.messageId);
       const now = Date.now();
-      const isDouble = id && id === gesture.lastTapMessageId && now - gesture.lastTapAt <= 360;
+      const isDouble = id && id === gesture.lastTapMessageId && now - gesture.lastTapAt <= 420;
       gesture.lastTapMessageId = id;
       gesture.lastTapAt = now;
       if (!isDouble) return;
@@ -274,9 +284,9 @@
   style.textContent = `
     .ari-swipe-row{--ari-delete-width:96px;position:relative;overflow:hidden;border-radius:22px}
     .ari-swipe-delete{z-index:0!important;width:var(--ari-delete-width)!important;background:#e5484d!important;color:#fff!important;opacity:1!important;pointer-events:none;font-weight:850!important}
-    .ari-swipe-row.is-open .ari-swipe-delete{pointer-events:auto}
+    .ari-swipe-row.is-open .ari-swipe-delete,.ari-swipe-row.is-locked-open .ari-swipe-delete{pointer-events:auto!important}
     .ari-swipe-content{z-index:1!important;width:100%;will-change:transform;touch-action:pan-y;transition:transform .19s cubic-bezier(.2,.75,.25,1)!important}
-    .ari-swipe-row.is-open .ari-swipe-content{transform:translateX(calc(-1 * var(--ari-delete-width)))!important}
+    .ari-swipe-row.is-open .ari-swipe-content,.ari-swipe-row.is-locked-open .ari-swipe-content{transform:translateX(calc(-1 * var(--ari-delete-width)))!important}
     .circle-message-bubble{touch-action:manipulation;-webkit-user-select:none;user-select:none}
     .ari-message-more-v61{position:absolute;z-index:25;top:50%;right:calc(100% + 8px);transform:translateY(-50%);min-width:46px;height:36px;padding:0 10px;border:1px solid rgba(24,48,100,.12);border-radius:18px;background:#fff;color:#17223b;font-weight:900;letter-spacing:1px;box-shadow:0 8px 25px rgba(27,43,83,.14)}
     .ari-message-actions-v61{position:absolute;z-index:30;right:0;top:calc(100% + 7px);min-width:140px;padding:6px;border:1px solid rgba(24,48,100,.10);border-radius:16px;background:#fff;box-shadow:0 16px 50px rgba(19,31,68,.20)}
