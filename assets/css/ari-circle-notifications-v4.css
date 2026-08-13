@@ -1,6 +1,12 @@
 /* =============================================================
    ARI CIRCLE — NOTIFICATIONS V4
-   Version: 1.0.0
+   Version: 1.2.0
+
+   V1.2.0:
+   - Compact Facebook-style notification rows.
+   - Small circular profile photos.
+   - Notification center shows previews only; full message/media attachments
+     are never expanded inside the notification list.
 ============================================================= */
 
 #circle-notifications-dialog.circle-notifications-dialog {
@@ -98,9 +104,10 @@
 
 .circle-notification-item {
   display: grid;
-  grid-template-columns: 50px minmax(0,1fr);
-  gap: 12px;
-  padding: 14px 4px;
+  grid-template-columns: 46px minmax(0,1fr);
+  gap: 11px;
+  align-items: start;
+  padding: 12px 5px;
   border-bottom: 1px solid rgba(35,75,160,.075);
   background: transparent !important;
   box-shadow: none !important;
@@ -112,15 +119,21 @@
 
 .circle-notification-item[data-read="false"] {
   background: linear-gradient(90deg, rgba(33,215,255,.045), rgba(130,85,255,.025)) !important;
-  border-radius: 18px;
-  padding-inline: 10px;
+  border-radius: 16px;
+  padding-inline: 9px;
 }
 
+/* Profile photo is deliberately compact. Notification rows should read like
+   activity previews, not profile/media cards. */
 .circle-notification-item__avatar {
-  width: 50px !important;
-  height: 50px !important;
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  min-height: 46px !important;
+  max-width: 46px !important;
+  max-height: 46px !important;
   padding: 0 !important;
-  overflow: hidden;
+  overflow: hidden !important;
   border: 1px solid rgba(36,88,255,.10) !important;
   border-radius: 50% !important;
   color: #2458ff !important;
@@ -129,19 +142,37 @@
 }
 
 .circle-notification-item__avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  border-radius: inherit !important;
 }
 
 .circle-notification-item__body {
   min-width: 0;
+  overflow: hidden;
+}
+
+/* Never expand photos/videos/message attachments in the notification center.
+   Users get a compact preview and open the destination to see the content. */
+.circle-notification-item__body img,
+.circle-notification-item__body video,
+.circle-notification-item__body picture,
+.circle-notification-item__body canvas,
+.circle-notification-item__body iframe,
+.circle-notification-item__media,
+.circle-notification-item__attachment,
+.circle-notification-item__photo,
+.circle-notification-item__preview-media {
+  display: none !important;
 }
 
 .circle-notification-item__meta {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .circle-notification-item__type {
@@ -151,6 +182,7 @@
 .circle-notification-item__time {
   color: #929caf !important;
   font-size: .62rem !important;
+  white-space: nowrap;
 }
 
 .circle-notification-item__title {
@@ -165,31 +197,37 @@
   font: inherit !important;
   font-size: .86rem !important;
   font-weight: 760 !important;
-  line-height: 1.35 !important;
+  line-height: 1.28 !important;
   text-align: left !important;
   text-transform: none !important;
   letter-spacing: normal !important;
 }
 
 .circle-notification-item__text {
-  margin: 4px 0 0 !important;
+  display: -webkit-box;
+  max-width: 100%;
+  margin: 3px 0 0 !important;
+  overflow: hidden;
   color: #727f95 !important;
   font-size: .72rem !important;
-  line-height: 1.4 !important;
+  line-height: 1.35 !important;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .circle-notification-item__actions {
   display: flex !important;
   flex-wrap: wrap;
   gap: 7px !important;
-  margin-top: 10px !important;
+  margin-top: 8px !important;
 }
 
 .circle-notification-item__actions .circle-button,
 .circle-notification-action {
-  min-height: 36px !important;
-  padding: 0 13px !important;
-  border-radius: 12px !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 11px !important;
   font-family: inherit !important;
   font-size: .68rem !important;
   font-weight: 800 !important;
@@ -231,5 +269,23 @@
 
   .circle-notifications-toolbar__actions {
     justify-content: flex-start;
+  }
+
+  .circle-notifications-list {
+    padding-inline: 12px;
+  }
+
+  .circle-notification-item {
+    grid-template-columns: 44px minmax(0,1fr);
+    gap: 10px;
+  }
+
+  .circle-notification-item__avatar {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    max-width: 44px !important;
+    max-height: 44px !important;
   }
 }
