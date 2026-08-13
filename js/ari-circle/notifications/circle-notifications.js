@@ -1,14 +1,20 @@
 // js/ari-circle/notifications/circle-notifications.js
-// ARI Circle Notifications V2.0.0
+// ARI Circle Notifications V2.1.0
 // Single owner for notification state, rendering, badge, actions, and compact UI.
+//
+// V2.1.0:
+// - Treats the notification center as an active inbox, not permanent history.
+// - Read notifications are hidden on load.
+// - The former "Mark all read" action now clears the visible notification inbox.
+// - Resolved/accepted Circle requests no longer reappear after refresh once marked read.
 
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const SOURCE = "ari-circle/notifications/circle-notifications";
 const STYLE_ID = "ari-circle-notifications-style";
-const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.0.0";
+const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.1.0";
 
 const NOTIFICATION_TYPES = Object.freeze({
   CONNECTION_REQUEST: "connection_request",
@@ -203,6 +209,11 @@ const CircleNotifications = {
       note.textContent = "";
       note.hidden = true;
     }
+
+    if (this.dom.markAll) {
+      this.dom.markAll.textContent = "Clear";
+      this.dom.markAll.setAttribute("aria-label", "Clear notifications");
+    }
   },
 
   bindActions() {
@@ -247,10 +258,16 @@ const CircleNotifications = {
   },
 
   setNotifications(notifications = []) {
+    /*
+     * Notifications are an active inbox. Persisted rows that have already
+     * been read are deliberately not restored into the visible sheet.
+     * This also prevents old accepted/declined Circle requests from
+     * presenting request actions again after a refresh.
+     */
     this.state.items = Array.isArray(notifications)
       ? notifications
           .map(normalizeNotification)
-          .filter(Boolean)
+          .filter(notification => notification && !notification.read)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : [];
     this.syncUnreadCount();
@@ -270,7 +287,7 @@ const CircleNotifications = {
 
   addNotification(notification) {
     const normalized = normalizeNotification(notification);
-    if (!normalized) return null;
+    if (!normalized || normalized.read) return null;
     this.state.items = [normalized, ...this.state.items.filter(item => item.id !== normalized.id)];
     this.syncUnreadCount();
     this.renderPanel();
@@ -330,16 +347,29 @@ const CircleNotifications = {
   },
 
   markAllRead(options = {}) {
-    const unread = this.state.items.filter(item => !item.read);
-    if (!unread.length) return 0;
-    const ids = unread.map(item => item.id);
-    this.state.items = this.state.items.map(item => item.read ? item : Object.freeze({ ...item, read: true }));
+    const count = this.state.items.length;
+    if (!count) return 0;
+
+    const ids = this.state.items.map(item => item.id);
+
+    /*
+     * Clear immediately for responsive UI. The persistence event keeps the
+     * existing backend contract by marking every row read. On future loads,
+     * setNotifications() excludes those read rows, so Clear remains durable.
+     */
+    this.state.items = [];
     this.syncUnreadCount();
     this.renderPanel();
+
     if (options.persist !== false) {
-      CircleEvents.emit("circle:notifications-all-read", { notificationIds: ids, persist: true });
+      CircleEvents.emit("circle:notifications-all-read", {
+        notificationIds: ids,
+        persist: true,
+        clearVisibleInbox: true
+      });
     }
-    return ids.length;
+
+    return count;
   },
 
   syncUnreadCount() {
@@ -376,7 +406,7 @@ const CircleNotifications = {
       if (p) p.textContent = "You're all caught up.";
     }
     if (this.dom.markAll) {
-      this.dom.markAll.disabled = !notifications.some(item => !item.read);
+      this.dom.markAll.disabled = notifications.length === 0;
     }
 
     notifications.forEach(notification => list.appendChild(this.createNotificationElement(notification)));
