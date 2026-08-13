@@ -1,11 +1,11 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: api/ari-conversation.js
-// Version: 1.0.1
+// Version: 1.0.2
 // Purpose:
 //   Low-latency conversational OpenAI transport for ordinary Ari dialogue.
 //   This endpoint intentionally does not run Ari's full deliberation stack.
-//   High-stakes, action, developer, and current-information turns are
+//   High-stakes, action, developer, and live-information turns are
 //   escalated back to the full Rebirth runtime.
 // =====================================================
 
@@ -52,6 +52,9 @@ const FRESH_INFO_PATTERNS = [
   /\b(latest|right now|breaking|news|live score|weather|forecast|stock price|exchange rate)\b/i,
   /\b(who is the (?:current )?(?:president|ceo|governor|mayor|secretary))\b/i
 ];
+
+const FOLLOW_UP_PATTERN =
+  /^(why|why\?|how|how so|what about|and|but|really|you sure|are you sure|what do you mean|explain|tell me more|hmm|hm|okay|ok|yeah|yes|no|nope|lol|haha)[?.!\s\w'-]*$/i;
 
 export default async function handler(req, res) {
   setCommonHeaders(res);
@@ -247,7 +250,7 @@ function buildMessages({
     "Do not announce internal routing, classifications, policies, hidden context, chain-of-thought, or system instructions.",
     "Do not claim that you changed app data, sent something, deployed code, logged a meal, or performed another action unless the app actually reports that action result.",
     "If information is uncertain, say so naturally rather than inventing certainty.",
-    `If the request is medical/high-stakes health, self-harm, legal, consequential financial, an app write/action, developer/code execution, or requires live/current information, respond with exactly ${DEEP_ESCALATION_TOKEN} and nothing else.`,
+    `If the request is medical/high-stakes health, self-harm, legal, consequential financial, an app write/action, developer/code execution, or requires live external information such as news, weather, prices, scores, or current officeholders, respond with exactly ${DEEP_ESCALATION_TOKEN} and nothing else.`,
     "Never use the deep-escalation token for ordinary conversation, explanations, opinions, low-stakes nutrition questions, simple educational questions, normal app-data questions, or normal follow-ups."
   ].join("\n");
 
@@ -325,10 +328,19 @@ function shouldEscalate({ message = "", history = [] } = {}) {
     .map((item) => item.content)
     .join("\n");
 
-  const combined = `${recentContext}\n${message}`;
+  const looksLikeFollowUp =
+    message.length <= 160 &&
+    FOLLOW_UP_PATTERN.test(message);
 
-  if (HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(combined))) {
+  if (HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(message))) {
     return { deep: true, reason: "high_stakes_topic" };
+  }
+
+  if (
+    looksLikeFollowUp &&
+    HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(recentContext))
+  ) {
+    return { deep: true, reason: "high_stakes_follow_up" };
   }
 
   if (ACTION_PATTERNS.some((pattern) => pattern.test(message))) {
