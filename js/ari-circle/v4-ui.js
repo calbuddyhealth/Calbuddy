@@ -1,15 +1,16 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.7.2
+   Version: 4.8.0
 
-   V4.7.2:
-   - Loads compact Notifications V4.1.3.0.
+   V4.8.0:
+   - Removes duplicate Notifications V4 post-processing layer.
+   - Core circle-notifications.js is now the single owner of notification UI.
    - Keeps unified menus, messages, profile polish and feed modules.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.7.2";
+  const VERSION = "4.8.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -20,7 +21,6 @@
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
   let momentRepliesLoaded = false;
-  let notificationsLoaded = false;
   let launchSocialLoaded = false;
   let outsideMenuBound = false;
 
@@ -233,13 +233,6 @@
       import("/js/ari-circle/v4-flow-fixes.js?v=1.2.1").catch((error) => {
         flowFixesLoaded = false;
         console.warn("ARI Circle flow fixes failed to load:", error);
-      });
-    }
-    if (!notificationsLoaded && document.body.classList.contains("ari-circle-page")) {
-      notificationsLoaded = true;
-      import("/js/ari-circle/notifications/notifications-v4.js?v=1.3.0").catch((error) => {
-        notificationsLoaded = false;
-        console.warn("ARI Circle notifications V4 failed to load:", error);
       });
     }
     if (!buddiesLoaded && document.querySelector(".partner-page")) {
