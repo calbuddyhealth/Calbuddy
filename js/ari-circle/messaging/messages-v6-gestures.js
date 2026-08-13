@@ -1,19 +1,19 @@
 /* =============================================================
    ARI CIRCLE — MESSAGES V6 GESTURES
-   Version: 6.3.0
+   Version: 6.4.0
    Purpose:
    - Reliable iPhone swipe-to-delete for inbox conversations.
    - Keep Delete locked open until user acts or taps away.
    - Tap an owned message once to reveal •••.
    - Tap ••• to open Edit/Delete actions.
+   - Message Delete is immediate + optimistic after RPC success.
    - Edit remains server-enforced: newest sent + unread only.
-   - Delete remains available for any owned, non-deleted message.
    - Canonical messaging RPCs only; no direct message-table reads.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "6.3.0";
+  const VERSION = "6.4.0";
   const clean = (v) => String(v ?? "").trim();
   const client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
   if (!client) return;
@@ -70,7 +70,7 @@
   }
 
   function closeMessageMenus(exceptRow = null) {
-    document.querySelectorAll(".ari-message-more-v63,.ari-message-actions-v63").forEach((el) => {
+    document.querySelectorAll(".ari-message-more-v64,.ari-message-actions-v64").forEach((el) => {
       const row = el.closest(".circle-message-row");
       if (!exceptRow || row !== exceptRow) el.remove();
     });
@@ -112,10 +112,10 @@
   }
 
   function showActions(rowEl, bubble, msg, anchor) {
-    rowEl.querySelectorAll(".ari-message-actions-v63").forEach((el) => el.remove());
+    rowEl.querySelectorAll(".ari-message-actions-v64").forEach((el) => el.remove());
 
     const menu = document.createElement("div");
-    menu.className = "ari-message-actions-v63";
+    menu.className = "ari-message-actions-v64";
 
     if (msg.can_edit) {
       const edit = document.createElement("button");
@@ -126,6 +126,7 @@
         event.stopPropagation();
         const next = prompt("Edit message", msg.body);
         if (next === null || !clean(next) || clean(next) === msg.body) return;
+        edit.disabled = true;
         try {
           await rpc("ari_circle_messages_edit", {
             requested_message_id: msg.message_id,
@@ -135,6 +136,7 @@
           reloadThreadSoon();
           toast("Message edited.");
         } catch (error) {
+          edit.disabled = false;
           toast(error.message || "This message can no longer be edited.");
         }
       });
@@ -148,15 +150,27 @@
     del.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!confirm("Delete this message?")) return;
+      if (del.disabled) return;
+
+      del.disabled = true;
+      del.textContent = "Deleting…";
+
       try {
-        await rpc("ari_circle_messages_delete", {
+        const result = await rpc("ari_circle_messages_delete", {
           requested_message_id: msg.message_id
         });
+        if (result !== true && result !== null) throw new Error("Message could not be deleted.");
+
         closeMessageMenus();
-        reloadThreadSoon();
+        rowEl.style.transition = "opacity .16s ease, transform .16s ease";
+        rowEl.style.opacity = "0";
+        rowEl.style.transform = "scale(.96)";
+        setTimeout(() => rowEl.remove(), 170);
         toast("Message deleted.");
+        setTimeout(reloadThreadSoon, 220);
       } catch (error) {
+        del.disabled = false;
+        del.textContent = "Delete";
         toast(error.message || "Could not delete message.");
       }
     });
@@ -172,7 +186,7 @@
     const bubble = rowEl.querySelector(".circle-message-bubble");
     if (!messageId || !bubble) return;
 
-    if (gesture.activeMessageId === messageId && rowEl.querySelector(".ari-message-more-v63")) {
+    if (gesture.activeMessageId === messageId && rowEl.querySelector(".ari-message-more-v64")) {
       closeMessageMenus();
       return;
     }
@@ -192,7 +206,7 @@
 
     const more = document.createElement("button");
     more.type = "button";
-    more.className = "ari-message-more-v63";
+    more.className = "ari-message-more-v64";
     more.textContent = "•••";
     more.setAttribute("aria-label", "Message options");
     more.addEventListener("click", (event) => {
@@ -276,7 +290,7 @@
   const thread = document.getElementById("threadMessages");
   if (thread) {
     thread.addEventListener("click", (event) => {
-      if (event.target.closest(".ari-message-more-v63,.ari-message-actions-v63")) return;
+      if (event.target.closest(".ari-message-more-v64,.ari-message-actions-v64")) return;
       const bubble = event.target.closest(".circle-message-row.is-mine:not(.is-deleted) .circle-message-bubble");
       if (!bubble) return;
       event.preventDefault();
@@ -286,13 +300,13 @@
   }
 
   document.addEventListener("pointerdown", (event) => {
-    const insideMessageAction = event.target.closest(".circle-message-row.is-mine .circle-message-bubble,.ari-message-more-v63,.ari-message-actions-v63");
+    const insideMessageAction = event.target.closest(".circle-message-row.is-mine .circle-message-bubble,.ari-message-more-v64,.ari-message-actions-v64");
     if (!insideMessageAction) closeMessageMenus();
     if (!event.target.closest(".ari-swipe-row")) closeSwipe();
   });
 
   const style = document.createElement("style");
-  style.id = "ariMessagesV63GestureStyle";
+  style.id = "ariMessagesV64GestureStyle";
   style.textContent = `
     .ari-swipe-row{--ari-delete-width:104px;position:relative;overflow:hidden;border-radius:22px}
     .ari-swipe-delete{z-index:0!important;width:var(--ari-delete-width)!important;background:#e5484d!important;color:#fff!important;opacity:1!important;pointer-events:none!important;font-weight:850!important}
@@ -304,18 +318,19 @@
     .circle-message-bubble{position:relative!important;touch-action:manipulation;-webkit-user-select:none;user-select:none;cursor:pointer}
     .circle-message-row.is-mine:not(.is-deleted) .circle-message-bubble:active{filter:brightness(.985)}
 
-    .ari-message-more-v63{
+    .ari-message-more-v64{
       position:absolute;z-index:35;top:50%;right:calc(100% + 10px);transform:translateY(-50%);
       min-width:48px;height:38px;padding:0 10px;border:1px solid rgba(24,48,100,.12);border-radius:19px;
       background:#fff;color:#17223b;font-weight:900;letter-spacing:1px;box-shadow:0 8px 25px rgba(27,43,83,.16)
     }
-    .ari-message-actions-v63{
+    .ari-message-actions-v64{
       position:absolute;z-index:40;right:calc(100% + 10px);top:calc(50% + 24px);min-width:150px;padding:6px;
       border:1px solid rgba(24,48,100,.10);border-radius:16px;background:#fff;box-shadow:0 16px 50px rgba(19,31,68,.22)
     }
-    .ari-message-actions-v63 button{width:100%;padding:12px 14px;border:0;border-radius:11px;background:transparent;color:#17223b;text-align:left;font:inherit;font-weight:780}
-    .ari-message-actions-v63 button:active{background:#f2f5fb}
-    .ari-message-actions-v63 .is-danger{color:#d83b42}
+    .ari-message-actions-v64 button{width:100%;padding:12px 14px;border:0;border-radius:11px;background:transparent;color:#17223b;text-align:left;font:inherit;font-weight:780;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+    .ari-message-actions-v64 button:active{background:#f2f5fb}
+    .ari-message-actions-v64 button:disabled{opacity:.55}
+    .ari-message-actions-v64 .is-danger{color:#d83b42}
   `;
   document.head.append(style);
 
