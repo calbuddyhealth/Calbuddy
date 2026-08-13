@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: AriHybridFoodSearch.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Keep ARI Nutrition's existing local food search instant while
 //   enriching branded grocery searches from the server-backed catalog.
@@ -19,7 +19,7 @@
 (function initializeAriHybridFoodSearch(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const ENDPOINT = "/api/ari-food-search";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 5000;
@@ -51,6 +51,15 @@
       .replace(/[^a-z0-9]+/g, " ")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function nowMs() {
+    return (
+      typeof performance !== "undefined" &&
+      typeof performance.now === "function"
+    )
+      ? performance.now()
+      : Date.now();
   }
 
   function clampInteger(value, min, max, fallback) {
@@ -129,15 +138,6 @@
     return null;
   }
 
-  function canonicalFoodKey(food) {
-    const metadataKey = normalizeText(food?.metadata?.canonicalKey);
-    if (metadataKey) return metadataKey;
-
-    const brand = normalizeText(food?.brand);
-    const name = normalizeText(food?.name || food?.displayName);
-    return `${brand}|${name}`;
-  }
-
   function registerFoods(results) {
     const registry = global.AriFoodRegistry;
 
@@ -180,18 +180,17 @@
     const normalized = normalizeText(query);
     if (!normalized) return [];
 
+    // A cached query has already had its foods registered during this page
+    // session. Return it without re-registering or retriggering the UI.
     const cached = getCached(normalized);
-    if (cached) {
-      registerFoods(cached);
-      return cached;
-    }
+    if (cached) return cached;
 
     if (state.pending.has(normalized)) {
       return state.pending.get(normalized);
     }
 
     const promise = (async () => {
-      const startedAt = performance?.now?.() ?? Date.now();
+      const startedAt = nowMs();
       state.requests += 1;
       state.lastQuery = query;
       state.lastError = null;
@@ -228,7 +227,7 @@
         setCached(normalized, results);
         registerFoods(results);
 
-        state.lastDurationMs = Math.round((performance?.now?.() ?? Date.now()) - startedAt);
+        state.lastDurationMs = Math.round(nowMs() - startedAt);
         return results;
       } catch (error) {
         state.failures += 1;
@@ -258,13 +257,10 @@
     const localCount = Array.isArray(localResults) ? localResults.length : 0;
     if (!isEligibleQuery(query, localCount)) return;
 
-    const cached = getCached(query);
-
-    if (cached) {
-      const registered = registerFoods(cached);
-      if (registered > 0) queueMicrotask(() => refreshCurrentSearch(query));
-      return;
-    }
+    // Cached results are already in AriFoodRegistry. Let the normal local
+    // suggest call return them without another input event; this avoids a
+    // refresh loop for searches that legitimately return fewer than six foods.
+    if (getCached(query)) return;
 
     requestCloudResults(query, localCount, limit)
       .then((results) => {
