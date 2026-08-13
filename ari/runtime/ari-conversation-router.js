@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/runtime/ari-conversation-router.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Decide whether a turn can use Ari's fast conversational lane or should
 //   fall back to the full Rebirth runtime.
@@ -10,8 +10,7 @@
 //   - Conversation first.
 //   - Deep reasoning only when earned.
 //   - Never bypass app actions, owner/developer routing, or high-stakes work.
-//   - Short follow-ups stay conversational unless the subject itself
-//     requires the deep lane.
+//   - Preserve high-stakes context across short follow-up turns.
 // =====================================================
 
 (() => {
@@ -54,12 +53,17 @@
     /\b(write|draft|rewrite)\b.{0,30}\b(contract|policy|legal|medical|clinical|production code)\b/i
   ];
 
+  const FOLLOW_UP_PATTERN =
+    /^(why|why\?|how|how so|what about|and|but|really|you sure|are you sure|what do you mean|explain|tell me more|hmm|hm|okay|ok|yeah|yes|no|nope|lol|haha)[?.!\s\w'-]*$/i;
+
   const AriConversationRouter = {
-    version: "1.0.0",
+    version: "1.0.1",
     source: "ari-conversation-router",
 
     decide(message = "", options = {}) {
       const text = String(message || "").trim();
+      const recentHistoryText = this.readRecentHistory(options.history);
+      const looksLikeFollowUp = text.length <= 160 && FOLLOW_UP_PATTERN.test(text);
 
       const decision = {
         mode: FAST,
@@ -93,6 +97,16 @@
         return { ...decision, mode: DEEP, reason: "high_stakes_topic" };
       }
 
+      // A short follow-up can inherit a medical/safety/legal/financial subject
+      // from the immediately preceding conversation even when the current text
+      // contains no obvious keyword (for example: "what about 3?" or "why?").
+      if (
+        looksLikeFollowUp &&
+        HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(recentHistoryText))
+      ) {
+        return { ...decision, mode: DEEP, reason: "high_stakes_follow_up" };
+      }
+
       if (FRESH_INFO_PATTERNS.some((pattern) => pattern.test(text))) {
         return { ...decision, mode: DEEP, reason: "fresh_information_required" };
       }
@@ -105,14 +119,22 @@
         return { ...decision, mode: DEEP, reason: "large_input" };
       }
 
-      if (
-        text.length <= 120 &&
-        /^(why|why\?|how|how so|what about|and|but|really|you sure|are you sure|what do you mean|explain|tell me more|hmm|hm|okay|ok|yeah|yes|no|nope|lol|haha)[?.!\s\w'-]*$/i.test(text)
-      ) {
+      if (looksLikeFollowUp) {
         return { ...decision, mode: FAST, reason: "conversational_follow_up" };
       }
 
       return decision;
+    },
+
+    readRecentHistory(history = []) {
+      if (!Array.isArray(history)) return "";
+
+      return history
+        .slice(-4)
+        .map((item) => String(item?.content || "").trim())
+        .filter(Boolean)
+        .join("\n")
+        .slice(-5000);
     },
 
     shouldUseFast(message = "", options = {}) {
