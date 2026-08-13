@@ -1,11 +1,17 @@
 /* =============================================================
    ARI CIRCLE — NOTIFICATIONS V4
-   Version: 1.0.0
+   Version: 1.1.0
+
+   V1.1.0:
+   - Adds an always-visible Clear history action.
+   - Clears persisted notification history through the existing RPC.
+   - Uses bounded retries so the control appears even if the dialog mounts
+     after the first startup pass.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const STYLE_ID = "ari-circle-notifications-v4-style";
   const $ = (id) => document.getElementById(id);
   const clean = (v) => String(v ?? "").trim();
@@ -23,7 +29,7 @@
     const link = document.createElement("link");
     link.id = STYLE_ID;
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-notifications-v4.css?v=1.0.0";
+    link.href = "assets/css/ari-circle-notifications-v4.css?v=1.1.0";
     document.head.append(link);
   }
 
@@ -60,23 +66,12 @@
 
     if (title) {
       switch (type) {
-        case "connection_request":
-          title.textContent = `${name} sent you a friend request`;
-          break;
-        case "connection_accepted":
-          title.textContent = `${name} is now your friend`;
-          break;
-        case "message_request":
-          title.textContent = `${name} sent a message request`;
-          break;
-        case "message":
-          title.textContent = `${name} sent you a message`;
-          break;
-        case "love":
-          title.textContent = `${name} interacted with your profile`;
-          break;
-        default:
-          break;
+        case "connection_request": title.textContent = `${name} sent you a friend request`; break;
+        case "connection_accepted": title.textContent = `${name} is now your friend`; break;
+        case "message_request": title.textContent = `${name} sent a message request`; break;
+        case "message": title.textContent = `${name} sent you a message`; break;
+        case "love": title.textContent = `${name} interacted with your profile`; break;
+        default: break;
       }
     }
 
@@ -84,9 +79,7 @@
       text.hidden = true;
     }
 
-    const view = article.querySelector('[data-circle-action="open-incoming-request"]');
-    if (view) view.remove();
-
+    article.querySelector('[data-circle-action="open-incoming-request"]')?.remove();
     article.querySelectorAll(".circle-button--small").forEach((button) => {
       button.classList.add("circle-notification-action");
     });
@@ -105,33 +98,48 @@
     const list = $("circle-notifications-list");
     if (state.cleared && list) list.replaceChildren();
     list?.querySelectorAll(".circle-notification-item").forEach(decorateItem);
+
+    ensureClearButton();
   }
 
   function ensureClearButton() {
-    const toolbar = document.querySelector("#circle-notifications-dialog .circle-notifications-toolbar");
-    if (!toolbar || $("circleNotificationsClear")) return;
+    const dialog = $("circle-notifications-dialog");
+    if (!dialog) return;
 
-    const actions = document.createElement("div");
-    actions.className = "circle-notifications-toolbar__actions";
+    let toolbar = dialog.querySelector(".circle-notifications-toolbar");
+    if (!toolbar) return;
+
+    let actions = toolbar.querySelector(".circle-notifications-toolbar__actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "circle-notifications-toolbar__actions";
+      toolbar.append(actions);
+    }
 
     const markAll = $("circle-notifications-mark-all");
-    if (markAll) actions.append(markAll);
+    if (markAll && markAll.parentElement !== actions) actions.append(markAll);
 
-    const clear = document.createElement("button");
-    clear.id = "circleNotificationsClear";
-    clear.className = "circle-text-button circle-notifications-clear";
-    clear.type = "button";
-    clear.textContent = "Clear";
-    clear.addEventListener("click", clearNotifications);
-    actions.append(clear);
-    toolbar.append(actions);
+    let clear = $("circleNotificationsClear");
+    if (!clear) {
+      clear = document.createElement("button");
+      clear.id = "circleNotificationsClear";
+      clear.className = "circle-text-button circle-notifications-clear";
+      clear.type = "button";
+      clear.textContent = "Clear history";
+      clear.addEventListener("click", clearNotifications);
+      actions.append(clear);
+    }
   }
 
   async function clearNotifications() {
     if (state.clearing) return;
     const list = $("circle-notifications-list");
-    if (!list?.children.length) return;
-    if (!window.confirm("Clear all notifications?")) return;
+    if (!list?.children.length) {
+      toast("Notification history is already clear.");
+      return;
+    }
+
+    if (!window.confirm("Clear your ARI Circle notification history?")) return;
 
     state.clearing = true;
     const button = $("circleNotificationsClear");
@@ -141,26 +149,29 @@
       await rpc("ari_circle_notifications_clear");
       state.cleared = true;
       list.replaceChildren();
+
       const empty = $("circle-notifications-empty");
       if (empty) {
         empty.hidden = false;
         const p = empty.querySelector("p");
         if (p) p.textContent = "You're all caught up.";
       }
+
       const badge = $("circle-notification-badge");
       if (badge) {
         badge.hidden = true;
         badge.textContent = "";
       }
+
       const markAll = $("circle-notifications-mark-all");
       if (markAll) markAll.disabled = true;
-      toast("Notifications cleared.");
+      toast("Notification history cleared.");
     } catch (error) {
       console.error("ARI Circle notifications clear failed:", error);
-      toast(error.message || "Could not clear notifications.");
-      if (button) button.disabled = false;
+      toast(error.message || "Could not clear notification history.");
     } finally {
       state.clearing = false;
+      if (button) button.disabled = false;
     }
   }
 
@@ -173,18 +184,32 @@
   }
 
   function start() {
-    if (state.started || !$("circle-notifications-dialog")) return;
-    state.client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
-    if (!state.client) return;
-    state.started = true;
+    state.client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || state.client || null;
     ensureStyle();
+    if (!$("circle-notifications-dialog") || !state.client) return;
+
+    if (!state.started) {
+      state.started = true;
+      bindObserver();
+    }
+
     ensureClearButton();
-    bindObserver();
     decorate();
   }
 
-  document.addEventListener("DOMContentLoaded", start, { once: true });
-  document.addEventListener("circle:app-ready", () => { start(); decorate(); });
+  function boundedStart() {
+    start();
+    [120, 400, 1000, 2200].forEach((delay) => setTimeout(start, delay));
+  }
+
+  document.addEventListener("DOMContentLoaded", boundedStart, { once: true });
+  document.addEventListener("circle:app-ready", boundedStart);
+  document.addEventListener("click", (event) => {
+    if (event.target.closest?.('[data-circle-action="open-notifications"], #circle-notifications-button')) {
+      setTimeout(start, 0);
+      setTimeout(start, 120);
+    }
+  }, true);
 
   window.AriCircleNotificationsV4 = Object.freeze({
     version: VERSION,
