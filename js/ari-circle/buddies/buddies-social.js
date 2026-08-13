@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — BUDDIES SOCIAL DISCOVERY
-   Version: 1.2.0
+   Version: 1.2.0 
 
    V1.2:
    - Friends and Requests open inside Buddies instead of routing to Profile.
