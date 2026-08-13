@@ -1,1747 +1,634 @@
 // js/ari-circle/notifications/circle-notifications.js
-// ARI Circle
-// V1.1.0
-//
-// Purpose:
-// - Own the ARI Circle notification collection and unread badge.
-// - Render the notification center dialog.
-// - Route notification actions to the correct feature module.
-// - Let incoming Circle requests be accepted/declined from notifications.
-// - Keep Supabase access out of the UI layer.
-//
-// Persistence:
-//   CircleNotifications -> CircleEvents -> circle-api.js
-//
-// Request lifecycle:
-//   notification action -> ConnectionRequests -> CircleEvents -> circle-api.js
+// ARI Circle Notifications V2.0.0
+// Single owner for notification state, rendering, badge, actions, and compact UI.
 
 import CircleStore from "../core/circle-store.js";
-import CircleEvents, {
-  EVENT_NAMES
-} from "../core/circle-events.js";
+import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "1.1.0";
+const VERSION = "2.0.0";
 const SOURCE = "ari-circle/notifications/circle-notifications";
+const STYLE_ID = "ari-circle-notifications-style";
+const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.0.0";
 
 const NOTIFICATION_TYPES = Object.freeze({
-  CONNECTION_REQUEST:
-    "connection_request",
-
-  CONNECTION_ACCEPTED:
-    "connection_accepted",
-
-  MESSAGE_REQUEST:
-    "message_request",
-
-  MESSAGE:
-    "message",
-
-  LOVE:
-    "love",
-
-  PROFILE:
-    "profile",
-
-  SYSTEM:
-    "system"
+  CONNECTION_REQUEST: "connection_request",
+  CONNECTION_ACCEPTED: "connection_accepted",
+  MESSAGE_REQUEST: "message_request",
+  MESSAGE: "message",
+  LOVE: "love",
+  PROFILE: "profile",
+  SYSTEM: "system"
 });
 
-const VALID_NOTIFICATION_TYPES =
-  new Set(
-    Object.values(
-      NOTIFICATION_TYPES
-    )
-  );
+const VALID_NOTIFICATION_TYPES = new Set(Object.values(NOTIFICATION_TYPES));
 
-function normalizeString(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized =
-    value.trim();
-
-  return normalized
-    ? normalized
-    : null;
+function clean(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function normalizeNotificationType(value) {
-  const normalized =
-    normalizeString(value)
-      ?.toLowerCase();
-
-  if (
-    normalized &&
-    VALID_NOTIFICATION_TYPES.has(
-      normalized
-    )
-  ) {
-    return normalized;
-  }
-
-  return NOTIFICATION_TYPES.SYSTEM;
+  const type = clean(value)?.toLowerCase();
+  return type && VALID_NOTIFICATION_TYPES.has(type)
+    ? type
+    : NOTIFICATION_TYPES.SYSTEM;
 }
 
 function normalizeNotification(notification) {
-  if (
-    !notification ||
-    typeof notification !== "object"
-  ) {
-    return null;
-  }
+  if (!notification || typeof notification !== "object") return null;
 
-  const id =
-    normalizeString(
-      notification.id ||
-      notification.notification_id ||
-      notification.notificationId
-    );
-
-  if (!id) {
-    return null;
-  }
+  const id = clean(
+    notification.id ||
+    notification.notification_id ||
+    notification.notificationId
+  );
+  if (!id) return null;
 
   return Object.freeze({
     id,
-
-    type:
-      normalizeNotificationType(
-        notification.type
-      ),
-
-    title:
-      normalizeString(
-        notification.title
-      ) ||
-      "ARI Circle",
-
-    body:
-      normalizeString(
-        notification.body ||
-        notification.message ||
-        notification.text
-      ),
-
-    actorUserId:
-      normalizeString(
-        notification.actor_user_id ||
-        notification.actorUserId
-      ),
-
-    actorDisplayName:
-      normalizeString(
-        notification.actor_display_name ||
-        notification.actorDisplayName
-      ),
-
-    actorHandle:
-      normalizeString(
-        notification.actor_handle ||
-        notification.actorHandle
-      ),
-
-    actorAvatarUrl:
-      normalizeString(
-        notification.actor_avatar_url ||
-        notification.actorAvatarUrl
-      ),
-
-    requestId:
-      normalizeString(
-        notification.request_id ||
-        notification.requestId ||
-        notification.data?.connection_id
-      ),
-
-    conversationId:
-      normalizeString(
-        notification.conversation_id ||
-        notification.conversationId
-      ),
-
-    commentId:
-      normalizeString(
-        notification.comment_id ||
-        notification.commentId
-      ),
-
-    profileUserId:
-      normalizeString(
-        notification.profile_user_id ||
-        notification.profileUserId
-      ),
-
-    read:
-      Boolean(
-        notification.read ??
-        notification.is_read ??
-        notification.isRead
-      ),
-
-    createdAt:
-      normalizeString(
-        notification.created_at ||
-        notification.createdAt
-      ) ||
-      new Date().toISOString(),
-
-    data:
-      notification.data &&
-      typeof notification.data === "object"
-        ? {
-            ...notification.data
-          }
-        : {}
+    type: normalizeNotificationType(notification.type),
+    title: clean(notification.title) || "ARI Circle",
+    body: clean(notification.body || notification.message || notification.text),
+    actorUserId: clean(notification.actor_user_id || notification.actorUserId),
+    actorDisplayName: clean(notification.actor_display_name || notification.actorDisplayName),
+    actorHandle: clean(notification.actor_handle || notification.actorHandle),
+    actorAvatarUrl: clean(notification.actor_avatar_url || notification.actorAvatarUrl),
+    requestId: clean(
+      notification.request_id ||
+      notification.requestId ||
+      notification.data?.connection_id
+    ),
+    conversationId: clean(notification.conversation_id || notification.conversationId),
+    commentId: clean(notification.comment_id || notification.commentId),
+    profileUserId: clean(notification.profile_user_id || notification.profileUserId),
+    read: Boolean(notification.read ?? notification.is_read ?? notification.isRead),
+    createdAt: clean(notification.created_at || notification.createdAt) || new Date().toISOString(),
+    data: notification.data && typeof notification.data === "object"
+      ? { ...notification.data }
+      : {}
   });
 }
 
 function cloneNotification(notification) {
-  if (!notification) {
-    return null;
-  }
-
-  return {
-    ...notification,
-    data: {
-      ...(notification.data || {})
-    }
-  };
+  return notification ? { ...notification, data: { ...(notification.data || {}) } } : null;
 }
 
 function clampUnreadCount(value) {
-  const count =
-    Number(value);
-
-  if (
-    !Number.isFinite(count) ||
-    count <= 0
-  ) {
-    return 0;
-  }
-
-  return Math.min(
-    Math.floor(count),
-    999
-  );
+  const count = Number(value);
+  if (!Number.isFinite(count) || count <= 0) return 0;
+  return Math.min(Math.floor(count), 999);
 }
 
 function getInitials(notification) {
-  const value =
-    normalizeString(
-      notification?.actorDisplayName
-    ) ||
-    normalizeString(
-      notification?.actorHandle
-    ) ||
-    "A";
-
-  const words =
-    value
-      .replace(/^@/, "")
-      .split(/\s+/)
-      .filter(Boolean);
-
-  if (!words.length) {
-    return "A";
-  }
-
-  if (words.length === 1) {
-    return words[0]
-      .slice(0, 2)
-      .toUpperCase();
-  }
-
-  return (
-    words[0][0] +
-    words[words.length - 1][0]
-  ).toUpperCase();
+  const value = clean(notification?.actorDisplayName) || clean(notification?.actorHandle) || "A";
+  const words = value.replace(/^@/, "").split(/\s+/).filter(Boolean);
+  if (!words.length) return "A";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
 }
 
 function formatTime(value) {
-  const timestamp =
-    new Date(value)
-      .getTime();
-
-  if (!Number.isFinite(timestamp)) {
-    return "";
-  }
-
-  const delta =
-    Date.now() -
-    timestamp;
-
-  const minute =
-    60 * 1000;
-
-  const hour =
-    60 * minute;
-
-  const day =
-    24 * hour;
-
-  if (delta < minute) {
-    return "now";
-  }
-
-  if (delta < hour) {
-    return `${Math.max(
-      1,
-      Math.floor(delta / minute)
-    )}m`;
-  }
-
-  if (delta < day) {
-    return `${Math.floor(
-      delta / hour
-    )}h`;
-  }
-
-  if (delta < 7 * day) {
-    return `${Math.floor(
-      delta / day
-    )}d`;
-  }
-
-  return new Date(value)
-    .toLocaleDateString(
-      undefined,
-      {
-        month:
-          "short",
-
-        day:
-          "numeric"
-      }
-    );
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+  const delta = Math.max(0, Date.now() - timestamp);
+  const minute = 60000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (delta < minute) return "now";
+  if (delta < hour) return `${Math.max(1, Math.floor(delta / minute))}m`;
+  if (delta < day) return `${Math.floor(delta / hour)}h`;
+  if (delta < 7 * day) return `${Math.floor(delta / day)}d`;
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function getNotificationLabel(type) {
-  switch (type) {
+function actorName(notification) {
+  return clean(notification.actorDisplayName) || clean(notification.actorHandle)?.replace(/^@/, "") || "Someone";
+}
+
+function conciseTitle(notification) {
+  const name = actorName(notification);
+  switch (notification.type) {
     case NOTIFICATION_TYPES.CONNECTION_REQUEST:
-      return "CIRCLE REQUEST";
-
+      return `${name} sent you a Circle request`;
     case NOTIFICATION_TYPES.CONNECTION_ACCEPTED:
-      return "CIRCLE UPDATE";
-
+      return `${name} accepted your Circle request`;
     case NOTIFICATION_TYPES.MESSAGE_REQUEST:
-      return "MESSAGE REQUEST";
-
+      return `${name} sent you a message request`;
     case NOTIFICATION_TYPES.MESSAGE:
-      return "MESSAGE";
-
+      return `${name} sent you a message`;
     case NOTIFICATION_TYPES.LOVE:
-      return "PROFILE LOVE";
-
+      return `${name} interacted with your activity`;
     case NOTIFICATION_TYPES.PROFILE:
-      return "PROFILE";
-
+      return `${name} interacted with your profile`;
     default:
-      return "SYSTEM";
+      return notification.title || "ARI Circle activity";
   }
+}
+
+function conciseBody(notification) {
+  const body = clean(notification.body);
+  if (!body) return null;
+  const title = clean(notification.title);
+  if (title && body.toLowerCase() === title.toLowerCase()) return null;
+  return body;
+}
+
+function ensureStyle() {
+  let link = document.getElementById(STYLE_ID);
+  if (!link) {
+    link = document.createElement("link");
+    link.id = STYLE_ID;
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+  }
+  if (!link.href.endsWith(STYLE_HREF)) link.href = STYLE_HREF;
 }
 
 const CircleNotifications = {
-  version:
-    VERSION,
-
-  source:
-    SOURCE,
+  version: VERSION,
+  source: SOURCE,
 
   state: {
-    initialized:
-      false,
-
-    items:
-      [],
-
-    panelOpen:
-      false,
-
-    resolvedRequests:
-      new Map(),
-
-    unsubscribers:
-      []
+    initialized: false,
+    items: [],
+    panelOpen: false,
+    resolvedRequests: new Map(),
+    unsubscribers: []
   },
 
   dom: {
-    button:
-      null,
-
-    badge:
-      null,
-
-    dialog:
-      null,
-
-    list:
-      null,
-
-    empty:
-      null,
-
-    markAll:
-      null
+    button: null,
+    badge: null,
+    dialog: null,
+    list: null,
+    empty: null,
+    markAll: null
   },
 
   init() {
-    if (
-      this.state.initialized
-    ) {
-      return this.getDiagnostics();
-    }
-
+    ensureStyle();
+    if (this.state.initialized) return this.getDiagnostics();
     this.cacheDom();
+    this.prepareDialog();
     this.bindActions();
     this.bindStore();
     this.bindDomainEvents();
-
-    this.renderBadge(
-      CircleStore.get(
-        "notifications.unreadCount"
-      )
-    );
-
+    this.renderBadge(CircleStore.get("notifications.unreadCount"));
     this.renderPanel();
-
-    this.state.initialized =
-      true;
-
+    this.state.initialized = true;
     return this.getDiagnostics();
   },
 
   cacheDom() {
-    this.dom.button =
-      document.getElementById(
-        "circle-notifications-button"
-      );
+    this.dom.button = document.getElementById("circle-notifications-button");
+    this.dom.badge = document.getElementById("circle-notification-badge");
+    this.dom.dialog = document.getElementById("circle-notifications-dialog");
+    this.dom.list = document.getElementById("circle-notifications-list");
+    this.dom.empty = document.getElementById("circle-notifications-empty");
+    this.dom.markAll = document.getElementById("circle-notifications-mark-all");
+  },
 
-    this.dom.badge =
-      document.getElementById(
-        "circle-notification-badge"
-      );
+  prepareDialog() {
+    const dialog = this.dom.dialog;
+    if (!dialog) return;
+    dialog.dataset.notificationUi = VERSION;
 
-    this.dom.dialog =
-      document.getElementById(
-        "circle-notifications-dialog"
-      );
+    const eyebrow = dialog.querySelector(".circle-section-eyebrow");
+    if (eyebrow) eyebrow.textContent = "ACTIVITY";
 
-    this.dom.list =
-      document.getElementById(
-        "circle-notifications-list"
-      );
+    const title = dialog.querySelector(".circle-dialog__header h2");
+    if (title) title.textContent = "Notifications";
 
-    this.dom.empty =
-      document.getElementById(
-        "circle-notifications-empty"
-      );
-
-    this.dom.markAll =
-      document.getElementById(
-        "circle-notifications-mark-all"
-      );
+    const note = dialog.querySelector(".circle-notifications-toolbar .circle-section-note");
+    if (note) {
+      note.textContent = "";
+      note.hidden = true;
+    }
   },
 
   bindActions() {
     this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "open-notifications",
-        () =>
-          this.openNotifications()
-      )
-    );
-
-    this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "close-notifications",
-        () =>
-          this.closeNotifications()
-      )
-    );
-
-    this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "mark-all-notifications-read",
-        () => {
-          this.markAllRead();
-          this.renderPanel();
-        }
-      )
-    );
-
-    this.state.unsubscribers.push(
-      CircleEvents.onAction(
-        "open-circle-notification",
-        payload => {
-          const notificationId =
-            normalizeString(
-              payload?.trigger
-                ?.dataset
-                ?.notificationId
-            );
-
-          if (notificationId) {
-            this.activate(
-              notificationId
-            );
-          }
-        }
-      )
+      CircleEvents.onAction("open-notifications", () => this.openNotifications()),
+      CircleEvents.onAction("close-notifications", () => this.closeNotifications()),
+      CircleEvents.onAction("mark-all-notifications-read", () => this.markAllRead()),
+      CircleEvents.onAction("open-circle-notification", payload => {
+        const id = clean(payload?.trigger?.dataset?.notificationId);
+        if (id) this.activate(id);
+      })
     );
   },
 
   bindStore() {
-    const unsubscribe =
-      CircleStore.subscribe(
-        (state, change) => {
-          const keys =
-            Array.isArray(
-              change?.keys
-            )
-              ? change.keys
-              : [];
-
-          if (
-            !keys.length ||
-            keys.includes(
-              "notifications"
-            )
-          ) {
-            this.renderBadge(
-              state.notifications
-                ?.unreadCount
-            );
-          }
-        }
-      );
-
     this.state.unsubscribers.push(
-      unsubscribe
+      CircleStore.subscribe((state, change) => {
+        const keys = Array.isArray(change?.keys) ? change.keys : [];
+        if (!keys.length || keys.includes("notifications")) {
+          this.renderBadge(state.notifications?.unreadCount);
+        }
+      })
     );
   },
 
   bindDomainEvents() {
     this.state.unsubscribers.push(
-      CircleEvents.on(
-        "circle:incoming-request-resolved",
-        payload => {
-          const detail =
-            payload?.detail ||
-            {};
-
-          const requestId =
-            normalizeString(
-              detail?.requestId ||
-              detail?.request?.id
-            );
-
-          if (!requestId) {
-            return;
+      CircleEvents.on("circle:incoming-request-resolved", payload => {
+        const detail = payload?.detail || {};
+        const requestId = clean(detail.requestId || detail.request?.id);
+        if (!requestId) return;
+        const action = clean(detail.action) || "resolved";
+        this.state.resolvedRequests.set(requestId, action);
+        this.state.items.forEach(item => {
+          if (item.type === NOTIFICATION_TYPES.CONNECTION_REQUEST && item.requestId === requestId) {
+            this.markRead(item.id);
           }
-
-          const action =
-            normalizeString(
-              detail?.action
-            ) ||
-            "resolved";
-
-          this.state
-            .resolvedRequests
-            .set(
-              requestId,
-              action
-            );
-
-          for (
-            const item
-            of this.state.items
-          ) {
-            if (
-              item.type ===
-                NOTIFICATION_TYPES
-                  .CONNECTION_REQUEST &&
-              item.requestId ===
-                requestId
-            ) {
-              this.markRead(
-                item.id
-              );
-            }
-          }
-
-          this.renderPanel();
-        }
-      )
+        });
+        this.renderPanel();
+      })
     );
   },
 
-  setNotifications(
-    notifications = []
-  ) {
-    this.state.items =
-      Array.isArray(
-        notifications
-      )
-        ? notifications
-            .map(
-              normalizeNotification
-            )
-            .filter(Boolean)
-            .sort(
-              (a, b) =>
-                new Date(
-                  b.createdAt
-                ).getTime() -
-                new Date(
-                  a.createdAt
-                ).getTime()
-            )
-        : [];
-
+  setNotifications(notifications = []) {
+    this.state.items = Array.isArray(notifications)
+      ? notifications
+          .map(normalizeNotification)
+          .filter(Boolean)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      : [];
     this.syncUnreadCount();
     this.renderPanel();
-
     return this.getNotifications();
   },
 
   getNotifications() {
-    return this.state.items
-      .map(
-        cloneNotification
-      );
+    return this.state.items.map(cloneNotification);
   },
 
-  getNotification(
-    notificationId
-  ) {
-    const id =
-      normalizeString(
-        notificationId
-      );
-
-    if (!id) {
-      return null;
-    }
-
-    const notification =
-      this.state.items.find(
-        item =>
-          item.id === id
-      );
-
-    return cloneNotification(
-      notification
-    );
+  getNotification(notificationId) {
+    const id = clean(notificationId);
+    if (!id) return null;
+    return cloneNotification(this.state.items.find(item => item.id === id));
   },
 
-  addNotification(
-    notification
-  ) {
-    const normalized =
-      normalizeNotification(
-        notification
-      );
-
-    if (!normalized) {
-      return null;
-    }
-
-    this.state.items =
-      [
-        normalized,
-        ...this.state.items
-          .filter(
-            item =>
-              item.id !==
-              normalized.id
-          )
-      ];
-
+  addNotification(notification) {
+    const normalized = normalizeNotification(notification);
+    if (!normalized) return null;
+    this.state.items = [normalized, ...this.state.items.filter(item => item.id !== normalized.id)];
     this.syncUnreadCount();
     this.renderPanel();
-
-    CircleEvents.emit(
-      EVENT_NAMES.NOTIFICATIONS_CHANGED,
-      {
-        action:
-          "add",
-
-        notification:
-          cloneNotification(
-            normalized
-          )
-      }
-    );
-
-    return cloneNotification(
-      normalized
-    );
+    CircleEvents.emit(EVENT_NAMES.NOTIFICATIONS_CHANGED, {
+      action: "add",
+      notification: cloneNotification(normalized)
+    });
+    return cloneNotification(normalized);
   },
 
-  removeNotification(
-    notificationId
-  ) {
-    const id =
-      normalizeString(
-        notificationId
-      );
-
-    if (!id) {
-      return false;
-    }
-
-    const before =
-      this.state.items.length;
-
-    this.state.items =
-      this.state.items.filter(
-        item =>
-          item.id !== id
-      );
-
-    const changed =
-      before !==
-      this.state.items.length;
-
-    if (changed) {
-      this.syncUnreadCount();
-      this.renderPanel();
-
-      CircleEvents.emit(
-        EVENT_NAMES.NOTIFICATIONS_CHANGED,
-        {
-          action:
-            "remove",
-
-          notificationId:
-            id
-        }
-      );
-    }
-
-    return changed;
-  },
-
-  markRead(
-    notificationId,
-    options = {}
-  ) {
-    const id =
-      normalizeString(
-        notificationId
-      );
-
-    if (!id) {
-      return false;
-    }
-
-    let changed =
-      false;
-
-    this.state.items =
-      this.state.items.map(
-        item => {
-          if (
-            item.id !== id ||
-            item.read
-          ) {
-            return item;
-          }
-
-          changed =
-            true;
-
-          return Object.freeze({
-            ...item,
-            read:
-              true
-          });
-        }
-      );
-
-    if (!changed) {
-      return false;
-    }
-
+  removeNotification(notificationId) {
+    const id = clean(notificationId);
+    if (!id) return false;
+    const before = this.state.items.length;
+    this.state.items = this.state.items.filter(item => item.id !== id);
+    if (before === this.state.items.length) return false;
     this.syncUnreadCount();
     this.renderPanel();
-
-    if (
-      options.persist !==
-      false
-    ) {
-      CircleEvents.emit(
-        "circle:notification-read",
-        {
-          notificationId:
-            id,
-
-          persist:
-            true
-        }
-      );
-    }
-
+    CircleEvents.emit(EVENT_NAMES.NOTIFICATIONS_CHANGED, { action: "remove", notificationId: id });
     return true;
   },
 
-  markUnread(
-    notificationId,
-    options = {}
-  ) {
-    const id =
-      normalizeString(
-        notificationId
-      );
-
-    if (!id) {
-      return false;
-    }
-
-    let changed =
-      false;
-
-    this.state.items =
-      this.state.items.map(
-        item => {
-          if (
-            item.id !== id ||
-            !item.read
-          ) {
-            return item;
-          }
-
-          changed =
-            true;
-
-          return Object.freeze({
-            ...item,
-            read:
-              false
-          });
-        }
-      );
-
-    if (!changed) {
-      return false;
-    }
-
+  markRead(notificationId, options = {}) {
+    const id = clean(notificationId);
+    if (!id) return false;
+    let changed = false;
+    this.state.items = this.state.items.map(item => {
+      if (item.id !== id || item.read) return item;
+      changed = true;
+      return Object.freeze({ ...item, read: true });
+    });
+    if (!changed) return false;
     this.syncUnreadCount();
     this.renderPanel();
-
-    if (
-      options.persist !==
-      false
-    ) {
-      CircleEvents.emit(
-        "circle:notification-unread",
-        {
-          notificationId:
-            id,
-
-          persist:
-            true
-        }
-      );
+    if (options.persist !== false) {
+      CircleEvents.emit("circle:notification-read", { notificationId: id, persist: true });
     }
-
     return true;
   },
 
-  markAllRead(
-    options = {}
-  ) {
-    const unread =
-      this.state.items
-        .filter(
-          item =>
-            !item.read
-        );
-
-    if (!unread.length) {
-      return 0;
-    }
-
-    const unreadIds =
-      unread.map(
-        item =>
-          item.id
-      );
-
-    this.state.items =
-      this.state.items.map(
-        item =>
-          item.read
-            ? item
-            : Object.freeze({
-                ...item,
-                read:
-                  true
-              })
-      );
-
+  markUnread(notificationId, options = {}) {
+    const id = clean(notificationId);
+    if (!id) return false;
+    let changed = false;
+    this.state.items = this.state.items.map(item => {
+      if (item.id !== id || !item.read) return item;
+      changed = true;
+      return Object.freeze({ ...item, read: false });
+    });
+    if (!changed) return false;
     this.syncUnreadCount();
     this.renderPanel();
-
-    if (
-      options.persist !==
-      false
-    ) {
-      CircleEvents.emit(
-        "circle:notifications-all-read",
-        {
-          notificationIds:
-            unreadIds,
-
-          persist:
-            true
-        }
-      );
+    if (options.persist !== false) {
+      CircleEvents.emit("circle:notification-unread", { notificationId: id, persist: true });
     }
+    return true;
+  },
 
-    return unreadIds.length;
+  markAllRead(options = {}) {
+    const unread = this.state.items.filter(item => !item.read);
+    if (!unread.length) return 0;
+    const ids = unread.map(item => item.id);
+    this.state.items = this.state.items.map(item => item.read ? item : Object.freeze({ ...item, read: true }));
+    this.syncUnreadCount();
+    this.renderPanel();
+    if (options.persist !== false) {
+      CircleEvents.emit("circle:notifications-all-read", { notificationIds: ids, persist: true });
+    }
+    return ids.length;
   },
 
   syncUnreadCount() {
-    const unreadCount =
-      this.state.items
-        .reduce(
-          (
-            total,
-            item
-          ) =>
-            total +
-            (
-              item.read
-                ? 0
-                : 1
-            ),
-          0
-        );
-
-    CircleStore.setNotificationsState({
-      unreadCount
-    });
-
+    const unreadCount = this.state.items.reduce((total, item) => total + (item.read ? 0 : 1), 0);
+    CircleStore.setNotificationsState({ unreadCount });
     return unreadCount;
   },
 
   renderBadge(value) {
-    const count =
-      clampUnreadCount(
-        value
-      );
-
-    if (!this.dom.badge) {
-      return;
-    }
-
+    const count = clampUnreadCount(value);
+    if (!this.dom.badge) return;
     if (count <= 0) {
-      this.dom.badge.hidden =
-        true;
-
-      this.dom.badge.textContent =
-        "";
-
-      this.dom.button
-        ?.setAttribute(
-          "aria-label",
-          "Notifications"
-        );
-
+      this.dom.badge.hidden = true;
+      this.dom.badge.textContent = "";
+      this.dom.button?.setAttribute("aria-label", "Notifications");
       return;
     }
-
-    this.dom.badge.hidden =
-      false;
-
-    this.dom.badge.textContent =
-      count > 99
-        ? "99+"
-        : String(count);
-
-    this.dom.button
-      ?.setAttribute(
-        "aria-label",
-        `Notifications, ${count} unread`
-      );
+    this.dom.badge.hidden = false;
+    this.dom.badge.textContent = count > 99 ? "99+" : String(count);
+    this.dom.button?.setAttribute("aria-label", `Notifications, ${count} unread`);
   },
 
   renderPanel() {
-    const list =
-      this.dom.list;
+    ensureStyle();
+    this.prepareDialog();
+    const list = this.dom.list;
+    if (!list) return;
+    list.replaceChildren();
 
-    if (!list) {
-      return;
+    const notifications = this.state.items;
+    if (this.dom.empty) {
+      this.dom.empty.hidden = notifications.length > 0;
+      const p = this.dom.empty.querySelector("p");
+      if (p) p.textContent = "You're all caught up.";
     }
-
-    list.textContent =
-      "";
-
-    const notifications =
-      this.state.items;
-
-    this.dom.empty &&
-      (
-        this.dom.empty.hidden =
-          notifications.length >
-          0
-      );
-
     if (this.dom.markAll) {
-      this.dom.markAll.disabled =
-        !notifications.some(
-          item =>
-            !item.read
-        );
+      this.dom.markAll.disabled = !notifications.some(item => !item.read);
     }
 
-    for (
-      const notification
-      of notifications
-    ) {
-      list.appendChild(
-        this.createNotificationElement(
-          notification
-        )
-      );
-    }
+    notifications.forEach(notification => list.appendChild(this.createNotificationElement(notification)));
   },
 
-  createNotificationElement(
-    notification
-  ) {
-    const article =
-      document.createElement(
-        "article"
-      );
+  createNotificationElement(notification) {
+    const article = document.createElement("article");
+    article.className = "circle-notification-item circle-notification-item--compact";
+    article.dataset.read = notification.read ? "true" : "false";
+    article.dataset.type = notification.type;
+    article.dataset.notificationId = notification.id;
 
-    article.className =
-      "circle-notification-item";
-
-    article.dataset.read =
-      notification.read
-        ? "true"
-        : "false";
-
-    article.dataset.type =
-      notification.type;
-
-    const avatar =
-      document.createElement(
-        notification.actorUserId
-          ? "button"
-          : "div"
-      );
-
-    avatar.className =
-      "circle-notification-item__avatar";
-
-    if (
-      notification.actorUserId
-    ) {
-      avatar.type =
-        "button";
-
-      avatar.dataset.circleAction =
-        "open-profile";
-
-      avatar.dataset.userId =
-        notification.actorUserId;
-
-      if (
-        notification.actorHandle
-      ) {
-        avatar.dataset.handle =
-          notification.actorHandle;
-      }
-
-      avatar.setAttribute(
-        "aria-label",
-        `View ${
-          notification.actorDisplayName ||
-          "profile"
-        }`
-      );
+    const avatar = document.createElement(notification.actorUserId ? "button" : "div");
+    avatar.className = "circle-notification-item__avatar";
+    if (notification.actorUserId) {
+      avatar.type = "button";
+      avatar.dataset.circleAction = "open-profile";
+      avatar.dataset.userId = notification.actorUserId;
+      if (notification.actorHandle) avatar.dataset.handle = notification.actorHandle;
+      avatar.setAttribute("aria-label", `View ${actorName(notification)}`);
     }
 
-    if (
-      notification.actorAvatarUrl
-    ) {
-      const image =
-        document.createElement(
-          "img"
-        );
-
-      image.src =
-        notification.actorAvatarUrl;
-
-      image.alt =
-        "";
-
-      avatar.appendChild(
-        image
-      );
+    if (notification.actorAvatarUrl) {
+      const image = document.createElement("img");
+      image.src = notification.actorAvatarUrl;
+      image.alt = "";
+      image.loading = "lazy";
+      image.decoding = "async";
+      avatar.appendChild(image);
     } else {
-      const fallback =
-        document.createElement(
-          "span"
-        );
-
-      fallback.textContent =
-        getInitials(
-          notification
-        );
-
-      avatar.appendChild(
-        fallback
-      );
+      const fallback = document.createElement("span");
+      fallback.textContent = getInitials(notification);
+      avatar.appendChild(fallback);
     }
 
-    const body =
-      document.createElement(
-        "div"
-      );
+    const body = document.createElement("div");
+    body.className = "circle-notification-item__body";
 
-    body.className =
-      "circle-notification-item__body";
+    const content = document.createElement("button");
+    content.type = "button";
+    content.className = "circle-notification-item__content";
+    content.dataset.circleAction = "open-circle-notification";
+    content.dataset.notificationId = notification.id;
 
-    const meta =
-      document.createElement(
-        "div"
-      );
+    const title = document.createElement("span");
+    title.className = "circle-notification-item__title";
+    title.textContent = conciseTitle(notification);
 
-    meta.className =
-      "circle-notification-item__meta";
+    const preview = conciseBody(notification);
+    const text = document.createElement("span");
+    text.className = "circle-notification-item__text";
+    text.textContent = preview || "";
+    text.hidden = !preview;
 
-    const type =
-      document.createElement(
-        "span"
-      );
+    const time = document.createElement("time");
+    time.className = "circle-notification-item__time";
+    time.dateTime = notification.createdAt;
+    time.textContent = formatTime(notification.createdAt);
 
-    type.className =
-      "circle-notification-item__type";
+    content.append(title);
+    if (preview) content.append(text);
+    content.append(time);
+    body.appendChild(content);
 
-    type.textContent =
-      getNotificationLabel(
-        notification.type
-      );
+    const actions = document.createElement("div");
+    actions.className = "circle-notification-item__actions";
 
-    const time =
-      document.createElement(
-        "time"
-      );
-
-    time.className =
-      "circle-notification-item__time";
-
-    time.dateTime =
-      notification.createdAt;
-
-    time.textContent =
-      formatTime(
-        notification.createdAt
-      );
-
-    meta.append(
-      type,
-      time
-    );
-
-    const title =
-      document.createElement(
-        "button"
-      );
-
-    title.type =
-      "button";
-
-    title.className =
-      "circle-notification-item__title";
-
-    title.dataset.circleAction =
-      "open-circle-notification";
-
-    title.dataset.notificationId =
-      notification.id;
-
-    title.textContent =
-      notification.title;
-
-    const text =
-      document.createElement(
-        "p"
-      );
-
-    text.className =
-      "circle-notification-item__text";
-
-    text.textContent =
-      notification.body ||
-      "";
-
-    body.append(
-      meta,
-      title
-    );
+    const resolvedAction = notification.requestId
+      ? this.state.resolvedRequests.get(notification.requestId)
+      : null;
 
     if (
-      notification.body
-    ) {
-      body.appendChild(
-        text
-      );
-    }
-
-    const actions =
-      document.createElement(
-        "div"
-      );
-
-    actions.className =
-      "circle-notification-item__actions";
-
-    const resolvedAction =
-      notification.requestId
-        ? this.state
-            .resolvedRequests
-            .get(
-              notification.requestId
-            )
-        : null;
-
-    if (
-      notification.type ===
-        NOTIFICATION_TYPES
-          .CONNECTION_REQUEST &&
+      notification.type === NOTIFICATION_TYPES.CONNECTION_REQUEST &&
       notification.requestId &&
       !resolvedAction
     ) {
-      const view =
-        document.createElement(
-          "button"
-        );
+      const accept = document.createElement("button");
+      accept.type = "button";
+      accept.className = "circle-button circle-button--primary circle-button--small circle-notification-action";
+      accept.dataset.circleAction = "accept-incoming-request";
+      accept.dataset.requestId = notification.requestId;
+      accept.textContent = "Accept";
 
-      view.type =
-        "button";
+      const decline = document.createElement("button");
+      decline.type = "button";
+      decline.className = "circle-button circle-button--secondary circle-button--small circle-notification-action";
+      decline.dataset.circleAction = "decline-incoming-request";
+      decline.dataset.requestId = notification.requestId;
+      decline.textContent = "Decline";
 
-      view.className =
-        "circle-button circle-button--secondary circle-button--small";
-
-      view.dataset.circleAction =
-        "open-incoming-request";
-
-      view.dataset.requestId =
-        notification.requestId;
-
-      view.textContent =
-        "View Request";
-
-      const decline =
-        document.createElement(
-          "button"
-        );
-
-      decline.type =
-        "button";
-
-      decline.className =
-        "circle-button circle-button--secondary circle-button--small";
-
-      decline.dataset.circleAction =
-        "decline-incoming-request";
-
-      decline.dataset.requestId =
-        notification.requestId;
-
-      decline.textContent =
-        "Decline";
-
-      const accept =
-        document.createElement(
-          "button"
-        );
-
-      accept.type =
-        "button";
-
-      accept.className =
-        "circle-button circle-button--primary circle-button--small";
-
-      accept.dataset.circleAction =
-        "accept-incoming-request";
-
-      accept.dataset.requestId =
-        notification.requestId;
-
-      accept.textContent =
-        "Accept";
-
-      actions.append(
-        view,
-        decline,
-        accept
-      );
-    } else if (
-      resolvedAction
-    ) {
-      const status =
-        document.createElement(
-          "span"
-        );
-
-      status.className =
-        "circle-notification-item__resolved";
-
-      status.textContent =
-        resolvedAction ===
-          "accepted"
-          ? "Accepted"
-          : resolvedAction ===
-              "declined"
-            ? "Declined"
-            : "Handled";
-
-      actions.appendChild(
-        status
-      );
-    } else {
-      const open =
-        document.createElement(
-          "button"
-        );
-
-      open.type =
-        "button";
-
-      open.className =
-        "circle-button circle-button--secondary circle-button--small";
-
-      open.dataset.circleAction =
-        "open-circle-notification";
-
-      open.dataset.notificationId =
-        notification.id;
-
-      open.textContent =
-        "Open";
-
-      actions.appendChild(
-        open
-      );
+      actions.append(accept, decline);
+    } else if (resolvedAction) {
+      const status = document.createElement("span");
+      status.className = "circle-notification-item__resolved";
+      status.textContent = resolvedAction === "accepted"
+        ? "Accepted"
+        : resolvedAction === "declined"
+          ? "Declined"
+          : "Handled";
+      actions.appendChild(status);
     }
 
-    body.appendChild(
-      actions
-    );
+    if (actions.childNodes.length) body.appendChild(actions);
 
-    article.append(
-      avatar,
-      body
-    );
+    if (!notification.read) {
+      const dot = document.createElement("span");
+      dot.className = "circle-notification-item__unread-dot";
+      dot.setAttribute("aria-label", "Unread");
+      article.append(avatar, body, dot);
+    } else {
+      article.append(avatar, body);
+    }
 
     return article;
   },
 
   openNotifications() {
-    const context =
-      CircleStore.get(
-        "context"
-      );
-
-    if (
-      !context?.isAuthenticated
-    ) {
-      CircleEvents.showToast(
-        "Sign in to view notifications."
-      );
-
+    const context = CircleStore.get("context");
+    if (!context?.isAuthenticated) {
+      CircleEvents.showToast("Sign in to view notifications.");
       return false;
     }
 
-    this.state.panelOpen =
-      true;
-
-    /*
-     * Notifications live inside the overflow menu. Once selected,
-     * close that menu so it is not waiting behind the modal.
-     */
-    const profileMenu =
-      document.getElementById(
-        "circle-profile-menu"
-      );
-
-    const profileMenuButton =
-      document.getElementById(
-        "circle-profile-menu-button"
-      );
-
-    if (profileMenu) {
-      profileMenu.hidden =
-        true;
-    }
-
-    profileMenuButton
-      ?.setAttribute(
-        "aria-expanded",
-        "false"
-      );
+    this.state.panelOpen = true;
+    const profileMenu = document.getElementById("circle-profile-menu");
+    const profileMenuButton = document.getElementById("circle-profile-menu-button");
+    if (profileMenu) profileMenu.hidden = true;
+    profileMenuButton?.setAttribute("aria-expanded", "false");
 
     this.renderPanel();
-
-    const dialog =
-      this.dom.dialog;
-
-    if (
-      dialog &&
-      !dialog.open
-    ) {
-      if (
-        typeof dialog.showModal ===
-          "function"
-      ) {
-        dialog.showModal();
-      } else {
-        dialog.setAttribute(
-          "open",
-          ""
-        );
-      }
+    const dialog = this.dom.dialog;
+    if (dialog && !dialog.open) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
     }
 
-    CircleEvents.emit(
-      "circle:notifications-opened",
-      {
-        notifications:
-          this.getNotifications(),
-
-        unreadCount:
-          CircleStore.get(
-            "notifications.unreadCount"
-          ) || 0
-      }
-    );
-
+    CircleEvents.emit("circle:notifications-opened", {
+      notifications: this.getNotifications(),
+      unreadCount: CircleStore.get("notifications.unreadCount") || 0
+    });
     return true;
   },
 
   closeNotifications() {
-    if (
-      !this.state.panelOpen &&
-      !this.dom.dialog?.open
-    ) {
-      return false;
+    if (!this.state.panelOpen && !this.dom.dialog?.open) return false;
+    this.state.panelOpen = false;
+    const dialog = this.dom.dialog;
+    if (dialog?.open) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
     }
-
-    this.state.panelOpen =
-      false;
-
-    const dialog =
-      this.dom.dialog;
-
-    if (
-      dialog?.open
-    ) {
-      if (
-        typeof dialog.close ===
-          "function"
-      ) {
-        dialog.close();
-      } else {
-        dialog.removeAttribute(
-          "open"
-        );
-      }
-    }
-
-    CircleEvents.emit(
-      "circle:notifications-closed",
-      {}
-    );
-
+    CircleEvents.emit("circle:notifications-closed", {});
     return true;
   },
 
-  activate(
-    notificationId
-  ) {
-    const notification =
-      this.getNotification(
-        notificationId
-      );
+  activate(notificationId) {
+    const notification = this.getNotification(notificationId);
+    if (!notification) return false;
+    this.markRead(notification.id);
 
-    if (!notification) {
-      return false;
-    }
-
-    this.markRead(
-      notification.id
-    );
-
-    switch (
-      notification.type
-    ) {
+    switch (notification.type) {
       case NOTIFICATION_TYPES.CONNECTION_REQUEST:
         this.closeNotifications();
-
-        CircleEvents.emit(
-          "circle:open-incoming-request",
-          {
-            notification,
-
-            requestId:
-              notification.requestId,
-
-            actorUserId:
-              notification.actorUserId
-          }
-        );
+        CircleEvents.emit("circle:open-incoming-request", {
+          notification,
+          requestId: notification.requestId,
+          actorUserId: notification.actorUserId
+        });
         break;
-
       case NOTIFICATION_TYPES.CONNECTION_ACCEPTED:
-        this.openProfileFromNotification(
-          notification
-        );
+      case NOTIFICATION_TYPES.PROFILE:
+        this.openProfileFromNotification(notification);
         break;
-
       case NOTIFICATION_TYPES.MESSAGE_REQUEST:
-        CircleEvents.emit(
-          "circle:notification-open-message-request",
-          {
-            notification,
-
-            requestId:
-              notification.requestId,
-
-            actorUserId:
-              notification.actorUserId
-          }
-        );
+        CircleEvents.emit("circle:notification-open-message-request", {
+          notification,
+          requestId: notification.requestId,
+          actorUserId: notification.actorUserId
+        });
         break;
-
       case NOTIFICATION_TYPES.MESSAGE:
-        if (
-          notification
-            .conversationId
-        ) {
-          CircleEvents.emit(
-            "circle:notification-open-conversation",
-            {
-              notification,
-
-              conversationId:
-                notification
-                  .conversationId
-            }
-          );
+        if (notification.conversationId) {
+          CircleEvents.emit("circle:notification-open-conversation", {
+            notification,
+            conversationId: notification.conversationId
+          });
         }
         break;
-
       case NOTIFICATION_TYPES.LOVE:
-        CircleEvents.emit(
-          "circle:notification-open-love",
-          {
-            notification,
-
-            commentId:
-              notification.commentId,
-
-            profileUserId:
-              notification.profileUserId
-          }
-        );
+        CircleEvents.emit("circle:notification-open-love", {
+          notification,
+          commentId: notification.commentId,
+          profileUserId: notification.profileUserId
+        });
         break;
-
-      case NOTIFICATION_TYPES.PROFILE:
-        this.openProfileFromNotification(
-          notification
-        );
-        break;
-
-      case NOTIFICATION_TYPES.SYSTEM:
       default:
-        CircleEvents.emit(
-          "circle:notification-open-system",
-          {
-            notification
-          }
-        );
+        CircleEvents.emit("circle:notification-open-system", { notification });
         break;
     }
-
     return true;
   },
 
-  openProfileFromNotification(
-    notification
-  ) {
-    const userId =
-      normalizeString(
-        notification
-          ?.actorUserId ||
-        notification
-          ?.profileUserId
-      );
+  openProfileFromNotification(notification) {
+    const userId = clean(notification?.actorUserId || notification?.profileUserId);
+    const handle = clean(notification?.actorHandle);
+    if (!userId && !handle) return false;
 
-    const handle =
-      normalizeString(
-        notification
-          ?.actorHandle
-      );
-
-    if (
-      !userId &&
-      !handle
-    ) {
-      return false;
-    }
-
-    CircleEvents.emit(
-      "circle:notification-open-profile",
-      {
-        notification,
-
-        userId,
-        handle
-      }
-    );
-
-    const url =
-      new URL(
-        "ari-circle.html",
-        window.location.href
-      );
-
-    if (handle) {
-      url.searchParams.set(
-        "handle",
-        handle.replace(
-          /^@+/,
-          ""
-        )
-      );
-    } else {
-      url.searchParams.set(
-        "user",
-        userId
-      );
-    }
-
-    window.location.assign(
-      url.href
-    );
-
+    CircleEvents.emit("circle:notification-open-profile", { notification, userId, handle });
+    const url = new URL("ari-circle.html", window.location.href);
+    if (handle) url.searchParams.set("handle", handle.replace(/^@+/, ""));
+    else url.searchParams.set("user", userId);
+    window.location.assign(url.href);
     return true;
   },
 
   getUnreadNotifications() {
-    return this.state.items
-      .filter(
-        item =>
-          !item.read
-      )
-      .map(
-        cloneNotification
-      );
+    return this.state.items.filter(item => !item.read).map(cloneNotification);
   },
 
   clear() {
-    this.state.items =
-      [];
-
-    this.state.panelOpen =
-      false;
-
-    this.state
-      .resolvedRequests
-      .clear();
-
-    CircleStore.setNotificationsState({
-      unreadCount:
-        0
-    });
-
+    this.state.items = [];
+    this.state.panelOpen = false;
+    this.state.resolvedRequests.clear();
+    CircleStore.setNotificationsState({ unreadCount: 0 });
     this.renderPanel();
   },
 
   destroy() {
-    for (
-      const unsubscribe
-      of this.state.unsubscribers
-    ) {
-      try {
-        unsubscribe?.();
-      } catch (error) {
-        console.warn(
-          "ARI Circle notifications unsubscribe failed",
-          error
-        );
-      }
-    }
-
-    this.state.unsubscribers =
-      [];
-
+    this.state.unsubscribers.forEach(unsubscribe => {
+      try { unsubscribe?.(); } catch (error) { console.warn("ARI Circle notifications unsubscribe failed", error); }
+    });
+    this.state.unsubscribers = [];
     this.closeNotifications();
     this.clear();
-
-    this.state.initialized =
-      false;
+    this.state.initialized = false;
   },
 
   getDiagnostics() {
     return {
-      ready:
-        this.state.initialized,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      notificationCount:
-        this.state.items
-          .length,
-
-      unreadCount:
-        clampUnreadCount(
-          CircleStore.get(
-            "notifications.unreadCount"
-          )
-        ),
-
-      panelOpen:
-        this.state.panelOpen,
-
-      buttonFound:
-        Boolean(
-          this.dom.button
-        ),
-
-      badgeFound:
-        Boolean(
-          this.dom.badge
-        ),
-
-      dialogFound:
-        Boolean(
-          this.dom.dialog
-        ),
-
-      listFound:
-        Boolean(
-          this.dom.list
-        )
+      ready: this.state.initialized,
+      source: this.source,
+      version: this.version,
+      notificationCount: this.state.items.length,
+      unreadCount: clampUnreadCount(CircleStore.get("notifications.unreadCount")),
+      panelOpen: this.state.panelOpen,
+      buttonFound: Boolean(this.dom.button),
+      badgeFound: Boolean(this.dom.badge),
+      dialogFound: Boolean(this.dom.dialog),
+      listFound: Boolean(this.dom.list)
     };
   }
 };
 
-export {
-  CircleNotifications,
-  NOTIFICATION_TYPES,
-  normalizeNotification
-};
-
+export { CircleNotifications, NOTIFICATION_TYPES, normalizeNotification };
 export default CircleNotifications;
