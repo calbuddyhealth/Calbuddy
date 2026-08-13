@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: api/ari-conversation.js
-// Version: 1.0.3
+// Version: 1.0.4
 // Purpose:
 //   Authenticated low-latency conversational OpenAI transport for ordinary
 //   Ari dialogue. This endpoint intentionally does not run Ari's full
@@ -22,6 +22,11 @@ const FAST_MODEL =
 const FAST_TIMEOUT_MS = normalizePositiveInteger(
   process.env.OPENAI_FAST_TIMEOUT_MS,
   11000
+);
+
+const AUTH_TIMEOUT_MS = normalizePositiveInteger(
+  process.env.ARI_AUTH_TIMEOUT_MS,
+  3500
 );
 
 const DEEP_ESCALATION_TOKEN = "__ARI_DEEP_ESCALATE__";
@@ -455,10 +460,17 @@ async function authenticateRequest(req) {
     };
   }
 
-  const supabaseUrl = cleanText(process.env.SUPABASE_URL, 1000).replace(/\/$/, "");
-  const serviceRoleKey = cleanText(process.env.SUPABASE_SERVICE_ROLE_KEY, 5000);
+  const supabaseUrl = cleanText(process.env.SUPABASE_URL, 1000)
+    .replace(/\/+$/, "");
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  const supabaseApiKey = cleanText(
+    process.env.SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    5000
+  );
+
+  if (!supabaseUrl || !supabaseApiKey) {
     return {
       authenticated: false,
       status: 503,
@@ -467,18 +479,23 @@ async function authenticateRequest(req) {
     };
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+
   try {
     const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
       method: "GET",
       headers: {
-        apikey: serviceRoleKey,
+        apikey: supabaseApiKey,
         Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
-      }
+        Accept: "application/json"
+      },
+      signal: controller.signal
     });
 
     const data = await response.json().catch(() => ({}));
-    const userId = cleanText(data?.id, 200);
+    const user = data?.user || data;
+    const userId = cleanText(user?.id, 200);
 
     if (!response.ok || !userId) {
       return {
@@ -499,9 +516,13 @@ async function authenticateRequest(req) {
     return {
       authenticated: false,
       status: 503,
-      code: "AUTH_VERIFICATION_FAILED",
+      code: error?.name === "AbortError"
+        ? "AUTH_VERIFICATION_TIMEOUT"
+        : "AUTH_VERIFICATION_FAILED",
       message: "ARI could not verify the signed-in session."
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -538,5 +559,8 @@ function normalizePositiveInteger(value, fallback) {
 
 function setCommonHeaders(res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Vary", "Authorization");
+  res.setHeader("X-Content-Type-Options", "nosniff");
 }
