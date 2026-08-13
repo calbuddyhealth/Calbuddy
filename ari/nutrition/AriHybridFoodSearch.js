@@ -1,29 +1,29 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: AriHybridFoodSearch.js
-// Version: 1.0.1
+// Version: 1.0.2
 // Purpose:
 //   Keep ARI Nutrition's existing local food search instant while
 //   enriching branded grocery searches from the server-backed catalog.
 //
-// Design:
-//   - AriFoodSearch.suggest() still returns synchronously.
-//   - Local results render immediately with zero network dependency.
-//   - Eligible searches start one background request.
-//   - Returned foods are registered into AriFoodRegistry.
-//   - The current search input is nudged once so the existing UI reruns
-//     its normal local ranking against the newly registered foods.
-//   - Failed/slow cloud search never breaks manual entry.
+// V1.0.2:
+//   - Never treats raw local result count as proof that a search is good.
+//   - Only suppresses cloud enrichment when the local engine has a truly
+//     strong exact answer.
+//   - Brand-only searches still enrich so users can discover more variants.
+//   - Preserves instant local rendering, bounded requests, caching, and the
+//     existing AriFoodRegistry/AriFoodCalculator contract.
 // =====================================================
 
 (function initializeAriHybridFoodSearch(global) {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const ENDPOINT = "/api/ari-food-search";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 5000;
   const DEFAULT_LIMIT = 8;
+  const STRONG_LOCAL_SCORE = 900;
 
   const state = {
     installed: false,
@@ -68,18 +68,58 @@
     return Math.min(max, Math.max(min, Math.floor(number)));
   }
 
-  function isEligibleQuery(query, localCount) {
+  function getResultScore(food) {
+    const score = Number(food?.search?.score ?? food?.score);
+    return Number.isFinite(score) ? score : 0;
+  }
+
+  function getMatchTypes(food) {
+    return Array.isArray(food?.search?.matchTypes)
+      ? food.search.matchTypes.map((value) => cleanText(value))
+      : [];
+  }
+
+  function queryIsBrandOnly(query, localResults) {
+    const normalized = normalizeText(query);
+    if (!normalized) return false;
+
+    return (Array.isArray(localResults) ? localResults : []).some(
+      (food) => normalizeText(food?.brand) === normalized
+    );
+  }
+
+  function hasStrongLocalAnswer(query, localResults) {
+    const results = Array.isArray(localResults) ? localResults : [];
+    if (!results.length) return false;
+
+    // A brand-only query such as "doritos" or "cheetos" should continue to
+    // the grocery catalog even when one local product happens to score well.
+    if (queryIsBrandOnly(query, results)) return false;
+
+    const top = results[0];
+    const matchTypes = getMatchTypes(top);
+    const exactMatch = matchTypes.some((type) =>
+      ["exact-name", "exact-display-name", "exact-alias"].includes(type)
+    );
+
+    if (exactMatch) return true;
+
+    // The local engine can accumulate points from weak token/fuzzy matches.
+    // Requiring a high top score prevents six mediocre results from blocking
+    // cloud discovery, which was the V1.0.1 failure mode for "hot cheetos".
+    return getResultScore(top) >= STRONG_LOCAL_SCORE;
+  }
+
+  function isEligibleQuery(query, localResults = []) {
     const normalized = normalizeText(query);
 
     if (normalized.length < 2) return false;
 
-    // One- and two-character searches should always stay local. For short
-    // prefixes such as "dori", wait until the user has typed enough of the
-    // brand/product to avoid creating a network request per keystroke.
+    // Avoid a network request on tiny single-token prefixes. Full brand names
+    // such as "doritos" and "cheetos" naturally pass this threshold.
     if (!normalized.includes(" ") && normalized.length < 6) return false;
 
-    // Plenty of good local answers already means there is no need to enrich.
-    if (Number(localCount) >= 6) return false;
+    if (hasStrongLocalAnswer(query, localResults)) return false;
 
     return true;
   }
@@ -108,8 +148,6 @@
       results: Array.isArray(results) ? results : []
     });
 
-    // Tiny bounded client cache. This is only a typing accelerator, not the
-    // canonical food database.
     if (state.cache.size > 40) {
       const oldestKey = state.cache.keys().next().value;
       if (oldestKey) state.cache.delete(oldestKey);
@@ -122,7 +160,7 @@
         const session = await global.CalBuddy.getCurrentSession();
         if (session?.access_token) return session.access_token;
       }
-    } catch (error) {
+    } catch (_) {
       // Fall through to direct Supabase lookup.
     }
 
@@ -131,7 +169,7 @@
         const { data, error } = await global.calbuddySupabase.auth.getSession();
         if (!error && data?.session?.access_token) return data.session.access_token;
       }
-    } catch (error) {
+    } catch (_) {
       // Search stays local when auth lookup is unavailable.
     }
 
@@ -140,7 +178,6 @@
 
   function registerFoods(results) {
     const registry = global.AriFoodRegistry;
-
     if (!registry || typeof registry.register !== "function") return 0;
 
     let registered = 0;
@@ -156,7 +193,10 @@
 
         if (result?.registered) registered += 1;
       } catch (error) {
-        console.warn("[ARI Hybrid Food Search] Registration skipped:", error?.message || error);
+        console.warn(
+          "[ARI Hybrid Food Search] Registration skipped:",
+          error?.message || error
+        );
       }
     }
 
@@ -167,12 +207,10 @@
   function refreshCurrentSearch(query) {
     const input = document.getElementById("mealName");
     if (!input) return;
-
     if (normalizeText(input.value) !== normalizeText(query)) return;
 
-    // Reuse the existing Nutrition search workflow rather than creating a
-    // second autocomplete renderer. The second pass is fully local because
-    // the response has already been cached and registered.
+    // Reuse Nutrition's existing autocomplete renderer. The returned branded
+    // foods have already been registered, so this second pass is fully local.
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
@@ -180,8 +218,6 @@
     const normalized = normalizeText(query);
     if (!normalized) return [];
 
-    // A cached query has already had its foods registered during this page
-    // session. Return it without re-registering or retriggering the UI.
     const cached = getCached(normalized);
     if (cached) return cached;
 
@@ -210,23 +246,20 @@
             Accept: "application/json"
           },
           signal: controller.signal,
-          body: JSON.stringify({
-            query,
-            limit,
-            localCount
-          })
+          body: JSON.stringify({ query, limit, localCount })
         });
 
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok || data?.success !== true) {
-          throw new Error(data?.error || `Food catalog request failed (${response.status}).`);
+          throw new Error(
+            data?.error || `Food catalog request failed (${response.status}).`
+          );
         }
 
         const results = Array.isArray(data?.results) ? data.results : [];
         setCached(normalized, results);
         registerFoods(results);
-
         state.lastDurationMs = Math.round(nowMs() - startedAt);
         return results;
       } catch (error) {
@@ -235,9 +268,10 @@
           ? "cloud_search_timeout"
           : cleanText(error?.message || error, 300);
 
-        // Cloud search is enhancement-only. Never surface its failure as a
-        // manual-entry error because local search/custom entry still work.
-        console.warn("[ARI Hybrid Food Search] Cloud enrichment unavailable:", state.lastError);
+        console.warn(
+          "[ARI Hybrid Food Search] Cloud enrichment unavailable:",
+          state.lastError
+        );
         return [];
       } finally {
         clearTimeout(timer);
@@ -254,17 +288,15 @@
   }
 
   function scheduleEnrichment(query, localResults, limit) {
-    const localCount = Array.isArray(localResults) ? localResults.length : 0;
-    if (!isEligibleQuery(query, localCount)) return;
+    const results = Array.isArray(localResults) ? localResults : [];
+    if (!isEligibleQuery(query, results)) return;
 
-    // Cached results are already in AriFoodRegistry. Let the normal local
-    // suggest call return them without another input event; this avoids a
-    // refresh loop for searches that legitimately return fewer than six foods.
+    // Cached results are already registered during this page session.
     if (getCached(query)) return;
 
-    requestCloudResults(query, localCount, limit)
-      .then((results) => {
-        if (Array.isArray(results) && results.length) {
+    requestCloudResults(query, results.length, limit)
+      .then((cloudResults) => {
+        if (Array.isArray(cloudResults) && cloudResults.length) {
           refreshCurrentSearch(query);
         }
       })
@@ -277,16 +309,9 @@
     if (state.installed) return true;
 
     const search = global.AriFoodSearch;
-
-    if (!search || typeof search.suggest !== "function") {
-      return false;
-    }
+    if (!search || typeof search.suggest !== "function") return false;
 
     const originalSuggest = search.suggest.bind(search);
-
-    // AriFoodSearch is exported as a frozen object, so its method cannot be
-    // reassigned. Publish a compatible facade instead; all other methods and
-    // properties are preserved while suggest() gets background enrichment.
     const facade = Object.create(null);
 
     for (const key of Object.keys(search)) {
@@ -296,7 +321,6 @@
     facade.suggest = function hybridSuggest(query, options = {}) {
       const localResults = originalSuggest(query, options);
       const limit = clampInteger(options?.limit, 1, 12, DEFAULT_LIMIT);
-
       scheduleEnrichment(query, localResults, limit);
       return localResults;
     };
@@ -328,11 +352,10 @@
     VERSION,
     install,
     getDiagnostics,
-    isEligibleQuery
+    isEligibleQuery,
+    hasStrongLocalAnswer
   });
 
   global.AriHybridFoodSearch = AriHybridFoodSearch;
-
-  // This file is intentionally loaded immediately after AriFoodSearch.
   install();
 })(typeof window !== "undefined" ? window : globalThis);
