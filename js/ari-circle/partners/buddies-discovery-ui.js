@@ -1,6 +1,19 @@
-// ARI CIRCLE — Buddies discovery UI v1.0.0
+// ARI CIRCLE — Buddies discovery UI v1.0.1
 (() => {
   "use strict";
+
+  // Compatibility bridge for the legacy partner-finder age-mode renderer.
+  // The visible safety card was intentionally removed in the Buddies redesign,
+  // but partner-finder.js still updates these IDs during startup.
+  // Keep hidden targets so startup remains safe until that legacy dependency is removed.
+  ["partnerSafetyTitle", "partnerSafetyText"].forEach((id) => {
+    if (document.getElementById(id)) return;
+    const node = document.createElement(id === "partnerSafetyTitle" ? "strong" : "span");
+    node.id = id;
+    node.hidden = true;
+    node.setAttribute("aria-hidden", "true");
+    document.body.appendChild(node);
+  });
 
   function openPrivacy() {
     const dialog = document.getElementById("privacyDialog");
