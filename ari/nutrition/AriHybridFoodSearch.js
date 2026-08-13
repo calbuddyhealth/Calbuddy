@@ -1,10 +1,14 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: AriHybridFoodSearch.js
-// Version: 1.0.2
+// Version: 1.0.3
 // Purpose:
 //   Keep ARI Nutrition's existing local food search instant while
 //   enriching branded grocery searches from the server-backed catalog.
+//
+// V1.0.3:
+//   - Never caches an empty cloud result set.
+//   - A temporary miss can be retried immediately after the catalog changes.
 //
 // V1.0.2:
 //   - Never treats raw local result count as proof that a search is good.
@@ -18,7 +22,7 @@
 (function initializeAriHybridFoodSearch(global) {
   "use strict";
 
-  const VERSION = "1.0.2";
+  const VERSION = "1.0.3";
   const ENDPOINT = "/api/ari-food-search";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 5000;
@@ -92,8 +96,6 @@
     const results = Array.isArray(localResults) ? localResults : [];
     if (!results.length) return false;
 
-    // A brand-only query such as "doritos" or "cheetos" should continue to
-    // the grocery catalog even when one local product happens to score well.
     if (queryIsBrandOnly(query, results)) return false;
 
     const top = results[0];
@@ -104,9 +106,6 @@
 
     if (exactMatch) return true;
 
-    // The local engine can accumulate points from weak token/fuzzy matches.
-    // Requiring a high top score prevents six mediocre results from blocking
-    // cloud discovery, which was the V1.0.1 failure mode for "hot cheetos".
     return getResultScore(top) >= STRONG_LOCAL_SCORE;
   }
 
@@ -114,11 +113,7 @@
     const normalized = normalizeText(query);
 
     if (normalized.length < 2) return false;
-
-    // Avoid a network request on tiny single-token prefixes. Full brand names
-    // such as "doritos" and "cheetos" naturally pass this threshold.
     if (!normalized.includes(" ") && normalized.length < 6) return false;
-
     if (hasStrongLocalAnswer(query, localResults)) return false;
 
     return true;
@@ -135,17 +130,35 @@
       return null;
     }
 
+    const results = Array.isArray(entry.results) ? entry.results : [];
+
+    // Do not allow a historical miss to suppress a fresh catalog lookup.
+    if (!results.length) {
+      state.cache.delete(key);
+      return null;
+    }
+
     state.cacheHits += 1;
-    return entry.results;
+    return results;
   }
 
   function setCached(query, results) {
     const key = normalizeText(query);
+    const normalizedResults = Array.isArray(results) ? results : [];
+
     if (!key) return;
+
+    // Positive results are useful typing accelerators. Empty results are not:
+    // the server-backed catalog can gain a product at any time, including
+    // moments after a user's first search.
+    if (!normalizedResults.length) {
+      state.cache.delete(key);
+      return;
+    }
 
     state.cache.set(key, {
       savedAt: Date.now(),
-      results: Array.isArray(results) ? results : []
+      results: normalizedResults
     });
 
     if (state.cache.size > 40) {
@@ -209,8 +222,6 @@
     if (!input) return;
     if (normalizeText(input.value) !== normalizeText(query)) return;
 
-    // Reuse Nutrition's existing autocomplete renderer. The returned branded
-    // foods have already been registered, so this second pass is fully local.
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
@@ -290,8 +301,6 @@
   function scheduleEnrichment(query, localResults, limit) {
     const results = Array.isArray(localResults) ? localResults : [];
     if (!isEligibleQuery(query, results)) return;
-
-    // Cached results are already registered during this page session.
     if (getCached(query)) return;
 
     requestCloudResults(query, results.length, limit)
