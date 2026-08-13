@@ -1,17 +1,15 @@
 /* =============================================================
    ARI CIRCLE — NOTIFICATIONS V4
-   Version: 1.1.0
+   Version: 1.2.0
 
-   V1.1.0:
-   - Adds an always-visible Clear history action.
-   - Clears persisted notification history through the existing RPC.
-   - Uses bounded retries so the control appears even if the dialog mounts
-     after the first startup pass.
+   V1.2.0:
+   - Loads compact preview-only notification styling.
+   - Keeps Clear history support.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const STYLE_ID = "ari-circle-notifications-v4-style";
   const $ = (id) => document.getElementById(id);
   const clean = (v) => String(v ?? "").trim();
@@ -25,12 +23,14 @@
   };
 
   function ensureStyle() {
-    if ($(STYLE_ID)) return;
-    const link = document.createElement("link");
-    link.id = STYLE_ID;
-    link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-notifications-v4.css?v=1.1.0";
-    document.head.append(link);
+    let link = $(STYLE_ID);
+    if (!link) {
+      link = document.createElement("link");
+      link.id = STYLE_ID;
+      link.rel = "stylesheet";
+      document.head.append(link);
+    }
+    link.href = "assets/css/ari-circle-notifications-v4.css?v=1.2.0";
   }
 
   function toast(message) {
@@ -55,9 +55,25 @@
     return "Someone";
   }
 
+  function stripExpandedMedia(article) {
+    article.querySelectorAll([
+      ".circle-notification-item__body img",
+      ".circle-notification-item__body video",
+      ".circle-notification-item__body picture",
+      ".circle-notification-item__body canvas",
+      ".circle-notification-item__body iframe",
+      ".circle-notification-item__media",
+      ".circle-notification-item__attachment",
+      ".circle-notification-item__photo",
+      ".circle-notification-item__preview-media"
+    ].join(",")).forEach((node) => node.remove());
+  }
+
   function decorateItem(article) {
-    if (!article || article.dataset.v4Notification === "true") return;
-    article.dataset.v4Notification = "true";
+    if (!article) return;
+    stripExpandedMedia(article);
+    if (article.dataset.v4Notification === VERSION) return;
+    article.dataset.v4Notification = VERSION;
 
     const type = clean(article.dataset.type);
     const title = article.querySelector(".circle-notification-item__title");
@@ -106,7 +122,7 @@
     const dialog = $("circle-notifications-dialog");
     if (!dialog) return;
 
-    let toolbar = dialog.querySelector(".circle-notifications-toolbar");
+    const toolbar = dialog.querySelector(".circle-notifications-toolbar");
     if (!toolbar) return;
 
     let actions = toolbar.querySelector(".circle-notifications-toolbar__actions");
