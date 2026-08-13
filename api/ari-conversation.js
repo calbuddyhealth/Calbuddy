@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: api/ari-conversation.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Low-latency conversational OpenAI transport for ordinary Ari dialogue.
 //   This endpoint intentionally does not run Ari's full deliberation stack.
@@ -33,12 +33,12 @@ const HIGH_STAKES_PATTERNS = [
   /\b(medication|medicine|prescription|dose|dosage|mg\b|milligram|drug interaction|side effect)\b/i,
   /\b(diagnos(?:e|is)|symptom|blood pressure|heart rate|infection|fever|injury|pain)\b/i,
   /\b(lawyer|legal advice|lawsuit|court order|criminal charge|immigration status|visa denial)\b/i,
-  /\b(invest(?:ment|ing)|stock|crypto|tax advice|bankruptcy|mortgage rate|loan decision)\b/i
+  /\b(invest(?:ment|ing)|stock market|stock price|stocks|shares?|equities|crypto|tax advice|bankruptcy|mortgage rate|loan decision)\b/i
 ];
 
 const ACTION_PATTERNS = [
   /\b(log|add|save|delete|remove|clear|update|change|set|edit|submit|create)\b.{0,45}\b(meal|food|weight|workout|exercise|goal|profile|calorie|macro|account|week|plan)\b/i,
-  /\b(remind me|schedule|book|reserve|send|email|message|upload|download)\b/i
+  /\b(remind me|schedule|book|reserve|send|email|upload|download)\b/i
 ];
 
 const DEVELOPER_PATTERNS = [
@@ -49,7 +49,7 @@ const DEVELOPER_PATTERNS = [
 ];
 
 const FRESH_INFO_PATTERNS = [
-  /\b(latest|current|currently|today['’]?s|right now|breaking|news|live score|weather|forecast|stock price|exchange rate)\b/i,
+  /\b(latest|right now|breaking|news|live score|weather|forecast|stock price|exchange rate)\b/i,
   /\b(who is the (?:current )?(?:president|ceo|governor|mayor|secretary))\b/i
 ];
 
@@ -248,7 +248,7 @@ function buildMessages({
     "Do not claim that you changed app data, sent something, deployed code, logged a meal, or performed another action unless the app actually reports that action result.",
     "If information is uncertain, say so naturally rather than inventing certainty.",
     `If the request is medical/high-stakes health, self-harm, legal, consequential financial, an app write/action, developer/code execution, or requires live/current information, respond with exactly ${DEEP_ESCALATION_TOKEN} and nothing else.`,
-    "Never use the deep-escalation token for ordinary conversation, explanations, opinions, low-stakes nutrition questions, simple educational questions, or normal follow-ups."
+    "Never use the deep-escalation token for ordinary conversation, explanations, opinions, low-stakes nutrition questions, simple educational questions, normal app-data questions, or normal follow-ups."
   ].join("\n");
 
   const contextualMessages = [];
