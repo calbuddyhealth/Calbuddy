@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.0
+// Version: 1.1.1
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -12,6 +12,7 @@
 //   - Configure persistent authentication.
 //   - Expose compatibility aliases used by older files.
 //   - Track basic authentication state changes.
+//   - Lazily load ARI Circle notification badges only on relevant pages.
 //
 // Non-responsibilities:
 //   - Does not perform sign-in or sign-up.
@@ -29,6 +30,35 @@
     "sb_publishable_Ol6fATXdLGiQiEKnImBwlA_Zq4544KA";
 
   const AUTH_STORAGE_KEY = "calbuddy-auth-session";
+  const SOCIAL_BADGES_SCRIPT_ID = "ariCircleSocialBadgesScript";
+
+  function shouldLoadSocialBadges() {
+    const path = String(window.location.pathname || "").toLowerCase();
+    return (
+      path.endsWith("/home.html") ||
+      path.includes("ari-circle") ||
+      Boolean(document.querySelector(".nav-circle, .feed-page, .partner-page, .challenge-page, .ari-circle-page"))
+    );
+  }
+
+  function scheduleSocialBadges() {
+    if (!shouldLoadSocialBadges() || document.getElementById(SOCIAL_BADGES_SCRIPT_ID)) return;
+
+    const load = () => {
+      if (document.getElementById(SOCIAL_BADGES_SCRIPT_ID)) return;
+      const script = document.createElement("script");
+      script.id = SOCIAL_BADGES_SCRIPT_ID;
+      script.src = "js/ari-circle/social-badges.js?v=1.0.0";
+      script.defer = true;
+      document.head.append(script);
+    };
+
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(load, { timeout: 1800 });
+    } else {
+      window.setTimeout(load, 900);
+    }
+  }
 
   // -----------------------------------------------------
   // Dependency validation
@@ -62,7 +92,7 @@
     window.CalBuddy = window.CalBuddy || {};
     window.CalBuddy.supabase = window.calbuddySupabase;
     window.supabaseClient = window.calbuddySupabase;
-
+    scheduleSocialBadges();
     return;
   }
 
@@ -92,6 +122,10 @@
   window.CalBuddy.supabase = client;
   window.supabaseClient = client;
 
+  // Badge loading is intentionally delayed until the browser is idle so
+  // ARI Circle navigation and page rendering remain the priority.
+  scheduleSocialBadges();
+
   // -----------------------------------------------------
   // Authentication-state tracking
   // -----------------------------------------------------
@@ -118,6 +152,7 @@
       localStorage.removeItem("calbuddyLastUserEmail");
 
       sessionStorage.removeItem("ari_boot_intro");
+      sessionStorage.removeItem("ari_circle_badges_v1");
     }
   });
 })();
