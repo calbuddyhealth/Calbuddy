@@ -1,12 +1,12 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: api/ari-conversation.js
-// Version: 1.0.2
+// Version: 1.0.3
 // Purpose:
-//   Low-latency conversational OpenAI transport for ordinary Ari dialogue.
-//   This endpoint intentionally does not run Ari's full deliberation stack.
-//   High-stakes, action, developer, and live-information turns are
-//   escalated back to the full Rebirth runtime.
+//   Authenticated low-latency conversational OpenAI transport for ordinary
+//   Ari dialogue. This endpoint intentionally does not run Ari's full
+//   deliberation stack. High-stakes, action, developer, and live-information
+//   turns are escalated back to the full Rebirth runtime.
 // =====================================================
 
 const OPENAI_CHAT_COMPLETIONS_URL =
@@ -75,6 +75,20 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   try {
+    const authentication = await authenticateRequest(req);
+
+    if (!authentication.authenticated) {
+      return res.status(authentication.status || 401).json({
+        success: false,
+        error: authentication.message || "Authentication required.",
+        code: authentication.code || "AUTH_REQUIRED",
+        source: "ari_conversation_api",
+        timing: {
+          totalMs: Date.now() - startedAt
+        }
+      });
+    }
+
     const body = await resolveRequestBody(req);
     const message = cleanText(body.message, 6000);
     const history = normalizeHistory(body.history);
@@ -115,6 +129,11 @@ export default async function handler(req, res) {
     }
 
     const context = normalizeContext(body.context);
+    context.user = {
+      ...(context.user || {}),
+      id: authentication.userId
+    };
+
     const coachMemorySummary = cleanText(body.coachMemorySummary, 2400);
 
     const messages = buildMessages({
@@ -420,6 +439,70 @@ function inferEmotion(reply = "") {
   if (/\b(great|nice|good call|love that)\b/i.test(text)) return "happy";
 
   return "idle";
+}
+
+async function authenticateRequest(req) {
+  const authorization = cleanText(req?.headers?.authorization, 5000);
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  const accessToken = cleanText(match?.[1], 5000);
+
+  if (!accessToken) {
+    return {
+      authenticated: false,
+      status: 401,
+      code: "AUTH_TOKEN_MISSING",
+      message: "A signed-in ARI session is required."
+    };
+  }
+
+  const supabaseUrl = cleanText(process.env.SUPABASE_URL, 1000).replace(/\/$/, "");
+  const serviceRoleKey = cleanText(process.env.SUPABASE_SERVICE_ROLE_KEY, 5000);
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return {
+      authenticated: false,
+      status: 503,
+      code: "AUTH_SERVICE_UNAVAILABLE",
+      message: "ARI authentication service is not configured."
+    };
+  }
+
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    const data = await response.json().catch(() => ({}));
+    const userId = cleanText(data?.id, 200);
+
+    if (!response.ok || !userId) {
+      return {
+        authenticated: false,
+        status: 401,
+        code: "AUTH_TOKEN_INVALID",
+        message: "The ARI session is no longer valid."
+      };
+    }
+
+    return {
+      authenticated: true,
+      userId
+    };
+  } catch (error) {
+    console.error("[ARI Fast Conversation Auth Error]", error);
+
+    return {
+      authenticated: false,
+      status: 503,
+      code: "AUTH_VERIFICATION_FAILED",
+      message: "ARI could not verify the signed-in session."
+    };
+  }
 }
 
 async function resolveRequestBody(req) {
