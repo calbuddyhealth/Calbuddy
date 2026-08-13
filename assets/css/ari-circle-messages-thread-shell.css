@@ -1,0 +1,104 @@
+/* ARI Circle Messages — isolated mobile thread shell v1.0.0 */
+
+:root {
+  --ari-messages-vvh: 100dvh;
+}
+
+@media (max-width: 700px) {
+  html.ari-messages-thread-open,
+  html.ari-messages-thread-open body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  .circle-messages-page.has-thread {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: var(--ari-messages-vvh, 100dvh);
+    min-height: 0 !important;
+    overflow: hidden !important;
+    background: #f8faff;
+    z-index: 100;
+  }
+
+  .circle-messages-page.has-thread .circle-messages-header,
+  .circle-messages-page.has-thread .circle-inbox {
+    display: none !important;
+  }
+
+  .circle-messages-page.has-thread .circle-messages-shell {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    width: 100%;
+    height: 100%;
+    min-height: 0 !important;
+    margin: 0;
+    overflow: hidden !important;
+    background: #f8faff;
+  }
+
+  .circle-messages-page.has-thread .circle-thread {
+    position: absolute !important;
+    inset: 0 !important;
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    background: #f8faff;
+    z-index: 1;
+  }
+
+  .circle-messages-page.has-thread .circle-thread__header {
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    padding-top: max(12px, env(safe-area-inset-top));
+    background: rgba(255,255,255,.97);
+  }
+
+  .circle-messages-page.has-thread .circle-thread__messages {
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding-bottom: 18px;
+    scroll-padding-bottom: 18px;
+  }
+
+  .circle-messages-page.has-thread .circle-thread-empty {
+    min-height: 0;
+  }
+
+  .circle-messages-page.has-thread .circle-thread__composer {
+    position: relative !important;
+    inset: auto !important;
+    transform: none !important;
+    z-index: 5;
+    width: 100%;
+    flex: 0 0 auto;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    background: rgba(250,252,255,.99);
+  }
+
+  .circle-messages-page.has-thread .circle-thread__composer textarea {
+    font-size: 16px !important;
+  }
+
+  .circle-messages-page.has-thread .circle-conversation-list,
+  .circle-messages-page.has-thread .circle-message-search,
+  .circle-messages-page.has-thread .circle-inbox__heading,
+  .circle-messages-page.has-thread #conversationEmpty,
+  .circle-messages-page.has-thread #inboxStatus {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+}
