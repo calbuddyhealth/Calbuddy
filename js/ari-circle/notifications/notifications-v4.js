@@ -1,15 +1,17 @@
 /* =============================================================
    ARI CIRCLE — NOTIFICATIONS V4
-   Version: 1.2.0
+   Version: 1.3.0
 
-   V1.2.0:
-   - Loads compact preview-only notification styling.
-   - Keeps Clear history support.
+   V1.3.0:
+   - Facebook-style compact notification rows.
+   - Removes all expanded notification media except the actor avatar.
+   - Keeps Mark all read + Clear history.
+   - Keeps request actions inline and fast.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const STYLE_ID = "ari-circle-notifications-v4-style";
   const $ = (id) => document.getElementById(id);
   const clean = (v) => String(v ?? "").trim();
@@ -30,7 +32,7 @@
       link.rel = "stylesheet";
       document.head.append(link);
     }
-    link.href = "assets/css/ari-circle-notifications-v4.css?v=1.2.0";
+    link.href = "assets/css/ari-circle-notifications-v4.css?v=1.3.0";
   }
 
   function toast(message) {
@@ -56,12 +58,15 @@
   }
 
   function stripExpandedMedia(article) {
+    article.querySelectorAll("img").forEach((img) => {
+      if (!img.closest(".circle-notification-item__avatar")) img.remove();
+    });
+
     article.querySelectorAll([
-      ".circle-notification-item__body img",
-      ".circle-notification-item__body video",
-      ".circle-notification-item__body picture",
-      ".circle-notification-item__body canvas",
-      ".circle-notification-item__body iframe",
+      "video",
+      "picture",
+      "canvas",
+      "iframe",
       ".circle-notification-item__media",
       ".circle-notification-item__attachment",
       ".circle-notification-item__photo",
@@ -72,8 +77,6 @@
   function decorateItem(article) {
     if (!article) return;
     stripExpandedMedia(article);
-    if (article.dataset.v4Notification === VERSION) return;
-    article.dataset.v4Notification = VERSION;
 
     const type = clean(article.dataset.type);
     const title = article.querySelector(".circle-notification-item__title");
@@ -82,23 +85,34 @@
 
     if (title) {
       switch (type) {
-        case "connection_request": title.textContent = `${name} sent you a friend request`; break;
-        case "connection_accepted": title.textContent = `${name} is now your friend`; break;
-        case "message_request": title.textContent = `${name} sent a message request`; break;
-        case "message": title.textContent = `${name} sent you a message`; break;
-        case "love": title.textContent = `${name} interacted with your profile`; break;
+        case "connection_request": title.textContent = `${name} wants to join your Circle.`; break;
+        case "connection_accepted": title.textContent = `${name} joined your Circle.`; break;
+        case "message_request": title.textContent = `${name} sent you a message.`; break;
+        case "message": title.textContent = `${name} sent you a message.`; break;
+        case "love": title.textContent = `${name} interacted with your profile.`; break;
         default: break;
       }
     }
 
-    if (text && title && clean(text.textContent).toLowerCase() === clean(title.textContent).toLowerCase()) {
-      text.hidden = true;
+    if (text && title) {
+      const bodyText = clean(text.textContent);
+      const titleText = clean(title.textContent);
+      if (!bodyText || bodyText.toLowerCase() === titleText.toLowerCase()) {
+        text.hidden = true;
+      }
     }
 
+    /* A notification is a preview, not a second request screen. */
     article.querySelector('[data-circle-action="open-incoming-request"]')?.remove();
+
     article.querySelectorAll(".circle-button--small").forEach((button) => {
       button.classList.add("circle-notification-action");
+      if (/decline/i.test(button.textContent || "")) button.textContent = "Decline";
+      if (/accept/i.test(button.textContent || "")) button.textContent = "Accept";
+      if (/open/i.test(button.textContent || "")) button.textContent = "Open";
     });
+
+    article.dataset.v4Notification = VERSION;
   }
 
   function decorate() {
@@ -106,10 +120,13 @@
     if (!dialog) return;
 
     const eyebrow = dialog.querySelector(".circle-section-eyebrow");
-    if (eyebrow) eyebrow.textContent = "ACTIVITY";
+    if (eyebrow) eyebrow.textContent = "ARI CIRCLE";
 
     const note = dialog.querySelector(".circle-notifications-toolbar .circle-section-note");
-    if (note) note.textContent = "Friend requests, messages, and Circle activity.";
+    if (note) {
+      note.textContent = "";
+      note.hidden = true;
+    }
 
     const list = $("circle-notifications-list");
     if (state.cleared && list) list.replaceChildren();
@@ -215,7 +232,7 @@
 
   function boundedStart() {
     start();
-    [120, 400, 1000, 2200].forEach((delay) => setTimeout(start, delay));
+    [80, 240, 700, 1500].forEach((delay) => setTimeout(start, delay));
   }
 
   document.addEventListener("DOMContentLoaded", boundedStart, { once: true });
@@ -223,7 +240,7 @@
   document.addEventListener("click", (event) => {
     if (event.target.closest?.('[data-circle-action="open-notifications"], #circle-notifications-button')) {
       setTimeout(start, 0);
-      setTimeout(start, 120);
+      setTimeout(start, 80);
     }
   }, true);
 
