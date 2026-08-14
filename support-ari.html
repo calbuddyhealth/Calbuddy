@@ -83,7 +83,15 @@
           </p>
         </section>
 
-        <section class="ari-web-support-panel" id="webSupportPanel" aria-labelledby="webSupportTitle">
+        <section class="ari-web-support-panel" id="nativeSupportUnavailablePanel" hidden aria-labelledby="nativeSupportUnavailableTitle">
+          <div class="ari-support-panel-heading">
+            <p class="ari-section-kicker">IOS SUPPORT</p>
+            <h3 id="nativeSupportUnavailableTitle">Optional support is not available in this iOS version.</h3>
+            <p>ARI XP remains fully available. Your features, AI usage, and account experience are not affected.</p>
+          </div>
+        </section>
+
+        <section class="ari-web-support-panel" id="webSupportPanel" hidden aria-labelledby="webSupportTitle">
           <div class="ari-support-panel-heading">
             <p class="ari-section-kicker">WEB SUPPORT</p>
             <h3 id="webSupportTitle">Choose a support method</h3>
@@ -137,6 +145,6 @@
   </main>
 
   <script src="js/support-ari-config.js?v=3.1.0"></script>
-  <script src="js/support-ari.js?v=3.0.0"></script>
+  <script src="js/support-ari.js?v=3.1.0"></script>
 </body>
 </html>
