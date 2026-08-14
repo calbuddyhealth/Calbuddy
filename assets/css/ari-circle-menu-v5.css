@@ -1,0 +1,327 @@
+/* =============================================================
+   ARI CIRCLE — FLOATING CONTROL DRAWER
+   Version: 1.0.0
+   Premium pearl-glass navigation shared by Feed / Buddies /
+   Challenges / Profile without changing Circle routing.
+============================================================= */
+
+:root {
+  --circle-menu-ink: #101a32;
+  --circle-menu-soft: #778299;
+  --circle-menu-blue: #285cff;
+  --circle-menu-cyan: #1fcdf7;
+  --circle-menu-violet: #8255ff;
+  --circle-menu-danger: #c84762;
+}
+
+.circle-v4-menu {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  isolation: isolate;
+}
+
+.circle-v4-menu > summary {
+  position: relative;
+  z-index: 132;
+  display: grid !important;
+  width: 42px !important;
+  height: 42px !important;
+  place-items: center !important;
+  padding: 0 !important;
+  list-style: none;
+  cursor: pointer;
+  color: #14203a !important;
+  border: 1px solid rgba(55, 91, 173, .09) !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.82) !important;
+  box-shadow:
+    0 8px 24px rgba(39, 61, 116, .07),
+    inset 0 1px 0 rgba(255,255,255,.98) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  backdrop-filter: blur(18px) saturate(145%);
+}
+
+.circle-v4-menu > summary::-webkit-details-marker { display: none; }
+
+.circle-v4-menu > summary svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.circle-v4-menu[open] > summary {
+  color: var(--circle-menu-blue) !important;
+  border-color: rgba(40, 92, 255, .14) !important;
+  box-shadow:
+    0 10px 28px rgba(40, 92, 255, .10),
+    inset 0 1px 0 rgba(255,255,255,.98) !important;
+}
+
+.circle-v4-menu__panel,
+.circle-v5-menu__panel {
+  position: absolute;
+  top: 51px;
+  left: -2px;
+  z-index: 131;
+  width: min(86vw, 360px);
+  max-height: calc(100dvh - 82px);
+  overflow: auto;
+  padding: 15px;
+  border: 1px solid rgba(255,255,255,.92);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 0 0, rgba(31,205,247,.08), transparent 14rem),
+    radial-gradient(circle at 100% 18%, rgba(130,85,255,.075), transparent 15rem),
+    rgba(250,252,255,.93);
+  box-shadow:
+    0 34px 85px rgba(24, 39, 82, .20),
+    inset 0 1px 0 rgba(255,255,255,.98);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+  backdrop-filter: blur(32px) saturate(160%);
+  overscroll-behavior: contain;
+  transform-origin: 22px 0;
+  animation: circleMenuReveal 180ms cubic-bezier(.2,.75,.2,1);
+}
+
+.circle-v4-menu__panel::before,
+.circle-v5-menu__panel::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  box-shadow:
+    inset 1px 0 0 rgba(31,205,247,.10),
+    inset -1px 0 0 rgba(130,85,255,.08);
+}
+
+@keyframes circleMenuReveal {
+  from { opacity: 0; transform: translate3d(-8px,-5px,0) scale(.975); }
+  to { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+}
+
+.circle-v5-menu__identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 8px 14px;
+}
+
+.circle-v5-menu__mark {
+  position: relative;
+  width: 39px;
+  height: 30px;
+  flex: 0 0 39px;
+}
+
+.circle-v5-menu__mark::before,
+.circle-v5-menu__mark::after {
+  position: absolute;
+  top: 5px;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--circle-menu-cyan);
+  border-radius: 50%;
+  content: "";
+  box-sizing: border-box;
+}
+
+.circle-v5-menu__mark::before { left: 3px; }
+.circle-v5-menu__mark::after {
+  right: 3px;
+  border-color: var(--circle-menu-violet);
+}
+
+.circle-v5-menu__identity-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.circle-v5-menu__identity strong {
+  color: var(--circle-menu-ink);
+  font-family: "Audiowide", "Inter", sans-serif;
+  font-size: .78rem;
+  font-weight: 400;
+  letter-spacing: .085em;
+}
+
+.circle-v5-menu__identity small {
+  color: #98a1b2;
+  font-size: .67rem;
+  font-weight: 650;
+}
+
+.circle-v5-menu__items {
+  display: grid;
+  gap: 5px;
+}
+
+.circle-v4-menu__panel .circle-v5-menu__item,
+.circle-v5-menu__panel .circle-v5-menu__item {
+  display: grid !important;
+  grid-template-columns: 42px minmax(0,1fr) 18px;
+  gap: 11px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 7px 10px 7px 8px !important;
+  color: var(--circle-menu-ink) !important;
+  border: 1px solid transparent !important;
+  border-radius: 18px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.circle-v5-menu__icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: #4266bd;
+  border: 1px solid rgba(40,92,255,.075);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(241,246,255,.84));
+  box-shadow: 0 6px 17px rgba(42,66,130,.045);
+}
+
+.circle-v5-menu__icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.circle-v5-menu__label {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: .86rem;
+  font-weight: 760;
+  letter-spacing: -.012em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.circle-v5-menu__chevron {
+  color: #aab2c1;
+  font-size: 1.12rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+}
+
+.circle-v4-menu__panel .circle-v5-menu__item:hover,
+.circle-v4-menu__panel .circle-v5-menu__item:focus-visible,
+.circle-v5-menu__panel .circle-v5-menu__item:hover,
+.circle-v5-menu__panel .circle-v5-menu__item:focus-visible {
+  color: #1e4fe5 !important;
+  border-color: rgba(40,92,255,.09) !important;
+  background:
+    linear-gradient(135deg, rgba(31,205,247,.075), rgba(255,255,255,.86) 48%, rgba(130,85,255,.07)) !important;
+  box-shadow: 0 9px 25px rgba(37,65,145,.07) !important;
+  outline: 0;
+  transform: translateX(2px);
+}
+
+.circle-v4-menu__panel .circle-v5-menu__item:active,
+.circle-v5-menu__panel .circle-v5-menu__item:active {
+  transform: scale(.985);
+}
+
+.circle-v5-menu__divider {
+  height: 1px;
+  margin: 11px 8px 10px;
+  background: linear-gradient(90deg, transparent, rgba(51,80,151,.12) 18%, rgba(51,80,151,.12) 82%, transparent);
+}
+
+.circle-v4-menu__panel .circle-v5-menu__item--exit,
+.circle-v5-menu__panel .circle-v5-menu__item--exit {
+  color: var(--circle-menu-danger) !important;
+}
+
+.circle-v5-menu__item--exit .circle-v5-menu__icon {
+  color: var(--circle-menu-danger);
+  border-color: rgba(200,71,98,.07);
+  background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(255,242,246,.86));
+}
+
+.circle-v4-menu__panel .circle-v5-menu__item--exit:hover,
+.circle-v4-menu__panel .circle-v5-menu__item--exit:focus-visible,
+.circle-v5-menu__panel .circle-v5-menu__item--exit:hover,
+.circle-v5-menu__panel .circle-v5-menu__item--exit:focus-visible {
+  color: #b63854 !important;
+  border-color: rgba(200,71,98,.10) !important;
+  background: rgba(255,244,247,.82) !important;
+}
+
+/* Notification settings now lives where users expect it: inside Notifications. */
+.circle-notifications-toolbar {
+  gap: 8px;
+}
+
+.circle-notifications-settings-link {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: #5d6880;
+  border-radius: 9px;
+  background: rgba(45,92,255,.045);
+  font-size: .66rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.circle-notifications-settings-link svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.circle-notifications-settings-link:hover,
+.circle-notifications-settings-link:focus-visible {
+  color: var(--circle-menu-blue);
+  background: rgba(45,92,255,.075);
+  outline: 0;
+}
+
+@media (max-width: 520px) {
+  .circle-v4-menu__panel,
+  .circle-v5-menu__panel {
+    width: min(86vw, 360px);
+    padding: 13px;
+    border-radius: 28px;
+  }
+
+  .circle-v5-menu__identity { padding-bottom: 12px; }
+  .circle-v4-menu__panel .circle-v5-menu__item,
+  .circle-v5-menu__panel .circle-v5-menu__item { min-height: 56px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-v4-menu__panel,
+  .circle-v5-menu__panel { animation: none; }
+  .circle-v5-menu__item { transition: none !important; }
+}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f7f9ff">
-  <title>Privacy &amp; Ari Memory · ARI Rebirth</title>
+  <title>Privacy &amp; Ari Memory | ARI XP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
@@ -14,22 +14,39 @@
   <main class="ari-account-page">
     <header class="ari-account-header">
       <a class="ari-icon-button" href="account.html" aria-label="Back to account">←</a>
-      <a class="ari-brand-mark" href="index.html" aria-label="ARI Rebirth home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">REBIRTH</span></a>
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI XP home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">EXPERIENCE</span></a>
       <a class="ari-header-button" href="account.html">Account</a>
     </header>
 
     <section class="ari-page-hero">
       <div class="ari-page-symbol" aria-hidden="true">✦</div>
       <p class="ari-page-kicker">PRIVACY</p>
-      <h1 class="ari-page-title">Ari memory</h1>
-      <p class="ari-page-description">Continuity without keeping every conversation forever.</p>
+      <h1 class="ari-page-title">Privacy &amp; Ari memory</h1>
+      <p class="ari-page-description">Control third-party AI processing and the context Ari remembers.</p>
     </section>
 
     <div class="ari-status" id="memoryStatus" role="status" aria-live="polite"></div>
 
     <div class="ari-content-stack">
+      <section class="ari-content-card" aria-labelledby="aiProcessingTitle">
+        <p class="ari-section-kicker">AI PROCESSING</p>
+        <h2 id="aiProcessingTitle">Your permission to use OpenAI</h2>
+        <p>
+          ARI XP uses OpenAI for Ask ARI responses and ARI Circle pre-publication safety screening. When AI processing is enabled, ARI XP may send your message, recent conversation context, and relevant profile or memory information when needed to answer you. Text, photos, and sampled still frames from short ARI Circle videos you try to publish may also be sent to OpenAI to help identify harmful or objectionable content before publication.
+        </p>
+        <div class="ari-notice" id="aiProcessingState" role="status" aria-live="polite">Checking your AI processing choice…</div>
+        <div class="ari-form-actions">
+          <button class="ari-primary-action" id="enableAiProcessingButton" type="button" hidden>Allow AI processing</button>
+          <button class="ari-secondary-action" id="disableAiProcessingButton" type="button" hidden>Turn off AI processing</button>
+          <a class="ari-secondary-action" href="privacy.html">Read Privacy Notice</a>
+        </div>
+        <p>
+          Turning AI processing off prevents new Ask ARI requests and prevents ARI Circle content that requires third-party safety screening from being published until permission is granted again. Non-AI parts of ARI XP remain available.
+        </p>
+      </section>
+
       <section class="ari-content-card">
-        <p class="ari-section-kicker">HOW IT WORKS</p>
+        <p class="ari-section-kicker">HOW MEMORY WORKS</p>
         <h2>Recent context fades. Important context stays.</h2>
 
         <div class="ari-memory-flow">
@@ -53,7 +70,7 @@
       </section>
     </div>
 
-    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Your memory. Your control.</p></footer>
+    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Your data. Your control.</p></footer>
   </main>
 
   <dialog class="ari-dialog ari-dialog--danger" id="eraseMemoryDialog">
@@ -72,6 +89,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/privacy-memory.js?v=1.0.0"></script>
+  <script src="js/privacy-memory.js?v=1.2.0"></script>
 </body>
 </html>

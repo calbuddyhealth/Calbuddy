@@ -1,7 +1,8 @@
-/* ARI Rebirth — Help & Safety v1.0.1 */
+/* ARI XP — Help & Safety v2.0.0 */
 
 (() => {
   "use strict";
+
   const $ = (id) => document.getElementById(id);
   let session = null;
   let reportedUserId = null;
@@ -18,27 +19,27 @@
     reportedUserId = params.get("reported_user_id") || null;
     targetId = params.get("target_id") || null;
 
-    if (["user", "content", "safety", "app", "other"].includes(type)) {
+    if (["user", "content", "safety", "app", "billing", "other"].includes(type)) {
       $("reportTargetType").value = type;
     }
 
     if (type === "account") {
-      $("reportTargetType").value = "other";
+      $("reportTargetType").value = "app";
       $("reportCategory").value = "account_help";
     }
 
     if (reportedUserId) {
       $("reportedProfileNotice").hidden = false;
       $("reportedProfileNotice").textContent =
-        display ? `Reporting ARI Circle profile: ${display}` : "An ARI Circle profile is attached to this report.";
+        display
+          ? `Reporting ARI Circle profile: ${display}`
+          : "An ARI Circle profile is attached to this report.";
       $("reportTargetType").value = "user";
       $("reportCategory").value = "harassment";
     }
   }
 
   function enterGuestMode() {
-    const submitButton = $("submitReportButton");
-
     document.querySelectorAll('a[href="account.html"]').forEach((link) => {
       link.href = "/signin.html";
       if (link.classList.contains("ari-header-button")) {
@@ -46,16 +47,8 @@
       }
     });
 
-    if (submitButton) {
-      submitButton.type = "button";
-      submitButton.textContent = "Sign in to send report";
-      submitButton.addEventListener("click", () => {
-        window.location.assign("/signin.html");
-      });
-    }
-
     setStatus(
-      "Safety is available without an account. Sign in if you want to send a private report.",
+      "You can send a support request without signing in. Add a contact email so ARI XP can follow up.",
       "info"
     );
   }
@@ -63,13 +56,9 @@
   async function submitReport(event) {
     event.preventDefault();
 
-    if (!session?.user?.id) {
-      window.location.assign("/signin.html");
-      return;
-    }
-
     const details = String($("reportDetails").value || "").trim();
     const email = String($("reportEmail").value || "").trim();
+    const website = String($("reportWebsite")?.value || "").trim();
 
     if (details.length < 10) {
       setStatus("Please add at least 10 characters of detail.", "error");
@@ -84,40 +73,62 @@
     }
 
     $("submitReportButton").disabled = true;
-    setStatus("Sending your private report…", "working");
+    setStatus("Sending your private request…", "working");
 
-    const { data, error } = await window.calbuddySupabase
-      .from("ari_reports")
-      .insert({
-        reporter_user_id: session.user.id,
-        reporter_contact_email: email,
-        target_type: $("reportTargetType").value,
-        reported_user_id: reportedUserId,
-        target_id: targetId,
-        category: $("reportCategory").value,
-        details,
-        evidence: {
+    const headers = {
+      "Content-Type": "application/json"
+    };
+
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
+    let response;
+    let data;
+
+    try {
+      response = await fetch("/api/profile", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "submit_support_request",
+          email,
+          details,
+          website,
+          target_type: $("reportTargetType").value,
+          category: $("reportCategory").value,
+          reported_user_id: reportedUserId,
+          target_id: targetId,
           source_page: document.referrer || window.location.pathname,
           submitted_from: window.location.pathname
-        },
-        status: "pending",
-        priority: ["unsafe_content", "privacy_concern"].includes($("reportCategory").value)
-          ? "urgent"
-          : "normal"
-      })
-      .select("id")
-      .single();
+        })
+      });
+
+      data = await response.json().catch(() => ({}));
+    } catch (error) {
+      $("submitReportButton").disabled = false;
+      setStatus("ARI XP support is temporarily unavailable. Please try again.", "error");
+      return;
+    }
 
     $("submitReportButton").disabled = false;
 
-    if (error) {
-      setStatus(error.message, "error");
+    if (!response.ok) {
+      setStatus(
+        data?.error || "ARI XP could not send your request. Please try again.",
+        "error"
+      );
       return;
     }
 
     $("reportForm").reset();
     $("reportEmail").value = email;
-    setStatus(`Report received. Reference: ${String(data.id).slice(0, 8).toUpperCase()}`, "success");
+    setStatus(
+      data?.reference
+        ? `Request received. Reference: ${data.reference}`
+        : "Request received. ARI XP will review it privately.",
+      "success"
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -125,7 +136,7 @@
     try {
       session = await window.AriSettings.getSession();
     } catch (error) {
-      console.error("ARI safety session check failed:", error);
+      console.error("ARI XP support session check failed:", error);
       session = null;
     }
 
@@ -133,11 +144,11 @@
 
     if (!session) {
       enterGuestMode();
-      return;
+    } else {
+      $("reportEmail").value = session.user?.email || "";
     }
 
-    $("reportEmail").value = session.user.email || "";
-    $("reportForm").addEventListener("submit", submitReport);
+    $("reportForm")?.addEventListener("submit", submitReport);
   }
 
   document.addEventListener("DOMContentLoaded", init);

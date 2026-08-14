@@ -1,7 +1,7 @@
 /* =============================================================
    ARI XP — SUPPORT ARI
-   Version: 1.0.1
-   Premium support card + homepage navigation treatment.
+   Version: 2.0.0
+   Premium support card + homepage navigation + StoreKit tip UI.
 ============================================================= */
 
 /* Homepage navigation spotlight */
@@ -176,32 +176,205 @@ body.ari-support-page {
 
 .ari-support-free-note {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-top: 17px;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border: 1px solid rgba(63, 107, 211, 0.13);
-  border-radius: 999px;
+  border-radius: 16px;
   color: #385194;
   background: rgba(246, 249, 255, 0.90);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.45;
 }
 
 .ari-support-free-note::before {
   width: 7px;
   height: 7px;
+  margin-top: 5px;
+  flex: 0 0 auto;
   border-radius: 50%;
   content: "";
   background: #23ccda;
   box-shadow: 0 0 9px rgba(35, 204, 218, 0.52);
 }
 
+.ari-support-panel-heading {
+  margin-bottom: 18px;
+}
+
+.ari-support-panel-heading h3 {
+  margin: 4px 0 7px;
+  color: #17233e;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(20px, 5vw, 28px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.ari-support-panel-heading > p:last-child {
+  margin: 0;
+  color: var(--ari-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ari-native-tip-panel,
+.ari-web-support-panel {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(70, 95, 178, 0.11);
+}
+
+/* Native StoreKit tip selection */
+.ari-tip-loading {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  border: 1px dashed rgba(76, 101, 189, 0.22);
+  border-radius: 20px;
+  color: #61708d;
+  background: rgba(247, 249, 255, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ari-tip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ari-tip-grid--additional {
+  margin-top: 10px;
+}
+
+.ari-tip-button {
+  min-height: 84px;
+  padding: 13px 9px;
+  border: 1px solid rgba(66, 102, 219, 0.18);
+  border-radius: 19px;
+  color: #1d3a9b;
+  background:
+    radial-gradient(circle at 90% 8%, rgba(132, 87, 239, 0.11), transparent 45%),
+    linear-gradient(145deg, #ffffff, #f4f7ff);
+  box-shadow:
+    0 10px 24px rgba(48, 67, 154, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.ari-tip-button strong,
+.ari-tip-button span {
+  display: block;
+}
+
+.ari-tip-button strong {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(18px, 5vw, 25px);
+  font-weight: 850;
+  letter-spacing: -0.04em;
+}
+
+.ari-tip-button span {
+  margin-top: 5px;
+  color: #7481a0;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.ari-tip-button:active {
+  transform: scale(0.97);
+}
+
+.ari-tip-button:disabled,
+.ari-other-tip-button:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.ari-other-tip-button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  border: 1px solid rgba(75, 102, 191, 0.16);
+  border-radius: 15px;
+  color: #334b9d;
+  background: rgba(247, 249, 255, 0.86);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ari-additional-tip-panel {
+  margin-top: 15px;
+  padding: 16px;
+  border: 1px solid rgba(78, 104, 192, 0.12);
+  border-radius: 20px;
+  background: rgba(249, 250, 255, 0.82);
+}
+
+.ari-additional-tip-label {
+  margin: 0 0 10px;
+  color: #75819b;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.ari-tip-status {
+  margin-top: 15px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.ari-tip-status:empty,
+.ari-tip-status[hidden] {
+  display: none;
+}
+
+.ari-tip-status[data-state="working"] {
+  color: #3f56a2;
+  background: rgba(70, 104, 223, 0.08);
+}
+
+.ari-tip-status[data-state="success"] {
+  color: #15755f;
+  background: rgba(36, 181, 139, 0.10);
+}
+
+.ari-tip-status[data-state="error"] {
+  color: #a03f59;
+  background: rgba(218, 76, 108, 0.10);
+}
+
+.ari-tip-status[data-state="neutral"] {
+  color: #59657d;
+  background: rgba(94, 108, 140, 0.08);
+}
+
+/* Web support methods */
 .ari-support-methods {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 24px;
+  margin-top: 12px;
 }
 
 .ari-support-method {
@@ -283,8 +456,13 @@ body.ari-support-page {
   line-height: 1.55;
 }
 
+.ari-support-privacy-note--native {
+  padding-top: 2px;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .ari-support-method:hover {
+  .ari-support-method:hover,
+  .ari-tip-button:hover {
     transform: translateY(-3px);
     border-color: rgba(57, 108, 222, 0.34);
     box-shadow:
@@ -299,6 +477,8 @@ body.ari-support-page {
 }
 
 .ari-support-method:focus-visible,
+.ari-tip-button:focus-visible,
+.ari-other-tip-button:focus-visible,
 .ari-nav-support:focus-visible {
   outline: 3px solid rgba(31, 216, 235, 0.74);
   outline-offset: 4px;
@@ -312,10 +492,19 @@ body.ari-support-page {
   .ari-support-method {
     min-height: 102px;
   }
+
+  .ari-tip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ari-support-badge {
     animation: none;
+  }
+
+  .ari-support-method,
+  .ari-tip-button {
+    transition: none;
   }
 }

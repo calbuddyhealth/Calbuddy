@@ -1,4 +1,4 @@
-/* ARI Rebirth — My Account v3.1.0 */
+/* ARI XP — My Account v3.2.0 */
 
 (() => {
   "use strict";
@@ -105,9 +105,18 @@
 
   function configureSupportLink() {
     const config = window.ARI_SUPPORT_CONFIG || {};
-    if (/^https:\/\//i.test(String(config.donationUrl || ""))) {
-      $("supportAriLink").hidden = false;
+    const supportUrl = String(config.supportUrl || "support-ari.html").trim();
+    const link = $("supportAriLink");
+
+    if (!link) return;
+
+    if (config.enabled === true && supportUrl) {
+      link.href = supportUrl;
+      link.hidden = false;
+      return;
     }
+
+    link.hidden = true;
   }
 
   async function changeEmail() {

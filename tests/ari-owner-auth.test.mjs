@@ -5,7 +5,6 @@ import test from "node:test";
 import { verifyOwnerRequest } from "../server/ari-owner-auth.js";
 import editHandler from "../api/ari-github-edit.js";
 import readHandler from "../api/ari-github-read.js";
-import searchHandler from "../api/ari-github-search.js";
 
 const OWNER_ID = "0b3b0f56-676f-4859-a9f4-b377dd73544f";
 const OWNER_EMAIL = "onofreerostico@yahoo.com";
@@ -151,7 +150,6 @@ test("ARI owner authorization", async (t) => {
 test("GitHub APIs contain no client owner_access authorization fallback", async () => {
   const apiFiles = [
     "api/ari-github-read.js",
-    "api/ari-github-search.js",
     "api/ari-github-edit.js"
   ];
 
@@ -169,7 +167,7 @@ test("GitHub APIs contain no client owner_access authorization fallback", async 
 test("GitHub APIs reject a forged owner_access body before GitHub is called", async () => {
   configureOwnerEnvironment();
 
-  for (const handler of [readHandler, searchHandler, editHandler]) {
+  for (const handler of [readHandler, editHandler]) {
     const response = makeResponse();
 
     await handler(
@@ -216,7 +214,7 @@ test("verified owner status reuses the GitHub read function", async () => {
   }
 });
 
-test("Vercel Hobby deployment stays within 12 API functions", async () => {
+test("lean Vercel API surface stays at ten functions or fewer", async () => {
   const entries = await readdir(new URL("../api/", import.meta.url), {
     withFileTypes: true
   });
@@ -225,9 +223,19 @@ test("Vercel Hobby deployment stays within 12 API functions", async () => {
   );
 
   assert.ok(
-    functionFiles.length <= 12,
-    `Expected at most 12 API functions, found ${functionFiles.length}`
+    functionFiles.length <= 10,
+    `Expected at most 10 API functions, found ${functionFiles.length}`
   );
+
+  const names = new Set(functionFiles.map(entry => entry.name));
+  for (const removed of [
+    "actions.js",
+    "ari-create-knowledge-node.js",
+    "ari-embed-knowledge.js",
+    "ari-github-search.js"
+  ]) {
+    assert.equal(names.has(removed), false, `${removed} should remain removed`);
+  }
 });
 
 test("homepage no longer forces owner mode for every signed-in user", async () => {

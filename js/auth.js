@@ -2,7 +2,21 @@
 // ARI XP
 // File: auth.js
 // Purpose:
-//   Shared Supabase auth helpers for ARI Rebirth.
+//   Shared Supabase auth helpers for ARI XP.
+//
+// V1.4.0
+// User action reliability:
+// - Loads deterministic meal logging and date-specific workout actions.
+//
+// V1.3.0
+// Daily-ledger alignment:
+// - New profiles use a midnight nutrition reset to match Training.
+// - Loads the canonical meal-ledger sync on ARI app surfaces.
+//
+// V1.2.1
+// App Store privacy readiness:
+// - Locks the ARI composer before the consent controller initializes.
+// - home.html owns the single AI consent controller script load.
 //
 // V1.1.0
 // Email confirmation handoff:
@@ -14,6 +28,8 @@
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
+const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
+const ARI_USER_ACTIONS_SCRIPT_ID = "ariUserActionsScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -29,7 +45,9 @@ async function createUserProfile(user, displayName = "") {
       user.email?.split("@")[0] ||
       "User",
     daily_calorie_goal: 2100,
-    reset_hour: 4,
+    reset_hour: 12,
+    reset_minute: 0,
+    reset_ampm: "AM",
     updated_at: new Date().toISOString()
   };
 
@@ -216,3 +234,60 @@ function getAriBootIntro() {
 function clearAriBootIntro() {
   sessionStorage.removeItem("ari_boot_intro");
 }
+
+function bootstrapAIAccessConsent() {
+  const page = String(window.location.pathname || "")
+    .split("/")
+    .pop()
+    .toLowerCase();
+
+  if (page !== "home.html" && page !== "") return;
+
+  const input = document.getElementById("ariInput");
+  const send = document.getElementById("ariSendBtn");
+
+  if (input) {
+    input.disabled = true;
+    input.setAttribute("aria-disabled", "true");
+    input.placeholder = "AI processing permission required";
+  }
+
+  if (send) {
+    send.disabled = true;
+    send.setAttribute("aria-disabled", "true");
+  }
+
+  // home.html loads js/ai-processing-consent.js exactly once.
+  // Auth only locks the composer early so no AI request can be sent before
+  // the consent controller resolves the user's current permission.
+}
+
+function bootstrapCanonicalMealLedger() {
+  if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
+  script.src = "js/meal-ledger-sync.js?v=1.0.1";
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
+function bootstrapAriUserActions() {
+  const page = String(window.location.pathname || "")
+    .split("/")
+    .pop()
+    .toLowerCase();
+
+  if (page !== "home.html" && page !== "") return;
+  if (document.getElementById(ARI_USER_ACTIONS_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_USER_ACTIONS_SCRIPT_ID;
+  script.type = "module";
+  script.src = "js/ari-user-actions.js?v=1.0.0";
+  document.head.appendChild(script);
+}
+
+bootstrapCanonicalMealLedger();
+bootstrapAriUserActions();
+bootstrapAIAccessConsent();

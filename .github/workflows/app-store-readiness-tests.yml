@@ -1,0 +1,50 @@
+name: ARI XP readiness tests
+
+on:
+  pull_request:
+    branches:
+      - Ari-rebirth-stable
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run ARI XP Node tests
+        run: node --test tests/*.test.mjs
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start local ARI XP server
+        run: |
+          python3 -m http.server 4173 > /tmp/arixp-http.log 2>&1 &
+          echo $! > /tmp/arixp-http.pid
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:4173/signin.html > /dev/null; then
+              exit 0
+            fi
+            sleep 0.5
+          done
+          cat /tmp/arixp-http.log
+          exit 1
+
+      - name: Run App Store browser smoke tests
+        env:
+          ARI_SMOKE_BASE_URL: http://127.0.0.1:4173
+        run: npx playwright test tests/app-store-smoke.spec.mjs tests/ari-training-live.spec.mjs tests/ari-circle-menu-live.spec.mjs --reporter=line

@@ -1,0 +1,164 @@
+/* =============================================================
+   ARI CIRCLE — SOFT PRIMARY NAV
+   Version: 1.0.0
+   Feed · Buddies · Challenges · Profile
+============================================================= */
+
+.circle-soft-primary-nav {
+  position: sticky !important;
+  z-index: 82 !important;
+  top: 62px !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 4px !important;
+  margin: 8px 4px 18px !important;
+  padding: 5px !important;
+  overflow: visible !important;
+  border: 1px solid rgba(255, 255, 255, 0.88) !important;
+  border-radius: 22px !important;
+  background: rgba(255, 255, 255, 0.66) !important;
+  box-shadow:
+    0 12px 34px rgba(44, 63, 120, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(22px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(145%) !important;
+}
+
+.circle-soft-primary-nav::before {
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 8% 70%, rgba(25, 207, 255, 0.10), transparent 31%),
+    radial-gradient(circle at 92% 28%, rgba(132, 83, 255, 0.08), transparent 32%);
+  pointer-events: none;
+  content: "";
+}
+
+.circle-soft-primary-tab {
+  position: relative !important;
+  display: flex !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 0 7px !important;
+  overflow: hidden !important;
+  color: #768198 !important;
+  border: 0 !important;
+  border-radius: 17px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: clamp(0.69rem, 2.8vw, 0.79rem) !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.01em !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition:
+    color 170ms ease,
+    background 170ms ease,
+    box-shadow 170ms ease,
+    transform 170ms ease !important;
+}
+
+.circle-soft-primary-tab::after {
+  display: none !important;
+  content: none !important;
+}
+
+.circle-soft-primary-tab__icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+  opacity: 0.92;
+}
+
+.circle-soft-primary-tab__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.circle-soft-primary-tab__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.circle-soft-primary-tab:hover,
+.circle-soft-primary-tab:focus-visible {
+  color: #34435f !important;
+  background: rgba(255, 255, 255, 0.50) !important;
+}
+
+.circle-soft-primary-tab.is-active,
+.circle-soft-primary-tab[aria-current="page"] {
+  color: #10182c !important;
+  background: linear-gradient(145deg, rgba(255,255,255,0.99), rgba(247,250,255,0.94)) !important;
+  box-shadow:
+    0 7px 18px rgba(44, 63, 120, 0.09),
+    0 0 22px rgba(25, 207, 255, 0.065),
+    0 0 26px rgba(132, 83, 255, 0.055),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
+}
+
+.circle-soft-primary-tab.is-active .circle-soft-primary-tab__icon,
+.circle-soft-primary-tab[aria-current="page"] .circle-soft-primary-tab__icon {
+  color: #405276;
+}
+
+.circle-soft-primary-tab:active {
+  transform: scale(0.985) !important;
+}
+
+@media (max-width: 410px) {
+  .circle-soft-primary-nav {
+    gap: 2px !important;
+    margin-inline: 2px !important;
+    padding: 4px !important;
+    border-radius: 20px !important;
+  }
+
+  .circle-soft-primary-tab {
+    min-height: 46px !important;
+    gap: 4px !important;
+    padding-inline: 4px !important;
+    border-radius: 16px !important;
+    font-size: clamp(0.64rem, 2.7vw, 0.74rem) !important;
+  }
+
+  .circle-soft-primary-tab__icon {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 360px) {
+  .circle-soft-primary-tab {
+    gap: 3px !important;
+    padding-inline: 3px !important;
+    font-size: 0.66rem !important;
+  }
+
+  .circle-soft-primary-tab__icon {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-soft-primary-tab {
+    transition: none !important;
+  }
+}

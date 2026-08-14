@@ -1,0 +1,153 @@
+/* =====================================================
+   ARI XP
+   File: assets/css/workout-plans-card-hierarchy.css
+   Version: 1.0.0
+   Scope:
+   My Week card hierarchy only.
+===================================================== */
+
+body.ari-workout-plans-page .workout-week-grid {
+  gap: 10px;
+}
+
+body.ari-workout-plans-page .workout-day-card {
+  border-color: rgba(49, 91, 145, 0.12);
+  background: rgba(255, 255, 255, 0.955);
+  box-shadow:
+    0 7px 20px rgba(24, 56, 98, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+body.ari-workout-plans-page .workout-day-card::before {
+  width: 4px;
+}
+
+body.ari-workout-plans-page .workout-day-card__button {
+  min-height: 112px;
+  padding: 15px 15px 13px 19px;
+}
+
+body.ari-workout-plans-page .workout-day-card__header {
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+
+body.ari-workout-plans-page .workout-day-card__day {
+  color: #64748b;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  line-height: 1.25;
+}
+
+body.ari-workout-plans-page .workout-day-card__title {
+  margin: 0 0 4px;
+  color: #071326;
+  font-size: clamp(1.02rem, 4.6vw, 1.22rem);
+  font-weight: 900;
+  letter-spacing: 0.005em;
+  line-height: 1.18;
+}
+
+body.ari-workout-plans-page .workout-day-card__summary {
+  color: #718096;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+body.ari-workout-plans-page .workout-day-card__open {
+  margin-top: 8px;
+  color: #2459ff;
+  font-size: 0.59rem;
+  font-weight: 900;
+  letter-spacing: 0.015em;
+}
+
+body.ari-workout-plans-page .workout-day-card__type {
+  min-height: 24px;
+  padding: 4px 9px;
+  font-size: 0.47rem;
+  letter-spacing: 0.1em;
+  background: rgba(241, 250, 255, 0.92);
+}
+
+/* Standard planned workout */
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="workout"]::before {
+  background: linear-gradient(180deg, #14c9e8 0%, #295cff 100%);
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="workout"] .workout-day-card__type {
+  color: #087f98;
+  border-color: rgba(23, 202, 235, 0.28);
+  background: rgba(235, 251, 255, 0.9);
+}
+
+/* Custom plan */
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="custom"]::before {
+  background: linear-gradient(180deg, #8b5cf6 0%, #3d63ff 100%);
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="custom"] .workout-day-card__type {
+  color: #6c3fce;
+  border-color: rgba(139, 92, 246, 0.28);
+  background: rgba(247, 242, 255, 0.92);
+}
+
+/* Endurance */
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="endurance"]::before {
+  background: linear-gradient(180deg, #06b6d4 0%, #2563eb 100%);
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="endurance"] .workout-day-card__type {
+  color: #155dc9;
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(239, 247, 255, 0.94);
+}
+
+/* Recovery */
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="recovery"]::before {
+  background: linear-gradient(180deg, #8b5cf6 0%, #22c7df 100%);
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="recovery"] .workout-day-card__type {
+  color: #7145e5;
+  border-color: rgba(139, 92, 246, 0.22);
+  background: rgba(247, 242, 255, 0.9);
+}
+
+/* Off day */
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="off"] {
+  border-color: rgba(113, 128, 150, 0.1);
+  background: rgba(252, 253, 255, 0.91);
+  box-shadow: 0 5px 15px rgba(24, 56, 98, 0.035);
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="off"]::before {
+  background: linear-gradient(180deg, #c8d1dc 0%, #98a7b8 100%);
+  opacity: 0.62;
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="off"] .workout-day-card__type {
+  color: #748396;
+  border-color: rgba(116, 131, 150, 0.16);
+  background: rgba(245, 247, 250, 0.96);
+}
+
+body.ari-workout-plans-page .workout-day-card[data-plan-kind="off"] .workout-day-card__title {
+  color: #1d293d;
+}
+
+@media (max-width: 430px) {
+  body.ari-workout-plans-page .workout-day-card__button {
+    min-height: 108px;
+    padding: 14px 13px 12px 18px;
+  }
+
+  body.ari-workout-plans-page .workout-day-card__day {
+    font-size: 0.56rem;
+  }
+
+  body.ari-workout-plans-page .workout-day-card__title {
+    font-size: 1rem;
+  }
+}

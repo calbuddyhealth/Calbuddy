@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [html, script, styles] = await Promise.all([
+const [html, script, styles, auth] = await Promise.all([
   readFile(new URL("../home.html", import.meta.url), "utf8"),
   readFile(new URL("../js/home.js", import.meta.url), "utf8"),
-  readFile(new URL("../assets/css/home.css", import.meta.url), "utf8")
+  readFile(new URL("../assets/css/home.css", import.meta.url), "utf8"),
+  readFile(new URL("../js/auth.js", import.meta.url), "utf8")
 ]);
 
 test("home exposes cinematic thinking without segmented-thread controls", () => {
@@ -42,9 +43,15 @@ test("thinking fades the thread while keeping Ari's presence visible", () => {
   assert.doesNotMatch(styles, /\.ari-response-disclosure/);
 });
 
-test("the UI release keeps the current production app bridge", () => {
+test("the UI release keeps the current ARI app bridge", () => {
   assert.match(
     html,
-    /ari\/ari-rebirth-app-bridge\.js\?v=1\.8\.0/
+    /ari\/ari-rebirth-app-bridge\.js\?v=2\.5\.1/
   );
+});
+
+test("home loads exactly one AI consent controller", () => {
+  const htmlMatches = html.match(/js\/ai-processing-consent\.js/g) || [];
+  assert.equal(htmlMatches.length, 1);
+  assert.doesNotMatch(auth, /document\.createElement\("script"\)[\s\S]*?ai-processing-consent\.js/);
 });
