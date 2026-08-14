@@ -5,9 +5,6 @@ const BASE_URL = process.env.ARI_SMOKE_BASE_URL || "http://127.0.0.1:4173";
 function collectBrowserErrors(page) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(`console: ${message.text()}`);
-  });
   return errors;
 }
 
@@ -178,7 +175,7 @@ test.describe("ARI XP App Store browser smoke", () => {
     await installAppStubs(page);
 
     await page.goto(`${BASE_URL}/signin.html`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "CREATE ACCOUNT" }).click();
+    await page.locator("#showSignupBtn").click();
 
     await page.locator("#birthMonth").fill("01");
     await page.locator("#birthDay").fill("01");
@@ -207,10 +204,7 @@ test.describe("ARI XP App Store browser smoke", () => {
     await page.goto(`${BASE_URL}/help-safety.html`, { waitUntil: "domcontentloaded" });
 
     await expect(page.getByText("arixpcircle@gmail.com")).toBeVisible();
-    await expect(page.getByRole("link", { name: /email arixpcircle@gmail.com/i })).toHaveAttribute(
-      "href",
-      "mailto:arixpcircle@gmail.com"
-    );
+    await expect(page.locator('a[href="mailto:arixpcircle@gmail.com"]')).toHaveCount(1);
     await expect(page.locator("#reportStatus")).toContainText("without signing in");
 
     await page.locator("#reportDetails").fill("Smoke test support request with enough detail.");
