@@ -25,8 +25,13 @@ test("Edit Training Day form controls stay large enough to read and tap", () => 
   assert.match(css, /\.workout-empty-state[\s\S]*font-size:\s*1rem/);
 });
 
+test("Workout Plans exercise searches stay at iPhone-safe 16px text", () => {
+  assert.match(css, /#workoutExercisePickerSearch,[\s\S]*#exerciseLibrarySearch[\s\S]*font-size:\s*16px/);
+  assert.doesNotMatch(css, /user-scalable\s*=\s*no|maximum-scale\s*=\s*1/i);
+});
+
 test("Workout Plans polish layer loads the mobile editor stylesheet and formats the editor date", () => {
-  assert.match(polish, /workout-day-editor-mobile\.css\?v=1\.0\.0/);
+  assert.match(polish, /workout-day-editor-mobile\.css\?v=1\.0\.1/);
   assert.match(polish, /workoutDayEditorTitle/);
   assert.match(polish, /formatDateLabel\(title\.textContent\)/);
 });
