@@ -33,108 +33,54 @@
 
 <main class="ari-v1-home welcome-mode" id="ariApp">
 
-  <!-- =================================================
-       HOME HEADER
-  ================================================== -->
   <header class="top-bar ari-header ari-header-v5">
-
-    <button
-      id="ariMenuToggle"
-      class="menu-btn ari-menu-toggle"
-      type="button"
-      onclick="toggleMenu()"
-      aria-label="Open ARI navigation"
-      aria-controls="sideMenu"
-      aria-expanded="false"
-    >
+    <button id="ariMenuToggle" class="menu-btn ari-menu-toggle" type="button" onclick="toggleMenu()" aria-label="Open ARI navigation" aria-controls="sideMenu" aria-expanded="false">
       <span class="ari-menu-label">MENU</span>
       <span class="ari-menu-dot" aria-hidden="true"></span>
     </button>
 
-    <a
-      class="ari-brand-right"
-      href="home.html"
-      aria-label="ARI Experience home"
-    >
+    <a class="ari-brand-right" href="home.html" aria-label="ARI Experience home">
       <span class="ari-brand-title">ARI</span>
       <span class="ari-brand-subtitle">EXPERIENCE</span>
       <span class="ari-brand-line" aria-hidden="true"></span>
     </a>
 
     <div id="ariHeaderAvatarShell" hidden aria-hidden="true">
-      <img
-        id="ariHeaderAvatar"
-        src="assets/ari/avatar-idle-open.png"
-        alt=""
-      />
+      <img id="ariHeaderAvatar" src="assets/ari/avatar-idle-open.png" alt="" />
     </div>
-
   </header>
 
-  <nav
-    id="sideMenu"
-    class="side-menu ari-side-menu"
-    aria-label="ARI navigation"
-    aria-hidden="true"
-  >
-
+  <nav id="sideMenu" class="side-menu ari-side-menu" aria-label="ARI navigation" aria-hidden="true">
     <div class="ari-menu-header">
-      <button
-        class="close-menu ari-close-menu"
-        type="button"
-        onclick="toggleMenu()"
-        aria-label="Close ARI navigation"
-      >
-        CLOSE
-      </button>
+      <button class="close-menu ari-close-menu" type="button" onclick="toggleMenu()" aria-label="Close ARI navigation">CLOSE</button>
     </div>
 
     <div class="ari-menu-content">
-
       <a href="ari-circle-feed.html" class="ari-nav-link nav-circle">
-        <span class="ari-nav-copy">
-          <span class="ari-nav-title">ARI CIRCLE</span>
-          <span class="ari-nav-description">SOCIALIZE WITH OTHERS</span>
-        </span>
+        <span class="ari-nav-copy"><span class="ari-nav-title">ARI CIRCLE</span><span class="ari-nav-description">SOCIALIZE WITH OTHERS</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
       <a href="goals.html" class="ari-nav-link nav-goals ari-nav-featured">
-        <span class="ari-nav-copy">
-          <span class="ari-nav-title">MY GOALS</span>
-          <span class="ari-nav-description">LOG INTAKE / LOG WORKOUT</span>
-          <span class="ari-nav-accent-line" aria-hidden="true"></span>
-        </span>
+        <span class="ari-nav-copy"><span class="ari-nav-title">MY GOALS</span><span class="ari-nav-description">LOG INTAKE / LOG WORKOUT</span><span class="ari-nav-accent-line" aria-hidden="true"></span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
       <a href="ari-preference-settings.html" class="ari-nav-link nav-preferences">
-        <span class="ari-nav-copy">
-          <span class="ari-nav-title">ARI PREFERENCES</span>
-          <span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span>
-        </span>
+        <span class="ari-nav-copy"><span class="ari-nav-title">ARI PREFERENCES</span><span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
       <a href="support-ari.html" class="ari-nav-link ari-nav-support">
-        <span class="ari-nav-copy">
-          <span class="ari-nav-title">SUPPORT ARI XP</span>
-          <span class="ari-nav-description">HELP KEEP ARI ACTIVE</span>
-          <span class="ari-support-badge">OPTIONAL SUPPORT</span>
-        </span>
+        <span class="ari-nav-copy"><span class="ari-nav-title">SUPPORT ARI XP</span><span class="ari-nav-description">HELP KEEP ARI ACTIVE</span><span class="ari-support-badge">OPTIONAL SUPPORT</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
       <a href="account.html" class="ari-nav-link nav-account">
-        <span class="ari-nav-copy">
-          <span class="ari-nav-title">ACCOUNT SETTINGS</span>
-          <span class="ari-nav-description">PROFILE, PRIVACY AND SECURITY</span>
-        </span>
+        <span class="ari-nav-copy"><span class="ari-nav-title">ACCOUNT SETTINGS</span><span class="ari-nav-description">PROFILE, PRIVACY AND SECURITY</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
-
     </div>
-
   </nav>
 
   <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()" aria-hidden="true"></div>
@@ -142,37 +88,19 @@
   <section class="ari-welcome" id="ariWelcome">
     <div class="ari-hero-stage">
       <div class="ari-hero-halo" aria-hidden="true"></div>
-      <img
-        id="ariHero"
-        class="ari-hero-img"
-        data-ari-mascot
-        src="assets/ari/ari-idle-open.png"
-        alt="Ari"
-      />
+      <img id="ariHero" class="ari-hero-img" data-ari-mascot src="assets/ari/ari-idle-open.png" alt="Ari" />
     </div>
-
-    <p id="ariWelcomeQuestion" class="ari-welcome-question" aria-live="polite" hidden>
-      What are you working on?
-    </p>
+    <p id="ariWelcomeQuestion" class="ari-welcome-question" aria-live="polite" hidden>What are you working on?</p>
   </section>
 
   <section class="ari-conversation-shell" id="ariConversationShell" aria-live="polite">
-    <div
-      id="ariThinkingStatus"
-      class="ari-thinking-status"
-      role="status"
-      aria-live="polite"
-      aria-hidden="true"
-    >
+    <div id="ariThinkingStatus" class="ari-thinking-status" role="status" aria-live="polite" aria-hidden="true">
       <span class="ari-thinking-status-name">ARI</span>
       <span class="ari-thinking-status-copy">THINKING</span>
-      <span class="ari-thinking-particles" aria-hidden="true">
-        <span></span><span></span><span></span>
-      </span>
+      <span class="ari-thinking-particles" aria-hidden="true"><span></span><span></span><span></span></span>
     </div>
 
     <div id="ariMessages" class="ari-thread"></div>
-
     <p id="ariPresenceHint" class="ari-presence-hint" aria-hidden="true">TAP TO RETURN</p>
 
     <div id="pendingActionBar" class="pending-action-bar">
@@ -188,24 +116,8 @@
     <div class="ari-input-shell">
       <label class="ari-input-label" for="ariInput">ASK ARI</label>
       <div class="ari-input-row">
-        <textarea
-          id="ariInput"
-          rows="1"
-          maxlength="4000"
-          placeholder="What are you working on?"
-          aria-label="Ask Ari"
-          oninput="autoResizeAriInput()"
-          onkeydown="handleAriEnter(event)"
-        ></textarea>
-        <button
-          id="ariSendBtn"
-          class="ari-send-btn"
-          type="button"
-          onclick="sendAriMessage()"
-          aria-label="Send message to Ari"
-        >
-          SEND
-        </button>
+        <textarea id="ariInput" rows="1" maxlength="4000" placeholder="What are you working on?" aria-label="Ask Ari" oninput="autoResizeAriInput()" onkeydown="handleAriEnter(event)"></textarea>
+        <button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()" aria-label="Send message to Ari">SEND</button>
       </div>
     </div>
   </div>
@@ -218,6 +130,7 @@
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script src="js/ai-processing-consent.js?v=1.1.0"></script>
 <script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
+<script src="ari/actions/ari-workout-plan-action.js?v=1.2.0"></script>
 <script src="ari/runtime/ari-conversation-router.js?v=1.0.2"></script>
 <script src="ari/runtime/ari-fast-conversation.js?v=1.0.1"></script>
 <script src="js/home.js?v=3.4.0"></script>
