@@ -1,9 +1,9 @@
 /* =====================================================
    ARI XP
    File: assets/css/workout-day-editor-mobile.css
-   Version: 1.0.0
+   Version: 1.0.1
    Scope:
-   Edit Training Day mobile readability only.
+   Edit Training Day mobile readability + iPhone-safe Workout Plans search.
 ===================================================== */
 
 @media (max-width: 600px) {
@@ -131,6 +131,17 @@
   body.ari-workout-plans-page #workoutDayEditor .workout-day-exercise-card,
   body.ari-workout-plans-page #workoutDayEditor .workout-day-exercise {
     font-size: 1rem;
+  }
+
+  /* iPhone Safari automatically zooms focused form fields whose computed text
+     size is below 16px. Keep both Workout Plans search surfaces at 16px so
+     tapping Search Exercise never changes the page scale. This intentionally
+     preserves normal pinch-to-zoom and browser accessibility controls. */
+  body.ari-workout-plans-page #workoutExercisePickerSearch,
+  body.ari-workout-plans-page #exerciseLibrarySearch {
+    font-size: 16px;
+    line-height: 1.35;
+    -webkit-text-size-adjust: 100%;
   }
 }
 
