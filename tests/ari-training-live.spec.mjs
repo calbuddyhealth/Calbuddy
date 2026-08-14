@@ -73,7 +73,7 @@ async function installTrainingSupabaseStub(page) {
 }
 
 test.describe("ARI Training live controls", () => {
-  test("Add Exercise opens a compact Quick Add dialog and Cancel opens confirmation", async ({ page }) => {
+  test("Add Exercise shows named search results and Cancel opens confirmation", async ({ page }) => {
     const pageErrors = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
@@ -96,6 +96,29 @@ test.describe("ARI Training live controls", () => {
     await expect(page.locator("#sessionQuickAddPanel")).toBeVisible();
     await expect(page.locator("#sessionQuickAddChips button")).toHaveCount(6);
     await expect(page.locator("#sessionExerciseSearchResults")).toHaveAttribute("data-quick-hidden", "true");
+
+    // Reproduce the real iPhone failure: typing a search used to render empty,
+    // selectable gray fallback buttons because the controller and template
+    // used different class names.
+    const search = page.locator("#sessionExerciseSearchInput");
+    await search.fill("Squat");
+
+    const results = page.locator("#sessionExerciseSearchResults");
+    await expect(results).toHaveAttribute("data-quick-hidden", "false");
+
+    const firstResult = results.locator(".ari-session-search-result").first();
+    await expect(firstResult).toBeVisible();
+    await expect(firstResult.locator(".ari-session-search-result__name")).not.toHaveText("");
+    await expect(firstResult.locator(".ari-session-search-result__type")).not.toHaveText("");
+    await expect(firstResult.locator(".ari-session-search-result__add")).toHaveText("Add");
+    await expect(firstResult).toHaveAttribute("data-action", "add-session-exercise");
+
+    // The broken renderer created bare empty <button> elements at the top
+    // level. There must be none after the template-contract repair.
+    await expect(results.locator(":scope > button[data-action='add-session-exercise']")).toHaveCount(0);
+
+    const names = await results.locator(".ari-session-search-result__name").allTextContents();
+    expect(names.some((name) => /squat/i.test(name))).toBe(true);
 
     await page.evaluate(() => {
       document.getElementById("closeSessionExercisePickerButton")?.click();
