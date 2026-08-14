@@ -137,6 +137,11 @@
 
       localStorage.removeItem("calbuddyLastAriMealEstimate");
 
+      // Prevent the legacy action detector from reading old meal estimates.
+      if (window.CalBuddy?.getLastAriMealEstimate) {
+        delete window.CalBuddy.getLastAriMealEstimate;
+      }
+
       try {
         const lastIntent = JSON.parse(localStorage.getItem("calbuddyLastActionIntent") || "null");
         if (lastIntent?.target === "meal" || lastIntent?.lane === "explicit_log_request") {
@@ -160,7 +165,7 @@
   })();
 </script>
 <script src="js/ai-processing-consent.js?v=1.1.0"></script>
-<script src="ari/ari-rebirth-app-bridge.js?v=2.5.2"></script>
+<script src="ari/ari-rebirth-app-bridge.js?v=2.5.3"></script>
 <script src="ari/actions/ari-workout-plan-action.js?v=2.0.0"></script>
 <script src="ari/runtime/ari-conversation-router.js?v=1.0.3"></script>
 <script src="ari/runtime/ari-fast-conversation.js?v=1.0.1"></script>
