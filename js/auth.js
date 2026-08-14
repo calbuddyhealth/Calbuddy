@@ -2,7 +2,12 @@
 // ARI XP
 // File: auth.js
 // Purpose:
-//   Shared Supabase auth helpers for ARI Rebirth.
+//   Shared Supabase auth helpers for ARI XP.
+//
+// V1.2.0
+// App Store privacy readiness:
+// - Boots the explicit third-party AI processing consent gate on home.
+// - Locks the ARI composer before the consent controller finishes loading.
 //
 // V1.1.0
 // Email confirmation handoff:
@@ -216,3 +221,36 @@ function getAriBootIntro() {
 function clearAriBootIntro() {
   sessionStorage.removeItem("ari_boot_intro");
 }
+
+function bootstrapAIAccessConsent() {
+  const page = String(window.location.pathname || "")
+    .split("/")
+    .pop()
+    .toLowerCase();
+
+  if (page !== "home.html" && page !== "") return;
+
+  const input = document.getElementById("ariInput");
+  const send = document.getElementById("ariSendBtn");
+
+  if (input) {
+    input.disabled = true;
+    input.setAttribute("aria-disabled", "true");
+    input.placeholder = "AI processing permission required";
+  }
+
+  if (send) {
+    send.disabled = true;
+    send.setAttribute("aria-disabled", "true");
+  }
+
+  if (document.querySelector('script[data-ari-ai-consent="true"]')) return;
+
+  const script = document.createElement("script");
+  script.src = "js/ai-processing-consent.js?v=1.0.0";
+  script.async = false;
+  script.dataset.ariAiConsent = "true";
+  document.head.appendChild(script);
+}
+
+bootstrapAIAccessConsent();
