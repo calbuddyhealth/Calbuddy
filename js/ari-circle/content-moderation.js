@@ -1,0 +1,389 @@
+/* =============================================================
+   ARI XP — ARI CIRCLE CONTENT MODERATION
+   Version: 1.0.0
+
+   Purpose:
+   - Run a safety check before Circle UGC is written.
+   - Reuse the existing /api/profile server function so ARI XP does not add
+     another Vercel function.
+   - Cover Feed posts, comments, Moments, and direct messages.
+   - Moderate text plus image content; sample video frames locally.
+   - Fail closed if the safety check cannot run.
+
+   Important:
+   - This is a client safety layer, not the only enforcement layer.
+   - Database-side high-confidence filters remain the fallback authority.
+============================================================= */
+(() => {
+  "use strict";
+
+  const VERSION = "1.0.0";
+  const PROFILE_API = "/api/profile";
+  const MEDIA_BUCKET = "ari-circle-post-media";
+  const MAX_IMAGE_EDGE = 768;
+  const VIDEO_SAMPLE_EDGE = 640;
+  const JPEG_QUALITY = 0.68;
+
+  const mutationRules = Object.freeze({
+    ari_circle_feed_create_post_v2: Object.freeze({
+      scope: "feed_post",
+      textKey: "requested_body",
+      mediaPathKey: "requested_media_path",
+      mediaTypeKey: "requested_media_type"
+    }),
+    ari_circle_feed_add_comment: Object.freeze({
+      scope: "feed_comment",
+      textKey: "requested_body"
+    }),
+    ari_circle_moment_create: Object.freeze({
+      scope: "moment",
+      textKey: "requested_caption",
+      mediaPathKey: "requested_media_path",
+      mediaTypeKey: "requested_media_type"
+    }),
+    ari_circle_messages_send: Object.freeze({
+      scope: "direct_message",
+      textKey: "requested_body"
+    }),
+    ari_circle_messages_edit: Object.freeze({
+      scope: "direct_message_edit",
+      textKey: "requested_body"
+    })
+  });
+
+  const state = {
+    client: null,
+    originalRpc: null,
+    patched: false,
+    selectedMediaFile: null,
+    initAttempts: 0
+  };
+
+  function clean(value) {
+    return String(value ?? "").trim();
+  }
+
+  function resolveClient() {
+    return (
+      window.calbuddySupabase ||
+      window.supabaseClient ||
+      window.CalBuddy?.supabase ||
+      null
+    );
+  }
+
+  function safeMessage(error, fallback) {
+    return clean(error?.message || error) || fallback;
+  }
+
+  function makeSupabaseError(message, code = "ARI_CONTENT_BLOCKED") {
+    return {
+      message,
+      code,
+      details: null,
+      hint: null
+    };
+  }
+
+  function rememberSelectedMedia(event) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    if (input.id !== "feedMediaInput") return;
+
+    state.selectedMediaFile = input.files?.[0] || null;
+  }
+
+  async function accessToken() {
+    const client = state.client || resolveClient();
+    if (!client?.auth?.getSession) return "";
+
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    return clean(data?.session?.access_token);
+  }
+
+  function canvasDataUrl(source, maxEdge = MAX_IMAGE_EDGE) {
+    const width = Number(source.videoWidth || source.naturalWidth || source.width || 0);
+    const height = Number(source.videoHeight || source.naturalHeight || source.height || 0);
+
+    if (!width || !height) {
+      throw new Error("ARI Circle could not read that media.");
+    }
+
+    const scale = Math.min(1, maxEdge / Math.max(width, height));
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("ARI Circle could not prepare that media.");
+
+    context.drawImage(source, 0, 0, targetWidth, targetHeight);
+    return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+  }
+
+  function waitFor(target, eventName, timeoutMs = 5000) {
+    return new Promise((resolve, reject) => {
+      let timer = null;
+
+      const cleanup = () => {
+        if (timer) window.clearTimeout(timer);
+        target.removeEventListener(eventName, onEvent);
+        target.removeEventListener("error", onError);
+      };
+
+      const onEvent = () => {
+        cleanup();
+        resolve();
+      };
+
+      const onError = () => {
+        cleanup();
+        reject(new Error("ARI Circle could not read that media."));
+      };
+
+      timer = window.setTimeout(() => {
+        cleanup();
+        reject(new Error("ARI Circle media safety check timed out."));
+      }, timeoutMs);
+
+      target.addEventListener(eventName, onEvent, { once: true });
+      target.addEventListener("error", onError, { once: true });
+    });
+  }
+
+  async function sampleImageFile(file) {
+    if (!file) return [];
+
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.decoding = "async";
+
+    try {
+      image.src = url;
+      if (image.decode) {
+        await image.decode();
+      } else {
+        await waitFor(image, "load");
+      }
+      return [canvasDataUrl(image, MAX_IMAGE_EDGE)];
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function seekVideo(video, time) {
+    const safeTime = Math.max(0, Math.min(Number(video.duration || 0), Number(time || 0)));
+    if (Math.abs(Number(video.currentTime || 0) - safeTime) < 0.03) return;
+
+    video.currentTime = safeTime;
+    await waitFor(video, "seeked", 4500);
+  }
+
+  async function sampleVideoFile(file) {
+    if (!file) return [];
+
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+
+    try {
+      video.src = url;
+      video.load();
+      await waitFor(video, "loadedmetadata", 6000);
+
+      const duration = Number(video.duration || 0);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        throw new Error("ARI Circle could not inspect that video.");
+      }
+
+      const sampleTimes = [
+        Math.min(duration * 0.12, Math.max(0, duration - 0.05)),
+        Math.min(duration * 0.5, Math.max(0, duration - 0.05)),
+        Math.min(duration * 0.88, Math.max(0, duration - 0.05))
+      ];
+
+      const frames = [];
+      for (const time of sampleTimes) {
+        await seekVideo(video, time);
+        frames.push(canvasDataUrl(video, VIDEO_SAMPLE_EDGE));
+      }
+
+      return frames;
+    } finally {
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function signedImageUrl(mediaPath) {
+    const path = clean(mediaPath);
+    if (!path) return "";
+
+    const client = state.client || resolveClient();
+    if (!client?.storage) return "";
+
+    const { data, error } = await client.storage
+      .from(MEDIA_BUCKET)
+      .createSignedUrl(path, 120);
+
+    if (error) throw error;
+    return clean(data?.signedUrl);
+  }
+
+  async function mediaInputs(rule, params = {}) {
+    const mediaPath = rule.mediaPathKey ? clean(params?.[rule.mediaPathKey]) : "";
+    const mediaType = rule.mediaTypeKey ? clean(params?.[rule.mediaTypeKey]).toLowerCase() : "";
+
+    if (!mediaPath || !mediaType) return [];
+
+    const selected = state.selectedMediaFile;
+
+    if (mediaType === "image") {
+      if (selected?.type?.toLowerCase().startsWith("image/")) {
+        return await sampleImageFile(selected);
+      }
+
+      const signed = await signedImageUrl(mediaPath);
+      if (!signed) throw new Error("ARI Circle could not inspect that photo.");
+      return [signed];
+    }
+
+    if (mediaType === "video") {
+      if (!selected?.type?.toLowerCase().startsWith("video/")) {
+        throw new Error("ARI Circle could not run the video safety check. Select the video again and retry.");
+      }
+
+      const frames = await sampleVideoFile(selected);
+      if (!frames.length) {
+        throw new Error("ARI Circle could not run the video safety check.");
+      }
+      return frames;
+    }
+
+    return [];
+  }
+
+  async function requestModeration({ scope, text = "", imageUrls = [] } = {}) {
+    const token = await accessToken();
+    if (!token) {
+      throw new Error("Sign in again before sharing to ARI Circle.");
+    }
+
+    const response = await fetch(PROFILE_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        action: "moderate_circle_content",
+        scope: clean(scope).slice(0, 80),
+        text: clean(text).slice(0, 8000),
+        image_urls: Array.isArray(imageUrls) ? imageUrls.slice(0, 4) : []
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        clean(data?.error) ||
+        "ARI Circle could not run its safety check. Try again."
+      );
+    }
+
+    return data;
+  }
+
+  async function moderateMutation(name, params = {}) {
+    const rule = mutationRules[name];
+    if (!rule) return;
+
+    const text = rule.textKey ? clean(params?.[rule.textKey]) : "";
+    const imageUrls = await mediaInputs(rule, params);
+
+    const result = await requestModeration({
+      scope: rule.scope,
+      text,
+      imageUrls
+    });
+
+    if (result?.allowed !== true) {
+      const blockedError = new Error(
+        "That content can’t be shared in ARI Circle. Please edit it and try again."
+      );
+      blockedError.code = "ARI_CONTENT_BLOCKED";
+      throw blockedError;
+    }
+  }
+
+  function patchRpc() {
+    if (state.patched) return true;
+
+    const client = resolveClient();
+    if (!client || typeof client.rpc !== "function") return false;
+
+    state.client = client;
+    state.originalRpc = client.rpc.bind(client);
+
+    const wrappedRpc = async function ariModeratedRpc(name, params = {}, options) {
+      try {
+        await moderateMutation(String(name || ""), params || {});
+      } catch (error) {
+        const blocked = error?.code === "ARI_CONTENT_BLOCKED";
+        const message = blocked
+          ? safeMessage(error, "That content can’t be shared in ARI Circle.")
+          : safeMessage(error, "ARI Circle could not run its safety check. Try again.");
+
+        return {
+          data: null,
+          error: makeSupabaseError(
+            message,
+            blocked ? "ARI_CONTENT_BLOCKED" : "ARI_MODERATION_UNAVAILABLE"
+          )
+        };
+      }
+
+      return await state.originalRpc(name, params, options);
+    };
+
+    wrappedRpc.__ariContentModerationWrapped = true;
+    client.rpc = wrappedRpc;
+    state.patched = true;
+    return true;
+  }
+
+  function init() {
+    document.addEventListener("change", rememberSelectedMedia, true);
+
+    if (patchRpc()) return;
+
+    const retry = () => {
+      state.initAttempts += 1;
+      if (patchRpc() || state.initAttempts >= 20) return;
+      window.setTimeout(retry, 100);
+    };
+
+    retry();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+
+  window.AriCircleContentModeration = Object.freeze({
+    version: VERSION,
+    moderate: requestModeration,
+    refresh: patchRpc,
+    isReady: () => state.patched === true
+  });
+})();
