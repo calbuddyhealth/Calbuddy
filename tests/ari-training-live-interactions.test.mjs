@@ -12,6 +12,16 @@ const supabaseConfig = fs.readFileSync(
   "utf8"
 );
 
+const trainingHtml = fs.readFileSync(
+  new URL("../ari-training.html", import.meta.url),
+  "utf8"
+);
+
+const trainingController = fs.readFileSync(
+  new URL("../js/ari-training.js", import.meta.url),
+  "utf8"
+);
+
 test("ARI Training Add Exercise opens the real dialog on iOS/Safari", () => {
   assert.match(interactions, /sessionExercisePicker/);
   assert.match(interactions, /showModal/);
@@ -34,6 +44,19 @@ test("ARI Training quick add avoids showing the whole library by default", () =>
   assert.match(interactions, /Need something else\? Type the exercise name above\./);
 });
 
+test("ARI Training search renderer uses the visible result-card template instead of blank buttons", () => {
+  assert.match(trainingHtml, /class="ari-session-search-result"/);
+  assert.match(trainingHtml, /ari-session-search-result__name/);
+  assert.match(trainingController, /\.ari-session-exercise-search-result/);
+  assert.match(trainingController, /\.ari-session-exercise-search-result__name/);
+
+  assert.match(supabaseConfig, /patchTrainingExerciseSearchTemplate/);
+  assert.match(supabaseConfig, /root\.classList\.add\("ari-session-exercise-search-result"\)/);
+  assert.match(supabaseConfig, /ari-session-exercise-search-result__type/);
+  assert.match(supabaseConfig, /ari-session-exercise-search-result__name/);
+  assert.match(supabaseConfig, /ari-session-exercise-search-result__muscles/);
+});
+
 test("Cancel Workout abandons one session instead of live multi-table deletion", () => {
   assert.match(interactions, /status:\s*"abandoned"/);
   assert.match(interactions, /completed_at:\s*null/);
@@ -46,6 +69,6 @@ test("Cancel Workout abandons one session instead of live multi-table deletion",
 test("Training interaction repair loads only on ARI Training", () => {
   assert.match(supabaseConfig, /shouldLoadTrainingInteractions/);
   assert.match(supabaseConfig, /ari-training\.html/);
-  assert.match(supabaseConfig, /training-live-interactions\.js\?v=1\.0\.1/);
+  assert.match(supabaseConfig, /training-live-interactions\.js\?v=1\.0\.2/);
   assert.match(supabaseConfig, /script\.type\s*=\s*"module"/);
 });
