@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.6
+// Version: 1.1.7
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -17,6 +17,7 @@
 //   - Accelerate ARI Circle Profile first paint without dropping background data.
 //   - Repair the ARI Training exercise-search template contract before boot.
 //   - Load the isolated live-workout interaction repair only on ARI Training.
+//   - Load the My Week workout-card hierarchy polish only on Workout Plans.
 //
 // Non-responsibilities:
 //   - Does not perform sign-in or sign-up.
@@ -37,6 +38,7 @@
   const SOCIAL_BADGES_SCRIPT_ID = "ariCircleSocialBadgesScript";
   const CIRCLE_MENU_SCRIPT_ID = "ariCircleMenuV5Script";
   const TRAINING_INTERACTIONS_SCRIPT_ID = "ariTrainingLiveInteractionsScript";
+  const WORKOUT_PLAN_POLISH_SCRIPT_ID = "ariWorkoutPlanCardPolishScript";
 
   function shouldLoadSocialBadges() {
     const path = String(window.location.pathname || "").toLowerCase();
@@ -337,7 +339,7 @@
       root.querySelector(selector)?.classList.add(alias);
     }
 
-    root.dataset.ariTrainingSearchTemplate = "1.1.6";
+    root.dataset.ariTrainingSearchTemplate = "1.1.7";
     return true;
   }
 
@@ -353,6 +355,21 @@
     script.id = TRAINING_INTERACTIONS_SCRIPT_ID;
     script.type = "module";
     script.src = "js/training/training-live-interactions.js?v=1.0.2";
+    document.head.append(script);
+  }
+
+  function shouldLoadWorkoutPlanCardPolish() {
+    const path = String(window.location.pathname || "").toLowerCase();
+    return path.endsWith("/workout-plans.html") || Boolean(document.querySelector(".ari-workout-plans-page"));
+  }
+
+  function loadWorkoutPlanCardPolish() {
+    if (!shouldLoadWorkoutPlanCardPolish() || document.getElementById(WORKOUT_PLAN_POLISH_SCRIPT_ID)) return;
+
+    const script = document.createElement("script");
+    script.id = WORKOUT_PLAN_POLISH_SCRIPT_ID;
+    script.src = "js/training/workout-plans-card-polish.js?v=1.0.0";
+    script.defer = true;
     document.head.append(script);
   }
 
@@ -394,6 +411,7 @@
     scheduleSocialBadges();
     loadCircleMenu();
     loadTrainingInteractions();
+    loadWorkoutPlanCardPolish();
     return;
   }
 
@@ -435,6 +453,10 @@
   // Safari dialog behavior, the live exercise-search template, and
   // live-workout cancel/add controls.
   loadTrainingInteractions();
+
+  // Workout Plans gets a presentation-only layer that sharpens the My Week
+  // date/title/detail/status hierarchy without touching planning behavior.
+  loadWorkoutPlanCardPolish();
 
   // -----------------------------------------------------
   // Authentication-state tracking
