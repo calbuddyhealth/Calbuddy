@@ -1,5 +1,5 @@
 // ARI XP Profile + Daily Account Maintenance API
-// V3.2.0
+// V3.2.1
 
 const CIRCLE_MEDIA_BUCKETS = Object.freeze([
   "ari-circle-media",
@@ -12,6 +12,9 @@ const OPENAI_MODERATION_MODEL = "omni-moderation-latest";
 const MAX_MODERATION_TEXT = 8000;
 const MAX_MODERATION_IMAGES = 4;
 const MAX_MODERATION_IMAGE_URL_LENGTH = 1_500_000;
+const AI_CONSENT_KEY = "ari_ai_processing_consent";
+const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
+const REQUIRED_AI_CONSENT_VERSION = "2";
 
 function serverHeaders(extra = {}) {
   return {
@@ -44,6 +47,14 @@ async function getAuthenticatedUser(req) {
   if (!response.ok) return null;
   const user = await readJson(response);
   return user?.id ? user : null;
+}
+
+function userHasCurrentAiConsent(user) {
+  const metadata = user?.user_metadata || {};
+  return (
+    metadata[AI_CONSENT_KEY] === true &&
+    String(metadata[AI_CONSENT_VERSION_KEY] || "") === REQUIRED_AI_CONSENT_VERSION
+  );
 }
 
 function isAllowedModerationImageUrl(value) {
@@ -377,6 +388,13 @@ async function handleProfileRequest(req, res) {
   const updates = body.updates || {};
 
   if (action === "moderate_circle_content") {
+    if (!userHasCurrentAiConsent(user)) {
+      return res.status(403).json({
+        error: "AI processing permission is required for ARI Circle safety screening.",
+        code: "AI_PROCESSING_CONSENT_REQUIRED"
+      });
+    }
+
     const moderation = await moderateCircleContent({
       scope: body.scope,
       text: body.text,
