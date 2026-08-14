@@ -1,11 +1,11 @@
 // ari/actions/ari-rebirth-action-planner.js
 // Purpose: Convert Rebirth understanding into safe CalBuddy proposed actions.
-// V2.0.0 — Single canonical meal-write path. Meal actions are current-turn only.
+// V2.0.1 — Single canonical meal-write path. Meal actions are current-turn only.
 
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "2.0.0",
+  version: "2.0.1",
 
   plan(summary = {}) {
     const text = String(
@@ -37,6 +37,9 @@ window.Ari.rebirthActionPlanner = {
 
   detectMealLog(text = "", summary = {}) {
     if (!this.userWantsMealLog(text)) return null;
+
+    // A fresh explicit meal-log request invalidates any older pending meal.
+    this.clearStalePendingMealAction();
 
     // Meal writes are deliberately stateless between turns.
     // NEVER read lastMealEstimate, appContext history, threadState, or prior replies.
@@ -92,6 +95,17 @@ window.Ari.rebirthActionPlanner = {
         `Log ${currentFood} — about ${calories.toLocaleString()} kcal · ` +
         `${protein_g}g protein · ${carbs_g}g carbs · ${fat_g}g fat?`
     };
+  },
+
+  clearStalePendingMealAction() {
+    try {
+      const pending = window.CalBuddy?.getPendingAction?.();
+      if (pending?.action_type !== "log_meal") return;
+
+      window.CalBuddy?.cancelPendingAction?.();
+    } catch (error) {
+      console.warn("ARI meal pending-action cleanup skipped:", error?.message || error);
+    }
   },
 
   userWantsMealLog(text = "") {
