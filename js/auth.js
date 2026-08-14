@@ -4,6 +4,10 @@
 // Purpose:
 //   Shared Supabase auth helpers for ARI XP.
 //
+// V1.4.0
+// User action reliability:
+// - Loads deterministic meal logging and date-specific workout actions.
+//
 // V1.3.0
 // Daily-ledger alignment:
 // - New profiles use a midnight nutrition reset to match Training.
@@ -25,6 +29,7 @@
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
+const ARI_USER_ACTIONS_SCRIPT_ID = "ariUserActionsScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -267,5 +272,22 @@ function bootstrapCanonicalMealLedger() {
   document.head.appendChild(script);
 }
 
+function bootstrapAriUserActions() {
+  const page = String(window.location.pathname || "")
+    .split("/")
+    .pop()
+    .toLowerCase();
+
+  if (page !== "home.html" && page !== "") return;
+  if (document.getElementById(ARI_USER_ACTIONS_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_USER_ACTIONS_SCRIPT_ID;
+  script.type = "module";
+  script.src = "js/ari-user-actions.js?v=1.0.0";
+  document.head.appendChild(script);
+}
+
 bootstrapCanonicalMealLedger();
+bootstrapAriUserActions();
 bootstrapAIAccessConsent();
