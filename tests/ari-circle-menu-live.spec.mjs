@@ -15,7 +15,12 @@ async function installSupabaseStub(page) {
   const user = {
     id: "circle-menu-smoke-user",
     email: "circle-menu@arixp.test",
-    user_metadata: { display_name: "Circle Menu Smoke" }
+    user_metadata: {
+      display_name: "Circle Menu Smoke",
+      ari_ai_processing_consent: true,
+      ari_ai_processing_consent_version: "2",
+      ari_ai_processing_consented_at: "2026-08-14T00:00:00.000Z"
+    }
   };
   const session = { access_token: "circle-menu-smoke-token", user };
 
