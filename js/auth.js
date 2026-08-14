@@ -230,16 +230,6 @@ function clearAriBootIntro() {
   sessionStorage.removeItem("ari_boot_intro");
 }
 
-function bootstrapCanonicalMealLedger() {
-  if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
-
-  const script = document.createElement("script");
-  script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
-  script.src = "js/meal-ledger-sync.js?v=1.0.0";
-  script.defer = true;
-  document.head.appendChild(script);
-}
-
 function bootstrapAIAccessConsent() {
   const page = String(window.location.pathname || "")
     .split("/")
@@ -265,6 +255,16 @@ function bootstrapAIAccessConsent() {
   // home.html loads js/ai-processing-consent.js exactly once.
   // Auth only locks the composer early so no AI request can be sent before
   // the consent controller resolves the user's current permission.
+}
+
+function bootstrapCanonicalMealLedger() {
+  if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
+  script.src = "js/meal-ledger-sync.js?v=1.0.0";
+  script.defer = true;
+  document.head.appendChild(script);
 }
 
 bootstrapCanonicalMealLedger();
