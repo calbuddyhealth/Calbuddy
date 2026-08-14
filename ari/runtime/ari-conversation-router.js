@@ -1,10 +1,16 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/runtime/ari-conversation-router.js
-// Version: 1.0.2
+// Version: 1.0.3
 // Purpose:
 //   Decide whether a turn can use Ari's fast conversational lane or should
 //   fall back to the full Rebirth runtime.
+//
+// V1.0.3:
+//   - Meal write requests using pronouns such as "log that" now route deep
+//     when the same turn clearly contains eating/food context.
+//   - Prevents fast plain-text calorie replies from being reconstructed into
+//     malformed meal names or zero-macro meal records.
 //
 // Design goals:
 //   - Conversation first.
@@ -34,6 +40,9 @@
 
   const ACTION_PATTERNS = [
     /\b(log|add|save|delete|remove|clear|update|change|set|edit|submit|create)\b.{0,45}\b(meal|food|weight|workout|exercise|goal|profile|calorie|macro|account|week|plan)\b/i,
+    /\b(meal|food|breakfast|lunch|dinner|snack|calories?|kcal|macros?|protein|carbs?|fat)\b.{0,90}\b(log|add|save|track|record|edit|delete|remove|change|replace)\b/i,
+    /\b(i ate|i had|i drank|just ate|just had|just drank|ate a|ate an|had a|had an)\b[\s\S]{0,220}\b(log|add|save|track|record)\b(?:\s+(?:that|it|this))?/i,
+    /\b(log|add|save|track|record)\b\s+(?:that|it|this)\b[\s\S]{0,140}\b(meal|food|breakfast|lunch|dinner|snack|calories?|macros?|protein|carbs?|fat)\b/i,
     /\b(remind me|schedule|book|reserve|send|email|upload|download)\b/i
   ];
 
@@ -58,7 +67,7 @@
     /^(why|why\?|how|how so|what about|and|but|really|you sure|are you sure|what do you mean|explain|tell me more|hmm|hm|okay|ok|yeah|yes|no|nope|lol|haha)[?.!\s\w'-]*$/i;
 
   const AriConversationRouter = {
-    version: "1.0.2",
+    version: "1.0.3",
     source: "ari-conversation-router",
 
     decide(message = "", options = {}) {
@@ -98,9 +107,6 @@
         return { ...decision, mode: DEEP, reason: "high_stakes_topic" };
       }
 
-      // A short follow-up can inherit a medical/safety/legal/financial subject
-      // from the immediately preceding conversation even when the current text
-      // contains no obvious keyword (for example: "what about 3?" or "why?").
       if (
         looksLikeFollowUp &&
         HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(recentHistoryText))
