@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.4
+// Version: 1.1.5
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -14,6 +14,7 @@
 //   - Track basic authentication state changes.
 //   - Lazily load ARI Circle notification badges only on relevant pages.
 //   - Load the shared ARI Circle control drawer on Circle pages.
+//   - Repair the ARI Training exercise-search template contract before boot.
 //   - Load the isolated live-workout interaction repair only on ARI Training.
 //
 // Non-responsibilities:
@@ -87,13 +88,52 @@
     return path.endsWith("/ari-training.html") || Boolean(document.querySelector(".ari-training-page"));
   }
 
+  /*
+   * ARI Training's current HTML template uses the newer
+   * `.ari-session-search-result*` class family, while the legacy V4.6
+   * renderer still queries the older `.ari-session-exercise-search-result*`
+   * names. When those aliases are missing the renderer falls back to an
+   * empty button, which is why iPhone search results appear as selectable
+   * gray bars with no exercise copy.
+   *
+   * Patch the inert <template> before ari-training.js boots. This preserves
+   * the existing session/add logic and lets the real result card render.
+   */
+  function patchTrainingExerciseSearchTemplate() {
+    if (!shouldLoadTrainingInteractions()) return false;
+
+    const template = document.getElementById("sessionExerciseSearchResultTemplate");
+    const root = template?.content?.querySelector(".ari-session-search-result");
+    if (!root) return false;
+
+    root.classList.add("ari-session-exercise-search-result");
+
+    const aliases = [
+      [".ari-session-search-result__type", "ari-session-exercise-search-result__type"],
+      [".ari-session-search-result__name", "ari-session-exercise-search-result__name"],
+      [".ari-session-search-result__muscles", "ari-session-exercise-search-result__muscles"]
+    ];
+
+    for (const [selector, alias] of aliases) {
+      root.querySelector(selector)?.classList.add(alias);
+    }
+
+    root.dataset.ariTrainingSearchTemplate = "1.1.5";
+    return true;
+  }
+
   function loadTrainingInteractions() {
-    if (!shouldLoadTrainingInteractions() || document.getElementById(TRAINING_INTERACTIONS_SCRIPT_ID)) return;
+    if (!shouldLoadTrainingInteractions()) return;
+
+    // This must happen before the legacy Training module renders search rows.
+    patchTrainingExerciseSearchTemplate();
+
+    if (document.getElementById(TRAINING_INTERACTIONS_SCRIPT_ID)) return;
 
     const script = document.createElement("script");
     script.id = TRAINING_INTERACTIONS_SCRIPT_ID;
     script.type = "module";
-    script.src = "js/training/training-live-interactions.js?v=1.0.1";
+    script.src = "js/training/training-live-interactions.js?v=1.0.2";
     document.head.append(script);
   }
 
@@ -170,7 +210,8 @@
   loadCircleMenu();
 
   // ARI Training gets a small isolated interaction layer that repairs
-  // Safari dialog behavior and live-workout cancel/add controls.
+  // Safari dialog behavior, the live exercise-search template, and
+  // live-workout cancel/add controls.
   loadTrainingInteractions();
 
   // -----------------------------------------------------
