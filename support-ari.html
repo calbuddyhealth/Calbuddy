@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
-  <link rel="stylesheet" href="assets/css/support-ari.css?v=1.0.0">
+  <link rel="stylesheet" href="assets/css/support-ari.css?v=2.0.0">
 </head>
 
 <body class="ari-support-page">
@@ -47,39 +47,82 @@
           Support is completely optional. Supporting ARI XP does not unlock features, increase AI usage, provide tokens or credits, change usage limits, or otherwise affect your ARI XP experience.
         </div>
 
-        <div class="ari-support-methods" id="supportMethods" aria-label="Ways to support ARI XP">
-          <a
-            class="ari-support-method ari-support-method--cash"
-            id="cashAppSupportButton"
-            href="https://cash.app/$arixp1"
-            target="_blank"
-            rel="noopener noreferrer"
+        <section class="ari-native-tip-panel" id="nativeTipPanel" hidden aria-labelledby="nativeTipTitle">
+          <div class="ari-support-panel-heading">
+            <p class="ari-section-kicker">APPLE SUPPORT</p>
+            <h3 id="nativeTipTitle">Choose a tip</h3>
+            <p>Select any amount you are comfortable with. Apple handles the purchase securely.</p>
+          </div>
+
+          <div class="ari-tip-loading" id="nativeTipLoading" role="status" aria-live="polite">
+            Loading Apple tip options…
+          </div>
+
+          <div class="ari-tip-grid" id="featuredTipGrid" hidden aria-label="Tip amounts"></div>
+
+          <button
+            class="ari-other-tip-button"
+            id="otherTipButton"
+            type="button"
+            aria-expanded="false"
+            aria-controls="additionalTipPanel"
+            hidden
           >
-            <span class="ari-support-method-label">Cash App</span>
-            <span class="ari-support-method-handle" data-support-handle>$arixp1</span>
-            <span class="ari-support-method-copy">Optional support</span>
-          </a>
+            Other amount
+          </button>
 
-          <a
-            class="ari-support-method ari-support-method--venmo"
-            id="venmoSupportButton"
-            href="https://venmo.com/u/Ari-Xp"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span class="ari-support-method-label">Venmo</span>
-            <span class="ari-support-method-handle" data-support-handle>@Ari-Xp</span>
-            <span class="ari-support-method-copy">Optional support</span>
-          </a>
-        </div>
+          <div class="ari-additional-tip-panel" id="additionalTipPanel" hidden>
+            <p class="ari-additional-tip-label">More tip amounts</p>
+            <div class="ari-tip-grid ari-tip-grid--additional" id="additionalTipGrid"></div>
+          </div>
 
-        <div class="ari-notice" id="supportUnavailable" hidden>
-          Support options are temporarily unavailable.
-        </div>
+          <div class="ari-tip-status" id="tipPurchaseStatus" role="status" aria-live="polite"></div>
 
-        <p class="ari-support-privacy-note">
-          Cash App and Venmo open outside ARI XP to complete an optional contribution. ARI XP does not collect payment credentials on this page. Contributions are not purchases and provide no digital content, services, features, credits, or other in-app benefits.
-        </p>
+          <p class="ari-support-privacy-note ari-support-privacy-note--native">
+            Apple processes the purchase through your App Store account. Tips are voluntary and provide no digital content, services, features, credits, usage increases, or other in-app benefits.
+          </p>
+        </section>
+
+        <section class="ari-web-support-panel" id="webSupportPanel" aria-labelledby="webSupportTitle">
+          <div class="ari-support-panel-heading">
+            <p class="ari-section-kicker">WEB SUPPORT</p>
+            <h3 id="webSupportTitle">Choose a support method</h3>
+          </div>
+
+          <div class="ari-support-methods" id="supportMethods" aria-label="Ways to support ARI XP">
+            <a
+              class="ari-support-method ari-support-method--cash"
+              id="cashAppSupportButton"
+              href="https://cash.app/$arixp1"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span class="ari-support-method-label">Cash App</span>
+              <span class="ari-support-method-handle" data-support-handle>$arixp1</span>
+              <span class="ari-support-method-copy">Optional support</span>
+            </a>
+
+            <a
+              class="ari-support-method ari-support-method--venmo"
+              id="venmoSupportButton"
+              href="https://venmo.com/u/Ari-Xp"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span class="ari-support-method-label">Venmo</span>
+              <span class="ari-support-method-handle" data-support-handle>@Ari-Xp</span>
+              <span class="ari-support-method-copy">Optional support</span>
+            </a>
+          </div>
+
+          <div class="ari-notice" id="supportUnavailable" hidden>
+            Support options are temporarily unavailable.
+          </div>
+
+          <p class="ari-support-privacy-note">
+            Cash App and Venmo open outside ARI XP to complete an optional contribution. ARI XP does not collect payment credentials on this page. Contributions are not purchases and provide no digital content, services, features, credits, or other in-app benefits.
+          </p>
+        </section>
       </section>
     </div>
 
@@ -89,7 +132,7 @@
     </footer>
   </main>
 
-  <script src="js/support-ari-config.js?v=2.0.0"></script>
-  <script src="js/support-ari.js?v=2.0.0"></script>
+  <script src="js/support-ari-config.js?v=3.0.0"></script>
+  <script src="js/support-ari.js?v=3.0.0"></script>
 </body>
 </html>
