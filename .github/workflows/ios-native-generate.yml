@@ -1,0 +1,98 @@
+name: ARI XP iOS native generation
+
+on:
+  push:
+    branches:
+      - agent/ari-xp-ios
+    paths:
+      - .github/workflows/ios-native-generate.yml
+      - package.json
+      - capacitor.config.json
+      - www/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-ios:
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out iOS branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/ari-xp-ios
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Capacitor dependencies
+        run: npm install
+
+      - name: Generate or sync iOS project
+        run: |
+          if [ -d ios/App ]; then
+            npm run ios:sync
+          else
+            npm run ios:add
+          fi
+          npm run cap:doctor
+
+      - name: Add ARI XP iOS privacy purpose strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLIST="ios/App/App/Info.plist"
+
+          if [ ! -f "$PLIST" ]; then
+            echo "Missing generated Info.plist at $PLIST"
+            exit 1
+          fi
+
+          set_string() {
+            local key="$1"
+            local value="$2"
+            /usr/libexec/PlistBuddy -c "Set :${key} ${value}" "$PLIST" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Add :${key} string ${value}" "$PLIST"
+          }
+
+          set_string NSCameraUsageDescription "ARI XP uses your camera only when you choose to capture a photo or video for an ARI XP feature."
+          set_string NSMicrophoneUsageDescription "ARI XP uses your microphone only when you choose to record a video that includes audio."
+          set_string NSPhotoLibraryUsageDescription "ARI XP lets you choose photos and videos from your library when you decide to share them."
+          set_string NSPhotoLibraryAddUsageDescription "ARI XP can save media to your photo library only when you choose a feature that saves media."
+
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST"
+
+      - name: Validate generated iOS project
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Commit generated native project to iOS branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ios package-lock.json
+
+          if git diff --cached --quiet; then
+            echo "No generated native changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Generate ARI XP iOS native project"
+          git push origin HEAD:agent/ari-xp-ios

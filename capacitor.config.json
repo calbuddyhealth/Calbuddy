@@ -1,0 +1,13 @@
+{
+  "appId": "com.arixp.app",
+  "appName": "ARI XP",
+  "webDir": "www",
+  "server": {
+    "url": "https://arixp.com",
+    "cleartext": false,
+    "allowNavigation": [
+      "arixp.com",
+      "www.arixp.com"
+    ]
+  }
+}
