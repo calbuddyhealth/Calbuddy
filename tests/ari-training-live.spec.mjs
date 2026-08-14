@@ -137,4 +137,72 @@ test.describe("ARI Training live controls", () => {
 
     expect(pageErrors).toEqual([]);
   });
+
+  test("Workout Plans makes workout name dominant over the date", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await installTrainingSupabaseStub(page);
+    await page.goto(`${BASE_URL}/workout-plans.html`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Boolean(window.AriWorkoutPlanCardHierarchy), null, { timeout: 10000 });
+
+    await page.evaluate(() => {
+      const grid = document.getElementById("workoutWeekGrid");
+      grid.innerHTML = `
+        <article class="workout-day-card" data-type="workout">
+          <button class="workout-day-card__button" type="button">
+            <div class="workout-day-card__header">
+              <span class="workout-day-card__day">MON AUG 10</span>
+              <span class="workout-day-card__type">WORKOUT</span>
+            </div>
+            <h3 class="workout-day-card__title">Back Day</h3>
+            <p class="workout-day-card__summary">5 exercises</p>
+            <span class="workout-day-card__open">Edit Workout →</span>
+          </button>
+        </article>
+        <article class="workout-day-card" data-type="workout">
+          <button class="workout-day-card__button" type="button">
+            <div class="workout-day-card__header">
+              <span class="workout-day-card__day">WED AUG 12</span>
+              <span class="workout-day-card__type">WORKOUT</span>
+            </div>
+            <h3 class="workout-day-card__title">Endurance</h3>
+            <p class="workout-day-card__summary">3 exercises</p>
+            <span class="workout-day-card__open">Edit Workout →</span>
+          </button>
+        </article>
+      `;
+      window.AriWorkoutPlanCardHierarchy.refresh();
+    });
+
+    const cards = page.locator("#workoutWeekGrid .workout-day-card");
+    const firstCard = cards.nth(0);
+    const enduranceCard = cards.nth(1);
+
+    await expect(firstCard.locator(".workout-day-card__day")).toHaveText("MON • AUG 10");
+    await expect(firstCard.locator(".workout-day-card__title")).toHaveText("Back Day");
+    await expect(firstCard.locator(".workout-day-card__summary")).toHaveText("5 exercises");
+    await expect(firstCard.locator(".workout-day-card__type")).toHaveText("WORKOUT");
+    await expect(firstCard).toHaveAttribute("data-plan-kind", "workout");
+
+    await expect(enduranceCard.locator(".workout-day-card__type")).toHaveText("ENDURANCE");
+    await expect(enduranceCard).toHaveAttribute("data-plan-kind", "endurance");
+
+    const hierarchy = await firstCard.evaluate((card) => {
+      const day = card.querySelector(".workout-day-card__day");
+      const title = card.querySelector(".workout-day-card__title");
+      const type = card.querySelector(".workout-day-card__type");
+      return {
+        daySize: parseFloat(getComputedStyle(day).fontSize),
+        titleSize: parseFloat(getComputedStyle(title).fontSize),
+        railWidth: getComputedStyle(card, "::before").width,
+        typeBackground: getComputedStyle(type).backgroundColor
+      };
+    });
+
+    expect(hierarchy.titleSize).toBeGreaterThan(hierarchy.daySize);
+    expect(hierarchy.railWidth).toBe("4px");
+    expect(hierarchy.typeBackground).not.toBe("rgba(0, 0, 0, 0)");
+    expect(pageErrors).toEqual([]);
+  });
 });
