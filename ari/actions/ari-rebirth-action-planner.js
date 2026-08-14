@@ -1,11 +1,11 @@
 // ari/actions/ari-rebirth-action-planner.js
 // Purpose: Convert Rebirth understanding into safe CalBuddy proposed actions.
-// V1.3.0 — Structured Meal Action Planner / Full Total + Single Item Support
+// V1.4.0 — Fix action delivery handoff and carry structured meal macros.
 
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   plan(summary = {}) {
     const text = String(
@@ -29,6 +29,10 @@ window.Ari.rebirthActionPlanner = {
 
     return {
       ...summary,
+      // Delivery stage consumes actions/plannedActions. Keep proposedActions for
+      // backwards compatibility with older diagnostics.
+      actions,
+      plannedActions: actions,
       proposedActions: actions
     };
   },
@@ -43,7 +47,8 @@ window.Ari.rebirthActionPlanner = {
       return this.makeMealAction(
         selectedFood.name,
         selectedFood.calories,
-        "Selected from Ari Rebirth estimate"
+        "Selected from Ari Rebirth estimate",
+        selectedFood
       );
     }
 
@@ -52,7 +57,12 @@ window.Ari.rebirthActionPlanner = {
 
     if (!calories || !foodName) return null;
 
-    return this.makeMealAction(foodName, calories, "Estimated by Ari Rebirth");
+    return this.makeMealAction(
+      foodName,
+      calories,
+      "Estimated by Ari Rebirth",
+      this.resolveMealMacros(summary, mealEstimate)
+    );
   },
 
   userWantsMealLog(text = "") {
@@ -61,6 +71,10 @@ window.Ari.rebirthActionPlanner = {
       (
         text.includes("meal") ||
         text.includes("food") ||
+        text.includes("breakfast") ||
+        text.includes("lunch") ||
+        text.includes("dinner") ||
+        text.includes("snack") ||
         text.includes("calories") ||
         text.includes("calorie") ||
         text.includes("kcal") ||
@@ -129,6 +143,9 @@ window.Ari.rebirthActionPlanner = {
         return {
           name,
           calories: Math.round(calories),
+          protein_g: this.validMacro(food?.protein_g ?? food?.protein),
+          carbs_g: this.validMacro(food?.carbs_g ?? food?.carbs ?? food?.carbohydrates),
+          fat_g: this.validMacro(food?.fat_g ?? food?.fat),
           score
         };
       })
@@ -139,11 +156,55 @@ window.Ari.rebirthActionPlanner = {
     return scored[0] || null;
   },
 
+  resolveMealMacros(summary = {}, mealEstimate = null) {
+    const candidates = [
+      mealEstimate,
+      summary.mealEstimate,
+      summary.nutritionEstimate,
+      summary.foodAnalysis,
+      summary.calorieEstimate,
+      summary.appContext?.mealEstimate,
+      summary.appContext?.lastMealEstimate,
+      summary.threadState?.lastMealEstimate
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const protein_g = this.validMacro(
+        candidate.protein_g ?? candidate.protein ?? candidate.totalProtein ?? candidate.totalProtein_g
+      );
+      const carbs_g = this.validMacro(
+        candidate.carbs_g ?? candidate.carbs ?? candidate.carbohydrates ?? candidate.totalCarbs ?? candidate.totalCarbs_g
+      );
+      const fat_g = this.validMacro(
+        candidate.fat_g ?? candidate.fat ?? candidate.totalFat ?? candidate.totalFat_g
+      );
+
+      if (protein_g !== null || carbs_g !== null || fat_g !== null) {
+        return {
+          protein_g: protein_g ?? 0,
+          carbs_g: carbs_g ?? 0,
+          fat_g: fat_g ?? 0
+        };
+      }
+    }
+
+    return { protein_g: 0, carbs_g: 0, fat_g: 0 };
+  },
+
+  validMacro(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0 || number > 1000) return null;
+    return Math.round(number * 10) / 10;
+  },
+
   resolveMealTotalCalories(summary = {}, text = "", mealEstimate = null) {
     const structuredCandidates = [
       mealEstimate?.totalCalories,
+      mealEstimate?.calories,
       summary.mealEstimate?.totalCalories,
+      summary.mealEstimate?.calories,
       summary.lastMealEstimate?.totalCalories,
+      summary.lastMealEstimate?.calories,
       summary.foodAnalysis?.totalCalories,
       summary.nutritionEstimate?.totalCalories,
       summary.calorieEstimate?.totalCalories,
@@ -159,6 +220,11 @@ window.Ari.rebirthActionPlanner = {
         return Math.round(number);
       }
     }
+
+    const responseCalories = this.extractTotalCaloriesFromText(
+      summary.finalResponse || summary.reply || summary.answer || ""
+    );
+    if (responseCalories) return responseCalories;
 
     const directCalories = this.extractTotalCaloriesFromText(text);
     if (directCalories) return directCalories;
@@ -187,6 +253,7 @@ window.Ari.rebirthActionPlanner = {
   resolveMealDescription(summary = {}, text = "", mealEstimate = null) {
     const structuredCandidates = [
       mealEstimate?.description,
+      mealEstimate?.name,
       summary.mealEstimate?.description,
       summary.lastMealEstimate?.description,
       summary.foodAnalysis?.description,
@@ -204,6 +271,9 @@ window.Ari.rebirthActionPlanner = {
 
     const directFood = this.extractFoodFromDirectLog(text);
     if (directFood) return directFood;
+
+    const eatingFood = this.extractFoodFromEatingText(text);
+    if (eatingFood) return eatingFood;
 
     const history = Array.isArray(summary.appContext?.history)
       ? summary.appContext.history
@@ -239,7 +309,12 @@ window.Ari.rebirthActionPlanner = {
     const match = String(text || "").match(/\b(?:i ate|i had|ate|had)\s+(.{2,180})\b/i);
     if (!match) return null;
 
-    return this.cleanFoodName(match[1]);
+    return this.cleanFoodName(
+      match[1]
+        .replace(/\b(?:can|could|would)\s+you\s+(?:please\s+)?(?:log|add|save|track).*$/i, "")
+        .replace(/\b(?:please\s+)?(?:log|add|save|track)\s+(?:that|it|this).*$/i, "")
+        .replace(/\b(?:for breakfast|for lunch|for dinner|as a snack)\b.*$/i, "")
+    );
   },
 
   extractTotalCaloriesFromText(text = "") {
@@ -249,7 +324,8 @@ window.Ari.rebirthActionPlanner = {
       /total:\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
       /total\s*(?:is|would be|comes to)?\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
       /approximately\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
-      /about\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i
+      /about\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
+      /(?:about|around|roughly|approximately)\s*(\d{2,5})\s*(?:calories|kcal|cals)/i
     ];
 
     for (const pattern of patterns) {
@@ -265,16 +341,26 @@ window.Ari.rebirthActionPlanner = {
     return null;
   },
 
-  makeMealAction(foodName, calories, servingSize = "Estimated by Ari Rebirth") {
+  makeMealAction(foodName, calories, servingSize = "Estimated by Ari Rebirth", macros = {}) {
+    const protein_g = this.validMacro(macros?.protein_g ?? macros?.protein) ?? 0;
+    const carbs_g = this.validMacro(macros?.carbs_g ?? macros?.carbs ?? macros?.carbohydrates) ?? 0;
+    const fat_g = this.validMacro(macros?.fat_g ?? macros?.fat) ?? 0;
+
+    const macroText = `Protein ${protein_g}g · Carbs ${carbs_g}g · Fat ${fat_g}g`;
+
     return {
       action_type: "log_meal",
+      requiresApproval: true,
       payload: {
         name: foodName,
         calories,
         category: "Meal",
-        serving_size: servingSize
+        serving_size: servingSize,
+        protein_g,
+        carbs_g,
+        fat_g
       },
-      confirmation_text: `Log ${foodName} for about ${calories.toLocaleString()} calories?`
+      confirmation_text: `Log ${foodName} for about ${calories.toLocaleString()} calories? ${macroText}`
     };
   },
 
