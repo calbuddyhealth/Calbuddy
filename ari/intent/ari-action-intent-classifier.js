@@ -1,11 +1,11 @@
 // ari/intent/ari-action-intent-classifier.js
-// Purpose: Decide whether the user is conversing, asking, logging, updating app data, or requesting developer work.
-// V1.0.0 — Intent Lane Classifier / No App Writes / No Execution
+// Purpose: Decide whether the user is conversing, asking, logging, updating app data, planning a workout, or requesting developer work.
+// V1.1.0 — Adds explicit workout-plan intent while preserving approval-first app writes.
 
 window.Ari = window.Ari || {};
 
 window.Ari.actionIntentClassifier = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   classify(input = {}) {
     const message = this.clean(input.message || input.userMessage || "");
@@ -24,6 +24,7 @@ window.Ari.actionIntentClassifier = {
       confidence,
       wantsDataChange: this.wantsDataChange(lane),
       wantsLogging: lane === "explicit_log_request",
+      wantsWorkoutPlan: lane === "explicit_workout_plan",
       wantsProfileUpdate: lane === "explicit_profile_update",
       wantsGoalUpdate: lane === "explicit_goal_update",
       wantsDeveloperAction: lane === "developer_action",
@@ -38,6 +39,8 @@ window.Ari.actionIntentClassifier = {
     if (this.isDeveloperAction(text)) return "developer_action";
 
     if (this.isHealthOrSymptomQuestion(text)) return "health_symptom_question";
+
+    if (this.isExplicitWorkoutPlanRequest(text)) return "explicit_workout_plan";
 
     if (this.isExplicitLogRequest(text)) return "explicit_log_request";
 
@@ -66,6 +69,14 @@ window.Ari.actionIntentClassifier = {
       /\b(diarrhea|diarrhoea|stomach|nausea|vomit|throw up|constipation|heartburn|acid reflux|cramps|pain|sick|allergy|allergic|rash|pregnant|pregnancy|safe|unsafe|poison|food poisoning|bloated|gas|gassy|hurt|symptom)\b/.test(text) ||
       /\b(will|can|could|would|should)\b.{0,40}\b(make me|cause|give me|hurt|affect|safe|bad|sick)\b/.test(text)
     );
+  },
+
+  isExplicitWorkoutPlanRequest(text) {
+    const workoutNoun = /\b(workout|training session|training plan|exercise session|gym session)\b/.test(text);
+    const planningVerb = /\b(make|build|create|plan|schedule|set up|put together|give me|add)\b/.test(text);
+    const loggingOnly = /\b(log|track|record|completed|finished|burned|calories burned)\b/.test(text);
+
+    return workoutNoun && planningVerb && !loggingOnly;
   },
 
   isExplicitLogRequest(text) {
@@ -109,6 +120,7 @@ window.Ari.actionIntentClassifier = {
   wantsDataChange(lane) {
     return [
       "explicit_log_request",
+      "explicit_workout_plan",
       "explicit_profile_update",
       "explicit_goal_update",
       "developer_action"
@@ -117,6 +129,7 @@ window.Ari.actionIntentClassifier = {
 
   detectTarget(text, lane) {
     if (lane === "developer_action") return "developer_task";
+    if (lane === "explicit_workout_plan") return "workout_plan";
     if (lane === "explicit_log_request") return "meal_or_activity";
     if (lane === "explicit_goal_update") return "goal";
     if (lane === "explicit_profile_update") return "profile";
@@ -129,6 +142,7 @@ window.Ari.actionIntentClassifier = {
     if (lane === "conversation_only") return 0.7;
     if (lane === "health_symptom_question") return 0.92;
     if (lane === "developer_action") return 0.88;
+    if (lane === "explicit_workout_plan") return 0.9;
     if (lane.startsWith("explicit")) return 0.86;
     if (lane === "calorie_estimate_only") return 0.84;
     if (lane === "food_statement") return 0.68;
@@ -143,6 +157,7 @@ window.Ari.actionIntentClassifier = {
       nutrition_question: "User is asking for nutrition guidance.",
       food_statement: "User mentioned food but did not ask to log it.",
       explicit_log_request: "User explicitly asked to log/add/track/save something.",
+      explicit_workout_plan: "User explicitly asked Ari to create or schedule a workout.",
       explicit_goal_update: "User explicitly asked to update a goal.",
       explicit_profile_update: "User explicitly asked to update profile data.",
       developer_action: "Owner/developer request about app files or layout."
