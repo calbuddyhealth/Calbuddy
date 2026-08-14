@@ -82,10 +82,6 @@ test.describe("ARI Training live controls", () => {
 
     await page.waitForFunction(() => Boolean(window.AriTrainingLiveInteractions), null, { timeout: 10000 });
 
-    // The smoke account deliberately has no real live workout. Fire the actual
-    // DOM handlers directly so this test validates the interaction wiring and
-    // resulting modal behavior without fabricating workout data or bypassing
-    // the application handlers themselves.
     await page.evaluate(() => {
       document.getElementById("addExerciseToSessionButton")?.click();
     });
@@ -97,9 +93,6 @@ test.describe("ARI Training live controls", () => {
     await expect(page.locator("#sessionQuickAddChips button")).toHaveCount(6);
     await expect(page.locator("#sessionExerciseSearchResults")).toHaveAttribute("data-quick-hidden", "true");
 
-    // Reproduce the real iPhone failure: typing a search used to render empty,
-    // selectable gray fallback buttons because the controller and template
-    // used different class names.
     const search = page.locator("#sessionExerciseSearchInput");
     await search.fill("Squat");
 
@@ -112,9 +105,6 @@ test.describe("ARI Training live controls", () => {
     await expect(firstResult.locator(".ari-session-search-result__type")).not.toHaveText("");
     await expect(firstResult.locator(".ari-session-search-result__add")).toHaveText("Add");
     await expect(firstResult).toHaveAttribute("data-action", "add-session-exercise");
-
-    // The broken renderer created bare empty <button> elements at the top
-    // level. There must be none after the template-contract repair.
     await expect(results.locator(":scope > button[data-action='add-session-exercise']")).toHaveCount(0);
 
     const names = await results.locator(".ari-session-search-result__name").allTextContents();
@@ -203,6 +193,54 @@ test.describe("ARI Training live controls", () => {
     expect(hierarchy.titleSize).toBeGreaterThan(hierarchy.daySize);
     expect(hierarchy.railWidth).toBe("4px");
     expect(hierarchy.typeBackground).not.toBe("rgba(0, 0, 0, 0)");
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("Edit Training Day is a large readable mobile sheet", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installTrainingSupabaseStub(page);
+    await page.goto(`${BASE_URL}/workout-plans.html`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Boolean(window.AriWorkoutPlanCardHierarchy), null, { timeout: 10000 });
+    await page.waitForFunction(() => Boolean(document.getElementById("ariWorkoutDayEditorMobileStyle")?.sheet), null, { timeout: 10000 });
+
+    await page.evaluate(() => {
+      const title = document.getElementById("workoutDayEditorTitle");
+      title.textContent = "SUN AUG 9";
+      window.AriWorkoutPlanCardHierarchy.refresh();
+      document.getElementById("workoutDayEditor")?.showModal();
+    });
+
+    const editor = page.locator("#workoutDayEditor");
+    await expect(editor).toBeVisible();
+    await expect(page.locator("#workoutDayEditorTitle")).toHaveText("SUN • AUG 9");
+
+    const metrics = await editor.evaluate((dialog) => {
+      const panel = dialog.querySelector(".workout-dialog__panel");
+      const title = dialog.querySelector("#workoutDayEditorTitle");
+      const select = dialog.querySelector("#workoutDayType");
+      const add = dialog.querySelector("#workoutAddExerciseButton");
+      const empty = dialog.querySelector("#workoutDayExerciseEmpty");
+      return {
+        panelWidth: panel.getBoundingClientRect().width,
+        panelMaxHeight: getComputedStyle(panel).maxHeight,
+        titleSize: parseFloat(getComputedStyle(title).fontSize),
+        selectHeight: select.getBoundingClientRect().height,
+        selectSize: parseFloat(getComputedStyle(select).fontSize),
+        addHeight: add.getBoundingClientRect().height,
+        emptySize: parseFloat(getComputedStyle(empty).fontSize)
+      };
+    });
+
+    expect(metrics.panelWidth).toBeGreaterThan(360);
+    expect(metrics.panelMaxHeight).toBe("708.953px");
+    expect(metrics.titleSize).toBeGreaterThanOrEqual(24);
+    expect(metrics.selectHeight).toBeGreaterThanOrEqual(56);
+    expect(metrics.selectSize).toBe(18);
+    expect(metrics.addHeight).toBeGreaterThanOrEqual(52);
+    expect(metrics.emptySize).toBeGreaterThanOrEqual(16);
     expect(pageErrors).toEqual([]);
   });
 });
