@@ -169,7 +169,7 @@ function finishProfessionalProfileBoot() {
       return;
     }
 
-    if (performance.now() - started > 2200) {
+    if (performance.now() - started > 1200) {
       document.documentElement.classList.remove("circle-profile-hydrating");
       return;
     }
@@ -181,8 +181,8 @@ function finishProfessionalProfileBoot() {
 }
 
 Promise.all([
-  import("./profile-v4.js?v=4.2.0"),
-  import("../v4-ui.js?v=4.7.2"),
+  import("./profile-v4.js?v=4.3.0"),
+  import("../v4-ui.js?v=4.9.0"),
   import("../v4-flow-fixes.js?v=1.2.1")
 ])
   .then(() => finishProfessionalProfileBoot())
