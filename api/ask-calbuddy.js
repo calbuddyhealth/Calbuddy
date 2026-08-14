@@ -1,7 +1,7 @@
 // api/ask-calbuddy.js
 // CalBuddy OpenAI Knowledge Client
 // Purpose: Server-side OpenAI caller for Ari Rebirth.
-// V2.1.0 — Structured Meal Estimate / Rebirth Action Safe
+// V2.2.0 — Structured Meal Estimate with calories + macros for safe logging.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -166,6 +166,33 @@ ${fileContext}
 ${investigationContext}
 `.trim();
 
+  const mealEstimateRule = `
+MEAL ESTIMATE RULE:
+When the user describes food they ate, asks for calories/macros, or asks Ari to log a meal, estimate the complete meal when reasonably possible.
+Return mealEstimate in this exact structure:
+{
+  "description": "short meal description",
+  "totalCalories": number,
+  "protein_g": number,
+  "carbs_g": number,
+  "fat_g": number,
+  "foods": [
+    {
+      "name": "food",
+      "calories": number,
+      "protein_g": number,
+      "carbs_g": number,
+      "fat_g": number
+    }
+  ],
+  "confidence": "low|medium|high"
+}
+Use realistic estimates when exact brand, recipe, portion, or preparation is unknown. Do not pretend an estimate is exact.
+If estimating multiple foods, totalCalories and macro totals must represent the entire meal, not only the first ingredient.
+In the reply, briefly show calories plus Protein, Carbs, and Fat whenever mealEstimate is present.
+If the user asks to log the meal, do NOT say it has already been logged. Say what you estimate and let the app action/confirmation layer perform the actual write.
+`;
+
   if (suppliedInstruction) {
     return `
 You are Ari's server-side OpenAI knowledge client.
@@ -174,19 +201,10 @@ Your job:
 - Follow Ari Rebirth's aiInstruction exactly.
 - Do not override Ari Rebirth's lane, contract, safety, or developer decisions.
 - Do not invent app changes.
-- Do not claim files were edited, committed, or deployed.
+- Do not claim files were edited, committed, deployed, or app data was saved unless the application action layer confirms success.
 - If GitHub file content is provided, ground the answer in that exact content.
 - Be concise, specific, and useful.
-- For food calorie estimates, include structured mealEstimate when possible:
-  {
-    "description": "short meal description",
-    "totalCalories": number,
-    "foods": [
-      { "name": "food", "calories": number }
-    ],
-    "confidence": "low|medium|high"
-  }
-- If estimating multiple foods, totalCalories must be the full meal total, not the first ingredient.
+${mealEstimateRule}
 
 ARI REBIRTH INSTRUCTION:
 ${suppliedInstruction}
@@ -218,17 +236,8 @@ Ari Rebirth should normally send aiInstruction. Since none was provided, answer 
 Rules:
 - Be warm, direct, practical, and concise.
 - Use CalBuddy context when relevant.
-- For food questions, estimate calories when reasonable.
-- For food calorie estimates, include structured mealEstimate when possible:
-  {
-    "description": "short meal description",
-    "totalCalories": number,
-    "foods": [
-      { "name": "food", "calories": number }
-    ],
-    "confidence": "low|medium|high"
-  }
-- If estimating multiple foods, totalCalories must be the full meal total, not the first ingredient.
+- Do not claim app data was saved unless an application action actually confirms it.
+${mealEstimateRule}
 - For app/code questions, do not claim edits were made.
 - If exact repository content is provided, use it.
 - If exact repository content is not provided, say what should be inspected first.
