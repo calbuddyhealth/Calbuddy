@@ -1,12 +1,12 @@
 // ari/pipeline-stages/delivery/ari-action-delivery-stage.js
 // Ari Action Delivery Stage
 // Purpose: Convert the completed response into approved post-response actions.
-// V1.0.0 — Action Planning / Delivery Handoff Foundation
+// V1.1.0 — Adds a strict meal-action guard so generic conversation cannot become a food log.
 
 window.Ari = window.Ari || {};
 
 window.AriActionDeliveryStage = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -75,6 +75,22 @@ window.AriActionDeliveryStage = {
       };
     }
 
+    const rawActions =
+      actionPlannerResult.actions ||
+      actionPlannerResult.plannedActions ||
+      actionPlannerResult.proposedActions ||
+      [];
+
+    const guardedActions =
+      this.guardActions(rawActions, state);
+
+    actionPlannerResult = {
+      ...actionPlannerResult,
+      actions: guardedActions,
+      plannedActions: guardedActions,
+      proposedActions: guardedActions
+    };
+
     state = {
       ...state,
 
@@ -87,7 +103,8 @@ window.AriActionDeliveryStage = {
           .actionPlannerRan === true ||
         Boolean(
           actionPlannerResult.rebirthActionPlan ||
-          actionPlannerResult.actionPlan
+          actionPlannerResult.actionPlan ||
+          rawActions.length
         ),
 
       actionPlannerSource:
@@ -101,10 +118,7 @@ window.AriActionDeliveryStage = {
         null,
 
       plannedActions:
-        actionPlannerResult.actions ||
-        actionPlannerResult.plannedActions ||
-        state.plannedActions ||
-        []
+        guardedActions
     };
 
     mark("after rebirthActionPlanner");
@@ -140,6 +154,80 @@ window.AriActionDeliveryStage = {
       this.version;
 
     return state;
+  },
+
+  // ===================================================
+  // Action guard
+  // ===================================================
+
+  guardActions(actions = [], summary = {}) {
+    return (Array.isArray(actions) ? actions : [])
+      .filter(action => this.isActionAllowed(action, summary));
+  },
+
+  isActionAllowed(action = {}, summary = {}) {
+    const type = String(action.action_type || action.type || "").toLowerCase();
+
+    if (type !== "log_meal") return true;
+
+    return this.isMealActionAllowed(summary, action);
+  },
+
+  isMealActionAllowed(summary = {}, action = {}) {
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).toLowerCase();
+
+    // A meal write always requires an explicit write verb from the user.
+    const hasWriteVerb =
+      /\b(log|add|track|save|record)\b/.test(text);
+
+    if (!hasWriteVerb) return false;
+
+    // Hard reject known non-food logging targets. These should never be
+    // interpreted as a meal even when words such as "log" or "track" appear.
+    const hasNonMealTarget =
+      /\b(workout|exercise|training|sets?|reps?|body weight|my weight|blood pressure|heart rate|steps?|sleep|water|medication|medicine|dose|symptom|mood|journal|note|error|bug|console|github|code|account|sign[- ]?in|login)\b/.test(text);
+
+    if (hasNonMealTarget) return false;
+
+    const hasExplicitMealContext =
+      /\b(meal|food|breakfast|lunch|dinner|snack|intake|calories|calorie|kcal|macros?|protein|carbs?|carbohydrates?|fat)\b/.test(text);
+
+    const hasEatingContext =
+      /\b(i ate|i had|i drank|just ate|just had|just drank|ate a|ate an|had a|had an)\b/.test(text);
+
+    const isFollowUpReference =
+      /\b(log|add|track|save|record)\b.{0,30}\b(that|it|this)\b/.test(text) ||
+      /\b(that|it|this)\b.{0,20}\b(log|add|track|save|record)\b/.test(text);
+
+    const mealEstimate =
+      summary.mealEstimate ||
+      summary.lastMealEstimate ||
+      summary.foodAnalysis ||
+      summary.nutritionEstimate ||
+      summary.calorieEstimate ||
+      summary.appContext?.mealEstimate ||
+      summary.appContext?.lastMealEstimate ||
+      summary.threadState?.lastMealEstimate ||
+      null;
+
+    const payload = action.payload || {};
+    const hasUsableNutrition =
+      Number(payload.calories || 0) > 0 &&
+      Boolean(String(payload.name || "").trim());
+
+    if (!hasUsableNutrition) return false;
+
+    // Direct requests need food/eating context. Pronoun follow-ups such as
+    // "log that" are only valid if the current Rebirth state carries a meal estimate.
+    if (hasExplicitMealContext || hasEatingContext) return true;
+    if (isFollowUpReference && mealEstimate) return true;
+
+    return false;
   },
 
   // ===================================================
