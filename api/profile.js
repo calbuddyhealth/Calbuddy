@@ -1,7 +1,17 @@
-// ARI Rebirth Profile + Daily Account Maintenance API
-// V3.0.0
+// ARI XP Profile + Daily Account Maintenance API
+// V3.2.0
 
-const CIRCLE_MEDIA_BUCKET = "ari-circle-media";
+const CIRCLE_MEDIA_BUCKETS = Object.freeze([
+  "ari-circle-media",
+  "ari-circle-post-media",
+  "ari-circle-challenge-media"
+]);
+
+const OPENAI_MODERATION_URL = "https://api.openai.com/v1/moderations";
+const OPENAI_MODERATION_MODEL = "omni-moderation-latest";
+const MAX_MODERATION_TEXT = 8000;
+const MAX_MODERATION_IMAGES = 4;
+const MAX_MODERATION_IMAGE_URL_LENGTH = 1_500_000;
 
 function serverHeaders(extra = {}) {
   return {
@@ -14,6 +24,10 @@ function serverHeaders(extra = {}) {
 
 async function readJson(response) {
   return await response.json().catch(() => ({}));
+}
+
+function cleanText(value, maxLength = 1000) {
+  return String(value ?? "").trim().slice(0, maxLength);
 }
 
 async function getAuthenticatedUser(req) {
@@ -32,9 +46,142 @@ async function getAuthenticatedUser(req) {
   return user?.id ? user : null;
 }
 
+function isAllowedModerationImageUrl(value) {
+  const url = cleanText(value, MAX_MODERATION_IMAGE_URL_LENGTH);
+  if (!url) return false;
+
+  if (/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(url)) {
+    return true;
+  }
+
+  const supabaseOrigin = cleanText(process.env.SUPABASE_URL, 1000).replace(/\/+$/, "");
+  return Boolean(
+    supabaseOrigin &&
+    url.startsWith(`${supabaseOrigin}/storage/v1/object/sign/`)
+  );
+}
+
+function normalizeModerationImages(values) {
+  if (!Array.isArray(values)) return [];
+
+  return values
+    .map((value) => cleanText(value, MAX_MODERATION_IMAGE_URL_LENGTH))
+    .filter(isAllowedModerationImageUrl)
+    .slice(0, MAX_MODERATION_IMAGES);
+}
+
+async function moderateCircleContent({ scope, text, imageUrls } = {}) {
+  const apiKey = cleanText(process.env.OPENAI_API_KEY, 2000);
+  if (!apiKey) {
+    return {
+      status: 503,
+      body: {
+        error: "ARI Circle safety screening is temporarily unavailable."
+      }
+    };
+  }
+
+  const safeScope = cleanText(scope, 80) || "ari_circle";
+  const safeText = cleanText(text, MAX_MODERATION_TEXT);
+  const safeImages = normalizeModerationImages(imageUrls);
+  const input = [];
+
+  if (safeText) {
+    input.push({
+      type: "text",
+      text: safeText
+    });
+  }
+
+  for (const url of safeImages) {
+    input.push({
+      type: "image_url",
+      image_url: { url }
+    });
+  }
+
+  if (!input.length) {
+    return {
+      status: 200,
+      body: {
+        success: true,
+        allowed: true,
+        scope: safeScope,
+        model: OPENAI_MODERATION_MODEL,
+        blocked_categories: []
+      }
+    };
+  }
+
+  let response;
+  try {
+    response = await fetch(OPENAI_MODERATION_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODERATION_MODEL,
+        input
+      })
+    });
+  } catch (error) {
+    console.error("[ARI Circle Moderation Network Error]", error?.message || error);
+    return {
+      status: 503,
+      body: {
+        error: "ARI Circle safety screening is temporarily unavailable."
+      }
+    };
+  }
+
+  const data = await readJson(response);
+  if (!response.ok) {
+    console.error("[ARI Circle Moderation Provider Error]", {
+      status: response.status,
+      error: data?.error?.message || data?.error || "Moderation request failed"
+    });
+
+    return {
+      status: 503,
+      body: {
+        error: "ARI Circle safety screening is temporarily unavailable."
+      }
+    };
+  }
+
+  const result = data?.results?.[0];
+  if (!result || typeof result.flagged !== "boolean") {
+    return {
+      status: 503,
+      body: {
+        error: "ARI Circle safety screening returned an invalid result."
+      }
+    };
+  }
+
+  const blockedCategories = Object.entries(result.categories || {})
+    .filter(([, flagged]) => flagged === true)
+    .map(([category]) => category)
+    .slice(0, 20);
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      allowed: result.flagged !== true,
+      scope: safeScope,
+      model: data?.model || OPENAI_MODERATION_MODEL,
+      blocked_categories: blockedCategories
+    }
+  };
+}
+
 async function listStoragePaths(bucket, prefix, visited = new Set()) {
-  if (visited.has(prefix)) return [];
-  visited.add(prefix);
+  const visitKey = `${bucket}:${prefix}`;
+  if (visited.has(visitKey)) return [];
+  visited.add(visitKey);
 
   const paths = [];
   const pageSize = 100;
@@ -63,7 +210,7 @@ async function listStoragePaths(bucket, prefix, visited = new Set()) {
       ) {
         return [];
       }
-      throw new Error(`Storage listing failed: ${JSON.stringify(entries)}`);
+      throw new Error(`Storage listing failed for ${bucket}: ${JSON.stringify(entries)}`);
     }
 
     const list = Array.isArray(entries) ? entries : [];
@@ -87,13 +234,13 @@ async function listStoragePaths(bucket, prefix, visited = new Set()) {
   return paths;
 }
 
-async function removeUserStorage(userId) {
-  const paths = await listStoragePaths(CIRCLE_MEDIA_BUCKET, userId);
+async function removeUserStorageFromBucket(bucket, userId) {
+  const paths = await listStoragePaths(bucket, userId);
 
   for (let index = 0; index < paths.length; index += 100) {
     const batch = paths.slice(index, index + 100);
     const response = await fetch(
-      `${process.env.SUPABASE_URL}/storage/v1/object/${encodeURIComponent(CIRCLE_MEDIA_BUCKET)}`,
+      `${process.env.SUPABASE_URL}/storage/v1/object/${encodeURIComponent(bucket)}`,
       {
         method: "DELETE",
         headers: serverHeaders(),
@@ -103,11 +250,27 @@ async function removeUserStorage(userId) {
 
     if (!response.ok) {
       const data = await readJson(response);
-      throw new Error(`Storage deletion failed: ${JSON.stringify(data)}`);
+      throw new Error(`Storage deletion failed for ${bucket}: ${JSON.stringify(data)}`);
     }
   }
 
   return paths.length;
+}
+
+async function removeUserStorage(userId) {
+  const byBucket = {};
+  let total = 0;
+
+  for (const bucket of CIRCLE_MEDIA_BUCKETS) {
+    const removed = await removeUserStorageFromBucket(bucket, userId);
+    byBucket[bucket] = removed;
+    total += removed;
+  }
+
+  return {
+    total,
+    by_bucket: byBucket
+  };
 }
 
 async function recordDeletionError(userId, attempts, error) {
@@ -138,7 +301,12 @@ async function deleteDueAccount(row) {
       throw new Error(`Auth deletion failed: ${JSON.stringify(data)}`);
     }
 
-    return { user_id: row.user_id, success: true, removed_objects: removedObjects };
+    return {
+      user_id: row.user_id,
+      success: true,
+      removed_objects: removedObjects.total,
+      removed_objects_by_bucket: removedObjects.by_bucket
+    };
   } catch (error) {
     await recordDeletionError(row.user_id, row.deletion_attempts, error);
     return { user_id: row.user_id, success: false, error: error.message };
@@ -204,7 +372,19 @@ async function handleProfileRequest(req, res) {
     return res.status(401).json({ error: "A valid signed-in session is required." });
   }
 
-  const { action, updates = {} } = req.body || {};
+  const body = req.body || {};
+  const action = body.action;
+  const updates = body.updates || {};
+
+  if (action === "moderate_circle_content") {
+    const moderation = await moderateCircleContent({
+      scope: body.scope,
+      text: body.text,
+      imageUrls: body.image_urls
+    });
+
+    return res.status(moderation.status).json(moderation.body);
+  }
 
   if (action === "get_profile") {
     const response = await fetch(
