@@ -61,10 +61,6 @@
       <span class="ari-brand-line" aria-hidden="true"></span>
     </a>
 
-    <!--
-      Temporary compatibility hook for the current home.js.
-      This remains hidden and can be removed when home.js is updated.
-    -->
     <div id="ariHeaderAvatarShell" hidden aria-hidden="true">
       <img
         id="ariHeaderAvatar"
@@ -75,10 +71,6 @@
 
   </header>
 
-
-  <!-- =================================================
-       FULL-SCREEN NAVIGATION
-  ================================================== -->
   <nav
     id="sideMenu"
     class="side-menu ari-side-menu"
@@ -99,86 +91,51 @@
 
     <div class="ari-menu-content">
 
-      <a
-        href="ari-circle-feed.html"
-        class="ari-nav-link nav-circle"
-      >
+      <a href="ari-circle-feed.html" class="ari-nav-link nav-circle">
         <span class="ari-nav-copy">
           <span class="ari-nav-title">ARI CIRCLE</span>
-          <span class="ari-nav-description">
-            SOCIALIZE WITH OTHERS
-          </span>
+          <span class="ari-nav-description">SOCIALIZE WITH OTHERS</span>
         </span>
-
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
-
-      <a
-        href="goals.html"
-        class="ari-nav-link nav-goals ari-nav-featured"
-      >
+      <a href="goals.html" class="ari-nav-link nav-goals ari-nav-featured">
         <span class="ari-nav-copy">
           <span class="ari-nav-title">MY GOALS</span>
-          <span class="ari-nav-description">
-            LOG INTAKE / LOG WORKOUT
-          </span>
+          <span class="ari-nav-description">LOG INTAKE / LOG WORKOUT</span>
           <span class="ari-nav-accent-line" aria-hidden="true"></span>
         </span>
-
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
-
-      <a
-        href="ari-preference-settings.html"
-        class="ari-nav-link nav-preferences"
-      >
+      <a href="ari-preference-settings.html" class="ari-nav-link nav-preferences">
         <span class="ari-nav-copy">
           <span class="ari-nav-title">ARI PREFERENCES</span>
-          <span class="ari-nav-description">
-            PERSONALIZE YOUR EXPERIENCE
-          </span>
+          <span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span>
         </span>
-
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
-
-      <a
-        href="support-ari.html"
-        class="ari-nav-link ari-nav-support"
-      >
+      <a href="support-ari.html" class="ari-nav-link ari-nav-support">
         <span class="ari-nav-copy">
           <span class="ari-nav-title">SUPPORT ARI</span>
-          <span class="ari-nav-description">
-            HELP KEEP ARI ACTIVE
-          </span>
+          <span class="ari-nav-description">HELP KEEP ARI ACTIVE</span>
           <span class="ari-support-badge">CASH APP · VENMO</span>
         </span>
-
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
-
-      <a
-        href="account.html"
-        class="ari-nav-link nav-account"
-      >
+      <a href="account.html" class="ari-nav-link nav-account">
         <span class="ari-nav-copy">
           <span class="ari-nav-title">ACCOUNT SETTINGS</span>
-          <span class="ari-nav-description">
-            PROFILE, PRIVACY AND SECURITY
-          </span>
+          <span class="ari-nav-description">PROFILE, PRIVACY AND SECURITY</span>
         </span>
-
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
     </div>
 
   </nav>
-
 
   <div
     id="menuOverlay"
@@ -187,16 +144,9 @@
     aria-hidden="true"
   ></div>
 
-
-  <!-- =================================================
-       ARI HERO
-  ================================================== -->
   <section class="ari-welcome" id="ariWelcome">
-
     <div class="ari-hero-stage">
-
       <div class="ari-hero-halo" aria-hidden="true"></div>
-
       <img
         id="ariHero"
         class="ari-hero-img"
@@ -204,13 +154,8 @@
         src="assets/ari/ari-idle-open.png"
         alt="Ari"
       />
-
     </div>
 
-    <!--
-      Temporary compatibility hook for the current home.js.
-      The question now appears through the composer placeholder.
-    -->
     <p
       id="ariWelcomeQuestion"
       class="ari-welcome-question"
@@ -219,19 +164,13 @@
     >
       What are you working on?
     </p>
-
   </section>
 
-
-  <!-- =================================================
-       CONVERSATION
-  ================================================== -->
   <section
     class="ari-conversation-shell"
     id="ariConversationShell"
     aria-live="polite"
   >
-
     <div
       id="ariThinkingStatus"
       class="ari-thinking-status"
@@ -253,47 +192,20 @@
     </p>
 
     <div id="pendingActionBar" class="pending-action-bar">
-
-      <p id="pendingActionText">
-        Want me to log that?
-      </p>
+      <p id="pendingActionText">Want me to log that?</p>
 
       <div class="pending-action-buttons">
-
-        <button
-          type="button"
-          onclick="confirmAriAction()"
-        >
-          YES
-        </button>
-
-        <button
-          type="button"
-          onclick="cancelAriAction()"
-        >
-          CANCEL
-        </button>
-
+        <button type="button" onclick="confirmAriAction()">YES</button>
+        <button type="button" onclick="cancelAriAction()">CANCEL</button>
       </div>
-
     </div>
-
   </section>
 
-
-  <!-- =================================================
-       ASK ARI COMPOSER
-  ================================================== -->
   <div class="ari-bottom-input">
-
     <div class="ari-input-shell">
-
-      <label class="ari-input-label" for="ariInput">
-        ASK ARI
-      </label>
+      <label class="ari-input-label" for="ariInput">ASK ARI</label>
 
       <div class="ari-input-row">
-
         <textarea
           id="ariInput"
           rows="1"
@@ -313,25 +225,18 @@
         >
           SEND
         </button>
-
       </div>
-
     </div>
-
   </div>
 
 </main>
 
-
-<!-- =================================================
-     APPLICATION SCRIPTS
-================================================== -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="js/auth.js"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
-<script src="ari/actions/ari-workout-plan-action.js?v=1.0.1"></script>
+<script src="ari/actions/ari-workout-plan-action.js?v=1.1.0"></script>
 <script src="ari/runtime/ari-conversation-router.js?v=1.0.2"></script>
 <script src="ari/runtime/ari-fast-conversation.js?v=1.0.1"></script>
 <script src="js/home.js?v=3.4.0"></script>
