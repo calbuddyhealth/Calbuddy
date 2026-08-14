@@ -251,6 +251,41 @@ test.describe("ARI XP App Store browser smoke", () => {
     expect(errors).toEqual([]);
   });
 
+  test("web Support ARI keeps Cash App and Venmo on the website", async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await installAppStubs(page);
+
+    await page.goto(`${BASE_URL}/support-ari.html`, { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator("#webSupportPanel")).toBeVisible();
+    await expect(page.locator("#cashAppSupportButton")).toBeVisible();
+    await expect(page.locator("#venmoSupportButton")).toBeVisible();
+    await expect(page.locator("#nativeTipPanel")).toBeHidden();
+    await expect(page.locator("#nativeSupportUnavailablePanel")).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+
+  test("native shell without StoreKit hides external payment methods", async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await page.addInitScript(() => {
+      window.Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => "ios"
+      };
+    });
+    await installAppStubs(page);
+
+    await page.goto(`${BASE_URL}/support-ari.html`, { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator("#nativeSupportUnavailablePanel")).toBeVisible();
+    await expect(page.locator("#nativeSupportUnavailablePanel")).toContainText("not available in this iOS version");
+    await expect(page.locator("#webSupportPanel")).toBeHidden();
+    await expect(page.locator("#cashAppSupportButton")).toBeHidden();
+    await expect(page.locator("#venmoSupportButton")).toBeHidden();
+    await expect(page.locator("#nativeTipPanel")).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+
   test("AI consent can be declined and then enabled without duplicate dialogs", async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await installAppStubs(page);
