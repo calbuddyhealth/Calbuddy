@@ -1,13 +1,13 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5
-   Version: 1.0.0
+   Version: 1.0.1
    Rebuilds the shared Circle menu as a compact premium control drawer.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
@@ -91,7 +91,9 @@
     const includeProfileOptions = isProfileMenu(details);
     const currentVersion = details.getAttribute(READY_ATTR);
     const expectedProfile = includeProfileOptions ? "profile" : "standard";
-    if (currentVersion === `${VERSION}:${expectedProfile}`) {
+    const hasV5Markup = Boolean(details.querySelector(".circle-v5-menu__identity"));
+
+    if (currentVersion === `${VERSION}:${expectedProfile}` && hasV5Markup) {
       bindProfileOptions(details);
       return;
     }
