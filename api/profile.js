@@ -1,5 +1,5 @@
 // ARI XP Profile + Daily Account Maintenance API
-// V3.2.1
+// V3.3.0
 
 const CIRCLE_MEDIA_BUCKETS = Object.freeze([
   "ari-circle-media",
@@ -324,15 +324,49 @@ async function deleteDueAccount(row) {
   }
 }
 
-async function runDailyMaintenance(req, res) {
-  const secret = String(process.env.CRON_SECRET || "").trim();
-  const authorization = String(req.headers.authorization || "").trim();
+async function verifySupabaseMaintenanceToken(token) {
+  const candidate = cleanText(token, 512);
+  if (!candidate) return false;
 
-  if (!secret) {
-    return res.status(500).json({ error: "CRON_SECRET is not configured." });
+  try {
+    const response = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/rpc/verify_ari_maintenance_secret`,
+      {
+        method: "POST",
+        headers: serverHeaders(),
+        body: JSON.stringify({ candidate })
+      }
+    );
+
+    const data = await readJson(response);
+    return response.ok && data === true;
+  } catch (error) {
+    console.error("[ARI Maintenance Token Verification Error]", error?.message || error);
+    return false;
+  }
+}
+
+async function isAuthorizedMaintenanceRequest(req) {
+  const configuredCronSecret = cleanText(process.env.CRON_SECRET, 2000);
+  const authorization = cleanText(req?.headers?.authorization, 3000);
+
+  if (
+    configuredCronSecret &&
+    authorization === `Bearer ${configuredCronSecret}`
+  ) {
+    return true;
   }
 
-  if (authorization !== `Bearer ${secret}`) {
+  const supabaseToken = cleanText(
+    req?.headers?.["x-ari-maintenance-secret"],
+    512
+  );
+
+  return await verifySupabaseMaintenanceToken(supabaseToken);
+}
+
+async function runDailyMaintenance(req, res) {
+  if (!(await isAuthorizedMaintenanceRequest(req))) {
     return res.status(401).json({ error: "Unauthorized maintenance request." });
   }
 
