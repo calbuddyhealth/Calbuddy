@@ -1,12 +1,12 @@
 // ari/pipeline-stages/delivery/ari-action-delivery-stage.js
 // Ari Action Delivery Stage
-// Purpose: Convert the completed response into approved post-response actions.
-// V1.2.0 — log_meal is accepted only from the canonical current-turn planner.
+// Purpose: Convert completed runtime responses into approved post-response action handoffs.
+// V2.0.0 — Domain-agnostic delivery. Meal/workout interpretation belongs to domain services.
 
 window.Ari = window.Ari || {};
 
 window.AriActionDeliveryStage = {
-  version: "1.2.0",
+  version: "2.0.0",
 
   async run(summary = {}, runtime = {}) {
     const { mark = () => {} } = runtime;
@@ -58,19 +58,19 @@ window.AriActionDeliveryStage = {
       };
     }
 
-    const rawActions =
-      actionPlannerResult.actions ||
-      actionPlannerResult.plannedActions ||
-      actionPlannerResult.proposedActions ||
-      [];
-
-    const guardedActions = this.guardActions(rawActions, state);
+    const actions = Array.isArray(actionPlannerResult.actions)
+      ? actionPlannerResult.actions
+      : Array.isArray(actionPlannerResult.plannedActions)
+        ? actionPlannerResult.plannedActions
+        : Array.isArray(actionPlannerResult.proposedActions)
+          ? actionPlannerResult.proposedActions
+          : [];
 
     actionPlannerResult = {
       ...actionPlannerResult,
-      actions: guardedActions,
-      plannedActions: guardedActions,
-      proposedActions: guardedActions
+      actions,
+      plannedActions: actions,
+      proposedActions: actions
     };
 
     state = {
@@ -82,7 +82,7 @@ window.AriActionDeliveryStage = {
         Boolean(
           actionPlannerResult.rebirthActionPlan ||
           actionPlannerResult.actionPlan ||
-          rawActions.length
+          actions.length
         ),
       actionPlannerSource: actionPlannerResult.source || "unknown",
       rebirthActionPlan:
@@ -90,7 +90,7 @@ window.AriActionDeliveryStage = {
         actionPlannerResult.actionPlan ||
         state.rebirthActionPlan ||
         null,
-      plannedActions: guardedActions
+      plannedActions: actions
     };
 
     mark("after rebirthActionPlanner");
@@ -108,57 +108,6 @@ window.AriActionDeliveryStage = {
     state.actionDeliveryStageVersion = this.version;
 
     return state;
-  },
-
-  guardActions(actions = [], summary = {}) {
-    return (Array.isArray(actions) ? actions : [])
-      .filter(action => this.isActionAllowed(action, summary));
-  },
-
-  isActionAllowed(action = {}, summary = {}) {
-    const type = String(action.action_type || action.type || "").toLowerCase();
-
-    if (type !== "log_meal") return true;
-
-    return this.isMealActionAllowed(summary, action);
-  },
-
-  isMealActionAllowed(summary = {}, action = {}) {
-    // SINGLE AUTHORITY RULE:
-    // No legacy contract, lastMealEstimate, thread history, follow-up resolver,
-    // API reconstruction, or other source may hand off a meal write.
-    if (action.source !== "ari_rebirth_action_planner_v2_current_turn") {
-      return false;
-    }
-
-    const text = String(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
-    ).toLowerCase();
-
-    const hasWriteVerb = /\b(log|add|track|save|record)\b/.test(text);
-    if (!hasWriteVerb) return false;
-
-    const hasEatingContext =
-      /\b(i ate|i had|i drank|i just ate|i just had|i just drank|i've had|i’ve had)\b/.test(text);
-    if (!hasEatingContext) return false;
-
-    const hasNonMealTarget =
-      /\b(workout|exercise|training|sets?|reps?|body weight|my weight|blood pressure|heart rate|steps?|sleep|medication|medicine|dose|symptom|mood|journal|note|error|bug|console|github|code|account|sign[- ]?in|login)\b/.test(text);
-    if (hasNonMealTarget) return false;
-
-    const payload = action.payload || {};
-
-    const hasCompleteNutrition =
-      Boolean(String(payload.name || "").trim()) &&
-      Number(payload.calories || 0) > 0 &&
-      Number.isFinite(Number(payload.protein_g)) &&
-      Number.isFinite(Number(payload.carbs_g)) &&
-      Number.isFinite(Number(payload.fat_g));
-
-    return hasCompleteNutrition;
   },
 
   resolveActionEligibility(summary = {}) {
@@ -181,19 +130,10 @@ window.AriActionDeliveryStage = {
     const existingActionSignals = Boolean(
       summary.actionRequest ||
       summary.pendingAction ||
-      summary.mealEstimate ||
       summary.structuredAction
     );
 
-    const runActionPlanner =
-      hasFinalResponse &&
-      (
-        explicitActionRequest ||
-        existingActionSignals ||
-        developerLocked ||
-        safetyOverride ||
-        true
-      );
+    const runActionPlanner = hasFinalResponse;
 
     return {
       runActionPlanner,
