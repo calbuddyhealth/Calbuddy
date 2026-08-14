@@ -1,4 +1,4 @@
-/* ARI XP — Support ARI v3.0.0 */
+/* ARI XP — Support ARI v3.1.0 */
 
 (() => {
   "use strict";
@@ -65,6 +65,25 @@
     }
 
     return null;
+  }
+
+  function isInstalledNativeApp() {
+    const capacitor = window.Capacitor;
+    if (!capacitor) return false;
+
+    try {
+      if (typeof capacitor.isNativePlatform === "function") {
+        return capacitor.isNativePlatform() === true;
+      }
+
+      if (typeof capacitor.getPlatform === "function") {
+        return ["ios", "android"].includes(clean(capacitor.getPlatform()).toLowerCase());
+      }
+    } catch (error) {
+      console.warn("ARI XP could not determine the native platform:", error);
+    }
+
+    return false;
   }
 
   function allConfiguredProductIds() {
@@ -291,18 +310,28 @@
 
   function initializeMode() {
     const nativePanel = $("nativeTipPanel");
+    const nativeUnavailablePanel = $("nativeSupportUnavailablePanel");
     const webPanel = $("webSupportPanel");
 
     state.bridge = resolveNativeBridge();
 
     if (state.bridge) {
       if (nativePanel) nativePanel.hidden = false;
+      if (nativeUnavailablePanel) nativeUnavailablePanel.hidden = true;
       if (webPanel) webPanel.hidden = true;
       requestNativeProducts();
       return;
     }
 
+    if (isInstalledNativeApp()) {
+      if (nativePanel) nativePanel.hidden = true;
+      if (nativeUnavailablePanel) nativeUnavailablePanel.hidden = false;
+      if (webPanel) webPanel.hidden = true;
+      return;
+    }
+
     if (nativePanel) nativePanel.hidden = true;
+    if (nativeUnavailablePanel) nativeUnavailablePanel.hidden = true;
     if (webPanel) webPanel.hidden = false;
     initializeWebSupport();
   }
@@ -316,7 +345,7 @@
   }
 
   window.AriSupportStoreKit = Object.freeze({
-    version: "3.0.0",
+    version: "3.1.0",
 
     productsLoaded(products) {
       renderNativeProducts(products);
