@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.2
+// Version: 1.1.3
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -73,7 +73,7 @@
     const script = document.createElement("script");
     script.id = TRAINING_INTERACTIONS_SCRIPT_ID;
     script.type = "module";
-    script.src = "js/training/training-live-interactions.js?v=1.0.0";
+    script.src = "js/training/training-live-interactions.js?v=1.0.1";
     document.head.append(script);
   }
 
