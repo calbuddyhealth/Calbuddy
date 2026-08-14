@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.1
+// Version: 1.1.2
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -13,6 +13,7 @@
 //   - Expose compatibility aliases used by older files.
 //   - Track basic authentication state changes.
 //   - Lazily load ARI Circle notification badges only on relevant pages.
+//   - Load the isolated live-workout interaction repair only on ARI Training.
 //
 // Non-responsibilities:
 //   - Does not perform sign-in or sign-up.
@@ -31,6 +32,7 @@
 
   const AUTH_STORAGE_KEY = "calbuddy-auth-session";
   const SOCIAL_BADGES_SCRIPT_ID = "ariCircleSocialBadgesScript";
+  const TRAINING_INTERACTIONS_SCRIPT_ID = "ariTrainingLiveInteractionsScript";
 
   function shouldLoadSocialBadges() {
     const path = String(window.location.pathname || "").toLowerCase();
@@ -58,6 +60,21 @@
     } else {
       window.setTimeout(load, 900);
     }
+  }
+
+  function shouldLoadTrainingInteractions() {
+    const path = String(window.location.pathname || "").toLowerCase();
+    return path.endsWith("/ari-training.html") || Boolean(document.querySelector(".ari-training-page"));
+  }
+
+  function loadTrainingInteractions() {
+    if (!shouldLoadTrainingInteractions() || document.getElementById(TRAINING_INTERACTIONS_SCRIPT_ID)) return;
+
+    const script = document.createElement("script");
+    script.id = TRAINING_INTERACTIONS_SCRIPT_ID;
+    script.type = "module";
+    script.src = "js/training/training-live-interactions.js?v=1.0.0";
+    document.head.append(script);
   }
 
   // -----------------------------------------------------
@@ -93,6 +110,7 @@
     window.CalBuddy.supabase = window.calbuddySupabase;
     window.supabaseClient = window.calbuddySupabase;
     scheduleSocialBadges();
+    loadTrainingInteractions();
     return;
   }
 
@@ -125,6 +143,10 @@
   // Badge loading is intentionally delayed until the browser is idle so
   // ARI Circle navigation and page rendering remain the priority.
   scheduleSocialBadges();
+
+  // ARI Training gets a small isolated interaction layer that repairs
+  // Safari dialog behavior and live-workout cancel/add controls.
+  loadTrainingInteractions();
 
   // -----------------------------------------------------
   // Authentication-state tracking
