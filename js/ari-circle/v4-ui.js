@@ -1,18 +1,19 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.8.0
+   Version: 4.9.0
 
-   V4.8.0:
-   - Removes duplicate Notifications V4 post-processing layer.
-   - Core circle-notifications.js is now the single owner of notification UI.
+   V4.9.0:
+   - Adds the soft glass primary navigation shared across Circle.
+   - Normalizes tab order to Feed · Buddies · Challenges · Profile.
    - Keeps unified menus, messages, profile polish and feed modules.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.8.0";
+  const VERSION = "4.9.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
+  const PRIMARY_NAV_STYLE_ID = "ari-circle-primary-nav-style";
   let appReady = false;
   let panelHandled = false;
   let buddiesLoaded = false;
@@ -22,6 +23,7 @@
   let feedModerationLoaded = false;
   let momentRepliesLoaded = false;
   let launchSocialLoaded = false;
+  let primaryNavLoaded = false;
   let outsideMenuBound = false;
 
   const $ = (id) => document.getElementById(id);
@@ -44,6 +46,7 @@
   function ensureStyles() {
     ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
     ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
+    ensureStyle(PRIMARY_NAV_STYLE_ID, "assets/css/ari-circle-primary-nav.css?v=1.0.0");
   }
 
   function circleMenuMarkup(includeProfileOptions = false) {
@@ -148,7 +151,7 @@
   function ensureProfileNav() {
     const nav = $("circleV3Nav");
     if (!nav || nav.dataset.v471Ready === "true") return;
-    nav.innerHTML = `<a href="ari-circle-feed.html">Feed</a><a class="is-active" href="ari-circle.html" aria-current="page">Profile</a><a href="ari-circle-partners.html">Buddies</a><a href="ari-circle-challenges.html">Challenges</a>`;
+    nav.innerHTML = `<a href="ari-circle-feed.html">Feed</a><a href="ari-circle-partners.html">Buddies</a><a href="ari-circle-challenges.html">Challenges</a><a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>`;
     nav.dataset.v471Ready = "true";
   }
 
@@ -221,6 +224,13 @@
   }
 
   function loadModules() {
+    if (!primaryNavLoaded) {
+      primaryNavLoaded = true;
+      import("/js/ari-circle/primary-nav.js?v=1.0.0").catch((error) => {
+        primaryNavLoaded = false;
+        console.warn("ARI Circle primary navigation failed to load:", error);
+      });
+    }
     if (!launchSocialLoaded) {
       launchSocialLoaded = true;
       import("/js/ari-circle/launch-social-v5.js?v=5.0.1").catch((error) => {
