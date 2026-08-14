@@ -4,6 +4,11 @@
 // Purpose:
 //   Shared Supabase auth helpers for ARI XP.
 //
+// V1.3.0
+// Daily-ledger alignment:
+// - New profiles use a midnight nutrition reset to match Training.
+// - Loads the canonical meal-ledger sync on ARI app surfaces.
+//
 // V1.2.1
 // App Store privacy readiness:
 // - Locks the ARI composer before the consent controller initializes.
@@ -19,6 +24,7 @@
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
+const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -34,7 +40,9 @@ async function createUserProfile(user, displayName = "") {
       user.email?.split("@")[0] ||
       "User",
     daily_calorie_goal: 2100,
-    reset_hour: 4,
+    reset_hour: 12,
+    reset_minute: 0,
+    reset_ampm: "AM",
     updated_at: new Date().toISOString()
   };
 
@@ -222,6 +230,16 @@ function clearAriBootIntro() {
   sessionStorage.removeItem("ari_boot_intro");
 }
 
+function bootstrapCanonicalMealLedger() {
+  if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
+  script.src = "js/meal-ledger-sync.js?v=1.0.0";
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
 function bootstrapAIAccessConsent() {
   const page = String(window.location.pathname || "")
     .split("/")
@@ -249,4 +267,5 @@ function bootstrapAIAccessConsent() {
   // the consent controller resolves the user's current permission.
 }
 
+bootstrapCanonicalMealLedger();
 bootstrapAIAccessConsent();
