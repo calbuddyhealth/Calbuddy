@@ -31,7 +31,7 @@ async function installAppStubs(page) {
 
   function isGuestPage() {
     const path = String(location.pathname || "").toLowerCase();
-    return path.endsWith("/signin.html") || path.endsWith("/help-safety.html");
+    return path.endsWith("/signin.html") || window.__ARI_SMOKE_FORCE_GUEST === true;
   }
 
   function rowFor(table) {
@@ -189,6 +189,9 @@ test.describe("ARI XP App Store browser smoke", () => {
 
   test("signed-out Help & Safety submits through the guest support path", async ({ page }) => {
     const errors = collectBrowserErrors(page);
+    await page.addInitScript(() => {
+      window.__ARI_SMOKE_FORCE_GUEST = true;
+    });
     await installAppStubs(page);
 
     let submittedBody = null;
@@ -214,6 +217,37 @@ test.describe("ARI XP App Store browser smoke", () => {
     await expect(page.locator("#reportStatus")).toContainText("SMOKE-1234");
     expect(submittedBody?.action).toBe("submit_support_request");
     expect(submittedBody?.email).toBe("smoke@example.com");
+    expect(errors).toEqual([]);
+  });
+
+  test("signed-in Help & Safety preserves session authentication on support requests", async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await installAppStubs(page);
+
+    let submittedBody = null;
+    let authorization = "";
+
+    await page.route("**/api/profile", async (route) => {
+      const request = route.request();
+      submittedBody = request.postDataJSON?.() || {};
+      authorization = request.headers().authorization || "";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, reference: "SIGNED-1234" })
+      });
+    });
+
+    await page.goto(`${BASE_URL}/help-safety.html`, { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator("#reportEmail")).toHaveValue("smoke@arixp.test");
+    await page.locator("#reportDetails").fill("Signed-in smoke test support request with enough detail.");
+    await page.locator("#submitReportButton").click();
+
+    await expect(page.locator("#reportStatus")).toContainText("SIGNED-1234");
+    expect(submittedBody?.action).toBe("submit_support_request");
+    expect(submittedBody?.email).toBe("smoke@arixp.test");
+    expect(authorization).toBe("Bearer smoke-access-token");
     expect(errors).toEqual([]);
   });
 
