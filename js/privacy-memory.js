@@ -1,10 +1,10 @@
-/* ARI XP — Privacy & Ari Memory v1.1.0 */
+/* ARI XP — Privacy & Ari Memory v1.2.0 */
 
 (() => {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const CONSENT_VERSION = "1";
+  const CONSENT_VERSION = "2";
   const CONSENT_KEY = "ari_ai_processing_consent";
   const VERSION_KEY = "ari_ai_processing_consent_version";
   const GRANTED_AT_KEY = "ari_ai_processing_consented_at";
@@ -32,8 +32,8 @@
 
     if (state) {
       state.textContent = allowed
-        ? "AI processing is allowed for this ARI XP account."
-        : "AI processing is currently off. ARI will not send new AI requests to OpenAI until you allow it.";
+        ? "AI processing is allowed for Ask ARI and ARI Circle safety screening on this account."
+        : "AI processing is currently off. ARI XP will not send new AI requests or Circle safety-screening submissions to OpenAI until you allow it.";
     }
 
     if (enable) enable.hidden = allowed;
