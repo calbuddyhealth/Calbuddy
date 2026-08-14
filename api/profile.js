@@ -1,5 +1,5 @@
 // ARI XP Profile + Daily Account Maintenance API
-// V3.3.0
+// V3.4.0
 
 const CIRCLE_MEDIA_BUCKETS = Object.freeze([
   "ari-circle-media",
@@ -15,6 +15,27 @@ const MAX_MODERATION_IMAGE_URL_LENGTH = 1_500_000;
 const AI_CONSENT_KEY = "ari_ai_processing_consent";
 const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
 const REQUIRED_AI_CONSENT_VERSION = "2";
+const SUPPORT_RATE_LIMIT_PER_HOUR = 5;
+
+const SUPPORT_TARGET_TYPES = new Set([
+  "app",
+  "user",
+  "content",
+  "safety",
+  "billing",
+  "other"
+]);
+
+const SUPPORT_CATEGORIES = new Set([
+  "technical_problem",
+  "harassment",
+  "hate_or_abuse",
+  "spam_or_scam",
+  "unsafe_content",
+  "privacy_concern",
+  "account_help",
+  "other"
+]);
 
 function serverHeaders(extra = {}) {
   return {
@@ -31,6 +52,19 @@ async function readJson(response) {
 
 function cleanText(value, maxLength = 1000) {
   return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function normalizeSupportEmail(value) {
+  const email = cleanText(value, 254).toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return "";
+  return email;
+}
+
+function normalizeUuid(value) {
+  const candidate = cleanText(value, 64).toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(candidate)
+    ? candidate
+    : null;
 }
 
 async function getAuthenticatedUser(req) {
@@ -411,14 +445,123 @@ async function runDailyMaintenance(req, res) {
   });
 }
 
+async function isSupportRateLimited(email) {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const params = new URLSearchParams({
+    select: "id",
+    reporter_contact_email: `eq.${email}`,
+    created_at: `gte.${oneHourAgo}`,
+    limit: String(SUPPORT_RATE_LIMIT_PER_HOUR)
+  });
+
+  const response = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/ari_reports?${params.toString()}`,
+    { headers: serverHeaders() }
+  );
+  const data = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error("ARI XP support rate-limit check failed.");
+  }
+
+  return Array.isArray(data) && data.length >= SUPPORT_RATE_LIMIT_PER_HOUR;
+}
+
+async function submitSupportRequest(req, res, body = {}) {
+  const email = normalizeSupportEmail(body.email);
+  const details = cleanText(body.details, 5000);
+  const honeypot = cleanText(body.website, 300);
+
+  if (honeypot) {
+    return res.status(200).json({ success: true });
+  }
+
+  if (!email) {
+    return res.status(400).json({ error: "Enter a valid contact email." });
+  }
+
+  if (details.length < 10) {
+    return res.status(400).json({ error: "Please add at least 10 characters of detail." });
+  }
+
+  const requestedTargetType = cleanText(body.target_type, 40);
+  const requestedCategory = cleanText(body.category, 60);
+  const targetType = SUPPORT_TARGET_TYPES.has(requestedTargetType)
+    ? requestedTargetType
+    : "app";
+  const category = SUPPORT_CATEGORIES.has(requestedCategory)
+    ? requestedCategory
+    : "other";
+
+  if (await isSupportRateLimited(email)) {
+    return res.status(429).json({
+      error: "Too many support requests were sent from this contact email recently. Please try again later."
+    });
+  }
+
+  const user = await getAuthenticatedUser(req);
+  const reportedUserId = normalizeUuid(body.reported_user_id);
+  const targetId = cleanText(body.target_id, 200) || null;
+  const sourcePage = cleanText(body.source_page, 500) || null;
+  const submittedFrom = cleanText(body.submitted_from, 300) || null;
+  const priority = ["unsafe_content", "privacy_concern"].includes(category)
+    ? "urgent"
+    : "normal";
+
+  const insertResponse = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/ari_reports`,
+    {
+      method: "POST",
+      headers: serverHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify({
+        reporter_user_id: user?.id || null,
+        reporter_contact_email: email,
+        target_type: targetType,
+        reported_user_id: reportedUserId,
+        target_id: targetId,
+        category,
+        details,
+        evidence: {
+          source_page: sourcePage,
+          submitted_from: submittedFrom,
+          guest_submission: !user?.id
+        },
+        status: "pending",
+        priority
+      })
+    }
+  );
+
+  const inserted = await readJson(insertResponse);
+  if (!insertResponse.ok) {
+    console.error("[ARI XP Support Insert Error]", inserted);
+    return res.status(500).json({
+      error: "ARI XP could not send your request. Please try again."
+    });
+  }
+
+  const row = Array.isArray(inserted) ? inserted[0] : inserted;
+  const reference = cleanText(row?.id, 64).slice(0, 8).toUpperCase();
+
+  return res.status(200).json({
+    success: true,
+    reference: reference || undefined
+  });
+}
+
 async function handleProfileRequest(req, res) {
+  const body = req.body || {};
+  const action = body.action;
+
+  if (action === "submit_support_request") {
+    return await submitSupportRequest(req, res, body);
+  }
+
   const user = await getAuthenticatedUser(req);
   if (!user) {
     return res.status(401).json({ error: "A valid signed-in session is required." });
   }
 
-  const body = req.body || {};
-  const action = body.action;
   const updates = body.updates || {};
 
   if (action === "moderate_circle_content") {
