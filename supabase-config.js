@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.3
+// Version: 1.1.4
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -11,7 +11,6 @@
 //   - Create a single reusable client.
 //   - Configure persistent authentication.
 //   - Expose compatibility aliases used by older files.
-//   - Track basic authentication state changes.
 //   - Track basic authentication state changes.
 //   - Lazily load ARI Circle notification badges only on relevant pages.
 //   - Load the shared ARI Circle control drawer on Circle pages.
@@ -78,7 +77,7 @@
 
     const script = document.createElement("script");
     script.id = CIRCLE_MENU_SCRIPT_ID;
-    script.src = "js/ari-circle/circle-menu-v5.js?v=1.0.0";
+    script.src = "js/ari-circle/circle-menu-v5.js?v=1.0.1";
     script.defer = true;
     document.head.append(script);
   }
