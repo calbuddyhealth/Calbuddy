@@ -195,4 +195,31 @@ test.describe("ARI Training live controls", () => {
     expect(metrics.emptySize).toBeGreaterThanOrEqual(16);
     expect(pageErrors).toEqual([]);
   });
+
+  test("Workout Plans exercise search stays iPhone-safe without disabling zoom", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installTrainingSupabaseStub(page);
+    await page.goto(`${BASE_URL}/workout-plans.html`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Boolean(document.getElementById("ariWorkoutDayEditorMobileStyle")?.sheet), null, { timeout: 10000 });
+
+    const metrics = await page.evaluate(() => {
+      const pickerSearch = document.getElementById("workoutExercisePickerSearch");
+      const librarySearch = document.getElementById("exerciseLibrarySearch");
+      const viewport = document.querySelector('meta[name="viewport"]')?.getAttribute("content") || "";
+      return {
+        pickerSearchSize: parseFloat(getComputedStyle(pickerSearch).fontSize),
+        librarySearchSize: parseFloat(getComputedStyle(librarySearch).fontSize),
+        viewport
+      };
+    });
+
+    expect(metrics.pickerSearchSize).toBeGreaterThanOrEqual(16);
+    expect(metrics.librarySearchSize).toBeGreaterThanOrEqual(16);
+    expect(metrics.viewport).not.toMatch(/user-scalable\s*=\s*no/i);
+    expect(metrics.viewport).not.toMatch(/maximum-scale\s*=\s*1/i);
+    expect(pageErrors).toEqual([]);
+  });
 });
