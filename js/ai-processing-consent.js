@@ -1,16 +1,16 @@
 /* =====================================================
    ARI XP
    File: js/ai-processing-consent.js
-   Version: 1.0.0
+   Version: 1.1.0
    Purpose:
-   Require explicit user permission before ARI sends personal
-   data to OpenAI for third-party AI processing.
+   Require explicit user permission before ARI XP sends personal
+   data to OpenAI for AI responses or ARI Circle safety screening.
 ===================================================== */
 
 (() => {
   "use strict";
 
-  const CONSENT_VERSION = "1";
+  const CONSENT_VERSION = "2";
   const CONSENT_KEY = "ari_ai_processing_consent";
   const VERSION_KEY = "ari_ai_processing_consent_version";
   const GRANTED_AT_KEY = "ari_ai_processing_consented_at";
@@ -171,15 +171,15 @@
     dialog.innerHTML = `
       <div class="ari-ai-consent-card">
         <p class="ari-ai-consent-kicker">AI PROCESSING</p>
-        <h2 id="ariAiConsentTitle">Before you talk with ARI</h2>
+        <h2 id="ariAiConsentTitle">Before using AI-powered features</h2>
         <p>
-          ARI XP uses <strong>OpenAI</strong> to generate AI responses. When you send a message,
-          ARI XP may send the message, recent conversation context, and relevant information
-          from your ARI XP profile or memory to OpenAI when needed to answer you.
+          ARI XP uses <strong>OpenAI</strong> for ARI responses and ARI Circle safety screening.
+          Information is sent only when a feature needs OpenAI processing.
         </p>
         <ul class="ari-ai-consent-list">
-          <li>Only information needed for the AI request is sent.</li>
-          <li>You can decline and continue using non-AI parts of ARI XP.</li>
+          <li><strong>Ask ARI:</strong> your message, recent conversation context, and relevant ARI XP profile or memory information may be sent when needed to answer you.</li>
+          <li><strong>ARI Circle:</strong> text, photos, and sampled frames from short videos you try to share may be checked before publication to help filter harmful content.</li>
+          <li>You can decline. Ask ARI will remain unavailable and ARI Circle content that requires safety screening cannot be published until permission is granted.</li>
           <li>You can change this permission later from Privacy &amp; Ari Memory.</li>
         </ul>
         <div class="ari-ai-consent-actions">
@@ -282,6 +282,11 @@
       state.allowed = false;
       lockComposer();
       state.dialog?.close?.();
+      window.dispatchEvent(
+        new CustomEvent("ari:ai-processing-consent", {
+          detail: { allowed: false, version: CONSENT_VERSION }
+        })
+      );
     }
   }
 
@@ -320,7 +325,7 @@
 
       if (state.allowed) {
         unlockComposer();
-      } else {
+      } else if (state.user) {
         showConsent();
       }
     } catch (error) {
@@ -330,7 +335,7 @@
   }
 
   window.AriAIConsent = Object.freeze({
-    version: "1.0.0",
+    version: "1.1.0",
     consentVersion: CONSENT_VERSION,
     isAllowed: () => state.allowed === true,
     show: showConsent,
