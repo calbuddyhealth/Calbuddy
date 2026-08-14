@@ -1,30 +1,40 @@
 // =====================================================
 // ARI XP
 // File: js/training/workout-plans-card-polish.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
-//   Improve My Week card hierarchy without changing workout-plan logic.
+//   Improve My Week card hierarchy and mobile day-editor readability
+//   without changing workout-plan logic.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const GRID_ID = "workoutWeekGrid";
   const STYLE_ID = "ariWorkoutPlanCardHierarchyStyle";
+  const EDITOR_STYLE_ID = "ariWorkoutDayEditorMobileStyle";
 
   function clean(value) {
     return String(value ?? "").trim();
   }
 
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
+  function ensureStyles() {
+    if (!document.getElementById(STYLE_ID)) {
+      const link = document.createElement("link");
+      link.id = STYLE_ID;
+      link.rel = "stylesheet";
+      link.href = "assets/css/workout-plans-card-hierarchy.css?v=1.0.0";
+      document.head.append(link);
+    }
 
-    const link = document.createElement("link");
-    link.id = STYLE_ID;
-    link.rel = "stylesheet";
-    link.href = "assets/css/workout-plans-card-hierarchy.css?v=1.0.0";
-    document.head.append(link);
+    if (!document.getElementById(EDITOR_STYLE_ID)) {
+      const link = document.createElement("link");
+      link.id = EDITOR_STYLE_ID;
+      link.rel = "stylesheet";
+      link.href = "assets/css/workout-day-editor-mobile.css?v=1.0.0";
+      document.head.append(link);
+    }
   }
 
   function formatDateLabel(value) {
@@ -95,8 +105,17 @@
     return true;
   }
 
+  function polishEditorDate() {
+    const title = document.getElementById("workoutDayEditorTitle");
+    if (!title) return false;
+
+    const formatted = formatDateLabel(title.textContent);
+    if (title.textContent !== formatted) title.textContent = formatted;
+    return true;
+  }
+
   function boot() {
-    ensureStyle();
+    ensureStyles();
 
     const grid = document.getElementById(GRID_ID);
     if (!grid) return;
@@ -107,13 +126,21 @@
       frame = window.requestAnimationFrame(() => {
         frame = 0;
         polishGrid();
+        polishEditorDate();
       });
     };
 
     polishGrid();
+    polishEditorDate();
 
     const observer = new MutationObserver(schedule);
     observer.observe(grid, { childList: true });
+
+    const editorTitle = document.getElementById("workoutDayEditorTitle");
+    if (editorTitle) {
+      const editorObserver = new MutationObserver(schedule);
+      editorObserver.observe(editorTitle, { childList: true, characterData: true, subtree: true });
+    }
 
     window.addEventListener("pageshow", schedule);
   }
@@ -126,6 +153,9 @@
 
   window.AriWorkoutPlanCardHierarchy = Object.freeze({
     version: VERSION,
-    refresh: polishGrid
+    refresh() {
+      polishGrid();
+      polishEditorDate();
+    }
   });
 })();
