@@ -1,4 +1,4 @@
-/* ARI XP — Support configuration v3.0.0 */
+/* ARI XP — Support configuration v3.1.0 */
 window.ARI_SUPPORT_CONFIG = Object.freeze({
   enabled: true,
 
@@ -53,9 +53,5 @@ window.ARI_SUPPORT_CONFIG = Object.freeze({
     url: "https://venmo.com/u/Ari-Xp"
   }),
 
-  supportUrl: "support-ari.html",
-
-  // Backward compatibility for older Account-page logic.
-  donationUrl: "https://cash.app/$arixp1",
-  providerName: "Cash App"
+  supportUrl: "support-ari.html"
 });
