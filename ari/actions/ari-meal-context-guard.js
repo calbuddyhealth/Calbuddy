@@ -1,19 +1,20 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-meal-context-guard.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
-//   Prevent stale meal estimates from being logged when the user names a
-//   different food in the current message. Current-turn food always wins.
+//   Make meal WRITE actions strictly current-turn only.
+//   Conversation history may inform Ari's dialogue, but it may never supply
+//   the food, calories, or macros used by a new log_meal action.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const SOURCE = "ari/actions/ari-meal-context-guard";
-  const MAX_INSTALL_ATTEMPTS = 200;
-  let attempts = 0;
+
+  window.Ari = window.Ari || {};
 
   function clean(value = "") {
     return String(value || "").trim();
@@ -42,19 +43,14 @@
   function titleCase(value = "") {
     return clean(value)
       .split(/\s+/)
-      .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
+      .map((word) => word
+        ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        : "")
       .join(" ");
   }
 
-  function extractCurrentFood(text = "") {
-    const source = clean(text);
-    const match = source.match(/\b(?:i\s+(?:just\s+)?(?:ate|had)|(?:i've|i’ve)\s+had)\s+(.{2,220})/i);
-    if (!match) return null;
-
-    let food = clean(match[1]);
-
-    // Stop at the logging/question portion of the same turn.
-    food = food
+  function stripMealCommandTail(value = "") {
+    return clean(value)
       .replace(/[.!?]\s*(?:can|could|would|will)\s+you\b[\s\S]*$/i, "")
       .replace(/\b(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:log|add|save|track)\b[\s\S]*$/i, "")
       .replace(/\b(?:please\s+)?(?:log|add|save|track)\s+(?:that|it|this|the\s+meal)\b[\s\S]*$/i, "")
@@ -65,9 +61,41 @@
       .replace(/^[\s]*(?:a|an|the)\s+/i, "")
       .replace(/[,.!?;:]+$/g, "")
       .trim();
+  }
 
-    if (!food || food.length < 2 || food.length > 140) return null;
-    return titleCase(food);
+  function extractCurrentFood(text = "") {
+    const source = clean(text);
+
+    const eatingMatch = source.match(
+      /\b(?:i\s+(?:just\s+)?(?:ate|had)|(?:i've|i’ve)\s+had)\s+(.{2,240})/i
+    );
+
+    if (eatingMatch) {
+      const food = stripMealCommandTail(eatingMatch[1]);
+      if (food && food.length >= 2 && food.length <= 160) {
+        return titleCase(food);
+      }
+    }
+
+    // Support direct same-turn commands such as "log a chicken burrito" while
+    // explicitly rejecting pronouns like "log that" / "save it".
+    const directMatch = source.match(
+      /\b(?:log|add|save|track)\s+(?:my\s+)?(?:a\s+|an\s+|the\s+)?(.{2,180})/i
+    );
+
+    if (directMatch) {
+      const raw = stripMealCommandTail(directMatch[1])
+        .replace(/\b(?:for\s+)?\d{2,5}\s*(?:calories|calorie|kcal|cals)\b[\s\S]*$/i, "")
+        .trim();
+
+      if (!/^(?:that|it|this|meal|the meal)$/i.test(raw)) {
+        if (raw && raw.length >= 2 && raw.length <= 160) {
+          return titleCase(raw);
+        }
+      }
+    }
+
+    return null;
   }
 
   function foodTokens(value = "") {
@@ -87,9 +115,14 @@
       estimate?.name,
       estimate?.food,
       ...(Array.isArray(estimate?.foods)
-        ? estimate.foods.flatMap((item) => [item?.name, item?.food, item?.description])
+        ? estimate.foods.flatMap((item) => [
+            item?.name,
+            item?.food,
+            item?.description
+          ])
         : [])
     ];
+
     return normalize(pieces.filter(Boolean).join(" "));
   }
 
@@ -98,13 +131,10 @@
 
     const targetTokens = foodTokens(foodName);
     const haystack = estimateText(estimate);
+
     if (!targetTokens.length || !haystack) return false;
 
     const matches = targetTokens.filter((token) => haystack.includes(token));
-
-    // One distinctive token is enough for a one-token food. For multi-token
-    // foods require at least half the meaningful words so chicken burrito
-    // cannot match pepperoni pizza.
     const required = targetTokens.length === 1
       ? 1
       : Math.max(2, Math.ceil(targetTokens.length / 2));
@@ -112,7 +142,9 @@
     return matches.length >= required;
   }
 
-  function currentTurnEstimate(summary = {}, currentFood = null) {
+  function getCurrentTurnEstimate(summary = {}, currentFood = null) {
+    // IMPORTANT: no lastMealEstimate, appContext meal estimate, thread state,
+    // or history is legal here. These four fields must originate this turn.
     const candidates = [
       summary.mealEstimate,
       summary.foodAnalysis,
@@ -120,43 +152,44 @@
       summary.calorieEstimate
     ].filter(Boolean);
 
-    if (!currentFood) return candidates[0] || null;
-    return candidates.find((candidate) => estimateMatchesFood(candidate, currentFood)) || null;
-  }
+    if (!currentFood) return null;
 
-  function priorEstimate(summary = {}) {
-    return (
-      summary.lastMealEstimate ||
-      summary.appContext?.lastMealEstimate ||
-      summary.appContext?.mealEstimate ||
-      summary.threadState?.lastMealEstimate ||
-      null
-    );
+    return candidates.find((candidate) =>
+      estimateMatchesFood(candidate, currentFood)
+    ) || null;
   }
 
   function resolveMacros(estimate = {}) {
     return {
       protein_g: validMacro(
-        estimate?.protein_g ?? estimate?.protein ?? estimate?.totalProtein ?? estimate?.totalProtein_g
+        estimate?.protein_g ??
+        estimate?.protein ??
+        estimate?.totalProtein ??
+        estimate?.totalProtein_g
       ),
       carbs_g: validMacro(
-        estimate?.carbs_g ?? estimate?.carbs ?? estimate?.carbohydrates ?? estimate?.totalCarbs ?? estimate?.totalCarbs_g
+        estimate?.carbs_g ??
+        estimate?.carbs ??
+        estimate?.carbohydrates ??
+        estimate?.totalCarbs ??
+        estimate?.totalCarbs_g
       ),
       fat_g: validMacro(
-        estimate?.fat_g ?? estimate?.fat ?? estimate?.totalFat ?? estimate?.totalFat_g
+        estimate?.fat_g ??
+        estimate?.fat ??
+        estimate?.totalFat ??
+        estimate?.totalFat_g
       )
     };
   }
 
   function resolveCalories(estimate = {}) {
     return validCalories(
-      estimate?.totalCalories ?? estimate?.calories ?? estimate?.total_calories ?? estimate?.kcal
+      estimate?.totalCalories ??
+      estimate?.calories ??
+      estimate?.total_calories ??
+      estimate?.kcal
     );
-  }
-
-  function resolveEstimateName(estimate = {}) {
-    const name = clean(estimate?.description || estimate?.name || estimate?.food || "");
-    return name ? titleCase(name) : null;
   }
 
   function inferCategory(text = "") {
@@ -168,21 +201,11 @@
     return "Meal";
   }
 
-  function isBareReference(text = "") {
-    const normalizedText = normalize(text);
-    return (
-      /\b(log|add|save|track)\b/.test(normalizedText) &&
-      /\b(that|it|this|the meal)\b/.test(normalizedText) &&
-      !extractCurrentFood(text)
-    );
-  }
-
   function buildMealAction({ name, calories, macros, category }) {
     if (!name || !calories) return null;
 
-    // Never manufacture 0g macros simply because the structured estimate is
-    // missing. If a fresh estimate is incomplete, do not offer a misleading
-    // confirmation; Ari can answer/re-estimate instead.
+    // Never manufacture zeros for missing nutrition data. Zero is accepted
+    // only when the current-turn estimate explicitly returned numeric zero.
     if (
       macros.protein_g === null ||
       macros.carbs_g === null ||
@@ -201,89 +224,144 @@
         serving_size: "Estimated by Ari before logging",
         protein_g: macros.protein_g,
         carbs_g: macros.carbs_g,
-        fat_g: macros.fat_g
+        fat_g: macros.fat_g,
+        ari_context_policy: "current_turn_only"
       },
       confirmation_text:
         `Log ${name} — about ${calories.toLocaleString()} kcal · ` +
-        `${macros.protein_g}g protein · ${macros.carbs_g}g carbs · ${macros.fat_g}g fat?`
+        `${macros.protein_g}g protein · ${macros.carbs_g}g carbs · ` +
+        `${macros.fat_g}g fat?`
     };
   }
 
-  function install() {
-    const planner = window.Ari?.rebirthActionPlanner;
+  function clearOldPendingMealAction() {
+    const pending = window.CalBuddy?.getPendingAction?.();
+    const type = pending?.action_type || pending?.type || pending?.actionType;
 
-    if (!planner || typeof planner.detectMealLog !== "function") {
-      attempts += 1;
-      if (attempts < MAX_INSTALL_ATTEMPTS) {
-        setTimeout(install, 50);
-      } else {
-        console.warn("ARI MEAL CONTEXT GUARD: planner not found");
-      }
-      return;
+    if (type !== "log_meal") return;
+
+    try {
+      window.CalBuddy?.cancelPendingAction?.();
+    } catch (error) {
+      console.warn("ARI MEAL CONTEXT GUARD: failed to clear old meal action", error);
     }
 
-    if (planner.__mealContextGuardVersion === VERSION) return;
+    try {
+      window.hidePendingAction?.();
+    } catch (_) {}
+  }
 
-    const originalDetectMealLog = planner.detectMealLog.bind(planner);
+  function patchPlanner(planner) {
+    if (!planner || typeof planner.detectMealLog !== "function") return planner;
+    if (planner.__mealContextGuardVersion === VERSION) return planner;
 
-    planner.detectMealLog = function guardedDetectMealLog(text = "", summary = {}) {
+    planner.detectMealLog = function currentTurnOnlyMealLog(text = "", summary = {}) {
       if (!this.userWantsMealLog(text)) return null;
 
       const currentFood = extractCurrentFood(text);
 
-      if (currentFood) {
-        const estimate = currentTurnEstimate(summary, currentFood);
-
-        // Critical stale-context rule: when the current message names food,
-        // NEVER fall back to lastMealEstimate/history from another turn.
-        if (!estimate) {
-          console.warn("ARI MEAL CONTEXT GUARD: rejected stale or mismatched meal estimate", {
-            currentFood
-          });
-          return null;
-        }
-
-        const calories = resolveCalories(estimate);
-        const macros = resolveMacros(estimate);
-
-        return buildMealAction({
-          name: currentFood,
-          calories,
-          macros,
-          category: inferCategory(text)
-        });
+      // No food in this user turn = no meal write. "Log that" by itself is
+      // intentionally conversational/clarification territory now.
+      if (!currentFood) {
+        console.info(
+          "ARI MEAL CONTEXT GUARD: blocked cross-turn meal reference"
+        );
+        return null;
       }
 
-      // Prior meal context is permitted only for a true pronoun-only follow-up
-      // such as "log that" where no new food was named in the current message.
-      if (isBareReference(text)) {
-        const estimate = currentTurnEstimate(summary) || priorEstimate(summary);
-        if (!estimate) return null;
+      const estimate = getCurrentTurnEstimate(summary, currentFood);
 
-        return buildMealAction({
-          name: resolveEstimateName(estimate),
-          calories: resolveCalories(estimate),
-          macros: resolveMacros(estimate),
-          category: inferCategory(text)
-        });
+      if (!estimate) {
+        console.warn(
+          "ARI MEAL CONTEXT GUARD: blocked missing/mismatched current-turn estimate",
+          { currentFood }
+        );
+        return null;
       }
 
-      // Other explicit direct forms retain the existing planner behavior.
-      return originalDetectMealLog(text, summary);
+      return buildMealAction({
+        name: currentFood,
+        calories: resolveCalories(estimate),
+        macros: resolveMacros(estimate),
+        category: inferCategory(text)
+      });
     };
 
     planner.__mealContextGuardVersion = VERSION;
     planner.__mealContextGuardSource = SOURCE;
 
-    window.AriMealContextGuard = {
-      version: VERSION,
-      source: SOURCE,
-      extractCurrentFood,
-      estimateMatchesFood
-    };
-
-    console.log("ARI MEAL CONTEXT GUARD LOADED:", VERSION);
+    return planner;
   }
 
-  install();
+  // The App Bridge loads the planner lazily. Intercept assignment so this
+  // guard cannot miss installation simply because the user waited >10 sec
+  // before sending the first message.
+  function installPlannerAssignmentHook() {
+    const ari = window.Ari;
+    const existing = ari.rebirthActionPlanner;
+
+    if (existing) {
+      patchPlanner(existing);
+      return;
+    }
+
+    const descriptor = Object.getOwnPropertyDescriptor(
+      ari,
+      "rebirthActionPlanner"
+    );
+
+    if (descriptor && descriptor.configurable === false) return;
+
+    let plannerValue = existing;
+
+    Object.defineProperty(ari, "rebirthActionPlanner", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return plannerValue;
+      },
+      set(value) {
+        plannerValue = patchPlanner(value);
+      }
+    });
+  }
+
+  function installAskBoundaryGuard() {
+    const calBuddy = window.CalBuddy;
+    if (!calBuddy || typeof calBuddy.askAri !== "function") return;
+    if (calBuddy.askAri.__currentTurnMealGuardVersion === VERSION) return;
+
+    const originalAskAri = calBuddy.askAri.bind(calBuddy);
+
+    const guardedAskAri = async function guardedAskAri(options = {}) {
+      const message = clean(
+        typeof options === "string" ? options : options?.message
+      );
+
+      // Starting a new meal attempt invalidates any old pending meal write.
+      // It does not clear workout/weight/profile actions.
+      if (extractCurrentFood(message) || /\b(log|add|save|track)\b/i.test(message)) {
+        clearOldPendingMealAction();
+      }
+
+      return originalAskAri(options);
+    };
+
+    guardedAskAri.__currentTurnMealGuardVersion = VERSION;
+    calBuddy.askAri = guardedAskAri;
+  }
+
+  installPlannerAssignmentHook();
+  installAskBoundaryGuard();
+
+  window.AriMealContextGuard = {
+    version: VERSION,
+    source: SOURCE,
+    policy: "current_turn_only",
+    extractCurrentFood,
+    estimateMatchesFood,
+    clearOldPendingMealAction
+  };
+
+  console.log("ARI MEAL CONTEXT GUARD LOADED:", VERSION);
 })();
