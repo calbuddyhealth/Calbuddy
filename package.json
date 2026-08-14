@@ -1,0 +1,19 @@
+{
+  "name": "ari-xp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ARI XP web + iOS application foundation",
+  "scripts": {
+    "cap:doctor": "cap doctor",
+    "ios:add": "cap add ios",
+    "ios:sync": "cap sync ios",
+    "ios:open": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.4.2",
+    "@capacitor/ios": "8.4.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.2"
+  }
+}
