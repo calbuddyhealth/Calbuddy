@@ -1,0 +1,133 @@
+import { test, expect } from "@playwright/test";
+
+const BASE_URL = process.env.ARI_SMOKE_BASE_URL || "http://127.0.0.1:4173";
+
+async function installSupabaseStub(page) {
+  await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
+  await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
+
+  await page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: `
+(() => {
+  const user = {
+    id: "circle-menu-smoke-user",
+    email: "circle-menu@arixp.test",
+    user_metadata: { display_name: "Circle Menu Smoke" }
+  };
+  const session = { access_token: "circle-menu-smoke-token", user };
+
+  function query() {
+    const q = {
+      select() { return q; }, eq() { return q; }, neq() { return q; }, in() { return q; },
+      is() { return q; }, or() { return q; }, match() { return q; }, gte() { return q; },
+      lte() { return q; }, gt() { return q; }, lt() { return q; }, order() { return q; },
+      range() { return q; }, limit() { return q; }, insert() { return q; }, update() { return q; },
+      upsert() { return q; }, delete() { return q; },
+      single() { return Promise.resolve({ data: null, error: null }); },
+      maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+      then(resolve, reject) {
+        return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
+      }
+    };
+    return q;
+  }
+
+  const client = {
+    auth: {
+      getSession: async () => ({ data: { session }, error: null }),
+      getUser: async () => ({ data: { user }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      signOut: async () => ({ error: null })
+    },
+    from: () => query(),
+    rpc: async () => ({ data: null, error: null }),
+    storage: {
+      from: () => ({
+        createSignedUrl: async () => ({ data: { signedUrl: "" }, error: null }),
+        getPublicUrl: () => ({ data: { publicUrl: "" } }),
+        upload: async () => ({ data: { path: "smoke" }, error: null }),
+        remove: async () => ({ data: [], error: null })
+      })
+    }
+  };
+
+  window.supabase = { createClient: () => client };
+})();`
+    });
+  });
+}
+
+test.describe("ARI Circle premium control drawer", () => {
+  test("opens the simplified glass drawer and survives a legacy V4 rewrite", async ({ page }) => {
+    await installSupabaseStub(page);
+    await page.goto(`${BASE_URL}/ari-circle-feed.html`, { waitUntil: "domcontentloaded" });
+
+    await page.waitForFunction(() => Boolean(window.AriCircleMenuV5), null, { timeout: 10000 });
+
+    await page.evaluate(() => {
+      document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close?.());
+      const feed = document.getElementById("feedPage");
+      if (feed) feed.hidden = false;
+      window.AriCircleMenuV5?.refresh?.();
+    });
+
+    const details = page.locator("details.circle-v4-menu").first();
+    const summary = details.locator("summary");
+    await expect(summary).toBeVisible();
+    await summary.click();
+
+    const panel = details.locator(".circle-v5-menu__panel");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator(".circle-v5-menu__identity strong")).toHaveText("ARI CIRCLE");
+    await expect(panel.locator(".circle-v5-menu__identity small")).toHaveText("Circle controls");
+
+    await expect(panel.locator(".circle-v5-menu__label")).toHaveText([
+      "Notifications",
+      "Find People",
+      "Privacy & Visibility",
+      "Circle Safety",
+      "Exit ARI Circle"
+    ]);
+
+    await expect(panel.getByText("Notification Settings", { exact: true })).toHaveCount(0);
+    await expect(panel.locator(".circle-v5-menu__items small")).toHaveCount(0);
+
+    const geometry = await panel.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        width: node.getBoundingClientRect().width,
+        radius: parseFloat(style.borderTopLeftRadius || "0")
+      };
+    });
+    expect(geometry.width).toBeGreaterThan(300);
+    expect(geometry.radius).toBeGreaterThanOrEqual(28);
+
+    await page.evaluate(() => {
+      const menu = document.querySelector("details.circle-v4-menu");
+      if (!menu) return;
+      menu.innerHTML = `
+        <summary class="feed-icon-button">☰</summary>
+        <nav class="circle-v4-menu__panel">
+          <a href="#"><span>Notifications</span><small>Activity</small></a>
+        </nav>`;
+    });
+
+    await expect(details.locator(".circle-v5-menu__identity")).toBeVisible({ timeout: 3000 });
+    await expect(details.locator(".circle-v5-menu__items small")).toHaveCount(0);
+
+    await page.evaluate(() => {
+      const dialog = document.createElement("dialog");
+      dialog.id = "circle-notifications-dialog";
+      dialog.innerHTML = `<div class="circle-notifications-toolbar"><button id="circle-notifications-mark-all">Clear</button></div>`;
+      document.body.append(dialog);
+      window.AriCircleMenuV5?.refresh?.();
+    });
+
+    const settings = page.locator("#circle-notifications-dialog .circle-notifications-settings-link");
+    await expect(settings).toHaveAttribute("href", "notification-settings.html");
+    await expect(settings).toContainText("Settings");
+  });
+});
