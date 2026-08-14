@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f7f9ff">
-  <title>Help &amp; Safety · ARI Rebirth</title>
+  <title>Help &amp; Safety · ARI XP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
@@ -14,32 +14,40 @@
   <main class="ari-account-page">
     <header class="ari-account-header">
       <a class="ari-icon-button" href="account.html" aria-label="Back to account">←</a>
-      <a class="ari-brand-mark" href="index.html" aria-label="ARI Rebirth home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">REBIRTH</span></a>
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI XP home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">EXPERIENCE</span></a>
       <a class="ari-header-button" href="account.html">Account</a>
     </header>
 
     <section class="ari-page-hero">
       <div class="ari-page-symbol" aria-hidden="true">?</div>
       <p class="ari-page-kicker">HELP &amp; SAFETY</p>
-      <h1 class="ari-page-title">Tell us what happened.</h1>
-      <p class="ari-page-description">Reports go into a private owner-only review inbox.</p>
+      <h1 class="ari-page-title">How can we help?</h1>
+      <p class="ari-page-description">Get support, send feedback, or report a safety concern. You can contact ARI XP here even if you cannot sign in.</p>
     </section>
 
     <div class="ari-status" id="reportStatus" role="status" aria-live="polite"></div>
 
+    <section class="ari-content-card" aria-labelledby="supportContactTitle">
+      <p class="ari-section-kicker">SUPPORT &amp; CONTACT</p>
+      <h2 id="supportContactTitle">Contact ARI XP</h2>
+      <p>Use the form below for account access problems, technical support, privacy requests, general feedback, feature requests, or ARI Circle safety concerns. Requests go to the private owner moderation inbox for review.</p>
+      <div class="ari-notice"><strong>Locked out?</strong> You do not need to be signed in to send a support request. Include an email address where you can receive a reply.</div>
+    </section>
+
     <section class="ari-content-card" id="reportFormCard">
       <form id="reportForm" novalidate>
-        <p class="ari-section-kicker">PRIVATE REPORT</p>
-        <h2>How can we help?</h2>
+        <p class="ari-section-kicker">PRIVATE REQUEST</p>
+        <h2>Tell us what happened.</h2>
 
         <label class="ari-field">
-          <span>What are you reporting?</span>
+          <span>What do you need help with?</span>
           <select id="reportTargetType" required>
-            <option value="app">A technical problem</option>
+            <option value="app">ARI XP support or technical problem</option>
             <option value="user">A person on ARI Circle</option>
             <option value="content">Content on ARI Circle</option>
             <option value="safety">A safety or privacy concern</option>
-            <option value="other">Something else</option>
+            <option value="billing">A support contribution or payment issue</option>
+            <option value="other">General feedback or something else</option>
           </select>
         </label>
 
@@ -53,7 +61,7 @@
             <option value="spam_or_scam">Spam or scam</option>
             <option value="unsafe_content">Unsafe content</option>
             <option value="privacy_concern">Privacy concern</option>
-            <option value="other">Other</option>
+            <option value="other">Feedback, feature request, or other</option>
           </select>
         </label>
 
@@ -61,29 +69,34 @@
 
         <label class="ari-field">
           <span>What happened?</span>
-          <textarea id="reportDetails" maxlength="5000" placeholder="Include enough detail for the owner to understand and review the issue." required></textarea>
+          <textarea id="reportDetails" maxlength="5000" placeholder="Include enough detail for the ARI XP owner to understand and review the issue." required></textarea>
         </label>
 
         <label class="ari-field">
           <span>Contact email</span>
-          <input id="reportEmail" type="email" autocomplete="email" required>
+          <input id="reportEmail" type="email" autocomplete="email" maxlength="254" required>
         </label>
 
-        <div class="ari-notice">If anyone is in immediate danger, contact local emergency services. ARI reports are not monitored as an emergency service.</div>
+        <div hidden aria-hidden="true">
+          <label for="reportWebsite">Website</label>
+          <input id="reportWebsite" name="website" type="text" autocomplete="off" tabindex="-1">
+        </div>
+
+        <div class="ari-notice">If anyone is in immediate danger, contact local emergency services. ARI XP support and safety reports are not monitored as an emergency service.</div>
 
         <div class="ari-form-actions">
-          <button class="ari-primary-action" id="submitReportButton" type="submit">Send private report</button>
+          <button class="ari-primary-action" id="submitReportButton" type="submit">Send private request</button>
           <a class="ari-secondary-action" href="community-guidelines.html">Read community guidelines</a>
         </div>
       </form>
     </section>
 
-    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Reports are visible only to the owner.</p></footer>
+    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Support and reports are reviewed privately.</p></footer>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/help-safety.js?v=1.0.1"></script>
+  <script src="js/help-safety.js?v=2.0.0"></script>
 </body>
 </html>
