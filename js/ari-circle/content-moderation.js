@@ -1,6 +1,6 @@
 /* =============================================================
    ARI XP — ARI CIRCLE CONTENT MODERATION
-   Version: 1.0.0
+   Version: 1.1.0
 
    Purpose:
    - Run a safety check before Circle UGC is written.
@@ -8,18 +8,23 @@
      another Vercel function.
    - Cover Feed posts, comments, Moments, and direct messages.
    - Moderate text plus image content; sample video frames locally.
+   - Require current explicit OpenAI-processing permission.
    - Fail closed if the safety check cannot run.
 
    Important:
    - This is a client safety layer, not the only enforcement layer.
-   - Database-side high-confidence filters remain the fallback authority.
+   - The server independently verifies consent before calling OpenAI.
+   - Database-side high-confidence filters remain the bypass fallback.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const PROFILE_API = "/api/profile";
   const MEDIA_BUCKET = "ari-circle-post-media";
+  const AI_CONSENT_KEY = "ari_ai_processing_consent";
+  const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
+  const REQUIRED_AI_CONSENT_VERSION = "2";
   const MAX_IMAGE_EDGE = 768;
   const VIDEO_SAMPLE_EDGE = 640;
   const JPEG_QUALITY = 0.68;
@@ -93,13 +98,42 @@
     state.selectedMediaFile = input.files?.[0] || null;
   }
 
-  async function accessToken() {
+  async function currentSession() {
     const client = state.client || resolveClient();
-    if (!client?.auth?.getSession) return "";
+    if (!client?.auth?.getSession) return null;
 
     const { data, error } = await client.auth.getSession();
     if (error) throw error;
-    return clean(data?.session?.access_token);
+    return data?.session || null;
+  }
+
+  function sessionHasCurrentConsent(session) {
+    const metadata = session?.user?.user_metadata || {};
+    return (
+      metadata[AI_CONSENT_KEY] === true &&
+      String(metadata[AI_CONSENT_VERSION_KEY] || "") === REQUIRED_AI_CONSENT_VERSION
+    );
+  }
+
+  async function requireCurrentConsent() {
+    const session = await currentSession();
+
+    if (!session) {
+      const error = new Error("Sign in again before sharing to ARI Circle.");
+      error.code = "ARI_SESSION_REQUIRED";
+      throw error;
+    }
+
+    if (!sessionHasCurrentConsent(session)) {
+      window.AriAIConsent?.show?.();
+      const error = new Error(
+        "Allow AI processing before sharing in ARI Circle. The permission is used for pre-publication safety screening."
+      );
+      error.code = "ARI_AI_CONSENT_REQUIRED";
+      throw error;
+    }
+
+    return session;
   }
 
   function canvasDataUrl(source, maxEdge = MAX_IMAGE_EDGE) {
@@ -270,8 +304,10 @@
     return [];
   }
 
-  async function requestModeration({ scope, text = "", imageUrls = [] } = {}) {
-    const token = await accessToken();
+  async function requestModeration({ scope, text = "", imageUrls = [], session = null } = {}) {
+    const resolvedSession = session || await requireCurrentConsent();
+    const token = clean(resolvedSession?.access_token);
+
     if (!token) {
       throw new Error("Sign in again before sharing to ARI Circle.");
     }
@@ -293,6 +329,15 @@
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 403 && data?.code === "AI_PROCESSING_CONSENT_REQUIRED") {
+        window.AriAIConsent?.show?.();
+        const consentError = new Error(
+          "Allow AI processing before sharing in ARI Circle. The permission is used for pre-publication safety screening."
+        );
+        consentError.code = "ARI_AI_CONSENT_REQUIRED";
+        throw consentError;
+      }
+
       throw new Error(
         clean(data?.error) ||
         "ARI Circle could not run its safety check. Try again."
@@ -306,13 +351,15 @@
     const rule = mutationRules[name];
     if (!rule) return;
 
+    const session = await requireCurrentConsent();
     const text = rule.textKey ? clean(params?.[rule.textKey]) : "";
     const imageUrls = await mediaInputs(rule, params);
 
     const result = await requestModeration({
       scope: rule.scope,
       text,
-      imageUrls
+      imageUrls,
+      session
     });
 
     if (result?.allowed !== true) {
@@ -338,15 +385,22 @@
         await moderateMutation(String(name || ""), params || {});
       } catch (error) {
         const blocked = error?.code === "ARI_CONTENT_BLOCKED";
+        const consentRequired = error?.code === "ARI_AI_CONSENT_REQUIRED";
         const message = blocked
           ? safeMessage(error, "That content can’t be shared in ARI Circle.")
-          : safeMessage(error, "ARI Circle could not run its safety check. Try again.");
+          : consentRequired
+            ? safeMessage(error, "Allow AI processing before sharing in ARI Circle.")
+            : safeMessage(error, "ARI Circle could not run its safety check. Try again.");
 
         return {
           data: null,
           error: makeSupabaseError(
             message,
-            blocked ? "ARI_CONTENT_BLOCKED" : "ARI_MODERATION_UNAVAILABLE"
+            blocked
+              ? "ARI_CONTENT_BLOCKED"
+              : consentRequired
+                ? "ARI_AI_CONSENT_REQUIRED"
+                : "ARI_MODERATION_UNAVAILABLE"
           )
         };
       }
