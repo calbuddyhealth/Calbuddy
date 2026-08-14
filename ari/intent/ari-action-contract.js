@@ -1,17 +1,16 @@
 // ari/intent/ari-action-contract.js
 // Purpose: Convert classified intent into safe app/developer action permission.
-// V1.1.0 — Adds date-bound workout planning. No workout write is allowed without an exact calendar date.
+// V1.2.0 — Meal logging delegates exclusively to the canonical Rebirth action planner.
 
 window.Ari = window.Ari || {};
 
 window.Ari.actionContract = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   build(input = {}) {
     const intent = input.intent || {};
     const message = String(input.message || intent.originalMessage || "").trim();
     const context = input.context || input.userContext || {};
-    const lastMealEstimate = input.lastMealEstimate || null;
     const lastCalorieGoalSuggestion = input.lastCalorieGoalSuggestion || null;
 
     const base = {
@@ -32,7 +31,7 @@ window.Ari.actionContract = {
     }
 
     if (intent.lane === "explicit_log_request") {
-      return this.buildLogContract(base, message, lastMealEstimate);
+      return this.buildLogContract(base, message);
     }
 
     if (intent.lane === "explicit_workout_plan") {
@@ -54,32 +53,19 @@ window.Ari.actionContract = {
     return base;
   },
 
-  buildLogContract(base, message, lastMealEstimate) {
-    if (!lastMealEstimate) {
-      return {
-        ...base,
-        shouldOnlyAnswer: true,
-        shouldCreatePendingAction: false,
-        reason: "User asked to log, but there is no recent meal estimate to log."
-      };
-    }
-
+  buildLogContract(base, message) {
+    // SINGLE AUTHORITY RULE:
+    // This contract may classify/permit a meal request, but it may NEVER build
+    // a log_meal payload. ari-rebirth-action-planner.js is the only authority
+    // allowed to construct meal writes, using only the current turn.
     return {
       ...base,
-      shouldOnlyAnswer: false,
-      shouldCreatePendingAction: true,
       allowedAction: "log_meal",
-      action: {
-        action_type: "log_meal",
-        payload: {
-          name: lastMealEstimate.name || "Meal from Ari",
-          calories: Number(lastMealEstimate.calories || 0),
-          category: lastMealEstimate.category || "Meal",
-          serving_size: lastMealEstimate.serving_size || "Estimated by Ari"
-        },
-        confirmation_text: `Log ${lastMealEstimate.name || "that meal"} for about ${Number(lastMealEstimate.calories || 0).toLocaleString()} calories?`
-      },
-      reason: "User explicitly asked to log the prior meal estimate."
+      action: null,
+      shouldOnlyAnswer: false,
+      shouldCreatePendingAction: false,
+      reason:
+        "Meal write delegated to canonical current-turn Rebirth action planner."
     };
   },
 
@@ -238,13 +224,7 @@ window.Ari.actionContract = {
     }
 
     const weekdayNames = [
-      "sunday",
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday"
+      "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
     ];
 
     for (let target = 0; target < weekdayNames.length; target += 1) {
@@ -255,9 +235,7 @@ window.Ari.actionContract = {
       let delta = (target - base.getDay() + 7) % 7;
       const qualifier = String(match[1] || "").trim();
 
-      if (qualifier === "next" && delta === 0) {
-        delta = 7;
-      }
+      if (qualifier === "next" && delta === 0) delta = 7;
 
       const date = new Date(base);
       date.setDate(date.getDate() + delta);
