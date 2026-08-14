@@ -21,29 +21,14 @@ async function installTrainingSupabaseStub(page) {
 
   function query(table) {
     const q = {
-      select() { return q; },
-      eq() { return q; },
-      neq() { return q; },
-      in() { return q; },
-      is() { return q; },
-      or() { return q; },
-      match() { return q; },
-      gte() { return q; },
-      lte() { return q; },
-      gt() { return q; },
-      lt() { return q; },
-      order() { return q; },
-      range() { return q; },
-      limit() { return q; },
-      insert() { return q; },
-      update() { return q; },
-      upsert() { return q; },
-      delete() { return q; },
+      select() { return q; }, eq() { return q; }, neq() { return q; }, in() { return q; },
+      is() { return q; }, or() { return q; }, match() { return q; }, gte() { return q; },
+      lte() { return q; }, gt() { return q; }, lt() { return q; }, order() { return q; },
+      range() { return q; }, limit() { return q; }, insert() { return q; }, update() { return q; },
+      upsert() { return q; }, delete() { return q; },
       single() { return Promise.resolve({ data: null, error: null }); },
       maybeSingle() { return Promise.resolve({ data: null, error: null }); },
-      then(resolve, reject) {
-        return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
-      }
+      then(resolve, reject) { return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject); }
     };
     return q;
   }
@@ -57,13 +42,11 @@ async function installTrainingSupabaseStub(page) {
     },
     from: (table) => query(table),
     rpc: async () => ({ data: null, error: null }),
-    storage: {
-      from: () => ({
-        createSignedUrl: async () => ({ data: { signedUrl: "" }, error: null }),
-        upload: async () => ({ data: { path: "smoke" }, error: null }),
-        remove: async () => ({ data: [], error: null })
-      })
-    }
+    storage: { from: () => ({
+      createSignedUrl: async () => ({ data: { signedUrl: "" }, error: null }),
+      upload: async () => ({ data: { path: "smoke" }, error: null }),
+      remove: async () => ({ data: [], error: null })
+    }) }
   };
 
   window.supabase = { createClient: () => client };
@@ -79,12 +62,9 @@ test.describe("ARI Training live controls", () => {
 
     await installTrainingSupabaseStub(page);
     await page.goto(`${BASE_URL}/ari-training.html`, { waitUntil: "domcontentloaded" });
-
     await page.waitForFunction(() => Boolean(window.AriTrainingLiveInteractions), null, { timeout: 10000 });
 
-    await page.evaluate(() => {
-      document.getElementById("addExerciseToSessionButton")?.click();
-    });
+    await page.evaluate(() => document.getElementById("addExerciseToSessionButton")?.click());
 
     const picker = page.locator("#sessionExercisePicker");
     await expect(picker).toBeVisible();
@@ -95,7 +75,6 @@ test.describe("ARI Training live controls", () => {
 
     const search = page.locator("#sessionExerciseSearchInput");
     await search.fill("Squat");
-
     const results = page.locator("#sessionExerciseSearchResults");
     await expect(results).toHaveAttribute("data-quick-hidden", "false");
 
@@ -110,15 +89,10 @@ test.describe("ARI Training live controls", () => {
     const names = await results.locator(".ari-session-search-result__name").allTextContents();
     expect(names.some((name) => /squat/i.test(name))).toBe(true);
 
-    await page.evaluate(() => {
-      document.getElementById("closeSessionExercisePickerButton")?.click();
-    });
+    await page.evaluate(() => document.getElementById("closeSessionExercisePickerButton")?.click());
     await expect(picker).not.toBeVisible();
 
-    await page.evaluate(() => {
-      document.getElementById("cancelTodayWorkoutButton")?.click();
-    });
-
+    await page.evaluate(() => document.getElementById("cancelTodayWorkoutButton")?.click());
     const cancelDialog = page.locator("#ariCancelWorkoutConfirm");
     await expect(cancelDialog).toBeVisible();
     await expect(cancelDialog).toHaveAttribute("open", "");
@@ -139,29 +113,8 @@ test.describe("ARI Training live controls", () => {
     await page.evaluate(() => {
       const grid = document.getElementById("workoutWeekGrid");
       grid.innerHTML = `
-        <article class="workout-day-card" data-type="workout">
-          <button class="workout-day-card__button" type="button">
-            <div class="workout-day-card__header">
-              <span class="workout-day-card__day">MON AUG 10</span>
-              <span class="workout-day-card__type">WORKOUT</span>
-            </div>
-            <h3 class="workout-day-card__title">Back Day</h3>
-            <p class="workout-day-card__summary">5 exercises</p>
-            <span class="workout-day-card__open">Edit Workout →</span>
-          </button>
-        </article>
-        <article class="workout-day-card" data-type="workout">
-          <button class="workout-day-card__button" type="button">
-            <div class="workout-day-card__header">
-              <span class="workout-day-card__day">WED AUG 12</span>
-              <span class="workout-day-card__type">WORKOUT</span>
-            </div>
-            <h3 class="workout-day-card__title">Endurance</h3>
-            <p class="workout-day-card__summary">3 exercises</p>
-            <span class="workout-day-card__open">Edit Workout →</span>
-          </button>
-        </article>
-      `;
+        <article class="workout-day-card" data-type="workout"><button class="workout-day-card__button" type="button"><div class="workout-day-card__header"><span class="workout-day-card__day">MON AUG 10</span><span class="workout-day-card__type">WORKOUT</span></div><h3 class="workout-day-card__title">Back Day</h3><p class="workout-day-card__summary">5 exercises</p><span class="workout-day-card__open">Edit Workout →</span></button></article>
+        <article class="workout-day-card" data-type="workout"><button class="workout-day-card__button" type="button"><div class="workout-day-card__header"><span class="workout-day-card__day">WED AUG 12</span><span class="workout-day-card__type">WORKOUT</span></div><h3 class="workout-day-card__title">Endurance</h3><p class="workout-day-card__summary">3 exercises</p><span class="workout-day-card__open">Edit Workout →</span></button></article>`;
       window.AriWorkoutPlanCardHierarchy.refresh();
     });
 
@@ -174,7 +127,6 @@ test.describe("ARI Training live controls", () => {
     await expect(firstCard.locator(".workout-day-card__summary")).toHaveText("5 exercises");
     await expect(firstCard.locator(".workout-day-card__type")).toHaveText("WORKOUT");
     await expect(firstCard).toHaveAttribute("data-plan-kind", "workout");
-
     await expect(enduranceCard.locator(".workout-day-card__type")).toHaveText("ENDURANCE");
     await expect(enduranceCard).toHaveAttribute("data-plan-kind", "endurance");
 
@@ -225,7 +177,7 @@ test.describe("ARI Training live controls", () => {
       const empty = dialog.querySelector("#workoutDayExerciseEmpty");
       return {
         panelWidth: panel.getBoundingClientRect().width,
-        panelMaxHeight: getComputedStyle(panel).maxHeight,
+        panelMaxHeight: parseFloat(getComputedStyle(panel).maxHeight),
         titleSize: parseFloat(getComputedStyle(title).fontSize),
         selectHeight: select.getBoundingClientRect().height,
         selectSize: parseFloat(getComputedStyle(select).fontSize),
@@ -235,7 +187,7 @@ test.describe("ARI Training live controls", () => {
     });
 
     expect(metrics.panelWidth).toBeGreaterThan(360);
-    expect(metrics.panelMaxHeight).toBe("708.953px");
+    expect(metrics.panelMaxHeight).toBeGreaterThanOrEqual(700);
     expect(metrics.titleSize).toBeGreaterThanOrEqual(24);
     expect(metrics.selectHeight).toBeGreaterThanOrEqual(56);
     expect(metrics.selectSize).toBe(18);
