@@ -1,17 +1,10 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-workout-plan-action.js
-// Version: 1.2.0
+// Version: 2.0.0
 // Purpose:
-//   Deterministically recognize, confirm, build, and save Ari-created
-//   workouts through the EXISTING ARI Training builder and calendar store.
-//
-// V1.2.0:
-//   - Never silently overwrites an existing workout.
-//   - Existing workout conflict offers replace / add / edit.
-//   - Replace and add require explicit confirmation before mutation.
-//   - Edit mode preserves the current workout and asks for the exact change.
-//   - Keeps exact calendar-date routing and existing Training storage.
+//   SINGLE originator for Ari-created workout-plan mutations.
+//   All Training reads/builds/writes flow through WorkoutPlanController.
 // =====================================================
 
 (() => {
@@ -19,39 +12,32 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.2.0";
+  const VERSION = "2.0.0";
   const SOURCE = "ari/actions/ari-workout-plan-action";
   const CONFLICT_KEY = "ariWorkoutPlanConflict";
   const EDIT_KEY = "ariWorkoutEditContext";
 
-  function clean(value = "") {
-    return String(value || "").trim();
-  }
+  const clean = (value = "") => String(value || "").trim();
 
-  function formatLocalDateKey(date) {
+  function formatDateKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
 
-  function parseStrictDateKey(value) {
-    const text = clean(value);
-    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  function parseDateKey(value) {
+    const match = clean(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return null;
-
-    const year = Number(match[1]);
-    const month = Number(match[2]) - 1;
-    const day = Number(match[3]);
-    const date = new Date(year, month, day);
-
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
     if (
-      date.getFullYear() !== year ||
-      date.getMonth() !== month ||
-      date.getDate() !== day
+      date.getFullYear() !== Number(match[1]) ||
+      date.getMonth() !== Number(match[2]) - 1 ||
+      date.getDate() !== Number(match[3])
     ) return null;
-
-    return { key: formatLocalDateKey(date), date };
+    return date;
   }
 
-  function formatDateLabel(date) {
+  function formatDateLabel(value) {
+    const date = value instanceof Date ? value : parseDateKey(value);
+    if (!date) return "that date";
     try {
       return new Intl.DateTimeFormat(undefined, {
         weekday: "long",
@@ -59,7 +45,7 @@
         day: "numeric"
       }).format(date);
     } catch {
-      return "that date";
+      return formatDateKey(date);
     }
   }
 
@@ -69,40 +55,38 @@
       /\b(workout|training plan|training session|exercise plan|exercise session|gym session|lifting session)\b/.test(text) ||
       /\b(hitting|training|working)\s+(?:my\s+)?(chest|back|shoulders?|delts?|legs?|quads?|hamstrings?|glutes?|arms?|biceps?|triceps?|core|abs?)\b/.test(text);
     const creationIntent =
-      /\b(make|build|create|plan|schedule|set up|put together|give me|add)\b/.test(text) ||
-      /\b(can you|could you|would you|please)\b.{0,40}\b(workout|training plan|training session|exercise plan)\b/.test(text);
-    const completedOrLogging =
+      /\b(make|build|create|plan|schedule|set up|put together|give me|add|replace|edit|change)\b/.test(text) ||
+      /\b(can you|could you|would you|please)\b.{0,50}\b(workout|training plan|training session|exercise plan)\b/.test(text);
+    const loggingOnly =
       /\b(log|track|record)\b.{0,30}\b(workout|training|exercise)\b/.test(text) ||
       /\b(completed|finished|done with|already did|burned)\b/.test(text);
-    return workoutContext && creationIntent && !completedOrLogging;
+    return workoutContext && creationIntent && !loggingOnly;
   }
 
   function resolveRequestedDate(message = "", now = new Date()) {
-    const contractResolver = window.Ari?.actionContract?.resolveWorkoutDate;
-    if (typeof contractResolver === "function") {
-      return contractResolver.call(window.Ari.actionContract, message, now);
-    }
-
     const text = clean(message).toLowerCase();
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const isoMatch = text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
-    if (isoMatch) {
-      const date = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
-      if (
-        date.getFullYear() === Number(isoMatch[1]) &&
-        date.getMonth() === Number(isoMatch[2]) - 1 &&
-        date.getDate() === Number(isoMatch[3])
-      ) return formatLocalDateKey(date);
-      return null;
+    const iso = text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+    if (iso) {
+      const date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+      return parseDateKey(formatDateKey(date)) ? formatDateKey(date) : null;
     }
 
-    if (/\btoday\b/.test(text)) return formatLocalDateKey(base);
+    const slash = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}|\d{2}))?\b/);
+    if (slash) {
+      let year = slash[3] ? Number(slash[3]) : base.getFullYear();
+      if (year < 100) year += 2000;
+      let date = new Date(year, Number(slash[1]) - 1, Number(slash[2]));
+      if (!slash[3] && date < base) date = new Date(year + 1, Number(slash[1]) - 1, Number(slash[2]));
+      return formatDateKey(date);
+    }
 
+    if (/\btoday\b/.test(text)) return formatDateKey(base);
     if (/\btomorrow\b/.test(text)) {
       const date = new Date(base);
       date.setDate(date.getDate() + 1);
-      return formatLocalDateKey(date);
+      return formatDateKey(date);
     }
 
     const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -110,26 +94,22 @@
       const match = text.match(new RegExp(`\\b(next\\s+|this\\s+)?${weekdays[target]}\\b`));
       if (!match) continue;
       let delta = (target - base.getDay() + 7) % 7;
-      if (String(match[1] || "").trim() === "next" && delta === 0) delta = 7;
+      if (clean(match[1]).toLowerCase() === "next" && delta === 0) delta = 7;
       const date = new Date(base);
       date.setDate(date.getDate() + delta);
-      return formatLocalDateKey(date);
+      return formatDateKey(date);
     }
 
     return null;
   }
 
   function extractWorkoutRequest(message = "") {
-    const contractExtractor = window.Ari?.actionContract?.extractWorkoutRequest;
-    if (typeof contractExtractor === "function") {
-      return contractExtractor.call(window.Ari.actionContract, message);
-    }
-
     const text = clean(message).toLowerCase();
     const durationMatch = text.match(/\b(\d{1,3})\s*(?:minute|minutes|min|mins)\b/);
     const durationMinutes = durationMatch
       ? Math.max(10, Math.min(180, Number(durationMatch[1])))
       : 45;
+
     const difficulty = /\b(advanced|hard|intense|heavy)\b/.test(text)
       ? "advanced"
       : /\b(beginner|easy|light)\b/.test(text)
@@ -161,7 +141,7 @@
     return {
       focusId: focus.id,
       displayTitle: focus.title,
-      builderRequest: {
+      builderOptions: {
         title: focus.title,
         goal: focus.goal,
         durationMinutes,
@@ -170,62 +150,24 @@
         modules: focus.modules,
         includeWarmup: durationMinutes >= 15,
         includeCooldown: durationMinutes >= 20,
-        includeFinisher: /\b(finisher|conditioning finisher)\b/.test(text)
+        includeFinisher: /\b(finisher|conditioning finisher)\b/.test(text),
+        focusId: focus.id
       }
     };
   }
 
-  async function importTrainingModules() {
-    const base = document.baseURI;
-    const [builderModule, storeModule, apiModule] = await Promise.all([
-      import(new URL("js/training/workouts/workout-builder.js", base).href),
-      import(new URL("js/training/workout-plan-store.js", base).href),
-      import(new URL("js/training/workout-plan-api.js", base).href)
-    ]);
-
-    const builder = builderModule.default || builderModule.AriTrainingWorkoutBuilder;
-    const store = storeModule.default || storeModule.AriTrainingWorkoutPlanStore;
-    const api = apiModule.default || apiModule.AriTrainingWorkoutPlanApi;
-
-    if (!builder?.build) throw new Error("Training workout builder is unavailable.");
-    if (!store?.setBuiltWorkout || !store?.getState) throw new Error("Training workout plan store is unavailable.");
-    if (!api?.loadPlan || !api?.savePlan) throw new Error("Training workout plan API is unavailable.");
-    return { builder, store, api };
-  }
-
-  async function loadCurrentPlan(store, api) {
-    store.hydrate?.();
-    let remoteLoaded = false;
-    try {
-      const remotePlan = await api.loadPlan();
-      if (remotePlan && typeof store.replaceState === "function") store.replaceState(remotePlan);
-      remoteLoaded = true;
-    } catch (error) {
-      console.warn("ARI workout action could not load remote plan:", error?.message || error);
+  async function getController() {
+    const module = await import(new URL("js/training/workout-plan-controller.js", document.baseURI).href);
+    const controller = module.default || module.AriTrainingWorkoutPlanController;
+    if (!controller?.init || !controller?.getDate || !controller?.buildWorkoutForDate || !controller?.setBuiltWorkoutForDate) {
+      throw new Error("Training controller is unavailable.");
     }
-    return remoteLoaded;
-  }
-
-  function getDayFromStore(store, scheduledDate) {
-    const weekKey = store.getWeekKey?.(scheduledDate);
-    const dayId = store.getDayIdFromDate?.(scheduledDate);
-    if (!weekKey || !dayId) return { weekKey, dayId, day: null };
-
-    let day = null;
-    if (typeof store.getDate === "function") day = store.getDate(scheduledDate);
-    if (!day && typeof store.getDayByDate === "function") day = store.getDayByDate(scheduledDate);
-    if (!day && typeof store.getDay === "function") day = store.getDay(dayId, weekKey);
-    if (!day && typeof store.getWeek === "function") day = store.getWeek(weekKey)?.days?.[dayId] || null;
-    return { weekKey, dayId, day };
+    await controller.init();
+    return controller;
   }
 
   function hasWorkout(day) {
-    return Boolean(
-      day &&
-      day.type === "workout" &&
-      Array.isArray(day.exercises) &&
-      day.exercises.length > 0
-    );
+    return Boolean(day?.type === "workout" && Array.isArray(day?.exercises) && day.exercises.length > 0);
   }
 
   function describeWorkout(day) {
@@ -254,29 +196,28 @@
     localStorage.removeItem(CONFLICT_KEY);
   }
 
-  function resolveConflictChoice(message = "") {
+  function conflictChoice(message = "") {
     const text = clean(message).toLowerCase();
-    if (/\b(replace|overwrite|swap it|replace it|start over)\b/.test(text)) return "replace";
-    if (/\b(add|add to it|keep it and add|combine|both)\b/.test(text)) return "add";
-    if (/\b(edit|modify|change the existing|change it|tweak)\b/.test(text)) return "edit";
+    if (/\b(replace|overwrite|start over|swap it)\b/.test(text)) return "replace";
+    if (/\b(add|add to it|combine|keep it and add|both)\b/.test(text)) return "add";
+    if (/\b(edit|modify|change it|tweak)\b/.test(text)) return "edit";
     return null;
   }
 
-  function buildPendingWorkoutAction(message, scheduledDate, mode = "create") {
-    const parsed = parseStrictDateKey(scheduledDate);
-    if (!parsed) return null;
+  function buildPendingAction(message, scheduledDate, mode = "create") {
     const workout = extractWorkoutRequest(message);
-    const dateLabel = formatDateLabel(parsed.date);
+    const label = formatDateLabel(scheduledDate);
     const verb = mode === "replace" ? "Replace the existing workout with" : mode === "add" ? "Add" : "Create";
-    const suffix = mode === "add" ? ` to ${dateLabel}'s workout?` : ` for ${dateLabel}?`;
+    const suffix = mode === "add" ? ` to ${label}'s workout?` : ` for ${label}?`;
 
     return {
       action_type: "plan_workout",
       status: "pending",
+      source: SOURCE,
       payload: {
         scheduled_date: scheduledDate,
         focus_id: workout.focusId,
-        builder_request: workout.builderRequest,
+        builder_options: workout.builderOptions,
         requested_from_message: clean(message),
         existing_workout_mode: mode
       },
@@ -284,111 +225,80 @@
     };
   }
 
-  async function persistPlan(store, api, remoteLoadSucceeded) {
-    store.save?.();
-    let remoteSaved = false;
-    if (remoteLoadSucceeded) {
-      try {
-        const savedPlan = await api.savePlan({ plan: store.getState() });
-        if (savedPlan && typeof store.replaceState === "function") {
-          store.replaceState(savedPlan);
-          store.save?.();
-        }
-        remoteSaved = true;
-      } catch (error) {
-        console.warn("ARI workout action saved locally but remote sync failed:", error?.message || error);
-      }
-    }
-    return remoteSaved;
-  }
-
   CalBuddy.planWorkoutFromAri = async function (payload = {}) {
-    const scheduled = parseStrictDateKey(payload.scheduled_date);
-    if (!scheduled) return { success: false, reply: "I need an exact workout date before I can change that plan." };
+    const scheduledDate = clean(payload.scheduled_date);
+    if (!parseDateKey(scheduledDate)) {
+      return { success: false, reply: "I need an exact workout date before I can change that plan." };
+    }
 
+    const controller = await getController();
+    const existingDay = controller.getDate(scheduledDate);
+    const existing = hasWorkout(existingDay);
     const mode = clean(payload.existing_workout_mode || "create").toLowerCase();
-    const builderRequest = payload.builder_request && typeof payload.builder_request === "object"
-      ? { ...payload.builder_request }
-      : {};
-    const { builder, store, api } = await importTrainingModules();
-    const remoteLoadSucceeded = await loadCurrentPlan(store, api);
-    const current = getDayFromStore(store, scheduled.key);
-    const existing = hasWorkout(current.day);
 
     if (existing && mode === "create") {
       return {
         success: false,
         conflict: true,
-        reply: `${describeWorkout(current.day)} is already planned for ${formatDateLabel(scheduled.date)}. I didn’t change it.`
+        reply: `${describeWorkout(existingDay)} is already planned for ${formatDateLabel(scheduledDate)}. I didn’t change it.`
       };
     }
 
-    const workout = builder.build(builderRequest);
-    const validation = typeof builder.validate === "function" ? builder.validate(workout) : { valid: true, errors: [] };
-    if (!validation.valid) throw new Error(validation.errors?.[0] || "Training could not build a valid workout.");
+    const builderOptions = payload.builder_options && typeof payload.builder_options === "object"
+      ? { ...payload.builder_options }
+      : {};
 
-    let workoutToSave = workout;
+    const built = controller.buildWorkoutForDate(scheduledDate, builderOptions);
+    if (!built) throw new Error("Training could not build a workout for that date.");
+
+    let workoutToSave = built;
     if (existing && mode === "add") {
-      const existingExercises = Array.isArray(current.day.exercises) ? current.day.exercises : [];
-      const newExercises = Array.isArray(workout.exercises) ? workout.exercises : [];
       workoutToSave = {
-        ...workout,
-        title: `${describeWorkout(current.day)} + ${clean(workout.title) || "Added Training"}`,
-        exercises: [...existingExercises, ...newExercises]
+        ...built,
+        title: `${describeWorkout(existingDay)} + ${clean(built.title) || "Added Training"}`,
+        exercises: [
+          ...(Array.isArray(existingDay.exercises) ? existingDay.exercises : []),
+          ...(Array.isArray(built.exercises) ? built.exercises : [])
+        ]
       };
     }
 
-    const savedIntoPlan = store.setBuiltWorkout(current.dayId, workoutToSave, {
-      focusId: mode === "add" ? clean(current.day?.focusId) || clean(payload.focus_id) || "custom" : clean(payload.focus_id) || "custom",
-      weekKey: current.weekKey
+    const saved = controller.setBuiltWorkoutForDate(scheduledDate, workoutToSave, {
+      focusId: mode === "add"
+        ? clean(existingDay?.focusId) || clean(payload.focus_id) || "custom"
+        : clean(payload.focus_id) || "custom"
     });
-    if (!savedIntoPlan) throw new Error("Training could not update the workout on that date.");
 
-    const planValidation = typeof store.validate === "function" ? store.validate() : { valid: true, errors: [] };
-    if (!planValidation.valid) throw new Error(planValidation.errors?.[0] || "The workout plan failed calendar validation.");
+    if (!saved) throw new Error("Training could not update the workout on that date.");
 
-    const remoteSaved = await persistPlan(store, api, remoteLoadSucceeded);
+    await controller.save({ remote: true });
     clearConflict();
 
     window.dispatchEvent(new CustomEvent("ari:workoutPlanUpdated", {
       detail: {
-        scheduledDate: scheduled.key,
-        weekKey: current.weekKey,
-        dayId: current.dayId,
-        workoutId: workoutToSave.workoutId,
+        scheduledDate,
+        workoutId: workoutToSave.workoutId || null,
         mode,
-        remoteSaved,
         source: SOURCE,
         version: VERSION
       }
     }));
 
-    const dateLabel = formatDateLabel(scheduled.date);
-    const title = clean(workoutToSave.title) || "Workout";
     const actionWord = mode === "replace" ? "replaced" : mode === "add" ? "updated" : "set";
     return {
       success: true,
       workout: workoutToSave,
-      scheduled_date: scheduled.key,
-      remoteSaved,
-      reply: `${title} is ${actionWord} for ${dateLabel}.${remoteSaved ? "" : " It’s saved on this device and will sync when Training can reach your account."}`
+      scheduled_date: scheduledDate,
+      reply: `${clean(workoutToSave.title) || "Workout"} is ${actionWord} for ${formatDateLabel(scheduledDate)}.`
     };
   };
 
-  async function inspectExistingWorkout(scheduledDate) {
-    const parsed = parseStrictDateKey(scheduledDate);
-    if (!parsed) return null;
-    try {
-      const { store, api } = await importTrainingModules();
-      await loadCurrentPlan(store, api);
-      const context = getDayFromStore(store, parsed.key);
-      return hasWorkout(context.day)
-        ? { ...context, title: describeWorkout(context.day), scheduled_date: parsed.key, dateLabel: formatDateLabel(parsed.date) }
-        : null;
-    } catch (error) {
-      console.warn("ARI workout conflict check failed:", error?.message || error);
-      return null;
-    }
+  async function inspectDate(scheduledDate) {
+    const controller = await getController();
+    const day = controller.getDate(scheduledDate);
+    return hasWorkout(day)
+      ? { day, title: describeWorkout(day), scheduled_date: scheduledDate, dateLabel: formatDateLabel(scheduledDate) }
+      : null;
   }
 
   if (!CalBuddy.__ariWorkoutActionInstalled) {
@@ -397,60 +307,60 @@
 
     CalBuddy.executeAction = async function (action = {}) {
       const type = action.action_type || action.type;
-      if (type === "plan_workout") return await CalBuddy.planWorkoutFromAri(action.payload || {});
-      if (typeof previousExecuteAction === "function") return await previousExecuteAction.call(CalBuddy, action);
+      if (type === "plan_workout") {
+        if (action.source && action.source !== SOURCE) {
+          throw new Error("Rejected non-canonical workout action source.");
+        }
+        return await CalBuddy.planWorkoutFromAri(action.payload || {});
+      }
+      if (typeof previousExecuteAction === "function") {
+        return await previousExecuteAction.call(CalBuddy, action);
+      }
       return { success: false, reply: "I don’t recognize that action type." };
     };
 
     if (typeof previousAskInternal === "function") {
       CalBuddy._askAriInternal = async function (input = {}) {
         const message = clean(input.message);
-        const conflict = readConflict();
-        const conflictChoice = conflict ? resolveConflictChoice(message) : null;
+        const storedConflict = readConflict();
+        const choice = storedConflict ? conflictChoice(message) : null;
 
-        if (conflict && conflictChoice) {
-          if (conflictChoice === "edit") {
+        if (storedConflict && choice) {
+          if (choice === "edit") {
             localStorage.setItem(EDIT_KEY, JSON.stringify({
-              scheduled_date: conflict.scheduled_date,
-              existing_title: conflict.existing_title,
+              scheduled_date: storedConflict.scheduled_date,
+              existing_title: storedConflict.existing_title,
               saved_at: new Date().toISOString()
             }));
             clearConflict();
-            CalBuddy.setAriMood?.("coach");
             return {
-              reply: `Got it. I’ll keep ${conflict.existing_title} intact. Tell me exactly what you want to change — for example, add lateral raises, remove an exercise, change the duration, or change the focus.`,
+              reply: `I’ll keep ${storedConflict.existing_title} intact. Tell me exactly what you want changed.`,
               pendingAction: null,
               emotion: "coach",
               workoutEditMode: true,
-              scheduled_date: conflict.scheduled_date
+              scheduled_date: storedConflict.scheduled_date
             };
           }
 
-          const pending = buildPendingWorkoutAction(
-            conflict.requested_message,
-            conflict.scheduled_date,
-            conflictChoice
+          const pending = buildPendingAction(
+            storedConflict.requested_message,
+            storedConflict.scheduled_date,
+            choice
           );
           clearConflict();
-          if (pending) {
-            const action = typeof CalBuddy.createPendingAction === "function"
-              ? await CalBuddy.createPendingAction(pending)
-              : CalBuddy.setPendingAction?.(pending) || pending;
-            CalBuddy.setAriMood?.("coach");
-            return {
-              reply: action?.confirmation_text || pending.confirmation_text,
-              pendingAction: action || pending,
-              emotion: "coach",
-              workoutPlanProposed: true,
-              existingWorkoutMode: conflictChoice
-            };
-          }
+          const action = await CalBuddy.createPendingAction(pending);
+          return {
+            reply: action.confirmation_text,
+            pendingAction: action,
+            emotion: "coach",
+            workoutPlanProposed: true,
+            existingWorkoutMode: choice
+          };
         }
 
         if (looksLikeWorkoutPlanRequest(message)) {
           const requestedDate = resolveRequestedDate(message);
           if (!requestedDate) {
-            CalBuddy.setAriMood?.("coach");
             return {
               reply: "What day do you want me to put that workout on — today, tomorrow, or a specific day?",
               pendingAction: null,
@@ -459,14 +369,13 @@
             };
           }
 
-          const existing = await inspectExistingWorkout(requestedDate);
+          const existing = await inspectDate(requestedDate);
           if (existing) {
             saveConflict({
               scheduled_date: requestedDate,
               requested_message: message,
               existing_title: existing.title
             });
-            CalBuddy.setAriMood?.("coach");
             return {
               reply: `You already have ${existing.title} planned for ${existing.dateLabel}. Do you want me to replace it, add the new work to it, or edit the existing workout?`,
               pendingAction: null,
@@ -476,19 +385,14 @@
             };
           }
 
-          const pendingWorkout = buildPendingWorkoutAction(message, requestedDate, "create");
-          if (pendingWorkout) {
-            const action = typeof CalBuddy.createPendingAction === "function"
-              ? await CalBuddy.createPendingAction(pendingWorkout)
-              : CalBuddy.setPendingAction?.(pendingWorkout) || pendingWorkout;
-            CalBuddy.setAriMood?.("coach");
-            return {
-              reply: action?.confirmation_text || pendingWorkout.confirmation_text,
-              pendingAction: action || pendingWorkout,
-              emotion: "coach",
-              workoutPlanProposed: true
-            };
-          }
+          const pending = buildPendingAction(message, requestedDate, "create");
+          const action = await CalBuddy.createPendingAction(pending);
+          return {
+            reply: action.confirmation_text,
+            pendingAction: action,
+            emotion: "coach",
+            workoutPlanProposed: true
+          };
         }
 
         return await previousAskInternal.call(CalBuddy, input);
@@ -501,7 +405,7 @@
   CalBuddy.resolveAriWorkoutDate = resolveRequestedDate;
   CalBuddy.looksLikeAriWorkoutPlanRequest = looksLikeWorkoutPlanRequest;
   CalBuddy.buildAriWorkoutRequest = extractWorkoutRequest;
-  CalBuddy.inspectAriWorkoutDate = inspectExistingWorkout;
+  CalBuddy.inspectAriWorkoutDate = inspectDate;
 
   console.log("ARI WORKOUT PLAN ACTION LOADED:", VERSION);
 })();
