@@ -12,7 +12,9 @@
 //   - Configure persistent authentication.
 //   - Expose compatibility aliases used by older files.
 //   - Track basic authentication state changes.
+//   - Track basic authentication state changes.
 //   - Lazily load ARI Circle notification badges only on relevant pages.
+//   - Load the shared ARI Circle control drawer on Circle pages.
 //   - Load the isolated live-workout interaction repair only on ARI Training.
 //
 // Non-responsibilities:
@@ -32,6 +34,7 @@
 
   const AUTH_STORAGE_KEY = "calbuddy-auth-session";
   const SOCIAL_BADGES_SCRIPT_ID = "ariCircleSocialBadgesScript";
+  const CIRCLE_MENU_SCRIPT_ID = "ariCircleMenuV5Script";
   const TRAINING_INTERACTIONS_SCRIPT_ID = "ariTrainingLiveInteractionsScript";
 
   function shouldLoadSocialBadges() {
@@ -60,6 +63,24 @@
     } else {
       window.setTimeout(load, 900);
     }
+  }
+
+  function shouldLoadCircleMenu() {
+    const path = String(window.location.pathname || "").toLowerCase();
+    return (
+      path.includes("ari-circle") ||
+      Boolean(document.querySelector(".feed-page, .partner-page, .challenge-page, .ari-circle-page, details.circle-v4-menu"))
+    );
+  }
+
+  function loadCircleMenu() {
+    if (!shouldLoadCircleMenu() || document.getElementById(CIRCLE_MENU_SCRIPT_ID)) return;
+
+    const script = document.createElement("script");
+    script.id = CIRCLE_MENU_SCRIPT_ID;
+    script.src = "js/ari-circle/circle-menu-v5.js?v=1.0.0";
+    script.defer = true;
+    document.head.append(script);
   }
 
   function shouldLoadTrainingInteractions() {
@@ -110,6 +131,7 @@
     window.CalBuddy.supabase = window.calbuddySupabase;
     window.supabaseClient = window.calbuddySupabase;
     scheduleSocialBadges();
+    loadCircleMenu();
     loadTrainingInteractions();
     return;
   }
@@ -143,6 +165,10 @@
   // Badge loading is intentionally delayed until the browser is idle so
   // ARI Circle navigation and page rendering remain the priority.
   scheduleSocialBadges();
+
+  // Keep the Circle control drawer consistent across Feed, Buddies,
+  // Challenges, and Profile even when legacy V4 markup is still present.
+  loadCircleMenu();
 
   // ARI Training gets a small isolated interaction layer that repairs
   // Safari dialog behavior and live-workout cancel/add controls.
