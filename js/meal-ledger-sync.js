@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/meal-ledger-sync.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Make meals, Nutrition, Goals, and Ari use one canonical
 //   daily ledger and one calendar-day boundary.
@@ -18,7 +18,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const MIDNIGHT_RESET = Object.freeze({
     hour: 12,
     minute: 0,
@@ -48,6 +48,9 @@
   if (!ACTIVE_PAGES.has(page)) {
     return;
   }
+
+  let nutritionPatched = false;
+  let goalsPatched = false;
 
   function safeNumber(value, fallback = 0) {
     const number = Number(value);
@@ -406,25 +409,24 @@
   }
 
   function patchNutritionPage() {
-    if (page !== "nutrition.html") return;
+    if (page !== "nutrition.html") return true;
+    if (nutritionPatched) return true;
 
-    if (typeof window.getResetTime === "function") {
-      window.getResetTime = async () => ({ ...MIDNIGHT_RESET });
-    }
-
-    if (typeof window.getNutritionWindow === "function") {
-      window.getNutritionWindow = async () => getCalendarWindow();
-    }
-
-    if (typeof window.getNutritionDateForTimestamp === "function") {
-      window.getNutritionDateForTimestamp = (date) =>
-        formatLocalDate(normalizeMealDate(date));
-    }
-
-    if (
+    const ready =
+      typeof window.getResetTime === "function" &&
+      typeof window.getNutritionWindow === "function" &&
+      typeof window.getNutritionDateForTimestamp === "function" &&
       typeof window.saveMealRecord === "function" &&
-      !window.saveMealRecord.__ariCanonicalMealWriter
-    ) {
+      typeof window.refreshNutritionPage === "function";
+
+    if (!ready) return false;
+
+    window.getResetTime = async () => ({ ...MIDNIGHT_RESET });
+    window.getNutritionWindow = async () => getCalendarWindow();
+    window.getNutritionDateForTimestamp = (date) =>
+      formatLocalDate(normalizeMealDate(date));
+
+    if (!window.saveMealRecord.__ariCanonicalMealWriter) {
       const originalSaveMealRecord = window.saveMealRecord;
 
       const canonicalSaveMealRecord = async (record) => {
@@ -443,11 +445,13 @@
       window.saveMealRecord = canonicalSaveMealRecord;
     }
 
-    if (typeof window.refreshNutritionPage === "function") {
-      Promise.resolve(window.refreshNutritionPage()).catch((error) => {
-        console.warn("ARI Nutrition midnight refresh failed.", error);
-      });
-    }
+    nutritionPatched = true;
+
+    Promise.resolve(window.refreshNutritionPage()).catch((error) => {
+      console.warn("ARI Nutrition midnight refresh failed.", error);
+    });
+
+    return true;
   }
 
   async function refreshGoalsFromLedger() {
@@ -465,21 +469,29 @@
   }
 
   function patchGoalsPage() {
-    if (page !== "goals.html") return;
+    if (page !== "goals.html") return true;
+    if (goalsPatched) return true;
 
-    if (typeof window.getActiveNutritionDateKey === "function") {
-      window.getActiveNutritionDateKey = () =>
-        getCalendarWindow().nutritionDate;
-    }
+    const ready =
+      typeof window.getActiveNutritionDateKey === "function" &&
+      typeof window.calculateGoals === "function";
 
+    if (!ready) return false;
+
+    window.getActiveNutritionDateKey = () =>
+      getCalendarWindow().nutritionDate;
+
+    goalsPatched = true;
     void refreshGoalsFromLedger();
+    return true;
   }
 
   function installRuntimePatches() {
     persistMidnightResetLocally();
-    patchCalBuddy();
-    patchNutritionPage();
-    patchGoalsPage();
+    const coreReady = patchCalBuddy();
+    const nutritionReady = patchNutritionPage();
+    const goalsReady = patchGoalsPage();
+    return coreReady && nutritionReady && goalsReady;
   }
 
   installRuntimePatches();
@@ -497,9 +509,9 @@
   let patchAttempts = 0;
   const patchTimer = window.setInterval(() => {
     patchAttempts += 1;
-    installRuntimePatches();
+    const complete = installRuntimePatches();
 
-    if (patchAttempts >= 20) {
+    if (complete || patchAttempts >= 20) {
       window.clearInterval(patchTimer);
     }
   }, 250);
