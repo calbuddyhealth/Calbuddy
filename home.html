@@ -126,16 +126,36 @@
 <script src="js/auth.js"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script>
-  // One-time compatibility cleanup after removing Ari meal logging.
-  // Manual Nutrition logging remains available through CalBuddy.logMeal().
+  // Compatibility cleanup after removing Ari meal logging.
+  // This deletes only obsolete Ari action/estimate state, never saved meals.
   (() => {
     try {
       const pending = window.CalBuddy?.getPendingAction?.();
       if (pending?.action_type === "log_meal") {
         window.CalBuddy?.cancelPendingAction?.();
       }
+
+      localStorage.removeItem("calbuddyLastAriMealEstimate");
+
+      try {
+        const lastIntent = JSON.parse(localStorage.getItem("calbuddyLastActionIntent") || "null");
+        if (lastIntent?.target === "meal" || lastIntent?.lane === "explicit_log_request") {
+          localStorage.removeItem("calbuddyLastActionIntent");
+        }
+      } catch {
+        localStorage.removeItem("calbuddyLastActionIntent");
+      }
+
+      try {
+        const lastContract = JSON.parse(localStorage.getItem("calbuddyLastActionContract") || "null");
+        if (lastContract?.allowedAction === "log_meal" || lastContract?.lane === "explicit_log_request") {
+          localStorage.removeItem("calbuddyLastActionContract");
+        }
+      } catch {
+        localStorage.removeItem("calbuddyLastActionContract");
+      }
     } catch (error) {
-      console.warn("Legacy meal pending-action cleanup skipped:", error?.message || error);
+      console.warn("Legacy Ari meal-state cleanup skipped:", error?.message || error);
     }
   })();
 </script>
