@@ -1,0 +1,65 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+
+const supabaseConfig = fs.readFileSync(
+  new URL("../supabase-config.js", import.meta.url),
+  "utf8"
+);
+
+const profileV4 = fs.readFileSync(
+  new URL("../js/ari-circle/profile/profile-v4.js", import.meta.url),
+  "utf8"
+);
+
+const profileLoader = fs.readFileSync(
+  new URL("../js/ari-circle/profile/profile-v3-loader.js", import.meta.url),
+  "utf8"
+);
+
+test("ARI Circle Profile first paint does not wait for viewer inbox collections", () => {
+  assert.match(supabaseConfig, /installCircleProfileBootAccelerator/);
+  assert.match(supabaseConfig, /fastInitialViewerData/);
+  assert.match(supabaseConfig, /originalLoadViewerData/);
+  assert.match(supabaseConfig, /conversations:\s*\[\]/);
+  assert.match(supabaseConfig, /notifications:\s*\[\]/);
+  assert.match(supabaseConfig, /connectionRequests:\s*\[\]/);
+  assert.match(supabaseConfig, /connections:\s*\[\]/);
+  assert.match(supabaseConfig, /refreshRealtimeAfterBackgroundData/);
+  assert.match(supabaseConfig, /app\.connectRealtime/);
+});
+
+test("ARI Circle Profile defers Top Circle and Love behind profile-critical data", () => {
+  assert.match(supabaseConfig, /fastProfileBundle/);
+  assert.match(supabaseConfig, /window\.setTimeout\(\(\) => \{/);
+  assert.match(supabaseConfig, /api\.getTopCircle/);
+  assert.match(supabaseConfig, /api\.getLove/);
+  assert.match(supabaseConfig, /topCircleRows:\s*\[\]/);
+  assert.match(supabaseConfig, /love:\s*\{\s*items:\s*\[\],\s*total:\s*0,\s*hasMore:\s*false\s*\}/);
+});
+
+test("ARI Circle Profile reuses the context already loaded by the main Circle boot", () => {
+  assert.match(profileV4, /primeFromLegacyContext/);
+  assert.match(profileV4, /app\?\.modules\?\.CircleStore/);
+  assert.match(profileV4, /store\?\.get\?\.\("context"\)/);
+  assert.match(profileV4, /const primed = primeFromLegacyContext\(\)/);
+});
+
+test("ARI Circle Profile renders post structure before private media signing finishes", () => {
+  const firstRender = profileV4.indexOf("// First paint: post text, timestamps and structure appear immediately.");
+  const backgroundHydration = profileV4.indexOf("void hydratePosts(state.posts)");
+
+  assert.ok(firstRender >= 0, "first-paint marker should exist");
+  assert.ok(backgroundHydration > firstRender, "media signing must happen after the first post render");
+  assert.doesNotMatch(profileV4, /await\s+hydratePosts\(state\.posts\)/);
+});
+
+test("ARI Circle Profile caches only a verified viewer age state for a short session window", () => {
+  assert.match(profileV4, /AGE_CACHE_MS\s*=\s*15\s*\*\s*60\s*\*\s*1000/);
+  assert.match(profileV4, /parsed\.age\?\.verified !== true/);
+  assert.match(profileV4, /age\?\.verified === true/);
+});
+
+test("ARI Circle profile loader cache-busts the accelerated Profile V4 module", () => {
+  assert.match(profileLoader, /profile-v4\.js\?v=4\.3\.0/);
+});
