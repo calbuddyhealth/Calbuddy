@@ -22,7 +22,7 @@
       <div class="ari-page-symbol" aria-hidden="true">✦</div>
       <p class="ari-page-kicker">PRIVACY</p>
       <h1 class="ari-page-title">Privacy &amp; Ari memory</h1>
-      <p class="ari-page-description">Control AI processing and the context Ari remembers.</p>
+      <p class="ari-page-description">Control third-party AI processing and the context Ari remembers.</p>
     </section>
 
     <div class="ari-status" id="memoryStatus" role="status" aria-live="polite"></div>
@@ -32,7 +32,7 @@
         <p class="ari-section-kicker">AI PROCESSING</p>
         <h2 id="aiProcessingTitle">Your permission to use OpenAI</h2>
         <p>
-          ARI XP uses OpenAI to generate AI responses. When AI processing is enabled, ARI XP may send your message, recent conversation context, and relevant profile or memory information to OpenAI when needed to answer you.
+          ARI XP uses OpenAI for Ask ARI responses and ARI Circle pre-publication safety screening. When AI processing is enabled, ARI XP may send your message, recent conversation context, and relevant profile or memory information when needed to answer you. Text, photos, and sampled still frames from short ARI Circle videos you try to publish may also be sent to OpenAI to help identify harmful or objectionable content before publication.
         </p>
         <div class="ari-notice" id="aiProcessingState" role="status" aria-live="polite">Checking your AI processing choice…</div>
         <div class="ari-form-actions">
@@ -41,7 +41,7 @@
           <a class="ari-secondary-action" href="privacy.html">Read Privacy Notice</a>
         </div>
         <p>
-          Turning AI processing off prevents new ARI requests that require OpenAI. Non-AI parts of ARI XP remain available.
+          Turning AI processing off prevents new Ask ARI requests and prevents ARI Circle content that requires third-party safety screening from being published until permission is granted again. Non-AI parts of ARI XP remain available.
         </p>
       </section>
 
@@ -89,6 +89,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/privacy-memory.js?v=1.1.0"></script>
+  <script src="js/privacy-memory.js?v=1.2.0"></script>
 </body>
 </html>
