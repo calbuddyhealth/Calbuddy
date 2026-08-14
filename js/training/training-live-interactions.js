@@ -1,8 +1,9 @@
 // =====================================================
 // ARI XP Training — Live Interaction Repairs
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   - Open the live Add Exercise <dialog> correctly on iOS/Safari.
+//   - Keep legacy day renders from re-hiding an already-open picker.
 //   - Replace the unfiltered default catalog with a compact Quick Add row.
 //   - Keep full Exercise Library access through search.
 //   - Cancel a workout by marking its session abandoned instead of deleting
@@ -12,7 +13,7 @@
 import ExerciseRegistry from "./exercises/exercise-registry.js";
 import WorkoutProgressStore from "./workout-progress-store.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const RECENT_KEY = "ari_training_recent_exercises_v1";
 const ACTIVE_SESSION_CACHE_KEY = "ari_training_active_session_cache_v3";
 const QUICK_LIMIT = 6;
@@ -354,11 +355,29 @@ function syncPickerMode() {
   results.dataset.quickHidden = searching ? "false" : "true";
 }
 
+function protectOpenPickerVisibility(dialog) {
+  if (!dialog || dialog.dataset.ariPickerVisibilityGuard === "true") return;
+
+  const observer = new MutationObserver(() => {
+    if (dialog.open && dialog.hidden) {
+      dialog.hidden = false;
+    }
+  });
+
+  observer.observe(dialog, {
+    attributes: true,
+    attributeFilter: ["hidden", "open"]
+  });
+
+  dialog.dataset.ariPickerVisibilityGuard = "true";
+}
+
 function openPickerCorrectly() {
   const runtime = getRuntime();
   const dialog = $("sessionExercisePicker");
   if (!dialog) return;
 
+  protectOpenPickerVisibility(dialog);
   runtime?.openExercisePicker?.();
   dialog.hidden = false;
 
@@ -376,18 +395,23 @@ function openPickerCorrectly() {
     dialog.setAttribute("open", "");
   }
 
+  // A legacy selected-day render can run after the click and reapply hidden.
+  // If this dialog is still genuinely open, the visibility guard removes it.
+  dialog.hidden = false;
   window.setTimeout(() => $("sessionExerciseSearchInput")?.focus(), 40);
 }
 
 function closePickerCorrectly() {
   const dialog = $("sessionExercisePicker");
   if (!dialog) return;
+
   try {
     if (dialog.open && typeof dialog.close === "function") dialog.close();
     else dialog.removeAttribute("open");
   } catch {
     dialog.removeAttribute("open");
   }
+
   dialog.hidden = true;
 }
 
@@ -440,7 +464,9 @@ function ensureCancelDialog() {
 
 function openCancelDialog() {
   const dialog = ensureCancelDialog();
-  $("ariCancelWorkoutStatus").textContent = "";
+  const status = $("ariCancelWorkoutStatus");
+  if (status) status.textContent = "";
+
   const confirmButton = dialog.querySelector("[data-confirm-cancel]");
   if (confirmButton) {
     confirmButton.disabled = false;
@@ -483,7 +509,7 @@ async function abandonActiveWorkout(dialog) {
         .update({
           status: "abandoned",
           paused_at: null,
-          completed_at: new Date().toISOString()
+          completed_at: null
         })
         .eq("id", session.id);
 
@@ -534,7 +560,10 @@ function bind() {
   const input = $("sessionExerciseSearchInput");
   const results = $("sessionExerciseSearchResults");
   const quickPanel = $("sessionQuickAddPanel");
+  const picker = $("sessionExercisePicker");
   const cancelButton = $("cancelTodayWorkoutButton");
+
+  protectOpenPickerVisibility(picker);
 
   // The legacy controller removes hidden but does not call showModal().
   // Run after its target listener so its search results are ready first.
@@ -556,10 +585,16 @@ function bind() {
 
   results?.addEventListener("click", (event) => {
     const button = event.target.closest('[data-action="add-session-exercise"]');
-    if (button?.dataset.exerciseId) rememberExercise(button.dataset.exerciseId);
+    if (!button) return;
+
+    if (button.dataset.exerciseId) rememberExercise(button.dataset.exerciseId);
+
+    // The legacy handler performs the actual add asynchronously. Closing the
+    // modal here is purely UI state cleanup and does not cancel that operation.
+    window.setTimeout(closePickerCorrectly, 0);
   });
 
-  $("sessionExercisePicker")?.addEventListener("cancel", (event) => {
+  picker?.addEventListener("cancel", (event) => {
     event.preventDefault();
     closePickerCorrectly();
   });
