@@ -1,0 +1,151 @@
+/* =====================================================
+   ARI XP
+   File: assets/css/workout-day-editor-mobile.css
+   Version: 1.0.0
+   Scope:
+   Edit Training Day mobile readability only.
+===================================================== */
+
+@media (max-width: 600px) {
+  /* Keep the native dialog centered while allowing the day editor to use
+     substantially more of the iPhone viewport. */
+  body.ari-workout-plans-page #workoutDayEditor {
+    width: 100vw;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-dialog__panel {
+    width: min(94vw, 580px);
+    max-width: none;
+    max-height: 84dvh;
+    margin: 0 auto;
+    padding: 24px 22px 28px;
+    border-radius: 28px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-dialog__header {
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-section-eyebrow {
+    margin-bottom: 7px;
+    font-size: 0.73rem;
+    line-height: 1.2;
+    letter-spacing: 0.16em;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor #workoutDayEditorTitle {
+    margin: 0;
+    color: #071326;
+    font-size: clamp(1.55rem, 7vw, 1.85rem);
+    font-weight: 900;
+    line-height: 1.12;
+    letter-spacing: 0.015em;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-dialog__close {
+    flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    min-height: 56px;
+    border-radius: 18px;
+    font-size: 1.42rem;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-builder-field {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-builder-field > span {
+    color: #42536d;
+    font-size: 0.9rem;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0.025em;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-builder-field select {
+    width: 100%;
+    min-height: 56px;
+    padding: 0 44px 0 16px;
+    border-radius: 16px;
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor #workoutDayExerciseSection {
+    margin-top: 26px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(63, 101, 143, 0.11);
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-builder-card__header {
+    align-items: flex-end;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-builder-card__header h3 {
+    margin: 0;
+    color: #071326;
+    font-size: clamp(1.35rem, 6vw, 1.6rem);
+    font-weight: 900;
+    line-height: 1.15;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor #workoutAddExerciseButton {
+    min-height: 52px;
+    padding: 0 17px;
+    border-radius: 16px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-day-exercises {
+    display: grid;
+    gap: 12px;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-empty-state {
+    min-height: 94px;
+    padding: 22px 18px;
+    border-radius: 18px;
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  /* Existing selected-exercise controls inherit larger readable copy without
+     changing their behavior or collapsing/saving interactions. */
+  body.ari-workout-plans-page #workoutDayEditor .workout-day-exercise-card,
+  body.ari-workout-plans-page #workoutDayEditor .workout-day-exercise {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  body.ari-workout-plans-page #workoutDayEditor .workout-dialog__panel {
+    width: 95vw;
+    padding: 22px 18px 26px;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor .workout-builder-card__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.ari-workout-plans-page #workoutDayEditor #workoutAddExerciseButton {
+    width: 100%;
+  }
+}
