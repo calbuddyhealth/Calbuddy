@@ -34,7 +34,7 @@ test("new ARI XP profiles default to the calendar day", () => {
   assert.match(auth, /reset_hour:\s*12/);
   assert.match(auth, /reset_minute:\s*0/);
   assert.match(auth, /reset_ampm:\s*"AM"/);
-  assert.match(auth, /js\/meal-ledger-sync\.js\?v=1\.0\.0/);
+  assert.match(auth, /js\/meal-ledger-sync\.js\?v=1\.0\.1/);
 });
 
 test("meal ledger uses midnight-to-midnight windows", () => {
@@ -67,6 +67,13 @@ test("cloud and local fallback meals are merged instead of choosing one source",
   assert.match(sync, /fetchCloudMeals\(windowInfo\)/);
   assert.match(sync, /localMealsInWindow\(windowInfo\)/);
   assert.match(sync, /mergeMeals\(cloudMeals, localMeals\)/);
+});
+
+test("runtime patching is idempotent instead of refetching meals in a retry loop", () => {
+  assert.match(sync, /let nutritionPatched = false/);
+  assert.match(sync, /let goalsPatched = false/);
+  assert.match(sync, /if \(nutritionPatched\) return true/);
+  assert.match(sync, /if \(goalsPatched\) return true/);
 });
 
 test("legacy meal tables are not used by browser runtime files", () => {
