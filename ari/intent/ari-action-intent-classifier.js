@@ -1,11 +1,11 @@
 // ari/intent/ari-action-intent-classifier.js
 // Purpose: Decide whether the user is conversing, asking, logging, updating app data, planning a workout, or requesting developer work.
-// V1.2.0 — Harden meal logging so generic log/save/add language cannot become a meal action.
+// V1.2.1 — Bare "log that" follow-ups bypass the legacy quick-action path and require current Rebirth meal context.
 
 window.Ari = window.Ari || {};
 
 window.Ari.actionIntentClassifier = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   classify(input = {}) {
     const message = this.clean(input.message || input.userMessage || "");
@@ -98,13 +98,10 @@ window.Ari.actionIntentClassifier = {
     const eatingContext =
       /\b(i ate|i had|i drank|just ate|just had|just drank|ate a|ate an|had a|had an)\b/.test(text);
 
-    // "Log that" / "save it" is allowed through to the action contract, but the
-    // contract may only execute it if a recent meal estimate exists.
-    const followUpReference =
-      /\b(log|add|track|save|record)\b.{0,30}\b(that|it|this)\b/.test(text) ||
-      /\b(that|it|this)\b.{0,20}\b(log|add|track|save|record)\b/.test(text);
-
-    return explicitMealContext || eatingContext || followUpReference;
+    // Do NOT classify bare "log that / save it" here. The legacy quick-action
+    // path has no reliable proof that the pronoun refers to the current meal.
+    // Rebirth will resolve those follow-ups against the live conversation instead.
+    return explicitMealContext || eatingContext;
   },
 
   // Backward-compatible alias for older callers.
