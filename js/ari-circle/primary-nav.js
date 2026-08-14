@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — SOFT PRIMARY NAV
-   Version: 1.0.0
+   Version: 1.0.1
    Normalizes order to Feed · Buddies · Challenges · Profile
    and decorates the shared navigation with lightweight line icons.
 ============================================================= */
@@ -8,7 +8,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const NAV_SELECTORS = [
     ".feed-tabs",
     ".partner-tabs",
@@ -78,7 +78,9 @@
 
     if (!items.length) return false;
 
+    const labels = items.map(cleanLabel);
     const byLabel = new Map();
+
     for (const item of items) {
       const label = cleanLabel(item);
       if (ORDER.includes(label)) byLabel.set(label, item);
@@ -89,9 +91,14 @@
     nav.classList.add("circle-soft-primary-nav");
 
     for (const label of ORDER) {
-      const item = byLabel.get(label);
-      decorateItem(item, label);
-      nav.appendChild(item);
+      decorateItem(byLabel.get(label), label);
+    }
+
+    const needsReorder = ORDER.some((label, index) => labels[index] !== label);
+    if (needsReorder) {
+      for (const label of ORDER) {
+        nav.appendChild(byLabel.get(label));
+      }
     }
 
     nav.dataset.circleSoftReady = "true";
