@@ -262,7 +262,7 @@ function bootstrapCanonicalMealLedger() {
 
   const script = document.createElement("script");
   script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
-  script.src = "js/meal-ledger-sync.js?v=1.0.0";
+  script.src = "js/meal-ledger-sync.js?v=1.0.1";
   script.defer = true;
   document.head.appendChild(script);
 }
