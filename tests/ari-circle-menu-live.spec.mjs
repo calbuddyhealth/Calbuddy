@@ -135,4 +135,102 @@ test.describe("ARI Circle premium control drawer", () => {
     await expect(settings).toHaveAttribute("href", "notification-settings.html");
     await expect(settings).toContainText("Settings");
   });
+
+  test("Profile critical data is not blocked by slow social background collections", async ({ page }) => {
+    await installSupabaseStub(page);
+
+    // Isolate the preboot accelerator from the legacy Circle engine. The test
+    // assigns a controlled fake AriCircleApp after supabase-config installs its
+    // profile-only setter, then makes every noncritical collection deliberately slow.
+    await page.route("**/js/ari-circle/index.js*", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/javascript", body: "export default {};" });
+    });
+
+    await page.goto(`${BASE_URL}/ari-circle.html`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.__ariCircleProfileBootAcceleratorInstalled === true);
+
+    const result = await page.evaluate(async () => {
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const state = {
+        topFinished: false,
+        loveFinished: false,
+        viewerFinished: false,
+        realtimeRefreshes: 0,
+        topWrites: 0,
+        loveWrites: 0
+      };
+
+      const store = {
+        setTopCircle() { state.topWrites += 1; },
+        setLoveState() { state.loveWrites += 1; }
+      };
+
+      const api = {
+        async resolveProfile() {
+          return { user_id: "profile-user", display_name: "Fast Profile", top_circle_limit: 6 };
+        },
+        async getConnection() {
+          return { id: "connection-1", status: "accepted" };
+        },
+        async getTopCircle() {
+          await delay(240);
+          state.topFinished = true;
+          return [];
+        },
+        async getLove() {
+          await delay(260);
+          state.loveFinished = true;
+          return { items: [], total: 0, hasMore: false };
+        },
+        async loadCircleBundle() {
+          throw new Error("legacy bundle should have been replaced");
+        }
+      };
+
+      const app = {
+        state: { ready: false },
+        modules: { CircleApi: api, CircleStore: store },
+        async loadViewerData() {
+          await delay(280);
+          state.viewerFinished = true;
+          return { conversations: [], notifications: [], connectionRequests: [], connections: [] };
+        },
+        async connectRealtime() {
+          state.realtimeRefreshes += 1;
+          return true;
+        }
+      };
+
+      window.AriCircleApp = app;
+
+      const started = performance.now();
+      const bundle = await app.modules.CircleApi.loadCircleBundle({
+        viewerUserId: "viewer-user",
+        profileUserId: "profile-user"
+      });
+      const viewerPlaceholder = await app.loadViewerData("viewer-user");
+      const criticalElapsed = performance.now() - started;
+
+      // Mimic the legacy boot flipping ready after first paint/realtime setup.
+      app.state.ready = true;
+      await delay(380);
+
+      return {
+        criticalElapsed,
+        profileName: bundle?.profile?.display_name,
+        placeholderConversations: viewerPlaceholder?.conversations?.length,
+        ...state
+      };
+    });
+
+    expect(result.profileName).toBe("Fast Profile");
+    expect(result.criticalElapsed).toBeLessThan(160);
+    expect(result.placeholderConversations).toBe(0);
+    expect(result.topFinished).toBe(true);
+    expect(result.loveFinished).toBe(true);
+    expect(result.viewerFinished).toBe(true);
+    expect(result.topWrites).toBe(1);
+    expect(result.loveWrites).toBe(1);
+    expect(result.realtimeRefreshes).toBeGreaterThanOrEqual(1);
+  });
 });
