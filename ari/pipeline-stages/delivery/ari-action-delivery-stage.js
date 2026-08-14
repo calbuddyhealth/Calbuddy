@@ -1,38 +1,28 @@
 // ari/pipeline-stages/delivery/ari-action-delivery-stage.js
 // Ari Action Delivery Stage
 // Purpose: Convert the completed response into approved post-response actions.
-// V1.1.0 — Adds a strict meal-action guard so generic conversation cannot become a food log.
+// V1.2.0 — log_meal is accepted only from the canonical current-turn planner.
 
 window.Ari = window.Ari || {};
 
 window.AriActionDeliveryStage = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   async run(summary = {}, runtime = {}) {
-    const {
-      mark = () => {}
-    } = runtime;
+    const { mark = () => {} } = runtime;
 
     let state = {
       ...summary,
       activeDeliveryStage: "action_delivery"
     };
 
-    const actionEligibility =
-      this.resolveActionEligibility(state);
+    const actionEligibility = this.resolveActionEligibility(state);
 
     state = {
       ...state,
-
       actionEligibility,
-
-      shouldRunActionPlanner:
-        actionEligibility.runActionPlanner
+      shouldRunActionPlanner: actionEligibility.runActionPlanner
     };
-
-    // =================================================
-    // 1. Rebirth Action Planner
-    // =================================================
 
     mark("before rebirthActionPlanner");
 
@@ -42,10 +32,7 @@ window.AriActionDeliveryStage = {
       actionEligibility.runActionPlanner &&
       window.Ari?.rebirthActionPlanner?.plan
     ) {
-      const result =
-        await window.Ari.rebirthActionPlanner.plan(
-          state
-        );
+      const result = await window.Ari.rebirthActionPlanner.plan(state);
 
       actionPlannerResult =
         result && typeof result === "object"
@@ -54,20 +41,16 @@ window.AriActionDeliveryStage = {
               actionPlannerRan: false,
               source: "invalid-result",
               actions: [],
-              reason:
-                "action_planner_returned_invalid_result"
+              reason: "action_planner_returned_invalid_result"
             };
     } else {
       actionPlannerResult = {
         actionPlannerRan: false,
-
         source:
           actionEligibility.runActionPlanner
             ? "not-loaded"
             : "skipped-by-delivery-eligibility",
-
         actions: [],
-
         reason:
           actionEligibility.runActionPlanner
             ? "rebirth_action_planner_not_loaded"
@@ -81,8 +64,7 @@ window.AriActionDeliveryStage = {
       actionPlannerResult.proposedActions ||
       [];
 
-    const guardedActions =
-      this.guardActions(rawActions, state);
+    const guardedActions = this.guardActions(rawActions, state);
 
     actionPlannerResult = {
       ...actionPlannerResult,
@@ -93,72 +75,40 @@ window.AriActionDeliveryStage = {
 
     state = {
       ...state,
-
       ...actionPlannerResult,
-
       actionPlannerResult,
-
       actionPlannerRan:
-        actionPlannerResult
-          .actionPlannerRan === true ||
+        actionPlannerResult.actionPlannerRan === true ||
         Boolean(
           actionPlannerResult.rebirthActionPlan ||
           actionPlannerResult.actionPlan ||
           rawActions.length
         ),
-
-      actionPlannerSource:
-        actionPlannerResult.source ||
-        "unknown",
-
+      actionPlannerSource: actionPlannerResult.source || "unknown",
       rebirthActionPlan:
         actionPlannerResult.rebirthActionPlan ||
         actionPlannerResult.actionPlan ||
         state.rebirthActionPlan ||
         null,
-
-      plannedActions:
-        guardedActions
+      plannedActions: guardedActions
     };
 
     mark("after rebirthActionPlanner");
 
-    // =================================================
-    // 2. Normalize action handoff
-    // =================================================
-
-    const actionHandoff =
-      this.buildActionHandoff(state);
+    const actionHandoff = this.buildActionHandoff(state);
 
     state = {
       ...state,
       actionHandoff
     };
 
-    // =================================================
-    // 3. Stage packet
-    // =================================================
-
-    state.actionDeliveryStagePacket =
-      this.buildActionDeliveryStagePacket(
-        state
-      );
-
-    state.actionDeliveryStageRan =
-      true;
-
-    state.actionDeliveryStageSource =
-      "ari-action-delivery-stage";
-
-    state.actionDeliveryStageVersion =
-      this.version;
+    state.actionDeliveryStagePacket = this.buildActionDeliveryStagePacket(state);
+    state.actionDeliveryStageRan = true;
+    state.actionDeliveryStageSource = "ari-action-delivery-stage";
+    state.actionDeliveryStageVersion = this.version;
 
     return state;
   },
-
-  // ===================================================
-  // Action guard
-  // ===================================================
 
   guardActions(actions = [], summary = {}) {
     return (Array.isArray(actions) ? actions : [])
@@ -174,6 +124,13 @@ window.AriActionDeliveryStage = {
   },
 
   isMealActionAllowed(summary = {}, action = {}) {
+    // SINGLE AUTHORITY RULE:
+    // No legacy contract, lastMealEstimate, thread history, follow-up resolver,
+    // API reconstruction, or other source may hand off a meal write.
+    if (action.source !== "ari_rebirth_action_planner_v2_current_turn") {
+      return false;
+    }
+
     const text = String(
       summary.userMessage ||
       summary.message ||
@@ -181,94 +138,52 @@ window.AriActionDeliveryStage = {
       ""
     ).toLowerCase();
 
-    // A meal write always requires an explicit write verb from the user.
-    const hasWriteVerb =
-      /\b(log|add|track|save|record)\b/.test(text);
-
+    const hasWriteVerb = /\b(log|add|track|save|record)\b/.test(text);
     if (!hasWriteVerb) return false;
 
-    // Hard reject known non-food logging targets. These should never be
-    // interpreted as a meal even when words such as "log" or "track" appear.
-    const hasNonMealTarget =
-      /\b(workout|exercise|training|sets?|reps?|body weight|my weight|blood pressure|heart rate|steps?|sleep|water|medication|medicine|dose|symptom|mood|journal|note|error|bug|console|github|code|account|sign[- ]?in|login)\b/.test(text);
+    const hasEatingContext =
+      /\b(i ate|i had|i drank|i just ate|i just had|i just drank|i've had|i’ve had)\b/.test(text);
+    if (!hasEatingContext) return false;
 
+    const hasNonMealTarget =
+      /\b(workout|exercise|training|sets?|reps?|body weight|my weight|blood pressure|heart rate|steps?|sleep|medication|medicine|dose|symptom|mood|journal|note|error|bug|console|github|code|account|sign[- ]?in|login)\b/.test(text);
     if (hasNonMealTarget) return false;
 
-    const hasExplicitMealContext =
-      /\b(meal|food|breakfast|lunch|dinner|snack|intake|calories|calorie|kcal|macros?|protein|carbs?|carbohydrates?|fat)\b/.test(text);
-
-    const hasEatingContext =
-      /\b(i ate|i had|i drank|just ate|just had|just drank|ate a|ate an|had a|had an)\b/.test(text);
-
-    const isFollowUpReference =
-      /\b(log|add|track|save|record)\b.{0,30}\b(that|it|this)\b/.test(text) ||
-      /\b(that|it|this)\b.{0,20}\b(log|add|track|save|record)\b/.test(text);
-
-    const mealEstimate =
-      summary.mealEstimate ||
-      summary.lastMealEstimate ||
-      summary.foodAnalysis ||
-      summary.nutritionEstimate ||
-      summary.calorieEstimate ||
-      summary.appContext?.mealEstimate ||
-      summary.appContext?.lastMealEstimate ||
-      summary.threadState?.lastMealEstimate ||
-      null;
-
     const payload = action.payload || {};
-    const hasUsableNutrition =
+
+    const hasCompleteNutrition =
+      Boolean(String(payload.name || "").trim()) &&
       Number(payload.calories || 0) > 0 &&
-      Boolean(String(payload.name || "").trim());
+      Number.isFinite(Number(payload.protein_g)) &&
+      Number.isFinite(Number(payload.carbs_g)) &&
+      Number.isFinite(Number(payload.fat_g));
 
-    if (!hasUsableNutrition) return false;
-
-    // Direct requests need food/eating context. Pronoun follow-ups such as
-    // "log that" are only valid if the current Rebirth state carries a meal estimate.
-    if (hasExplicitMealContext || hasEatingContext) return true;
-    if (isFollowUpReference && mealEstimate) return true;
-
-    return false;
+    return hasCompleteNutrition;
   },
 
-  // ===================================================
-  // Eligibility
-  // ===================================================
-
   resolveActionEligibility(summary = {}) {
-    const hasFinalResponse =
-      Boolean(
-        String(
-          summary.finalResponse ||
-          ""
-        ).trim()
-      );
+    const hasFinalResponse = Boolean(
+      String(summary.finalResponse || "").trim()
+    );
 
-    const developerLocked =
-      summary.developerResponseLocked === true;
+    const developerLocked = summary.developerResponseLocked === true;
 
     const safetyOverride =
-      summary.safetyDisposition
-        ?.shouldStopNormalResponse === true;
+      summary.safetyDisposition?.shouldStopNormalResponse === true;
 
     const explicitActionRequest =
-      summary.routingContract
-        ?.capabilities?.includes?.("action_execution") ||
-      summary.routingContract
-        ?.primaryIntent === "perform_action" ||
-      summary.routingContract
-        ?.primaryIntent === "schedule_action" ||
-      summary.routingContract
-        ?.primaryIntent === "save_memory" ||
-      summary.routingContract
-        ?.primaryIntent === "log_data";
+      summary.routingContract?.capabilities?.includes?.("action_execution") ||
+      summary.routingContract?.primaryIntent === "perform_action" ||
+      summary.routingContract?.primaryIntent === "schedule_action" ||
+      summary.routingContract?.primaryIntent === "save_memory" ||
+      summary.routingContract?.primaryIntent === "log_data";
 
-    const existingActionSignals =
-      Boolean(
-        summary.actionRequest ||
-        summary.pendingAction ||
-        summary.mealEstimate ||
-        summary.structuredAction
-      );
+    const existingActionSignals = Boolean(
+      summary.actionRequest ||
+      summary.pendingAction ||
+      summary.mealEstimate ||
+      summary.structuredAction
+    );
 
     const runActionPlanner =
       hasFinalResponse &&
@@ -282,16 +197,12 @@ window.AriActionDeliveryStage = {
 
     return {
       runActionPlanner,
-
       hasFinalResponse,
       developerLocked,
       safetyOverride,
       explicitActionRequest,
       existingActionSignals,
-
-      source:
-        "ari-action-delivery-stage-eligibility",
-
+      source: "ari-action-delivery-stage-eligibility",
       reason:
         !hasFinalResponse
           ? "final_response_missing"
@@ -302,10 +213,6 @@ window.AriActionDeliveryStage = {
               : "post_response_action_review"
     };
   },
-
-  // ===================================================
-  // Action handoff
-  // ===================================================
 
   buildActionHandoff(summary = {}) {
     const plan =
@@ -320,136 +227,51 @@ window.AriActionDeliveryStage = {
 
     return {
       ready: true,
-
-      plannerRan:
-        summary.actionPlannerRan === true,
-
-      source:
-        summary.actionPlannerSource ||
-        null,
-
+      plannerRan: summary.actionPlannerRan === true,
+      source: summary.actionPlannerSource || null,
       plan,
-
       actions,
-
-      actionCount:
-        actions.length,
-
+      actionCount: actions.length,
       requiresApproval:
         plan?.requiresApproval === true ||
-        actions.some(
-          action =>
-            action?.requiresApproval === true
-        ),
-
-      executableActions:
-        actions.filter(
-          action =>
-            action?.blocked !== true
-        ),
-
-      blockedActions:
-        actions.filter(
-          action =>
-            action?.blocked === true
-        ),
-
-      responseLinked:
-        Boolean(
-          String(
-            summary.finalResponse ||
-            ""
-          ).trim()
-        ),
-
+        actions.some(action => action?.requiresApproval === true),
+      executableActions: actions.filter(action => action?.blocked !== true),
+      blockedActions: actions.filter(action => action?.blocked === true),
+      responseLinked: Boolean(String(summary.finalResponse || "").trim()),
       authority: {
-        canPlanActions:
-          true,
-
-        canExecuteActions:
-          false,
-
-        canPersistActions:
-          false,
-
-        canChangeFinalResponse:
-          false,
-
-        canChangeRouting:
-          false,
-
-        role:
-          "post_response_action_planning_and_handoff"
+        canPlanActions: true,
+        canExecuteActions: false,
+        canPersistActions: false,
+        canChangeFinalResponse: false,
+        canChangeRouting: false,
+        role: "post_response_action_planning_and_handoff"
       }
     };
   },
 
-  // ===================================================
-  // Stage packet
-  // ===================================================
-
-  buildActionDeliveryStagePacket(
-    summary = {}
-  ) {
+  buildActionDeliveryStagePacket(summary = {}) {
     return {
       ready: true,
-
-      source:
-        "ari-action-delivery-stage",
-
-      version:
-        this.version,
-
-      eligibility:
-        summary.actionEligibility ||
-        null,
-
+      source: "ari-action-delivery-stage",
+      version: this.version,
+      eligibility: summary.actionEligibility || null,
       planner: {
-        ran:
-          summary.actionPlannerRan === true,
-
-        source:
-          summary.actionPlannerSource ||
-          null,
-
-        result:
-          summary.actionPlannerResult ||
-          null
+        ran: summary.actionPlannerRan === true,
+        source: summary.actionPlannerSource || null,
+        result: summary.actionPlannerResult || null
       },
-
-      handoff:
-        summary.actionHandoff ||
-        null,
-
+      handoff: summary.actionHandoff || null,
       result: {
-        plan:
-          summary.rebirthActionPlan ||
-          null,
-
-        actions:
-          summary.plannedActions ||
-          [],
-
-        actionCount:
-          summary.plannedActions?.length ||
-          0
+        plan: summary.rebirthActionPlan || null,
+        actions: summary.plannedActions || [],
+        actionCount: summary.plannedActions?.length || 0
       },
-
       authority: {
-        canPlanActions:
-          true,
-
-        canExecuteActions:
-          false,
-
-        canPersistState:
-          false,
-
-        canChangeFinalResponse:
-          false,
-
-        role:
-          "action_delivery_orchestration"
+        canPlanActions: true,
+        canExecuteActions: false,
+        canPersistState: false,
+        canChangeFinalResponse: false,
+        role: "action_delivery_orchestration"
       }
     };
   }
