@@ -1,12 +1,14 @@
 /* =============================================================
    ARI CIRCLE — PROFILE V4
-   Version: 4.2.0
+   Version: 4.3.0
 
    Lightweight social profile layer.
    - Feed / Profile / Buddies / Challenges navigation
    - Posts + About only
    - No profile flair or reaction scoring
    - Supports private photo/video posts with signed media URLs
+   - Reuses the already-loaded Circle context to avoid duplicate identity calls
+   - Renders post copy before private media signing finishes
    - Keeps the existing legacy profile renderer/editor/controllers
    - Keeps the existing one-time age safety boundary
 ============================================================= */
@@ -14,9 +16,11 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.2.0";
+  const VERSION = "4.3.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
+  const AGE_CACHE_KEY = "ari_circle_profile_verified_age_v1";
+  const AGE_CACHE_MS = 15 * 60 * 1000;
   const $ = (id) => document.getElementById(id);
 
   const ABOUT_SECTION_IDS = [
@@ -32,6 +36,7 @@
     isOwner: false,
     age: null,
     posts: [],
+    postsHydrationToken: 0,
     tab: "posts",
     started: false,
     socialAvailable: true,
@@ -79,6 +84,21 @@
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
+  function primeFromLegacyContext() {
+    const app = window.AriCircleApp || window.Ari?.circle || null;
+    const store = app?.modules?.CircleStore || null;
+    const context = store?.get?.("context") || store?.getState?.()?.context || null;
+    const viewerId = clean(context?.viewerUserId);
+    const profileId = clean(context?.profileUserId);
+
+    if (!viewerId || !profileId) return false;
+
+    state.viewer = { id: viewerId };
+    state.profileUserId = profileId;
+    state.isOwner = viewerId === profileId;
+    return true;
+  }
+
   async function resolveViewer() {
     const { data, error } = await state.client.auth.getUser();
     if (error) throw error;
@@ -122,9 +142,9 @@
     nav.setAttribute("aria-label", "ARI Circle sections");
     nav.innerHTML = `
       <a href="ari-circle-feed.html">Feed</a>
-      <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
       <a href="ari-circle-partners.html">Buddies</a>
       <a href="ari-circle-challenges.html">Challenges</a>
+      <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
     `;
     main.insertBefore(nav, profile);
   }
@@ -192,14 +212,45 @@
     });
   }
 
-  async function loadAgeState() {
+  function readVerifiedAgeCache() {
+    const viewerId = clean(state.viewer?.id);
+    if (!viewerId) return null;
+
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(AGE_CACHE_KEY) || "null");
+      if (!parsed || clean(parsed.viewerId) !== viewerId || parsed.age?.verified !== true) return null;
+      if (Date.now() - Number(parsed.savedAt || 0) > AGE_CACHE_MS) return null;
+      return parsed.age;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeVerifiedAgeCache(age) {
+    const viewerId = clean(state.viewer?.id);
+    if (!viewerId) return;
+
+    try {
+      if (age?.verified === true) {
+        sessionStorage.setItem(AGE_CACHE_KEY, JSON.stringify({ viewerId, age, savedAt: Date.now() }));
+      } else {
+        sessionStorage.removeItem(AGE_CACHE_KEY);
+      }
+    } catch {
+      // Cache is a speed enhancement only.
+    }
+  }
+
+  async function loadAgeState({ preserveVerifiedOnError = false } = {}) {
     try {
       state.age = await rpc("ari_circle_my_age_state");
+      writeVerifiedAgeCache(state.age);
     } catch (error) {
       console.warn("ARI Circle V4 age state unavailable:", error);
-      state.age = null;
+      if (!preserveVerifiedOnError) state.age = null;
     }
     renderAgeGate();
+    return state.age;
   }
 
   function renderAgeGate() {
@@ -231,6 +282,7 @@
 
     try {
       state.age = await rpc("ari_circle_verify_my_age", { requested_date_of_birth: value });
+      writeVerifiedAgeCache(state.age);
       renderAgeGate();
       showToast("Age verified. Your birthday stays private.");
       await loadPosts();
@@ -271,6 +323,8 @@
   async function loadPosts() {
     if (!state.profileUserId) return;
 
+    const hydrationToken = ++state.postsHydrationToken;
+
     try {
       const result = await rpc("ari_circle_profile_posts_v2", {
         requested_user_id: state.profileUserId,
@@ -278,8 +332,26 @@
       });
       state.socialAvailable = true;
       state.posts = Array.isArray(result) ? result : [];
-      await hydratePosts(state.posts);
+
+      // Public/legacy URLs can paint now. Private paths are signed afterward.
+      state.posts.forEach((post) => {
+        post.signed_media_url = clean(post.media_path)
+          ? ""
+          : clean(post.legacy_media_url || post.media_url);
+      });
+
+      // First paint: post text, timestamps and structure appear immediately.
       renderPosts();
+
+      // Media signing is deliberately non-blocking. When it finishes, repaint
+      // only if this is still the newest posts request.
+      void hydratePosts(state.posts)
+        .then(() => {
+          if (hydrationToken === state.postsHydrationToken) renderPosts();
+        })
+        .catch((error) => {
+          console.warn("ARI Circle V4 profile media hydration failed:", error);
+        });
     } catch (error) {
       console.warn("ARI Circle V4 profile posts unavailable:", error);
       state.socialAvailable = false;
@@ -369,20 +441,35 @@
     state.started = true;
 
     try {
-      const viewer = await resolveViewer();
-      if (!viewer) return;
-      await resolveProfileUserId();
-      if (!state.profileUserId) return;
+      // The legacy Circle boot has already resolved this context before it
+      // reveals the page. Reuse it instead of repeating auth.getUser() and,
+      // on handle routes, another profile lookup.
+      const primed = primeFromLegacyContext();
 
-      state.isOwner = state.profileUserId === viewer.id;
+      if (!primed) {
+        const viewer = await resolveViewer();
+        if (!viewer) return;
+        await resolveProfileUserId();
+        if (!state.profileUserId) return;
+        state.isOwner = state.profileUserId === viewer.id;
+      }
 
       injectMainNav();
       ensureSafetyAnchor();
       injectProfileTabs();
       selectInitialTab();
 
+      const cachedAge = readVerifiedAgeCache();
+      if (cachedAge) {
+        state.age = cachedAge;
+        renderAgeGate();
+        void loadPosts();
+        void loadAgeState({ preserveVerifiedOnError: true });
+        return;
+      }
+
       await loadAgeState();
-      if (state.age?.verified) await loadPosts();
+      if (state.age?.verified) void loadPosts();
       else if (!state.isOwner) renderUnavailableSocial();
     } catch (error) {
       console.error("ARI Circle V4 profile enhancement failed:", error);
@@ -402,7 +489,7 @@
         } else if (attempts > 50) {
           window.clearInterval(timer);
         }
-      }, 200);
+      }, 100);
     }, { once: true });
   }
 
