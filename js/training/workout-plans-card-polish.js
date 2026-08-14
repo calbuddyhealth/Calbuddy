@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/training/workout-plans-card-polish.js
-// Version: 1.1.0
+// Version: 1.1.1
 // Purpose:
 //   Improve My Week card hierarchy and mobile day-editor readability
 //   without changing workout-plan logic.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.1.1";
   const GRID_ID = "workoutWeekGrid";
   const STYLE_ID = "ariWorkoutPlanCardHierarchyStyle";
   const EDITOR_STYLE_ID = "ariWorkoutDayEditorMobileStyle";
@@ -32,7 +32,7 @@
       const link = document.createElement("link");
       link.id = EDITOR_STYLE_ID;
       link.rel = "stylesheet";
-      link.href = "assets/css/workout-day-editor-mobile.css?v=1.0.0";
+      link.href = "assets/css/workout-day-editor-mobile.css?v=1.0.1";
       document.head.append(link);
     }
   }
