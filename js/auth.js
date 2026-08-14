@@ -4,10 +4,10 @@
 // Purpose:
 //   Shared Supabase auth helpers for ARI XP.
 //
-// V1.2.0
+// V1.2.1
 // App Store privacy readiness:
-// - Boots the explicit third-party AI processing consent gate on home.
-// - Locks the ARI composer before the consent controller finishes loading.
+// - Locks the ARI composer before the consent controller initializes.
+// - home.html owns the single AI consent controller script load.
 //
 // V1.1.0
 // Email confirmation handoff:
@@ -244,13 +244,9 @@ function bootstrapAIAccessConsent() {
     send.setAttribute("aria-disabled", "true");
   }
 
-  if (document.querySelector('script[data-ari-ai-consent="true"]')) return;
-
-  const script = document.createElement("script");
-  script.src = "js/ai-processing-consent.js?v=1.0.0";
-  script.async = false;
-  script.dataset.ariAiConsent = "true";
-  document.head.appendChild(script);
+  // home.html loads js/ai-processing-consent.js exactly once.
+  // Auth only locks the composer early so no AI request can be sent before
+  // the consent controller resolves the user's current permission.
 }
 
 bootstrapAIAccessConsent();
