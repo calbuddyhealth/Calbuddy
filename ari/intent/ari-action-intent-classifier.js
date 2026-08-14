@@ -1,11 +1,11 @@
 // ari/intent/ari-action-intent-classifier.js
 // Purpose: Decide whether the user is conversing, asking, logging, updating app data, planning a workout, or requesting developer work.
-// V1.2.1 — Bare "log that" follow-ups bypass the legacy quick-action path and require current Rebirth meal context.
+// V1.3.0 — Adds explicit Nutrition vs Training domain separation so editable meal/workout actions cannot cross-route.
 
 window.Ari = window.Ari || {};
 
 window.Ari.actionIntentClassifier = {
-  version: "1.2.1",
+  version: "1.3.0",
 
   classify(input = {}) {
     const message = this.clean(input.message || input.userMessage || "");
@@ -13,13 +13,16 @@ window.Ari.actionIntentClassifier = {
     const context = input.context || input.userContext || {};
     const history = Array.isArray(input.history) ? input.history : [];
 
-    const lane = this.detectLane(lower, context, history);
+    const domain = this.detectActionDomain(lower);
+    const lane = this.detectLane(lower, context, history, domain);
     const confidence = this.scoreConfidence(lane, lower);
 
     return {
       classifierRan: true,
       classifierVersion: this.version,
       originalMessage: message,
+      domain,
+      domainConflict: domain === "conflict",
       lane,
       confidence,
       wantsDataChange: this.wantsDataChange(lane),
@@ -33,14 +36,20 @@ window.Ari.actionIntentClassifier = {
     };
   },
 
-  detectLane(text, context, history) {
+  detectLane(text, context, history, domain = this.detectActionDomain(text)) {
     if (!text) return "conversation_only";
 
     if (this.isDeveloperAction(text)) return "developer_action";
 
     if (this.isHealthOrSymptomQuestion(text)) return "health_symptom_question";
 
-    if (this.isExplicitWorkoutPlanRequest(text)) return "explicit_workout_plan";
+    // If a sentence contains strong meal AND workout write signals, do not guess.
+    // Ari should clarify the target instead of mutating either store.
+    if (domain === "conflict") return "conversation_only";
+
+    if (domain === "training" && this.isExplicitWorkoutPlanRequest(text)) {
+      return "explicit_workout_plan";
+    }
 
     // Profile/weight logging must be resolved before meal logging so phrases such
     // as "log my weight" can never fall into the nutrition lane.
@@ -48,7 +57,9 @@ window.Ari.actionIntentClassifier = {
 
     if (this.isExplicitGoalUpdate(text)) return "explicit_goal_update";
 
-    if (this.isExplicitMealLogRequest(text)) return "explicit_log_request";
+    if (domain === "nutrition" && this.isExplicitMealLogRequest(text)) {
+      return "explicit_log_request";
+    }
 
     if (this.isCalorieEstimateQuestion(text)) return "calorie_estimate_only";
 
@@ -57,6 +68,24 @@ window.Ari.actionIntentClassifier = {
     if (this.isFoodStatement(text)) return "food_statement";
 
     return "conversation_only";
+  },
+
+  detectActionDomain(text = "") {
+    const value = String(text || "").toLowerCase();
+
+    const nutritionSignals =
+      /\b(meal|food|breakfast|lunch|dinner|snack|ate|eaten|eating|drink|drank|nutrition|macros?|protein|carbs?|carbohydrates?|dietary fat|kcal|calorie intake|calories consumed)\b/.test(value);
+
+    const trainingSignals =
+      /\b(workout|training|exercise|lifting|gym|sets?|reps?|chest|back|shoulders?|delts?|legs?|quads?|hamstrings?|glutes?|biceps?|triceps?|core|abs?|cardio|running|mobility)\b/.test(value);
+
+    const mutationVerb =
+      /\b(log|add|save|track|record|edit|change|update|replace|remove|delete|swap|create|build|plan|schedule|set up|put together)\b/.test(value);
+
+    if (mutationVerb && nutritionSignals && trainingSignals) return "conflict";
+    if (trainingSignals) return "training";
+    if (nutritionSignals) return "nutrition";
+    return "general";
   },
 
   isDeveloperAction(text) {
@@ -74,11 +103,22 @@ window.Ari.actionIntentClassifier = {
   },
 
   isExplicitWorkoutPlanRequest(text) {
-    const workoutNoun = /\b(workout|training session|training plan|exercise session|gym session)\b/.test(text);
-    const planningVerb = /\b(make|build|create|plan|schedule|set up|put together|give me|add)\b/.test(text);
-    const loggingOnly = /\b(log|track|record|completed|finished|burned|calories burned)\b/.test(text);
+    // Strong Nutrition context blocks a workout mutation unless the user also
+    // explicitly names a workout/training object. This prevents "edit my meal"
+    // from leaking into Training because it contains words like add/change.
+    const explicitWorkoutObject =
+      /\b(workout|training session|training plan|exercise session|gym session|workout plan)\b/.test(text);
 
-    return workoutNoun && planningVerb && !loggingOnly;
+    const bodyPartWorkoutPhrase =
+      /\b(hitting|training|working)\s+(?:my\s+)?(chest|back|shoulders?|delts?|legs?|quads?|hamstrings?|glutes?|arms?|biceps?|triceps?|core|abs?)\b/.test(text);
+
+    const planningVerb =
+      /\b(make|build|create|plan|schedule|set up|put together|give me|add|replace|edit|change|update)\b/.test(text);
+
+    const loggingOnly =
+      /\b(log|track|record|completed|finished|burned|calories burned)\b/.test(text);
+
+    return (explicitWorkoutObject || bodyPartWorkoutPhrase) && planningVerb && !loggingOnly;
   },
 
   isExplicitMealLogRequest(text) {
@@ -87,7 +127,7 @@ window.Ari.actionIntentClassifier = {
 
     // Explicit non-meal targets always win. This is intentionally conservative.
     if (
-      /\b(workout|exercise|training|set|reps?|weight|body weight|blood pressure|heart rate|steps?|sleep|water|medication|medicine|dose|symptom|mood|note|journal|error|bug|console|github|code|account|sign[- ]?in|login)\b/.test(text)
+      /\b(workout|exercise|training|sets?|reps?|weight|body weight|blood pressure|heart rate|steps?|sleep|water|medication|medicine|dose|symptom|mood|note|journal|error|bug|console|github|code|account|sign[- ]?in|login)\b/.test(text)
     ) {
       return false;
     }
@@ -165,7 +205,7 @@ window.Ari.actionIntentClassifier = {
     if (lane === "conversation_only") return 0.7;
     if (lane === "health_symptom_question") return 0.92;
     if (lane === "developer_action") return 0.88;
-    if (lane === "explicit_workout_plan") return 0.9;
+    if (lane === "explicit_workout_plan") return 0.94;
     if (lane === "explicit_log_request") return 0.94;
     if (lane.startsWith("explicit")) return 0.86;
     if (lane === "calorie_estimate_only") return 0.84;
@@ -175,13 +215,13 @@ window.Ari.actionIntentClassifier = {
 
   reasonForLane(lane) {
     const reasons = {
-      conversation_only: "No clear request to change app data.",
+      conversation_only: "No unambiguous request to change one application data domain.",
       health_symptom_question: "User is asking about symptoms, safety, or health effects, not logging.",
       calorie_estimate_only: "User is asking for a calorie estimate only.",
       nutrition_question: "User is asking for nutrition guidance.",
       food_statement: "User mentioned food but did not ask to log it.",
-      explicit_log_request: "User explicitly requested a meal-related log/save action.",
-      explicit_workout_plan: "User explicitly asked Ari to create or schedule a workout.",
+      explicit_log_request: "User explicitly requested a Nutrition meal log/save action.",
+      explicit_workout_plan: "User explicitly requested a Training workout create/edit action.",
       explicit_goal_update: "User explicitly asked to update a goal.",
       explicit_profile_update: "User explicitly asked to update profile data.",
       developer_action: "Owner/developer request about app files or layout."
