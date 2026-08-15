@@ -1,0 +1,81 @@
+/* ARI XP — home navigation polish */
+.ari-nav-link.nav-circle {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(71, 119, 255, .46);
+  background:
+    radial-gradient(circle at 12% 50%, rgba(32, 228, 241, .16), transparent 31%),
+    radial-gradient(circle at 88% 26%, rgba(169, 104, 255, .14), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,.98), rgba(242,247,255,.94));
+  box-shadow:
+    0 16px 34px rgba(42, 71, 161, .15),
+    0 0 28px rgba(32, 228, 241, .11),
+    inset 0 1px 0 rgba(255,255,255,.98);
+}
+
+.ari-nav-link.nav-circle::before {
+  position: absolute;
+  inset: -45% -15%;
+  content: "";
+  pointer-events: none;
+  background: conic-gradient(from 180deg, transparent 0 32%, rgba(32,228,241,.22) 39%, transparent 47% 70%, rgba(169,104,255,.18) 78%, transparent 86%);
+  animation: ariCircleOrbit 8s linear infinite;
+}
+
+.ari-nav-link.nav-circle .ari-nav-copy,
+.ari-nav-link.nav-circle .ari-nav-dot {
+  position: relative;
+  z-index: 1;
+}
+
+.ari-nav-link.nav-circle .ari-nav-title {
+  color: #071253;
+  text-shadow: 0 0 18px rgba(32,228,241,.23);
+  letter-spacing: .18em;
+}
+
+.ari-nav-link.nav-circle .ari-nav-title::after {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  margin-left: 10px;
+  padding: 0 7px;
+  content: "LIVE";
+  color: #195d9b;
+  border: 1px solid rgba(32,228,241,.45);
+  border-radius: 999px;
+  background: rgba(255,255,255,.68);
+  font-size: 7px;
+  letter-spacing: .16em;
+  vertical-align: middle;
+  animation: ariCirclePulse 2.4s ease-in-out infinite;
+}
+
+.ari-nav-conversations {
+  position: relative;
+  border-color: rgba(94, 112, 210, .30);
+  background: linear-gradient(145deg, rgba(255,255,255,.97), rgba(244,246,255,.93));
+}
+
+.ari-nav-conversations::after {
+  position: absolute;
+  right: 18px;
+  width: 7px;
+  aspect-ratio: 1;
+  content: "";
+  border-radius: 50%;
+  background: #20e4f1;
+  box-shadow: 0 0 10px rgba(32,228,241,.72), 0 0 18px rgba(169,104,255,.24);
+}
+
+@keyframes ariCircleOrbit { to { transform: rotate(360deg); } }
+@keyframes ariCirclePulse {
+  0%,100% { opacity: .72; box-shadow: 0 0 0 rgba(32,228,241,0); }
+  50% { opacity: 1; box-shadow: 0 0 16px rgba(32,228,241,.28); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ari-nav-link.nav-circle::before,
+  .ari-nav-link.nav-circle .ari-nav-title::after { animation: none; }
+}
