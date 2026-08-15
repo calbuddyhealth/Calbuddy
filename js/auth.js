@@ -2,8 +2,8 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.9.1 — Home and Nutrition share one OpenAI central intent router and
-// canonical domain action services. Router cache bumped to v1.2.0.
+// V1.10.0 — Adds neutral new-user Goals bootstrap. New accounts no longer
+// inherit legacy developer/template health values.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
@@ -13,6 +13,7 @@ const ARI_INTENT_ROUTER_SCRIPT_ID = "ariCentralIntentRouterScript";
 const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
 const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
+const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -21,7 +22,6 @@ async function createUserProfile(user, displayName = "") {
     id: user.id,
     email: user.email || "",
     display_name: cleanDisplayName || user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
-    daily_calorie_goal: 2100,
     reset_hour: 12,
     reset_minute: 0,
     reset_ampm: "AM",
@@ -169,6 +169,7 @@ function bootstrapCanonicalMealLedger() {
 function currentAriSurface() {
   const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page === "nutrition.html") return "nutrition";
+  if (page === "goals.html") return "goals";
   if (page === "home.html" || page === "") return "home";
   return "other";
 }
@@ -204,9 +205,18 @@ function bootstrapNutritionActionUi() {
   appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.1.0");
 }
 
+function bootstrapNeutralGoalsForNewAccounts() {
+  if (currentAriSurface() !== "goals") return;
+  appendOrderedScript(
+    ARI_GOALS_NEUTRAL_SCRIPT_ID,
+    "js/goals-neutral-new-user.js?v=1.0.0"
+  );
+}
+
 bootstrapCanonicalMealLedger();
 bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
 bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
+bootstrapNeutralGoalsForNewAccounts();
 bootstrapAIAccessConsent();
