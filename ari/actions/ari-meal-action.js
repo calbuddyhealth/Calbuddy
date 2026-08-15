@@ -1,11 +1,16 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-meal-action.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   SINGLE originator for Ari-created meal-log mutations.
-//   Uses only the current user turn + the structured mealEstimate returned
-//   for that same turn. No conversation-history or last-meal fallback.
+//   Uses only the current user turn + a structured meal estimate for that
+//   same turn. No conversation-history or last-meal fallback.
+//
+// Guarantees:
+//   - Direct commands such as "log an egg roll" enter this path.
+//   - Ari never says a meal was logged before confirmation + execution.
+//   - Missing structured nutrition is re-estimated from the current turn only.
 // =====================================================
 
 (() => {
@@ -13,7 +18,7 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const INSTALL_FLAG = "__ariMealActionV1";
   const SOURCE = "ari_meal_action_v1_current_turn";
 
@@ -25,9 +30,10 @@
 
     const writeIntent = /\b(log|track|save|record|add)\b/.test(text);
     const eatingContext = /\b(i ate|i had|i drank|i just ate|i just had|i just drank|breakfast|lunch|dinner|snack|meal|food)\b/.test(text);
+    const directLogCommand = /^(?:hey\s+ari[,\s]+)?(?:(?:can|could|would)\s+you\s+|please\s+)?(?:log|track|record)\b\s+.+/i.test(clean(message));
     const nonMealTarget = /\b(workout|training|exercise|sets?|reps?|weight|blood pressure|heart rate|steps?|sleep|medication|dose|symptom|mood|journal|note|github|code|account|login)\b/.test(text);
 
-    return writeIntent && eatingContext && !nonMealTarget;
+    return !nonMealTarget && ((writeIntent && eatingContext) || directLogCommand);
   }
 
   function normalizeMealTitle(estimate = {}, message = "") {
@@ -46,6 +52,8 @@
     }
 
     title = title
+      .replace(/^\s*(?:hey\s+ari[,\s]+)?/i, "")
+      .replace(/^\s*(?:(?:can|could|would)\s+you\s+|please\s+)?(?:log|track|save|record|add)\s+/i, "")
       .replace(/^\s*(?:i\s+(?:had|ate|drank|just\s+had|just\s+ate|just\s+drank))\s+/i, "")
       .replace(/\b(?:can|could|would)\s+you\s+(?:please\s+)?(?:log|track|save|record|add)\b.*$/i, "")
       .replace(/\bplease\s+(?:log|track|save|record|add)\b.*$/i, "")
@@ -90,6 +98,43 @@
     };
   }
 
+  function extractStructuredEstimate(result = {}) {
+    return (
+      result?.mealEstimate ||
+      result?.nutritionEstimate ||
+      result?.response?.mealEstimate ||
+      result?.response?.nutritionEstimate ||
+      null
+    );
+  }
+
+  async function requestCurrentTurnEstimate(message = "") {
+    const response = await fetch("/api/ask-calbuddy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: clean(message),
+        history: [],
+        responseFormat: "json",
+        aiInstruction:
+          "This is a meal-log estimation transaction. Use ONLY the current user message. " +
+          "Do not use prior conversation context. Identify only the foods/drinks the user is asking to log. " +
+          "Return a concise reply and a complete mealEstimate with description, totalCalories, protein_g, carbs_g, fat_g, foods, and confidence. " +
+          "Do not say the meal was logged or saved. The app will ask for confirmation before writing anything."
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Meal estimate request failed.");
+    }
+
+    const data = await response.json();
+    return {
+      result: data,
+      structured: extractStructuredEstimate(data)
+    };
+  }
+
   function clearOldMealPendingAction(CalBuddy) {
     try {
       const pending = CalBuddy.getPendingAction?.();
@@ -130,37 +175,47 @@
         return await originalInternal(args);
       }
 
-      // New meal request starts a new write transaction. Previous pending meal
-      // attempts are never reused or treated as evidence for this turn.
+      // Every explicit meal-log request starts a new transaction. Previous
+      // pending meals and previous estimates are never reused.
       clearOldMealPendingAction(CalBuddy);
 
-      const result = await originalInternal(args);
+      let result = await originalInternal(args);
       if (result?.blocked) return result;
 
-      const structured =
-        result?.mealEstimate ||
-        result?.nutritionEstimate ||
-        result?.response?.mealEstimate ||
-        result?.response?.nutritionEstimate ||
-        null;
+      let structured = extractStructuredEstimate(result);
+      let estimate = normalizeEstimate(structured || {}, message);
 
-      const estimate = normalizeEstimate(structured || {}, message);
+      // Fast/general conversation paths may return plain text without the
+      // structured nutrition packet. The SAME meal action service repairs that
+      // by requesting a fresh estimate from this turn only.
+      if (!estimate) {
+        try {
+          const fallback = await requestCurrentTurnEstimate(message);
+          result = fallback.result || result;
+          structured = fallback.structured;
+          estimate = normalizeEstimate(structured || {}, message);
+        } catch (error) {
+          console.warn("ARI meal estimate fallback failed:", error?.message || error);
+        }
+      }
 
       if (!estimate) {
         return {
-          ...result,
+          ...(result || {}),
           pendingAction: null,
           reply:
-            clean(result?.reply) ||
-            "I can estimate and log that meal, but I need a clearer serving or food description first.",
+            "I can log that, but I need a clearer food or serving description before I can estimate the calories and macros safely.",
           source: "ari-meal-action-estimate-incomplete"
         };
       }
 
       const pending = await createPendingMeal(CalBuddy, estimate);
 
+      // The action layer owns transaction truth. Never preserve a model reply
+      // that says "logged" before the user has actually confirmed the write.
       return {
-        ...result,
+        ...(result || {}),
+        reply: pending.confirmation_text,
         mealEstimate: structured,
         pendingAction: pending,
         source: SOURCE
