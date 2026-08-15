@@ -2,8 +2,8 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.10.0 — Adds neutral new-user Goals bootstrap. New accounts no longer
-// inherit legacy developer/template health values.
+// V1.10.0 — Guarantees every authenticated user has a minimal profiles row
+// before protected app surfaces become usable. No fake health defaults.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
@@ -15,20 +15,56 @@ const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
 
-async function createUserProfile(user, displayName = "") {
-  if (!user || !user.id) return;
+function getMinimalProfilePayload(user, displayName = "") {
   const cleanDisplayName = String(displayName || "").trim();
-  const profilePayload = {
+  return {
     id: user.id,
     email: user.email || "",
-    display_name: cleanDisplayName || user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
-    reset_hour: 12,
-    reset_minute: 0,
-    reset_ampm: "AM",
+    display_name:
+      cleanDisplayName ||
+      user.user_metadata?.display_name ||
+      user.email?.split("@")[0] ||
+      "User",
     updated_at: new Date().toISOString()
   };
-  const { error } = await window.calbuddySupabase.from("profiles").upsert(profilePayload, { onConflict: "id" });
-  if (error) console.error("Profile save error:", error.message);
+}
+
+async function createUserProfile(user, displayName = "") {
+  if (!user?.id || !window.calbuddySupabase) return null;
+
+  // Never overwrite an existing configured health profile just because the
+  // user re-enters through email verification, a restored session, or login.
+  const { data: existing, error: readError } = await window.calbuddySupabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (readError) {
+    console.warn("Profile bootstrap read failed:", readError.message);
+  }
+
+  if (existing?.id) return existing;
+
+  const profilePayload = getMinimalProfilePayload(user, displayName);
+  const { data, error } = await window.calbuddySupabase
+    .from("profiles")
+    .upsert(profilePayload, { onConflict: "id" })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Profile bootstrap failed:", error.message);
+    throw error;
+  }
+
+  return data || profilePayload;
+}
+
+async function ensureAuthenticatedProfile(user = null) {
+  const resolvedUser = user || (await getCurrentUser());
+  if (!resolvedUser?.id) return null;
+  return await createUserProfile(resolvedUser);
 }
 
 async function signInUser(email, password) {
@@ -122,6 +158,17 @@ async function requireAuth() {
     window.location.replace("signin.html");
     return null;
   }
+
+  // Email-confirmation links and restored Supabase sessions can bypass the
+  // ordinary password-login handler. Provision the app profile here so every
+  // authenticated path reaches ARI with a valid profiles row.
+  try {
+    await ensureAuthenticatedProfile(session.user);
+  } catch (error) {
+    console.error("Authenticated profile provisioning failed:", error);
+    return null;
+  }
+
   const accountState = await getAriAccountState(session.user.id);
   if (accountState?.status && accountState.status !== "active" && !isAriAccountRecoveryPage()) {
     window.location.replace("account.html");
@@ -205,12 +252,9 @@ function bootstrapNutritionActionUi() {
   appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.1.0");
 }
 
-function bootstrapNeutralGoalsForNewAccounts() {
+function bootstrapNeutralGoalsForNewUsers() {
   if (currentAriSurface() !== "goals") return;
-  appendOrderedScript(
-    ARI_GOALS_NEUTRAL_SCRIPT_ID,
-    "js/goals-neutral-new-user.js?v=1.0.0"
-  );
+  appendOrderedScript(ARI_GOALS_NEUTRAL_SCRIPT_ID, "js/goals-neutral-new-user.js?v=1.0.0");
 }
 
 bootstrapCanonicalMealLedger();
@@ -218,5 +262,5 @@ bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
 bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
-bootstrapNeutralGoalsForNewAccounts();
+bootstrapNeutralGoalsForNewUsers();
 bootstrapAIAccessConsent();
