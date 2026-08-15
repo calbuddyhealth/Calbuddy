@@ -1,9 +1,10 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-workout-plan-action.js
-// Version: 2.0.0
+// Version: 3.0.0
 // Purpose:
-//   SINGLE originator for Ari-created workout-plan mutations.
+//   SINGLE originator for Ari-created workout mutations.
+//   Command meaning comes ONLY from the central OpenAI intent router.
 //   All Training reads/builds/writes flow through WorkoutPlanController.
 // =====================================================
 
@@ -12,12 +13,13 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "2.0.0";
-  const SOURCE = "ari/actions/ari-workout-plan-action";
+  const VERSION = "3.0.0";
+  const SOURCE = "ari_workout_action_v3_central_router";
   const CONFLICT_KEY = "ariWorkoutPlanConflict";
   const EDIT_KEY = "ariWorkoutEditContext";
+  const INSTALL_FLAG = "__ariWorkoutActionV3";
 
-  const clean = (value = "") => String(value || "").trim();
+  const clean = (value = "") => String(value ?? "").trim();
 
   function formatDateKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -38,42 +40,24 @@
   function formatDateLabel(value) {
     const date = value instanceof Date ? value : parseDateKey(value);
     if (!date) return "that date";
-    try {
-      return new Intl.DateTimeFormat(undefined, {
-        weekday: "long",
-        month: "long",
-        day: "numeric"
-      }).format(date);
-    } catch {
-      return formatDateKey(date);
-    }
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric"
+    }).format(date);
   }
 
-  function looksLikeWorkoutPlanRequest(message = "") {
-    const text = clean(message).toLowerCase();
-    const workoutContext =
-      /\b(workout|training plan|training session|exercise plan|exercise session|gym session|lifting session)\b/.test(text) ||
-      /\b(hitting|training|working)\s+(?:my\s+)?(chest|back|shoulders?|delts?|legs?|quads?|hamstrings?|glutes?|arms?|biceps?|triceps?|core|abs?)\b/.test(text);
-    const creationIntent =
-      /\b(make|build|create|plan|schedule|set up|put together|give me|add|replace|edit|change)\b/.test(text) ||
-      /\b(can you|could you|would you|please)\b.{0,50}\b(workout|training plan|training session|exercise plan)\b/.test(text);
-    const loggingOnly =
-      /\b(log|track|record)\b.{0,30}\b(workout|training|exercise)\b/.test(text) ||
-      /\b(completed|finished|done with|already did|burned)\b/.test(text);
-    return workoutContext && creationIntent && !loggingOnly;
-  }
-
-  function resolveRequestedDate(message = "", now = new Date()) {
-    const text = clean(message).toLowerCase();
+  function resolveRequestedDate(text = "", now = new Date()) {
+    const value = clean(text).toLowerCase();
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const iso = text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+    const iso = value.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
     if (iso) {
       const date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
       return parseDateKey(formatDateKey(date)) ? formatDateKey(date) : null;
     }
 
-    const slash = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}|\d{2}))?\b/);
+    const slash = value.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}|\d{2}))?\b/);
     if (slash) {
       let year = slash[3] ? Number(slash[3]) : base.getFullYear();
       if (year < 100) year += 2000;
@@ -82,8 +66,8 @@
       return formatDateKey(date);
     }
 
-    if (/\btoday\b/.test(text)) return formatDateKey(base);
-    if (/\btomorrow\b/.test(text)) {
+    if (/\btoday\b/.test(value)) return formatDateKey(base);
+    if (/\btomorrow\b/.test(value)) {
       const date = new Date(base);
       date.setDate(date.getDate() + 1);
       return formatDateKey(date);
@@ -91,7 +75,7 @@
 
     const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     for (let target = 0; target < weekdays.length; target += 1) {
-      const match = text.match(new RegExp(`\\b(next\\s+|this\\s+)?${weekdays[target]}\\b`));
+      const match = value.match(new RegExp(`\\b(next\\s+|this\\s+)?${weekdays[target]}\\b`));
       if (!match) continue;
       let delta = (target - base.getDay() + 7) % 7;
       if (clean(match[1]).toLowerCase() === "next" && delta === 0) delta = 7;
@@ -103,36 +87,47 @@
     return null;
   }
 
-  function extractWorkoutRequest(message = "") {
-    const text = clean(message).toLowerCase();
-    const durationMatch = text.match(/\b(\d{1,3})\s*(?:minute|minutes|min|mins)\b/);
-    const durationMinutes = durationMatch
-      ? Math.max(10, Math.min(180, Number(durationMatch[1])))
+  function isTrainingDecision(decision = {}) {
+    const action = clean(decision.action);
+    return (
+      clean(decision.domain) === "training" &&
+      ["plan_workout", "edit_workout"].includes(action) &&
+      decision.needs_clarification !== true &&
+      Number(decision.confidence || 0) >= 0.8
+    );
+  }
+
+  function extractWorkoutRequest(message = "", decision = {}) {
+    const entities = decision?.entities || {};
+    const focusText = clean(entities.workout_focus).toLowerCase();
+    const difficultyText = clean(entities.difficulty).toLowerCase();
+    const durationValue = Number(entities.duration_minutes);
+
+    const durationMinutes = Number.isFinite(durationValue) && durationValue >= 10
+      ? Math.min(180, Math.round(durationValue))
       : 45;
 
-    const difficulty = /\b(advanced|hard|intense|heavy)\b/.test(text)
-      ? "advanced"
-      : /\b(beginner|easy|light)\b/.test(text)
-        ? "beginner"
-        : "intermediate";
+    const difficulty = ["beginner", "intermediate", "advanced"].includes(difficultyText)
+      ? difficultyText
+      : "intermediate";
 
-    const focuses = [
-      { pattern: /\b(chest|pecs?)\b/, id: "chest", title: "Chest Workout", goal: "muscle_building", bodyParts: ["chest"], modules: ["chest"] },
-      { pattern: /\b(back|lats?)\b/, id: "back", title: "Back Workout", goal: "muscle_building", bodyParts: ["back"], modules: ["back"] },
-      { pattern: /\b(shoulders?|delts?)\b/, id: "shoulders", title: "Shoulder Workout", goal: "muscle_building", bodyParts: ["shoulders"], modules: ["shoulders"] },
-      { pattern: /\b(biceps?)\b/, id: "biceps", title: "Biceps Workout", goal: "muscle_building", bodyParts: ["arms"], modules: ["biceps"] },
-      { pattern: /\b(triceps?)\b/, id: "triceps", title: "Triceps Workout", goal: "muscle_building", bodyParts: ["arms"], modules: ["triceps"] },
-      { pattern: /\b(legs?|lower body|quads?|hamstrings?|glutes?)\b/, id: "legs", title: "Lower Body Workout", goal: "lower_body_strength", bodyParts: ["lower_body"], modules: ["legs", "glutes", "calves"] },
-      { pattern: /\b(core|abs?|abdominals?)\b/, id: "core", title: "Core Workout", goal: "core_strength", bodyParts: ["core"], modules: ["core"] },
-      { pattern: /\b(cardio|conditioning)\b/, id: "cardio", title: "Cardio Workout", goal: "cardio", bodyParts: [], modules: ["cardio"] },
-      { pattern: /\b(run|running)\b/, id: "running", title: "Running Workout", goal: "running", bodyParts: [], modules: ["cardio"] },
-      { pattern: /\b(mobility|stretch|flexibility)\b/, id: "mobility", title: "Mobility Workout", goal: "mobility", bodyParts: [], modules: ["functional", "core"] },
-      { pattern: /\b(full body|total body)\b/, id: "full_body", title: "Full Body Workout", goal: "general_fitness", bodyParts: [], modules: [] }
+    const focusRules = [
+      { test: /chest|pec/, id: "chest", title: "Chest Workout", goal: "muscle_building", bodyParts: ["chest"], modules: ["chest"] },
+      { test: /back|lat/, id: "back", title: "Back Workout", goal: "muscle_building", bodyParts: ["back"], modules: ["back"] },
+      { test: /shoulder|delt/, id: "shoulders", title: "Shoulder Workout", goal: "muscle_building", bodyParts: ["shoulders"], modules: ["shoulders"] },
+      { test: /bicep/, id: "biceps", title: "Biceps Workout", goal: "muscle_building", bodyParts: ["arms"], modules: ["biceps"] },
+      { test: /tricep/, id: "triceps", title: "Triceps Workout", goal: "muscle_building", bodyParts: ["arms"], modules: ["triceps"] },
+      { test: /leg|lower body|quad|hamstring|glute/, id: "legs", title: "Lower Body Workout", goal: "lower_body_strength", bodyParts: ["lower_body"], modules: ["legs", "glutes", "calves"] },
+      { test: /core|abs|abdominal/, id: "core", title: "Core Workout", goal: "core_strength", bodyParts: ["core"], modules: ["core"] },
+      { test: /cardio|conditioning/, id: "cardio", title: "Cardio Workout", goal: "cardio", bodyParts: [], modules: ["cardio"] },
+      { test: /run|running/, id: "running", title: "Running Workout", goal: "running", bodyParts: [], modules: ["cardio"] },
+      { test: /mobility|stretch|flexibility/, id: "mobility", title: "Mobility Workout", goal: "mobility", bodyParts: [], modules: ["functional", "core"] },
+      { test: /full body|total body/, id: "full_body", title: "Full Body Workout", goal: "general_fitness", bodyParts: [], modules: [] }
     ];
 
-    const focus = focuses.find(item => item.pattern.test(text)) || {
+    const focus = focusRules.find(rule => rule.test.test(focusText)) || {
       id: "custom",
-      title: "Workout",
+      title: focusText ? `${focusText.charAt(0).toUpperCase()}${focusText.slice(1)} Workout` : "Workout",
       goal: "general_fitness",
       bodyParts: [],
       modules: []
@@ -150,8 +145,9 @@
         modules: focus.modules,
         includeWarmup: durationMinutes >= 15,
         includeCooldown: durationMinutes >= 20,
-        includeFinisher: /\b(finisher|conditioning finisher)\b/.test(text),
-        focusId: focus.id
+        includeFinisher: false,
+        focusId: focus.id,
+        requestedFromMessage: clean(message)
       }
     };
   }
@@ -172,6 +168,14 @@
 
   function describeWorkout(day) {
     return clean(day?.title) || clean(day?.focusLabel) || clean(day?.focusId) || "a workout";
+  }
+
+  async function inspectDate(scheduledDate) {
+    const controller = await getController();
+    const day = controller.getDate(scheduledDate);
+    return hasWorkout(day)
+      ? { day, title: describeWorkout(day), scheduled_date: scheduledDate, dateLabel: formatDateLabel(scheduledDate) }
+      : null;
   }
 
   function saveConflict(value) {
@@ -204,8 +208,8 @@
     return null;
   }
 
-  function buildPendingAction(message, scheduledDate, mode = "create") {
-    const workout = extractWorkoutRequest(message);
+  function buildPendingAction(message, decision, scheduledDate, mode = "create") {
+    const workout = extractWorkoutRequest(message, decision);
     const label = formatDateLabel(scheduledDate);
     const verb = mode === "replace" ? "Replace the existing workout with" : mode === "add" ? "Add" : "Create";
     const suffix = mode === "add" ? ` to ${label}'s workout?` : ` for ${label}?`;
@@ -219,13 +223,21 @@
         focus_id: workout.focusId,
         builder_options: workout.builderOptions,
         requested_from_message: clean(message),
-        existing_workout_mode: mode
+        existing_workout_mode: mode,
+        intent_router: {
+          domain: decision.domain,
+          intent: decision.intent,
+          target: decision.target,
+          action: decision.action,
+          confidence: decision.confidence,
+          router_version: decision.router_version || null
+        }
       },
       confirmation_text: `${verb} ${workout.displayTitle}${suffix}`
     };
   }
 
-  CalBuddy.planWorkoutFromAri = async function (payload = {}) {
+  CalBuddy.planWorkoutFromAri = async function planWorkoutFromAri(payload = {}) {
     const scheduledDate = clean(payload.scheduled_date);
     if (!parseDateKey(scheduledDate)) {
       return { success: false, reply: "I need an exact workout date before I can change that plan." };
@@ -275,13 +287,7 @@
     clearConflict();
 
     window.dispatchEvent(new CustomEvent("ari:workoutPlanUpdated", {
-      detail: {
-        scheduledDate,
-        workoutId: workoutToSave.workoutId || null,
-        mode,
-        source: SOURCE,
-        version: VERSION
-      }
+      detail: { scheduledDate, mode, source: SOURCE, version: VERSION }
     }));
 
     const actionWord = mode === "replace" ? "replaced" : mode === "add" ? "updated" : "set";
@@ -293,119 +299,159 @@
     };
   };
 
-  async function inspectDate(scheduledDate) {
-    const controller = await getController();
-    const day = controller.getDate(scheduledDate);
-    return hasWorkout(day)
-      ? { day, title: describeWorkout(day), scheduled_date: scheduledDate, dateLabel: formatDateLabel(scheduledDate) }
-      : null;
-  }
+  function install() {
+    if (CalBuddy[INSTALL_FLAG]) return true;
+    if (!CalBuddy?._askAriInternal || !CalBuddy?.createPendingAction || !CalBuddy?.executeAction) return false;
 
-  if (!CalBuddy.__ariWorkoutActionInstalled) {
-    const previousExecuteAction = CalBuddy.executeAction;
-    const previousAskInternal = CalBuddy._askAriInternal;
+    const previousExecuteAction = CalBuddy.executeAction.bind(CalBuddy);
+    const previousAskInternal = CalBuddy._askAriInternal.bind(CalBuddy);
 
-    CalBuddy.executeAction = async function (action = {}) {
-      const type = action.action_type || action.type;
+    CalBuddy.executeAction = async function ariWorkoutExecutor(action = {}) {
+      const type = clean(action.action_type || action.type);
       if (type === "plan_workout") {
         if (action.source && action.source !== SOURCE) {
           throw new Error("Rejected non-canonical workout action source.");
         }
         return await CalBuddy.planWorkoutFromAri(action.payload || {});
       }
-      if (typeof previousExecuteAction === "function") {
-        return await previousExecuteAction.call(CalBuddy, action);
-      }
-      return { success: false, reply: "I don’t recognize that action type." };
+      return await previousExecuteAction(action);
     };
 
-    if (typeof previousAskInternal === "function") {
-      CalBuddy._askAriInternal = async function (input = {}) {
-        const message = clean(input.message);
-        const storedConflict = readConflict();
-        const choice = storedConflict ? conflictChoice(message) : null;
+    CalBuddy._askAriInternal = async function ariWorkoutActionRouter(input = {}) {
+      const message = clean(input.message);
 
-        if (storedConflict && choice) {
-          if (choice === "edit") {
-            localStorage.setItem(EDIT_KEY, JSON.stringify({
-              scheduled_date: storedConflict.scheduled_date,
-              existing_title: storedConflict.existing_title,
-              saved_at: new Date().toISOString()
-            }));
-            clearConflict();
-            return {
-              reply: `I’ll keep ${storedConflict.existing_title} intact. Tell me exactly what you want changed.`,
-              pendingAction: null,
-              emotion: "coach",
-              workoutEditMode: true,
-              scheduled_date: storedConflict.scheduled_date
-            };
-          }
+      // A constrained follow-up to a known workout conflict is safe to parse
+      // locally because the target/date were already established by the router.
+      const storedConflict = readConflict();
+      const choice = storedConflict ? conflictChoice(message) : null;
 
-          const pending = buildPendingAction(
-            storedConflict.requested_message,
-            storedConflict.scheduled_date,
-            choice
-          );
+      if (storedConflict && choice) {
+        if (choice === "edit") {
+          localStorage.setItem(EDIT_KEY, JSON.stringify({
+            scheduled_date: storedConflict.scheduled_date,
+            existing_title: storedConflict.existing_title,
+            saved_at: new Date().toISOString()
+          }));
           clearConflict();
-          const action = await CalBuddy.createPendingAction(pending);
           return {
-            reply: action.confirmation_text,
-            pendingAction: action,
+            reply: `I’ll keep ${storedConflict.existing_title} intact. Tell me exactly what you want changed.`,
+            pendingAction: null,
             emotion: "coach",
-            workoutPlanProposed: true,
-            existingWorkoutMode: choice
+            workoutEditMode: true,
+            scheduled_date: storedConflict.scheduled_date,
+            intentDecision: input.intentDecision || null
           };
         }
 
-        if (looksLikeWorkoutPlanRequest(message)) {
-          const requestedDate = resolveRequestedDate(message);
-          if (!requestedDate) {
-            return {
-              reply: "What day do you want me to put that workout on — today, tomorrow, or a specific day?",
-              pendingAction: null,
-              emotion: "coach",
-              workoutDateRequired: true
-            };
-          }
+        const pending = buildPendingAction(
+          storedConflict.requested_message,
+          storedConflict.intent_decision || {},
+          storedConflict.scheduled_date,
+          choice
+        );
+        clearConflict();
+        const action = await CalBuddy.createPendingAction(pending);
+        return {
+          reply: action.confirmation_text,
+          pendingAction: action,
+          emotion: "coach",
+          workoutPlanProposed: true,
+          existingWorkoutMode: choice,
+          intentDecision: input.intentDecision || storedConflict.intent_decision || null
+        };
+      }
 
-          const existing = await inspectDate(requestedDate);
-          if (existing) {
-            saveConflict({
-              scheduled_date: requestedDate,
-              requested_message: message,
-              existing_title: existing.title
-            });
-            return {
-              reply: `You already have ${existing.title} planned for ${existing.dateLabel}. Do you want me to replace it, add the new work to it, or edit the existing workout?`,
-              pendingAction: null,
-              emotion: "coach",
-              workoutPlanConflict: true,
-              scheduled_date: requestedDate
-            };
-          }
+      const decision = input.intentDecision || null;
+      if (!isTrainingDecision(decision)) {
+        return await previousAskInternal(input);
+      }
 
-          const pending = buildPendingAction(message, requestedDate, "create");
-          const action = await CalBuddy.createPendingAction(pending);
+      const dateText = clean(decision?.entities?.workout_date_text) || message;
+      const requestedDate = resolveRequestedDate(dateText) || resolveRequestedDate(message);
+
+      if (!requestedDate) {
+        return {
+          reply: "What day do you want me to put that workout on — today, tomorrow, or a specific day?",
+          pendingAction: null,
+          emotion: "coach",
+          workoutDateRequired: true,
+          intentDecision: decision
+        };
+      }
+
+      const existing = await inspectDate(requestedDate);
+
+      if (clean(decision.action) === "edit_workout") {
+        if (!existing) {
           return {
-            reply: action.confirmation_text,
-            pendingAction: action,
+            reply: `I don’t see a workout planned for ${formatDateLabel(requestedDate)}. Do you want me to create one instead?`,
+            pendingAction: null,
             emotion: "coach",
-            workoutPlanProposed: true
+            intentDecision: decision
           };
         }
 
-        return await previousAskInternal.call(CalBuddy, input);
+        localStorage.setItem(EDIT_KEY, JSON.stringify({
+          scheduled_date: requestedDate,
+          existing_title: existing.title,
+          requested_message: message,
+          router_entities: decision.entities || {},
+          saved_at: new Date().toISOString()
+        }));
+
+        return {
+          reply: `I found ${existing.title} for ${existing.dateLabel}. I’ll keep it intact until you confirm the exact change.`,
+          pendingAction: null,
+          emotion: "coach",
+          workoutEditMode: true,
+          scheduled_date: requestedDate,
+          intentDecision: decision
+        };
+      }
+
+      if (existing) {
+        saveConflict({
+          scheduled_date: requestedDate,
+          requested_message: message,
+          existing_title: existing.title,
+          intent_decision: decision
+        });
+
+        return {
+          reply: `You already have ${existing.title} planned for ${existing.dateLabel}. Do you want me to replace it, add the new work to it, or edit the existing workout?`,
+          pendingAction: null,
+          emotion: "coach",
+          workoutPlanConflict: true,
+          scheduled_date: requestedDate,
+          intentDecision: decision
+        };
+      }
+
+      const pending = buildPendingAction(message, decision, requestedDate, "create");
+      const action = await CalBuddy.createPendingAction(pending);
+
+      return {
+        reply: action.confirmation_text,
+        pendingAction: action,
+        emotion: "coach",
+        workoutPlanProposed: true,
+        intentDecision: decision
       };
-    }
+    };
 
-    CalBuddy.__ariWorkoutActionInstalled = true;
+    Object.defineProperty(CalBuddy, INSTALL_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    console.log("ARI WORKOUT PLAN ACTION LOADED:", VERSION);
+    return true;
   }
 
-  CalBuddy.resolveAriWorkoutDate = resolveRequestedDate;
-  CalBuddy.looksLikeAriWorkoutPlanRequest = looksLikeWorkoutPlanRequest;
-  CalBuddy.buildAriWorkoutRequest = extractWorkoutRequest;
-  CalBuddy.inspectAriWorkoutDate = inspectDate;
-
-  console.log("ARI WORKOUT PLAN ACTION LOADED:", VERSION);
+  let attempts = 0;
+  const timer = window.setInterval(() => {
+    attempts += 1;
+    if (install() || attempts >= 240) window.clearInterval(timer);
+  }, 50);
 })();

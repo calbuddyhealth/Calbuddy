@@ -5,54 +5,86 @@ import path from "node:path";
 
 const root = process.cwd();
 const auth = fs.readFileSync(path.join(root, "js/auth.js"), "utf8");
-const actions = fs.readFileSync(path.join(root, "js/ari-user-actions.js"), "utf8");
+const routerClient = fs.readFileSync(path.join(root, "ari/intent/ari-central-intent-router.js"), "utf8");
+const routerApi = fs.readFileSync(path.join(root, "api/ari-intent-router.js"), "utf8");
+const meals = fs.readFileSync(path.join(root, "ari/actions/ari-meal-action.js"), "utf8");
+const workouts = fs.readFileSync(path.join(root, "ari/actions/ari-workout-plan-action.js"), "utf8");
+const nutritionUi = fs.readFileSync(path.join(root, "ari/actions/ari-nutrition-action-ui.js"), "utf8");
+const nutrition = fs.readFileSync(path.join(root, "js/nutrition.js"), "utf8");
+const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
 const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
-test("home loads the deterministic Ari user action layer", () => {
-  assert.match(auth, /ari-user-actions\.js\?v=1\.0\.0/);
-  assert.match(auth, /script\.type\s*=\s*"module"/);
+test("Home and Nutrition share one OpenAI central intent router", () => {
+  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.2\.0/);
+  assert.match(routerClient, /CalBuddy\.askAri = async function ariCentralIntentBoundary/);
+  assert.match(routerClient, /intentDecision/);
+  assert.match(routerClient, /\/api\/ari-intent-router/);
+  assert.match(routerApi, /response_format/);
+  assert.match(routerApi, /json_schema/);
+  assert.match(routerApi, /strict:\s*true/);
 });
 
-test("meal logging cannot end as a conversation-only promise", () => {
-  assert.match(actions, /isMealLogRequest/);
-  assert.match(actions, /action_type:\s*"log_meal"/);
-  assert.match(actions, /createAndStorePendingAction/);
-  assert.match(actions, /estimateMealThenConfirm/);
-  assert.match(actions, /Do not say it was logged/);
+test("central router is the authority over legacy action classification", () => {
+  assert.match(routerClient, /centralIntentLegacyGate/);
+  assert.match(routerClient, /clean\(decision\.action\) === "none"/);
+  assert.match(routerClient, /\["nutrition", "training"\]/);
+  assert.match(routerClient, /__activeIntentDecision/);
+});
+
+test("central router fails closed instead of letting AI invent app writes", () => {
+  assert.match(routerClient, /I couldn’t verify that request with my action router/);
+  assert.match(routerClient, /intentRouterError:\s*true/);
+  assert.match(routerClient, /intentDecision\.confidence < 0\.8/);
+});
+
+test("both Ari composers still call the shared CalBuddy runtime", () => {
+  assert.match(nutrition, /window\.CalBuddy\.askAri/);
+  assert.match(nutrition, /page:\s*"nutrition"/);
+  assert.match(core, /CalBuddy\.askAri/);
+});
+
+test("meal action meaning comes only from the central intent decision", () => {
+  assert.match(auth, /ari\/actions\/ari-meal-action\.js\?v=2\.0\.0/);
+  assert.match(meals, /ari_meal_action_v2_central_router/);
+  assert.match(meals, /isMealDecision\(decision/);
+  assert.match(meals, /decision\.action/);
+  assert.match(meals, /log_meal/);
+  assert.doesNotMatch(meals, /function isMealLogRequest/);
+  assert.doesNotMatch(meals, /directLogCommand/);
+  assert.doesNotMatch(meals, /getLastAriMealEstimate/);
+});
+
+test("meal logging remains current-turn structured nutrition plus confirmation", () => {
+  assert.match(meals, /requestCurrentTurnEstimate/);
+  assert.match(meals, /history:\s*\[\]/);
+  assert.match(meals, /protein_g/);
+  assert.match(meals, /carbs_g/);
+  assert.match(meals, /fat_g/);
+  assert.match(meals, /reply:\s*pending\.confirmation_text/);
   assert.match(core, /if \(type === "log_meal"\) return await CalBuddy\.logMeal\(payload\)/);
 });
 
-test("dated workout creation uses the existing Training builder and plan store", () => {
-  assert.match(actions, /import WorkoutBuilder from "\.\/training\/workouts\/workout-builder\.js"/);
-  assert.match(actions, /import WorkoutPlanStore from "\.\/training\/workout-plan-store\.js"/);
-  assert.match(actions, /action_type:\s*"create_workout_plan"/);
-  assert.match(actions, /WorkoutBuilder\.build\(options\)/);
-  assert.match(actions, /WorkoutPlanStore\.setBuiltWorkout\(day, workout, \{ weekKey \}\)/);
+test("training action meaning comes only from the central intent decision", () => {
+  assert.match(home, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
+  assert.match(auth, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
+  assert.match(workouts, /ari_workout_action_v3_central_router/);
+  assert.match(workouts, /isTrainingDecision\(decision/);
+  assert.match(workouts, /plan_workout/);
+  assert.match(workouts, /edit_workout/);
+  assert.doesNotMatch(workouts, /looksLikeWorkoutPlanRequest/);
 });
 
-test("workout requests require a date instead of assuming today", () => {
-  assert.match(actions, /if \(!resolvedDate\)/);
-  assert.match(actions, /what date do you want this workout for\?/i);
-  assert.match(actions, /needsWorkoutDate:\s*true/);
-  assert.match(actions, /ariPendingWorkoutDateRequest/);
+test("Training persistence still goes only through WorkoutPlanController", () => {
+  assert.match(workouts, /workout-plan-controller\.js/);
+  assert.doesNotMatch(workouts, /workout-plan-store\.js/);
+  assert.doesNotMatch(workouts, /workout-plan-api\.js/);
 });
 
-test("relative and named workout dates resolve to exact calendar keys", () => {
-  assert.match(actions, /\\btoday\\b/);
-  assert.match(actions, /\\btomorrow\\b/);
-  assert.match(actions, /WEEKDAYS/);
-  assert.match(actions, /formatDateKey\(date\)/);
-  assert.match(actions, /date:\s*resolvedDate\.dateKey/);
-  assert.match(actions, /date_label:\s*resolvedDate\.label/);
-});
-
-test("date-only follow-up completes a waiting workout request", () => {
-  assert.match(actions, /getPendingWorkoutRequest\(\)/);
-  assert.match(actions, /resolvedFollowupDate = resolveWorkoutDate\(message\)/);
-  assert.match(actions, /createWorkoutPendingAction\(waitingWorkout\.request, resolvedFollowupDate\)/);
-});
-
-test("confirmation says the exact resolved date before workout write", () => {
-  assert.match(actions, /Add this workout to \$\{resolvedDate\.label\}\?/);
-  assert.match(actions, /Done — I added \$\{workout\.title \|\| "your workout"\} to/);
+test("Nutrition UI presents shared actions but never creates them", () => {
+  assert.match(nutritionUi, /confirmPendingAction/);
+  assert.match(nutritionUi, /cancelPendingAction/);
+  assert.match(nutritionUi, /calbuddy:pendingAction/);
+  assert.doesNotMatch(nutritionUi, /createPendingAction/);
+  assert.doesNotMatch(nutritionUi, /action_type:\s*"log_meal"/);
+  assert.doesNotMatch(nutritionUi, /action_type:\s*"plan_workout"/);
 });

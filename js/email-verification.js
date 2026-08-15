@@ -1,16 +1,19 @@
 // =====================================================
 // ARI XP
 // File: js/email-verification.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Smooth email confirmation fallback for new accounts.
-//   Supports resend + optional 6-digit signup OTP verification.
+//   Supports resend + numeric signup OTP verification without assuming a
+//   fixed provider token length.
 // =====================================================
 
 (() => {
   "use strict";
 
   const STORAGE_KEY = "arixp_pending_signup_email";
+  const MIN_CODE_LENGTH = 6;
+  const MAX_CODE_LENGTH = 10;
 
   const signupForm = document.getElementById("signupDetailsStep");
   const signupEmail = document.getElementById("signupEmail");
@@ -23,6 +26,10 @@
 
   function cleanEmail(value = "") {
     return String(value || "").trim().toLowerCase();
+  }
+
+  function cleanToken(value = "") {
+    return String(value || "").replace(/\D/g, "").slice(0, MAX_CODE_LENGTH);
   }
 
   function pendingEmail() {
@@ -70,21 +77,21 @@
   });
 
   verifyCodeInput?.addEventListener("input", () => {
-    verifyCodeInput.value = verifyCodeInput.value.replace(/\D/g, "").slice(0, 6);
+    verifyCodeInput.value = cleanToken(verifyCodeInput.value);
     setVerificationMessage("");
   });
 
   verifyCodeButton?.addEventListener("click", async () => {
     const email = pendingEmail();
-    const token = String(verifyCodeInput?.value || "").replace(/\D/g, "").slice(0, 6);
+    const token = cleanToken(verifyCodeInput?.value);
 
     if (!email) {
       setVerificationMessage("Return to Create Account and enter your email again.", "error");
       return;
     }
 
-    if (token.length !== 6) {
-      setVerificationMessage("Enter the 6-digit code from your email.", "error");
+    if (token.length < MIN_CODE_LENGTH) {
+      setVerificationMessage("Enter the complete confirmation code from your email.", "error");
       verifyCodeInput?.focus();
       return;
     }
@@ -94,7 +101,13 @@
     setVerificationMessage("");
 
     try {
-      const { error } = await verifySignupCode(email, token);
+      // Verify the exact numeric token Supabase sent. Do not truncate it to a
+      // historical 6-digit assumption; projects can use a different OTP size.
+      const { error } = await window.calbuddySupabase.auth.verifyOtp({
+        email,
+        token,
+        type: "signup"
+      });
 
       if (error) {
         setVerificationMessage("That code is invalid or expired. Request a new email and try again.", "error");
@@ -139,7 +152,12 @@
       const { error } = await resendSignupConfirmation(email);
 
       if (error) {
-        setVerificationMessage(error.message || "Unable to resend the confirmation email.", "error");
+        const message = String(error.message || "");
+        if (/rate limit/i.test(message)) {
+          setVerificationMessage("Too many verification emails were requested. Please wait a few minutes and try again.", "error");
+        } else {
+          setVerificationMessage(message || "Unable to resend the confirmation email.", "error");
+        }
         return;
       }
 

@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f8ff;font-family:Arial,Helvetica,sans-serif;color:#12204a;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f8ff;padding:28px 14px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e4e9f6;border-radius:24px;padding:32px;">
+            <tr>
+              <td align="center">
+                <div style="font-size:12px;letter-spacing:4px;font-weight:700;color:#60709e;">ARI XP</div>
+                <h1 style="margin:18px 0 8px;font-size:28px;line-height:1.2;color:#12204a;">Confirm your email</h1>
+                <p style="margin:0 0 26px;color:#667392;font-size:16px;line-height:1.55;">Finish creating your ARI XP account using either option below.</p>
+
+                <a href="{{ .ConfirmationURL }}" style="display:block;text-decoration:none;background:#315ddd;color:#ffffff;font-weight:700;font-size:16px;padding:16px 20px;border-radius:14px;">Confirm email address</a>
+
+                <div style="margin:28px 0 12px;color:#8b94ae;font-size:12px;font-weight:700;letter-spacing:2px;">OR USE THE CODE</div>
+                <div style="display:inline-block;min-width:220px;padding:18px 22px;border:1px solid #dfe5f3;border-radius:16px;background:#f8faff;color:#12204a;font-size:32px;font-weight:700;letter-spacing:8px;">{{ .Token }}</div>
+
+                <p style="margin:20px 0 0;color:#667392;font-size:14px;line-height:1.5;">Enter this 6-digit code on the ARI XP verification screen.</p>
+                <p style="margin:24px 0 0;color:#929ab1;font-size:12px;line-height:1.5;">If you did not create an ARI XP account, you can ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
