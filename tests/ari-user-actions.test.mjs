@@ -5,54 +5,40 @@ import path from "node:path";
 
 const root = process.cwd();
 const auth = fs.readFileSync(path.join(root, "js/auth.js"), "utf8");
-const actions = fs.readFileSync(path.join(root, "js/ari-user-actions.js"), "utf8");
+const compatibility = fs.readFileSync(path.join(root, "js/ari-user-actions.js"), "utf8");
+const meals = fs.readFileSync(path.join(root, "ari/actions/ari-meal-action.js"), "utf8");
+const workouts = fs.readFileSync(path.join(root, "ari/actions/ari-workout-plan-action.js"), "utf8");
 const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
-test("home loads the deterministic Ari user action layer", () => {
+test("legacy Ari user actions loader no longer contains meal or workout business logic", () => {
   assert.match(auth, /ari-user-actions\.js\?v=1\.0\.0/);
-  assert.match(auth, /script\.type\s*=\s*"module"/);
+  assert.match(compatibility, /ari\/actions\/ari-meal-action\.js/);
+  assert.doesNotMatch(compatibility, /WorkoutBuilder/);
+  assert.doesNotMatch(compatibility, /extractMealName/);
+  assert.doesNotMatch(compatibility, /getLastAriMealEstimate/);
 });
 
-test("meal logging cannot end as a conversation-only promise", () => {
-  assert.match(actions, /isMealLogRequest/);
-  assert.match(actions, /action_type:\s*"log_meal"/);
-  assert.match(actions, /createAndStorePendingAction/);
-  assert.match(actions, /estimateMealThenConfirm/);
-  assert.match(actions, /Do not say it was logged/);
+test("meal logging has one current-turn action originator", () => {
+  assert.match(meals, /SINGLE originator for Ari-created meal-log mutations/);
+  assert.match(meals, /ari_meal_action_v1_current_turn/);
+  assert.match(meals, /result\?\.mealEstimate/);
+  assert.match(meals, /protein_g/);
+  assert.match(meals, /carbs_g/);
+  assert.match(meals, /fat_g/);
+  assert.doesNotMatch(meals, /getLastAriMealEstimate/);
   assert.match(core, /if \(type === "log_meal"\) return await CalBuddy\.logMeal\(payload\)/);
 });
 
-test("dated workout creation uses the existing Training builder and plan store", () => {
-  assert.match(actions, /import WorkoutBuilder from "\.\/training\/workouts\/workout-builder\.js"/);
-  assert.match(actions, /import WorkoutPlanStore from "\.\/training\/workout-plan-store\.js"/);
-  assert.match(actions, /action_type:\s*"create_workout_plan"/);
-  assert.match(actions, /WorkoutBuilder\.build\(options\)/);
-  assert.match(actions, /WorkoutPlanStore\.setBuiltWorkout\(day, workout, \{ weekKey \}\)/);
+test("meal titles come from structured estimates instead of raw user sentences", () => {
+  assert.match(meals, /normalizeMealTitle/);
+  assert.match(meals, /estimate\.description/);
+  assert.match(meals, /estimate\.foods/);
+  assert.match(meals, /\.join\(" \+ "\)/);
+  assert.match(meals, /title\.length > 72/);
 });
 
-test("workout requests require a date instead of assuming today", () => {
-  assert.match(actions, /if \(!resolvedDate\)/);
-  assert.match(actions, /what date do you want this workout for\?/i);
-  assert.match(actions, /needsWorkoutDate:\s*true/);
-  assert.match(actions, /ariPendingWorkoutDateRequest/);
-});
-
-test("relative and named workout dates resolve to exact calendar keys", () => {
-  assert.match(actions, /\\btoday\\b/);
-  assert.match(actions, /\\btomorrow\\b/);
-  assert.match(actions, /WEEKDAYS/);
-  assert.match(actions, /formatDateKey\(date\)/);
-  assert.match(actions, /date:\s*resolvedDate\.dateKey/);
-  assert.match(actions, /date_label:\s*resolvedDate\.label/);
-});
-
-test("date-only follow-up completes a waiting workout request", () => {
-  assert.match(actions, /getPendingWorkoutRequest\(\)/);
-  assert.match(actions, /resolvedFollowupDate = resolveWorkoutDate\(message\)/);
-  assert.match(actions, /createWorkoutPendingAction\(waitingWorkout\.request, resolvedFollowupDate\)/);
-});
-
-test("confirmation says the exact resolved date before workout write", () => {
-  assert.match(actions, /Add this workout to \$\{resolvedDate\.label\}\?/);
-  assert.match(actions, /Done — I added \$\{workout\.title \|\| "your workout"\} to/);
+test("training remains isolated in the dedicated workout action service", () => {
+  assert.match(workouts, /SINGLE originator for Ari-created workout-plan mutations/);
+  assert.doesNotMatch(meals, /WorkoutPlanController/);
+  assert.doesNotMatch(compatibility, /create_workout_plan/);
 });
