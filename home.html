@@ -2,155 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-/>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#f7f9ff" />
-
 <title>ARI Experience</title>
-
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-<link
-  href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap"
-  rel="stylesheet"
-/>
-
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="assets/css/base.css?v=16" />
 <link rel="stylesheet" href="assets/css/animations.css?v=16" />
 <link rel="stylesheet" href="assets/css/home.css?v=2.3.0" />
 <link rel="stylesheet" href="assets/css/home-thread-ux.css?v=1.0.0" />
 <link rel="stylesheet" href="assets/css/support-ari.css?v=2.0.0" />
+<link rel="stylesheet" href="assets/css/home-menu-polish.css?v=2.0.0" />
 </head>
-
 <body class="ari-home-page">
-
 <main class="ari-v1-home welcome-mode" id="ariApp">
-
-  <header class="top-bar ari-header ari-header-v5">
-    <button id="ariMenuToggle" class="menu-btn ari-menu-toggle" type="button" onclick="toggleMenu()" aria-label="Open ARI navigation" aria-controls="sideMenu" aria-expanded="false">
-      <span class="ari-menu-label">MENU</span>
-      <span class="ari-menu-dot" aria-hidden="true"></span>
-    </button>
-
-    <a class="ari-brand-right" href="home.html" aria-label="ARI Experience home">
-      <span class="ari-brand-title">ARI</span>
-      <span class="ari-brand-subtitle">EXPERIENCE</span>
-      <span class="ari-brand-line" aria-hidden="true"></span>
-    </a>
-
-    <div id="ariHeaderAvatarShell" hidden aria-hidden="true">
-      <img id="ariHeaderAvatar" src="assets/ari/avatar-idle-open.png" alt="" />
-    </div>
-  </header>
-
-  <nav id="sideMenu" class="side-menu ari-side-menu" aria-label="ARI navigation" aria-hidden="true">
-    <div class="ari-menu-header">
-      <button class="close-menu ari-close-menu" type="button" onclick="toggleMenu()" aria-label="Close ARI navigation">CLOSE</button>
-    </div>
-
-    <div class="ari-menu-content">
-      <a href="ari-circle-feed.html" class="ari-nav-link nav-circle ari-nav-circle-live">
-        <span class="ari-nav-copy"><span class="ari-nav-title">ARI CIRCLE</span><span class="ari-nav-description">SOCIALIZE WITH OTHERS</span><span class="ari-circle-live-badge">LIVE</span></span>
-        <span class="ari-nav-dot" aria-hidden="true"></span>
-      </a>
-
-      <a href="goals.html" class="ari-nav-link nav-goals ari-nav-featured">
-        <span class="ari-nav-copy"><span class="ari-nav-title">MY GOALS</span><span class="ari-nav-description">LOG INTAKE / LOG WORKOUT</span><span class="ari-nav-accent-line" aria-hidden="true"></span></span>
-        <span class="ari-nav-dot" aria-hidden="true"></span>
-      </a>
-
-      <a href="conversation-history.html" class="ari-nav-link ari-nav-conversations">
-        <span class="ari-nav-copy"><span class="ari-nav-title">CONVERSATIONS</span><span class="ari-nav-description">RETURN TO SAVED ARI THREADS</span></span>
-        <span class="ari-nav-dot" aria-hidden="true"></span>
-      </a>
-
-      <a href="support-ari.html" class="ari-nav-link ari-nav-support">
-        <span class="ari-nav-copy"><span class="ari-nav-title">SUPPORT ARI XP</span><span class="ari-nav-description">HELP KEEP ARI ACTIVE</span><span class="ari-support-badge">OPTIONAL SUPPORT</span></span>
-        <span class="ari-nav-dot" aria-hidden="true"></span>
-      </a>
-
-      <a href="ari-preference-settings.html" class="ari-nav-link nav-preferences">
-        <span class="ari-nav-copy"><span class="ari-nav-title">ARI PREFERENCES</span><span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span></span>
-        <span class="ari-nav-dot" aria-hidden="true"></span>
-      </a>
-
-      <a href="account.html" class="ari-nav-link nav-account">
-        <span class="ari-nav-copy"><span class="ari-nav-title">ACCOUNT SETTINGS</span><span class="ari-nav-description">PROFILE, PRIVACY AND SECURITY</span></span>
-        <span class="ari-nav-dot" aria-hidden="true"></span>
-      </a>
-    </div>
-  </nav>
-
-  <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()" aria-hidden="true"></div>
-
-  <section class="ari-welcome" id="ariWelcome">
-    <div class="ari-hero-stage">
-      <div class="ari-hero-halo" aria-hidden="true"></div>
-      <img id="ariHero" class="ari-hero-img" data-ari-mascot src="assets/ari/ari-idle-open.png" alt="Ari" />
-    </div>
-    <p id="ariWelcomeQuestion" class="ari-welcome-question" aria-live="polite" hidden>What are you working on?</p>
-  </section>
-
-  <section class="ari-conversation-shell" id="ariConversationShell" aria-live="polite">
-    <div id="ariThinkingStatus" class="ari-thinking-status" role="status" aria-live="polite" aria-hidden="true">
-      <span class="ari-thinking-status-name">ARI</span>
-      <span class="ari-thinking-status-copy">THINKING</span>
-      <span class="ari-thinking-particles" aria-hidden="true"><span></span><span></span><span></span></span>
-    </div>
-
-    <div id="ariMessages" class="ari-thread"></div>
-    <p id="ariPresenceHint" class="ari-presence-hint" aria-hidden="true">TAP TO RETURN</p>
-
-    <div id="pendingActionBar" class="pending-action-bar">
-      <p id="pendingActionText">Confirm this action?</p>
-      <div class="pending-action-buttons">
-        <button type="button" onclick="confirmAriAction()">YES</button>
-        <button type="button" onclick="cancelAriAction()">CANCEL</button>
-      </div>
-    </div>
-  </section>
-
-  <div class="ari-bottom-input">
-    <div class="ari-input-shell">
-      <label class="ari-input-label" for="ariInput">ASK ARI</label>
-      <div class="ari-input-row">
-        <textarea id="ariInput" rows="1" maxlength="4000" placeholder="What are you working on?" aria-label="Ask Ari" oninput="autoResizeAriInput()" onkeydown="handleAriEnter(event)"></textarea>
-        <button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()" aria-label="Send message to Ari">SEND</button>
-      </div>
-    </div>
-  </div>
-
+<header class="top-bar ari-header ari-header-v5">
+<button id="ariMenuToggle" class="menu-btn ari-menu-toggle" type="button" onclick="toggleMenu()" aria-label="Open ARI navigation" aria-controls="sideMenu" aria-expanded="false"><span class="ari-menu-label">MENU</span><span class="ari-menu-dot" aria-hidden="true"></span></button>
+<a class="ari-brand-right" href="home.html" aria-label="ARI Experience home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">EXPERIENCE</span><span class="ari-brand-line" aria-hidden="true"></span></a>
+<div id="ariHeaderAvatarShell" hidden aria-hidden="true"><img id="ariHeaderAvatar" src="assets/ari/avatar-idle-open.png" alt="" /></div>
+</header>
+<nav id="sideMenu" class="side-menu ari-side-menu" aria-label="ARI navigation" aria-hidden="true">
+<div class="ari-menu-header"><button class="close-menu ari-close-menu" type="button" onclick="toggleMenu()" aria-label="Close ARI navigation">CLOSE</button></div>
+<div class="ari-menu-content">
+<a href="ari-circle-feed.html" class="ari-nav-link nav-circle"><span class="ari-nav-copy"><span class="ari-nav-title">ARI CIRCLE</span><span class="ari-nav-description"><span>SHARE</span><span class="ari-circle-separator">•</span><span>CONNECT</span><span class="ari-circle-separator">•</span><span>MAKE FRIENDS</span></span><span class="ari-nav-accent-line" aria-hidden="true"></span></span><span class="ari-nav-dot" aria-hidden="true"></span></a>
+<a href="goals.html" class="ari-nav-link nav-goals ari-nav-featured"><span class="ari-nav-copy"><span class="ari-nav-title">MY GOALS</span><span class="ari-nav-description">LOG INTAKE / LOG WORKOUT</span><span class="ari-nav-accent-line" aria-hidden="true"></span></span><span class="ari-nav-dot" aria-hidden="true"></span></a>
+<a href="conversation-history.html" class="ari-nav-link ari-nav-conversations"><span class="ari-nav-copy"><span class="ari-nav-title">CONVERSATIONS</span><span class="ari-nav-description">RETURN TO SAVED ARI THREADS</span></span><span class="ari-nav-dot" aria-hidden="true"></span></a>
+<a href="support-ari.html" class="ari-nav-link ari-nav-support"><span class="ari-nav-copy"><span class="ari-nav-title">SUPPORT ARI XP</span><span class="ari-nav-description">HELP KEEP ARI ACTIVE</span><span class="ari-support-badge">OPTIONAL SUPPORT</span></span><span class="ari-nav-dot" aria-hidden="true"></span></a>
+<a href="ari-preference-settings.html" class="ari-nav-link nav-preferences"><span class="ari-nav-copy"><span class="ari-nav-title">ARI PREFERENCES</span><span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span></span><span class="ari-nav-dot" aria-hidden="true"></span></a>
+<a href="account.html" class="ari-nav-link nav-account"><span class="ari-nav-copy"><span class="ari-nav-title">ACCOUNT SETTINGS</span><span class="ari-nav-description">PROFILE, PRIVACY AND SECURITY</span></span><span class="ari-nav-dot" aria-hidden="true"></span></a>
+</div></nav>
+<div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()" aria-hidden="true"></div>
+<section class="ari-welcome" id="ariWelcome"><div class="ari-hero-stage"><div class="ari-hero-halo" aria-hidden="true"></div><img id="ariHero" class="ari-hero-img" data-ari-mascot src="assets/ari/ari-idle-open.png" alt="Ari" /></div><p id="ariWelcomeQuestion" class="ari-welcome-question" aria-live="polite" hidden>What are you working on?</p></section>
+<section class="ari-conversation-shell" id="ariConversationShell" aria-live="polite"><div id="ariThinkingStatus" class="ari-thinking-status" role="status" aria-live="polite" aria-hidden="true"><span class="ari-thinking-status-name">ARI</span><span class="ari-thinking-status-copy">THINKING</span><span class="ari-thinking-particles" aria-hidden="true"><span></span><span></span><span></span></span></div><div id="ariMessages" class="ari-thread"></div><p id="ariPresenceHint" class="ari-presence-hint" aria-hidden="true">TAP TO RETURN</p><div id="pendingActionBar" class="pending-action-bar"><p id="pendingActionText">Confirm this action?</p><div class="pending-action-buttons"><button type="button" onclick="confirmAriAction()">YES</button><button type="button" onclick="cancelAriAction()">CANCEL</button></div></div></section>
+<div class="ari-bottom-input"><div class="ari-input-shell"><label class="ari-input-label" for="ariInput">ASK ARI</label><div class="ari-input-row"><textarea id="ariInput" rows="1" maxlength="4000" placeholder="What are you working on?" aria-label="Ask Ari" oninput="autoResizeAriInput()" onkeydown="handleAriEnter(event)"></textarea><button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()" aria-label="Send message to Ari">SEND</button></div></div></div>
 </main>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="js/auth.js?v=1.9.0"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
-<script>
-  (() => {
-    try {
-      const pending = window.CalBuddy?.getPendingAction?.();
-      if (pending?.action_type === "log_meal") window.CalBuddy?.cancelPendingAction?.();
-      localStorage.removeItem("calbuddyLastAriMealEstimate");
-      if (window.CalBuddy?.getLastAriMealEstimate) delete window.CalBuddy.getLastAriMealEstimate;
-      try {
-        const lastIntent = JSON.parse(localStorage.getItem("calbuddyLastActionIntent") || "null");
-        if (lastIntent?.target === "meal" || lastIntent?.lane === "explicit_log_request") localStorage.removeItem("calbuddyLastActionIntent");
-      } catch { localStorage.removeItem("calbuddyLastActionIntent"); }
-      try {
-        const lastContract = JSON.parse(localStorage.getItem("calbuddyLastActionContract") || "null");
-        if (lastContract?.allowedAction === "log_meal" || lastContract?.lane === "explicit_log_request") localStorage.removeItem("calbuddyLastActionContract");
-      } catch { localStorage.removeItem("calbuddyLastActionContract"); }
-    } catch (error) {
-      console.warn("Legacy Ari meal-state cleanup skipped:", error?.message || error);
-    }
-  })();
-</script>
+<script>(() => { try { const pending=window.CalBuddy?.getPendingAction?.(); if(pending?.action_type==="log_meal") window.CalBuddy?.cancelPendingAction?.(); localStorage.removeItem("calbuddyLastAriMealEstimate"); if(window.CalBuddy?.getLastAriMealEstimate) delete window.CalBuddy.getLastAriMealEstimate; try { const lastIntent=JSON.parse(localStorage.getItem("calbuddyLastActionIntent")||"null"); if(lastIntent?.target==="meal"||lastIntent?.lane==="explicit_log_request") localStorage.removeItem("calbuddyLastActionIntent"); } catch { localStorage.removeItem("calbuddyLastActionIntent"); } try { const lastContract=JSON.parse(localStorage.getItem("calbuddyLastActionContract")||"null"); if(lastContract?.allowedAction==="log_meal"||lastContract?.lane==="explicit_log_request") localStorage.removeItem("calbuddyLastActionContract"); } catch { localStorage.removeItem("calbuddyLastActionContract"); } } catch(error) { console.warn("Legacy Ari meal-state cleanup skipped:",error?.message||error); } })();</script>
 <script src="js/ai-processing-consent.js?v=1.1.0"></script>
 <script src="ari/ari-rebirth-app-bridge.js?v=2.5.3"></script>
 <script src="ari/actions/ari-workout-plan-action.js?v=3.0.0"></script>
@@ -159,7 +50,5 @@
 <script src="js/home.js?v=3.4.0"></script>
 <script src="js/home-resilience.js?v=1.0.0"></script>
 <script src="js/home-thread-ux.js?v=1.0.0"></script>
-<script src="js/ari-conversation-sessions.js?v=1.0.0"></script>
-
-</body>
-</html>
+<script src="js/ari-conversation-sessions.js?v=1.0.1"></script>
+</body></html>
