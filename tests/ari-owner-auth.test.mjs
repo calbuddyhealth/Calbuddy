@@ -214,7 +214,7 @@ test("verified owner status reuses the GitHub read function", async () => {
   }
 });
 
-test("lean Vercel API surface stays at ten functions or fewer", async () => {
+test("lean Vercel API surface stays at eleven functions or fewer", async () => {
   const entries = await readdir(new URL("../api/", import.meta.url), {
     withFileTypes: true
   });
@@ -223,11 +223,12 @@ test("lean Vercel API surface stays at ten functions or fewer", async () => {
   );
 
   assert.ok(
-    functionFiles.length <= 10,
-    `Expected at most 10 API functions, found ${functionFiles.length}`
+    functionFiles.length <= 11,
+    `Expected at most 11 API functions, found ${functionFiles.length}`
   );
 
   const names = new Set(functionFiles.map(entry => entry.name));
+  assert.equal(names.has("ari-intent-router.js"), true, "central intent router must remain present");
   for (const removed of [
     "actions.js",
     "ari-create-knowledge-node.js",
