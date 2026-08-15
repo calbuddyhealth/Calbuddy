@@ -15,7 +15,7 @@ const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
 const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
 test("Home and Nutrition share one OpenAI central intent router", () => {
-  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.1\.0/);
+  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.2\.0/);
   assert.match(routerClient, /CalBuddy\.askAri = async function ariCentralIntentBoundary/);
   assert.match(routerClient, /intentDecision/);
   assert.match(routerClient, /\/api\/ari-intent-router/);
@@ -24,10 +24,17 @@ test("Home and Nutrition share one OpenAI central intent router", () => {
   assert.match(routerApi, /strict:\s*true/);
 });
 
+test("central router is the authority over legacy action classification", () => {
+  assert.match(routerClient, /centralIntentLegacyGate/);
+  assert.match(routerClient, /clean\(decision\.action\) === "none"/);
+  assert.match(routerClient, /\["nutrition", "training"\]/);
+  assert.match(routerClient, /__activeIntentDecision/);
+});
+
 test("central router fails closed instead of letting AI invent app writes", () => {
   assert.match(routerClient, /I couldn’t verify that request with my action router/);
   assert.match(routerClient, /intentRouterError:\s*true/);
-  assert.match(routerClient, /confidence < 0\.8/);
+  assert.match(routerClient, /intentDecision\.confidence < 0\.8/);
 });
 
 test("both Ari composers still call the shared CalBuddy runtime", () => {
