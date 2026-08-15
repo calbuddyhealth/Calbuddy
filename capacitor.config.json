@@ -3,10 +3,11 @@
   "appName": "ARI XP",
   "webDir": "www",
   "server": {
-    "url": "https://arirebirth-git-ari-rebirth-experiment-calbuddyhealths-projects.vercel.app",
+    "url": "https://arixp.com",
     "cleartext": false,
     "allowNavigation": [
-      "arirebirth-git-ari-rebirth-experiment-calbuddyhealths-projects.vercel.app"
+      "arixp.com",
+      "www.arixp.com"
     ]
   }
 }
