@@ -1,71 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
-
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Memory Vault | ARI Rebirth</title>
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
-<link rel="stylesheet" href="assets/css/base.css?v=16">
-<link rel="stylesheet" href="assets/css/animations.css?v=16">
-<link rel="stylesheet" href="assets/css/conversation-history.css?v=18">
-
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#f7f9ff" />
+<title>Conversations | ARI XP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/base.css?v=16" />
+<link rel="stylesheet" href="assets/css/conversation-history.css?v=3.0.0" />
 </head>
-
-<body>
-
+<body class="ari-conversations-body">
 <main class="ari-history-page" id="ariHistoryPage">
+  <header class="ari-history-header">
+    <button class="ari-back-btn" type="button" onclick="goBack()" aria-label="Back">←</button>
+    <div class="ari-brand-mark">
+      <span class="ari-brand-title">ARI</span>
+      <span class="ari-brand-subtitle">EXPERIENCE</span>
+    </div>
+    <button class="ari-new-btn" type="button" onclick="startNewConversation()">NEW</button>
+  </header>
 
-<header class="ari-history-header">
+  <section class="ari-page-hero">
+    <p class="ari-page-kicker">YOUR ARI THREADS</p>
+    <h1 class="ari-page-title">CONVERSATIONS</h1>
+    <p class="ari-page-description">ARI keeps one conversation active at a time. After 15 minutes without a message, it moves here automatically so Home can return to a clean ARI experience.</p>
+    <div class="ari-history-rule"><span>25 SAVED</span><span>5 PINS</span><span>15 MIN</span></div>
+  </section>
 
-<button
-class="ari-back-btn"
-type="button"
-onclick="goBack()">
-←
-</button>
-
-<div class="ari-brand-mark">
-<h1 class="ari-brand-title">ARI</h1>
-<p class="ari-brand-subtitle">REBIRTH</p>
-</div>
-
-<button
-class="ari-mini-btn"
-type="button"
-onclick="clearConversationHistory()">
-Clear
-</button>
-
-</header>
-
-<section class="ari-page-hero">
-<p class="ari-page-kicker">Memory</p>
-<h2 class="ari-page-title">Memory Vault</h2>
-
-<p class="ari-page-description">
-These are Ari's recent conversations.
-Older conversations automatically expire after yesterday to keep the Memory Vault clean.
-</p>
-</section>
-
-<section class="ari-history-panel">
-<h3 class="ari-history-section-title">Today & Yesterday</h3>
-
-<div id="conversationHistoryList">
-<p class="window-note">Loading conversations...</p>
-</div>
-</section>
-
+  <section class="ari-history-panel">
+    <div class="ari-history-toolbar">
+      <div>
+        <p class="ari-history-section-title">SAVED THREADS</p>
+        <p class="ari-history-note">Pin the conversations you want protected from automatic cleanup.</p>
+      </div>
+      <button id="deleteAllBtn" class="ari-clear-btn" type="button">DELETE ALL</button>
+    </div>
+    <div id="conversationHistoryList"><p class="window-note">Loading conversations…</p></div>
+  </section>
 </main>
-
-<script src="js/conversation-history.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="calbuddy-core.js?v=3.6.4"></script>
+<script src="js/conversation-history.js?v=3.0.0"></script>
 </body>
 </html>
