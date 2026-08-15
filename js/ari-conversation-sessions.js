@@ -201,6 +201,49 @@
     }
   }
 
+  function installCircleMenuPolish() {
+    const circle = document.querySelector(".nav-circle");
+    if (!circle) return;
+
+    circle.querySelector(".ari-circle-live-badge")?.remove();
+    circle.classList.remove("ari-nav-circle-live");
+
+    if (!document.getElementById("ari-circle-menu-polish")) {
+      const style = document.createElement("style");
+      style.id = "ari-circle-menu-polish";
+      style.textContent = `
+        .nav-circle .ari-nav-title {
+          display: inline-block;
+          color: transparent;
+          background: linear-gradient(100deg,#16d9ed 0%,#2879ff 43%,#6c56ee 67%,#a85df8 100%);
+          background-size: 180% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          text-shadow: 0 0 18px rgba(41,130,255,.10);
+          animation: ariCircleTitleSweep 6.5s ease-in-out infinite;
+        }
+        .nav-circle .ari-nav-description { color:#35558f; }
+        .nav-circle .ari-nav-dot {
+          border-color:#24dff0;
+          box-shadow:0 0 10px rgba(36,223,240,.78),0 0 18px rgba(141,91,245,.22),inset 0 0 4px rgba(36,223,240,.28);
+          animation:ariCircleDotPulse 2.8s ease-in-out infinite;
+        }
+        @keyframes ariCircleTitleSweep {
+          0%,100% { background-position:0% 50%; filter:saturate(1); }
+          50% { background-position:100% 50%; filter:saturate(1.14); }
+        }
+        @keyframes ariCircleDotPulse {
+          0%,100% { transform:scale(1); opacity:.86; }
+          50% { transform:scale(1.13); opacity:1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .nav-circle .ari-nav-title,.nav-circle .ari-nav-dot { animation:none !important; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+
   function installMenu() {
     const container = document.querySelector(".ari-menu-content");
     if (!container) return;
@@ -220,6 +263,7 @@
     const account = container.querySelector(".nav-account");
 
     [circle, goals, conversations, support, preferences, account].filter(Boolean).forEach((node) => container.appendChild(node));
+    installCircleMenuPolish();
   }
 
   async function startNewConversation() {
