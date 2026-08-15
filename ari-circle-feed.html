@@ -27,7 +27,7 @@
           <a href="account.html"><span>Account Settings</span><small>Privacy</small></a>
           <a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a>
           <div class="circle-v4-menu__divider"></div>
-          <a href="home.html"><span>Exit ARI Circle</span><small>ARI XP</small></a>
+          <a id="circleExitToHome" href="home.html?from=circle"><span>Exit ARI Circle</span><small>ARI XP</small></a>
         </nav>
       </details>
 
@@ -112,6 +112,15 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.4"></script>
+  <script>
+    // iOS/WKWebView can preserve an unhealthy history entry. Exit Circle with
+    // replace() so Home becomes the current document instead of navigating back
+    // through a stale preview/auth page.
+    document.getElementById("circleExitToHome")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      window.location.replace(`home.html?from=circle&ts=${Date.now()}`);
+    });
+  </script>
   <script src="js/ari-circle/content-moderation.js?v=1.2.0" defer></script>
   <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>
   <script src="js/ari-circle/media/camera-ios26-recovery.js?v=4.0.0" defer></script>
