@@ -1,0 +1,66 @@
+/* ARI XP home thread UX polish */
+
+.ari-thread {
+  scroll-padding-block: 18px 28px;
+  overscroll-behavior-y: contain;
+}
+
+.ari-thread-jump {
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  z-index: 18;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(83, 111, 205, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 10px 24px rgba(46, 61, 132, 0.16), inset 0 1px 0 rgba(255,255,255,0.95);
+  color: #17357f;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(7px) scale(0.97);
+  transition: opacity 180ms ease, transform 220ms ease, visibility 180ms ease;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+.ari-thread-jump::before {
+  content: "↓";
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.ari-thread-jump.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.ari-keyboard-open .ari-thread {
+  scroll-behavior: auto;
+}
+
+.ari-keyboard-open .ari-conversation-shell {
+  transition-duration: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ari-thread,
+  .ari-thread-jump,
+  .ari-conversation-shell {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
