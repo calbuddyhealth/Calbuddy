@@ -54,8 +54,8 @@
     </div>
 
     <div class="ari-menu-content">
-      <a href="ari-circle-feed.html" class="ari-nav-link nav-circle">
-        <span class="ari-nav-copy"><span class="ari-nav-title">ARI CIRCLE</span><span class="ari-nav-description">SOCIALIZE WITH OTHERS</span></span>
+      <a href="ari-circle-feed.html" class="ari-nav-link nav-circle ari-nav-circle-live">
+        <span class="ari-nav-copy"><span class="ari-nav-title">ARI CIRCLE</span><span class="ari-nav-description">SOCIALIZE WITH OTHERS</span><span class="ari-circle-live-badge">LIVE</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
@@ -64,13 +64,18 @@
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
-      <a href="ari-preference-settings.html" class="ari-nav-link nav-preferences">
-        <span class="ari-nav-copy"><span class="ari-nav-title">ARI PREFERENCES</span><span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span></span>
+      <a href="conversation-history.html" class="ari-nav-link ari-nav-conversations">
+        <span class="ari-nav-copy"><span class="ari-nav-title">CONVERSATIONS</span><span class="ari-nav-description">RETURN TO SAVED ARI THREADS</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
       <a href="support-ari.html" class="ari-nav-link ari-nav-support">
         <span class="ari-nav-copy"><span class="ari-nav-title">SUPPORT ARI XP</span><span class="ari-nav-description">HELP KEEP ARI ACTIVE</span><span class="ari-support-badge">OPTIONAL SUPPORT</span></span>
+        <span class="ari-nav-dot" aria-hidden="true"></span>
+      </a>
+
+      <a href="ari-preference-settings.html" class="ari-nav-link nav-preferences">
+        <span class="ari-nav-copy"><span class="ari-nav-title">ARI PREFERENCES</span><span class="ari-nav-description">PERSONALIZE YOUR EXPERIENCE</span></span>
         <span class="ari-nav-dot" aria-hidden="true"></span>
       </a>
 
@@ -127,39 +132,20 @@
 <script src="js/auth.js?v=1.9.0"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script>
-  // Compatibility cleanup after removing Ari meal logging.
-  // This deletes only obsolete Ari action/estimate state, never saved meals.
   (() => {
     try {
       const pending = window.CalBuddy?.getPendingAction?.();
-      if (pending?.action_type === "log_meal") {
-        window.CalBuddy?.cancelPendingAction?.();
-      }
-
+      if (pending?.action_type === "log_meal") window.CalBuddy?.cancelPendingAction?.();
       localStorage.removeItem("calbuddyLastAriMealEstimate");
-
-      // Prevent the legacy action detector from reading old meal estimates.
-      if (window.CalBuddy?.getLastAriMealEstimate) {
-        delete window.CalBuddy.getLastAriMealEstimate;
-      }
-
+      if (window.CalBuddy?.getLastAriMealEstimate) delete window.CalBuddy.getLastAriMealEstimate;
       try {
         const lastIntent = JSON.parse(localStorage.getItem("calbuddyLastActionIntent") || "null");
-        if (lastIntent?.target === "meal" || lastIntent?.lane === "explicit_log_request") {
-          localStorage.removeItem("calbuddyLastActionIntent");
-        }
-      } catch {
-        localStorage.removeItem("calbuddyLastActionIntent");
-      }
-
+        if (lastIntent?.target === "meal" || lastIntent?.lane === "explicit_log_request") localStorage.removeItem("calbuddyLastActionIntent");
+      } catch { localStorage.removeItem("calbuddyLastActionIntent"); }
       try {
         const lastContract = JSON.parse(localStorage.getItem("calbuddyLastActionContract") || "null");
-        if (lastContract?.allowedAction === "log_meal" || lastContract?.lane === "explicit_log_request") {
-          localStorage.removeItem("calbuddyLastActionContract");
-        }
-      } catch {
-        localStorage.removeItem("calbuddyLastActionContract");
-      }
+        if (lastContract?.allowedAction === "log_meal" || lastContract?.lane === "explicit_log_request") localStorage.removeItem("calbuddyLastActionContract");
+      } catch { localStorage.removeItem("calbuddyLastActionContract"); }
     } catch (error) {
       console.warn("Legacy Ari meal-state cleanup skipped:", error?.message || error);
     }
@@ -173,6 +159,7 @@
 <script src="js/home.js?v=3.4.0"></script>
 <script src="js/home-resilience.js?v=1.0.0"></script>
 <script src="js/home-thread-ux.js?v=1.0.0"></script>
+<script src="js/ari-conversation-sessions.js?v=1.0.0"></script>
 
 </body>
 </html>
