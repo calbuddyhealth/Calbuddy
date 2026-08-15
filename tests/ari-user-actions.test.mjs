@@ -14,7 +14,7 @@ const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 test("Home and Nutrition share the canonical Ari meal service", () => {
   assert.match(auth, /currentAriSurface/);
   assert.match(auth, /surface !== "home" && surface !== "nutrition"/);
-  assert.match(auth, /ari\/actions\/ari-meal-action\.js\?v=1\.0\.0/);
+  assert.match(auth, /ari\/actions\/ari-meal-action\.js\?v=1\.1\.0/);
   assert.doesNotMatch(auth, /ari-user-actions\.js/);
 });
 
@@ -33,12 +33,19 @@ test("both Ari composers call the shared CalBuddy runtime", () => {
 test("meal logging has one current-turn action originator", () => {
   assert.match(meals, /SINGLE originator for Ari-created meal-log mutations/);
   assert.match(meals, /ari_meal_action_v1_current_turn/);
-  assert.match(meals, /result\?\.mealEstimate/);
+  assert.match(meals, /extractStructuredEstimate/);
+  assert.match(meals, /requestCurrentTurnEstimate/);
   assert.match(meals, /protein_g/);
   assert.match(meals, /carbs_g/);
   assert.match(meals, /fat_g/);
   assert.doesNotMatch(meals, /getLastAriMealEstimate/);
   assert.match(core, /if \(type === "log_meal"\) return await CalBuddy\.logMeal\(payload\)/);
+});
+
+test("direct food logging commands cannot fall through to conversation-only claims", () => {
+  assert.match(meals, /directLogCommand/);
+  assert.match(meals, /reply:\s*pending\.confirmation_text/);
+  assert.match(meals, /Do not say the meal was logged or saved/);
 });
 
 test("meal titles come from structured estimates instead of raw user sentences", () => {
