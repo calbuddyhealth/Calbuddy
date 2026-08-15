@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
 //   ONE semantic intent decision for every Ari user turn.
 //   Wraps CalBuddy.askAri(), calls /api/ari-intent-router once, and passes
@@ -14,10 +14,11 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
+  const LEGACY_GATE_FLAG = "__ariCentralIntentLegacyGateV1";
   const cache = new Map();
 
   const clean = (value = "") => String(value ?? "").trim();
@@ -155,6 +156,42 @@
     return false;
   }
 
+  function installLegacyActionGate() {
+    if (CalBuddy[LEGACY_GATE_FLAG]) return true;
+    if (typeof CalBuddy.detectAriActionFromMessage !== "function") return false;
+
+    const legacyDetect = CalBuddy.detectAriActionFromMessage.bind(CalBuddy);
+
+    CalBuddy.detectAriActionFromMessage = async function centralIntentLegacyGate(message = "", context = null) {
+      const decision = CalBuddy.__activeIntentDecision || null;
+
+      // If the central authority said this is not an app action, the old
+      // classifier is not allowed to invent one afterward.
+      if (validDecision(decision) && clean(decision.action) === "none") {
+        return null;
+      }
+
+      // Meal and Training actions are owned exclusively by their canonical
+      // domain services and must never be reconstructed by legacy contracts.
+      if (
+        validDecision(decision) &&
+        ["nutrition", "training"].includes(clean(decision.domain))
+      ) {
+        return null;
+      }
+
+      return await legacyDetect(message, context);
+    };
+
+    Object.defineProperty(CalBuddy, LEGACY_GATE_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    return true;
+  }
+
   function installAskBoundary() {
     if (CalBuddy[INSTALL_FLAG]) return true;
     if (typeof CalBuddy.askAri !== "function") return false;
@@ -174,9 +211,8 @@
         console.error("ARI CENTRAL INTENT ROUTER FAILED:", error);
         CalBuddy.setAriMood?.("concerned");
 
-        // Fail closed for app actions. We do not let a conversational model
-        // guess whether it should mutate user data when the authority router
-        // is unavailable.
+        // Fail closed. When the authority router is unavailable, no lower
+        // conversational layer gets to guess whether user data should change.
         return {
           reply: "I couldn’t verify that request with my action router, so I didn’t change anything. Try that again in a moment.",
           emotion: "concerned",
@@ -206,9 +242,6 @@
         };
       }
 
-      // Low-confidence mutations never reach an executor. Conversation and
-      // questions can proceed normally at lower confidence because no data
-      // will be changed.
       if (
         CalBuddy.isAriMutationDecision(intentDecision) &&
         intentDecision.confidence < 0.8
@@ -221,10 +254,16 @@
         };
       }
 
-      return await originalAskAri({
-        ...input,
-        intentDecision
-      });
+      CalBuddy.__activeIntentDecision = intentDecision;
+
+      try {
+        return await originalAskAri({
+          ...input,
+          intentDecision
+        });
+      } finally {
+        CalBuddy.__activeIntentDecision = null;
+      }
     };
 
     Object.defineProperty(CalBuddy, INSTALL_FLAG, {
@@ -240,7 +279,10 @@
   let attempts = 0;
   const installTimer = window.setInterval(() => {
     attempts += 1;
-    if (installAskBoundary() || attempts >= 240) {
+    const boundaryReady = installAskBoundary();
+    const legacyGateReady = installLegacyActionGate();
+
+    if ((boundaryReady && legacyGateReady) || attempts >= 240) {
       window.clearInterval(installTimer);
     }
   }, 50);
