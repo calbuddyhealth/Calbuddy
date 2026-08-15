@@ -1,9 +1,12 @@
 name: ARI XP readiness tests
 
 on:
+  push:
+    branches:
+      - Ari-rebirth-experiment
   pull_request:
     branches:
-      - Ari-rebirth-stable
+      - main
   workflow_dispatch:
 
 permissions:
