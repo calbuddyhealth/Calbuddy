@@ -2,14 +2,15 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.6.0 — Loads the same canonical Ari meal action service on both
-// Home and Nutrition. Nutrition gets presentation-only confirmation UI.
+// V1.7.0 — Home and Nutrition share the same canonical Ari domain services.
+// Nutrition gets presentation-only confirmation UI; it does not own actions.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
 const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
+const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 
 async function createUserProfile(user, displayName = "") {
@@ -213,18 +214,33 @@ function bootstrapAriMealAction() {
   document.head.appendChild(script);
 }
 
+function bootstrapAriWorkoutActionForNutrition() {
+  // Home already owns the canonical workout service load in home.html.
+  // Nutrition loads the SAME service file so both Ari composers expose the
+  // same Training behavior without introducing a second workout planner.
+  if (currentAriSurface() !== "nutrition") return;
+  if (document.getElementById(ARI_WORKOUT_ACTION_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_WORKOUT_ACTION_SCRIPT_ID;
+  script.src = "ari/actions/ari-workout-plan-action.js?v=2.0.0";
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
 function bootstrapNutritionActionUi() {
   if (currentAriSurface() !== "nutrition") return;
   if (document.getElementById(ARI_NUTRITION_ACTION_UI_SCRIPT_ID)) return;
 
   const script = document.createElement("script");
   script.id = ARI_NUTRITION_ACTION_UI_SCRIPT_ID;
-  script.src = "ari/actions/ari-nutrition-action-ui.js?v=1.0.0";
+  script.src = "ari/actions/ari-nutrition-action-ui.js?v=1.1.0";
   script.defer = true;
   document.head.appendChild(script);
 }
 
 bootstrapCanonicalMealLedger();
 bootstrapAriMealAction();
+bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
 bootstrapAIAccessConsent();
