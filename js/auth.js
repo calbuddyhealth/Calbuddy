@@ -2,13 +2,14 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.8.0 — Home and Nutrition share canonical Ari domain services.
-// Meal action loader bumped to v1.1.0 for direct food-log reliability.
+// V1.9.0 — Home and Nutrition share one OpenAI central intent router and
+// canonical domain action services.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
+const ARI_INTENT_ROUTER_SCRIPT_ID = "ariCentralIntentRouterScript";
 const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
 const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
@@ -187,7 +188,6 @@ function bootstrapAIAccessConsent() {
 
 function bootstrapCanonicalMealLedger() {
   if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
-
   const script = document.createElement("script");
   script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
   script.src = "js/meal-ledger-sync.js?v=1.0.1";
@@ -202,44 +202,52 @@ function currentAriSurface() {
   return "other";
 }
 
-function bootstrapAriMealAction() {
-  const surface = currentAriSurface();
-  if (surface !== "home" && surface !== "nutrition") return;
-  if (document.getElementById(ARI_MEAL_ACTION_SCRIPT_ID)) return;
-
+function appendOrderedScript(id, src) {
+  if (document.getElementById(id)) return;
   const script = document.createElement("script");
-  script.id = ARI_MEAL_ACTION_SCRIPT_ID;
-  script.src = "ari/actions/ari-meal-action.js?v=1.1.0";
-  script.defer = true;
+  script.id = id;
+  script.src = src;
+  script.async = false;
   document.head.appendChild(script);
 }
 
-function bootstrapAriWorkoutActionForNutrition() {
-  // Home already owns the canonical workout service load in home.html.
-  // Nutrition loads the SAME service file so both Ari composers expose the
-  // same Training behavior without introducing a second workout planner.
-  if (currentAriSurface() !== "nutrition") return;
-  if (document.getElementById(ARI_WORKOUT_ACTION_SCRIPT_ID)) return;
+function bootstrapAriCentralIntentRouter() {
+  const surface = currentAriSurface();
+  if (surface !== "home" && surface !== "nutrition") return;
+  appendOrderedScript(
+    ARI_INTENT_ROUTER_SCRIPT_ID,
+    "ari/intent/ari-central-intent-router.js?v=1.1.0"
+  );
+}
 
-  const script = document.createElement("script");
-  script.id = ARI_WORKOUT_ACTION_SCRIPT_ID;
-  script.src = "ari/actions/ari-workout-plan-action.js?v=2.0.0";
-  script.defer = true;
-  document.head.appendChild(script);
+function bootstrapAriMealAction() {
+  const surface = currentAriSurface();
+  if (surface !== "home" && surface !== "nutrition") return;
+  appendOrderedScript(
+    ARI_MEAL_ACTION_SCRIPT_ID,
+    "ari/actions/ari-meal-action.js?v=2.0.0"
+  );
+}
+
+function bootstrapAriWorkoutActionForNutrition() {
+  // Home loads this same canonical file directly in home.html.
+  if (currentAriSurface() !== "nutrition") return;
+  appendOrderedScript(
+    ARI_WORKOUT_ACTION_SCRIPT_ID,
+    "ari/actions/ari-workout-plan-action.js?v=3.0.0"
+  );
 }
 
 function bootstrapNutritionActionUi() {
   if (currentAriSurface() !== "nutrition") return;
-  if (document.getElementById(ARI_NUTRITION_ACTION_UI_SCRIPT_ID)) return;
-
-  const script = document.createElement("script");
-  script.id = ARI_NUTRITION_ACTION_UI_SCRIPT_ID;
-  script.src = "ari/actions/ari-nutrition-action-ui.js?v=1.1.0";
-  script.defer = true;
-  document.head.appendChild(script);
+  appendOrderedScript(
+    ARI_NUTRITION_ACTION_UI_SCRIPT_ID,
+    "ari/actions/ari-nutrition-action-ui.js?v=1.1.0"
+  );
 }
 
 bootstrapCanonicalMealLedger();
+bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
 bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
