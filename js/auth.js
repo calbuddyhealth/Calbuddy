@@ -2,14 +2,15 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.5.0 — Loads domain-specific Ari meal actions; legacy mixed action
-// router is retired. Training is loaded separately by home.html.
+// V1.6.0 — Loads the same canonical Ari meal action service on both
+// Home and Nutrition. Nutrition gets presentation-only confirmation UI.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
 const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
+const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -193,9 +194,16 @@ function bootstrapCanonicalMealLedger() {
   document.head.appendChild(script);
 }
 
-function bootstrapAriMealAction() {
+function currentAriSurface() {
   const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
-  if (page !== "home.html" && page !== "") return;
+  if (page === "nutrition.html") return "nutrition";
+  if (page === "home.html" || page === "") return "home";
+  return "other";
+}
+
+function bootstrapAriMealAction() {
+  const surface = currentAriSurface();
+  if (surface !== "home" && surface !== "nutrition") return;
   if (document.getElementById(ARI_MEAL_ACTION_SCRIPT_ID)) return;
 
   const script = document.createElement("script");
@@ -205,6 +213,18 @@ function bootstrapAriMealAction() {
   document.head.appendChild(script);
 }
 
+function bootstrapNutritionActionUi() {
+  if (currentAriSurface() !== "nutrition") return;
+  if (document.getElementById(ARI_NUTRITION_ACTION_UI_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = ARI_NUTRITION_ACTION_UI_SCRIPT_ID;
+  script.src = "ari/actions/ari-nutrition-action-ui.js?v=1.0.0";
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
 bootstrapCanonicalMealLedger();
 bootstrapAriMealAction();
+bootstrapNutritionActionUi();
 bootstrapAIAccessConsent();
