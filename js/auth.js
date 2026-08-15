@@ -2,8 +2,8 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.9.0 — Home and Nutrition share one OpenAI central intent router and
-// canonical domain action services.
+// V1.9.1 — Home and Nutrition share one OpenAI central intent router and
+// canonical domain action services. Router cache bumped to v1.2.0.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
@@ -16,27 +16,18 @@ const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
-
   const cleanDisplayName = String(displayName || "").trim();
   const profilePayload = {
     id: user.id,
     email: user.email || "",
-    display_name:
-      cleanDisplayName ||
-      user.user_metadata?.display_name ||
-      user.email?.split("@")[0] ||
-      "User",
+    display_name: cleanDisplayName || user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
     daily_calorie_goal: 2100,
     reset_hour: 12,
     reset_minute: 0,
     reset_ampm: "AM",
     updated_at: new Date().toISOString()
   };
-
-  const { error } = await window.calbuddySupabase
-    .from("profiles")
-    .upsert(profilePayload, { onConflict: "id" });
-
+  const { error } = await window.calbuddySupabase.from("profiles").upsert(profilePayload, { onConflict: "id" });
   if (error) console.error("Profile save error:", error.message);
 }
 
@@ -52,7 +43,6 @@ async function signUpUser(email, password, displayName = "", registration = {}) 
   const cleanPassword = String(password || "");
   const cleanDisplayName = String(displayName || "").trim();
   const cleanDateOfBirth = String(registration.dateOfBirth || "").trim();
-
   return await window.calbuddySupabase.auth.signUp({
     email: cleanEmail,
     password: cleanPassword,
@@ -65,8 +55,7 @@ async function signUpUser(email, password, displayName = "", registration = {}) 
         age_gate_version: "2026-08-11",
         terms_accepted: registration.termsAccepted === true,
         privacy_accepted: registration.privacyAccepted === true,
-        community_guidelines_accepted:
-          registration.communityGuidelinesAccepted === true
+        community_guidelines_accepted: registration.communityGuidelinesAccepted === true
       }
     }
   });
@@ -110,18 +99,15 @@ async function getCurrentUser() {
 async function getAriAccountState(userId = null) {
   const resolvedUserId = userId || (await getCurrentUser())?.id || null;
   if (!resolvedUserId || !window.calbuddySupabase) return null;
-
   const { data, error } = await window.calbuddySupabase
     .from("ari_account_state")
     .select("*")
     .eq("user_id", resolvedUserId)
     .maybeSingle();
-
   if (error) {
     console.warn("ARI account state unavailable:", error.message);
     return { user_id: resolvedUserId, status: "active", setupPending: true };
   }
-
   return data || { user_id: resolvedUserId, status: "active", setupPending: true };
 }
 
@@ -136,17 +122,11 @@ async function requireAuth() {
     window.location.replace("signin.html");
     return null;
   }
-
   const accountState = await getAriAccountState(session.user.id);
-  if (
-    accountState?.status &&
-    accountState.status !== "active" &&
-    !isAriAccountRecoveryPage()
-  ) {
+  if (accountState?.status && accountState.status !== "active" && !isAriAccountRecoveryPage()) {
     window.location.replace("account.html");
     return null;
   }
-
   return session;
 }
 
@@ -158,28 +138,19 @@ async function signOutUser() {
 function setAriBootIntro(mode = "returning") {
   sessionStorage.setItem("ari_boot_intro", mode === "new" ? "new" : "returning");
 }
-
-function getAriBootIntro() {
-  return sessionStorage.getItem("ari_boot_intro");
-}
-
-function clearAriBootIntro() {
-  sessionStorage.removeItem("ari_boot_intro");
-}
+function getAriBootIntro() { return sessionStorage.getItem("ari_boot_intro"); }
+function clearAriBootIntro() { sessionStorage.removeItem("ari_boot_intro"); }
 
 function bootstrapAIAccessConsent() {
   const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page !== "home.html" && page !== "") return;
-
   const input = document.getElementById("ariInput");
   const send = document.getElementById("ariSendBtn");
-
   if (input) {
     input.disabled = true;
     input.setAttribute("aria-disabled", "true");
     input.placeholder = "AI processing permission required";
   }
-
   if (send) {
     send.disabled = true;
     send.setAttribute("aria-disabled", "true");
@@ -214,36 +185,23 @@ function appendOrderedScript(id, src) {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(
-    ARI_INTENT_ROUTER_SCRIPT_ID,
-    "ari/intent/ari-central-intent-router.js?v=1.1.0"
-  );
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.2.0");
 }
 
 function bootstrapAriMealAction() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(
-    ARI_MEAL_ACTION_SCRIPT_ID,
-    "ari/actions/ari-meal-action.js?v=2.0.0"
-  );
+  appendOrderedScript(ARI_MEAL_ACTION_SCRIPT_ID, "ari/actions/ari-meal-action.js?v=2.0.0");
 }
 
 function bootstrapAriWorkoutActionForNutrition() {
-  // Home loads this same canonical file directly in home.html.
   if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(
-    ARI_WORKOUT_ACTION_SCRIPT_ID,
-    "ari/actions/ari-workout-plan-action.js?v=3.0.0"
-  );
+  appendOrderedScript(ARI_WORKOUT_ACTION_SCRIPT_ID, "ari/actions/ari-workout-plan-action.js?v=3.0.0");
 }
 
 function bootstrapNutritionActionUi() {
   if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(
-    ARI_NUTRITION_ACTION_UI_SCRIPT_ID,
-    "ari/actions/ari-nutrition-action-ui.js?v=1.1.0"
-  );
+  appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.1.0");
 }
 
 bootstrapCanonicalMealLedger();
