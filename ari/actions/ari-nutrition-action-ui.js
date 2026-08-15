@@ -1,12 +1,12 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-nutrition-action-ui.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Nutrition-page presentation for the shared CalBuddy pending-action
-//   lifecycle. This file NEVER creates or interprets meal actions.
+//   lifecycle. This file NEVER creates or interprets domain actions.
 //   It only displays, confirms, or cancels actions created by canonical
-//   domain services such as ari-meal-action.js.
+//   services such as ari-meal-action.js and ari-workout-plan-action.js.
 // =====================================================
 
 (() => {
@@ -69,13 +69,29 @@
     button.style.cursor = "pointer";
   }
 
+  function fallbackConfirmation(type) {
+    if (type === "log_meal") return "Log this meal?";
+    if (type === "plan_workout") return "Apply this workout plan?";
+    return "Apply this change?";
+  }
+
+  function fallbackSuccess(type) {
+    if (type === "log_meal") return "Done — I logged that meal.";
+    if (type === "plan_workout") return "Done — I updated your Training plan.";
+    return "Done.";
+  }
+
+  function fallbackFailure(type) {
+    if (type === "log_meal") return "I couldn't log that meal. Try again.";
+    if (type === "plan_workout") return "I couldn't update that workout. Try again.";
+    return "I couldn't apply that change. Try again.";
+  }
+
   function renderPendingAction(action) {
     if (!isNutritionPage() || !action) return;
 
-    // Nutrition only owns the presentation for meal actions here. Other
-    // domains retain their own page-specific UI while sharing CalBuddy state.
     const type = clean(action.action_type || action.type);
-    if (type !== "log_meal") return;
+    if (!type) return;
 
     const thread = getThread();
     if (!thread) return;
@@ -84,8 +100,9 @@
 
     const card = document.createElement("div");
     card.id = CARD_ID;
+    card.dataset.actionType = type;
     card.setAttribute("role", "group");
-    card.setAttribute("aria-label", "Confirm Ari meal action");
+    card.setAttribute("aria-label", "Confirm Ari action");
     card.style.margin = "14px 0";
     card.style.padding = "16px";
     card.style.borderRadius = "22px";
@@ -95,7 +112,7 @@
     card.style.backdropFilter = "blur(18px)";
 
     const text = document.createElement("p");
-    text.textContent = clean(action.confirmation_text) || "Log this meal?";
+    text.textContent = clean(action.confirmation_text) || fallbackConfirmation(type);
     text.style.margin = "0 0 14px";
     text.style.color = "#102451";
     text.style.fontWeight = "750";
@@ -122,22 +139,22 @@
       try {
         const result = await window.CalBuddy.confirmPendingAction();
         removeCard();
-        appendAriMessage(result?.reply || "Done — I logged that meal.");
+        appendAriMessage(result?.reply || fallbackSuccess(type));
 
-        if (typeof window.refreshNutritionPage === "function") {
+        if (type === "log_meal" && typeof window.refreshNutritionPage === "function") {
           await window.refreshNutritionPage();
         }
       } catch (error) {
         yes.disabled = false;
         cancel.disabled = false;
-        appendAriMessage(error?.message || "I couldn't log that meal. Try again.");
+        appendAriMessage(error?.message || fallbackFailure(type));
       }
     });
 
     cancel.addEventListener("click", () => {
       const result = window.CalBuddy?.cancelPendingAction?.();
       removeCard();
-      appendAriMessage(result?.reply || "No problem — I won't log it.");
+      appendAriMessage(result?.reply || "No problem — I won't make that change.");
     });
 
     actions.append(yes, cancel);
