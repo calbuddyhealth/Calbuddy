@@ -46,7 +46,7 @@ test("thinking fades the thread while keeping Ari's presence visible", () => {
 test("the UI release keeps the current ARI app bridge", () => {
   assert.match(
     html,
-    /ari\/ari-rebirth-app-bridge\.js\?v=2\.5\.1/
+    /ari\/ari-rebirth-app-bridge\.js\?v=2\.5\.3/
   );
 });
 
