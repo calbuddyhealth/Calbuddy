@@ -1,4 +1,15 @@
-// ARI XP — native-feeling conversation scrolling + keyboard stability
+// ARI XP — native-feeling conversation scrolling + conversation session loader
+(() => {
+  const style = document.createElement("link");
+  style.rel = "stylesheet";
+  style.href = "assets/css/home-menu-polish.css?v=1.0.0";
+  document.head.appendChild(style);
+
+  const sessions = document.createElement("script");
+  sessions.src = "js/ari-conversation-sessions.js?v=1.0.0";
+  document.body.appendChild(sessions);
+})();
+
 (() => {
   "use strict";
 
@@ -29,10 +40,7 @@
 
   function scrollToBottom({ smooth = true } = {}) {
     if (!thread) return;
-    thread.scrollTo({
-      top: thread.scrollHeight,
-      behavior: smooth && !keyboardOpen ? "smooth" : "auto"
-    });
+    thread.scrollTo({ top: thread.scrollHeight, behavior: smooth && !keyboardOpen ? "smooth" : "auto" });
     nearBottom = true;
     setJumpVisible(false);
   }
@@ -56,34 +64,21 @@
   }
 
   function handleThreadMutation(records) {
-    const addedMessage = records.some((record) =>
-      [...record.addedNodes].some((node) =>
-        node.nodeType === Node.ELEMENT_NODE &&
-        (node.matches?.(".ari-message") || node.querySelector?.(".ari-message"))
-      )
-    );
-
+    const addedMessage = records.some((record) => [...record.addedNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && (node.matches?.(".ari-message") || node.querySelector?.(".ari-message"))));
     if (!addedMessage) return;
-
-    if (nearBottom) {
-      requestAnimationFrame(() => scrollToBottom({ smooth: !keyboardOpen }));
-    } else {
-      setJumpVisible(true);
-    }
+    if (nearBottom) requestAnimationFrame(() => scrollToBottom({ smooth: !keyboardOpen }));
+    else setJumpVisible(true);
   }
 
   function updateKeyboardState() {
     const vv = window.visualViewport;
     if (!vv) return;
-
     const obscured = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     const nextOpen = obscured >= KEYBOARD_THRESHOLD;
     const changed = nextOpen !== keyboardOpen;
-
     keyboardOpen = nextOpen;
     document.documentElement.style.setProperty("--ari-visual-viewport-height", `${Math.round(vv.height)}px`);
     document.body.classList.toggle("ari-keyboard-open", keyboardOpen);
-
     if (changed && keyboardOpen && document.activeElement?.id === "ariInput" && nearBottom) {
       clearTimeout(viewportTimer);
       viewportTimer = setTimeout(() => scrollToBottom({ smooth: false }), 90);
@@ -93,7 +88,6 @@
   function bindVisualViewport() {
     const vv = window.visualViewport;
     if (!vv) return;
-
     vv.addEventListener("resize", updateKeyboardState, { passive: true });
     vv.addEventListener("scroll", updateKeyboardState, { passive: true });
     updateKeyboardState();
@@ -103,27 +97,18 @@
     thread = document.getElementById("ariMessages");
     const shell = document.getElementById("ariConversationShell");
     if (!thread || !shell) return;
-
     jumpButton = createJumpButton(shell);
     nearBottom = isNearBottom();
-
     thread.addEventListener("scroll", onThreadScroll, { passive: true });
-
     const observer = new MutationObserver(handleThreadMutation);
     observer.observe(thread, { childList: true, subtree: true });
-
-    const input = document.getElementById("ariInput");
-    input?.addEventListener("focus", () => {
+    document.getElementById("ariInput")?.addEventListener("focus", () => {
       nearBottom = isNearBottom();
       setTimeout(updateKeyboardState, 0);
     });
-
     bindVisualViewport();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initialize, { once: true });
-  } else {
-    initialize();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
+  else initialize();
 })();
