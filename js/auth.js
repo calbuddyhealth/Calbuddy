@@ -2,7 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.10.0 — Guarantees every authenticated user has a minimal profiles row
+// V1.10.1 — Guarantees every authenticated user has a minimal profiles row
 // before protected app surfaces become usable. No fake health defaults.
 // =====================================================
 
@@ -108,7 +108,7 @@ async function resendSignupConfirmation(email) {
 async function verifySignupCode(email, token) {
   return await window.calbuddySupabase.auth.verifyOtp({
     email: String(email || "").trim(),
-    token: String(token || "").replace(/\D/g, "").slice(0, 6),
+    token: String(token || "").replace(/\D/g, "").slice(0, 10),
     type: "signup"
   });
 }
