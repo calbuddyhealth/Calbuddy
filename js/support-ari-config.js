@@ -1,4 +1,4 @@
-/* ARI XP — Support configuration v3.1.0 */
+/* ARI XP — Support configuration v3.1.1 */
 window.ARI_SUPPORT_CONFIG = Object.freeze({
   enabled: true,
 
@@ -50,7 +50,8 @@ window.ARI_SUPPORT_CONFIG = Object.freeze({
 
   venmo: Object.freeze({
     handle: "@Ari-Xp",
-    url: "https://venmo.com/u/Ari-Xp"
+    url: "https://account.venmo.com/u/Ari-Xp",
+    external: true
   }),
 
   supportUrl: "support-ari.html"
