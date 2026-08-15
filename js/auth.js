@@ -2,8 +2,8 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.7.0 — Home and Nutrition share the same canonical Ari domain services.
-// Nutrition gets presentation-only confirmation UI; it does not own actions.
+// V1.8.0 — Home and Nutrition share canonical Ari domain services.
+// Meal action loader bumped to v1.1.0 for direct food-log reliability.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
@@ -209,7 +209,7 @@ function bootstrapAriMealAction() {
 
   const script = document.createElement("script");
   script.id = ARI_MEAL_ACTION_SCRIPT_ID;
-  script.src = "ari/actions/ari-meal-action.js?v=1.0.0";
+  script.src = "ari/actions/ari-meal-action.js?v=1.1.0";
   script.defer = true;
   document.head.appendChild(script);
 }
