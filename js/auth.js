@@ -1,41 +1,20 @@
 // =====================================================
 // ARI XP
 // File: auth.js
-// Purpose:
-//   Shared Supabase auth helpers for ARI XP.
-//
-// V1.4.0
-// User action reliability:
-// - Loads deterministic meal logging and date-specific workout actions.
-//
-// V1.3.0
-// Daily-ledger alignment:
-// - New profiles use a midnight nutrition reset to match Training.
-// - Loads the canonical meal-ledger sync on ARI app surfaces.
-//
-// V1.2.1
-// App Store privacy readiness:
-// - Locks the ARI composer before the consent controller initializes.
-// - home.html owns the single AI consent controller script load.
-//
-// V1.1.0
-// Email confirmation handoff:
-// - Uses the canonical ARI XP production confirmation URL.
-// - Confirmation redirects to email-confirmed.html.
-// - email-confirmed.html intentionally does NOT initialize Supabase.
-// - The user returns to ARI and signs in manually after confirmation.
+// Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.5.0 — Loads domain-specific Ari meal actions; legacy mixed action
+// router is retired. Training is loaded separately by home.html.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
-const ARI_USER_ACTIONS_SCRIPT_ID = "ariUserActionsScript";
+const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
 
   const cleanDisplayName = String(displayName || "").trim();
-
   const profilePayload = {
     id: user.id,
     email: user.email || "",
@@ -55,27 +34,17 @@ async function createUserProfile(user, displayName = "") {
     .from("profiles")
     .upsert(profilePayload, { onConflict: "id" });
 
-  if (error) {
-    console.error("Profile save error:", error.message);
-  }
+  if (error) console.error("Profile save error:", error.message);
 }
 
 async function signInUser(email, password) {
-  const cleanEmail = String(email || "").trim();
-  const cleanPassword = String(password || "");
-
   return await window.calbuddySupabase.auth.signInWithPassword({
-    email: cleanEmail,
-    password: cleanPassword
+    email: String(email || "").trim(),
+    password: String(password || "")
   });
 }
 
-async function signUpUser(
-  email,
-  password,
-  displayName = "",
-  registration = {}
-) {
+async function signUpUser(email, password, displayName = "", registration = {}) {
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
   const cleanDisplayName = String(displayName || "").trim();
@@ -101,46 +70,32 @@ async function signUpUser(
 }
 
 async function resendSignupConfirmation(email) {
-  const cleanEmail = String(email || "").trim();
-
   return await window.calbuddySupabase.auth.resend({
     type: "signup",
-    email: cleanEmail,
-    options: {
-      emailRedirectTo: ARI_XP_EMAIL_CONFIRM_URL
-    }
+    email: String(email || "").trim(),
+    options: { emailRedirectTo: ARI_XP_EMAIL_CONFIRM_URL }
   });
 }
 
 async function verifySignupCode(email, token) {
-  const cleanEmail = String(email || "").trim();
-  const cleanToken = String(token || "").replace(/\D/g, "").slice(0, 6);
-
   return await window.calbuddySupabase.auth.verifyOtp({
-    email: cleanEmail,
-    token: cleanToken,
+    email: String(email || "").trim(),
+    token: String(token || "").replace(/\D/g, "").slice(0, 6),
     type: "signup"
   });
 }
 
 async function sendPasswordReset(email) {
-  const cleanEmail = String(email || "").trim();
-
-  return await window.calbuddySupabase.auth.resetPasswordForEmail(cleanEmail, {
-    redirectTo: `${ARI_XP_PUBLIC_ORIGIN}/reset-password.html`
-  });
+  return await window.calbuddySupabase.auth.resetPasswordForEmail(
+    String(email || "").trim(),
+    { redirectTo: `${ARI_XP_PUBLIC_ORIGIN}/reset-password.html` }
+  );
 }
 
 async function getCurrentSession() {
   if (!window.calbuddySupabase) return null;
-
-  const {
-    data: { session },
-    error
-  } = await window.calbuddySupabase.auth.getSession();
-
+  const { data: { session }, error } = await window.calbuddySupabase.auth.getSession();
   if (error || !session) return null;
-
   return session;
 }
 
@@ -150,14 +105,8 @@ async function getCurrentUser() {
 }
 
 async function getAriAccountState(userId = null) {
-  const resolvedUserId =
-    userId ||
-    (await getCurrentUser())?.id ||
-    null;
-
-  if (!resolvedUserId || !window.calbuddySupabase) {
-    return null;
-  }
+  const resolvedUserId = userId || (await getCurrentUser())?.id || null;
+  if (!resolvedUserId || !window.calbuddySupabase) return null;
 
   const { data, error } = await window.calbuddySupabase
     .from("ari_account_state")
@@ -167,43 +116,25 @@ async function getAriAccountState(userId = null) {
 
   if (error) {
     console.warn("ARI account state unavailable:", error.message);
-    return {
-      user_id: resolvedUserId,
-      status: "active",
-      setupPending: true
-    };
+    return { user_id: resolvedUserId, status: "active", setupPending: true };
   }
 
-  return data || {
-    user_id: resolvedUserId,
-    status: "active",
-    setupPending: true
-  };
+  return data || { user_id: resolvedUserId, status: "active", setupPending: true };
 }
 
 function isAriAccountRecoveryPage(pathname = window.location.pathname) {
-  const page = String(pathname || "")
-    .split("/")
-    .pop()
-    .toLowerCase();
-
-  return [
-    "account.html",
-    "help-safety.html",
-    "community-guidelines.html"
-  ].includes(page);
+  const page = String(pathname || "").split("/").pop().toLowerCase();
+  return ["account.html", "help-safety.html", "community-guidelines.html"].includes(page);
 }
 
 async function requireAuth() {
   const session = await getCurrentSession();
-
   if (!session) {
     window.location.replace("signin.html");
     return null;
   }
 
   const accountState = await getAriAccountState(session.user.id);
-
   if (
     accountState?.status &&
     accountState.status !== "active" &&
@@ -218,13 +149,11 @@ async function requireAuth() {
 
 async function signOutUser() {
   sessionStorage.removeItem("ari_boot_intro");
-
   return await window.calbuddySupabase.auth.signOut();
 }
 
 function setAriBootIntro(mode = "returning") {
-  const normalizedMode = mode === "new" ? "new" : "returning";
-  sessionStorage.setItem("ari_boot_intro", normalizedMode);
+  sessionStorage.setItem("ari_boot_intro", mode === "new" ? "new" : "returning");
 }
 
 function getAriBootIntro() {
@@ -236,11 +165,7 @@ function clearAriBootIntro() {
 }
 
 function bootstrapAIAccessConsent() {
-  const page = String(window.location.pathname || "")
-    .split("/")
-    .pop()
-    .toLowerCase();
-
+  const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page !== "home.html" && page !== "") return;
 
   const input = document.getElementById("ariInput");
@@ -256,10 +181,6 @@ function bootstrapAIAccessConsent() {
     send.disabled = true;
     send.setAttribute("aria-disabled", "true");
   }
-
-  // home.html loads js/ai-processing-consent.js exactly once.
-  // Auth only locks the composer early so no AI request can be sent before
-  // the consent controller resolves the user's current permission.
 }
 
 function bootstrapCanonicalMealLedger() {
@@ -272,22 +193,18 @@ function bootstrapCanonicalMealLedger() {
   document.head.appendChild(script);
 }
 
-function bootstrapAriUserActions() {
-  const page = String(window.location.pathname || "")
-    .split("/")
-    .pop()
-    .toLowerCase();
-
+function bootstrapAriMealAction() {
+  const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page !== "home.html" && page !== "") return;
-  if (document.getElementById(ARI_USER_ACTIONS_SCRIPT_ID)) return;
+  if (document.getElementById(ARI_MEAL_ACTION_SCRIPT_ID)) return;
 
   const script = document.createElement("script");
-  script.id = ARI_USER_ACTIONS_SCRIPT_ID;
-  script.type = "module";
-  script.src = "js/ari-user-actions.js?v=1.0.0";
+  script.id = ARI_MEAL_ACTION_SCRIPT_ID;
+  script.src = "ari/actions/ari-meal-action.js?v=1.0.0";
+  script.defer = true;
   document.head.appendChild(script);
 }
 
 bootstrapCanonicalMealLedger();
-bootstrapAriUserActions();
+bootstrapAriMealAction();
 bootstrapAIAccessConsent();
