@@ -1,4 +1,4 @@
-/* ARI XP — Support ARI v3.1.0 */
+/* ARI XP — Support ARI v3.1.1 */
 
 (() => {
   "use strict";
@@ -30,6 +30,15 @@
     }
 
     link.href = url;
+
+    if (provider.external === true) {
+      link.target = "_blank";
+      link.rel = "noopener noreferrer external";
+      link.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+    }
+
     link.hidden = false;
 
     const handleNode = link.querySelector("[data-support-handle]");
@@ -345,7 +354,7 @@
   }
 
   window.AriSupportStoreKit = Object.freeze({
-    version: "3.1.0",
+    version: "3.1.1",
 
     productsLoaded(products) {
       renderNativeProducts(products);
