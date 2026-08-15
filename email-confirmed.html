@@ -23,49 +23,12 @@
       <p class="experience">EXPERIENCE</p>
       <span class="line" aria-hidden="true"></span>
       <div class="check" aria-hidden="true">✓</div>
-      <h1 id="confirmedTitle">Email confirmed</h1>
-      <p id="confirmedStatus">Finishing your ARI XP account setup…</p>
-      <a id="continueLink" href="/signin.html">Continue to ARI XP</a>
-      <p class="small">Your health profile starts blank until you choose to complete it.</p>
+      <h1 id="confirmedTitle">Thank you</h1>
+      <p>Your email address has been confirmed.</p>
+      <p>Please return to ARI XP and sign in with the email and password you created.</p>
+      <a href="/signin.html">Go to Sign In</a>
+      <p class="small">You can safely close this page after confirmation.</p>
     </section>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=8"></script>
-  <script src="js/auth.js?v=1.10.0"></script>
-  <script>
-    (async () => {
-      const status = document.getElementById("confirmedStatus");
-      const link = document.getElementById("continueLink");
-
-      // Give supabase-js a moment to consume the verification callback and
-      // persist the returned session before deciding where to send the user.
-      let session = null;
-      for (let attempt = 0; attempt < 12; attempt += 1) {
-        try {
-          session = await getCurrentSession();
-        } catch {}
-        if (session?.user) break;
-        await new Promise(resolve => setTimeout(resolve, 125));
-      }
-
-      if (!session?.user) {
-        status.textContent = "Your email is verified. Sign in to continue to ARI XP.";
-        link.href = "/signin.html";
-        return;
-      }
-
-      try {
-        await ensureAuthenticatedProfile(session.user);
-        status.textContent = "Your account is ready. Opening ARI XP…";
-        link.href = "/home.html";
-        window.setTimeout(() => window.location.replace("/home.html"), 450);
-      } catch (error) {
-        console.error("Verified account provisioning failed:", error);
-        status.textContent = "Your email is verified. Sign in to finish account setup.";
-        link.href = "/signin.html";
-      }
-    })();
-  </script>
 </body>
 </html>
