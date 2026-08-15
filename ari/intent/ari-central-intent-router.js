@@ -1,11 +1,12 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
-//   One semantic intent decision for every Ari user turn.
-//   Calls /api/ari-intent-router and passes the same structured decision
-//   through every downstream domain service. Never executes mutations.
+//   ONE semantic intent decision for every Ari user turn.
+//   Wraps CalBuddy.askAri(), calls /api/ari-intent-router once, and passes
+//   the SAME structured decision through every downstream domain service.
+//   Never executes mutations itself.
 // =====================================================
 
 (() => {
@@ -13,9 +14,10 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
+  const INSTALL_FLAG = "__ariCentralIntentRouterV1";
   const cache = new Map();
 
   const clean = (value = "") => String(value ?? "").trim();
@@ -28,10 +30,11 @@
       "home"
     ).toLowerCase();
 
-    return {
-      page: page === "nutrition.html" ? "nutrition" : page.replace(/\.html$/, "") || "home",
-      currentPage: page === "nutrition.html" ? "nutrition" : page.replace(/\.html$/, "") || "home"
-    };
+    const normalized = page === "nutrition.html"
+      ? "nutrition"
+      : page.replace(/\.html$/, "") || "home";
+
+    return { page: normalized, currentPage: normalized };
   }
 
   function cacheKey(message, appContext = {}) {
@@ -88,6 +91,7 @@
 
   CalBuddy.routeAriIntent = async function routeAriIntent(input = {}) {
     const message = clean(input.message || input.userMessage);
+
     if (!message) {
       return normalizeDecision({
         domain: "conversation",
@@ -134,6 +138,112 @@
     return clean(decision.action) !== "none" &&
       ["create", "log", "edit", "delete", "update"].includes(clean(decision.intent));
   };
+
+  function shouldBypassRouting(input = {}) {
+    const message = clean(input.message);
+    if (!message) return true;
+
+    try {
+      const pending = CalBuddy.getPendingAction?.();
+      if (pending && (CalBuddy.isYes?.(message) || CalBuddy.isNo?.(message))) {
+        return true;
+      }
+    } catch {
+      // Pending confirmation bypass is an optimization only.
+    }
+
+    return false;
+  }
+
+  function installAskBoundary() {
+    if (CalBuddy[INSTALL_FLAG]) return true;
+    if (typeof CalBuddy.askAri !== "function") return false;
+
+    const originalAskAri = CalBuddy.askAri.bind(CalBuddy);
+
+    CalBuddy.askAri = async function ariCentralIntentBoundary(input = {}) {
+      if (shouldBypassRouting(input)) {
+        return await originalAskAri(input);
+      }
+
+      let intentDecision;
+
+      try {
+        intentDecision = await CalBuddy.routeAriIntent(input);
+      } catch (error) {
+        console.error("ARI CENTRAL INTENT ROUTER FAILED:", error);
+        CalBuddy.setAriMood?.("concerned");
+
+        // Fail closed for app actions. We do not let a conversational model
+        // guess whether it should mutate user data when the authority router
+        // is unavailable.
+        return {
+          reply: "I couldn’t verify that request with my action router, so I didn’t change anything. Try that again in a moment.",
+          emotion: "concerned",
+          pendingAction: null,
+          intentRouterError: true
+        };
+      }
+
+      localStorage.setItem("ariLastIntentDecision", JSON.stringify({
+        ...intentDecision,
+        message: clean(input.message),
+        routed_at: new Date().toISOString()
+      }));
+
+      window.dispatchEvent(new CustomEvent("ari:intentDecision", {
+        detail: { decision: intentDecision, message: clean(input.message) }
+      }));
+
+      if (intentDecision.needs_clarification) {
+        return {
+          reply:
+            intentDecision.clarification_question ||
+            "I want to make sure I change the right thing. What exactly do you want me to update?",
+          emotion: "coach",
+          pendingAction: null,
+          intentDecision
+        };
+      }
+
+      // Low-confidence mutations never reach an executor. Conversation and
+      // questions can proceed normally at lower confidence because no data
+      // will be changed.
+      if (
+        CalBuddy.isAriMutationDecision(intentDecision) &&
+        intentDecision.confidence < 0.8
+      ) {
+        return {
+          reply: "I’m not confident enough about what you want changed. Can you say exactly what you want me to log, create, or edit?",
+          emotion: "coach",
+          pendingAction: null,
+          intentDecision
+        };
+      }
+
+      return await originalAskAri({
+        ...input,
+        intentDecision
+      });
+    };
+
+    Object.defineProperty(CalBuddy, INSTALL_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    console.log("ARI CENTRAL INTENT BOUNDARY INSTALLED:", VERSION);
+    return true;
+  }
+
+  let attempts = 0;
+  const installTimer = window.setInterval(() => {
+    attempts += 1;
+    if (installAskBoundary() || attempts >= 240) {
+      window.clearInterval(installTimer);
+    }
+  }, 50);
 
   console.log("ARI CENTRAL INTENT ROUTER LOADED:", VERSION);
 })();
