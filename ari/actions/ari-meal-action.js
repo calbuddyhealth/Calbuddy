@@ -1,16 +1,11 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-meal-action.js
-// Version: 1.1.0
+// Version: 2.0.0
 // Purpose:
-//   SINGLE originator for Ari-created meal-log mutations.
-//   Uses only the current user turn + a structured meal estimate for that
-//   same turn. No conversation-history or last-meal fallback.
-//
-// Guarantees:
-//   - Direct commands such as "log an egg roll" enter this path.
-//   - Ari never says a meal was logged before confirmation + execution.
-//   - Missing structured nutrition is re-estimated from the current turn only.
+//   SINGLE executor/proposer for Ari-created meal-log mutations.
+//   Command meaning comes ONLY from the central OpenAI intent router.
+//   Nutrition details come only from the CURRENT turn.
 // =====================================================
 
 (() => {
@@ -18,45 +13,46 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.1.0";
-  const INSTALL_FLAG = "__ariMealActionV1";
-  const SOURCE = "ari_meal_action_v1_current_turn";
+  const VERSION = "2.0.0";
+  const INSTALL_FLAG = "__ariMealActionV2";
+  const SOURCE = "ari_meal_action_v2_central_router";
 
   const clean = (value = "") => String(value ?? "").trim();
 
-  function isMealLogRequest(message = "") {
-    const text = clean(message).toLowerCase();
-    if (!text) return false;
-
-    const writeIntent = /\b(log|track|save|record|add)\b/.test(text);
-    const eatingContext = /\b(i ate|i had|i drank|i just ate|i just had|i just drank|breakfast|lunch|dinner|snack|meal|food)\b/.test(text);
-    const directLogCommand = /^(?:hey\s+ari[,\s]+)?(?:(?:can|could|would)\s+you\s+|please\s+)?(?:log|track|record)\b\s+.+/i.test(clean(message));
-    const nonMealTarget = /\b(workout|training|exercise|sets?|reps?|weight|blood pressure|heart rate|steps?|sleep|medication|dose|symptom|mood|journal|note|github|code|account|login)\b/.test(text);
-
-    return !nonMealTarget && ((writeIntent && eatingContext) || directLogCommand);
+  function isMealDecision(decision = {}) {
+    return (
+      clean(decision.domain) === "nutrition" &&
+      clean(decision.target) === "meal" &&
+      clean(decision.action) === "log_meal" &&
+      decision.needs_clarification !== true &&
+      Number(decision.confidence || 0) >= 0.8
+    );
   }
 
-  function normalizeMealTitle(estimate = {}, message = "") {
+  function normalizeMealTitle(estimate = {}, decision = {}, message = "") {
     const foods = Array.isArray(estimate.foods)
       ? estimate.foods.map(item => clean(item?.name)).filter(Boolean)
       : [];
 
     let title = clean(estimate.description);
 
+    if (!title) {
+      title = clean(decision?.entities?.food_description);
+    }
+
     if (!title && foods.length) {
       title = foods.slice(0, 4).join(" + ");
     }
 
-    if (!title) {
-      title = clean(message);
-    }
+    if (!title) title = clean(message);
 
+    // Title cleanup is presentation-only. It is NOT used to decide whether
+    // the request is a meal action; the central router already decided that.
     title = title
       .replace(/^\s*(?:hey\s+ari[,\s]+)?/i, "")
       .replace(/^\s*(?:(?:can|could|would)\s+you\s+|please\s+)?(?:log|track|save|record|add)\s+/i, "")
       .replace(/^\s*(?:i\s+(?:had|ate|drank|just\s+had|just\s+ate|just\s+drank))\s+/i, "")
       .replace(/\b(?:can|could|would)\s+you\s+(?:please\s+)?(?:log|track|save|record|add)\b.*$/i, "")
-      .replace(/\bplease\s+(?:log|track|save|record|add)\b.*$/i, "")
       .replace(/\b(?:log|track|save|record|add)\s+(?:that|this|it)(?:\s+meal)?\b.*$/i, "")
       .replace(/[.?!,:;\-\s]+$/g, "")
       .replace(/\s+/g, " ")
@@ -64,19 +60,13 @@
 
     if (!title && foods.length) title = foods.slice(0, 4).join(" + ");
     if (!title) title = "Meal";
-
-    if (title.length > 72 && foods.length) {
-      title = foods.slice(0, 4).join(" + ");
-    }
-
-    if (title.length > 72) {
-      title = `${title.slice(0, 69).trim()}...`;
-    }
+    if (title.length > 72 && foods.length) title = foods.slice(0, 4).join(" + ");
+    if (title.length > 72) title = `${title.slice(0, 69).trim()}...`;
 
     return title.charAt(0).toUpperCase() + title.slice(1);
   }
 
-  function normalizeEstimate(raw = {}, message = "") {
+  function normalizeEstimate(raw = {}, decision = {}, message = "") {
     const calories = Number(raw.totalCalories ?? raw.calories ?? 0);
     const protein = Number(raw.protein_g);
     const carbs = Number(raw.carbs_g);
@@ -86,12 +76,12 @@
     if (![protein, carbs, fat].every(Number.isFinite)) return null;
 
     return {
-      name: normalizeMealTitle(raw, message),
+      name: normalizeMealTitle(raw, decision, message),
       calories: Math.round(calories),
       protein_g: Math.max(0, Math.round(protein * 10) / 10),
       carbs_g: Math.max(0, Math.round(carbs * 10) / 10),
       fat_g: Math.max(0, Math.round(fat * 10) / 10),
-      category: "Meal",
+      category: clean(decision?.entities?.meal_category) || "Meal",
       serving_size: "Estimated by Ari before logging",
       estimate_confidence: clean(raw.confidence) || "medium",
       source: SOURCE
@@ -108,7 +98,9 @@
     );
   }
 
-  async function requestCurrentTurnEstimate(message = "") {
+  async function requestCurrentTurnEstimate(message = "", decision = {}) {
+    const entityDescription = clean(decision?.entities?.food_description);
+
     const response = await fetch("/api/ask-calbuddy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -117,22 +109,17 @@
         history: [],
         responseFormat: "json",
         aiInstruction:
-          "This is a meal-log estimation transaction. Use ONLY the current user message. " +
-          "Do not use prior conversation context. Identify only the foods/drinks the user is asking to log. " +
-          "Return a concise reply and a complete mealEstimate with description, totalCalories, protein_g, carbs_g, fat_g, foods, and confidence. " +
-          "Do not say the meal was logged or saved. The app will ask for confirmation before writing anything."
+          "This is a meal-log nutrition estimation transaction. Use ONLY the CURRENT user message and the current router entities. " +
+          `Router food description: ${entityDescription || "not supplied"}. ` +
+          "Identify only the foods/drinks the user is asking to log. Return mealEstimate with description, totalCalories, protein_g, carbs_g, fat_g, foods, and confidence. " +
+          "Do not say anything was logged or saved. The app will require confirmation before writing."
       })
     });
 
-    if (!response.ok) {
-      throw new Error("Meal estimate request failed.");
-    }
+    if (!response.ok) throw new Error("Meal estimate request failed.");
 
     const data = await response.json();
-    return {
-      result: data,
-      structured: extractStructuredEstimate(data)
-    };
+    return { result: data, structured: extractStructuredEstimate(data) };
   }
 
   function clearOldMealPendingAction(CalBuddy) {
@@ -146,11 +133,21 @@
     }
   }
 
-  async function createPendingMeal(CalBuddy, estimate) {
+  async function createPendingMeal(CalBuddy, estimate, decision) {
     const action = {
       action_type: "log_meal",
       source: SOURCE,
-      payload: estimate,
+      payload: {
+        ...estimate,
+        intent_router: {
+          domain: decision.domain,
+          intent: decision.intent,
+          target: decision.target,
+          action: decision.action,
+          confidence: decision.confidence,
+          router_version: decision.router_version || null
+        }
+      },
       confirmation_text:
         `Log ${estimate.name} — about ${estimate.calories.toLocaleString()} kcal · ` +
         `${estimate.protein_g}g protein · ${estimate.carbs_g}g carbs · ${estimate.fat_g}g fat?`
@@ -170,30 +167,26 @@
 
     CalBuddy._askAriInternal = async function ariMealActionRouter(args = {}) {
       const message = clean(args.message);
+      const decision = args.intentDecision || null;
 
-      if (!isMealLogRequest(message)) {
+      if (!isMealDecision(decision)) {
         return await originalInternal(args);
       }
 
-      // Every explicit meal-log request starts a new transaction. Previous
-      // pending meals and previous estimates are never reused.
       clearOldMealPendingAction(CalBuddy);
 
       let result = await originalInternal(args);
       if (result?.blocked) return result;
 
       let structured = extractStructuredEstimate(result);
-      let estimate = normalizeEstimate(structured || {}, message);
+      let estimate = normalizeEstimate(structured || {}, decision, message);
 
-      // Fast/general conversation paths may return plain text without the
-      // structured nutrition packet. The SAME meal action service repairs that
-      // by requesting a fresh estimate from this turn only.
       if (!estimate) {
         try {
-          const fallback = await requestCurrentTurnEstimate(message);
+          const fallback = await requestCurrentTurnEstimate(message, decision);
           result = fallback.result || result;
           structured = fallback.structured;
-          estimate = normalizeEstimate(structured || {}, message);
+          estimate = normalizeEstimate(structured || {}, decision, message);
         } catch (error) {
           console.warn("ARI meal estimate fallback failed:", error?.message || error);
         }
@@ -203,21 +196,22 @@
         return {
           ...(result || {}),
           pendingAction: null,
-          reply:
-            "I can log that, but I need a clearer food or serving description before I can estimate the calories and macros safely.",
+          reply: "I understand that you want to log a meal, but I need a clearer food or serving description before I can estimate the calories and macros safely.",
+          intentDecision: decision,
           source: "ari-meal-action-estimate-incomplete"
         };
       }
 
-      const pending = await createPendingMeal(CalBuddy, estimate);
+      const pending = await createPendingMeal(CalBuddy, estimate, decision);
 
-      // The action layer owns transaction truth. Never preserve a model reply
-      // that says "logged" before the user has actually confirmed the write.
+      // Transaction truth always overrides conversational wording. Until YES,
+      // Ari may say only that the meal is ready to confirm — never "logged".
       return {
         ...(result || {}),
         reply: pending.confirmation_text,
         mealEstimate: structured,
         pendingAction: pending,
+        intentDecision: decision,
         source: SOURCE
       };
     };
@@ -233,11 +227,8 @@
   }
 
   let attempts = 0;
-  const tryInstall = () => {
+  const timer = window.setInterval(() => {
     attempts += 1;
-    if (install()) return;
-    if (attempts < 120) window.setTimeout(tryInstall, 50);
-  };
-
-  tryInstall();
+    if (install() || attempts >= 240) window.clearInterval(timer);
+  }, 50);
 })();
