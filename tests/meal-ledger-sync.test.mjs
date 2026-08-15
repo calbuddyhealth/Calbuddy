@@ -30,10 +30,11 @@ function collectRuntimeFiles(dir) {
   return files;
 }
 
-test("new ARI XP profiles default to the calendar day", () => {
-  assert.match(auth, /reset_hour:\s*12/);
-  assert.match(auth, /reset_minute:\s*0/);
-  assert.match(auth, /reset_ampm:\s*"AM"/);
+test("new ARI XP profiles stay neutral while loading the canonical meal ledger", () => {
+  assert.doesNotMatch(auth, /reset_hour:\s*12/);
+  assert.doesNotMatch(auth, /reset_minute:\s*0/);
+  assert.doesNotMatch(auth, /reset_ampm:\s*"AM"/);
+  assert.match(auth, /No fake health defaults/);
   assert.match(auth, /js\/meal-ledger-sync\.js\?v=1\.0\.1/);
 });
 
