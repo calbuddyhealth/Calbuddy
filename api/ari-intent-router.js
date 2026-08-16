@@ -1,7 +1,9 @@
+import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+
 // =====================================================
 // ARI XP
 // File: api/ari-intent-router.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   OpenAI semantic intent router for all Ari surfaces.
 //   Returns one strict structured decision. It NEVER executes app actions.
@@ -11,22 +13,10 @@ const ROUTER_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    domain: {
-      type: "string",
-      enum: ["conversation", "nutrition", "training", "health", "goals", "social", "developer", "navigation", "unknown"]
-    },
-    intent: {
-      type: "string",
-      enum: ["conversation", "question", "create", "log", "edit", "delete", "view", "navigate", "update", "clarify"]
-    },
-    target: {
-      type: "string",
-      enum: ["none", "meal", "workout_plan", "workout_exercise", "weight", "profile", "calorie_goal", "goal", "social", "developer_task", "page", "unknown"]
-    },
-    action: {
-      type: "string",
-      enum: ["none", "log_meal", "plan_workout", "edit_workout", "delete_workout", "log_weight", "update_profile", "update_goal", "developer_action", "navigate"]
-    },
+    domain: { type: "string", enum: ["conversation", "nutrition", "training", "health", "goals", "social", "developer", "navigation", "unknown"] },
+    intent: { type: "string", enum: ["conversation", "question", "create", "log", "edit", "delete", "view", "navigate", "update", "clarify"] },
+    target: { type: "string", enum: ["none", "meal", "workout_plan", "workout_exercise", "weight", "profile", "calorie_goal", "goal", "social", "developer_task", "page", "unknown"] },
+    action: { type: "string", enum: ["none", "log_meal", "plan_workout", "edit_workout", "delete_workout", "log_weight", "update_profile", "update_goal", "developer_action", "navigate"] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     requires_confirmation: { type: "boolean" },
     needs_clarification: { type: "boolean" },
@@ -65,22 +55,12 @@ const ROUTER_SCHEMA = {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
   const message = String(req.body?.message || "").trim();
-  const appContext = req.body?.appContext && typeof req.body.appContext === "object"
-    ? req.body.appContext
-    : {};
-
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
-  }
+  const appContext = req.body?.appContext && typeof req.body.appContext === "object" ? req.body.appContext : {};
+  if (!message) return res.status(400).json({ error: "Message is required" });
 
   const system = `
 You are ARI XP's CENTRAL INTENT ROUTER.
@@ -108,6 +88,7 @@ ${JSON.stringify(appContext).slice(0, 2000)}
 `.trim();
 
   try {
+    const requestedModel = process.env.OPENAI_ROUTER_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -115,7 +96,7 @@ ${JSON.stringify(appContext).slice(0, 2000)}
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_ROUTER_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: requestedModel,
         temperature: 0,
         max_tokens: 500,
         messages: [
@@ -124,11 +105,7 @@ ${JSON.stringify(appContext).slice(0, 2000)}
         ],
         response_format: {
           type: "json_schema",
-          json_schema: {
-            name: "ari_intent_decision",
-            strict: true,
-            schema: ROUTER_SCHEMA
-          }
+          json_schema: { name: "ari_intent_decision", strict: true, schema: ROUTER_SCHEMA }
         }
       })
     });
@@ -136,21 +113,28 @@ ${JSON.stringify(appContext).slice(0, 2000)}
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({
-        error: data?.error?.message || "Intent router request failed"
-      });
+      return res.status(response.status).json({ error: data?.error?.message || "Intent router request failed" });
     }
+
+    await recordOpenAIUsage({
+      userId: appContext?.userId || appContext?.user_id || null,
+      endpoint: "/api/ari-intent-router",
+      usageType: "router",
+      requestCategory: "semantic_intent",
+      model: data?.model || requestedModel,
+      responseData: data,
+      providerRequestId: response.headers.get("x-request-id") || data?.id || null,
+      metadata: {
+        messageCharacters: message.length,
+        surface: String(appContext?.surface || appContext?.page || "unknown").slice(0, 120)
+      }
+    });
 
     const content = data?.choices?.[0]?.message?.content || "";
     const decision = JSON.parse(content);
 
-    return res.status(200).json({
-      routerVersion: "1.0.0",
-      decision
-    });
+    return res.status(200).json({ routerVersion: "1.1.0", decision });
   } catch (error) {
-    return res.status(500).json({
-      error: error?.message || "Intent router failed"
-    });
+    return res.status(500).json({ error: error?.message || "Intent router failed" });
   }
 }
