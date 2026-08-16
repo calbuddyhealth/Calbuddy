@@ -1,3 +1,5 @@
+import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+
 // ARI XP image analysis endpoint
 // Dormant for App Store v1.0; retained for the planned Nutrition Facts camera flow.
 
@@ -56,9 +58,7 @@ export default async function handler(req, res) {
 
     const user = await getAuthenticatedUser(req);
     if (!user) {
-      return res.status(401).json({
-        error: "A valid signed-in session is required."
-      });
+      return res.status(401).json({ error: "A valid signed-in session is required." });
     }
 
     if (!hasCurrentAiConsent(user)) {
@@ -76,18 +76,14 @@ export default async function handler(req, res) {
     } = req.body || {};
 
     if (!imageBase64 && !imageUrl) {
-      return res.status(400).json({
-        error: "Missing imageBase64 or imageUrl."
-      });
+      return res.status(400).json({ error: "Missing imageBase64 or imageUrl." });
     }
 
     const imageContent = imageUrl
       ? { type: "image_url", image_url: { url: imageUrl } }
       : {
           type: "image_url",
-          image_url: {
-            url: `data:image/jpeg;base64,${imageBase64}`
-          }
+          image_url: { url: `data:image/jpeg;base64,${imageBase64}` }
         };
 
     const systemPrompt = `
@@ -151,6 +147,7 @@ User prompt:
 ${clean(prompt, 4000) || "Analyze this image."}
 `;
 
+    const requestedModel = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
     const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -158,7 +155,7 @@ ${clean(prompt, 4000) || "Analyze this image."}
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: requestedModel,
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -182,6 +179,20 @@ ${clean(prompt, 4000) || "Analyze this image."}
         error: openAiData.error?.message || "OpenAI image analysis failed."
       });
     }
+
+    await recordOpenAIUsage({
+      userId: user.id,
+      endpoint: "/api/image-analyze",
+      usageType: "image",
+      requestCategory: clean(analysisType, 80) || "general",
+      model: openAiData?.model || requestedModel,
+      responseData: openAiData,
+      providerRequestId: openAiResponse.headers.get("x-request-id") || openAiData?.id || null,
+      metadata: {
+        source: imageUrl ? "url" : "base64",
+        promptCharacters: clean(prompt, 4000).length
+      }
+    });
 
     const rawContent = openAiData.choices?.[0]?.message?.content || "{}";
 
@@ -207,7 +218,6 @@ ${clean(prompt, 4000) || "Analyze this image."}
       };
     }
 
-    // Save only a compact analysis history record associated with the authenticated user.
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       try {
         await fetch(`${process.env.SUPABASE_URL}/rest/v1/food_recognition_history`, {
@@ -233,13 +243,8 @@ ${clean(prompt, 4000) || "Analyze this image."}
       }
     }
 
-    return res.status(200).json({
-      success: true,
-      ...parsed
-    });
+    return res.status(200).json({ success: true, ...parsed });
   } catch (error) {
-    return res.status(500).json({
-      error: error?.message || "Image analysis failed."
-    });
+    return res.status(500).json({ error: error?.message || "Image analysis failed." });
   }
 }
