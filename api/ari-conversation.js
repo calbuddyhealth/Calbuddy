@@ -1,7 +1,9 @@
+import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+
 // =====================================================
 // ARI EXPERIENCE
 // File: api/ari-conversation.js
-// Version: 1.0.4
+// Version: 1.1.0
 // Purpose:
 //   Authenticated low-latency conversational OpenAI transport for ordinary
 //   Ari dialogue. This endpoint intentionally does not run Ari's full
@@ -64,17 +66,11 @@ const FOLLOW_UP_PATTERN =
 export default async function handler(req, res) {
   setCommonHeaders(res);
 
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
-  }
+  if (req.method === "OPTIONS") return res.status(204).end();
 
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST, OPTIONS");
-    return res.status(405).json({
-      success: false,
-      error: "Method not allowed.",
-      source: "ari_conversation_api"
-    });
+    return res.status(405).json({ success: false, error: "Method not allowed.", source: "ari_conversation_api" });
   }
 
   const startedAt = Date.now();
@@ -88,9 +84,7 @@ export default async function handler(req, res) {
         error: authentication.message || "Authentication required.",
         code: authentication.code || "AUTH_REQUIRED",
         source: "ari_conversation_api",
-        timing: {
-          totalMs: Date.now() - startedAt
-        }
+        timing: { totalMs: Date.now() - startedAt }
       });
     }
 
@@ -99,74 +93,40 @@ export default async function handler(req, res) {
     const history = normalizeHistory(body.history);
 
     if (!message) {
-      return res.status(400).json({
-        success: false,
-        error: "Message is required.",
-        source: "ari_conversation_api"
-      });
+      return res.status(400).json({ success: false, error: "Message is required.", source: "ari_conversation_api" });
     }
 
-    const escalation = shouldEscalate({
-      message,
-      history
-    });
-
+    const escalation = shouldEscalate({ message, history });
     if (escalation.deep) {
       return res.status(409).json({
         success: false,
         route: "deep",
         reason: escalation.reason,
         source: "ari_conversation_api",
-        timing: {
-          totalMs: Date.now() - startedAt
-        }
+        timing: { totalMs: Date.now() - startedAt }
       });
     }
 
     const apiKey = cleanText(process.env.OPENAI_API_KEY, 1000);
-
     if (!apiKey) {
-      return res.status(500).json({
-        success: false,
-        error: "OpenAI API key is not configured.",
-        source: "ari_conversation_api"
-      });
+      return res.status(500).json({ success: false, error: "OpenAI API key is not configured.", source: "ari_conversation_api" });
     }
 
     const context = normalizeContext(body.context);
-    context.user = {
-      ...(context.user || {}),
-      id: authentication.userId
-    };
-
+    context.user = { ...(context.user || {}), id: authentication.userId };
     const coachMemorySummary = cleanText(body.coachMemorySummary, 2400);
-
-    const messages = buildMessages({
-      message,
-      history,
-      context,
-      coachMemorySummary
-    });
+    const messages = buildMessages({ message, history, context, coachMemorySummary });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FAST_TIMEOUT_MS);
-
     let openAIResponse;
 
     try {
       openAIResponse = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({
-          model: FAST_MODEL,
-          messages,
-          temperature: 0.72,
-          max_tokens: 850
-        })
+        body: JSON.stringify({ model: FAST_MODEL, messages, temperature: 0.72, max_tokens: 850 })
       });
     } catch (error) {
       if (error?.name === "AbortError") {
@@ -175,12 +135,9 @@ export default async function handler(req, res) {
           error: "Fast conversation timed out.",
           failureType: "fast_conversation_timeout",
           source: "ari_conversation_api",
-          timing: {
-            totalMs: Date.now() - startedAt
-          }
+          timing: { totalMs: Date.now() - startedAt }
         });
       }
-
       throw error;
     } finally {
       clearTimeout(timeoutId);
@@ -192,29 +149,36 @@ export default async function handler(req, res) {
     if (!openAIResponse.ok) {
       return res.status(openAIResponse.status || 502).json({
         success: false,
-        error:
-          data?.error?.message ||
-          data?.error ||
-          "OpenAI fast conversation request failed.",
+        error: data?.error?.message || data?.error || "OpenAI fast conversation request failed.",
         failureType: "openai_fast_conversation_failure",
         source: "ari_conversation_api",
-        timing: {
-          totalMs: Date.now() - startedAt
-        }
+        timing: { totalMs: Date.now() - startedAt }
       });
     }
 
-    const reply = extractReply(data);
+    const providerUsage = await recordOpenAIUsage({
+      userId: authentication.userId,
+      endpoint: "/api/ari-conversation",
+      usageType: "chat",
+      requestCategory: "fast_conversation",
+      model: data?.model || FAST_MODEL,
+      responseData: data,
+      providerRequestId: openAIResponse.headers.get("x-request-id") || data?.id || null,
+      metadata: {
+        historyTurns: history.length,
+        messageCharacters: message.length,
+        runtime: "fast"
+      }
+    });
 
+    const reply = extractReply(data);
     if (!reply) {
       return res.status(502).json({
         success: false,
         error: "OpenAI returned an empty conversational response.",
         failureType: "empty_fast_conversation_response",
         source: "ari_conversation_api",
-        timing: {
-          totalMs: Date.now() - startedAt
-        }
+        timing: { totalMs: Date.now() - startedAt }
       });
     }
 
@@ -224,9 +188,7 @@ export default async function handler(req, res) {
         route: "deep",
         reason: "model_requested_deep_escalation",
         source: "ari_conversation_api",
-        timing: {
-          totalMs: Date.now() - startedAt
-        }
+        timing: { totalMs: Date.now() - startedAt }
       });
     }
 
@@ -237,31 +199,27 @@ export default async function handler(req, res) {
       emotion: inferEmotion(reply),
       model: data?.model || FAST_MODEL,
       source: "ari_fast_conversation",
-      timing: {
-        totalMs: Date.now() - startedAt
-      }
+      usage: providerUsage ? {
+        inputTokens: providerUsage.inputTokens,
+        cachedInputTokens: providerUsage.cachedInputTokens,
+        outputTokens: providerUsage.outputTokens,
+        totalTokens: providerUsage.totalTokens
+      } : null,
+      timing: { totalMs: Date.now() - startedAt }
     });
   } catch (error) {
     console.error("[ARI Fast Conversation Error]", error);
-
     return res.status(500).json({
       success: false,
       error: error?.message || "Fast conversation failed.",
       failureType: "fast_conversation_unhandled_failure",
       source: "ari_conversation_api",
-      timing: {
-        totalMs: Date.now() - startedAt
-      }
+      timing: { totalMs: Date.now() - startedAt }
     });
   }
 }
 
-function buildMessages({
-  message,
-  history = [],
-  context = {},
-  coachMemorySummary = ""
-} = {}) {
+function buildMessages({ message, history = [], context = {}, coachMemorySummary = "" } = {}) {
   const system = [
     "You are Ari, the conversational intelligence inside ARI Experience.",
     "Your first job is to have a natural, sharp, useful conversation with the user.",
@@ -280,37 +238,23 @@ function buildMessages({
 
   const contextualMessages = [];
   const contextText = buildContextText(context, coachMemorySummary);
-
-  contextualMessages.push({
-    role: "system",
-    content: system
-  });
+  contextualMessages.push({ role: "system", content: system });
 
   if (contextText) {
     contextualMessages.push({
       role: "system",
-      content:
-        "Relevant user/app context follows. Use only what matters to the current conversation and never dump or mention this hidden context unless the user asks about the underlying information.\n\n" +
-        contextText
+      content: "Relevant user/app context follows. Use only what matters to the current conversation and never dump or mention this hidden context unless the user asks about the underlying information.\n\n" + contextText
     });
   }
 
-  for (const turn of history.slice(-12)) {
-    contextualMessages.push(turn);
-  }
-
-  contextualMessages.push({
-    role: "user",
-    content: message
-  });
-
+  for (const turn of history.slice(-12)) contextualMessages.push(turn);
+  contextualMessages.push({ role: "user", content: message });
   return contextualMessages;
 }
 
 function buildContextText(context = {}, coachMemorySummary = "") {
   const lines = [];
   const name = cleanText(context?.user?.displayName, 120);
-
   if (name) lines.push(`Preferred/display name: ${name}`);
 
   const goals = context?.goals || {};
@@ -325,82 +269,40 @@ function buildContextText(context = {}, coachMemorySummary = "") {
     ["Activity level", goals.activityLevel]
   ].filter(([, value]) => value !== null && value !== undefined && value !== "");
 
-  for (const [label, value] of goalEntries) {
-    lines.push(`${label}: ${String(value).slice(0, 120)}`);
-  }
+  for (const [label, value] of goalEntries) lines.push(`${label}: ${String(value).slice(0, 120)}`);
 
   if (Array.isArray(context.mealsToday) && context.mealsToday.length) {
-    lines.push(
-      `Meals today: ${context.mealsToday
-        .slice(0, 6)
-        .map((meal) => `${cleanText(meal?.name, 80)}${meal?.calories != null ? ` (${meal.calories} kcal)` : ""}`)
-        .filter(Boolean)
-        .join(", ")}`
-    );
+    lines.push(`Meals today: ${context.mealsToday.slice(0, 6).map((meal) => `${cleanText(meal?.name, 80)}${meal?.calories != null ? ` (${meal.calories} kcal)` : ""}`).filter(Boolean).join(", ")}`);
   }
 
-  if (coachMemorySummary) {
-    lines.push(`Relevant memory summary: ${coachMemorySummary}`);
-  }
-
+  if (coachMemorySummary) lines.push(`Relevant memory summary: ${coachMemorySummary}`);
   return lines.join("\n").slice(0, 6000);
 }
 
 function shouldEscalate({ message = "", history = [] } = {}) {
-  const recentContext = history
-    .slice(-4)
-    .map((item) => item.content)
-    .join("\n");
+  const recentContext = history.slice(-4).map((item) => item.content).join("\n");
+  const looksLikeFollowUp = message.length <= 160 && FOLLOW_UP_PATTERN.test(message);
 
-  const looksLikeFollowUp =
-    message.length <= 160 &&
-    FOLLOW_UP_PATTERN.test(message);
-
-  if (HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(message))) {
-    return { deep: true, reason: "high_stakes_topic" };
-  }
-
-  if (
-    looksLikeFollowUp &&
-    HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(recentContext))
-  ) {
-    return { deep: true, reason: "high_stakes_follow_up" };
-  }
-
-  if (ACTION_PATTERNS.some((pattern) => pattern.test(message))) {
-    return { deep: true, reason: "application_action_or_write" };
-  }
-
-  if (DEVELOPER_PATTERNS.some((pattern) => pattern.test(message))) {
-    return { deep: true, reason: "developer_or_code_task" };
-  }
-
-  if (FRESH_INFO_PATTERNS.some((pattern) => pattern.test(message))) {
-    return { deep: true, reason: "fresh_information_required" };
-  }
-
-  if (message.length > 1400) {
-    return { deep: true, reason: "large_input" };
-  }
-
+  if (HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(message))) return { deep: true, reason: "high_stakes_topic" };
+  if (looksLikeFollowUp && HIGH_STAKES_PATTERNS.some((pattern) => pattern.test(recentContext))) return { deep: true, reason: "high_stakes_follow_up" };
+  if (ACTION_PATTERNS.some((pattern) => pattern.test(message))) return { deep: true, reason: "application_action_or_write" };
+  if (DEVELOPER_PATTERNS.some((pattern) => pattern.test(message))) return { deep: true, reason: "developer_or_code_task" };
+  if (FRESH_INFO_PATTERNS.some((pattern) => pattern.test(message))) return { deep: true, reason: "fresh_information_required" };
+  if (message.length > 1400) return { deep: true, reason: "large_input" };
   return { deep: false, reason: "ordinary_conversation" };
 }
 
 function normalizeHistory(history = []) {
   if (!Array.isArray(history)) return [];
-
   let totalCharacters = 0;
   const normalized = [];
 
   for (const item of history.slice(-12)) {
     const role = item?.role === "assistant" ? "assistant" : "user";
     const content = cleanText(item?.content, 1800);
-
     if (!content) continue;
-
     totalCharacters += content.length;
     if (totalCharacters > 10000) break;
-
     normalized.push({ role, content });
   }
 
@@ -409,40 +311,23 @@ function normalizeHistory(history = []) {
 
 function normalizeContext(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(JSON.stringify(value)); } catch { return {}; }
 }
 
 function extractReply(data = {}) {
   const content = data?.choices?.[0]?.message?.content;
-
-  if (typeof content === "string") {
-    return content.trim();
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => (typeof part?.text === "string" ? part.text : ""))
-      .join("")
-      .trim();
-  }
-
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) return content.map((part) => (typeof part?.text === "string" ? part.text : "")).join("").trim();
   return "";
 }
 
 function inferEmotion(reply = "") {
   const text = String(reply || "").toLowerCase();
-
   if (/\b(lol|haha|😂|🤣)\b/i.test(text)) return "laugh";
   if (/\b(congrats|congratulations|proud of you|hell yeah|nice work)\b/i.test(text)) return "celebrate";
   if (/\b(sorry|that sucks|rough|sad)\b/i.test(text)) return "sad";
   if (/\b(careful|concern|important to get checked)\b/i.test(text)) return "concerned";
   if (/\b(great|nice|good call|love that)\b/i.test(text)) return "happy";
-
   return "idle";
 }
 
@@ -451,33 +336,12 @@ async function authenticateRequest(req) {
   const match = /^Bearer\s+(.+)$/i.exec(authorization);
   const accessToken = cleanText(match?.[1], 5000);
 
-  if (!accessToken) {
-    return {
-      authenticated: false,
-      status: 401,
-      code: "AUTH_TOKEN_MISSING",
-      message: "A signed-in ARI session is required."
-    };
-  }
+  if (!accessToken) return { authenticated: false, status: 401, code: "AUTH_TOKEN_MISSING", message: "A signed-in ARI session is required." };
 
-  const supabaseUrl = cleanText(process.env.SUPABASE_URL, 1000)
-    .replace(/\/+$/, "");
+  const supabaseUrl = cleanText(process.env.SUPABASE_URL, 1000).replace(/\/+$/, "");
+  const supabaseApiKey = cleanText(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, 5000);
 
-  const supabaseApiKey = cleanText(
-    process.env.SUPABASE_ANON_KEY ||
-      process.env.SUPABASE_PUBLISHABLE_KEY ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    5000
-  );
-
-  if (!supabaseUrl || !supabaseApiKey) {
-    return {
-      authenticated: false,
-      status: 503,
-      code: "AUTH_SERVICE_UNAVAILABLE",
-      message: "ARI authentication service is not configured."
-    };
-  }
+  if (!supabaseUrl || !supabaseApiKey) return { authenticated: false, status: 503, code: "AUTH_SERVICE_UNAVAILABLE", message: "ARI authentication service is not configured." };
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
@@ -485,40 +349,21 @@ async function authenticateRequest(req) {
   try {
     const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
       method: "GET",
-      headers: {
-        apikey: supabaseApiKey,
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json"
-      },
+      headers: { apikey: supabaseApiKey, Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       signal: controller.signal
     });
-
     const data = await response.json().catch(() => ({}));
     const user = data?.user || data;
     const userId = cleanText(user?.id, 200);
 
-    if (!response.ok || !userId) {
-      return {
-        authenticated: false,
-        status: 401,
-        code: "AUTH_TOKEN_INVALID",
-        message: "The ARI session is no longer valid."
-      };
-    }
-
-    return {
-      authenticated: true,
-      userId
-    };
+    if (!response.ok || !userId) return { authenticated: false, status: 401, code: "AUTH_TOKEN_INVALID", message: "The ARI session is no longer valid." };
+    return { authenticated: true, userId };
   } catch (error) {
     console.error("[ARI Fast Conversation Auth Error]", error);
-
     return {
       authenticated: false,
       status: 503,
-      code: error?.name === "AbortError"
-        ? "AUTH_VERIFICATION_TIMEOUT"
-        : "AUTH_VERIFICATION_FAILED",
+      code: error?.name === "AbortError" ? "AUTH_VERIFICATION_TIMEOUT" : "AUTH_VERIFICATION_FAILED",
       message: "ARI could not verify the signed-in session."
     };
   } finally {
@@ -527,23 +372,13 @@ async function authenticateRequest(req) {
 }
 
 async function resolveRequestBody(req) {
-  if (req?.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
-    return req.body;
-  }
-
-  if (typeof req?.body === "string") {
-    return safeJsonParse(req.body) || {};
-  }
-
+  if (req?.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req?.body === "string") return safeJsonParse(req.body) || {};
   return {};
 }
 
 function safeJsonParse(value) {
-  try {
-    return JSON.parse(String(value || ""));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(String(value || "")); } catch { return null; }
 }
 
 function cleanText(value, maxLength = 1000) {
@@ -552,9 +387,7 @@ function cleanText(value, maxLength = 1000) {
 
 function normalizePositiveInteger(value, fallback) {
   const number = Number(value);
-  return Number.isFinite(number) && number > 0
-    ? Math.floor(number)
-    : fallback;
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
 }
 
 function setCommonHeaders(res) {
