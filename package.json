@@ -5,8 +5,9 @@
   "description": "ARI XP web + iOS application foundation",
   "scripts": {
     "cap:doctor": "cap doctor",
+    "mobile:build": "node scripts/build-mobile-web.mjs",
     "ios:add": "cap add ios",
-    "ios:sync": "cap sync ios",
+    "ios:sync": "npm run mobile:build && cap sync ios",
     "ios:open": "cap open ios"
   },
   "dependencies": {
