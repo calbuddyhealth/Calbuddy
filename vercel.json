@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/knowledge",
-      "destination": "/api/knowledge-metered"
+      "destination": "/api/usage?mode=knowledge"
     }
   ]
 }
