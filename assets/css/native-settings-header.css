@@ -1,0 +1,159 @@
+/* =====================================================
+   ARI XP — Native Settings Header Safe Area
+   Version: 1.0.0
+   Scope: installed native app only
+
+   Keeps My Account and Personalize Ari navigation controls fully
+   below the iPhone status bar / Dynamic Island and increases their
+   usable touch targets without changing the hosted web layouts.
+===================================================== */
+
+/* =====================================================
+   MY ACCOUNT
+===================================================== */
+
+html[data-ari-native="true"] .ari-account-page {
+  padding-top:
+    max(
+      24px,
+      calc(env(safe-area-inset-top) + 12px)
+    );
+}
+
+html[data-ari-native="true"] .ari-account-header {
+  grid-template-columns:
+    56px minmax(0, 1fr) 80px;
+
+  gap:
+    10px;
+
+  min-height:
+    58px;
+
+  margin-bottom:
+    20px;
+}
+
+html[data-ari-native="true"] .ari-account-header .ari-icon-button {
+  width:
+    56px;
+
+  height:
+    56px;
+
+  border-radius:
+    19px;
+
+  font-size:
+    1.55rem;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 9px 22px rgba(45, 64, 139, 0.11);
+}
+
+html[data-ari-native="true"] .ari-account-header .ari-header-button {
+  width:
+    80px;
+
+  min-width:
+    80px;
+
+  min-height:
+    54px;
+
+  padding:
+    0 12px;
+
+  border-radius:
+    19px;
+
+  font-size:
+    0.82rem;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 9px 22px rgba(45, 64, 139, 0.11);
+}
+
+html[data-ari-native="true"] .ari-account-header .ari-icon-button:active,
+html[data-ari-native="true"] .ari-account-header .ari-header-button:active {
+  transform:
+    translateY(1px)
+    scale(0.97);
+}
+
+/* =====================================================
+   PERSONALIZE ARI
+===================================================== */
+
+html[data-ari-native="true"] .ari-preference-settings__topbar {
+  min-height:
+    calc(env(safe-area-inset-top) + 76px);
+
+  padding:
+    max(
+      20px,
+      calc(env(safe-area-inset-top) + 12px)
+    )
+    clamp(var(--ari-space-4), 4vw, var(--ari-space-8))
+    14px;
+
+  align-items:
+    flex-end;
+}
+
+html[data-ari-native="true"] .ari-preference-settings__back {
+  min-width:
+    104px;
+
+  min-height:
+    54px;
+
+  justify-content:
+    center;
+
+  padding-inline:
+    17px;
+
+  border-radius:
+    19px;
+
+  background:
+    rgba(255, 255, 255, 0.92);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 9px 22px rgba(45, 64, 139, 0.11);
+}
+
+html[data-ari-native="true"] .ari-preference-settings__back span:first-child {
+  font-size:
+    1.35rem;
+
+  line-height:
+    1;
+}
+
+html[data-ari-native="true"] .ari-preference-settings__brand {
+  min-height:
+    54px;
+
+  align-items:
+    center;
+}
+
+@media (max-width: 390px) {
+  html[data-ari-native="true"] .ari-preference-settings__back {
+    min-width:
+      88px;
+
+    padding-inline:
+      13px;
+  }
+
+  html[data-ari-native="true"] .ari-preference-settings__brand-engine {
+    display:
+      none;
+  }
+}
