@@ -38,17 +38,15 @@ Do not declare these solely because Apple or an external payment provider proces
 
 ### Privacy Policy URL
 
-Use the production public URL for:
+Use the ARI XP production URL:
 
-`https://arirebirth.com/privacy.html`
-
-Confirm the final production domain resolves this page before submission.
+`https://arixp.com/privacy.html`
 
 ### Privacy Choices URL
 
-Recommended:
+Use:
 
-`https://arirebirth.com/privacy-memory.html`
+`https://arixp.com/privacy-memory.html`
 
 This page provides AI-processing and ARI memory controls for signed-in users. Account deletion is available in-app from My Account.
 
@@ -102,6 +100,14 @@ The iOS build includes purpose strings for:
 
 Do not request a permission before the user reaches a feature that actually needs it.
 
+## Export compliance
+
+The current iOS build declares:
+
+`ITSAppUsesNonExemptEncryption = NO`
+
+The shipping native shell uses standard platform/network encryption and does not currently include a custom cryptography library. This declaration must be re-reviewed if a future release adds proprietary encryption, a third-party cryptography implementation, VPN/security functionality, or another SDK that changes the export-compliance determination.
+
 ## Optional support / tips
 
 ARI XP is free to use. Optional support must never unlock features, AI usage, credits, tokens, increased limits, or other digital benefits.
@@ -136,10 +142,12 @@ The reviewer account should be able to:
 ## Final pre-submit checks
 
 - Enable Supabase leaked-password protection in the hosted Auth settings.
-- Confirm production privacy, terms, community guidelines, and Help & Safety URLs load without authentication.
+- Confirm `https://arixp.com/privacy.html`, Terms, Community Guidelines, and Help & Safety load publicly without authentication where applicable.
+- Confirm App Store Connect Privacy Policy URL is `https://arixp.com/privacy.html` and Privacy Choices URL is `https://arixp.com/privacy-memory.html`.
 - Run the App Store browser smoke suite after any legal/auth/UI change.
 - Build and archive the exact release configuration in Xcode.
 - Test the archive on a physical iPhone through TestFlight before production review.
+- Confirm `ITSAppUsesNonExemptEncryption` remains accurate for the shipping binary.
 - Confirm camera, microphone, and photo permissions appear only when the corresponding user action requires them.
 - Confirm no Cash App or Venmo link is reachable inside the native iOS experience.
 - If StoreKit tips are enabled, create every configured consumable product in App Store Connect and test purchases in sandbox/TestFlight.
