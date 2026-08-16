@@ -4,6 +4,10 @@
     {
       "source": "/api/knowledge",
       "destination": "/api/usage?mode=knowledge"
+    },
+    {
+      "source": "/api/owner-ai-costs",
+      "destination": "/api/usage?action=owner_costs"
     }
   ]
 }
