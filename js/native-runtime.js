@@ -1,4 +1,4 @@
-// ARI XP — native runtime bridge v1.2.0
+// ARI XP — native runtime bridge v1.3.0
 (() => {
   "use strict";
 
@@ -28,6 +28,19 @@
     document.head.appendChild(stylesheet);
   };
 
+  // Make iPhone safe-area environment variables reliable on every bundled page.
+  // Pages that already declare viewport-fit=cover are left unchanged.
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    const currentViewport = String(viewport.getAttribute("content") || "");
+    if (!/viewport-fit\s*=\s*cover/i.test(currentViewport)) {
+      viewport.setAttribute(
+        "content",
+        `${currentViewport}${currentViewport ? ", " : ""}viewport-fit=cover`
+      );
+    }
+  }
+
   window.ARI_XP_NATIVE = true;
   window.ARI_XP_API_ORIGIN = API_ORIGIN;
   window.ARI_XP_PUBLIC_ORIGIN = API_ORIGIN;
@@ -42,6 +55,15 @@
     addNativeStylesheet(
       "assets/css/ari-training-native-header.css?v=1.0.0",
       "ari-native-training-header"
+    );
+  }
+
+  // My Account and Personalize Ari had controls too close to the iPhone status
+  // area. Give both pages dedicated native safe-area spacing and larger targets.
+  if (/(^|\/)(account|ari-preference-settings)\.html$/i.test(window.location.pathname)) {
+    addNativeStylesheet(
+      "assets/css/native-settings-header.css?v=1.0.0",
+      "ari-native-settings-header"
     );
   }
 
