@@ -2,8 +2,9 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.10.1 — Guarantees every authenticated user has a minimal profiles row
+// V1.10.2 — Guarantees every authenticated user has a minimal profiles row
 // before protected app surfaces become usable. No fake health defaults.
+// Also boots shared workout dialog controls on the Workout Plans surface.
 // =====================================================
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
@@ -14,6 +15,7 @@ const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
 const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
+const ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID = "ariWorkoutDialogFloatingCloseScript";
 
 function getMinimalProfilePayload(user, displayName = "") {
   const cleanDisplayName = String(displayName || "").trim();
@@ -257,10 +259,20 @@ function bootstrapNeutralGoalsForNewUsers() {
   appendOrderedScript(ARI_GOALS_NEUTRAL_SCRIPT_ID, "js/goals-neutral-new-user.js?v=1.0.0");
 }
 
+function bootstrapWorkoutDialogFloatingClose() {
+  const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
+  if (page !== "workout-plans.html") return;
+  appendOrderedScript(
+    ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID,
+    "js/workout-dialog-floating-close.js?v=1.0.0"
+  );
+}
+
 bootstrapCanonicalMealLedger();
 bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
 bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
 bootstrapNeutralGoalsForNewUsers();
+bootstrapWorkoutDialogFloatingClose();
 bootstrapAIAccessConsent();
