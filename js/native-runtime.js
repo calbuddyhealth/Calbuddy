@@ -1,4 +1,4 @@
-// ARI XP — native runtime bridge v1.0.0
+// ARI XP — native runtime bridge v1.1.0
 (() => {
   "use strict";
 
@@ -22,6 +22,20 @@
   window.ARI_XP_NATIVE = true;
   window.ARI_XP_API_ORIGIN = API_ORIGIN;
   window.ARI_XP_PUBLIC_ORIGIN = API_ORIGIN;
+
+  // Mark the document before page content paints so native-only CSS can
+  // reserve iPhone safe areas without changing the hosted web experience.
+  document.documentElement.dataset.ariNative = "true";
+
+  // Training uses a compact native header layer that accounts for the iPhone
+  // camera / Dynamic Island and strengthens the left/right navigation controls.
+  if (/(^|\/)ari-training\.html$/i.test(window.location.pathname)) {
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "assets/css/ari-training-native-header.css?v=1.0.0";
+    stylesheet.dataset.ariNativeTrainingHeader = "true";
+    document.head.appendChild(stylesheet);
+  }
 
   // CapacitorHttp is enabled in capacitor.config.json. The bridge patches the
   // platform fetch/XHR implementations before application scripts execute.
@@ -53,9 +67,4 @@
       return platformOpen.call(this, method, normalizeApiUrl(url), ...rest);
     };
   }
-
-  // Prevent accidental attempts to navigate the native shell to the hosted
-  // frontend. Explicit external links may still open through their normal
-  // browser behavior, but ARI XP's internal pages stay bundled/local.
-  document.documentElement.dataset.ariNative = "true";
 })();
