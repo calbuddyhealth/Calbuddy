@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>AI Cost Control · ARI XP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color:#10203d;background:#f7f9ff}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0%,rgba(59,130,246,.12),transparent 34%),radial-gradient(circle at 88% 15%,rgba(124,58,237,.11),transparent 30%),#f7f9ff}.page{width:min(1120px,100%);margin:auto;padding:calc(22px + env(safe-area-inset-top)) 18px calc(42px + env(safe-area-inset-bottom))}.top{display:flex;align-items:center;justify-content:space-between;gap:14px}.back,.refresh{border:1px solid rgba(58,92,155,.18);background:rgba(255,255,255,.82);box-shadow:0 10px 30px rgba(48,71,120,.08);border-radius:14px;padding:11px 14px;font:700 13px Inter;color:#17325e}.brand{text-align:center}.brand b{font-family:Audiowide;font-size:22px;letter-spacing:.08em;color:#126be8}.brand small{display:block;font:700 8px Orbitron;letter-spacing:.28em;color:#7259e8;margin-top:2px}.hero{padding:52px 0 28px;text-align:center}.kicker{font:700 11px Orbitron;letter-spacing:.22em;color:#6c5ce7}.hero h1{margin:9px 0 10px;font:800 clamp(28px,7vw,52px) Orbitron;color:#11274a}.hero p{margin:0 auto;max-width:650px;color:#60708d;line-height:1.55}.status{min-height:24px;text-align:center;font-size:13px;color:#66738c;margin-bottom:12px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.card,.panel{border:1px solid rgba(77,109,168,.14);background:rgba(255,255,255,.78);backdrop-filter:blur(18px);box-shadow:0 18px 50px rgba(50,74,123,.09);border-radius:22px}.card{padding:20px}.card small{display:block;font:700 10px Orbitron;letter-spacing:.12em;color:#7b88a2}.metric{font:800 28px Orbitron;color:#112a52;margin:11px 0 5px}.sub{font-size:12px;color:#7b879b}.panel{margin-top:18px;padding:20px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.panel h2{font:800 15px Orbitron;margin:0;color:#15325f}.pill{font:700 9px Orbitron;letter-spacing:.12em;padding:7px 9px;border-radius:999px;background:#edf5ff;color:#2575df}.ranges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.range{padding:16px;border-radius:16px;background:linear-gradient(145deg,rgba(236,246,255,.92),rgba(249,245,255,.9));border:1px solid rgba(68,117,200,.11)}.range b{display:block;font:800 12px Orbitron;color:#1e4275;margin-bottom:10px}.range strong{font:800 22px Orbitron;color:#132d55}.range span{display:block;margin-top:6px;color:#74829a;font-size:12px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:620px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid rgba(52,83,138,.09);font-size:12px}th{font:700 9px Orbitron;letter-spacing:.1em;color:#75829a}td:first-child{font-weight:700;color:#29456f}td.num{text-align:right;font-variant-numeric:tabular-nums}.empty{padding:24px;text-align:center;color:#7c889d}.foot{text-align:center;margin:24px auto 0;color:#8290a6;font-size:11px;max-width:700px;line-height:1.5}@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ranges{grid-template-columns:1fr}.hero{padding-top:38px}.metric{font-size:23px}}@media(max-width:420px){.grid{grid-template-columns:1fr 1fr}.card{padding:15px}.top .brand{display:none}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="top">
+      <button class="back" type="button" onclick="location.href='account.html'">← Account</button>
+      <div class="brand"><b>ARI</b><small>EXPERIENCE</small></div>
+      <button class="refresh" id="refreshButton" type="button">Refresh</button>
+    </div>
+
+    <section class="hero">
+      <div class="kicker">OWNER CONTROL</div>
+      <h1>AI Cost Intelligence</h1>
+      <p>Actual provider usage behind ARI. This is private owner telemetry and does not change free limits, subscriptions, or the user experience.</p>
+    </section>
+
+    <div class="status" id="status" role="status" aria-live="polite">Loading provider telemetry…</div>
+
+    <section class="grid" aria-label="30 day AI cost summary">
+      <article class="card"><small>30-DAY SPEND</small><div class="metric" id="spend30">—</div><div class="sub">estimated provider cost</div></article>
+      <article class="card"><small>AI CALLS</small><div class="metric" id="calls30">—</div><div class="sub">provider requests</div></article>
+      <article class="card"><small>TOKENS</small><div class="metric" id="tokens30">—</div><div class="sub">30-day total</div></article>
+      <article class="card"><small>AVG / CALL</small><div class="metric" id="average30">—</div><div class="sub">estimated cost</div></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Cost windows</h2><span class="pill">LIVE LEDGER</span></div>
+      <div class="ranges" id="ranges"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Cost by model</h2><span class="pill">30 DAYS</span></div>
+      <div class="table-wrap"><table><thead><tr><th>MODEL</th><th class="num">CALLS</th><th class="num">TOKENS</th><th class="num">COST</th></tr></thead><tbody id="models"></tbody></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Cost by ARI path</h2><span class="pill">30 DAYS</span></div>
+      <div class="table-wrap"><table><thead><tr><th>ENDPOINT</th><th class="num">CALLS</th><th class="num">TOKENS</th><th class="num">COST</th></tr></thead><tbody id="endpoints"></tbody></table></div>
+    </section>
+
+    <p class="foot">No user prompts are displayed here. Dollar amounts are ARI XP estimates calculated from provider token usage and the pricing table configured in the server telemetry layer.</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmtInt = (n) => new Intl.NumberFormat().format(Number(n || 0));
+    const fmtUsd = (n) => new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',minimumFractionDigits:Number(n||0)<.01?4:2,maximumFractionDigits:Number(n||0)<.01?6:2}).format(Number(n||0));
+    const compact = (n) => new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1}).format(Number(n||0));
+
+    async function load() {
+      $('refreshButton').disabled = true;
+      $('status').textContent = 'Loading provider telemetry…';
+      try {
+        const { data: { session } } = await window.calbuddySupabase.auth.getSession();
+        if (!session?.access_token) {
+          location.replace('signin.html');
+          return;
+        }
+
+        const response = await fetch('/api/owner-ai-costs', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Owner telemetry unavailable.');
+        render(data);
+        $('status').textContent = `Updated ${new Date(data.generatedAt).toLocaleString()}`;
+      } catch (error) {
+        $('status').textContent = error.message || 'Could not load AI cost telemetry.';
+      } finally {
+        $('refreshButton').disabled = false;
+      }
+    }
+
+    function render(data) {
+      const month = data.windows?.last30d || {};
+      $('spend30').textContent = fmtUsd(month.estimatedCostUsd);
+      $('calls30').textContent = fmtInt(month.requests);
+      $('tokens30').textContent = compact(month.totalTokens);
+      $('average30').textContent = fmtUsd(month.averageCostPerRequestUsd);
+
+      const windows = [
+        ['Last 24 hours', data.windows?.last24h || {}],
+        ['Last 7 days', data.windows?.last7d || {}],
+        ['Last 30 days', month]
+      ];
+      $('ranges').innerHTML = windows.map(([label,value]) => `<div class="range"><b>${label}</b><strong>${fmtUsd(value.estimatedCostUsd)}</strong><span>${fmtInt(value.requests)} calls · ${compact(value.totalTokens)} tokens</span></div>`).join('');
+      renderRows('models', data.models || []);
+      renderRows('endpoints', data.endpoints || []);
+    }
+
+    function renderRows(id, rows) {
+      const body = $(id);
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="4" class="empty">No provider usage recorded yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td class="num">${fmtInt(row.requests)}</td><td class="num">${compact(row.totalTokens)}</td><td class="num">${fmtUsd(row.estimatedCostUsd)}</td></tr>`).join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    }
+
+    $('refreshButton').addEventListener('click', load);
+    document.addEventListener('DOMContentLoaded', load);
+  </script>
+</body>
+</html>
