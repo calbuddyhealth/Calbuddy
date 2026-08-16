@@ -1,7 +1,9 @@
+import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+
 // api/ask-calbuddy.js
 // CalBuddy OpenAI Knowledge Client
 // Purpose: Server-side OpenAI caller for Ari Rebirth.
-// V2.2.0 — Structured Meal Estimate with calories + macros for safe logging.
+// V2.3.0 — Adds server-side provider token/cost accounting.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -41,6 +43,7 @@ export default async function handler(req, res) {
     });
 
     const recentHistory = normalizeHistory(history);
+    const requestedModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -49,17 +52,11 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: requestedModel,
         messages: [
-          {
-            role: "system",
-            content: instruction
-          },
+          { role: "system", content: instruction },
           ...recentHistory,
-          {
-            role: "user",
-            content: cleanMessage || "Continue from the provided instruction."
-          }
+          { role: "user", content: cleanMessage || "Continue from the provided instruction." }
         ],
         temperature: Number(process.env.OPENAI_TEMPERATURE || 0.45),
         max_tokens: Number(process.env.OPENAI_MAX_TOKENS || 1200),
@@ -77,6 +74,22 @@ export default async function handler(req, res) {
       });
     }
 
+    const providerUsage = await recordOpenAIUsage({
+      userId: userContext?.userId || userContext?.user_id || null,
+      endpoint: "/api/ask-calbuddy",
+      usageType: "chat",
+      requestCategory: aiInstruction ? "rebirth_deep" : "legacy_chat",
+      model: data?.model || requestedModel,
+      responseData: data,
+      providerRequestId: openaiResponse.headers.get("x-request-id") || data?.id || null,
+      metadata: {
+        historyTurns: recentHistory.length,
+        messageCharacters: cleanMessage.length,
+        hasAriInstruction: Boolean(String(aiInstruction || "").trim()),
+        responseFormat
+      }
+    });
+
     const rawContent = data?.choices?.[0]?.message?.content || "";
     const parsed = parseModelResponse(rawContent, responseFormat);
 
@@ -89,31 +102,33 @@ export default async function handler(req, res) {
         rawContent ||
         "I heard you, but I need a cleaner response path.",
       emotion: parsed.emotion || parsed.mood || "happy",
-
       mealEstimate: parsed.mealEstimate || null,
       foodAnalysis: parsed.foodAnalysis || null,
       nutritionEstimate: parsed.nutritionEstimate || null,
-
       pendingAction: parsed.pendingAction || null,
       memoryCandidate: parsed.memoryCandidate || null,
       developerIntent: parsed.developerIntent || null,
-
       finalResponse:
         parsed.finalResponse ||
         parsed.reply ||
         parsed.answer ||
         rawContent ||
         null,
-
       knowledgeAnswer:
         parsed.knowledgeAnswer ||
         parsed.answer ||
         parsed.reply ||
         rawContent ||
         null,
-
       response: parsed,
-      rawContent
+      rawContent,
+      usage: providerUsage ? {
+        inputTokens: providerUsage.inputTokens,
+        cachedInputTokens: providerUsage.cachedInputTokens,
+        outputTokens: providerUsage.outputTokens,
+        totalTokens: providerUsage.totalTokens
+      } : null,
+      model: data?.model || requestedModel
     });
   } catch (error) {
     return res.status(500).json({
@@ -309,15 +324,12 @@ function parseModelResponse(rawContent = "", responseFormat = "json") {
           parsed.text ||
           "I heard you, but I need a cleaner response path.",
         emotion: parsed.emotion || parsed.mood || "happy",
-
         mealEstimate: parsed.mealEstimate || null,
         foodAnalysis: parsed.foodAnalysis || null,
         nutritionEstimate: parsed.nutritionEstimate || null,
-
         pendingAction: parsed.pendingAction || null,
         memoryCandidate: parsed.memoryCandidate || null,
         developerIntent: parsed.developerIntent || null,
-
         ...parsed
       };
     }
