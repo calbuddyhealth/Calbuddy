@@ -1,0 +1,42 @@
+/* ARI XP native workout dialog close controls v1.0.0 */
+html[data-ari-native="true"] body.ari-workout-plans-page #workoutDayEditor .ari-native-floating-dialog-close,
+html[data-ari-native="true"] body.ari-workout-plans-page #workoutExercisePicker .ari-native-floating-dialog-close {
+  position: relative;
+  z-index: 90;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(23,202,235,.48);
+  border-radius: 15px;
+  color: #071326;
+  background: linear-gradient(145deg,rgba(255,255,255,.99),rgba(241,249,255,.97));
+  box-shadow: inset 0 1px 0 #fff,0 8px 20px rgba(35,76,124,.12),0 0 0 2px rgba(23,202,235,.06);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  transform: translate3d(0,var(--ari-native-dialog-scroll-y,0px),0);
+  will-change: transform;
+  isolation: isolate;
+  transition: border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;
+}
+html[data-ari-native="true"] body.ari-workout-plans-page .ari-native-floating-dialog-close::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255,255,255,.82);
+  border-radius: 11px;
+  pointer-events: none;
+}
+html[data-ari-native="true"] body.ari-workout-plans-page .ari-native-floating-dialog-close.is-ari-dialog-scrolled {
+  border-color: rgba(23,202,235,.68);
+  background: rgba(250,253,255,.94);
+  box-shadow: inset 0 1px 0 #fff,0 12px 28px rgba(35,76,124,.18),0 0 0 2px rgba(23,202,235,.10),0 0 22px rgba(36,89,255,.08);
+}
+html[data-ari-native="true"] body.ari-workout-plans-page .ari-native-floating-dialog-close:active {
+  border-color: rgba(36,89,255,.54);
+  background: #f2f8ff;
+}
+@media (max-width:430px) {
+  html[data-ari-native="true"] body.ari-workout-plans-page #workoutDayEditor .workout-dialog__panel,
+  html[data-ari-native="true"] body.ari-workout-plans-page #workoutExercisePicker .workout-dialog__panel { padding-top:16px; }
+}
