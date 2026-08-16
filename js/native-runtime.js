@@ -1,4 +1,4 @@
-// ARI XP — native runtime bridge v1.1.0
+// ARI XP — native runtime bridge v1.2.0
 (() => {
   "use strict";
 
@@ -19,6 +19,15 @@
     return raw;
   };
 
+  const addNativeStylesheet = (href, dataKey) => {
+    if (document.querySelector(`link[data-${dataKey}]`)) return;
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = href;
+    stylesheet.setAttribute(`data-${dataKey}`, "true");
+    document.head.appendChild(stylesheet);
+  };
+
   window.ARI_XP_NATIVE = true;
   window.ARI_XP_API_ORIGIN = API_ORIGIN;
   window.ARI_XP_PUBLIC_ORIGIN = API_ORIGIN;
@@ -30,11 +39,70 @@
   // Training uses a compact native header layer that accounts for the iPhone
   // camera / Dynamic Island and strengthens the left/right navigation controls.
   if (/(^|\/)ari-training\.html$/i.test(window.location.pathname)) {
-    const stylesheet = document.createElement("link");
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = "assets/css/ari-training-native-header.css?v=1.0.0";
-    stylesheet.dataset.ariNativeTrainingHeader = "true";
-    document.head.appendChild(stylesheet);
+    addNativeStylesheet(
+      "assets/css/ari-training-native-header.css?v=1.0.0",
+      "ari-native-training-header"
+    );
+  }
+
+  // Workout editor sheets can become much taller than the viewport. Keep only
+  // the close control visually anchored while the title/content scroll normally.
+  if (/(^|\/)workout-plans\.html$/i.test(window.location.pathname)) {
+    addNativeStylesheet(
+      "assets/css/workout-plans-native-dialog.css?v=1.0.0",
+      "ari-native-workout-dialog"
+    );
+
+    const setupFloatingDialogCloseControls = () => {
+      ["workoutDayEditor", "workoutExercisePicker"].forEach((dialogId) => {
+        const dialog = document.getElementById(dialogId);
+        const panel = dialog?.querySelector(".workout-dialog__panel");
+        const closeButton = dialog?.querySelector(".workout-dialog__close");
+        if (!dialog || !panel || !closeButton) return;
+
+        closeButton.classList.add("ari-native-floating-dialog-close");
+
+        let frame = 0;
+        const sync = () => {
+          frame = 0;
+          const scrollTop = Math.max(0, Number(panel.scrollTop || 0));
+          closeButton.style.setProperty(
+            "--ari-native-dialog-scroll-y",
+            `${scrollTop}px`
+          );
+          closeButton.classList.toggle(
+            "is-ari-dialog-scrolled",
+            scrollTop > 8
+          );
+        };
+
+        const scheduleSync = () => {
+          if (frame) return;
+          frame = window.requestAnimationFrame(sync);
+        };
+
+        panel.addEventListener("scroll", scheduleSync, { passive: true });
+
+        const observer = new MutationObserver((mutations) => {
+          if (mutations.some((mutation) => mutation.attributeName === "open")) {
+            window.requestAnimationFrame(sync);
+          }
+        });
+        observer.observe(dialog, { attributes: true, attributeFilter: ["open"] });
+
+        sync();
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener(
+        "DOMContentLoaded",
+        setupFloatingDialogCloseControls,
+        { once: true }
+      );
+    } else {
+      setupFloatingDialogCloseControls();
+    }
   }
 
   // CapacitorHttp is enabled in capacitor.config.json. The bridge patches the
