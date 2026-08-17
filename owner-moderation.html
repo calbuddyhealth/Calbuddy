@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/owner-moderation.css?v=1.0.0">
 </head>
 <body>
   <main class="ari-account-page">
@@ -21,21 +22,48 @@
     <section class="ari-page-hero">
       <div class="ari-page-symbol" aria-hidden="true">◆</div>
       <p class="ari-page-kicker">OWNER ONLY</p>
-      <h1 class="ari-page-title">Moderation inbox</h1>
-      <p class="ari-page-description">Private support requests, safety reports, and a simple review trail.</p>
+      <h1 class="ari-page-title">Safety &amp; moderation</h1>
+      <p class="ari-page-description">Review user reports and blocked teen-safety events without exposing complete private conversations.</p>
     </section>
 
     <div class="ari-status" id="moderationStatus" role="status" aria-live="polite"></div>
 
     <section id="moderationWorkspace" hidden>
-      <div class="ari-filter-row" role="group" aria-label="Filter reports">
-        <button class="ari-filter-button is-active" type="button" data-status="open">Open</button>
-        <button class="ari-filter-button" type="button" data-status="pending">Pending</button>
-        <button class="ari-filter-button" type="button" data-status="reviewing">Reviewing</button>
-        <button class="ari-filter-button" type="button" data-status="resolved">Resolved</button>
-        <button class="ari-filter-button" type="button" data-status="all">All</button>
-      </div>
-      <div class="ari-report-list" id="moderationReportList"></div>
+      <nav class="owner-moderation-nav" aria-label="Moderation areas">
+        <button type="button" data-owner-panel="teen" class="is-active">Teen Safety</button>
+        <button type="button" data-owner-panel="reports">Reports</button>
+      </nav>
+
+      <section class="owner-panel" id="teenSafetyPanel">
+        <div class="owner-safety-summary" aria-label="Teen safety summary">
+          <div class="owner-safety-stat"><strong id="teenSafetyOpen">0</strong><span>Open</span></div>
+          <div class="owner-safety-stat owner-safety-stat--high"><strong id="teenSafetyHigh">0</strong><span>High priority</span></div>
+          <div class="owner-safety-stat"><strong id="teenSafety24h">0</strong><span>Last 24h</span></div>
+          <div class="owner-safety-stat"><strong id="teenSafetyUsers">0</strong><span>Teens · 30d</span></div>
+        </div>
+
+        <p class="owner-safety-note">Only flagged or blocked safety events appear here. Evidence is limited and contact details are automatically redacted; this is not a full-message surveillance view.</p>
+
+        <div class="ari-filter-row" role="group" aria-label="Filter teen safety events">
+          <button class="ari-filter-button is-active" type="button" data-safety-status="open">Open</button>
+          <button class="ari-filter-button" type="button" data-safety-status="escalated">Escalated</button>
+          <button class="ari-filter-button" type="button" data-safety-status="reviewed">Reviewed</button>
+          <button class="ari-filter-button" type="button" data-safety-status="dismissed">Dismissed</button>
+          <button class="ari-filter-button" type="button" data-safety-status="all">All</button>
+        </div>
+        <div class="owner-safety-list" id="teenSafetyList"></div>
+      </section>
+
+      <section class="owner-panel" id="reportPanel" hidden>
+        <div class="ari-filter-row" role="group" aria-label="Filter reports">
+          <button class="ari-filter-button is-active" type="button" data-report-status="open">Open</button>
+          <button class="ari-filter-button" type="button" data-report-status="pending">Pending</button>
+          <button class="ari-filter-button" type="button" data-report-status="reviewing">Reviewing</button>
+          <button class="ari-filter-button" type="button" data-report-status="resolved">Resolved</button>
+          <button class="ari-filter-button" type="button" data-report-status="all">All</button>
+        </div>
+        <div class="ari-report-list" id="moderationReportList"></div>
+      </section>
     </section>
 
     <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Owner access is verified by Supabase UID.</p></footer>
@@ -44,6 +72,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/owner-moderation.js?v=1.0.0"></script>
+  <script src="js/owner-moderation.js?v=2.0.0"></script>
 </body>
 </html>
