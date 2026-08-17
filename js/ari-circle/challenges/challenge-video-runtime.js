@@ -1,11 +1,13 @@
 /* =============================================================
    ARI CIRCLE — CHALLENGE VIDEO RUNTIME
-   Version: 1.0.0
+   Version: 1.1.0
    Build 5
 
-   Mobile reliability layer for Challenge video entries:
-   - makes iPhone/Safari video duration detection reliable before validation
-   - normalizes common iOS video MIME types
+   iPhone/Safari reliability layer for Challenge video entries:
+   - preserves camera-captured File objects while duration is inspected
+   - normalizes common iOS MOV/MP4 MIME types
+   - prevents duplicate native change events from re-running validation
+   - hands the verified File back to the existing Challenge entry flow once
    - keeps Challenge errors visible while a modal dialog is open
    - uses video/* for the web Camera / Library picker
    - autoplays visible Challenge videos muted and inline
@@ -13,9 +15,8 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const ENTRY_INPUT_ID = "challengeEntryMediaInput";
-  const REPLAY_FLAG = "ariChallengeVideoReplay";
   const VIDEO_LIMITS = Object.freeze([10, 15, 30]);
   const $ = (id) => document.getElementById(id);
 
@@ -23,6 +24,12 @@
   let playbackObserver = null;
   let domObserver = null;
   let toastObserver = null;
+  let processing = false;
+  let replaying = false;
+  let lastFingerprint = "";
+  let lastReadyAt = 0;
+  let lastReadyFile = null;
+  let lastReadyDuration = 0;
 
   function clean(value) {
     return String(value ?? "").trim();
@@ -41,6 +48,11 @@
     return VIDEO_LIMITS.includes(value) ? value : 30;
   }
 
+  function fileFingerprint(file) {
+    if (!file) return "";
+    return [clean(file.name), Number(file.size || 0), Number(file.lastModified || 0)].join("|");
+  }
+
   function inferVideoMime(file) {
     const type = clean(file?.type).toLowerCase();
     if (type.startsWith("video/")) return type;
@@ -52,19 +64,25 @@
     return "";
   }
 
-  function normalizeVideoMime(file) {
-    const mime = inferVideoMime(file);
-    if (!mime || clean(file?.type).toLowerCase().startsWith("video/")) return mime;
+  function normalizedVideoFile(file, mime) {
+    if (!file || !mime) return file;
+    if (clean(file.type).toLowerCase() === mime) return file;
 
     try {
-      Object.defineProperty(file, "type", {
-        configurable: true,
-        enumerable: false,
-        value: mime
+      return new File([file], clean(file.name) || `ari-challenge-${Date.now()}.mov`, {
+        type: mime,
+        lastModified: Number(file.lastModified || Date.now())
       });
-    } catch {}
-
-    return mime;
+    } catch {
+      try {
+        Object.defineProperty(file, "type", {
+          configurable: true,
+          enumerable: false,
+          value: mime
+        });
+      } catch {}
+      return file;
+    }
   }
 
   function setKnownDuration(file, duration) {
@@ -120,9 +138,7 @@
         fallbackStarted = true;
         video.ondurationchange = read;
         video.ontimeupdate = read;
-        try {
-          video.currentTime = 1e10;
-        } catch {}
+        try { video.currentTime = 1e10; } catch {}
       };
 
       video.preload = "metadata";
@@ -163,60 +179,154 @@
     status.hidden = !clean(message);
   }
 
+  function setSubmitEnabled(enabled) {
+    const button = $("submitChallengeEntry");
+    if (button) button.disabled = !enabled;
+  }
+
   function configurePicker() {
     const input = $(ENTRY_INPUT_ID);
     if (!input || !isVideoEntryOpen()) return;
     input.accept = "video/*";
   }
 
+  function installTemporaryFiles(input, file) {
+    let restored = false;
+    let usedOwnProperty = false;
+
+    try {
+      Object.defineProperty(input, "files", {
+        configurable: true,
+        value: [file]
+      });
+      usedOwnProperty = true;
+      return () => {
+        if (restored) return;
+        restored = true;
+        try { delete input.files; } catch {}
+      };
+    } catch {}
+
+    try {
+      if (typeof DataTransfer === "function") {
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+      }
+    } catch {}
+
+    return () => {
+      if (restored) return;
+      restored = true;
+      if (usedOwnProperty) {
+        try { delete input.files; } catch {}
+      }
+    };
+  }
+
+  function replayVerifiedFile(input, file, duration) {
+    if (!input || !file) return false;
+    setKnownDuration(file, duration);
+
+    const restore = installTemporaryFiles(input, file);
+    replaying = true;
+    try {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    } finally {
+      replaying = false;
+      restore();
+    }
+    return true;
+  }
+
   async function interceptEntryVideoChange(event) {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || input.id !== ENTRY_INPUT_ID) return;
+    if (replaying || !isVideoEntryOpen()) return;
 
-    if (input.dataset[REPLAY_FLAG] === "1") {
-      delete input.dataset[REPLAY_FLAG];
-      return;
-    }
+    const sourceFile = input.files?.[0] || null;
+    if (!sourceFile) return;
 
-    if (!isVideoEntryOpen()) return;
-    const file = input.files?.[0] || null;
-    if (!file) return;
-
+    event.preventDefault();
     event.stopImmediatePropagation();
-    normalizeVideoMime(file);
 
-    const mime = inferVideoMime(file);
-    if (!mime) {
-      setEntryStatus("That file is not a supported video. Choose an MP4, MOV, or WebM video.", "error");
-      input.value = "";
+    const fingerprint = fileFingerprint(sourceFile);
+    const previewReady = $("challengeEntryPreview")?.hidden === false;
+    const recentDuplicate =
+      fingerprint &&
+      fingerprint === lastFingerprint &&
+      Date.now() - lastReadyAt < 6000 &&
+      lastReadyFile;
+
+    if (recentDuplicate) {
+      if (!previewReady) replayVerifiedFile(input, lastReadyFile, lastReadyDuration);
+      setEntryStatus(`Video ready · ${lastReadyDuration.toFixed(1)}s of ${currentLimit()}s`, "success");
+      setSubmitEnabled(true);
       return;
     }
 
-    const sizeMb = Number(file.size || 0) / (1024 * 1024);
-    if (sizeMb > 50) {
-      setEntryStatus(`This video is ${sizeMb.toFixed(1)} MB. Challenge videos must stay under 50 MB. Record a shorter clip or choose a smaller video.`, "error");
-      input.value = "";
-      return;
-    }
-
+    if (processing) return;
+    processing = true;
+    setSubmitEnabled(false);
     setEntryStatus("Checking video length…", "working");
-    const duration = await waitForDuration(file);
-    if (!duration) {
-      setEntryStatus("ARI could not read this video's length. Choose the video again or record a new clip.", "error");
-      input.value = "";
-      return;
-    }
 
-    setKnownDuration(file, duration);
-    const limit = currentLimit();
-    if (duration > limit + 0.5) {
-      setEntryStatus(`This video is ${duration.toFixed(1)} seconds. This challenge allows ${limit} seconds maximum.`, "error");
-    } else {
-      setEntryStatus(`Video ready · ${duration.toFixed(1)}s of ${limit}s`, "success");
-    }
+    try {
+      const mime = inferVideoMime(sourceFile);
+      if (!mime) {
+        setEntryStatus("That file is not a supported video. Choose an MP4, MOV, or WebM video.", "error");
+        return;
+      }
 
-    input.dataset[REPLAY_FLAG] = "1";
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+      const sizeMb = Number(sourceFile.size || 0) / (1024 * 1024);
+      if (sizeMb > 50) {
+        setEntryStatus(`This video is ${sizeMb.toFixed(1)} MB. Challenge videos must stay under 50 MB. Record a shorter clip or choose a smaller video.`, "error");
+        return;
+      }
+
+      const file = normalizedVideoFile(sourceFile, mime);
+      const duration = await waitForDuration(file);
+      if (!duration) {
+        setEntryStatus("ARI could not read this video's length. Choose the video again or record a new clip.", "error");
+        return;
+      }
+
+      const limit = currentLimit();
+      if (duration > limit + 0.5) {
+        setEntryStatus(`This video is ${duration.toFixed(1)} seconds. This challenge allows ${limit} seconds maximum.`, "error");
+        return;
+      }
+
+      lastFingerprint = fingerprint;
+      lastReadyAt = Date.now();
+      lastReadyFile = file;
+      lastReadyDuration = duration;
+
+      replayVerifiedFile(input, file, duration);
+
+      window.setTimeout(() => {
+        const previewAccepted = $("challengeEntryPreview")?.hidden === false;
+        if (previewAccepted) {
+          setEntryStatus(`Video ready · ${duration.toFixed(1)}s of ${limit}s`, "success");
+          setSubmitEnabled(true);
+        } else {
+          setEntryStatus("Video checked, but ARI could not attach it. Choose the video again.", "error");
+          setSubmitEnabled(false);
+        }
+      }, 40);
+    } finally {
+      processing = false;
+    }
+  }
+
+  function resetEntryRuntime() {
+    processing = false;
+    replaying = false;
+    lastFingerprint = "";
+    lastReadyAt = 0;
+    lastReadyFile = null;
+    lastReadyDuration = 0;
+    setEntryStatus("");
+    setSubmitEnabled(true);
   }
 
   function topOpenDialog() {
@@ -312,19 +422,17 @@
     if (domObserver || !document.documentElement) return;
 
     domObserver = new MutationObserver((mutations) => {
-      let shouldConfigurePicker = false;
+      let entryDialogChanged = false;
       mutations.forEach((mutation) => {
-        if (mutation.type === "attributes" && mutation.target?.id === "entryDialog") {
-          shouldConfigurePicker = true;
-        }
+        if (mutation.type === "attributes" && mutation.target?.id === "entryDialog") entryDialogChanged = true;
         mutation.addedNodes?.forEach((node) => {
           if (node instanceof Element) scanPlayback(node);
         });
       });
 
-      if (shouldConfigurePicker) {
+      if (entryDialogChanged) {
         configurePicker();
-        if (!isVideoEntryOpen()) setEntryStatus("");
+        if (!$("entryDialog")?.open) resetEntryRuntime();
       }
       placeToastInTopLayer();
     });
@@ -369,6 +477,8 @@
     watchDom();
 
     document.addEventListener("change", interceptEntryVideoChange, true);
+    $("entryDialog")?.addEventListener("close", resetEntryRuntime);
+    $("removeChallengeEntryMedia")?.addEventListener("click", resetEntryRuntime);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && activeVideo) activeVideo.pause();
     });
