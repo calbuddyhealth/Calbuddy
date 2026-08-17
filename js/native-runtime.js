@@ -156,10 +156,9 @@
     window.ARI_XP_PUBLIC_ORIGIN = API_ORIGIN;
     document.documentElement.dataset.ariNative = "true";
 
-    // iOS owns the status-bar / Dynamic Island clearance through
-    // capacitor.config.json -> ios.contentInset = "always". The runtime only
-    // applies native component sizing; it no longer pushes the web viewport
-    // edge-to-edge or adds a second CSS safe-area shim.
+    // The generated iOS bundle already receives data-ari-native plus the
+    // affected header styles at build time. This runtime remains a fallback
+    // for native component styling and owns native API URL normalization.
     installPageSpecificNativeUi();
     patchNativeNetworking();
 
