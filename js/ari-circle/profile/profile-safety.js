@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — PROFILE SAFETY BRIDGE
-   Version: 1.0.0
+   Version: 1.1.0
 
    Extends the shared ARI Circle safety layer to profile-only paths that
    use direct table/storage calls instead of the RPC moderation wrapper:
@@ -10,21 +10,25 @@
    - avatar photos
    - cover/background photos
 
+   Teen media is stored only in the private Teen Circle media bucket.
    Safety behavior is fail-closed: if required safety screening cannot run,
    the content is not persisted.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const MODERATION_SCRIPT_ID = "ariCircleProfileSafetyModeration";
   const MODERATION_SCRIPT_SRC = "js/ari-circle/content-moderation.js?v=1.4.0";
+  const PRIVATE_BUCKET = "ari-circle-teen-media";
+  const PRIVATE_PREFIX = `ari-private://${PRIVATE_BUCKET}/`;
   const MAX_IMAGE_EDGE = 768;
   const JPEG_QUALITY = 0.68;
-  const PATCH_FLAG = "__ariProfileSafetyV1";
+  const PATCH_FLAG = "__ariProfileSafetyV11";
 
   let moderationLoader = null;
   let patchAttempts = 0;
+  let ageBandPromise = null;
 
   function clean(value) {
     return String(value ?? "").trim();
@@ -168,6 +172,25 @@
     }
   }
 
+  async function getMyAgeBand() {
+    if (ageBandPromise) return ageBandPromise;
+
+    ageBandPromise = (async () => {
+      const client = resolveClient();
+      if (!client?.rpc) throw safetyError("ARI Circle age verification is unavailable.");
+      const { data, error } = await client.rpc("ari_circle_my_age_band");
+      if (error) throw safetyError(error.message || "ARI Circle could not verify your age group.");
+      const band = clean(data).toLowerCase();
+      if (!band) throw safetyError("Verify your age before using ARI Circle.");
+      return band;
+    })().catch((error) => {
+      ageBandPromise = null;
+      throw error;
+    });
+
+    return ageBandPromise;
+  }
+
   async function screenTeenText(scope, text) {
     const safeText = clean(text);
     if (!safeText) return true;
@@ -278,6 +301,25 @@
       .slice(0, 8000);
   }
 
+  function safeFileName(file) {
+    const raw = clean(file?.name) || "image.webp";
+    return raw
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "") || "image.webp";
+  }
+
+  function privateRef(path) {
+    const safePath = clean(path).replace(/^\/+/, "");
+    return safePath ? `${PRIVATE_PREFIX}${safePath}` : "";
+  }
+
+  function privatePath(value) {
+    const ref = clean(value);
+    return ref.startsWith(PRIVATE_PREFIX) ? ref.slice(PRIVATE_PREFIX.length) : "";
+  }
+
   async function assertOwnProfileUpload(api, ownerUserId) {
     const ownerId = clean(ownerUserId);
     const authenticatedId = clean(await api.getAuthenticatedUserId?.());
@@ -288,6 +330,61 @@
         "ARI_PROFILE_MEDIA_FORBIDDEN"
       );
     }
+    return ownerId;
+  }
+
+  async function uploadPrivateObject(path, file) {
+    const client = resolveClient();
+    if (!client?.storage?.from) throw safetyError("Teen Circle private media is unavailable.");
+
+    const { error } = await client.storage.from(PRIVATE_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file?.type || "image/webp"
+    });
+
+    if (error) throw safetyError(error.message || "Could not upload private Teen Circle media.");
+    return privateRef(path);
+  }
+
+  async function removePrivateRef(value) {
+    const path = privatePath(value);
+    if (!path) return false;
+    const client = resolveClient();
+    const { error } = await client.storage.from(PRIVATE_BUCKET).remove([path]);
+    if (error) console.warn("ARI Circle private media cleanup failed:", error.message || error);
+    return !error;
+  }
+
+  async function applyTeenProfilePrivacy() {
+    let band;
+    try {
+      band = await getMyAgeBand();
+    } catch {
+      return;
+    }
+    if (band !== "teen") return;
+
+    for (const id of ["circle-about-location-row", "circle-about-birthday-row"]) {
+      const node = document.getElementById(id);
+      if (node) node.hidden = true;
+    }
+
+    const hideSensitiveEditorFields = () => {
+      for (const selector of ['[name="location"]', '[name="birthday"]']) {
+        const input = document.querySelector(`#circle-profile-editor ${selector}`);
+        const field = input?.closest?.(".circle-editor-field, label");
+        if (field) field.hidden = true;
+        if (input) input.value = "";
+      }
+    };
+
+    hideSensitiveEditorFields();
+    document.addEventListener("click", (event) => {
+      if (event.target?.closest?.('[data-circle-action="edit-profile"]')) {
+        window.setTimeout(hideSensitiveEditorFields, 0);
+      }
+    }, true);
   }
 
   function patchApi(api) {
@@ -297,23 +394,35 @@
     const originalSaveProfile = api.saveProfile?.bind(api);
     const originalCreateLove = api.createLove?.bind(api);
     const originalUploadLovePhoto = api.uploadLovePhoto?.bind(api);
+    const originalDeleteLove = api.deleteLove?.bind(api);
     const originalUploadProfileMedia = api.uploadProfileMedia?.bind(api);
+    const originalRemoveProfileMedia = api.removeProfileMedia?.bind(api);
 
     if (
       typeof originalSaveProfile !== "function" ||
       typeof originalCreateLove !== "function" ||
       typeof originalUploadLovePhoto !== "function" ||
-      typeof originalUploadProfileMedia !== "function"
+      typeof originalDeleteLove !== "function" ||
+      typeof originalUploadProfileMedia !== "function" ||
+      typeof originalRemoveProfileMedia !== "function"
     ) {
       return false;
     }
 
     api.saveProfile = async function safeSaveProfile(profile, options = {}) {
+      const band = await getMyAgeBand();
+      const nextProfile = { ...(profile || {}) };
+
+      if (band === "teen") {
+        nextProfile.location = null;
+        nextProfile.birthday = null;
+      }
+
       await screen({
         scope: "profile_text",
-        text: profileText(profile)
+        text: profileText(nextProfile)
       });
-      return originalSaveProfile(profile, options);
+      return originalSaveProfile(nextProfile, options);
     };
 
     api.createLove = async function safeCreateLove(payload = {}) {
@@ -333,19 +442,113 @@
         scope: "profile_wall_photo",
         file
       });
-      return originalUploadLovePhoto(payload);
+
+      const band = await getMyAgeBand();
+      if (band !== "teen") return originalUploadLovePhoto(payload);
+
+      const authorId = clean(payload?.authorUserId);
+      const profileId = clean(payload?.profileUserId);
+      const authenticatedId = clean(await api.getAuthenticatedUserId?.());
+      if (!authorId || !profileId || authorId !== authenticatedId) {
+        throw safetyError("You can only upload your own Profile Wall photos.", "ARI_PROFILE_MEDIA_FORBIDDEN");
+      }
+
+      const path = `${authorId}/love/${profileId}/${Date.now()}-${safeFileName(file)}`;
+      const ref = await uploadPrivateObject(path, file);
+      return { publicUrl: ref, path: ref };
+    };
+
+    api.deleteLove = async function safeDeleteLove(commentId) {
+      const client = resolveClient();
+      const table = api.table?.("love") || "ari_circle_comments";
+      const { data: existing, error: readError } = await client
+        .from(table)
+        .select("id,image_path")
+        .eq("id", commentId)
+        .maybeSingle();
+
+      if (readError || !privatePath(existing?.image_path)) {
+        return originalDeleteLove(commentId);
+      }
+
+      const { error: deleteError } = await client.from(table).delete().eq("id", commentId);
+      if (deleteError) throw safetyError(deleteError.message || "Could not remove profile post.");
+      await removePrivateRef(existing.image_path);
+      return true;
     };
 
     api.uploadProfileMedia = async function safeUploadProfileMedia(payload = {}) {
-      await assertOwnProfileUpload(api, payload?.ownerUserId);
-
+      const ownerId = await assertOwnProfileUpload(api, payload?.ownerUserId);
       const mediaType = clean(payload?.mediaType).toLowerCase();
+      if (mediaType !== "avatar" && mediaType !== "cover") {
+        throw safetyError("Choose a valid profile image type.", "ARI_MEDIA_INVALID");
+      }
+
       await screen({
         scope: mediaType === "cover" ? "profile_cover" : "profile_avatar",
         file: payload?.file
       });
 
-      return originalUploadProfileMedia(payload);
+      const band = await getMyAgeBand();
+      if (band !== "teen") return originalUploadProfileMedia(payload);
+
+      const client = resolveClient();
+      const table = api.table?.("profiles") || "ari_circle_profiles";
+      const column = mediaType === "avatar" ? "avatar_url" : "cover_url";
+      const { data: previous } = await client.from(table).select(column).eq("user_id", ownerId).maybeSingle();
+
+      const path = `${ownerId}/${mediaType}/${Date.now()}-${safeFileName(payload?.file)}`;
+      const ref = await uploadPrivateObject(path, payload?.file);
+
+      const { data: profile, error } = await client
+        .from(table)
+        .update({ [column]: ref })
+        .eq("user_id", ownerId)
+        .select("*")
+        .single();
+
+      if (error) {
+        await removePrivateRef(ref);
+        throw safetyError(error.message || "Could not update your Teen Circle profile image.");
+      }
+
+      if (privatePath(previous?.[column]) && previous[column] !== ref) {
+        await removePrivateRef(previous[column]);
+      }
+
+      return { path: ref, publicUrl: ref, profile };
+    };
+
+    api.removeProfileMedia = async function safeRemoveProfileMedia(payload = {}) {
+      const ownerId = await assertOwnProfileUpload(api, payload?.ownerUserId);
+      const band = await getMyAgeBand();
+      if (band !== "teen") return originalRemoveProfileMedia(payload);
+
+      const mediaType = clean(payload?.mediaType).toLowerCase();
+      if (mediaType !== "avatar" && mediaType !== "cover") {
+        throw safetyError("Choose a valid profile image type.", "ARI_MEDIA_INVALID");
+      }
+
+      const client = resolveClient();
+      const table = api.table?.("profiles") || "ari_circle_profiles";
+      const column = mediaType === "avatar" ? "avatar_url" : "cover_url";
+      const { data: previous, error: readError } = await client
+        .from(table)
+        .select(column)
+        .eq("user_id", ownerId)
+        .maybeSingle();
+      if (readError) throw safetyError(readError.message || "Could not read your profile image.");
+
+      const { data: profile, error } = await client
+        .from(table)
+        .update({ [column]: null })
+        .eq("user_id", ownerId)
+        .select("*")
+        .single();
+      if (error) throw safetyError(error.message || "Could not remove your profile image.");
+
+      if (privatePath(previous?.[column])) await removePrivateRef(previous[column]);
+      return { profile, removedPath: privatePath(previous?.[column]) || null };
     };
 
     try {
@@ -367,7 +570,10 @@
 
   function install() {
     const api = findApi();
-    if (patchApi(api)) return true;
+    if (patchApi(api)) {
+      void applyTeenProfilePrivacy();
+      return true;
+    }
 
     patchAttempts += 1;
     if (patchAttempts < 120) {
