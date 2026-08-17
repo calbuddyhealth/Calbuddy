@@ -1,17 +1,17 @@
 /* =============================================================
    ARI CIRCLE — CHALLENGE SOCIAL REACTIONS
-   Version: 1.1.0
+   Version: 1.2.0
 
    Supportive reactions for Build 5 Challenge entries.
    - Social reactions never create a second challenge entry.
    - Only Hype scores in Most Hype Wins.
    - Official Vote remains separate from social reactions.
-   - Works for both Live Now and Recently Ended entry viewers.
+   - Recently Ended results are read-only after the challenge closes.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const REACTIONS = Object.freeze([
     { key: "love", emoji: "❤️", label: "Love" },
     { key: "laugh", emoji: "😂", label: "Funny" },
@@ -23,6 +23,9 @@
 
   const state = {
     challengeId: "",
+    challengeEnded: false,
+    challengeStateKnown: false,
+    challengeLookupToken: 0,
     summaries: new Map(),
     busyEntries: new Set(),
     client: null,
@@ -100,7 +103,9 @@
       .sort((a, b) => b.count - a.count)
       .slice(0, 4);
 
-    if (!active.length) return '<span class="challenge-social-empty">Be the first to react</span>';
+    if (!active.length) {
+      return `<span class="challenge-social-empty">${state.challengeEnded ? "No reactions" : "Be the first to react"}</span>`;
+    }
     return active.map((reaction) => `
       <span class="challenge-social-chip" title="${escapeHtml(reaction.label)}">
         <span>${reaction.emoji}</span><b>${reaction.count}</b>
@@ -144,6 +149,14 @@
   }
 
   function openPicker(entryId, mode) {
+    if (!state.challengeStateKnown) {
+      showToast("Checking challenge status…");
+      return;
+    }
+    if (state.challengeEnded) {
+      showToast("Results are final. Reactions are closed.");
+      return;
+    }
     const dialog = ensurePicker();
     dialog.dataset.entryId = entryId;
     const selected = clean(state.summaries.get(entryId)?.viewer_reaction);
@@ -162,6 +175,11 @@
   }
 
   async function setReaction(entryId, key, dialog) {
+    if (state.challengeEnded) {
+      if (dialog?.open) dialog.close();
+      showToast("Results are final. Reactions are closed.");
+      return;
+    }
     if (state.busyEntries.has(entryId)) return;
     state.busyEntries.add(entryId);
     dialog?.classList.add("is-busy");
@@ -209,13 +227,19 @@
       const selected = clean(summary.viewer_reaction);
       const total = totalFor(summary);
       const selectedEmoji = REACTIONS.find((item) => item.key === selected)?.emoji || "☺️";
+      const actionMarkup = !state.challengeStateKnown
+        ? '<span class="challenge-results-locked">Checking status</span>'
+        : state.challengeEnded
+          ? '<span class="challenge-results-locked">Results locked</span>'
+          : `<button type="button" class="challenge-social-react-button ${selected ? "is-active" : ""}" data-social-react>
+              <span>${selected ? selectedEmoji : "☺️"}</span>
+              <b>${selected ? "Reacted" : "React"}</b>
+              ${total ? `<small>${total}</small>` : ""}
+            </button>`;
+
       social.innerHTML = `
         <div class="challenge-social-reactions__chips">${chipsMarkup(summary)}</div>
-        <button type="button" class="challenge-social-react-button ${selected ? "is-active" : ""}" data-social-react>
-          <span>${selected ? selectedEmoji : "☺️"}</span>
-          <b>${selected ? "Reacted" : "React"}</b>
-          ${total ? `<small>${total}</small>` : ""}
-        </button>`;
+        ${actionMarkup}`;
       social.querySelector("[data-social-react]")?.addEventListener("click", () => openPicker(entryId, mode));
 
       const oldHype = card.querySelector("[data-hype]");
@@ -223,16 +247,30 @@
         if (mode === "reaction") {
           oldHype.textContent = `Hype score · ${Number(reactionMap(summary).hype) || 0}`;
           oldHype.disabled = true;
+          oldHype.hidden = false;
           oldHype.classList.add("challenge-hype-score");
         } else {
           oldHype.hidden = true;
         }
       }
 
+      const vote = card.querySelector("[data-vote]");
+      if (vote && state.challengeEnded) {
+        const shownCount = Number((clean(vote.textContent).match(/\d+/) || [0])[0]) || 0;
+        vote.disabled = true;
+        vote.classList.add("challenge-vote-closed");
+        vote.textContent = `Voting closed · ${shownCount}`;
+      }
+
       const inertEntry = [...card.querySelectorAll(".challenge-entry-item__actions button")]
         .find((button) => button.disabled && clean(button.textContent).includes("Entry"));
       if (inertEntry) inertEntry.hidden = true;
     });
+
+    const status = $("entriesStatus");
+    if (status && state.challengeStateKnown && state.challengeEnded && !clean(status.textContent).includes("Results locked")) {
+      status.textContent = `${clean(status.textContent)}${clean(status.textContent) ? " · " : ""}Results locked`;
+    }
   }
 
   async function refreshSummaries() {
@@ -251,24 +289,54 @@
     }
   }
 
-  function selectChallenge(challengeId) {
+  function selectChallenge(challengeId, knownEnded = null) {
     const id = clean(challengeId);
     if (!id) return;
     state.challengeId = id;
     state.summaries.clear();
+    if (typeof knownEnded === "boolean") {
+      state.challengeEnded = knownEnded;
+      state.challengeStateKnown = true;
+    } else {
+      state.challengeEnded = false;
+      state.challengeStateKnown = false;
+    }
     clearTimeout(state.refreshTimer);
     state.refreshTimer = setTimeout(refreshSummaries, 70);
+  }
+
+  async function resolveChallengeState(challengeId) {
+    const id = clean(challengeId);
+    if (!id) return;
+    const token = ++state.challengeLookupToken;
+    try {
+      const data = await rpc("ari_circle_challenge_get_v1", { requested_challenge_id: id });
+      if (token !== state.challengeLookupToken || state.challengeId !== id) return;
+      const row = Array.isArray(data) ? data[0] : data;
+      state.challengeEnded = Boolean(row?.ends_at && new Date(row.ends_at).getTime() <= Date.now());
+      state.challengeStateKnown = true;
+      decorateCards();
+    } catch (error) {
+      if (token !== state.challengeLookupToken || state.challengeId !== id) return;
+      console.warn("Challenge status unavailable for reactions:", error);
+      state.challengeEnded = true;
+      state.challengeStateKnown = true;
+      decorateCards();
+    }
   }
 
   function captureChallenge(event) {
     const button = event.target.closest?.("[data-see]");
     if (!button) return;
     const card = button.closest(".challenge-card");
-    selectChallenge(card?.dataset.challengeId);
+    selectChallenge(card?.dataset.challengeId, false);
   }
 
   function captureViewerEvent(event) {
-    selectChallenge(event.detail?.challengeId);
+    const id = clean(event.detail?.challengeId);
+    if (!id) return;
+    if (state.challengeId !== id) selectChallenge(id);
+    resolveChallengeState(id);
   }
 
   function observeEntries() {
@@ -294,7 +362,9 @@
       .challenge-social-react-button{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:7px 11px;border:1px solid rgba(36,88,255,.12);border-radius:999px;background:#fff;color:#26344f;font:inherit;font-size:.68rem;font-weight:760}
       .challenge-social-react-button.is-active{color:#2458ff;background:#f2f6ff;border-color:rgba(36,88,255,.22)}
       .challenge-social-react-button small{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#eef3ff;color:#50617f;font-size:.62rem}
+      .challenge-results-locked{flex:0 0 auto;display:inline-flex;align-items:center;min-height:34px;padding:0 10px;border:1px solid rgba(64,78,116,.10);border-radius:999px;color:#7d8799;background:#f3f5f8;font-size:.62rem;font-weight:800}
       .challenge-entry-item__actions .challenge-hype-score{opacity:1!important;color:#e45d29!important;background:#fff8f4!important;cursor:default}
+      .challenge-entry-item__actions .challenge-vote-closed{opacity:1!important;color:#7e8797!important;background:#f5f6f9!important;cursor:default}
       .challenge-reaction-picker{width:100%;max-width:none;height:auto;max-height:none;margin:auto 0 0;padding:0;border:0;background:transparent;overflow:visible}
       .challenge-reaction-picker::backdrop{background:rgba(7,14,28,.34);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
       .challenge-reaction-picker__sheet{padding:8px 16px max(20px,env(safe-area-inset-bottom));border-radius:28px 28px 0 0;background:rgba(252,253,255,.99);box-shadow:0 -24px 80px rgba(18,33,72,.18)}
