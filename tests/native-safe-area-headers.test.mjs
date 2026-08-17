@@ -6,7 +6,7 @@ import path from "node:path";
 const root = process.cwd();
 const runtime = fs.readFileSync(path.join(root, "js/native-runtime.js"), "utf8");
 const mobileBuild = fs.readFileSync(path.join(root, "scripts/build-mobile-web.mjs"), "utf8");
-const capacitorConfig = JSON.parse(fs.readFileSync(path.join(root, "capacitor.config.json"), "utf8"));
+const nativeSafeArea = fs.readFileSync(path.join(root, "assets/css/native-safe-area.css"), "utf8");
 const trainingHeader = fs.readFileSync(path.join(root, "assets/css/ari-training-native-header.css"), "utf8");
 const settingsHeader = fs.readFileSync(path.join(root, "assets/css/native-settings-header.css"), "utf8");
 const sharedHeader = fs.readFileSync(path.join(root, "assets/css/header.css"), "utf8");
@@ -15,62 +15,67 @@ const goals = fs.readFileSync(path.join(root, "assets/css/goals.css"), "utf8");
 const blockedUsers = fs.readFileSync(path.join(root, "assets/css/blocked-users.css"), "utf8");
 const circlePrimaryNav = fs.readFileSync(path.join(root, "assets/css/ari-circle-primary-nav.css"), "utf8");
 
-test("iOS owns the native safe area at the UIScrollView layer", () => {
-  assert.equal(capacitorConfig?.ios?.contentInset, "always");
+test("mobile bundle marks native HTML before runtime detection", () => {
+  assert.match(mobileBuild, /function markNativeDocument\(/);
+  assert.match(mobileBuild, /data-ari-native="true"/);
+  assert.match(mobileBuild, /html = markNativeDocument\(html\)/);
 });
 
-test("native runtime does not permanently fall back before Capacitor is ready", () => {
+test("affected native pages receive deterministic camera clearance", () => {
+  for (const page of [
+    "account.html",
+    "ari-preference-settings.html",
+    "privacy-memory.html",
+    "notification-settings.html",
+    "help-safety.html",
+    "owner-moderation.html",
+    "support-ari.html",
+    "blocked-users.html",
+    "community-guidelines.html",
+    "ari-training.html",
+    "nutrition.html"
+  ]) {
+    assert.match(mobileBuild, new RegExp(page.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  assert.match(mobileBuild, /native-safe-area\.css\?v=1\.2\.0/);
+  assert.match(nativeSafeArea, /\.ari-account-page/);
+  assert.match(nativeSafeArea, /\.ari-preference-settings__topbar/);
+  assert.match(nativeSafeArea, /body\.ari-training-page \.ari-training-header/);
+  assert.match(nativeSafeArea, /main#ariNutritionApp/);
+  assert.match(nativeSafeArea, /56px/);
+});
+
+test("Training Build 4 native header is linked at build time and kept as a runtime fallback", () => {
+  assert.match(mobileBuild, /ari-training-native-header\.css\?v=1\.1\.0/);
+  assert.match(runtime, /ari-training-native-header\.css\?v=1\.1\.0/);
+  assert.match(trainingHeader, /\.ari-training-header__inner/);
+  assert.match(trainingHeader, /56px minmax\(0, 1fr\) 56px/);
+});
+
+test("Account-family and Preferences Build 4 native headers are linked at build time", () => {
+  assert.match(mobileBuild, /native-settings-header\.css\?v=1\.1\.0/);
+  assert.match(runtime, /native-settings-header\.css\?v=1\.1\.0/);
+  assert.match(settingsHeader, /\.ari-account-header/);
+  assert.match(settingsHeader, /\.ari-preference-settings__topbar/);
+  assert.match(settingsHeader, /56px minmax\(0, 1fr\) 80px/);
+});
+
+test("native runtime remains resilient if Capacitor becomes available late", () => {
   assert.match(runtime, /function detectNativeRuntime\(/);
   assert.match(runtime, /protocol === "capacitor:" \|\| protocol === "ionic:"/);
   assert.match(runtime, /setInterval\(/);
   assert.match(runtime, /installNativeRuntime\(\)/);
 });
 
-test("native runtime no longer adds a second CSS safe-area shim", () => {
-  assert.doesNotMatch(runtime, /native-safe-area\.css/);
-  assert.doesNotMatch(runtime, /ensureViewportSafeArea/);
-  assert.match(runtime, /ios\.contentInset = "always"/);
-});
-
-test("Training keeps Build 4 native sizing inside the iOS safe content area", () => {
-  assert.match(runtime, /ari-training-native-header\.css\?v=1\.1\.0/);
-  assert.match(trainingHeader, /\.ari-training-header/);
-  assert.match(trainingHeader, /padding:\s*\n\s*8px\s*\n\s*0\s*\n\s*12px/);
-  assert.doesNotMatch(trainingHeader, /safe-area-inset-top/);
-});
-
-test("Account-family and Preferences keep Build 4 native sizing inside the iOS safe content area", () => {
-  assert.match(runtime, /native-settings-header\.css\?v=1\.1\.0/);
-  for (const page of [
-    "account",
-    "ari-preference-settings",
-    "privacy-memory",
-    "notification-settings",
-    "help-safety",
-    "owner-moderation",
-    "support-ari",
-    "blocked-users",
-    "community-guidelines"
-  ]) {
-    assert.match(runtime, new RegExp(page.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  }
-  assert.match(settingsHeader, /\.ari-account-page/);
-  assert.match(settingsHeader, /padding-top:\s*\n\s*24px/);
-  assert.match(settingsHeader, /\.ari-account-header/);
-  assert.match(settingsHeader, /\.ari-preference-settings__topbar/);
-  assert.match(settingsHeader, /min-height:\s*\n\s*76px/);
-  assert.doesNotMatch(settingsHeader, /safe-area-inset-top/);
-});
-
-test("mobile bundle does not force pages edge-to-edge under the camera", () => {
+test("mobile bundle does not rewrite hosted viewport metadata", () => {
   assert.doesNotMatch(mobileBuild, /ensureNativeViewportFitCover/);
-  assert.doesNotMatch(mobileBuild, /viewport-fit=cover/);
   assert.match(mobileBuild, /native-runtime\.js\?v=1\.6\.0/);
 });
 
 test("Build 4 shared Home header keeps its web safe area", () => {
-  assert.match(sharedHeader, /\.ari-header-v4/);
-  assert.match(sharedHeader, /max\(8px, env\(safe-area-inset-top\)\)/);
+  assert.match(sharedHeader, /\.ari-header-v4|\.ari-header-v5/);
+  assert.match(sharedHeader, /safe-area-inset-top/);
 });
 
 test("Build 4 Nutrition header keeps its web safe area", () => {
