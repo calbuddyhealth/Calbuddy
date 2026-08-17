@@ -1,17 +1,16 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.9.1
+   Version: 4.9.2
 
-   V4.9.1:
-   - Loads Challenge video Safari recovery on the Challenges page.
-   - Keeps the soft glass primary navigation shared across Circle.
-   - Normalizes tab order to Feed · Buddies · Challenges · Profile.
-   - Keeps unified menus, messages, profile polish and feed modules.
+   V4.9.2:
+   - Ships the Build 5 mobile safe-area and primary-navigation refresh.
+   - Loads the current primary-nav 1.0.1 assets instead of stale cache keys.
+   - Retains Challenge video Safari recovery and the shared Circle shell.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.9.1";
+  const VERSION = "4.9.2";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const PRIMARY_NAV_STYLE_ID = "ari-circle-primary-nav-style";
@@ -48,7 +47,7 @@
   function ensureStyles() {
     ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
     ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
-    ensureStyle(PRIMARY_NAV_STYLE_ID, "assets/css/ari-circle-primary-nav.css?v=1.0.0");
+    ensureStyle(PRIMARY_NAV_STYLE_ID, "assets/css/ari-circle-primary-nav.css?v=1.0.1");
   }
 
   function circleMenuMarkup(includeProfileOptions = false) {
@@ -228,7 +227,7 @@
   function loadModules() {
     if (!primaryNavLoaded) {
       primaryNavLoaded = true;
-      import("/js/ari-circle/primary-nav.js?v=1.0.0").catch((error) => {
+      import("/js/ari-circle/primary-nav.js?v=1.0.1").catch((error) => {
         primaryNavLoaded = false;
         console.warn("ARI Circle primary navigation failed to load:", error);
       });
