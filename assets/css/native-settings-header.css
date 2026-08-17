@@ -1,23 +1,20 @@
 /* =====================================================
-   ARI XP — Native Settings Header Safe Area
-   Version: 1.0.0
+   ARI XP — Native Settings Header
+   Version: 1.1.0
    Scope: installed native app only
 
-   Keeps My Account and Personalize Ari navigation controls fully
-   below the iPhone status bar / Dynamic Island and increases their
-   usable touch targets without changing the hosted web layouts.
+   iOS now owns the status-bar / Dynamic Island inset at the native
+   UIScrollView layer. These rules preserve the Build 4 header sizing and
+   tap targets inside that safe content area without adding a second inset.
 ===================================================== */
 
 /* =====================================================
-   MY ACCOUNT
+   MY ACCOUNT + ACCOUNT-FAMILY PAGES
 ===================================================== */
 
 html[data-ari-native="true"] .ari-account-page {
   padding-top:
-    max(
-      24px,
-      calc(env(safe-area-inset-top) + 12px)
-    );
+    24px;
 }
 
 html[data-ari-native="true"] .ari-account-header {
@@ -89,13 +86,10 @@ html[data-ari-native="true"] .ari-account-header .ari-header-button:active {
 
 html[data-ari-native="true"] .ari-preference-settings__topbar {
   min-height:
-    calc(env(safe-area-inset-top) + 76px);
+    76px;
 
   padding:
-    max(
-      20px,
-      calc(env(safe-area-inset-top) + 12px)
-    )
+    20px
     clamp(var(--ari-space-4), 4vw, var(--ari-space-8))
     14px;
 
