@@ -1,149 +1,284 @@
 /* =============================================================
    ARI CIRCLE — MOMENT REPLIES
-   Version: 2.0.0
+   Version: 3.0.0
 
-   Messaging V5 rule:
-   - Moments never send DMs directly.
-   - Reply / quick reaction routes into ARI Messages.
-   - ARI Messages remains the single direct-message surface.
+   Facebook-style private Moment interaction:
+   - Send a text reply without leaving the Moment viewer
+   - Send quick emoji reactions
+   - Replies/reactions become normal ARI Circle direct messages
+   - Existing message access, block, age, and moderation rules still apply
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
-  const REACTIONS = ["❤️", "😂", "🔥", "👏"];
-  const state = { client:null, user:null, moments:[], activeIndex:-1, bound:false };
-  const clean = (value) => String(value ?? "").trim();
+  const VERSION = "3.0.0";
+  const MEDIA_BUCKET = "ari-circle-post-media";
   const $ = (id) => document.getElementById(id);
+  const clean = (value) => String(value ?? "").trim();
 
-  function injectStyles() {
-    if ($("ariMomentRepliesStyle")) return;
-    const style = document.createElement("style");
-    style.id = "ariMomentRepliesStyle";
-    style.textContent = `
-      #momentViewer[open] .feed-moment-viewer__card{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))!important}
-      .ari-moment-replybar{position:fixed;z-index:10020;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(calc(100vw - 24px),520px);transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:9px;border:1px solid rgba(255,255,255,.42);border-radius:26px;background:rgba(250,252,255,.88);box-shadow:0 18px 52px rgba(4,10,28,.28);backdrop-filter:blur(22px) saturate(145%);-webkit-backdrop-filter:blur(22px) saturate(145%)}
-      .ari-moment-replyform{display:flex;align-items:center;gap:7px;min-width:0;flex:1}.ari-moment-replyinput{min-width:0;flex:1;height:46px;padding:0 16px;border:1px solid rgba(49,74,138,.13);border-radius:999px;outline:none;color:#10182d;background:rgba(255,255,255,.94);font-size:16px}.ari-moment-replyinput:focus{border-color:rgba(36,88,255,.38);box-shadow:0 0 0 4px rgba(36,88,255,.07)}
-      .ari-moment-send{width:46px;height:46px;display:grid;place-items:center;flex:0 0 46px;border:0;border-radius:50%;color:#fff;background:linear-gradient(135deg,#19cfff,#2458ff 52%,#8950ff);font-weight:900;box-shadow:0 10px 24px rgba(49,72,210,.24)}
-      .ari-moment-reactions{display:flex;align-items:center;gap:4px;flex:0 0 auto}.ari-moment-reaction{width:42px;height:42px;display:grid;place-items:center;border:0;border-radius:50%;background:rgba(255,255,255,.82);font-size:1.22rem;transition:transform .16s ease}.ari-moment-reaction:active{transform:scale(.84)}
-      .ari-moment-replybar.is-own{justify-content:center;padding:12px 18px;color:#667189;font-weight:750}
-      @media(max-width:430px){.ari-moment-replybar{gap:6px;padding:7px}.ari-moment-reaction{width:36px;height:36px;font-size:1.08rem}.ari-moment-send{width:42px;height:42px;flex-basis:42px}.ari-moment-replyinput{height:42px;padding:0 13px}}
-    `;
-    document.head.append(style);
+  const state = {
+    client: null,
+    user: null,
+    moments: [],
+    currentMoment: null,
+    busy: false,
+    observer: null,
+    started: false
+  };
+
+  function client() {
+    if (state.client) return state.client;
+    state.client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
+    return state.client;
   }
 
   async function rpc(name, params = {}) {
-    const { data, error } = await state.client.rpc(name, params);
+    const c = client();
+    if (!c) throw new Error("ARI Circle data is unavailable.");
+    const { data, error } = await c.rpc(name, params);
     if (error) throw error;
     return data;
   }
 
-  async function refreshMoments() {
-    if (!state.client || !state.user) return;
+  function toast(message, duration = 2600) {
+    const host = $("feedToast");
+    if (!host) return;
+    host.textContent = message;
+    host.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { host.hidden = true; }, duration);
+  }
+
+  function normalizePath(value) {
+    return clean(value)
+      .replace(/^https?:\/\/[^/]+/i, "")
+      .replace(/^\/+/, "")
+      .split("?")[0];
+  }
+
+  function mediaPathFromViewer() {
+    const media = document.querySelector("#momentViewerMedia img, #momentViewerMedia video");
+    const raw = clean(media?.currentSrc || media?.src);
+    if (!raw) return "";
+
     try {
-      const data = await rpc("ari_circle_moments_list", { result_limit:80 });
+      const url = new URL(raw, window.location.href);
+      let pathname = url.pathname;
+      try { pathname = decodeURIComponent(pathname); } catch {}
+
+      const markers = [
+        `/storage/v1/object/sign/${MEDIA_BUCKET}/`,
+        `/storage/v1/object/public/${MEDIA_BUCKET}/`,
+        `/storage/v1/object/authenticated/${MEDIA_BUCKET}/`,
+        `/${MEDIA_BUCKET}/`
+      ];
+
+      for (const marker of markers) {
+        const index = pathname.indexOf(marker);
+        if (index >= 0) return normalizePath(pathname.slice(index + marker.length));
+      }
+    } catch {}
+
+    return "";
+  }
+
+  async function loadMoments() {
+    try {
+      const data = await rpc("ari_circle_moments_list", { result_limit: 80 });
       state.moments = Array.isArray(data) ? data : [];
-      mapMomentBubbles();
     } catch (error) {
-      console.warn("ARI Circle Moment reply context unavailable:", error);
+      console.warn("ARI Circle Moment replies could not refresh Moments:", error);
+      state.moments = [];
+    }
+    return state.moments;
+  }
+
+  function findMomentByPath(path) {
+    const target = normalizePath(path);
+    if (!target) return null;
+
+    return state.moments.find((moment) => {
+      const candidate = normalizePath(moment?.media_path);
+      if (!candidate) return false;
+      return candidate === target || candidate.endsWith(`/${target}`) || target.endsWith(`/${candidate}`);
+    }) || null;
+  }
+
+  function setBusy(value) {
+    state.busy = Boolean(value);
+    const bar = $("ariMomentReplyBar");
+    if (bar) bar.classList.toggle("is-busy", state.busy);
+    const send = $("ariMomentReplySend");
+    if (send) send.disabled = state.busy;
+    document.querySelectorAll("[data-ari-moment-reaction]").forEach((button) => {
+      button.disabled = state.busy;
+    });
+  }
+
+  function ensureReplyBar() {
+    let bar = $("ariMomentReplyBar");
+    if (bar) return bar;
+
+    const card = document.querySelector("#momentViewer .feed-moment-viewer__card");
+    if (!card) return null;
+
+    bar = document.createElement("div");
+    bar.id = "ariMomentReplyBar";
+    bar.className = "ari-moment-replybar";
+    bar.hidden = true;
+    bar.innerHTML = `
+      <form class="ari-moment-replybar__form" id="ariMomentReplyForm">
+        <div class="ari-moment-replybar__input-wrap">
+          <input
+            class="ari-moment-replybar__input"
+            id="ariMomentReplyInput"
+            type="text"
+            maxlength="3600"
+            autocomplete="off"
+            enterkeyhint="send"
+            placeholder="Send message..."
+            aria-label="Reply to this Moment"
+          />
+          <button class="ari-moment-replybar__send" id="ariMomentReplySend" type="submit" aria-label="Send reply">↑</button>
+        </div>
+        <button class="ari-moment-replybar__reaction" type="button" data-ari-moment-reaction="❤️" aria-label="React with heart">❤️</button>
+        <button class="ari-moment-replybar__reaction" type="button" data-ari-moment-reaction="👍" aria-label="React with thumbs up">👍</button>
+        <button class="ari-moment-replybar__reaction" type="button" data-ari-moment-reaction="😂" aria-label="React with laughing face">😂</button>
+      </form>`;
+
+    card.append(bar);
+
+    $("ariMomentReplyForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const input = $("ariMomentReplyInput");
+      const text = clean(input?.value);
+      if (!text || state.busy) return;
+      const sent = await sendToMomentOwner(`Replied to your Moment: ${text}`);
+      if (sent && input) input.value = "";
+    });
+
+    bar.querySelectorAll("[data-ari-moment-reaction]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const emoji = clean(button.dataset.ariMomentReaction);
+        if (!emoji || state.busy) return;
+        await sendToMomentOwner(`Reacted ${emoji} to your Moment.`);
+      });
+    });
+
+    return bar;
+  }
+
+  async function sendToMomentOwner(body) {
+    const moment = state.currentMoment;
+    const recipientId = clean(moment?.author_user_id);
+    if (!moment || !recipientId || recipientId === clean(state.user?.id) || !body) return false;
+
+    setBusy(true);
+    try {
+      const conversationId = await rpc("ari_circle_messages_open_direct", {
+        requested_user_id: recipientId
+      });
+
+      if (!conversationId) throw new Error("Conversation unavailable.");
+
+      await rpc("ari_circle_messages_send", {
+        requested_conversation_id: conversationId,
+        requested_body: body
+      });
+
+      toast(`Sent to ${clean(moment.display_name) || "this person"}.`);
+      return true;
+    } catch (error) {
+      console.error("ARI Circle Moment reply failed:", error);
+      toast(error.message || "Could not send that reply.", 4200);
+      return false;
+    } finally {
+      setBusy(false);
     }
   }
 
-  function latestBubbleIndexes() {
-    const seen = new Set(), indexes = [];
-    state.moments.forEach((moment,index) => {
-      const userId = clean(moment?.author_user_id);
-      if (!userId || seen.has(userId)) return;
-      seen.add(userId); indexes.push(index);
-    });
-    return indexes;
-  }
-
-  function mapMomentBubbles() {
-    const strip = $("momentsStrip");
-    if (!strip) return;
-    const indexes = latestBubbleIndexes();
-    [...strip.querySelectorAll(".feed-moment-bubble")].forEach((button,bubbleIndex) => {
-      const flatIndex = indexes[bubbleIndex];
-      if (Number.isInteger(flatIndex)) button.dataset.momentReplyIndex = String(flatIndex);
-    });
-  }
-
-  function activeMoment() { return state.activeIndex >= 0 ? state.moments[state.activeIndex] : null; }
-  function removeBar() { document.querySelector(".ari-moment-replybar")?.remove(); }
-
-  function routeToMessages(text = "") {
-    const moment = activeMoment();
-    const recipientId = clean(moment?.author_user_id);
-    if (!recipientId || recipientId === clean(state.user?.id)) return;
-    try {
-      sessionStorage.setItem("ariCircleMessageDraft", clean(text));
-      sessionStorage.setItem("ariCircleMessageContext", "Moment");
-    } catch {}
-    location.href = `ari-circle-messages.html?user=${encodeURIComponent(recipientId)}`;
-  }
-
-  function ensureBar() {
+  async function syncCurrentMoment({ refresh = false } = {}) {
     const dialog = $("momentViewer");
-    if (!dialog?.open) { removeBar(); return; }
-    const moment = activeMoment();
-    if (!moment) return;
-    removeBar();
-    const bar = document.createElement("div");
-    bar.className = "ari-moment-replybar";
+    const bar = ensureReplyBar();
+    if (!dialog || !bar) return;
 
-    if (clean(moment.author_user_id) === clean(state.user?.id)) {
-      bar.classList.add("is-own");
-      bar.innerHTML = "<span>Your Moment</span>";
-      document.body.append(bar);
+    if (!dialog.open) {
+      bar.hidden = true;
+      state.currentMoment = null;
       return;
     }
 
-    const name = clean(moment.display_name) || "this user";
-    bar.innerHTML = `<form class="ari-moment-replyform" autocomplete="off"><input class="ari-moment-replyinput" maxlength="600" placeholder="Message ${name}…" aria-label="Message ${name}" /><button class="ari-moment-send" type="submit" aria-label="Open in Messages">➤</button></form><div class="ari-moment-reactions" aria-label="Quick reactions">${REACTIONS.map((emoji)=>`<button class="ari-moment-reaction" type="button" data-moment-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join("")}</div>`;
-    bar.querySelector("form")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      routeToMessages(bar.querySelector(".ari-moment-replyinput")?.value || "");
-    });
-    bar.querySelectorAll("[data-moment-emoji]").forEach((button) => button.addEventListener("click", () => routeToMessages(`↳ Moment\n${button.dataset.momentEmoji || ""}`)));
-    document.body.append(bar);
+    if (refresh || !state.moments.length) await loadMoments();
+
+    const mediaPath = mediaPathFromViewer();
+    let moment = findMomentByPath(mediaPath);
+
+    if (!moment && !refresh) {
+      await loadMoments();
+      moment = findMomentByPath(mediaPath);
+    }
+
+    state.currentMoment = moment;
+    const isOwnMoment = clean(moment?.author_user_id) === clean(state.user?.id);
+    bar.hidden = !moment || isOwnMoment;
+
+    if (!bar.hidden) {
+      const input = $("ariMomentReplyInput");
+      if (input) input.placeholder = `Message ${clean(moment.display_name) || "this person"}...`;
+    }
   }
 
-  function bindViewerTracking() {
-    if (state.bound) return;
-    state.bound = true;
+  function scheduleSync(delay = 30) {
+    window.setTimeout(() => syncCurrentMoment(), delay);
+  }
+
+  function bindViewer() {
+    const dialog = $("momentViewer");
+    const mediaHost = $("momentViewerMedia");
+    if (!dialog || !mediaHost) return;
+
+    dialog.addEventListener("close", () => {
+      const bar = $("ariMomentReplyBar");
+      if (bar) bar.hidden = true;
+      state.currentMoment = null;
+      const input = $("ariMomentReplyInput");
+      if (input) input.value = "";
+    });
+
     document.addEventListener("click", (event) => {
-      const bubble = event.target.closest?.(".feed-moment-bubble[data-moment-reply-index]");
-      if (bubble) { state.activeIndex = Number(bubble.dataset.momentReplyIndex); setTimeout(ensureBar,30); return; }
-      if (event.target.closest?.("#momentPrevButton")) { if(state.moments.length) state.activeIndex=(state.activeIndex-1+state.moments.length)%state.moments.length; setTimeout(ensureBar,0); return; }
-      if (event.target.closest?.("#momentNextButton")) { if(state.moments.length) state.activeIndex=(state.activeIndex+1)%state.moments.length; setTimeout(ensureBar,0); return; }
-      if (event.target.closest?.('[data-close-dialog="momentViewer"]')) removeBar();
-    }, true);
-    $("momentViewer")?.addEventListener("close", removeBar);
-    const strip = $("momentsStrip");
-    if (strip && "MutationObserver" in window) {
-      new MutationObserver(() => {
-        clearTimeout(bindViewerTracking.refreshTimer);
-        bindViewerTracking.refreshTimer = setTimeout(refreshMoments,80);
-      }).observe(strip,{childList:true});
-    }
+      if (event.target.closest?.(".feed-moment-bubble, #momentPrevButton, #momentNextButton")) {
+        scheduleSync(60);
+      }
+    });
+
+    state.observer = new MutationObserver(() => scheduleSync(20));
+    state.observer.observe(mediaHost, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
   }
 
   async function init() {
-    if (!document.querySelector(".feed-page")) return;
-    state.client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
+    if (state.started || !$("momentViewer")) return;
+    state.started = true;
+    state.client = client();
     if (!state.client) return;
+
     try {
-      const { data, error } = await state.client.auth.getUser();
-      if (error) throw error;
+      const { data } = await state.client.auth.getUser();
       state.user = data?.user || null;
-      if (!state.user) return;
-      injectStyles(); bindViewerTracking(); await refreshMoments();
-    } catch (error) {
-      console.warn("ARI Circle Moment replies did not initialize:", error);
-    }
+    } catch {}
+
+    ensureReplyBar();
+    bindViewer();
+    await loadMoments();
   }
 
-  document.addEventListener("DOMContentLoaded", init, { once:true });
-  window.AriCircleMomentReplies = Object.freeze({ version:VERSION, refresh:refreshMoments });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+
+  window.AriCircleMomentReplies = Object.freeze({
+    version: VERSION,
+    refresh: () => syncCurrentMoment({ refresh: true })
+  });
 })();
