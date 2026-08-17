@@ -5,6 +5,9 @@
   "server": {
     "cleartext": false
   },
+  "ios": {
+    "contentInset": "always"
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
