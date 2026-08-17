@@ -1,4 +1,4 @@
-/* ARI XP — My Account v3.2.0 */
+/* ARI XP — My Account v3.3.0 */
 
 (() => {
   "use strict";
@@ -119,6 +119,42 @@
     link.hidden = true;
   }
 
+  function ensureBlockedUsersLink() {
+    if ($("blockedUsersLink")) return;
+
+    const helpSafetyLink = document.querySelector('a.ari-action-card[href="help-safety.html"]');
+    const list = helpSafetyLink?.parentElement;
+    if (!helpSafetyLink || !list) return;
+
+    const link = document.createElement("a");
+    link.className = "ari-action-card";
+    link.id = "blockedUsersLink";
+    link.href = "blocked-users.html";
+
+    const icon = document.createElement("span");
+    icon.className = "ari-action-icon ari-action-icon--muted";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⊘";
+
+    const copy = document.createElement("span");
+    copy.className = "ari-action-copy";
+
+    const title = document.createElement("strong");
+    title.textContent = "Blocked users";
+
+    const subtitle = document.createElement("small");
+    subtitle.textContent = "Review or unblock people";
+
+    const arrow = document.createElement("span");
+    arrow.className = "ari-action-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "›";
+
+    copy.append(title, subtitle);
+    link.append(icon, copy, arrow);
+    list.insertBefore(link, helpSafetyLink);
+  }
+
   async function changeEmail() {
     const cleanEmail = String($("newEmailInput").value || "").trim();
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
@@ -153,6 +189,7 @@
     });
 
     $("changePasswordButton").disabled = false;
+
     setStatus(
       error ? error.message : "Password reset email sent.",
       error ? "error" : "success"
@@ -259,6 +296,7 @@
   async function init() {
     bindEvents();
     configureSupportLink();
+    ensureBlockedUsersLink();
     setAccountControlExpanded(false);
 
     currentSession = await window.AriSettings.requireSession();
