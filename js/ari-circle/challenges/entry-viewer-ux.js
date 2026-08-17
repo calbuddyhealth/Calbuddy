@@ -201,6 +201,10 @@
 
   const lockButton = (button) => {
     if (!button) return;
+    if (
+      button.dataset.entrySubmitted === "true" &&
+      String(button.textContent || "").trim() === "Entry Submitted"
+    ) return;
     button.textContent = "Entry Submitted";
     button.dataset.entrySubmitted = "true";
     button.setAttribute("aria-disabled", "true");
