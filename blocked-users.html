@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>Blocked Users · ARI XP</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/native-settings-header.css?v=1.0.0">
+  <link rel="stylesheet" href="assets/css/blocked-users.css?v=1.0.0">
+</head>
+<body class="ari-blocked-users-page">
+  <main class="ari-account-page">
+    <header class="ari-account-header">
+      <a class="ari-icon-button" href="account.html" aria-label="Back to My Account">←</a>
+
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI XP home">
+        <span class="ari-brand-title">ARI</span>
+        <span class="ari-brand-subtitle">EXPERIENCE</span>
+      </a>
+
+      <a class="ari-header-button" href="home.html">Home</a>
+    </header>
+
+    <section class="ari-page-hero" aria-labelledby="blockedUsersTitle">
+      <div class="ari-page-symbol ari-blocked-symbol" aria-hidden="true">⊘</div>
+      <p class="ari-page-kicker">ARI CIRCLE SAFETY</p>
+      <h1 class="ari-page-title" id="blockedUsersTitle">Blocked users</h1>
+      <p class="ari-page-description">Review people you blocked and reverse a block whenever you choose.</p>
+    </section>
+
+    <div class="ari-status" id="blockedUsersStatus" role="status" aria-live="polite"></div>
+
+    <section class="ari-panel ari-blocked-users-panel" aria-labelledby="blockedListTitle">
+      <div class="ari-section-heading ari-blocked-heading">
+        <p class="ari-section-kicker">YOUR CONTROLS</p>
+        <h2 id="blockedListTitle">People you blocked</h2>
+        <p>Unblocking restores the pair to a neutral state. It does not restore a previous friendship, Circle request, or conversation.</p>
+      </div>
+
+      <div class="ari-blocked-loading" id="blockedUsersLoading" role="status">Loading blocked users…</div>
+      <div class="ari-blocked-list" id="blockedUsersList" hidden></div>
+
+      <div class="ari-blocked-empty" id="blockedUsersEmpty" hidden>
+        <span class="ari-blocked-empty-orb" aria-hidden="true">✓</span>
+        <strong>No blocked users</strong>
+        <p>Anyone you block in ARI Circle will appear here so you can manage that choice later.</p>
+      </div>
+    </section>
+
+    <section class="ari-panel ari-blocked-info" aria-label="What unblocking does">
+      <p class="ari-section-kicker">WHAT HAPPENS NEXT</p>
+      <h2>Unblocking does not reconnect you.</h2>
+      <p>After you unblock someone, normal ARI Circle visibility and safety rules apply again. Neither person is automatically added back to the other's Circle.</p>
+    </section>
+
+    <footer class="ari-settings-footer">
+      <span class="ari-footer-mark">ARI</span>
+      <p>You control your Circle.</p>
+    </footer>
+  </main>
+
+  <dialog class="ari-dialog" id="unblockDialog">
+    <form method="dialog" class="ari-dialog-card" id="unblockDialogForm">
+      <button class="ari-dialog-close" type="button" id="unblockDialogClose" aria-label="Close">×</button>
+      <p class="ari-section-kicker">ARI CIRCLE SAFETY</p>
+      <h2 id="unblockDialogTitle">Unblock this user?</h2>
+      <p id="unblockDialogText">This will remove your block. It will not restore a previous Circle connection.</p>
+      <div class="ari-dialog-actions">
+        <button class="ari-secondary-action" id="cancelUnblockButton" type="button">Cancel</button>
+        <button class="ari-primary-action ari-unblock-confirm" id="confirmUnblockButton" type="submit" value="default">Unblock</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.7"></script>
+  <script src="js/blocked-users.js?v=1.0.0"></script>
+</body>
+</html>
