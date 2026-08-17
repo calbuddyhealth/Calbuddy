@@ -23,6 +23,6 @@ test("ARI Circle primary nav uses soft pill treatment without the legacy underli
 });
 
 test("V4 shell loads the soft primary navigation assets", () => {
-  assert.match(v4Ui, /ari-circle-primary-nav\.css\?v=1\.0\.0/);
-  assert.match(v4Ui, /\/js\/ari-circle\/primary-nav\.js\?v=1\.0\.0/);
+  assert.match(v4Ui, /ari-circle-primary-nav\.css\?v=1\.0\.1/);
+  assert.match(v4Ui, /\/js\/ari-circle\/primary-nav\.js\?v=1\.0\.1/);
 });
