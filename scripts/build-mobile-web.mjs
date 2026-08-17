@@ -44,7 +44,7 @@ const allowedRootExtensions = new Set([
   ".ttf"
 ]);
 
-const nativeRuntimeTag = '<script src="js/native-runtime.js?v=1.4.0"></script>';
+const nativeRuntimeTag = '<script src="js/native-runtime.js?v=1.5.0"></script>';
 
 async function copyFrontend() {
   await rm(out, { recursive: true, force: true });
@@ -70,6 +70,35 @@ async function copyFrontend() {
   }
 }
 
+function ensureNativeViewportFitCover(html) {
+  const viewportPattern = /<meta\b[^>]*\bname\s*=\s*["']viewport["'][^>]*>/i;
+  const match = html.match(viewportPattern);
+
+  if (!match) {
+    if (!/<head\b[^>]*>/i.test(html)) return html;
+    return html.replace(
+      /<head\b[^>]*>/i,
+      (head) => `${head}\n<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">`
+    );
+  }
+
+  const viewportTag = match[0];
+  if (/viewport-fit\s*=\s*cover/i.test(viewportTag)) return html;
+
+  const contentMatch = viewportTag.match(/\bcontent\s*=\s*(["'])([\s\S]*?)\1/i);
+  if (!contentMatch) return html;
+
+  const quote = contentMatch[1];
+  const currentContent = String(contentMatch[2] || "").trim().replace(/,\s*$/, "");
+  const nextContent = `${currentContent}${currentContent ? ", " : ""}viewport-fit=cover`;
+  const nextTag = viewportTag.replace(
+    contentMatch[0],
+    `content=${quote}${nextContent}${quote}`
+  );
+
+  return html.replace(viewportTag, nextTag);
+}
+
 async function injectNativeRuntime() {
   const htmlFiles = [];
 
@@ -86,14 +115,20 @@ async function injectNativeRuntime() {
 
   for (const htmlFile of htmlFiles) {
     let html = await readFile(htmlFile, "utf8");
-    if (html.includes("js/native-runtime.js")) continue;
 
-    if (/<\/head>/i.test(html)) {
-      html = html.replace(/<\/head>/i, `${nativeRuntimeTag}\n</head>`);
-    } else if (/<body/i.test(html)) {
-      html = html.replace(/<body/i, `${nativeRuntimeTag}\n<body`);
-    } else {
-      html = `${nativeRuntimeTag}\n${html}`;
+    // The viewport must contain viewport-fit=cover in the generated native
+    // document before WKWebView lays out the first frame. The runtime keeps a
+    // secondary check, but the mobile bundle is now correct before JavaScript.
+    html = ensureNativeViewportFitCover(html);
+
+    if (!html.includes("js/native-runtime.js")) {
+      if (/<\/head>/i.test(html)) {
+        html = html.replace(/<\/head>/i, `${nativeRuntimeTag}\n</head>`);
+      } else if (/<body/i.test(html)) {
+        html = html.replace(/<body/i, `${nativeRuntimeTag}\n<body`);
+      } else {
+        html = `${nativeRuntimeTag}\n${html}`;
+      }
     }
 
     await writeFile(htmlFile, html, "utf8");
