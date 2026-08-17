@@ -3,6 +3,7 @@ name: ARI XP readiness tests
 on:
   push:
     branches:
+      - main
       - Ari-rebirth-experiment
   pull_request:
     branches:
