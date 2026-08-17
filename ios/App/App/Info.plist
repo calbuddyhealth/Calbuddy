@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>ARI XP uses your camera only when you choose to capture a photo or video for an ARI XP feature.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ARI XP uses your approximate location only when you choose Near You in adult Buddies, so it can show listings within the distance you select. Your exact location is not shown to other members.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ARI XP uses your microphone only when you choose to record a video that includes audio.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
@@ -38,10 +40,6 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
