@@ -1,14 +1,16 @@
 /* =============================================================
    ARI XP — ARI CIRCLE CONTENT MODERATION
-   Version: 1.3.0
+   Version: 1.4.0
 
    Pre-publication safety screening for ARI Circle UGC.
-   Covers Feed, comments, Moments, Messages, and Challenges.
+   Covers Feed, comments, Moments, Messages, Buddies, and Challenges.
+   Teen text safety runs before AI moderation and records blocked attempts
+   into the owner-only Teen Safety review queue.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.4.0";
   const PROFILE_API = "/api/profile";
   const CONSENT_SCRIPT = "js/ai-processing-consent.js?v=1.1.0";
   const AI_CONSENT_KEY = "ari_ai_processing_consent";
@@ -46,6 +48,10 @@
     ari_circle_messages_edit: Object.freeze({
       scope: "direct_message_edit",
       textKeys: ["requested_body"]
+    }),
+    ari_circle_upsert_partner_intent: Object.freeze({
+      scope: "buddy_listing",
+      textKeys: ["requested_area", "requested_note"]
     }),
     ari_circle_challenge_create: Object.freeze({
       scope: "challenge_create",
@@ -338,6 +344,48 @@
       .slice(0, 8000);
   }
 
+  async function screenTeenText(scope, text) {
+    const safeText = clean(text);
+    if (!safeText || typeof state.originalRpc !== "function") return;
+
+    const { data, error } = await state.originalRpc("ari_circle_screen_my_teen_text", {
+      requested_surface: clean(scope).slice(0, 80) || "ari_circle",
+      requested_text: safeText,
+      requested_related_user_id: null
+    });
+
+    if (error) {
+      const safetyError = new Error(error.message || "ARI Circle could not run its teen safety check. Try again.");
+      safetyError.code = "ARI_TEEN_SAFETY_UNAVAILABLE";
+      throw safetyError;
+    }
+
+    if (data?.allowed === false) {
+      const safetyError = new Error(
+        clean(data?.message) || "That information cannot be shared from a Teen Circle account."
+      );
+      safetyError.code = "ARI_TEEN_SAFETY_BLOCKED";
+      safetyError.category = clean(data?.category);
+      throw safetyError;
+    }
+  }
+
+  async function logTeenModerationBlock(scope, text, blockedCategories) {
+    if (typeof state.originalRpc !== "function") return;
+    try {
+      const categories = Array.isArray(blockedCategories)
+        ? blockedCategories.map((item) => clean(item)).filter(Boolean).slice(0, 20)
+        : [];
+      await state.originalRpc("ari_circle_log_my_teen_moderation_event", {
+        requested_surface: clean(scope).slice(0, 80) || "ari_circle",
+        requested_categories: categories,
+        requested_excerpt: clean(text).slice(0, 8000) || null
+      });
+    } catch (error) {
+      console.warn("ARI Circle teen moderation event could not be recorded:", error?.message || error);
+    }
+  }
+
   async function requestModeration({ scope, text = "", imageUrls = [], session = null } = {}) {
     const resolvedSession = session || await requireCurrentConsent();
     const token = clean(resolvedSession?.access_token);
@@ -376,12 +424,15 @@
     const rule = mutationRules[name];
     if (!rule) return;
 
-    const session = await requireCurrentConsent();
     const text = mutationText(rule, params);
+    await screenTeenText(rule.scope, text);
+
+    const session = await requireCurrentConsent();
     const imageUrls = await mediaInputs(rule, params);
     const result = await requestModeration({ scope: rule.scope, text, imageUrls, session });
 
     if (result?.allowed !== true) {
+      await logTeenModerationBlock(rule.scope, text, result?.blocked_categories);
       const error = new Error("That content can’t be shared in ARI Circle. Please edit it and try again.");
       error.code = "ARI_CONTENT_BLOCKED";
       throw error;
@@ -401,17 +452,26 @@
         await moderateMutation(String(name || ""), params || {});
       } catch (error) {
         const blocked = error?.code === "ARI_CONTENT_BLOCKED";
+        const teenBlocked = error?.code === "ARI_TEEN_SAFETY_BLOCKED";
         const consentRequired = error?.code === "ARI_AI_CONSENT_REQUIRED";
-        const message = blocked
-          ? safeMessage(error, "That content can’t be shared in ARI Circle.")
-          : consentRequired
-            ? safeMessage(error, "Allow AI processing before sharing in ARI Circle.")
-            : safeMessage(error, "ARI Circle could not run its safety check. Try again.");
+        const message = teenBlocked
+          ? safeMessage(error, "That information cannot be shared from a Teen Circle account.")
+          : blocked
+            ? safeMessage(error, "That content can’t be shared in ARI Circle.")
+            : consentRequired
+              ? safeMessage(error, "Allow AI processing before sharing in ARI Circle.")
+              : safeMessage(error, "ARI Circle could not run its safety check. Try again.");
         return {
           data: null,
           error: makeSupabaseError(
             message,
-            blocked ? "ARI_CONTENT_BLOCKED" : consentRequired ? "ARI_AI_CONSENT_REQUIRED" : "ARI_MODERATION_UNAVAILABLE"
+            teenBlocked
+              ? "ARI_TEEN_SAFETY_BLOCKED"
+              : blocked
+                ? "ARI_CONTENT_BLOCKED"
+                : consentRequired
+                  ? "ARI_AI_CONSENT_REQUIRED"
+                  : "ARI_MODERATION_UNAVAILABLE"
           )
         };
       }
