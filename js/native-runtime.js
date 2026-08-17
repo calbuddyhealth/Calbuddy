@@ -1,4 +1,4 @@
-// ARI XP — native runtime bridge v1.5.0
+// ARI XP — native runtime bridge v1.6.0
 (() => {
   "use strict";
 
@@ -35,25 +35,12 @@
     document.head.appendChild(stylesheet);
   }
 
-  function ensureViewportSafeArea() {
-    const viewport = document.querySelector('meta[name="viewport"]');
-    if (!viewport) return;
-
-    const currentViewport = String(viewport.getAttribute("content") || "");
-    if (/viewport-fit\s*=\s*cover/i.test(currentViewport)) return;
-
-    viewport.setAttribute(
-      "content",
-      `${currentViewport}${currentViewport ? ", " : ""}viewport-fit=cover`
-    );
-  }
-
   function installPageSpecificNativeUi() {
     const pathname = String(window.location.pathname || "");
 
     if (/(^|\/)ari-training\.html$/i.test(pathname)) {
       addNativeStylesheet(
-        "assets/css/ari-training-native-header.css?v=1.0.1",
+        "assets/css/ari-training-native-header.css?v=1.1.0",
         "ari-native-training-header"
       );
     }
@@ -62,7 +49,7 @@
       /(^|\/)(account|ari-preference-settings|privacy-memory|notification-settings|help-safety|owner-moderation|support-ari|blocked-users|community-guidelines)\.html$/i.test(pathname)
     ) {
       addNativeStylesheet(
-        "assets/css/native-settings-header.css?v=1.0.1",
+        "assets/css/native-settings-header.css?v=1.1.0",
         "ari-native-settings-header"
       );
     }
@@ -164,23 +151,16 @@
 
     installed = true;
 
-    ensureViewportSafeArea();
-
     window.ARI_XP_NATIVE = true;
     window.ARI_XP_API_ORIGIN = API_ORIGIN;
     window.ARI_XP_PUBLIC_ORIGIN = API_ORIGIN;
     document.documentElement.dataset.ariNative = "true";
 
+    // iOS owns the status-bar / Dynamic Island clearance through
+    // capacitor.config.json -> ios.contentInset = "always". The runtime only
+    // applies native component sizing; it no longer pushes the web viewport
+    // edge-to-edge or adds a second CSS safe-area shim.
     installPageSpecificNativeUi();
-
-    // This stylesheet is deliberately appended after the page-specific native
-    // styles. It owns only the top camera/status-bar clearance, so existing
-    // Build 4 header sizing and visual design remain intact.
-    addNativeStylesheet(
-      "assets/css/native-safe-area.css?v=1.0.0",
-      "ari-native-safe-area"
-    );
-
     patchNativeNetworking();
 
     return true;
