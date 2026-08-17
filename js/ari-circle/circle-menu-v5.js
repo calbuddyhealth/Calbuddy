@@ -1,16 +1,18 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5
-   Version: 1.0.1
+   Version: 1.0.2
    Rebuilds the shared Circle menu as a compact premium control drawer.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
+  const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
+  const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.0.0";
   let observer = null;
   let outsideBound = false;
 
@@ -24,6 +26,25 @@
     exit: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path></svg>`,
     settings: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.37.46.68.8.9.33.22.72.34 1.1.34h.1v4h-.1c-.38 0-.77.12-1.1.34-.34.22-.62.53-.8.9Z"></path></svg>`
   });
+
+  function shouldLoadProfileSafety() {
+    const path = String(window.location.pathname || "").toLowerCase();
+    return (
+      path.endsWith("/ari-circle.html") ||
+      Boolean(document.body?.classList.contains("ari-circle-page"))
+    );
+  }
+
+  function loadProfileSafety() {
+    if (!shouldLoadProfileSafety()) return;
+    if (window.AriCircleProfileSafety || document.getElementById(PROFILE_SAFETY_SCRIPT_ID)) return;
+
+    const script = document.createElement("script");
+    script.id = PROFILE_SAFETY_SCRIPT_ID;
+    script.src = PROFILE_SAFETY_SCRIPT_SRC;
+    script.async = false;
+    document.head.append(script);
+  }
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -145,6 +166,7 @@
   }
 
   function run() {
+    loadProfileSafety();
     ensureStyle();
     normalizeMenus();
     ensureNotificationSettingsLink();
@@ -168,6 +190,8 @@
       attributeFilter: ["class"]
     });
   }
+
+  loadProfileSafety();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
