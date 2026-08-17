@@ -1,0 +1,50 @@
+/* =====================================================
+   ARI XP — Native iPhone Header Camera Clearance
+   Version: 1.2.0
+   Scope: generated iOS bundle only
+
+   The mobile build stamps data-ari-native="true" into generated HTML and
+   loads this stylesheet only on native pages that need header clearance.
+   This avoids relying on Capacitor bridge timing and leaves Safari untouched.
+===================================================== */
+
+/* Account-family pages:
+   My Account, Privacy & Ari Memory, Notifications, Help & Safety,
+   Owner Moderation, Support, Blocked Users, and Community Guidelines. */
+html[data-ari-native="true"] .ari-account-page {
+  padding-top:
+    56px !important;
+}
+
+/* Personalize Ari / RE Preferences. */
+html[data-ari-native="true"] .ari-preference-settings__topbar {
+  padding-top:
+    56px !important;
+
+  min-height:
+    120px !important;
+}
+
+/* ARI Training. Keep its Build 4 header design; reserve the camera zone
+   above the header controls in the installed app. */
+html[data-ari-native="true"] body.ari-training-page .ari-training-header {
+  padding-top:
+    56px !important;
+}
+
+/* ARI Nutrition Intelligence. Keep the existing Nutrition header design and
+   move the native page below the iPhone camera/status area. */
+html[data-ari-native="true"] main#ariNutritionApp {
+  padding-top:
+    56px !important;
+}
+
+/* Programmatic/keyboard scroll targets on these native surfaces should never
+   land underneath the camera/status area. */
+html[data-ari-native="true"] .ari-account-page,
+html[data-ari-native="true"] .ari-preference-settings,
+html[data-ari-native="true"] body.ari-training-page,
+html[data-ari-native="true"] main#ariNutritionApp {
+  scroll-padding-top:
+    56px;
+}
