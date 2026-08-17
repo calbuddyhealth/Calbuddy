@@ -45,6 +45,35 @@ const allowedRootExtensions = new Set([
 ]);
 
 const nativeRuntimeTag = '<script src="js/native-runtime.js?v=1.6.0"></script>';
+const nativeSafeAreaTag = '<link rel="stylesheet" href="assets/css/native-safe-area.css?v=1.2.0" data-ari-native-safe-area="true">';
+const nativeTrainingHeaderTag = '<link rel="stylesheet" href="assets/css/ari-training-native-header.css?v=1.1.0" data-ari-native-training-header="true">';
+const nativeSettingsHeaderTag = '<link rel="stylesheet" href="assets/css/native-settings-header.css?v=1.1.0" data-ari-native-settings-header="true">';
+
+const nativeSafeAreaPages = new Set([
+  "account.html",
+  "ari-preference-settings.html",
+  "privacy-memory.html",
+  "notification-settings.html",
+  "help-safety.html",
+  "owner-moderation.html",
+  "support-ari.html",
+  "blocked-users.html",
+  "community-guidelines.html",
+  "ari-training.html",
+  "nutrition.html"
+]);
+
+const nativeSettingsPages = new Set([
+  "account.html",
+  "ari-preference-settings.html",
+  "privacy-memory.html",
+  "notification-settings.html",
+  "help-safety.html",
+  "owner-moderation.html",
+  "support-ari.html",
+  "blocked-users.html",
+  "community-guidelines.html"
+]);
 
 async function copyFrontend() {
   await rm(out, { recursive: true, force: true });
@@ -70,6 +99,27 @@ async function copyFrontend() {
   }
 }
 
+function markNativeDocument(html) {
+  return html.replace(/<html\b([^>]*)>/i, (tag, attrs = "") => {
+    if (/\bdata-ari-native\s*=/i.test(tag)) return tag;
+    return `<html${attrs} data-ari-native="true">`;
+  });
+}
+
+function injectHeadTag(html, tag, uniqueNeedle) {
+  if (html.includes(uniqueNeedle)) return html;
+
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${tag}\n</head>`);
+  }
+
+  if (/<body/i.test(html)) {
+    return html.replace(/<body/i, `${tag}\n<body`);
+  }
+
+  return `${tag}\n${html}`;
+}
+
 async function injectNativeRuntime() {
   const htmlFiles = [];
 
@@ -86,19 +136,25 @@ async function injectNativeRuntime() {
 
   for (const htmlFile of htmlFiles) {
     let html = await readFile(htmlFile, "utf8");
+    const pageName = path.basename(htmlFile).toLowerCase();
 
-    // Native safe-area placement is owned by iOS UIScrollView through
-    // capacitor.config.json (ios.contentInset = "always"). Do not rewrite
-    // web viewport metadata to force edge-to-edge rendering under the camera.
-    if (!html.includes("js/native-runtime.js")) {
-      if (/<\/head>/i.test(html)) {
-        html = html.replace(/<\/head>/i, `${nativeRuntimeTag}\n</head>`);
-      } else if (/<body/i.test(html)) {
-        html = html.replace(/<body/i, `${nativeRuntimeTag}\n<body`);
-      } else {
-        html = `${nativeRuntimeTag}\n${html}`;
-      }
+    // The generated iOS bundle is known to be native before JavaScript runs.
+    // Mark it at build time so native-only CSS never depends on bridge timing.
+    html = markNativeDocument(html);
+
+    if (nativeSafeAreaPages.has(pageName)) {
+      html = injectHeadTag(html, nativeSafeAreaTag, "data-ari-native-safe-area");
     }
+
+    if (pageName === "ari-training.html") {
+      html = injectHeadTag(html, nativeTrainingHeaderTag, "data-ari-native-training-header");
+    }
+
+    if (nativeSettingsPages.has(pageName)) {
+      html = injectHeadTag(html, nativeSettingsHeaderTag, "data-ari-native-settings-header");
+    }
+
+    html = injectHeadTag(html, nativeRuntimeTag, "js/native-runtime.js");
 
     await writeFile(htmlFile, html, "utf8");
   }
