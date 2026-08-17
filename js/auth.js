@@ -2,7 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.10.2 — Guarantees every authenticated user has a minimal profiles row
+// V1.10.3 — Guarantees every authenticated user has a minimal profiles row
 // before protected app surfaces become usable. No fake health defaults.
 // Also boots shared workout dialog controls on the Workout Plans surface.
 // =====================================================
@@ -256,7 +256,7 @@ function bootstrapNutritionActionUi() {
 
 function bootstrapNeutralGoalsForNewUsers() {
   if (currentAriSurface() !== "goals") return;
-  appendOrderedScript(ARI_GOALS_NEUTRAL_SCRIPT_ID, "js/goals-neutral-new-user.js?v=1.0.0");
+  appendOrderedScript(ARI_GOALS_NEUTRAL_SCRIPT_ID, "js/goals-neutral-new-user.js?v=1.2.0");
 }
 
 function bootstrapWorkoutDialogFloatingClose() {
