@@ -1,11 +1,11 @@
 /* =====================================================
    ARI XP — Native iPhone Safe Area Guard
-   Version: 1.0.0
+   Version: 1.0.1
    Scope: installed native app only
 
-   Safari already lays these pages out correctly. Capacitor/WKWebView can
-   report env(safe-area-inset-top) as 0 on some native launches while the
-   WebView still extends beneath the iPhone status bar / Dynamic Island.
+   Safari already lays these pages out correctly. The native wrapper can
+   render beneath the iPhone status bar / Dynamic Island when the reported
+   CSS safe-area inset is smaller than the physical camera/status area.
    These native-only minimums preserve the Build 4 header position and keep
    back/home/menu controls comfortably tappable without changing the web UI.
 ===================================================== */
@@ -30,14 +30,14 @@ html[data-ari-native="true"] .ari-preference-settings__topbar {
     ) !important;
 
   min-height:
-    calc(
-      max(56px, calc(env(safe-area-inset-top) + 12px))
-      + 64px
+    max(
+      120px,
+      calc(env(safe-area-inset-top) + 76px)
     ) !important;
 }
 
 /* ARI Training. Preserve the existing header shape; only reserve a reliable
-   camera/status-bar zone above it when the CSS safe-area environment is 0. */
+   camera/status-bar zone above it when the CSS safe-area environment is low. */
 html[data-ari-native="true"] body.ari-training-page .ari-training-header {
   padding-top:
     max(
