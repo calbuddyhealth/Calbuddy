@@ -1,15 +1,15 @@
 // =====================================================
 // ARI XP
 // File: js/goals-neutral-new-user.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
-//   Prevent brand-new accounts from seeing legacy developer/template health
-//   values on My Goals. Existing configured users keep their saved profile.
+//   Prevent accounts from seeing legacy developer/template health values on
+//   My Goals. Supabase is authoritative for authenticated health-profile data.
 //
-// V1.1.0:
+// V1.2.0:
+//   - Clears each legacy fallback when that specific cloud field is blank.
 //   - Treats a profile as configured only when its real health baseline exists.
-//   - Ignores legacy database-only goal/calorie defaults when deciding whether
-//     a new account is configured.
+//   - Ignores historical database-only goal/calorie defaults.
 //   - Clears device health caches for an authenticated blank profile so one
 //     account can never inherit another account's local health information.
 // =====================================================
@@ -39,6 +39,17 @@
     "activity_level"
   ];
 
+  const CLOUD_TO_UI_FIELDS = Object.freeze({
+    age: "age",
+    sex: "sex",
+    weight_lbs: "weight",
+    height_in: "height",
+    activity_level: "activity",
+    goal: "goalMode",
+    target_weight_lbs: "targetWeight",
+    daily_calorie_goal: "dailyCalorieGoalInput"
+  });
+
   const isPresent = value =>
     value !== null && value !== undefined && String(value).trim() !== "";
 
@@ -59,39 +70,59 @@
     element.value = "";
   }
 
-  function neutralizeGoalsUi() {
-    [
-      "age",
-      "sex",
-      "weight",
-      "height",
-      "restingHeartRate",
-      "estimatedMaxHeartRate",
-      "activity",
-      "goalMode",
-      "targetWeight",
-      "dailyCalorieGoalInput"
-    ].forEach(clearInput);
+  function clearMissingCloudFields(profile = {}) {
+    for (const [cloudField, inputId] of Object.entries(CLOUD_TO_UI_FIELDS)) {
+      if (!isPresent(profile?.[cloudField])) {
+        clearInput(inputId);
+      }
+    }
 
     const maxHr = document.getElementById("estimatedMaxHeartRate");
-    if (maxHr) maxHr.dataset.mode = "auto";
+    if (!isPresent(profile?.age) && maxHr?.dataset.mode !== "custom") {
+      maxHr.value = "";
+      maxHr.dataset.mode = "auto";
+    }
 
-    const dailyGoal = document.getElementById("dailyCalorieGoalInput");
-    if (dailyGoal) dailyGoal.dataset.mode = "auto";
+    if (!isPresent(profile?.daily_calorie_goal)) {
+      const dailyGoal = document.getElementById("dailyCalorieGoalInput");
+      if (dailyGoal) dailyGoal.dataset.mode = "auto";
+    }
 
-    const weeklyGroup = document.getElementById("weeklyChangeGroup");
-    if (weeklyGroup) weeklyGroup.style.display = "none";
+    if (!isPresent(profile?.goal)) {
+      const weeklyGroup = document.getElementById("weeklyChangeGroup");
+      if (weeklyGroup) weeklyGroup.style.display = "none";
+    }
+  }
 
+  function resetNeutralUiLabels() {
     const heightConversion = document.getElementById("heightConversion");
-    if (heightConversion) heightConversion.textContent = "Equivalent: —";
+    if (!document.getElementById("height")?.value && heightConversion) {
+      heightConversion.textContent = "Equivalent: —";
+    }
 
     const maxHrSource = document.getElementById("maxHeartRateSource");
     if (maxHrSource) maxHrSource.textContent = "AUTO";
 
     const modeChip = document.getElementById("dailyCalorieGoalModeChip");
-    if (modeChip) modeChip.textContent = "AUTO ESTIMATE";
+    if (modeChip && !document.getElementById("dailyCalorieGoalInput")?.value) {
+      modeChip.textContent = "AUTO ESTIMATE";
+    }
+  }
 
+  function clearCrossAccountHealthCaches() {
     LEGACY_LOCAL_KEYS.forEach(key => localStorage.removeItem(key));
+  }
+
+  function applyAuthoritativeProfile(profile = {}) {
+    const configured = profileIsConfigured(profile);
+
+    clearMissingCloudFields(profile);
+
+    if (!configured) {
+      clearCrossAccountHealthCaches();
+    }
+
+    resetNeutralUiLabels();
 
     try {
       if (typeof window.calculateGoals === "function") {
@@ -101,7 +132,9 @@
       console.warn("Neutral Goals recalculation skipped:", error?.message || error);
     }
 
-    document.documentElement.dataset.ariGoalsNeutralized = "true";
+    document.documentElement.dataset.ariGoalsNeutralized = configured
+      ? "missing-fields"
+      : "new-user";
   }
 
   async function fetchOwnProfile() {
@@ -118,7 +151,7 @@
       .maybeSingle();
 
     if (error) {
-      console.warn("Could not verify new-user Goals profile:", error.message);
+      console.warn("Could not verify Goals profile:", error.message);
       return null;
     }
 
@@ -141,8 +174,9 @@
     const profile = await fetchOwnProfile();
     if (profile === null) return; // Fail safe: never erase when verification fails.
 
+    applyAuthoritativeProfile(profile);
+
     if (!profileIsConfigured(profile)) {
-      neutralizeGoalsUi();
       console.info("[ARI Goals] New account initialized with neutral health fields.");
     }
   }
