@@ -1,14 +1,15 @@
 /* =============================================================
    ARI CIRCLE — CHALLENGE ENTRY VIEWER UX
-   Version: 1.1.0
+   Version: 1.2.0
 
-   Makes long challenge-entry viewers easy to exit on mobile:
+   Keeps the immersive Challenge entry viewer easy to exit on mobile:
    - Persistent floating close button after the header scrolls away
    - Tap the blurred backdrop to close
    - Swipe down from the top of the entry sheet to dismiss
-   - Build 5 single-entry guard for non-goal challenges
-============================================================= */
 
+   Build 5 entry eligibility now lives in challenges.js and Supabase, so this
+   file intentionally contains no duplicate challenge-list or entry-lock RPC.
+============================================================= */
 (() => {
   "use strict";
 
@@ -97,17 +98,12 @@
       floatingClose.classList.remove("is-visible");
       return;
     }
-
-    // The built-in X is still available at the top. Only introduce the
-    // viewport-level X after the user has actually scrolled it away.
     floatingClose.classList.toggle("is-visible", card.scrollTop > 72);
   };
 
   card.addEventListener("scroll", syncFloatingClose, { passive: true });
 
   dialog.addEventListener("click", (event) => {
-    // A click directly on the dialog element is the blurred backdrop,
-    // not the white entry card.
     if (event.target === dialog) closeViewer();
   });
 
@@ -164,129 +160,13 @@
     dragDistance = 0;
   }, { passive: true });
 
-  // Keep state correct when challenges.js opens the native <dialog>.
+  card.addEventListener("touchcancel", () => {
+    dragging = false;
+    dragDistance = 0;
+    dialog.classList.remove("is-swipe-dismissing");
+    card.style.transform = "";
+  }, { passive: true });
+
   const observer = new MutationObserver(syncFloatingClose);
   observer.observe(dialog, { attributes: true, attributeFilter: ["open"] });
-})();
-
-/* =============================================================
-   BUILD 5 — SINGLE CHALLENGE ENTRY GUARD
-
-   The database is authoritative. This browser layer mirrors that rule so a
-   participant who has already submitted sees a final state instead of an
-   "Update Entry" path. viewer_completed_at intentionally remains effective
-   after an entry is deleted, preventing delete-and-resubmit bypasses.
-============================================================= */
-(() => {
-  "use strict";
-
-  const list = document.getElementById("challengeList");
-  if (!list) return;
-
-  const client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase;
-  if (!client?.rpc) return;
-
-  const lockedChallengeIds = new Set();
-  let syncTimer = 0;
-  let syncing = false;
-
-  const showSingleEntryToast = () => {
-    const toast = document.getElementById("challengeToast");
-    if (!toast) return;
-    toast.textContent = "Entry submitted. Each challenge allows one final entry.";
-    toast.hidden = false;
-    window.clearTimeout(showSingleEntryToast.timer);
-    showSingleEntryToast.timer = window.setTimeout(() => { toast.hidden = true; }, 3600);
-  };
-
-  const lockButton = (button) => {
-    if (!button) return;
-    if (
-      button.dataset.entrySubmitted === "true" &&
-      String(button.textContent || "").trim() === "Entry Submitted"
-    ) return;
-    button.textContent = "Entry Submitted";
-    button.dataset.entrySubmitted = "true";
-    button.setAttribute("aria-disabled", "true");
-    button.classList.add("is-entry-submitted");
-  };
-
-  const unlockButton = (button) => {
-    if (!button || button.dataset.entrySubmitted !== "true") return;
-    button.textContent = "Post Entry";
-    delete button.dataset.entrySubmitted;
-    button.removeAttribute("aria-disabled");
-    button.classList.remove("is-entry-submitted");
-  };
-
-  const paintCards = () => {
-    list.querySelectorAll(".challenge-card[data-challenge-id]").forEach((card) => {
-      const button = card.querySelector("[data-primary]");
-      if (!button) return;
-      const label = String(button.textContent || "").trim();
-      const isGoalAction = label === "Join Challenge" || label === "Add Progress";
-      if (isGoalAction) return;
-      if (lockedChallengeIds.has(card.dataset.challengeId)) lockButton(button);
-      else if (label === "Update Entry") lockButton(button);
-      else unlockButton(button);
-    });
-  };
-
-  const syncLocks = async () => {
-    if (syncing) return;
-    syncing = true;
-    try {
-      const { data, error } = await client.rpc("ari_circle_challenge_list_v2", { result_limit: 70 });
-      if (error) throw error;
-      lockedChallengeIds.clear();
-      (Array.isArray(data) ? data : []).forEach((challenge) => {
-        if (challenge?.challenge_mode === "goal") return;
-        if (challenge?.viewer_has_entry || challenge?.viewer_completed_at) {
-          lockedChallengeIds.add(String(challenge.challenge_id));
-        }
-      });
-      paintCards();
-    } catch (error) {
-      console.warn("ARI Circle single-entry state unavailable:", error);
-      // Even if the refresh fails, never expose the legacy update affordance.
-      list.querySelectorAll("[data-primary]").forEach((button) => {
-        if (String(button.textContent || "").trim() === "Update Entry") lockButton(button);
-      });
-    } finally {
-      syncing = false;
-    }
-  };
-
-  const scheduleSync = () => {
-    window.clearTimeout(syncTimer);
-    syncTimer = window.setTimeout(syncLocks, 80);
-  };
-
-  // Stop the legacy challenges.js "Update Entry" path before its target-level
-  // click handler runs. Database enforcement remains the final authority.
-  document.addEventListener("click", (event) => {
-    const button = event.target?.closest?.(".challenge-card [data-primary]");
-    if (!button) return;
-    const card = button.closest(".challenge-card[data-challenge-id]");
-    const id = String(card?.dataset?.challengeId || "");
-    if (!id) return;
-
-    if (button.dataset.entrySubmitted === "true" || lockedChallengeIds.has(id)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      lockButton(button);
-      showSingleEntryToast();
-    }
-  }, true);
-
-  // If challenges.js writes the legacy label while cards are being rebuilt,
-  // immediately replace it and then reconcile against the server state.
-  const observer = new MutationObserver(() => {
-    paintCards();
-    scheduleSync();
-  });
-  observer.observe(list, { childList: true, subtree: true });
-
-  paintCards();
-  scheduleSync();
 })();
