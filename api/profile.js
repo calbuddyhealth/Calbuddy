@@ -1,5 +1,5 @@
 // ARI XP Profile + Daily Account Maintenance API
-// V3.4.0
+// V3.5.0
 
 const CIRCLE_MEDIA_BUCKETS = Object.freeze([
   "ari-circle-media",
@@ -8,7 +8,10 @@ const CIRCLE_MEDIA_BUCKETS = Object.freeze([
 ]);
 
 const OPENAI_MODERATION_URL = "https://api.openai.com/v1/moderations";
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const OPENAI_MODERATION_MODEL = "omni-moderation-latest";
+const ADULT_CONTEXT_MODEL = process.env.ARI_ADULT_CONTENT_MODEL || "gpt-5-mini";
+const ADULT_SEXUAL_FALLBACK_BLOCK_SCORE = 0.97;
 const MAX_MODERATION_TEXT = 8000;
 const MAX_MODERATION_IMAGES = 4;
 const MAX_MODERATION_IMAGE_URL_LENGTH = 1_500_000;
@@ -91,6 +94,48 @@ function userHasCurrentAiConsent(user) {
   );
 }
 
+function ageBandForDate(value) {
+  const dateText = cleanText(value, 32);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return null;
+
+  const [year, month, day] = dateText.split("-").map(Number);
+  const today = new Date();
+  let age = today.getUTCFullYear() - year;
+  const monthDelta = (today.getUTCMonth() + 1) - month;
+  if (monthDelta < 0 || (monthDelta === 0 && today.getUTCDate() < day)) age -= 1;
+
+  if (!Number.isFinite(age) || age < 0) return null;
+  if (age < 13) return "under_13";
+  if (age < 18) return "teen";
+  return "adult";
+}
+
+async function getCircleAgeBand(userId) {
+  const id = normalizeUuid(userId);
+  if (!id) return null;
+
+  try {
+    const params = new URLSearchParams({
+      select: "date_of_birth",
+      user_id: `eq.${id}`,
+      limit: "1"
+    });
+    const response = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/ari_account_state?${params.toString()}`,
+      { headers: serverHeaders() }
+    );
+    const data = await readJson(response);
+    if (!response.ok) {
+      console.warn("[ARI Circle Age Band Lookup Failed]", response.status);
+      return null;
+    }
+    return ageBandForDate(Array.isArray(data) ? data[0]?.date_of_birth : null);
+  } catch (error) {
+    console.warn("[ARI Circle Age Band Lookup Error]", error?.message || error);
+    return null;
+  }
+}
+
 function isAllowedModerationImageUrl(value) {
   const url = cleanText(value, MAX_MODERATION_IMAGE_URL_LENGTH);
   if (!url) return false;
@@ -115,7 +160,199 @@ function normalizeModerationImages(values) {
     .slice(0, MAX_MODERATION_IMAGES);
 }
 
-async function moderateCircleContent({ scope, text, imageUrls } = {}) {
+function extractResponseText(data) {
+  const parts = [];
+  for (const item of Array.isArray(data?.output) ? data.output : []) {
+    for (const content of Array.isArray(item?.content) ? item.content : []) {
+      if (content?.type === "output_text" && typeof content.text === "string") {
+        parts.push(content.text);
+      }
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+async function classifyAdultSexualContext({ text, imageUrls, apiKey } = {}) {
+  const safeText = cleanText(text, MAX_MODERATION_TEXT);
+  const safeImages = normalizeModerationImages(imageUrls).slice(0, 1);
+  const content = [
+    {
+      type: "input_text",
+      text: [
+        "Classify this 18+ social-network post under ARI Circle's adult content policy.",
+        "ALLOW ordinary adult expression even when it is sexy, revealing, or contains non-explicit nudity.",
+        "ALLOW bikinis, swimwear, shirtless adults, lingerie/editorial fashion, sports bras, sheer/see-through fashion, revealing outfits, cleavage, provocative modeling poses, body-positive content, and non-explicit adult nudity.",
+        "BLOCK only explicit sexual activity or sex acts, masturbation, sexual services/solicitation, non-consensual or exploitative sexual material, or sexualized/nude content where a depicted subject is a minor or reasonably appears under 18.",
+        "Do not treat visible skin, attractiveness, posing, swimwear, or fashion by itself as harmful.",
+        safeText ? `Post text: ${safeText}` : "Post text: (none)"
+      ].join("\n")
+    }
+  ];
+
+  for (const url of safeImages) {
+    content.push({ type: "input_image", image_url: url, detail: "low" });
+  }
+
+  let response;
+  try {
+    response = await fetch(OPENAI_RESPONSES_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: ADULT_CONTEXT_MODEL,
+        store: false,
+        input: [{ role: "user", content }],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "ari_adult_content_decision",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                decision: { type: "string", enum: ["allow", "block"] },
+                reason: {
+                  type: "string",
+                  enum: [
+                    "non_explicit_adult_expression",
+                    "adult_nudity_or_suggestive",
+                    "explicit_sexual_activity",
+                    "sexual_solicitation",
+                    "nonconsensual_or_exploitative",
+                    "sexualized_minor_or_uncertain_age",
+                    "unclear"
+                  ]
+                },
+                sensitive: { type: "boolean" },
+                confidence: { type: "number", minimum: 0, maximum: 1 }
+              },
+              required: ["decision", "reason", "sensitive", "confidence"]
+            }
+          }
+        }
+      })
+    });
+  } catch (error) {
+    console.warn("[ARI Adult Context Network Error]", error?.message || error);
+    return null;
+  }
+
+  const data = await readJson(response);
+  if (!response.ok) {
+    console.warn("[ARI Adult Context Provider Error]", {
+      status: response.status,
+      error: data?.error?.message || data?.error || "Adult context request failed"
+    });
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(extractResponseText(data));
+    if (!["allow", "block"].includes(parsed?.decision)) return null;
+    return {
+      decision: parsed.decision,
+      reason: cleanText(parsed.reason, 80) || "unclear",
+      sensitive: parsed.sensitive === true,
+      confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : 0
+    };
+  } catch (error) {
+    console.warn("[ARI Adult Context Parse Error]", error?.message || error);
+    return null;
+  }
+}
+
+async function resolveModerationDecision({ result, ageBand, text, imageUrls, apiKey } = {}) {
+  const blockedCategories = Object.entries(result?.categories || {})
+    .filter(([, flagged]) => flagged === true)
+    .map(([category]) => category)
+    .slice(0, 20);
+  const categoryScores = result?.category_scores && typeof result.category_scores === "object"
+    ? result.category_scores
+    : {};
+
+  if (result?.flagged !== true) {
+    return {
+      allowed: true,
+      blockedCategories,
+      categoryScores,
+      decision: "allow",
+      sensitive: false,
+      adultContextReason: null
+    };
+  }
+
+  // Teen and unverified accounts stay strict. Any provider flag blocks.
+  if (ageBand !== "adult") {
+    return {
+      allowed: false,
+      blockedCategories,
+      categoryScores,
+      decision: "block_strict",
+      sensitive: false,
+      adultContextReason: null
+    };
+  }
+
+  // Adults only receive a contextual exception when "sexual" is the sole
+  // provider category. Hate, threats, violence, self-harm, illicit content,
+  // sexual/minors and every other flagged category remain blocked.
+  const nonSexualBlocks = blockedCategories.filter((category) => category !== "sexual");
+  if (nonSexualBlocks.length || !blockedCategories.includes("sexual")) {
+    return {
+      allowed: false,
+      blockedCategories,
+      categoryScores,
+      decision: "block_nonsexual_safety_category",
+      sensitive: false,
+      adultContextReason: null
+    };
+  }
+
+  const sexualScore = Number(categoryScores?.sexual || 0);
+  const contextual = await classifyAdultSexualContext({ text, imageUrls, apiKey });
+  if (contextual?.decision === "allow") {
+    return {
+      allowed: true,
+      blockedCategories: [],
+      providerFlaggedCategories: blockedCategories,
+      categoryScores,
+      decision: "allow_adult_context",
+      sensitive: contextual.sensitive === true,
+      adultContextReason: contextual.reason
+    };
+  }
+
+  if (contextual?.decision === "block" && contextual.reason !== "unclear") {
+    return {
+      allowed: false,
+      blockedCategories,
+      categoryScores,
+      decision: "block_adult_explicit",
+      sensitive: contextual.sensitive === true,
+      adultContextReason: contextual.reason
+    };
+  }
+
+  // If the contextual classifier is unavailable, do not make normal adult
+  // swimwear/fashion users pay for a provider outage. A very high sexual score
+  // still fails closed as a likely explicit-content case.
+  const fallbackBlocked = sexualScore >= ADULT_SEXUAL_FALLBACK_BLOCK_SCORE;
+  return {
+    allowed: !fallbackBlocked,
+    blockedCategories: fallbackBlocked ? blockedCategories : [],
+    providerFlaggedCategories: blockedCategories,
+    categoryScores,
+    decision: fallbackBlocked ? "block_adult_fallback_high_score" : "allow_adult_fallback",
+    sensitive: true,
+    adultContextReason: "context_classifier_unavailable"
+  };
+}
+
+async function moderateCircleContent({ scope, text, imageUrls, ageBand } = {}) {
   const apiKey = cleanText(process.env.OPENAI_API_KEY, 2000);
   if (!apiKey) {
     return {
@@ -153,6 +390,9 @@ async function moderateCircleContent({ scope, text, imageUrls } = {}) {
         allowed: true,
         scope: safeScope,
         model: OPENAI_MODERATION_MODEL,
+        age_band: ageBand || "unverified",
+        decision: "allow_empty",
+        sensitive: false,
         blocked_categories: []
       }
     };
@@ -206,19 +446,28 @@ async function moderateCircleContent({ scope, text, imageUrls } = {}) {
     };
   }
 
-  const blockedCategories = Object.entries(result.categories || {})
-    .filter(([, flagged]) => flagged === true)
-    .map(([category]) => category)
-    .slice(0, 20);
+  const decision = await resolveModerationDecision({
+    result,
+    ageBand,
+    text: safeText,
+    imageUrls: safeImages,
+    apiKey
+  });
 
   return {
     status: 200,
     body: {
       success: true,
-      allowed: result.flagged !== true,
+      allowed: decision.allowed === true,
       scope: safeScope,
       model: data?.model || OPENAI_MODERATION_MODEL,
-      blocked_categories: blockedCategories
+      age_band: ageBand || "unverified",
+      decision: decision.decision,
+      sensitive: decision.sensitive === true,
+      adult_context_reason: decision.adultContextReason || undefined,
+      blocked_categories: decision.blockedCategories || [],
+      provider_flagged_categories: decision.providerFlaggedCategories || undefined,
+      category_scores: decision.categoryScores || {}
     }
   };
 }
@@ -572,10 +821,12 @@ async function handleProfileRequest(req, res) {
       });
     }
 
+    const ageBand = await getCircleAgeBand(user.id);
     const moderation = await moderateCircleContent({
       scope: body.scope,
       text: body.text,
-      imageUrls: body.image_urls
+      imageUrls: body.image_urls,
+      ageBand
     });
 
     return res.status(moderation.status).json(moderation.body);
