@@ -1,4 +1,4 @@
-/* ARI XP — Blocked Users v1.0.0 */
+/* ARI XP — Blocked Users v1.0.1 */
 
 (() => {
   "use strict";
@@ -144,7 +144,7 @@
     const name = displayName(row);
     $("unblockDialogTitle").textContent = `Unblock ${name}?`;
     $("unblockDialogText").textContent =
-      "This removes your block and lets normal ARI Circle visibility rules apply again. It does not restore a previous Circle connection, request, or conversation.";
+      "This removes your block and lets normal ARI Circle visibility rules apply again. It does not restore a previous Circle connection or request.";
 
     const dialog = $("unblockDialog");
     if (dialog?.showModal && !dialog.open) dialog.showModal();
