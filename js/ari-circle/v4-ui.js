@@ -1,16 +1,17 @@
 /* =============================================================
    ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.9.0
+   Version: 4.9.1
 
-   V4.9.0:
-   - Adds the soft glass primary navigation shared across Circle.
+   V4.9.1:
+   - Loads Challenge video Safari recovery on the Challenges page.
+   - Keeps the soft glass primary navigation shared across Circle.
    - Normalizes tab order to Feed · Buddies · Challenges · Profile.
    - Keeps unified menus, messages, profile polish and feed modules.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.9.0";
+  const VERSION = "4.9.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const PRIMARY_NAV_STYLE_ID = "ari-circle-primary-nav-style";
@@ -24,6 +25,7 @@
   let momentRepliesLoaded = false;
   let launchSocialLoaded = false;
   let primaryNavLoaded = false;
+  let challengeVideoFixLoaded = false;
   let outsideMenuBound = false;
 
   const $ = (id) => document.getElementById(id);
@@ -243,6 +245,13 @@
       import("/js/ari-circle/v4-flow-fixes.js?v=1.2.1").catch((error) => {
         flowFixesLoaded = false;
         console.warn("ARI Circle flow fixes failed to load:", error);
+      });
+    }
+    if (!challengeVideoFixLoaded && document.querySelector(".challenge-page")) {
+      challengeVideoFixLoaded = true;
+      import("/js/ari-circle/challenges/challenge-video-web-fix.js?v=1.0.0").catch((error) => {
+        challengeVideoFixLoaded = false;
+        console.warn("ARI Circle Challenge video recovery failed to load:", error);
       });
     }
     if (!buddiesLoaded && document.querySelector(".partner-page")) {
