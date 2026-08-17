@@ -1,7 +1,29 @@
-/* ARI XP — Blocked Users v1.0.0 */
+/* ARI XP — Blocked Users v1.0.1 */
 
 .ari-blocked-users-page .ari-account-page {
   min-height: 100vh;
+  padding-top: max(24px, calc(env(safe-area-inset-top) + 12px));
+}
+
+.ari-blocked-users-page .ari-account-header {
+  grid-template-columns: 56px minmax(0, 1fr) 80px;
+  gap: 10px;
+  min-height: 58px;
+  margin-bottom: 20px;
+}
+
+.ari-blocked-users-page .ari-account-header .ari-icon-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 19px;
+}
+
+.ari-blocked-users-page .ari-account-header .ari-header-button {
+  width: 80px;
+  min-width: 80px;
+  min-height: 54px;
+  padding: 0 12px;
+  border-radius: 19px;
 }
 
 .ari-blocked-symbol {
