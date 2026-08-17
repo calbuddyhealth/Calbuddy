@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — SOFT PRIMARY NAV
-   Version: 1.0.0
+   Version: 1.0.1
    Feed · Buddies · Challenges · Profile
 ============================================================= */
 
@@ -120,6 +120,19 @@
 
 .circle-soft-primary-tab:active {
   transform: scale(0.985) !important;
+}
+
+@media (max-width: 680px) {
+  body.ari-circle-page .circle-v4-profile-header {
+    min-height: 82px !important;
+    padding-top: max(18px, calc(env(safe-area-inset-top) + 12px)) !important;
+    padding-bottom: 10px !important;
+  }
+
+  body.ari-circle-page .circle-soft-primary-nav {
+    top: max(82px, calc(64px + env(safe-area-inset-top))) !important;
+    margin-top: 10px !important;
+  }
 }
 
 @media (max-width: 410px) {
