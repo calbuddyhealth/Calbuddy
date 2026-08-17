@@ -1,16 +1,16 @@
 /* =====================================================
    ARI XP — Native Training Header
-   Version: 1.0.0
+   Version: 1.1.0
    Scope: installed native app only
 
-   Keeps the Training header below iPhone camera / Dynamic Island,
-   preserves a single-row layout, and gives both navigation controls
-   stronger physical presence without changing workout content.
+   iOS owns the status-bar / Dynamic Island inset at the UIScrollView layer.
+   These rules preserve the Build 4 Training header size, alignment, and tap
+   targets inside that safe content area without adding a second top inset.
 ===================================================== */
 
 html[data-ari-native="true"] body.ari-training-page .ari-training-header {
   padding:
-    max(8px, env(safe-area-inset-top))
+    8px
     0
     12px;
 
