@@ -6,6 +6,7 @@ import path from "node:path";
 const root = process.cwd();
 const runtime = fs.readFileSync(path.join(root, "js/native-runtime.js"), "utf8");
 const mobileBuild = fs.readFileSync(path.join(root, "scripts/build-mobile-web.mjs"), "utf8");
+const nativeSafeArea = fs.readFileSync(path.join(root, "assets/css/native-safe-area.css"), "utf8");
 const trainingHeader = fs.readFileSync(path.join(root, "assets/css/ari-training-native-header.css"), "utf8");
 const settingsHeader = fs.readFileSync(path.join(root, "assets/css/native-settings-header.css"), "utf8");
 const sharedHeader = fs.readFileSync(path.join(root, "assets/css/header.css"), "utf8");
@@ -21,17 +22,45 @@ test("native runtime does not permanently fall back before Capacitor is ready", 
   assert.match(runtime, /installNativeRuntime\(\)/);
 });
 
+test("native runtime loads one final camera safe-area guard", () => {
+  assert.match(runtime, /native-safe-area\.css\?v=1\.0\.0/);
+  assert.match(runtime, /ari-native-safe-area/);
+  assert.match(nativeSafeArea, /html\[data-ari-native="true"\]/);
+  assert.match(nativeSafeArea, /56px/);
+  assert.match(nativeSafeArea, /env\(safe-area-inset-top\)/);
+});
+
 test("Training native header protection remains wired", () => {
   assert.match(runtime, /ari-training-native-header\.css\?v=1\.0\.1/);
   assert.match(trainingHeader, /env\(safe-area-inset-top\)/);
   assert.match(trainingHeader, /\.ari-training-header/);
+  assert.match(nativeSafeArea, /body\.ari-training-page \.ari-training-header/);
 });
 
-test("Account and Preferences native header protection remains wired", () => {
+test("Account-family and Preferences native header protection remains wired", () => {
   assert.match(runtime, /native-settings-header\.css\?v=1\.0\.1/);
+  for (const page of [
+    "account",
+    "ari-preference-settings",
+    "privacy-memory",
+    "notification-settings",
+    "help-safety",
+    "owner-moderation",
+    "support-ari",
+    "blocked-users",
+    "community-guidelines"
+  ]) {
+    assert.match(runtime, new RegExp(page.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
   assert.match(settingsHeader, /\.ari-account-header/);
   assert.match(settingsHeader, /\.ari-preference-settings__topbar/);
-  assert.match(settingsHeader, /env\(safe-area-inset-top\)/);
+  assert.match(nativeSafeArea, /\.ari-account-page/);
+  assert.match(nativeSafeArea, /\.ari-preference-settings__topbar/);
+});
+
+test("Nutrition receives native-only top camera clearance", () => {
+  assert.match(nativeSafeArea, /main#ariNutritionApp/);
+  assert.match(nativeSafeArea, /max\([\s\S]*56px[\s\S]*env\(safe-area-inset-top\)/);
 });
 
 test("Build 4 shared Home header keeps its iPhone safe area", () => {
@@ -39,7 +68,7 @@ test("Build 4 shared Home header keeps its iPhone safe area", () => {
   assert.match(sharedHeader, /max\(8px, env\(safe-area-inset-top\)\)/);
 });
 
-test("Build 4 Nutrition header keeps its iPhone safe area", () => {
+test("Build 4 Nutrition header keeps its web safe area", () => {
   assert.match(nutrition, /main#ariNutritionApp/);
   assert.match(nutrition, /\.ari-nutrition-header/);
   assert.match(nutrition, /max\(18px, env\(safe-area-inset-top\)\)/);
@@ -64,6 +93,8 @@ test("ARI Circle profile header and primary navigation stay below the iPhone saf
   assert.match(circlePrimaryNav, /calc\(64px \+ env\(safe-area-inset-top\)\)/);
 });
 
-test("mobile bundle injects the current native runtime", () => {
-  assert.match(mobileBuild, /native-runtime\.js\?v=1\.4\.0/);
+test("mobile bundle prepares safe-area viewport before native JavaScript", () => {
+  assert.match(mobileBuild, /function ensureNativeViewportFitCover\(/);
+  assert.match(mobileBuild, /viewport-fit=cover/);
+  assert.match(mobileBuild, /native-runtime\.js\?v=1\.5\.0/);
 });
