@@ -1,4 +1,4 @@
-// ARI XP — native runtime bridge v1.4.0
+// ARI XP — native runtime bridge v1.5.0
 (() => {
   "use strict";
 
@@ -58,7 +58,9 @@
       );
     }
 
-    if (/(^|\/)(account|ari-preference-settings)\.html$/i.test(pathname)) {
+    if (
+      /(^|\/)(account|ari-preference-settings|privacy-memory|notification-settings|help-safety|owner-moderation|support-ari|blocked-users|community-guidelines)\.html$/i.test(pathname)
+    ) {
       addNativeStylesheet(
         "assets/css/native-settings-header.css?v=1.0.1",
         "ari-native-settings-header"
@@ -170,6 +172,15 @@
     document.documentElement.dataset.ariNative = "true";
 
     installPageSpecificNativeUi();
+
+    // This stylesheet is deliberately appended after the page-specific native
+    // styles. It owns only the top camera/status-bar clearance, so existing
+    // Build 4 header sizing and visual design remain intact.
+    addNativeStylesheet(
+      "assets/css/native-safe-area.css?v=1.0.0",
+      "ari-native-safe-area"
+    );
+
     patchNativeNetworking();
 
     return true;
