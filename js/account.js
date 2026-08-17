@@ -1,4 +1,4 @@
-/* ARI XP — My Account v3.3.0 */
+/* ARI XP — My Account v3.4.0 */
 
 (() => {
   "use strict";
@@ -94,10 +94,52 @@
     $("restoreAccountButton").textContent = "Reactivate account";
   }
 
+  async function loadOwnerSafetySummary() {
+    const link = $("ownerModerationLink");
+    if (!link) return;
+
+    const subtitle = link.querySelector(".ari-action-copy small");
+    const pill = link.querySelector(".ari-owner-pill");
+
+    try {
+      const { data, error } = await window.calbuddySupabase.rpc("ari_admin_teen_safety_summary");
+      if (error || data?.authorized !== true) throw error || new Error("Owner access required");
+
+      const open = Math.max(0, Number(data.open || 0));
+      const high = Math.max(0, Number(data.high_priority || 0));
+
+      if (subtitle) {
+        subtitle.textContent = high > 0
+          ? `${open.toLocaleString()} teen safety open · ${high.toLocaleString()} high priority`
+          : open > 0
+            ? `${open.toLocaleString()} teen safety event${open === 1 ? "" : "s"} open`
+            : "Reports & Teen Safety queue clear";
+      }
+
+      if (pill) {
+        pill.textContent = open > 0 ? `OWNER · ${Math.min(open, 99)}${open > 99 ? "+" : ""}` : "OWNER";
+        pill.dataset.alert = high > 0 ? "high" : open > 0 ? "open" : "clear";
+      }
+
+      link.setAttribute(
+        "aria-label",
+        high > 0
+          ? `Owner moderation, ${open} teen safety events open, ${high} high priority`
+          : `Owner moderation, ${open} teen safety events open`
+      );
+    } catch (error) {
+      console.warn("Owner teen safety summary unavailable:", error?.message || error);
+      if (subtitle) subtitle.textContent = "Review reports & Teen Safety";
+    }
+  }
+
   async function checkOwnerAccess() {
     try {
       const { data, error } = await window.calbuddySupabase.rpc("is_ari_admin");
-      if (!error && data === true) $("ownerModerationLink").hidden = false;
+      if (!error && data === true) {
+        $("ownerModerationLink").hidden = false;
+        await loadOwnerSafetySummary();
+      }
     } catch (error) {
       console.warn("Owner moderation check failed:", error);
     }
