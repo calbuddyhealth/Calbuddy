@@ -1,6 +1,6 @@
 /* =============================================================
    ARI XP — ARI CIRCLE CONTENT MODERATION
-   Version: 1.2.0
+   Version: 1.3.0
 
    Pre-publication safety screening for ARI Circle UGC.
    Covers Feed, comments, Moments, Messages, and Challenges.
@@ -8,7 +8,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const PROFILE_API = "/api/profile";
   const CONSENT_SCRIPT = "js/ai-processing-consent.js?v=1.1.0";
   const AI_CONSENT_KEY = "ari_ai_processing_consent";
@@ -59,7 +59,23 @@
       mediaInputId: "challengeCoverInput",
       mediaBucket: "ari-circle-challenge-media"
     }),
+    ari_circle_challenge_create_v3: Object.freeze({
+      scope: "challenge_create",
+      textKeys: ["requested_title", "requested_description"],
+      mediaPathKey: "requested_cover_media_path",
+      mediaTypeKey: "requested_cover_media_type",
+      mediaInputId: "challengeCoverInput",
+      mediaBucket: "ari-circle-challenge-media"
+    }),
     ari_circle_challenge_submit_entry: Object.freeze({
+      scope: "challenge_entry",
+      textKeys: ["requested_caption"],
+      mediaPathKey: "requested_media_path",
+      mediaTypeKey: "requested_media_type",
+      mediaInputId: "challengeEntryMediaInput",
+      mediaBucket: "ari-circle-challenge-media"
+    }),
+    ari_circle_challenge_submit_entry_v3: Object.freeze({
       scope: "challenge_entry",
       textKeys: ["requested_caption"],
       mediaPathKey: "requested_media_path",
@@ -105,11 +121,18 @@
     return { message, code, details: null, hint: null };
   }
 
+  function rememberFile(inputId, file) {
+    const id = clean(inputId);
+    if (!id || !moderatedInputIds.has(id)) return false;
+    state.selectedMediaFiles.set(id, file || null);
+    return true;
+  }
+
   function rememberSelectedMedia(event) {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
     if (!moderatedInputIds.has(input.id)) return;
-    state.selectedMediaFiles.set(input.id, input.files?.[0] || null);
+    rememberFile(input.id, input.files?.[0] || null);
   }
 
   function ensureConsentController() {
@@ -423,6 +446,7 @@
   window.AriCircleContentModeration = Object.freeze({
     version: VERSION,
     moderate: requestModeration,
+    rememberFile,
     refresh: patchRpc,
     isReady: () => state.patched === true
   });
