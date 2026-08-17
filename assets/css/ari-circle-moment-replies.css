@@ -1,0 +1,132 @@
+/* =============================================================
+   ARI CIRCLE — MOMENT REPLIES
+   Version: 1.0.0
+
+   Private Facebook-style Moment replies:
+   - Bottom message field inside the Moment viewer
+   - Quick emoji reactions
+   - Replies/reactions are delivered through ARI Circle Messages
+============================================================= */
+
+.ari-moment-replybar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: max(10px, calc(env(safe-area-inset-bottom) + 8px));
+  z-index: 9;
+}
+
+.ari-moment-replybar[hidden] {
+  display: none !important;
+}
+
+.ari-moment-replybar__form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.ari-moment-replybar__input-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  background: rgba(24,28,38,.68);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 10px 32px rgba(0,0,0,.22);
+}
+
+.ari-moment-replybar__input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 16px;
+  border: 0;
+  outline: 0;
+  color: #fff;
+  background: transparent;
+  font: 600 15px/1.2 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-moment-replybar__input::placeholder {
+  color: rgba(255,255,255,.78);
+}
+
+.ari-moment-replybar__send {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  margin-right: 3px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg,#2358ff,#8453ff);
+  box-shadow: 0 6px 18px rgba(35,88,255,.34);
+  font: 900 18px/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-moment-replybar__reaction {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 50%;
+  background: rgba(15,18,28,.62);
+  -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(15px);
+  box-shadow: 0 8px 26px rgba(0,0,0,.2);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.ari-moment-replybar__reaction:active,
+.ari-moment-replybar__send:active {
+  transform: scale(.94);
+}
+
+.ari-moment-replybar.is-busy {
+  pointer-events: none;
+  opacity: .64;
+}
+
+.feed-moment-viewer__caption {
+  bottom: max(116px, calc(env(safe-area-inset-bottom) + 104px)) !important;
+}
+
+@media (max-width: 420px) {
+  .ari-moment-replybar {
+    left: 8px;
+    right: 8px;
+  }
+
+  .ari-moment-replybar__form {
+    gap: 6px;
+  }
+
+  .ari-moment-replybar__reaction {
+    width: 42px;
+    height: 42px;
+    font-size: 22px;
+  }
+
+  .ari-moment-replybar__input-wrap {
+    height: 46px;
+  }
+}
+
+@media (max-width: 360px) {
+  .ari-moment-replybar__reaction:nth-of-type(3) {
+    display: none;
+  }
+}
