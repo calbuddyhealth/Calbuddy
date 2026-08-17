@@ -44,7 +44,7 @@ const allowedRootExtensions = new Set([
   ".ttf"
 ]);
 
-const nativeRuntimeTag = '<script src="js/native-runtime.js?v=1.0.0"></script>';
+const nativeRuntimeTag = '<script src="js/native-runtime.js?v=1.4.0"></script>';
 
 async function copyFrontend() {
   await rm(out, { recursive: true, force: true });
