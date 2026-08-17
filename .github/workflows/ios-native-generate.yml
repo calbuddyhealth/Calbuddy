@@ -3,14 +3,21 @@ name: ARI XP iOS native validation
 on:
   push:
     branches:
+      - main
       - Ari-rebirth-experiment
     paths:
       - .github/workflows/ios-native-generate.yml
       - package.json
       - package-lock.json
       - capacitor.config.json
+      - scripts/**
       - ios/**
-      - www/**
+      - assets/**
+      - js/**
+      - "*.html"
+      - "*.js"
+      - "*.css"
+      - "*.json"
   pull_request:
     branches:
       - main
@@ -19,8 +26,14 @@ on:
       - package.json
       - package-lock.json
       - capacitor.config.json
+      - scripts/**
       - ios/**
-      - www/**
+      - assets/**
+      - js/**
+      - "*.html"
+      - "*.js"
+      - "*.css"
+      - "*.json"
   workflow_dispatch:
 
 permissions:
@@ -29,7 +42,7 @@ permissions:
 jobs:
   validate-ios:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -41,15 +54,28 @@ jobs:
           node-version: "22"
           cache: npm
 
+      - name: Verify App Store toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iPhoneOS SDK: ${SDK_VERSION}"
+          SDK_MAJOR="${SDK_VERSION%%.*}"
+          if [ "${SDK_MAJOR}" -lt 26 ]; then
+            echo "App Store Connect requires the iOS 26 SDK or later."
+            exit 1
+          fi
+
       - name: Install Capacitor dependencies
         run: npm ci
 
-      - name: Sync iOS project
+      - name: Sync current web source into iOS
         run: |
           npm run ios:sync
           npm run cap:doctor
 
-      - name: Verify ARI XP iOS privacy purpose strings
+      - name: Verify Build 5 configuration and privacy purpose strings
         shell: bash
         run: |
           set -euo pipefail
@@ -60,13 +86,30 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST"
+
+          SETTINGS="$(xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -showBuildSettings)"
+          echo "$SETTINGS" | grep -q "CURRENT_PROJECT_VERSION = 5"
+          echo "$SETTINGS" | grep -q "MARKETING_VERSION = 1.0"
+          echo "$SETTINGS" | grep -q "PRODUCT_BUNDLE_IDENTIFIER = com.arixp.app"
 
       - name: Validate iOS simulator build
         run: |
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme App \
+            -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Validate App Store release build
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             build
