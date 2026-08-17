@@ -1,0 +1,70 @@
+/* =====================================================
+   ARI XP — Native iPhone Safe Area Guard
+   Version: 1.0.0
+   Scope: installed native app only
+
+   Safari already lays these pages out correctly. Capacitor/WKWebView can
+   report env(safe-area-inset-top) as 0 on some native launches while the
+   WebView still extends beneath the iPhone status bar / Dynamic Island.
+   These native-only minimums preserve the Build 4 header position and keep
+   back/home/menu controls comfortably tappable without changing the web UI.
+===================================================== */
+
+/* Account-family pages:
+   My Account, Privacy & Ari Memory, Notifications, Help & Safety,
+   Owner Moderation, Support, Blocked Users, and Community Guidelines. */
+html[data-ari-native="true"] .ari-account-page {
+  padding-top:
+    max(
+      56px,
+      calc(env(safe-area-inset-top) + 12px)
+    ) !important;
+}
+
+/* Personalize Ari / RE Preferences. */
+html[data-ari-native="true"] .ari-preference-settings__topbar {
+  padding-top:
+    max(
+      56px,
+      calc(env(safe-area-inset-top) + 12px)
+    ) !important;
+
+  min-height:
+    calc(
+      max(56px, calc(env(safe-area-inset-top) + 12px))
+      + 64px
+    ) !important;
+}
+
+/* ARI Training. Preserve the existing header shape; only reserve a reliable
+   camera/status-bar zone above it when the CSS safe-area environment is 0. */
+html[data-ari-native="true"] body.ari-training-page .ari-training-header {
+  padding-top:
+    max(
+      56px,
+      env(safe-area-inset-top)
+    ) !important;
+}
+
+/* ARI Nutrition Intelligence. The page already owns its horizontal and
+   bottom padding, so only the native top inset is overridden. */
+html[data-ari-native="true"] main#ariNutritionApp {
+  padding-top:
+    max(
+      56px,
+      env(safe-area-inset-top)
+    ) !important;
+}
+
+/* Keep keyboard/programmatic scroll targets from landing behind the camera
+   area on the affected native surfaces. */
+html[data-ari-native="true"] .ari-account-page,
+html[data-ari-native="true"] .ari-preference-settings,
+html[data-ari-native="true"] body.ari-training-page,
+html[data-ari-native="true"] main#ariNutritionApp {
+  scroll-padding-top:
+    max(
+      56px,
+      env(safe-area-inset-top)
+    );
+}
