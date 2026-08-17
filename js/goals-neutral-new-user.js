@@ -1,10 +1,17 @@
 // =====================================================
 // ARI XP
 // File: js/goals-neutral-new-user.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Prevent brand-new accounts from seeing legacy developer/template health
 //   values on My Goals. Existing configured users keep their saved profile.
+//
+// V1.1.0:
+//   - Treats a profile as configured only when its real health baseline exists.
+//   - Ignores legacy database-only goal/calorie defaults when deciding whether
+//     a new account is configured.
+//   - Clears device health caches for an authenticated blank profile so one
+//     account can never inherit another account's local health information.
 // =====================================================
 
 (() => {
@@ -24,21 +31,19 @@
     "calbuddyDailyNutritionTargets"
   ];
 
-  const PROFILE_FIELDS = [
+  const BASELINE_FIELDS = [
     "age",
     "sex",
     "weight_lbs",
     "height_in",
-    "activity_level",
-    "goal",
-    "target_weight_lbs"
+    "activity_level"
   ];
 
   const isPresent = value =>
     value !== null && value !== undefined && String(value).trim() !== "";
 
   function profileIsConfigured(profile = {}) {
-    return PROFILE_FIELDS.some(key => isPresent(profile?.[key]));
+    return BASELINE_FIELDS.every(key => isPresent(profile?.[key]));
   }
 
   function clearInput(id) {
@@ -47,7 +52,7 @@
 
     if (element.tagName === "SELECT") {
       element.value = "";
-      if (element.value !== "") element.selectedIndex = 0;
+      if (element.value !== "") element.selectedIndex = -1;
       return;
     }
 
@@ -108,7 +113,7 @@
 
     const { data, error } = await window.calbuddySupabase
       .from("profiles")
-      .select("age,sex,weight_lbs,height_in,activity_level,goal,target_weight_lbs")
+      .select("age,sex,weight_lbs,height_in,activity_level,goal,target_weight_lbs,daily_calorie_goal")
       .eq("id", userId)
       .maybeSingle();
 
