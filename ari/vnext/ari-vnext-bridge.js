@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.1.0",
+  version: "1.2.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
 
@@ -77,6 +77,9 @@ window.AriVNextBridge = {
         activityLevel: userContext?.activityLevel ?? options?.goals?.activityLevel ?? null
       },
       mealsToday: userContext?.mealsToday || options?.meals || options?.todayLog || [],
+      recentMeals: userContext?.recentMeals || options?.recentMeals || [],
+      favoriteFoods: userContext?.favoriteFoods || options?.favoriteFoods || [],
+      recentWeights: userContext?.recentWeights || options?.recentWeights || [],
       nutrition: userContext?.nutrition || options?.nutrition || {},
       training: trainingContext?.available
         ? {
