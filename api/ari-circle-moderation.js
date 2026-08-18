@@ -1,5 +1,6 @@
 // ARI XP — dedicated cost-controlled ARI Circle moderation endpoint.
 // Uses only OpenAI's free moderation model. No paid generative-model fallback.
+// ARI Circle is restricted to active, verified adult (18+) accounts.
 
 import { enforceAiRateLimit } from "./_lib/ai-rate-limit.js";
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
@@ -53,25 +54,35 @@ function hasCurrentAiConsent(user) {
     String(metadata[AI_CONSENT_VERSION_KEY] || "") === REQUIRED_AI_CONSENT_VERSION;
 }
 
-function ageBandForDate(value) {
+export function ageBandForDate(value, now = new Date()) {
   const dateText = clean(value, 32);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return "unknown";
 
   const [year, month, day] = dateText.split("-").map(Number);
-  const today = new Date();
+  const birth = new Date(Date.UTC(year, month - 1, day));
+  const today = now instanceof Date ? now : new Date(now);
+  if (
+    !Number.isFinite(birth.getTime()) ||
+    !Number.isFinite(today.getTime()) ||
+    birth.getUTCFullYear() !== year ||
+    birth.getUTCMonth() !== month - 1 ||
+    birth.getUTCDate() !== day ||
+    birth > today
+  ) return "unknown";
+
   let age = today.getUTCFullYear() - year;
   const monthDelta = today.getUTCMonth() + 1 - month;
   if (monthDelta < 0 || (monthDelta === 0 && today.getUTCDate() < day)) age -= 1;
 
-  if (!Number.isFinite(age) || age < 0) return null;
+  if (!Number.isFinite(age) || age < 0 || age > 120) return "unknown";
   if (age < 13) return "under_13";
   if (age < 18) return "teen";
   return "adult";
 }
 
-async function getCircleAgeBand(userId) {
+async function getCircleAccessState(userId) {
   const params = new URLSearchParams({
-    select: "date_of_birth",
+    select: "status,date_of_birth",
     user_id: `eq.${String(userId)}`,
     limit: "1"
   });
@@ -81,8 +92,13 @@ async function getCircleAgeBand(userId) {
     { headers: serverHeaders() }
   );
   const data = await readJson(response);
-  if (!response.ok) return null;
-  return ageBandForDate(Array.isArray(data) ? data[0]?.date_of_birth : null);
+  if (!response.ok) return { ageBand: "unknown", allowed: false };
+  const row = Array.isArray(data) ? data[0] : data;
+  const ageBand = ageBandForDate(row?.date_of_birth);
+  return {
+    ageBand,
+    allowed: row?.status === "active" && ageBand === "adult"
+  };
 }
 
 function isAllowedImageUrl(value) {
@@ -180,6 +196,22 @@ export default async function handler(req, res) {
   const user = await getAuthenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Sign in again before sharing to ARI Circle." });
 
+  // Authorization is checked before consent, rate limiting, or OpenAI. A minor
+  // cannot spend moderation capacity or use this endpoint as a Circle back door.
+  const access = await getCircleAccessState(user.id);
+  if (!access.allowed) {
+    return res.status(403).json({
+      success: false,
+      allowed: false,
+      error: "ARI Circle is available to adults age 18 and older.",
+      code: "ARI_CIRCLE_ADULTS_ONLY",
+      age_band: access.ageBand,
+      decision: "block_age_entitlement",
+      paid_classifier_used: false,
+      check_count: 0
+    });
+  }
+
   if (!hasCurrentAiConsent(user)) {
     return res.status(403).json({
       error: "Allow AI processing before sharing in ARI Circle.",
@@ -212,7 +244,7 @@ export default async function handler(req, res) {
   const scope = clean(req.body?.scope, 80) || "ari_circle";
   const text = clean(req.body?.text, MAX_TEXT);
   const images = normalizeImages(req.body?.image_urls);
-  const ageBand = await getCircleAgeBand(user.id);
+  const ageBand = access.ageBand;
   const checks = [];
 
   const finish = async (body, status = 200) => {
@@ -235,7 +267,7 @@ export default async function handler(req, res) {
           success: true,
           allowed: false,
           scope,
-          age_band: ageBand || "unverified",
+          age_band: ageBand,
           model: result.model,
           decision: "block_text",
           blocked_categories: blockedCategories(result),
@@ -260,7 +292,7 @@ export default async function handler(req, res) {
           success: true,
           allowed: false,
           scope,
-          age_band: ageBand || "unverified",
+          age_band: ageBand,
           model: result.model,
           decision: "block_media",
           blocked_categories: blockedCategories(result),
@@ -275,7 +307,7 @@ export default async function handler(req, res) {
       success: true,
       allowed: true,
       scope,
-      age_band: ageBand || "unverified",
+      age_band: ageBand,
       model: checks[0]?.model || OPENAI_MODERATION_MODEL,
       decision: checks.length ? "allow" : "allow_empty",
       blocked_categories: [],
