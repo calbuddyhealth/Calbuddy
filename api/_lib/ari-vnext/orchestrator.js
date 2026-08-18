@@ -44,7 +44,8 @@ export async function runAriVNext(turn = {}) {
   });
   const scientificIntelligence = applyOutcomeLearning(
     rawScientificIntelligence,
-    relevantContext?.relevantMemory || ""
+    relevantContext?.relevantMemory || "",
+    relevantContext?.experimentLedger || null
   );
   const experimentReviewState = deriveExperimentReviewState({
     experimentLedger: relevantContext?.experimentLedger,
