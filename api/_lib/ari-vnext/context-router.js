@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.7.1";
+export const CONTEXT_ROUTER_VERSION = "1.8.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -105,10 +105,48 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
 export function contextToText(context = {}) {
   try {
-    return JSON.stringify(context, null, 2).slice(0, 24000);
+    const rules = cognitiveContextRules(context);
+    const json = JSON.stringify(context, null, 2).slice(0, 22500);
+    return [rules, json].filter(Boolean).join("\n\n").slice(0, 24000);
   } catch {
     return "{}";
   }
+}
+
+function cognitiveContextRules(context = {}) {
+  const lines = [];
+
+  if (context?.userWorldModel) {
+    lines.push(
+      "USER WORLD MODEL RULES:",
+      "- Separate stated goals/preferences from observed behavior and measured response.",
+      "- A goal-behavior tension is decision evidence, not a character judgment. Do not shame the user.",
+      "- When an aspirational plan repeatedly conflicts with observed adherence, prefer a realistic design unless the user explicitly wants to test a change.",
+      "- Never invent missing identity, preferences, constraints, or physiological responses."
+    );
+  }
+
+  if (context?.decisionState) {
+    const guidance = String(context.decisionState?.confidenceGuidance || "").trim();
+    lines.push(
+      "ARI DECISION/CALIBRATION RULES:",
+      "- Prior Ari judgments are evidence about Ari's past performance, not facts about the user.",
+      "- Current evidence outranks consistency with an old Ari conclusion.",
+      "- A previously weakened judgment should increase attention to credible alternatives under similar conditions.",
+      guidance ? `- ${guidance}` : "- Do not adjust confidence from historical calibration until the sample is large enough."
+    );
+  }
+
+  if (context?.temporalTimeline?.events?.length) {
+    lines.push(
+      "TEMPORAL TIMELINE RULES:",
+      "- Use dated events to resolve before/after/since relationships instead of relying on transcript order.",
+      "- Sequence alone does not prove causation.",
+      "- When the user references a phase or change, anchor claims to actual dates/events when available."
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function buildCoachingSnapshot(source = {}) {
