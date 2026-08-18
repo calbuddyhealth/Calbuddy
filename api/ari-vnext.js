@@ -48,14 +48,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // The browser normally supplies active-thread history. If it is sparse
-    // (app relaunch/new surface), recover only a few unexpired recent pairs.
-    // The read is hard-bounded so continuity cannot become a latency tax.
-    const recentContinuity = await hydrateRecentConversation({
-      userId: auth.userId,
-      history: turn.history,
-      limitPairs: 4
-    });
+    // Most active-thread continuity already comes from the browser. Recover
+    // server-side recent turns only when the thread is effectively empty AND
+    // the wording actually depends on prior context. A fresh "what's up?"
+    // should never pay for a cross-region database read.
+    const recentContinuity = shouldRecoverRecentConversation(turn)
+      ? await hydrateRecentConversation({
+          userId: auth.userId,
+          history: turn.history,
+          limitPairs: 4
+        })
+      : { history: turn.history, hydratedPairs: 0 };
     turn.history = recentContinuity.history;
 
     const routePreview = routeContext(turn);
@@ -111,9 +114,6 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(false);
 
-    // Durable writes are deliberately conservative and deterministic:
-    // explicit remember requests, clear preferences, goals, and corrections.
-    // No second AI call is used to decide what becomes memory.
     const durableMemoryTask = persistDurableMemory({
       userId: auth.userId,
       message: turn.message
@@ -148,6 +148,16 @@ export default async function handler(req, res) {
       timing: { totalMs: Date.now() - startedAt }
     });
   }
+}
+
+function shouldRecoverRecentConversation(turn = {}) {
+  const history = Array.isArray(turn?.history) ? turn.history : [];
+  if (history.length >= 2) return false;
+
+  const text = cleanText(turn?.message, 8000);
+  if (!text) return false;
+
+  return /^(why|how so|what about|and|but|then|the other one|make it|do that|instead|continue|pick up)\b|\b(last time|earlier|before|remember when|we talked|we discussed|we decided|you said|you told me|what did we|where were we|continue from|pick up where)\b/i.test(text);
 }
 
 async function authenticateRequest(req) {
