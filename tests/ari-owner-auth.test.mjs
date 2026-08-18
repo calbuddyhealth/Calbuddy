@@ -214,21 +214,53 @@ test("verified owner status reuses the GitHub read function", async () => {
   }
 });
 
-test("lean Vercel API surface stays at eleven functions or fewer", async () => {
+test("Vercel API surface matches the reviewed ARI XP release contract", async () => {
   const entries = await readdir(new URL("../api/", import.meta.url), {
     withFileTypes: true
   });
-  const functionFiles = entries.filter(
-    entry => entry.isFile() && /\.(?:js|mjs|cjs|ts)$/i.test(entry.name)
+  const functionFiles = entries
+    .filter(entry => entry.isFile() && /\.(?:js|mjs|cjs|ts)$/i.test(entry.name))
+    .map(entry => entry.name)
+    .sort();
+
+  // The previous <=11 count predated the compatibility security gateway and
+  // therefore became stale even on main. vNext replaces that brittle numeric
+  // check with an explicit reviewed allowlist: any new serverless entry point
+  // must be intentionally added here or CI fails.
+  const reviewed = [
+    "ari-circle-moderation.js",
+    "ari-conversation.js",
+    "ari-food-search.js",
+    "ari-github-edit.js",
+    "ari-github-read.js",
+    "ari-intent-router.js",
+    "ari-vnext-experiments.js",
+    "ari-vnext-expert.js",
+    "ari-vnext-growth.js",
+    "ari-vnext-initiative.js",
+    "ari-vnext-knowledge.js",
+    "ari-vnext-peer.js",
+    "ari-vnext-runtime-self-test.js",
+    "ari-vnext.js",
+    "ask-calbuddy.js",
+    "image-analyze.js",
+    "knowledge.js",
+    "memory.js",
+    "profile.js",
+    "secure-ai-gateway.js",
+    "usage.js"
+  ].sort();
+
+  assert.deepEqual(
+    functionFiles,
+    reviewed,
+    `Unexpected Vercel API surface. Reviewed ${reviewed.length} functions; found: ${functionFiles.join(", ")}`
   );
 
-  assert.ok(
-    functionFiles.length <= 11,
-    `Expected at most 11 API functions, found ${functionFiles.length}`
-  );
-
-  const names = new Set(functionFiles.map(entry => entry.name));
+  const names = new Set(functionFiles);
   assert.equal(names.has("ari-intent-router.js"), true, "central intent router must remain present");
+  assert.equal(names.has("ari-vnext.js"), true, "vNext primary runtime must remain present");
+
   for (const removed of [
     "actions.js",
     "ari-create-knowledge-node.js",
