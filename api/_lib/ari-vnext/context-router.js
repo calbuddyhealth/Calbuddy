@@ -1,11 +1,11 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.6.0";
+export const CONTEXT_ROUTER_VERSION = "1.6.1";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
-  training: /\b(workout|training|train|exercise|lift|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|running|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout)\b/i,
+  training: /\b(workout|training|train|exercise|lift|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|running|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
   memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|what do i prefer|what do i like|what do i dislike|my favorite|my favourite|i prefer|i dislike|from now on|going forward|correction|my wife|my husband|my brother|my sister|my friend)\b/i,
@@ -185,13 +185,13 @@ function compactWeight(item = {}) {
 function isFollowUp(message = "") {
   const text = String(message || "").trim();
   if (!text || text.length > 180) return false;
-  return /^(why|how|how so|what about|and|but|then|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|instead|okay|ok|yeah|yes|no|nope)\b/i.test(text);
+  return /^(why|how|how so|what about|and|but|then|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text);
 }
 
 function estimateComplexity(message = "") {
   const text = String(message || "");
   if (text.length > 1800) return "deep";
-  if (/\b(compare|analyze|review|plan|strategy|why.*and|pros and cons|tradeoff|trend|velocity|plateau|progression|over the last|history|on pace|adjust my program|change my program)\b/i.test(text)) return "deep";
+  if (/\b(compare|analyze|review|plan|strategy|why.*and|pros and cons|tradeoff|trend|velocity|plateau|progression|over the last|history|on pace|adjust my program|change my program|experiment|hypothesis)\b/i.test(text)) return "deep";
   if (text.length > 500) return "standard";
   return "fast";
 }
