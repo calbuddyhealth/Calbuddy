@@ -1,11 +1,13 @@
-// ARI vNext — translate model proposals into existing trusted CalBuddy actions.
-// The model never writes app data directly.
+// ARI vNext — translate model proposals into existing trusted ARI XP actions.
+// The model never writes app data directly. Training proposals are resolved
+// against the canonical exercise registry before they can be confirmed.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.2.0";
   const SOURCE = "ari_vnext_action_adapter";
+  const WORKOUT_CONTROLLER_URL = "js/training/workout-plan-controller.js";
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -13,6 +15,7 @@
   window.AriVNextActionAdapter = {
     version: VERSION,
     source: SOURCE,
+    controllerPromise: null,
 
     toCalBuddyAction(pendingAction = {}) {
       const name = clean(pendingAction?.name, 120);
@@ -25,19 +28,32 @@
       if (name === "log_meal") return this.mapMeal(pendingAction, args);
       if (name === "log_weight") return this.mapWeight(pendingAction, args);
       if (name === "update_goal") return this.mapGoal(pendingAction, args);
-      if (name === "plan_workout") return this.mapWorkoutPlan(pendingAction, args);
+      if (name === "plan_workout") {
+        return failure(
+          "workout_requires_registry_validation",
+          "Workout plans must be prepared asynchronously against the canonical ARI XP exercise registry."
+        );
+      }
       if (name === "edit_workout") {
         return failure(
           "workout_edit_requires_canonical_editor",
-          "Workout edits stay read-only in vNext until they are validated against the canonical exercise registry and existing day plan."
+          "Workout edits stay read-only in vNext until they are validated against the existing date-specific plan."
         );
       }
 
       return failure("unsupported_vnext_action", `Unsupported vNext action: ${name}.`);
     },
 
+    async prepareCalBuddyAction(pendingAction = {}) {
+      const name = clean(pendingAction?.name, 120);
+      if (name === "plan_workout") {
+        return await this.mapWorkoutPlanValidated(pendingAction, object(pendingAction?.arguments));
+      }
+      return this.toCalBuddyAction(pendingAction);
+    },
+
     async createCalBuddyPendingAction(vnextPendingAction = {}) {
-      const mapped = this.toCalBuddyAction(vnextPendingAction);
+      const mapped = await this.prepareCalBuddyAction(vnextPendingAction);
       if (!mapped.success) return mapped;
 
       if (typeof CalBuddy.createPendingAction !== "function") {
@@ -54,7 +70,7 @@
       };
 
       CalBuddy.setPendingAction?.(wrapped);
-      return { success: true, action: wrapped };
+      return { success: true, action: wrapped, resolution: mapped.resolution || null };
     },
 
     async executeConfirmed({ vnextPendingAction, currentTurnId = null } = {}) {
@@ -67,8 +83,16 @@
         return failure("vnext_action_expired", "That pending change expired. Ask Ari to prepare it again.");
       }
 
-      const mapped = this.toCalBuddyAction(pending);
+      const mapped = await this.prepareCalBuddyAction(pending);
       if (!mapped.success) return mapped;
+
+      if (mapped.action?.action_type === "plan_workout" && mapped.action?.payload?.vnext_prebuilt_workout) {
+        return await this.executeValidatedWorkout({
+          action: mapped.action,
+          pending,
+          currentTurnId
+        });
+      }
 
       if (typeof CalBuddy.executeAction !== "function") {
         return failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
@@ -105,7 +129,7 @@
           serving_size: clean(args.servingSize, 160) || buildServing(args),
           multiplier: 1
         },
-        confirmation_text: `Log ${clean(args.name, 120)}${calories ? ` (${Math.round(calories)} kcal)` : ""}?`
+        confirmation_text: `Log ${clean(args.name, 120)} (${Math.round(calories)} kcal)?`
       });
     },
 
@@ -163,10 +187,22 @@
       });
     },
 
-    mapWorkoutPlan(pending, args) {
+    async mapWorkoutPlanValidated(pending, args) {
       const scheduledDate = resolveDate(args.dateText);
       if (!scheduledDate) {
         return failure("workout_date_required", "An exact workout date is required before ARI XP can save the plan.");
+      }
+
+      const requestedExercises = Array.isArray(args.exercises) ? args.exercises.slice(0, 16) : [];
+      if (!requestedExercises.length) {
+        return failure("workout_exercises_required", "Ari needs at least one exercise before this workout can be saved.");
+      }
+
+      let controller;
+      try {
+        controller = await this.getWorkoutController();
+      } catch (error) {
+        return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
       }
 
       const focus = resolveFocus(args.focus);
@@ -174,35 +210,247 @@
       const difficulty = ["beginner", "intermediate", "advanced"].includes(clean(args.difficulty, 40).toLowerCase())
         ? clean(args.difficulty, 40).toLowerCase()
         : "intermediate";
+      const resolved = [];
+      const unresolved = [];
+      const usedIds = new Set();
 
-      return successAction(pending, {
-        action_type: "plan_workout",
-        source: "ari_workout_action_v3_central_router",
-        payload: {
-          scheduled_date: scheduledDate,
-          focus_id: focus.id,
-          existing_workout_mode: "create",
-          requested_from_message: pending.sourceMessage || "",
-          builder_options: {
-            title: focus.title,
-            goal: focus.goal,
-            durationMinutes: duration,
-            difficulty,
-            bodyParts: focus.bodyParts,
-            modules: focus.modules,
-            includeWarmup: duration >= 15,
-            includeCooldown: duration >= 20,
-            includeFinisher: Boolean(clean(args.finisher, 300)),
-            focusId: focus.id,
-            requestedFromMessage: pending.sourceMessage || ""
+      for (let index = 0; index < requestedExercises.length; index += 1) {
+        const request = requestedExercises[index];
+        const match = resolveCanonicalExercise(controller, request?.name);
+        if (!match.accepted || !match.exercise?.id) {
+          unresolved.push({
+            requested: clean(request?.name, 160),
+            candidates: match.candidates
+          });
+          continue;
+        }
+
+        if (usedIds.has(match.exercise.id)) continue;
+        usedIds.add(match.exercise.id);
+        resolved.push({ request, exercise: match.exercise, match: match.match });
+      }
+
+      if (unresolved.length) {
+        return {
+          success: false,
+          code: "workout_exercise_resolution_required",
+          message: `I couldn't safely match ${unresolved.length} exercise${unresolved.length === 1 ? "" : "s"} to the ARI XP exercise library.`,
+          unresolved
+        };
+      }
+
+      if (!resolved.length) {
+        return failure("workout_exercises_unresolved", "None of the proposed exercises could be validated against ARI XP's exercise library.");
+      }
+
+      const mainCount = resolved.length <= 3 ? resolved.length : Math.ceil(resolved.length * 0.6);
+      const blocks = [
+        makeWorkoutBlock("main", "Main Work", resolved.slice(0, mainCount), 0),
+        makeWorkoutBlock("accessory", "Accessory Work", resolved.slice(mainCount), mainCount)
+      ].filter((block) => block.exercises.length);
+
+      const workout = {
+        workoutId: makeStableId("ari_vnext_workout"),
+        title: focus.title,
+        type: resolveWorkoutType(focus),
+        goal: focus.goal,
+        secondaryGoals: [],
+        sport: null,
+        difficulty,
+        plannedDurationMinutes: duration,
+        estimatedDurationMinutes: duration,
+        bodyParts: [...focus.bodyParts],
+        muscles: [],
+        movementPatterns: [],
+        equipment: [],
+        blocks,
+        notes: compactNotes(args),
+        metadata: {
+          version: VERSION,
+          source: "ari-vnext-validated-workout",
+          createdAt: new Date().toISOString(),
+          requestedDurationMinutes: duration,
+          selectedExerciseCount: resolved.length,
+          registryValidated: true,
+          vnextActionId: pending.id,
+          vnextSourceTurnId: pending.sourceTurnId
+        }
+      };
+
+      return {
+        ...successAction(pending, {
+          action_type: "plan_workout",
+          source: SOURCE,
+          payload: {
+            scheduled_date: scheduledDate,
+            focus_id: focus.id,
+            existing_workout_mode: "create",
+            requested_from_message: pending.sourceMessage || "",
+            vnext_prebuilt_workout: workout
+          },
+          confirmation_text: `Create Ari's ${focus.title} with ${resolved.length} validated exercise${resolved.length === 1 ? "" : "s"} for ${formatDateLabel(scheduledDate)}?`
+        }),
+        resolution: {
+          registryValidated: true,
+          exercises: resolved.map(({ request, exercise, match }) => ({
+            requested: clean(request?.name, 160),
+            exerciseId: exercise.id,
+            canonicalName: exercise.name,
+            match
+          }))
+        }
+      };
+    },
+
+    async executeValidatedWorkout({ action, pending, currentTurnId = null } = {}) {
+      let controller;
+      try {
+        controller = await this.getWorkoutController();
+      } catch (error) {
+        return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
+      }
+
+      const payload = object(action?.payload);
+      const scheduledDate = clean(payload.scheduled_date, 20);
+      const workout = object(payload.vnext_prebuilt_workout);
+      if (!scheduledDate || !workout?.workoutId || !Array.isArray(workout.blocks)) {
+        return failure("invalid_validated_workout", "The validated workout payload is incomplete.");
+      }
+
+      const existing = controller.getDate(scheduledDate);
+      if (existing?.type === "workout" && Array.isArray(existing?.exercises) && existing.exercises.length) {
+        return {
+          success: false,
+          conflict: true,
+          code: "workout_date_conflict",
+          message: `${clean(existing.title, 160) || "A workout"} is already planned for ${formatDateLabel(scheduledDate)}. I didn't overwrite it.`,
+          existingWorkout: {
+            date: scheduledDate,
+            title: clean(existing.title, 160) || "Workout",
+            exerciseCount: existing.exercises.length
           }
-        },
-        confirmation_text: `Create ${focus.title} for ${formatDateLabel(scheduledDate)}?`
+        };
+      }
+
+      const exerciseEntries = workout.blocks.flatMap((block) => Array.isArray(block?.exercises) ? block.exercises : []);
+      for (const entry of exerciseEntries) {
+        if (!entry?.exerciseId || !controller.getExercise(entry.exerciseId)) {
+          return failure("workout_registry_revalidation_failed", "One of Ari's workout exercises is no longer available in the canonical exercise registry.");
+        }
+      }
+
+      const saved = controller.setBuiltWorkoutForDate(scheduledDate, workout, {
+        focusId: clean(payload.focus_id, 100) || "custom"
       });
+      if (!saved) {
+        return failure("workout_save_failed", "Training could not save the validated workout.");
+      }
+
+      const remoteSaved = await controller.save({ remote: true });
+      if (remoteSaved === false) {
+        return failure("workout_remote_save_failed", "The workout was prepared locally but ARI XP could not safely confirm the remote save.");
+      }
+
+      window.dispatchEvent(new CustomEvent("ari:workoutPlanUpdated", {
+        detail: {
+          scheduledDate,
+          mode: "create",
+          source: SOURCE,
+          version: VERSION,
+          vnextActionId: pending?.id || null,
+          confirmationTurnId: clean(currentTurnId, 200) || null
+        }
+      }));
+
+      return {
+        success: true,
+        result: {
+          workout,
+          scheduled_date: scheduledDate,
+          reply: `${clean(workout.title, 160) || "Workout"} is set for ${formatDateLabel(scheduledDate)}.`
+        },
+        action: {
+          ...action,
+          vnext_action_id: pending?.id || null,
+          vnext_source_turn_id: pending?.sourceTurnId || null,
+          vnext_confirmation_turn_id: clean(currentTurnId, 200) || null
+        }
+      };
+    },
+
+    async getWorkoutController() {
+      if (!this.controllerPromise) {
+        this.controllerPromise = import(new URL(WORKOUT_CONTROLLER_URL, document.baseURI).href)
+          .then(async (module) => {
+            const controller = module.default || module.AriTrainingWorkoutPlanController;
+            if (!controller?.init || !controller?.getExercise || !controller?.findExercises || !controller?.setBuiltWorkoutForDate || !controller?.save) {
+              throw new Error("Canonical ARI Training controller is missing required capabilities.");
+            }
+            await controller.init();
+            return controller;
+          })
+          .catch((error) => {
+            this.controllerPromise = null;
+            throw error;
+          });
+      }
+      return await this.controllerPromise;
     }
   };
 
   window.Ari.vNextActionAdapter = window.AriVNextActionAdapter;
+
+  function makeWorkoutBlock(id, label, entries, startingIndex) {
+    return {
+      id,
+      label,
+      type: id,
+      exercises: entries.map(({ request, exercise }, localIndex) => ({
+        entryId: makeStableId("vnext_entry"),
+        exerciseId: exercise.id,
+        role: startingIndex + localIndex === 0 ? "primary" : id === "main" ? "main" : "accessory",
+        prescription: {
+          mode: "sets_reps",
+          sets: clampInteger(request?.sets, 1, 12, id === "main" ? 4 : 3),
+          reps: clampInteger(request?.reps, 1, 100, id === "main" ? 8 : 12),
+          restSeconds: clampNumber(request?.restSeconds, 0, 900, id === "main" ? 90 : 60),
+          weight: null,
+          intensity: null
+        },
+        metadata: {
+          source: "ari-vnext",
+          canonicalName: exercise.name,
+          userVisibleNotes: clean(request?.notes, 300) || null
+        }
+      }))
+    };
+  }
+
+  function resolveCanonicalExercise(controller, requestedName) {
+    const query = clean(requestedName, 180);
+    if (!query) return { accepted: false, exercise: null, match: "missing", candidates: [] };
+
+    const exact = controller.getExercise(query);
+    if (exact?.id) {
+      return { accepted: true, exercise: exact, match: "registry_exact", candidates: [exact.name] };
+    }
+
+    const results = controller.findExercises(query, { limit: 4, fuzzy: true }) || [];
+    const candidates = results.map((item) => item?.name).filter(Boolean).slice(0, 4);
+    const top = results[0];
+    if (!top?.id) return { accepted: false, exercise: null, match: "none", candidates };
+
+    const reasons = Array.isArray(top.searchReasons) ? top.searchReasons : [];
+    const score = Number(top.searchScore || 0);
+    const accepted = reasons.some((reason) => ["exact_id", "exact_name", "exact_alias", "name_starts_with_query", "alias_starts_with_query"].includes(reason)) || score >= 6500;
+
+    return {
+      accepted,
+      exercise: accepted ? top : null,
+      match: accepted ? reasons[0] || `score_${score}` : "ambiguous",
+      candidates
+    };
+  }
 
   function successAction(pending, action) {
     return {
@@ -259,6 +507,12 @@
       bodyParts: [],
       modules: []
     };
+  }
+
+  function resolveWorkoutType(focus) {
+    if (focus?.goal === "cardio") return "cardio";
+    if (focus?.goal === "mobility") return "mobility";
+    return "strength";
   }
 
   function resolveDate(value) {
@@ -319,11 +573,22 @@
     return new Intl.DateTimeFormat(undefined, { weekday: "long", month: "short", day: "numeric" }).format(date);
   }
 
+  function compactNotes(args) {
+    return [clean(args?.warmup, 400), clean(args?.finisher, 400), clean(args?.notes, 800)]
+      .filter(Boolean)
+      .join(" • ") || null;
+  }
+
   function buildServing(args) {
     const quantity = number(args.quantity);
     const unit = clean(args.unit, 40);
     if (quantity && unit) return `${quantity} ${unit}`;
     return "Added by Ari";
+  }
+
+  function makeStableId(prefix) {
+    if (typeof crypto?.randomUUID === "function") return `${prefix}_${crypto.randomUUID()}`;
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   }
 
   function object(value) {
@@ -348,5 +613,11 @@
     const parsed = number(value);
     if (parsed === null) return fallback;
     return Math.min(max, Math.max(min, parsed));
+  }
+
+  function clampInteger(value, min, max, fallback) {
+    const parsed = number(value);
+    if (parsed === null) return fallback;
+    return Math.round(Math.min(max, Math.max(min, parsed)));
   }
 })();
