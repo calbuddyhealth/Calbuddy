@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>What ARI Knows About Me</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:#0a1630; background:#f8fbff; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 8% 0%,rgba(34,211,238,.12),transparent 30%),radial-gradient(circle at 92% 0%,rgba(124,58,237,.10),transparent 31%),linear-gradient(180deg,#fff,#f4f8ff); }
+    main { width:min(1060px,calc(100% - 28px)); margin:0 auto; padding:34px 0 70px; }
+    .eyebrow { color:#2563eb; font-weight:900; font-size:11px; letter-spacing:.19em; text-transform:uppercase; }
+    h1 { margin:8px 0 6px; font-size:clamp(30px,5vw,50px); letter-spacing:-.05em; }
+    .sub { color:#5a6b84; max-width:760px; line-height:1.55; font-size:14px; }
+    .status { margin-top:10px; color:#74849a; font-size:12px; }
+    .grid { display:grid; grid-template-columns:1.05fr .95fr; gap:16px; margin-top:22px; }
+    .card { background:rgba(255,255,255,.82); backdrop-filter:blur(18px); border:1px solid rgba(37,99,235,.10); box-shadow:0 18px 55px rgba(30,64,175,.07); border-radius:24px; padding:18px; }
+    h2 { margin:0 0 4px; font-size:18px; letter-spacing:-.02em; }
+    .hint { color:#6f7f94; font-size:12px; line-height:1.5; margin-bottom:14px; }
+    .category { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:12px 0; border-top:1px solid #e7edf7; }
+    .category:first-of-type { border-top:0; }
+    .category b { display:block; font-size:13px; }
+    .category span { color:#74849a; font-size:11px; }
+    .switch { position:relative; width:46px; height:27px; flex:0 0 auto; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; inset:0; border-radius:999px; background:#d5deeb; transition:.2s; cursor:pointer; }
+    .slider:before { content:""; position:absolute; width:21px; height:21px; left:3px; top:3px; border-radius:50%; background:#fff; box-shadow:0 2px 7px rgba(15,23,42,.18); transition:.2s; }
+    .switch input:checked + .slider { background:linear-gradient(120deg,#2563eb,#7c3aed); }
+    .switch input:checked + .slider:before { transform:translateX(19px); }
+    .model { display:grid; gap:10px; }
+    .modelRow { border:1px solid #e7edf7; border-radius:17px; padding:12px; background:rgba(248,251,255,.72); }
+    .modelRow small { color:#2563eb; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+    .modelRow pre { white-space:pre-wrap; word-break:break-word; margin:6px 0 0; color:#33445d; font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; max-height:190px; overflow:auto; }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0; }
+    .metric { border-radius:18px; padding:13px; background:#08152e; color:#fff; }
+    .metric strong { display:block; font-size:22px; }
+    .metric span { color:#a9bdd9; font-size:10px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+    .memoryList { display:grid; gap:9px; max-height:620px; overflow:auto; }
+    .memory { border:1px solid #e4ebf5; border-radius:17px; padding:12px; background:#fff; }
+    .memoryTop { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .memoryType { color:#7c3aed; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+    .memoryText { margin-top:5px; color:#33445d; font-size:13px; line-height:1.5; }
+    button { appearance:none; border:1px solid #d8e2f0; background:#fff; color:#17325e; border-radius:999px; padding:8px 12px; font:inherit; font-size:11px; font-weight:850; cursor:pointer; }
+    button.primary { border:0; color:#fff; background:linear-gradient(120deg,#2563eb,#7c3aed); }
+    button.danger { color:#b4233e; border-color:#f1c4ce; background:#fff7f8; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .note { margin-top:14px; border-radius:17px; padding:12px; color:#51627a; font-size:11px; line-height:1.55; background:#eef6ff; border:1px solid #dbeafe; }
+    @media(max-width:800px){ .grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(3,1fr)} }
+    @media(max-width:480px){ .metrics{grid-template-columns:1fr}.category{align-items:flex-start} }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">ARI Privacy & Memory</div>
+  <h1>What ARI Knows About Me</h1>
+  <div class="sub">See and control Ari's persistent model of you. Turning a category off means Ari should not persist or reconstruct that category from long-term memory. Live information you intentionally open or ask about can still be used for the current interaction.</div>
+  <div id="status" class="status">Loading…</div>
+
+  <section id="content" class="grid" hidden>
+    <div>
+      <div class="card">
+        <h2>Persistent memory categories</h2>
+        <div class="hint">Explicit privacy choices outrank Ari's learning systems.</div>
+        <div id="categories"></div>
+        <div class="note">Turning a category off clears the corresponding structured world-model field and matching durable memories. It does not silently cancel an active user-approved experiment.</div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Ari's model of you</h2>
+        <div class="hint">Structured beliefs Ari may use across sessions. Empty means unknown or intentionally blocked.</div>
+        <div id="worldModel" class="model"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Learning history</h2>
+        <div class="metrics">
+          <div class="metric"><strong id="memoryCount">0</strong><span>Memories</span></div>
+          <div class="metric"><strong id="experimentCount">0</strong><span>Experiments</span></div>
+          <div class="metric"><strong id="decisionCount">0</strong><span>Decisions</span></div>
+        </div>
+        <div class="actions">
+          <button class="danger" data-clear="clear_recent_conversation">Clear recent conversation</button>
+          <button class="danger" data-clear="clear_durable_memory">Clear durable memories</button>
+          <button class="danger" data-clear="clear_world_model">Reset world model</button>
+          <button class="danger" data-clear="clear_completed_experiments">Clear completed experiments</button>
+          <button class="danger" data-clear="clear_decision_history">Clear decision history</button>
+          <button class="danger" data-clear="clear_communication_learning">Clear communication learning</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Durable memories</h2>
+        <div class="hint">Individual memories can be removed without resetting everything.</div>
+        <div id="memoryList" class="memoryList"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="calbuddy-core.js?v=3.6.4"></script>
+<script>
+  const CATEGORY_LABELS = {
+    identity:["Identity","Profile facts Ari keeps across sessions"],
+    preferences:["Preferences","Likes, dislikes, and interaction preferences"],
+    goals:["Goals","Long-term targets and priorities"],
+    constraints:["Constraints","Schedule, equipment, access, and practical limits"],
+    behavior:["Behavior patterns","Observed adherence and repeated behavior"],
+    fitness_outcomes:["Fitness outcomes","What worked, failed, or changed after interventions"],
+    relationship:["Relationship context","Persistent relationship/familiarity context"]
+  };
+  let snapshot = null;
+
+  document.addEventListener("DOMContentLoaded", init);
+
+  async function init() {
+    document.querySelectorAll("[data-clear]").forEach((button) => button.addEventListener("click", () => clearAction(button.dataset.clear)));
+    await load();
+  }
+
+  async function accessToken() {
+    const session = await CalBuddy.getCurrentSession();
+    return String(session?.access_token || "").trim();
+  }
+
+  async function load() {
+    const status = document.getElementById("status");
+    try {
+      const token = await accessToken();
+      if (!token) { status.textContent = "Sign in to view Ari memory controls."; return; }
+      const response = await fetch("/api/ari-vnext-knowledge", { headers:{ Authorization:`Bearer ${token}` }, cache:"no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Knowledge controls unavailable.");
+      snapshot = data;
+      status.textContent = `Persistent model updated ${data?.worldModel?.updatedAt ? new Date(data.worldModel.updatedAt).toLocaleString() : "when Ari next learns something"}`;
+      document.getElementById("content").hidden = false;
+      render();
+    } catch (error) { status.textContent = error?.message || "Knowledge controls unavailable."; }
+  }
+
+  async function mutate(body) {
+    const response = await fetch("/api/ari-vnext-knowledge", {
+      method:"POST",
+      headers:{ Authorization:`Bearer ${await accessToken()}`, "Content-Type":"application/json" },
+      body:JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || data?.code || "Memory update failed.");
+    snapshot = data;
+    render();
+  }
+
+  function render() {
+    renderCategories();
+    renderWorldModel();
+    renderMemories();
+    document.getElementById("memoryCount").textContent = snapshot?.memoryCount || 0;
+    document.getElementById("experimentCount").textContent = Number(snapshot?.experimentLedger?.activeCount || 0) + Number(snapshot?.experimentLedger?.completedCount || 0);
+    document.getElementById("decisionCount").textContent = Number(snapshot?.decisions?.openCount || 0) + Number(snapshot?.decisions?.resolvedCount || 0);
+  }
+
+  function renderCategories() {
+    const root = document.getElementById("categories"); root.innerHTML = "";
+    const blocked = new Set(snapshot?.privacyControls?.blockedCategories || []);
+    for (const category of snapshot?.controls?.categories || Object.keys(CATEGORY_LABELS)) {
+      const [label, description] = CATEGORY_LABELS[category] || [category, "Persistent Ari memory category"];
+      const row = document.createElement("div"); row.className = "category";
+      const text = document.createElement("div"); text.innerHTML = `<b>${escapeHtml(label)}</b><span>${escapeHtml(description)}</span>`;
+      const wrap = document.createElement("label"); wrap.className = "switch";
+      const input = document.createElement("input"); input.type = "checkbox"; input.checked = !blocked.has(category);
+      input.addEventListener("change", async () => {
+        const remember = input.checked;
+        if (!remember && !confirm(`Stop Ari from persistently remembering ${label.toLowerCase()} and clear existing matching memory?`)) { input.checked = true; return; }
+        input.disabled = true;
+        try { await mutate({ action:"set_category_memory", category, remember }); } catch (error) { alert(error.message); input.checked = !remember; }
+        input.disabled = false;
+      });
+      const slider = document.createElement("span"); slider.className = "slider";
+      wrap.append(input, slider); row.append(text, wrap); root.appendChild(row);
+    }
+  }
+
+  function renderWorldModel() {
+    const root = document.getElementById("worldModel"); root.innerHTML = "";
+    const model = snapshot?.worldModel || {};
+    const rows = [
+      ["Goals", model.goals], ["Preferences", model.preferences], ["Constraints", model.constraints],
+      ["Observed behavior", model.behavior], ["Fitness response", model.physiologicalResponse],
+      ["Relationship", model.relationship], ["Tensions", model.tensions]
+    ];
+    for (const [label, value] of rows) {
+      const row = document.createElement("div"); row.className = "modelRow";
+      const small = document.createElement("small"); small.textContent = label;
+      const pre = document.createElement("pre"); pre.textContent = pretty(value);
+      row.append(small, pre); root.appendChild(row);
+    }
+  }
+
+  function renderMemories() {
+    const root = document.getElementById("memoryList"); root.innerHTML = "";
+    const memories = Array.isArray(snapshot?.memories) ? snapshot.memories : [];
+    if (!memories.length) { root.innerHTML = '<div class="hint">No durable user memories are currently stored.</div>'; return; }
+    for (const item of memories) {
+      const card = document.createElement("div"); card.className = "memory";
+      const top = document.createElement("div"); top.className = "memoryTop";
+      const type = document.createElement("div"); type.className = "memoryType"; type.textContent = item.memoryType || "memory";
+      const forget = document.createElement("button"); forget.className = "danger"; forget.textContent = "Forget";
+      forget.addEventListener("click", async () => { if (confirm("Forget this memory?")) { try { await mutate({ action:"forget_memory", memoryId:item.id }); } catch (error) { alert(error.message); } } });
+      top.append(type, forget);
+      const text = document.createElement("div"); text.className = "memoryText"; text.textContent = item.content || "";
+      card.append(top, text); root.appendChild(card);
+    }
+  }
+
+  async function clearAction(action) {
+    const labels = {
+      clear_recent_conversation:"Clear Ari's recent conversation continuity?",
+      clear_durable_memory:"Delete all durable user memories?",
+      clear_world_model:"Reset Ari's structured world model? Privacy blocks will remain.",
+      clear_completed_experiments:"Delete completed/cancelled experiment history? Active experiments remain.",
+      clear_decision_history:"Delete Ari's decision/prediction history and calibration data?",
+      clear_communication_learning:"Delete Ari's communication/outcome association history?"
+    };
+    if (!confirm(labels[action] || "Clear this Ari data?")) return;
+    try { await mutate({ action }); } catch (error) { alert(error.message); }
+  }
+
+  function pretty(value) {
+    if (value === null || value === undefined) return "Unknown";
+    if (Array.isArray(value) && !value.length) return "Unknown";
+    if (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length) return "Unknown";
+    return JSON.stringify(value, null, 2);
+  }
+  function escapeHtml(value) { return String(value || "").replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
+</script>
+</body>
+</html>
