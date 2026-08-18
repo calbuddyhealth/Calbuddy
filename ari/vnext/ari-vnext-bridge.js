@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.6.0",
+  version: "1.6.1",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -267,7 +267,7 @@ function shouldSchedulePeerReflection(message, result = {}) {
   ];
   const meaningfulFitness = Boolean(
     (result?.route?.training || result?.route?.goals || result?.route?.nutrition) &&
-    (signals.length || result?.longitudinalState?.programDecision?.stance)
+    (signals.length || result?.longitudinalState?.programDecision?.stance || result?.scientificIntelligence?.hypotheses?.length)
   );
   const reflectiveMode = ["identity_expression", "honest_accountability", "celebration", "steady_support", "collaborative_partner"].includes(mode);
   const explicitReflection = /\b(what do you think|your opinion|be honest|am i wrong|should i change|what would you do)\b/i.test(text);
@@ -285,6 +285,7 @@ function compactPeerResult(result = {}) {
     metacognition: result?.metacognition || {},
     coachingState: result?.coachingState || {},
     longitudinalState: result?.longitudinalState || {},
+    scientificIntelligence: result?.scientificIntelligence || {},
     action: result?.action || null
   };
 }
