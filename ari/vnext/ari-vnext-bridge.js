@@ -4,9 +4,11 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.5.0",
+  version: "1.6.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
+  peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
+  peerReflectionPreferenceKey: "ari_vnext_peer_reflection_enabled",
 
   async ask(message, options = {}) {
     const text = String(message || "").trim();
@@ -18,11 +20,12 @@ window.AriVNextBridge = {
 
     const history = Array.isArray(options?.history) ? options.history.slice(-16) : [];
     const context = await this.buildContext({ ...options, message: text, history });
+    const surface = options?.page || options?.surface || window.location.pathname || "unknown";
 
     const payload = {
       message: text,
       history,
-      surface: options?.page || options?.surface || window.location.pathname || "unknown",
+      surface,
       context,
       preferences: options?.preferences || options?.userContext?.preferences || {},
       memorySummary: options?.coachMemorySummary || options?.userContext?.coachMemorySummary || "",
@@ -45,6 +48,16 @@ window.AriVNextBridge = {
     if (data?.pendingAction) this.setPendingAction(data.pendingAction);
     if (data?.action?.type === "cancel_pending_action") this.clearPendingAction();
     if (data?.action?.type === "execute_pending_action") this.clearPendingAction();
+
+    // Reflection is deliberately not awaited. Ari's visible response remains on
+    // the fast path; a qualifying peer exchange happens only after the answer.
+    this.schedulePeerReflection({
+      message: text,
+      result: data,
+      surface,
+      accessToken,
+      options
+    });
 
     return data;
   },
@@ -126,6 +139,79 @@ window.AriVNextBridge = {
     };
   },
 
+  schedulePeerReflection({ message, result, surface, accessToken, options = {} } = {}) {
+    if (!this.isPeerReflectionEnabled(options, surface)) return false;
+    if (!shouldSchedulePeerReflection(message, result)) return false;
+
+    const last = this.getLastPeerReflectionAt();
+    if (last && Date.now() - last < 18 * 60 * 60 * 1000) return false;
+
+    window.setTimeout(() => {
+      this.reflectWithPeer({ message, result, surface, accessToken }).catch(() => {});
+    }, 0);
+    return true;
+  },
+
+  async reflectWithPeer({ message, result, surface, accessToken } = {}) {
+    const response = await fetch("/api/ari-vnext-peer", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${String(accessToken || "").trim()}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: String(message || "").slice(0, 1400),
+        surface: String(surface || "unknown").slice(0, 200),
+        result: compactPeerResult(result)
+      }),
+      cache: "no-store",
+      keepalive: true
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return data;
+
+    if (data?.reflected || data?.reason === "reflection_cooldown") {
+      try {
+        localStorage.setItem(this.peerReflectionStorageKey, String(Date.now()));
+      } catch {
+        // Browser privacy/storage restrictions should not affect Ari.
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent("ari:vnextPeerReflection", { detail: data }));
+    return data;
+  },
+
+  isPeerReflectionEnabled(options = {}, surface = "") {
+    if (options?.peerReflectionEnabled === false) return false;
+    if (options?.peerReflectionEnabled === true) return true;
+    if (/ari-vnext-lab\.html/i.test(String(surface || ""))) return true;
+    try {
+      return localStorage.getItem(this.peerReflectionPreferenceKey) === "true";
+    } catch {
+      return false;
+    }
+  },
+
+  setPeerReflectionEnabled(enabled) {
+    try {
+      localStorage.setItem(this.peerReflectionPreferenceKey, enabled ? "true" : "false");
+    } catch {
+      // No-op when storage is unavailable.
+    }
+    return Boolean(enabled);
+  },
+
+  getLastPeerReflectionAt() {
+    try {
+      const value = Number(localStorage.getItem(this.peerReflectionStorageKey) || 0);
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    } catch {
+      return 0;
+    }
+  },
+
   async getSession() {
     if (window.CalBuddy?.getCurrentSession) return await window.CalBuddy.getCurrentSession();
     const client = window.calbuddySupabase || window.supabaseClient;
@@ -167,6 +253,40 @@ function needsCanonicalTrainingContext(message, history = []) {
   const semantic = `${recent}\n${text}`;
 
   return /\b(workout|workouts|training|train|exercise|exercises|lift|lifting|strength|stronger|weak|weaker|sets?|reps?|bench|squat|deadlift|press|row|pulldown|shoulder|chest|back|legs?|arms?|biceps?|triceps?|glutes?|cardio|run|running|gym|rest day|recovery|sore|soreness|plateau|personal record|\bpr\b|progression|training volume|training frequency|program|split|deload|missed workout)\b/i.test(semantic);
+}
+
+function shouldSchedulePeerReflection(message, result = {}) {
+  const text = String(message || "").trim();
+  if (!text || !String(result?.reply || "").trim()) return false;
+  if (result?.safety?.highStakes || result?.route?.currentInfo) return false;
+
+  const mode = String(result?.selfModel?.current?.mode || "");
+  const signals = [
+    ...(Array.isArray(result?.coachingState?.signals) ? result.coachingState.signals : []),
+    ...(Array.isArray(result?.longitudinalState?.signals) ? result.longitudinalState.signals : [])
+  ];
+  const meaningfulFitness = Boolean(
+    (result?.route?.training || result?.route?.goals || result?.route?.nutrition) &&
+    (signals.length || result?.longitudinalState?.programDecision?.stance)
+  );
+  const reflectiveMode = ["identity_expression", "honest_accountability", "celebration", "steady_support", "collaborative_partner"].includes(mode);
+  const explicitReflection = /\b(what do you think|your opinion|be honest|am i wrong|should i change|what would you do)\b/i.test(text);
+  const action = result?.action?.applicationAction || result?.action?.type || null;
+
+  return Boolean(action || meaningfulFitness || (reflectiveMode && text.length >= 35) || explicitReflection);
+}
+
+function compactPeerResult(result = {}) {
+  return {
+    reply: String(result?.reply || "").slice(0, 3500),
+    route: result?.route || {},
+    safety: result?.safety || {},
+    selfModel: result?.selfModel || {},
+    metacognition: result?.metacognition || {},
+    coachingState: result?.coachingState || {},
+    longitudinalState: result?.longitudinalState || {},
+    action: result?.action || null
+  };
 }
 
 function signedWeeklyGoal(value, goalType) {
