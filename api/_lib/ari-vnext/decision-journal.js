@@ -1,7 +1,7 @@
 // ARI vNext — autobiographical journal of meaningful judgments and predictions.
 // Stores compact conclusions + provenance, never hidden chain-of-thought.
 
-export const ARI_DECISION_JOURNAL_VERSION = "1.0.1";
+export const ARI_DECISION_JOURNAL_VERSION = "1.1.0";
 const TABLE = "ari_vnext_decisions";
 
 export async function listRecentDecisions({ userId, statuses = [], limit = 12 } = {}) {
@@ -152,6 +152,11 @@ export function summarizeDecisionState(decisions = []) {
   const open = rows.filter((item) => item.status === "open");
   const resolved = rows.filter((item) => item.status === "resolved");
   const calibration = summarizeCalibration(resolved);
+  const domains = [...new Set(resolved.map((item) => clean(item?.domain, 80)).filter(Boolean))];
+  const byDomain = {};
+  for (const domain of domains) {
+    byDomain[domain] = summarizeCalibration(resolved.filter((item) => item.domain === domain));
+  }
   const timeline = rows.slice(0, 10).map((item) => ({
     at: item.resolvedAt || item.createdAt,
     type: item.status === "resolved" ? "resolved_decision" : "decision",
@@ -166,6 +171,8 @@ export function summarizeDecisionState(decisions = []) {
     resolvedCount: resolved.length,
     recentOpen: open.slice(0, 4),
     calibration,
+    calibrationByDomain: byDomain,
+    confidenceGuidance: calibrationGuidance(calibration),
     timeline
   };
 }
@@ -195,10 +202,18 @@ export function decisionStateToInstruction(state = null) {
     "ARI DECISION JOURNAL",
     "This is a compact history of Ari's prior judgments and whether later evidence supported or weakened them. It is not hidden reasoning.",
     "Do not repeat an old conclusion simply because Ari said it before. Current evidence outranks consistency with the past.",
-    "If calibration says Ari is overconfident in the available sample, soften confidence rather than changing the underlying evidence ranking.",
+    state?.confidenceGuidance || "Do not modify confidence from historical calibration until the sample is large enough.",
     "When a prior judgment was weakened, treat that as a reason to examine alternatives more carefully under similar conditions.",
     JSON.stringify(state, null, 2)
-  ].join("\n").slice(0, 7000);
+  ].join("\n").slice(0, 8500);
+}
+
+function calibrationGuidance(calibration = {}) {
+  if (!calibration?.available) return "Calibration sample is still too small. Do not change confidence merely to fit a tiny historical sample.";
+  if (calibration.tendency === "overconfident") return "Historical predictions have been more confident than their observed hit rate. Express similar current conclusions more cautiously without changing the underlying evidence ranking.";
+  if (calibration.tendency === "underconfident") return "Historical predictions have been more accurate than their expressed confidence. Ari may state well-supported conclusions somewhat more decisively, while preserving uncertainty and alternatives.";
+  if (calibration.tendency === "roughly_calibrated") return "Historical confidence is roughly aligned with observed outcomes. Keep current confidence tied to evidence rather than artificially adjusting it.";
+  return "Calibration state is uncertain. Keep confidence tied to current evidence.";
 }
 
 function normalizeDecision(row) {
