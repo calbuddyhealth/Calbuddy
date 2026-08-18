@@ -59,6 +59,7 @@
         <button data-prompt="I ate two eggs">Do not auto-log</button>
         <button data-prompt="Create a 45 minute shoulder workout tomorrow">Workout creation</button>
         <button data-prompt="What should I train today based on my current week?">Training context</button>
+        <button data-prompt="My strength has been dropping while I'm cutting. Look at my recent training and nutrition and tell me what you think.">Cross-feature coaching</button>
         <button data-prompt="Am I on pace for my goal?">Goal context</button>
         <button data-prompt="Just tell me yes or no: is this enough protein?">Directness</button>
       </div>
@@ -83,7 +84,7 @@
         </article>
       </div>
 
-      <div class="notice">This lab is owner-only. It does not replace the production Ari route. Mutation tools are evaluated as proposals; this comparison page never directly confirms or executes a pending app write.</div>
+      <div class="notice">Owner-only comparison surface. vNext action proposals are resolved against the real ARI XP action/exercise contracts for inspection, but this lab never confirms or saves a mutation.</div>
     </section>
   </main>
 
@@ -92,8 +93,9 @@
   <script src="calbuddy-core.js?v=3.6.4"></script>
   <script src="ari/diagnostics/ari-execution-trace.js"></script>
   <script src="ari/ari-rebirth-app-bridge.js"></script>
-  <script src="ari/vnext/ari-vnext-training-context.js?v=1.0.0"></script>
-  <script src="ari/vnext/ari-vnext-bridge.js?v=1.1.0"></script>
+  <script src="ari/vnext/ari-vnext-training-context.js?v=1.1.0"></script>
+  <script src="ari/vnext/ari-vnext-action-adapter.js?v=1.2.0"></script>
+  <script src="ari/vnext/ari-vnext-bridge.js?v=1.3.0"></script>
 
   <script>
     const history = { vnext: [], rebirth: [] };
@@ -117,7 +119,7 @@
           return;
         }
 
-        status.textContent = `Owner verified • vNext ${window.AriVNextBridge?.version || "not loaded"}`;
+        status.textContent = `Owner verified • vNext ${window.AriVNextBridge?.version || "not loaded"} • training ${window.AriVNextTrainingContext?.version || "n/a"}`;
         shell.hidden = false;
       } catch (error) {
         status.textContent = error?.message || "Owner verification failed.";
@@ -162,8 +164,27 @@
           coachMemorySummary: userContext.coachMemorySummary || ""
         });
 
+        let actionResolution = null;
+        if (result?.pendingAction && window.AriVNextActionAdapter?.prepareCalBuddyAction) {
+          actionResolution = await AriVNextActionAdapter.prepareCalBuddyAction(result.pendingAction);
+        }
+
         const ms = Math.round(performance.now() - started);
         const reply = result.reply || (result?.action?.type === "execute_pending_action" ? "Pending action would execute here in the real app." : "No textual reply.");
+        const signalText = (result?.coachingState?.signals || [])
+          .slice(0, 6)
+          .map((item) => `${item.id}[${item.confidence}]`)
+          .join(", ") || "none";
+        const performanceText = (result?.coachingState?.evidence?.training?.objectiveDeclines || [])
+          .slice(0, 4)
+          .map((item) => item.name)
+          .join(", ") || "none";
+        const registryText = actionResolution?.resolution?.exercises
+          ? actionResolution.resolution.exercises.map((item) => `${item.requested} → ${item.canonicalName}`).join("; ")
+          : actionResolution?.success === false
+            ? `${actionResolution.code}: ${actionResolution.message}`
+            : "n/a";
+
         setText("vnextReply", reply);
         setText("vnextMeta", [
           `total: ${ms}ms`,
@@ -171,7 +192,10 @@
           `model: ${result?.provider?.model || result?.modelPolicy?.model || "n/a"}`,
           `memory: ${result?.memoryUsed ? `${result.memoryCount} selected` : "none"}`,
           `action: ${result?.action?.applicationAction || result?.action?.type || "none"}`,
-          `route: ${compactRoute(result?.route)}`
+          `route: ${compactRoute(result?.route)}`,
+          `coaching signals: ${signalText}`,
+          `objective declines: ${performanceText}`,
+          `registry resolution: ${registryText}`
         ].join("\n"));
 
         history.vnext.push({ role: "user", content: message }, { role: "assistant", content: reply });
