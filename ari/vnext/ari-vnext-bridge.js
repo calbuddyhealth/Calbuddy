@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.4.1",
+  version: "1.5.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
 
@@ -16,11 +16,12 @@ window.AriVNextBridge = {
     const accessToken = String(session?.access_token || "").trim();
     if (!accessToken) throw new Error("A signed-in ARI session is required.");
 
-    const context = await this.buildContext(options);
+    const history = Array.isArray(options?.history) ? options.history.slice(-16) : [];
+    const context = await this.buildContext({ ...options, message: text, history });
 
     const payload = {
       message: text,
-      history: Array.isArray(options?.history) ? options.history.slice(-16) : [],
+      history,
       surface: options?.page || options?.surface || window.location.pathname || "unknown",
       context,
       preferences: options?.preferences || options?.userContext?.preferences || {},
@@ -50,9 +51,14 @@ window.AriVNextBridge = {
 
   async buildContext(options = {}) {
     const userContext = options?.userContext || {};
+    const history = Array.isArray(options?.history) ? options.history : [];
+    const trainingNeeded = needsCanonicalTrainingContext(options?.message, history);
     let trainingContext = null;
 
-    if (window.AriVNextTrainingContext?.build) {
+    // The canonical Training store is valuable but comparatively heavy. Do not
+    // import and scan six weeks of sessions for greetings, ordinary life chat,
+    // simple nutrition questions, or unrelated requests.
+    if (trainingNeeded && window.AriVNextTrainingContext?.build) {
       trainingContext = await window.AriVNextTrainingContext.build({
         historyDays: 42,
         historySessionLimit: 48
@@ -71,6 +77,10 @@ window.AriVNextBridge = {
 
     return {
       surface: options?.page || window.location.pathname || "unknown",
+      contextHints: {
+        canonicalTrainingLoaded: Boolean(trainingContext?.available),
+        canonicalTrainingNeeded: trainingNeeded
+      },
       user: {
         id: userContext?.userId || options?.user?.id || null,
         displayName: userContext?.name || userContext?.displayName || null,
@@ -145,6 +155,19 @@ window.AriVNextBridge = {
     window.dispatchEvent(new CustomEvent("ari:vnextPendingActionCleared"));
   }
 };
+
+function needsCanonicalTrainingContext(message, history = []) {
+  const text = String(message || "").trim();
+  if (!text) return false;
+
+  const followUp = /^(why|how|how so|what about|and|but|then|make it|do that|the other one|instead|harder|easier|change it|add that|remove that|yes|yeah|no)\b/i.test(text);
+  const recent = followUp
+    ? (Array.isArray(history) ? history : []).slice(-6).map((item) => String(item?.content || "")).join("\n")
+    : "";
+  const semantic = `${recent}\n${text}`;
+
+  return /\b(workout|workouts|training|train|exercise|exercises|lift|lifting|strength|stronger|weak|weaker|sets?|reps?|bench|squat|deadlift|press|row|pulldown|shoulder|chest|back|legs?|arms?|biceps?|triceps?|glutes?|cardio|run|running|gym|rest day|recovery|sore|soreness|plateau|personal record|\bpr\b|progression|training volume|training frequency|program|split|deload|missed workout)\b/i.test(semantic);
+}
 
 function signedWeeklyGoal(value, goalType) {
   if (value === null || value === undefined || value === "") return null;
