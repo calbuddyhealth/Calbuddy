@@ -70,6 +70,12 @@
             <span class="ari-action-copy"><strong>Change password</strong><small>Receive a secure reset link</small></span>
             <span class="ari-action-arrow" aria-hidden="true">›</span>
           </button>
+
+          <button class="ari-action-card" id="birthdayCorrectionButton" type="button">
+            <span class="ari-action-icon ari-action-icon--cyan" aria-hidden="true">◷</span>
+            <span class="ari-action-copy"><strong>Birthday &amp; age</strong><small id="birthdayCorrectionSubtitle">Protected account birthday</small></span>
+            <span class="ari-action-arrow" aria-hidden="true">›</span>
+          </button>
         </div>
       </section>
 
@@ -106,7 +112,7 @@
 
           <a class="ari-action-card ari-owner-card" id="ownerModerationLink" href="owner-moderation.html" hidden>
             <span class="ari-action-icon ari-action-icon--gold" aria-hidden="true">◆</span>
-            <span class="ari-action-copy"><strong>Owner moderation</strong><small>Review reports &amp; Teen Safety</small></span>
+            <span class="ari-action-copy"><strong>Owner moderation</strong><small>Reports, teen safety &amp; age corrections</small></span>
             <span class="ari-owner-pill">OWNER</span>
           </a>
         </div>
@@ -179,6 +185,43 @@
     </form>
   </dialog>
 
+  <dialog class="ari-dialog" id="birthdayCorrectionDialog">
+    <form method="dialog" class="ari-dialog-card" id="birthdayCorrectionForm">
+      <button class="ari-dialog-close" type="button" data-dialog-close aria-label="Close">×</button>
+      <p class="ari-section-kicker">PROTECTED ACCOUNT AGE</p>
+      <h2>Request a birthday correction</h2>
+      <p>Your account birthday controls age-based safety and ARI Circle eligibility. A correction does not take effect until the ARI XP owner approves it.</p>
+
+      <div class="ari-field">
+        <span>Current account birthday</span>
+        <strong id="currentBirthdayDisplay">—</strong>
+      </div>
+
+      <label class="ari-field">
+        <span>Correct birthday</span>
+        <input id="requestedBirthdayInput" type="date" autocomplete="bday" required>
+      </label>
+
+      <label class="ari-field">
+        <span>Current sign-in email</span>
+        <input id="birthdayEmailInput" type="email" autocomplete="email" required>
+      </label>
+
+      <label class="ari-field">
+        <span>Current password</span>
+        <input id="birthdayPasswordInput" type="password" autocomplete="current-password" required>
+      </label>
+
+      <label class="ari-field">
+        <span>Why does your birthday need to be corrected?</span>
+        <textarea id="birthdayExplanationInput" rows="4" minlength="20" maxlength="2000" required placeholder="Explain what was entered incorrectly and why it needs to change."></textarea>
+      </label>
+
+      <p class="ari-field-note">Your password is sent only to Supabase Auth to verify your identity. ARI XP does not store it in the correction request.</p>
+      <button class="ari-primary-action" id="submitBirthdayCorrectionButton" type="submit" value="default">Submit for owner review</button>
+    </form>
+  </dialog>
+
   <dialog class="ari-dialog" id="pauseDialog">
     <form method="dialog" class="ari-dialog-card">
       <button class="ari-dialog-close" type="button" data-dialog-close aria-label="Close">×</button>
@@ -210,6 +253,6 @@
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/support-ari-config.js?v=3.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/account.js?v=3.4.0"></script>
+  <script src="js/account.js?v=3.5.0"></script>
 </body>
 </html>
