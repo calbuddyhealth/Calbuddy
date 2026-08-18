@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.8.0";
+export const CONTEXT_ROUTER_VERSION = "1.9.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -92,6 +92,10 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.decisionState = source.decisionState;
   }
 
+  if ((route.training || route.nutrition || route.goals) && source?.communicationLearning) {
+    selected.communicationLearning = source.communicationLearning;
+  }
+
   if ((route.training || route.nutrition || route.goals) && source?.temporalTimeline) {
     selected.temporalTimeline = source.temporalTimeline;
   }
@@ -122,6 +126,7 @@ function cognitiveContextRules(context = {}) {
       "- Separate stated goals/preferences from observed behavior and measured response.",
       "- A goal-behavior tension is decision evidence, not a character judgment. Do not shame the user.",
       "- When an aspirational plan repeatedly conflicts with observed adherence, prefer a realistic design unless the user explicitly wants to test a change.",
+      "- Privacy blocks are authoritative. Never reconstruct a blocked category from neighboring context.",
       "- Never invent missing identity, preferences, constraints, or physiological responses."
     );
   }
@@ -134,6 +139,15 @@ function cognitiveContextRules(context = {}) {
       "- Current evidence outranks consistency with an old Ari conclusion.",
       "- A previously weakened judgment should increase attention to credible alternatives under similar conditions.",
       guidance ? `- ${guidance}` : "- Do not adjust confidence from historical calibration until the sample is large enough."
+    );
+  }
+
+  if (context?.communicationLearning) {
+    lines.push(
+      "COMMUNICATION LEARNING RULES:",
+      "- Communication/outcome history is correlational, not proof that a tone or wording caused adherence.",
+      "- Current explicit user style instructions always win.",
+      "- Never use manipulation, guilt, dependency, or pressure to chase follow-through metrics."
     );
   }
 
