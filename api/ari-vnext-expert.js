@@ -1,3 +1,4 @@
+import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import { listCommunicationOutcomes, summarizeCommunicationLearning } from "./_lib/ari-vnext/communication-outcomes.js";
 import { buildRelevantContext, routeContext } from "./_lib/ari-vnext/context-router.js";
@@ -45,17 +46,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Message is required.", source: "ari_vnext_expert" });
     }
 
-    const route = routeContext(turn);
-    const safety = classifySafety(turn, route);
-    const fitnessRoute = Boolean(route.training || route.nutrition || route.goals);
-    const shouldLoadMemory = Boolean(route.memory || fitnessRoute);
+    const routePreview = routeContext(turn);
+    const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
+    const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
 
-    const [retrievedRaw, experiments, persistedWorldModel, decisions, communicationRows] = await Promise.all([
+    const [retrievedRaw, experiments, persistedWorldModel, decisions, communicationRows, accountEntitlements] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
             message: turn.message,
-            limit: route.memory ? 6 : 5
+            limit: routePreview.memory ? 6 : 5
           })
         : Promise.resolve({ memories: [], summary: "" }),
       fitnessRoute
@@ -63,7 +63,8 @@ export default async function handler(req, res) {
         : Promise.resolve([]),
       loadUserWorldModel({ userId: auth.userId }),
       fitnessRoute ? listRecentDecisions({ userId: auth.userId, limit: 16 }) : Promise.resolve([]),
-      fitnessRoute ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 }) : Promise.resolve([])
+      fitnessRoute ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 }) : Promise.resolve([]),
+      loadAccountEntitlements({ userId: auth.userId })
     ]);
 
     const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
@@ -79,6 +80,7 @@ export default async function handler(req, res) {
 
     turn.context = {
       ...(turn.context || {}),
+      accountEntitlements,
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
       ...(decisionState ? { decisionState } : {}),
@@ -86,6 +88,8 @@ export default async function handler(req, res) {
       ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
     };
 
+    const route = routeContext(turn);
+    const safety = classifySafety(turn, route);
     const relevantContext = buildRelevantContext(turn, route);
     const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
     const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
@@ -147,6 +151,8 @@ export default async function handler(req, res) {
       userScoped: true,
       readOnly: true,
       privacyFiltered: Boolean(retrieved?.privacyFiltered),
+      accountEntitlements,
+      safety,
       route,
       relationshipContinuity,
       goalHierarchy,
@@ -330,5 +336,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Expert", "v4");
+  res.setHeader("X-ARI-Expert", "v5");
 }
