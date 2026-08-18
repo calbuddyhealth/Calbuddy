@@ -3,6 +3,7 @@
 import { ARI_PERSONA } from "./persona.js";
 import { communicationProfileToInstruction, resolveCommunicationProfile } from "./communication-profile.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
+import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
@@ -56,7 +57,7 @@ export async function runAriVNext(turn = {}) {
     tools.push({ type: "web_search" });
   }
 
-  const instructions = buildInstructions({ communication, safety, relevantContext });
+  const instructions = buildInstructions({ route, communication, safety, relevantContext });
   const input = buildInput(turn);
 
   const first = await callResponses({
@@ -141,14 +142,23 @@ export async function runAriVNext(turn = {}) {
   };
 }
 
-function buildInstructions({ communication, safety, relevantContext } = {}) {
-  return [
+function buildInstructions({ route, communication, safety, relevantContext } = {}) {
+  const sections = [
     ARI_PERSONA,
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
-    "\nSAFETY CONTEXT\n" + safetyToInstruction(safety),
+    "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
+  ];
+
+  if (shouldUseFitnessIntelligence(route)) {
+    sections.push("\nFITNESS INTELLIGENCE\n" + FITNESS_INTELLIGENCE);
+  }
+
+  sections.push(
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
     "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' is not permission to log food."
-  ].join("\n");
+  );
+
+  return sections.join("\n");
 }
 
 function buildInput(turn = {}) {
