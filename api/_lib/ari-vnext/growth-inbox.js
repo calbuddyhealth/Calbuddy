@@ -2,7 +2,7 @@
 // Converts peer-reflection memories into actionable owner signals without
 // another model call and without exposing hidden reasoning.
 
-export const ARI_GROWTH_INBOX_VERSION = "1.0.0";
+export const ARI_GROWTH_INBOX_VERSION = "1.1.0";
 
 const AREA_RULES = [
   {
@@ -53,6 +53,7 @@ const SELF_PATTERNS = /\b(wording|tone|be more|be less|should acknowledge|should
 export function classifyGrowthReflection(reflection = {}) {
   const content = clean(reflection?.content || reflection?.takeaway || "", 1800);
   const area = resolveArea(content);
+  const issueKey = resolveIssueKey(content, area.id);
   const ownerNeeded = OWNER_PATTERNS.test(content) || ["action_safety", "performance_cost", "safety"].includes(area.id) && /\b(problem|issue|gap|fail|missing|cannot|can't|unable|risk)\b/i.test(content);
   const selfLearn = !ownerNeeded && SELF_PATTERNS.test(content);
 
@@ -63,6 +64,7 @@ export function classifyGrowthReflection(reflection = {}) {
     level,
     area: area.id,
     areaLabel: area.label,
+    issueKey,
     takeaway: extractTakeaway(content),
     futureQuestion: extractFutureQuestion(content),
     ownerAction: suggestedOwnerAction({ area: area.id, level, content }),
@@ -76,13 +78,17 @@ export function buildGrowthInbox(reflections = []) {
     .map(classifyGrowthReflection)
     .filter((item) => item.takeaway || item.sourceContent);
 
-  const countsByArea = new Map();
-  for (const item of classified) countsByArea.set(item.area, (countsByArea.get(item.area) || 0) + 1);
+  const countsByPattern = new Map();
+  for (const item of classified) {
+    const patternKey = `${item.area}:${item.issueKey}`;
+    countsByPattern.set(patternKey, (countsByPattern.get(patternKey) || 0) + 1);
+  }
 
   const items = classified.map((item) => {
-    const repeatCount = countsByArea.get(item.area) || 1;
+    const patternKey = `${item.area}:${item.issueKey}`;
+    const repeatCount = countsByPattern.get(patternKey) || 1;
     let level = item.level;
-    // Repeated WATCH feedback is exactly what the owner should care about.
+    // Only repeated feedback about the same issue pattern escalates.
     if (level === "watch" && repeatCount >= 2) level = "help_ari";
     return {
       ...item,
@@ -90,7 +96,7 @@ export function buildGrowthInbox(reflections = []) {
       repeatCount,
       repeatedPattern: repeatCount >= 2,
       ownerAction: level === "help_ari" && item.level !== "help_ari"
-        ? repeatedPatternAction(item.areaLabel, repeatCount)
+        ? repeatedPatternAction(item.areaLabel, item.issueKey, repeatCount)
         : item.ownerAction
     };
   });
@@ -102,15 +108,20 @@ export function buildGrowthInbox(reflections = []) {
     return Date.parse(b.createdAt || "") - Date.parse(a.createdAt || "");
   });
 
+  const repeatedPatterns = [...countsByPattern.entries()]
+    .filter(([, count]) => count >= 2)
+    .map(([patternKey, count]) => {
+      const [area, issueKey] = patternKey.split(":");
+      return { area, areaLabel: areaLabel(area), issueKey, count };
+    })
+    .sort((a, b) => b.count - a.count);
+
   const summary = {
     total: items.length,
     helpAri: items.filter((item) => item.level === "help_ari").length,
     watch: items.filter((item) => item.level === "watch").length,
     ariHandles: items.filter((item) => item.level === "ari_handles").length,
-    repeatedAreas: [...countsByArea.entries()]
-      .filter(([, count]) => count >= 2)
-      .map(([area, count]) => ({ area, areaLabel: areaLabel(area), count }))
-      .sort((a, b) => b.count - a.count)
+    repeatedAreas: repeatedPatterns
   };
 
   return { version: ARI_GROWTH_INBOX_VERSION, summary, items };
@@ -119,6 +130,26 @@ export function buildGrowthInbox(reflections = []) {
 function resolveArea(content) {
   for (const rule of AREA_RULES) if (rule.pattern.test(content)) return rule;
   return { id: "general_reasoning", label: "General reasoning" };
+}
+
+function resolveIssueKey(content, area) {
+  const rules = [
+    ["missing_access", /\b(cannot access|can't access|unable to access|needs? access|data unavailable|missing (?:data|field|source|capability|tool|integration))\b/i],
+    ["action_confirmation", /\b(confirm|confirmation|pending action|mutation|overwrite|wrong date|saved? without|tool call)\b/i],
+    ["stale_context", /\b(stale|prior turn|previous turn|wrong context|old context|follow-up|follow up)\b/i],
+    ["memory_recall", /\b(memory|remember|continuity|history)\b/i],
+    ["evidence_strength", /\b(stronger evidence|insufficient evidence|more evidence|another (?:week|sample|data point)|uncertain|uncertainty|confidence|assumption|overreach)\b/i],
+    ["training_progression", /\b(progress(?:ion)?|plateau|volume|adherence|program|strength)\b/i],
+    ["nutrition_reasoning", /\b(nutrition|calorie|protein|carb|fat|meal|diet)\b/i],
+    ["recovery_reasoning", /\b(recovery|sleep|fatigue|soreness|rest)\b/i],
+    ["directness", /\b(direct|concise|overexplaining|too long|wording)\b/i],
+    ["emotional_tone", /\b(warm|empathy|celebrat|accountability|playful|tone)\b/i],
+    ["latency", /\b(latency|slow|speed|timeout|performance)\b/i],
+    ["cost", /\b(token|cost|expensive|cache)\b/i],
+    ["safety_boundary", /\b(safety|unsafe|high[- ]stakes|medical|self harm|self-harm|crisis|danger|harm)\b/i]
+  ];
+  for (const [key, pattern] of rules) if (pattern.test(content)) return key;
+  return `${area}_general`;
 }
 
 function suggestedOwnerAction({ area, level, content }) {
@@ -143,8 +174,9 @@ function suggestedOwnerAction({ area, level, content }) {
   return actions[area] || actions.general_reasoning;
 }
 
-function repeatedPatternAction(label, count) {
-  return `${label} has appeared in ${count} recent peer reflections. Reproduce the pattern in the owner lab and treat it as a system-level improvement candidate.`;
+function repeatedPatternAction(label, issueKey, count) {
+  const issue = String(issueKey || "issue").replaceAll("_", " ");
+  return `${label}: ${issue} has appeared in ${count} recent peer reflections. Reproduce that specific pattern in the owner lab and treat it as a system-level improvement candidate.`;
 }
 
 function extractTakeaway(content) {
