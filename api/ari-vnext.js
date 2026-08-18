@@ -114,9 +114,14 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(false);
 
+    // Durable memory can now use recent Ari guidance and the resolved domain
+    // to capture explicit user-reported outcomes (worked/helped/worsened/etc.)
+    // without another model call.
     const durableMemoryTask = persistDurableMemory({
       userId: auth.userId,
-      message: turn.message
+      message: turn.message,
+      history: turn.history,
+      route: result?.route || routePreview
     });
 
     const [, turnPersistence, durablePersistence] = await Promise.allSettled([
