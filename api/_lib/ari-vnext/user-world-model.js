@@ -2,7 +2,7 @@
 // This is not a transcript. It separates stated goals/preferences from observed
 // behavior and measured response so Ari can notice mismatches without shaming.
 
-export const ARI_USER_WORLD_MODEL_VERSION = "1.0.0";
+export const ARI_USER_WORLD_MODEL_VERSION = "1.0.1";
 const TABLE = "ari_vnext_user_models";
 
 export async function loadUserWorldModel({ userId } = {}) {
@@ -38,7 +38,10 @@ export function deriveUserWorldModel({
     .slice(0, 24);
 
   const profile = compactObject(context?.user);
-  const goalsContext = compactObject(context?.goals);
+  const incomingGoalsContext = compactObject(context?.goals);
+  const goalsContext = Object.keys(incomingGoalsContext).length
+    ? mergeObject(persisted?.goals?.current, incomingGoalsContext)
+    : compactObject(persisted?.goals?.current);
   const preferences = uniqueText([
     ...arrayValues(persisted?.preferences?.items),
     ...memoryLines.filter((line) => /\b(prefer|like|love|favorite|favourite|dislike|hate|want ari to|prefer ari to)\b/i.test(line))
@@ -58,32 +61,40 @@ export function deriveUserWorldModel({
   const weight = longitudinalState?.weight || {};
   const nutrition = longitudinalState?.nutrition || {};
   const experiments = context?.experimentLedger || {};
+  const oldBehavior = compactObject(persisted?.behavior);
+  const oldPerformance = compactObject(oldBehavior?.recentPerformance);
 
   const observedBehavior = {
-    trainingAdherence: finiteOrNull(adherence?.rate),
-    plannedTrainingExposure: finiteOrNull(adherence?.plannedCount),
-    completedTrainingExposure: finiteOrNull(adherence?.completedCount),
-    nutritionLoggedDays: finiteOrNull(nutrition?.loggedDayCount),
+    trainingAdherence: preferObserved(adherence?.rate, oldBehavior.trainingAdherence),
+    plannedTrainingExposure: preferObserved(adherence?.plannedCount, oldBehavior.plannedTrainingExposure),
+    completedTrainingExposure: preferObserved(adherence?.completedCount, oldBehavior.completedTrainingExposure),
+    nutritionLoggedDays: preferObserved(nutrition?.loggedDayCount, oldBehavior.nutritionLoggedDays),
     recentPerformance: {
-      up: finiteOrNull(progression?.upCount),
-      stable: finiteOrNull(progression?.stableCount),
-      down: finiteOrNull(progression?.downCount),
-      plateaus: finiteOrNull(progression?.plateauCandidateCount)
+      up: preferObserved(progression?.upCount, oldPerformance.up),
+      stable: preferObserved(progression?.stableCount, oldPerformance.stable),
+      down: preferObserved(progression?.downCount, oldPerformance.down),
+      plateaus: preferObserved(progression?.plateauCandidateCount, oldPerformance.plateaus)
     },
-    weightVelocityPerWeek: weight?.available ? finiteOrNull(weight?.velocityPerWeek) : null
+    weightVelocityPerWeek: weight?.available
+      ? finiteOrNull(weight?.velocityPerWeek)
+      : finiteOrNull(oldBehavior.weightVelocityPerWeek)
   };
 
+  const currentOutcomes = (Array.isArray(experiments?.recentCompleted) ? experiments.recentCompleted : [])
+    .slice(0, 4)
+    .map((item) => ({
+      hypothesisId: clean(item?.hypothesisId, 120),
+      outcomeDirection: clean(item?.outcomeDirection, 40),
+      confidenceBefore: finiteOrNull(item?.confidenceBefore),
+      confidenceAfter: finiteOrNull(item?.confidenceAfter),
+      completedAt: item?.completedAt || null
+    }));
+  const oldResponse = compactObject(persisted?.physiologicalResponse);
   const physiologicalResponse = {
-    completedExperiments: Number(experiments?.completedCount || 0),
-    recentOutcomes: (Array.isArray(experiments?.recentCompleted) ? experiments.recentCompleted : [])
-      .slice(0, 4)
-      .map((item) => ({
-        hypothesisId: clean(item?.hypothesisId, 120),
-        outcomeDirection: clean(item?.outcomeDirection, 40),
-        confidenceBefore: finiteOrNull(item?.confidenceBefore),
-        confidenceAfter: finiteOrNull(item?.confidenceAfter),
-        completedAt: item?.completedAt || null
-      }))
+    completedExperiments: experiments?.completedCount !== undefined && experiments?.completedCount !== null
+      ? Number(experiments.completedCount || 0)
+      : Number(oldResponse?.completedExperiments || 0),
+    recentOutcomes: currentOutcomes.length ? currentOutcomes : (Array.isArray(oldResponse?.recentOutcomes) ? oldResponse.recentOutcomes.slice(0, 4) : [])
   };
 
   const contradictions = detectGoalBehaviorTensions({
@@ -113,13 +124,13 @@ export function deriveUserWorldModel({
       mode: selfModel?.current?.mode || persisted?.relationship?.mode || null,
       familiarity: selfModel?.relationship?.familiarity || persisted?.relationship?.familiarity || null
     },
-    tensions: contradictions,
+    tensions: contradictions.length ? contradictions : (Array.isArray(persisted?.tensions) ? persisted.tensions.slice(0, 5) : []),
     sourceSummary: {
-      profile: Object.keys(profile).length > 0,
-      durableMemoryLines: memoryLines.length,
-      longitudinalTraining: Number(adherence?.plannedCount || 0) > 0,
-      longitudinalWeight: Boolean(weight?.available),
-      experimentOutcomes: Number(experiments?.completedCount || 0)
+      profile: Object.keys(profile).length > 0 || Boolean(persisted?.sourceSummary?.profile),
+      durableMemoryLines: Math.max(memoryLines.length, Number(persisted?.sourceSummary?.durableMemoryLines || 0)),
+      longitudinalTraining: Number(adherence?.plannedCount || 0) > 0 || Boolean(persisted?.sourceSummary?.longitudinalTraining),
+      longitudinalWeight: Boolean(weight?.available) || Boolean(persisted?.sourceSummary?.longitudinalWeight),
+      experimentOutcomes: Math.max(Number(experiments?.completedCount || 0), Number(persisted?.sourceSummary?.experimentOutcomes || 0))
     }
   };
 }
@@ -214,6 +225,10 @@ function normalizeModel(row) {
   };
 }
 
+function preferObserved(current, previous) {
+  const value = finiteOrNull(current);
+  return value !== null ? value : finiteOrNull(previous);
+}
 function mergeObject(a, b) {
   return { ...compactObject(a), ...compactObject(b) };
 }
