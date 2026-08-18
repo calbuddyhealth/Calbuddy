@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.0.0",
+  version: "1.1.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
 
@@ -16,11 +16,13 @@ window.AriVNextBridge = {
     const accessToken = String(session?.access_token || "").trim();
     if (!accessToken) throw new Error("A signed-in ARI session is required.");
 
+    const context = await this.buildContext(options);
+
     const payload = {
       message: text,
       history: Array.isArray(options?.history) ? options.history.slice(-16) : [],
       surface: options?.page || options?.surface || window.location.pathname || "unknown",
-      context: this.buildContext(options),
+      context,
       preferences: options?.preferences || options?.userContext?.preferences || {},
       memorySummary: options?.coachMemorySummary || options?.userContext?.coachMemorySummary || "",
       pendingAction: this.getPendingAction()
@@ -46,8 +48,13 @@ window.AriVNextBridge = {
     return data;
   },
 
-  buildContext(options = {}) {
+  async buildContext(options = {}) {
     const userContext = options?.userContext || {};
+    let trainingContext = null;
+
+    if (window.AriVNextTrainingContext?.build) {
+      trainingContext = await window.AriVNextTrainingContext.build({ historyDays: 14 });
+    }
 
     return {
       surface: options?.page || window.location.pathname || "unknown",
@@ -71,9 +78,19 @@ window.AriVNextBridge = {
       },
       mealsToday: userContext?.mealsToday || options?.meals || options?.todayLog || [],
       nutrition: userContext?.nutrition || options?.nutrition || {},
-      training: userContext?.training || options?.training || {},
-      trainingToday: userContext?.trainingToday || options?.trainingToday || null,
-      recentTraining: userContext?.recentTraining || options?.recentTraining || [],
+      training: trainingContext?.available
+        ? {
+            ...(userContext?.training || options?.training || {}),
+            summary: trainingContext.summary,
+            currentWeek: trainingContext.currentWeek
+          }
+        : (userContext?.training || options?.training || {}),
+      trainingToday: trainingContext?.available
+        ? trainingContext.todayPlan
+        : (userContext?.trainingToday || options?.trainingToday || null),
+      recentTraining: trainingContext?.available
+        ? trainingContext.recentTraining
+        : (userContext?.recentTraining || options?.recentTraining || []),
       social: userContext?.social || options?.social || {}
     };
   },
