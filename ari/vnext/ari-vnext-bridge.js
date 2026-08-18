@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.2.0",
+  version: "1.3.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
 
@@ -53,7 +53,10 @@ window.AriVNextBridge = {
     let trainingContext = null;
 
     if (window.AriVNextTrainingContext?.build) {
-      trainingContext = await window.AriVNextTrainingContext.build({ historyDays: 14 });
+      trainingContext = await window.AriVNextTrainingContext.build({
+        historyDays: 28,
+        historySessionLimit: 24
+      });
     }
 
     return {
@@ -85,7 +88,10 @@ window.AriVNextBridge = {
         ? {
             ...(userContext?.training || options?.training || {}),
             summary: trainingContext.summary,
-            currentWeek: trainingContext.currentWeek
+            currentWeek: trainingContext.currentWeek,
+            todayProgress: trainingContext.todayProgress,
+            sessionHistory: trainingContext.sessionHistory,
+            performanceTrends: trainingContext.performanceTrends
           }
         : (userContext?.training || options?.training || {}),
       trainingToday: trainingContext?.available
