@@ -8,6 +8,7 @@ import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-in
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
+import { applyOutcomeLearning } from "./outcome-learning.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
@@ -32,7 +33,7 @@ export async function runAriVNext(turn = {}) {
     coachingState,
     longitudinalState
   });
-  const scientificIntelligence = deriveScientificIntelligence({
+  const rawScientificIntelligence = deriveScientificIntelligence({
     turn,
     route,
     context: relevantContext,
@@ -40,6 +41,10 @@ export async function runAriVNext(turn = {}) {
     longitudinalState,
     metacognition
   });
+  const scientificIntelligence = applyOutcomeLearning(
+    rawScientificIntelligence,
+    relevantContext?.relevantMemory || ""
+  );
   const temporalContext = deriveTemporalContext(turn);
   const pendingIntent = resolvePendingActionIntent(turn);
 
