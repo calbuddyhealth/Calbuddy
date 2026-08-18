@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node --test tests/*.test.mjs",
   "rewrites": [
     {
       "source": "/api/knowledge",
