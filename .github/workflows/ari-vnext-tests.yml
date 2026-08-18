@@ -1,0 +1,33 @@
+name: ARI vNext intelligence tests
+
+on:
+  push:
+    branches:
+      - agent/ari-vnext-intelligence
+    paths:
+      - "api/ari-vnext.js"
+      - "api/_lib/ari-vnext/**"
+      - "ari/vnext/**"
+      - "tests/ari-vnext-*.test.mjs"
+      - ".github/workflows/ari-vnext-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  intelligence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run Ari vNext deterministic tests
+        run: node --test tests/ari-vnext-*.test.mjs
