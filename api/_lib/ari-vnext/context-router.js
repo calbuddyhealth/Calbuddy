@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.6.1";
+export const CONTEXT_ROUTER_VERSION = "1.7.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -49,6 +49,13 @@ export function buildRelevantContext(turn = {}, route = {}) {
     user: pickObject(source?.user, ["displayName", "firstName", "age", "sex", "height", "activityLevel"])
   };
 
+  // Ari's persistent world model is compact and useful even outside explicit
+  // memory questions because it separates stable preferences/goals from actual
+  // observed behavior. Never synthesize one here if it was not supplied.
+  if (source?.userWorldModel && typeof source.userWorldModel === "object") {
+    selected.userWorldModel = source.userWorldModel;
+  }
+
   if (route.goals) {
     selected.goals = source?.goals || source?.healthProfile || {};
     selected.recentWeights = Array.isArray(source?.recentWeights)
@@ -87,6 +94,12 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.experimentLedger = source.experimentLedger;
   }
 
+  // Prior Ari judgments are evidence about Ari, not facts about the user. They
+  // are useful on decision-heavy fitness turns for calibration/self-correction.
+  if ((route.training || route.nutrition || route.goals) && source?.decisionState) {
+    selected.decisionState = source.decisionState;
+  }
+
   // Relevant memory is useful not only when the user explicitly asks Ari to
   // remember something. Fitness outcome memories and prior coaching results
   // should participate in later training/nutrition/goal decisions too.
@@ -99,7 +112,7 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
 export function contextToText(context = {}) {
   try {
-    return JSON.stringify(context, null, 2).slice(0, 18000);
+    return JSON.stringify(context, null, 2).slice(0, 22000);
   } catch {
     return "{}";
   }
