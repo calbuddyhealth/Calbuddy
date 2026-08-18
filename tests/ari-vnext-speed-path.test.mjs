@@ -12,7 +12,9 @@ test("browser bridge only builds canonical Training history when the turn needs 
 
 test("server only hydrates recent cross-session conversation for continuity-dependent wording", () => {
   const source = fs.readFileSync(new URL("../api/ari-vnext.js", import.meta.url), "utf8");
-  assert.match(source, /shouldRecoverRecentConversation/);
-  assert.match(source, /A fresh \"what's up\?\"/);
+  assert.match(source, /function shouldRecoverRecentConversation/);
   assert.match(source, /history\.length >= 2/);
+  assert.match(source, /last time\|earlier\|before\|remember when\|we talked\|we discussed\|we decided/);
+  assert.match(source, /continue from\|pick up where/);
+  assert.doesNotMatch(source, /\^\(hey\|hello\|what'?s up/);
 });
