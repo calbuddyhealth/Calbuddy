@@ -1,22 +1,44 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5
-   Version: 1.0.3
+   Version: 1.1.0
    Rebuilds the shared Circle menu as a compact premium control drawer.
+   Also installs the shared adults-only Circle presentation gate.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.3";
+  const VERSION = "1.1.0";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
+  const ADULT_GUARD_SCRIPT_ID = "ariCircleAdultOnlyGuardScript";
+  const ADULT_GUARD_SCRIPT_SRC = "js/ari-circle/adult-only-guard.js?v=1.0.0";
   const PRIVATE_MEDIA_SCRIPT_ID = "ariCirclePrivateMediaScript";
   const PRIVATE_MEDIA_SCRIPT_SRC = "js/ari-circle/private-media.js?v=1.0.0";
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   let observer = null;
   let outsideBound = false;
+
+  // Hide Circle while the server-derived adult entitlement resolves. This is a
+  // presentation boundary only; database/RPC/storage authorization is the real
+  // security boundary.
+  document.documentElement.setAttribute("data-ari-circle-gate", "pending");
+  document.documentElement.style.visibility = "hidden";
+
+  function loadAdultGuard() {
+    if (window.AriCircleAdultGuard || document.getElementById(ADULT_GUARD_SCRIPT_ID)) return;
+    const script = document.createElement("script");
+    script.id = ADULT_GUARD_SCRIPT_ID;
+    script.src = ADULT_GUARD_SCRIPT_SRC;
+    script.async = false;
+    document.head.append(script);
+  }
+
+  function adultAccessReady() {
+    return window.ARI_CIRCLE_AGE_STATE?.circleAllowed === true;
+  }
 
   const icon = Object.freeze({
     menu: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"></path></svg>`,
@@ -30,6 +52,7 @@
   });
 
   function loadPrivateMedia() {
+    if (!adultAccessReady()) return;
     if (window.AriCirclePrivateMedia || document.getElementById(PRIVATE_MEDIA_SCRIPT_ID)) return;
     const script = document.createElement("script");
     script.id = PRIVATE_MEDIA_SCRIPT_ID;
@@ -47,7 +70,7 @@
   }
 
   function loadProfileSafety() {
-    if (!shouldLoadProfileSafety()) return;
+    if (!adultAccessReady() || !shouldLoadProfileSafety()) return;
     if (window.AriCircleProfileSafety || document.getElementById(PROFILE_SAFETY_SCRIPT_ID)) return;
 
     const script = document.createElement("script");
@@ -177,6 +200,7 @@
   }
 
   function run() {
+    if (!adultAccessReady()) return;
     loadPrivateMedia();
     loadProfileSafety();
     ensureStyle();
@@ -186,7 +210,7 @@
   }
 
   function watch() {
-    if (observer) return;
+    if (observer || !adultAccessReady()) return;
     observer = new MutationObserver((mutations) => {
       const relevant = mutations.some((mutation) =>
         mutation.type === "childList" ||
@@ -203,20 +227,23 @@
     });
   }
 
-  loadPrivateMedia();
-  loadProfileSafety();
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      run();
-      watch();
-      setTimeout(run, 160);
-      setTimeout(run, 700);
-    }, { once: true });
-  } else {
+  function startAdultCircleUi() {
+    if (!adultAccessReady()) return;
     run();
     watch();
     setTimeout(run, 160);
+    setTimeout(run, 700);
+  }
+
+  loadAdultGuard();
+  window.addEventListener("ari-circle-access-ready", startAdultCircleUi, { once: true });
+
+  if (adultAccessReady()) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startAdultCircleUi, { once: true });
+    } else {
+      startAdultCircleUi();
+    }
   }
 
   document.addEventListener("circle:app-ready", () => setTimeout(run, 0));
