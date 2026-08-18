@@ -1,5 +1,7 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
+import { routeContext } from "./_lib/ari-vnext/context-router.js";
+import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
@@ -41,6 +43,20 @@ export default async function handler(req, res) {
       });
     }
 
+    const routePreview = routeContext(turn);
+    let retrievedMemoryCount = 0;
+
+    if (routePreview.memory || routePreview.training || routePreview.goals) {
+      const retrieved = await retrieveRelevantMemories({
+        userId: auth.userId,
+        message: turn.message,
+        limit: routePreview.memory ? 6 : 4
+      });
+
+      retrievedMemoryCount = retrieved.memories.length;
+      turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
+    }
+
     const result = await runAriVNext(turn);
 
     if (result?.provider?.usage) {
@@ -61,6 +77,7 @@ export default async function handler(req, res) {
           surface: turn.surface,
           mode: result?.modelPolicy?.mode || null,
           actionType: result?.action?.type || null,
+          memoryCount: retrievedMemoryCount,
           route: result?.route || null
         }
       });
@@ -69,6 +86,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ...result,
       turnId: turn.turnId,
+      memoryUsed: retrievedMemoryCount > 0,
+      memoryCount: retrievedMemoryCount,
       timing: { totalMs: Date.now() - startedAt }
     });
   } catch (error) {
