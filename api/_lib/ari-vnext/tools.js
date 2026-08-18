@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.2.0";
+export const TOOL_REGISTRY_VERSION = "1.3.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -36,7 +36,7 @@ export function getAriTools(route = {}) {
   if (route?.training) {
     tools.push(functionTool(
       "propose_workout_plan",
-      "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training context and goals when relevant. If the date is not stated, leave dateText empty rather than inventing one.",
+      "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training history, current-week overlap, goal, performance and recovery evidence when relevant. Choose recognizable exercise-library names. Give one exact target rep count per exercise rather than a rep range so ARI XP can save the prescription without changing Ari's plan. If the date is not stated, leave dateText empty rather than inventing one.",
       {
         type: "object",
         additionalProperties: false,
@@ -54,7 +54,7 @@ export function getAriTools(route = {}) {
               properties: {
                 name: { type: "string" },
                 sets: { type: ["number", "null"] },
-                reps: { type: "string" },
+                reps: { type: ["number", "null"] },
                 restSeconds: { type: ["number", "null"] },
                 notes: { type: "string" }
               },
@@ -164,6 +164,18 @@ function validateSemantics(name, args) {
     if (!String(args?.focus || "").trim()) return { valid: false, error: "workout_focus_required" };
     if (!Array.isArray(args?.exercises) || args.exercises.length === 0 || args.exercises.length > 20) {
       return { valid: false, error: "workout_exercises_required" };
+    }
+    for (const exercise of args.exercises) {
+      if (!String(exercise?.name || "").trim()) return { valid: false, error: "workout_exercise_name_required" };
+      if (exercise?.sets !== null && (!Number.isFinite(Number(exercise.sets)) || Number(exercise.sets) < 1 || Number(exercise.sets) > 12)) {
+        return { valid: false, error: "workout_sets_out_of_range" };
+      }
+      if (exercise?.reps !== null && (!Number.isFinite(Number(exercise.reps)) || Number(exercise.reps) < 1 || Number(exercise.reps) > 100)) {
+        return { valid: false, error: "workout_reps_out_of_range" };
+      }
+      if (exercise?.restSeconds !== null && (!Number.isFinite(Number(exercise.restSeconds)) || Number(exercise.restSeconds) < 0 || Number(exercise.restSeconds) > 900)) {
+        return { valid: false, error: "workout_rest_out_of_range" };
+      }
     }
   }
 
