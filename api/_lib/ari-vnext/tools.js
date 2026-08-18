@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.3.0";
+export const TOOL_REGISTRY_VERSION = "1.4.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -70,7 +70,7 @@ export function getAriTools(route = {}) {
 
     tools.push(functionTool(
       "propose_edit_workout",
-      "Propose editing an existing workout when the CURRENT user explicitly asks to add, remove, replace, move, or change exercises or workout details. Do not infer a workout edit from nutrition language.",
+      "Propose a precise edit to an EXISTING date-specific workout only when the CURRENT user explicitly asks Ari to change it. Supported edits: add an exercise, remove an exercise, replace one exercise with another, move an exercise to a new position, update sets/reps/rest for an exercise, or update the workout title/duration. Preserve everything the user did not ask to change. Never rebuild the whole workout for a small edit. If the date is missing, leave dateText empty rather than guessing.",
       {
         type: "object",
         additionalProperties: false,
@@ -79,9 +79,18 @@ export function getAriTools(route = {}) {
           operation: { type: "string", enum: ["add", "remove", "replace", "move", "update"] },
           exercise: { type: "string" },
           replacementExercise: { type: "string" },
+          sets: { type: ["number", "null"] },
+          reps: { type: ["number", "null"] },
+          restSeconds: { type: ["number", "null"] },
+          position: { type: ["number", "null"] },
+          durationMinutes: { type: ["number", "null"] },
+          title: { type: "string" },
           instruction: { type: "string" }
         },
-        required: ["dateText", "operation", "exercise", "replacementExercise", "instruction"]
+        required: [
+          "dateText", "operation", "exercise", "replacementExercise",
+          "sets", "reps", "restSeconds", "position", "durationMinutes", "title", "instruction"
+        ]
       }
     ));
   }
@@ -167,15 +176,32 @@ function validateSemantics(name, args) {
     }
     for (const exercise of args.exercises) {
       if (!String(exercise?.name || "").trim()) return { valid: false, error: "workout_exercise_name_required" };
-      if (exercise?.sets !== null && (!Number.isFinite(Number(exercise.sets)) || Number(exercise.sets) < 1 || Number(exercise.sets) > 12)) {
-        return { valid: false, error: "workout_sets_out_of_range" };
-      }
-      if (exercise?.reps !== null && (!Number.isFinite(Number(exercise.reps)) || Number(exercise.reps) < 1 || Number(exercise.reps) > 100)) {
-        return { valid: false, error: "workout_reps_out_of_range" };
-      }
-      if (exercise?.restSeconds !== null && (!Number.isFinite(Number(exercise.restSeconds)) || Number(exercise.restSeconds) < 0 || Number(exercise.restSeconds) > 900)) {
-        return { valid: false, error: "workout_rest_out_of_range" };
-      }
+      if (!validNullableRange(exercise?.sets, 1, 12)) return { valid: false, error: "workout_sets_out_of_range" };
+      if (!validNullableRange(exercise?.reps, 1, 100)) return { valid: false, error: "workout_reps_out_of_range" };
+      if (!validNullableRange(exercise?.restSeconds, 0, 900)) return { valid: false, error: "workout_rest_out_of_range" };
+    }
+  }
+
+  if (name === "propose_edit_workout") {
+    const operation = String(args?.operation || "");
+    const exercise = String(args?.exercise || "").trim();
+    const replacement = String(args?.replacementExercise || "").trim();
+
+    if (!String(args?.dateText || "").trim()) return { valid: false, error: "workout_edit_date_required" };
+    if (!["add", "remove", "replace", "move", "update"].includes(operation)) return { valid: false, error: "unsupported_workout_edit" };
+    if (["remove", "replace", "move"].includes(operation) && !exercise) return { valid: false, error: "workout_edit_target_required" };
+    if (operation === "add" && !exercise && !replacement) return { valid: false, error: "workout_edit_add_exercise_required" };
+    if (operation === "replace" && !replacement) return { valid: false, error: "workout_edit_replacement_required" };
+    if (operation === "move" && !validNullableRange(args?.position, 1, 20, false)) return { valid: false, error: "workout_edit_position_required" };
+    if (!validNullableRange(args?.sets, 1, 12)) return { valid: false, error: "workout_edit_sets_out_of_range" };
+    if (!validNullableRange(args?.reps, 1, 100)) return { valid: false, error: "workout_edit_reps_out_of_range" };
+    if (!validNullableRange(args?.restSeconds, 0, 900)) return { valid: false, error: "workout_edit_rest_out_of_range" };
+    if (!validNullableRange(args?.durationMinutes, 10, 240)) return { valid: false, error: "workout_edit_duration_out_of_range" };
+
+    if (operation === "update") {
+      const hasExerciseUpdate = Boolean(exercise) && [args?.sets, args?.reps, args?.restSeconds].some((value) => value !== null && value !== undefined);
+      const hasWorkoutUpdate = Boolean(String(args?.title || "").trim()) || (args?.durationMinutes !== null && args?.durationMinutes !== undefined);
+      if (!hasExerciseUpdate && !hasWorkoutUpdate) return { valid: false, error: "workout_edit_update_fields_required" };
     }
   }
 
@@ -190,6 +216,12 @@ function validateSemantics(name, args) {
   }
 
   return { valid: true };
+}
+
+function validNullableRange(value, min, max, allowNull = true) {
+  if (value === null || value === undefined || value === "") return allowNull;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max;
 }
 
 function functionTool(name, description, parameters) {
