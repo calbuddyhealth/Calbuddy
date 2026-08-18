@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.7.0";
+export const CONTEXT_ROUTER_VERSION = "1.7.1";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -49,9 +49,6 @@ export function buildRelevantContext(turn = {}, route = {}) {
     user: pickObject(source?.user, ["displayName", "firstName", "age", "sex", "height", "activityLevel"])
   };
 
-  // Ari's persistent world model is compact and useful even outside explicit
-  // memory questions because it separates stable preferences/goals from actual
-  // observed behavior. Never synthesize one here if it was not supplied.
   if (source?.userWorldModel && typeof source.userWorldModel === "object") {
     selected.userWorldModel = source.userWorldModel;
   }
@@ -87,22 +84,18 @@ export function buildRelevantContext(turn = {}, route = {}) {
   if (route.coachingState) selected.coachingSnapshot = buildCoachingSnapshot(source);
   if (route.social) selected.social = source?.social || {};
 
-  // Active experiments are part of Ari's current model of the user. Surface
-  // them for fitness decisions so Ari does not casually change a controlled
-  // variable halfway through an observation window.
   if ((route.training || route.nutrition || route.goals) && source?.experimentLedger) {
     selected.experimentLedger = source.experimentLedger;
   }
 
-  // Prior Ari judgments are evidence about Ari, not facts about the user. They
-  // are useful on decision-heavy fitness turns for calibration/self-correction.
   if ((route.training || route.nutrition || route.goals) && source?.decisionState) {
     selected.decisionState = source.decisionState;
   }
 
-  // Relevant memory is useful not only when the user explicitly asks Ari to
-  // remember something. Fitness outcome memories and prior coaching results
-  // should participate in later training/nutrition/goal decisions too.
+  if ((route.training || route.nutrition || route.goals) && source?.temporalTimeline) {
+    selected.temporalTimeline = source.temporalTimeline;
+  }
+
   if (turn?.memory && (route.memory || route.training || route.nutrition || route.goals)) {
     selected.relevantMemory = turn.memory;
   }
@@ -112,7 +105,7 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
 export function contextToText(context = {}) {
   try {
-    return JSON.stringify(context, null, 2).slice(0, 22000);
+    return JSON.stringify(context, null, 2).slice(0, 24000);
   } catch {
     return "{}";
   }
