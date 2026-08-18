@@ -1,7 +1,7 @@
 // ARI vNext — targeted long-term memory retrieval.
 // Retrieves only user-owned memories and ranks them for the current turn.
 
-export const MEMORY_SERVICE_VERSION = "1.2.0";
+export const MEMORY_SERVICE_VERSION = "1.3.0";
 
 export async function retrieveRelevantMemories({ userId, message, limit = 6 } = {}) {
   const id = String(userId || "").trim();
@@ -46,6 +46,26 @@ export async function retrieveRelevantMemories({ userId, message, limit = 6 } = 
   }
 }
 
+export function filterMemoryResultForPrivacy(result = {}, privacyControls = null) {
+  const blocked = new Set((Array.isArray(privacyControls?.blockedCategories) ? privacyControls.blockedCategories : [])
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter(Boolean));
+  if (!blocked.size) return result || { memories: [], summary: "" };
+
+  const memories = (Array.isArray(result?.memories) ? result.memories : [])
+    .filter((memory) => {
+      const category = categoryForMemory(memory);
+      return !category || !blocked.has(category);
+    });
+
+  return {
+    ...result,
+    memories,
+    summary: memories.map((item) => `- ${item.content}`).join("\n").slice(0, 5000),
+    privacyFiltered: true
+  };
+}
+
 export function rankMemories(memories = [], message = "") {
   const queryTokens = tokenize(message);
   const now = Date.now();
@@ -85,6 +105,23 @@ export function rankMemories(memories = [], message = "") {
     .sort((a, b) => b.relevanceScore - a.relevanceScore);
 }
 
+export function categoryForMemory(memory = {}) {
+  const type = String(memory?.memoryType ?? memory?.memory_type ?? "").toLowerCase();
+  const topic = String(memory?.topic || "").toLowerCase();
+  const content = String(memory?.content || "").toLowerCase();
+  if (type === "preference" || /interaction_preference|\bpreference\b/.test(topic)) return "preferences";
+  if (type === "goal" || topic === "goal") return "goals";
+  if (type === "outcome_feedback" || /_outcome$/.test(topic)) return "fitness_outcomes";
+  if (type !== "explicit_memory") return null;
+  if (/\b(prefer|favorite|favourite|like|dislike|hate|love)\b/.test(content)) return "preferences";
+  if (/\b(goal|target|trying to|want to lose|want to gain|want to maintain|cutting|bulking)\b/.test(content)) return "goals";
+  if (/\b(can't|cannot|schedule|shift|budget|equipment|allerg|injur|pain|access)\b/.test(content)) return "constraints";
+  if (/\b(wife|husband|spouse|brother|sister|friend|partner|relationship)\b/.test(content)) return "relationship";
+  if (/\b(worked|helped|worse|improved|declined|performance|recovery|strength)\b/.test(content)) return "fitness_outcomes";
+  if (/\b(i am|i'm|my name|my age|i work|my job|occupation)\b/.test(content)) return "identity";
+  return null;
+}
+
 function outcomeMemoryBoost({ memoryType, topic, content, requestedDomain }) {
   if (!requestedDomain) return 0;
   if (memoryType !== "outcome_feedback" && !/\b(outcome|worked|helped|worse|improved|declined)\b/i.test(content)) return 0;
@@ -107,8 +144,6 @@ function inferCoachingDomain(message = "") {
 function normalizedImportance(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0.5;
-  // ARI XP has had both 0–1 and 1–10 importance conventions over time.
-  // Normalize either representation without rewriting historical rows.
   return number <= 1 ? clamp(number, 0, 1) : clamp(number / 10, 0, 1);
 }
 
