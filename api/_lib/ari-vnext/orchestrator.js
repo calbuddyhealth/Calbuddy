@@ -219,9 +219,12 @@ async function callResponses({ turn, policy, instructions, input, tools = [] } =
     tool_choice: "auto",
     parallel_tool_calls: false,
     max_output_tokens: policy?.maxOutputTokens || 1200,
-    reasoning: { effort: policy?.reasoningEffort || "medium" },
     store: false
   };
+
+  if (policy?.supportsReasoning && policy?.reasoningEffort) {
+    body.reasoning = { effort: policy.reasoningEffort };
+  }
 
   if (turn?.userId) {
     body.safety_identifier = String(turn.userId).slice(0, 200);
