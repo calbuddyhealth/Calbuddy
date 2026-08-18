@@ -94,6 +94,9 @@ export default async function handler(req, res) {
           calibrationTendency: result?.decisionState?.calibration?.tendency || null,
           calibrationSampleSize: result?.decisionState?.calibration?.sampleSize || 0,
           worldModelTensionCount: Array.isArray(result?.userWorldModel?.tensions) ? result.userWorldModel.tensions.length : 0,
+          primaryGoal: result?.goalHierarchy?.primary?.id || null,
+          goalTradeoffCount: Array.isArray(result?.goalHierarchy?.tradeoffs) ? result.goalHierarchy.tradeoffs.length : 0,
+          communicationLearningSamples: result?.communicationLearning?.resolvedCount || 0,
           proactiveInsight: result?.proactiveInsights?.primary?.id || null,
           route: result?.route || null
         }
@@ -143,7 +146,7 @@ async function callPeer({ userId, packet } = {}) {
         max_output_tokens: 260,
         store: false,
         safety_identifier: `ari-peer:${clean(userId, 160)}`,
-        prompt_cache_key: "ari-vnext-peer-reflection-v3"
+        prompt_cache_key: "ari-vnext-peer-reflection-v4"
       }),
       signal: controller.signal
     });
@@ -212,7 +215,9 @@ function normalizeResult(value) {
     reply: clean(value?.reply, 3500),
     route: cleanObject(value?.route),
     safety: cleanObject(value?.safety),
+    communication: cleanObject(value?.communication),
     selfModel: cleanObject(value?.selfModel),
+    goalHierarchy: cleanObject(value?.goalHierarchy),
     metacognition: cleanObject(value?.metacognition),
     coachingState: cleanObject(value?.coachingState),
     longitudinalState: cleanObject(value?.longitudinalState),
@@ -220,6 +225,7 @@ function normalizeResult(value) {
     experimentReviewState: cleanObject(value?.experimentReviewState),
     userWorldModel: cleanObject(value?.userWorldModel),
     decisionState: cleanObject(value?.decisionState),
+    communicationLearning: cleanObject(value?.communicationLearning),
     temporalTimeline: cleanObject(value?.temporalTimeline),
     proactiveInsights: cleanObject(value?.proactiveInsights),
     action: cleanObject(value?.action)
