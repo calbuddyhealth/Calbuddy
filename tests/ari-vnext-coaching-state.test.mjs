@@ -134,7 +134,7 @@ test("dense current training week is visible as a low-confidence schedule signal
   assert.equal(state.signals.some((item) => item.id === "dense_training_schedule"), true);
 });
 
-test("cross-feature coaching does not use low reasoning solely because the message is short", () => {
+test("cross-feature coaching does not use the fast route solely because the message is short", () => {
   const policy = resolveModelPolicy({
     training: true,
     goals: true,
@@ -143,7 +143,10 @@ test("cross-feature coaching does not use low reasoning solely because the messa
   });
 
   assert.equal(policy.mode, "standard");
-  assert.equal(policy.reasoningEffort, "medium");
+  assert.equal(policy.costTier, "economy");
+  assert.notEqual(policy.mode, "fast");
+  if (policy.supportsReasoning) assert.equal(policy.reasoningEffort, "medium");
+  else assert.equal(policy.reasoningEffort, null);
 });
 
 test("ordinary single-domain short question can remain fast", () => {
