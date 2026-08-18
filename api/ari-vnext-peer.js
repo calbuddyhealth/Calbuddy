@@ -39,8 +39,6 @@ export default async function handler(req, res) {
     const labAllowed = /ari-vnext-lab\.html/i.test(surface) || /ari-vnext-investigator\.html/i.test(surface);
     const globallyEnabled = process.env.ARI_VNEXT_PEER_REFLECTION_ENABLED === "true";
 
-    // Keep peer reflection experimental while vNext is owner-tested. Enabling
-    // this flag later makes the same endpoint available to the production app.
     if (!labAllowed && !globallyEnabled) {
       return res.status(200).json({ success: true, reflected: false, reason: "peer_reflection_disabled" });
     }
@@ -93,6 +91,10 @@ export default async function handler(req, res) {
           experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
           activeExperimentCount: result?.experimentReviewState?.activeCount || 0,
           dueExperimentCount: result?.experimentReviewState?.dueCount || 0,
+          calibrationTendency: result?.decisionState?.calibration?.tendency || null,
+          calibrationSampleSize: result?.decisionState?.calibration?.sampleSize || 0,
+          worldModelTensionCount: Array.isArray(result?.userWorldModel?.tensions) ? result.userWorldModel.tensions.length : 0,
+          proactiveInsight: result?.proactiveInsights?.primary?.id || null,
           route: result?.route || null
         }
       }),
@@ -112,7 +114,6 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.warn("[ARI vNext Peer]", error?.message || error);
-    // Reflection must never make the primary Ari experience brittle.
     return res.status(200).json({
       success: true,
       reflected: false,
@@ -142,7 +143,7 @@ async function callPeer({ userId, packet } = {}) {
         max_output_tokens: 260,
         store: false,
         safety_identifier: `ari-peer:${clean(userId, 160)}`,
-        prompt_cache_key: "ari-vnext-peer-reflection-v2"
+        prompt_cache_key: "ari-vnext-peer-reflection-v3"
       }),
       signal: controller.signal
     });
@@ -217,6 +218,10 @@ function normalizeResult(value) {
     longitudinalState: cleanObject(value?.longitudinalState),
     scientificIntelligence: cleanObject(value?.scientificIntelligence),
     experimentReviewState: cleanObject(value?.experimentReviewState),
+    userWorldModel: cleanObject(value?.userWorldModel),
+    decisionState: cleanObject(value?.decisionState),
+    temporalTimeline: cleanObject(value?.temporalTimeline),
+    proactiveInsights: cleanObject(value?.proactiveInsights),
     action: cleanObject(value?.action)
   };
 }
