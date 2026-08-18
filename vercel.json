@@ -3,11 +3,23 @@
   "rewrites": [
     {
       "source": "/api/knowledge",
-      "destination": "/api/usage?mode=knowledge"
+      "destination": "/api/secure-ai-gateway?route=knowledge"
+    },
+    {
+      "source": "/api/ari-intent-router",
+      "destination": "/api/secure-ai-gateway?route=intent"
+    },
+    {
+      "source": "/api/ask-calbuddy",
+      "destination": "/api/secure-ai-gateway?route=ask"
+    },
+    {
+      "source": "/api/usage",
+      "destination": "/api/secure-ai-gateway?route=usage"
     },
     {
       "source": "/api/owner-ai-costs",
-      "destination": "/api/usage?action=owner_costs"
+      "destination": "/api/secure-ai-gateway?route=usage&action=owner_costs"
     }
   ],
   "headers": [
