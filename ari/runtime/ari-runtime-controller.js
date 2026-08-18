@@ -1,0 +1,356 @@
+// =====================================================
+// ARI XP
+// File: ari/runtime/ari-runtime-controller.js
+// Version: 1.0.0
+// Purpose:
+//   Make Ari vNext the default Home intelligence runtime while preserving
+//   Rebirth as a deterministic emergency fallback during the cutover.
+//
+// Contract:
+//   - vNext is the default runtime.
+//   - Rebirth remains available by local emergency override.
+//   - A vNext transport/runtime failure falls back once to Rebirth.
+//   - Existing trusted CalBuddy action execution remains authoritative.
+//   - vNext experiment actions keep their own authenticated ledger lifecycle.
+//   - Initiative checks are deterministic and do not spend an LLM call.
+// =====================================================
+
+(() => {
+  "use strict";
+
+  window.Ari = window.Ari || {};
+  window.CalBuddy = window.CalBuddy || {};
+
+  const VERSION = "1.0.0";
+  const MODE_KEY = "ari_runtime_mode_v1";
+  const DEFAULT_MODE = "vnext";
+  const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
+  const VNEXT_SCRIPTS = [
+    "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
+    "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
+    "ari/vnext/ari-vnext-bridge.js?v=1.7.0",
+    "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
+  ];
+
+  const legacy = {
+    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null,
+    confirmPendingAction:
+      typeof CalBuddy.confirmPendingAction === "function"
+        ? CalBuddy.confirmPendingAction.bind(CalBuddy)
+        : null,
+    cancelPendingAction:
+      typeof CalBuddy.cancelPendingAction === "function"
+        ? CalBuddy.cancelPendingAction.bind(CalBuddy)
+        : null
+  };
+
+  let dependencyPromise = null;
+  let initiativeCheckPromise = null;
+
+  function clean(value = "") {
+    return String(value || "").trim();
+  }
+
+  function safeMode(value) {
+    const normalized = clean(value).toLowerCase();
+    return ALLOWED_MODES.has(normalized) ? normalized : DEFAULT_MODE;
+  }
+
+  function getMode() {
+    try {
+      return safeMode(localStorage.getItem(MODE_KEY) || DEFAULT_MODE);
+    } catch {
+      return DEFAULT_MODE;
+    }
+  }
+
+  function setMode(mode) {
+    const next = safeMode(mode);
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // Storage restrictions must not prevent runtime selection.
+    }
+    window.dispatchEvent(
+      new CustomEvent("ari:runtimeChanged", { detail: { mode: next, version: VERSION } })
+    );
+    return next;
+  }
+
+  function loadScript(src) {
+    const base = src.split("?")[0];
+    const existing = [...document.scripts].find((script) => {
+      const current = String(script.getAttribute("src") || "").split("?")[0];
+      return current === base || current.endsWith(`/${base}`);
+    });
+    if (existing) return Promise.resolve(true);
+
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = false;
+      script.dataset.ariRuntimeDependency = "vnext";
+      script.addEventListener("load", () => resolve(true), { once: true });
+      script.addEventListener(
+        "error",
+        () => reject(new Error(`Could not load ${base}.`)),
+        { once: true }
+      );
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensureVNext() {
+    if (window.AriVNextBridge?.ask && window.AriVNextActionAdapter) return true;
+    if (dependencyPromise) return await dependencyPromise;
+
+    dependencyPromise = (async () => {
+      for (const src of VNEXT_SCRIPTS) {
+        await loadScript(src);
+      }
+
+      if (!window.AriVNextBridge?.ask) {
+        throw new Error("Ari vNext bridge did not initialize.");
+      }
+      if (!window.AriVNextActionAdapter) {
+        throw new Error("Ari vNext action adapter did not initialize.");
+      }
+      return true;
+    })();
+
+    try {
+      return await dependencyPromise;
+    } catch (error) {
+      dependencyPromise = null;
+      throw error;
+    }
+  }
+
+  async function getUserContext() {
+    try {
+      if (typeof CalBuddy.getUserContext === "function") {
+        return (await CalBuddy.getUserContext()) || {};
+      }
+    } catch (error) {
+      console.warn("Ari vNext user context unavailable:", error?.message || error);
+    }
+    return {};
+  }
+
+  function isExperimentAction(name = "") {
+    return ["track_experiment", "complete_experiment", "cancel_experiment"].includes(
+      clean(name)
+    );
+  }
+
+  function experimentConfirmationText(pending = {}) {
+    if (pending?.name === "track_experiment") return "Start tracking this experiment?";
+    if (pending?.name === "complete_experiment") return "Save this experiment result?";
+    if (pending?.name === "cancel_experiment") return "Cancel this experiment?";
+    return "Confirm this Ari change?";
+  }
+
+  async function normalizePendingAction(result = {}) {
+    const pending = result?.pendingAction;
+    if (!pending?.id || !pending?.name) return result;
+
+    if (isExperimentAction(pending.name)) {
+      return {
+        ...result,
+        pendingAction: {
+          ...pending,
+          confirmation_text: experimentConfirmationText(pending)
+        }
+      };
+    }
+
+    const mapped = await window.AriVNextActionAdapter.createCalBuddyPendingAction(pending);
+    if (!mapped?.success || !mapped?.action) {
+      console.warn(
+        "Ari vNext action mapping blocked:",
+        mapped?.code || mapped?.message || "unknown mapping error"
+      );
+      return {
+        ...result,
+        pendingAction: null,
+        actionMapping: {
+          success: false,
+          code: mapped?.code || "mapping_failed",
+          message: mapped?.message || "That change could not be prepared safely."
+        }
+      };
+    }
+
+    return {
+      ...result,
+      pendingAction: mapped.action,
+      vnextPendingAction: pending,
+      actionMapping: {
+        success: true,
+        resolution: mapped?.resolution || null
+      }
+    };
+  }
+
+  async function askVNext(input = {}) {
+    await ensureVNext();
+
+    const message = clean(input?.message);
+    const history = Array.isArray(input?.history) ? input.history : [];
+    const userContext = await getUserContext();
+
+    const result = await window.AriVNextBridge.ask(message, {
+      ...input,
+      history,
+      userContext,
+      page: window.location.pathname || "/home.html"
+    });
+
+    const normalized = await normalizePendingAction(result || {});
+    return {
+      ...normalized,
+      success: normalized?.success !== false,
+      ready: normalized?.ready !== false,
+      source: normalized?.source || "ari_vnext",
+      runtime: {
+        selected: "vnext",
+        fallback: false,
+        controllerVersion: VERSION
+      }
+    };
+  }
+
+  async function ask(input = {}) {
+    if (getMode() === "rebirth") {
+      if (!legacy.askAri) throw new Error("Rebirth runtime is unavailable.");
+      const result = await legacy.askAri(input);
+      return {
+        ...result,
+        runtime: {
+          selected: "rebirth",
+          fallback: false,
+          controllerVersion: VERSION
+        }
+      };
+    }
+
+    try {
+      return await askVNext(input);
+    } catch (error) {
+      console.warn("Ari vNext failed; using Rebirth fallback:", error?.message || error);
+
+      if (!legacy.askAri) throw error;
+      const fallback = await legacy.askAri(input);
+      return {
+        ...fallback,
+        runtime: {
+          selected: "rebirth",
+          fallback: true,
+          fallbackReason: clean(error?.message).slice(0, 240),
+          controllerVersion: VERSION
+        }
+      };
+    }
+  }
+
+  async function confirmPendingAction() {
+    const vnextPending = window.AriVNextBridge?.getPendingAction?.() || null;
+
+    if (getMode() === "vnext" && vnextPending?.id) {
+      if (isExperimentAction(vnextPending.name)) {
+        try {
+          const result = await window.AriVNextBridge.ask("yes", {
+            history: [],
+            userContext: await getUserContext(),
+            page: window.location.pathname || "/home.html"
+          });
+          window.AriVNextBridge.clearPendingAction?.();
+          return {
+            success: result?.success !== false,
+            reply: result?.reply || result?.experimentExecution?.message || "Done.",
+            result
+          };
+        } catch (error) {
+          return {
+            success: false,
+            reply: error?.message || "Ari could not confirm that experiment change."
+          };
+        }
+      }
+
+      if (legacy.confirmPendingAction) {
+        const result = await legacy.confirmPendingAction();
+        if (result?.success !== false) window.AriVNextBridge.clearPendingAction?.();
+        return result;
+      }
+    }
+
+    if (!legacy.confirmPendingAction) {
+      return { success: false, reply: "I don’t have anything waiting to confirm." };
+    }
+    return await legacy.confirmPendingAction();
+  }
+
+  function cancelPendingAction() {
+    const vnextPending = window.AriVNextBridge?.getPendingAction?.() || null;
+    if (vnextPending?.id) window.AriVNextBridge.clearPendingAction?.();
+
+    if (legacy.cancelPendingAction && CalBuddy.getPendingAction?.()) {
+      return legacy.cancelPendingAction();
+    }
+
+    return {
+      success: true,
+      reply: "No problem. I won’t make that change."
+    };
+  }
+
+  async function checkInitiative({ force = false } = {}) {
+    if (getMode() !== "vnext") return { success: true, shouldInitiate: false, reason: "rebirth_mode" };
+    if (initiativeCheckPromise && !force) return await initiativeCheckPromise;
+
+    initiativeCheckPromise = (async () => {
+      await ensureVNext();
+      if (!window.AriVNextInitiative?.check) {
+        return { success: false, shouldInitiate: false, reason: "initiative_client_unavailable" };
+      }
+      return await window.AriVNextInitiative.check({
+        page: window.location.pathname || "/home.html"
+      });
+    })();
+
+    try {
+      return await initiativeCheckPromise;
+    } catch (error) {
+      console.warn("Ari initiative check skipped:", error?.message || error);
+      return { success: false, shouldInitiate: false, reason: "initiative_check_failed" };
+    } finally {
+      initiativeCheckPromise = null;
+    }
+  }
+
+  window.AriRuntime = {
+    version: VERSION,
+    defaultMode: DEFAULT_MODE,
+    getMode,
+    setMode,
+    ensureVNext,
+    ask,
+    confirmPendingAction,
+    cancelPendingAction,
+    checkInitiative,
+    legacyAvailable: Boolean(legacy.askAri)
+  };
+
+  // Preserve every existing caller contract. Home, recovery, and any other
+  // caller using CalBuddy.askAri automatically receive the selected runtime.
+  CalBuddy.askAri = ask;
+  CalBuddy.confirmPendingAction = confirmPendingAction;
+  CalBuddy.cancelPendingAction = cancelPendingAction;
+
+  window.dispatchEvent(
+    new CustomEvent("ari:runtimeReady", {
+      detail: { mode: getMode(), version: VERSION, legacyAvailable: Boolean(legacy.askAri) }
+    })
+  );
+})();
