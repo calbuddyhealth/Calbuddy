@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.6.1",
+  version: "1.7.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -47,7 +47,16 @@ window.AriVNextBridge = {
 
     if (data?.pendingAction) this.setPendingAction(data.pendingAction);
     if (data?.action?.type === "cancel_pending_action") this.clearPendingAction();
-    if (data?.action?.type === "execute_pending_action") this.clearPendingAction();
+
+    if (data?.action?.type === "execute_pending_action") {
+      const pending = data?.pendingAction || this.getPendingAction();
+      if (isExperimentAction(data?.action?.applicationAction || pending?.name)) {
+        const execution = await this.executeExperimentPending({ pendingAction: pending, accessToken });
+        data.experimentExecution = execution;
+        data.reply = experimentExecutionReply(execution, pending);
+      }
+      this.clearPendingAction();
+    }
 
     // Reflection is deliberately not awaited. Ari's visible response remains on
     // the fast path; a qualifying peer exchange happens only after the answer.
@@ -59,6 +68,74 @@ window.AriVNextBridge = {
       options
     });
 
+    return data;
+  },
+
+  async executeExperimentPending({ pendingAction, accessToken } = {}) {
+    const pending = pendingAction && typeof pendingAction === "object" ? pendingAction : null;
+    if (!pending?.id || !pending?.sourceTurnId) throw new Error("The experiment action is missing its turn-bound identity.");
+    if (pending?.expiresAt && Date.parse(pending.expiresAt) < Date.now()) throw new Error("That experiment change expired. Ask Ari to prepare it again.");
+
+    const name = String(pending?.name || "").trim();
+    const args = pending?.arguments && typeof pending.arguments === "object" ? pending.arguments : {};
+    let body;
+
+    if (name === "track_experiment") {
+      body = {
+        action: "start",
+        sourceTurnId: pending.sourceTurnId,
+        route: args.route || {},
+        scientificIntelligence: args.scientificIntelligence || null
+      };
+    } else if (name === "complete_experiment") {
+      body = {
+        action: "complete",
+        experimentId: args.experimentId,
+        outcomeDirection: args.outcomeDirection,
+        confidenceAfter: args.confidenceAfter,
+        evaluationSource: "user_confirmed_with_ari",
+        result: { summary: String(args.summary || "").slice(0, 2000) }
+      };
+    } else if (name === "cancel_experiment") {
+      body = {
+        action: "cancel",
+        experimentId: args.experimentId,
+        reason: String(args.reason || "cancelled_by_user").slice(0, 500)
+      };
+    } else {
+      throw new Error("Unsupported Ari experiment action.");
+    }
+
+    const response = await fetch("/api/ari-vnext-experiments", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${String(accessToken || "").trim()}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+      cache: "no-store"
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.message || data?.error || "Ari could not update the experiment ledger.");
+    }
+
+    window.dispatchEvent(new CustomEvent("ari:vnextExperimentChanged", { detail: data }));
+    return data;
+  },
+
+  async listExperiments({ statuses = ["active", "completed"], limit = 10 } = {}) {
+    const session = await this.getSession();
+    const accessToken = String(session?.access_token || "").trim();
+    if (!accessToken) throw new Error("A signed-in ARI session is required.");
+    const response = await fetch("/api/ari-vnext-experiments", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "list", statuses, limit }),
+      cache: "no-store"
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || "Ari could not load the experiment ledger.");
     return data;
   },
 
@@ -252,7 +329,7 @@ function needsCanonicalTrainingContext(message, history = []) {
     : "";
   const semantic = `${recent}\n${text}`;
 
-  return /\b(workout|workouts|training|train|exercise|exercises|lift|lifting|strength|stronger|weak|weaker|sets?|reps?|bench|squat|deadlift|press|row|pulldown|shoulder|chest|back|legs?|arms?|biceps?|triceps?|glutes?|cardio|run|running|gym|rest day|recovery|sore|soreness|plateau|personal record|\bpr\b|progression|training volume|training frequency|program|split|deload|missed workout)\b/i.test(semantic);
+  return /\b(workout|workouts|training|train|exercise|exercises|lift|lifting|strength|stronger|weak|weaker|sets?|reps?|bench|squat|deadlift|press|row|pulldown|shoulder|chest|back|legs?|arms?|biceps?|triceps?|glutes?|cardio|run|running|gym|rest day|recovery|sore|soreness|plateau|personal record|\bpr\b|progression|training volume|training frequency|program|split|deload|missed workout|experiment|hypothesis|intervention|observation window)\b/i.test(semantic);
 }
 
 function shouldSchedulePeerReflection(message, result = {}) {
@@ -286,8 +363,26 @@ function compactPeerResult(result = {}) {
     coachingState: result?.coachingState || {},
     longitudinalState: result?.longitudinalState || {},
     scientificIntelligence: result?.scientificIntelligence || {},
+    experimentReviewState: result?.experimentReviewState || {},
     action: result?.action || null
   };
+}
+
+function isExperimentAction(name) {
+  return ["track_experiment", "complete_experiment", "cancel_experiment"].includes(String(name || ""));
+}
+
+function experimentExecutionReply(execution = {}, pending = {}) {
+  const experiment = execution?.experiment || null;
+  if (pending?.name === "track_experiment" && experiment) {
+    const review = experiment.reviewAt ? new Date(experiment.reviewAt).toLocaleDateString() : null;
+    return `Experiment started${review ? ` — I'll treat ${review} as the review point` : ""}. I'll keep the controlled variables in mind while we collect evidence.`;
+  }
+  if (pending?.name === "complete_experiment" && experiment) {
+    return `Experiment completed and recorded as ${experiment.outcomeDirection || "inconclusive"}. I'll use that result as supporting evidence in future decisions, not as proof.`;
+  }
+  if (pending?.name === "cancel_experiment") return "Experiment cancelled. I won't treat the unfinished observation window as evidence.";
+  return "Experiment ledger updated.";
 }
 
 function signedWeeklyGoal(value, goalType) {
