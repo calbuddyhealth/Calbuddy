@@ -1,7 +1,7 @@
 // ARI vNext — explicit goal hierarchy and tradeoff reasoning.
 // Prevents Ari from pretending every user goal can be maximized simultaneously.
 
-export const ARI_GOAL_HIERARCHY_VERSION = "1.0.0";
+export const ARI_GOAL_HIERARCHY_VERSION = "1.0.1";
 
 const GOALS = [
   { id: "fat_loss", label: "Fat/weight loss", pattern: /\b(lose weight|weight loss|fat loss|cut|cutting|lean(?:er)?|drop weight)\b/i },
@@ -155,8 +155,14 @@ function parseExplicitPriority(text = "") {
   for (const pattern of patterns) {
     const value = clean(text.match(pattern)?.[1], 500);
     if (!value) continue;
-    const match = GOALS.find((goal) => goal.pattern.test(value));
-    if (match) return { id: match.id, text: value };
+    const matches = GOALS
+      .map((goal) => {
+        const match = value.match(goal.pattern);
+        return match ? { goal, index: Number(match.index || 0) } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.index - b.index);
+    if (matches[0]) return { id: matches[0].goal.id, text: value };
   }
   return null;
 }
