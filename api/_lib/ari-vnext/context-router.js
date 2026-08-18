@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.9.0";
+export const CONTEXT_ROUTER_VERSION = "1.10.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -19,6 +19,8 @@ export function routeContext(turn = {}) {
   const followUp = isFollowUp(message);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
   const semanticText = followUp ? `${recent}\n${message}` : message;
+  const account = turn?.context?.accountEntitlements || {};
+  const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
   const nutrition = PATTERNS.nutrition.test(semanticText);
   const training = PATTERNS.training.test(semanticText);
@@ -37,6 +39,8 @@ export function routeContext(turn = {}) {
     health: PATTERNS.health.test(semanticText),
     currentInfo: PATTERNS.currentInfo.test(semanticText),
     developer: PATTERNS.developer.test(semanticText),
+    teenMode,
+    circleAllowed: account?.circleAllowed === true,
     followUp,
     complexity: estimateComplexity(message)
   };
@@ -48,6 +52,12 @@ export function buildRelevantContext(turn = {}, route = {}) {
     surface: turn?.surface || "unknown",
     user: pickObject(source?.user, ["displayName", "firstName", "age", "sex", "height", "activityLevel"])
   };
+
+  if (source?.accountEntitlements && typeof source.accountEntitlements === "object") {
+    selected.accountEntitlements = pickObject(source.accountEntitlements, [
+      "version", "status", "ageBand", "ageVerified", "teenMode", "appAllowed", "circleAllowed", "circleMinimumAge"
+    ]);
+  }
 
   if (source?.userWorldModel && typeof source.userWorldModel === "object") {
     selected.userWorldModel = source.userWorldModel;
@@ -119,6 +129,15 @@ export function contextToText(context = {}) {
 
 function cognitiveContextRules(context = {}) {
   const lines = [];
+
+  if (context?.accountEntitlements?.teenMode === true) {
+    lines.push(
+      "ACCOUNT AGE RULES:",
+      "- Teen mode is server-derived account context, not a memory or user-claimed fact.",
+      "- Do not infer a different age from conversation or help bypass the adult-only ARI Circle entitlement.",
+      "- Never expose or request the user's DOB merely to change authorization."
+    );
+  }
 
   if (context?.userWorldModel) {
     lines.push(
