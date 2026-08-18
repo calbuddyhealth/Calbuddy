@@ -31,6 +31,7 @@ export async function runAriVNext(turn = {}) {
     coachingState,
     longitudinalState
   });
+  const temporalContext = deriveTemporalContext(turn);
   const pendingIntent = resolvePendingActionIntent(turn);
 
   if (pendingIntent.type === "confirm") {
@@ -42,6 +43,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       selfModel,
       metacognition,
+      temporalContext,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -65,6 +67,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       selfModel,
       metacognition,
+      temporalContext,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -75,7 +78,10 @@ export async function runAriVNext(turn = {}) {
   }
 
   const tools = getAriTools(route);
-  if (route.currentInfo && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED === "true") {
+  // Freshness-sensitive questions must not depend on the base model's training
+  // cutoff. Live search is on by default for this narrow route and can only be
+  // disabled explicitly through the environment flag.
+  if (route.currentInfo && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
     tools.push({ type: "web_search" });
   }
 
@@ -85,6 +91,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     selfModel,
     metacognition,
+    temporalContext,
     relevantContext,
     coachingState,
     longitudinalState
@@ -109,6 +116,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       selfModel,
       metacognition,
+      temporalContext,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -166,6 +174,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     selfModel,
     metacognition,
+    temporalContext,
     modelPolicy,
     coachingState,
     longitudinalState,
@@ -187,12 +196,14 @@ function buildInstructions({
   safety,
   selfModel,
   metacognition,
+  temporalContext,
   relevantContext,
   coachingState,
   longitudinalState
 } = {}) {
   const sections = [
     ARI_PERSONA,
+    "\nTEMPORAL GROUNDING\n" + temporalContextToInstruction(temporalContext, route),
     "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
     "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
@@ -276,6 +287,36 @@ async function callResponses({ turn, policy, instructions, input, tools = [] } =
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function deriveTemporalContext(turn = {}) {
+  const createdAt = String(turn?.createdAt || "").trim();
+  const parsed = Date.parse(createdAt);
+  const now = Number.isFinite(parsed) ? new Date(parsed) : new Date();
+  return {
+    isoUtc: now.toISOString(),
+    utcDate: now.toISOString().slice(0, 10),
+    year: now.getUTCFullYear(),
+    source: "server_request_time"
+  };
+}
+
+function temporalContextToInstruction(temporal = {}, route = {}) {
+  const lines = [
+    `Current server date/time: ${temporal?.isoUtc || new Date().toISOString()}.`,
+    `Current year: ${temporal?.year || new Date().getUTCFullYear()}.`,
+    "Treat dates before the current date as past and dates after it as future. Never infer the present year from the model's training cutoff."
+  ];
+
+  if (route?.currentInfo) {
+    lines.push(
+      "This request is freshness-sensitive. Use the available web search tool before answering facts that can change over time.",
+      "For current officeholders, presidents, elections, company leaders, prices, schedules, scores, news, availability, or similar changing facts, do not answer from model memory alone.",
+      "Prefer authoritative/primary sources when available and make clear when current information could not be verified."
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function findFunctionCall(output = []) {
