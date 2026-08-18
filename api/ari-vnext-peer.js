@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
     const body = resolveBody(req);
     const surface = clean(body?.surface, 200) || "unknown";
-    const labAllowed = /ari-vnext-lab\.html/i.test(surface);
+    const labAllowed = /ari-vnext-lab\.html/i.test(surface) || /ari-vnext-investigator\.html/i.test(surface);
     const globallyEnabled = process.env.ARI_VNEXT_PEER_REFLECTION_ENABLED === "true";
 
     // Keep peer reflection experimental while vNext is owner-tested. Enabling
@@ -89,6 +89,8 @@ export default async function handler(req, res) {
           surface,
           selfMode: result?.selfModel?.current?.mode || null,
           evidenceConfidence: result?.metacognition?.confidence || null,
+          leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
+          experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
           route: result?.route || null
         }
       }),
@@ -138,7 +140,7 @@ async function callPeer({ userId, packet } = {}) {
         max_output_tokens: 260,
         store: false,
         safety_identifier: `ari-peer:${clean(userId, 160)}`,
-        prompt_cache_key: "ari-vnext-peer-reflection-v1"
+        prompt_cache_key: "ari-vnext-peer-reflection-v2"
       }),
       signal: controller.signal
     });
@@ -211,6 +213,7 @@ function normalizeResult(value) {
     metacognition: cleanObject(value?.metacognition),
     coachingState: cleanObject(value?.coachingState),
     longitudinalState: cleanObject(value?.longitudinalState),
+    scientificIntelligence: cleanObject(value?.scientificIntelligence),
     action: cleanObject(value?.action)
   };
 }
