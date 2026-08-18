@@ -1,6 +1,7 @@
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import { buildRelevantContext, routeContext } from "./_lib/ari-vnext/context-router.js";
 import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
+import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { deriveLongitudinalState } from "./_lib/ari-vnext/longitudinal-state.js";
 import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { deriveMetacognition } from "./_lib/ari-vnext/metacognition.js";
@@ -39,16 +40,28 @@ export default async function handler(req, res) {
 
     const route = routeContext(turn);
     const safety = classifySafety(turn, route);
-    let retrievedMemoryCount = 0;
+    const fitnessRoute = Boolean(route.training || route.nutrition || route.goals);
+    const shouldLoadMemory = Boolean(route.memory || fitnessRoute);
 
-    if (route.memory || route.training || route.nutrition || route.goals) {
-      const retrieved = await retrieveRelevantMemories({
-        userId: auth.userId,
-        message: turn.message,
-        limit: route.memory ? 6 : 5
-      });
-      retrievedMemoryCount = retrieved.memories.length;
-      turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
+    const [retrieved, experiments] = await Promise.all([
+      shouldLoadMemory
+        ? retrieveRelevantMemories({
+            userId: auth.userId,
+            message: turn.message,
+            limit: route.memory ? 6 : 5
+          })
+        : Promise.resolve({ memories: [], summary: "" }),
+      fitnessRoute
+        ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
+        : Promise.resolve([])
+    ]);
+
+    const retrievedMemoryCount = retrieved.memories.length;
+    if (retrieved.summary) turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
+
+    const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
+    if (experimentLedger) {
+      turn.context = { ...(turn.context || {}), experimentLedger };
     }
 
     const relevantContext = buildRelevantContext(turn, route);
@@ -69,7 +82,11 @@ export default async function handler(req, res) {
       longitudinalState,
       metacognition
     });
-    const scientificIntelligence = applyOutcomeLearning(rawScientific, relevantContext?.relevantMemory || "");
+    const scientificIntelligence = applyOutcomeLearning(
+      rawScientific,
+      relevantContext?.relevantMemory || "",
+      experimentLedger
+    );
 
     return res.status(200).json({
       success: true,
@@ -82,7 +99,8 @@ export default async function handler(req, res) {
       coachingState,
       longitudinalState,
       scientificIntelligence,
-      consult: buildConsultSummary({ route, metacognition, longitudinalState, scientificIntelligence }),
+      experimentLedger,
+      consult: buildConsultSummary({ route, metacognition, longitudinalState, scientificIntelligence, experimentLedger }),
       memoryCount: retrievedMemoryCount,
       timing: { totalMs: Date.now() - startedAt }
     });
@@ -98,7 +116,7 @@ export default async function handler(req, res) {
   }
 }
 
-function buildConsultSummary({ route = {}, metacognition = {}, longitudinalState = null, scientificIntelligence = null } = {}) {
+function buildConsultSummary({ route = {}, metacognition = {}, longitudinalState = null, scientificIntelligence = null, experimentLedger = null } = {}) {
   const hypotheses = Array.isArray(scientificIntelligence?.hypotheses) ? scientificIntelligence.hypotheses : [];
   const leading = hypotheses[0] || null;
   const alternative = hypotheses.find((item) => item.status === "credible_alternative") || hypotheses[1] || null;
@@ -125,6 +143,9 @@ function buildConsultSummary({ route = {}, metacognition = {}, longitudinalState
           weakensHypothesisIf: cleanText(experiment.weakensHypothesisIf, 700) || null
         }
       : null,
+    activeExperimentCount: Number(experimentLedger?.activeCount || 0),
+    dueExperimentCount: Number(experimentLedger?.dueCount || 0),
+    structuredOutcomeCount: Number(scientificIntelligence?.outcomeLearning?.structuredOutcomes || 0),
     outcomeLearningApplied: Boolean(scientificIntelligence?.outcomeLearning?.applied)
   };
 }
