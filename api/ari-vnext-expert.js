@@ -1,10 +1,12 @@
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
+import { listCommunicationOutcomes, summarizeCommunicationLearning } from "./_lib/ari-vnext/communication-outcomes.js";
 import { buildRelevantContext, routeContext } from "./_lib/ari-vnext/context-router.js";
 import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
 import { listRecentDecisions, summarizeDecisionState } from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
+import { deriveGoalHierarchy } from "./_lib/ari-vnext/goal-hierarchy.js";
 import { deriveLongitudinalState } from "./_lib/ari-vnext/longitudinal-state.js";
-import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
+import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { deriveMetacognition } from "./_lib/ari-vnext/metacognition.js";
 import { applyOutcomeLearning } from "./_lib/ari-vnext/outcome-learning.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
@@ -47,7 +49,7 @@ export default async function handler(req, res) {
     const fitnessRoute = Boolean(route.training || route.nutrition || route.goals);
     const shouldLoadMemory = Boolean(route.memory || fitnessRoute);
 
-    const [retrieved, experiments, persistedWorldModel, decisions] = await Promise.all([
+    const [retrievedRaw, experiments, persistedWorldModel, decisions, communicationRows] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
@@ -59,14 +61,17 @@ export default async function handler(req, res) {
         ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
         : Promise.resolve([]),
       loadUserWorldModel({ userId: auth.userId }),
-      fitnessRoute ? listRecentDecisions({ userId: auth.userId, limit: 16 }) : Promise.resolve([])
+      fitnessRoute ? listRecentDecisions({ userId: auth.userId, limit: 16 }) : Promise.resolve([]),
+      fitnessRoute ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 }) : Promise.resolve([])
     ]);
 
+    const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
     const retrievedMemoryCount = retrieved.memories.length;
     if (retrieved.summary) turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
     const decisionState = fitnessRoute ? summarizeDecisionState(decisions) : null;
+    const communicationLearning = fitnessRoute ? summarizeCommunicationLearning(communicationRows) : null;
     const temporalTimeline = fitnessRoute
       ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions, limit: 28 })
       : null;
@@ -76,12 +81,19 @@ export default async function handler(req, res) {
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
       ...(decisionState ? { decisionState } : {}),
+      ...(communicationLearning ? { communicationLearning } : {}),
       ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
     };
 
     const relevantContext = buildRelevantContext(turn, route);
     const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
     const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
+    const goalHierarchy = deriveGoalHierarchy({
+      turn,
+      userWorldModel: persistedWorldModel,
+      coachingState,
+      longitudinalState
+    });
     const metacognition = deriveMetacognition({
       route,
       context: relevantContext,
@@ -126,7 +138,9 @@ export default async function handler(req, res) {
       source: "ari_vnext_expert",
       userScoped: true,
       readOnly: true,
+      privacyFiltered: Boolean(retrieved?.privacyFiltered),
       route,
+      goalHierarchy,
       metacognition,
       coachingState,
       longitudinalState,
@@ -134,16 +148,19 @@ export default async function handler(req, res) {
       experimentLedger,
       userWorldModel,
       decisionState,
+      communicationLearning,
       temporalTimeline,
       proactiveInsights,
       consult: buildConsultSummary({
         route,
+        goalHierarchy,
         metacognition,
         longitudinalState,
         scientificIntelligence,
         experimentLedger,
         userWorldModel,
         decisionState,
+        communicationLearning,
         proactiveInsights
       }),
       memoryCount: retrievedMemoryCount,
@@ -163,12 +180,14 @@ export default async function handler(req, res) {
 
 function buildConsultSummary({
   route = {},
+  goalHierarchy = null,
   metacognition = {},
   longitudinalState = null,
   scientificIntelligence = null,
   experimentLedger = null,
   userWorldModel = null,
   decisionState = null,
+  communicationLearning = null,
   proactiveInsights = null
 } = {}) {
   const hypotheses = Array.isArray(scientificIntelligence?.hypotheses) ? scientificIntelligence.hypotheses : [];
@@ -179,6 +198,9 @@ function buildConsultSummary({
 
   return {
     domain: route.training ? "training" : route.nutrition ? "nutrition" : route.goals ? "goals" : "general",
+    primaryGoal: goalHierarchy?.primary || null,
+    secondaryGoals: Array.isArray(goalHierarchy?.secondary) ? goalHierarchy.secondary.slice(0, 3) : [],
+    goalTradeoffs: Array.isArray(goalHierarchy?.tradeoffs) ? goalHierarchy.tradeoffs.slice(0, 4) : [],
     evidenceConfidence: metacognition?.confidence || "unknown",
     missingEvidence: Array.isArray(metacognition?.missingEvidence) ? metacognition.missingEvidence : [],
     programStance: longitudinalState?.programDecision?.stance || null,
@@ -202,8 +224,16 @@ function buildConsultSummary({
     structuredOutcomeCount: Number(scientificIntelligence?.outcomeLearning?.structuredOutcomes || 0),
     outcomeLearningApplied: Boolean(scientificIntelligence?.outcomeLearning?.applied),
     worldModelTensions: Array.isArray(userWorldModel?.tensions) ? userWorldModel.tensions.slice(0, 3) : [],
+    privacyBlocks: Array.isArray(userWorldModel?.privacyControls?.blockedCategories) ? userWorldModel.privacyControls.blockedCategories : [],
     calibration: decisionState?.calibration || null,
     openDecisionCount: Number(decisionState?.openCount || 0),
+    communicationLearning: communicationLearning
+      ? {
+          resolvedCount: Number(communicationLearning.resolvedCount || 0),
+          preferredAssociation: communicationLearning.preferredAssociation || null,
+          causalClaimAllowed: false
+        }
+      : null,
     primaryProactiveInsight: proactiveInsights?.primary || null
   };
 }
@@ -281,5 +311,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Expert", "v2");
+  res.setHeader("X-ARI-Expert", "v3");
 }
