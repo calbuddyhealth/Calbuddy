@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.4.0",
+  version: "1.4.1",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
 
@@ -59,6 +59,16 @@ window.AriVNextBridge = {
       });
     }
 
+    const goalType = userContext?.goalType ?? options?.goals?.goalType ?? null;
+    const rawWeeklyGoal =
+      userContext?.weeklyWeightChangeGoal ??
+      userContext?.weekly_weight_change_goal ??
+      userContext?.weeklyChange ??
+      options?.goals?.weeklyWeightChangeGoal ??
+      options?.goals?.weekly_weight_change_goal ??
+      options?.goals?.weeklyChange ??
+      null;
+
     return {
       surface: options?.page || window.location.pathname || "unknown",
       user: {
@@ -76,13 +86,8 @@ window.AriVNextBridge = {
         caloriesLeft: userContext?.caloriesLeft ?? options?.goals?.caloriesLeft ?? null,
         currentWeight: userContext?.currentWeight ?? options?.goals?.currentWeight ?? null,
         goalWeight: userContext?.goalWeight ?? options?.goals?.goalWeight ?? null,
-        goalType: userContext?.goalType ?? options?.goals?.goalType ?? null,
-        weeklyWeightChangeGoal:
-          userContext?.weeklyWeightChangeGoal ??
-          userContext?.weekly_weight_change_goal ??
-          options?.goals?.weeklyWeightChangeGoal ??
-          options?.goals?.weekly_weight_change_goal ??
-          null,
+        goalType,
+        weeklyWeightChangeGoal: signedWeeklyGoal(rawWeeklyGoal, goalType),
         activityLevel: userContext?.activityLevel ?? options?.goals?.activityLevel ?? null
       },
       mealsToday: userContext?.mealsToday || options?.meals || options?.todayLog || [],
@@ -140,5 +145,18 @@ window.AriVNextBridge = {
     window.dispatchEvent(new CustomEvent("ari:vnextPendingActionCleared"));
   }
 };
+
+function signedWeeklyGoal(value, goalType) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+
+  const magnitude = Math.abs(number);
+  const mode = String(goalType || "").toLowerCase();
+  if (/lose|loss|cut/.test(mode)) return -magnitude;
+  if (/gain|bulk/.test(mode)) return magnitude;
+  if (/maintain|maintenance/.test(mode)) return 0;
+  return number;
+}
 
 window.Ari.vNextBridge = window.AriVNextBridge;
