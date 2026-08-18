@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node --test tests/ari-vnext-*.test.mjs",
   "rewrites": [
     {
       "source": "/api/knowledge",
@@ -16,7 +15,7 @@
     },
     {
       "source": "/api/usage",
-      "destination": "/api/secure-ai-gateway?route=usage"
+      "destination": "/api/secure-ai-gateway?route=usage&action=owner_costs"
     },
     {
       "source": "/api/owner-ai-costs",
