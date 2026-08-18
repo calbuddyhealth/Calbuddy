@@ -1,14 +1,14 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.2.0";
+export const CONTEXT_ROUTER_VERSION = "1.3.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
   training: /\b(workout|training|train|exercise|lift|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|running|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
-  memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|my wife|my husband|my brother|my sister|my friend)\b/i,
+  memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|what do i prefer|what do i like|what do i dislike|my favorite|my favourite|i prefer|i dislike|from now on|going forward|correction|my wife|my husband|my brother|my sister|my friend)\b/i,
   health: /\b(injury|injured|pain|sore|soreness|medical|medicine|medication|symptom|pregnan|blood pressure|heart rate|doctor|nurse)\b/i,
   currentInfo: /\b(latest|today's news|news|weather|forecast|price|score|current president|current ceo|right now)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api)\b/i
@@ -77,10 +77,7 @@ export function buildRelevantContext(turn = {}, route = {}) {
       : [];
   }
 
-  if (route.coachingState) {
-    selected.coachingSnapshot = buildCoachingSnapshot(source);
-  }
-
+  if (route.coachingState) selected.coachingSnapshot = buildCoachingSnapshot(source);
   if (route.social) selected.social = source?.social || {};
   if (route.memory && turn?.memory) selected.relevantMemory = turn.memory;
 
@@ -137,9 +134,7 @@ function weightTrend(rows = []) {
     .filter((item) => item.value !== null)
     .slice(0, 30);
 
-  if (points.length < 2) {
-    return { available: false, latest: points[0]?.value ?? null, change: null, direction: "unknown" };
-  }
+  if (points.length < 2) return { available: false, latest: points[0]?.value ?? null, change: null, direction: "unknown" };
 
   const latest = points[0].value;
   const oldest = points[points.length - 1].value;
