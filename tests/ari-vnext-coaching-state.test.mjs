@@ -45,6 +45,45 @@ test("cut plus downward weight trend plus reported strength decline surfaces rec
   );
 });
 
+test("multiple comparable exercise declines surface objective performance pressure", () => {
+  const state = deriveCoachingState({
+    turn: { message: "How is my training going?", history: [] },
+    route: { training: true },
+    context: {
+      training: {
+        currentWeek: { days: [] },
+        performanceTrends: [
+          {
+            exerciseId: "bench-press",
+            name: "Bench Press",
+            direction: "down",
+            latest: { date: "2026-08-17", topWeight: 185, topWeightReps: 6 },
+            previous: { date: "2026-08-10", topWeight: 195, topWeightReps: 6 },
+            topWeightChange: -10,
+            sessionCount: 4
+          },
+          {
+            exerciseId: "row",
+            name: "Barbell Row",
+            direction: "down",
+            latest: { date: "2026-08-16", topWeight: 155, topWeightReps: 8 },
+            previous: { date: "2026-08-09", topWeight: 165, topWeightReps: 8 },
+            topWeightChange: -10,
+            sessionCount: 3
+          }
+        ]
+      },
+      recentTraining: []
+    }
+  });
+
+  assert.equal(state.evidence.training.objectiveDeclineCount, 2);
+  assert.equal(
+    state.signals.some((item) => item.id === "multi_exercise_performance_regression"),
+    true
+  );
+});
+
 test("weight direction mismatch is surfaced without pretending one data point is a trend", () => {
   const state = deriveCoachingState({
     turn: { message: "Am I on track for my cut?", history: [] },
