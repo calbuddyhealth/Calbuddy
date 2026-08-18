@@ -1,4 +1,5 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import {
   buildCommunicationExposure,
@@ -82,7 +83,14 @@ export default async function handler(req, res) {
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
     const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
 
-    const [retrievedRaw, experiments, persistedWorldModel, recentDecisions, communicationOutcomes] = await Promise.all([
+    const [
+      retrievedRaw,
+      experiments,
+      persistedWorldModel,
+      recentDecisions,
+      communicationOutcomes,
+      accountEntitlements
+    ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
@@ -99,7 +107,8 @@ export default async function handler(req, res) {
         : Promise.resolve([]),
       fitnessRoute
         ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      loadAccountEntitlements({ userId: auth.userId })
     ]);
 
     const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
@@ -117,6 +126,7 @@ export default async function handler(req, res) {
 
     turn.context = {
       ...(turn.context || {}),
+      accountEntitlements,
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
       ...(decisionState ? { decisionState } : {}),
@@ -247,6 +257,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ...result,
       turnId: turn.turnId,
+      accountEntitlements,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
       memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),
