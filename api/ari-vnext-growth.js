@@ -1,4 +1,9 @@
 import { buildGrowthInbox } from "./_lib/ari-vnext/growth-inbox.js";
+import {
+  overlayGrowthFixState,
+  syncGrowthFixCandidates,
+  updateGrowthFix
+} from "./_lib/ari-vnext/growth-fixes.js";
 
 const AUTH_TIMEOUT_MS = 3200;
 
@@ -6,8 +11,8 @@ export default async function handler(req, res) {
   setHeaders(res);
 
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET, OPTIONS");
+  if (!["GET", "POST"].includes(req.method)) {
+    res.setHeader("Allow", "GET, POST, OPTIONS");
     return res.status(405).json({ success: false, error: "Method not allowed.", source: "ari_vnext_growth" });
   }
 
@@ -21,9 +26,32 @@ export default async function handler(req, res) {
         source: "ari_vnext_growth"
       });
     }
+    const owner = await verifyOwner(auth.userId);
+    if (!owner) {
+      return res.status(403).json({ success: false, error: "Owner access required.", code: "OWNER_ACCESS_REQUIRED", source: "ari_vnext_growth" });
+    }
+
+    if (req.method === "POST") {
+      const body = resolveBody(req);
+      const action = clean(body?.action, 80).toLowerCase();
+      if (action !== "set_fix_status") {
+        return res.status(400).json({ success: false, error: "Unsupported growth action.", code: "GROWTH_ACTION_UNSUPPORTED" });
+      }
+      const update = await updateGrowthFix({
+        userId: auth.userId,
+        fingerprint: clean(body?.fingerprint, 300),
+        status: clean(body?.status, 40),
+        regressionTestId: clean(body?.regressionTestId, 300) || null,
+        fixCommitSha: clean(body?.fixCommitSha, 80) || null,
+        verification: body?.verification && typeof body.verification === "object" ? body.verification : null
+      });
+      if (!update.success) return res.status(409).json({ ...update, source: "ari_vnext_growth" });
+    }
 
     const reflections = await fetchPeerReflections(auth.userId, 30);
-    const inbox = buildGrowthInbox(reflections);
+    const rawInbox = buildGrowthInbox(reflections);
+    const fixes = await syncGrowthFixCandidates({ userId: auth.userId, inbox: rawInbox });
+    const inbox = overlayGrowthFixState(rawInbox, fixes);
 
     return res.status(200).json({
       success: true,
@@ -34,9 +62,10 @@ export default async function handler(req, res) {
     console.warn("[ARI vNext Growth]", error?.message || error);
     return res.status(200).json({
       success: true,
-      version: "1.0.0",
-      summary: { total: 0, helpAri: 0, watch: 0, ariHandles: 0, repeatedAreas: [] },
+      version: "1.2.0",
+      summary: { total: 0, helpAri: 0, watch: 0, ariHandles: 0, repeatedAreas: [], fixCandidates: 0, verifiedFixed: 0, reopened: 0 },
       items: [],
+      fixes: [],
       unavailable: true,
       source: "ari_vnext_growth"
     });
@@ -61,6 +90,25 @@ async function fetchPeerReflections(userId, limit = 30) {
   if (!response.ok) return [];
   const rows = await response.json().catch(() => []);
   return Array.isArray(rows) ? rows : [];
+}
+
+async function verifyOwner(userId) {
+  const config = supabaseConfig();
+  if (!config || !userId) return false;
+  const params = new URLSearchParams({
+    id: `eq.${userId}`,
+    select: "owner_access,is_admin",
+    limit: "1"
+  });
+  try {
+    const response = await fetch(`${config.url}/rest/v1/profiles?${params.toString()}`, { headers: serverHeaders(config.key) });
+    if (!response.ok) return false;
+    const rows = await response.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return row?.owner_access === true || row?.is_admin === true;
+  } catch {
+    return false;
+  }
 }
 
 async function authenticateRequest(req) {
@@ -107,12 +155,20 @@ function supabaseConfig() {
   return url && key ? { url, key } : null;
 }
 
-function serverHeaders(key) {
+function serverHeaders(key, extra = {}) {
   return {
     apikey: key,
     Authorization: `Bearer ${key}`,
-    Accept: "application/json"
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...extra
   };
+}
+
+function resolveBody(req) {
+  if (req?.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req?.body === "string") { try { return JSON.parse(req.body); } catch { return {}; } }
+  return {};
 }
 
 function setHeaders(res) {
@@ -121,6 +177,7 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-ARI-Growth-Inbox", "v2");
 }
 
 function clean(value, max = 1000) {
