@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.5.0";
+export const TOOL_REGISTRY_VERSION = "1.6.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -111,24 +111,29 @@ export function getAriTools(route = {}) {
       }
     ));
 
-    tools.push(functionTool(
-      "propose_update_goal",
-      "Propose changing an existing ARI XP goal only when the CURRENT user explicitly asks Ari to update or change it. Choose only one supported goalType. For goal_mode, put the requested lose/gain/maintain wording in instruction and use null for value.",
-      {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          goalType: {
-            type: "string",
-            enum: ["daily_calorie_goal", "target_weight", "weekly_weight_change", "goal_mode"]
+    // Teen Ari may discuss goals and log neutral measurements, but the AI does
+    // not receive authority to write calorie/target-weight/weight-loss settings.
+    // This is deterministic capability removal, not a prompt-only suggestion.
+    if (!route?.teenMode) {
+      tools.push(functionTool(
+        "propose_update_goal",
+        "Propose changing an existing ARI XP goal only when the CURRENT user explicitly asks Ari to update or change it. Choose only one supported goalType. For goal_mode, put the requested lose/gain/maintain wording in instruction and use null for value.",
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            goalType: {
+              type: "string",
+              enum: ["daily_calorie_goal", "target_weight", "weekly_weight_change", "goal_mode"]
+            },
+            value: { type: ["number", "null"] },
+            unit: { type: "string" },
+            instruction: { type: "string" }
           },
-          value: { type: ["number", "null"] },
-          unit: { type: "string" },
-          instruction: { type: "string" }
-        },
-        required: ["goalType", "value", "unit", "instruction"]
-      }
-    ));
+          required: ["goalType", "value", "unit", "instruction"]
+        }
+      ));
+    }
   }
 
   if (route?.training || route?.nutrition || route?.goals) {
