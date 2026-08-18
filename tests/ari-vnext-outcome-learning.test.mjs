@@ -38,6 +38,60 @@ test("negative program outcome lowers program hypothesis confidence", () => {
   assert.equal(program.outcomeAdjustment, -0.05);
 });
 
+test("structured completed experiment updates its exact hypothesis without keyword inference", () => {
+  const learned = applyOutcomeLearning(state(), "", {
+    recentCompleted: [{
+      id: "exp-123",
+      status: "completed",
+      hypothesisId: "recovery_pressure",
+      hypothesisLabel: "Recovery demand may be exceeding recovery capacity",
+      outcomeDirection: "positive",
+      confidenceBefore: 0.46,
+      confidenceAfter: 0.61
+    }]
+  });
+
+  const recovery = learned.hypotheses.find((item) => item.id === "recovery_pressure");
+  const energy = learned.hypotheses.find((item) => item.id === "energy_availability_pressure");
+  assert.equal(recovery.score, 0.53);
+  assert.equal(recovery.outcomeAdjustment, 0.07);
+  assert.equal(energy.score, 0.5);
+  assert.equal(learned.outcomeLearning.structuredOutcomes, 1);
+  assert.match(recovery.outcomeEvidence[0], /structured_experiment:exp-123:positive/);
+});
+
+test("inconclusive structured experiment does not change confidence", () => {
+  const learned = applyOutcomeLearning(state(), "", {
+    recentCompleted: [{
+      id: "exp-inc",
+      status: "completed",
+      hypothesisId: "energy_availability_pressure",
+      hypothesisLabel: "Energy pressure",
+      outcomeDirection: "inconclusive"
+    }]
+  });
+
+  assert.equal(learned.outcomeLearning.applied, false);
+  assert.deepEqual(learned.hypotheses.map((item) => item.score), [0.5, 0.46, 0.32]);
+});
+
+test("repeated structured and remembered outcomes cannot exceed the total confidence cap", () => {
+  const memories = Array.from({ length: 6 }, (_, index) =>
+    `- User reported a positive outcome after recent nutrition guidance: result ${index}. Recent Ari guidance context: calorie intake target.`
+  ).join("\n");
+  const ledger = {
+    recentCompleted: [
+      { id: "a", status: "completed", hypothesisId: "energy_availability_pressure", outcomeDirection: "positive" },
+      { id: "b", status: "completed", hypothesisId: "energy_availability_pressure", outcomeDirection: "positive" }
+    ]
+  };
+
+  const learned = applyOutcomeLearning(state(), memories, ledger);
+  const energy = learned.hypotheses.find((item) => item.id === "energy_availability_pressure");
+  assert.equal(energy.outcomeAdjustment, 0.12);
+  assert.equal(energy.score, 0.62);
+});
+
 test("repeated autobiographical outcomes cannot overpower current evidence beyond the cap", () => {
   const memories = Array.from({ length: 6 }, (_, index) =>
     `- User reported a positive outcome after recent nutrition guidance: result ${index}. Recent Ari guidance context: calorie intake target.`
