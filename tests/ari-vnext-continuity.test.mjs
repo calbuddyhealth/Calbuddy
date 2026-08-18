@@ -19,13 +19,23 @@ test("clear preference becomes durable memory without another model", () => {
   assert.match(candidate.content, /morning workouts/i);
 });
 
+test("Ari interaction preference becomes durable memory", () => {
+  const candidate = durableMemoryCandidate("I want Ari to challenge me when I'm making excuses");
+  assert.ok(candidate);
+  assert.equal(candidate.memoryType, "preference");
+  assert.equal(candidate.topic, "ari_interaction_preference");
+  assert.match(candidate.content, /challenge me/i);
+});
+
 test("a question about preferences is recall, not a memory write", () => {
   assert.equal(durableMemoryCandidate("What do I prefer for workouts?"), null);
+  assert.equal(durableMemoryCandidate("I prefer strength training, right?"), null);
 });
 
 test("secret-like material is never selected for durable memory", () => {
   assert.equal(durableMemoryCandidate("Remember that my API key is sk-example"), null);
   assert.equal(durableMemoryCandidate("My password is horse-battery-staple"), null);
+  assert.equal(durableMemoryCandidate("Remember that my credit card number is 4111"), null);
 });
 
 test("sensitive medical statement requires explicit remember intent", () => {
@@ -35,9 +45,14 @@ test("sensitive medical statement requires explicit remember intent", () => {
   assert.equal(explicit.memoryType, "explicit_memory");
 });
 
-test("goal and correction statements can become durable continuity", () => {
+test("stable goals persist but ordinary corrections do not", () => {
   assert.equal(durableMemoryCandidate("My goal is to gain 10 pounds")?.memoryType, "goal");
-  assert.equal(durableMemoryCandidate("Actually I prefer three training days per week")?.memoryType, "correction");
+  assert.equal(durableMemoryCandidate("Actually I ate two eggs this morning"), null);
+  assert.equal(durableMemoryCandidate("Actually I prefer three training days per week")?.memoryType, "preference");
+});
+
+test("transient preferences do not become durable memory", () => {
+  assert.equal(durableMemoryCandidate("I prefer cardio for today only"), null);
 });
 
 test("memory ranker accepts both legacy 0-1 and vNext 1-10 importance scales", () => {
