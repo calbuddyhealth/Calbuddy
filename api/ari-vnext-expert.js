@@ -1,13 +1,17 @@
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import { buildRelevantContext, routeContext } from "./_lib/ari-vnext/context-router.js";
 import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
+import { listRecentDecisions, summarizeDecisionState } from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { deriveLongitudinalState } from "./_lib/ari-vnext/longitudinal-state.js";
 import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { deriveMetacognition } from "./_lib/ari-vnext/metacognition.js";
 import { applyOutcomeLearning } from "./_lib/ari-vnext/outcome-learning.js";
+import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
 import { classifySafety } from "./_lib/ari-vnext/safety-policy.js";
 import { deriveScientificIntelligence } from "./_lib/ari-vnext/scientific-intelligence.js";
+import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
+import { deriveUserWorldModel, loadUserWorldModel } from "./_lib/ari-vnext/user-world-model.js";
 
 const AUTH_TIMEOUT_MS = 3500;
 
@@ -43,7 +47,7 @@ export default async function handler(req, res) {
     const fitnessRoute = Boolean(route.training || route.nutrition || route.goals);
     const shouldLoadMemory = Boolean(route.memory || fitnessRoute);
 
-    const [retrieved, experiments] = await Promise.all([
+    const [retrieved, experiments, persistedWorldModel, decisions] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
@@ -53,16 +57,27 @@ export default async function handler(req, res) {
         : Promise.resolve({ memories: [], summary: "" }),
       fitnessRoute
         ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      loadUserWorldModel({ userId: auth.userId }),
+      fitnessRoute ? listRecentDecisions({ userId: auth.userId, limit: 16 }) : Promise.resolve([])
     ]);
 
     const retrievedMemoryCount = retrieved.memories.length;
     if (retrieved.summary) turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
-    if (experimentLedger) {
-      turn.context = { ...(turn.context || {}), experimentLedger };
-    }
+    const decisionState = fitnessRoute ? summarizeDecisionState(decisions) : null;
+    const temporalTimeline = fitnessRoute
+      ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions, limit: 28 })
+      : null;
+
+    turn.context = {
+      ...(turn.context || {}),
+      ...(experimentLedger ? { experimentLedger } : {}),
+      ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
+      ...(decisionState ? { decisionState } : {}),
+      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
+    };
 
     const relevantContext = buildRelevantContext(turn, route);
     const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
@@ -87,6 +102,23 @@ export default async function handler(req, res) {
       relevantContext?.relevantMemory || "",
       experimentLedger
     );
+    const userWorldModel = deriveUserWorldModel({
+      persisted: persistedWorldModel,
+      turn,
+      context: { ...(turn.context || {}), relevantMemory: turn.memory || "", experimentLedger },
+      coachingState,
+      longitudinalState
+    });
+    const proactiveInsights = fitnessRoute
+      ? deriveProactiveInsights({
+          coachingState,
+          longitudinalState,
+          scientificIntelligence,
+          userWorldModel,
+          decisionState,
+          experimentLedger
+        })
+      : null;
 
     return res.status(200).json({
       success: true,
@@ -100,7 +132,20 @@ export default async function handler(req, res) {
       longitudinalState,
       scientificIntelligence,
       experimentLedger,
-      consult: buildConsultSummary({ route, metacognition, longitudinalState, scientificIntelligence, experimentLedger }),
+      userWorldModel,
+      decisionState,
+      temporalTimeline,
+      proactiveInsights,
+      consult: buildConsultSummary({
+        route,
+        metacognition,
+        longitudinalState,
+        scientificIntelligence,
+        experimentLedger,
+        userWorldModel,
+        decisionState,
+        proactiveInsights
+      }),
       memoryCount: retrievedMemoryCount,
       timing: { totalMs: Date.now() - startedAt }
     });
@@ -116,7 +161,16 @@ export default async function handler(req, res) {
   }
 }
 
-function buildConsultSummary({ route = {}, metacognition = {}, longitudinalState = null, scientificIntelligence = null, experimentLedger = null } = {}) {
+function buildConsultSummary({
+  route = {},
+  metacognition = {},
+  longitudinalState = null,
+  scientificIntelligence = null,
+  experimentLedger = null,
+  userWorldModel = null,
+  decisionState = null,
+  proactiveInsights = null
+} = {}) {
   const hypotheses = Array.isArray(scientificIntelligence?.hypotheses) ? scientificIntelligence.hypotheses : [];
   const leading = hypotheses[0] || null;
   const alternative = hypotheses.find((item) => item.status === "credible_alternative") || hypotheses[1] || null;
@@ -146,7 +200,11 @@ function buildConsultSummary({ route = {}, metacognition = {}, longitudinalState
     activeExperimentCount: Number(experimentLedger?.activeCount || 0),
     dueExperimentCount: Number(experimentLedger?.dueCount || 0),
     structuredOutcomeCount: Number(scientificIntelligence?.outcomeLearning?.structuredOutcomes || 0),
-    outcomeLearningApplied: Boolean(scientificIntelligence?.outcomeLearning?.applied)
+    outcomeLearningApplied: Boolean(scientificIntelligence?.outcomeLearning?.applied),
+    worldModelTensions: Array.isArray(userWorldModel?.tensions) ? userWorldModel.tensions.slice(0, 3) : [],
+    calibration: decisionState?.calibration || null,
+    openDecisionCount: Number(decisionState?.openCount || 0),
+    primaryProactiveInsight: proactiveInsights?.primary || null
   };
 }
 
@@ -223,5 +281,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Expert", "v1");
+  res.setHeader("X-ARI-Expert", "v2");
 }
