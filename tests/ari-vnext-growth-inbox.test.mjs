@@ -30,7 +30,7 @@ test("a single ambiguous reflection stays watch", () => {
   assert.equal(item.level, "watch");
 });
 
-test("repeated watch feedback escalates to owner help", () => {
+test("repeated watch feedback about the same issue escalates to owner help", () => {
   const inbox = buildGrowthInbox([
     {
       id: "a",
@@ -40,13 +40,32 @@ test("repeated watch feedback escalates to owner help", () => {
     {
       id: "b",
       updated_at: "2026-08-17T01:00:00Z",
-      content: "Ari peer reflection (training): Ari should consider another performance sample before changing the program."
+      content: "Ari peer reflection (training): Ari has insufficient evidence and should collect more evidence before changing the program."
     }
   ]);
 
   assert.equal(inbox.summary.helpAri, 2);
   assert.ok(inbox.items.every((item) => item.repeatedPattern));
   assert.ok(inbox.items.every((item) => item.level === "help_ari"));
+});
+
+test("unrelated notes in the same broad fitness area do not falsely escalate", () => {
+  const inbox = buildGrowthInbox([
+    {
+      id: "evidence",
+      updated_at: "2026-08-18T01:00:00Z",
+      content: "Ari peer reflection (training): The recommendation may need stronger evidence before changing the program."
+    },
+    {
+      id: "recovery",
+      updated_at: "2026-08-17T01:00:00Z",
+      content: "Ari peer reflection (training): Recovery and sleep deserve more attention before adding training volume."
+    }
+  ]);
+
+  assert.equal(inbox.summary.helpAri, 0);
+  assert.equal(inbox.summary.watch, 2);
+  assert.ok(inbox.items.every((item) => item.repeatedPattern === false));
 });
 
 test("safety gap is owner priority", () => {
