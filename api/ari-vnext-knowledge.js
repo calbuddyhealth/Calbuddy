@@ -145,9 +145,9 @@ async function setCategoryMemory({ userId, category, remember }) {
 function categoryWorldModelPatch(category) {
   if (category === "identity") return { identity: {} };
   if (category === "preferences") return { preferences: {} };
-  if (category === "goals") return { goals: {}, source_summary: { tensions: [] } };
-  if (category === "constraints") return { constraints: {}, source_summary: { tensions: [] } };
-  if (category === "behavior") return { behavior: {}, source_summary: { tensions: [] } };
+  if (category === "goals") return { goals: {} };
+  if (category === "constraints") return { constraints: {} };
+  if (category === "behavior") return { behavior: {} };
   if (category === "fitness_outcomes") return { physiological_response: {} };
   if (category === "relationship") return { relationship: {} };
   return {};
@@ -195,7 +195,6 @@ async function patchWorldModel(userId, patch = {}) {
     let data = await response.json().catch(() => []);
     if (response.ok && Array.isArray(data) && data.length) return true;
 
-    // A brand-new vNext user may not have a world-model row yet.
     response = await fetch(`${config.url}/rest/v1/ari_vnext_user_models`, {
       method: "POST",
       headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
@@ -304,7 +303,7 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Knowledge-Controls", "v1");
+  res.setHeader("X-ARI-Knowledge-Controls", "v1.1");
 }
 function clean(value, max = 1000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
