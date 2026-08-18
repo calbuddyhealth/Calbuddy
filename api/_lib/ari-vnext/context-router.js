@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.3.0";
+export const CONTEXT_ROUTER_VERSION = "1.4.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -10,7 +10,7 @@ const PATTERNS = {
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
   memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|what do i prefer|what do i like|what do i dislike|my favorite|my favourite|i prefer|i dislike|from now on|going forward|correction|my wife|my husband|my brother|my sister|my friend)\b/i,
   health: /\b(injury|injured|pain|sore|soreness|medical|medicine|medication|symptom|pregnan|blood pressure|heart rate|doctor|nurse)\b/i,
-  currentInfo: /\b(latest|today's news|news|weather|forecast|price|score|current president|current ceo|right now)\b/i,
+  currentInfo: /\b(latest|current|currently|today(?:'s)?|tonight|this week|this month|this year|right now|as of now|news|weather|forecast|price|prices|score|scores|standings|schedule|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|stock price|market price|exchange rate|release date|availability|in office|who is .* president|who's .* president)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api)\b/i
 };
 
