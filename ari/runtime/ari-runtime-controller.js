@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Make Ari vNext the default Home intelligence runtime while preserving
 //   Rebirth as a deterministic emergency fallback during the cutover.
@@ -11,7 +11,8 @@
 //   - Rebirth remains available by local emergency override.
 //   - A vNext transport/runtime failure falls back once to Rebirth.
 //   - Existing trusted CalBuddy action execution remains authoritative.
-//   - vNext experiment actions keep their own authenticated ledger lifecycle.
+//   - Typed and button confirmations share the same trusted action boundary.
+//   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 // =====================================================
 
@@ -21,7 +22,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -46,6 +47,7 @@
 
   let dependencyPromise = null;
   let initiativeCheckPromise = null;
+  let activeInitiative = null;
 
   function clean(value = "") {
     return String(value || "").trim();
@@ -192,6 +194,65 @@
     };
   }
 
+  async function markInitiativeEngaged() {
+    const initiative = activeInitiative;
+    if (!initiative?.id || !window.AriVNextInitiative?.engage) return;
+    activeInitiative = null;
+    try {
+      await window.AriVNextInitiative.engage(initiative);
+    } catch {
+      // Engagement bookkeeping must never block the user's reply.
+    }
+  }
+
+  async function executeTypedConfirmation(result = {}) {
+    const actionType = clean(result?.action?.type);
+    const pending = result?.pendingAction || null;
+
+    if (actionType === "cancel_pending_action") {
+      if (legacy.cancelPendingAction && CalBuddy.getPendingAction?.()) {
+        legacy.cancelPendingAction();
+      }
+      window.AriVNextBridge?.clearPendingAction?.();
+      return { ...result, pendingAction: null };
+    }
+
+    if (actionType !== "execute_pending_action" || !pending?.id) return result;
+    if (isExperimentAction(pending.name)) return result;
+
+    let execution = null;
+
+    if (legacy.confirmPendingAction && CalBuddy.getPendingAction?.()) {
+      execution = await legacy.confirmPendingAction();
+    } else if (window.AriVNextActionAdapter?.executeConfirmed) {
+      execution = await window.AriVNextActionAdapter.executeConfirmed({
+        vnextPendingAction: pending,
+        currentTurnId: result?.turn?.turnId || result?.turnId || null
+      });
+    }
+
+    window.AriVNextBridge?.clearPendingAction?.();
+
+    if (!execution) {
+      return {
+        ...result,
+        pendingAction: null,
+        reply: "I couldn't safely apply that change. Ask me to prepare it again.",
+        actionExecution: { success: false, code: "trusted_executor_unavailable" }
+      };
+    }
+
+    const success = execution?.success !== false;
+    return {
+      ...result,
+      pendingAction: null,
+      actionExecution: execution,
+      reply: success
+        ? (execution?.reply || execution?.result?.reply || result?.reply || "Done.")
+        : (execution?.reply || execution?.message || result?.reply || "That change didn't go through.")
+    };
+  }
+
   async function askVNext(input = {}) {
     await ensureVNext();
 
@@ -199,14 +260,20 @@
     const history = Array.isArray(input?.history) ? input.history : [];
     const userContext = await getUserContext();
 
-    const result = await window.AriVNextBridge.ask(message, {
+    if (activeInitiative?.id && message) {
+      void markInitiativeEngaged();
+    }
+
+    let result = await window.AriVNextBridge.ask(message, {
       ...input,
       history,
       userContext,
       page: window.location.pathname || "/home.html"
     });
 
+    result = await executeTypedConfirmation(result || {});
     const normalized = await normalizePendingAction(result || {});
+
     return {
       ...normalized,
       success: normalized?.success !== false,
@@ -347,6 +414,10 @@
   CalBuddy.askAri = ask;
   CalBuddy.confirmPendingAction = confirmPendingAction;
   CalBuddy.cancelPendingAction = cancelPendingAction;
+
+  window.addEventListener("ari:vnextInitiative", (event) => {
+    activeInitiative = event?.detail?.initiative || null;
+  });
 
   window.dispatchEvent(
     new CustomEvent("ari:runtimeReady", {
