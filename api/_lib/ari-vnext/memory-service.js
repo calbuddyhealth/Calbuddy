@@ -1,7 +1,7 @@
 // ARI vNext — targeted long-term memory retrieval.
 // Retrieves only user-owned memories and ranks them for the current turn.
 
-export const MEMORY_SERVICE_VERSION = "1.1.0";
+export const MEMORY_SERVICE_VERSION = "1.2.0";
 
 export async function retrieveRelevantMemories({ userId, message, limit = 6 } = {}) {
   const id = String(userId || "").trim();
@@ -49,11 +49,14 @@ export async function retrieveRelevantMemories({ userId, message, limit = 6 } = 
 export function rankMemories(memories = [], message = "") {
   const queryTokens = tokenize(message);
   const now = Date.now();
+  const requestedDomain = inferCoachingDomain(message);
 
   return memories
     .map((memory) => {
       const content = String(memory?.content || "").trim();
-      const haystack = `${memory?.topic || ""} ${content} ${(memory?.tags || []).join(" ")}`;
+      const memoryType = String(memory?.memory_type || "general");
+      const topic = String(memory?.topic || "general");
+      const haystack = `${topic} ${content} ${(memory?.tags || []).join(" ")}`;
       const memoryTokens = tokenize(haystack);
       const overlap = [...queryTokens].filter((token) => memoryTokens.has(token)).length;
       const overlapScore = queryTokens.size ? overlap / queryTokens.size : 0;
@@ -63,13 +66,14 @@ export function rankMemories(memories = [], message = "") {
       const ageDays = updatedAt ? Math.max(0, (now - updatedAt) / 86400000) : 3650;
       const recency = Math.exp(-ageDays / 180);
       const explicitRecallBoost = /\b(remember|last time|before|again|what did i|what was|you know|prefer|favorite|favourite|dislike)\b/i.test(message) ? 0.12 : 0;
+      const outcomeBoost = outcomeMemoryBoost({ memoryType, topic, content, requestedDomain });
 
-      const score = overlapScore * 0.55 + importance * 0.2 + confidence * 0.15 + recency * 0.1 + explicitRecallBoost;
+      const score = overlapScore * 0.55 + importance * 0.2 + confidence * 0.15 + recency * 0.1 + explicitRecallBoost + outcomeBoost;
 
       return {
         id: memory?.id || null,
-        memoryType: memory?.memory_type || "general",
-        topic: memory?.topic || "general",
+        memoryType,
+        topic,
         content,
         importance: Number(memory?.importance ?? 5),
         confidence: Number(memory?.confidence ?? 0.75),
@@ -79,6 +83,25 @@ export function rankMemories(memories = [], message = "") {
     })
     .filter((item) => item.content && (item.relevanceScore >= 0.18 || /\b(remember|last time|before|again|what did i|what was|you know|prefer|favorite|favourite|dislike)\b/i.test(message)))
     .sort((a, b) => b.relevanceScore - a.relevanceScore);
+}
+
+function outcomeMemoryBoost({ memoryType, topic, content, requestedDomain }) {
+  if (!requestedDomain) return 0;
+  if (memoryType !== "outcome_feedback" && !/\b(outcome|worked|helped|worse|improved|declined)\b/i.test(content)) return 0;
+
+  const text = `${topic} ${content}`.toLowerCase();
+  if (requestedDomain === "training" && /\b(training|workout|strength|recovery|program|lift|exercise)\b/.test(text)) return 0.13;
+  if (requestedDomain === "nutrition" && /\b(nutrition|calorie|protein|food|meal|diet|intake)\b/.test(text)) return 0.13;
+  if (requestedDomain === "goals" && /\b(goal|weight|cut|bulk|lose|gain|maintain)\b/.test(text)) return 0.12;
+  return 0.05;
+}
+
+function inferCoachingDomain(message = "") {
+  const text = String(message || "").toLowerCase();
+  if (/\b(workout|training|exercise|lift|strength|program|plateau|recovery|sets?|reps?)\b/.test(text)) return "training";
+  if (/\b(nutrition|calorie|protein|carb|fat|meal|food|diet|intake)\b/.test(text)) return "nutrition";
+  if (/\b(goal|weight|cut|bulk|lose|gain|maintain|target|pace)\b/.test(text)) return "goals";
+  return null;
 }
 
 function normalizedImportance(value) {
