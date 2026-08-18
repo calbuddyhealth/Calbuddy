@@ -2,11 +2,12 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.2.0";
+export const CONTINUITY_SERVICE_VERSION = "1.3.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
 const TRANSIENT_PATTERN = /\b(right now|for today|today only|just today|this minute|this second)\b/i;
+const SENSITIVE_PATTERN = /\b(diagnos|medication|medicine|pregnan|sexual|bank|debt|income|salary|passport|immigration|legal case)\b/i;
 
 export async function hydrateRecentConversation({ userId, history = [], limitPairs = 4 } = {}) {
   const safeUserId = clean(userId, 200);
@@ -78,21 +79,20 @@ export async function persistConversationTurn({ userId, message, reply, surface 
   }
 }
 
-export function durableMemoryCandidate(message = "") {
+export function durableMemoryCandidate(message = "", options = {}) {
   const raw = clean(message, 1000);
   if (!raw || raw.length < 4 || SECRET_PATTERN.test(raw)) return null;
 
   const explicitContent = extractExplicitRemember(raw);
   const explicitRemember = Boolean(explicitContent);
+  const outcome = outcomeCandidate(raw, options);
   const preference = preferenceCandidate(raw);
   const goal = goalCandidate(raw);
 
-  if (!explicitRemember && !preference && !goal) return null;
+  if (!explicitRemember && !outcome && !preference && !goal) return null;
   if (raw.includes("?") && !explicitRemember) return null;
-  if (TRANSIENT_PATTERN.test(raw) && !explicitRemember) return null;
-
-  const sensitive = /\b(diagnos|medication|medicine|pregnan|sexual|bank|debt|income|salary|passport|immigration|legal case)\b/i.test(raw);
-  if (sensitive && !explicitRemember) return null;
+  if (TRANSIENT_PATTERN.test(raw) && !explicitRemember && !outcome) return null;
+  if (SENSITIVE_PATTERN.test(raw) && !explicitRemember) return null;
 
   if (explicitRemember) {
     return {
@@ -102,6 +102,17 @@ export function durableMemoryCandidate(message = "") {
       importance: 9,
       confidence: 0.98,
       tags: ["ari-vnext", "explicit_memory", ...keywords(explicitContent)]
+    };
+  }
+
+  if (outcome) {
+    return {
+      memoryType: "outcome_feedback",
+      topic: `${outcome.domain}_outcome`,
+      content: outcome.content,
+      importance: 6,
+      confidence: 0.82,
+      tags: ["ari-vnext", "outcome", outcome.direction, outcome.domain, ...outcome.tags]
     };
   }
 
@@ -126,9 +137,9 @@ export function durableMemoryCandidate(message = "") {
   };
 }
 
-export async function persistDurableMemory({ userId, message } = {}) {
+export async function persistDurableMemory({ userId, message, history = [], route = {} } = {}) {
   const safeUserId = clean(userId, 200);
-  const candidate = durableMemoryCandidate(message);
+  const candidate = durableMemoryCandidate(message, { history, route });
   if (!safeUserId || !candidate?.content) return { stored: false, candidate: null };
 
   const config = supabaseConfig();
@@ -164,6 +175,55 @@ export async function persistDurableMemory({ userId, message } = {}) {
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Durable memory persistence failed:", error?.message || error);
     return { stored: false, candidate };
   }
+}
+
+function outcomeCandidate(text, { history = [], route = {} } = {}) {
+  const positive = /\b(that|it|this|your (?:plan|advice|change|recommendation))\s+(?:really\s+)?(?:worked|helped|is working|has worked)|\b(?:i['’]?m|i am)\s+(?:getting|feeling)\s+(?:stronger|better)|\b(?:strength|recovery|energy|performance)\s+(?:improved|is better|got better)\b/i.test(text);
+  const negative = /\b(that|it|this|your (?:plan|advice|change|recommendation))\s+(?:didn['’]?t|did not|isn['’]?t|is not)\s+work|\bmade\s+(?:it|things|me)\s+worse|\b(?:i['’]?m|i am)\s+(?:getting|feeling)\s+(?:weaker|worse)|\b(?:strength|recovery|energy|performance)\s+(?:declined|is worse|got worse)\b/i.test(text);
+  if (!positive && !negative) return null;
+
+  const domain = outcomeDomain(route, history);
+  if (!domain) return null;
+
+  const previousAssistant = [...(Array.isArray(history) ? history : [])]
+    .reverse()
+    .find((item) => item?.role === "assistant" && clean(item?.content, 600));
+  const guidance = compactGuidance(previousAssistant?.content || "");
+  const direction = negative && !positive ? "negative" : positive && !negative ? "positive" : "mixed";
+  const report = stripTrailing(text);
+  const content = [
+    `User reported a ${direction} outcome after recent ${domain} guidance: ${report}.`,
+    guidance ? `Recent Ari guidance context: ${guidance}.` : ""
+  ].filter(Boolean).join(" ").slice(0, 1100);
+
+  return {
+    direction,
+    domain,
+    content,
+    tags: keywords(`${report} ${guidance}`)
+  };
+}
+
+function outcomeDomain(route = {}, history = []) {
+  if (route?.training) return "training";
+  if (route?.nutrition) return "nutrition";
+  if (route?.goals) return "goals";
+
+  const recent = (Array.isArray(history) ? history : [])
+    .slice(-4)
+    .map((item) => clean(item?.content, 500))
+    .join(" ");
+  if (/\b(workout|training|exercise|sets?|reps?|strength|program|deload|recovery)\b/i.test(recent)) return "training";
+  if (/\b(calorie|protein|carb|fat|meal|nutrition|diet|food)\b/i.test(recent)) return "nutrition";
+  if (/\b(goal|weight|target|cut|bulk|lose|gain|maintain)\b/i.test(recent)) return "goals";
+  return null;
+}
+
+function compactGuidance(value) {
+  return clean(value, 420)
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
+    .trim();
 }
 
 function extractExplicitRemember(text) {
