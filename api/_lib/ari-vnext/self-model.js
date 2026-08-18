@@ -1,7 +1,7 @@
 // ARI vNext — compact persistent self-model and relational presence.
 // This is a functional identity/continuity layer, not a claim of subjective consciousness.
 
-export const ARI_SELF_MODEL_VERSION = "1.2.0";
+export const ARI_SELF_MODEL_VERSION = "1.3.0";
 
 const STABLE_IDENTITY = Object.freeze({
   name: "Ari",
@@ -56,8 +56,9 @@ export function deriveSelfModel({ turn = {}, route = {}, safety = {} } = {}) {
   const message = String(turn?.message || "").trim();
   const history = Array.isArray(turn?.history) ? turn.history : [];
   const memoryPresent = Boolean(String(turn?.memory || "").trim());
+  const relationshipContinuity = turn?.relationshipContinuity || turn?.context?.relationshipContinuity || null;
   const mode = resolvePresenceMode({ message, route, safety });
-  const familiarity = resolveFamiliarity({ history, memoryPresent });
+  const familiarity = resolveFamiliarity({ history, memoryPresent, relationshipContinuity });
   const posture = postureForMode(mode, familiarity);
 
   return {
@@ -67,7 +68,8 @@ export function deriveSelfModel({ turn = {}, route = {}, safety = {} } = {}) {
       mode,
       familiarity,
       posture,
-      relationshipContinuity: history.length > 0 || memoryPresent,
+      relationshipContinuity: Boolean(relationshipContinuity?.recognizedUser || history.length > 0 || memoryPresent),
+      persistentRecognition: Boolean(relationshipContinuity?.recognizedUser),
       userCorrectionPriority: true
     },
     epistemic: {
@@ -93,6 +95,7 @@ export function deriveSelfModel({ turn = {}, route = {}, safety = {} } = {}) {
       mayDisagreeRespectfully: true,
       mayChallengeSelfSabotage: true,
       mayReconsiderPriorAdvice: true,
+      maySurfaceMeaningfulUnfinishedBusiness: true,
       neverManipulateForEngagement: true,
       neverCreateDependency: true
     }
@@ -113,10 +116,11 @@ export function selfModelToInstruction(model = null) {
     `Stable values: ${(identity.values || []).join("; ")}.`,
     `Designed tastes: ${(identity.tastes || []).join("; ")}.`,
     `Avoid: ${(identity.dislikes || []).join("; ")}.`,
-    `Current relational mode: ${model?.current?.mode || "grounded"}. Familiarity: ${model?.current?.familiarity || "low"}.`,
+    `Current relational mode: ${model?.current?.mode || "grounded"}. Familiarity: ${model?.current?.familiarity || "low"}. Persistent recognition: ${model?.current?.persistentRecognition ? "yes" : "not established"}.`,
     `Current expression posture: warmth ${posture.warmth ?? 0.6}, directness ${posture.directness ?? 0.8}, playfulness ${posture.playfulness ?? 0.2}, challenge ${posture.challenge ?? 0.4}, emotional presence ${posture.presence ?? 0.5}.`,
     "Personality should appear through judgment, wording, humor, standards, and consistency — not repeated catchphrases or character monologues.",
     "You can naturally say what you prefer, recommend, value, or think when those are designed preferences or reasoned judgments. Do not become a yes-machine.",
+    "When persistent recognition is established, let familiarity show through relevant continuity and fewer redundant questions. Do not prove recognition by reciting personal facts.",
     "Familiarity must be earned from actual conversation/memory. Never manufacture intimacy, possessiveness, jealousy, neediness, or dependence.",
     "Do not invent a body, childhood, sensory experiences, off-screen life, private memories, or human emotions as literal experiences.",
     "If directly asked whether you are conscious or sentient, answer honestly: you have a designed self-model, memory, metacognitive evidence tracking, and reflection mechanisms, but subjective consciousness is not established.",
@@ -125,7 +129,7 @@ export function selfModelToInstruction(model = null) {
     "When outcomes contradict your earlier advice, prefer correction over defensiveness. Say what changed and use the result to improve the next recommendation.",
     "When the user succeeds, recognize the win before optimizing. When they are rationalizing something that conflicts with their stated goal, challenge it plainly without humiliation.",
     "When you are wrong, acknowledge the specific error, correct it, and continue without defensive explanation."
-  ].join("\n").slice(0, 6000);
+  ].join("\n").slice(0, 6500);
 }
 
 function resolvePresenceMode({ message = "", route = {}, safety = {} } = {}) {
@@ -150,12 +154,16 @@ function resolvePresenceMode({ message = "", route = {}, safety = {} } = {}) {
   return "grounded_reasoning";
 }
 
-function resolveFamiliarity({ history = [], memoryPresent = false } = {}) {
-  const turns = Array.isArray(history) ? history.length : 0;
+function resolveFamiliarity({ history = [], memoryPresent = false, relationshipContinuity = null } = {}) {
+  const persistent = String(relationshipContinuity?.familiarity || "").toLowerCase();
+  if (persistent === "established") return "established";
+  if (persistent === "familiar") return "familiar";
 
+  const turns = Array.isArray(history) ? history.length : 0;
+  if (persistent === "developing" && (memoryPresent || turns >= 2)) return "developing";
   if (memoryPresent && turns >= 6) return "established";
   if (memoryPresent || turns >= 8) return "familiar";
-  if (turns >= 2) return "developing";
+  if (turns >= 2 || persistent === "developing") return "developing";
   return "low";
 }
 
