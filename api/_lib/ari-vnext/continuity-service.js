@@ -2,7 +2,7 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.3.0";
+export const CONTINUITY_SERVICE_VERSION = "1.4.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
@@ -137,10 +137,15 @@ export function durableMemoryCandidate(message = "", options = {}) {
   };
 }
 
-export async function persistDurableMemory({ userId, message, history = [], route = {} } = {}) {
+export async function persistDurableMemory({ userId, message, history = [], route = {}, privacyControls = null } = {}) {
   const safeUserId = clean(userId, 200);
   const candidate = durableMemoryCandidate(message, { history, route });
   if (!safeUserId || !candidate?.content) return { stored: false, candidate: null };
+
+  const category = memoryCategoryForCandidate(candidate);
+  if (category && blockedCategories(privacyControls).has(category)) {
+    return { stored: false, candidate, reason: "privacy_category_blocked", category };
+  }
 
   const config = supabaseConfig();
   if (!config) return { stored: false, candidate };
@@ -175,6 +180,23 @@ export async function persistDurableMemory({ userId, message, history = [], rout
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Durable memory persistence failed:", error?.message || error);
     return { stored: false, candidate };
   }
+}
+
+export function memoryCategoryForCandidate(candidate = {}) {
+  const type = clean(candidate?.memoryType, 80);
+  if (type === "preference") return "preferences";
+  if (type === "goal") return "goals";
+  if (type === "outcome_feedback") return "fitness_outcomes";
+  if (type !== "explicit_memory") return null;
+
+  const text = clean(candidate?.content, 1200).toLowerCase();
+  if (/\b(prefer|favorite|favourite|like|dislike|hate|love)\b/.test(text)) return "preferences";
+  if (/\b(goal|target|trying to|want to lose|want to gain|want to maintain|cutting|bulking)\b/.test(text)) return "goals";
+  if (/\b(can't|cannot|schedule|shift|budget|equipment|allerg|injur|pain|access)\b/.test(text)) return "constraints";
+  if (/\b(wife|husband|spouse|brother|sister|friend|partner|relationship)\b/.test(text)) return "relationship";
+  if (/\b(worked|helped|worse|improved|declined|performance|recovery|strength)\b/.test(text)) return "fitness_outcomes";
+  if (/\b(i am|i'm|my name|my age|i work|my job|occupation)\b/.test(text)) return "identity";
+  return null;
 }
 
 function outcomeCandidate(text, { history = [], route = {} } = {}) {
@@ -280,6 +302,11 @@ function goalCandidate(text) {
     };
   }
   return null;
+}
+
+function blockedCategories(privacyControls) {
+  const list = Array.isArray(privacyControls?.blockedCategories) ? privacyControls.blockedCategories : [];
+  return new Set(list.map((item) => clean(item, 80).toLowerCase()).filter(Boolean));
 }
 
 async function timedFetch(url, options = {}, timeoutMs = 1000) {
