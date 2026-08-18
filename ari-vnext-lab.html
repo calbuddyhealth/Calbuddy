@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>ARI vNext Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 20% 0%, rgba(56,189,248,.13), transparent 32%), radial-gradient(circle at 80% 0%, rgba(124,58,237,.14), transparent 35%), #07101c; color: #f8fbff; }
+    main { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 34px 0 56px; }
+    header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    h1 { margin: 0; font-size: clamp(28px, 5vw, 48px); letter-spacing: -.045em; }
+    .eyebrow { color: #67e8f9; text-transform: uppercase; font-size: 11px; letter-spacing: .24em; font-weight: 800; margin-bottom: 8px; }
+    .status { font-size: 12px; color: #9fb2c8; text-align: right; }
+    .shell { border: 1px solid rgba(255,255,255,.1); background: rgba(13,25,43,.74); backdrop-filter: blur(20px); border-radius: 24px; padding: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.28); }
+    textarea { width: 100%; min-height: 118px; resize: vertical; border: 1px solid rgba(255,255,255,.1); background: rgba(2,8,19,.8); color: white; border-radius: 17px; padding: 15px; font: inherit; font-size: 16px; outline: none; }
+    textarea:focus { border-color: rgba(103,232,249,.65); box-shadow: 0 0 0 3px rgba(103,232,249,.09); }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    button { appearance: none; border: 1px solid rgba(255,255,255,.11); border-radius: 999px; padding: 11px 16px; font-weight: 800; cursor: pointer; background: rgba(255,255,255,.07); color: white; }
+    button.primary { background: linear-gradient(120deg, #2563eb, #7c3aed); border-color: transparent; }
+    button.cyan { background: rgba(6,182,212,.16); border-color: rgba(103,232,249,.35); }
+    button:disabled { opacity: .45; cursor: progress; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .card { min-width: 0; border: 1px solid rgba(255,255,255,.09); background: rgba(2,8,19,.58); border-radius: 20px; overflow: hidden; }
+    .card-head { display:flex; justify-content:space-between; gap:12px; align-items:center; padding: 14px 15px; border-bottom: 1px solid rgba(255,255,255,.07); }
+    .card-title { font-size: 13px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+    .badge { font-size: 10px; color: #a7c7e7; }
+    .reply { padding: 16px; white-space: pre-wrap; line-height: 1.55; min-height: 150px; color: #f4f8ff; }
+    .meta { border-top: 1px solid rgba(255,255,255,.07); padding: 12px 15px; color: #95a8bf; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap:anywhere; }
+    .bench { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .bench button { font-size: 12px; font-weight: 700; padding: 8px 11px; }
+    .notice { margin-top: 14px; color:#8ea3ba; font-size:12px; line-height:1.5; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } header { align-items:flex-start; flex-direction:column; } .status { text-align:left; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="eyebrow">Owner Intelligence Lab</div>
+        <h1>Rebirth vs. ARI vNext</h1>
+      </div>
+      <div id="labStatus" class="status">Checking owner access…</div>
+    </header>
+
+    <section id="labShell" class="shell" hidden>
+      <textarea id="prompt" placeholder="Test Ari with a real question…"></textarea>
+      <div class="controls">
+        <button id="compareBtn" class="primary">Compare Both</button>
+        <button id="vnextBtn" class="cyan">Run vNext</button>
+        <button id="rebirthBtn">Run Rebirth</button>
+        <button id="resetBtn">Reset Turn State</button>
+      </div>
+
+      <div class="bench" aria-label="Benchmark prompts">
+        <button data-prompt="How many calories are in two eggs?">Nutrition question</button>
+        <button data-prompt="I ate two eggs">Do not auto-log</button>
+        <button data-prompt="Create a 45 minute shoulder workout tomorrow">Workout creation</button>
+        <button data-prompt="What should I train today based on my current week?">Training context</button>
+        <button data-prompt="Am I on pace for my goal?">Goal context</button>
+        <button data-prompt="Just tell me yes or no: is this enough protein?">Directness</button>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <div class="card-head">
+            <span class="card-title">ARI vNext</span>
+            <span id="vnextBadge" class="badge">model-first</span>
+          </div>
+          <div id="vnextReply" class="reply">No run yet.</div>
+          <div id="vnextMeta" class="meta">—</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <span class="card-title">Rebirth</span>
+            <span id="rebirthBadge" class="badge">five-layer runtime</span>
+          </div>
+          <div id="rebirthReply" class="reply">No run yet.</div>
+          <div id="rebirthMeta" class="meta">—</div>
+        </article>
+      </div>
+
+      <div class="notice">This lab is owner-only. It does not replace the production Ari route. Mutation tools are evaluated as proposals; this comparison page never directly confirms or executes a pending app write.</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="calbuddy-core.js?v=3.6.4"></script>
+  <script src="ari/diagnostics/ari-execution-trace.js"></script>
+  <script src="ari/ari-rebirth-app-bridge.js"></script>
+  <script src="ari/vnext/ari-vnext-training-context.js?v=1.0.0"></script>
+  <script src="ari/vnext/ari-vnext-bridge.js?v=1.1.0"></script>
+
+  <script>
+    const history = { vnext: [], rebirth: [] };
+    const status = document.getElementById("labStatus");
+    const shell = document.getElementById("labShell");
+    const promptInput = document.getElementById("prompt");
+
+    document.addEventListener("DOMContentLoaded", initialize);
+
+    async function initialize() {
+      try {
+        const session = await CalBuddy.getCurrentSession();
+        if (!session?.user?.id) {
+          status.textContent = "Sign in to use the owner lab.";
+          return;
+        }
+
+        const owner = await CalBuddy.verifyOwnerSession({ force: true });
+        if (!owner) {
+          status.textContent = "Owner access required.";
+          return;
+        }
+
+        status.textContent = `Owner verified • vNext ${window.AriVNextBridge?.version || "not loaded"}`;
+        shell.hidden = false;
+      } catch (error) {
+        status.textContent = error?.message || "Owner verification failed.";
+      }
+    }
+
+    document.querySelectorAll("[data-prompt]").forEach((button) => {
+      button.addEventListener("click", () => {
+        promptInput.value = button.dataset.prompt || "";
+        promptInput.focus();
+      });
+    });
+
+    document.getElementById("vnextBtn").addEventListener("click", () => runVNext());
+    document.getElementById("rebirthBtn").addEventListener("click", () => runRebirth());
+    document.getElementById("compareBtn").addEventListener("click", compareBoth);
+    document.getElementById("resetBtn").addEventListener("click", resetState);
+
+    async function compareBoth() {
+      const message = promptInput.value.trim();
+      if (!message) return;
+      setBusy(true);
+      try {
+        await Promise.allSettled([runVNext({ message, manageBusy: false }), runRebirth({ message, manageBusy: false })]);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function runVNext({ message = promptInput.value.trim(), manageBusy = true } = {}) {
+      if (!message) return;
+      if (manageBusy) setBusy(true);
+      const started = performance.now();
+      setText("vnextReply", "Thinking…");
+
+      try {
+        const userContext = await CalBuddy.getUserContext();
+        const result = await AriVNextBridge.ask(message, {
+          page: "/ari-vnext-lab.html",
+          history: history.vnext,
+          userContext,
+          coachMemorySummary: userContext.coachMemorySummary || ""
+        });
+
+        const ms = Math.round(performance.now() - started);
+        const reply = result.reply || (result?.action?.type === "execute_pending_action" ? "Pending action would execute here in the real app." : "No textual reply.");
+        setText("vnextReply", reply);
+        setText("vnextMeta", [
+          `total: ${ms}ms`,
+          `mode: ${result?.modelPolicy?.mode || "n/a"}`,
+          `model: ${result?.provider?.model || result?.modelPolicy?.model || "n/a"}`,
+          `memory: ${result?.memoryUsed ? `${result.memoryCount} selected` : "none"}`,
+          `action: ${result?.action?.applicationAction || result?.action?.type || "none"}`,
+          `route: ${compactRoute(result?.route)}`
+        ].join("\n"));
+
+        history.vnext.push({ role: "user", content: message }, { role: "assistant", content: reply });
+        history.vnext = history.vnext.slice(-16);
+        return result;
+      } catch (error) {
+        setText("vnextReply", error?.message || String(error));
+        setText("vnextMeta", `failed after ${Math.round(performance.now() - started)}ms`);
+        throw error;
+      } finally {
+        if (manageBusy) setBusy(false);
+      }
+    }
+
+    async function runRebirth({ message = promptInput.value.trim(), manageBusy = true } = {}) {
+      if (!message) return;
+      if (manageBusy) setBusy(true);
+      const started = performance.now();
+      setText("rebirthReply", "Thinking…");
+
+      try {
+        const userContext = await CalBuddy.getUserContext();
+        const result = await AriRebirthAppBridge.ask(message, {
+          source: "ari-vnext-lab",
+          page: "/ari-vnext-lab.html",
+          history: history.rebirth,
+          debugTiming: true,
+          userContext,
+          user: { id: userContext.userId, email: userContext.email || null },
+          goals: {
+            dailyGoal: userContext.dailyGoal,
+            caloriesConsumed: userContext.caloriesConsumed,
+            caloriesBurned: userContext.caloriesBurned,
+            caloriesLeft: userContext.caloriesLeft,
+            currentWeight: userContext.currentWeight,
+            goalWeight: userContext.goalWeight,
+            goalType: userContext.goalType,
+            activityLevel: userContext.activityLevel
+          },
+          meals: userContext.mealsToday || [],
+          todayLog: userContext.mealsToday || [],
+          recentMeals: userContext.recentMeals || [],
+          favoriteFoods: userContext.favoriteFoods || [],
+          recentWeights: userContext.recentWeights || [],
+          ownerMode: true,
+          ariPermissions: userContext.ariPermissions || {},
+          coachMemorySummary: userContext.coachMemorySummary || ""
+        });
+
+        const ms = Math.round(performance.now() - started);
+        const reply = result.reply || "No textual reply.";
+        setText("rebirthReply", reply);
+        setText("rebirthMeta", [
+          `total: ${ms}ms`,
+          `delivery: ${result.deliveryStatus || "n/a"}`,
+          `source: ${result.responseSource || result.source || "rebirth"}`,
+          `bridge: ${result.bridgeVersion || AriRebirthAppBridge.version || "n/a"}`,
+          `actions: ${Array.isArray(result.actions) ? result.actions.length : 0}`
+        ].join("\n"));
+
+        history.rebirth.push({ role: "user", content: message }, { role: "assistant", content: reply });
+        history.rebirth = history.rebirth.slice(-16);
+        return result;
+      } catch (error) {
+        setText("rebirthReply", error?.message || String(error));
+        setText("rebirthMeta", `failed after ${Math.round(performance.now() - started)}ms`);
+        throw error;
+      } finally {
+        if (manageBusy) setBusy(false);
+      }
+    }
+
+    function resetState() {
+      history.vnext = [];
+      history.rebirth = [];
+      AriVNextBridge.clearPendingAction();
+      setText("vnextReply", "State reset.");
+      setText("rebirthReply", "State reset.");
+      setText("vnextMeta", "—");
+      setText("rebirthMeta", "—");
+    }
+
+    function setBusy(busy) {
+      document.querySelectorAll("#labShell button").forEach((button) => { button.disabled = busy; });
+    }
+
+    function setText(id, text) {
+      const element = document.getElementById(id);
+      if (element) element.textContent = String(text ?? "");
+    }
+
+    function compactRoute(route = {}) {
+      return ["nutrition", "training", "goals", "social", "memory", "health", "currentInfo", "developer"]
+        .filter((key) => route?.[key] === true)
+        .join(", ") || "conversation";
+    }
+  </script>
+</body>
+</html>
