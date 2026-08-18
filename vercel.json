@@ -15,7 +15,7 @@
     },
     {
       "source": "/api/usage",
-      "destination": "/api/secure-ai-gateway?route=usage&action=owner_costs"
+      "destination": "/api/secure-ai-gateway?route=usage"
     },
     {
       "source": "/api/owner-ai-costs",
