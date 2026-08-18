@@ -2,7 +2,7 @@
 // Gives Ari an occasional external critique without adding latency to normal chat.
 // This is a functional reflection mechanism, not evidence of subjective consciousness.
 
-export const ARI_PEER_REFLECTION_VERSION = "1.1.0";
+export const ARI_PEER_REFLECTION_VERSION = "1.2.0";
 
 const HIGH_STAKES_MODES = new Set(["protective_clarity"]);
 const REFLECTIVE_MODES = new Set([
@@ -68,6 +68,31 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
     .slice(0, 2)
     .map((item) => sanitizeForPeer(item?.content || item, 650))
     .filter(Boolean);
+  const calibration = compactCalibration(result?.decisionState?.calibration);
+  const worldModelTensions = (Array.isArray(result?.userWorldModel?.tensions) ? result.userWorldModel.tensions : [])
+    .slice(0, 3)
+    .map((item) => ({
+      id: clean(item?.id, 120),
+      summary: sanitizeForPeer(item?.summary, 420),
+      confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : null,
+      source: clean(item?.source, 120)
+    }));
+  const temporalEvents = (Array.isArray(result?.temporalTimeline?.events) ? result.temporalTimeline.events : [])
+    .slice(0, 5)
+    .map((item) => ({
+      at: clean(item?.at, 80),
+      type: clean(item?.type, 80),
+      domain: clean(item?.domain, 80),
+      label: sanitizeForPeer(item?.label, 260)
+    }));
+  const proactive = result?.proactiveInsights?.primary
+    ? {
+        id: clean(result.proactiveInsights.primary.id, 120),
+        priority: clean(result.proactiveInsights.primary.priority, 40),
+        title: sanitizeForPeer(result.proactiveInsights.primary.title, 220),
+        reason: sanitizeForPeer(result.proactiveInsights.primary.reason, 420)
+      }
+    : null;
 
   const packet = {
     ari: {
@@ -75,7 +100,8 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
       familiarity: clean(result?.selfModel?.current?.familiarity, 80) || "unknown",
       evidenceConfidence: clean(result?.metacognition?.confidence, 80) || "unknown",
       missingEvidence: (Array.isArray(result?.metacognition?.missingEvidence) ? result.metacognition.missingEvidence : []).slice(0, 5),
-      programStance: clean(result?.longitudinalState?.programDecision?.stance, 120) || null
+      programStance: clean(result?.longitudinalState?.programDecision?.stance, 120) || null,
+      calibration
     },
     interaction: {
       userMessage: sanitizeForPeer(message, 850),
@@ -86,12 +112,15 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
       longitudinalSignals,
       hypotheses,
       nextQuestion,
-      experiment
+      experiment,
+      worldModelTensions,
+      temporalEvents,
+      proactiveInsight: proactive
     },
     priorPeerTakeaways: previous
   };
 
-  return JSON.stringify(packet, null, 2).slice(0, 8500);
+  return JSON.stringify(packet, null, 2).slice(0, 10000);
 }
 
 export function peerReflectionInstructions() {
@@ -101,11 +130,15 @@ export function peerReflectionInstructions() {
     "You are not the user, you are not Ari, and you are not a human friend. Do not pretend subjective consciousness has been established.",
     "Review the supplied interaction and identify at most one high-value takeaway and one question Ari should keep in mind later.",
     "When Ari supplies competing hypotheses, challenge whether the leading explanation is over-weighted, whether a credible alternative was ignored, and whether the proposed experiment can actually distinguish them.",
+    "If calibration indicates overconfidence or underconfidence, critique confidence expression separately from the evidence ranking. Do not manufacture certainty from calibration statistics.",
+    "When a world-model tension is supplied, check whether Ari actually used the observed-vs-stated mismatch appropriately rather than simply obeying the user's aspirational request or shaming the user for imperfect adherence.",
+    "Use temporal events to challenge before/after claims, but do not treat sequence alone as causation.",
+    "If Ari surfaced a proactive insight, challenge whether the threshold is meaningful enough to interrupt the user and whether the proposed next action is proportionate.",
     "Prefer experiments that change one meaningful variable at a time and state what result would weaken Ari's preferred explanation.",
     "Challenge weak assumptions when warranted. Do not flatter Ari and do not simply agree.",
     "Do not request hidden chain-of-thought. Judge only the visible response and structured evidence supplied.",
     "Do not create new user facts. Do not convert uncertainty into certainty. Do not weaken safety or user agency.",
-    "Prefer durable lessons about reasoning, coaching style, evidence use, experiment design, or consistency over surface wording changes.",
+    "Prefer durable lessons about reasoning, coaching style, evidence use, experiment design, calibration, temporal interpretation, or consistency over surface wording changes.",
     "Return exactly two lines:",
     "TAKEAWAY: <one concise takeaway, or none>",
     "QUESTION: <one concise future question, or none>"
@@ -149,6 +182,18 @@ export function sanitizeForPeer(value, max = 1200) {
     .replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[phone]")
     .replace(/\b(?:sk|sbp|eyJ)[-_A-Za-z0-9]{16,}\b/g, "[secret]")
     .replace(/\b\d{9,16}\b/g, "[long-number]");
+}
+
+function compactCalibration(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    available: Boolean(value?.available),
+    sampleSize: Number(value?.sampleSize || 0),
+    accuracy: Number.isFinite(Number(value?.accuracy)) ? Number(value.accuracy) : null,
+    meanConfidence: Number.isFinite(Number(value?.meanConfidence)) ? Number(value.meanConfidence) : null,
+    calibrationGap: Number.isFinite(Number(value?.calibrationGap)) ? Number(value.calibrationGap) : null,
+    tendency: clean(value?.tendency, 80) || "unknown"
+  };
 }
 
 function compactExperiment(value = {}) {
