@@ -1,7 +1,7 @@
 // ARI vNext — autobiographical journal of meaningful judgments and predictions.
 // Stores compact conclusions + provenance, never hidden chain-of-thought.
 
-export const ARI_DECISION_JOURNAL_VERSION = "1.0.0";
+export const ARI_DECISION_JOURNAL_VERSION = "1.0.1";
 const TABLE = "ari_vnext_decisions";
 
 export async function listRecentDecisions({ userId, statuses = [], limit = 12 } = {}) {
@@ -66,8 +66,8 @@ export function buildDecisionRecord({ turnId = null, route = {}, result = null }
     proposition: clean(leading.label, 1000),
     confidence: clampNumber(leading.score, 0, 0.98, null),
     evidence: {
-      for: arrayText(leading?.evidenceFor, 10, 500),
-      against: arrayText(leading?.evidenceAgainst, 10, 500),
+      for: arrayText(leading?.supportingEvidence, 10, 500),
+      against: arrayText(leading?.contradictingEvidence, 10, 500),
       unknowns: arrayText(leading?.unknowns, 10, 500)
     },
     alternatives,
@@ -81,7 +81,6 @@ export async function recordDecision({ userId, record } = {}) {
   const id = clean(userId, 200);
   if (!config || !id || !record?.proposition) return { stored: false };
 
-  // Avoid journaling the same proposition repeatedly in a short window.
   const recent = await listRecentDecisions({ userId: id, statuses: ["open"], limit: 5 });
   const duplicate = recent.find((item) =>
     item.domain === record.domain &&
@@ -244,6 +243,7 @@ function finiteOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 function clampNumber(value, min, max, fallback) {
+  if (value === null || value === undefined || value === "") return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
 }
