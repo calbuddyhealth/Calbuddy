@@ -23,6 +23,15 @@ async function installSupabaseStub(page) {
     }
   };
   const session = { access_token: "circle-menu-smoke-token", user };
+  const adultCircleState = {
+    verified: true,
+    age_band: "adult",
+    teen_mode: false,
+    circle_allowed: true,
+    circle_minimum_age: 18,
+    partner_mode: "adult",
+    policy: "adults_only_v1"
+  };
 
   function query() {
     const q = {
@@ -48,7 +57,18 @@ async function installSupabaseStub(page) {
       signOut: async () => ({ error: null })
     },
     from: () => query(),
-    rpc: async () => ({ data: null, error: null }),
+    rpc: async (name) => {
+      if (name === "ari_circle_my_age_state") {
+        return { data: adultCircleState, error: null };
+      }
+      if (name === "ari_circle_my_age_band") {
+        return { data: "adult", error: null };
+      }
+      if (name === "ari_circle_current_user_is_adult") {
+        return { data: true, error: null };
+      }
+      return { data: null, error: null };
+    },
     storage: {
       from: () => ({
         createSignedUrl: async () => ({ data: { signedUrl: "" }, error: null }),
