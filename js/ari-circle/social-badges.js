@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — SOCIAL BADGES
-   Version: 1.0.0
+   Version: 1.1.0
 
    Lightweight unread indicators inspired by familiar social apps.
    - Home ARI Circle card: total unread Circle notifications.
@@ -8,16 +8,17 @@
    - Buddies tab: pending friend request count.
    - Circle menu Notifications row: unread Circle activity count.
 
-   Performance rules:
+   Performance/privacy rules:
    - Never blocks initial page rendering.
    - Uses session cache for instant paint.
    - Refreshes after idle, on focus, and at a relaxed interval.
    - No MutationObserver and no realtime channel.
+   - Never requests Circle badge data unless the account is adult-entitled.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const CACHE_KEY = "ari_circle_badges_v1";
   const CACHE_MS = 30000;
   const REFRESH_MS = 60000;
@@ -27,6 +28,7 @@
     client: null,
     busy: false,
     started: false,
+    authorized: false,
     timer: 0,
     counts: { activity: 0, messages: 0, buddies: 0 }
   };
@@ -77,6 +79,7 @@
   }
 
   function paint(counts = state.counts) {
+    if (!state.authorized) return;
     ensureStyle();
     const activity = clampCount(counts.activity);
     const messages = clampCount(counts.messages);
@@ -110,6 +113,17 @@
     try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...counts, at: Date.now() })); } catch {}
   }
 
+  async function resolveAdultEntitlement() {
+    const known = window.ARI_ACCOUNT_ENTITLEMENTS || window.ARI_CIRCLE_AGE_STATE || null;
+    if (known) return known.circleAllowed === true;
+    if (!state.client?.rpc) return false;
+    const { data, error } = await state.client.rpc("ari_circle_my_age_state");
+    if (error) return false;
+    const ageBand = String(data?.age_band || data?.ageBand || "").toLowerCase();
+    const explicitAllowed = data?.circle_allowed ?? data?.circleAllowed;
+    return ageBand === "adult" && explicitAllowed !== false;
+  }
+
   async function getActivityCount() {
     const { count, error } = await state.client
       .from("ari_circle_notifications")
@@ -133,7 +147,7 @@
   }
 
   async function refresh() {
-    if (!state.client || state.busy || document.hidden) return;
+    if (!state.client || !state.authorized || state.busy || document.hidden) return;
     state.busy = true;
     try {
       const results = await Promise.allSettled([
@@ -161,7 +175,7 @@
     else window.setTimeout(run, 900);
   }
 
-  function start() {
+  async function start() {
     if (state.started) { paint(); return; }
     state.client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
     if (!state.client) {
@@ -169,15 +183,17 @@
       return;
     }
 
+    state.authorized = await resolveAdultEntitlement();
+    if (!state.authorized) {
+      try { sessionStorage.removeItem(CACHE_KEY); } catch {}
+      return;
+    }
+
     state.started = true;
     ensureStyle();
     const cached = readCache();
-    if (cached) {
-      state.counts = cached;
-      paint();
-    } else {
-      paint();
-    }
+    if (cached) state.counts = cached;
+    paint();
 
     scheduleInitialRefresh();
     window.addEventListener("focus", () => window.setTimeout(refresh, 180));
@@ -188,6 +204,8 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
   else start();
 
+  window.addEventListener("ari-age-entitlements-ready", () => { if (!state.started) start(); });
+  window.addEventListener("ari-circle-access-ready", () => { if (!state.started) start(); });
   document.addEventListener("circle:app-ready", () => { paint(); scheduleInitialRefresh(); });
   window.addEventListener("ari:circle-badges-refresh", refresh);
 
