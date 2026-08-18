@@ -1,4 +1,5 @@
 import { cleanText } from "./_lib/ari-vnext/current-turn.js";
+import { resolveDecisionForExperiment } from "./_lib/ari-vnext/decision-journal.js";
 import {
   cancelExperiment,
   closeExperiment,
@@ -70,7 +71,28 @@ export default async function handler(req, res) {
         confidenceAfter: body?.confidenceAfter,
         evaluationSource: cleanText(body?.evaluationSource, 120) || "user_and_ari"
       });
-      return res.status(result.success ? 200 : 409).json({ ...result, source: "ari_vnext_experiments", timing: { totalMs: Date.now() - startedAt } });
+
+      let decisionResolved = false;
+      if (result.success && result?.experiment?.hypothesisId) {
+        decisionResolved = await resolveDecisionForExperiment({
+          userId: auth.userId,
+          hypothesisId: result.experiment.hypothesisId,
+          outcomeDirection: result.experiment.outcomeDirection || body?.outcomeDirection,
+          outcome: {
+            experimentId: result.experiment.id,
+            result: result.experiment.result || normalizeResultPayload(body?.result),
+            confidenceAfter: result.experiment.confidenceAfter ?? body?.confidenceAfter ?? null
+          },
+          source: "ari_vnext_experiment_ledger"
+        });
+      }
+
+      return res.status(result.success ? 200 : 409).json({
+        ...result,
+        decisionResolved,
+        source: "ari_vnext_experiments",
+        timing: { totalMs: Date.now() - startedAt }
+      });
     }
 
     if (action === "cancel") {
