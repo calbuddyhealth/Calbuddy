@@ -1,20 +1,28 @@
 /* =============================================================
    ARI CIRCLE — CHALLENGE VIDEO RECORDER
-   Version: 1.0.0
+   Version: 1.1.0
 
-   Native-first recorder for Build 5 video challenges.
-   - Enabled only inside the Capacitor app.
+   Native-first recorder for short-form Challenge video.
+   Cost profile:
+   - 720 x 1280 target capture instead of 1080 x 1920
+   - ~2.4 Mbps video + 96 kbps audio target
+   - 30 seconds is roughly 9–10 MB before container overhead
+
+   UX:
    - Tap once to record, tap again to stop.
    - Hold to record, release to stop.
    - Automatic hard stop at 10 / 15 / 30 seconds.
    - Front/rear camera switching.
    - Retake / Use Video review flow.
-   - Hosted Safari falls back to the platform media picker in challenges.js.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
+  const VIDEO_BITS_PER_SECOND = 2_400_000;
+  const AUDIO_BITS_PER_SECOND = 96_000;
+  const CAPTURE_WIDTH = 720;
+  const CAPTURE_HEIGHT = 1280;
   const $ = (id) => document.getElementById(id);
 
   const state = {
@@ -58,14 +66,10 @@
     return String(Math.max(0, Math.floor(Number(value) || 0))).padStart(2, "0");
   }
 
-  function timerText(seconds) {
-    return `00:${pad(seconds)} / 00:${pad(state.limitSeconds)}`;
-  }
-
   function syncTimer(seconds = 0) {
     const elapsed = Math.min(state.limitSeconds, Math.max(0, Number(seconds) || 0));
     const timer = $("challengeRecorderTimer");
-    if (timer) timer.textContent = timerText(elapsed);
+    if (timer) timer.textContent = `00:${pad(elapsed)} / 00:${pad(state.limitSeconds)}`;
     const button = $("challengeRecordButton");
     if (button) button.style.setProperty("--record-progress", `${(elapsed / state.limitSeconds) * 360}deg`);
   }
@@ -129,8 +133,9 @@
     state.stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: state.facingMode },
-        width: { ideal: 1080 },
-        height: { ideal: 1920 }
+        width: { ideal: CAPTURE_WIDTH },
+        height: { ideal: CAPTURE_HEIGHT },
+        frameRate: { ideal: 30, max: 30 }
       },
       audio: true
     });
@@ -138,7 +143,7 @@
     video.controls = false;
     video.muted = true;
     video.loop = false;
-    video.src = "";
+    video.removeAttribute("src");
     video.srcObject = state.stream;
     await video.play().catch(() => {});
   }
@@ -149,7 +154,11 @@
     const flip = $("flipChallengeCamera");
     button?.classList.toggle("is-recording", recording);
     button?.setAttribute("aria-label", recording ? "Stop recording" : "Start recording");
-    if (instruction) instruction.textContent = recording ? "Tap to stop · release if you are holding" : "Tap to record · or hold and release";
+    if (instruction) {
+      instruction.textContent = recording
+        ? "Tap to stop · release if you are holding"
+        : "Tap to record · or hold and release";
+    }
     if (flip) flip.disabled = recording;
   }
 
@@ -172,27 +181,36 @@
     if (!state.stream || state.recorder?.state === "recording" || state.recordedFile) return;
     state.chunks = [];
     const mimeType = preferredMimeType();
+    const options = {
+      videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+      audioBitsPerSecond: AUDIO_BITS_PER_SECOND
+    };
+    if (mimeType) options.mimeType = mimeType;
+
     try {
-      state.recorder = mimeType
-        ? new MediaRecorder(state.stream, { mimeType, videoBitsPerSecond: 5_000_000 })
-        : new MediaRecorder(state.stream, { videoBitsPerSecond: 5_000_000 });
+      state.recorder = new MediaRecorder(state.stream, options);
     } catch {
-      state.recorder = new MediaRecorder(state.stream);
+      try {
+        state.recorder = new MediaRecorder(state.stream, {
+          videoBitsPerSecond: VIDEO_BITS_PER_SECOND
+        });
+      } catch {
+        state.recorder = new MediaRecorder(state.stream);
+      }
     }
 
     state.recorder.ondataavailable = (event) => {
       if (event.data?.size) state.chunks.push(event.data);
     };
-
     state.recorder.onerror = (event) => {
       reportError(event.error || new Error("Video recording failed."));
     };
-
     state.recorder.onstop = finalizeRecording;
+
     state.startedAt = performance.now();
     setRecordingUi(true);
     syncTimer(0);
-    state.recorder.start(200);
+    state.recorder.start(250);
     stopTimer();
     state.timerFrame = requestAnimationFrame(tick);
   }
@@ -209,7 +227,10 @@
 
   async function finalizeRecording() {
     stopTimer();
-    const elapsed = Math.min(state.limitSeconds, Math.max(.1, (performance.now() - state.startedAt) / 1000));
+    const elapsed = Math.min(
+      state.limitSeconds,
+      Math.max(0.1, (performance.now() - state.startedAt) / 1000)
+    );
     syncTimer(elapsed);
 
     const mimeType = state.recorder?.mimeType || state.chunks[0]?.type || "video/mp4";
@@ -225,15 +246,24 @@
       `ari-challenge-${Date.now()}.${extension}`,
       { type: mimeType, lastModified: Date.now() }
     );
-    Object.defineProperty(state.recordedFile, "ariRecordedDuration", {
-      configurable: true,
-      enumerable: false,
-      value: elapsed
+
+    Object.defineProperties(state.recordedFile, {
+      ariRecordedDuration: {
+        configurable: true,
+        enumerable: false,
+        value: elapsed
+      },
+      ariTargetVideoBitsPerSecond: {
+        configurable: true,
+        enumerable: false,
+        value: VIDEO_BITS_PER_SECOND
+      }
     });
 
     stopStream();
     revokeRecordedUrl();
     state.recordedUrl = URL.createObjectURL(state.recordedFile);
+
     const video = $("challengeRecorderVideo");
     if (video) {
       video.srcObject = null;
@@ -287,14 +317,18 @@
     state.holdTimer = 0;
     state.holdStarted = false;
     stopTimer();
+
     if (state.recorder?.state === "recording") {
       state.recorder.onstop = null;
       try { state.recorder.stop(); } catch {}
     }
+
     state.recorder = null;
     stopStream();
+
     const dialog = $("challengeVideoRecorder");
     if (dialog?.open) dialog.close();
+
     const video = $("challengeRecorderVideo");
     if (video) {
       video.pause?.();
@@ -302,8 +336,10 @@
       video.removeAttribute("src");
       video.load?.();
     }
+
     if (!options.keepFile) resetRecordedFile();
     else revokeRecordedUrl();
+
     state.chunks = [];
     state.onUse = null;
     state.onError = null;
@@ -315,7 +351,9 @@
   async function open({ limitSeconds = 15, onUse = null, onError = null } = {}) {
     if (!canUse() || state.opening) return false;
     state.opening = true;
-    state.limitSeconds = [10,15,30].includes(Number(limitSeconds)) ? Number(limitSeconds) : 15;
+    state.limitSeconds = [10, 15, 30].includes(Number(limitSeconds))
+      ? Number(limitSeconds)
+      : 15;
     state.onUse = onUse;
     state.onError = onError;
     state.facingMode = "user";
@@ -385,7 +423,19 @@
     });
   }
 
-  window.AriChallengeVideoRecorder = Object.freeze({ version: VERSION, canUse, open, close });
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
-  else bind();
+  window.AriChallengeVideoRecorder = Object.freeze({
+    version: VERSION,
+    canUse,
+    open,
+    close,
+    targetVideoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+    targetAudioBitsPerSecond: AUDIO_BITS_PER_SECOND,
+    targetCapture: `${CAPTURE_WIDTH}x${CAPTURE_HEIGHT}`
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind, { once: true });
+  } else {
+    bind();
+  }
 })();
