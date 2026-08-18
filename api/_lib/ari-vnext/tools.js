@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.1.0";
+export const TOOL_REGISTRY_VERSION = "1.2.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -104,12 +104,15 @@ export function getAriTools(route = {}) {
 
     tools.push(functionTool(
       "propose_update_goal",
-      "Propose changing a user goal only when the CURRENT user explicitly asks Ari to update or change it.",
+      "Propose changing an existing ARI XP goal only when the CURRENT user explicitly asks Ari to update or change it. Choose only one supported goalType. For goal_mode, put the requested lose/gain/maintain wording in instruction and use null for value.",
       {
         type: "object",
         additionalProperties: false,
         properties: {
-          goalType: { type: "string" },
+          goalType: {
+            type: "string",
+            enum: ["daily_calorie_goal", "target_weight", "weekly_weight_change", "goal_mode"]
+          },
           value: { type: ["number", "null"] },
           unit: { type: "string" },
           instruction: { type: "string" }
@@ -167,6 +170,11 @@ function validateSemantics(name, args) {
   if (name === "propose_log_weight") {
     const value = Number(args?.value);
     if (!Number.isFinite(value) || value <= 0 || value > 1500) return { valid: false, error: "weight_out_of_range" };
+  }
+
+  if (name === "propose_update_goal") {
+    const supported = new Set(["daily_calorie_goal", "target_weight", "weekly_weight_change", "goal_mode"]);
+    if (!supported.has(String(args?.goalType || ""))) return { valid: false, error: "unsupported_goal_type" };
   }
 
   return { valid: true };
