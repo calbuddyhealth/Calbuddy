@@ -1,7 +1,7 @@
 // ARI vNext — compact persistent self-model and relational presence.
 // This is a functional identity/continuity layer, not a claim of subjective consciousness.
 
-export const ARI_SELF_MODEL_VERSION = "1.0.0";
+export const ARI_SELF_MODEL_VERSION = "1.1.0";
 
 const STABLE_IDENTITY = Object.freeze({
   name: "Ari",
@@ -48,12 +48,12 @@ const STABLE_IDENTITY = Object.freeze({
   ]
 });
 
-export function deriveSelfModel({ turn = {}, route = {}, safety = {}, communication = {} } = {}) {
+export function deriveSelfModel({ turn = {}, route = {}, safety = {} } = {}) {
   const message = String(turn?.message || "").trim();
   const history = Array.isArray(turn?.history) ? turn.history : [];
   const memoryPresent = Boolean(String(turn?.memory || "").trim());
   const mode = resolvePresenceMode({ message, route, safety });
-  const familiarity = resolveFamiliarity({ history, memoryPresent, communication });
+  const familiarity = resolveFamiliarity({ history, memoryPresent });
   const posture = postureForMode(mode, familiarity);
 
   return {
@@ -132,14 +132,11 @@ function resolvePresenceMode({ message = "", route = {}, safety = {} } = {}) {
   return "grounded_reasoning";
 }
 
-function resolveFamiliarity({ history = [], memoryPresent = false, communication = {} } = {}) {
+function resolveFamiliarity({ history = [], memoryPresent = false } = {}) {
   const turns = Array.isArray(history) ? history.length : 0;
-  const preferenceSignal = Boolean(
-    communication?.directness || communication?.warmth || communication?.verbosity || communication?.style
-  );
 
   if (memoryPresent && turns >= 6) return "established";
-  if (memoryPresent || turns >= 8 || preferenceSignal) return "familiar";
+  if (memoryPresent || turns >= 8) return "familiar";
   if (turns >= 2) return "developing";
   return "low";
 }
