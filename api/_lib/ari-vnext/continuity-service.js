@@ -2,9 +2,11 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.1.0";
+export const CONTINUITY_SERVICE_VERSION = "1.2.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
+const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
+const TRANSIENT_PATTERN = /\b(right now|for today|today only|just today|this minute|this second)\b/i;
 
 export async function hydrateRecentConversation({ userId, history = [], limitPairs = 4 } = {}) {
   const safeUserId = clean(userId, 200);
@@ -78,40 +80,49 @@ export async function persistConversationTurn({ userId, message, reply, surface 
 
 export function durableMemoryCandidate(message = "") {
   const raw = clean(message, 1000);
-  if (!raw || raw.length < 4) return null;
+  if (!raw || raw.length < 4 || SECRET_PATTERN.test(raw)) return null;
 
-  const lower = raw.toLowerCase();
-  const explicitRemember = /\b(remember(?: that)?|don't forget(?: that)?|do not forget(?: that)?)\b/i.test(raw);
-  const preference = /\b(i prefer|i like|i love|i hate|i dislike|i don['’]?t like|my favorite|my favourite)\b/i.test(raw);
-  const goal = /\b(my goal is|my target is|i want to (?:lose|gain|maintain)|i['’]?m trying to (?:cut|bulk|lose|gain)|i am trying to (?:cut|bulk|lose|gain))\b/i.test(raw);
-  const correction = /\b(actually|correction|from now on|going forward)\b/i.test(raw) && /\b(my|i|me)\b/i.test(raw);
+  const explicitContent = extractExplicitRemember(raw);
+  const explicitRemember = Boolean(explicitContent);
+  const preference = preferenceCandidate(raw);
+  const goal = goalCandidate(raw);
 
-  if (!explicitRemember && !preference && !goal && !correction) return null;
+  if (!explicitRemember && !preference && !goal) return null;
   if (raw.includes("?") && !explicitRemember) return null;
-  if (containsSecretLikeMaterial(lower)) return null;
+  if (TRANSIENT_PATTERN.test(raw) && !explicitRemember) return null;
 
-  const sensitive = /\b(diagnos|medication|medicine|pregnan|sexual|bank|credit card|debt|income|salary|ssn|social security|passport|immigration|legal case)\b/i.test(lower);
+  const sensitive = /\b(diagnos|medication|medicine|pregnan|sexual|bank|debt|income|salary|passport|immigration|legal case)\b/i.test(raw);
   if (sensitive && !explicitRemember) return null;
 
-  const type = explicitRemember
-    ? "explicit_memory"
-    : correction
-      ? "correction"
-      : goal
-        ? "goal"
-        : "preference";
+  if (explicitRemember) {
+    return {
+      memoryType: "explicit_memory",
+      topic: "user_requested_memory",
+      content: explicitContent,
+      importance: 9,
+      confidence: 0.98,
+      tags: ["ari-vnext", "explicit_memory", ...keywords(explicitContent)]
+    };
+  }
 
-  const content = explicitRemember
-    ? raw.replace(/^\s*(?:please\s+)?(?:remember|don['’]?t forget|do not forget)(?:\s+that)?\s*/i, "").trim() || raw
-    : raw;
+  if (preference) {
+    return {
+      memoryType: "preference",
+      topic: preference.topic,
+      content: preference.content,
+      importance: 7,
+      confidence: 0.94,
+      tags: ["ari-vnext", "preference", ...preference.tags]
+    };
+  }
 
   return {
-    memoryType: type,
-    topic: type === "explicit_memory" ? "user_requested_memory" : type,
-    content: clean(content, 800),
-    importance: explicitRemember || goal || correction ? 8 : 6,
-    confidence: explicitRemember ? 0.98 : correction ? 0.94 : 0.9,
-    tags: ["ari-vnext", type]
+    memoryType: "goal",
+    topic: "goal",
+    content: goal.content,
+    importance: 8,
+    confidence: 0.92,
+    tags: ["ari-vnext", "goal", ...goal.tags]
   };
 }
 
@@ -125,6 +136,7 @@ export async function persistDurableMemory({ userId, message } = {}) {
 
   try {
     const params = new URLSearchParams({ on_conflict: "user_id,content" });
+    const now = new Date().toISOString();
     const response = await timedFetch(`${config.url}/rest/v1/ari_user_memory?${params.toString()}`, {
       method: "POST",
       headers: serverHeaders(config.key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
@@ -139,7 +151,11 @@ export async function persistDurableMemory({ userId, message } = {}) {
         type: candidate.memoryType,
         domain: candidate.topic,
         claim: candidate.content,
-        source: "ari-vnext"
+        keywords: candidate.tags,
+        source: "ari-vnext",
+        memory_status: "active",
+        last_confirmed_at: now,
+        updated_at: now
       })
     }, WRITE_TIMEOUT_MS);
 
@@ -148,6 +164,62 @@ export async function persistDurableMemory({ userId, message } = {}) {
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Durable memory persistence failed:", error?.message || error);
     return { stored: false, candidate };
   }
+}
+
+function extractExplicitRemember(text) {
+  const patterns = [
+    /\bremember(?: that)?\s+(.+)/i,
+    /\bdon['’]?t forget(?: that)?\s+(.+)/i,
+    /\bdo not forget(?: that)?\s+(.+)/i,
+    /\bkeep in mind(?: that)?\s+(.+)/i
+  ];
+  for (const pattern of patterns) {
+    const value = clean(text.match(pattern)?.[1], 800);
+    if (value) return stripTrailing(value);
+  }
+  return "";
+}
+
+function preferenceCandidate(text) {
+  const rules = [
+    { pattern: /\bi want ari to\s+(.+)/i, verb: "User prefers Ari to", topic: "ari_interaction_preference" },
+    { pattern: /\bi prefer ari to\s+(.+)/i, verb: "User prefers Ari to", topic: "ari_interaction_preference" },
+    { pattern: /\bi (?:really )?prefer\s+(.+)/i, verb: "User prefers", topic: "preference" },
+    { pattern: /\bmy favou?rite(?:\s+[^ ]+)? is\s+(.+)/i, verb: "User's favorite is", topic: "preference" },
+    { pattern: /\bi (?:really )?(?:like|love)\s+(.+)/i, verb: "User likes", topic: "preference" },
+    { pattern: /\bi (?:really )?(?:hate|dislike|don['’]?t like|do not like)\s+(.+)/i, verb: "User dislikes", topic: "preference" }
+  ];
+
+  for (const rule of rules) {
+    const value = clean(text.match(rule.pattern)?.[1], 620);
+    if (!value) continue;
+    const normalized = stripTrailing(value);
+    return {
+      topic: rule.topic,
+      content: `${rule.verb} ${normalized}.`,
+      tags: keywords(normalized)
+    };
+  }
+  return null;
+}
+
+function goalCandidate(text) {
+  const rules = [
+    /\bmy (?:main )?(?:goal|target) is\s+(.+)/i,
+    /\bi['’]?(?:m| am) trying to\s+(.+)/i,
+    /\bi want to\s+((?:lose|gain|maintain|run|train|lift|build|improve|reach)\b.+)/i
+  ];
+
+  for (const rule of rules) {
+    const value = clean(text.match(rule)?.[1], 620);
+    if (!value) continue;
+    const normalized = stripTrailing(value).replace(/^to\s+/i, "");
+    return {
+      content: `User's stated goal is to ${normalized}.`,
+      tags: keywords(normalized)
+    };
+  }
+  return null;
 }
 
 async function timedFetch(url, options = {}, timeoutMs = 1000) {
@@ -199,8 +271,13 @@ function mergeHistory(serverHistory = [], existing = []) {
   return output;
 }
 
-function containsSecretLikeMaterial(lower = "") {
-  return /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase)\b/i.test(lower);
+function keywords(value) {
+  const stop = new Set(["the", "and", "that", "this", "with", "from", "have", "want", "really", "more", "less", "into", "about", "your", "ari"]);
+  return [...new Set(String(value || "").toLowerCase().replace(/[^a-z0-9\s'-]/g, " ").split(/\s+/).filter((item) => item.length >= 3 && !stop.has(item)))].slice(0, 8);
+}
+
+function stripTrailing(value) {
+  return String(value || "").trim().replace(/[.!?]+$/g, "").trim();
 }
 
 function clean(value, max = 1000) {
