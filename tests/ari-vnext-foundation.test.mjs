@@ -4,6 +4,7 @@ import test from "node:test";
 import { buildCurrentTurn } from "../api/_lib/ari-vnext/current-turn.js";
 import { resolveCommunicationProfile } from "../api/_lib/ari-vnext/communication-profile.js";
 import { routeContext } from "../api/_lib/ari-vnext/context-router.js";
+import { resolveModelPolicy } from "../api/_lib/ari-vnext/model-policy.js";
 import { createPendingAction, resolvePendingActionIntent } from "../api/_lib/ari-vnext/pending-action.js";
 import { getAriTools, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
 
@@ -78,4 +79,36 @@ test("tool validation rejects capabilities not available for the current route",
     arguments: JSON.stringify({ focus: "shoulders" })
   }, route);
   assert.equal(result.valid, false);
+});
+
+test("current officeholder questions always route to fresh information", () => {
+  for (const message of [
+    "Who is president?",
+    "Is Joe Biden still president?",
+    "Who is the current president of the United States?",
+    "Who is the vice president?"
+  ]) {
+    const route = routeContext(buildCurrentTurn({ message }, "user-1"));
+    assert.equal(route.currentInfo, true, message);
+    const policy = resolveModelPolicy(route);
+    assert.equal(policy.mode, "current", message);
+    assert.equal(policy.liveSearchRequired, true, message);
+  }
+});
+
+test("freshness-sensitive questions use a search-capable current model by default", () => {
+  const policy = resolveModelPolicy({ currentInfo: true, complexity: "fast" });
+  assert.equal(policy.mode, "current");
+  assert.equal(policy.model, process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini");
+  assert.equal(policy.costTier, "live_search");
+});
+
+test("every current turn carries a real request timestamp rather than a hard-coded year", () => {
+  const before = Date.now();
+  const turn = buildCurrentTurn({ message: "What year is it?" }, "user-1");
+  const created = Date.parse(turn.createdAt);
+  const after = Date.now();
+  assert.ok(Number.isFinite(created));
+  assert.ok(created >= before - 1000 && created <= after + 1000);
+  assert.equal(new Date(created).getUTCFullYear(), new Date().getUTCFullYear());
 });
