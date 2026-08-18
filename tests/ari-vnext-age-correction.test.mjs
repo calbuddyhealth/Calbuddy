@@ -39,11 +39,15 @@ test("only the owner role can approve or deny a protected DOB correction", () =>
 test("a denied request does not alter account DOB or age authorization", () => {
   const sql = source("supabase/migrations/20260818232000_age_correction_support_workflow.sql");
   const approvalStart = sql.indexOf("if requested_decision = 'approved' then");
-  const denialElse = sql.indexOf("else", approvalStart);
   const approvalUpdate = sql.indexOf("update public.ari_account_state", approvalStart);
+  const denialElse = sql.indexOf("\n  else\n    select status into resulting_status", approvalStart);
+  const outerEnd = sql.indexOf("\n  end if;", denialElse);
   assert.ok(approvalStart > 0);
   assert.ok(approvalUpdate > approvalStart && approvalUpdate < denialElse);
-  assert.match(sql.slice(denialElse, denialElse + 350), /select status into resulting_status/i);
+  assert.ok(denialElse > approvalUpdate);
+  const denialBranch = sql.slice(denialElse, outerEnd);
+  assert.match(denialBranch, /select status into resulting_status/i);
+  assert.doesNotMatch(denialBranch, /update public\.ari_account_state/i);
 });
 
 test("approved under-13 correction fails safe by suspending the account", () => {
