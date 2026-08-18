@@ -55,6 +55,30 @@ test("transient preferences do not become durable memory", () => {
   assert.equal(durableMemoryCandidate("I prefer cardio for today only"), null);
 });
 
+test("user-reported coaching outcomes become low-priority learning evidence", () => {
+  const candidate = durableMemoryCandidate("That worked. I'm getting stronger.", {
+    route: { training: true },
+    history: [
+      { role: "assistant", content: "Keep the program the same for two more weeks and add reps before load." }
+    ]
+  });
+
+  assert.ok(candidate);
+  assert.equal(candidate.memoryType, "outcome_feedback");
+  assert.equal(candidate.topic, "training_outcome");
+  assert.equal(candidate.importance, 6);
+  assert.ok(candidate.confidence < 0.9);
+  assert.match(candidate.content, /getting stronger/i);
+  assert.match(candidate.content, /add reps before load/i);
+});
+
+test("ambiguous that-worked feedback is not memorized without a relevant coaching domain", () => {
+  assert.equal(durableMemoryCandidate("That worked!", {
+    route: {},
+    history: [{ role: "assistant", content: "Tap the blue button to close the menu." }]
+  }), null);
+});
+
 test("memory ranker accepts both legacy 0-1 and vNext 1-10 importance scales", () => {
   const now = new Date().toISOString();
   const ranked = rankMemories([
