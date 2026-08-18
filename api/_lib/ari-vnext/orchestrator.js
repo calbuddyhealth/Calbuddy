@@ -5,6 +5,7 @@ import { coachingStateToInstruction, deriveCoachingState } from "./coaching-stat
 import { communicationProfileToInstruction, resolveCommunicationProfile } from "./communication-profile.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
+import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
@@ -19,6 +20,7 @@ export async function runAriVNext(turn = {}) {
   const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
+  const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
   const pendingIntent = resolvePendingActionIntent(turn);
 
   if (pendingIntent.type === "confirm") {
@@ -30,6 +32,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       modelPolicy,
       coachingState,
+      longitudinalState,
       pendingAction: pendingIntent.pendingAction,
       action: {
         type: "execute_pending_action",
@@ -50,6 +53,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       modelPolicy,
       coachingState,
+      longitudinalState,
       pendingAction: null,
       action: { type: "cancel_pending_action", pendingActionId: pendingIntent.pendingAction?.id || null },
       source: "ari_vnext_pending_cancel"
@@ -61,7 +65,14 @@ export async function runAriVNext(turn = {}) {
     tools.push({ type: "web_search" });
   }
 
-  const instructions = buildInstructions({ route, communication, safety, relevantContext, coachingState });
+  const instructions = buildInstructions({
+    route,
+    communication,
+    safety,
+    relevantContext,
+    coachingState,
+    longitudinalState
+  });
   const input = buildInput(turn);
 
   const first = await callResponses({
@@ -82,6 +93,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       modelPolicy,
       coachingState,
+      longitudinalState,
       pendingAction: null,
       action: null,
       provider: providerSummary(first),
@@ -136,6 +148,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     modelPolicy,
     coachingState,
+    longitudinalState,
     pendingAction,
     action: {
       type: "proposed_action",
@@ -148,7 +161,14 @@ export async function runAriVNext(turn = {}) {
   };
 }
 
-function buildInstructions({ route, communication, safety, relevantContext, coachingState } = {}) {
+function buildInstructions({
+  route,
+  communication,
+  safety,
+  relevantContext,
+  coachingState,
+  longitudinalState
+} = {}) {
   const sections = [
     ARI_PERSONA,
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
@@ -161,6 +181,10 @@ function buildInstructions({ route, communication, safety, relevantContext, coac
 
   if (coachingState) {
     sections.push("\n" + coachingStateToInstruction(coachingState));
+  }
+
+  if (longitudinalState) {
+    sections.push("\n" + longitudinalStateToInstruction(longitudinalState));
   }
 
   sections.push(
