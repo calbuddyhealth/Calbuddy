@@ -10,6 +10,7 @@ import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/a
 import { deriveMetacognition } from "./_lib/ari-vnext/metacognition.js";
 import { applyOutcomeLearning } from "./_lib/ari-vnext/outcome-learning.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
+import { deriveRelationshipContinuity } from "./_lib/ari-vnext/relationship-continuity.js";
 import { classifySafety } from "./_lib/ari-vnext/safety-policy.js";
 import { deriveScientificIntelligence } from "./_lib/ari-vnext/scientific-intelligence.js";
 import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
@@ -121,6 +122,13 @@ export default async function handler(req, res) {
       coachingState,
       longitudinalState
     });
+    const relationshipContinuity = deriveRelationshipContinuity({
+      userWorldModel,
+      decisionState,
+      experimentLedger,
+      temporalTimeline,
+      recentContinuityPairs: 0
+    });
     const proactiveInsights = fitnessRoute
       ? deriveProactiveInsights({
           coachingState,
@@ -140,6 +148,7 @@ export default async function handler(req, res) {
       readOnly: true,
       privacyFiltered: Boolean(retrieved?.privacyFiltered),
       route,
+      relationshipContinuity,
       goalHierarchy,
       metacognition,
       coachingState,
@@ -153,6 +162,7 @@ export default async function handler(req, res) {
       proactiveInsights,
       consult: buildConsultSummary({
         route,
+        relationshipContinuity,
         goalHierarchy,
         metacognition,
         longitudinalState,
@@ -180,6 +190,7 @@ export default async function handler(req, res) {
 
 function buildConsultSummary({
   route = {},
+  relationshipContinuity = null,
   goalHierarchy = null,
   metacognition = {},
   longitudinalState = null,
@@ -198,6 +209,14 @@ function buildConsultSummary({
 
   return {
     domain: route.training ? "training" : route.nutrition ? "nutrition" : route.goals ? "goals" : "general",
+    relationship: relationshipContinuity
+      ? {
+          recognizedUser: Boolean(relationshipContinuity.recognizedUser),
+          familiarity: relationshipContinuity.familiarity || "new",
+          unfinishedThreadCount: Number(relationshipContinuity.unfinishedThreadCount || 0),
+          unfinishedThreads: Array.isArray(relationshipContinuity.unfinishedThreads) ? relationshipContinuity.unfinishedThreads.slice(0, 4) : []
+        }
+      : null,
     primaryGoal: goalHierarchy?.primary || null,
     secondaryGoals: Array.isArray(goalHierarchy?.secondary) ? goalHierarchy.secondary.slice(0, 3) : [],
     goalTradeoffs: Array.isArray(goalHierarchy?.tradeoffs) ? goalHierarchy.tradeoffs.slice(0, 4) : [],
@@ -311,5 +330,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Expert", "v3");
+  res.setHeader("X-ARI-Expert", "v4");
 }
