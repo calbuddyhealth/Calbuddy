@@ -3,9 +3,11 @@
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolveCommunicationProfile } from "./communication-profile.js";
+import { communicationLearningToInstruction } from "./communication-outcomes.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { evaluateExperimentSnapshot } from "./experiment-ledger.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
+import { deriveGoalHierarchy, goalHierarchyToInstruction } from "./goal-hierarchy.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
@@ -27,6 +29,12 @@ export async function runAriVNext(turn = {}) {
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
+  const goalHierarchy = deriveGoalHierarchy({
+    turn,
+    userWorldModel: relevantContext?.userWorldModel || null,
+    coachingState,
+    longitudinalState
+  });
   const metacognition = deriveMetacognition({
     route,
     context: relevantContext,
@@ -62,7 +70,9 @@ export async function runAriVNext(turn = {}) {
       reply: "",
       route,
       safety,
+      communication,
       selfModel,
+      goalHierarchy,
       metacognition,
       scientificIntelligence,
       experimentReviewState,
@@ -88,7 +98,9 @@ export async function runAriVNext(turn = {}) {
       reply: "Okay — I won't make that change.",
       route,
       safety,
+      communication,
       selfModel,
+      goalHierarchy,
       metacognition,
       scientificIntelligence,
       experimentReviewState,
@@ -103,9 +115,6 @@ export async function runAriVNext(turn = {}) {
   }
 
   const tools = getAriTools(route);
-  // Freshness-sensitive questions must not depend on the base model's training
-  // cutoff. Live search is on by default for this narrow route and can only be
-  // disabled explicitly through the environment flag.
   if (route.currentInfo && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
     tools.push({ type: "web_search" });
   }
@@ -115,6 +124,7 @@ export async function runAriVNext(turn = {}) {
     communication,
     safety,
     selfModel,
+    goalHierarchy,
     metacognition,
     scientificIntelligence,
     experimentReviewState,
@@ -141,7 +151,9 @@ export async function runAriVNext(turn = {}) {
       reply: extractOutputText(first),
       route,
       safety,
+      communication,
       selfModel,
+      goalHierarchy,
       metacognition,
       scientificIntelligence,
       experimentReviewState,
@@ -212,7 +224,9 @@ export async function runAriVNext(turn = {}) {
     reply: extractOutputText(second) || "I can make that change. Confirm and I'll apply it.",
     route,
     safety,
+    communication,
     selfModel,
+    goalHierarchy,
     metacognition,
     scientificIntelligence,
     experimentReviewState,
@@ -237,6 +251,7 @@ function buildInstructions({
   communication,
   safety,
   selfModel,
+  goalHierarchy,
   metacognition,
   scientificIntelligence,
   experimentReviewState,
@@ -258,6 +273,8 @@ function buildInstructions({
     sections.push("\nFITNESS INTELLIGENCE\n" + FITNESS_INTELLIGENCE);
   }
 
+  if (goalHierarchy) sections.push("\n" + goalHierarchyToInstruction(goalHierarchy));
+  if (relevantContext?.communicationLearning) sections.push("\n" + communicationLearningToInstruction(relevantContext.communicationLearning));
   if (coachingState) sections.push("\n" + coachingStateToInstruction(coachingState));
   if (longitudinalState) sections.push("\n" + longitudinalStateToInstruction(longitudinalState));
   if (scientificIntelligence) sections.push("\n" + scientificIntelligenceToInstruction(scientificIntelligence));
