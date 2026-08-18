@@ -9,6 +9,7 @@ import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longi
 import { resolveModelPolicy } from "./model-policy.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
+import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
@@ -17,6 +18,7 @@ export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
   const safety = classifySafety(turn, route);
   const communication = resolveCommunicationProfile(turn?.preferences);
+  const selfModel = deriveSelfModel({ turn, route, safety, communication });
   const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
@@ -30,6 +32,7 @@ export async function runAriVNext(turn = {}) {
       reply: "",
       route,
       safety,
+      selfModel,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -51,6 +54,7 @@ export async function runAriVNext(turn = {}) {
       reply: "Okay — I won't make that change.",
       route,
       safety,
+      selfModel,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -69,6 +73,7 @@ export async function runAriVNext(turn = {}) {
     route,
     communication,
     safety,
+    selfModel,
     relevantContext,
     coachingState,
     longitudinalState
@@ -91,6 +96,7 @@ export async function runAriVNext(turn = {}) {
       reply: extractOutputText(first),
       route,
       safety,
+      selfModel,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -146,6 +152,7 @@ export async function runAriVNext(turn = {}) {
     reply: extractOutputText(second) || "I can make that change. Confirm and I'll apply it.",
     route,
     safety,
+    selfModel,
     modelPolicy,
     coachingState,
     longitudinalState,
@@ -165,12 +172,14 @@ function buildInstructions({
   route,
   communication,
   safety,
+  selfModel,
   relevantContext,
   coachingState,
   longitudinalState
 } = {}) {
   const sections = [
     ARI_PERSONA,
+    "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
   ];
