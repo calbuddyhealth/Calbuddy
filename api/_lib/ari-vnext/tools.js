@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.4.0";
+export const TOOL_REGISTRY_VERSION = "1.5.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -131,6 +131,51 @@ export function getAriTools(route = {}) {
     ));
   }
 
+  if (route?.training || route?.nutrition || route?.goals) {
+    tools.push(functionTool(
+      "propose_track_experiment",
+      "Propose starting/tracking Ari's CURRENT investigator experiment only when the CURRENT user explicitly asks to start, run, track, or try that experiment. Never start an experiment automatically. Use the hypothesisId from the ARI Investigator State; do not invent a new hypothesis.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          hypothesisId: { type: "string" }
+        },
+        required: ["hypothesisId"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_complete_experiment",
+      "Propose completing an ACTIVE Ari experiment only when the CURRENT user explicitly says the experiment is finished, asks to finish it, or clearly reports the tracked experiment's result and wants it recorded. Use the exact active experiment ID from context. Do not silently close an experiment from casual feedback.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          experimentId: { type: "string" },
+          outcomeDirection: { type: "string", enum: ["positive", "negative", "mixed", "inconclusive"] },
+          summary: { type: "string" },
+          confidenceAfter: { type: ["number", "null"] }
+        },
+        required: ["experimentId", "outcomeDirection", "summary", "confidenceAfter"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_cancel_experiment",
+      "Propose cancelling an ACTIVE Ari experiment only when the CURRENT user explicitly asks to stop, abandon, or cancel it. Use the exact active experiment ID from context.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          experimentId: { type: "string" },
+          reason: { type: "string" }
+        },
+        required: ["experimentId", "reason"]
+      }
+    ));
+  }
+
   return tools;
 }
 
@@ -157,7 +202,10 @@ export function toolToApplicationAction(name = "") {
     propose_workout_plan: "plan_workout",
     propose_edit_workout: "edit_workout",
     propose_log_weight: "log_weight",
-    propose_update_goal: "update_goal"
+    propose_update_goal: "update_goal",
+    propose_track_experiment: "track_experiment",
+    propose_complete_experiment: "complete_experiment",
+    propose_cancel_experiment: "cancel_experiment"
   })[name] || "none";
 }
 
@@ -213,6 +261,25 @@ function validateSemantics(name, args) {
   if (name === "propose_update_goal") {
     const supported = new Set(["daily_calorie_goal", "target_weight", "weekly_weight_change", "goal_mode"]);
     if (!supported.has(String(args?.goalType || ""))) return { valid: false, error: "unsupported_goal_type" };
+  }
+
+  if (name === "propose_track_experiment") {
+    if (!String(args?.hypothesisId || "").trim()) return { valid: false, error: "experiment_hypothesis_required" };
+  }
+
+  if (name === "propose_complete_experiment") {
+    if (!String(args?.experimentId || "").trim()) return { valid: false, error: "experiment_id_required" };
+    if (!["positive", "negative", "mixed", "inconclusive"].includes(String(args?.outcomeDirection || ""))) {
+      return { valid: false, error: "experiment_outcome_required" };
+    }
+    if (!String(args?.summary || "").trim()) return { valid: false, error: "experiment_result_summary_required" };
+    if (args?.confidenceAfter !== null && !validNullableRange(args?.confidenceAfter, 0, 0.98)) {
+      return { valid: false, error: "experiment_confidence_out_of_range" };
+    }
+  }
+
+  if (name === "propose_cancel_experiment") {
+    if (!String(args?.experimentId || "").trim()) return { valid: false, error: "experiment_id_required" };
   }
 
   return { valid: true };
