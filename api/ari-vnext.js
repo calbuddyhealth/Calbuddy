@@ -6,9 +6,20 @@ import {
   persistDurableMemory
 } from "./_lib/ari-vnext/continuity-service.js";
 import { routeContext } from "./_lib/ari-vnext/context-router.js";
+import {
+  buildDecisionRecord,
+  listRecentDecisions,
+  recordDecision,
+  summarizeDecisionState
+} from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import {
+  deriveUserWorldModel,
+  loadUserWorldModel,
+  persistUserWorldModel
+} from "./_lib/ari-vnext/user-world-model.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -49,10 +60,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Most active-thread continuity already comes from the browser. Recover
-    // server-side recent turns only when the thread is effectively empty AND
-    // the wording actually depends on prior context. A fresh "what's up?"
-    // should never pay for a cross-region database read.
     const recentContinuity = shouldRecoverRecentConversation(turn)
       ? await hydrateRecentConversation({
           userId: auth.userId,
@@ -66,9 +73,10 @@ export default async function handler(req, res) {
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
     const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
 
-    // Memory and experiment history are independent reads, so load them in
-    // parallel. Ordinary conversation still pays for neither.
-    const [retrieved, experiments] = await Promise.all([
+    // Independent cognitive reads stay parallel. The persistent world model is
+    // one compact row; decision history is only loaded for decision-heavy
+    // fitness turns so ordinary conversation remains lean.
+    const [retrieved, experiments, persistedWorldModel, recentDecisions] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
@@ -78,6 +86,10 @@ export default async function handler(req, res) {
         : Promise.resolve({ memories: [], summary: "" }),
       fitnessRoute
         ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
+        : Promise.resolve([]),
+      loadUserWorldModel({ userId: auth.userId }),
+      fitnessRoute
+        ? listRecentDecisions({ userId: auth.userId, limit: 12 })
         : Promise.resolve([])
     ]);
 
@@ -87,18 +99,33 @@ export default async function handler(req, res) {
     }
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
-    if (experimentLedger) {
-      turn.context = {
-        ...(turn.context || {}),
-        experimentLedger
-      };
-    }
+    const decisionState = fitnessRoute ? summarizeDecisionState(recentDecisions) : null;
+    turn.context = {
+      ...(turn.context || {}),
+      ...(experimentLedger ? { experimentLedger } : {}),
+      ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
+      ...(decisionState ? { decisionState } : {})
+    };
 
     const result = await runAriVNext(turn);
 
-    // Cost telemetry and continuity writes happen together rather than
-    // serially. They are never allowed to turn a good Ari answer into a
-    // failed response. Continuity writes have their own sub-second limits.
+    const runtimeWorldModel = deriveUserWorldModel({
+      persisted: persistedWorldModel,
+      turn,
+      context: {
+        ...(turn.context || {}),
+        relevantMemory: turn.memory || "",
+        experimentLedger
+      },
+      communication: result?.communication || null,
+      selfModel: result?.selfModel || null,
+      coachingState: result?.coachingState || null,
+      longitudinalState: result?.longitudinalState || null
+    });
+    const decisionRecord = fitnessRoute
+      ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
+      : null;
+
     const usageTask = result?.provider?.usage
       ? recordOpenAIUsage({
           userId: auth.userId,
@@ -124,6 +151,7 @@ export default async function handler(req, res) {
             leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
             experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
             outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
+            calibrationSampleSize: decisionState?.calibration?.sampleSize || 0,
             route: result?.route || null
           }
         })
@@ -138,9 +166,6 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(false);
 
-    // Durable memory can now use recent Ari guidance and the resolved domain
-    // to capture explicit user-reported outcomes (worked/helped/worsened/etc.)
-    // without another model call.
     const durableMemoryTask = persistDurableMemory({
       userId: auth.userId,
       message: turn.message,
@@ -148,14 +173,23 @@ export default async function handler(req, res) {
       route: result?.route || routePreview
     });
 
-    const [, turnPersistence, durablePersistence] = await Promise.allSettled([
+    const worldModelTask = persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
+    const decisionJournalTask = decisionRecord
+      ? recordDecision({ userId: auth.userId, record: decisionRecord })
+      : Promise.resolve({ stored: false, reason: "not_significant" });
+
+    const [, turnPersistence, durablePersistence, worldPersistence, decisionPersistence] = await Promise.allSettled([
       usageTask,
       turnPersistenceTask,
-      durableMemoryTask
+      durableMemoryTask,
+      worldModelTask,
+      decisionJournalTask
     ]);
 
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
     const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
+    const worldModelStored = worldPersistence.status === "fulfilled" && worldPersistence.value === true;
+    const decisionJournalStored = decisionPersistence.status === "fulfilled" && decisionPersistence.value?.stored === true;
 
     return res.status(200).json({
       ...result,
@@ -163,9 +197,13 @@ export default async function handler(req, res) {
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
       experimentLedger,
+      userWorldModel: runtimeWorldModel,
+      decisionState,
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
       durableMemoryStored,
+      worldModelStored,
+      decisionJournalStored,
       timing: { totalMs: Date.now() - startedAt }
     });
   } catch (error) {
