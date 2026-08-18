@@ -1,8 +1,12 @@
 // ARI XP — dedicated cost-controlled ARI Circle moderation endpoint.
 // Uses only OpenAI's free moderation model. No paid generative-model fallback.
 
+import { enforceAiRateLimit } from "./_lib/ai-rate-limit.js";
+import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+
 const OPENAI_MODERATION_URL = "https://api.openai.com/v1/moderations";
 const OPENAI_MODERATION_MODEL = "omni-moderation-latest";
+const USAGE_ENDPOINT = "ari-circle-moderation";
 const MAX_TEXT = 8000;
 const MAX_IMAGES = 4;
 const MAX_IMAGE_URL_LENGTH = 1_500_000;
@@ -143,6 +147,25 @@ function blockedCategories(result) {
     .slice(0, 20);
 }
 
+async function recordRequest({ userId, scope, checks, decision }) {
+  await recordOpenAIUsage({
+    userId,
+    endpoint: USAGE_ENDPOINT,
+    usageType: "moderation",
+    requestCategory: scope,
+    model: OPENAI_MODERATION_MODEL,
+    responseData: {
+      model: OPENAI_MODERATION_MODEL,
+      usage: {}
+    },
+    metadata: {
+      check_count: Array.isArray(checks) ? checks.length : 0,
+      decision: clean(decision, 80) || "unknown",
+      billed_cost_usd: 0
+    }
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Allow", "POST, OPTIONS");
@@ -164,6 +187,23 @@ export default async function handler(req, res) {
     });
   }
 
+  const rateLimit = await enforceAiRateLimit({
+    userId: user.id,
+    endpoint: USAGE_ENDPOINT,
+    rules: [
+      { windowSeconds: 60, maxRequests: 15 },
+      { windowSeconds: 3600, maxRequests: 180 }
+    ]
+  });
+
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds || 60));
+    return res.status(429).json({
+      error: "Too many Circle safety checks. Try again shortly.",
+      code: "ARI_CIRCLE_MODERATION_RATE_LIMIT"
+    });
+  }
+
   const apiKey = clean(process.env.OPENAI_API_KEY, 2000);
   if (!apiKey) {
     return res.status(503).json({ error: "ARI Circle safety screening is temporarily unavailable." });
@@ -175,13 +215,23 @@ export default async function handler(req, res) {
   const ageBand = await getCircleAgeBand(user.id);
   const checks = [];
 
+  const finish = async (body, status = 200) => {
+    await recordRequest({
+      userId: user.id,
+      scope,
+      checks,
+      decision: body?.decision || (status >= 400 ? "provider_error" : "unknown")
+    });
+    return res.status(status).json(body);
+  };
+
   try {
-    // Check text first. If it is blocked, do not spend rate-limit capacity on media.
+    // Check text first. If blocked, do not use rate-limit capacity on media.
     if (text) {
       const result = await moderateOne({ apiKey, input: text });
       checks.push({ kind: "text", index: 0, ...result });
       if (result.flagged) {
-        return res.status(200).json({
+        return await finish({
           success: true,
           allowed: false,
           scope,
@@ -189,14 +239,15 @@ export default async function handler(req, res) {
           model: result.model,
           decision: "block_text",
           blocked_categories: blockedCategories(result),
-          check_count: checks.length
+          check_count: checks.length,
+          paid_classifier_used: false
         });
       }
     }
 
-    // OpenAI moderation accepts image input, but video itself is unsupported.
-    // ARI Circle supplies sampled video frames. Moderate each image/frame
-    // independently so provider image-count limits can never reject the batch.
+    // OpenAI moderation accepts images, but not video. ARI Circle supplies three
+    // sampled video frames. Each image/frame is moderated independently so
+    // provider image-count limits cannot reject the batch.
     for (let index = 0; index < images.length; index += 1) {
       const result = await moderateOne({
         apiKey,
@@ -205,7 +256,7 @@ export default async function handler(req, res) {
       checks.push({ kind: "image", index, ...result });
 
       if (result.flagged) {
-        return res.status(200).json({
+        return await finish({
           success: true,
           allowed: false,
           scope,
@@ -214,12 +265,13 @@ export default async function handler(req, res) {
           decision: "block_media",
           blocked_categories: blockedCategories(result),
           blocked_frame_index: index,
-          check_count: checks.length
+          check_count: checks.length,
+          paid_classifier_used: false
         });
       }
     }
 
-    return res.status(200).json({
+    return await finish({
       success: true,
       allowed: true,
       scope,
@@ -236,6 +288,9 @@ export default async function handler(req, res) {
       status: error?.status || null,
       error: error?.message || error
     });
-    return res.status(503).json({ error: "ARI Circle safety screening is temporarily unavailable." });
+    return await finish(
+      { error: "ARI Circle safety screening is temporarily unavailable.", decision: "provider_error" },
+      503
+    );
   }
 }
