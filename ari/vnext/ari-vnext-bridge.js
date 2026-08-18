@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.3.0",
+  version: "1.4.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
 
@@ -54,8 +54,8 @@ window.AriVNextBridge = {
 
     if (window.AriVNextTrainingContext?.build) {
       trainingContext = await window.AriVNextTrainingContext.build({
-        historyDays: 28,
-        historySessionLimit: 24
+        historyDays: 42,
+        historySessionLimit: 48
       });
     }
 
@@ -77,6 +77,12 @@ window.AriVNextBridge = {
         currentWeight: userContext?.currentWeight ?? options?.goals?.currentWeight ?? null,
         goalWeight: userContext?.goalWeight ?? options?.goals?.goalWeight ?? null,
         goalType: userContext?.goalType ?? options?.goals?.goalType ?? null,
+        weeklyWeightChangeGoal:
+          userContext?.weeklyWeightChangeGoal ??
+          userContext?.weekly_weight_change_goal ??
+          options?.goals?.weeklyWeightChangeGoal ??
+          options?.goals?.weekly_weight_change_goal ??
+          null,
         activityLevel: userContext?.activityLevel ?? options?.goals?.activityLevel ?? null
       },
       mealsToday: userContext?.mealsToday || options?.meals || options?.todayLog || [],
@@ -91,7 +97,8 @@ window.AriVNextBridge = {
             currentWeek: trainingContext.currentWeek,
             todayProgress: trainingContext.todayProgress,
             sessionHistory: trainingContext.sessionHistory,
-            performanceTrends: trainingContext.performanceTrends
+            performanceTrends: trainingContext.performanceTrends,
+            longitudinal: trainingContext.longitudinal
           }
         : (userContext?.training || options?.training || {}),
       trainingToday: trainingContext?.available
