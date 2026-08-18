@@ -1,7 +1,7 @@
 // ARI vNext — targeted long-term memory retrieval.
 // Retrieves only user-owned memories and ranks them for the current turn.
 
-export const MEMORY_SERVICE_VERSION = "1.0.0";
+export const MEMORY_SERVICE_VERSION = "1.1.0";
 
 export async function retrieveRelevantMemories({ userId, message, limit = 6 } = {}) {
   const id = String(userId || "").trim();
@@ -57,12 +57,12 @@ export function rankMemories(memories = [], message = "") {
       const memoryTokens = tokenize(haystack);
       const overlap = [...queryTokens].filter((token) => memoryTokens.has(token)).length;
       const overlapScore = queryTokens.size ? overlap / queryTokens.size : 0;
-      const importance = clamp(Number(memory?.importance || 5) / 10, 0, 1);
-      const confidence = clamp(Number(memory?.confidence || 0.75), 0, 1);
+      const importance = normalizedImportance(memory?.importance);
+      const confidence = clamp(Number(memory?.confidence ?? 0.75), 0, 1);
       const updatedAt = Date.parse(memory?.updated_at || "") || 0;
       const ageDays = updatedAt ? Math.max(0, (now - updatedAt) / 86400000) : 3650;
       const recency = Math.exp(-ageDays / 180);
-      const explicitRecallBoost = /\b(remember|last time|before|again|what did i|what was|you know)\b/i.test(message) ? 0.12 : 0;
+      const explicitRecallBoost = /\b(remember|last time|before|again|what did i|what was|you know|prefer|favorite|favourite|dislike)\b/i.test(message) ? 0.12 : 0;
 
       const score = overlapScore * 0.55 + importance * 0.2 + confidence * 0.15 + recency * 0.1 + explicitRecallBoost;
 
@@ -71,14 +71,22 @@ export function rankMemories(memories = [], message = "") {
         memoryType: memory?.memory_type || "general",
         topic: memory?.topic || "general",
         content,
-        importance: Number(memory?.importance || 5),
-        confidence: Number(memory?.confidence || 0.75),
+        importance: Number(memory?.importance ?? 5),
+        confidence: Number(memory?.confidence ?? 0.75),
         updatedAt: memory?.updated_at || null,
         relevanceScore: Number(score.toFixed(4))
       };
     })
-    .filter((item) => item.content && (item.relevanceScore >= 0.18 || /\b(remember|last time|before|again|what did i|what was|you know)\b/i.test(message)))
+    .filter((item) => item.content && (item.relevanceScore >= 0.18 || /\b(remember|last time|before|again|what did i|what was|you know|prefer|favorite|favourite|dislike)\b/i.test(message)))
     .sort((a, b) => b.relevanceScore - a.relevanceScore);
+}
+
+function normalizedImportance(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0.5;
+  // ARI XP has had both 0–1 and 1–10 importance conventions over time.
+  // Normalize either representation without rewriting historical rows.
+  return number <= 1 ? clamp(number, 0, 1) : clamp(number / 10, 0, 1);
 }
 
 function tokenize(value = "") {
