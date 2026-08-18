@@ -1,6 +1,13 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import {
+  buildCommunicationExposure,
+  listCommunicationOutcomes,
+  recordCommunicationExposure,
+  resolveCommunicationOutcomes,
+  summarizeCommunicationLearning
+} from "./_lib/ari-vnext/communication-outcomes.js";
+import {
   hydrateRecentConversation,
   persistConversationTurn,
   persistDurableMemory
@@ -13,7 +20,7 @@ import {
   summarizeDecisionState
 } from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
-import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
+import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
 import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
@@ -75,7 +82,7 @@ export default async function handler(req, res) {
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
     const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
 
-    const [retrieved, experiments, persistedWorldModel, recentDecisions] = await Promise.all([
+    const [retrievedRaw, experiments, persistedWorldModel, recentDecisions, communicationOutcomes] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
@@ -89,9 +96,13 @@ export default async function handler(req, res) {
       loadUserWorldModel({ userId: auth.userId }),
       fitnessRoute
         ? listRecentDecisions({ userId: auth.userId, limit: 12 })
+        : Promise.resolve([]),
+      fitnessRoute
+        ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 })
         : Promise.resolve([])
     ]);
 
+    const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
     const retrievedMemoryCount = retrieved.memories.length;
     if (retrieved.summary) {
       turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
@@ -99,6 +110,7 @@ export default async function handler(req, res) {
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
     const decisionState = fitnessRoute ? summarizeDecisionState(recentDecisions) : null;
+    const communicationLearning = fitnessRoute ? summarizeCommunicationLearning(communicationOutcomes) : null;
     const temporalTimeline = fitnessRoute
       ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
       : null;
@@ -108,6 +120,7 @@ export default async function handler(req, res) {
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
       ...(decisionState ? { decisionState } : {}),
+      ...(communicationLearning ? { communicationLearning } : {}),
       ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
     };
 
@@ -139,6 +152,9 @@ export default async function handler(req, res) {
           experimentLedger
         })
       : null;
+    const communicationExposure = fitnessRoute
+      ? buildCommunicationExposure({ turnId: turn.turnId, route: result?.route || routePreview, result })
+      : null;
 
     const usageTask = result?.provider?.usage
       ? recordOpenAIUsage({
@@ -159,13 +175,17 @@ export default async function handler(req, res) {
             mode: result?.modelPolicy?.mode || null,
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
+            memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),
             recentContinuityPairs: recentContinuity.hydratedPairs,
             activeExperimentCount: experimentLedger?.activeCount || 0,
             dueExperimentCount: experimentLedger?.dueCount || 0,
             leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
+            primaryGoal: result?.goalHierarchy?.primary?.id || null,
+            goalTradeoffCount: result?.goalHierarchy?.tradeoffs?.length || 0,
             experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
             outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
             calibrationSampleSize: decisionState?.calibration?.sampleSize || 0,
+            communicationLearningSamples: communicationLearning?.resolvedCount || 0,
             proactiveInsightCount: proactiveInsights?.userFacingCount || 0,
             route: result?.route || null
           }
@@ -185,35 +205,55 @@ export default async function handler(req, res) {
       userId: auth.userId,
       message: turn.message,
       history: turn.history,
-      route: result?.route || routePreview
+      route: result?.route || routePreview,
+      privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null
     });
 
     const worldModelTask = persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
     const decisionJournalTask = decisionRecord
       ? recordDecision({ userId: auth.userId, record: decisionRecord })
       : Promise.resolve({ stored: false, reason: "not_significant" });
+    const communicationResolutionTask = fitnessRoute
+      ? resolveCommunicationOutcomes({
+          userId: auth.userId,
+          longitudinalState: result?.longitudinalState || null,
+          message: turn.message
+        })
+      : Promise.resolve({ resolved: 0 });
+    const communicationExposureTask = communicationExposure
+      ? recordCommunicationExposure({ userId: auth.userId, exposure: communicationExposure })
+      : Promise.resolve({ stored: false, reason: "not_significant" });
 
-    const [, turnPersistence, durablePersistence, worldPersistence, decisionPersistence] = await Promise.allSettled([
+    const [
+      , turnPersistence, durablePersistence, worldPersistence, decisionPersistence,
+      communicationResolution, communicationPersistence
+    ] = await Promise.allSettled([
       usageTask,
       turnPersistenceTask,
       durableMemoryTask,
       worldModelTask,
-      decisionJournalTask
+      decisionJournalTask,
+      communicationResolutionTask,
+      communicationExposureTask
     ]);
 
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
     const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
     const worldModelStored = worldPersistence.status === "fulfilled" && worldPersistence.value === true;
     const decisionJournalStored = decisionPersistence.status === "fulfilled" && decisionPersistence.value?.stored === true;
+    const communicationOutcomeResolved = communicationResolution.status === "fulfilled" ? Number(communicationResolution.value?.resolved || 0) : 0;
+    const communicationExposureStored = communicationPersistence.status === "fulfilled" && communicationPersistence.value?.stored === true;
 
     return res.status(200).json({
       ...result,
       turnId: turn.turnId,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
+      memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),
       experimentLedger,
       userWorldModel: runtimeWorldModel,
       decisionState,
+      communicationLearning,
       temporalTimeline,
       proactiveInsights,
       recentContinuityPairs: recentContinuity.hydratedPairs,
@@ -221,6 +261,8 @@ export default async function handler(req, res) {
       durableMemoryStored,
       worldModelStored,
       decisionJournalStored,
+      communicationOutcomeResolved,
+      communicationExposureStored,
       timing: { totalMs: Date.now() - startedAt }
     });
   } catch (error) {
