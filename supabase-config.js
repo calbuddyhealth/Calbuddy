@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: supabase-config.js
-// Version: 1.1.7
+// Version: 1.1.8
 //
 // Purpose:
 //   Create and expose one shared Supabase browser client.
@@ -18,6 +18,7 @@
 //   - Repair the ARI Training exercise-search template contract before boot.
 //   - Load the isolated live-workout interaction repair only on ARI Training.
 //   - Load the My Week workout-card hierarchy polish only on Workout Plans.
+//   - Load the protected minor-age policy only on Goals.
 //
 // Non-responsibilities:
 //   - Does not perform sign-in or sign-up.
@@ -39,6 +40,7 @@
   const CIRCLE_MENU_SCRIPT_ID = "ariCircleMenuV5Script";
   const TRAINING_INTERACTIONS_SCRIPT_ID = "ariTrainingLiveInteractionsScript";
   const WORKOUT_PLAN_POLISH_SCRIPT_ID = "ariWorkoutPlanCardPolishScript";
+  const GOALS_AGE_POLICY_SCRIPT_ID = "ariGoalsProtectedAgePolicyScript";
 
   function shouldLoadSocialBadges() {
     const path = String(window.location.pathname || "").toLowerCase();
@@ -373,6 +375,20 @@
     document.head.append(script);
   }
 
+  function shouldLoadGoalsAgePolicy() {
+    const path = String(window.location.pathname || "").toLowerCase();
+    return path.endsWith("/goals.html") || Boolean(document.querySelector(".ari-goals-page"));
+  }
+
+  function loadGoalsAgePolicy() {
+    if (!shouldLoadGoalsAgePolicy() || document.getElementById(GOALS_AGE_POLICY_SCRIPT_ID)) return;
+    const script = document.createElement("script");
+    script.id = GOALS_AGE_POLICY_SCRIPT_ID;
+    script.src = "js/goals-age-policy.js?v=1.0.0";
+    script.defer = true;
+    document.head.append(script);
+  }
+
   // Install before index.js publishes AriCircleApp and calls autoBoot().
   installCircleProfileBootAccelerator();
 
@@ -412,6 +428,7 @@
     loadCircleMenu();
     loadTrainingInteractions();
     loadWorkoutPlanCardPolish();
+    loadGoalsAgePolicy();
     return;
   }
 
@@ -457,6 +474,10 @@
   // Workout Plans gets a presentation-only layer that sharpens the My Week
   // date/title/detail/status hierarchy without touching planning behavior.
   loadWorkoutPlanCardPolish();
+
+  // Teen accounts use protected account DOB as Goals age. Adult Goals remain
+  // editable exactly as before.
+  loadGoalsAgePolicy();
 
   // -----------------------------------------------------
   // Authentication-state tracking
