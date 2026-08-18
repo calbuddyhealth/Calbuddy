@@ -2,9 +2,17 @@
 // Converts peer-reflection memories into actionable owner signals without
 // another model call and without exposing hidden reasoning.
 
-export const ARI_GROWTH_INBOX_VERSION = "1.1.0";
+export const ARI_GROWTH_INBOX_VERSION = "1.1.1";
 
 const AREA_RULES = [
+  // Safety is intentionally first. A high-stakes/safety reflection may also
+  // mention context, memory, performance, or data; those secondary words must
+  // never demote an actual safety boundary into a lower-priority owner bucket.
+  {
+    id: "safety",
+    label: "Safety boundaries",
+    pattern: /\b(safety|unsafe|high[- ]stakes|medical|self harm|self-harm|crisis|danger|harm)\b/i
+  },
   {
     id: "action_safety",
     label: "Actions & reliability",
@@ -39,11 +47,6 @@ const AREA_RULES = [
     id: "performance_cost",
     label: "Speed & cost",
     pattern: /\b(latency|slow|speed|token|cost|expensive|timeout|performance|cache)\b/i
-  },
-  {
-    id: "safety",
-    label: "Safety boundaries",
-    pattern: /\b(safety|unsafe|high[- ]stakes|medical|self harm|self-harm|crisis|danger|harm)\b/i
   }
 ];
 
