@@ -91,6 +91,8 @@ export default async function handler(req, res) {
           evidenceConfidence: result?.metacognition?.confidence || null,
           leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
           experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
+          activeExperimentCount: result?.experimentReviewState?.activeCount || 0,
+          dueExperimentCount: result?.experimentReviewState?.dueCount || 0,
           route: result?.route || null
         }
       }),
@@ -214,6 +216,7 @@ function normalizeResult(value) {
     coachingState: cleanObject(value?.coachingState),
     longitudinalState: cleanObject(value?.longitudinalState),
     scientificIntelligence: cleanObject(value?.scientificIntelligence),
+    experimentReviewState: cleanObject(value?.experimentReviewState),
     action: cleanObject(value?.action)
   };
 }
