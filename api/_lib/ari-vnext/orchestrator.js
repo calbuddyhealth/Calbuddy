@@ -9,6 +9,7 @@ import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longi
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
+import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
 import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
@@ -31,6 +32,14 @@ export async function runAriVNext(turn = {}) {
     coachingState,
     longitudinalState
   });
+  const scientificIntelligence = deriveScientificIntelligence({
+    turn,
+    route,
+    context: relevantContext,
+    coachingState,
+    longitudinalState,
+    metacognition
+  });
   const temporalContext = deriveTemporalContext(turn);
   const pendingIntent = resolvePendingActionIntent(turn);
 
@@ -43,6 +52,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       selfModel,
       metacognition,
+      scientificIntelligence,
       temporalContext,
       modelPolicy,
       coachingState,
@@ -67,6 +77,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       selfModel,
       metacognition,
+      scientificIntelligence,
       temporalContext,
       modelPolicy,
       coachingState,
@@ -91,6 +102,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     selfModel,
     metacognition,
+    scientificIntelligence,
     temporalContext,
     relevantContext,
     coachingState,
@@ -116,6 +128,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       selfModel,
       metacognition,
+      scientificIntelligence,
       temporalContext,
       modelPolicy,
       coachingState,
@@ -174,6 +187,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     selfModel,
     metacognition,
+    scientificIntelligence,
     temporalContext,
     modelPolicy,
     coachingState,
@@ -196,6 +210,7 @@ function buildInstructions({
   safety,
   selfModel,
   metacognition,
+  scientificIntelligence,
   temporalContext,
   relevantContext,
   coachingState,
@@ -216,6 +231,7 @@ function buildInstructions({
 
   if (coachingState) sections.push("\n" + coachingStateToInstruction(coachingState));
   if (longitudinalState) sections.push("\n" + longitudinalStateToInstruction(longitudinalState));
+  if (scientificIntelligence) sections.push("\n" + scientificIntelligenceToInstruction(scientificIntelligence));
 
   sections.push(
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
