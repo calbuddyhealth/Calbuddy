@@ -64,11 +64,11 @@ export default async function handler(req, res) {
     const routePreview = routeContext(turn);
     let retrievedMemoryCount = 0;
 
-    if (routePreview.memory || routePreview.training || routePreview.goals) {
+    if (routePreview.memory || routePreview.training || routePreview.nutrition || routePreview.goals) {
       const retrieved = await retrieveRelevantMemories({
         userId: auth.userId,
         message: turn.message,
-        limit: routePreview.memory ? 6 : 4
+        limit: routePreview.memory ? 6 : 5
       });
 
       retrievedMemoryCount = retrieved.memories.length;
@@ -100,6 +100,9 @@ export default async function handler(req, res) {
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
             recentContinuityPairs: recentContinuity.hydratedPairs,
+            leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
+            experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
+            outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
             route: result?.route || null
           }
         })
