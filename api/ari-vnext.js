@@ -15,6 +15,8 @@ import {
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
+import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
 import {
   deriveUserWorldModel,
   loadUserWorldModel,
@@ -73,9 +75,6 @@ export default async function handler(req, res) {
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
     const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
 
-    // Independent cognitive reads stay parallel. The persistent world model is
-    // one compact row; decision history is only loaded for decision-heavy
-    // fitness turns so ordinary conversation remains lean.
     const [retrieved, experiments, persistedWorldModel, recentDecisions] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -100,11 +99,16 @@ export default async function handler(req, res) {
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
     const decisionState = fitnessRoute ? summarizeDecisionState(recentDecisions) : null;
+    const temporalTimeline = fitnessRoute
+      ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
+      : null;
+
     turn.context = {
       ...(turn.context || {}),
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
-      ...(decisionState ? { decisionState } : {})
+      ...(decisionState ? { decisionState } : {}),
+      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
     };
 
     const result = await runAriVNext(turn);
@@ -124,6 +128,16 @@ export default async function handler(req, res) {
     });
     const decisionRecord = fitnessRoute
       ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
+      : null;
+    const proactiveInsights = fitnessRoute
+      ? deriveProactiveInsights({
+          coachingState: result?.coachingState || null,
+          longitudinalState: result?.longitudinalState || null,
+          scientificIntelligence: result?.scientificIntelligence || null,
+          userWorldModel: runtimeWorldModel,
+          decisionState,
+          experimentLedger
+        })
       : null;
 
     const usageTask = result?.provider?.usage
@@ -152,6 +166,7 @@ export default async function handler(req, res) {
             experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
             outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
             calibrationSampleSize: decisionState?.calibration?.sampleSize || 0,
+            proactiveInsightCount: proactiveInsights?.userFacingCount || 0,
             route: result?.route || null
           }
         })
@@ -199,6 +214,8 @@ export default async function handler(req, res) {
       experimentLedger,
       userWorldModel: runtimeWorldModel,
       decisionState,
+      temporalTimeline,
+      proactiveInsights,
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
       durableMemoryStored,
