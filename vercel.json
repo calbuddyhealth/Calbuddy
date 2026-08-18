@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node --test tests/ari-vnext-*.test.mjs",
   "rewrites": [
     {
       "source": "/api/knowledge",
