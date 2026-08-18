@@ -2,7 +2,7 @@
 // Turns raw ARI XP context into compact evidence signals for the model.
 // Signals support judgment; they are not diagnoses and must not become rigid templates.
 
-export const COACHING_STATE_VERSION = "1.0.0";
+export const COACHING_STATE_VERSION = "1.1.0";
 
 export function deriveCoachingState({ turn = {}, route = {}, context = {} } = {}) {
   if (!route?.training && !route?.nutrition && !route?.goals && !route?.coachingState) {
@@ -20,6 +20,22 @@ export function deriveCoachingState({ turn = {}, route = {}, context = {} } = {}
   const nutrition = buildNutritionEvidence(context);
   const training = buildTrainingEvidence(context);
   const signals = [];
+
+  if (training.objectiveDeclineCount >= 2) {
+    signals.push(signal(
+      "multi_exercise_performance_regression",
+      reported.performanceDecline ? "moderate" : "low",
+      "Multiple comparable exercises show lower recent performance metrics than their previous recorded session.",
+      training.objectiveDeclines.slice(0, 4).map((item) => `performance_down:${item.name}`)
+    ));
+  } else if (training.objectiveDeclineCount === 1 && reported.performanceDecline) {
+    signals.push(signal(
+      "reported_performance_decline_with_data_support",
+      "moderate",
+      "The user's reported performance decline has at least one comparable exercise record trending down.",
+      [`performance_down:${training.objectiveDeclines[0]?.name}`, "reported:performance_decline"]
+    ));
+  }
 
   if (goal === "lose" && weight.direction === "up" && weight.available) {
     signals.push(signal(
@@ -39,19 +55,22 @@ export function deriveCoachingState({ turn = {}, route = {}, context = {} } = {}
     ));
   }
 
+  const performancePressure = reported.performanceDecline || training.objectiveDeclineCount >= 2;
+
   if (
     goal === "lose" &&
     weight.direction === "down" &&
-    reported.performanceDecline &&
+    performancePressure &&
     (reported.fatigue || reported.hunger || training.recentWorkoutCount >= 4)
   ) {
     signals.push(signal(
       "possible_recovery_or_deficit_pressure",
       "moderate",
-      "Performance is reportedly declining while body weight is trending down and at least one recovery-demand signal is present.",
+      "Performance pressure is present while body weight is trending down and at least one recovery-demand signal is present.",
       compactEvidence([
         weightEvidence(weight),
         reported.performanceDecline ? "reported:performance_decline" : null,
+        training.objectiveDeclineCount >= 2 ? `objective_declines:${training.objectiveDeclineCount}` : null,
         reported.fatigue ? "reported:fatigue" : null,
         reported.hunger ? "reported:hunger" : null,
         training.recentWorkoutCount ? `recent_workouts:${training.recentWorkoutCount}` : null
@@ -124,7 +143,7 @@ export function deriveCoachingState({ turn = {}, route = {}, context = {} } = {}
     },
     signals,
     priorities,
-    confidenceNote: "Derived from available ARI XP data and user-reported language. Missing or partial logs reduce confidence; do not invent certainty."
+    confidenceNote: "Derived from available ARI XP data and user-reported language. Training comparisons are like-for-like hints, not proof of physiological regression. Missing or partial logs reduce confidence."
   };
 }
 
@@ -134,9 +153,10 @@ export function coachingStateToInstruction(state = null) {
     "DERIVED COACHING STATE",
     "Use these as evidence signals, not as conclusions you must repeat.",
     "Prefer the user's actual trend and current plan over generic fitness advice.",
+    "A lower performance metric in one session can reflect rep range, technique, effort, exercise order, fatigue, or programming changes. Do not label it a true strength loss without enough evidence.",
     "If evidence is incomplete or contradictory, say what is missing instead of manufacturing precision.",
     JSON.stringify(state, null, 2)
-  ].join("\n").slice(0, 9000);
+  ].join("\n").slice(0, 10000);
 }
 
 function buildNutritionEvidence(context = {}) {
@@ -178,10 +198,24 @@ function buildTrainingEvidence(context = {}) {
   const weekDays = Array.isArray(context?.training?.currentWeek?.days)
     ? context.training.currentWeek.days
     : [];
+  const performanceTrends = Array.isArray(context?.training?.performanceTrends)
+    ? context.training.performanceTrends
+    : [];
 
   const recentWorkouts = recent.filter((item) => item?.type === "workout");
   const completed = recentWorkouts.filter((item) => item?.completed === true).length;
   const plannedFlags = weekDays.map((day) => Boolean(day?.type === "workout" && Array.isArray(day?.exercises) && day.exercises.length));
+  const objectiveDeclines = performanceTrends
+    .filter((item) => item?.direction === "down")
+    .slice(0, 6)
+    .map((item) => ({
+      exerciseId: item?.exerciseId || null,
+      name: item?.name || "Exercise",
+      latest: item?.latest || null,
+      previous: item?.previous || null,
+      topWeightChange: finiteOrNull(item?.topWeightChange),
+      sessionCount: Number(item?.sessionCount || 0)
+    }));
 
   return {
     recentWorkoutCount: recentWorkouts.length,
@@ -189,7 +223,11 @@ function buildTrainingEvidence(context = {}) {
     recentCompletionRate: recentWorkouts.length ? round(completed / recentWorkouts.length, 2) : null,
     plannedWorkoutsThisWeek: plannedFlags.filter(Boolean).length,
     maxConsecutivePlannedDays: maxConsecutiveTrue(plannedFlags),
-    today: context?.trainingToday || null
+    comparablePerformanceCount: performanceTrends.length,
+    objectiveDeclineCount: objectiveDeclines.length,
+    objectiveDeclines,
+    today: context?.trainingToday || null,
+    todayProgress: context?.training?.todayProgress || null
   };
 }
 
@@ -252,6 +290,7 @@ function rankPriorities({ signals = [], reported = {}, goal = "unknown", weight 
 
   if (reported.painOrInjury) priorities.push("Address pain/injury constraints before optimizing performance or volume.");
   if (ids.has("possible_recovery_or_deficit_pressure")) priorities.push("Check whether recovery and energy intake support the current training demand before adding more volume.");
+  if (ids.has("multi_exercise_performance_regression") || ids.has("reported_performance_decline_with_data_support")) priorities.push("Compare like-for-like exercise records and recovery context before changing the whole program.");
   if (ids.has("recovery_load_conflict")) priorities.push("Review recovery quality and schedule density before assuming the program needs more work.");
   if (ids.has("goal_weight_direction_mismatch")) priorities.push("Verify adherence/coverage and the time span of the weight trend before changing the target.");
   if (reported.performanceDecline && !priorities.length) priorities.push("Compare recent performance decline against recovery, body-weight trend, and training load before changing exercises.");
