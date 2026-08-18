@@ -2,8 +2,9 @@
 // This is not a transcript. It separates stated goals/preferences from observed
 // behavior and measured response so Ari can notice mismatches without shaming.
 
-export const ARI_USER_WORLD_MODEL_VERSION = "1.0.1";
+export const ARI_USER_WORLD_MODEL_VERSION = "1.1.0";
 const TABLE = "ari_vnext_user_models";
+const PRIVACY_CATEGORIES = new Set(["identity", "preferences", "goals", "constraints", "behavior", "fitness_outcomes", "relationship"]);
 
 export async function loadUserWorldModel({ userId } = {}) {
   const config = supabaseConfig();
@@ -31,26 +32,30 @@ export function deriveUserWorldModel({
   coachingState = null,
   longitudinalState = null
 } = {}) {
+  const privacyControls = normalizePrivacyControls(persisted?.privacyControls);
+  const blocked = new Set(privacyControls.blockedCategories);
   const memoryLines = String(context?.relevantMemory || "")
     .split(/\n+/)
     .map((line) => line.replace(/^[-•]\s*/, "").trim())
     .filter(Boolean)
     .slice(0, 24);
 
-  const profile = compactObject(context?.user);
-  const incomingGoalsContext = compactObject(context?.goals);
-  const goalsContext = Object.keys(incomingGoalsContext).length
-    ? mergeObject(persisted?.goals?.current, incomingGoalsContext)
-    : compactObject(persisted?.goals?.current);
-  const preferences = uniqueText([
+  const profile = blocked.has("identity") ? {} : compactObject(context?.user);
+  const incomingGoalsContext = blocked.has("goals") ? {} : compactObject(context?.goals);
+  const goalsContext = blocked.has("goals")
+    ? {}
+    : Object.keys(incomingGoalsContext).length
+      ? mergeObject(persisted?.goals?.current, incomingGoalsContext)
+      : compactObject(persisted?.goals?.current);
+  const preferences = blocked.has("preferences") ? [] : uniqueText([
     ...arrayValues(persisted?.preferences?.items),
     ...memoryLines.filter((line) => /\b(prefer|like|love|favorite|favourite|dislike|hate|want ari to|prefer ari to)\b/i.test(line))
   ], 18, 360);
-  const constraints = uniqueText([
+  const constraints = blocked.has("constraints") ? [] : uniqueText([
     ...arrayValues(persisted?.constraints?.items),
     ...memoryLines.filter((line) => /\b(can't|cannot|unable|schedule|shift|time constraint|injur|pain|allerg|budget|equipment|access)\b/i.test(line))
   ], 18, 360);
-  const explicitGoals = uniqueText([
+  const explicitGoals = blocked.has("goals") ? [] : uniqueText([
     ...arrayValues(persisted?.goals?.stated),
     ...memoryLines.filter((line) => /\b(my goal|my target|trying to|want to (lose|gain|maintain|run|train|lift|build|improve|reach)|cutting|bulking)\b/i.test(line)),
     ...extractCurrentTurnGoals(turn?.message)
@@ -61,10 +66,10 @@ export function deriveUserWorldModel({
   const weight = longitudinalState?.weight || {};
   const nutrition = longitudinalState?.nutrition || {};
   const experiments = context?.experimentLedger || {};
-  const oldBehavior = compactObject(persisted?.behavior);
+  const oldBehavior = blocked.has("behavior") ? {} : compactObject(persisted?.behavior);
   const oldPerformance = compactObject(oldBehavior?.recentPerformance);
 
-  const observedBehavior = {
+  const observedBehavior = blocked.has("behavior") ? {} : {
     trainingAdherence: preferObserved(adherence?.rate, oldBehavior.trainingAdherence),
     plannedTrainingExposure: preferObserved(adherence?.plannedCount, oldBehavior.plannedTrainingExposure),
     completedTrainingExposure: preferObserved(adherence?.completedCount, oldBehavior.completedTrainingExposure),
@@ -80,7 +85,7 @@ export function deriveUserWorldModel({
       : finiteOrNull(oldBehavior.weightVelocityPerWeek)
   };
 
-  const currentOutcomes = (Array.isArray(experiments?.recentCompleted) ? experiments.recentCompleted : [])
+  const currentOutcomes = blocked.has("fitness_outcomes") ? [] : (Array.isArray(experiments?.recentCompleted) ? experiments.recentCompleted : [])
     .slice(0, 4)
     .map((item) => ({
       hypothesisId: clean(item?.hypothesisId, 120),
@@ -89,8 +94,8 @@ export function deriveUserWorldModel({
       confidenceAfter: finiteOrNull(item?.confidenceAfter),
       completedAt: item?.completedAt || null
     }));
-  const oldResponse = compactObject(persisted?.physiologicalResponse);
-  const physiologicalResponse = {
+  const oldResponse = blocked.has("fitness_outcomes") ? {} : compactObject(persisted?.physiologicalResponse);
+  const physiologicalResponse = blocked.has("fitness_outcomes") ? {} : {
     completedExperiments: experiments?.completedCount !== undefined && experiments?.completedCount !== null
       ? Number(experiments.completedCount || 0)
       : Number(oldResponse?.completedExperiments || 0),
@@ -106,31 +111,32 @@ export function deriveUserWorldModel({
 
   return {
     version: ARI_USER_WORLD_MODEL_VERSION,
-    identity: mergeObject(persisted?.identity, profile),
-    preferences: { items: preferences },
-    goals: {
-      stated: explicitGoals,
-      current: goalsContext
-    },
-    constraints: { items: constraints },
+    privacyControls,
+    identity: blocked.has("identity") ? {} : mergeObject(persisted?.identity, profile),
+    preferences: blocked.has("preferences") ? { items: [] } : { items: preferences },
+    goals: blocked.has("goals") ? { stated: [], current: {} } : { stated: explicitGoals, current: goalsContext },
+    constraints: blocked.has("constraints") ? { items: [] } : { items: constraints },
     behavior: observedBehavior,
     responseProfile: {
-      verbosity: communication?.verbosity || persisted?.responseProfile?.verbosity || null,
+      detail: communication?.detail || persisted?.responseProfile?.detail || persisted?.responseProfile?.verbosity || null,
       directness: communication?.directness || persisted?.responseProfile?.directness || null,
+      tone: communication?.tone || persisted?.responseProfile?.tone || null,
       familiarity: selfModel?.relationship?.familiarity || persisted?.responseProfile?.familiarity || null
     },
     physiologicalResponse,
-    relationship: {
+    relationship: blocked.has("relationship") ? {} : {
       mode: selfModel?.current?.mode || persisted?.relationship?.mode || null,
       familiarity: selfModel?.relationship?.familiarity || persisted?.relationship?.familiarity || null
     },
-    tensions: contradictions.length ? contradictions : (Array.isArray(persisted?.tensions) ? persisted.tensions.slice(0, 5) : []),
+    tensions: blocked.has("goals") || blocked.has("behavior") || blocked.has("constraints")
+      ? []
+      : contradictions.length ? contradictions : (Array.isArray(persisted?.tensions) ? persisted.tensions.slice(0, 5) : []),
     sourceSummary: {
-      profile: Object.keys(profile).length > 0 || Boolean(persisted?.sourceSummary?.profile),
+      profile: !blocked.has("identity") && (Object.keys(profile).length > 0 || Boolean(persisted?.sourceSummary?.profile)),
       durableMemoryLines: Math.max(memoryLines.length, Number(persisted?.sourceSummary?.durableMemoryLines || 0)),
-      longitudinalTraining: Number(adherence?.plannedCount || 0) > 0 || Boolean(persisted?.sourceSummary?.longitudinalTraining),
-      longitudinalWeight: Boolean(weight?.available) || Boolean(persisted?.sourceSummary?.longitudinalWeight),
-      experimentOutcomes: Math.max(Number(experiments?.completedCount || 0), Number(persisted?.sourceSummary?.experimentOutcomes || 0))
+      longitudinalTraining: !blocked.has("behavior") && (Number(adherence?.plannedCount || 0) > 0 || Boolean(persisted?.sourceSummary?.longitudinalTraining)),
+      longitudinalWeight: !blocked.has("behavior") && (Boolean(weight?.available) || Boolean(persisted?.sourceSummary?.longitudinalWeight)),
+      experimentOutcomes: blocked.has("fitness_outcomes") ? 0 : Math.max(Number(experiments?.completedCount || 0), Number(persisted?.sourceSummary?.experimentOutcomes || 0))
     }
   };
 }
@@ -151,6 +157,7 @@ export async function persistUserWorldModel({ userId, model } = {}) {
     physiological_response: compactObject(model.physiologicalResponse),
     relationship: compactObject(model.relationship),
     source_summary: compactObject({ ...(model.sourceSummary || {}), tensions: model.tensions || [] }),
+    privacy_controls: normalizePrivacyControls(model.privacyControls),
     updated_at: new Date().toISOString()
   };
   try {
@@ -174,8 +181,25 @@ export function userWorldModelToInstruction(model = null) {
     "Use tensions as gentle decision-relevant contradictions, never as a character judgment.",
     "Do not invent identity, preferences, constraints, or physiology. Missing fields remain unknown.",
     "When a stated goal conflicts with a repeated behavior pattern, design around the behavior pattern unless the user explicitly wants a new experiment.",
+    "Privacy controls are authoritative. A blocked category is intentionally unavailable; do not infer or reconstruct it from neighboring context.",
     JSON.stringify(model, null, 2)
-  ].join("\n").slice(0, 8000);
+  ].join("\n").slice(0, 8500);
+}
+
+export function normalizePrivacyControls(value = null) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const blockedCategories = (Array.isArray(source.blockedCategories) ? source.blockedCategories : [])
+    .map((item) => clean(item, 80).toLowerCase())
+    .filter((item) => PRIVACY_CATEGORIES.has(item));
+  return {
+    blockedCategories: [...new Set(blockedCategories)],
+    updatedAt: source.updatedAt || null
+  };
+}
+
+export function isMemoryCategoryBlocked(privacyControls, category) {
+  const normalized = normalizePrivacyControls(privacyControls);
+  return normalized.blockedCategories.includes(clean(category, 80).toLowerCase());
 }
 
 function detectGoalBehaviorTensions({ goals = [], goalsContext = {}, observedBehavior = {}, constraints = [] } = {}) {
@@ -211,6 +235,7 @@ function normalizeModel(row) {
   const source = row.source_summary && typeof row.source_summary === "object" ? row.source_summary : {};
   return {
     version: row.model_version || ARI_USER_WORLD_MODEL_VERSION,
+    privacyControls: normalizePrivacyControls(row.privacy_controls),
     identity: compactObject(row.identity),
     preferences: compactObject(row.preferences),
     goals: compactObject(row.goals),
