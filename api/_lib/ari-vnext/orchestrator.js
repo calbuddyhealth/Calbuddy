@@ -6,6 +6,7 @@ import { communicationProfileToInstruction, resolveCommunicationProfile } from "
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
+import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
@@ -18,11 +19,18 @@ export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
   const safety = classifySafety(turn, route);
   const communication = resolveCommunicationProfile(turn?.preferences);
-  const selfModel = deriveSelfModel({ turn, route, safety, communication });
+  const selfModel = deriveSelfModel({ turn, route, safety });
   const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
+  const metacognition = deriveMetacognition({
+    route,
+    context: relevantContext,
+    safety,
+    coachingState,
+    longitudinalState
+  });
   const pendingIntent = resolvePendingActionIntent(turn);
 
   if (pendingIntent.type === "confirm") {
@@ -33,6 +41,7 @@ export async function runAriVNext(turn = {}) {
       route,
       safety,
       selfModel,
+      metacognition,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -55,6 +64,7 @@ export async function runAriVNext(turn = {}) {
       route,
       safety,
       selfModel,
+      metacognition,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -74,6 +84,7 @@ export async function runAriVNext(turn = {}) {
     communication,
     safety,
     selfModel,
+    metacognition,
     relevantContext,
     coachingState,
     longitudinalState
@@ -97,6 +108,7 @@ export async function runAriVNext(turn = {}) {
       route,
       safety,
       selfModel,
+      metacognition,
       modelPolicy,
       coachingState,
       longitudinalState,
@@ -153,6 +165,7 @@ export async function runAriVNext(turn = {}) {
     route,
     safety,
     selfModel,
+    metacognition,
     modelPolicy,
     coachingState,
     longitudinalState,
@@ -173,6 +186,7 @@ function buildInstructions({
   communication,
   safety,
   selfModel,
+  metacognition,
   relevantContext,
   coachingState,
   longitudinalState
@@ -180,6 +194,7 @@ function buildInstructions({
   const sections = [
     ARI_PERSONA,
     "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
+    "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
   ];
@@ -188,13 +203,8 @@ function buildInstructions({
     sections.push("\nFITNESS INTELLIGENCE\n" + FITNESS_INTELLIGENCE);
   }
 
-  if (coachingState) {
-    sections.push("\n" + coachingStateToInstruction(coachingState));
-  }
-
-  if (longitudinalState) {
-    sections.push("\n" + longitudinalStateToInstruction(longitudinalState));
-  }
+  if (coachingState) sections.push("\n" + coachingStateToInstruction(coachingState));
+  if (longitudinalState) sections.push("\n" + longitudinalStateToInstruction(longitudinalState));
 
   sections.push(
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
@@ -206,9 +216,7 @@ function buildInstructions({
 
 function buildInput(turn = {}) {
   const input = [];
-  for (const item of turn?.history || []) {
-    input.push({ role: item.role, content: item.content });
-  }
+  for (const item of turn?.history || []) input.push({ role: item.role, content: item.content });
   input.push({ role: "user", content: turn?.message || "" });
   return input;
 }
