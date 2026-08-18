@@ -2,7 +2,7 @@
 // Gives Ari an occasional external critique without adding latency to normal chat.
 // This is a functional reflection mechanism, not evidence of subjective consciousness.
 
-export const ARI_PEER_REFLECTION_VERSION = "1.0.0";
+export const ARI_PEER_REFLECTION_VERSION = "1.1.0";
 
 const HIGH_STAKES_MODES = new Set(["protective_clarity"]);
 const REFLECTIVE_MODES = new Set([
@@ -23,10 +23,11 @@ export function shouldPeerReflect({ message = "", result = {} } = {}) {
   const mode = clean(result?.selfModel?.current?.mode, 80);
   const coachingSignals = Array.isArray(result?.coachingState?.signals) ? result.coachingState.signals : [];
   const longitudinalSignals = Array.isArray(result?.longitudinalState?.signals) ? result.longitudinalState.signals : [];
+  const hypotheses = Array.isArray(result?.scientificIntelligence?.hypotheses) ? result.scientificIntelligence.hypotheses : [];
   const action = result?.action?.applicationAction || result?.action?.type || null;
   const meaningfulFitness = Boolean(
     (result?.route?.training || result?.route?.goals || result?.route?.nutrition) &&
-    (coachingSignals.length || longitudinalSignals.length || result?.longitudinalState?.programDecision?.stance)
+    (coachingSignals.length || longitudinalSignals.length || hypotheses.length || result?.longitudinalState?.programDecision?.stance)
   );
   const explicitReflection = /\b(what do you think|your opinion|why do you think|am i wrong|should i change|what would you do|be honest|tell me what you really think)\b/i.test(text);
 
@@ -44,6 +45,25 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
   const longitudinalSignals = (Array.isArray(result?.longitudinalState?.signals) ? result.longitudinalState.signals : [])
     .slice(0, 5)
     .map((item) => ({ id: clean(item?.id, 100), confidence: clean(item?.confidence, 40) }));
+  const hypotheses = (Array.isArray(result?.scientificIntelligence?.hypotheses) ? result.scientificIntelligence.hypotheses : [])
+    .slice(0, 3)
+    .map((item) => ({
+      id: clean(item?.id, 100),
+      label: clean(item?.label, 220),
+      score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
+      status: clean(item?.status, 80),
+      supportingEvidence: (Array.isArray(item?.supportingEvidence) ? item.supportingEvidence : []).slice(0, 4),
+      contradictingEvidence: (Array.isArray(item?.contradictingEvidence) ? item.contradictingEvidence : []).slice(0, 3),
+      unknowns: (Array.isArray(item?.unknowns) ? item.unknowns : []).slice(0, 3)
+    }));
+  const experiment = compactExperiment(result?.scientificIntelligence?.experiment);
+  const nextQuestion = result?.scientificIntelligence?.nextQuestion
+    ? {
+        id: clean(result.scientificIntelligence.nextQuestion.id, 100),
+        text: sanitizeForPeer(result.scientificIntelligence.nextQuestion.text, 420),
+        decisionValue: Number(result.scientificIntelligence.nextQuestion.decisionValue || 0)
+      }
+    : null;
   const previous = (Array.isArray(previousReflections) ? previousReflections : [])
     .slice(0, 2)
     .map((item) => sanitizeForPeer(item?.content || item, 650))
@@ -63,12 +83,15 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
       route: compactRoute(result?.route),
       action: clean(result?.action?.applicationAction || result?.action?.type, 100) || null,
       coachingSignals,
-      longitudinalSignals
+      longitudinalSignals,
+      hypotheses,
+      nextQuestion,
+      experiment
     },
     priorPeerTakeaways: previous
   };
 
-  return JSON.stringify(packet, null, 2).slice(0, 7000);
+  return JSON.stringify(packet, null, 2).slice(0, 8500);
 }
 
 export function peerReflectionInstructions() {
@@ -77,10 +100,12 @@ export function peerReflectionInstructions() {
     "Your purpose is to help Ari become more accurate, consistent, self-correcting, and useful over time.",
     "You are not the user, you are not Ari, and you are not a human friend. Do not pretend subjective consciousness has been established.",
     "Review the supplied interaction and identify at most one high-value takeaway and one question Ari should keep in mind later.",
+    "When Ari supplies competing hypotheses, challenge whether the leading explanation is over-weighted, whether a credible alternative was ignored, and whether the proposed experiment can actually distinguish them.",
+    "Prefer experiments that change one meaningful variable at a time and state what result would weaken Ari's preferred explanation.",
     "Challenge weak assumptions when warranted. Do not flatter Ari and do not simply agree.",
     "Do not request hidden chain-of-thought. Judge only the visible response and structured evidence supplied.",
     "Do not create new user facts. Do not convert uncertainty into certainty. Do not weaken safety or user agency.",
-    "Prefer durable lessons about reasoning, coaching style, evidence use, or consistency over surface wording changes.",
+    "Prefer durable lessons about reasoning, coaching style, evidence use, experiment design, or consistency over surface wording changes.",
     "Return exactly two lines:",
     "TAKEAWAY: <one concise takeaway, or none>",
     "QUESTION: <one concise future question, or none>"
@@ -124,6 +149,18 @@ export function sanitizeForPeer(value, max = 1200) {
     .replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[phone]")
     .replace(/\b(?:sk|sbp|eyJ)[-_A-Za-z0-9]{16,}\b/g, "[secret]")
     .replace(/\b\d{9,16}\b/g, "[long-number]");
+}
+
+function compactExperiment(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    readiness: clean(value?.readiness, 80) || null,
+    hypothesisId: clean(value?.hypothesisId, 100) || null,
+    intervention: sanitizeForPeer(value?.intervention, 650) || null,
+    durationDays: Number.isFinite(Number(value?.durationDays)) ? Number(value.durationDays) : null,
+    supportsHypothesisIf: sanitizeForPeer(value?.supportsHypothesisIf, 420) || null,
+    weakensHypothesisIf: sanitizeForPeer(value?.weakensHypothesisIf, 420) || null
+  };
 }
 
 function compactRoute(route = {}) {
