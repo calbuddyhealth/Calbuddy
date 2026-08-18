@@ -3,7 +3,7 @@
 // identity plus explicit verification evidence. Reappearance after verification
 // automatically reopens the issue.
 
-export const ARI_GROWTH_FIXES_VERSION = "1.0.0";
+export const ARI_GROWTH_FIXES_VERSION = "1.1.0";
 const TABLE = "ari_vnext_growth_fixes";
 const STATUSES = new Set(["candidate", "fix_in_progress", "verification_pending", "verified_fixed", "reopened"]);
 
@@ -46,7 +46,7 @@ export async function syncGrowthFixCandidates({ userId, inbox } = {}) {
     ], 30, 200);
     const newestReflectionAt = item.createdAt ? Date.parse(item.createdAt) : 0;
     const verifiedAt = previous?.verifiedAt ? Date.parse(previous.verifiedAt) : 0;
-    const shouldReopen = previous?.status === "verified_fixed" && newestReflectionAt > verifiedAt;
+    const shouldReopen = shouldReopenVerifiedFix({ previous, newestReflectionAt });
     const status = shouldReopen ? "reopened" : previous?.status || "candidate";
 
     const row = {
@@ -96,22 +96,8 @@ export async function updateGrowthFix({ userId, fingerprint, status, regressionT
     : safeObject(current.verification);
 
   if (next === "verified_fixed") {
-    const deterministicPasses = Number(evidence?.deterministicPasses || 0);
-    const scenarioReproduced = evidence?.scenarioReproduced === true;
-    const noRegressionObserved = evidence?.noRegressionObserved === true;
-    if (!regression || !commit || deterministicPasses < 2 || !scenarioReproduced || !noRegressionObserved) {
-      return {
-        success: false,
-        code: "verification_evidence_insufficient",
-        requirements: {
-          regressionTestId: true,
-          fixCommitSha: true,
-          deterministicPassesAtLeast: 2,
-          scenarioReproduced: true,
-          noRegressionObserved: true
-        }
-      };
-    }
+    const validation = validateGrowthVerification({ regressionTestId: regression, fixCommitSha: commit, verification: evidence });
+    if (!validation.valid) return { success: false, code: "verification_evidence_insufficient", requirements: validation.requirements };
   }
 
   const now = new Date().toISOString();
@@ -138,6 +124,32 @@ export async function updateGrowthFix({ userId, fingerprint, status, regressionT
   } catch {
     return { success: false, code: "growth_fix_update_failed" };
   }
+}
+
+export function validateGrowthVerification({ regressionTestId = null, fixCommitSha = null, verification = null } = {}) {
+  const evidence = verification && typeof verification === "object" && !Array.isArray(verification) ? verification : {};
+  const requirements = {
+    regressionTestId: Boolean(clean(regressionTestId, 300)),
+    fixCommitSha: Boolean(clean(fixCommitSha, 80)),
+    deterministicPassesAtLeast: 2,
+    scenarioReproduced: evidence?.scenarioReproduced === true,
+    noRegressionObserved: evidence?.noRegressionObserved === true
+  };
+  const deterministicPasses = Number(evidence?.deterministicPasses || 0);
+  const valid = Boolean(
+    requirements.regressionTestId &&
+    requirements.fixCommitSha &&
+    deterministicPasses >= 2 &&
+    requirements.scenarioReproduced &&
+    requirements.noRegressionObserved
+  );
+  return { valid, deterministicPasses, requirements };
+}
+
+export function shouldReopenVerifiedFix({ previous = null, newestReflectionAt = 0 } = {}) {
+  if (previous?.status !== "verified_fixed") return false;
+  const verifiedAt = previous?.verifiedAt ? Date.parse(previous.verifiedAt) : 0;
+  return Number(newestReflectionAt || 0) > verifiedAt;
 }
 
 export function overlayGrowthFixState(inbox = {}, fixes = []) {
