@@ -1,7 +1,7 @@
 // ARI vNext — explicit goal hierarchy and tradeoff reasoning.
 // Prevents Ari from pretending every user goal can be maximized simultaneously.
 
-export const ARI_GOAL_HIERARCHY_VERSION = "1.0.1";
+export const ARI_GOAL_HIERARCHY_VERSION = "1.0.2";
 
 const GOALS = [
   { id: "fat_loss", label: "Fat/weight loss", pattern: /\b(lose weight|weight loss|fat loss|cut|cutting|lean(?:er)?|drop weight)\b/i },
@@ -9,7 +9,7 @@ const GOALS = [
   { id: "muscle_gain", label: "Muscle gain", pattern: /\b(build muscle|gain muscle|muscle gain|hypertrophy|size|bulk|bulking)\b/i },
   { id: "weight_gain", label: "Weight gain", pattern: /\b(gain weight|weight gain)\b/i },
   { id: "maintenance", label: "Maintenance", pattern: /\b(maintain(?:ing|ance)?(?: weight)?|stay the same weight)\b/i },
-  { id: "consistency", label: "Consistency/adherence", pattern: /\b(consisten|adherence|stick to|actually follow|show up|complete my workouts|sustainable)\b/i },
+  { id: "consistency", label: "Consistency/adherence", pattern: /\b(consisten(?:cy|t|ce|tly)?|adherence|stick to|actually follow|show up|complete my workouts|sustainable)\b/i },
   { id: "recovery", label: "Recovery", pattern: /\b(recovery|recover better|sleep better|less fatigue|less sore|avoid burnout)\b/i },
   { id: "simplicity", label: "Simplicity/time efficiency", pattern: /\b(simple|easy to follow|quick workouts?|short workouts?|save time|time efficient|less complicated)\b/i },
   { id: "flexibility", label: "Lifestyle flexibility", pattern: /\b(flexible|social life|eat out|travel|weekend|schedule flexibility)\b/i }
