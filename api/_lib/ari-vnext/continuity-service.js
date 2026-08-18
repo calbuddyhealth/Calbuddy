@@ -1,8 +1,10 @@
 // ARI vNext — low-cost continuity persistence.
 // Reuses existing seven-day conversation and durable memory tables.
-// No additional model call is required.
+// No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.0.0";
+export const CONTINUITY_SERVICE_VERSION = "1.1.0";
+const READ_TIMEOUT_MS = 900;
+const WRITE_TIMEOUT_MS = 800;
 
 export async function hydrateRecentConversation({ userId, history = [], limitPairs = 4 } = {}) {
   const safeUserId = clean(userId, 200);
@@ -21,9 +23,9 @@ export async function hydrateRecentConversation({ userId, history = [], limitPai
       limit: String(Math.max(1, Math.min(6, Number(limitPairs) || 4)))
     });
 
-    const response = await fetch(`${config.url}/rest/v1/ari_conversation_turns?${params.toString()}`, {
+    const response = await timedFetch(`${config.url}/rest/v1/ari_conversation_turns?${params.toString()}`, {
       headers: serverHeaders(config.key)
-    });
+    }, READ_TIMEOUT_MS);
     if (!response.ok) return { history: existing, hydratedPairs: 0 };
 
     const rows = await response.json().catch(() => []);
@@ -42,7 +44,7 @@ export async function hydrateRecentConversation({ userId, history = [], limitPai
     const merged = mergeHistory(serverHistory, existing).slice(-12);
     return { history: merged, hydratedPairs: Math.floor(serverHistory.length / 2) };
   } catch (error) {
-    console.warn("[ARI vNext Continuity] Recent conversation hydration failed:", error?.message || error);
+    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Recent conversation hydration failed:", error?.message || error);
     return { history: existing, hydratedPairs: 0 };
   }
 }
@@ -57,7 +59,7 @@ export async function persistConversationTurn({ userId, message, reply, surface 
   if (!config) return false;
 
   try {
-    const response = await fetch(`${config.url}/rest/v1/ari_conversation_turns`, {
+    const response = await timedFetch(`${config.url}/rest/v1/ari_conversation_turns`, {
       method: "POST",
       headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
       body: JSON.stringify({
@@ -66,10 +68,10 @@ export async function persistConversationTurn({ userId, message, reply, surface 
         assistant_message: assistantMessage,
         page_path: clean(surface, 200) || "unknown"
       })
-    });
+    }, WRITE_TIMEOUT_MS);
     return response.ok;
   } catch (error) {
-    console.warn("[ARI vNext Continuity] Turn persistence failed:", error?.message || error);
+    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Turn persistence failed:", error?.message || error);
     return false;
   }
 }
@@ -123,7 +125,7 @@ export async function persistDurableMemory({ userId, message } = {}) {
 
   try {
     const params = new URLSearchParams({ on_conflict: "user_id,content" });
-    const response = await fetch(`${config.url}/rest/v1/ari_user_memory?${params.toString()}`, {
+    const response = await timedFetch(`${config.url}/rest/v1/ari_user_memory?${params.toString()}`, {
       method: "POST",
       headers: serverHeaders(config.key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
       body: JSON.stringify({
@@ -133,14 +135,28 @@ export async function persistDurableMemory({ userId, message } = {}) {
         content: candidate.content,
         importance: candidate.importance,
         confidence: candidate.confidence,
-        tags: candidate.tags
+        tags: candidate.tags,
+        type: candidate.memoryType,
+        domain: candidate.topic,
+        claim: candidate.content,
+        source: "ari-vnext"
       })
-    });
+    }, WRITE_TIMEOUT_MS);
 
     return { stored: response.ok, candidate };
   } catch (error) {
-    console.warn("[ARI vNext Continuity] Durable memory persistence failed:", error?.message || error);
+    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Durable memory persistence failed:", error?.message || error);
     return { stored: false, candidate };
+  }
+}
+
+async function timedFetch(url, options = {}, timeoutMs = 1000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), Math.max(100, Number(timeoutMs) || 1000));
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
