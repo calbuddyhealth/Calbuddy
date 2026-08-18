@@ -1,6 +1,7 @@
 // ARI vNext — model-first orchestration through OpenAI Responses API.
 
 import { ARI_PERSONA } from "./persona.js";
+import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolveCommunicationProfile } from "./communication-profile.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
@@ -17,6 +18,7 @@ export async function runAriVNext(turn = {}) {
   const communication = resolveCommunicationProfile(turn?.preferences);
   const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
+  const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const pendingIntent = resolvePendingActionIntent(turn);
 
   if (pendingIntent.type === "confirm") {
@@ -27,6 +29,7 @@ export async function runAriVNext(turn = {}) {
       route,
       safety,
       modelPolicy,
+      coachingState,
       pendingAction: pendingIntent.pendingAction,
       action: {
         type: "execute_pending_action",
@@ -46,6 +49,7 @@ export async function runAriVNext(turn = {}) {
       route,
       safety,
       modelPolicy,
+      coachingState,
       pendingAction: null,
       action: { type: "cancel_pending_action", pendingActionId: pendingIntent.pendingAction?.id || null },
       source: "ari_vnext_pending_cancel"
@@ -57,7 +61,7 @@ export async function runAriVNext(turn = {}) {
     tools.push({ type: "web_search" });
   }
 
-  const instructions = buildInstructions({ route, communication, safety, relevantContext });
+  const instructions = buildInstructions({ route, communication, safety, relevantContext, coachingState });
   const input = buildInput(turn);
 
   const first = await callResponses({
@@ -77,6 +81,7 @@ export async function runAriVNext(turn = {}) {
       route,
       safety,
       modelPolicy,
+      coachingState,
       pendingAction: null,
       action: null,
       provider: providerSummary(first),
@@ -130,6 +135,7 @@ export async function runAriVNext(turn = {}) {
     route,
     safety,
     modelPolicy,
+    coachingState,
     pendingAction,
     action: {
       type: "proposed_action",
@@ -142,7 +148,7 @@ export async function runAriVNext(turn = {}) {
   };
 }
 
-function buildInstructions({ route, communication, safety, relevantContext } = {}) {
+function buildInstructions({ route, communication, safety, relevantContext, coachingState } = {}) {
   const sections = [
     ARI_PERSONA,
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
@@ -151,6 +157,10 @@ function buildInstructions({ route, communication, safety, relevantContext } = {
 
   if (shouldUseFitnessIntelligence(route)) {
     sections.push("\nFITNESS INTELLIGENCE\n" + FITNESS_INTELLIGENCE);
+  }
+
+  if (coachingState) {
+    sections.push("\n" + coachingStateToInstruction(coachingState));
   }
 
   sections.push(
