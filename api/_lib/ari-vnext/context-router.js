@@ -1,12 +1,12 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.1.0";
+export const CONTEXT_ROUTER_VERSION = "1.2.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
-  training: /\b(workout|training|train|exercise|lift|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|running|gym|strength|rest day|recovery)\b/i,
-  goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend)\b/i,
+  training: /\b(workout|training|train|exercise|lift|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|running|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout)\b/i,
+  goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
   memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|my wife|my husband|my brother|my sister|my friend)\b/i,
   health: /\b(injury|injured|pain|sore|soreness|medical|medicine|medication|symptom|pregnan|blood pressure|heart rate|doctor|nurse)\b/i,
@@ -52,27 +52,29 @@ export function buildRelevantContext(turn = {}, route = {}) {
   if (route.goals) {
     selected.goals = source?.goals || source?.healthProfile || {};
     selected.recentWeights = Array.isArray(source?.recentWeights)
-      ? source.recentWeights.slice(0, 10).map(compactWeight)
+      ? source.recentWeights.slice(0, 30).map(compactWeight)
       : [];
   }
 
   if (route.nutrition) {
     selected.nutrition = source?.nutrition || {};
     selected.mealsToday = Array.isArray(source?.mealsToday)
-      ? source.mealsToday.slice(0, 12).map(compactMeal)
+      ? source.mealsToday.slice(0, 16).map(compactMeal)
       : [];
     selected.recentMeals = Array.isArray(source?.recentMeals)
-      ? source.recentMeals.slice(0, 10).map(compactMeal)
+      ? source.recentMeals.slice(0, 32).map(compactMeal)
       : [];
     selected.favoriteFoods = Array.isArray(source?.favoriteFoods)
-      ? source.favoriteFoods.slice(0, 8).map(compactMeal)
+      ? source.favoriteFoods.slice(0, 10).map(compactMeal)
       : [];
   }
 
   if (route.training) {
     selected.training = source?.training || {};
     selected.trainingToday = source?.trainingToday || source?.todayWorkout || null;
-    selected.recentTraining = Array.isArray(source?.recentTraining) ? source.recentTraining.slice(0, 12) : [];
+    selected.recentTraining = Array.isArray(source?.recentTraining)
+      ? source.recentTraining.slice(0, 42)
+      : [];
   }
 
   if (route.coachingState) {
@@ -87,7 +89,7 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
 export function contextToText(context = {}) {
   try {
-    return JSON.stringify(context, null, 2).slice(0, 16000);
+    return JSON.stringify(context, null, 2).slice(0, 18000);
   } catch {
     return "{}";
   }
@@ -133,7 +135,7 @@ function weightTrend(rows = []) {
       date: item?.logged_at || item?.created_at || item?.date || null
     }))
     .filter((item) => item.value !== null)
-    .slice(0, 10);
+    .slice(0, 30);
 
   if (points.length < 2) {
     return { available: false, latest: points[0]?.value ?? null, change: null, direction: "unknown" };
@@ -181,7 +183,7 @@ function isFollowUp(message = "") {
 function estimateComplexity(message = "") {
   const text = String(message || "");
   if (text.length > 1800) return "deep";
-  if (/\b(compare|analyze|review|plan|strategy|why.*and|pros and cons|tradeoff|trend|over the last|history|on pace)\b/i.test(text)) return "deep";
+  if (/\b(compare|analyze|review|plan|strategy|why.*and|pros and cons|tradeoff|trend|velocity|plateau|progression|over the last|history|on pace|adjust my program|change my program)\b/i.test(text)) return "deep";
   if (text.length > 500) return "standard";
   return "fast";
 }
