@@ -12,6 +12,7 @@ import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longi
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { applyOutcomeLearning } from "./outcome-learning.js";
+import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
@@ -24,7 +25,14 @@ export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
   const safety = classifySafety(turn, route);
   const communication = resolveCommunicationProfile(turn?.preferences);
-  const selfModel = deriveSelfModel({ turn, route, safety });
+  const relationshipContinuity = deriveRelationshipContinuity({
+    userWorldModel: turn?.context?.userWorldModel || null,
+    decisionState: turn?.context?.decisionState || null,
+    experimentLedger: turn?.context?.experimentLedger || null,
+    temporalTimeline: turn?.context?.temporalTimeline || null,
+    recentContinuityPairs: Number(turn?.context?.recentContinuityPairs || 0)
+  });
+  const selfModel = deriveSelfModel({ turn: { ...turn, relationshipContinuity }, route, safety });
   const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
@@ -72,6 +80,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       communication,
       selfModel,
+      relationshipContinuity,
       goalHierarchy,
       metacognition,
       scientificIntelligence,
@@ -100,6 +109,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       communication,
       selfModel,
+      relationshipContinuity,
       goalHierarchy,
       metacognition,
       scientificIntelligence,
@@ -124,6 +134,7 @@ export async function runAriVNext(turn = {}) {
     communication,
     safety,
     selfModel,
+    relationshipContinuity,
     goalHierarchy,
     metacognition,
     scientificIntelligence,
@@ -153,6 +164,7 @@ export async function runAriVNext(turn = {}) {
       safety,
       communication,
       selfModel,
+      relationshipContinuity,
       goalHierarchy,
       metacognition,
       scientificIntelligence,
@@ -226,6 +238,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     communication,
     selfModel,
+    relationshipContinuity,
     goalHierarchy,
     metacognition,
     scientificIntelligence,
@@ -251,6 +264,7 @@ function buildInstructions({
   communication,
   safety,
   selfModel,
+  relationshipContinuity,
   goalHierarchy,
   metacognition,
   scientificIntelligence,
@@ -264,6 +278,7 @@ function buildInstructions({
     ARI_PERSONA,
     "\nTEMPORAL GROUNDING\n" + temporalContextToInstruction(temporalContext, route),
     "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
+    "\n" + relationshipContinuityToInstruction(relationshipContinuity),
     "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
