@@ -2,7 +2,7 @@
 // Gives Ari a natural sense of shared history without inventing intimacy,
 // emotions, memories, or subjective consciousness.
 
-export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.0.0";
+export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.0.1";
 
 export function deriveRelationshipContinuity({
   userWorldModel = null,
@@ -49,7 +49,7 @@ export function deriveRelationshipContinuity({
     ...decisionThreads(openDecisions, now),
     ...tensionThreads(model?.tensions)
   ]
-    .sort((a, b) => threadWeight(b.priority) - threadWeight(a.priority) || dateValue(a.dueAt) - dateValue(b.dueAt))
+    .sort((a, b) => threadWeight(b.priority) - threadWeight(a.priority) || dueSortValue(a.dueAt) - dueSortValue(b.dueAt))
     .slice(0, 6);
 
   const recentSharedEvents = timelineEvents
@@ -103,7 +103,8 @@ function experimentThreads(experiments = [], now = new Date()) {
   const nowMs = dateValue(now);
   return experiments.slice(0, 6).map((item) => {
     const reviewAt = item?.reviewAt || item?.review_at || null;
-    const due = reviewAt ? dateValue(reviewAt) <= nowMs : false;
+    const reviewMs = dateValue(reviewAt);
+    const due = Boolean(reviewMs && reviewMs <= nowMs);
     return {
       id: `experiment:${clean(item?.id, 160)}`,
       type: "experiment",
@@ -166,7 +167,10 @@ function threadWeight(value) {
 }
 function dateValue(value) {
   const parsed = value instanceof Date ? value.getTime() : Date.parse(String(value || ""));
-  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function dueSortValue(value) {
+  return dateValue(value) || Number.MAX_SAFE_INTEGER;
 }
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
