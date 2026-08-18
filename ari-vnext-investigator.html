@@ -34,7 +34,7 @@
 <main>
   <div class="eyebrow">Owner Intelligence</div>
   <h1>ARI Investigator Lab</h1>
-  <div class="sub">Inspect Ari's evidence graph, competing explanations, information-gain question, and N-of-1 experiment state.</div>
+  <div class="sub">Inspect Ari's evidence graph, competing explanations, information-gain question, autobiographical outcome learning, and N-of-1 experiment state.</div>
   <div id="status" class="status">Checking owner access…</div>
 
   <section id="shell" class="shell" hidden>
@@ -74,7 +74,7 @@
 <script src="supabase-config.js"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script src="ari/vnext/ari-vnext-training-context.js?v=1.2.0"></script>
-<script src="ari/vnext/ari-vnext-bridge.js?v=1.6.0"></script>
+<script src="ari/vnext/ari-vnext-bridge.js?v=1.6.1"></script>
 <script>
   const status = document.getElementById('status');
   const shell = document.getElementById('shell');
@@ -114,6 +114,7 @@
       const hypotheses = Array.isArray(science?.hypotheses) ? science.hypotheses : [];
       const experiment = science?.experiment || {};
       const q = science?.nextQuestion || null;
+      const learning = science?.outcomeLearning || {};
 
       document.getElementById('reply').textContent = result?.reply || 'No textual reply.';
       document.getElementById('graph').textContent = `${graph.nodeCount || 0} evidence nodes • ${graph.edgeCount || 0} relationships • ${graph.outcomeMemoryCount || 0} prior outcome memories\n\n${(graph.nodes || []).slice(0,10).map(n => `${n.type}: ${n.label} = ${typeof n.value === 'object' ? JSON.stringify(n.value) : n.value}`).join('\n') || 'No structured evidence.'}`;
@@ -126,7 +127,8 @@
         strong.textContent = `#${item.rank} ${item.label}`;
         const score = document.createElement('div');
         score.className = 'score';
-        score.textContent = `${item.status} • score ${item.score}`;
+        const outcomeText = item.outcomeAdjustment ? ` • outcome ${item.outcomeAdjustment > 0 ? '+' : ''}${item.outcomeAdjustment}` : '';
+        score.textContent = `${item.status} • score ${item.score}${outcomeText}`;
         const detail = document.createElement('div');
         detail.className = 'small';
         detail.textContent = `For: ${(item.supportingEvidence || []).join(', ') || 'none'}\nAgainst: ${(item.contradictingEvidence || []).join(', ') || 'none'}\nUnknowns: ${(item.unknowns || []).join(' ') || 'none'}`;
@@ -144,7 +146,7 @@
         experiment.supportsHypothesisIf ? `Supports if: ${experiment.supportsHypothesisIf}` : '',
         experiment.weakensHypothesisIf ? `Weakens if: ${experiment.weakensHypothesisIf}` : ''
       ].filter(Boolean).join('\n\n');
-      document.getElementById('decision').textContent = `Program stance: ${result?.longitudinalState?.programDecision?.stance || 'n/a'}\nEvidence confidence: ${result?.metacognition?.confidence || 'n/a'}\nModel mode: ${result?.modelPolicy?.mode || 'n/a'}\nModel: ${result?.provider?.model || result?.modelPolicy?.model || 'n/a'}`;
+      document.getElementById('decision').textContent = `Program stance: ${result?.longitudinalState?.programDecision?.stance || 'n/a'}\nEvidence confidence: ${result?.metacognition?.confidence || 'n/a'}\nOutcome learning: ${learning.applied ? `${learning.matchedOutcomes || 0} matched memories` : 'not applied'}\nModel mode: ${result?.modelPolicy?.mode || 'n/a'}\nModel: ${result?.provider?.model || result?.modelPolicy?.model || 'n/a'}`;
       history.push({ role:'user', content:message }, { role:'assistant', content:result?.reply || '' });
       while (history.length > 12) history.shift();
     } catch (error) {
