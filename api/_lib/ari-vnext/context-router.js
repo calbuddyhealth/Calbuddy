@@ -1,7 +1,7 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.5.0";
+export const CONTEXT_ROUTER_VERSION = "1.6.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
@@ -79,6 +79,13 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
   if (route.coachingState) selected.coachingSnapshot = buildCoachingSnapshot(source);
   if (route.social) selected.social = source?.social || {};
+
+  // Active experiments are part of Ari's current model of the user. Surface
+  // them for fitness decisions so Ari does not casually change a controlled
+  // variable halfway through an observation window.
+  if ((route.training || route.nutrition || route.goals) && source?.experimentLedger) {
+    selected.experimentLedger = source.experimentLedger;
+  }
 
   // Relevant memory is useful not only when the user explicitly asks Ari to
   // remember something. Fitness outcome memories and prior coaching results
