@@ -6,6 +6,7 @@ import {
   persistDurableMemory
 } from "./_lib/ari-vnext/continuity-service.js";
 import { routeContext } from "./_lib/ari-vnext/context-router.js";
+import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 
@@ -62,17 +63,35 @@ export default async function handler(req, res) {
     turn.history = recentContinuity.history;
 
     const routePreview = routeContext(turn);
-    let retrievedMemoryCount = 0;
+    const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
+    const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
 
-    if (routePreview.memory || routePreview.training || routePreview.nutrition || routePreview.goals) {
-      const retrieved = await retrieveRelevantMemories({
-        userId: auth.userId,
-        message: turn.message,
-        limit: routePreview.memory ? 6 : 5
-      });
+    // Memory and experiment history are independent reads, so load them in
+    // parallel. Ordinary conversation still pays for neither.
+    const [retrieved, experiments] = await Promise.all([
+      shouldLoadMemory
+        ? retrieveRelevantMemories({
+            userId: auth.userId,
+            message: turn.message,
+            limit: routePreview.memory ? 6 : 5
+          })
+        : Promise.resolve({ memories: [], summary: "" }),
+      fitnessRoute
+        ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
+        : Promise.resolve([])
+    ]);
 
-      retrievedMemoryCount = retrieved.memories.length;
+    const retrievedMemoryCount = retrieved.memories.length;
+    if (retrieved.summary) {
       turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
+    }
+
+    const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
+    if (experimentLedger) {
+      turn.context = {
+        ...(turn.context || {}),
+        experimentLedger
+      };
     }
 
     const result = await runAriVNext(turn);
@@ -100,6 +119,8 @@ export default async function handler(req, res) {
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
             recentContinuityPairs: recentContinuity.hydratedPairs,
+            activeExperimentCount: experimentLedger?.activeCount || 0,
+            dueExperimentCount: experimentLedger?.dueCount || 0,
             leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
             experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
             outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
@@ -141,6 +162,7 @@ export default async function handler(req, res) {
       turnId: turn.turnId,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
+      experimentLedger,
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
       durableMemoryStored,
