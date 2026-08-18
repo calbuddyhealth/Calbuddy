@@ -2,7 +2,7 @@
 // Gives Ari an occasional external critique without adding latency to normal chat.
 // This is a functional reflection mechanism, not evidence of subjective consciousness.
 
-export const ARI_PEER_REFLECTION_VERSION = "1.2.0";
+export const ARI_PEER_REFLECTION_VERSION = "1.3.0";
 
 const HIGH_STAKES_MODES = new Set(["protective_clarity"]);
 const REFLECTIVE_MODES = new Set([
@@ -93,6 +93,8 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
         reason: sanitizeForPeer(result.proactiveInsights.primary.reason, 420)
       }
     : null;
+  const goalHierarchy = compactGoalHierarchy(result?.goalHierarchy);
+  const communicationLearning = compactCommunicationLearning(result?.communicationLearning);
 
   const packet = {
     ari: {
@@ -101,7 +103,9 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
       evidenceConfidence: clean(result?.metacognition?.confidence, 80) || "unknown",
       missingEvidence: (Array.isArray(result?.metacognition?.missingEvidence) ? result.metacognition.missingEvidence : []).slice(0, 5),
       programStance: clean(result?.longitudinalState?.programDecision?.stance, 120) || null,
-      calibration
+      calibration,
+      goalHierarchy,
+      communicationLearning
     },
     interaction: {
       userMessage: sanitizeForPeer(message, 850),
@@ -120,7 +124,7 @@ export function buildPeerReflectionPacket({ message = "", result = {}, previousR
     priorPeerTakeaways: previous
   };
 
-  return JSON.stringify(packet, null, 2).slice(0, 10000);
+  return JSON.stringify(packet, null, 2).slice(0, 11500);
 }
 
 export function peerReflectionInstructions() {
@@ -130,6 +134,9 @@ export function peerReflectionInstructions() {
     "You are not the user, you are not Ari, and you are not a human friend. Do not pretend subjective consciousness has been established.",
     "Review the supplied interaction and identify at most one high-value takeaway and one question Ari should keep in mind later.",
     "When Ari supplies competing hypotheses, challenge whether the leading explanation is over-weighted, whether a credible alternative was ignored, and whether the proposed experiment can actually distinguish them.",
+    "If a goal hierarchy is supplied, check whether Ari respected explicit priority, exposed a real tradeoff when needed, and avoided pretending conflicting goals could all be maximized.",
+    "Communication/outcome learning is correlational. Challenge Ari if she treats a communication strategy as causal or if it conflicts with the user's explicit style preference.",
+    "Never endorse manipulative, dependency-forming, guilt-based, or coercive communication merely because it might improve adherence.",
     "If calibration indicates overconfidence or underconfidence, critique confidence expression separately from the evidence ranking. Do not manufacture certainty from calibration statistics.",
     "When a world-model tension is supplied, check whether Ari actually used the observed-vs-stated mismatch appropriately rather than simply obeying the user's aspirational request or shaming the user for imperfect adherence.",
     "Use temporal events to challenge before/after claims, but do not treat sequence alone as causation.",
@@ -138,7 +145,7 @@ export function peerReflectionInstructions() {
     "Challenge weak assumptions when warranted. Do not flatter Ari and do not simply agree.",
     "Do not request hidden chain-of-thought. Judge only the visible response and structured evidence supplied.",
     "Do not create new user facts. Do not convert uncertainty into certainty. Do not weaken safety or user agency.",
-    "Prefer durable lessons about reasoning, coaching style, evidence use, experiment design, calibration, temporal interpretation, or consistency over surface wording changes.",
+    "Prefer durable lessons about reasoning, coaching style, evidence use, experiment design, calibration, goal tradeoffs, temporal interpretation, or consistency over surface wording changes.",
     "Return exactly two lines:",
     "TAKEAWAY: <one concise takeaway, or none>",
     "QUESTION: <one concise future question, or none>"
@@ -193,6 +200,35 @@ function compactCalibration(value = {}) {
     meanConfidence: Number.isFinite(Number(value?.meanConfidence)) ? Number(value.meanConfidence) : null,
     calibrationGap: Number.isFinite(Number(value?.calibrationGap)) ? Number(value.calibrationGap) : null,
     tendency: clean(value?.tendency, 80) || "unknown"
+  };
+}
+
+function compactGoalHierarchy(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    primary: value?.primary ? { id: clean(value.primary.id, 100), label: clean(value.primary.label, 180), source: clean(value.primary.source, 100) } : null,
+    secondary: (Array.isArray(value?.secondary) ? value.secondary : []).slice(0, 3).map((item) => ({ id: clean(item?.id, 100), label: clean(item?.label, 180) })),
+    tradeoffs: (Array.isArray(value?.tradeoffs) ? value.tradeoffs : []).slice(0, 3).map((item) => ({ id: clean(item?.id, 120), summary: sanitizeForPeer(item?.summary, 380) })),
+    explicitPriority: Boolean(value?.explicitPriority),
+    hierarchyConfidence: Number.isFinite(Number(value?.hierarchyConfidence)) ? Number(value.hierarchyConfidence) : null
+  };
+}
+
+function compactCommunicationLearning(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    resolvedCount: Number(value?.resolvedCount || 0),
+    preferredAssociation: value?.preferredAssociation ? {
+      strategyKey: clean(value.preferredAssociation.strategyKey, 300),
+      positiveRate: Number.isFinite(Number(value.preferredAssociation.positiveRate)) ? Number(value.preferredAssociation.positiveRate) : null,
+      scorableSample: Number(value.preferredAssociation.scorableSample || 0)
+    } : null,
+    avoidAssociation: value?.avoidAssociation ? {
+      strategyKey: clean(value.avoidAssociation.strategyKey, 300),
+      positiveRate: Number.isFinite(Number(value.avoidAssociation.positiveRate)) ? Number(value.avoidAssociation.positiveRate) : null,
+      scorableSample: Number(value.avoidAssociation.scorableSample || 0)
+    } : null,
+    causalClaimAllowed: false
   };
 }
 
