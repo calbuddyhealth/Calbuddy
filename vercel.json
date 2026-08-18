@@ -1,20 +1,47 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    {"source":"/api/knowledge","destination":"/api/secure-ai-gateway?route=knowledge"},
-    {"source":"/api/ari-intent-router","destination":"/api/secure-ai-gateway?route=intent"},
-    {"source":"/api/ask-calbuddy","destination":"/api/secure-ai-gateway?route=ask"},
-    {"source":"/api/usage","destination":"/api/secure-ai-gateway?route=usage"},
-    {"source":"/api/owner-ai-costs","destination":"/api/secure-ai-gateway?route=usage&action=owner_costs"}
+    {
+      "source": "/api/knowledge",
+      "destination": "/api/secure-ai-gateway?route=knowledge"
+    },
+    {
+      "source": "/api/ari-intent-router",
+      "destination": "/api/secure-ai-gateway?route=intent"
+    },
+    {
+      "source": "/api/ask-calbuddy",
+      "destination": "/api/secure-ai-gateway?route=ask"
+    },
+    {
+      "source": "/api/usage",
+      "destination": "/api/secure-ai-gateway?route=usage"
+    },
+    {
+      "source": "/api/owner-ai-costs",
+      "destination": "/api/secure-ai-gateway?route=usage&action=owner_costs"
+    }
   ],
   "headers": [
     {
-      "source":"/(.*)",
+      "source": "/(.*)",
       "headers": [
-        {"key":"X-Content-Type-Options","value":"nosniff"},
-        {"key":"Referrer-Policy","value":"strict-origin-when-cross-origin"},
-        {"key":"X-Frame-Options","value":"SAMEORIGIN"},
-        {"key":"Permissions-Policy","value":"camera=(self), microphone=(self), geolocation=(self)"}
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=(self)"
+        }
       ]
     }
   ]
