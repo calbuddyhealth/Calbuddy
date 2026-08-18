@@ -3,7 +3,7 @@
 // outcome memories remain useful for experiences that predate the ledger.
 // Current objective evidence always outranks autobiographical outcome history.
 
-export const ARI_OUTCOME_LEARNING_VERSION = "1.1.0";
+export const ARI_OUTCOME_LEARNING_VERSION = "1.1.1";
 
 export function applyOutcomeLearning(scientificState = null, relevantMemory = "", experimentLedger = null) {
   if (!scientificState || !Array.isArray(scientificState?.hypotheses)) return scientificState;
@@ -140,8 +140,8 @@ function structuredDelta(direction) {
 }
 
 function rememberedDelta(direction) {
-  if (direction === "positive") return 0.05;
-  if (direction === "negative") return -0.04;
+  if (direction === "positive") return 0.06;
+  if (direction === "negative") return -0.05;
   if (direction === "mixed") return 0.01;
   return 0;
 }
