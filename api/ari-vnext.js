@@ -1,5 +1,10 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
+import {
+  hydrateRecentConversation,
+  persistConversationTurn,
+  persistDurableMemory
+} from "./_lib/ari-vnext/continuity-service.js";
 import { routeContext } from "./_lib/ari-vnext/context-router.js";
 import { retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
@@ -43,6 +48,16 @@ export default async function handler(req, res) {
       });
     }
 
+    // The browser normally supplies active-thread history. If it is sparse
+    // (app relaunch/new surface), recover only a few unexpired recent pairs.
+    // The read is hard-bounded so continuity cannot become a latency tax.
+    const recentContinuity = await hydrateRecentConversation({
+      userId: auth.userId,
+      history: turn.history,
+      limitPairs: 4
+    });
+    turn.history = recentContinuity.history;
+
     const routePreview = routeContext(turn);
     let retrievedMemoryCount = 0;
 
@@ -59,35 +74,68 @@ export default async function handler(req, res) {
 
     const result = await runAriVNext(turn);
 
-    if (result?.provider?.usage) {
-      await recordOpenAIUsage({
-        userId: auth.userId,
-        endpoint: "/api/ari-vnext",
-        usageType: "chat",
-        requestCategory: `ari_vnext_${result?.modelPolicy?.mode || "standard"}`,
-        model: result?.provider?.model || result?.modelPolicy?.model,
-        responseData: {
-          id: result?.provider?.id,
-          model: result?.provider?.model,
-          usage: result?.provider?.usage
-        },
-        providerRequestId: result?.provider?.id || null,
-        metadata: {
-          turnId: turn.turnId,
-          surface: turn.surface,
-          mode: result?.modelPolicy?.mode || null,
-          actionType: result?.action?.type || null,
-          memoryCount: retrievedMemoryCount,
-          route: result?.route || null
-        }
-      });
-    }
+    // Cost telemetry and continuity writes happen together rather than
+    // serially. They are never allowed to turn a good Ari answer into a
+    // failed response. Continuity writes have their own sub-second limits.
+    const usageTask = result?.provider?.usage
+      ? recordOpenAIUsage({
+          userId: auth.userId,
+          endpoint: "/api/ari-vnext",
+          usageType: "chat",
+          requestCategory: `ari_vnext_${result?.modelPolicy?.mode || "standard"}`,
+          model: result?.provider?.model || result?.modelPolicy?.model,
+          responseData: {
+            id: result?.provider?.id,
+            model: result?.provider?.model,
+            usage: result?.provider?.usage
+          },
+          providerRequestId: result?.provider?.id || null,
+          metadata: {
+            turnId: turn.turnId,
+            surface: turn.surface,
+            mode: result?.modelPolicy?.mode || null,
+            actionType: result?.action?.type || null,
+            memoryCount: retrievedMemoryCount,
+            recentContinuityPairs: recentContinuity.hydratedPairs,
+            route: result?.route || null
+          }
+        })
+      : Promise.resolve(null);
+
+    const turnPersistenceTask = cleanText(result?.reply, 12000)
+      ? persistConversationTurn({
+          userId: auth.userId,
+          message: turn.message,
+          reply: result.reply,
+          surface: turn.surface
+        })
+      : Promise.resolve(false);
+
+    // Durable writes are deliberately conservative and deterministic:
+    // explicit remember requests, clear preferences, goals, and corrections.
+    // No second AI call is used to decide what becomes memory.
+    const durableMemoryTask = persistDurableMemory({
+      userId: auth.userId,
+      message: turn.message
+    });
+
+    const [, turnPersistence, durablePersistence] = await Promise.allSettled([
+      usageTask,
+      turnPersistenceTask,
+      durableMemoryTask
+    ]);
+
+    const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
+    const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
 
     return res.status(200).json({
       ...result,
       turnId: turn.turnId,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
+      recentContinuityPairs: recentContinuity.hydratedPairs,
+      continuityTurnStored,
+      durableMemoryStored,
       timing: { totalMs: Date.now() - startedAt }
     });
   } catch (error) {
