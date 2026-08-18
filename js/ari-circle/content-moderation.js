@@ -1,24 +1,32 @@
 /* =============================================================
    ARI XP — ARI CIRCLE CONTENT MODERATION
-   Version: 1.4.0
+   Version: 1.5.0
 
-   Pre-publication safety screening for ARI Circle UGC.
-   Covers Feed, comments, Moments, Messages, Buddies, and Challenges.
-   Teen text safety runs before AI moderation and records blocked attempts
-   into the owner-only Teen Safety review queue.
+   Cost-controlled pre-publication screening for ARI Circle UGC.
+   - Uses dedicated free OpenAI moderation endpoint.
+   - Samples videos into three small JPEG frames.
+   - Compresses large social photos before existing upload handlers see them.
+   - Defers off-screen feed video network loading.
+   - Preserves teen text screening and owner safety logging.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.4.0";
-  const PROFILE_API = "/api/profile";
+  const VERSION = "1.5.0";
+  const MODERATION_API = "/api/ari-circle-moderation";
   const CONSENT_SCRIPT = "js/ai-processing-consent.js?v=1.1.0";
   const AI_CONSENT_KEY = "ari_ai_processing_consent";
   const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
   const REQUIRED_AI_CONSENT_VERSION = "2";
-  const MAX_IMAGE_EDGE = 768;
+
+  const MODERATION_IMAGE_EDGE = 768;
   const VIDEO_SAMPLE_EDGE = 640;
-  const JPEG_QUALITY = 0.68;
+  const MODERATION_JPEG_QUALITY = 0.68;
+
+  const UPLOAD_IMAGE_EDGE = 2048;
+  const UPLOAD_JPEG_QUALITY = 0.82;
+  const MIN_IMAGE_OPTIMIZE_BYTES = 700 * 1024;
+  const MIN_SAVINGS_RATIO = 0.92;
 
   const mutationRules = Object.freeze({
     ari_circle_feed_create_post_v2: Object.freeze({
@@ -103,7 +111,15 @@
     patched: false,
     selectedMediaFiles: new Map(),
     initAttempts: 0,
-    consentLoader: null
+    consentLoader: null,
+    lazyVideoObserver: null,
+    lazyVideoMutationObserver: null,
+    imageOptimization: {
+      attempted: 0,
+      optimized: 0,
+      bytesBefore: 0,
+      bytesAfter: 0
+    }
   };
 
   function clean(value) {
@@ -134,11 +150,123 @@
     return true;
   }
 
-  function rememberSelectedMedia(event) {
+  async function rememberSelectedMedia(event) {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
     if (!moderatedInputIds.has(input.id)) return;
-    rememberFile(input.id, input.files?.[0] || null);
+
+    const file = input.files?.[0] || null;
+    if (!file) {
+      rememberFile(input.id, null);
+      return;
+    }
+
+    if (input.dataset.ariOptimizationReplay === "1") {
+      delete input.dataset.ariOptimizationReplay;
+      rememberFile(input.id, file);
+      return;
+    }
+
+    const type = clean(file.type).toLowerCase();
+    const canOptimize =
+      type.startsWith("image/") &&
+      !type.includes("gif") &&
+      file.size >= MIN_IMAGE_OPTIMIZE_BYTES;
+
+    if (!canOptimize) {
+      rememberFile(input.id, file);
+      return;
+    }
+
+    // Stop the original event before feed/challenge upload handlers consume the
+    // large original. Replay one change event after optimization completes.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    try {
+      const optimized = await optimizeImageFile(file);
+      const replacement = optimized || file;
+
+      if (replacement !== file && replaceInputFile(input, replacement)) {
+        rememberFile(input.id, replacement);
+      } else {
+        rememberFile(input.id, file);
+      }
+    } catch (error) {
+      console.warn("[ARI Circle Media] photo optimization skipped:", error?.message || error);
+      rememberFile(input.id, file);
+    } finally {
+      input.dataset.ariOptimizationReplay = "1";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  function replaceInputFile(input, file) {
+    try {
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      return input.files?.[0] === file || input.files?.[0]?.size === file.size;
+    } catch (error) {
+      console.warn("[ARI Circle Media] browser kept original photo:", error?.message || error);
+      return false;
+    }
+  }
+
+  async function optimizeImageFile(file) {
+    state.imageOptimization.attempted += 1;
+    state.imageOptimization.bytesBefore += Number(file.size || 0);
+
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.decoding = "async";
+
+    try {
+      image.src = url;
+      if (typeof image.decode === "function") await image.decode();
+      else await waitFor(image, "load", 7000);
+
+      const width = Number(image.naturalWidth || image.width || 0);
+      const height = Number(image.naturalHeight || image.height || 0);
+      if (!width || !height) return null;
+
+      const scale = Math.min(1, UPLOAD_IMAGE_EDGE / Math.max(width, height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) return null;
+
+      context.fillStyle = "#000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const blob = await canvasToBlob(canvas, "image/jpeg", UPLOAD_JPEG_QUALITY);
+      if (!blob || blob.size >= file.size * MIN_SAVINGS_RATIO) {
+        state.imageOptimization.bytesAfter += Number(file.size || 0);
+        return null;
+      }
+
+      const baseName = clean(file.name).replace(/\.[^.]+$/, "") || "ari-circle-photo";
+      const optimized = new File(
+        [blob],
+        `${baseName}.jpg`,
+        { type: "image/jpeg", lastModified: file.lastModified || Date.now() }
+      );
+
+      state.imageOptimization.optimized += 1;
+      state.imageOptimization.bytesAfter += optimized.size;
+      return optimized;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob || null), type, quality);
+    });
   }
 
   function ensureConsentController() {
@@ -203,7 +331,7 @@
     return session;
   }
 
-  function canvasDataUrl(source, maxEdge = MAX_IMAGE_EDGE) {
+  function canvasDataUrl(source, maxEdge = MODERATION_IMAGE_EDGE) {
     const width = Number(source.videoWidth || source.naturalWidth || source.width || 0);
     const height = Number(source.videoHeight || source.naturalHeight || source.height || 0);
     if (!width || !height) throw new Error("ARI Circle could not read that media.");
@@ -216,7 +344,7 @@
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) throw new Error("ARI Circle could not prepare that media.");
     context.drawImage(source, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    return canvas.toDataURL("image/jpeg", MODERATION_JPEG_QUALITY);
   }
 
   function waitFor(target, eventName, timeoutMs = 5000) {
@@ -247,7 +375,7 @@
       image.src = url;
       if (image.decode) await image.decode();
       else await waitFor(image, "load");
-      return [canvasDataUrl(image, MAX_IMAGE_EDGE)];
+      return [canvasDataUrl(image, MODERATION_IMAGE_EDGE)];
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -266,7 +394,7 @@
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
-    video.preload = "auto";
+    video.preload = "metadata";
 
     try {
       video.src = url;
@@ -283,6 +411,7 @@
         Math.min(duration * 0.5, lastFrame),
         Math.min(duration * 0.88, lastFrame)
       ];
+
       const frames = [];
       for (const time of sampleTimes) {
         await seekVideo(video, time);
@@ -391,14 +520,13 @@
     const token = clean(resolvedSession?.access_token);
     if (!token) throw new Error("Sign in again before sharing to ARI Circle.");
 
-    const response = await fetch(PROFILE_API, {
+    const response = await fetch(MODERATION_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
-        action: "moderate_circle_content",
         scope: clean(scope).slice(0, 80),
         text: clean(text).slice(0, 8000),
         image_urls: Array.isArray(imageUrls) ? imageUrls.slice(0, 4) : []
@@ -484,9 +612,63 @@
     return true;
   }
 
+  function setupLazyFeedVideos() {
+    if (!("IntersectionObserver" in window) || !("MutationObserver" in window)) return;
+
+    state.lazyVideoObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const video = entry.target;
+        state.lazyVideoObserver.unobserve(video);
+        const deferred = clean(video.dataset.ariDeferredSrc);
+        if (!deferred || video.src) continue;
+        video.src = deferred;
+        delete video.dataset.ariDeferredSrc;
+        video.preload = "metadata";
+        video.load();
+      }
+    }, { rootMargin: "600px 0px", threshold: 0.01 });
+
+    const prepare = (video) => {
+      if (!(video instanceof HTMLVideoElement)) return;
+      if (!video.matches(".feed-post__video")) return;
+      if (video.dataset.ariBandwidthPrepared === "1") return;
+
+      video.dataset.ariBandwidthPrepared = "1";
+      const source = clean(video.getAttribute("src") || video.src);
+      if (!source) return;
+
+      video.dataset.ariDeferredSrc = source;
+      video.pause();
+      video.removeAttribute("src");
+      video.preload = "none";
+      video.load();
+      state.lazyVideoObserver.observe(video);
+    };
+
+    document.querySelectorAll("video.feed-post__video").forEach(prepare);
+
+    state.lazyVideoMutationObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches?.("video.feed-post__video")) prepare(node);
+          node.querySelectorAll?.("video.feed-post__video").forEach(prepare);
+        }
+      }
+    });
+
+    state.lazyVideoMutationObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  }
+
   function init() {
     document.addEventListener("change", rememberSelectedMedia, true);
     ensureConsentController();
+    setupLazyFeedVideos();
+
     if (patchRpc()) return;
 
     const retry = () => {
@@ -508,6 +690,7 @@
     moderate: requestModeration,
     rememberFile,
     refresh: patchRpc,
-    isReady: () => state.patched === true
+    isReady: () => state.patched === true,
+    mediaOptimizationStats: () => ({ ...state.imageOptimization })
   });
 })();
