@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.5 — Adds Training completed-workout undo safety for iOS focus races.
 // V1.10.4 — Adds shared activity Quick Log + Goals burn aggregation loaders.
 // V1.10.3 — Guarantees every authenticated user has a minimal profiles row
 // before protected app surfaces become usable. No fake health defaults.
@@ -17,6 +18,7 @@ const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
 const ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID = "ariWorkoutDialogFloatingCloseScript";
+const ARI_TRAINING_UNDO_SAFETY_SCRIPT_ID = "ariTrainingUndoSafetyScript";
 const ARI_TRAINING_QUICK_LOG_SCRIPT_ID = "ariTrainingQuickLogScript";
 const ARI_GOALS_BURN_SYNC_SCRIPT_ID = "ariGoalsActivityBurnSyncScript";
 
@@ -272,11 +274,19 @@ function bootstrapWorkoutDialogFloatingClose() {
   );
 }
 
+function bootstrapTrainingUndoSafety() {
+  if (currentAriSurface() !== "training") return;
+  appendOrderedScript(
+    ARI_TRAINING_UNDO_SAFETY_SCRIPT_ID,
+    "js/training/training-undo-safety.js?v=1.0.0"
+  );
+}
+
 function bootstrapTrainingQuickLog() {
   if (currentAriSurface() !== "training") return;
   appendOrderedScript(
     ARI_TRAINING_QUICK_LOG_SCRIPT_ID,
-    "js/training/activity-quick-log.js?v=1.0.0"
+    "js/training/activity-quick-log.js?v=1.1.0"
   );
 }
 
@@ -295,6 +305,7 @@ bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
 bootstrapNeutralGoalsForNewUsers();
 bootstrapWorkoutDialogFloatingClose();
+bootstrapTrainingUndoSafety();
 bootstrapTrainingQuickLog();
 bootstrapGoalsActivityBurnSync();
 bootstrapAIAccessConsent();
