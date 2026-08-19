@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.7 — Loads shared vNext Home + Nutrition runtime bootstrap.
 // V1.10.6 — Loads deterministic Meal Plan intent router v1.3.1.
 // V1.10.5 — Adds Training completed-workout undo safety for iOS focus races.
 // V1.10.4 — Adds shared activity Quick Log + Goals burn aggregation loaders.
@@ -242,7 +243,7 @@ function appendOrderedScript(id, src) {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.3.1");
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.4.0");
 }
 
 function bootstrapAriMealAction() {
