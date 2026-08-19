@@ -3,11 +3,27 @@ name: ARI vNext intelligence tests
 on:
   push:
     branches:
+      - main
       - agent/ari-vnext-intelligence
     paths:
       - "api/ari-vnext.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
+      - "ari/runtime/ari-runtime-controller.js"
+      - "ari/intent/ari-central-intent-router.js"
+      - "js/auth.js"
+      - "tests/ari-vnext-*.test.mjs"
+      - ".github/workflows/ari-vnext-tests.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "api/ari-vnext.js"
+      - "api/_lib/ari-vnext/**"
+      - "ari/vnext/**"
+      - "ari/runtime/ari-runtime-controller.js"
+      - "ari/intent/ari-central-intent-router.js"
+      - "js/auth.js"
       - "tests/ari-vnext-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
   workflow_dispatch:
