@@ -3,7 +3,7 @@
 
 import CalorieCalculator from "./energy/calorie-calculator.js";
 
-const VERSION = "1.0.1";
+const VERSION = "1.1.0";
 const SOURCE = "js/training/activity-log-service";
 const CALORIE_SOURCES = new Set(["user_reported", "profile_estimate", "legacy"]);
 
@@ -12,6 +12,8 @@ function clean(value = "", max = 180) {
 }
 
 function number(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -116,11 +118,7 @@ function normalizeIntensity(value = "") {
 function activitySession(activityName, sets, repsPerSet) {
   return {
     title: activityName,
-    exercises: [{
-      name: activityName,
-      sets: integer(sets),
-      reps: integer(repsPerSet)
-    }]
+    exercises: [{ name: activityName, sets: integer(sets), reps: integer(repsPerSet) }]
   };
 }
 
@@ -233,24 +231,44 @@ async function prepareActivity(input = {}, options = {}) {
     estimationMethod = estimate.method;
   }
 
-  const prepared = {
-    activity_name: activityName,
-    calories_burned: Math.round(caloriesBurned),
-    duration_minutes: durationMinutes,
-    sets,
-    reps_per_set: repsPerSet,
-    total_reps: totalReps,
-    intensity: normalizeIntensity(input.intensity),
-    average_heart_rate: averageHeartRate,
-    calorie_source: calorieSource,
-    estimation_method: estimationMethod,
-    source: clean(options.source || input.source || "manual_quick_log", 80),
-    notes: clean(input.notes, 500) || null,
-    log_date: dateKey,
-    created_at: new Date().toISOString()
+  return {
+    success: true,
+    activity: {
+      activity_name: activityName,
+      calories_burned: Math.round(caloriesBurned),
+      duration_minutes: durationMinutes,
+      sets,
+      reps_per_set: repsPerSet,
+      total_reps: totalReps,
+      intensity: normalizeIntensity(input.intensity),
+      average_heart_rate: averageHeartRate,
+      calorie_source: calorieSource,
+      estimation_method: estimationMethod,
+      source: clean(options.source || input.source || "manual_quick_log", 80),
+      notes: clean(input.notes, 500) || null,
+      log_date: dateKey,
+      created_at: new Date().toISOString()
+    },
+    estimate
   };
+}
 
-  return { success: true, activity: prepared, estimate };
+function clearBurnCache() {
+  try {
+    localStorage.removeItem("calbuddyCaloriesBurned");
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("calbuddyCaloriesBurned_")) localStorage.removeItem(key);
+    });
+  } catch {}
+}
+
+function emitActivityChange(kind, activity) {
+  window.dispatchEvent(new CustomEvent("ari:activityLogged", {
+    detail: { kind, activity, source: activity?.source || "manual_quick_log" }
+  }));
+  window.dispatchEvent(new CustomEvent("ari:activityChanged", {
+    detail: { kind, activity }
+  }));
 }
 
 async function logActivity(input = {}, options = {}) {
@@ -264,27 +282,11 @@ async function logActivity(input = {}, options = {}) {
   }
 
   const row = { user_id: user.id, ...prepared.activity };
-  const { data, error } = await client
-    .from("activity_logs")
-    .insert(row)
-    .select("*")
-    .single();
+  const { data, error } = await client.from("activity_logs").insert(row).select("*").single();
+  if (error) return { success: false, code: "activity_save_failed", message: error.message || "Activity could not be saved.", error };
 
-  if (error) {
-    return { success: false, code: "activity_save_failed", message: error.message || "Activity could not be saved.", error };
-  }
-
-  try {
-    localStorage.removeItem("calbuddyCaloriesBurned");
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith("calbuddyCaloriesBurned_")) localStorage.removeItem(key);
-    });
-  } catch {}
-
-  window.dispatchEvent(new CustomEvent("ari:activityLogged", {
-    detail: { activity: data || row, source: row.source }
-  }));
-
+  clearBurnCache();
+  emitActivityChange("created", data || row);
   return {
     success: true,
     activity: data || row,
@@ -293,18 +295,85 @@ async function logActivity(input = {}, options = {}) {
   };
 }
 
-async function dailyManualCalories(dateText = "today") {
+async function updateActivity(activityId, input = {}, options = {}) {
+  const id = clean(activityId, 120);
+  if (!id) return { success: false, code: "activity_id_required", message: "Activity could not be identified." };
+
+  const prepared = await prepareActivity(input, options);
+  if (!prepared.success) return prepared;
+
   const client = resolveSupabase();
   const user = await resolveUser();
-  if (!client?.from || !user?.id) return 0;
+  if (!client?.from || !user?.id) {
+    return { success: false, code: "signed_in_user_required", message: "A signed-in account is required." };
+  }
+
+  const { created_at, ...patch } = prepared.activity;
+  const { data, error } = await client
+    .from("activity_logs")
+    .update(patch)
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .select("*")
+    .single();
+
+  if (error) return { success: false, code: "activity_update_failed", message: error.message || "Activity could not be updated.", error };
+
+  clearBurnCache();
+  emitActivityChange("updated", data);
+  return { success: true, activity: data, reply: `Updated ${data?.activity_name || patch.activity_name}.` };
+}
+
+async function deleteActivity(activityId) {
+  const id = clean(activityId, 120);
+  if (!id) return { success: false, code: "activity_id_required", message: "Activity could not be identified." };
+
+  const client = resolveSupabase();
+  const user = await resolveUser();
+  if (!client?.from || !user?.id) {
+    return { success: false, code: "signed_in_user_required", message: "A signed-in account is required." };
+  }
+
+  const { data: existing } = await client
+    .from("activity_logs")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const { error } = await client
+    .from("activity_logs")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { success: false, code: "activity_delete_failed", message: error.message || "Activity could not be deleted.", error };
+
+  clearBurnCache();
+  emitActivityChange("deleted", existing || { id });
+  return { success: true, activity: existing || { id } };
+}
+
+async function listActivities(dateText = "today") {
+  const client = resolveSupabase();
+  const user = await resolveUser();
+  if (!client?.from || !user?.id) return [];
+
   const dateKey = resolveDateKey(dateText);
   const { data, error } = await client
     .from("activity_logs")
-    .select("calories_burned")
+    .select("*")
     .eq("user_id", user.id)
-    .eq("log_date", dateKey);
-  if (error || !Array.isArray(data)) return 0;
-  return Math.round(data.reduce((sum, item) => sum + Math.max(Number(item?.calories_burned) || 0, 0), 0));
+    .eq("log_date", dateKey)
+    .order("created_at", { ascending: false });
+
+  if (error || !Array.isArray(data)) return [];
+  return data;
+}
+
+async function dailyManualCalories(dateText = "today") {
+  const rows = await listActivities(dateText);
+  return Math.round(rows.reduce((sum, item) => sum + Math.max(Number(item?.calories_burned) || 0, 0), 0));
 }
 
 const ActivityLogService = Object.freeze({
@@ -316,12 +385,13 @@ const ActivityLogService = Object.freeze({
   estimateActivity,
   prepareActivity,
   logActivity,
+  updateActivity,
+  deleteActivity,
+  listActivities,
   dailyManualCalories
 });
 
-if (typeof window !== "undefined") {
-  window.AriActivityLogService = ActivityLogService;
-}
+if (typeof window !== "undefined") window.AriActivityLogService = ActivityLogService;
 
 export {
   VERSION,
@@ -332,6 +402,9 @@ export {
   estimateActivity,
   prepareActivity,
   logActivity,
+  updateActivity,
+  deleteActivity,
+  listActivities,
   dailyManualCalories,
   ActivityLogService
 };
