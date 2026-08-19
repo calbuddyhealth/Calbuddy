@@ -34,8 +34,11 @@ $$;
 revoke all on function public.ari_circle_can_read_media_path(text) from public, anon;
 grant execute on function public.ari_circle_can_read_media_path(text) to authenticated;
 
-create or replace function public.ari_circle_profile_friends(requested_user_id uuid, result_limit integer default 60)
-returns table(user_id uuid, display_name text, handle text, avatar_url text, connected_at timestamptz)
+-- Preserve the existing public RPC row contract (including bio) so current
+-- Circle clients do not experience a PostgREST schema/signature break while
+-- the body is hardened to adults-only authorization.
+create or replace function public.ari_circle_profile_friends(requested_user_id uuid, result_limit integer default 100)
+returns table(user_id uuid, display_name text, handle text, avatar_url text, bio text)
 language plpgsql
 stable
 security definer
@@ -43,7 +46,7 @@ set search_path = 'public', 'pg_temp'
 as $$
 declare
   caller_id uuid := auth.uid();
-  safe_limit integer := least(greatest(coalesce(result_limit,60),1),120);
+  safe_limit integer := least(greatest(coalesce(result_limit,100),1),200);
 begin
   perform public.ari_circle_assert_adult_access();
   if requested_user_id is null or not public.ari_circle_user_is_adult(requested_user_id) then
@@ -54,21 +57,22 @@ begin
   end if;
 
   return query
-  with friends as (
-    select
-      case when c.requester_user_id = requested_user_id then c.addressee_user_id else c.requester_user_id end as friend_id,
-      coalesce(c.updated_at,c.created_at) as connected_at
+  with friend_ids as (
+    select case
+      when c.requester_user_id = requested_user_id then c.addressee_user_id
+      else c.requester_user_id
+    end as friend_user_id
     from public.ari_circle_connections c
-    where c.status='accepted'
+    where c.status = 'accepted'
       and c.blocked_by_user_id is null
-      and (c.requester_user_id=requested_user_id or c.addressee_user_id=requested_user_id)
+      and (c.requester_user_id = requested_user_id or c.addressee_user_id = requested_user_id)
   )
-  select f.friend_id,coalesce(p.display_name,'ARI User'),p.handle::text,p.avatar_url,f.connected_at
-  from friends f
-  left join public.ari_circle_profiles p on p.user_id=f.friend_id
-  where public.ari_circle_user_is_adult(f.friend_id)
-    and not public.ari_circle_social_pair_is_blocked(caller_id,f.friend_id)
-  order by f.connected_at desc nulls last
+  select p.user_id,p.display_name,p.handle::text,p.avatar_url,p.bio
+  from friend_ids f
+  join public.ari_circle_profiles p on p.user_id = f.friend_user_id
+  where public.ari_circle_user_is_adult(p.user_id)
+    and not public.ari_circle_social_pair_is_blocked(caller_id,p.user_id)
+  order by lower(coalesce(p.display_name,'')),p.user_id
   limit safe_limit;
 end;
 $$;
