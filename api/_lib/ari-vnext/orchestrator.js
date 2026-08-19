@@ -156,23 +156,29 @@ export async function runAriVNext(turn = {}) {
   });
 
   let functionCall = findFunctionCall(first?.output);
-  let semanticActionReview = null;
+  const functionNames = new Set(
+    tools
+      .filter((tool) => tool?.type === "function" && tool?.name)
+      .map((tool) => String(tool.name))
+  );
 
-  // A successful tool call remains model-first. The verifier only steps in
-  // when the primary model chose conversation, or when Meal Plan needs its
-  // absolute today-only product boundary checked semantically.
-  if (!functionCall || functionCall?.name === "propose_today_meal_plan") {
-    semanticActionReview = await reviewExplicitApplicationIntent({ turn, route, tools });
-  }
+  // The primary model remains the main semantic authority. A tiny GPT-4o-mini
+  // verifier is used only when the primary model attempts a mutation, or when
+  // a command-like turn received no tool call and may have been missed.
+  const shouldVerify = Boolean(functionCall) || shouldReviewNoToolTurn(turn);
+  const semanticActionReview = shouldVerify
+    ? await reviewExplicitApplicationIntent({ turn, route, tools })
+    : null;
 
   if (
     semanticActionReview?.decision === "blocked_future_meal_plan" &&
     Number(semanticActionReview?.confidence || 0) >= 0.78
   ) {
-    return {
-      success: true,
-      ready: true,
+    return productBoundaryResult({
       reply: "Meal Plan only tracks today, so I won't create or schedule a future Meal Plan. When that day arrives, I can build it from your current calorie goal and what you've actually eaten.",
+      source: "ari_vnext_product_boundary",
+      first,
+      semanticActionReview,
       route,
       safety,
       communication,
@@ -185,42 +191,75 @@ export async function runAriVNext(turn = {}) {
       temporalContext,
       modelPolicy,
       coachingState,
-      longitudinalState,
-      pendingAction: null,
-      action: null,
-      provider: providerSummary(first),
-      semanticActionReview: publicActionReview(semanticActionReview),
-      source: "ari_vnext_product_boundary"
-    };
+      longitudinalState
+    });
   }
 
-  if (!functionCall) {
-    const functionNames = new Set(
-      tools
-        .filter((tool) => tool?.type === "function" && tool?.name)
-        .map((tool) => String(tool.name))
-    );
-    const forcedToolName =
-      Number(semanticActionReview?.confidence || 0) >= 0.82 &&
-      functionNames.has(String(semanticActionReview?.decision || ""))
-        ? String(semanticActionReview.decision)
-        : "";
+  if (
+    semanticActionReview?.decision === "blocked_missing_daily_goal" &&
+    Number(semanticActionReview?.confidence || 0) >= 0.78
+  ) {
+    return productBoundaryResult({
+      reply: "Your Daily Calorie Goal isn't set, so I won't invent a calorie budget. Set the goal in Goals or give me an explicit calorie target, and I can build today's Meal Plan from that.",
+      source: "ari_vnext_product_boundary",
+      first,
+      semanticActionReview,
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState
+    });
+  }
 
-    if (forcedToolName) {
-      const forced = await callResponses({
-        turn,
-        policy: modelPolicy,
-        instructions,
-        input,
-        tools,
-        toolChoice: { type: "function", name: forcedToolName }
-      });
-      const forcedCall = findFunctionCall(forced?.output);
-      if (!forcedCall) {
-        throw new Error("Ari recognized an explicit app action but could not prepare the trusted capability.");
-      }
-      first = forced;
-      functionCall = forcedCall;
+  const reviewConfidence = Number(semanticActionReview?.confidence || 0);
+  const reviewedDecision = String(semanticActionReview?.decision || "");
+  const reviewedToolName =
+    reviewConfidence >= 0.84 && functionNames.has(reviewedDecision)
+      ? reviewedDecision
+      : "";
+
+  // If Ari's first pass tried to write from a statement/question and the
+  // semantic verifier confidently says there is no write permission, suppress
+  // the tool and let Ari answer conversationally with no mutation tools visible.
+  if (functionCall && reviewedDecision === "none" && reviewConfidence >= 0.84) {
+    first = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions,
+      input,
+      tools: []
+    });
+    functionCall = null;
+  }
+
+  // If the verifier confidently resolves a different explicit capability—or
+  // catches an explicit request the first pass merely talked about—rerun the
+  // full Ari brain with that one function required. The verifier never creates
+  // arguments itself.
+  if (
+    reviewedToolName &&
+    (!functionCall || String(functionCall.name) !== reviewedToolName)
+  ) {
+    first = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions,
+      input,
+      tools,
+      toolChoice: { type: "function", name: reviewedToolName }
+    });
+    functionCall = findFunctionCall(first?.output);
+    if (!functionCall) {
+      throw new Error("Ari recognized an explicit app action but could not prepare the trusted capability.");
     }
   }
 
@@ -250,9 +289,41 @@ export async function runAriVNext(turn = {}) {
     };
   }
 
-  const validation = validateToolCall(functionCall, route);
+  let validation = validateToolCall(functionCall, route);
+
+  // One bounded correction pass keeps a malformed model tool call from turning
+  // into a user-visible failure. The same function is required and the model is
+  // told the exact validator error; trusted validation still decides whether the
+  // repaired arguments are acceptable.
   if (!validation.valid) {
-    throw new Error(validation.error || "Ari selected an invalid application capability.");
+    const repairInstructions = [
+      instructions,
+      "\nTOOL ARGUMENT CORRECTION",
+      `Your previous ${String(functionCall.name || "application")} function call failed trusted validation with: ${String(validation.error || "invalid_arguments")}.`,
+      "Reissue the SAME function with corrected arguments only. Preserve the user's request exactly; do not switch actions.",
+      "For Meal Plan, use at most one breakfast, one lunch, one dinner, and one snack. Never create duplicate meal slots."
+    ].join("\n");
+
+    const repaired = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions: repairInstructions,
+      input,
+      tools,
+      toolChoice: { type: "function", name: String(functionCall.name) }
+    });
+    const repairedCall = findFunctionCall(repaired?.output);
+    const repairedValidation = repairedCall
+      ? validateToolCall(repairedCall, route)
+      : { valid: false, error: "missing_repaired_tool_call" };
+
+    if (!repairedValidation.valid) {
+      throw new Error(repairedValidation.error || validation.error || "Ari selected an invalid application capability.");
+    }
+
+    first = repaired;
+    functionCall = repairedCall;
+    validation = repairedValidation;
   }
 
   const applicationAction = toolToApplicationAction(validation.name);
@@ -367,9 +438,10 @@ function buildInstructions({
   if (experimentReviewState) sections.push("\n" + experimentReviewToInstruction(experimentReviewState));
 
   sections.push(
-    "\nARI XP PRODUCT BOUNDARIES\nMeal Plan is strictly today-only. Never generate, schedule, or imply support for a future Meal Plan. If the user asks for tomorrow or another future day, state that Meal Plan only tracks today. Planned food is not consumed food. Calories burned do not increase the Nutrition food allowance unless the product contract explicitly changes.",
+    "\nARI XP PRODUCT BOUNDARIES\nMeal Plan is strictly today-only. Never generate, schedule, or imply support for a future Meal Plan. If the user asks for tomorrow or another future day, state that Meal Plan only tracks today. Planned food is not consumed food. Calories burned do not increase the Nutrition food allowance unless the product contract explicitly changes. Never invent a missing Daily Calorie Goal.",
+    "\nDATA FIDELITY\nFor any proposed write, preserve every explicit quantity and named item from the CURRENT user request. Do not silently drop components. If a user asks to log multiple foods as one meal, the single meal record must represent all of those foods with combined nutrition and clear serving details.",
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
-    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation."
+    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' or 'I ate the breakfast you planned' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation."
   );
 
   return sections.join("\n");
@@ -453,17 +525,21 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
+  const normalizedTools = Array.isArray(tools) ? tools : [];
 
   const body = {
     model: policy?.model,
     instructions,
     input,
-    tools,
-    tool_choice: toolChoice,
-    parallel_tool_calls: false,
     max_output_tokens: policy?.maxOutputTokens || 1200,
     store: false
   };
+
+  if (normalizedTools.length) {
+    body.tools = normalizedTools;
+    body.tool_choice = toolChoice || "auto";
+    body.parallel_tool_calls = false;
+  }
 
   if (policy?.supportsReasoning && policy?.reasoningEffort) {
     body.reasoning = { effort: policy.reasoningEffort };
@@ -503,6 +579,15 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function shouldReviewNoToolTurn(turn = {}) {
+  const text = String(turn?.message || "").trim().toLowerCase();
+  if (!text) return false;
+
+  // This does not decide the action. It only decides whether to spend the
+  // small semantic-verifier call after the primary brain chose no tool.
+  return /\b(?:can you|could you|please|i want you to|help me|log|record|save|add|create|build|make|plan|change|update|replace|remove|track|start|finish|complete|cancel|set\s+(?:it|that|this|me|my)|put\s+(?:it|that|this|together)|figure\s+out.+for\s+me)\b/i.test(text);
 }
 
 function deriveTemporalContext(turn = {}) {
@@ -560,6 +645,7 @@ function publicActionReview(review = null) {
     decision: review?.decision || "none",
     confidence: Number(review?.confidence || 0),
     reason: String(review?.reason || "").slice(0, 500),
+    dailyGoalKnown: typeof review?.dailyGoalKnown === "boolean" ? review.dailyGoalKnown : null,
     model: review?.model || null
   };
 }
@@ -569,5 +655,49 @@ function providerSummary(data = {}) {
     id: data?.id || null,
     model: data?.model || null,
     usage: data?.usage || null
+  };
+}
+
+function productBoundaryResult({
+  reply,
+  source,
+  first,
+  semanticActionReview,
+  route,
+  safety,
+  communication,
+  selfModel,
+  relationshipContinuity,
+  goalHierarchy,
+  metacognition,
+  scientificIntelligence,
+  experimentReviewState,
+  temporalContext,
+  modelPolicy,
+  coachingState,
+  longitudinalState
+} = {}) {
+  return {
+    success: true,
+    ready: true,
+    reply,
+    route,
+    safety,
+    communication,
+    selfModel,
+    relationshipContinuity,
+    goalHierarchy,
+    metacognition,
+    scientificIntelligence,
+    experimentReviewState,
+    temporalContext,
+    modelPolicy,
+    coachingState,
+    longitudinalState,
+    pendingAction: null,
+    action: null,
+    provider: providerSummary(first),
+    semanticActionReview: publicActionReview(semanticActionReview),
+    source
   };
 }
