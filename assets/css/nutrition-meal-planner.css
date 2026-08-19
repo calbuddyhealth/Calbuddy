@@ -1,0 +1,737 @@
+/* =====================================================
+   ARI XP
+   File: assets/css/nutrition-meal-planner.css
+   Version: 1.0.0
+   Purpose: Weekly meal planning layer for Nutrition.
+===================================================== */
+
+#manualEntrySection.is-meal-plan-mode {
+  overflow: visible;
+}
+
+#manualEntrySection .nutrition-mode-switch {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+#manualEntrySection .nutrition-mode-switch button {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(61, 106, 170, .16);
+  border-radius: 14px;
+  color: #34517b;
+  background: rgba(255, 255, 255, .76);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.94), 0 7px 18px rgba(47,78,120,.07);
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+#manualEntrySection .nutrition-mode-switch button:hover,
+#manualEntrySection .nutrition-mode-switch button:focus-visible {
+  border-color: rgba(35, 187, 224, .44);
+  color: #214ec5;
+  background: #f5fcff;
+  box-shadow: inset 0 1px 0 #fff, 0 9px 22px rgba(46,121,202,.10);
+}
+
+#manualEntrySection .nutrition-mode-switch button[aria-selected="true"] {
+  border-color: rgba(255,255,255,.72);
+  color: #fff;
+  background: linear-gradient(112deg, #315de8 0%, #3f7cff 54%, #28c9e8 120%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.34), 0 10px 25px rgba(52,102,223,.22), 0 0 18px rgba(40,201,232,.09);
+}
+
+#manualEntrySection.is-meal-plan-mode .ari-manual-status {
+  display: none !important;
+}
+
+.nutrition-plan-workspace[hidden] {
+  display: none !important;
+}
+
+.nutrition-plan-workspace {
+  position: relative;
+  margin-top: 14px;
+  padding-top: 2px;
+}
+
+.nutrition-plan-toolbar {
+  display: grid;
+  grid-template-columns: 46px minmax(0,1fr) 46px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.nutrition-plan-week-nav {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(72, 124, 184, .17);
+  border-radius: 15px;
+  color: #315de8;
+  background: linear-gradient(145deg, #fff, #f0f7ff);
+  font-size: 21px;
+  box-shadow: inset 0 1px 0 #fff, 0 7px 18px rgba(48,79,119,.07);
+  cursor: pointer;
+}
+
+.nutrition-plan-week-copy {
+  min-width: 0;
+  text-align: center;
+}
+
+.nutrition-plan-week-copy span {
+  display: block;
+  color: #7b8ca4;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.nutrition-plan-week-copy strong {
+  display: block;
+  margin-top: 4px;
+  color: #0b1c39;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(13px, 4vw, 16px);
+  line-height: 1.25;
+}
+
+.nutrition-plan-utilities {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.nutrition-plan-utilities button {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgba(72,124,184,.15);
+  border-radius: 12px;
+  color: #2c518f;
+  background: rgba(255,255,255,.72);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nutrition-plan-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 16px;
+}
+
+.nutrition-plan-day {
+  min-width: 0;
+  min-height: 65px;
+  padding: 7px 2px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid rgba(65, 113, 167, .13);
+  border-radius: 14px;
+  color: #6f8097;
+  background: linear-gradient(160deg, rgba(255,255,255,.98), rgba(242,247,253,.91));
+  box-shadow: inset 0 1px 0 #fff, 0 5px 13px rgba(42,69,105,.05);
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.nutrition-plan-day span {
+  font-family: "Orbitron", sans-serif;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.nutrition-plan-day strong {
+  color: #1b345d;
+  font-family: "Orbitron", sans-serif;
+  font-size: 15px;
+}
+
+.nutrition-plan-day i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.nutrition-plan-day.has-plan i {
+  background: #28c9e8;
+  box-shadow: 0 0 7px rgba(40,201,232,.45);
+}
+
+.nutrition-plan-day.is-today {
+  border-color: rgba(137, 92, 230, .20);
+}
+
+.nutrition-plan-day.is-selected {
+  color: rgba(255,255,255,.82);
+  border-color: rgba(255,255,255,.72);
+  background: linear-gradient(145deg, #315de8 0%, #3f7cff 58%, #28c9e8 125%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.34), 0 9px 21px rgba(63,124,255,.24), 0 0 0 2px rgba(40,201,232,.11);
+}
+
+.nutrition-plan-day.is-selected strong {
+  color: #fff;
+}
+
+.nutrition-plan-day.is-selected i {
+  background: #fff;
+}
+
+.nutrition-plan-selected-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 3px 0 12px;
+}
+
+.nutrition-plan-selected-heading p {
+  margin: 0;
+  color: #1689a7;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.nutrition-plan-selected-heading h3 {
+  margin: 4px 0 0;
+  color: #071326;
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+}
+
+.nutrition-plan-selected-heading button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(63,124,255,.16);
+  border-radius: 11px;
+  color: #2853d8;
+  background: linear-gradient(145deg, #fff, #f1f7ff);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nutrition-plan-slots {
+  display: grid;
+  gap: 10px;
+}
+
+.nutrition-plan-slot {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(66, 117, 174, .14);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255,255,255,.97), rgba(247,251,255,.91));
+  box-shadow: inset 0 1px 0 #fff, 0 9px 24px rgba(47,76,114,.065);
+}
+
+.nutrition-plan-slot::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, #28c9e8, #3f7cff, #9c72ff);
+  opacity: .72;
+}
+
+.nutrition-plan-slot__header {
+  padding: 12px 12px 10px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nutrition-plan-slot__header h4 {
+  margin: 0;
+  color: #10254a;
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+}
+
+.nutrition-plan-slot__header span {
+  color: #7f90a7;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nutrition-plan-slot__items {
+  display: grid;
+  gap: 7px;
+  padding: 0 10px 10px 13px;
+}
+
+.nutrition-plan-item {
+  padding: 10px;
+  border: 1px solid rgba(71, 121, 177, .11);
+  border-radius: 14px;
+  background: rgba(249,252,255,.86);
+}
+
+.nutrition-plan-item.is-eaten {
+  border-color: rgba(45, 187, 133, .20);
+  background: linear-gradient(145deg, #f7fffb, #f2fbf7);
+}
+
+.nutrition-plan-item__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nutrition-plan-item h5 {
+  margin: 0;
+  color: #11274b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.nutrition-plan-item__kcal {
+  flex: none;
+  color: #214ec5;
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.nutrition-plan-item__macros {
+  margin: 5px 0 0;
+  color: #78899f;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.nutrition-plan-item__status {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.nutrition-plan-item__status button {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid rgba(63,124,255,.15);
+  border-radius: 10px;
+  color: #2853d8;
+  background: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nutrition-plan-item__status button[data-plan-action="eat"] {
+  color: #fff;
+  border-color: rgba(255,255,255,.5);
+  background: linear-gradient(110deg, #315de8, #3f7cff 58%, #28c9e8);
+}
+
+.nutrition-plan-item__status button[data-plan-action="delete"] {
+  color: #b9435d;
+  border-color: rgba(215,77,107,.16);
+  background: #fff7f9;
+}
+
+.nutrition-plan-eaten-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #18875f;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+.nutrition-plan-add {
+  width: calc(100% - 23px);
+  min-height: 39px;
+  margin: 0 10px 11px 13px;
+  border: 1px dashed rgba(63,124,255,.22);
+  border-radius: 12px;
+  color: #345ec8;
+  background: rgba(241,248,255,.72);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nutrition-plan-summary {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(63,124,255,.15);
+  border-radius: 18px;
+  background: radial-gradient(circle at 88% 0%, rgba(156,114,255,.09), transparent 34%), linear-gradient(145deg, #f8fcff, #f1f7ff);
+  box-shadow: inset 0 1px 0 #fff, 0 9px 24px rgba(47,76,114,.06);
+}
+
+.nutrition-plan-summary__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nutrition-plan-summary__top span {
+  color: #75879f;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.nutrition-plan-summary__top strong {
+  color: #10254a;
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+}
+
+.nutrition-plan-budget-track {
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(62,96,145,.09);
+}
+
+.nutrition-plan-budget-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #315de8, #3f7cff 58%, #28c9e8);
+  transition: width 200ms ease;
+}
+
+.nutrition-plan-summary__macros {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 6px;
+}
+
+.nutrition-plan-summary__macros div {
+  padding: 8px 5px;
+  border-radius: 11px;
+  text-align: center;
+  background: rgba(255,255,255,.72);
+}
+
+.nutrition-plan-summary__macros span {
+  display: block;
+  color: #8797ab;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.nutrition-plan-summary__macros strong {
+  display: block;
+  margin-top: 2px;
+  color: #29456f;
+  font-size: 10px;
+}
+
+.nutrition-plan-builder-note {
+  margin: 8px 0 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(63,124,255,.13);
+  border-radius: 12px;
+  color: #526c91;
+  background: #f4f9ff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.nutrition-plan-sheet {
+  position: fixed;
+  z-index: 1500;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  padding: 16px;
+  background: rgba(15, 28, 49, .28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.nutrition-plan-sheet[hidden] {
+  display: none !important;
+}
+
+.nutrition-plan-sheet__surface {
+  width: min(100%, 520px);
+  max-height: min(78dvh, 720px);
+  margin: 0 auto;
+  overflow: auto;
+  border: 1px solid rgba(91,137,197,.18);
+  border-radius: 25px;
+  background: rgba(255,255,255,.985);
+  box-shadow: 0 28px 70px rgba(30,55,91,.22);
+  -webkit-overflow-scrolling: touch;
+}
+
+.nutrition-plan-sheet__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(69,112,164,.10);
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(14px);
+}
+
+.nutrition-plan-sheet__header p {
+  margin: 0;
+  color: #178aa8;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.nutrition-plan-sheet__header h3 {
+  margin: 4px 0 0;
+  color: #0a1b36;
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+}
+
+.nutrition-plan-sheet__close {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(66,110,164,.13);
+  border-radius: 13px;
+  color: #35527a;
+  background: #f7faff;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.nutrition-plan-sheet__body {
+  padding: 12px 14px calc(16px + env(safe-area-inset-bottom));
+}
+
+.nutrition-plan-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 9px;
+}
+
+.nutrition-plan-choice {
+  min-height: 94px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 9px;
+  border: 1px solid rgba(61,111,172,.14);
+  border-radius: 17px;
+  color: #183768;
+  background: linear-gradient(145deg, #fff, #f4f9ff);
+  text-align: left;
+  box-shadow: inset 0 1px 0 #fff, 0 7px 18px rgba(47,78,120,.06);
+  cursor: pointer;
+}
+
+.nutrition-plan-choice strong {
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+}
+
+.nutrition-plan-choice span {
+  color: #7c8ca1;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.nutrition-plan-choice.is-ari {
+  border-color: rgba(40,201,232,.24);
+  background: radial-gradient(circle at 10% 10%, rgba(40,201,232,.12), transparent 35%), linear-gradient(145deg, #f9fdff, #eff6ff 62%, #f5f0ff);
+}
+
+.nutrition-plan-sheet-list {
+  display: grid;
+  gap: 8px;
+}
+
+.nutrition-plan-sheet-item {
+  width: 100%;
+  padding: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(64,113,169,.13);
+  border-radius: 14px;
+  color: #18335e;
+  background: #f9fcff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nutrition-plan-sheet-item strong {
+  display: block;
+  font-size: 12px;
+}
+
+.nutrition-plan-sheet-item small {
+  display: block;
+  margin-top: 3px;
+  color: #8291a4;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.nutrition-plan-sheet-empty {
+  padding: 18px 12px;
+  border: 1px dashed rgba(63,124,255,.18);
+  border-radius: 15px;
+  color: #71849e;
+  background: #f8fbff;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.nutrition-plan-sheet-back {
+  min-height: 36px;
+  margin-bottom: 10px;
+  padding: 0 10px;
+  border: 0;
+  color: #315de8;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nutrition-template-card {
+  padding: 12px;
+  border: 1px solid rgba(64,113,169,.13);
+  border-radius: 15px;
+  background: #f9fcff;
+}
+
+.nutrition-template-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nutrition-template-card h4 {
+  margin: 0;
+  color: #17335e;
+  font-size: 12px;
+}
+
+.nutrition-template-card p {
+  margin: 5px 0 0;
+  color: #7e8ea3;
+  font-size: 9px;
+}
+
+.nutrition-template-card__actions {
+  margin-top: 9px;
+  display: flex;
+  gap: 7px;
+}
+
+.nutrition-template-card__actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(63,124,255,.14);
+  border-radius: 10px;
+  color: #2853d8;
+  background: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+body.nutrition-plan-sheet-open {
+  overflow: hidden !important;
+}
+
+@media (max-width: 520px) {
+  #manualEntrySection .ari-manual-header {
+    align-items: flex-start;
+  }
+
+  #manualEntrySection .nutrition-mode-switch {
+    flex: none;
+  }
+
+  #manualEntrySection .nutrition-mode-switch button {
+    min-height: 39px;
+    padding: 0 10px;
+    font-size: 8px;
+  }
+
+  .nutrition-plan-week-strip {
+    gap: 4px;
+  }
+
+  .nutrition-plan-day {
+    min-height: 61px;
+    border-radius: 12px;
+  }
+
+  .nutrition-plan-choice-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 370px) {
+  .nutrition-plan-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nutrition-plan-day span {
+    font-size: 6px;
+  }
+
+  .nutrition-plan-day strong {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nutrition-plan-day,
+  #manualEntrySection .nutrition-mode-switch button,
+  .nutrition-plan-budget-fill {
+    transition: none !important;
+  }
+}
