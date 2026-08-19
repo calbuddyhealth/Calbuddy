@@ -1,19 +1,21 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.2.0
+// Version: 1.3.0
 // Purpose:
-//   Make Ari vNext the default Home intelligence runtime while preserving
-//   Rebirth as a deterministic emergency fallback during the cutover.
+//   Make Ari vNext the default Home + Nutrition intelligence runtime while
+//   preserving Rebirth as a deterministic emergency fallback during cutover.
 //
 // Contract:
 //   - vNext is the default runtime.
+//   - The runtime controller owns the ordered vNext dependency boot sequence.
 //   - Rebirth remains available by local emergency override.
 //   - A vNext transport/runtime failure falls back once to Rebirth.
 //   - Existing trusted CalBuddy action execution remains authoritative.
 //   - Typed and button confirmations share the same trusted action boundary.
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
+//   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 // =====================================================
 
@@ -23,7 +25,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -31,7 +33,9 @@
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.0",
+    "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.0",
+    "ari/vnext/ari-vnext-context-guard.js?v=1.0.2",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
 
@@ -81,10 +85,36 @@
     return next;
   }
 
+  function dependencyBase(src = "") {
+    return String(src || "").split("?")[0];
+  }
+
+  function dependencyReady(src = "") {
+    const base = dependencyBase(src);
+    if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
+    if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
+    if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
+    if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
+    if (base.endsWith("ari-vnext-bridge.js")) return typeof window.AriVNextBridge?.ask === "function";
+    if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
+    if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
+    return true;
+  }
+
+  async function waitForDependency(src, timeoutMs = 5000) {
+    if (dependencyReady(src)) return true;
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      await new Promise((resolve) => window.setTimeout(resolve, 25));
+      if (dependencyReady(src)) return true;
+    }
+    throw new Error(`Ari vNext dependency did not initialize: ${dependencyBase(src)}`);
+  }
+
   function loadScript(src) {
-    const base = src.split("?")[0];
+    const base = dependencyBase(src);
     const existing = [...document.scripts].find((script) => {
-      const current = String(script.getAttribute("src") || "").split("?")[0];
+      const current = dependencyBase(script.getAttribute("src") || "");
       return current === base || current.endsWith(`/${base}`);
     });
     if (existing) return Promise.resolve(true);
@@ -104,23 +134,28 @@
     });
   }
 
+  function vNextReady() {
+    return Boolean(
+      window.AriVNextBridge?.ask &&
+      window.AriVNextActionAdapter &&
+      window.AriVNextActivityAdapter &&
+      window.AriVNextMealPlanAdapter?.ready === true &&
+      window.AriVNextContextGuard?.ready === true
+    );
+  }
+
   async function ensureVNext() {
-    if (window.AriVNextBridge?.ask && window.AriVNextActionAdapter && window.AriVNextActivityAdapter) return true;
+    if (vNextReady()) return true;
     if (dependencyPromise) return await dependencyPromise;
 
     dependencyPromise = (async () => {
       for (const src of VNEXT_SCRIPTS) {
         await loadScript(src);
+        await waitForDependency(src);
       }
 
-      if (!window.AriVNextBridge?.ask) {
-        throw new Error("Ari vNext bridge did not initialize.");
-      }
-      if (!window.AriVNextActionAdapter) {
-        throw new Error("Ari vNext action adapter did not initialize.");
-      }
-      if (!window.AriVNextActivityAdapter) {
-        throw new Error("Ari vNext activity adapter did not initialize.");
+      if (!vNextReady()) {
+        throw new Error("Ari vNext brain stack did not initialize completely.");
       }
       return true;
     })();
@@ -414,8 +449,6 @@
     legacyAvailable: Boolean(legacy.askAri)
   };
 
-  // Preserve every existing caller contract. Home, recovery, and any other
-  // caller using CalBuddy.askAri automatically receive the selected runtime.
   CalBuddy.askAri = ask;
   CalBuddy.confirmPendingAction = confirmPendingAction;
   CalBuddy.cancelPendingAction = cancelPendingAction;
