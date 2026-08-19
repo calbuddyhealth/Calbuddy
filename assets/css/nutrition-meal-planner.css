@@ -1,12 +1,19 @@
 /* =====================================================
    ARI XP
    File: assets/css/nutrition-meal-planner.css
-   Version: 1.0.0
+   Version: 1.0.1
    Purpose: Weekly meal planning layer for Nutrition.
 ===================================================== */
 
 #manualEntrySection.is-meal-plan-mode {
   overflow: visible;
+}
+
+/* The former READY indicator was useful while the food registry was being
+   built, but Meal Plan now owns this top-right position. Keep the status node
+   in the DOM for runtime updates without making users parse an extra badge. */
+#manualEntrySection .ari-manual-status {
+  display: none !important;
 }
 
 #manualEntrySection .nutrition-mode-switch {
@@ -46,10 +53,6 @@
   color: #fff;
   background: linear-gradient(112deg, #315de8 0%, #3f7cff 54%, #28c9e8 120%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.34), 0 10px 25px rgba(52,102,223,.22), 0 0 18px rgba(40,201,232,.09);
-}
-
-#manualEntrySection.is-meal-plan-mode .ari-manual-status {
-  display: none !important;
 }
 
 .nutrition-plan-workspace[hidden] {
