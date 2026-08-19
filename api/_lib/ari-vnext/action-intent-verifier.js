@@ -1,6 +1,6 @@
-// ARI vNext — semantic action verification for missed explicit app mutations.
-// This is a bounded GPT-4o-mini fallback after the primary vNext model chose
-// conversation instead of a tool. It never executes an action itself.
+// ARI vNext — semantic verification for explicit app mutations.
+// This bounded GPT-4o-mini pass independently verifies whether the CURRENT
+// message authorizes a write. It never executes an action itself.
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
@@ -15,7 +15,14 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
 
   if (!availableTools.length) return null;
 
-  const decisions = ["none", "blocked_future_meal_plan", ...availableTools];
+  const dailyGoalKnown = resolveDailyGoalKnown(turn);
+  const decisions = [
+    "none",
+    "blocked_future_meal_plan",
+    "blocked_missing_daily_goal",
+    ...availableTools
+  ];
+
   const verifierTool = {
     type: "function",
     name: "verify_action_intent",
@@ -34,13 +41,16 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
 
   const instructions = [
     "You are Ari vNext's semantic action verifier.",
-    "The primary Ari model already answered without calling an app tool. Review only the CURRENT user message and determine whether that was correct.",
+    "Ari's primary reasoning pass has already run. Independently verify whether the CURRENT user message explicitly authorizes an ARI XP mutation.",
     "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
-    "A statement such as 'I ate eggs' is NOT permission to log food. A question such as 'is chicken healthy?' is NOT a mutation request.",
+    "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
     "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, update, start, complete, or cancel something and a matching tool is available, select that tool.",
-    "Interpret natural language semantically. The user does not need to use the exact tool or feature name. For example, 'figure out what I should eat for the rest of today using my calories left' can be a request to create today's Meal Plan.",
+    "Interpret natural language semantically. The user does not need to use the exact tool or feature name. For example, 'figure out what I should eat for the rest of today using my calories left and set it up for me' can be a request to create today's Meal Plan.",
     "ARI XP Meal Plan is strictly TODAY ONLY. If the user asks Ari to create or schedule a Meal Plan for tomorrow or another future day, select blocked_future_meal_plan instead of any tool.",
+    "If the user asks Ari to create today's Meal Plan based on their saved Daily Calorie Goal or remaining calorie budget, but that saved goal is unknown and the user did not provide an explicit numeric calorie target in the CURRENT message, select blocked_missing_daily_goal.",
+    "Do not select blocked_missing_daily_goal for a general meal idea that is not budget-based, or when the user gives a clear explicit calorie target such as 500 calories.",
     "Do not select blocked_future_meal_plan for a general future nutrition question that is not asking to create/schedule the ARI XP Meal Plan.",
+    `Saved Daily Calorie Goal known: ${dailyGoalKnown ? "true" : "false"}.`,
     `Available app tools: ${availableTools.join(", ")}.`,
     `Current route: ${JSON.stringify({ nutrition: Boolean(route?.nutrition), training: Boolean(route?.training), goals: Boolean(route?.goals), teenMode: Boolean(route?.teenMode) })}.`,
     "Use decision=none when the message is advice, explanation, casual conversation, a factual statement, or otherwise does not explicitly authorize a write."
@@ -100,10 +110,11 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     if (!decisions.includes(decision)) return null;
 
     return {
-      version: "1.0.0",
+      version: "1.1.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
+      dailyGoalKnown,
       model: data?.model || body.model,
       providerRequestId: data?.id || null,
       usage: data?.usage || null
@@ -113,4 +124,16 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function resolveDailyGoalKnown(turn = {}) {
+  const policy = turn?.context?.nutrition?.calorieBudgetPolicy;
+  if (typeof policy?.dailyGoalKnown === "boolean") return policy.dailyGoalKnown;
+
+  const candidates = [
+    policy?.dailyGoal,
+    turn?.context?.goals?.dailyGoal,
+    turn?.context?.dailyGoal
+  ];
+  return candidates.some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
 }
