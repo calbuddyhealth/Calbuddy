@@ -1,11 +1,11 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.10.0";
+export const CONTEXT_ROUTER_VERSION = "1.11.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
-  training: /\b(workout|training|train|exercise|lift|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|running|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
+  training: /\b(workout|training|train|trained|exercise|exercised|lift|lifted|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|ran|running|jog|jogged|jogging|walk|walked|walking|bike|biked|biking|cycle|cycled|cycling|hike|hiked|hiking|swim|swam|swimming|row|rowed|rowing|elliptical|stairs?|stairmaster|stepmill|push[ -]?ups?|pull[ -]?ups?|burpees?|calisthenics?|basketball|soccer|tennis|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
   memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|what do i prefer|what do i like|what do i dislike|my favorite|my favourite|i prefer|i dislike|from now on|going forward|correction|my wife|my husband|my brother|my sister|my friend)\b/i,
