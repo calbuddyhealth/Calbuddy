@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.4.1
+// Version: 1.5.0
 // Purpose:
 //   Preserve the legacy semantic action boundary as a deterministic fallback,
 //   then boot Ari vNext as the shared primary intelligence on Home + Nutrition.
@@ -13,15 +13,13 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.1";
+  const VERSION = "1.5.0";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
   const LEGACY_GATE_FLAG = "__ariCentralIntentLegacyGateV1";
   const MEAL_PLAN_ACTION_SCRIPT_ID = "ariTodayMealPlanActionV2Script";
   const MEAL_PLAN_GOAL_GUARD_SCRIPT_ID = "ariMealPlanGoalGuardScript";
-  const VNEXT_CONTEXT_GUARD_SCRIPT_ID = "ariVNextSharedContextGuard";
-  const VNEXT_MEAL_PLAN_ADAPTER_SCRIPT_ID = "ariVNextMealPlanAdapter";
   const VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID = "ariVNextRuntimeController";
   const cache = new Map();
 
@@ -47,18 +45,12 @@
     );
   }
 
-  function loadVNextRuntimeStack() {
-    appendOrderedScript(
-      VNEXT_CONTEXT_GUARD_SCRIPT_ID,
-      "ari/vnext/ari-vnext-context-guard.js?v=1.0.1"
-    );
-    appendOrderedScript(
-      VNEXT_MEAL_PLAN_ADAPTER_SCRIPT_ID,
-      "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.0"
-    );
+  function loadVNextRuntime() {
+    // The controller owns every vNext dependency and waits for each one to be
+    // initialized before Ari can answer. This avoids parallel boot races.
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.2.0"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.0"
     );
   }
 
@@ -204,13 +196,10 @@
     CalBuddy.detectAriActionFromMessage = async function centralIntentLegacyGate(message = "", context = null) {
       const decision = CalBuddy.__activeIntentDecision || null;
 
-      // If the fallback authority said this is not an app action, the old
-      // classifier is not allowed to invent one afterward.
       if (validDecision(decision) && clean(decision.action) === "none") {
         return null;
       }
 
-      // Meal and Training mutations are owned by canonical domain services.
       if (
         validDecision(decision) &&
         ["nutrition", "training"].includes(clean(decision.domain))
@@ -248,8 +237,6 @@
       } catch (error) {
         console.error("ARI CENTRAL INTENT ROUTER FAILED:", error);
         CalBuddy.setAriMood?.("concerned");
-
-        // This path is now the Rebirth fallback boundary. Fail closed on writes.
         return {
           reply: "I couldn’t verify that request with my action router, so I didn’t change anything. Try that again in a moment.",
           emotion: "concerned",
@@ -322,16 +309,14 @@
     const legacyGateReady = installLegacyActionGate();
 
     if (boundaryReady && legacyGateReady) {
-      // Important ordering: vNext captures the already-safe legacy boundary as
-      // its emergency fallback, then becomes the primary CalBuddy.askAri path.
-      loadVNextRuntimeStack();
+      // vNext captures the already-safe legacy boundary as emergency fallback.
+      // The vNext runtime controller then owns its complete brain boot sequence.
+      loadVNextRuntime();
       window.clearInterval(installTimer);
       return;
     }
 
-    if (attempts >= 240) {
-      window.clearInterval(installTimer);
-    }
+    if (attempts >= 240) window.clearInterval(installTimer);
   }, 50);
 
   console.log("ARI CENTRAL INTENT ROUTER LOADED:", VERSION);
