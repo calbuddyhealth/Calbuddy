@@ -1,11 +1,12 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 //   - Expose today's active Meal Plan to the model as read-only context.
 //   - Treat an unset calorie goal as unknown instead of inventing a fallback.
 //   - Recover a small recent conversation window on fresh/reloaded sessions.
+//   - Enable the existing bounded GPT-4o-mini peer reflection for Owner Mode.
 // =====================================================
 
 (() => {
@@ -14,10 +15,11 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
+  const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
 
   function clean(value = "") {
     return String(value ?? "").trim();
@@ -246,13 +248,40 @@
     return true;
   }
 
+  function installOwnerPeerGuard() {
+    const bridge = window.AriVNextBridge;
+    if (!bridge || bridge[PEER_FLAG]) return Boolean(bridge?.[PEER_FLAG]);
+    if (typeof bridge.isPeerReflectionEnabled !== "function") return false;
+
+    const originalIsPeerReflectionEnabled = bridge.isPeerReflectionEnabled.bind(bridge);
+
+    bridge.isPeerReflectionEnabled = function ariVNextOwnerPeerEnabled(options = {}, surface = "") {
+      // Explicit opt-out still wins. For everybody else, preserve the existing
+      // lab/local preference behavior. Owner Mode gets the bounded peer by
+      // default; the server independently verifies owner access before spending.
+      if (options?.peerReflectionEnabled === false) return false;
+      if (options?.userContext?.ownerMode === true) return true;
+      return originalIsPeerReflectionEnabled(options, surface);
+    };
+
+    Object.defineProperty(bridge, PEER_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    console.log("ARI vNext owner peer guard installed:", VERSION);
+    return true;
+  }
+
   let attempts = 0;
   const timer = window.setInterval(() => {
     attempts += 1;
     const contextReady = installUserContextGuard();
     const continuityReady = installBridgeContinuityGuard();
+    const peerReady = installOwnerPeerGuard();
 
-    if ((contextReady && continuityReady) || attempts >= 300) {
+    if ((contextReady && continuityReady && peerReady) || attempts >= 300) {
       window.clearInterval(timer);
     }
   }, 40);
