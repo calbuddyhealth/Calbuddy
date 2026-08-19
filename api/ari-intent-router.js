@@ -3,7 +3,7 @@ import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 // =====================================================
 // ARI XP
 // File: api/ari-intent-router.js
-// Version: 1.2.0
+// Version: 1.2.1
 // Purpose:
 //   OpenAI semantic intent router for all Ari surfaces.
 //   Returns one strict structured decision. It NEVER executes app actions.
@@ -94,7 +94,8 @@ CRITICAL RULES:
 - Extract only entities explicitly present in the CURRENT message. Use empty strings/null for missing values.
 - meal_category should be Breakfast, Lunch, Dinner, or Snack only when the user explicitly names or clearly implies that slot.
 - meal_date_text should preserve words like today, tomorrow, Tuesday, next Monday, or an explicit date when present.
-- calorie_target is the user's requested calorie amount for a planned meal/day or recipe serving when explicitly stated; otherwise null.
+- calorie_target is the calories the user explicitly wants the NEW planned meal/day/recipe to contain, such as "500 calorie lunch" or "dinner around 700 calories"; otherwise null.
+- A number described as the user's budget or balance, such as "I have 1,400 calories remaining", "fits within 1,400 calories remaining", or "I have 900 calories left", is NOT by itself calorie_target for one meal. It is context/budget. Leave calorie_target=null unless the user separately tells you how many calories the new meal itself should contain.
 - recipe_theme is the requested dish/style/flavor when present; otherwise empty string.
 - servings is the requested recipe serving count when explicitly stated; otherwise null.
 - confidence reflects how sure you are about the semantic classification, not nutrition accuracy.
@@ -149,7 +150,7 @@ ${JSON.stringify(appContext).slice(0, 2000)}
     const content = data?.choices?.[0]?.message?.content || "";
     const decision = JSON.parse(content);
 
-    return res.status(200).json({ routerVersion: "1.2.0", decision });
+    return res.status(200).json({ routerVersion: "1.2.1", decision });
   } catch (error) {
     return res.status(500).json({ error: error?.message || "Intent router failed" });
   }
