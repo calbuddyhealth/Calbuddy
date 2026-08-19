@@ -1,5 +1,6 @@
 // ARI vNext — model-first orchestration through OpenAI Responses API.
 
+import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolveCommunicationProfile } from "./communication-profile.js";
@@ -146,7 +147,7 @@ export async function runAriVNext(turn = {}) {
   });
   const input = buildInput(turn);
 
-  const first = await callResponses({
+  let first = await callResponses({
     turn,
     policy: modelPolicy,
     instructions,
@@ -154,7 +155,75 @@ export async function runAriVNext(turn = {}) {
     tools
   });
 
-  const functionCall = findFunctionCall(first?.output);
+  let functionCall = findFunctionCall(first?.output);
+  let semanticActionReview = null;
+
+  // A successful tool call remains model-first. The verifier only steps in
+  // when the primary model chose conversation, or when Meal Plan needs its
+  // absolute today-only product boundary checked semantically.
+  if (!functionCall || functionCall?.name === "propose_today_meal_plan") {
+    semanticActionReview = await reviewExplicitApplicationIntent({ turn, route, tools });
+  }
+
+  if (
+    semanticActionReview?.decision === "blocked_future_meal_plan" &&
+    Number(semanticActionReview?.confidence || 0) >= 0.78
+  ) {
+    return {
+      success: true,
+      ready: true,
+      reply: "Meal Plan only tracks today, so I won't create or schedule a future Meal Plan. When that day arrives, I can build it from your current calorie goal and what you've actually eaten.",
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction: null,
+      action: null,
+      provider: providerSummary(first),
+      semanticActionReview: publicActionReview(semanticActionReview),
+      source: "ari_vnext_product_boundary"
+    };
+  }
+
+  if (!functionCall) {
+    const functionNames = new Set(
+      tools
+        .filter((tool) => tool?.type === "function" && tool?.name)
+        .map((tool) => String(tool.name))
+    );
+    const forcedToolName =
+      Number(semanticActionReview?.confidence || 0) >= 0.82 &&
+      functionNames.has(String(semanticActionReview?.decision || ""))
+        ? String(semanticActionReview.decision)
+        : "";
+
+    if (forcedToolName) {
+      const forced = await callResponses({
+        turn,
+        policy: modelPolicy,
+        instructions,
+        input,
+        tools,
+        toolChoice: { type: "function", name: forcedToolName }
+      });
+      const forcedCall = findFunctionCall(forced?.output);
+      if (!forcedCall) {
+        throw new Error("Ari recognized an explicit app action but could not prepare the trusted capability.");
+      }
+      first = forced;
+      functionCall = forcedCall;
+    }
+  }
+
   if (!functionCall) {
     return {
       success: true,
@@ -176,6 +245,7 @@ export async function runAriVNext(turn = {}) {
       pendingAction: null,
       action: null,
       provider: providerSummary(first),
+      semanticActionReview: publicActionReview(semanticActionReview),
       source: "ari_vnext"
     };
   }
@@ -255,6 +325,7 @@ export async function runAriVNext(turn = {}) {
       arguments: pendingAction.arguments
     },
     provider: providerSummary(second),
+    semanticActionReview: publicActionReview(semanticActionReview),
     source: "ari_vnext_action_proposal"
   };
 }
@@ -296,8 +367,9 @@ function buildInstructions({
   if (experimentReviewState) sections.push("\n" + experimentReviewToInstruction(experimentReviewState));
 
   sections.push(
+    "\nARI XP PRODUCT BOUNDARIES\nMeal Plan is strictly today-only. Never generate, schedule, or imply support for a future Meal Plan. If the user asks for tomorrow or another future day, state that Meal Plan only tracks today. Planned food is not consumed food. Calories burned do not increase the Nutrition food allowance unless the product contract explicitly changes.",
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
-    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' is not permission to log food. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation."
+    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation."
   );
 
   return sections.join("\n");
@@ -375,7 +447,7 @@ function buildInput(turn = {}) {
   return input;
 }
 
-async function callResponses({ turn, policy, instructions, input, tools = [] } = {}) {
+async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
   const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
@@ -387,7 +459,7 @@ async function callResponses({ turn, policy, instructions, input, tools = [] } =
     instructions,
     input,
     tools,
-    tool_choice: "auto",
+    tool_choice: toolChoice,
     parallel_tool_calls: false,
     max_output_tokens: policy?.maxOutputTokens || 1200,
     store: false
@@ -398,8 +470,9 @@ async function callResponses({ turn, policy, instructions, input, tools = [] } =
   }
 
   if (turn?.userId) {
-    body.safety_identifier = String(turn.userId).slice(0, 200);
-    body.prompt_cache_key = `ari-vnext:${String(turn.userId).slice(0, 120)}`;
+    const userId = String(turn.userId);
+    body.safety_identifier = userId.slice(0, 200);
+    body.prompt_cache_key = `ari-vnext:${userId.slice(0, 54)}`.slice(0, 64);
   }
 
   try {
@@ -478,6 +551,17 @@ function extractOutputText(data = {}) {
     .map((part) => part.text)
     .join("")
     .trim();
+}
+
+function publicActionReview(review = null) {
+  if (!review) return null;
+  return {
+    version: review?.version || "1.0.0",
+    decision: review?.decision || "none",
+    confidence: Number(review?.confidence || 0),
+    reason: String(review?.reason || "").slice(0, 500),
+    model: review?.model || null
+  };
 }
 
 function providerSummary(data = {}) {
