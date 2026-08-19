@@ -8,6 +8,7 @@ import {
   toolToApplicationAction
 } from "../api/_lib/ari-vnext/tools.js";
 import { routeContext } from "../api/_lib/ari-vnext/context-router.js";
+import CalorieCalculator from "../js/training/energy/calorie-calculator.js";
 
 function source(path) {
   return fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -24,6 +25,21 @@ test("manual activity request routes to Training and exposes the real logging to
   const names = getAriTools(route).map((tool) => tool.name);
   assert.ok(names.includes("propose_log_activity"));
   assert.equal(toolToApplicationAction("propose_log_activity"), "log_activity");
+});
+
+test("completed activity vocabulary routes runs walks rides hikes and bodyweight work through Training", () => {
+  const messages = [
+    "I walked for 45 minutes, log it",
+    "I biked for 30 minutes and burned 260 calories",
+    "I hiked for 90 minutes",
+    "I did 4 sets of 50 push-ups",
+    "I swam for half an hour"
+  ];
+
+  for (const message of messages) {
+    const route = routeContext({ message, history: [], context: {} });
+    assert.equal(route.training, true, message);
+  }
 });
 
 test("Ari activity tool preserves user-reported calories and structured workout details", () => {
@@ -68,6 +84,20 @@ test("Ari activity logging requires duration when calories are unknown", () => {
   assert.equal(validation.error, "activity_duration_or_calories_required");
 });
 
+test("shared Training calorie engine produces a profile-based activity estimate", () => {
+  const estimate = CalorieCalculator.estimateHybridSession({
+    session: { title: "Run", exercises: [{ name: "Run" }] },
+    weightLb: 190,
+    durationMinutes: 20,
+    intensity: "moderate"
+  });
+
+  assert.ok(estimate);
+  assert.equal(estimate.estimated, true);
+  assert.ok(Number(estimate.roundedCalories) > 0);
+  assert.match(String(estimate.method), /estimate/i);
+});
+
 test("Training Quick Log loads from shared auth bootstrap and mounts opposite the date selector", () => {
   const auth = source("js/auth.js");
   const quickLog = source("js/training/activity-quick-log.js");
@@ -89,6 +119,7 @@ test("Quick Log and Ari share one profile-based calorie estimator and activity w
   assert.match(service, /estimateHybridSession/);
   assert.match(service, /from\("profiles"\)/);
   assert.match(service, /from\("activity_logs"\)/);
+  assert.match(service, /duration_minutes/);
   assert.match(service, /calorie_source/);
   assert.match(service, /user_reported/);
   assert.match(service, /profile_estimate/);
@@ -121,10 +152,10 @@ test("Goals combines completed Training calories with activity_logs instead of m
 test("activity_logs migration stores structured manual workout details without creating another ledger", () => {
   const migration = source("supabase/migrations/20260819031500_extend_activity_logs_for_quick_log.sql");
   assert.match(migration, /alter table public\.activity_logs/);
-  assert.match(migration, /duration_minutes/);
   assert.match(migration, /sets integer/);
   assert.match(migration, /reps_per_set integer/);
   assert.match(migration, /average_heart_rate integer/);
   assert.match(migration, /calorie_source text/);
+  assert.match(migration, /activity_logs_user_log_date_idx/);
   assert.doesNotMatch(migration, /create table/i);
 });
