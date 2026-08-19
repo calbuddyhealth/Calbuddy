@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.4 — Adds shared activity Quick Log + Goals burn aggregation loaders.
 // V1.10.3 — Guarantees every authenticated user has a minimal profiles row
 // before protected app surfaces become usable. No fake health defaults.
 // Also boots shared workout dialog controls on the Workout Plans surface.
@@ -16,6 +17,8 @@ const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
 const ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID = "ariWorkoutDialogFloatingCloseScript";
+const ARI_TRAINING_QUICK_LOG_SCRIPT_ID = "ariTrainingQuickLogScript";
+const ARI_GOALS_BURN_SYNC_SCRIPT_ID = "ariGoalsActivityBurnSyncScript";
 
 function getMinimalProfilePayload(user, displayName = "") {
   const cleanDisplayName = String(displayName || "").trim();
@@ -219,6 +222,7 @@ function currentAriSurface() {
   const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page === "nutrition.html") return "nutrition";
   if (page === "goals.html") return "goals";
+  if (page === "ari-training.html") return "training";
   if (page === "home.html" || page === "") return "home";
   return "other";
 }
@@ -268,6 +272,22 @@ function bootstrapWorkoutDialogFloatingClose() {
   );
 }
 
+function bootstrapTrainingQuickLog() {
+  if (currentAriSurface() !== "training") return;
+  appendOrderedScript(
+    ARI_TRAINING_QUICK_LOG_SCRIPT_ID,
+    "js/training/activity-quick-log.js?v=1.0.0"
+  );
+}
+
+function bootstrapGoalsActivityBurnSync() {
+  if (currentAriSurface() !== "goals") return;
+  appendOrderedScript(
+    ARI_GOALS_BURN_SYNC_SCRIPT_ID,
+    "js/goals-activity-burn-sync.js?v=1.0.0"
+  );
+}
+
 bootstrapCanonicalMealLedger();
 bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
@@ -275,4 +295,6 @@ bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
 bootstrapNeutralGoalsForNewUsers();
 bootstrapWorkoutDialogFloatingClose();
+bootstrapTrainingQuickLog();
+bootstrapGoalsActivityBurnSync();
 bootstrapAIAccessConsent();
