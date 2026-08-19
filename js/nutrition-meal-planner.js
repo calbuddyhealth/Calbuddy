@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/nutrition-meal-planner.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Weekly meal planning layer that reuses the existing Nutrition
 //   meal builder instead of creating a second logging form.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const RECIPE_LOCAL_KEY = "ariNutritionRecipesV1";
   const TEMPLATE_LOCAL_KEY = "ariNutritionPlanTemplatesV1";
@@ -171,7 +171,7 @@
     const link = document.createElement("link");
     link.id = "ariNutritionMealPlannerCss";
     link.rel = "stylesheet";
-    link.href = "assets/css/nutrition-meal-planner.css?v=1.0.0";
+    link.href = "assets/css/nutrition-meal-planner.css?v=1.0.1";
     document.head.appendChild(link);
   }
 
@@ -210,6 +210,10 @@
     toggle.setAttribute("aria-selected", "false");
     toggle.textContent = "Meal Plan";
     toggle.addEventListener("click", () => {
+      if (state.mode === "log" && state.planDraft) {
+        cancelPlanDraft();
+        return;
+      }
       if (state.mode === "log") setMode("plan");
       else setMode("log");
     });
@@ -337,6 +341,28 @@
     }, true);
   }
 
+  function resetSharedBuilder() {
+    try {
+      window.AriNutritionPage?.clearSelectedFood?.({ keepName: false, focusName: false });
+    } catch {}
+
+    ["mealName", "mealCalories", "mealProtein", "mealCarbs", "mealFat"].forEach((id) => {
+      const input = document.getElementById(id);
+      if (input) input.value = "";
+    });
+  }
+
+  function cancelPlanDraft() {
+    if (!state.planDraft) {
+      setMode("plan", { force: true });
+      return;
+    }
+
+    state.planDraft = null;
+    resetSharedBuilder();
+    setMode("plan", { force: true });
+  }
+
   function setMode(mode, options = {}) {
     const next = mode === "plan" ? "plan" : "log";
 
@@ -365,7 +391,11 @@
     }
 
     if (els.modeToggle) {
-      els.modeToggle.textContent = isPlan ? "Log Meal" : "Meal Plan";
+      els.modeToggle.textContent = isPlan
+        ? "Log Meal"
+        : state.planDraft
+          ? "Back to Plan"
+          : "Meal Plan";
       els.modeToggle.setAttribute("aria-selected", String(isPlan));
     }
 
@@ -774,18 +804,12 @@
   function askAriForSlot() {
     const slot = state.sheetSlot || "lunch";
     const date = state.selectedDate;
-    const goal = dailyGoal();
-    const consumed = consumedCaloriesForDate(date);
-    const planned = state.items
-      .filter((item) => item.plan_date === date && item.status !== "skipped")
-      .reduce((sum, item) => sum + number(item.calories), 0);
-    const remaining = goal ? Math.max(0, goal - consumed - planned) : 0;
 
     closeSheet();
     setMode("log");
 
     if (els.ariInput) {
-      els.ariInput.value = `Make me a meal plan for ${slotLabel(slot).toLowerCase()} on ${dateLabel(date)}${remaining ? ` that fits within about ${Math.round(remaining)} calories remaining` : ""}.`;
+      els.ariInput.value = `Make me a meal plan for ${slotLabel(slot).toLowerCase()} on ${dateLabel(date)} that fits my goals and calories remaining.`;
       els.ariInput.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
@@ -807,15 +831,7 @@
 
     state.planDraft = { date, slot };
     closeSheet();
-
-    try {
-      window.AriNutritionPage?.clearSelectedFood?.({ keepName: false, focusName: false });
-    } catch {}
-
-    ["mealName", "mealCalories", "mealProtein", "mealCarbs", "mealFat"].forEach((id) => {
-      const input = document.getElementById(id);
-      if (input) input.value = "";
-    });
+    resetSharedBuilder();
 
     setMode("log", { force: true });
     syncSharedBuilderMode();
@@ -878,18 +894,12 @@
         fat_g: fat,
         serving_size: servingSize,
         multiplier,
-        source_type: refreshedState.selectedFood ? "manual" : "manual",
+        source_type: "manual",
         source_ref: clean(refreshedState.selectedFood?.id)
       });
 
       state.planDraft = null;
-      try {
-        window.AriNutritionPage?.clearSelectedFood?.({ keepName: false, focusName: false });
-      } catch {}
-      ["mealName", "mealCalories", "mealProtein", "mealCarbs", "mealFat"].forEach((id) => {
-        const input = document.getElementById(id);
-        if (input) input.value = "";
-      });
+      resetSharedBuilder();
       setMode("plan", { force: true });
     } finally {
       state.saving = false;
@@ -1089,8 +1099,42 @@
     };
   }
 
+  async function getPlannedSlot(date, slot) {
+    const dateKey = clean(date);
+    const mealSlot = clean(slot).toLowerCase();
+    if (!parseDateKey(dateKey) || !SLOT_ORDER.includes(mealSlot)) return [];
+
+    const loaded = state.items.filter((item) =>
+      item.plan_date === dateKey &&
+      item.meal_slot === mealSlot &&
+      item.status === "planned"
+    );
+    if (loaded.length) return loaded;
+
+    const user = await getUser();
+    const client = window.calbuddySupabase;
+    if (user?.id && client) {
+      const { data, error } = await client
+        .from("nutrition_plan_items")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("plan_date", dateKey)
+        .eq("meal_slot", mealSlot)
+        .eq("status", "planned")
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (!error) return (data || []).map((item) => ({ ...item, storage_source: "supabase" }));
+      console.warn("[ARI Meal Planner] Planned slot lookup failed:", error.message);
+    }
+
+    return localStorageArray(PLAN_LOCAL_KEY)
+      .filter((item) => item.plan_date === dateKey && item.meal_slot === mealSlot && item.status === "planned")
+      .map((item) => ({ ...item, storage_source: "local" }));
+  }
+
   async function logSlotAsEaten(date, slot) {
-    const items = state.items.filter((item) => item.plan_date === date && item.meal_slot === slot && item.status === "planned");
+    const items = await getPlannedSlot(date, slot);
     if (!items.length) return { success: false, reply: `There is no planned ${slotLabel(slot).toLowerCase()} to log.` };
     return await logPlanItemsAsEaten(items);
   }
@@ -1452,6 +1496,7 @@
       logSlotAsEaten,
       logPlanItemsAsEaten,
       findPlannedSlot,
+      getPlannedSlot,
       getAriContext,
       getState() {
         return {
