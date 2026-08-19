@@ -1,4 +1,4 @@
-/* ARI XP — Nutrition layout v4.0.0
+/* ARI XP — Nutrition layout v4.1.0
    Purpose: action-first mobile hierarchy and progressive disclosure.
    Order: Log Meal → Ask Ari → Today's Nutrition → Recent Meals.
 */
@@ -105,8 +105,14 @@ main#ariNutritionApp .ari-network-standby {
   display: none;
 }
 
+/* One vertical scroller only. The legacy Nutrition stylesheet made this
+   thread its own scroll container, which can trap touch gestures on Safari. */
 main#ariNutritionApp .ari-thread {
-  max-height: 260px;
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  scroll-behavior: auto !important;
+  touch-action: pan-y;
   padding: 0 2px 11px;
 }
 
@@ -284,6 +290,65 @@ main#ariNutritionApp .nutrition-recent-meal {
   padding: 12px 14px;
   border-radius: 15px;
   box-shadow: none;
+}
+
+/* ---------- Nutrition document scroll stability ----------
+   Keep Safari on a single document scroller. This deliberately overrides
+   both legacy nested-scroll CSS and any stale inline body overflow lock after
+   camera/photo-picker transitions. */
+html:has(main#ariNutritionApp) {
+  width: 100%;
+  height: auto !important;
+  min-height: 100%;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body:has(main#ariNutritionApp) {
+  position: static !important;
+  inset: auto !important;
+  width: 100%;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  touch-action: pan-y;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+main#ariNutritionApp {
+  height: auto !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: none !important;
+  overflow: visible !important;
+  touch-action: pan-y;
+}
+
+/* The barcode sheet may lock scrolling only while it is actually visible. */
+html:has(#nutritionScanSheet:not([hidden])),
+body:has(#nutritionScanSheet:not([hidden])) {
+  overflow-y: hidden !important;
+}
+
+html:has(#nutritionScanSheet[hidden]),
+body:has(#nutritionScanSheet[hidden]) {
+  overflow-y: auto !important;
+}
+
+/* Search results remain independently scrollable only while open, but allow
+   scroll chaining at their boundaries instead of trapping the page. */
+main#ariNutritionApp .ari-food-search-results {
+  overscroll-behavior-y: auto !important;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ---------- Mobile density ---------- */
