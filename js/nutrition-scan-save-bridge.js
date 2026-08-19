@@ -1,4 +1,4 @@
-/* ARI Nutrition Scan Save Bridge v1.0.0
+/* ARI Nutrition Scan Save Bridge v1.0.1
    Intercepts only scanner-originated Save Meal clicks so scanned serving
    metadata is preserved without changing the existing manual meal editor. */
 (() => {
@@ -9,6 +9,14 @@
     const number = Number(value);
     return Number.isFinite(number) ? number : fallback;
   };
+
+  // Consent UI stays off the Nutrition page until label fallback is actually used.
+  if (!document.querySelector('script[data-ari-nutrition-consent-guard="1"]')) {
+    const guard = document.createElement("script");
+    guard.src = "js/nutrition-scan-consent-lazy.js?v=1.0.0";
+    guard.dataset.ariNutritionConsentGuard = "1";
+    document.head.appendChild(guard);
+  }
 
   function localDate(date = new Date()) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
