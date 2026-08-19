@@ -1,8 +1,15 @@
-/* ARI Nutrition label-scan consent lazy loader v1.0.0 */
+/* ARI Nutrition label-scan consent lazy loader v1.0.1 */
 (() => {
   "use strict";
 
   let loading = null;
+
+  function restoreNutritionComposerCopy() {
+    const input = document.getElementById("ariInput");
+    if (input && !input.disabled) input.placeholder = "Ask Ari about nutrition...";
+  }
+
+  window.addEventListener("ari:ai-processing-consent", restoreNutritionComposerCopy);
 
   function loadConsentModule() {
     if (window.AriAIConsent) return Promise.resolve(window.AriAIConsent);
@@ -11,7 +18,10 @@
     loading = new Promise((resolve, reject) => {
       const existing = document.querySelector('script[data-ari-nutrition-consent="1"]');
       if (existing) {
-        existing.addEventListener("load", () => resolve(window.AriAIConsent || null), { once: true });
+        existing.addEventListener("load", () => {
+          restoreNutritionComposerCopy();
+          resolve(window.AriAIConsent || null);
+        }, { once: true });
         existing.addEventListener("error", reject, { once: true });
         return;
       }
@@ -19,7 +29,10 @@
       const script = document.createElement("script");
       script.src = "js/ai-processing-consent.js?v=1.1.0";
       script.dataset.ariNutritionConsent = "1";
-      script.onload = () => resolve(window.AriAIConsent || null);
+      script.onload = () => {
+        restoreNutritionComposerCopy();
+        resolve(window.AriAIConsent || null);
+      };
       script.onerror = () => reject(new Error("AI consent module could not load."));
       document.head.appendChild(script);
     });
