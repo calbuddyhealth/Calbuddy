@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
 //   Make Ari vNext the default Home intelligence runtime while preserving
 //   Rebirth as a deterministic emergency fallback during the cutover.
@@ -13,6 +13,7 @@
 //   - Existing trusted CalBuddy action execution remains authoritative.
 //   - Typed and button confirmations share the same trusted action boundary.
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
+//   - vNext manual activity logs use the shared Training activity writer.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 // =====================================================
 
@@ -22,13 +23,14 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.0",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
@@ -103,7 +105,7 @@
   }
 
   async function ensureVNext() {
-    if (window.AriVNextBridge?.ask && window.AriVNextActionAdapter) return true;
+    if (window.AriVNextBridge?.ask && window.AriVNextActionAdapter && window.AriVNextActivityAdapter) return true;
     if (dependencyPromise) return await dependencyPromise;
 
     dependencyPromise = (async () => {
@@ -116,6 +118,9 @@
       }
       if (!window.AriVNextActionAdapter) {
         throw new Error("Ari vNext action adapter did not initialize.");
+      }
+      if (!window.AriVNextActivityAdapter) {
+        throw new Error("Ari vNext activity adapter did not initialize.");
       }
       return true;
     })();
