@@ -1,6 +1,6 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.0.1
+// Version: 1.0.2
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 //   - Expose today's active Meal Plan to the model as read-only context.
@@ -15,11 +15,16 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
   const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
+
+  window.AriVNextContextGuard = {
+    version: VERSION,
+    ready: false
+  };
 
   function clean(value = "") {
     return String(value ?? "").trim();
@@ -106,9 +111,7 @@
           .eq("status", "planned")
           .order("created_at", { ascending: true });
 
-        if (!error && Array.isArray(data)) {
-          return data.map(compactPlan);
-        }
+        if (!error && Array.isArray(data)) return data.map(compactPlan);
       } catch (error) {
         console.warn("Ari vNext Meal Plan context read skipped:", error?.message || error);
       }
@@ -232,10 +235,7 @@
         }
       }
 
-      return await originalAsk(message, {
-        ...options,
-        history
-      });
+      return await originalAsk(message, { ...options, history });
     };
 
     Object.defineProperty(bridge, BRIDGE_FLAG, {
@@ -256,9 +256,6 @@
     const originalIsPeerReflectionEnabled = bridge.isPeerReflectionEnabled.bind(bridge);
 
     bridge.isPeerReflectionEnabled = function ariVNextOwnerPeerEnabled(options = {}, surface = "") {
-      // Explicit opt-out still wins. For everybody else, preserve the existing
-      // lab/local preference behavior. Owner Mode gets the bounded peer by
-      // default; the server independently verifies owner access before spending.
       if (options?.peerReflectionEnabled === false) return false;
       if (options?.userContext?.ownerMode === true) return true;
       return originalIsPeerReflectionEnabled(options, surface);
@@ -274,15 +271,25 @@
     return true;
   }
 
-  let attempts = 0;
-  const timer = window.setInterval(() => {
-    attempts += 1;
+  function installAll() {
     const contextReady = installUserContextGuard();
     const continuityReady = installBridgeContinuityGuard();
     const peerReady = installOwnerPeerGuard();
-
-    if ((contextReady && continuityReady && peerReady) || attempts >= 300) {
-      window.clearInterval(timer);
+    const ready = contextReady && continuityReady && peerReady;
+    window.AriVNextContextGuard.ready = ready;
+    if (ready) {
+      window.dispatchEvent(new CustomEvent("ari:vnextContextGuardReady", {
+        detail: { version: VERSION }
+      }));
     }
-  }, 40);
+    return ready;
+  }
+
+  if (!installAll()) {
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (installAll() || attempts >= 300) window.clearInterval(timer);
+    }, 40);
+  }
 })();
