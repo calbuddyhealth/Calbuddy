@@ -1,0 +1,566 @@
+/* =====================================================
+   ARI XP
+   File: assets/css/nutrition-meal-plan-today.css
+   Version: 2.0.0
+   Purpose: Today-only Meal Plan tray for Nutrition.
+===================================================== */
+
+#manualEntrySection .nutrition-today-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: -2px 0 18px;
+  padding: 5px;
+  border: 1px solid rgba(71, 103, 150, .12);
+  border-radius: 18px;
+  background: rgba(239, 246, 255, .74);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95);
+}
+
+#manualEntrySection .nutrition-today-mode-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #6f819c;
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+#manualEntrySection .nutrition-today-mode-tabs button:active {
+  transform: scale(.985);
+}
+
+#manualEntrySection .nutrition-today-mode-tabs button[aria-selected="true"] {
+  color: #163f9f;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 7px 18px rgba(43,75,125,.10), inset 0 0 0 1px rgba(61,102,173,.08);
+}
+
+#manualEntrySection .nutrition-today-mode-tabs button[data-mode="plan"][aria-selected="true"] {
+  color: #fff;
+  background: linear-gradient(116deg, #315de8 0%, #427dff 58%, #26c7e6 125%);
+  box-shadow: 0 9px 22px rgba(49,93,232,.22), inset 0 1px 0 rgba(255,255,255,.30);
+}
+
+.nutrition-plan-tab-count {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 5px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(49,93,232,.10);
+  font-size: 9px;
+  line-height: 1;
+}
+
+button[data-mode="plan"][aria-selected="true"] .nutrition-plan-tab-count {
+  background: rgba(255,255,255,.20);
+}
+
+#manualEntrySection.is-today-plan-mode > .ari-manual-header,
+#manualEntrySection.is-today-plan-mode > .ari-form {
+  display: none !important;
+}
+
+.nutrition-today-plan[hidden] {
+  display: none !important;
+}
+
+.nutrition-today-plan {
+  display: grid;
+  gap: 18px;
+}
+
+.nutrition-today-plan-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid rgba(65,105,175,.12);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(65,201,231,.16), transparent 34%),
+    linear-gradient(145deg, rgba(248,252,255,.98), rgba(238,245,255,.94));
+  box-shadow: inset 0 1px 0 #fff, 0 12px 28px rgba(43,75,121,.08);
+}
+
+.nutrition-today-plan-hero::after {
+  content: "";
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  top: -70px;
+  right: -55px;
+  border: 18px solid rgba(80,68,222,.08);
+  border-radius: 50%;
+}
+
+.nutrition-today-plan-hero__top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.nutrition-today-plan-kicker,
+.nutrition-plan-shelf-heading span {
+  display: block;
+  color: #71839d;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+
+.nutrition-today-plan-hero h3 {
+  margin: 5px 0 2px;
+  color: #102451;
+  font-size: clamp(24px, 7vw, 32px);
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.nutrition-today-plan-date {
+  margin: 0;
+  color: #71839d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nutrition-today-plan-summary {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  min-width: 96px;
+  padding: 10px 12px;
+  border: 1px solid rgba(49,93,232,.12);
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+  text-align: right;
+}
+
+.nutrition-today-plan-summary strong,
+.nutrition-today-plan-summary span {
+  display: block;
+}
+
+.nutrition-today-plan-summary strong {
+  color: #2753c7;
+  font-size: 14px;
+}
+
+.nutrition-today-plan-summary span {
+  margin-top: 2px;
+  color: #8291a7;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.nutrition-today-plan-list {
+  display: grid;
+  gap: 12px;
+}
+
+.nutrition-plan-empty {
+  padding: 23px 18px;
+  border: 1px dashed rgba(62,101,166,.20);
+  border-radius: 20px;
+  background: rgba(247,251,255,.78);
+  text-align: center;
+}
+
+.nutrition-plan-empty strong {
+  display: block;
+  color: #173665;
+  font-size: 15px;
+}
+
+.nutrition-plan-empty p {
+  max-width: 310px;
+  margin: 7px auto 0;
+  color: #7a8ba2;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.nutrition-today-plan-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid rgba(60,99,165,.12);
+  border-radius: 22px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 10px 26px rgba(36,66,111,.07), inset 0 1px 0 #fff;
+}
+
+.nutrition-today-plan-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(#315de8, #31c8e8);
+}
+
+.nutrition-plan-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nutrition-plan-slot-chip {
+  display: inline-flex;
+  min-height: 24px;
+  padding: 0 9px;
+  align-items: center;
+  border-radius: 999px;
+  color: #315de8;
+  background: rgba(49,93,232,.08);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.nutrition-plan-card-name {
+  margin: 8px 0 0;
+  color: #122c58;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+
+.nutrition-plan-card-kcal {
+  flex: 0 0 auto;
+  color: #1b4ec5;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.nutrition-plan-card-macros {
+  margin: 8px 0 0;
+  color: #7b8ba2;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.nutrition-plan-components-preview {
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border-radius: 15px;
+  background: #f6f9fe;
+  color: #617591;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.nutrition-plan-card-actions {
+  display: grid;
+  grid-template-columns: minmax(0,1.25fr) minmax(0,1fr) auto;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.nutrition-plan-card-actions button,
+.nutrition-plan-selection-actions button {
+  min-height: 42px;
+  border-radius: 14px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.nutrition-plan-eat-all {
+  border: 1px solid rgba(49,93,232,.18);
+  color: #fff;
+  background: linear-gradient(115deg, #315de8, #477fff 66%, #28c5e4 130%);
+  box-shadow: 0 8px 18px rgba(49,93,232,.18);
+}
+
+.nutrition-plan-select-items {
+  border: 1px solid rgba(61,101,168,.14);
+  color: #274d8f;
+  background: #f7faff;
+}
+
+.nutrition-plan-discard {
+  min-width: 48px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  color: #8a98aa;
+  background: transparent;
+}
+
+.nutrition-plan-item-selector {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(73,104,151,.10);
+}
+
+.nutrition-plan-item-selector[hidden] {
+  display: none !important;
+}
+
+.nutrition-plan-check-list {
+  display: grid;
+  gap: 8px;
+}
+
+.nutrition-plan-check-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0,1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid rgba(65,104,167,.10);
+  border-radius: 14px;
+  background: #f8fbff;
+  cursor: pointer;
+}
+
+.nutrition-plan-check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: #315de8;
+}
+
+.nutrition-plan-check-row strong,
+.nutrition-plan-check-row small {
+  display: block;
+}
+
+.nutrition-plan-check-row strong {
+  color: #24436f;
+  font-size: 11px;
+}
+
+.nutrition-plan-check-row small {
+  margin-top: 2px;
+  color: #8997aa;
+  font-size: 9px;
+}
+
+.nutrition-plan-check-row > span:last-child {
+  color: #49668f;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.nutrition-plan-selection-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.nutrition-plan-log-selected {
+  border: 1px solid rgba(49,93,232,.18);
+  color: #fff;
+  background: #315de8;
+}
+
+.nutrition-plan-cancel-select {
+  padding: 0 14px;
+  border: 1px solid rgba(65,104,167,.12);
+  color: #6d809d;
+  background: #fff;
+}
+
+.nutrition-plan-shelf {
+  min-width: 0;
+}
+
+.nutrition-plan-shelf-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 2px 10px;
+}
+
+.nutrition-plan-shelf-heading h4 {
+  margin: 3px 0 0;
+  color: #173665;
+  font-size: 16px;
+}
+
+.nutrition-plan-shelf-heading p {
+  margin: 0;
+  color: #98a5b7;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.nutrition-plan-shelf-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(156px, 42vw);
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 1px 2px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nutrition-plan-shelf-track::-webkit-scrollbar {
+  display: none;
+}
+
+.nutrition-quick-meal-card {
+  position: relative;
+  min-height: 132px;
+  padding: 13px;
+  scroll-snap-align: start;
+  border: 1px solid rgba(62,101,166,.11);
+  border-radius: 18px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 8px 20px rgba(38,67,108,.06), inset 0 1px 0 #fff;
+}
+
+.nutrition-quick-meal-favorite {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #91a0b3;
+  background: rgba(246,249,254,.9);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.nutrition-quick-meal-favorite.is-favorite {
+  color: #315de8;
+}
+
+.nutrition-quick-meal-card__slot {
+  display: inline-block;
+  max-width: calc(100% - 34px);
+  overflow: hidden;
+  color: #7587a0;
+  font-family: "Orbitron", sans-serif;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.nutrition-quick-meal-card h5 {
+  min-height: 36px;
+  margin: 7px 28px 5px 0;
+  overflow: hidden;
+  color: #193764;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.nutrition-quick-meal-card__meta {
+  margin: 0;
+  color: #8795a8;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.nutrition-quick-meal-add {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 10px;
+  border: 1px solid rgba(49,93,232,.12);
+  border-radius: 12px;
+  color: #2851ba;
+  background: #f3f7ff;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.nutrition-plan-shelf-empty {
+  width: min(100%, 330px);
+  padding: 14px;
+  border: 1px dashed rgba(66,103,162,.15);
+  border-radius: 16px;
+  color: #8a98ab;
+  background: rgba(248,251,255,.72);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.nutrition-plan-toast {
+  position: fixed;
+  z-index: 12000;
+  left: 50%;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  max-width: min(88vw, 380px);
+  transform: translateX(-50%);
+  padding: 11px 16px;
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(22,45,83,.94);
+  box-shadow: 0 12px 30px rgba(20,38,70,.24);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  backdrop-filter: blur(14px);
+}
+
+@media (max-width: 560px) {
+  .nutrition-today-plan-hero__top {
+    align-items: center;
+  }
+
+  .nutrition-today-plan-summary {
+    min-width: 84px;
+  }
+
+  .nutrition-plan-card-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .nutrition-plan-discard {
+    grid-column: 1 / -1;
+    min-height: 34px !important;
+  }
+
+  .nutrition-plan-shelf-track {
+    grid-auto-columns: minmax(150px, 58vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #manualEntrySection .nutrition-today-mode-tabs button {
+    transition: none;
+  }
+}
