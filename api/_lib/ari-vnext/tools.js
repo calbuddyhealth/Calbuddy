@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.6.0";
+export const TOOL_REGISTRY_VERSION = "1.7.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -34,6 +34,30 @@ export function getAriTools(route = {}) {
   }
 
   if (route?.training) {
+    tools.push(functionTool(
+      "propose_log_activity",
+      "Propose logging a completed manual activity only when the CURRENT user explicitly asks Ari to log, add, record, save, or track something they already did (for example a run, walk, bike ride, hike, sport, push-ups, or an outside workout). If the user gives calories burned, preserve that value. If calories are unknown, leave caloriesBurned null so ARI XP can estimate from the saved Goals/Training profile. Include duration when the user gives it; if both calories and duration are unknown, ask for duration instead of calling the tool.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          activityName: { type: "string" },
+          durationMinutes: { type: ["number", "null"] },
+          sets: { type: ["number", "null"] },
+          repsPerSet: { type: ["number", "null"] },
+          caloriesBurned: { type: ["number", "null"] },
+          intensity: { type: "string" },
+          averageHeartRate: { type: ["number", "null"] },
+          dateText: { type: "string" },
+          notes: { type: "string" }
+        },
+        required: [
+          "activityName", "durationMinutes", "sets", "repsPerSet",
+          "caloriesBurned", "intensity", "averageHeartRate", "dateText", "notes"
+        ]
+      }
+    ));
+
     tools.push(functionTool(
       "propose_workout_plan",
       "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training history, current-week overlap, goal, performance and recovery evidence when relevant. Choose recognizable exercise-library names. Give one exact target rep count per exercise rather than a rep range so ARI XP can save the prescription without changing Ari's plan. If the date is not stated, leave dateText empty rather than inventing one.",
@@ -204,6 +228,7 @@ export function validateToolCall(call = {}, route = {}) {
 export function toolToApplicationAction(name = "") {
   return ({
     propose_log_meal: "log_meal",
+    propose_log_activity: "log_activity",
     propose_workout_plan: "plan_workout",
     propose_edit_workout: "edit_workout",
     propose_log_weight: "log_weight",
@@ -220,6 +245,20 @@ function validateSemantics(name, args) {
     if (args?.calories !== null && (!Number.isFinite(Number(args.calories)) || Number(args.calories) <= 0 || Number(args.calories) > 10000)) {
       return { valid: false, error: "meal_calories_out_of_range" };
     }
+  }
+
+  if (name === "propose_log_activity") {
+    if (!String(args?.activityName || "").trim()) return { valid: false, error: "activity_name_required" };
+    const duration = args?.durationMinutes;
+    const calories = args?.caloriesBurned;
+    if ((duration === null || duration === undefined || duration === "") && (calories === null || calories === undefined || calories === "")) {
+      return { valid: false, error: "activity_duration_or_calories_required" };
+    }
+    if (!validNullableRange(duration, 1, 1440)) return { valid: false, error: "activity_duration_out_of_range" };
+    if (!validNullableRange(args?.sets, 1, 100)) return { valid: false, error: "activity_sets_out_of_range" };
+    if (!validNullableRange(args?.repsPerSet, 1, 10000)) return { valid: false, error: "activity_reps_out_of_range" };
+    if (!validNullableRange(calories, 1, 10000)) return { valid: false, error: "activity_calories_out_of_range" };
+    if (!validNullableRange(args?.averageHeartRate, 30, 240)) return { valid: false, error: "activity_heart_rate_out_of_range" };
   }
 
   if (name === "propose_workout_plan") {
