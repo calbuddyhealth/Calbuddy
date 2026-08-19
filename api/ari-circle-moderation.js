@@ -32,9 +32,14 @@ async function readJson(response) {
   return await response.json().catch(() => ({}));
 }
 
+function requestAuthorization(req) {
+  const authorization = String(req?.headers?.authorization || "").trim();
+  return authorization.toLowerCase().startsWith("bearer ") ? authorization : "";
+}
+
 async function getAuthenticatedUser(req) {
-  const authorization = String(req.headers.authorization || "").trim();
-  if (!authorization.toLowerCase().startsWith("bearer ")) return null;
+  const authorization = requestAuthorization(req);
+  if (!authorization) return null;
 
   const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
     headers: {
@@ -54,6 +59,8 @@ function hasCurrentAiConsent(user) {
     String(metadata[AI_CONSENT_VERSION_KEY] || "") === REQUIRED_AI_CONSENT_VERSION;
 }
 
+// Retained as a pure helper for regression tests and non-authorization display
+// logic. Circle authorization itself comes only from the canonical Supabase RPC.
 export function ageBandForDate(value, now = new Date()) {
   const dateText = clean(value, 32);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return "unknown";
@@ -80,24 +87,40 @@ export function ageBandForDate(value, now = new Date()) {
   return "adult";
 }
 
-async function getCircleAccessState(userId) {
-  const params = new URLSearchParams({
-    select: "status,date_of_birth",
-    user_id: `eq.${String(userId)}`,
-    limit: "1"
-  });
+async function getCircleAccessState(authorization) {
+  if (!authorization) {
+    return { ageBand: "unknown", allowed: false, policy: null };
+  }
 
+  // Use the same authenticated account-level entitlement that gates Circle in
+  // the browser and database. Do not independently read DOB or recalculate age
+  // with a server credential: duplicate authorization paths can disagree with
+  // the canonical account state and incorrectly lock eligible adults out.
   const response = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/ari_account_state?${params.toString()}`,
-    { headers: serverHeaders() }
+    `${process.env.SUPABASE_URL}/rest/v1/rpc/ari_circle_my_age_state`,
+    {
+      method: "POST",
+      headers: serverHeaders({ Authorization: authorization }),
+      body: "{}"
+    }
   );
+
   const data = await readJson(response);
-  if (!response.ok) return { ageBand: "unknown", allowed: false };
-  const row = Array.isArray(data) ? data[0] : data;
-  const ageBand = ageBandForDate(row?.date_of_birth);
+  if (!response.ok) {
+    console.warn("[ARI Circle Moderation] entitlement lookup failed", {
+      status: response.status
+    });
+    return { ageBand: "unknown", allowed: false, policy: null };
+  }
+
+  const state = Array.isArray(data) ? (data[0] || {}) : (data || {});
+  const ageBand = clean(state?.age_band || state?.ageBand, 40).toLowerCase() || "unknown";
+  const circleAllowed = state?.circle_allowed ?? state?.circleAllowed;
+
   return {
     ageBand,
-    allowed: row?.status === "active" && ageBand === "adult"
+    allowed: ageBand === "adult" && circleAllowed === true,
+    policy: clean(state?.policy, 80) || null
   };
 }
 
@@ -193,12 +216,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed." });
   }
 
+  const authorization = requestAuthorization(req);
   const user = await getAuthenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Sign in again before sharing to ARI Circle." });
 
   // Authorization is checked before consent, rate limiting, or OpenAI. A minor
   // cannot spend moderation capacity or use this endpoint as a Circle back door.
-  const access = await getCircleAccessState(user.id);
+  // The canonical RPC derives this entitlement from protected account DOB/status.
+  const access = await getCircleAccessState(authorization);
   if (!access.allowed) {
     return res.status(403).json({
       success: false,

@@ -114,12 +114,13 @@ test("Circle badge system does not request social data without adult authorizati
 
 test("Circle moderation checks adult entitlement before AI consent or OpenAI moderation", () => {
   const source = fs.readFileSync(new URL("../api/ari-circle-moderation.js", import.meta.url), "utf8");
-  const accessIndex = source.indexOf("const access = await getCircleAccessState(user.id)");
+  const accessIndex = source.indexOf("const access = await getCircleAccessState(authorization)");
   const consentIndex = source.indexOf("if (!hasCurrentAiConsent(user))");
   const rateIndex = source.indexOf("const rateLimit = await enforceAiRateLimit");
   assert.ok(accessIndex > 0);
   assert.ok(consentIndex > accessIndex);
   assert.ok(rateIndex > consentIndex);
+  assert.match(source, /ari_circle_my_age_state/);
   assert.match(source, /ARI_CIRCLE_ADULTS_ONLY/);
   assert.match(source, /paid_classifier_used: false/);
 });
