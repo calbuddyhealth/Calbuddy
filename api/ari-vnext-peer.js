@@ -38,8 +38,9 @@ export default async function handler(req, res) {
     const surface = clean(body?.surface, 200) || "unknown";
     const labAllowed = /ari-vnext-lab\.html/i.test(surface) || /ari-vnext-investigator\.html/i.test(surface);
     const globallyEnabled = process.env.ARI_VNEXT_PEER_REFLECTION_ENABLED === "true";
+    const ownerAllowed = await verifyOwner(auth.userId);
 
-    if (!labAllowed && !globallyEnabled) {
+    if (!labAllowed && !globallyEnabled && !ownerAllowed) {
       return res.status(200).json({ success: true, reflected: false, reason: "peer_reflection_disabled" });
     }
 
@@ -85,6 +86,7 @@ export default async function handler(req, res) {
         providerRequestId: peerResponse?.id || null,
         metadata: {
           surface,
+          ownerAllowed,
           selfMode: result?.selfModel?.current?.mode || null,
           evidenceConfidence: result?.metacognition?.confidence || null,
           leadingHypothesis: result?.scientificIntelligence?.hypotheses?.[0]?.id || null,
@@ -204,6 +206,29 @@ async function storeReflectionMemory(userId, memory) {
       })
     });
     return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function verifyOwner(userId) {
+  const config = supabaseConfig();
+  const id = clean(userId, 200);
+  if (!config || !id) return false;
+
+  try {
+    const params = new URLSearchParams({
+      id: `eq.${id}`,
+      select: "owner_access,is_admin",
+      limit: "1"
+    });
+    const response = await fetch(`${config.url}/rest/v1/profiles?${params.toString()}`, {
+      headers: serverHeaders(config.key)
+    });
+    if (!response.ok) return false;
+    const rows = await response.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return row?.owner_access === true || row?.is_admin === true;
   } catch {
     return false;
   }
