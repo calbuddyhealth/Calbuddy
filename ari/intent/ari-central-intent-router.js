@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.2.0
+// Version: 1.3.0
 // Purpose:
 //   ONE semantic intent decision for every Ari user turn.
 //   Wraps CalBuddy.askAri(), calls /api/ari-intent-router once, and passes
@@ -14,14 +14,24 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
   const LEGACY_GATE_FLAG = "__ariCentralIntentLegacyGateV1";
+  const MEAL_PLAN_ACTION_SCRIPT_ID = "ariTodayMealPlanActionV2Script";
   const cache = new Map();
 
   const clean = (value = "") => String(value ?? "").trim();
+
+  function loadTodayMealPlanActionService() {
+    if (document.getElementById(MEAL_PLAN_ACTION_SCRIPT_ID)) return;
+    const script = document.createElement("script");
+    script.id = MEAL_PLAN_ACTION_SCRIPT_ID;
+    script.src = "ari/actions/ari-meal-plan-action-v2.js?v=2.0.0";
+    script.async = false;
+    document.head.appendChild(script);
+  }
 
   function surfaceFromInput(input = {}) {
     const page = clean(
@@ -275,6 +285,8 @@
     console.log("ARI CENTRAL INTENT BOUNDARY INSTALLED:", VERSION);
     return true;
   }
+
+  loadTodayMealPlanActionService();
 
   let attempts = 0;
   const installTimer = window.setInterval(() => {
