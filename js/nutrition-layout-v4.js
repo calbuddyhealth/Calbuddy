@@ -1,5 +1,5 @@
-// ARI XP — Nutrition layout v4.0.0
-// Small presentation controller for the action-first Nutrition surface.
+// ARI XP — Nutrition layout v4.1.0
+// Presentation controller + iPhone momentum safeguards.
 (() => {
   "use strict";
 
@@ -12,7 +12,34 @@
     label.textContent = count === 1 ? "Meals today · 1" : `Meals today · ${count}`;
   }
 
+  function installMomentumGuards() {
+    if (window.__ariNutritionMomentumGuards) return;
+    window.__ariNutritionMomentumGuards = true;
+
+    /* nutrition.js scrolls each new Ari message into view with smooth behavior.
+       Once Ask Ari is part of the document scroller, that can cancel an active
+       iOS inertial flick. Suppress only that page-specific auto-scroll. */
+    const nativeScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (...args) {
+      try {
+        if (this?.matches?.("#ariMessages .ari-message")) return;
+      } catch {}
+      return nativeScrollIntoView.apply(this, args);
+    };
+
+    /* nutrition.js also programmatically refocuses Ask Ari when a reply ends.
+       On iPhone this can reposition the visual viewport and interrupt momentum.
+       Direct user taps still focus the textarea normally. */
+    const nativeTextareaFocus = HTMLTextAreaElement.prototype.focus;
+    HTMLTextAreaElement.prototype.focus = function (...args) {
+      if (this?.id === "ariInput") return;
+      return nativeTextareaFocus.apply(this, args);
+    };
+  }
+
   function boot() {
+    installMomentumGuards();
+
     const dashboard = document.getElementById("todayNutritionSection");
     if (dashboard && !dashboard.hasAttribute("open")) dashboard.open = true;
 
