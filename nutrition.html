@@ -1,1184 +1,202 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#f8fbff" />
 <title>ARI Nutrition Intelligence</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-<link
-  href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap"
-  rel="stylesheet"
->
-
-<link rel="stylesheet" href="assets/css/base.css?v=16">
-<link rel="stylesheet" href="assets/css/animations.css?v=16">
-
-<!-- Nutrition owns its premium header, composer, and page theme. -->
-<link rel="stylesheet" href="assets/css/nutrition.css?v=3.0.0">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/base.css?v=16" />
+<link rel="stylesheet" href="assets/css/animations.css?v=16" />
+<link rel="stylesheet" href="assets/css/nutrition.css?v=3.0.0" />
+<link rel="stylesheet" href="assets/css/nutrition-layout-v4.css?v=4.0.0" />
 </head>
 
 <body>
-
 <main class="ari-nutrition-page" id="ariNutritionApp">
 
-
-<!-- =====================================================
-     PAGE HEADER
-===================================================== -->
-
-<header class="ari-nutrition-header">
-
-  <button
-    class="ari-back-btn"
-    type="button"
-    onclick="goBack()"
-    aria-label="Go back"
-  >
-    &#8592;
-  </button>
-
-
-  <div class="ari-brand">
-
-    <h1 class="ari-brand-title">
-      ARI
-    </h1>
-
-    <p class="ari-brand-subtitle">
-      Nutrition Intelligence
-    </p>
-
-  </div>
-
-
-  <button
-    class="ari-home-btn"
-    type="button"
-    onclick="goHome()"
-    aria-label="Go home"
-  >
-    Home
-  </button>
-
-</header>
-
-
-<!-- =====================================================
-     ASK ARI NETWORK
-===================================================== -->
-
-<section
-  class="ari-panel ari-network-panel"
-  id="askAriSection"
->
-
-
-  <!-- ===================================================
-       NETWORK BRAND
-  ==================================================== -->
-
-  <header class="ari-network-hero">
-
-    <div
-      class="ari-network-eyebrow"
-      aria-hidden="true"
-    >
-      <span>&#10022;</span>
-      <span>ARI BROADCAST SYSTEM</span>
-      <span>&#10022;</span>
+  <!-- Header -->
+  <header class="ari-nutrition-header">
+    <button class="ari-back-btn" type="button" onclick="goBack()" aria-label="Go back">&#8592;</button>
+    <div class="ari-brand">
+      <h1 class="ari-brand-title">ARI</h1>
+      <p class="ari-brand-subtitle">Nutrition Intelligence</p>
     </div>
-
-
-    <div class="ari-network-title-row">
-
-      <span
-        class="ari-network-title-glyph"
-        aria-hidden="true"
-      >
-        &#10022;
-      </span>
-
-      <h2 class="ari-network-title">
-        Ask Ari
-      </h2>
-
-      <span
-        class="ari-network-title-glyph"
-        aria-hidden="true"
-      >
-        &#10022;
-      </span>
-
-    </div>
-
+    <button class="ari-home-btn" type="button" onclick="goHome()" aria-label="Go home">Home</button>
   </header>
 
+  <!-- 1. LOG A MEAL -->
+  <section class="ari-panel ari-manual-console" id="manualEntrySection">
+    <header class="ari-manual-header">
+      <div class="ari-manual-title-group">
+        <div>
+          <p class="ari-manual-eyebrow">Find a food or add your own</p>
+          <h2>Log a meal</h2>
+        </div>
+      </div>
+      <div class="ari-manual-status" id="manualFoodSystemStatus" aria-live="polite">
+        <span></span><span id="manualFoodSystemStatusText">READY</span>
+      </div>
+    </header>
 
-  <!-- ===================================================
-       BROADCAST STATUS
-  ==================================================== -->
-
-  <div class="ari-broadcast-status">
-
-
-    <div class="ari-broadcast-identity">
-
-      <span
-        class="ari-broadcast-signal"
-        aria-hidden="true"
-      >
-        <span class="ari-broadcast-signal-core"></span>
-      </span>
-
-      <span class="ari-broadcast-name">
-        ARI NUTRITION NETWORK
-      </span>
-
-    </div>
-
-
-    <div class="ari-broadcast-live">
-
-      <span class="ari-live-indicator">
-
-        <span
-          class="ari-live-dot"
-          aria-hidden="true"
-        ></span>
-
-        <span>
-          NOW BROADCASTING
-        </span>
-
-      </span>
-
-
-      <span class="ari-channel-badge">
-        CH 03
-      </span>
-
-    </div>
-
-
-  </div>
-
-
-  <!-- ===================================================
-       CRT / BROADCAST MONITOR
-  ==================================================== -->
-
-  <div class="ari-crt-console">
-
-
-    <div
-      class="ari-crt-hardware-top"
-      aria-hidden="true"
-    >
-
-      <span class="ari-hardware-mark">
-        &#9671;
-      </span>
-
-      <span class="ari-hardware-line"></span>
-
-      <span class="ari-hardware-label">
-        NUTRITION FEED
-      </span>
-
-      <span class="ari-hardware-line"></span>
-
-      <span class="ari-hardware-mark">
-        &#9671;
-      </span>
-
-    </div>
-
-
-    <div class="ari-crt-bezel">
-
-
-      <div class="ari-crt-screen">
-
-
-        <div
-          class="ari-crt-stars"
-          aria-hidden="true"
-        ></div>
-
-        <div
-          class="ari-crt-grid"
-          aria-hidden="true"
-        ></div>
-
-        <div
-          class="ari-crt-scanlines"
-          aria-hidden="true"
-        ></div>
-
-        <div
-          class="ari-crt-reflection"
-          aria-hidden="true"
-        ></div>
-
-        <div
-          class="ari-crt-vignette"
-          aria-hidden="true"
-        ></div>
-
-
-        <span
-          class="ari-crt-corner ari-crt-corner-top-left"
-          aria-hidden="true"
-        >
-          RX
-        </span>
-
-        <span
-          class="ari-crt-corner ari-crt-corner-top-right"
-          aria-hidden="true"
-        >
-          03
-        </span>
-
-
-        <div
-          class="ari-network-standby"
-          aria-hidden="true"
-        >
-
-          <div class="ari-network-standby-icon">
-
-            <span></span>
-            <span></span>
-            <span></span>
-
+    <div class="ari-form">
+      <div class="ari-food-search-shell" id="mealFoodSearchShell">
+        <label class="ari-field-shell" for="mealName">
+          <span class="ari-field-label">Food Name</span>
+          <span class="ari-field-control">
+            <input id="mealName" type="text" placeholder="Search foods and drinks" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="mealFoodResults" />
+          </span>
+        </label>
+        <div id="mealFoodResults" class="ari-food-search-results" role="listbox" aria-label="Food search results" hidden></div>
+        <div id="mealFoodSelection" class="ari-food-selection" aria-live="polite" hidden>
+          <div class="ari-food-selection-copy">
+            <span class="ari-food-selection-kicker">DATABASE MATCH</span>
+            <strong id="mealSelectedFoodName"></strong>
+            <span id="mealSelectedFoodMeta"></span>
           </div>
-
-          <p class="ari-network-standby-label">
-            ARI NUTRITION FEED
-          </p>
-
-          <p class="ari-network-standby-message">
-            Questions about meals, macros, or goals?
-            Ari is here.
-          </p>
-
-          <div class="ari-network-standby-status">
-
-            <span></span>
-
-            SIGNAL READY
-
-            <span></span>
-
-          </div>
-
+          <button id="clearSelectedFoodBtn" class="ari-food-selection-clear" type="button" aria-label="Clear selected food">CLEAR</button>
         </div>
-
-
-        <div
-          id="ariMessages"
-          class="ari-thread"
-          aria-live="polite"
-        ></div>
-
-
       </div>
 
-    </div>
-
-
-    <div
-      class="ari-crt-hardware-bottom"
-      aria-hidden="true"
-    >
-
-      <div class="ari-hardware-led-group">
-
-        <span class="ari-hardware-led"></span>
-        <span class="ari-hardware-led"></span>
-        <span class="ari-hardware-led"></span>
-
+      <div class="ari-manual-measurement-grid" id="mealMeasurementControls" hidden>
+        <label class="ari-field-shell" for="mealQuantity">
+          <span class="ari-field-label">Amount</span>
+          <span class="ari-field-control">
+            <input id="mealQuantity" type="number" min="0.01" step="0.01" value="1" inputmode="decimal" aria-label="Food amount" />
+          </span>
+        </label>
+        <label class="ari-field-shell" for="mealUnit">
+          <span class="ari-field-label">Serving / Unit</span>
+          <span class="ari-field-control"><select id="mealUnit" aria-label="Food serving or measurement unit"></select></span>
+        </label>
       </div>
 
+      <p id="mealCalculationStatus" class="ari-food-calculation-status" role="status" aria-live="polite" hidden></p>
 
-      <span class="ari-hardware-system-text">
-        ARI-NET // NUTRITION
-      </span>
+      <label class="ari-field-shell" for="mealCalories">
+        <span class="ari-field-label">Calories</span>
+        <span class="ari-field-control">
+          <input id="mealCalories" type="number" min="0" step="1" placeholder="Auto-calculated or enter manually" inputmode="decimal" />
+          <span class="ari-field-unit" aria-hidden="true">KCAL</span>
+        </span>
+      </label>
 
+      <details class="ari-advanced-nutrition">
+        <summary><span class="ari-advanced-summary-title">Advanced Nutrition</span></summary>
 
-      <div class="ari-hardware-led-group">
+        <label class="ari-field-shell" for="mealProtein">
+          <span class="ari-field-label">Protein</span>
+          <span class="ari-field-control"><input id="mealProtein" type="number" min="0" step="0.1" placeholder="Protein" inputmode="decimal" /><span class="ari-field-unit">G</span></span>
+        </label>
 
-        <span class="ari-hardware-led"></span>
-        <span class="ari-hardware-led"></span>
-        <span class="ari-hardware-led"></span>
+        <label class="ari-field-shell" for="mealCarbs">
+          <span class="ari-field-label">Carbohydrates</span>
+          <span class="ari-field-control"><input id="mealCarbs" type="number" min="0" step="0.1" placeholder="Carbs" inputmode="decimal" /><span class="ari-field-unit">G</span></span>
+        </label>
 
-      </div>
+        <label class="ari-field-shell" for="mealFat">
+          <span class="ari-field-label">Fat</span>
+          <span class="ari-field-control"><input id="mealFat" type="number" min="0" step="0.1" placeholder="Fat" inputmode="decimal" /><span class="ari-field-unit">G</span></span>
+        </label>
 
+        <label class="ari-field-shell" for="mealType">
+          <span class="ari-field-label">Meal Type</span>
+          <span class="ari-field-control">
+            <select id="mealType" aria-label="Meal type">
+              <option>Breakfast</option>
+              <option>Lunch</option>
+              <option>Dinner</option>
+              <option>Snack</option>
+              <option>Drink</option>
+              <option>Meal</option>
+            </select>
+          </span>
+        </label>
+
+        <label class="ari-field-shell" for="mealDate">
+          <span class="ari-field-label">Date</span>
+          <span class="ari-field-control"><input id="mealDate" type="date" aria-label="Meal date" /></span>
+        </label>
+
+        <label class="ari-field-shell" for="mealTime">
+          <span class="ari-field-label">Time</span>
+          <span class="ari-field-control"><input id="mealTime" type="time" aria-label="Meal time" /></span>
+        </label>
+      </details>
+
+      <button id="saveMealBtn" type="button">
+        <span id="saveMealIcon" aria-hidden="true">+</span>
+        <span id="saveMealLabel">Save Meal</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 2. ASK ARI -->
+  <section class="ari-panel ari-network-panel" id="askAriSection">
+    <div class="nutrition-ask-heading">
+      <h2>Ask Ari</h2>
+      <p>Meals, macros, portions, or goals</p>
     </div>
 
-
-  </div>
-
-
-  <!-- ===================================================
-       TRANSMISSION COMPOSER
-  ==================================================== -->
-
-  <div class="ari-transmission-console">
-
-
-    <div class="ari-transmission-label">
-
-      <span aria-hidden="true">
-        &#9672;
-      </span>
-
-      <span>
-        TRANSMISSION CONSOLE
-      </span>
-
-      <span
-        class="ari-transmission-ready"
-        aria-hidden="true"
-      >
-        READY
-      </span>
-
-    </div>
-
-
-    <div class="ari-bottom-input">
-
-
-      <div class="ari-input-shell">
-
-
-        <div
-          class="ari-input-signal"
-          aria-hidden="true"
-        >
-
-          <span></span>
-          <span></span>
-          <span></span>
-
+    <div class="ari-crt-console">
+      <div class="ari-crt-bezel">
+        <div class="ari-crt-screen">
+          <div id="ariMessages" class="ari-thread" aria-live="polite"></div>
         </div>
-
-
-        <textarea
-          id="ariInput"
-          rows="1"
-          placeholder="Ask Ari anything..."
-          aria-label="Ask Ari about nutrition"
-        ></textarea>
-
-
-        <button
-          id="ariSendBtn"
-          class="ari-send-btn"
-          type="button"
-          aria-label="Transmit message to Ari"
-        >
-          <span
-            class="ari-send-icon"
-            aria-hidden="true"
-          >
-            &#9672;
-          </span>
-
-          <span class="ari-send-label">
-            Send
-          </span>
-        </button>
-
-
       </div>
-
-
     </div>
 
-
-    <div
-      class="ari-transmission-footer"
-      aria-hidden="true"
-    >
-
-      <span>
-        &#9671;
-      </span>
-
-      <span>
-        SECURE NUTRITION CHANNEL
-      </span>
-
-      <span>
-        &#9671;
-      </span>
-
-    </div>
-
-
-  </div>
-
-
-</section>
-
-
-<!-- =====================================================
-     MANUAL ENTRY CONSOLE
-===================================================== -->
-
-<section
-  class="ari-panel ari-manual-console"
-  id="manualEntrySection"
->
-
-
-  <header class="ari-manual-header">
-
-
-    <div class="ari-manual-title-group">
-
-      <span
-        class="ari-manual-icon"
-        aria-hidden="true"
-      >
-        +
-      </span>
-
-
-      <div>
-
-        <p class="ari-manual-eyebrow">
-          Find a food or add your own
-        </p>
-
-        <h2>
-          Log a meal
-        </h2>
-
-      </div>
-
-    </div>
-
-
-    <div
-      class="ari-manual-status"
-      id="manualFoodSystemStatus"
-      aria-live="polite"
-    >
-
-      <span></span>
-
-      <span id="manualFoodSystemStatusText">
-        READY
-      </span>
-
-    </div>
-
-
-  </header>
-
-
-  <div class="ari-form">
-
-
-    <!-- =================================================
-         FOOD DATABASE SEARCH
-    ================================================== -->
-
-    <div
-      class="ari-food-search-shell"
-      id="mealFoodSearchShell"
-    >
-
-      <label
-        class="ari-field-shell"
-        for="mealName"
-      >
-
-        <span class="ari-field-label">
-          Food Name
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            &#9671;
-          </span>
-
-          <input
-            id="mealName"
-            type="text"
-            placeholder="Search foods and drinks"
-            autocomplete="off"
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded="false"
-            aria-controls="mealFoodResults"
-          >
-
-        </span>
-
-      </label>
-
-
-      <!-- Search/autocomplete results -->
-
-      <div
-        id="mealFoodResults"
-        class="ari-food-search-results"
-        role="listbox"
-        aria-label="Food search results"
-        hidden
-      ></div>
-
-
-      <!-- Selected database food status -->
-
-      <div
-        id="mealFoodSelection"
-        class="ari-food-selection"
-        aria-live="polite"
-        hidden
-      >
-
-        <div class="ari-food-selection-copy">
-
-          <span
-            class="ari-food-selection-kicker"
-            aria-hidden="true"
-          >
-            DATABASE MATCH
-          </span>
-
-          <strong id="mealSelectedFoodName"></strong>
-
-          <span id="mealSelectedFoodMeta"></span>
-
+    <div class="ari-transmission-console">
+      <div class="ari-bottom-input">
+        <div class="ari-input-shell">
+          <textarea id="ariInput" rows="1" placeholder="Ask Ari about nutrition..." aria-label="Ask Ari about nutrition"></textarea>
+          <button id="ariSendBtn" class="ari-send-btn" type="button" aria-label="Send message to Ari">
+            <span class="ari-send-icon" aria-hidden="true"></span>
+            <span class="ari-send-label">Send</span>
+          </button>
         </div>
-
-
-        <button
-          id="clearSelectedFoodBtn"
-          class="ari-food-selection-clear"
-          type="button"
-          aria-label="Clear selected food"
-        >
-          CLEAR
-        </button>
-
       </div>
+    </div>
+  </section>
 
+  <!-- 3. TODAY'S NUTRITION -->
+  <details class="ari-panel ari-data-console" id="todayNutritionSection" open>
+    <summary><span class="ari-summary-title">Today's Nutrition</span></summary>
 
+    <div class="nutrition-summary">
+      <div id="totalCalories">Calories</div>
+      <div id="totalProtein">Protein</div>
+      <div id="totalCarbs">Carbs</div>
+      <div id="totalFat">Fat</div>
     </div>
 
-
-    <!-- =================================================
-         AMOUNT + SERVING / UNIT
-    ================================================== -->
-
-    <div
-      class="ari-manual-measurement-grid"
-      id="mealMeasurementControls"
-      hidden
-    >
-
-
-      <label
-        class="ari-field-shell"
-        for="mealQuantity"
-      >
-
-        <span class="ari-field-label">
-          Amount
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            &times;
-          </span>
-
-          <input
-            id="mealQuantity"
-            type="number"
-            min="0.01"
-            step="0.01"
-            value="1"
-            inputmode="decimal"
-            aria-label="Food amount"
-          >
-
-        </span>
-
-      </label>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealUnit"
-      >
-
-        <span class="ari-field-label">
-          Serving / Unit
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            &#9672;
-          </span>
-
-          <select
-            id="mealUnit"
-            aria-label="Food serving or measurement unit"
-          ></select>
-
-        </span>
-
-      </label>
-
-
-    </div>
-
-
-    <!-- Calculation status -->
-
-    <p
-      id="mealCalculationStatus"
-      class="ari-food-calculation-status"
-      role="status"
-      aria-live="polite"
-      hidden
-    ></p>
-
-
-    <!-- =================================================
-         CALORIES
-    ================================================== -->
-
-    <label
-      class="ari-field-shell"
-      for="mealCalories"
-    >
-
-      <span class="ari-field-label">
-        Calories
-      </span>
-
-      <span class="ari-field-control">
-
-        <span
-          class="ari-field-icon"
-          aria-hidden="true"
-        >
-          &#10022;
-        </span>
-
-        <input
-          id="mealCalories"
-          type="number"
-          min="0"
-          step="1"
-          placeholder="Auto-calculated or enter manually"
-          inputmode="decimal"
-        >
-
-        <span
-          class="ari-field-unit"
-          aria-hidden="true"
-        >
-          KCAL
-        </span>
-
-      </span>
-
-    </label>
-
-
-    <!-- =================================================
-         ADVANCED NUTRITION
-    ================================================== -->
-
-    <details class="ari-advanced-nutrition">
-
-
-      <summary>
-
-        <span class="ari-advanced-summary-title">
-
-          <span aria-hidden="true">
-            &#9672;
-          </span>
-
-          Advanced Nutrition
-
-        </span>
-
-      </summary>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealProtein"
-      >
-
-        <span class="ari-field-label">
-          Protein
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            P
-          </span>
-
-          <input
-            id="mealProtein"
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="Protein"
-            inputmode="decimal"
-          >
-
-          <span
-            class="ari-field-unit"
-            aria-hidden="true"
-          >
-            G
-          </span>
-
-        </span>
-
-      </label>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealCarbs"
-      >
-
-        <span class="ari-field-label">
-          Carbohydrates
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            C
-          </span>
-
-          <input
-            id="mealCarbs"
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="Carbs"
-            inputmode="decimal"
-          >
-
-          <span
-            class="ari-field-unit"
-            aria-hidden="true"
-          >
-            G
-          </span>
-
-        </span>
-
-      </label>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealFat"
-      >
-
-        <span class="ari-field-label">
-          Fat
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            F
-          </span>
-
-          <input
-            id="mealFat"
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="Fat"
-            inputmode="decimal"
-          >
-
-          <span
-            class="ari-field-unit"
-            aria-hidden="true"
-          >
-            G
-          </span>
-
-        </span>
-
-      </label>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealType"
-      >
-
-        <span class="ari-field-label">
-          Meal Type
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            &#9671;
-          </span>
-
-          <select
-            id="mealType"
-            aria-label="Meal type"
-          >
-            <option>Breakfast</option>
-            <option>Lunch</option>
-            <option>Dinner</option>
-            <option>Snack</option>
-            <option>Drink</option>
-          </select>
-
-        </span>
-
-      </label>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealDate"
-      >
-
-        <span class="ari-field-label">
-          Date
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            &#9671;
-          </span>
-
-          <input
-            id="mealDate"
-            type="date"
-            aria-label="Meal date"
-          >
-
-        </span>
-
-      </label>
-
-
-      <label
-        class="ari-field-shell"
-        for="mealTime"
-      >
-
-        <span class="ari-field-label">
-          Time
-        </span>
-
-        <span class="ari-field-control">
-
-          <span
-            class="ari-field-icon"
-            aria-hidden="true"
-          >
-            &#9719;
-          </span>
-
-          <input
-            id="mealTime"
-            type="time"
-            aria-label="Meal time"
-          >
-
-        </span>
-
-      </label>
-
-
+    <details id="todayMealsSection" class="nutrition-today-meals">
+      <summary><span id="todayMealCountLabel">Meals today · 0</span></summary>
+      <div id="todayMealList"></div>
     </details>
-
-
-    <button
-      id="saveMealBtn"
-      type="button"
-    >
-
-      <span
-        id="saveMealIcon"
-        aria-hidden="true"
-      >
-        +
-      </span>
-
-      <span id="saveMealLabel">
-        Save Meal
-      </span>
-
-    </button>
-
-
-  </div>
-
-
-  <div
-    class="ari-manual-footer"
-    aria-hidden="true"
-  >
-
-    <span>
-      &#9671;
-    </span>
-
-    <span>
-      MANUAL NUTRITION INPUT
-    </span>
-
-    <span>
-      &#9671;
-    </span>
-
-  </div>
-
-
-</section>
-
-
-<!-- =====================================================
-     TODAY'S MEALS
-===================================================== -->
-
-<details
-  class="ari-panel ari-data-console"
-  id="todayMealsSection"
->
-
-  <summary>
-
-    <span class="ari-summary-title">
-
-      <span
-        class="ari-summary-icon"
-        aria-hidden="true"
-      >
-        &#9672;
-      </span>
-
-      <span>
-        Today's Meals
-      </span>
-
-    </span>
-
-  </summary>
-
-
-  <div id="todayMealList"></div>
-
-</details>
-
-
-<!-- =====================================================
-     TODAY'S NUTRITION
-===================================================== -->
-
-<details
-  class="ari-panel ari-data-console"
-  id="todayNutritionSection"
->
-
-  <summary>
-
-    <span class="ari-summary-title">
-
-      <span
-        class="ari-summary-icon"
-        aria-hidden="true"
-      >
-        &#9671;
-      </span>
-
-      <span>
-        Today's Nutrition
-      </span>
-
-    </span>
-
-  </summary>
-
-
-  <div class="nutrition-summary">
-
-
-    <div id="totalCalories">
-      Calories
-    </div>
-
-
-    <div id="totalProtein">
-      Protein
-    </div>
-
-
-    <div id="totalCarbs">
-      Carbs
-    </div>
-
-
-    <div id="totalFat">
-      Fat
-    </div>
-
-
-  </div>
-
-</details>
-
-
-<!-- =====================================================
-     RECENT MEALS
-===================================================== -->
-
-<details
-  class="ari-panel ari-data-console"
-  id="recentMealsSection"
->
-
-  <summary>
-
-    <span class="ari-summary-title">
-
-      <span
-        class="ari-summary-icon"
-        aria-hidden="true"
-      >
-        &#9673;
-      </span>
-
-      <span>
-        Recent Meals
-      </span>
-
-    </span>
-
-  </summary>
-
-
-  <div id="recentMealList"></div>
-
-</details>
-
-
-<!-- =====================================================
-     NETWORK FOOTER
-===================================================== -->
-
-<footer
-  class="ari-nutrition-network-footer"
-  aria-hidden="true"
->
-
-  <span class="ari-footer-line"></span>
-
-  <span>
-    ARI NUTRITION NETWORK
-  </span>
-
-  <span class="ari-footer-dot"></span>
-
-  <span>
-    SYSTEM ONLINE
-  </span>
-
-  <span class="ari-footer-line"></span>
-
-</footer>
-
-
+  </details>
+
+  <!-- 4. RECENT MEALS -->
+  <details class="ari-panel ari-data-console" id="recentMealsSection">
+    <summary><span class="ari-summary-title">Recent Meals</span></summary>
+    <div id="recentMealList"></div>
+  </details>
+
+  <footer class="ari-nutrition-network-footer" aria-hidden="true">ARI Nutrition</footer>
 </main>
 
-
-<!-- =====================================================
-     RUNTIME
-===================================================== -->
-
+<!-- Runtime -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <script src="supabase-config.js?v=10"></script>
-<script src="js/auth.js?v=1"></script>
-
-<!-- Shared CalBuddy entry point -->
+<script src="js/auth.js?v=1.10.5"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
-
-<!-- ARI Rebirth runtime -->
 <script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
 
-
-<!-- =====================================================
-     ARI NUTRITION FOOD SYSTEM
-
-     Required execution order:
-
-       1. Registry
-       2. Food data modules
-       3. Search
-       4. Hybrid branded search
-       5. Calculator
-       6. nutrition.js
-===================================================== -->
-
+<!-- ARI Nutrition food registry and data -->
 <script src="ari/nutrition/AriFoodRegistry.js?v=2.0.1"></script>
-
-
-<!-- =====================================================
-     BEVERAGES
-===================================================== -->
 
 <script src="ari/nutrition/data/beverages/AriFoodBeverages.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/beverages/AriFoodBeverageCore.js"></script>
@@ -1191,19 +209,9 @@
 <script src="ari/nutrition/data/beverages/AriFoodBeverageBrands2.js"></script>
 <script src="ari/nutrition/data/beverages/AriFoodBeverageBrands3.js"></script>
 
-
-<!-- =====================================================
-     CONDIMENTS
-===================================================== -->
-
 <script src="ari/nutrition/data/condiments/AriFoodCondiments.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/condiments/AriFoodCondimentsCore.js"></script>
 <script src="ari/nutrition/data/condiments/AriFoodCondimentBrands.js"></script>
-
-
-<!-- =====================================================
-     DAIRY
-===================================================== -->
 
 <script src="ari/nutrition/data/dairy/AriFoodDairy.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/dairy/AriFoodDairyCore.js"></script>
@@ -1213,19 +221,9 @@
 <script src="ari/nutrition/data/dairy/AriFoodDairyBrands2.js"></script>
 <script src="ari/nutrition/data/dairy/AriFoodDairyBrands3.js"></script>
 
-
-<!-- =====================================================
-     FATS
-===================================================== -->
-
 <script src="ari/nutrition/data/fats/AriFoodFats.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/fats/AriFoodFatsCore.js"></script>
 <script src="ari/nutrition/data/fats/AriFoodFatBrands.js"></script>
-
-
-<!-- =====================================================
-     FRUIT
-===================================================== -->
 
 <script src="ari/nutrition/data/fruit/AriFoodFruit.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/fruit/AriFoodCommonFruit.js"></script>
@@ -1235,11 +233,6 @@
 <script src="ari/nutrition/data/fruit/AriFoodStoneFruit.js"></script>
 <script src="ari/nutrition/data/fruit/AriFoodMelons.js"></script>
 <script src="ari/nutrition/data/fruit/AriFoodDriedFruit.js"></script>
-
-
-<!-- =====================================================
-     GRAINS
-===================================================== -->
 
 <script src="ari/nutrition/data/grains/AriFoodGrains.js?v=1.1.0"></script>
 <script src="ari/nutrition/data/grains/AriFoodRice.js"></script>
@@ -1251,28 +244,13 @@
 <script src="ari/nutrition/data/grains/AriFoodCerealBrands2.js"></script>
 <script src="ari/nutrition/data/grains/AriFoodOatBrands.js"></script>
 
-
-<!-- =====================================================
-     NUTS
-===================================================== -->
-
 <script src="ari/nutrition/data/nuts/AriFoodNuts.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/nuts/AriFoodNutsCore.js"></script>
 <script src="ari/nutrition/data/nuts/AriFoodNutBrands.js"></script>
 
-
-<!-- =====================================================
-     OILS
-===================================================== -->
-
 <script src="ari/nutrition/data/oils/AriFoodOils.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/oils/AriFoodOilsCore.js"></script>
 <script src="ari/nutrition/data/oils/AriFoodOilBrands.js"></script>
-
-
-<!-- =====================================================
-     PROTEINS
-===================================================== -->
 
 <script src="ari/nutrition/data/proteins/AriFoodProteins.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/proteins/AriFoodPoultry.js"></script>
@@ -1284,28 +262,13 @@
 <script src="ari/nutrition/data/proteins/AriFoodGameMeats.js"></script>
 <script src="ari/nutrition/data/proteins/AriFoodPlantProteins.js"></script>
 
-
-<!-- =====================================================
-     SEASONINGS
-===================================================== -->
-
 <script src="ari/nutrition/data/seasonings/AriFoodSeasonings.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/seasonings/AriFoodSeasoningsCore.js"></script>
 <script src="ari/nutrition/data/seasonings/AriFoodSeasoningBrands.js"></script>
 
-
-<!-- =====================================================
-     SNACKS
-===================================================== -->
-
 <script src="ari/nutrition/data/snacks/AriFoodSnacks.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/snacks/AriFoodSnacksCore.js"></script>
 <script src="ari/nutrition/data/snacks/AriFoodSnackBrands.js"></script>
-
-
-<!-- =====================================================
-     SPIRITS
-===================================================== -->
 
 <script src="ari/nutrition/data/spirits/AriFoodSpirits.js?v=1.1.0"></script>
 <script src="ari/nutrition/data/spirits/AriFoodSpiritsCore.js"></script>
@@ -1317,19 +280,9 @@
 <script src="ari/nutrition/data/spirits/AriFoodMaltBeverageBrands.js"></script>
 <script src="ari/nutrition/data/spirits/AriFoodCocktailBrands.js"></script>
 
-
-<!-- =====================================================
-     SYRUPS
-===================================================== -->
-
 <script src="ari/nutrition/data/syrups/AriFoodSyrups.js?v=1.0.0"></script>
 <script src="ari/nutrition/data/syrups/AriFoodSyrupsCore.js"></script>
 <script src="ari/nutrition/data/syrups/AriFoodSyrupBrands.js"></script>
-
-
-<!-- =====================================================
-     VEGETABLES
-===================================================== -->
 
 <script src="ari/nutrition/data/vegetables/AriFoodVegetables.js?v=1.1.0"></script>
 <script src="ari/nutrition/data/vegetables/AriFoodLeafyVegetables.js"></script>
@@ -1340,21 +293,10 @@
 <script src="ari/nutrition/data/vegetables/AriFoodPeppers.js"></script>
 <script src="ari/nutrition/data/vegetables/AriFoodDriedChiles.js"></script>
 
-
-<!-- =====================================================
-     FOOD SEARCH + CALCULATOR
-
-     These must load only after every food-data module
-     has had a chance to register with AriFoodRegistry.
-===================================================== -->
-
 <script src="ari/nutrition/AriFoodSearch.js?v=1.0.0"></script>
 <script src="ari/nutrition/AriHybridFoodSearch.js?v=1.0.1"></script>
 <script src="ari/nutrition/AriFoodCalculator.js?v=1.0.0"></script>
-
-
-<!-- Nutrition page behavior must load last -->
 <script src="js/nutrition.js?v=4.2.2"></script>
-
+<script src="js/nutrition-layout-v4.js?v=4.0.0"></script>
 </body>
 </html>
