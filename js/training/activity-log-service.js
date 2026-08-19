@@ -3,8 +3,9 @@
 
 import CalorieCalculator from "./energy/calorie-calculator.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const SOURCE = "js/training/activity-log-service";
+const CALORIE_SOURCES = new Set(["user_reported", "profile_estimate", "legacy"]);
 
 function clean(value = "", max = 180) {
   return String(value ?? "").trim().slice(0, max);
@@ -172,6 +173,9 @@ async function prepareActivity(input = {}, options = {}) {
   const averageHeartRate = integer(input.averageHeartRate ?? input.average_heart_rate);
   const enteredCalories = positive(input.caloriesBurned ?? input.calories_burned ?? input.calories);
   const dateKey = resolveDateKey(input.dateText || input.log_date || options.dateText || "");
+  const suppliedCalorieSource = clean(input.calorieSource ?? input.calorie_source, 40).toLowerCase();
+  const trustedCalorieSource = CALORIE_SOURCES.has(suppliedCalorieSource) ? suppliedCalorieSource : null;
+  const suppliedEstimationMethod = clean(input.estimationMethod ?? input.estimation_method, 120) || null;
 
   if (durationMinutes !== null && (durationMinutes < 1 || durationMinutes > 1440)) {
     return { success: false, code: "activity_duration_out_of_range", message: "Activity duration must be between 1 and 1,440 minutes." };
@@ -190,8 +194,12 @@ async function prepareActivity(input = {}, options = {}) {
   }
 
   let caloriesBurned = enteredCalories;
-  let calorieSource = enteredCalories ? "user_reported" : "profile_estimate";
-  let estimationMethod = enteredCalories ? "user_reported" : null;
+  let calorieSource = trustedCalorieSource || (enteredCalories ? "user_reported" : "profile_estimate");
+  let estimationMethod = trustedCalorieSource === "profile_estimate"
+    ? (suppliedEstimationMethod || "profile_estimate")
+    : enteredCalories
+      ? (suppliedEstimationMethod || "user_reported")
+      : suppliedEstimationMethod;
   let estimate = null;
 
   if (!caloriesBurned) {
@@ -221,6 +229,7 @@ async function prepareActivity(input = {}, options = {}) {
       };
     }
     caloriesBurned = estimate.calories;
+    calorieSource = "profile_estimate";
     estimationMethod = estimate.method;
   }
 
