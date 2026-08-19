@@ -3,7 +3,7 @@ import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 // =====================================================
 // ARI XP
 // File: api/ari-intent-router.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
 //   OpenAI semantic intent router for all Ari surfaces.
 //   Returns one strict structured decision. It NEVER executes app actions.
@@ -15,8 +15,8 @@ const ROUTER_SCHEMA = {
   properties: {
     domain: { type: "string", enum: ["conversation", "nutrition", "training", "health", "goals", "social", "developer", "navigation", "unknown"] },
     intent: { type: "string", enum: ["conversation", "question", "create", "log", "edit", "delete", "view", "navigate", "update", "clarify"] },
-    target: { type: "string", enum: ["none", "meal", "workout_plan", "workout_exercise", "weight", "profile", "calorie_goal", "goal", "social", "developer_task", "page", "unknown"] },
-    action: { type: "string", enum: ["none", "log_meal", "plan_workout", "edit_workout", "delete_workout", "log_weight", "update_profile", "update_goal", "developer_action", "navigate"] },
+    target: { type: "string", enum: ["none", "meal", "meal_plan", "recipe", "workout_plan", "workout_exercise", "weight", "profile", "calorie_goal", "goal", "social", "developer_task", "page", "unknown"] },
+    action: { type: "string", enum: ["none", "log_meal", "plan_meal", "log_planned_meal", "create_recipe", "plan_workout", "edit_workout", "delete_workout", "log_weight", "update_profile", "update_goal", "developer_action", "navigate"] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     requires_confirmation: { type: "boolean" },
     needs_clarification: { type: "boolean" },
@@ -30,6 +30,10 @@ const ROUTER_SCHEMA = {
         quantity: { type: ["number", "null"] },
         size: { type: "string" },
         meal_category: { type: "string" },
+        meal_date_text: { type: "string" },
+        calorie_target: { type: ["number", "null"] },
+        recipe_theme: { type: "string" },
+        servings: { type: ["number", "null"] },
         workout_focus: { type: "string" },
         workout_date_text: { type: "string" },
         duration_minutes: { type: ["number", "null"] },
@@ -41,7 +45,7 @@ const ROUTER_SCHEMA = {
         goal_unit: { type: "string" }
       },
       required: [
-        "food_description", "quantity", "size", "meal_category",
+        "food_description", "quantity", "size", "meal_category", "meal_date_text", "calorie_target", "recipe_theme", "servings",
         "workout_focus", "workout_date_text", "duration_minutes", "difficulty", "exercise",
         "weight_value", "weight_unit", "goal_value", "goal_unit"
       ]
@@ -69,10 +73,17 @@ Do not answer the user. Do not execute anything. Do not claim anything was saved
 
 CRITICAL RULES:
 - Base executable actions on the CURRENT message only. Never infer a data mutation from old conversation history.
-- Ordinary questions and statements must use action="none".
-- "I ate an egg roll" is not automatically a log request.
-- "Log an egg roll", "add an egg roll", "record 2 beers", and "I ate an egg roll, log it" are nutrition log_meal actions.
+- Ordinary questions and statements must use action="none" unless the statement clearly reports food/drink consumption as described below.
+- A clear first-person consumption statement such as "I ate an egg roll", "I had chicken and rice", or "I drank two beers" routes to nutrition / log / meal / log_meal. The app will still require confirmation before saving.
+- "Log an egg roll", "add an egg roll", "record 2 beers", and "I ate an egg roll, log it" are also nutrition log_meal actions.
 - "How many calories are in an egg roll?" is a nutrition question with action="none".
+- A request to create food for a FUTURE meal or day using phrases such as "meal plan", "plan my meals", "make me a 500 calorie lunch", or "plan the rest of today" routes to nutrition / create / meal_plan / plan_meal.
+- "Make me a 500 calorie lunch" => nutrition / create / meal_plan / plan_meal, meal_category="Lunch", calorie_target=500.
+- "Make me a meal plan for today" => nutrition / create / meal_plan / plan_meal, meal_date_text="today".
+- If the user refers to a planned slot instead of naming foods, such as "log that I ate today's breakfast" or "I ate my planned lunch", route to nutrition / log / meal_plan / log_planned_meal. Preserve meal_category and meal_date_text.
+- Recipe/cooking requests that emphasize a dish, cooking instructions, delicious/tasty food, "recipe", taco night, pasta dinner, salmon dinner, carne asada, etc. route to nutrition / create / recipe / create_recipe unless the user explicitly asks for a meal plan instead.
+- If a recipe request explicitly includes a meal slot and day, preserve both so the recipe can be scheduled after confirmation. Example: "Give me a tasty salmon dinner Tuesday" => create_recipe with meal_category="Dinner" and meal_date_text="Tuesday".
+- "How do I cook salmon?" can remain a nutrition question with action="none" unless the user asks Ari to create/save a reusable recipe.
 - Workout creation/editing must route to training, never nutrition, even if the user says "log" colloquially.
 - "Create a shoulder workout tomorrow" => training / create / workout_plan / plan_workout.
 - "Add lateral raises to tomorrow's shoulder workout" => training / edit / workout_exercise / edit_workout.
@@ -81,6 +92,11 @@ CRITICAL RULES:
 - If a mutation target is genuinely ambiguous, set needs_clarification=true, action="none", and provide one concise clarification question.
 - Mutating actions require confirmation unless they are only navigation/view operations.
 - Extract only entities explicitly present in the CURRENT message. Use empty strings/null for missing values.
+- meal_category should be Breakfast, Lunch, Dinner, or Snack only when the user explicitly names or clearly implies that slot.
+- meal_date_text should preserve words like today, tomorrow, Tuesday, next Monday, or an explicit date when present.
+- calorie_target is the user's requested calorie amount for a planned meal/day or recipe serving when explicitly stated; otherwise null.
+- recipe_theme is the requested dish/style/flavor when present; otherwise empty string.
+- servings is the requested recipe serving count when explicitly stated; otherwise null.
 - confidence reflects how sure you are about the semantic classification, not nutrition accuracy.
 
 CURRENT APP SURFACE:
@@ -98,7 +114,7 @@ ${JSON.stringify(appContext).slice(0, 2000)}
       body: JSON.stringify({
         model: requestedModel,
         temperature: 0,
-        max_tokens: 500,
+        max_tokens: 600,
         messages: [
           { role: "system", content: system },
           { role: "user", content: message }
@@ -133,7 +149,7 @@ ${JSON.stringify(appContext).slice(0, 2000)}
     const content = data?.choices?.[0]?.message?.content || "";
     const decision = JSON.parse(content);
 
-    return res.status(200).json({ routerVersion: "1.1.0", decision });
+    return res.status(200).json({ routerVersion: "1.2.0", decision });
   } catch (error) {
     return res.status(500).json({ error: error?.message || "Intent router failed" });
   }
