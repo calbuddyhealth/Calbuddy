@@ -1,4 +1,4 @@
-/* ARI XP — home navigation polish v2 */
+/* ARI XP — home navigation polish v2.1 */
 .ari-nav-link.nav-circle {
   position: relative;
   overflow: hidden;
@@ -75,6 +75,32 @@
   border-radius:50%;
   background:#20e4f1;
   box-shadow:0 0 10px rgba(32,228,241,.72),0 0 18px rgba(169,104,255,.24);
+}
+
+/* iPhone Safari: keep the final navigation card above the browser chrome. */
+.ari-side-menu {
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 132px);
+}
+
+.ari-menu-content {
+  justify-content: flex-start;
+  min-height: auto;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 132px);
+}
+
+.ari-menu-content > .ari-nav-link:last-child {
+  margin-bottom: 8px;
+}
+
+@supports not (height: 100dvh) {
+  .ari-side-menu {
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
+  }
 }
 
 @keyframes ariCircleTitleSweep { 0%,100% { background-position:0% 50%; } 50% { background-position:100% 50%; } }
