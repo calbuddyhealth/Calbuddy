@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.8.0";
+export const TOOL_REGISTRY_VERSION = "1.9.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -34,7 +34,7 @@ export function getAriTools(route = {}) {
 
     tools.push(functionTool(
       "propose_today_meal_plan",
-      "Propose food for ARI XP's TODAY-ONLY Meal Plan when the CURRENT user explicitly asks Ari to make, create, build, plan, or put together a meal plan, a meal for a named slot, or food for the rest of today. This is planned food, not consumed food. Use the saved Daily Calorie Goal, calories already consumed, and active Meal Plan context when the request is budget-based. Never invent a Daily Calorie Goal. If the saved goal is unknown and the user did not give an explicit calorie target, explain that the goal must be set or ask for a target instead of calling this tool. Do not create future dates. Do not replace an already active meal slot unless the user first removes it. Give each selectable component its own nutrition values so partial logging remains possible.",
+      "Propose food for ARI XP's TODAY-ONLY Meal Plan when the CURRENT user explicitly asks Ari to make, create, build, plan, or put together a meal plan, a meal for a named slot, or food for the rest of today. This is planned food, not consumed food. Use the saved Daily Calorie Goal, calories already consumed, and active Meal Plan context when the request is budget-based. Never invent a Daily Calorie Goal. If the saved goal is unknown and the user did not give an explicit calorie target, explain that the goal must be set or ask for a target instead of calling this tool. Do not create future dates. Do not replace an already active meal slot unless the user first removes it. Give each selectable component its own nutrition values so partial logging remains possible. Use each meal slot at most once; if several foods belong to the same meal, put them in that meal's items array instead of creating a second meal with the same slot.",
       {
         type: "object",
         additionalProperties: false,
@@ -283,10 +283,12 @@ export function validateToolCall(call = {}, route = {}) {
     return { valid: false, error: "tool_not_allowed_for_turn" };
   }
 
-  const args = safeJsonParse(call?.arguments);
+  let args = safeJsonParse(call?.arguments);
   if (!args || typeof args !== "object" || Array.isArray(args)) {
     return { valid: false, error: "invalid_tool_arguments" };
   }
+
+  args = normalizeToolArguments(call.name, args);
 
   const semanticValidation = validateSemantics(call.name, args);
   if (!semanticValidation.valid) return semanticValidation;
@@ -444,6 +446,72 @@ function validateSemantics(name, args) {
   }
 
   return { valid: true };
+}
+
+function normalizeToolArguments(name, args) {
+  if (name !== "propose_today_meal_plan" || !Array.isArray(args?.meals)) return args;
+
+  const bySlot = new Map();
+  const orderedSlots = [];
+
+  for (const meal of args.meals) {
+    const slot = String(meal?.mealSlot || "").trim().toLowerCase();
+    if (!slot || !["breakfast", "lunch", "dinner", "snack"].includes(slot)) {
+      if (!bySlot.has(slot)) {
+        bySlot.set(slot, meal);
+        orderedSlots.push(slot);
+      }
+      continue;
+    }
+
+    if (!bySlot.has(slot)) {
+      bySlot.set(slot, { ...meal, mealSlot: slot });
+      orderedSlots.push(slot);
+      continue;
+    }
+
+    const current = bySlot.get(slot) || {};
+    bySlot.set(slot, mergeSameSlotMeals(current, meal, slot));
+  }
+
+  return {
+    ...args,
+    meals: orderedSlots.map((slot) => bySlot.get(slot)).filter(Boolean).slice(0, 4)
+  };
+}
+
+function mergeSameSlotMeals(first = {}, second = {}, slot = "") {
+  const names = uniqueText([first?.name, second?.name]);
+  const servings = uniqueText([first?.servingSize, second?.servingSize]);
+  const notes = uniqueText([first?.notes, second?.notes]);
+  const items = [
+    ...(Array.isArray(first?.items) ? first.items : []),
+    ...(Array.isArray(second?.items) ? second.items : [])
+  ].slice(0, 16);
+
+  return {
+    ...first,
+    mealSlot: slot,
+    name: names.join(" + ").slice(0, 220) || String(first?.name || second?.name || slot),
+    calories: addNumbers(first?.calories, second?.calories),
+    proteinG: addNumbers(first?.proteinG, second?.proteinG),
+    carbsG: addNumbers(first?.carbsG, second?.carbsG),
+    fatG: addNumbers(first?.fatG, second?.fatG),
+    servingSize: servings.join(" + ").slice(0, 220),
+    items,
+    notes: notes.join(" | ").slice(0, 800)
+  };
+}
+
+function addNumbers(a, b) {
+  const left = Number(a);
+  const right = Number(b);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return NaN;
+  return Number((left + right).toFixed(4));
+}
+
+function uniqueText(values = []) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
 }
 
 function validNullableRange(value, min, max, allowNull = true) {
