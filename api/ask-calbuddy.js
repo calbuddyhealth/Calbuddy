@@ -3,6 +3,7 @@ import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 // api/ask-calbuddy.js
 // CalBuddy OpenAI Knowledge Client
 // Purpose: Server-side OpenAI caller for Ari Rebirth.
+// V2.4.0 — Honors action-specific JSON contracts and request-scoped output budgets.
 // V2.3.0 — Adds server-side provider token/cost accounting.
 
 export default async function handler(req, res) {
@@ -19,7 +20,8 @@ export default async function handler(req, res) {
       history = [],
       githubFileContext = null,
       developerInvestigation = null,
-      responseFormat = "json"
+      responseFormat = "json",
+      maxTokens = null
     } = req.body || {};
 
     if (!process.env.OPENAI_API_KEY) {
@@ -44,6 +46,11 @@ export default async function handler(req, res) {
 
     const recentHistory = normalizeHistory(history);
     const requestedModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const defaultMaxTokens = Number(process.env.OPENAI_MAX_TOKENS || 1200);
+    const requestedMaxTokens = Number(maxTokens);
+    const resolvedMaxTokens = Number.isFinite(requestedMaxTokens) && requestedMaxTokens > 0
+      ? Math.max(256, Math.min(3000, Math.round(requestedMaxTokens)))
+      : defaultMaxTokens;
 
     const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -59,7 +66,7 @@ export default async function handler(req, res) {
           { role: "user", content: cleanMessage || "Continue from the provided instruction." }
         ],
         temperature: Number(process.env.OPENAI_TEMPERATURE || 0.45),
-        max_tokens: Number(process.env.OPENAI_MAX_TOKENS || 1200),
+        max_tokens: resolvedMaxTokens,
         ...(responseFormat === "json"
           ? { response_format: { type: "json_object" } }
           : {})
@@ -86,7 +93,8 @@ export default async function handler(req, res) {
         historyTurns: recentHistory.length,
         messageCharacters: cleanMessage.length,
         hasAriInstruction: Boolean(String(aiInstruction || "").trim()),
-        responseFormat
+        responseFormat,
+        maxTokens: resolvedMaxTokens
       }
     });
 
@@ -229,7 +237,9 @@ ${context}
 OUTPUT:
 ${responseFormat === "json"
   ? `Return only valid JSON.
-Required shape:
+IMPORTANT: If the ARI REBIRTH INSTRUCTION above requests a specific JSON schema, named top-level object, or exact structured contract, that requested contract is authoritative. Return that requested JSON structure directly. Do NOT wrap it in the default Ari response shape below and do NOT omit its required fields.
+
+Only when the ARI REBIRTH INSTRUCTION does NOT specify its own JSON structure, use this default shape:
 {
   "reply": "string",
   "emotion": "happy",
