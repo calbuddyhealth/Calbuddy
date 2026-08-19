@@ -1,6 +1,6 @@
 /* =====================================================
    ARI Nutrition Scan
-   Version: 1.0.0
+   Version: 1.0.1
    Barcode-first packaged-food logging.
 ===================================================== */
 
@@ -59,6 +59,8 @@
   background: rgba(7, 18, 45, .52);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .nutrition-scan-card {
@@ -67,6 +69,9 @@
   margin: 0 auto;
   padding: 16px 14px calc(18px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid rgba(255,255,255,.9);
   border-radius: 28px 28px 0 0;
   background: linear-gradient(160deg, rgba(255,255,255,.99), rgba(247,250,255,.99));
@@ -87,6 +92,7 @@
   width: 42px; height: 42px; flex: 0 0 auto;
   border: 1px solid rgba(25,66,140,.1); border-radius: 14px;
   background: #fff; color: #0d285e; font-size: 1.25rem; cursor: pointer;
+  touch-action: manipulation;
 }
 
 .nutrition-scan-viewfinder {
@@ -124,6 +130,7 @@
 .nutrition-manual-barcode button {
   min-height: 48px; padding: 0 15px; border: 0; border-radius: 14px;
   background: #1654df; color: #fff; font-weight: 750; cursor: pointer;
+  touch-action: manipulation;
 }
 
 .nutrition-scan-result[hidden], .nutrition-label-fallback[hidden] { display: none !important; }
@@ -153,6 +160,7 @@
 .nutrition-serving-stepper button {
   height: 44px; border: 1px solid rgba(22,84,223,.13); border-radius: 13px;
   background: #fff; color: #1654df; font-size: 1.25rem; cursor: pointer;
+  touch-action: manipulation;
 }
 .nutrition-serving-value { text-align: center; color: #071d4d; font-size: .83rem; font-weight: 750; }
 
@@ -160,10 +168,12 @@
 .nutrition-result-primary, .nutrition-label-scan-btn {
   min-height: 52px; border: 0; border-radius: 15px;
   background: linear-gradient(135deg,#1a61ea,#263fc3); color: #fff; font-weight: 800; cursor: pointer;
+  touch-action: manipulation;
 }
 .nutrition-result-secondary {
   min-height: 48px; border: 1px solid rgba(22,84,223,.12); border-radius: 15px;
   background: #fff; color: #1654df; font-weight: 750; cursor: pointer;
+  touch-action: manipulation;
 }
 
 .nutrition-label-fallback { border-color: rgba(157,102,237,.16); background: linear-gradient(145deg,#fff,#faf7ff); }
@@ -175,6 +185,62 @@
   width: 100%; min-height: 46px; margin-top: 12px; padding: 0 13px;
   border: 1px solid rgba(25,66,140,.12); border-radius: 13px;
   background: #fff; color: #071d4d; font-size: 16px;
+}
+
+/* =====================================================
+   MOBILE SAFARI SCROLL STABILITY
+   - The page owns vertical scrolling.
+   - Ask Ari does not create a nested mobile scroll trap.
+   - A stale inline scanner lock cannot strand the page after the sheet closes.
+===================================================== */
+
+html,
+body {
+  overscroll-behavior-y: auto;
+}
+
+body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+main#ariNutritionApp {
+  touch-action: pan-y;
+}
+
+/* If Safari returns from camera/file capture in an odd state, the hidden
+   scanner sheet is authoritative: the document must be scrollable. */
+body:has(#nutritionScanSheet[hidden]) {
+  overflow-y: auto !important;
+  touch-action: pan-y !important;
+}
+
+body:has(#nutritionScanSheet:not([hidden])) {
+  overflow: hidden;
+  touch-action: none;
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  main#ariNutritionApp .ari-thread {
+    max-height: none !important;
+    overflow: visible !important;
+    overscroll-behavior: auto !important;
+    scroll-behavior: auto !important;
+    -webkit-overflow-scrolling: auto;
+    touch-action: pan-y;
+  }
+
+  main#ariNutritionApp .ari-crt-screen {
+    overflow: visible !important;
+    touch-action: pan-y;
+  }
+
+  main#ariNutritionApp .ari-food-search-results {
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
 }
 
 @media (max-width: 420px) {
