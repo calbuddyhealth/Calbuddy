@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.8 — Loads owner-aware vNext shared runtime bootstrap.
 // V1.10.7 — Loads shared vNext Home + Nutrition runtime bootstrap.
 // V1.10.6 — Loads deterministic Meal Plan intent router v1.3.1.
 // V1.10.5 — Adds Training completed-workout undo safety for iOS focus races.
@@ -41,8 +42,6 @@ function getMinimalProfilePayload(user, displayName = "") {
 async function createUserProfile(user, displayName = "") {
   if (!user?.id || !window.calbuddySupabase) return null;
 
-  // Never overwrite an existing configured health profile just because the
-  // user re-enters through email verification, a restored session, or login.
   const { data: existing, error: readError } = await window.calbuddySupabase
     .from("profiles")
     .select("id")
@@ -168,9 +167,6 @@ async function requireAuth() {
     return null;
   }
 
-  // Email-confirmation links and restored Supabase sessions can bypass the
-  // ordinary password-login handler. Provision the app profile here so every
-  // authenticated path reaches ARI with a valid profiles row.
   try {
     await ensureAuthenticatedProfile(session.user);
   } catch (error) {
@@ -243,7 +239,7 @@ function appendOrderedScript(id, src) {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.4.0");
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.4.1");
 }
 
 function bootstrapAriMealAction() {
