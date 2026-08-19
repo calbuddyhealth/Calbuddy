@@ -1,0 +1,95 @@
+/* =====================================================
+   ARI Nutrition Native Scroll
+   Version: 1.0.0
+   Purpose: let Safari own the document scroll physics.
+   Scanner locking remains isolated to the scanner sheet.
+===================================================== */
+
+html.ari-nutrition-html {
+  height: auto !important;
+  min-height: 100%;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+}
+
+body.ari-nutrition-document {
+  position: static !important;
+  inset: auto !important;
+  width: 100%;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 100%;
+  max-height: none !important;
+  margin: 0;
+
+  /* Do not turn body into a second momentum scroller. */
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+  touch-action: auto !important;
+}
+
+body.ari-nutrition-document main#ariNutritionApp {
+  height: auto !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  touch-action: auto !important;
+  contain: none !important;
+}
+
+/* Ask Ari is content inside the page, not a second vertical scroll surface. */
+body.ari-nutrition-document #ariMessages,
+body.ari-nutrition-document .ari-crt-screen {
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  scroll-behavior: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+  touch-action: auto !important;
+}
+
+/* The search menu is the only ordinary nested scroller, and only while open. */
+body.ari-nutrition-document .ari-food-search-results:not([hidden]) {
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Scanner owns the viewport only while visible. */
+html.ari-nutrition-html:has(#nutritionScanSheet:not([hidden])),
+body.ari-nutrition-document:has(#nutritionScanSheet:not([hidden])) {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+}
+
+/* Mobile Safari performs better without large fixed/blurred decorative layers
+   repainting underneath a fast inertial flick. These are visual-only. */
+@media (max-width: 760px), (pointer: coarse) {
+  body.ari-nutrition-document::before,
+  body.ari-nutrition-document main#ariNutritionApp::before,
+  body.ari-nutrition-document main#ariNutritionApp::after {
+    display: none !important;
+  }
+
+  body.ari-nutrition-document .nutrition-summary,
+  body.ari-nutrition-document .ari-food-selection,
+  body.ari-nutrition-document .ari-food-calculation-status,
+  body.ari-nutrition-document .ari-advanced-nutrition[open] > .ari-field-shell,
+  body.ari-nutrition-document #recentMealList,
+  body.ari-nutrition-document .nutrition-meal-card,
+  body.ari-nutrition-document .nutrition-recent-meal,
+  body.ari-nutrition-document .nutrition-notice {
+    animation: none !important;
+  }
+}
