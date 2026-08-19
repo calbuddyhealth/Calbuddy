@@ -1,6 +1,6 @@
 // =====================================================
 // ARI XP — vNext Meal Plan trusted adapter
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Translate vNext Meal Plan proposals into the existing today-only
 //   Nutrition Meal Plan executor. GPT decides what the user means; this layer
@@ -13,11 +13,16 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const SOURCE = "ari_vnext_meal_plan_adapter";
   const INSTALL_FLAG = "__ariVNextMealPlanAdapterV1";
   const EXECUTOR_SCRIPT_ID = "ariVNextMealPlanExecutorV2";
-  const SLOT_ORDER = ["breakfast", "lunch", "dinner", "snack"];
+
+  window.AriVNextMealPlanAdapter = {
+    version: VERSION,
+    source: SOURCE,
+    ready: false
+  };
 
   function clean(value = "") {
     return String(value ?? "").trim();
@@ -202,7 +207,7 @@
     ) {
       return failure(
         "meal_plan_exceeds_remaining_budget",
-        `That plan is above the calories remaining in today’s saved budget, so Ari will not save it as-is.`,
+        "That plan is above the calories remaining in today’s saved budget, so Ari will not save it as-is.",
         { proposedCalories: totalCalories, remainingCalories: remaining }
       );
     }
@@ -274,7 +279,11 @@
 
   function install() {
     const adapter = window.AriVNextActionAdapter;
-    if (!adapter || adapter[INSTALL_FLAG]) return Boolean(adapter?.[INSTALL_FLAG]);
+    if (!adapter || adapter[INSTALL_FLAG]) {
+      const ready = Boolean(adapter?.[INSTALL_FLAG]);
+      window.AriVNextMealPlanAdapter.ready = ready;
+      return ready;
+    }
     if (typeof adapter.prepareCalBuddyAction !== "function") return false;
 
     const originalPrepare = adapter.prepareCalBuddyAction.bind(adapter);
@@ -292,15 +301,21 @@
       value: true
     });
 
+    window.AriVNextMealPlanAdapter.ready = true;
+    window.dispatchEvent(new CustomEvent("ari:vnextMealPlanAdapterReady", {
+      detail: { version: VERSION, source: SOURCE }
+    }));
     console.log("ARI vNext Meal Plan adapter installed:", VERSION);
     return true;
   }
 
   ensureExecutorScript();
 
-  let attempts = 0;
-  const timer = window.setInterval(() => {
-    attempts += 1;
-    if (install() || attempts >= 300) window.clearInterval(timer);
-  }, 40);
+  if (!install()) {
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (install() || attempts >= 300) window.clearInterval(timer);
+    }, 40);
+  }
 })();
