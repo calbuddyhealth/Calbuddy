@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.7.0";
+export const TOOL_REGISTRY_VERSION = "1.8.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -29,6 +29,75 @@ export function getAriTools(route = {}) {
           "name", "quantity", "unit", "servingSize", "mealCategory",
           "calories", "proteinG", "carbsG", "fatG", "notes"
         ]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_today_meal_plan",
+      "Propose food for ARI XP's TODAY-ONLY Meal Plan when the CURRENT user explicitly asks Ari to make, create, build, plan, or put together a meal plan, a meal for a named slot, or food for the rest of today. This is planned food, not consumed food. Use the saved Daily Calorie Goal, calories already consumed, and active Meal Plan context when the request is budget-based. Never invent a Daily Calorie Goal. If the saved goal is unknown and the user did not give an explicit calorie target, explain that the goal must be set or ask for a target instead of calling this tool. Do not create future dates. Do not replace an already active meal slot unless the user first removes it. Give each selectable component its own nutrition values so partial logging remains possible.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          summary: { type: "string" },
+          budgetBasis: { type: "string", enum: ["daily_goal", "explicit_user_target", "general"] },
+          targetCalories: { type: ["number", "null"] },
+          meals: {
+            type: "array",
+            minItems: 1,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                mealSlot: { type: "string", enum: ["breakfast", "lunch", "dinner", "snack"] },
+                name: { type: "string" },
+                calories: { type: "number" },
+                proteinG: { type: "number" },
+                carbsG: { type: "number" },
+                fatG: { type: "number" },
+                servingSize: { type: "string" },
+                items: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 16,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      name: { type: "string" },
+                      amount: { type: "string" },
+                      calories: { type: "number" },
+                      proteinG: { type: "number" },
+                      carbsG: { type: "number" },
+                      fatG: { type: "number" }
+                    },
+                    required: ["name", "amount", "calories", "proteinG", "carbsG", "fatG"]
+                  }
+                },
+                notes: { type: "string" }
+              },
+              required: [
+                "mealSlot", "name", "calories", "proteinG", "carbsG", "fatG",
+                "servingSize", "items", "notes"
+              ]
+            }
+          }
+        },
+        required: ["summary", "budgetBasis", "targetCalories", "meals"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_log_planned_meal",
+      "Propose logging one meal from TODAY's active Meal Plan only when the CURRENT user explicitly asks Ari to log, record, or save that planned breakfast, lunch, dinner, or snack as eaten. Do not use for a casual statement that food was eaten. The trusted executor will resolve the actual active plan and nutrition; do not invent plan contents.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          mealSlot: { type: "string", enum: ["breakfast", "lunch", "dinner", "snack"] }
+        },
+        required: ["mealSlot"]
       }
     ));
   }
@@ -228,6 +297,8 @@ export function validateToolCall(call = {}, route = {}) {
 export function toolToApplicationAction(name = "") {
   return ({
     propose_log_meal: "log_meal",
+    propose_today_meal_plan: "plan_meal",
+    propose_log_planned_meal: "log_planned_meal",
     propose_log_activity: "log_activity",
     propose_workout_plan: "plan_workout",
     propose_edit_workout: "edit_workout",
@@ -244,6 +315,52 @@ function validateSemantics(name, args) {
     if (!String(args?.name || "").trim()) return { valid: false, error: "meal_name_required" };
     if (args?.calories !== null && (!Number.isFinite(Number(args.calories)) || Number(args.calories) <= 0 || Number(args.calories) > 10000)) {
       return { valid: false, error: "meal_calories_out_of_range" };
+    }
+  }
+
+  if (name === "propose_today_meal_plan") {
+    const supportedBudgetBasis = new Set(["daily_goal", "explicit_user_target", "general"]);
+    if (!supportedBudgetBasis.has(String(args?.budgetBasis || ""))) {
+      return { valid: false, error: "meal_plan_budget_basis_required" };
+    }
+
+    if (args?.targetCalories !== null && !validNullableRange(args?.targetCalories, 1, 10000)) {
+      return { valid: false, error: "meal_plan_target_out_of_range" };
+    }
+
+    const meals = Array.isArray(args?.meals) ? args.meals : [];
+    if (!meals.length || meals.length > 4) return { valid: false, error: "meal_plan_meals_required" };
+
+    const slots = new Set();
+    for (const meal of meals) {
+      const slot = String(meal?.mealSlot || "");
+      if (!["breakfast", "lunch", "dinner", "snack"].includes(slot)) {
+        return { valid: false, error: "meal_plan_slot_invalid" };
+      }
+      if (slots.has(slot)) return { valid: false, error: "meal_plan_duplicate_slot" };
+      slots.add(slot);
+
+      if (!String(meal?.name || "").trim()) return { valid: false, error: "meal_plan_name_required" };
+      if (!validNullableRange(meal?.calories, 1, 5000, false)) return { valid: false, error: "meal_plan_calories_out_of_range" };
+      if (!validNullableRange(meal?.proteinG, 0, 1000, false)) return { valid: false, error: "meal_plan_protein_out_of_range" };
+      if (!validNullableRange(meal?.carbsG, 0, 1500, false)) return { valid: false, error: "meal_plan_carbs_out_of_range" };
+      if (!validNullableRange(meal?.fatG, 0, 1000, false)) return { valid: false, error: "meal_plan_fat_out_of_range" };
+
+      const items = Array.isArray(meal?.items) ? meal.items : [];
+      if (!items.length || items.length > 16) return { valid: false, error: "meal_plan_items_required" };
+      for (const item of items) {
+        if (!String(item?.name || "").trim()) return { valid: false, error: "meal_plan_item_name_required" };
+        if (!validNullableRange(item?.calories, 0, 5000, false)) return { valid: false, error: "meal_plan_item_calories_out_of_range" };
+        if (!validNullableRange(item?.proteinG, 0, 1000, false)) return { valid: false, error: "meal_plan_item_protein_out_of_range" };
+        if (!validNullableRange(item?.carbsG, 0, 1500, false)) return { valid: false, error: "meal_plan_item_carbs_out_of_range" };
+        if (!validNullableRange(item?.fatG, 0, 1000, false)) return { valid: false, error: "meal_plan_item_fat_out_of_range" };
+      }
+    }
+  }
+
+  if (name === "propose_log_planned_meal") {
+    if (!["breakfast", "lunch", "dinner", "snack"].includes(String(args?.mealSlot || ""))) {
+      return { valid: false, error: "planned_meal_slot_required" };
     }
   }
 
