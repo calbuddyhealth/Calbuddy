@@ -1,6 +1,6 @@
 /* =====================================================
    ARI Nutrition Scan
-   Version: 1.0.1
+   Version: 1.0.2
    Barcode-first packaged-food logging.
 ===================================================== */
 
@@ -188,58 +188,91 @@
 }
 
 /* =====================================================
-   MOBILE SAFARI SCROLL STABILITY
-   - The page owns vertical scrolling.
-   - Ask Ari does not create a nested mobile scroll trap.
-   - A stale inline scanner lock cannot strand the page after the sheet closes.
+   NATIVE DOCUMENT SCROLLING
+   Safari owns the page physics. html is the sole document scroller; body is
+   content, not a second momentum surface. The scanner card remains the only
+   nested inertial scroller while its modal is open.
 ===================================================== */
 
-html,
-body {
-  overscroll-behavior-y: auto;
+html {
+  height: auto !important;
+  min-height: 100%;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: auto !important;
 }
 
 body {
-  overflow-y: auto;
+  position: static !important;
+  inset: auto !important;
+  height: auto !important;
+  min-height: 100%;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+  touch-action: auto !important;
+}
+
+main#ariNutritionApp {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  touch-action: auto !important;
+  contain: none !important;
+}
+
+main#ariNutritionApp .ari-thread,
+main#ariNutritionApp .ari-crt-screen {
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  scroll-behavior: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+  touch-action: auto !important;
+}
+
+/* Search results are independently scrollable only while visible. */
+main#ariNutritionApp .ari-food-search-results:not([hidden]) {
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
 
-main#ariNutritionApp {
-  touch-action: pan-y;
-}
-
-/* If Safari returns from camera/file capture in an odd state, the hidden
-   scanner sheet is authoritative: the document must be scrollable. */
-body:has(#nutritionScanSheet[hidden]) {
-  overflow-y: auto !important;
-  touch-action: pan-y !important;
-}
-
+/* The barcode modal is the only state allowed to lock the document. */
+html:has(#nutritionScanSheet:not([hidden])),
 body:has(#nutritionScanSheet:not([hidden])) {
-  overflow: hidden;
-  touch-action: none;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
 }
 
+/* Remove expensive decorative compositor layers and entry animations on
+   touch devices. They add no function and can cause dropped frames while a
+   long inertial flick crosses multiple Nutrition sections. */
 @media (max-width: 760px), (pointer: coarse) {
-  main#ariNutritionApp .ari-thread {
-    max-height: none !important;
-    overflow: visible !important;
-    overscroll-behavior: auto !important;
-    scroll-behavior: auto !important;
-    -webkit-overflow-scrolling: auto;
-    touch-action: pan-y;
+  body::before,
+  main#ariNutritionApp::before,
+  main#ariNutritionApp::after {
+    display: none !important;
   }
 
-  main#ariNutritionApp .ari-crt-screen {
-    overflow: visible !important;
-    touch-action: pan-y;
-  }
-
-  main#ariNutritionApp .ari-food-search-results {
-    overscroll-behavior-y: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+  main#ariNutritionApp .nutrition-summary,
+  main#ariNutritionApp .ari-food-selection,
+  main#ariNutritionApp .ari-food-calculation-status,
+  main#ariNutritionApp .ari-advanced-nutrition[open] > .ari-field-shell,
+  main#ariNutritionApp #recentMealList,
+  main#ariNutritionApp .nutrition-meal-card,
+  main#ariNutritionApp .nutrition-recent-meal,
+  main#ariNutritionApp .nutrition-notice {
+    animation: none !important;
   }
 }
 
