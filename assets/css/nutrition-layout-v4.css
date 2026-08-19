@@ -1,0 +1,344 @@
+/* ARI XP — Nutrition layout v4.0.0
+   Purpose: action-first mobile hierarchy and progressive disclosure.
+   Order: Log Meal → Ask Ari → Today's Nutrition → Recent Meals.
+*/
+
+main#ariNutritionApp {
+  gap: 14px;
+  padding-bottom: max(72px, calc(env(safe-area-inset-bottom, 0px) + 48px));
+}
+
+/* The HTML now owns the intended order. Keep these explicit so older cached
+   base rules cannot reorder the redesigned surface. */
+main#ariNutritionApp .ari-nutrition-header { order: 0; }
+main#ariNutritionApp #manualEntrySection { order: 1; }
+main#ariNutritionApp #askAriSection { order: 2; }
+main#ariNutritionApp #todayNutritionSection { order: 3; }
+main#ariNutritionApp #recentMealsSection { order: 4; }
+main#ariNutritionApp .ari-nutrition-network-footer { order: 5; }
+
+/* ---------- Log a meal: primary action ---------- */
+main#ariNutritionApp #manualEntrySection {
+  padding: 22px;
+}
+
+main#ariNutritionApp .ari-manual-header {
+  align-items: flex-start;
+  margin-bottom: 17px;
+}
+
+main#ariNutritionApp .ari-manual-header h2 {
+  font-size: clamp(1.55rem, 6vw, 2.05rem);
+}
+
+main#ariNutritionApp .ari-manual-eyebrow {
+  margin-top: 6px;
+  font-size: .82rem;
+}
+
+main#ariNutritionApp .ari-form {
+  gap: 12px;
+}
+
+main#ariNutritionApp .ari-field-shell {
+  gap: 7px;
+}
+
+main#ariNutritionApp .ari-field-control {
+  min-height: 54px;
+  border-radius: 16px;
+}
+
+main#ariNutritionApp .ari-field-control input,
+main#ariNutritionApp .ari-field-control select {
+  height: 51px;
+}
+
+main#ariNutritionApp .ari-advanced-nutrition > summary {
+  min-height: 56px;
+}
+
+main#ariNutritionApp #saveMealBtn {
+  min-height: 58px;
+  margin-top: 2px;
+}
+
+/* ---------- Ask Ari: compact assistant bar ---------- */
+main#ariNutritionApp #askAriSection {
+  padding: 17px 18px 18px;
+  border-radius: 25px;
+}
+
+main#ariNutritionApp .nutrition-ask-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+main#ariNutritionApp .nutrition-ask-heading h2 {
+  margin: 0;
+  color: var(--ari-ink-strong);
+  font-size: 1.18rem;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+
+main#ariNutritionApp .nutrition-ask-heading p {
+  margin: 0;
+  color: var(--ari-muted);
+  font-size: .76rem;
+  line-height: 1.35;
+  text-align: right;
+}
+
+main#ariNutritionApp .ari-network-hero {
+  display: none;
+}
+
+main#ariNutritionApp .ari-crt-screen {
+  min-height: 0;
+}
+
+main#ariNutritionApp .ari-network-standby {
+  display: none;
+}
+
+main#ariNutritionApp .ari-thread {
+  max-height: 260px;
+  padding: 0 2px 11px;
+}
+
+main#ariNutritionApp .ari-thread:empty {
+  display: none;
+}
+
+main#ariNutritionApp .ari-message {
+  padding: 11px 13px;
+  border-radius: 16px;
+}
+
+main#ariNutritionApp .ari-message p {
+  font-size: .88rem;
+  line-height: 1.48;
+}
+
+main#ariNutritionApp .ari-input-shell {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 5px;
+  border-radius: 17px;
+}
+
+main#ariNutritionApp #ariInput {
+  min-height: 46px;
+  padding: 11px 12px;
+}
+
+main#ariNutritionApp .ari-send-btn {
+  min-width: 78px;
+  min-height: 46px;
+  padding: 0 15px;
+  border-radius: 13px;
+}
+
+/* ---------- Today's Nutrition: information dashboard ---------- */
+main#ariNutritionApp #todayNutritionSection {
+  overflow: hidden;
+}
+
+main#ariNutritionApp #todayNutritionSection > summary {
+  min-height: 66px;
+}
+
+main#ariNutritionApp #todayNutritionSection .nutrition-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 16px 12px;
+}
+
+main#ariNutritionApp .nutrition-summary > div,
+main#ariNutritionApp #totalCalories {
+  grid-column: auto;
+  min-height: 96px;
+  padding: 14px;
+  gap: 8px;
+}
+
+main#ariNutritionApp .nutrition-summary > div > span {
+  color: var(--ari-muted);
+  font-size: .72rem;
+  font-weight: 650;
+}
+
+main#ariNutritionApp .nutrition-summary strong,
+main#ariNutritionApp .nutrition-summary output,
+main#ariNutritionApp #totalCalories strong {
+  padding-bottom: 9px;
+  font-size: clamp(1.35rem, 5.8vw, 1.85rem);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+main#ariNutritionApp #totalCalories {
+  background:
+    radial-gradient(circle at 4% 100%, rgba(43,201,237,.15), transparent 55%),
+    radial-gradient(circle at 100% 0, rgba(157,102,237,.13), transparent 55%),
+    rgba(255,255,255,.9);
+}
+
+/* Meals are part of today's dashboard now, not another giant page card. */
+main#ariNutritionApp #todayMealsSection {
+  margin: 0 16px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(25, 66, 140, .08);
+  border-radius: 17px;
+  background: rgba(250, 252, 255, .82);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+main#ariNutritionApp #todayMealsSection > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+  padding: 0 15px;
+  color: var(--ari-ink-soft);
+  font-size: .82rem;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+main#ariNutritionApp #todayMealsSection > summary::-webkit-details-marker {
+  display: none;
+}
+
+main#ariNutritionApp #todayMealsSection > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: 12px;
+  border-right: 2px solid var(--ari-blue);
+  border-bottom: 2px solid var(--ari-blue);
+  transform: rotate(45deg);
+  transition: transform 180ms ease;
+}
+
+main#ariNutritionApp #todayMealsSection[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+main#ariNutritionApp #todayMealsSection[open] > summary {
+  border-bottom: 1px solid var(--ari-line);
+}
+
+main#ariNutritionApp #todayMealList {
+  gap: 9px;
+  padding: 11px;
+}
+
+main#ariNutritionApp #todayMealsSection .nutrition-meal-card {
+  padding: 14px;
+  border-radius: 15px;
+  box-shadow: none;
+}
+
+main#ariNutritionApp #todayMealsSection .nutrition-meal-card h3 {
+  margin-bottom: 4px;
+  font-size: .92rem;
+}
+
+main#ariNutritionApp #todayMealsSection .nutrition-meal-meta,
+main#ariNutritionApp #todayMealsSection .nutrition-meal-macros {
+  font-size: .72rem;
+}
+
+main#ariNutritionApp #todayMealsSection .nutrition-meal-macros {
+  margin-top: 8px;
+}
+
+main#ariNutritionApp #todayMealsSection .nutrition-meal-actions {
+  margin-top: 10px;
+}
+
+main#ariNutritionApp #todayMealsSection .nutrition-edit-meal-btn,
+main#ariNutritionApp #todayMealsSection .nutrition-delete-meal-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: .71rem;
+}
+
+/* ---------- Recent meals: history stays quiet until requested ---------- */
+main#ariNutritionApp #recentMealsSection > summary {
+  min-height: 64px;
+}
+
+main#ariNutritionApp #recentMealList {
+  gap: 9px;
+  padding: 12px 15px 16px;
+}
+
+main#ariNutritionApp .nutrition-recent-meal {
+  min-height: 60px;
+  padding: 12px 14px;
+  border-radius: 15px;
+  box-shadow: none;
+}
+
+/* ---------- Mobile density ---------- */
+@media (max-width: 560px) {
+  main#ariNutritionApp {
+    gap: 12px;
+  }
+
+  main#ariNutritionApp #manualEntrySection {
+    padding: 19px 15px 17px;
+  }
+
+  main#ariNutritionApp #askAriSection {
+    padding: 15px;
+  }
+
+  main#ariNutritionApp .nutrition-ask-heading {
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  main#ariNutritionApp .nutrition-ask-heading p {
+    margin-top: 4px;
+    text-align: left;
+    font-size: .72rem;
+  }
+
+  main#ariNutritionApp #todayNutritionSection .nutrition-summary {
+    padding: 12px;
+  }
+
+  main#ariNutritionApp .nutrition-summary > div,
+  main#ariNutritionApp #totalCalories {
+    min-height: 88px;
+    padding: 12px;
+  }
+
+  main#ariNutritionApp #todayMealsSection {
+    margin: 0 12px 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  main#ariNutritionApp .nutrition-summary strong,
+  main#ariNutritionApp .nutrition-summary output,
+  main#ariNutritionApp #totalCalories strong {
+    font-size: 1.15rem;
+  }
+
+  main#ariNutritionApp .ari-input-shell {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  main#ariNutritionApp .ari-send-btn {
+    width: auto;
+    min-width: 70px;
+  }
+}
