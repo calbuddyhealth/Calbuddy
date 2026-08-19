@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/training/ui/training-plan-controls.js
-// Version: 1.0.0
+// Version: 1.0.1
 // Purpose:
 //   Make workout-plan management immediately discoverable from
 //   the Training page without changing the workout executor.
@@ -22,9 +22,7 @@ function selectedDateKey() {
   const dateElement = document.getElementById("todaysTrainingDate");
   const renderedDate = String(dateElement?.dateTime || "").trim();
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(renderedDate)) {
-    return renderedDate;
-  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(renderedDate)) return renderedDate;
 
   try {
     const stored = String(localStorage.getItem(SELECTED_DATE_KEY) || "").trim();
@@ -36,8 +34,7 @@ function selectedDateKey() {
 
 function openPlanner(event) {
   event?.preventDefault?.();
-  const date = selectedDateKey();
-  window.location.href = `workout-plans.html?date=${encodeURIComponent(date)}`;
+  window.location.href = `workout-plans.html?date=${encodeURIComponent(selectedDateKey())}`;
 }
 
 function installStyles() {
@@ -46,9 +43,8 @@ function installStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-/* ARI Training Plan Controls v1.0.0 */
+/* ARI Training Plan Controls v1.0.1 */
 
-/* Top-right plan control: still compact, but no longer looks like a generic menu. */
 .ari-training-menu.ari-plan-control {
   position: relative;
   width: 58px !important;
@@ -89,11 +85,18 @@ function installStyles() {
     0 0 22px rgba(63, 124, 255, .10) !important;
 }
 
-.ari-training-menu__dots {
-  display: grid;
+/* Reset the legacy generic menu span rule before drawing the vertical dots. */
+.ari-training-menu.ari-plan-control > .ari-training-menu__dots {
+  width: auto !important;
+  height: auto !important;
+  min-width: 5px;
+  min-height: 25px;
+  display: grid !important;
   place-items: center;
   gap: 3px;
-  min-height: 25px;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .ari-training-menu__dots i {
@@ -131,7 +134,6 @@ function installStyles() {
   }
 }
 
-/* Compact opened menu with the plan action visually dominant. */
 .ari-training-menu-panel.ari-plan-menu {
   width: min(calc(100% - 24px), 500px) !important;
   margin-top: 6px !important;
@@ -179,9 +181,7 @@ function installStyles() {
   background:
     radial-gradient(circle at 8% 50%, rgba(40,201,232,.12), transparent 30%),
     linear-gradient(135deg, #f5fbff 0%, #edf7ff 55%, #f5f1ff 100%) !important;
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 8px 20px rgba(48,88,143,.08);
+  box-shadow: inset 0 1px 0 #fff, 0 8px 20px rgba(48,88,143,.08);
 }
 
 .ari-training-menu-panel .ari-plan-menu__primary:hover,
@@ -208,9 +208,7 @@ function installStyles() {
   color: #315de8;
 }
 
-.ari-plan-menu__copy {
-  min-width: 0;
-}
+.ari-plan-menu__copy { min-width: 0; }
 
 .ari-plan-menu__copy strong {
   display: block;
@@ -261,10 +259,7 @@ function installStyles() {
   font-weight: 400;
 }
 
-/* Direct change route on the planned workout itself. */
-.ari-selected-day-card__plan {
-  align-items: center !important;
-}
+.ari-selected-day-card__plan { align-items: center !important; }
 
 .ari-planned-workout-controls {
   display: inline-flex;
@@ -303,9 +298,7 @@ function installStyles() {
   background: #effaff;
 }
 
-.ari-change-planned-workout:active {
-  transform: scale(.97);
-}
+.ari-change-planned-workout:active { transform: scale(.97); }
 
 .ari-change-planned-workout span {
   font-size: 16px;
@@ -320,27 +313,14 @@ function installStyles() {
     min-height: 56px !important;
   }
 
-  .ari-plan-menu__copy strong {
-    font-size: 12px;
-  }
-
-  .ari-plan-menu__copy small {
-    font-size: 9.5px;
-  }
-
-  .ari-planned-workout-controls {
-    gap: 6px;
-  }
-
-  .ari-change-planned-workout {
-    padding: 0 8px;
-  }
+  .ari-plan-menu__copy strong { font-size: 12px; }
+  .ari-plan-menu__copy small { font-size: 9.5px; }
+  .ari-planned-workout-controls { gap: 6px; }
+  .ari-change-planned-workout { padding: 0 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ari-training-menu.ari-plan-control.is-plan-attention {
-    animation: none !important;
-  }
+  .ari-training-menu.ari-plan-control.is-plan-attention { animation: none !important; }
 }
 `;
 
@@ -412,12 +392,15 @@ function enhanceMenuPanel() {
     button.classList.add("ari-plan-menu__utility");
     const label = button.textContent.trim();
     button.replaceChildren();
+
     const copy = document.createElement("span");
     copy.textContent = label;
+
     const arrow = document.createElement("span");
     arrow.className = "ari-plan-menu__utility-arrow";
     arrow.setAttribute("aria-hidden", "true");
     arrow.textContent = "›";
+
     button.append(copy, arrow);
   });
 
@@ -449,8 +432,8 @@ function syncAttention() {
   const button = document.getElementById("trainingMenuButton");
   const planned = document.getElementById("todaysTrainingDayView");
   if (!button || !planned || planned.hidden) return;
-
   if (button.dataset.planAttentionShown === "true") return;
+
   button.dataset.planAttentionShown = "true";
   button.classList.add("is-plan-attention");
   window.setTimeout(() => button.classList.remove("is-plan-attention"), 1900);
@@ -482,7 +465,7 @@ if (document.readyState === "loading") {
 }
 
 export default Object.freeze({
-  version: "1.0.0",
+  version: "1.0.1",
   initialize: initializePlanControls,
   openPlanner
 });
