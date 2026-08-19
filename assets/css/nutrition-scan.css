@@ -1,0 +1,183 @@
+/* =====================================================
+   ARI Nutrition Scan
+   Version: 1.0.0
+   Barcode-first packaged-food logging.
+===================================================== */
+
+#ariNutritionApp .nutrition-scan-entry {
+  display: grid;
+  gap: 8px;
+  margin-top: -2px;
+}
+
+#ariNutritionApp .nutrition-barcode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 18px;
+  border: 1px solid rgba(22, 84, 223, .14);
+  border-radius: 17px;
+  background: linear-gradient(135deg, rgba(237,246,255,.98), rgba(246,240,255,.96));
+  color: #0b3fbd;
+  font: 750 .9rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 8px 20px rgba(43,66,110,.07), inset 0 1px 0 #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#ariNutritionApp .nutrition-barcode-btn:active { transform: translateY(1px) scale(.99); }
+
+#ariNutritionApp .nutrition-barcode-glyph {
+  width: 25px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+  border-radius: 4px;
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 3px, currentColor 3px 5px, transparent 5px 7px);
+  opacity: .82;
+}
+
+#ariNutritionApp .nutrition-scan-hint {
+  margin: 0;
+  color: #7180a2;
+  font-size: .72rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.nutrition-scan-sheet[hidden] { display: none !important; }
+.nutrition-scan-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  align-items: end;
+  background: rgba(7, 18, 45, .52);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.nutrition-scan-card {
+  width: min(100%, 640px);
+  max-height: min(88dvh, 820px);
+  margin: 0 auto;
+  padding: 16px 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(160deg, rgba(255,255,255,.99), rgba(247,250,255,.99));
+  box-shadow: 0 -20px 60px rgba(15,35,80,.22);
+}
+
+.nutrition-scan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 4px 4px 14px;
+}
+
+.nutrition-scan-header h2 { margin: 0; color: #071d4d; font-size: 1.3rem; letter-spacing: -.025em; }
+.nutrition-scan-header p { margin: 5px 0 0; color: #7180a2; font-size: .76rem; }
+.nutrition-scan-close {
+  width: 42px; height: 42px; flex: 0 0 auto;
+  border: 1px solid rgba(25,66,140,.1); border-radius: 14px;
+  background: #fff; color: #0d285e; font-size: 1.25rem; cursor: pointer;
+}
+
+.nutrition-scan-viewfinder {
+  position: relative;
+  overflow: hidden;
+  min-height: 250px;
+  border-radius: 22px;
+  background: #081329;
+}
+.nutrition-scan-viewfinder video { display: block; width: 100%; min-height: 250px; max-height: 390px; object-fit: cover; }
+.nutrition-scan-target {
+  position: absolute; inset: 50% auto auto 50%;
+  width: min(78%, 360px); height: 120px;
+  transform: translate(-50%,-50%);
+  border: 2px solid rgba(255,255,255,.9); border-radius: 18px;
+  box-shadow: 0 0 0 999px rgba(6,14,31,.18), 0 0 24px rgba(43,201,237,.24);
+  pointer-events: none;
+}
+.nutrition-scan-target::after {
+  content: ""; position: absolute; left: 12px; right: 12px; top: 50%; height: 2px;
+  background: linear-gradient(90deg, transparent, #35d6f3 18%, #8b70f4 82%, transparent);
+  box-shadow: 0 0 12px rgba(53,214,243,.8);
+}
+
+.nutrition-scan-status { margin: 12px 4px 0; color: #52617f; font-size: .8rem; line-height: 1.45; text-align: center; }
+
+.nutrition-manual-barcode {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; margin-top: 12px;
+}
+.nutrition-manual-barcode input {
+  min-width: 0; min-height: 48px; padding: 0 14px;
+  border: 1px solid rgba(25,66,140,.12); border-radius: 14px;
+  background: #fff; color: #071d4d; font-size: 16px; outline: none;
+}
+.nutrition-manual-barcode button {
+  min-height: 48px; padding: 0 15px; border: 0; border-radius: 14px;
+  background: #1654df; color: #fff; font-weight: 750; cursor: pointer;
+}
+
+.nutrition-scan-result[hidden], .nutrition-label-fallback[hidden] { display: none !important; }
+.nutrition-scan-result, .nutrition-label-fallback {
+  margin-top: 14px; padding: 16px;
+  border: 1px solid rgba(25,66,140,.09); border-radius: 20px;
+  background: linear-gradient(145deg,#fff,#f9fbff);
+  box-shadow: 0 8px 20px rgba(43,66,110,.06);
+}
+
+.nutrition-result-source { margin: 0 0 5px; color: #60709a; font-size: .66rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.nutrition-result-name { margin: 0; color: #071d4d; font-size: 1.05rem; line-height: 1.3; }
+.nutrition-result-serving { margin: 6px 0 0; color: #7180a2; font-size: .76rem; }
+
+.nutrition-result-metrics {
+  display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin-top: 14px;
+}
+.nutrition-result-metrics > div {
+  min-width: 0; padding: 11px 7px; border-radius: 13px; background: #f1f5ff; text-align: center;
+}
+.nutrition-result-metrics strong { display: block; color: #071d4d; font-size: 1rem; white-space: nowrap; }
+.nutrition-result-metrics span { display: block; margin-top: 4px; color: #7180a2; font-size: .62rem; }
+
+.nutrition-serving-stepper {
+  display: grid; grid-template-columns: 46px minmax(0,1fr) 46px; align-items: center; gap: 8px; margin-top: 14px;
+}
+.nutrition-serving-stepper button {
+  height: 44px; border: 1px solid rgba(22,84,223,.13); border-radius: 13px;
+  background: #fff; color: #1654df; font-size: 1.25rem; cursor: pointer;
+}
+.nutrition-serving-value { text-align: center; color: #071d4d; font-size: .83rem; font-weight: 750; }
+
+.nutrition-result-actions { display: grid; gap: 9px; margin-top: 14px; }
+.nutrition-result-primary, .nutrition-label-scan-btn {
+  min-height: 52px; border: 0; border-radius: 15px;
+  background: linear-gradient(135deg,#1a61ea,#263fc3); color: #fff; font-weight: 800; cursor: pointer;
+}
+.nutrition-result-secondary {
+  min-height: 48px; border: 1px solid rgba(22,84,223,.12); border-radius: 15px;
+  background: #fff; color: #1654df; font-weight: 750; cursor: pointer;
+}
+
+.nutrition-label-fallback { border-color: rgba(157,102,237,.16); background: linear-gradient(145deg,#fff,#faf7ff); }
+.nutrition-label-fallback h3 { margin: 0; color: #071d4d; font-size: 1rem; }
+.nutrition-label-fallback p { margin: 7px 0 0; color: #7180a2; font-size: .78rem; line-height: 1.5; }
+.nutrition-label-limit { margin-top: 9px !important; color: #6e58df !important; font-weight: 700; }
+
+.nutrition-label-name-input {
+  width: 100%; min-height: 46px; margin-top: 12px; padding: 0 13px;
+  border: 1px solid rgba(25,66,140,.12); border-radius: 13px;
+  background: #fff; color: #071d4d; font-size: 16px;
+}
+
+@media (max-width: 420px) {
+  .nutrition-result-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .nutrition-scan-card { padding-right: 11px; padding-left: 11px; }
+}
