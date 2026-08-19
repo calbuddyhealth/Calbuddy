@@ -1,14 +1,17 @@
 // =====================================================
 // ARI XP
 // File: js/home-resilience.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
-//   Keep Ask Ari recoverable when an iOS WebView is backgrounded.
+//   Keep Ask Ari recoverable when an iOS WebView is backgrounded while routing
+//   Home through the selected Ari runtime.
+//   - Loads the vNext runtime controller before the first Ari request.
 //   - Persists the in-flight user turn before network work begins.
 //   - Never renders raw transport or deliberation diagnostics to users.
 //   - Reconciles a completed Supabase conversation turn on resume.
 //   - Retries one interrupted turn when no completed answer was saved.
 //   - Filters internal failure markers from short-term conversation history.
+//   - Surfaces deterministic vNext initiative messages in the same thread.
 // =====================================================
 
 (() => {
@@ -17,9 +20,13 @@
   const PENDING_KEY = "arixp_pending_ari_turn_v1";
   const MAX_BACKGROUND_RETRIES = 1;
   const RESUME_DELAY_MS = 350;
+  const RUNTIME_CONTROLLER_SRC = "ari/runtime/ari-runtime-controller.js?v=1.0.0";
 
   let requestInFlight = false;
   let recoveryTimer = null;
+  let runtimeControllerPromise = null;
+  let initiativeCheckScheduled = false;
+  let lastRenderedInitiativeId = "";
 
   function cleanText(value = "") {
     return String(value || "").trim();
@@ -44,6 +51,54 @@
     if (name === "aborterror" || name === "networkerror") return true;
 
     return /load failed|failed to fetch|network|offline|internet|connection|request aborted|cancelled|canceled|timed? out|ari_internal_transient/.test(message);
+  }
+
+  function loadRuntimeController() {
+    if (window.AriRuntime?.ask) return Promise.resolve(window.AriRuntime);
+    if (runtimeControllerPromise) return runtimeControllerPromise;
+
+    runtimeControllerPromise = new Promise((resolve, reject) => {
+      const existing = [...document.scripts].find((script) =>
+        String(script.getAttribute("src") || "").includes("ari-runtime-controller.js")
+      );
+
+      const finish = () => {
+        if (window.AriRuntime?.ask) resolve(window.AriRuntime);
+        else reject(new Error("Ari runtime controller did not initialize."));
+      };
+
+      if (existing) {
+        if (window.AriRuntime?.ask) {
+          resolve(window.AriRuntime);
+          return;
+        }
+        existing.addEventListener("load", finish, { once: true });
+        existing.addEventListener(
+          "error",
+          () => reject(new Error("Ari runtime controller failed to load.")),
+          { once: true }
+        );
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = RUNTIME_CONTROLLER_SRC;
+      script.async = false;
+      script.dataset.ariRuntimeController = "true";
+      script.addEventListener("load", finish, { once: true });
+      script.addEventListener(
+        "error",
+        () => reject(new Error("Ari runtime controller failed to load.")),
+        { once: true }
+      );
+      document.head.appendChild(script);
+    });
+
+    runtimeControllerPromise.catch(() => {
+      runtimeControllerPromise = null;
+    });
+
+    return runtimeControllerPromise;
   }
 
   function readPendingTurn() {
@@ -181,6 +236,10 @@
     }
 
     try {
+      // The controller patches CalBuddy.askAri in place. Awaiting it here keeps
+      // the old Home contract intact while guaranteeing vNext is ready first.
+      await loadRuntimeController();
+
       const response = await CalBuddy.askAri({
         message: pending.message,
         history: ariChatHistory,
@@ -307,6 +366,44 @@
     await executePendingTurn(pending);
   }
 
+  function renderInitiative(event) {
+    const data = event?.detail || {};
+    const initiative = data?.initiative || null;
+    const opener = cleanText(initiative?.opener || initiative?.message || data?.opener);
+    const initiativeId = cleanText(initiative?.id || initiative?.initiativeKey || data?.initiativeKey);
+
+    if (!opener) return;
+    if (initiativeId && initiativeId === lastRenderedInitiativeId) return;
+    if (messageAlreadyRendered(opener, "ari")) return;
+
+    lastRenderedInitiativeId = initiativeId;
+    enterAriConversationMode();
+    setAriPresenceFocus(false);
+    addAriMessage(opener, "ari");
+
+    ariChatHistory.push({ role: "assistant", content: opener });
+    ariChatHistory = ariChatHistory.slice(-10);
+    ariConversationStarted = true;
+    ariFirstReplyCompleted = true;
+  }
+
+  function scheduleInitiativeCheck() {
+    if (initiativeCheckScheduled) return;
+    initiativeCheckScheduled = true;
+
+    window.setTimeout(async () => {
+      initiativeCheckScheduled = false;
+      if (document.visibilityState === "hidden") return;
+
+      try {
+        const runtime = await loadRuntimeController();
+        await runtime?.checkInitiative?.();
+      } catch {
+        // Initiative is optional. It must never block ordinary Ari use.
+      }
+    }, 1200);
+  }
+
   // Prevent internal diagnostic strings from being persisted into continuity.
   if (window.CalBuddy?.saveConversationTurn) {
     const originalSaveConversationTurn = window.CalBuddy.saveConversationTurn.bind(window.CalBuddy);
@@ -340,13 +437,30 @@
   sendAriMessage = resilientSendAriMessage;
   window.sendAriMessage = resilientSendAriMessage;
 
+  window.addEventListener("ari:vnextInitiative", renderInitiative);
+
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") schedulePendingRecovery();
+    if (document.visibilityState === "visible") {
+      schedulePendingRecovery();
+      scheduleInitiativeCheck();
+    }
   });
 
-  window.addEventListener("pageshow", schedulePendingRecovery);
-  window.addEventListener("focus", schedulePendingRecovery);
+  window.addEventListener("pageshow", () => {
+    schedulePendingRecovery();
+    scheduleInitiativeCheck();
+  });
+  window.addEventListener("focus", () => {
+    schedulePendingRecovery();
+    scheduleInitiativeCheck();
+  });
 
-  // Recover a turn left pending by an earlier app suspension/crash.
+  // Preload the controller, but ordinary Home remains usable even if this
+  // preload fails because executePendingTurn retries it and Rebirth is retained.
+  void loadRuntimeController().catch(() => {});
+
+  // Recover a turn left pending by an earlier app suspension/crash and perform
+  // one deterministic initiative check after the authenticated shell settles.
   schedulePendingRecovery();
+  scheduleInitiativeCheck();
 })();

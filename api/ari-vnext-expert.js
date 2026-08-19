@@ -1,0 +1,340 @@
+import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
+import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
+import { listCommunicationOutcomes, summarizeCommunicationLearning } from "./_lib/ari-vnext/communication-outcomes.js";
+import { buildRelevantContext, routeContext } from "./_lib/ari-vnext/context-router.js";
+import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
+import { listRecentDecisions, summarizeDecisionState } from "./_lib/ari-vnext/decision-journal.js";
+import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
+import { deriveGoalHierarchy } from "./_lib/ari-vnext/goal-hierarchy.js";
+import { deriveLongitudinalState } from "./_lib/ari-vnext/longitudinal-state.js";
+import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
+import { deriveMetacognition } from "./_lib/ari-vnext/metacognition.js";
+import { applyOutcomeLearning } from "./_lib/ari-vnext/outcome-learning.js";
+import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
+import { deriveRelationshipContinuity } from "./_lib/ari-vnext/relationship-continuity.js";
+import { classifySafety } from "./_lib/ari-vnext/safety-policy.js";
+import { deriveScientificIntelligence } from "./_lib/ari-vnext/scientific-intelligence.js";
+import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
+import { deriveUserWorldModel, loadUserWorldModel } from "./_lib/ari-vnext/user-world-model.js";
+
+const AUTH_TIMEOUT_MS = 3500;
+
+export default async function handler(req, res) {
+  setHeaders(res);
+
+  if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST, OPTIONS");
+    return res.status(405).json({ success: false, error: "Method not allowed.", source: "ari_vnext_expert" });
+  }
+
+  const startedAt = Date.now();
+  try {
+    const auth = await authenticateRequest(req);
+    if (!auth.authenticated) {
+      return res.status(auth.status || 401).json({
+        success: false,
+        error: auth.message || "Authentication required.",
+        code: auth.code || "AUTH_REQUIRED",
+        source: "ari_vnext_expert"
+      });
+    }
+
+    const body = resolveBody(req);
+    const turn = buildCurrentTurn(body, auth.userId);
+    if (!turn.message) {
+      return res.status(400).json({ success: false, error: "Message is required.", source: "ari_vnext_expert" });
+    }
+
+    const routePreview = routeContext(turn);
+    const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
+    const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
+
+    const [retrievedRaw, experiments, persistedWorldModel, decisions, communicationRows, accountEntitlements] = await Promise.all([
+      shouldLoadMemory
+        ? retrieveRelevantMemories({
+            userId: auth.userId,
+            message: turn.message,
+            limit: routePreview.memory ? 6 : 5
+          })
+        : Promise.resolve({ memories: [], summary: "" }),
+      fitnessRoute
+        ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
+        : Promise.resolve([]),
+      loadUserWorldModel({ userId: auth.userId }),
+      fitnessRoute ? listRecentDecisions({ userId: auth.userId, limit: 16 }) : Promise.resolve([]),
+      fitnessRoute ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 }) : Promise.resolve([]),
+      loadAccountEntitlements({ userId: auth.userId })
+    ]);
+
+    const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
+    const retrievedMemoryCount = retrieved.memories.length;
+    if (retrieved.summary) turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
+
+    const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
+    const decisionState = fitnessRoute ? summarizeDecisionState(decisions) : null;
+    const communicationLearning = fitnessRoute ? summarizeCommunicationLearning(communicationRows) : null;
+    const temporalTimeline = fitnessRoute
+      ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions, limit: 28 })
+      : null;
+
+    turn.context = {
+      ...(turn.context || {}),
+      accountEntitlements,
+      ...(experimentLedger ? { experimentLedger } : {}),
+      ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
+      ...(decisionState ? { decisionState } : {}),
+      ...(communicationLearning ? { communicationLearning } : {}),
+      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
+    };
+
+    const route = routeContext(turn);
+    const safety = classifySafety(turn, route);
+    const relevantContext = buildRelevantContext(turn, route);
+    const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
+    const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
+    const goalHierarchy = deriveGoalHierarchy({
+      turn,
+      userWorldModel: persistedWorldModel,
+      coachingState,
+      longitudinalState
+    });
+    const metacognition = deriveMetacognition({
+      route,
+      context: relevantContext,
+      safety,
+      coachingState,
+      longitudinalState
+    });
+    const rawScientific = deriveScientificIntelligence({
+      turn,
+      route,
+      context: relevantContext,
+      coachingState,
+      longitudinalState,
+      metacognition
+    });
+    const scientificIntelligence = applyOutcomeLearning(
+      rawScientific,
+      relevantContext?.relevantMemory || "",
+      experimentLedger
+    );
+    const userWorldModel = deriveUserWorldModel({
+      persisted: persistedWorldModel,
+      turn,
+      context: { ...(turn.context || {}), relevantMemory: turn.memory || "", experimentLedger },
+      coachingState,
+      longitudinalState
+    });
+    const relationshipContinuity = deriveRelationshipContinuity({
+      userWorldModel,
+      decisionState,
+      experimentLedger,
+      temporalTimeline,
+      recentContinuityPairs: 0
+    });
+    const proactiveInsights = fitnessRoute
+      ? deriveProactiveInsights({
+          coachingState,
+          longitudinalState,
+          scientificIntelligence,
+          userWorldModel,
+          decisionState,
+          experimentLedger
+        })
+      : null;
+
+    return res.status(200).json({
+      success: true,
+      ready: true,
+      source: "ari_vnext_expert",
+      userScoped: true,
+      readOnly: true,
+      privacyFiltered: Boolean(retrieved?.privacyFiltered),
+      accountEntitlements,
+      safety,
+      route,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      coachingState,
+      longitudinalState,
+      scientificIntelligence,
+      experimentLedger,
+      userWorldModel,
+      decisionState,
+      communicationLearning,
+      temporalTimeline,
+      proactiveInsights,
+      consult: buildConsultSummary({
+        route,
+        relationshipContinuity,
+        goalHierarchy,
+        metacognition,
+        longitudinalState,
+        scientificIntelligence,
+        experimentLedger,
+        userWorldModel,
+        decisionState,
+        communicationLearning,
+        proactiveInsights
+      }),
+      memoryCount: retrievedMemoryCount,
+      timing: { totalMs: Date.now() - startedAt }
+    });
+  } catch (error) {
+    console.error("[ARI vNext Expert]", error?.message || error);
+    return res.status(normalizeStatus(error?.status)).json({
+      success: false,
+      ready: false,
+      error: error?.message || "Ari expert intelligence could not complete the request.",
+      source: "ari_vnext_expert",
+      timing: { totalMs: Date.now() - startedAt }
+    });
+  }
+}
+
+function buildConsultSummary({
+  route = {},
+  relationshipContinuity = null,
+  goalHierarchy = null,
+  metacognition = {},
+  longitudinalState = null,
+  scientificIntelligence = null,
+  experimentLedger = null,
+  userWorldModel = null,
+  decisionState = null,
+  communicationLearning = null,
+  proactiveInsights = null
+} = {}) {
+  const hypotheses = Array.isArray(scientificIntelligence?.hypotheses) ? scientificIntelligence.hypotheses : [];
+  const leading = hypotheses[0] || null;
+  const alternative = hypotheses.find((item) => item.status === "credible_alternative") || hypotheses[1] || null;
+  const experiment = scientificIntelligence?.experiment || null;
+  const question = scientificIntelligence?.nextQuestion || null;
+
+  return {
+    domain: route.training ? "training" : route.nutrition ? "nutrition" : route.goals ? "goals" : "general",
+    relationship: relationshipContinuity
+      ? {
+          recognizedUser: Boolean(relationshipContinuity.recognizedUser),
+          familiarity: relationshipContinuity.familiarity || "new",
+          unfinishedThreadCount: Number(relationshipContinuity.unfinishedThreadCount || 0),
+          unfinishedThreads: Array.isArray(relationshipContinuity.unfinishedThreads) ? relationshipContinuity.unfinishedThreads.slice(0, 4) : []
+        }
+      : null,
+    primaryGoal: goalHierarchy?.primary || null,
+    secondaryGoals: Array.isArray(goalHierarchy?.secondary) ? goalHierarchy.secondary.slice(0, 3) : [],
+    goalTradeoffs: Array.isArray(goalHierarchy?.tradeoffs) ? goalHierarchy.tradeoffs.slice(0, 4) : [],
+    evidenceConfidence: metacognition?.confidence || "unknown",
+    missingEvidence: Array.isArray(metacognition?.missingEvidence) ? metacognition.missingEvidence : [],
+    programStance: longitudinalState?.programDecision?.stance || null,
+    leadingHypothesis: leading ? compactHypothesis(leading) : null,
+    credibleAlternative: alternative ? compactHypothesis(alternative) : null,
+    highestValueQuestion: question
+      ? { text: cleanText(question.text, 500), decisionValue: Number(question.decisionValue || 0), why: cleanText(question.why, 600) }
+      : null,
+    experiment: experiment
+      ? {
+          readiness: experiment.readiness || null,
+          hypothesisId: experiment.hypothesisId || null,
+          durationDays: Number.isFinite(Number(experiment.durationDays)) ? Number(experiment.durationDays) : null,
+          intervention: cleanText(experiment.intervention || experiment.reason, 900),
+          supportsHypothesisIf: cleanText(experiment.supportsHypothesisIf, 700) || null,
+          weakensHypothesisIf: cleanText(experiment.weakensHypothesisIf, 700) || null
+        }
+      : null,
+    activeExperimentCount: Number(experimentLedger?.activeCount || 0),
+    dueExperimentCount: Number(experimentLedger?.dueCount || 0),
+    structuredOutcomeCount: Number(scientificIntelligence?.outcomeLearning?.structuredOutcomes || 0),
+    outcomeLearningApplied: Boolean(scientificIntelligence?.outcomeLearning?.applied),
+    worldModelTensions: Array.isArray(userWorldModel?.tensions) ? userWorldModel.tensions.slice(0, 3) : [],
+    privacyBlocks: Array.isArray(userWorldModel?.privacyControls?.blockedCategories) ? userWorldModel.privacyControls.blockedCategories : [],
+    calibration: decisionState?.calibration || null,
+    openDecisionCount: Number(decisionState?.openCount || 0),
+    communicationLearning: communicationLearning
+      ? {
+          resolvedCount: Number(communicationLearning.resolvedCount || 0),
+          preferredAssociation: communicationLearning.preferredAssociation || null,
+          causalClaimAllowed: false
+        }
+      : null,
+    primaryProactiveInsight: proactiveInsights?.primary || null
+  };
+}
+
+function compactHypothesis(item = {}) {
+  return {
+    id: item.id || null,
+    label: cleanText(item.label, 300),
+    score: Number.isFinite(Number(item.score)) ? Number(item.score) : null,
+    status: item.status || null,
+    supportingEvidence: (Array.isArray(item.supportingEvidence) ? item.supportingEvidence : []).slice(0, 5),
+    contradictingEvidence: (Array.isArray(item.contradictingEvidence) ? item.contradictingEvidence : []).slice(0, 4),
+    unknowns: (Array.isArray(item.unknowns) ? item.unknowns : []).slice(0, 4),
+    outcomeAdjustment: Number.isFinite(Number(item.outcomeAdjustment)) ? Number(item.outcomeAdjustment) : 0
+  };
+}
+
+async function authenticateRequest(req) {
+  const authorization = cleanText(req?.headers?.authorization, 6000);
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  const accessToken = cleanText(match?.[1], 6000);
+  if (!accessToken) return { authenticated: false, status: 401, code: "AUTH_TOKEN_MISSING", message: "A signed-in ARI session is required." };
+
+  const supabaseUrl = cleanText(process.env.SUPABASE_URL, 1200).replace(/\/+$/, "");
+  const apiKey = cleanText(
+    process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    6000
+  );
+  if (!supabaseUrl || !apiKey) {
+    return { authenticated: false, status: 503, code: "AUTH_SERVICE_UNAVAILABLE", message: "ARI authentication service is not configured." };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { apikey: apiKey, Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    const user = data?.user || data;
+    const userId = cleanText(user?.id, 200);
+    if (!response.ok || !userId) {
+      return { authenticated: false, status: 401, code: "AUTH_TOKEN_INVALID", message: "The ARI session is no longer valid." };
+    }
+    return { authenticated: true, userId };
+  } catch (error) {
+    return {
+      authenticated: false,
+      status: 503,
+      code: error?.name === "AbortError" ? "AUTH_VERIFICATION_TIMEOUT" : "AUTH_VERIFICATION_FAILED",
+      message: "ARI could not verify the signed-in session."
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function resolveBody(req) {
+  if (req?.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req?.body === "string") {
+    try { return JSON.parse(req.body); } catch { return {}; }
+  }
+  return {};
+}
+
+function normalizeStatus(status) {
+  const number = Number(status);
+  return Number.isFinite(number) && number >= 400 && number <= 599 ? Math.floor(number) : 500;
+}
+
+function setHeaders(res) {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Vary", "Authorization");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-ARI-Expert", "v5");
+}

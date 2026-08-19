@@ -81,7 +81,7 @@
           <div><strong>Make it a Moment</strong><span>Photo or video · disappears after 24 hours</span></div>
           <button class="feed-moment-button" id="shareMomentButton" type="button">Add to Moment</button>
         </div>
-        <span class="feed-composer__privacy">Shared only inside your verified age group.</span>
+        <span class="feed-composer__privacy">Shared inside the adults-only ARI Circle.</span>
       </form>
     </section>
 
@@ -101,7 +101,7 @@
 
   <section class="feed-loading" id="feedLoading" aria-live="polite"><div class="feed-loading__orb" aria-hidden="true"></div><strong>Opening your Circle</strong></section>
 
-  <dialog class="feed-dialog" id="ageDialog"><form class="feed-dialog__card" id="ageForm"><p class="feed-kicker">ONE-TIME SAFETY CHECK</p><h2>Verify your age</h2><p>Your birthday stays private. ARI uses it to keep teen and adult social spaces separate.</p><label class="feed-field" for="ageDateInput"><span>Date of birth</span><input id="ageDateInput" type="date" autocomplete="bday" required /></label><button class="feed-primary feed-full" id="verifyAgeButton" type="submit">Continue</button></form></dialog>
+  <dialog class="feed-dialog" id="ageDialog"><form class="feed-dialog__card" id="ageForm"><p class="feed-kicker">ONE-TIME SAFETY CHECK</p><h2>Verify your age</h2><p>ARI Circle is for adults age 18 and older. Your birthday stays private and is used to confirm eligibility.</p><label class="feed-field" for="ageDateInput"><span>Date of birth</span><input id="ageDateInput" type="date" autocomplete="bday" required /></label><button class="feed-primary feed-full" id="verifyAgeButton" type="submit">Continue</button></form></dialog>
 
   <dialog class="feed-dialog feed-sheet" id="reactionDialog"><div class="feed-dialog__card"><button class="feed-close" type="button" data-close-dialog="reactionDialog" aria-label="Close">×</button><p class="feed-kicker">REACT</p><h2>Pick a reaction</h2><div class="feed-emoji-grid" id="quickReactionGrid"><button type="button" data-reaction="🔥">🔥</button><button type="button" data-reaction="💪">💪</button><button type="button" data-reaction="👏">👏</button><button type="button" data-reaction="❤️">❤️</button><button type="button" data-reaction="⚡">⚡</button><button type="button" data-reaction="😂">😂</button><button type="button" data-reaction="🎉">🎉</button><button type="button" data-reaction="🧠">🧠</button></div><form id="customReactionForm" class="feed-custom-reaction"><label for="customReactionInput">Any emoji</label><div><input id="customReactionInput" maxlength="16" inputmode="text" autocomplete="off" placeholder="🫡" /><button class="feed-primary" type="submit">React</button></div></form></div></dialog>
 

@@ -1,4 +1,4 @@
-/* ARI Rebirth — Owner Moderation v2.0.0 */
+/* ARI Rebirth — Owner Moderation v2.1.0 */
 
 (() => {
   "use strict";
@@ -6,6 +6,7 @@
   let session = null;
   let activeReportFilter = "open";
   let activeSafetyFilter = "open";
+  let activeAgeFilter = "pending";
   let activePanel = "teen";
 
   function setStatus(message = "", type = "") {
@@ -27,6 +28,18 @@
       dateStyle: "medium",
       timeStyle: "short"
     }).format(new Date(value));
+  }
+
+  function formatBirthday(value) {
+    const text = String(value || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "Unknown";
+    const [year, month, day] = text.split("-").map(Number);
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC"
+    }).format(new Date(Date.UTC(year, month - 1, day)));
   }
 
   function titleCase(value = "") {
@@ -220,15 +233,123 @@
     await loadTeenSafetyEvents();
   }
 
+  function ageCorrectionActions(request) {
+    if (request.status !== "pending") return "";
+    return [
+      '<button type="button" data-age-action="approved">Approve</button>',
+      '<button type="button" data-age-action="denied">Deny</button>'
+    ].join("");
+  }
+
+  function renderAgeCorrections(requests) {
+    const list = $("ageCorrectionList");
+    if (!requests.length) {
+      list.innerHTML = '<div class="ari-empty-state">No age correction requests in this view.</div>';
+      return;
+    }
+
+    list.innerHTML = requests.map((request) => {
+      const boundary = request.crosses_adult_boundary === true;
+      return `
+        <article class="owner-safety-card" data-age-request-id="${escapeHtml(request.id)}" data-severity="${boundary ? "high" : "normal"}">
+          <div class="owner-safety-card__top">
+            <div>
+              <h3>Birthday correction</h3>
+              <div class="owner-safety-card__identity">${escapeHtml(request.user_email || request.user_id)}</div>
+            </div>
+            <span class="owner-safety-pill${boundary ? " owner-safety-pill--high" : ""}">${boundary ? "18+ ACCESS CHANGE" : escapeHtml(request.status.toUpperCase())}</span>
+          </div>
+          <div class="owner-safety-pills">
+            <span class="owner-safety-pill">Current age ${escapeHtml(request.current_age_at_request)}</span>
+            <span class="owner-safety-pill">Requested age ${escapeHtml(request.requested_age_at_request)}</span>
+            <span class="owner-safety-pill">${escapeHtml(request.status)}</span>
+          </div>
+          <div class="owner-safety-evidence">${escapeHtml(request.explanation)}</div>
+          <div class="owner-safety-meta">
+            Current birthday: ${escapeHtml(formatBirthday(request.current_date_of_birth))}<br />
+            Requested birthday: ${escapeHtml(formatBirthday(request.requested_date_of_birth))}<br />
+            Submitted: ${escapeHtml(formatDate(request.requested_at))}<br />
+            User ID: ${escapeHtml(request.user_id)}
+            ${request.reviewed_at ? `<br />Reviewed: ${escapeHtml(formatDate(request.reviewed_at))}` : ""}
+            ${request.review_notes ? `<br />Review note: ${escapeHtml(request.review_notes)}` : ""}
+          </div>
+          <div class="owner-safety-actions">${ageCorrectionActions(request)}</div>
+        </article>
+      `;
+    }).join("");
+
+    list.querySelectorAll("[data-age-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const card = button.closest("[data-age-request-id]");
+        reviewAgeCorrection(card.dataset.ageRequestId, button.dataset.ageAction);
+      });
+    });
+  }
+
+  async function loadAgeCorrectionSummary() {
+    const { data, error } = await window.calbuddySupabase.rpc("ari_owner_age_correction_summary");
+    if (error) throw error;
+    if (data?.authorized !== true) throw new Error("Owner access required.");
+    $("ageCorrectionPending").textContent = Number(data.pending || 0).toLocaleString();
+    $("ageCorrectionBoundary").textContent = Number(data.age_boundary_changes || 0).toLocaleString();
+  }
+
+  async function loadAgeCorrections() {
+    if (activePanel !== "age") return;
+    setStatus("Loading age correction requests…", "working");
+    try {
+      const [{ data, error }] = await Promise.all([
+        window.calbuddySupabase.rpc("ari_owner_age_correction_requests", {
+          requested_status: activeAgeFilter,
+          result_limit: 100
+        }),
+        loadAgeCorrectionSummary()
+      ]);
+      if (error) throw error;
+      setStatus("");
+      renderAgeCorrections(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setStatus(error?.message || "Age correction review is unavailable.", "error");
+      $("ageCorrectionList").innerHTML = '<div class="ari-empty-state">The vNext age-correction database migration must be activated before this queue can be used.</div>';
+    }
+  }
+
+  async function reviewAgeCorrection(requestId, decision) {
+    const action = decision === "approved" ? "approve" : "deny";
+    if (!window.confirm(`Are you sure you want to ${action} this protected birthday correction?`)) return;
+
+    const note = window.prompt("Optional owner review note:", "") ?? "";
+    setStatus(`${decision === "approved" ? "Approving" : "Denying"} birthday correction…`, "working");
+
+    const { data, error } = await window.calbuddySupabase.rpc("ari_owner_review_age_correction", {
+      requested_request_id: requestId,
+      requested_decision: decision,
+      requested_notes: note
+    });
+
+    if (error) return setStatus(error.message, "error");
+    if (data?.success !== true) return setStatus("The request could not be reviewed.", "error");
+
+    setStatus(
+      decision === "approved"
+        ? "Birthday correction approved. Protected account age has been updated."
+        : "Birthday correction denied. The protected account birthday was not changed.",
+      "success"
+    );
+    await loadAgeCorrections();
+  }
+
   function switchPanel(panelName) {
-    activePanel = panelName === "reports" ? "reports" : "teen";
+    activePanel = panelName === "reports" ? "reports" : panelName === "age" ? "age" : "teen";
     $("teenSafetyPanel").hidden = activePanel !== "teen";
     $("reportPanel").hidden = activePanel !== "reports";
+    $("ageCorrectionPanel").hidden = activePanel !== "age";
     document.querySelectorAll("[data-owner-panel]").forEach((button) => {
       button.classList.toggle("is-active", button.dataset.ownerPanel === activePanel);
     });
     if (activePanel === "teen") loadTeenSafetyEvents();
-    else loadReports();
+    else if (activePanel === "reports") loadReports();
+    else loadAgeCorrections();
   }
 
   async function init() {
@@ -265,6 +386,16 @@
           item.classList.toggle("is-active", item === button)
         );
         loadTeenSafetyEvents();
+      });
+    });
+
+    document.querySelectorAll("[data-age-status]").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeAgeFilter = button.dataset.ageStatus;
+        document.querySelectorAll("[data-age-status]").forEach((item) =>
+          item.classList.toggle("is-active", item === button)
+        );
+        loadAgeCorrections();
       });
     });
 

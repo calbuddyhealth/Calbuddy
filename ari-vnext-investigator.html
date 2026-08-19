@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>ARI Investigator Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 15% 0%,rgba(34,211,238,.12),transparent 32%),radial-gradient(circle at 85% 0%,rgba(124,58,237,.13),transparent 34%),#07101c; color:#f8fbff; }
+    main { width:min(1100px,calc(100% - 28px)); margin:0 auto; padding:34px 0 60px; }
+    .eyebrow { color:#67e8f9; text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.22em; }
+    h1 { margin:7px 0 8px; font-size:clamp(30px,5vw,50px); letter-spacing:-.045em; }
+    .sub,.status { color:#9fb2c8; line-height:1.5; font-size:13px; }
+    .shell { margin-top:20px; border:1px solid rgba(255,255,255,.1); background:rgba(13,25,43,.74); border-radius:24px; padding:18px; }
+    textarea { width:100%; min-height:110px; resize:vertical; border:1px solid rgba(255,255,255,.1); background:rgba(2,8,19,.8); color:white; border-radius:17px; padding:15px; font:inherit; font-size:16px; outline:none; }
+    button { margin-top:10px; appearance:none; border:0; border-radius:999px; padding:11px 16px; font-weight:900; color:white; background:linear-gradient(120deg,#2563eb,#7c3aed); cursor:pointer; }
+    .grid { display:grid; grid-template-columns:1.25fr .75fr; gap:12px; margin-top:14px; }
+    .card { border:1px solid rgba(255,255,255,.09); background:rgba(2,8,19,.58); border-radius:20px; padding:15px; min-width:0; }
+    .title { color:#a5f3fc; font-size:10px; text-transform:uppercase; letter-spacing:.13em; font-weight:900; margin-bottom:9px; }
+    .reply { white-space:pre-wrap; line-height:1.55; }
+    .hypothesis { padding:11px 0; border-top:1px solid rgba(255,255,255,.07); }
+    .hypothesis:first-of-type { border-top:0; padding-top:0; }
+    .hypothesis strong { display:block; margin-bottom:4px; }
+    .score { color:#c4b5fd; font-size:12px; }
+    .small { color:#9fb2c8; font-size:12px; line-height:1.5; white-space:pre-wrap; }
+    .question { font-size:16px; line-height:1.5; }
+    .experiment { line-height:1.55; white-space:pre-wrap; }
+    @media(max-width:780px){ .grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Owner Intelligence</div>
+  <h1>ARI Investigator Lab</h1>
+  <div class="sub">Inspect Ari's evidence graph, competing explanations, information-gain question, autobiographical outcome learning, and N-of-1 experiment state.</div>
+  <div id="status" class="status">Checking owner access…</div>
+
+  <section id="shell" class="shell" hidden>
+    <textarea id="prompt">My strength has been dropping while I'm cutting. Look at the last month and tell me what you think.</textarea>
+    <button id="runBtn">Run Investigator</button>
+
+    <div class="grid">
+      <article class="card">
+        <div class="title">Ari's answer</div>
+        <div id="reply" class="reply">No run yet.</div>
+      </article>
+      <article class="card">
+        <div class="title">Evidence graph</div>
+        <div id="graph" class="small">—</div>
+      </article>
+      <article class="card">
+        <div class="title">Competing hypotheses</div>
+        <div id="hypotheses">—</div>
+      </article>
+      <article class="card">
+        <div class="title">Highest-value question</div>
+        <div id="question" class="question">—</div>
+        <div id="questionWhy" class="small"></div>
+      </article>
+      <article class="card">
+        <div class="title">N-of-1 experiment</div>
+        <div id="experiment" class="experiment">—</div>
+      </article>
+      <article class="card">
+        <div class="title">Decision state</div>
+        <div id="decision" class="small">—</div>
+      </article>
+    </div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="calbuddy-core.js?v=3.6.4"></script>
+<script src="ari/vnext/ari-vnext-training-context.js?v=1.2.0"></script>
+<script src="ari/vnext/ari-vnext-bridge.js?v=1.6.1"></script>
+<script>
+  const status = document.getElementById('status');
+  const shell = document.getElementById('shell');
+  const history = [];
+
+  document.addEventListener('DOMContentLoaded', initialize);
+  document.getElementById('runBtn').addEventListener('click', run);
+
+  async function initialize() {
+    try {
+      const session = await CalBuddy.getCurrentSession();
+      if (!session?.user?.id) { status.textContent = 'Sign in to use the investigator lab.'; return; }
+      const owner = await CalBuddy.verifyOwnerSession({ force:true });
+      if (!owner) { status.textContent = 'Owner access required.'; return; }
+      shell.hidden = false;
+      status.textContent = `Owner verified • vNext ${window.AriVNextBridge?.version || 'n/a'}`;
+    } catch (error) { status.textContent = error?.message || 'Owner verification failed.'; }
+  }
+
+  async function run() {
+    const message = document.getElementById('prompt').value.trim();
+    if (!message) return;
+    const button = document.getElementById('runBtn');
+    button.disabled = true;
+    document.getElementById('reply').textContent = 'Thinking…';
+    try {
+      const userContext = await CalBuddy.getUserContext();
+      const result = await AriVNextBridge.ask(message, {
+        page:'/ari-vnext-investigator.html',
+        history,
+        userContext,
+        coachMemorySummary:userContext.coachMemorySummary || '',
+        peerReflectionEnabled:false
+      });
+      const science = result?.scientificIntelligence || {};
+      const graph = science?.evidenceGraph || {};
+      const hypotheses = Array.isArray(science?.hypotheses) ? science.hypotheses : [];
+      const experiment = science?.experiment || {};
+      const q = science?.nextQuestion || null;
+      const learning = science?.outcomeLearning || {};
+
+      document.getElementById('reply').textContent = result?.reply || 'No textual reply.';
+      document.getElementById('graph').textContent = `${graph.nodeCount || 0} evidence nodes • ${graph.edgeCount || 0} relationships • ${graph.outcomeMemoryCount || 0} prior outcome memories\n\n${(graph.nodes || []).slice(0,10).map(n => `${n.type}: ${n.label} = ${typeof n.value === 'object' ? JSON.stringify(n.value) : n.value}`).join('\n') || 'No structured evidence.'}`;
+      document.getElementById('hypotheses').innerHTML = '';
+      if (!hypotheses.length) document.getElementById('hypotheses').textContent = 'No hypotheses.';
+      for (const item of hypotheses) {
+        const div = document.createElement('div');
+        div.className = 'hypothesis';
+        const strong = document.createElement('strong');
+        strong.textContent = `#${item.rank} ${item.label}`;
+        const score = document.createElement('div');
+        score.className = 'score';
+        const outcomeText = item.outcomeAdjustment ? ` • outcome ${item.outcomeAdjustment > 0 ? '+' : ''}${item.outcomeAdjustment}` : '';
+        score.textContent = `${item.status} • score ${item.score}${outcomeText}`;
+        const detail = document.createElement('div');
+        detail.className = 'small';
+        detail.textContent = `For: ${(item.supportingEvidence || []).join(', ') || 'none'}\nAgainst: ${(item.contradictingEvidence || []).join(', ') || 'none'}\nUnknowns: ${(item.unknowns || []).join(' ') || 'none'}`;
+        div.append(strong, score, detail);
+        document.getElementById('hypotheses').appendChild(div);
+      }
+      document.getElementById('question').textContent = q?.text || 'No clarifying question currently has enough decision value.';
+      document.getElementById('questionWhy').textContent = q ? `Decision value ${q.decisionValue} • ${q.why}` : '';
+      document.getElementById('experiment').textContent = [
+        `Readiness: ${experiment.readiness || 'n/a'}`,
+        experiment.hypothesis ? `Testing: ${experiment.hypothesis}` : '',
+        experiment.intervention ? `Intervention: ${experiment.intervention}` : experiment.reason || '',
+        experiment.durationDays ? `Window: ${experiment.durationDays} days` : '',
+        Array.isArray(experiment.measure) ? `Measure: ${experiment.measure.join('; ')}` : '',
+        experiment.supportsHypothesisIf ? `Supports if: ${experiment.supportsHypothesisIf}` : '',
+        experiment.weakensHypothesisIf ? `Weakens if: ${experiment.weakensHypothesisIf}` : ''
+      ].filter(Boolean).join('\n\n');
+      document.getElementById('decision').textContent = `Program stance: ${result?.longitudinalState?.programDecision?.stance || 'n/a'}\nEvidence confidence: ${result?.metacognition?.confidence || 'n/a'}\nOutcome learning: ${learning.applied ? `${learning.matchedOutcomes || 0} matched memories` : 'not applied'}\nModel mode: ${result?.modelPolicy?.mode || 'n/a'}\nModel: ${result?.provider?.model || result?.modelPolicy?.model || 'n/a'}`;
+      history.push({ role:'user', content:message }, { role:'assistant', content:result?.reply || '' });
+      while (history.length > 12) history.shift();
+    } catch (error) {
+      document.getElementById('reply').textContent = error?.message || String(error);
+    } finally { button.disabled = false; }
+  }
+</script>
+</body>
+</html>

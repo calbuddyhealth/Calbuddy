@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>ARI Initiative Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 18% 0%,rgba(34,211,238,.13),transparent 32%),radial-gradient(circle at 82% 0%,rgba(124,58,237,.14),transparent 34%),#07101c; color:#f8fbff; }
+    main { width:min(900px,calc(100% - 28px)); margin:0 auto; padding:36px 0 60px; }
+    .eyebrow { color:#67e8f9; text-transform:uppercase; letter-spacing:.22em; font-size:11px; font-weight:900; }
+    h1 { margin:8px 0 8px; font-size:clamp(32px,6vw,54px); letter-spacing:-.045em; }
+    .sub { color:#9fb2c8; line-height:1.55; max-width:720px; }
+    .shell { margin-top:22px; border:1px solid rgba(255,255,255,.1); background:rgba(9,22,39,.72); border-radius:24px; padding:18px; }
+    .status { color:#9fb2c8; font-size:12px; margin-bottom:14px; }
+    button { appearance:none; border:1px solid rgba(255,255,255,.11); border-radius:999px; padding:10px 15px; color:#fff; background:rgba(255,255,255,.07); font:inherit; font-size:12px; font-weight:850; cursor:pointer; }
+    button.primary { border-color:transparent; background:linear-gradient(120deg,#2563eb,#7c3aed); }
+    button:disabled { opacity:.42; cursor:not-allowed; }
+    .controls { display:flex; flex-wrap:wrap; gap:9px; }
+    .initiative { margin-top:18px; border:1px solid rgba(103,232,249,.2); background:rgba(2,8,19,.62); border-radius:22px; padding:18px; }
+    .initiative[hidden] { display:none; }
+    .label { color:#67e8f9; font-size:10px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+    .opener { margin-top:9px; font-size:20px; line-height:1.45; }
+    .context { margin-top:10px; color:#9fb2c8; font-size:13px; line-height:1.5; }
+    pre { margin-top:18px; background:rgba(2,8,19,.76); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:14px; color:#a9c0d9; overflow:auto; white-space:pre-wrap; font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Owner Intelligence Lab</div>
+    <h1>ARI Initiative</h1>
+    <div class="sub">Tests whether Ari has meaningful unfinished business or a material new signal worth surfacing on app open. The check itself makes zero language-model calls.</div>
+
+    <section id="shell" class="shell" hidden>
+      <div id="status" class="status">Ready.</div>
+      <div class="controls">
+        <button id="checkBtn" class="primary">Check Initiative</button>
+        <button id="engageBtn" disabled>Mark Engaged</button>
+        <button id="dismissBtn" disabled>Dismiss</button>
+      </div>
+      <article id="initiativeCard" class="initiative" hidden>
+        <div class="label">Ari initiated</div>
+        <div id="opener" class="opener"></div>
+        <div id="context" class="context"></div>
+      </article>
+      <pre id="debug">No initiative check yet.</pre>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="calbuddy-core.js?v=3.6.4"></script>
+  <script src="ari/vnext/ari-vnext-training-context.js?v=1.2.0"></script>
+  <script src="ari/vnext/ari-vnext-bridge.js?v=1.7.0"></script>
+  <script src="ari/vnext/ari-vnext-initiative.js?v=1.0.0"></script>
+  <script>
+    let current = null;
+    const status = document.getElementById("status");
+    const shell = document.getElementById("shell");
+    const card = document.getElementById("initiativeCard");
+    const opener = document.getElementById("opener");
+    const context = document.getElementById("context");
+    const debug = document.getElementById("debug");
+    const engageBtn = document.getElementById("engageBtn");
+    const dismissBtn = document.getElementById("dismissBtn");
+
+    document.addEventListener("DOMContentLoaded", initialize);
+    document.getElementById("checkBtn").addEventListener("click", check);
+    engageBtn.addEventListener("click", () => update("engage"));
+    dismissBtn.addEventListener("click", () => update("dismiss"));
+
+    async function initialize() {
+      try {
+        const session = await CalBuddy.getCurrentSession();
+        if (!session?.user?.id) { status.textContent = "Sign in to use the initiative lab."; shell.hidden = false; return; }
+        const owner = await CalBuddy.verifyOwnerSession({ force: true });
+        if (!owner) { status.textContent = "Owner access required."; shell.hidden = false; return; }
+        shell.hidden = false;
+        status.textContent = `Owner verified • initiative ${AriVNextInitiative?.version || "not loaded"}`;
+      } catch (error) {
+        shell.hidden = false;
+        status.textContent = error?.message || "Owner verification failed.";
+      }
+    }
+
+    async function check() {
+      setBusy(true);
+      status.textContent = "Checking current signals…";
+      try {
+        const userContext = await CalBuddy.getUserContext();
+        const result = await AriVNextInitiative.check({ page: "/ari-vnext-initiative.html", userContext });
+        current = result?.initiative || null;
+        render(result);
+      } catch (error) {
+        status.textContent = error?.message || "Initiative check failed.";
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function update(action) {
+      if (!current?.id) return;
+      setBusy(true);
+      try {
+        const result = action === "engage"
+          ? await AriVNextInitiative.engage(current)
+          : await AriVNextInitiative.dismiss(current);
+        status.textContent = action === "engage" ? "Marked engaged." : "Dismissed. Repeats will be suppressed.";
+        debug.textContent = JSON.stringify(result, null, 2);
+        current = null;
+        engageBtn.disabled = true;
+        dismissBtn.disabled = true;
+      } catch (error) {
+        status.textContent = error?.message || "Initiative update failed.";
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function render(result) {
+      debug.textContent = JSON.stringify(result, null, 2);
+      if (!result?.shouldInitiate || !result?.initiative) {
+        card.hidden = true;
+        engageBtn.disabled = true;
+        dismissBtn.disabled = true;
+        status.textContent = result?.reason === "repeat_suppressed"
+          ? "Ari had something to say, but the same initiative is currently suppressed."
+          : "Ari chose to stay quiet. Nothing is important enough to interrupt right now.";
+        return;
+      }
+      card.hidden = false;
+      opener.textContent = result.initiative.opener || "Ari noticed something.";
+      context.textContent = `${result.initiative.reasonId || "initiative"} • ${result.initiative.priority || "medium"} • $0 LLM calls for detection`;
+      engageBtn.disabled = !result.initiative.id;
+      dismissBtn.disabled = !result.initiative.id;
+      status.textContent = "Ari chose to initiate.";
+    }
+
+    function setBusy(value) {
+      document.getElementById("checkBtn").disabled = value;
+      if (value) { engageBtn.disabled = true; dismissBtn.disabled = true; }
+    }
+  </script>
+</body>
+</html>

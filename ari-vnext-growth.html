@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>ARI Growth Inbox</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 15% 0%, rgba(34,211,238,.12), transparent 32%), radial-gradient(circle at 85% 0%, rgba(124,58,237,.13), transparent 34%), #07101c; color: #f8fbff; }
+    main { width: min(1120px, calc(100% - 28px)); margin: 0 auto; padding: 34px 0 60px; }
+    header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:20px; }
+    .eyebrow { color:#67e8f9; text-transform:uppercase; letter-spacing:.22em; font-size:11px; font-weight:900; margin-bottom:8px; }
+    h1 { margin:0; font-size:clamp(30px,5vw,50px); letter-spacing:-.045em; }
+    .sub { margin-top:8px; color:#9fb2c8; font-size:14px; max-width:720px; line-height:1.55; }
+    .status { color:#9fb2c8; font-size:12px; text-align:right; }
+    .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:18px 0; }
+    .metric { border:1px solid rgba(255,255,255,.09); background:rgba(9,22,39,.72); border-radius:20px; padding:16px; }
+    .metric strong { display:block; font-size:28px; margin-bottom:3px; }
+    .metric span { color:#a9bbce; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 18px; }
+    button { appearance:none; border:1px solid rgba(255,255,255,.11); border-radius:999px; padding:9px 13px; color:#fff; background:rgba(255,255,255,.06); font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+    button.active { background:linear-gradient(120deg,#2563eb,#7c3aed); border-color:transparent; }
+    button.actionBtn { margin-top:12px; border-color:rgba(103,232,249,.26); background:rgba(6,182,212,.10); }
+    button.verifyBtn { border-color:rgba(74,222,128,.3); background:rgba(34,197,94,.12); }
+    .list { display:grid; gap:12px; }
+    .empty { border:1px dashed rgba(255,255,255,.15); border-radius:22px; padding:28px; color:#95a8bf; text-align:center; }
+    .item { border:1px solid rgba(255,255,255,.09); background:rgba(2,8,19,.61); border-radius:22px; padding:17px; }
+    .item.verified { border-color:rgba(74,222,128,.22); }
+    .item.reopened { border-color:rgba(251,113,133,.28); }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .pill { display:inline-flex; align-items:center; border-radius:999px; padding:6px 9px; font-size:10px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; border:1px solid rgba(255,255,255,.1); }
+    .pill.help_ari { background:rgba(124,58,237,.16); border-color:rgba(167,139,250,.34); color:#ddd6fe; }
+    .pill.watch { background:rgba(245,158,11,.12); border-color:rgba(251,191,36,.28); color:#fde68a; }
+    .pill.ari_handles { background:rgba(6,182,212,.13); border-color:rgba(103,232,249,.3); color:#a5f3fc; }
+    .pill.verified_fixed { background:rgba(34,197,94,.14); border-color:rgba(74,222,128,.32); color:#bbf7d0; }
+    .pill.reopened { background:rgba(244,63,94,.14); border-color:rgba(251,113,133,.34); color:#fecdd3; }
+    .area { color:#9fb2c8; font-size:11px; font-weight:800; }
+    .takeaway { font-size:16px; line-height:1.55; color:#f5f9ff; }
+    .question, .action, .fix { margin-top:10px; border-top:1px solid rgba(255,255,255,.07); padding-top:10px; line-height:1.5; font-size:13px; }
+    .question { color:#a9bbce; }
+    .action { color:#dbeafe; }
+    .action b { color:#67e8f9; }
+    .fix { color:#c7d2fe; }
+    .fix code { color:#a5f3fc; word-break:break-all; }
+    .meta { margin-top:10px; color:#71859c; font-size:10px; }
+    .repeat { color:#c4b5fd; font-weight:800; }
+    @media(max-width:760px){ header{align-items:flex-start;flex-direction:column}.status{text-align:left}.summary{grid-template-columns:repeat(2,1fr)}.top{align-items:flex-start;flex-direction:column} }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="eyebrow">Owner Intelligence</div>
+        <h1>ARI Growth Inbox</h1>
+        <div class="sub">Peer feedback is converted into improvement candidates, tracked through regression verification, and automatically reopened if the same weakness appears again after a fix.</div>
+      </div>
+      <div id="status" class="status">Checking owner access…</div>
+    </header>
+
+    <section id="content" hidden>
+      <div class="summary">
+        <div class="metric"><strong id="helpCount">0</strong><span>Help Ari</span></div>
+        <div class="metric"><strong id="watchCount">0</strong><span>Watch</span></div>
+        <div class="metric"><strong id="selfCount">0</strong><span>Ari Handles</span></div>
+        <div class="metric"><strong id="verifiedCount">0</strong><span>Verified Fixed</span></div>
+      </div>
+
+      <div class="toolbar" aria-label="Growth inbox filters">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="help_ari">Help Ari</button>
+        <button data-filter="watch">Watch</button>
+        <button data-filter="ari_handles">Ari Handles</button>
+        <button data-filter="verified_fixed">Verified Fixed</button>
+        <button id="refreshBtn">Refresh</button>
+      </div>
+
+      <div id="list" class="list"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="calbuddy-core.js?v=3.6.4"></script>
+  <script>
+    let inbox = { items: [], summary: {} };
+    let activeFilter = "all";
+
+    document.addEventListener("DOMContentLoaded", initialize);
+
+    async function initialize() {
+      const status = document.getElementById("status");
+      try {
+        const session = await CalBuddy.getCurrentSession();
+        if (!session?.user?.id) { status.textContent = "Sign in to use the growth inbox."; return; }
+        const owner = await CalBuddy.verifyOwnerSession({ force: true });
+        if (!owner) { status.textContent = "Owner access required."; return; }
+
+        document.getElementById("content").hidden = false;
+        document.querySelectorAll("[data-filter]").forEach((button) => {
+          button.addEventListener("click", () => {
+            activeFilter = button.dataset.filter || "all";
+            document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("active", item === button));
+            render();
+          });
+        });
+        document.getElementById("refreshBtn").addEventListener("click", loadInbox);
+        await loadInbox();
+      } catch (error) { status.textContent = error?.message || "Growth inbox unavailable."; }
+    }
+
+    async function token() {
+      const session = await CalBuddy.getCurrentSession();
+      return String(session?.access_token || "").trim();
+    }
+
+    async function loadInbox() {
+      const status = document.getElementById("status");
+      status.textContent = "Loading peer feedback…";
+      try {
+        const response = await fetch("/api/ari-vnext-growth", { headers: { Authorization: `Bearer ${await token()}` }, cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || "Growth inbox request failed.");
+        inbox = data;
+        status.textContent = `${data?.summary?.total || 0} reflections • ${data?.summary?.fixCandidates || 0} active fix candidates`;
+        render();
+      } catch (error) { status.textContent = error?.message || "Growth inbox unavailable."; }
+    }
+
+    async function setFixStatus(item, nextStatus) {
+      const body = { action: "set_fix_status", fingerprint: item.fingerprint, status: nextStatus };
+      if (nextStatus === "verified_fixed") {
+        const testId = prompt("Regression test ID", item?.fixState?.regressionTestId || `ari-vnext-growth-${item.area}-${item.issueKey}`);
+        if (!testId) return;
+        const commit = prompt("Fix commit SHA", item?.fixState?.fixCommitSha || "");
+        if (!commit) return;
+        const passes = Number(prompt("How many deterministic regression passes? Minimum 2", "2") || 0);
+        if (passes < 2) return alert("Verified Fixed requires at least 2 deterministic passes.");
+        if (!confirm("Confirm: the original scenario was reproduced before the fix, the regression test now passes, and no regression was observed?")) return;
+        body.regressionTestId = testId;
+        body.fixCommitSha = commit;
+        body.verification = { deterministicPasses: passes, scenarioReproduced: true, noRegressionObserved: true, verifiedBy: "owner_growth_inbox" };
+      }
+
+      const response = await fetch("/api/ari-vnext-growth", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return alert(data?.error || data?.code || "Could not update fix state.");
+      inbox = data;
+      render();
+    }
+
+    function render() {
+      const summary = inbox?.summary || {};
+      document.getElementById("helpCount").textContent = summary.helpAri || 0;
+      document.getElementById("watchCount").textContent = summary.watch || 0;
+      document.getElementById("selfCount").textContent = summary.ariHandles || 0;
+      document.getElementById("verifiedCount").textContent = summary.verifiedFixed || 0;
+
+      const items = (Array.isArray(inbox?.items) ? inbox.items : []).filter((item) => {
+        if (activeFilter === "all") return true;
+        if (activeFilter === "verified_fixed") return item?.fixState?.status === "verified_fixed";
+        return item.level === activeFilter;
+      });
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      if (!items.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = activeFilter === "all" ? "No peer reflections yet. Meaningful vNext conversations will populate this inbox over time." : "Nothing in this category right now.";
+        list.appendChild(empty);
+        return;
+      }
+      for (const item of items) list.appendChild(renderItem(item));
+    }
+
+    function renderItem(item) {
+      const card = document.createElement("article");
+      const fixStatus = item?.fixState?.status || null;
+      card.className = `item ${fixStatus === "verified_fixed" ? "verified" : fixStatus === "reopened" ? "reopened" : ""}`;
+
+      const top = document.createElement("div"); top.className = "top";
+      const pill = document.createElement("span");
+      const displayLevel = fixStatus === "verified_fixed" ? "verified_fixed" : fixStatus === "reopened" ? "reopened" : item.level;
+      pill.className = `pill ${displayLevel}`; pill.textContent = labelForLevel(displayLevel);
+      const area = document.createElement("span"); area.className = "area"; area.textContent = item.areaLabel || "General reasoning";
+      top.append(pill, area); card.appendChild(top);
+
+      const takeaway = document.createElement("div"); takeaway.className = "takeaway"; takeaway.textContent = item.takeaway || item.sourceContent || "Peer reflection"; card.appendChild(takeaway);
+
+      if (item.futureQuestion) {
+        const question = document.createElement("div"); question.className = "question"; question.textContent = `Peer wants Ari to keep asking: ${item.futureQuestion}`; card.appendChild(question);
+      }
+
+      const action = document.createElement("div"); action.className = "action";
+      const prefix = document.createElement("b"); prefix.textContent = item.level === "help_ari" ? "What you should do: " : item.level === "watch" ? "For now: " : "Ari's job: ";
+      action.append(prefix, document.createTextNode(item.ownerAction || "No action required.")); card.appendChild(action);
+
+      if (item.fixState) {
+        const fix = document.createElement("div"); fix.className = "fix";
+        fix.innerHTML = `Fix lifecycle: <b>${escapeHtml(fixStatus || "candidate")}</b><br>Regression: <code>${escapeHtml(item.fixState.regressionTestId || "not assigned")}</code>${item.fixState.fixCommitSha ? `<br>Commit: <code>${escapeHtml(item.fixState.fixCommitSha)}</code>` : ""}`;
+        card.appendChild(fix);
+
+        if (["candidate", "reopened"].includes(fixStatus)) card.appendChild(button("Start Fix", () => setFixStatus(item, "fix_in_progress")));
+        if (fixStatus === "fix_in_progress") card.appendChild(button("Ready for Verification", () => setFixStatus(item, "verification_pending")));
+        if (fixStatus === "verification_pending") card.appendChild(button("Verify Fixed", () => setFixStatus(item, "verified_fixed"), "verifyBtn"));
+      }
+
+      const meta = document.createElement("div"); meta.className = "meta";
+      const parts = [];
+      if (item.createdAt) parts.push(new Date(item.createdAt).toLocaleString());
+      if (item.repeatedPattern) parts.push(`${item.repeatCount} similar recent reflections`);
+      meta.textContent = parts.join(" • "); if (item.repeatedPattern) meta.classList.add("repeat"); card.appendChild(meta);
+      return card;
+    }
+
+    function button(label, handler, extra = "") {
+      const el = document.createElement("button"); el.className = `actionBtn ${extra}`; el.textContent = label; el.addEventListener("click", handler); return el;
+    }
+    function labelForLevel(level) {
+      if (level === "help_ari") return "Help Ari";
+      if (level === "watch") return "Watch";
+      if (level === "verified_fixed") return "Verified Fixed";
+      if (level === "reopened") return "Reopened";
+      return "Ari Handles";
+    }
+    function escapeHtml(value) { return String(value || "").replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
+  </script>
+</body>
+</html>

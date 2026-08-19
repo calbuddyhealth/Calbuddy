@@ -23,7 +23,7 @@
       <div class="ari-page-symbol" aria-hidden="true">◆</div>
       <p class="ari-page-kicker">OWNER ONLY</p>
       <h1 class="ari-page-title">Safety &amp; moderation</h1>
-      <p class="ari-page-description">Review user reports and blocked teen-safety events without exposing complete private conversations.</p>
+      <p class="ari-page-description">Review safety events, user reports, and protected birthday correction requests.</p>
     </section>
 
     <div class="ari-status" id="moderationStatus" role="status" aria-live="polite"></div>
@@ -32,6 +32,7 @@
       <nav class="owner-moderation-nav" aria-label="Moderation areas">
         <button type="button" data-owner-panel="teen" class="is-active">Teen Safety</button>
         <button type="button" data-owner-panel="reports">Reports</button>
+        <button type="button" data-owner-panel="age">Age Corrections</button>
       </nav>
 
       <section class="owner-panel" id="teenSafetyPanel">
@@ -64,6 +65,23 @@
         </div>
         <div class="ari-report-list" id="moderationReportList"></div>
       </section>
+
+      <section class="owner-panel" id="ageCorrectionPanel" hidden>
+        <div class="owner-safety-summary" aria-label="Age correction summary">
+          <div class="owner-safety-stat"><strong id="ageCorrectionPending">0</strong><span>Pending</span></div>
+          <div class="owner-safety-stat owner-safety-stat--high"><strong id="ageCorrectionBoundary">0</strong><span>Changes 18+ access</span></div>
+        </div>
+
+        <p class="owner-safety-note">Birthday corrections never take effect automatically. Review the current birthday, requested birthday, account email, and the user's explanation. Requests that cross the 18+ boundary deserve extra scrutiny because they can change ARI Circle eligibility.</p>
+
+        <div class="ari-filter-row" role="group" aria-label="Filter age correction requests">
+          <button class="ari-filter-button is-active" type="button" data-age-status="pending">Pending</button>
+          <button class="ari-filter-button" type="button" data-age-status="approved">Approved</button>
+          <button class="ari-filter-button" type="button" data-age-status="denied">Denied</button>
+          <button class="ari-filter-button" type="button" data-age-status="all">All</button>
+        </div>
+        <div class="owner-safety-list" id="ageCorrectionList"></div>
+      </section>
     </section>
 
     <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Owner access is verified by Supabase UID.</p></footer>
@@ -72,6 +90,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/owner-moderation.js?v=2.0.0"></script>
+  <script src="js/owner-moderation.js?v=2.1.0"></script>
 </body>
 </html>
