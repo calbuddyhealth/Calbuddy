@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.9 — Loads unified vNext runtime controller bootstrap.
 // V1.10.8 — Loads owner-aware vNext shared runtime bootstrap.
 // V1.10.7 — Loads shared vNext Home + Nutrition runtime bootstrap.
 // V1.10.6 — Loads deterministic Meal Plan intent router v1.3.1.
@@ -48,10 +49,7 @@ async function createUserProfile(user, displayName = "") {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (readError) {
-    console.warn("Profile bootstrap read failed:", readError.message);
-  }
-
+  if (readError) console.warn("Profile bootstrap read failed:", readError.message);
   if (existing?.id) return existing;
 
   const profilePayload = getMinimalProfilePayload(user, displayName);
@@ -65,7 +63,6 @@ async function createUserProfile(user, displayName = "") {
     console.error("Profile bootstrap failed:", error.message);
     throw error;
   }
-
   return data || profilePayload;
 }
 
@@ -239,7 +236,7 @@ function appendOrderedScript(id, src) {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.4.1");
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.0");
 }
 
 function bootstrapAriMealAction() {
@@ -266,34 +263,22 @@ function bootstrapNeutralGoalsForNewUsers() {
 function bootstrapWorkoutDialogFloatingClose() {
   const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page !== "workout-plans.html") return;
-  appendOrderedScript(
-    ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID,
-    "js/workout-dialog-floating-close.js?v=1.0.0"
-  );
+  appendOrderedScript(ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID, "js/workout-dialog-floating-close.js?v=1.0.0");
 }
 
 function bootstrapTrainingUndoSafety() {
   if (currentAriSurface() !== "training") return;
-  appendOrderedScript(
-    ARI_TRAINING_UNDO_SAFETY_SCRIPT_ID,
-    "js/training/training-undo-safety.js?v=1.0.0"
-  );
+  appendOrderedScript(ARI_TRAINING_UNDO_SAFETY_SCRIPT_ID, "js/training/training-undo-safety.js?v=1.0.0");
 }
 
 function bootstrapTrainingQuickLog() {
   if (currentAriSurface() !== "training") return;
-  appendOrderedScript(
-    ARI_TRAINING_QUICK_LOG_SCRIPT_ID,
-    "js/training/activity-quick-log.js?v=1.1.0"
-  );
+  appendOrderedScript(ARI_TRAINING_QUICK_LOG_SCRIPT_ID, "js/training/activity-quick-log.js?v=1.1.0");
 }
 
 function bootstrapGoalsActivityBurnSync() {
   if (currentAriSurface() !== "goals") return;
-  appendOrderedScript(
-    ARI_GOALS_BURN_SYNC_SCRIPT_ID,
-    "js/goals-activity-burn-sync.js?v=1.0.0"
-  );
+  appendOrderedScript(ARI_GOALS_BURN_SYNC_SCRIPT_ID, "js/goals-activity-burn-sync.js?v=1.0.0");
 }
 
 bootstrapCanonicalMealLedger();
