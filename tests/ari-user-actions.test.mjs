@@ -7,6 +7,8 @@ const root = process.cwd();
 const auth = fs.readFileSync(path.join(root, "js/auth.js"), "utf8");
 const routerClient = fs.readFileSync(path.join(root, "ari/intent/ari-central-intent-router.js"), "utf8");
 const routerApi = fs.readFileSync(path.join(root, "api/ari-intent-router.js"), "utf8");
+const mealPlanAction = fs.readFileSync(path.join(root, "ari/actions/ari-meal-plan-action-v2.js"), "utf8");
+const mealPlanGoalGuard = fs.readFileSync(path.join(root, "ari/actions/ari-meal-plan-goal-guard.js"), "utf8");
 const meals = fs.readFileSync(path.join(root, "ari/actions/ari-meal-action.js"), "utf8");
 const workouts = fs.readFileSync(path.join(root, "ari/actions/ari-workout-plan-action.js"), "utf8");
 const nutritionUi = fs.readFileSync(path.join(root, "ari/actions/ari-nutrition-action-ui.js"), "utf8");
@@ -14,14 +16,39 @@ const nutrition = fs.readFileSync(path.join(root, "js/nutrition.js"), "utf8");
 const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
 const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
-test("Home and Nutrition share one OpenAI central intent router", () => {
-  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.2\.0/);
+test("Home and Nutrition share one central intent router", () => {
+  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.3\.1/);
   assert.match(routerClient, /CalBuddy\.askAri = async function ariCentralIntentBoundary/);
   assert.match(routerClient, /intentDecision/);
   assert.match(routerClient, /\/api\/ari-intent-router/);
   assert.match(routerApi, /response_format/);
   assert.match(routerApi, /json_schema/);
   assert.match(routerApi, /strict:\s*true/);
+});
+
+test("explicit Meal Plan requests never ask users to restate app-owned calorie budget", () => {
+  assert.match(routerApi, /deterministicMealPlanDecision/);
+  assert.match(routerApi, /explicitPlanRequest/);
+  assert.match(routerApi, /action:\s*"plan_meal"/);
+  assert.match(routerApi, /needs_clarification:\s*false/);
+  assert.match(routerApi, /remaining calories, and Daily Calorie Goal are application context/);
+  assert.match(routerApi, /routeSource:\s*"deterministic_meal_plan"/);
+});
+
+test("today-only Meal Plan reads goal and consumption context itself", () => {
+  assert.match(mealPlanAction, /calbuddyDailyCalorieGoal/);
+  assert.match(mealPlanAction, /consumedCalories/);
+  assert.match(mealPlanAction, /plannedCalories/);
+  assert.match(mealPlanAction, /remainingCalories/);
+  assert.match(mealPlanAction, /Daily calorie goal:/);
+  assert.match(mealPlanAction, /Unallocated calories today:/);
+});
+
+test("Meal Plan refuses to invent a budget when no Daily Calorie Goal exists", () => {
+  assert.match(routerClient, /ari-meal-plan-goal-guard\.js\?v=1\.0\.0/);
+  assert.match(mealPlanGoalGuard, /calbuddyDailyCalorieGoal/);
+  assert.match(mealPlanGoalGuard, /dailyCalorieGoal\(\) <= 0/);
+  assert.match(mealPlanGoalGuard, /I need your Daily Calorie Goal first/);
 });
 
 test("central router is the authority over legacy action classification", () => {
