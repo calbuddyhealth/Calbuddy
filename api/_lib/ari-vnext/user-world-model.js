@@ -2,7 +2,7 @@
 // This is not a transcript. It separates stated goals/preferences from observed
 // behavior and measured response so Ari can notice mismatches without shaming.
 
-export const ARI_USER_WORLD_MODEL_VERSION = "1.1.0";
+export const ARI_USER_WORLD_MODEL_VERSION = "1.1.1";
 const TABLE = "ari_vnext_user_models";
 const PRIVACY_CATEGORIES = new Set(["identity", "preferences", "goals", "constraints", "behavior", "fitness_outcomes", "relationship"]);
 
@@ -121,12 +121,12 @@ export function deriveUserWorldModel({
       detail: communication?.detail || persisted?.responseProfile?.detail || persisted?.responseProfile?.verbosity || null,
       directness: communication?.directness || persisted?.responseProfile?.directness || null,
       tone: communication?.tone || persisted?.responseProfile?.tone || null,
-      familiarity: selfModel?.relationship?.familiarity || persisted?.responseProfile?.familiarity || null
+      familiarity: selfModel?.current?.familiarity || persisted?.responseProfile?.familiarity || null
     },
     physiologicalResponse,
     relationship: blocked.has("relationship") ? {} : {
       mode: selfModel?.current?.mode || persisted?.relationship?.mode || null,
-      familiarity: selfModel?.relationship?.familiarity || persisted?.relationship?.familiarity || null
+      familiarity: selfModel?.current?.familiarity || persisted?.relationship?.familiarity || null
     },
     tensions: blocked.has("goals") || blocked.has("behavior") || blocked.has("constraints")
       ? []
