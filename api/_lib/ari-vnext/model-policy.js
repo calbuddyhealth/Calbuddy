@@ -1,6 +1,6 @@
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "1.3.0";
+export const MODEL_POLICY_VERSION = "1.4.0";
 
 export function resolveModelPolicy(route = {}) {
   const fastModel = process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
@@ -18,6 +18,7 @@ export function resolveModelPolicy(route = {}) {
   );
 
   const mustUseStandard = Boolean(
+    route?.complexity === "standard" ||
     route?.coachingState ||
     (route?.training && route?.goals) ||
     (route?.training && route?.nutrition) ||
@@ -55,8 +56,10 @@ export function resolveModelPolicy(route = {}) {
           ? "low"
           : "medium"
       : null,
-    maxOutputTokens: mode === "deep" ? 2200 : mode === "current" ? 1200 : mode === "standard" ? 1200 : 700,
-    timeoutMs: mode === "deep" ? 45000 : mode === "current" ? 25000 : mode === "standard" ? 22000 : 12000,
+    // Standard GPT-4o-mini turns get enough room for structured workout/meal
+    // proposals without escalating routine planning to an expensive deep model.
+    maxOutputTokens: mode === "deep" ? 2200 : mode === "current" ? 1200 : mode === "standard" ? 1800 : 700,
+    timeoutMs: mode === "deep" ? 45000 : mode === "current" ? 25000 : mode === "standard" ? 26000 : 12000,
     costTier: mode === "deep" ? "escalated" : mode === "current" ? "live_search" : "economy",
     liveSearchRequired: currentInfo
   };
