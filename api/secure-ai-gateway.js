@@ -2,9 +2,9 @@
 // Protects legacy AI routes without changing the submitted native client's
 // request contract. This is a budget/abuse guard, not a replacement for auth.
 
-import intentRouterHandler from "./ari-intent-router.js";
-import askCalbuddyHandler from "./ask-calbuddy.js";
-import usageHandler from "./usage.js";
+import intentRouterHandler from "./_lib/gateway/ari-intent-router-handler.js";
+import askCalbuddyHandler from "./_lib/gateway/ask-calbuddy-handler.js";
+import usageHandler from "./_lib/gateway/usage-handler.js";
 
 const ROUTE_LIMITS = Object.freeze({
   intent: {
