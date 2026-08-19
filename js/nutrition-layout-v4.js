@@ -1,5 +1,5 @@
-// ARI XP — Nutrition layout v4.1.0
-// Presentation controller + iPhone momentum safeguards.
+// ARI XP — Nutrition layout v4.2.0
+// Presentation controller + iPhone momentum safeguards + meal-planner loader.
 (() => {
   "use strict";
 
@@ -37,8 +37,19 @@
     };
   }
 
+  function loadMealPlanner() {
+    if (document.getElementById("ariNutritionMealPlannerScript")) return;
+
+    const script = document.createElement("script");
+    script.id = "ariNutritionMealPlannerScript";
+    script.src = "js/nutrition-meal-planner.js?v=1.0.0";
+    script.async = false;
+    document.head.appendChild(script);
+  }
+
   function boot() {
     installMomentumGuards();
+    loadMealPlanner();
 
     const dashboard = document.getElementById("todayNutritionSection");
     if (dashboard && !dashboard.hasAttribute("open")) dashboard.open = true;
@@ -56,6 +67,7 @@
 
     window.addEventListener("calbuddy:dashboardRefresh", updateTodayMealLabel);
     window.addEventListener("ari:activityChanged", updateTodayMealLabel);
+    window.addEventListener("ari:nutritionMealPlanChanged", updateTodayMealLabel);
   }
 
   if (document.readyState === "loading") {
