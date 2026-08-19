@@ -3,6 +3,7 @@ import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 // api/ask-calbuddy.js
 // CalBuddy OpenAI Knowledge Client
 // Purpose: Server-side OpenAI caller for Ari Rebirth.
+// V2.4.1 — Gives named structured meal-plan/recipe contracts a safe response budget.
 // V2.4.0 — Honors action-specific JSON contracts and request-scoped output budgets.
 // V2.3.0 — Adds server-side provider token/cost accounting.
 
@@ -48,9 +49,12 @@ export default async function handler(req, res) {
     const requestedModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const defaultMaxTokens = Number(process.env.OPENAI_MAX_TOKENS || 1200);
     const requestedMaxTokens = Number(maxTokens);
+    const structuredActionBudget = /\b(mealPlanProposal|recipeProposal)\b/.test(String(aiInstruction || ""))
+      ? 2200
+      : defaultMaxTokens;
     const resolvedMaxTokens = Number.isFinite(requestedMaxTokens) && requestedMaxTokens > 0
       ? Math.max(256, Math.min(3000, Math.round(requestedMaxTokens)))
-      : defaultMaxTokens;
+      : structuredActionBudget;
 
     const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -261,7 +265,7 @@ Ari Rebirth should normally send aiInstruction. Since none was provided, answer 
 Rules:
 - Be warm, direct, practical, and concise.
 - Use CalBuddy context when relevant.
-- Do not claim app data was saved unless an application action actually confirms it.
+- Do not claim app data was saved unless an application action actually confirms success.
 ${mealEstimateRule}
 - For app/code questions, do not claim edits were made.
 - If exact repository content is provided, use it.
