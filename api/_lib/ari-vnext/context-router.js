@@ -1,16 +1,18 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.11.0";
+export const CONTEXT_ROUTER_VERSION = "1.12.0";
 
 const PATTERNS = {
-  nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet)\b/i,
+  nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
   training: /\b(workout|training|train|trained|exercise|exercised|lift|lifted|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|ran|running|jog|jogged|jogging|walk|walked|walking|bike|biked|biking|cycle|cycled|cycling|hike|hiked|hiking|swim|swam|swimming|row|rowed|rowing|elliptical|stairs?|stairmaster|stepmill|push[ -]?ups?|pull[ -]?ups?|burpees?|calisthenics?|basketball|soccer|tennis|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
   memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|what do i prefer|what do i like|what do i dislike|my favorite|my favourite|i prefer|i dislike|from now on|going forward|correction|my wife|my husband|my brother|my sister|my friend)\b/i,
   health: /\b(injury|injured|pain|sore|soreness|medical|medicine|medication|symptom|pregnan|blood pressure|heart rate|doctor|nurse)\b/i,
-  currentInfo: /\b(latest|current|currently|today(?:'s)?|tonight|this week|this month|this year|right now|as of now|news|weather|forecast|price|prices|score|scores|standings|schedule|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|stock price|market price|exchange rate|release date|availability|in office|who is .* president|who's .* president)\b/i,
+  liveInfo: /\b(news|weather|forecast|price|prices|score|scores|standings|stock price|market price|exchange rate|release date|availability|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|in office|who is .* president|who's .* president)\b/i,
+  recency: /\b(latest|current|currently|today(?:'s)?|tonight|this week|this month|this year|right now|as of now|newest|recent)\b/i,
+  changingReference: /\b(research|study|studies|guideline|guidelines|recommendation|recommendations|evidence|software|version|release)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api)\b/i
 };
 
@@ -37,7 +39,7 @@ export function routeContext(turn = {}) {
     social: PATTERNS.social.test(semanticText),
     memory: PATTERNS.memory.test(semanticText) || followUp,
     health: PATTERNS.health.test(semanticText),
-    currentInfo: PATTERNS.currentInfo.test(semanticText),
+    currentInfo: needsCurrentInfo(semanticText),
     developer: PATTERNS.developer.test(semanticText),
     teenMode,
     circleAllowed: account?.circleAllowed === true,
@@ -179,6 +181,15 @@ function cognitiveContextRules(context = {}) {
     );
   }
 
+  if (context?.nutrition?.calorieBudgetPolicy) {
+    lines.push(
+      "NUTRITION BUDGET RULES:",
+      "- Daily food allowance is the saved Daily Calorie Goal minus calories consumed. Exercise calories do not increase food allowance.",
+      "- Planned food is not consumed food. Active Meal Plan calories reduce what remains unallocated for planning, but do not count as eaten.",
+      "- If Daily Calorie Goal is unknown, keep it unknown. Never substitute a plausible default calorie target."
+    );
+  }
+
   return lines.join("\n");
 }
 
@@ -265,10 +276,17 @@ function isFollowUp(message = "") {
   return /^(why|how|how so|what about|and|but|then|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text);
 }
 
+function needsCurrentInfo(text = "") {
+  const value = String(text || "");
+  if (PATTERNS.liveInfo.test(value)) return true;
+  return PATTERNS.recency.test(value) && PATTERNS.changingReference.test(value);
+}
+
 function estimateComplexity(message = "") {
   const text = String(message || "");
   if (text.length > 1800) return "deep";
-  if (/\b(compare|analyze|review|plan|strategy|why.*and|pros and cons|tradeoff|trend|velocity|plateau|progression|over the last|history|on pace|adjust my program|change my program|experiment|hypothesis)\b/i.test(text)) return "deep";
+  if (/\b(meal plan|plan my meals|plan the rest|workout plan|build me a workout|make me a workout)\b/i.test(text)) return "standard";
+  if (/\b(compare|analyze|review|strategy|why.*and|pros and cons|tradeoff|trend|velocity|plateau|progression|over the last|history|on pace|adjust my program|change my program|experiment|hypothesis)\b/i.test(text)) return "deep";
   if (text.length > 500) return "standard";
   return "fast";
 }
