@@ -102,15 +102,27 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
       return null;
     }
 
-    const decision = String(args?.decision || "none").trim();
+    let decision = String(args?.decision || "none").trim();
     const confidence = Number.isFinite(Number(args?.confidence))
       ? Math.max(0, Math.min(1, Number(args.confidence)))
       : 0;
 
     if (!decisions.includes(decision)) return null;
 
+    // Whether a saved Daily Calorie Goal exists is app state, not a semantic
+    // judgment. Never let the verifier contradict verified context. If the model
+    // interpreted the request as a budget-based Meal Plan but falsely called the
+    // known goal "missing", preserve the semantic intent and route to Meal Plan.
+    if (
+      decision === "blocked_missing_daily_goal" &&
+      dailyGoalKnown &&
+      availableTools.includes("propose_today_meal_plan")
+    ) {
+      decision = "propose_today_meal_plan";
+    }
+
     return {
-      version: "1.1.0",
+      version: "1.2.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
