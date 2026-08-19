@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.3.0
+// Version: 1.3.1
 // Purpose:
 //   ONE semantic intent decision for every Ari user turn.
 //   Wraps CalBuddy.askAri(), calls /api/ari-intent-router once, and passes
@@ -14,23 +14,33 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.3.1";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
   const LEGACY_GATE_FLAG = "__ariCentralIntentLegacyGateV1";
   const MEAL_PLAN_ACTION_SCRIPT_ID = "ariTodayMealPlanActionV2Script";
+  const MEAL_PLAN_GOAL_GUARD_SCRIPT_ID = "ariMealPlanGoalGuardScript";
   const cache = new Map();
 
   const clean = (value = "") => String(value ?? "").trim();
 
   function loadTodayMealPlanActionService() {
-    if (document.getElementById(MEAL_PLAN_ACTION_SCRIPT_ID)) return;
-    const script = document.createElement("script");
-    script.id = MEAL_PLAN_ACTION_SCRIPT_ID;
-    script.src = "ari/actions/ari-meal-plan-action-v2.js?v=2.0.0";
-    script.async = false;
-    document.head.appendChild(script);
+    if (!document.getElementById(MEAL_PLAN_ACTION_SCRIPT_ID)) {
+      const script = document.createElement("script");
+      script.id = MEAL_PLAN_ACTION_SCRIPT_ID;
+      script.src = "ari/actions/ari-meal-plan-action-v2.js?v=2.0.0";
+      script.async = false;
+      document.head.appendChild(script);
+    }
+
+    if (!document.getElementById(MEAL_PLAN_GOAL_GUARD_SCRIPT_ID)) {
+      const guard = document.createElement("script");
+      guard.id = MEAL_PLAN_GOAL_GUARD_SCRIPT_ID;
+      guard.src = "ari/actions/ari-meal-plan-goal-guard.js?v=1.0.0";
+      guard.async = false;
+      document.head.appendChild(guard);
+    }
   }
 
   function surfaceFromInput(input = {}) {
@@ -79,7 +89,7 @@
       entities: decision.entities && typeof decision.entities === "object"
         ? { ...decision.entities }
         : {},
-      router_source: "openai_structured_output",
+      router_source: "central_intent_router",
       router_version: VERSION
     };
   }
