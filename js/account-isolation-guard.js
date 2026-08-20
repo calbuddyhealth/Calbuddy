@@ -128,6 +128,11 @@
       stashUserState(storageOwner);
       clearTransientState();
       restoreUserState(next);
+    } else if (!previous && !storageOwner && !firstLoad) {
+      // Normal sign-in after a clean sign-out. Restore only this account's
+      // previously namespaced state; never inherit anonymous/global leftovers.
+      clearTransientState();
+      restoreUserState(next);
     } else if (firstLoad) {
       // Pending actions/recovery turns from pre-isolation builds have no
       // trustworthy account binding. Never inherit them.
