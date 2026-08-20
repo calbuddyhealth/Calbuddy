@@ -1,18 +1,23 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-nutrition-action-ui.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
-//   Nutrition-page presentation for the shared CalBuddy pending-action
-//   lifecycle. This file NEVER creates or interprets domain actions.
-//   It only displays, confirms, or cancels actions created by canonical
-//   services such as ari-meal-action.js and ari-workout-plan-action.js.
+//   Nutrition-page presentation for nutrition-only CalBuddy pending actions.
+//   Training/activity/goal/developer actions are rejected on this surface.
 // =====================================================
 
 (() => {
   "use strict";
 
   const CARD_ID = "ariNutritionPendingAction";
+  const NUTRITION_ACTION_TYPES = new Set([
+    "log_meal",
+    "plan_meal",
+    "log_planned_meal",
+    "consume_meal_plan",
+    "consume_meal_plan_items"
+  ]);
 
   const clean = (value = "") => String(value ?? "").trim();
 
@@ -70,28 +75,39 @@
   }
 
   function fallbackConfirmation(type) {
-    if (type === "log_meal") return "Log this meal?";
-    if (type === "plan_workout") return "Apply this workout plan?";
-    return "Apply this change?";
+    if (type === "log_meal" || type === "log_planned_meal") return "Log this meal?";
+    if (type === "plan_meal") return "Add this to today's Meal Plan?";
+    if (type === "consume_meal_plan" || type === "consume_meal_plan_items") return "Log this planned food as eaten?";
+    return "Apply this nutrition change?";
   }
 
   function fallbackSuccess(type) {
-    if (type === "log_meal") return "Done — I logged that meal.";
-    if (type === "plan_workout") return "Done — I updated your Training plan.";
-    return "Done.";
+    if (type === "log_meal" || type === "log_planned_meal") return "Done — I logged that meal.";
+    if (type === "plan_meal") return "Done — I updated today's Meal Plan.";
+    return "Done — I updated Nutrition.";
   }
 
   function fallbackFailure(type) {
-    if (type === "log_meal") return "I couldn't log that meal. Try again.";
-    if (type === "plan_workout") return "I couldn't update that workout. Try again.";
-    return "I couldn't apply that change. Try again.";
+    if (type === "log_meal" || type === "log_planned_meal") return "I couldn't log that meal. Try again.";
+    if (type === "plan_meal") return "I couldn't update that Meal Plan. Try again.";
+    return "I couldn't apply that nutrition change. Try again.";
+  }
+
+  function isNutritionAction(action) {
+    const type = clean(action?.action_type || action?.type);
+    return Boolean(type && NUTRITION_ACTION_TYPES.has(type));
   }
 
   function renderPendingAction(action) {
     if (!isNutritionPage() || !action) return;
 
     const type = clean(action.action_type || action.type);
-    if (!type) return;
+    if (!isNutritionAction(action)) {
+      // Never render or confirm a Training/activity/goal/developer action on the
+      // Meals/Nutrition surface. Leave its domain owner to handle it.
+      removeCard();
+      return;
+    }
 
     const thread = getThread();
     if (!thread) return;
@@ -102,7 +118,7 @@
     card.id = CARD_ID;
     card.dataset.actionType = type;
     card.setAttribute("role", "group");
-    card.setAttribute("aria-label", "Confirm Ari action");
+    card.setAttribute("aria-label", "Confirm Ari nutrition action");
     card.style.margin = "14px 0";
     card.style.padding = "16px";
     card.style.borderRadius = "22px";
@@ -137,11 +153,16 @@
       cancel.disabled = true;
 
       try {
+        const current = window.CalBuddy?.getPendingAction?.();
+        if (!isNutritionAction(current)) {
+          removeCard();
+          return;
+        }
         const result = await window.CalBuddy.confirmPendingAction();
         removeCard();
         appendAriMessage(result?.reply || fallbackSuccess(type));
 
-        if (type === "log_meal" && typeof window.refreshNutritionPage === "function") {
+        if (typeof window.refreshNutritionPage === "function") {
           await window.refreshNutritionPage();
         }
       } catch (error) {
@@ -166,11 +187,14 @@
   function restorePendingAction() {
     if (!isNutritionPage()) return;
     const pending = window.CalBuddy?.getPendingAction?.();
-    if (pending) renderPendingAction(pending);
+    if (isNutritionAction(pending)) renderPendingAction(pending);
+    else removeCard();
   }
 
   window.addEventListener("calbuddy:pendingAction", (event) => {
-    renderPendingAction(event?.detail?.action || event?.detail || null);
+    const action = event?.detail?.action || event?.detail || null;
+    if (isNutritionAction(action)) renderPendingAction(action);
+    else removeCard();
   });
 
   window.addEventListener("calbuddy:pendingActionCleared", removeCard);

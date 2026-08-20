@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.16 — Enforces browser account isolation before Ari action/runtime boot.
 // V1.10.15 — Loads central Ari router v1.5.3 / runtime v1.3.4 response-pipeline repair.
 // V1.10.14 — Loads central Ari router v1.5.2 / runtime v1.3.3 restoration chain.
 // V1.10.13 — Loads central Ari router v1.5.1 / runtime v1.3.2 hardening chain.
@@ -13,7 +14,7 @@
 // V1.10.7 — Loads shared vNext Home + Nutrition runtime bootstrap.
 // V1.10.6 — Loads deterministic Meal Plan intent router v1.3.1.
 // V1.10.5 — Adds Training completed-workout undo safety for iOS focus races.
-// V1.10.4 — Adds shared activity Quick Log + Goals burn aggregation loaders.
+// V1.10.4 — Loads shared activity Quick Log + Goals burn aggregation loaders.
 // V1.10.3 — Guarantees every authenticated user has a minimal profiles row
 // before protected app surfaces become usable. No fake health defaults.
 // Also boots shared workout dialog controls on the Workout Plans surface.
@@ -21,13 +22,13 @@
 
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
+const ARI_ACCOUNT_ISOLATION_SCRIPT_ID = "ariAccountIsolationScript";
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
 const ARI_NUTRITION_TRANSACTION_SCRIPT_ID = "ariNutritionTransactionScript";
 const ARI_NUTRITION_TRUST_SCRIPT_ID = "ariNutritionTrustScript";
 const ARI_NUTRITION_QUALITY_SCRIPT_ID = "ariNutritionQualityScript";
 const ARI_INTENT_ROUTER_SCRIPT_ID = "ariCentralIntentRouterScript";
 const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
-const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
 const ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID = "ariWorkoutDialogFloatingCloseScript";
@@ -173,6 +174,8 @@ async function requireAuth() {
     return null;
   }
 
+  window.AriAccountIsolation?.activateUser?.(session.user.id);
+
   try {
     await ensureAuthenticatedProfile(session.user);
   } catch (error) {
@@ -189,6 +192,7 @@ async function requireAuth() {
 }
 
 async function signOutUser() {
+  window.AriAccountIsolation?.deactivateUser?.();
   sessionStorage.removeItem("ari_boot_intro");
   return await window.calbuddySupabase.auth.signOut();
 }
@@ -215,15 +219,6 @@ function bootstrapAIAccessConsent() {
   }
 }
 
-function bootstrapCanonicalMealLedger() {
-  if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
-  const script = document.createElement("script");
-  script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
-  script.src = "js/meal-ledger-sync.js?v=1.0.1";
-  script.defer = true;
-  document.head.appendChild(script);
-}
-
 function currentAriSurface() {
   const page = String(window.location.pathname || "").split("/").pop().toLowerCase();
   if (page === "nutrition.html") return "nutrition";
@@ -239,6 +234,19 @@ function appendOrderedScript(id, src) {
   script.id = id;
   script.src = src;
   script.async = false;
+  document.head.appendChild(script);
+}
+
+function bootstrapAccountIsolation() {
+  appendOrderedScript(ARI_ACCOUNT_ISOLATION_SCRIPT_ID, "js/account-isolation-guard.js?v=1.0.0");
+}
+
+function bootstrapCanonicalMealLedger() {
+  if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
+  const script = document.createElement("script");
+  script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
+  script.src = "js/meal-ledger-sync.js?v=1.0.1";
+  script.defer = true;
   document.head.appendChild(script);
 }
 
@@ -271,14 +279,9 @@ function bootstrapAriMealAction() {
   appendOrderedScript(ARI_MEAL_ACTION_SCRIPT_ID, "ari/actions/ari-meal-action.js?v=2.0.0");
 }
 
-function bootstrapAriWorkoutActionForNutrition() {
-  if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(ARI_WORKOUT_ACTION_SCRIPT_ID, "ari/actions/ari-workout-plan-action.js?v=3.0.0");
-}
-
 function bootstrapNutritionActionUi() {
   if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.1.0");
+  appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.2.0");
 }
 
 function bootstrapNeutralGoalsForNewUsers() {
@@ -307,13 +310,13 @@ function bootstrapGoalsActivityBurnSync() {
   appendOrderedScript(ARI_GOALS_BURN_SYNC_SCRIPT_ID, "js/goals-activity-burn-sync.js?v=1.0.0");
 }
 
+bootstrapAccountIsolation();
 bootstrapCanonicalMealLedger();
 bootstrapNutritionTransactionClient();
 bootstrapNutritionTrustLayer();
 bootstrapNutritionDataQuality();
 bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
-bootstrapAriWorkoutActionForNutrition();
 bootstrapNutritionActionUi();
 bootstrapNeutralGoalsForNewUsers();
 bootstrapWorkoutDialogFloatingClose();

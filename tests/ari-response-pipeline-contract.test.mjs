@@ -109,8 +109,9 @@ function bridgeSandbox(fetchImpl) {
 }
 
 test("Home cache chain points at one repaired runtime/bridge version", () => {
-  assert.match(homeSource, /js\/auth\.js\?v=1\.10\.15/);
+  assert.match(homeSource, /js\/auth\.js\?v=1\.10\.16/);
   assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.0/);
+  assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
   assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.3/);
   assert.match(routerSource, /ari-runtime-controller\.js\?v=1\.3\.4/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
