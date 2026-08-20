@@ -47,6 +47,11 @@ import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
+import {
+  claimAriRequest,
+  completeAriRequest,
+  releaseAriRequest
+} from "./_lib/ari-vnext/request-idempotency.js";
 import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
 import {
   deriveUserWorldModel,
@@ -73,6 +78,8 @@ export default async function handler(req, res) {
   }
 
   const startedAt = Date.now();
+  let requestIdentity = null;
+  let requestClaim = null;
 
   try {
     const auth = await authenticateRequest(req);
@@ -94,6 +101,39 @@ export default async function handler(req, res) {
         success: false,
         error: "Message is required.",
         source: "ari_vnext_api",
+        timing: { totalMs: Date.now() - startedAt }
+      });
+    }
+
+    requestIdentity = { userId: auth.userId, turnId: turn.turnId };
+    requestClaim = await claimAriRequest(requestIdentity);
+
+    if (requestClaim?.replay) {
+      return res.status(200).json({
+        ...requestClaim.replay,
+        turnId: turn.turnId,
+        idempotency: {
+          enabled: true,
+          replayed: true,
+          source: requestClaim.source || "completed_replay"
+        },
+        timing: { totalMs: Date.now() - startedAt }
+      });
+    }
+
+    if (requestClaim?.inProgress) {
+      return res.status(202).json({
+        success: false,
+        ready: false,
+        pending: true,
+        code: "ARI_TURN_IN_PROGRESS",
+        turnId: turn.turnId,
+        source: "ari_vnext_idempotency",
+        idempotency: {
+          enabled: true,
+          replayed: false,
+          source: requestClaim.source || "already_processing"
+        },
         timing: { totalMs: Date.now() - startedAt }
       });
     }
@@ -340,6 +380,8 @@ export default async function handler(req, res) {
             calibrationSampleSize: decisionState?.calibration?.sampleSize || 0,
             communicationLearningSamples: communicationLearning?.resolvedCount || 0,
             proactiveInsightCount: proactiveInsights?.userFacingCount || 0,
+            idempotencyEnabled: requestClaim?.enabled === true,
+            idempotencySource: requestClaim?.source || null,
             route: result?.route || null
           }
         })
@@ -370,6 +412,7 @@ export default async function handler(req, res) {
     const turnPersistenceTask = cleanText(result?.reply, 12000)
       ? persistConversationTurn({
           userId: auth.userId,
+          turnId: turn.turnId,
           message: turn.message,
           reply: result.reply,
           surface: turn.surface
@@ -447,7 +490,7 @@ export default async function handler(req, res) {
     const communicationOutcomeResolved = communicationResolution.status === "fulfilled" ? Number(communicationResolution.value?.resolved || 0) : 0;
     const communicationExposureStored = communicationPersistence.status === "fulfilled" && communicationPersistence.value?.stored === true;
 
-    return res.status(200).json({
+    const responsePayload = {
       ...result,
       turnId: turn.turnId,
       accountEntitlements,
@@ -505,9 +548,31 @@ export default async function handler(req, res) {
       decisionJournalStored,
       communicationOutcomeResolved,
       communicationExposureStored,
+      idempotency: {
+        enabled: requestClaim?.enabled === true,
+        replayed: false,
+        source: requestClaim?.source || null
+      },
       timing: { totalMs: Date.now() - startedAt }
-    });
+    };
+
+    if (requestClaim?.enabled === true && requestClaim?.claimed === true) {
+      const stored = await completeAriRequest({
+        userId: auth.userId,
+        turnId: turn.turnId,
+        responsePayload
+      });
+      responsePayload.idempotency.completed = stored;
+      if (!stored) {
+        await releaseAriRequest({ userId: auth.userId, turnId: turn.turnId });
+      }
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (error) {
+    if (requestClaim?.enabled === true && requestClaim?.claimed === true && requestIdentity) {
+      await releaseAriRequest(requestIdentity);
+    }
     console.error("[ARI vNext Error]", error);
     return res.status(normalizeStatus(error?.status)).json({
       success: false,
