@@ -8,7 +8,10 @@ create table if not exists public.ari_vnext_cognitive_states (
 
 alter table public.ari_vnext_cognitive_states enable row level security;
 
-revoke all on table public.ari_vnext_cognitive_states from anon, authenticated;
+-- Defense in depth: this table is never a client-facing API surface. Existing
+-- Supabase projects may inherit grants for PUBLIC/anon/authenticated, so revoke
+-- them explicitly and allow only the server-side service role.
+revoke all on table public.ari_vnext_cognitive_states from public, anon, authenticated;
 grant all on table public.ari_vnext_cognitive_states to service_role;
 
 comment on table public.ari_vnext_cognitive_states is
