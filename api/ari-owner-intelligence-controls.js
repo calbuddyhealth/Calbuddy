@@ -12,6 +12,7 @@ import {
   loadAriIntelligenceControls,
   saveAriIntelligenceControls
 } from "../server/ari-intelligence-control-store.js";
+import { ADVANCED_CONVERSATION_CONTRACT_VERSION } from "./_lib/ari-vnext/conversation-contract.js";
 
 export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
@@ -39,6 +40,7 @@ export default async function handler(req, res) {
         subscriptionTier: commercial.subscriptionTier,
         subscriptionStatus: commercial.subscriptionStatus
       }),
+      runtime: runtimeSummary(),
       ownerOnly: true,
       storage: "server",
       premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true"
@@ -63,12 +65,23 @@ export default async function handler(req, res) {
     success: true,
     controls,
     entitlement,
+    runtime: runtimeSummary(),
     storage: "server",
     premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true",
     message: entitlement.advancedEnabled
       ? "Advanced Ari owner beta is enabled for your account."
       : "Advanced Ari owner beta is disabled for your account."
   });
+}
+
+function runtimeSummary() {
+  return {
+    advancedModel: process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6",
+    modelFamily: "GPT-5.6 Sol",
+    responsesApi: true,
+    conversationContractVersion: ADVANCED_CONVERSATION_CONTRACT_VERSION,
+    serverBackedControls: true
+  };
 }
 
 function resolveBody(req) {
