@@ -1,7 +1,9 @@
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
-export const CONTEXT_ROUTER_VERSION = "1.12.0";
+import { advancedConversationInstruction } from "./conversation-contract.js";
+
+export const CONTEXT_ROUTER_VERSION = "1.13.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -22,6 +24,7 @@ export function routeContext(turn = {}) {
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
   const semanticText = followUp ? `${recent}\n${message}` : message;
   const account = turn?.context?.accountEntitlements || {};
+  const intelligenceEntitlement = turn?.context?.intelligenceEntitlement || null;
   const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
   const nutrition = PATTERNS.nutrition.test(semanticText);
@@ -43,6 +46,7 @@ export function routeContext(turn = {}) {
     developer: PATTERNS.developer.test(semanticText),
     teenMode,
     circleAllowed: account?.circleAllowed === true,
+    intelligenceEntitlement,
     followUp,
     complexity: estimateComplexity(message)
   };
@@ -58,6 +62,13 @@ export function buildRelevantContext(turn = {}, route = {}) {
   if (source?.accountEntitlements && typeof source.accountEntitlements === "object") {
     selected.accountEntitlements = pickObject(source.accountEntitlements, [
       "version", "status", "ageBand", "ageVerified", "teenMode", "appAllowed", "circleAllowed", "circleMinimumAge"
+    ]);
+  }
+
+  if (source?.intelligenceEntitlement && typeof source.intelligenceEntitlement === "object") {
+    selected.intelligenceEntitlement = pickObject(source.intelligenceEntitlement, [
+      "version", "tier", "advancedAllowed", "advancedEnabled", "ownerEligible", "premiumEligible",
+      "reasoningProfile", "conversationBeta", "source"
     ]);
   }
 
@@ -131,6 +142,11 @@ export function contextToText(context = {}) {
 
 function cognitiveContextRules(context = {}) {
   const lines = [];
+  const conversationInstruction = advancedConversationInstruction(context?.intelligenceEntitlement);
+
+  if (conversationInstruction) {
+    lines.push(conversationInstruction);
+  }
 
   if (context?.accountEntitlements?.teenMode === true) {
     lines.push(
