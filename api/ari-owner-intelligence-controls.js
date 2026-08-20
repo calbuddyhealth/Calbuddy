@@ -99,6 +99,7 @@ function runtimeSummary(entitlement = null) {
     adaptiveStrategyVersion: ARI_ADAPTIVE_STRATEGY_VERSION,
     adaptiveStrategyActive: cognitiveLoopActive,
     adaptiveStrategyOwnerOnly: true,
+    practicalPriorMaturation: cognitiveLoopActive,
     serverBackedControls: true
   };
 }
@@ -121,10 +122,15 @@ function adaptiveStrategySummary(entitlement = null) {
     active,
     ownerOnly: true,
     selfUpdating: true,
+    nonRegressiveEvolution: true,
+    practicalPriorMaturation: true,
+    practicalPriorsAreDefaultsNotDogma: true,
+    retainedCausalLessons: true,
     version: ARI_ADAPTIVE_STRATEGY_VERSION,
     persistentStrategies: true,
     outcomeDrivenPromotion: true,
-    automaticRetirement: true,
+    unprovenStrategyRetirement: true,
+    matureCapabilityRequiresProvenReplacement: true,
     applicationPermissionsUnchanged: true,
     storesHiddenChainOfThought: false
   };
