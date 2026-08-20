@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.5.0
+// Version: 1.5.1
 // Purpose:
 //   Preserve the legacy semantic action boundary as a deterministic fallback,
 //   then boot Ari vNext as the shared primary intelligence on Home + Nutrition.
@@ -13,7 +13,7 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.5.0";
+  const VERSION = "1.5.1";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
@@ -50,7 +50,7 @@
     // initialized before Ari can answer. This avoids parallel boot races.
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.3.1"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.2"
     );
   }
 
