@@ -9,6 +9,7 @@ const bridge = await read("ari/vnext/ari-vnext-bridge.js");
 const resilience = await read("js/home-resilience.js");
 const api = await read("api/ari-vnext.js");
 const continuity = await read("api/_lib/ari-vnext/continuity-service.js");
+const memory = await read("api/_lib/ari-vnext/memory-service.js");
 const idempotency = await read("api/_lib/ari-vnext/request-idempotency.js");
 const migration = await read("supabase/migrations/20260820202300_ari_request_idempotency.sql");
 
@@ -39,6 +40,13 @@ test("vNext pending actions are discarded after expiry in the browser boundary",
   assert.match(bridge, /Date\.parse\(String\(pending\?\.expiresAt \|\| ""\)\)/);
   assert.match(bridge, /expiresAt <= Date\.now\(\)/);
   assert.match(bridge, /this\.clearPendingAction\(\)/);
+});
+
+test("retrieved memory uses complete-record budgeting instead of slicing mid-entry", () => {
+  assert.match(memory, /export function buildMemorySummary/);
+  assert.match(memory, /if \(used \+ additional > budget\) break/);
+  assert.match(memory, /seen\.has\(dedupeKey\)/);
+  assert.doesNotMatch(memory, /join\("\\n"\)\.slice\(0, 5000\)/);
 });
 
 test("server claims a turn before any Ari model orchestration", () => {
