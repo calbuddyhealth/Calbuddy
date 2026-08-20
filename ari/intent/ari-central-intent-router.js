@@ -88,117 +88,236 @@
     return {
       domain: clean(decision.domain) || "unknown",
       intent: clean(decision.intent) || "conversation",
-      target: clean(decision.target) || "none",
+      target: clean(decision.target) || "unknown",
       action: clean(decision.action) || "none",
-      confidence: Math.max(0, Math.min(1, Number(decision.confidence) || 0)),
+      confidence: Number.isFinite(Number(decision.confidence))
+        ? Math.max(0, Math.min(1, Number(decision.confidence)))
+        : 0,
+      requires_confirmation: decision.requires_confirmation === true,
       needs_clarification: decision.needs_clarification === true,
       clarification_question: clean(decision.clarification_question),
-      routeSource: clean(decision.routeSource || decision.route_source) || "model"
+      reason: clean(decision.reason),
+      entities: decision.entities && typeof decision.entities === "object"
+        ? { ...decision.entities }
+        : {},
+      router_source: "central_intent_router",
+      router_version: VERSION
     };
   }
 
-  async function requestIntent(message, appContext = {}) {
-    const key = cacheKey(message, appContext);
-    const cached = cache.get(key);
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
-
-    const session = await CalBuddy.getCurrentSession?.();
-    const token = session?.access_token || null;
+  async function fetchDecision(message, appContext) {
     const response = await fetch(ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({
-        message,
-        appContext: surfaceFromInput({ appContext }),
-        history: []
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, appContext })
     });
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.success === false) {
-      throw new Error(payload?.error || "Intent router unavailable.");
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !validDecision(data?.decision)) {
+      throw new Error(data?.error || "Ari intent router returned an invalid decision.");
     }
 
-    const decision = normalizeDecision(payload?.decision || payload?.intentDecision || payload);
-    if (!validDecision(decision)) throw new Error("Intent router returned an invalid decision.");
-    cache.set(key, { at: Date.now(), value: decision });
+    return normalizeDecision(data.decision);
+  }
+
+  CalBuddy.routeAriIntent = async function routeAriIntent(input = {}) {
+    const message = clean(input.message || input.userMessage);
+
+    if (!message) {
+      return normalizeDecision({
+        domain: "conversation",
+        intent: "conversation",
+        target: "none",
+        action: "none",
+        confidence: 1,
+        requires_confirmation: false,
+        needs_clarification: false,
+        clarification_question: "",
+        reason: "Empty message.",
+        entities: {}
+      });
+    }
+
+    if (validDecision(input.intentDecision)) {
+      return normalizeDecision(input.intentDecision);
+    }
+
+    const appContext = {
+      ...surfaceFromInput(input),
+      ...(input.appContext && typeof input.appContext === "object" ? input.appContext : {})
+    };
+
+    const key = cacheKey(message, appContext);
+    const cached = cache.get(key);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return cached.decision;
+    }
+
+    const decision = await fetchDecision(message, appContext);
+    cache.set(key, { decision, savedAt: Date.now() });
     return decision;
+  };
+
+  CalBuddy.attachAriIntentDecision = async function attachAriIntentDecision(input = {}) {
+    if (validDecision(input.intentDecision)) return input;
+    const intentDecision = await CalBuddy.routeAriIntent(input);
+    return { ...input, intentDecision };
+  };
+
+  CalBuddy.isAriMutationDecision = function isAriMutationDecision(decision = {}) {
+    return clean(decision.action) !== "none" &&
+      ["create", "log", "edit", "delete", "update"].includes(clean(decision.intent));
+  };
+
+  function shouldBypassRouting(input = {}) {
+    const message = clean(input.message);
+    if (!message) return true;
+
+    try {
+      const pending = CalBuddy.getPendingAction?.();
+      if (pending && (CalBuddy.isYes?.(message) || CalBuddy.isNo?.(message))) {
+        return true;
+      }
+    } catch {
+      // Pending confirmation bypass is an optimization only.
+    }
+
+    return false;
   }
 
-  function shouldLegacyActionProceed(decision = {}) {
-    if (!decision || typeof decision !== "object") return false;
-    if (decision.needs_clarification === true) return false;
-    if (decision.confidence < 0.8) return false;
-    if (clean(decision.action) === "none") return false;
-    return ["nutrition", "training"].includes(clean(decision.domain));
+  function installLegacyActionGate() {
+    if (CalBuddy[LEGACY_GATE_FLAG]) return true;
+    if (typeof CalBuddy.detectAriActionFromMessage !== "function") return false;
+
+    const legacyDetect = CalBuddy.detectAriActionFromMessage.bind(CalBuddy);
+
+    CalBuddy.detectAriActionFromMessage = async function centralIntentLegacyGate(message = "", context = null) {
+      const decision = CalBuddy.__activeIntentDecision || null;
+
+      if (validDecision(decision) && clean(decision.action) === "none") {
+        return null;
+      }
+
+      if (
+        validDecision(decision) &&
+        ["nutrition", "training"].includes(clean(decision.domain))
+      ) {
+        return null;
+      }
+
+      return await legacyDetect(message, context);
+    };
+
+    Object.defineProperty(CalBuddy, LEGACY_GATE_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    return true;
   }
 
-  function installLegacyGate() {
-    if (CalBuddy[LEGACY_GATE_FLAG]) return;
-    CalBuddy[LEGACY_GATE_FLAG] = true;
-    CalBuddy.centralIntentLegacyGate = shouldLegacyActionProceed;
-  }
+  function installAskBoundary() {
+    if (CalBuddy[INSTALL_FLAG]) return true;
+    if (typeof CalBuddy.askAri !== "function") return false;
 
-  function installRouter() {
-    if (CalBuddy[INSTALL_FLAG]) return;
-    CalBuddy[INSTALL_FLAG] = true;
+    const originalAskAri = CalBuddy.askAri.bind(CalBuddy);
 
-    const previousAskAri = typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null;
+    CalBuddy.askAri = async function ariCentralIntentBoundary(input = {}) {
+      if (shouldBypassRouting(input)) {
+        return await originalAskAri(input);
+      }
 
-    CalBuddy.askAri = async function ariCentralIntentBoundary(message, options = {}) {
-      const appContext = surfaceFromInput(options || {});
-      let intentDecision = null;
+      let intentDecision;
 
       try {
-        intentDecision = await requestIntent(message, appContext);
+        intentDecision = await CalBuddy.routeAriIntent(input);
       } catch (error) {
-        console.error("ARI central intent router failed:", error);
+        console.error("ARI CENTRAL INTENT ROUTER FAILED:", error);
+        CalBuddy.setAriMood?.("concerned");
         return {
-          reply: "I couldn’t verify that request with my action router. Try again in a moment.",
-          intentRouterError: true,
-          intentDecision: null,
-          action: { type: "none" }
+          reply: "I couldn’t verify that request with my action router, so I didn’t change anything. Try that again in a moment.",
+          emotion: "concerned",
+          pendingAction: null,
+          intentRouterError: true
         };
       }
 
-      if (!intentDecision || intentDecision.confidence < 0.8) {
+      localStorage.setItem("ariLastIntentDecision", JSON.stringify({
+        ...intentDecision,
+        message: clean(input.message),
+        routed_at: new Date().toISOString()
+      }));
+
+      window.dispatchEvent(new CustomEvent("ari:intentDecision", {
+        detail: { decision: intentDecision, message: clean(input.message) }
+      }));
+
+      if (intentDecision.needs_clarification) {
         return {
-          reply: intentDecision?.clarification_question || "I need a little more detail before I can do that safely.",
-          intentDecision,
-          action: { type: "none" }
+          reply:
+            intentDecision.clarification_question ||
+            "I want to make sure I change the right thing. What exactly do you want me to update?",
+          emotion: "coach",
+          pendingAction: null,
+          intentDecision
         };
       }
 
-      window.__activeIntentDecision = intentDecision;
+      if (
+        CalBuddy.isAriMutationDecision(intentDecision) &&
+        intentDecision.confidence < 0.8
+      ) {
+        return {
+          reply: "I’m not confident enough about what you want changed. Can you say exactly what you want me to log, create, or edit?",
+          emotion: "coach",
+          pendingAction: null,
+          intentDecision
+        };
+      }
+
+      CalBuddy.__activeIntentDecision = intentDecision;
+
       try {
-        if (!previousAskAri) {
-          return {
-            reply: intentDecision.clarification_question || "I understood the request, but Ari is not ready yet.",
-            intentDecision,
-            action: { type: "none" }
-          };
-        }
-
-        const result = await previousAskAri(message, {
-          ...options,
-          intentDecision,
-          appContext
+        return await originalAskAri({
+          ...input,
+          intentDecision
         });
-        if (result && typeof result === "object") {
-          return { ...result, intentDecision };
-        }
-        return result;
       } finally {
-        window.__activeIntentDecision = null;
+        CalBuddy.__activeIntentDecision = null;
       }
     };
+
+    Object.defineProperty(CalBuddy, INSTALL_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    console.log("ARI CENTRAL INTENT FALLBACK BOUNDARY INSTALLED:", VERSION);
+    return true;
   }
 
   loadTodayMealPlanActionService();
-  installLegacyGate();
-  installRouter();
-  loadVNextRuntime();
+
+  let attempts = 0;
+  const installTimer = window.setInterval(() => {
+    attempts += 1;
+    const boundaryReady = installAskBoundary();
+    const legacyGateReady = installLegacyActionGate();
+
+    if (boundaryReady && legacyGateReady) {
+      // vNext captures the already-safe legacy boundary as emergency fallback.
+      // The vNext runtime controller then owns its complete brain boot sequence.
+      loadVNextRuntime();
+      window.clearInterval(installTimer);
+      return;
+    }
+
+    if (attempts >= 240) window.clearInterval(installTimer);
+  }, 50);
+
+  console.log("ARI CENTRAL INTENT ROUTER LOADED:", VERSION);
 })();
