@@ -1,6 +1,17 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
 import {
+  ARI_ADAPTIVE_STRATEGY_VERSION,
+  buildStrategyAdoptionSignal,
+  shouldRunAdaptiveStrategyReflection
+} from "./_lib/ari-vnext/adaptive-strategy.js";
+import { reflectOnAdaptiveStrategy } from "./_lib/ari-vnext/adaptive-strategy-reflection.js";
+import {
+  prepareAdaptiveStrategiesForTurn,
+  recordAdaptiveStrategyUses,
+  upsertAdaptiveStrategyProposal
+} from "./_lib/ari-vnext/adaptive-strategy-store.js";
+import {
   advanceCognitiveState,
   ARI_COGNITIVE_LOOP_VERSION,
   ARI_COGNITIVE_STATE_VERSION,
@@ -32,6 +43,7 @@ import {
   summarizeDecisionState
 } from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
+import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
@@ -113,6 +125,16 @@ export default async function handler(req, res) {
     const routePreview = routeContext(turn);
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
     const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute || cognitiveLoopEnabled);
+    const strategyPreparationPromise = cognitiveLoopEnabled
+      ? prepareAdaptiveStrategiesForTurn({
+          userId: auth.userId,
+          route: routePreview,
+          message: turn.message
+        })
+      : Promise.resolve({
+          state: null,
+          feedbackResolution: { resolved: 0, feedback: "neutral", lifecycleChanges: [] }
+        });
 
     const [
       retrievedRaw,
@@ -121,7 +143,8 @@ export default async function handler(req, res) {
       recentDecisions,
       communicationOutcomes,
       accountEntitlements,
-      persistedCognitiveState
+      persistedCognitiveState,
+      adaptiveStrategyPreparation
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -143,8 +166,26 @@ export default async function handler(req, res) {
       loadAccountEntitlements({ userId: auth.userId }),
       cognitiveLoopEnabled
         ? loadAriCognitiveState({ userId: auth.userId })
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      strategyPreparationPromise
     ]);
+
+    const adaptiveStrategyState = adaptiveStrategyPreparation?.state || {
+      version: ARI_ADAPTIVE_STRATEGY_VERSION,
+      ownerOnly: true,
+      selfUpdating: true,
+      storesHiddenChainOfThought: false,
+      domains: [],
+      activeCount: 0,
+      adoptedCount: 0,
+      testingCount: 0,
+      active: []
+    };
+    const adaptiveStrategyFeedback = adaptiveStrategyPreparation?.feedbackResolution || {
+      resolved: 0,
+      feedback: "neutral",
+      lifecycleChanges: []
+    };
 
     const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
     const retrievedMemoryCount = retrieved.memories.length;
@@ -176,7 +217,11 @@ export default async function handler(req, res) {
       : null;
 
     const worldModelForTurn = cognitiveWorkspace
-      ? { ...(persistedWorldModel || {}), ariCognitiveWorkspace: cognitiveWorkspace }
+      ? {
+          ...(persistedWorldModel || {}),
+          ariCognitiveWorkspace: cognitiveWorkspace,
+          ariAdaptiveStrategies: adaptiveStrategyState
+        }
       : persistedWorldModel;
 
     turn.context = {
@@ -215,6 +260,27 @@ export default async function handler(req, res) {
           result
         })
       : null;
+    const cognitiveTurnCount = nextCognitiveState?.turnCount || Number(persistedCognitiveState?.turnCount || 0);
+
+    const shouldReflectOnStrategy = cognitiveLoopEnabled && shouldRunAdaptiveStrategyReflection({
+      message: turn.message,
+      result,
+      cognitiveTurnCount
+    });
+    const adaptiveStrategyReflection = shouldReflectOnStrategy
+      ? await reflectOnAdaptiveStrategy({
+          turn,
+          result,
+          adaptiveStrategyState
+        })
+      : { attempted: false, reason: "not_triggered", proposal: null, provider: null };
+    const adaptiveStrategyProposalPersistence = adaptiveStrategyReflection?.proposal
+      ? await upsertAdaptiveStrategyProposal({
+          userId: auth.userId,
+          proposal: adaptiveStrategyReflection.proposal,
+          sourceModel: adaptiveStrategyReflection?.provider?.model || result?.provider?.model || result?.modelPolicy?.model
+        })
+      : { stored: false, reason: adaptiveStrategyReflection?.reason || "no_proposal" };
 
     const decisionRecord = fitnessRoute
       ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
@@ -254,7 +320,11 @@ export default async function handler(req, res) {
             reasoningProfile: intelligenceEntitlement.reasoningProfile,
             reasoningEffort: result?.modelPolicy?.reasoningEffort || null,
             cognitiveLoopActive: cognitiveLoopEnabled,
-            cognitiveTurnCount: nextCognitiveState?.turnCount || persistedCognitiveState?.turnCount || 0,
+            cognitiveTurnCount,
+            adaptiveStrategyActive: cognitiveLoopEnabled,
+            adaptiveStrategyCount: adaptiveStrategyState?.activeCount || 0,
+            adaptiveStrategyReflection: Boolean(adaptiveStrategyReflection?.attempted),
+            adaptiveStrategyProposal: Boolean(adaptiveStrategyReflection?.proposal),
             mode: result?.modelPolicy?.mode || null,
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
@@ -271,6 +341,28 @@ export default async function handler(req, res) {
             communicationLearningSamples: communicationLearning?.resolvedCount || 0,
             proactiveInsightCount: proactiveInsights?.userFacingCount || 0,
             route: result?.route || null
+          }
+        })
+      : Promise.resolve(null);
+
+    const strategyReflectionUsageTask = adaptiveStrategyReflection?.provider?.usage
+      ? recordOpenAIUsage({
+          userId: auth.userId,
+          endpoint: "/api/ari-vnext",
+          usageType: "reasoning_reflection",
+          requestCategory: "ari_adaptive_strategy_reflection",
+          model: adaptiveStrategyReflection.provider.model,
+          responseData: {
+            id: adaptiveStrategyReflection.provider.id,
+            model: adaptiveStrategyReflection.provider.model,
+            usage: adaptiveStrategyReflection.provider.usage
+          },
+          providerRequestId: adaptiveStrategyReflection.provider.id || null,
+          metadata: {
+            turnId: turn.turnId,
+            cognitiveTurnCount,
+            strategyProposalCreated: Boolean(adaptiveStrategyReflection.proposal),
+            activeStrategyCount: adaptiveStrategyState?.activeCount || 0
           }
         })
       : Promise.resolve(null);
@@ -296,6 +388,21 @@ export default async function handler(req, res) {
     const cognitiveStateTask = nextCognitiveState
       ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
       : Promise.resolve(false);
+    const strategyUseTask = cognitiveLoopEnabled && adaptiveStrategyState?.active?.length
+      ? recordAdaptiveStrategyUses({
+          userId: auth.userId,
+          strategies: adaptiveStrategyState.active,
+          turnId: turn.turnId
+        })
+      : Promise.resolve({ stored: 0 });
+    const strategySignalTask = cognitiveLoopEnabled
+      ? Promise.all(
+          (Array.isArray(adaptiveStrategyFeedback?.lifecycleChanges) ? adaptiveStrategyFeedback.lifecycleChanges : [])
+            .map((change) => buildStrategyAdoptionSignal(change?.strategy))
+            .filter(Boolean)
+            .map((candidate) => recordInitiativeSurface({ userId: auth.userId, candidate }))
+        )
+      : Promise.resolve([]);
     const decisionJournalTask = decisionRecord
       ? recordDecision({ userId: auth.userId, record: decisionRecord })
       : Promise.resolve({ stored: false, reason: "not_significant" });
@@ -311,14 +418,18 @@ export default async function handler(req, res) {
       : Promise.resolve({ stored: false, reason: "not_significant" });
 
     const [
-      , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence, decisionPersistence,
+      , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
+      strategyUsePersistence, strategySignalPersistence, decisionPersistence,
       communicationResolution, communicationPersistence
     ] = await Promise.allSettled([
       usageTask,
+      strategyReflectionUsageTask,
       turnPersistenceTask,
       durableMemoryTask,
       worldModelTask,
       cognitiveStateTask,
+      strategyUseTask,
+      strategySignalTask,
       decisionJournalTask,
       communicationResolutionTask,
       communicationExposureTask
@@ -328,6 +439,10 @@ export default async function handler(req, res) {
     const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
     const worldModelStored = worldPersistence.status === "fulfilled" && worldPersistence.value === true;
     const cognitiveStateStored = cognitivePersistence.status === "fulfilled" && cognitivePersistence.value === true;
+    const adaptiveStrategyUsesStored = strategyUsePersistence.status === "fulfilled" ? Number(strategyUsePersistence.value?.stored || 0) : 0;
+    const adaptiveStrategySignalsStored = strategySignalPersistence.status === "fulfilled"
+      ? strategySignalPersistence.value.filter((item) => item?.stored).length
+      : 0;
     const decisionJournalStored = decisionPersistence.status === "fulfilled" && decisionPersistence.value?.stored === true;
     const communicationOutcomeResolved = communicationResolution.status === "fulfilled" ? Number(communicationResolution.value?.resolved || 0) : 0;
     const communicationExposureStored = communicationPersistence.status === "fulfilled" && communicationPersistence.value?.stored === true;
@@ -352,9 +467,34 @@ export default async function handler(req, res) {
             ownerOnly: true,
             version: ARI_COGNITIVE_LOOP_VERSION,
             stateVersion: ARI_COGNITIVE_STATE_VERSION,
-            turnCount: nextCognitiveState?.turnCount || Number(persistedCognitiveState?.turnCount || 0),
+            turnCount: cognitiveTurnCount,
             priorStateLoaded: Boolean(persistedCognitiveState),
             stateStored: cognitiveStateStored
+          }
+        : { active: false, ownerOnly: true },
+      adaptiveStrategyLayer: cognitiveLoopEnabled
+        ? {
+            active: true,
+            ownerOnly: true,
+            selfUpdating: true,
+            version: ARI_ADAPTIVE_STRATEGY_VERSION,
+            storesHiddenChainOfThought: false,
+            activeCount: adaptiveStrategyState?.activeCount || 0,
+            adoptedCount: adaptiveStrategyState?.adoptedCount || 0,
+            testingCount: adaptiveStrategyState?.testingCount || 0,
+            feedbackResolved: Number(adaptiveStrategyFeedback?.resolved || 0),
+            reflectionAttempted: Boolean(adaptiveStrategyReflection?.attempted),
+            strategyProposed: Boolean(adaptiveStrategyReflection?.proposal),
+            strategyStored: Boolean(adaptiveStrategyProposalPersistence?.stored),
+            strategyUsesStored: adaptiveStrategyUsesStored,
+            evolutionSignalsStored: adaptiveStrategySignalsStored,
+            strategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : []).map((item) => ({
+              strategyKey: item.strategyKey,
+              title: item.title,
+              status: item.status,
+              confidence: item.confidence,
+              trials: item.trials
+            }))
           }
         : { active: false, ownerOnly: true },
       recentContinuityPairs: recentContinuity.hydratedPairs,
