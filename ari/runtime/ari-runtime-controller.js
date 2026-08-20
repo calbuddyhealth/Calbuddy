@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.2
+// Version: 1.3.3
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -19,6 +19,9 @@
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
+//   - The canonical CalBuddy user context is passed to the vNext bridge under
+//     userContext so personalization is not silently discarded.
+//   - Narrow greetings skip heavy browser-side profile/nutrition hydration.
 //   - Expired vNext-linked legacy actions can never execute as a fallback.
 // =====================================================
 
@@ -28,7 +31,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.2";
+  const VERSION = "1.3.3";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -89,6 +92,12 @@
       message,
       history
     };
+  }
+
+  function isCasualConversation(message = "") {
+    const text = clean(message);
+    if (!text || text.length > 140) return false;
+    return /^(?:(?:hey|hi|hello|yo)(?:\s+ari)?|(?:hey|hi|hello|yo)\s+there|what(?:'s| is)\s+up(?:\s+ari)?|sup(?:\s+ari)?|good\s+(?:morning|afternoon|evening)(?:\s+ari)?|how\s+are\s+you(?:\s+doing)?(?:\s+ari)?|thanks(?:\s+ari)?|thank\s+you(?:\s+ari)?)[!.?\s]*$/i.test(text);
   }
 
   function safeMode(value) {
@@ -395,8 +404,18 @@
     try {
       await ensureVNext();
       await markInitiativeEngaged();
-      const context = input?.context || (await getUserContext());
-      let result = await window.AriVNextBridge.ask(message, { ...input, context });
+
+      const casualConversation = isCasualConversation(message);
+      const userContext =
+        input?.userContext ||
+        input?.context ||
+        (casualConversation ? {} : await getUserContext());
+
+      let result = await window.AriVNextBridge.ask(message, {
+        ...input,
+        userContext,
+        casualConversation
+      });
       result = await normalizePendingAction(result);
       result = await executeTypedConfirmation(result);
       return result;
