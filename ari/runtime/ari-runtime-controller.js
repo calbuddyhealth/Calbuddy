@@ -19,6 +19,7 @@
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
+//   - Expired vNext-linked legacy actions can never execute as a fallback.
 // =====================================================
 
 (() => {
@@ -364,6 +365,19 @@
     return { success: true, reply: payload?.reply || "Experiment updated." };
   }
 
+  function isExpiredVNextLegacyPending(action = null) {
+    if (!action || typeof action !== "object") return false;
+    const linked = Boolean(
+      action?.vnext_action_id ||
+      action?.vnext_source_turn_id ||
+      clean(action?.vnext_source) === "ari_vnext_action_adapter"
+    );
+    if (!linked) return false;
+
+    const expiresAt = Date.parse(String(action?.vnext_expires_at || ""));
+    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+  }
+
   async function ask(messageOrInput = "", options = {}) {
     const request = normalizeAskRequest(messageOrInput, options);
     const { input, message } = request;
@@ -395,6 +409,17 @@
 
   async function confirmPendingAction() {
     const pending = window.AriVNextBridge?.getPendingAction?.();
+    const legacyPending = CalBuddy.getPendingAction?.() || null;
+
+    if (getMode() === "vnext" && !pending?.id && isExpiredVNextLegacyPending(legacyPending)) {
+      legacy.cancelPendingAction?.();
+      return {
+        success: false,
+        expired: true,
+        reply: "That pending change expired. Ask Ari to prepare it again."
+      };
+    }
+
     if (getMode() !== "vnext" || !pending?.id) {
       return legacy.confirmPendingAction ? await legacy.confirmPendingAction() : null;
     }
