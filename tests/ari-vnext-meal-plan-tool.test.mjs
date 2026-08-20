@@ -90,8 +90,14 @@ function validPlanArguments() {
     arguments: JSON.stringify(duplicate)
   }, { nutrition: true });
 
-  assert.equal(validation.valid, false);
-  assert.equal(validation.error, "meal_plan_duplicate_slot");
+  // Tool normalization intentionally collapses duplicate model rows for the
+  // same meal slot into one meal so the executor cannot persist two active
+  // lunches. The nutrition/components from both rows must be preserved.
+  assert.equal(validation.valid, true, validation.error || "same-slot normalization failed");
+  assert.equal(validation.arguments.meals.length, 1);
+  assert.equal(validation.arguments.meals[0].mealSlot, "lunch");
+  assert.equal(validation.arguments.meals[0].calories, 1170);
+  assert.equal(validation.arguments.meals[0].items.length, 6);
 }
 
 {
