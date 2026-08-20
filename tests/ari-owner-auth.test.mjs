@@ -223,17 +223,18 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     .map(entry => entry.name)
     .sort();
 
-  // The previous <=11 count predated the compatibility security gateway and
-  // therefore became stale even on main. vNext replaces that brittle numeric
-  // check with an explicit reviewed allowlist: any new serverless entry point
-  // must be intentionally added here or CI fails.
+  // Public compatibility routes such as /api/ari-intent-router, /api/ask-calbuddy,
+  // and /api/usage are Vercel rewrites into secure-ai-gateway. Only actual
+  // serverless entry-point files belong in this reviewed allowlist.
   const reviewed = [
     "ari-circle-moderation.js",
     "ari-conversation.js",
     "ari-food-search.js",
     "ari-github-edit.js",
     "ari-github-read.js",
-    "ari-intent-router.js",
+    "ari-owner-intelligence-controls.js",
+    "ari-signals-scan.js",
+    "ari-signals.js",
     "ari-vnext-experiments.js",
     "ari-vnext-expert.js",
     "ari-vnext-growth.js",
@@ -242,13 +243,11 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-vnext-peer.js",
     "ari-vnext-runtime-self-test.js",
     "ari-vnext.js",
-    "ask-calbuddy.js",
     "image-analyze.js",
     "knowledge.js",
     "memory.js",
     "profile.js",
-    "secure-ai-gateway.js",
-    "usage.js"
+    "secure-ai-gateway.js"
   ].sort();
 
   assert.deepEqual(
@@ -258,16 +257,20 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   );
 
   const names = new Set(functionFiles);
-  assert.equal(names.has("ari-intent-router.js"), true, "central intent router must remain present");
+  assert.equal(names.has("secure-ai-gateway.js"), true, "compatibility AI routes must remain behind the secure gateway");
   assert.equal(names.has("ari-vnext.js"), true, "vNext primary runtime must remain present");
+  assert.equal(names.has("ari-owner-intelligence-controls.js"), true, "owner intelligence controls must remain explicit server API surface");
 
   for (const removed of [
     "actions.js",
     "ari-create-knowledge-node.js",
     "ari-embed-knowledge.js",
-    "ari-github-search.js"
+    "ari-github-search.js",
+    "ari-intent-router.js",
+    "ask-calbuddy.js",
+    "usage.js"
   ]) {
-    assert.equal(names.has(removed), false, `${removed} should remain removed`);
+    assert.equal(names.has(removed), false, `${removed} should remain removed as a direct serverless file`);
   }
 });
 
