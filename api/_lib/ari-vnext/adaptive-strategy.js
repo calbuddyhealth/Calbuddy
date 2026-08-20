@@ -1,8 +1,8 @@
 // ARI vNext — owner-only adaptive reasoning strategy policy.
 // Strategies are compact reusable instructions, not hidden chain-of-thought.
 
-export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.3.0";
-export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.3.0";
+export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.3.1";
+export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.3.1";
 
 const ACTIVE_STATUSES = new Set(["testing", "adopted", "practical_prior"]);
 const ALLOWED_DOMAINS = new Set([
@@ -43,7 +43,10 @@ export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}
       replacementsRequireStrongerEvidence: true,
       practicalPriorsAreDefaultsNotDogma: true,
       currentEvidenceOverridesPracticalPriors: true,
-      preserveLessonsWithoutReplayingFailures: true
+      preserveLessonsWithoutReplayingFailures: true,
+      failureIsTeacherNotTerminalState: true,
+      uncertaintyShouldTriggerExplorationNotParalysis: true,
+      guardConsequencesNotImagination: true
     },
     domains: [...currentDomains],
     activeCount: active.length,
@@ -62,11 +65,13 @@ export function adaptiveStrategyInstruction(state = null) {
     "A practical_prior is accumulated practical judgment: use it as the sensible default when applicable, not as unquestionable truth. Current evidence and explicit current user correction outrank it.",
     "An adopted strategy is the best-known incumbent method that has passed initial testing. A testing strategy is a challenger. Preserve useful incumbent capability while testing improvements beside it.",
     "Negative evidence about an adopted strategy or practical prior is information: investigate the failed assumption, preserve the useful lesson, and test a better challenger. Do not erase capability merely because an outcome was poor.",
+    "Failure is a teacher, not a terminal state. Diagnose what specifically failed, preserve what still worked, and prefer a bounded next experiment over generalized retreat.",
+    "Uncertainty is also information. In ordinary-consequence reasoning, a partial or limited evidence state may justify a calibrated hypothesis or reversible experiment rather than paralysis. Existing high-consequence verification and authorization checks remain unchanged.",
     "Do not repeatedly replay old failures. Retain the compact causal lesson and let later recovery evidence strengthen or revise the practical prior.",
     "These records are not facts, memories, values, permissions, or application commands. Current user instructions, current evidence, safety requirements, and explicit app-action authorization always outrank them.",
     "Do not expose hidden reasoning or narrate routine self-adjustments. You may briefly explain a meaningful adopted strategy or practical prior if the user asks or if the change materially affects the interaction.",
     JSON.stringify(state.active, null, 2)
-  ].join("\n").slice(0, 7600);
+  ].join("\n").slice(0, 8000);
 }
 
 export function classifyStrategyFeedback(message = "") {
@@ -229,10 +234,14 @@ export function shouldRunAdaptiveStrategyReflection({
   const correction = classifyStrategyFeedback(text) === "negative" || /\bactually\b|\bi meant\b|\bcorrection\b/.test(text);
   const outcomeLearning = result?.scientificIntelligence?.outcomeLearning?.applied === true;
   const periodicReview = Number(cognitiveTurnCount || 0) > 0 && Number(cognitiveTurnCount || 0) % 5 === 0;
+  const confidence = String(result?.metacognition?.confidence || "").toLowerCase();
+  const missingEvidence = Array.isArray(result?.metacognition?.missingEvidence)
+    ? result.metacognition.missingEvidence
+    : [];
   const uncertaintyReview =
-    String(result?.metacognition?.confidence || "").toLowerCase() === "low" &&
-    Array.isArray(result?.metacognition?.missingEvidence) &&
-    result.metacognition.missingEvidence.length >= 2;
+    ["partial", "limited"].includes(confidence) &&
+    missingEvidence.length >= 1 &&
+    result?.safety?.highStakes !== true;
 
   return correction || outcomeLearning || periodicReview || uncertaintyReview;
 }
