@@ -88,6 +88,58 @@ test("Advanced conversation contract is present only for an entitled turn", () =
   assert.doesNotMatch(standardInstruction, /ADVANCED CONVERSATIONAL INTELLIGENCE/);
 });
 
+test("owner cognitive-loop contract is isolated from ordinary and premium Advanced Ari", () => {
+  const ownerTurn = {
+    message: "What do you think I should do?",
+    history: [],
+    context: {
+      intelligenceEntitlement: {
+        ...advancedEntitlement("deep"),
+        cognitiveLoopAllowed: true,
+        cognitiveLoopEnabled: true,
+        cognitiveLoopOwnerOnly: true
+      },
+      userWorldModel: {
+        ariCognitiveWorkspace: {
+          ownerOnly: true,
+          functionalExperiment: true,
+          continuity: {
+            currentTurnRelevantMemory: "Filtered evidence for this turn.",
+            currentTurnRelevantMemoryEphemeral: true
+          }
+        }
+      }
+    }
+  };
+  const ownerRoute = routeContext(ownerTurn);
+  const ownerInstruction = contextToText(buildRelevantContext(ownerTurn, ownerRoute));
+
+  assert.match(ownerInstruction, /OWNER COGNITIVE LOOP/);
+  assert.match(ownerInstruction, /currentTurnRelevantMemory/);
+  assert.match(ownerInstruction, /not proof of subjective consciousness/i);
+
+  const premiumTurn = {
+    message: "What do you think I should do?",
+    history: [],
+    context: {
+      intelligenceEntitlement: {
+        ...advancedEntitlement("balanced"),
+        ownerEligible: false,
+        premiumEligible: true,
+        source: "premium",
+        cognitiveLoopAllowed: false,
+        cognitiveLoopEnabled: false,
+        cognitiveLoopOwnerOnly: true
+      }
+    }
+  };
+  const premiumRoute = routeContext(premiumTurn);
+  const premiumInstruction = contextToText(buildRelevantContext(premiumTurn, premiumRoute));
+
+  assert.match(premiumInstruction, /ADVANCED CONVERSATIONAL INTELLIGENCE/);
+  assert.doesNotMatch(premiumInstruction, /OWNER COGNITIVE LOOP/);
+});
+
 test("current-information Advanced Ari keeps the flagship model and enables live-search policy", () => {
   const policy = resolveModelPolicy({
     complexity: "fast",
