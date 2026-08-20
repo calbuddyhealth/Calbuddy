@@ -1,4 +1,4 @@
-/* ARI XP — Owner ARI Intelligence Controls v1.2.0 */
+/* ARI XP — Owner ARI Intelligence Controls v1.3.0 */
 (() => {
   "use strict";
 
@@ -51,8 +51,10 @@
     const entitlement = data?.entitlement || {};
     const runtime = data?.runtime || {};
     const cognitiveLoop = data?.cognitiveLoop || {};
+    const adaptiveStrategyLayer = data?.adaptiveStrategyLayer || {};
     const advanced = entitlement?.tier === "advanced";
     const cognitiveLoopActive = cognitiveLoop?.active === true;
+    const adaptiveStrategyActive = adaptiveStrategyLayer?.active === true;
 
     $("advancedAriToggle").checked = controls?.enabled === true;
     $("reasoningProfileSelect").value = controls?.reasoningProfile || "adaptive";
@@ -62,14 +64,18 @@
     $("modelStat").textContent = advanced ? (runtime?.modelFamily || runtime?.advancedModel || "GPT-5.6 Sol") : "Standard policy";
     $("reasoningStat").textContent = entitlement?.reasoningProfile || "standard";
     $("premiumStat").textContent = data?.premiumRolloutEnabled === true ? "Enabled" : "Locked";
-    $("effectiveTierTitle").textContent = cognitiveLoopActive
-      ? "Advanced Ari + Cognitive Loop"
-      : advanced ? "Advanced Ari is live" : "Standard Ari active";
-    $("effectiveTierDescription").textContent = cognitiveLoopActive
-      ? "Your owner conversations use the Advanced Conversation Contract, GPT-5.6 Sol reasoning lane, and the private persistent Cognitive Loop. The loop carries functional working state across turns while ARI XP actions still pass through the existing trusted validation and confirmation system."
-      : advanced
-        ? "Your owner conversations use the Advanced Conversation Contract and GPT-5.6 Sol reasoning lane. ARI XP actions still pass through the existing trusted validation and confirmation system."
-        : "Your account is currently using Standard Ari. Enable Advanced Ari to enter the private GPT-5.6 Sol conversation beta.";
+    $("effectiveTierTitle").textContent = adaptiveStrategyActive
+      ? "Advanced Ari + Cognitive Loop + Adaptive Strategies"
+      : cognitiveLoopActive
+        ? "Advanced Ari + Cognitive Loop"
+        : advanced ? "Advanced Ari is live" : "Standard Ari active";
+    $("effectiveTierDescription").textContent = adaptiveStrategyActive
+      ? "Your owner conversations use GPT-5.6 Sol, the persistent Cognitive Loop, and Ari's Adaptive Strategy Layer. Ari can test reusable reasoning and communication methods, promote strategies that keep working, and retire strategies that perform poorly. This changes how Ari thinks and communicates without granting new permissions to modify ARI XP actions or production code."
+      : cognitiveLoopActive
+        ? "Your owner conversations use the Advanced Conversation Contract, GPT-5.6 Sol reasoning lane, and the private persistent Cognitive Loop. The loop carries functional working state across turns while ARI XP actions still pass through the existing trusted validation and confirmation system."
+        : advanced
+          ? "Your owner conversations use the Advanced Conversation Contract and GPT-5.6 Sol reasoning lane. ARI XP actions still pass through the existing trusted validation and confirmation system."
+          : "Your account is currently using Standard Ari. Enable Advanced Ari to enter the private GPT-5.6 Sol conversation beta.";
   }
 
   async function save() {
