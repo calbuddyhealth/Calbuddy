@@ -99,9 +99,10 @@ test("meal logging remains current-turn structured nutrition plus confirmation",
   assert.match(core, /if \(type === "log_meal"\) return await CalBuddy\.logMeal\(payload\)/);
 });
 
-test("training action meaning comes only from the central intent decision", () => {
+test("training action meaning stays on Home/Training and never bootstraps through Nutrition", () => {
   assert.match(home, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
-  assert.match(auth, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
+  assert.doesNotMatch(auth, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
+  assert.doesNotMatch(auth, /bootstrapAriWorkoutActionForNutrition/);
   assert.match(workouts, /ari_workout_action_v3_central_router/);
   assert.match(workouts, /isTrainingDecision\(decision/);
   assert.match(workouts, /plan_workout/);
@@ -115,7 +116,8 @@ test("Training persistence still goes only through WorkoutPlanController", () =>
   assert.doesNotMatch(workouts, /workout-plan-api\.js/);
 });
 
-test("Nutrition UI presents shared actions but never creates them", () => {
+test("Nutrition UI presents nutrition actions but never creates domain actions", () => {
+  assert.match(nutritionUi, /NUTRITION_ACTION_TYPES/);
   assert.match(nutritionUi, /confirmPendingAction/);
   assert.match(nutritionUi, /cancelPendingAction/);
   assert.match(nutritionUi, /calbuddy:pendingAction/);
