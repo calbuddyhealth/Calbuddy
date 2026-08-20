@@ -4,22 +4,48 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const migration = fs.readFileSync(
+const temporaryGrant = fs.readFileSync(
   path.join(root, "supabase/migrations/20260820122500_restore_nutrition_plan_privileges.sql"),
   "utf8"
 );
-const planner = fs.readFileSync(path.join(root, "js/nutrition-meal-plan-today.js"), "utf8");
+const deploymentGuard = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260820122600_hold_plan_cloud_until_client_sync.sql"),
+  "utf8"
+);
+const syncRpc = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260820123500_nutrition_plan_cloud_sync_rpc.sql"),
+  "utf8"
+);
+const syncIdentity = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260820124500_nutrition_plan_sync_identity_conflicts.sql"),
+  "utf8"
+);
+const client = fs.readFileSync(path.join(root, "js/nutrition-transaction-client.js"), "utf8");
 
-test("browser Meal Plan operations have authenticated table privileges", () => {
-  assert.match(migration, /grant select, insert, update, delete\s+on table public\.nutrition_plan_items\s+to authenticated/is);
-  assert.match(migration, /revoke all\s+on table public\.nutrition_plan_items\s+from anon/is);
+test("final migration state keeps direct Meal Plan browser DML closed", () => {
+  assert.match(temporaryGrant, /grant select, insert, update, delete\s+on table public\.nutrition_plan_items\s+to authenticated/is);
+  assert.match(deploymentGuard, /revoke select, insert, update, delete\s+on table public\.nutrition_plan_items\s+from authenticated/is);
+  assert.doesNotMatch(syncIdentity, /grant\s+(?:select|insert|update|delete).*nutrition_plan_items.*authenticated/is);
 });
 
-test("server-side Meal Plan context retains service-role access", () => {
-  assert.match(migration, /grant select, insert, update, delete\s+on table public\.nutrition_plan_items\s+to service_role/is);
+test("authenticated Meal Plan access is scoped to user-bound RPCs", () => {
+  assert.match(syncRpc, /v_user uuid := auth\.uid\(\)/);
+  assert.match(syncRpc, /grant execute on function public\.ari_sync_nutrition_plans\(jsonb\) to authenticated/i);
+  assert.match(syncRpc, /grant execute on function public\.ari_list_today_nutrition_plans\(\) to authenticated/i);
+  assert.match(syncIdentity, /where id = v_requested_id\s+and user_id = v_user/is);
 });
 
-test("Meal Plan browser code still scopes cloud operations to the current user", () => {
-  assert.match(planner, /\.eq\("user_id", user\.id\)/);
-  assert.match(planner, /query = query\.eq\("user_id", state\.user\.id\)/);
+test("Meal Plan sync uses a dedicated stable identity instead of semantic source_ref", () => {
+  assert.match(syncIdentity, /add column if not exists client_sync_key text/i);
+  assert.match(syncIdentity, /nutrition_plan_items_user_date_sync_key_uidx/i);
+  assert.match(syncIdentity, /client_sync_key = v_sync_key/i);
+  assert.doesNotMatch(syncIdentity, /plan_date = v_date\s+and source_ref = v_source_ref/is);
+});
+
+test("browser adapter routes only nutrition_plan_items through the scoped bridge", () => {
+  assert.match(client, /const TABLE = "nutrition_plan_items"/);
+  assert.match(client, /ari_sync_nutrition_plans/);
+  assert.match(client, /ari_list_today_nutrition_plans/);
+  assert.match(client, /if \(clean\(tableName\) === TABLE\) return new PlanQuery\(\)/);
+  assert.match(client, /return nativeFrom\(tableName\)/);
 });
