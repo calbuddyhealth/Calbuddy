@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>ARI Intelligence · Owner · ARI XP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/owner-ai-controls.css?v=1.0.0">
+</head>
+<body>
+  <main class="ari-account-page">
+    <header class="ari-account-header">
+      <a class="ari-icon-button" href="account.html" aria-label="Back to account">←</a>
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI XP home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">EXPERIENCE</span></a>
+      <a class="ari-header-button" href="account.html">Account</a>
+    </header>
+
+    <section class="ari-page-hero">
+      <div class="ari-page-symbol" aria-hidden="true">A+</div>
+      <p class="ari-page-kicker">OWNER CONTROL CENTER</p>
+      <h1 class="ari-page-title">ARI Intelligence</h1>
+      <p class="ari-page-description">A private test lane for the higher-capability Ari before it is ever offered as a premium feature.</p>
+    </section>
+
+    <div class="owner-ai-shell" id="ownerAiWorkspace" hidden>
+      <section class="owner-ai-card owner-ai-card--hero">
+        <div class="owner-ai-card-head">
+          <div>
+            <h2 id="effectiveTierTitle">Standard Ari</h2>
+            <p id="effectiveTierDescription">Loading your owner intelligence entitlement…</p>
+          </div>
+          <span class="owner-ai-pill">OWNER ONLY</span>
+        </div>
+        <div class="owner-ai-status-grid">
+          <div class="owner-ai-stat"><strong id="tierStat">—</strong><span>Effective tier</span></div>
+          <div class="owner-ai-stat"><strong id="reasoningStat">—</strong><span>Reasoning profile</span></div>
+          <div class="owner-ai-stat"><strong id="premiumStat">Locked</strong><span>Public premium rollout</span></div>
+        </div>
+      </section>
+
+      <section class="owner-ai-card">
+        <h3>Advanced Ari beta</h3>
+        <p>This switch only changes your verified owner session. Normal users remain on Standard Ari.</p>
+
+        <div class="owner-ai-control-row">
+          <div class="owner-ai-control-copy">
+            <strong>Enable Advanced Ari</strong>
+            <small>Turns on the owner-only entitlement that the advanced conversation engine will use.</small>
+          </div>
+          <label class="owner-ai-toggle" aria-label="Enable Advanced Ari">
+            <input id="advancedAriToggle" type="checkbox">
+            <span aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="owner-ai-control-row">
+          <div class="owner-ai-control-copy">
+            <strong>Reasoning profile</strong>
+            <small>Prepared now so the advanced model can later scale speed, cost, and depth per turn.</small>
+          </div>
+          <select class="owner-ai-select" id="reasoningProfileSelect" aria-label="Reasoning profile">
+            <option value="adaptive">Adaptive</option>
+            <option value="economy">Economy</option>
+            <option value="balanced">Balanced</option>
+            <option value="deep">Deep</option>
+          </select>
+        </div>
+
+        <div class="owner-ai-note">
+          The entitlement layer is separate from the conversation engine. That means we can build the new conversational Ari aggressively next without changing Standard Ari or exposing the expensive model to everyone.
+        </div>
+
+        <div style="height:14px"></div>
+        <button class="owner-ai-action" id="saveOwnerAiControls" type="button">Save owner controls</button>
+        <div class="owner-ai-inline-status" id="ownerAiStatus" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="owner-ai-card">
+        <h3>What comes next</h3>
+        <div class="owner-ai-next"><b>01</b><p>Connect this entitlement to the higher GPT reasoning policy.</p></div>
+        <div class="owner-ai-next"><b>02</b><p>Install the Advanced Conversation Contract and conversational-state logic.</p></div>
+        <div class="owner-ai-next"><b>03</b><p>Run side-by-side owner conversations and measure latency, cost, action accuracy, and naturalness.</p></div>
+        <div class="owner-ai-next"><b>04</b><p>Later, premium users can receive the same entitlement from subscription state instead of owner authorization.</p></div>
+      </section>
+    </div>
+
+    <div class="ari-status" id="ownerAiAccessStatus" role="status" aria-live="polite"></div>
+    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Owner controls are server-verified and unavailable to ordinary accounts.</p></footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/owner-ai-controls.js?v=1.0.0"></script>
+</body>
+</html>
