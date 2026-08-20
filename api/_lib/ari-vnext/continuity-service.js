@@ -2,7 +2,7 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.4.0";
+export const CONTINUITY_SERVICE_VERSION = "1.4.1";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
@@ -52,8 +52,9 @@ export async function hydrateRecentConversation({ userId, history = [], limitPai
   }
 }
 
-export async function persistConversationTurn({ userId, message, reply, surface = "unknown" } = {}) {
+export async function persistConversationTurn({ userId, turnId = null, message, reply, surface = "unknown" } = {}) {
   const safeUserId = clean(userId, 200);
+  const safeTurnId = clean(turnId, 200) || null;
   const userMessage = clean(message, 8000);
   const assistantMessage = clean(reply, 12000);
   if (!safeUserId || !userMessage || !assistantMessage) return false;
@@ -67,11 +68,17 @@ export async function persistConversationTurn({ userId, message, reply, surface 
       headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
       body: JSON.stringify({
         user_id: safeUserId,
+        turn_id: safeTurnId,
         user_message: userMessage,
         assistant_message: assistantMessage,
         page_path: clean(surface, 200) || "unknown"
       })
     }, WRITE_TIMEOUT_MS);
+
+    // A replayed network request may race persistence even though the model call
+    // itself is deduplicated. The unique user_id + turn_id index makes that
+    // harmless; treat duplicate-key persistence as already stored.
+    if (response.status === 409 && safeTurnId) return true;
     return response.ok;
   } catch (error) {
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Turn persistence failed:", error?.message || error);
