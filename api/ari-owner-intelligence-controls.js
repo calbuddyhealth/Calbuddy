@@ -12,6 +12,11 @@ import {
   loadAriIntelligenceControls,
   saveAriIntelligenceControls
 } from "../server/ari-intelligence-control-store.js";
+import {
+  ARI_COGNITIVE_LOOP_VERSION,
+  ARI_COGNITIVE_STATE_VERSION,
+  isOwnerCognitiveLoopEnabled
+} from "./_lib/ari-vnext/cognitive-loop.js";
 import { ADVANCED_CONVERSATION_CONTRACT_VERSION } from "./_lib/ari-vnext/conversation-contract.js";
 
 export default async function handler(req, res) {
@@ -31,16 +36,18 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const controls = await loadAriIntelligenceControls({ userId });
+    const entitlement = resolveAriIntelligenceEntitlement({
+      userId,
+      controls,
+      subscriptionTier: commercial.subscriptionTier,
+      subscriptionStatus: commercial.subscriptionStatus
+    });
     return res.status(200).json({
       success: true,
       controls,
-      entitlement: resolveAriIntelligenceEntitlement({
-        userId,
-        controls,
-        subscriptionTier: commercial.subscriptionTier,
-        subscriptionStatus: commercial.subscriptionStatus
-      }),
-      runtime: runtimeSummary(),
+      entitlement,
+      runtime: runtimeSummary(entitlement),
+      cognitiveLoop: cognitiveLoopSummary(entitlement),
       ownerOnly: true,
       storage: "server",
       premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true"
@@ -65,7 +72,8 @@ export default async function handler(req, res) {
     success: true,
     controls,
     entitlement,
-    runtime: runtimeSummary(),
+    runtime: runtimeSummary(entitlement),
+    cognitiveLoop: cognitiveLoopSummary(entitlement),
     storage: "server",
     premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true",
     message: entitlement.advancedEnabled
@@ -74,13 +82,28 @@ export default async function handler(req, res) {
   });
 }
 
-function runtimeSummary() {
+function runtimeSummary(entitlement = null) {
   return {
     advancedModel: process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6",
     modelFamily: "GPT-5.6 Sol",
     responsesApi: true,
     conversationContractVersion: ADVANCED_CONVERSATION_CONTRACT_VERSION,
+    cognitiveLoopVersion: ARI_COGNITIVE_LOOP_VERSION,
+    cognitiveStateVersion: ARI_COGNITIVE_STATE_VERSION,
+    cognitiveLoopActive: isOwnerCognitiveLoopEnabled(entitlement),
+    cognitiveLoopOwnerOnly: true,
     serverBackedControls: true
+  };
+}
+
+function cognitiveLoopSummary(entitlement = null) {
+  return {
+    available: entitlement?.cognitiveLoopAllowed === true,
+    active: isOwnerCognitiveLoopEnabled(entitlement),
+    ownerOnly: true,
+    version: ARI_COGNITIVE_LOOP_VERSION,
+    stateVersion: ARI_COGNITIVE_STATE_VERSION,
+    storesHiddenChainOfThought: false
   };
 }
 
