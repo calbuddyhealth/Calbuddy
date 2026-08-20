@@ -1,8 +1,8 @@
 // ARI vNext — owner-only adaptive reasoning strategy policy.
 // Strategies are compact reusable instructions, not hidden chain-of-thought.
 
-export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.1.0";
-export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.1.0";
+export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.2.0";
+export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.2.0";
 
 const ACTIVE_STATUSES = new Set(["testing", "adopted"]);
 const ALLOWED_DOMAINS = new Set([
@@ -33,7 +33,14 @@ export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}
     version: ARI_ADAPTIVE_STRATEGY_STATE_VERSION,
     ownerOnly: true,
     selfUpdating: true,
+    nonRegressiveEvolution: true,
     storesHiddenChainOfThought: false,
+    policy: {
+      preserveBestKnownMethod: true,
+      adoptedStrategiesDoNotAutoRetireFromOrdinaryNegativeFeedback: true,
+      challengersTestBesideIncumbents: true,
+      replacementsRequireStrongerEvidence: true
+    },
     domains: [...currentDomains],
     activeCount: active.length,
     adoptedCount: active.filter((item) => item.status === "adopted").length,
@@ -45,13 +52,15 @@ export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}
 export function adaptiveStrategyInstruction(state = null) {
   if (!state?.ownerOnly || !Array.isArray(state?.active) || !state.active.length) return "";
   return [
-    "ARI ADAPTIVE STRATEGY LAYER",
+    "ARI ADAPTIVE STRATEGY LAYER — NON-REGRESSIVE EVOLUTION",
     "The following are Ari-authored reusable strategy hypotheses learned from prior interactions and outcomes.",
-    "Adopted strategies may guide how you reason or communicate when applicable. Testing strategies are experiments: use them lightly and allow current evidence to override them.",
+    "Preserve the best-known working capability while testing improvements. An adopted strategy is the incumbent method; a testing strategy is a challenger and must not erase or suppress the incumbent merely because it is new.",
+    "Adopted strategies may guide how you reason or communicate when applicable. Testing strategies are experiments: use them lightly, compare their usefulness against the incumbent, and allow current evidence to override them.",
+    "Negative evidence about an adopted strategy is a reason to investigate and test a better alternative, not a reason to become less capable by dropping the strategy with no demonstrated replacement.",
     "These strategies are not facts, memories, values, permissions, or application commands. Current user instructions, current evidence, safety requirements, and explicit app-action authorization always outrank them.",
     "Do not expose hidden reasoning or narrate routine self-adjustments. You may briefly explain a meaningful adopted strategy if the user asks or if the change materially affects the interaction.",
     JSON.stringify(state.active, null, 2)
-  ].join("\n").slice(0, 6500);
+  ].join("\n").slice(0, 7000);
 }
 
 export function classifyStrategyFeedback(message = "") {
@@ -99,7 +108,7 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
     neutralOutcomes: current.neutralOutcomes + (result === "neutral" ? 1 : 0),
     confidence: clamp01(
       current.confidence +
-      (result === "positive" ? 0.07 : result === "negative" ? -0.12 : 0.01)
+      (result === "positive" ? 0.06 : result === "negative" ? -0.08 : 0.005)
     ),
     lastUsedAt: iso(now)
   };
@@ -107,40 +116,55 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
   const priorStatus = current.status;
   const resolved = next.positiveOutcomes + next.negativeOutcomes;
   const positiveRate = resolved > 0 ? next.positiveOutcomes / resolved : 0;
+  let replacementRecommended = false;
 
   if (priorStatus === "testing") {
-    const evidenceAdoption =
-      next.trials >= 3 &&
-      next.positiveOutcomes >= 2 &&
-      next.negativeOutcomes === 0 &&
-      next.confidence >= 0.72;
-    const survivalAdoption =
-      next.trials >= 5 &&
-      next.negativeOutcomes === 0 &&
-      next.confidence >= 0.8;
-    const evidenceRetirement =
+    const isReplacement = Boolean(next.replacesStrategyKey);
+    const evidenceAdoption = !isReplacement &&
       next.trials >= 4 &&
-      next.negativeOutcomes >= 2 &&
+      next.positiveOutcomes >= 3 &&
+      next.negativeOutcomes <= 1 &&
+      resolved >= 3 &&
+      positiveRate >= 0.75 &&
+      next.confidence >= 0.74;
+    const survivalAdoption = !isReplacement &&
+      next.trials >= 7 &&
+      next.negativeOutcomes === 0 &&
+      next.confidence >= 0.82;
+    const replacementAdoption = isReplacement &&
+      next.trials >= 7 &&
+      next.positiveOutcomes >= 5 &&
+      next.negativeOutcomes <= 1 &&
+      resolved >= 5 &&
+      positiveRate >= 0.8 &&
+      next.confidence >= 0.84;
+    const evidenceRetirement =
+      next.trials >= 5 &&
+      next.negativeOutcomes >= 3 &&
       next.negativeOutcomes > next.positiveOutcomes;
 
-    if (evidenceAdoption || survivalAdoption) {
+    if (evidenceAdoption || survivalAdoption || replacementAdoption) {
       next.status = "adopted";
       next.adoptedAt = iso(now);
       next.retiredAt = null;
     } else if (evidenceRetirement) {
+      // Only an unproven testing hypothesis is retired for poor evidence.
+      // This never removes an already-adopted incumbent capability.
       next.status = "retired";
       next.retiredAt = iso(now);
     }
   } else if (priorStatus === "adopted") {
-    const degraded =
+    // Non-regression rule: ordinary negative feedback may lower confidence and
+    // trigger challenger discovery, but it never deletes the best-known method.
+    // An adopted strategy leaves active use only when a separately tested
+    // replacement has accumulated stronger evidence and supersedes it.
+    replacementRecommended =
       next.trials >= 6 &&
       next.negativeOutcomes >= 3 &&
       resolved >= 4 &&
       positiveRate < 0.4;
-    if (degraded) {
-      next.status = "retired";
-      next.retiredAt = iso(now);
-    }
+    next.status = "adopted";
+    next.retiredAt = null;
   }
 
   return {
@@ -148,7 +172,8 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
     statusChanged: next.status !== priorStatus,
     priorStatus,
     nextStatus: next.status,
-    outcome: result
+    outcome: result,
+    replacementRecommended
   };
 }
 
@@ -203,7 +228,7 @@ export function normalizeAdaptiveStrategyProposal(raw = null) {
 export function buildStrategyAdoptionSignal(strategy = {}) {
   const item = normalizeStrategyRow(strategy);
   if (item.status !== "adopted" || !item.strategyKey) return null;
-  const summary = clean(item.userVisibleSummary, 320) || `I found a more reliable way to approach ${item.title.toLowerCase()} and I've started using it.`;
+  const summary = clean(item.userVisibleSummary, 320) || `I tested a more reliable way to approach ${item.title.toLowerCase()} and the evidence was strong enough to keep using it.`;
   return {
     initiativeKey: `adaptive_strategy_adopted:${item.strategyKey}`,
     reasonId: "adaptive_strategy_adopted",
@@ -212,7 +237,7 @@ export function buildStrategyAdoptionSignal(strategy = {}) {
     source: "adaptive_strategy_layer",
     domain: "ari_self_model",
     opener: summary,
-    followUpPrompt: "Ask what changed, why Ari adopted it, or tell Ari to revise the approach.",
+    followUpPrompt: "Ask what changed, what evidence supported the change, or tell Ari to keep testing the approach.",
     action: "review_adaptive_strategy",
     context: `strategy_key=${item.strategyKey}; title=${item.title}`,
     cooldownHours: 168,
@@ -232,7 +257,8 @@ function publicStrategy(item) {
     trials: item.trials,
     positiveOutcomes: item.positiveOutcomes,
     negativeOutcomes: item.negativeOutcomes,
-    neutralOutcomes: item.neutralOutcomes
+    neutralOutcomes: item.neutralOutcomes,
+    replacesStrategyKey: item.replacesStrategyKey
   };
 }
 
@@ -261,7 +287,9 @@ function normalizeStrategyRow(row = {}) {
 }
 
 function strategyWeight(item) {
-  return (item.status === "adopted" ? 2 : 1) + item.confidence + Math.min(0.4, item.positiveOutcomes * 0.05) - Math.min(0.5, item.negativeOutcomes * 0.08);
+  // An incumbent adopted capability always outranks a provisional challenger.
+  // Confidence/outcomes order strategies within the same lifecycle class.
+  return (item.status === "adopted" ? 3 : 1) + item.confidence + Math.min(0.4, item.positiveOutcomes * 0.05) - Math.min(0.4, item.negativeOutcomes * 0.05);
 }
 function appliesToDomains(strategyDomains, currentDomains) {
   const set = new Set(strategyDomains);
