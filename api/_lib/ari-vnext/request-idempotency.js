@@ -2,7 +2,7 @@
 // A client retry with the same user_id + turn_id must never start a second
 // OpenAI request while the first attempt is processing or after it completes.
 
-export const ARI_REQUEST_IDEMPOTENCY_VERSION = "1.0.0";
+export const ARI_REQUEST_IDEMPOTENCY_VERSION = "1.0.1";
 
 const TABLE = "ari_request_dedup";
 const READ_TIMEOUT_MS = 700;
@@ -42,7 +42,10 @@ export async function completeAriRequest({ userId, turnId, responsePayload } = {
   const config = supabaseConfig();
   if (!user || !turn || !config) return false;
 
-  const payload = safePayload(responsePayload);
+  // Store only what a duplicate browser request needs to replay the completed
+  // turn. Large world/cognitive state is persisted in its own authoritative
+  // stores and does not belong in a seven-day request-dedup row.
+  const payload = buildReplayPayload(responsePayload);
   if (!payload) return false;
 
   try {
@@ -216,6 +219,25 @@ async function deleteExisting({ user, turn, config }) {
     headers: serverHeaders(config.key, { Prefer: "return=minimal" })
   }, WRITE_TIMEOUT_MS);
   return response.ok;
+}
+
+function buildReplayPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  return {
+    success: value.success !== false,
+    ready: value.ready !== false,
+    reply: clean(value.reply, 12000),
+    source: clean(value.source, 160) || "ari_vnext",
+    turnId: clean(value.turnId, 200) || null,
+    pendingAction: safePayload(value.pendingAction),
+    action: safePayload(value.action),
+    route: safePayload(value.route),
+    safety: safePayload(value.safety),
+    modelPolicy: safePayload(value.modelPolicy),
+    semanticActionReview: safePayload(value.semanticActionReview),
+    intelligenceEntitlement: safePayload(value.intelligenceEntitlement)
+  };
 }
 
 function supabaseConfig() {
