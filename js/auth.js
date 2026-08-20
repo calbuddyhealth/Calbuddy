@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.11 — Loads nutrition data-quality context on Home + Nutrition.
 // V1.10.10 — Loads Nutrition trust layer for transactional plan logging.
 // V1.10.9 — Loads unified vNext runtime controller bootstrap.
 // V1.10.8 — Loads owner-aware vNext shared runtime bootstrap.
@@ -18,6 +19,7 @@ const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
 const ARI_NUTRITION_TRUST_SCRIPT_ID = "ariNutritionTrustScript";
+const ARI_NUTRITION_QUALITY_SCRIPT_ID = "ariNutritionQualityScript";
 const ARI_INTENT_ROUTER_SCRIPT_ID = "ariCentralIntentRouterScript";
 const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
 const ARI_WORKOUT_ACTION_SCRIPT_ID = "ariWorkoutActionSharedScript";
@@ -240,6 +242,12 @@ function bootstrapNutritionTrustLayer() {
   appendOrderedScript(ARI_NUTRITION_TRUST_SCRIPT_ID, "js/nutrition-trust-layer.js?v=1.0.0");
 }
 
+function bootstrapNutritionDataQuality() {
+  const surface = currentAriSurface();
+  if (surface !== "home" && surface !== "nutrition") return;
+  appendOrderedScript(ARI_NUTRITION_QUALITY_SCRIPT_ID, "js/ari-nutrition-data-quality.js?v=1.0.0");
+}
+
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
@@ -290,6 +298,7 @@ function bootstrapGoalsActivityBurnSync() {
 
 bootstrapCanonicalMealLedger();
 bootstrapNutritionTrustLayer();
+bootstrapNutritionDataQuality();
 bootstrapAriCentralIntentRouter();
 bootstrapAriMealAction();
 bootstrapAriWorkoutActionForNutrition();
