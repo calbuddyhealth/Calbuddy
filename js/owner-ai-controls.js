@@ -1,4 +1,4 @@
-/* ARI XP — Owner ARI Intelligence Controls v1.0.0 */
+/* ARI XP — Owner ARI Intelligence Controls v1.1.0 */
 (() => {
   "use strict";
 
@@ -49,6 +49,7 @@
   function render(data = {}) {
     const controls = data?.controls || {};
     const entitlement = data?.entitlement || {};
+    const runtime = data?.runtime || {};
     const advanced = entitlement?.tier === "advanced";
 
     $("advancedAriToggle").checked = controls?.enabled === true;
@@ -56,12 +57,13 @@
     $("reasoningProfileSelect").disabled = controls?.enabled !== true;
 
     $("tierStat").textContent = advanced ? "Advanced" : "Standard";
+    $("modelStat").textContent = advanced ? (runtime?.modelFamily || runtime?.advancedModel || "GPT-5.6 Sol") : "Standard policy";
     $("reasoningStat").textContent = entitlement?.reasoningProfile || "standard";
     $("premiumStat").textContent = data?.premiumRolloutEnabled === true ? "Enabled" : "Locked";
-    $("effectiveTierTitle").textContent = advanced ? "Advanced Ari enabled" : "Standard Ari active";
+    $("effectiveTierTitle").textContent = advanced ? "Advanced Ari is live" : "Standard Ari active";
     $("effectiveTierDescription").textContent = advanced
-      ? "Your verified owner session is opted into the Advanced Ari beta lane. The new conversation engine can plug into this entitlement next."
-      : "Your owner session is currently using the Standard Ari entitlement. Enable the beta when you want to test the advanced lane.";
+      ? "Your owner conversations now use the Advanced Conversation Contract and GPT-5.6 Sol reasoning lane. ARI XP actions still pass through the existing trusted validation and confirmation system."
+      : "Your account is currently using Standard Ari. Enable Advanced Ari to enter the private GPT-5.6 Sol conversation beta.";
   }
 
   async function save() {
