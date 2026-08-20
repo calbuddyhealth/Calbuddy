@@ -11,7 +11,7 @@ const service = fs.readFileSync(path.join(root, "js/training/activity-log-servic
 const quickLog = fs.readFileSync(path.join(root, "js/training/activity-quick-log.js"), "utf8");
 const goalsSync = fs.readFileSync(path.join(root, "js/goals-activity-burn-sync.js"), "utf8");
 const auth = fs.readFileSync(path.join(root, "js/auth.js"), "utf8");
-const migration = fs.readFileSync(path.join(root, "supabase/migrations/20260818173000_activity_log_details.sql"), "utf8");
+const migration = fs.readFileSync(path.join(root, "supabase/migrations/20260819031500_extend_activity_logs_for_quick_log.sql"), "utf8");
 
 function source(relative) {
   return fs.readFileSync(path.join(root, relative), "utf8");
