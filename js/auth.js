@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.12 — Routes signed-in meal writes through the nutrition mutation journal.
 // V1.10.11 — Loads nutrition data-quality context on Home + Nutrition.
 // V1.10.10 — Loads Nutrition trust layer for transactional plan logging.
 // V1.10.9 — Loads unified vNext runtime controller bootstrap.
@@ -18,6 +19,7 @@
 const ARI_XP_PUBLIC_ORIGIN = "https://arixp.com";
 const ARI_XP_EMAIL_CONFIRM_URL = `${ARI_XP_PUBLIC_ORIGIN}/email-confirmed.html`;
 const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
+const ARI_NUTRITION_TRANSACTION_SCRIPT_ID = "ariNutritionTransactionScript";
 const ARI_NUTRITION_TRUST_SCRIPT_ID = "ariNutritionTrustScript";
 const ARI_NUTRITION_QUALITY_SCRIPT_ID = "ariNutritionQualityScript";
 const ARI_INTENT_ROUTER_SCRIPT_ID = "ariCentralIntentRouterScript";
@@ -237,6 +239,12 @@ function appendOrderedScript(id, src) {
   document.head.appendChild(script);
 }
 
+function bootstrapNutritionTransactionClient() {
+  const surface = currentAriSurface();
+  if (surface !== "home" && surface !== "nutrition") return;
+  appendOrderedScript(ARI_NUTRITION_TRANSACTION_SCRIPT_ID, "js/nutrition-transaction-client.js?v=1.0.0");
+}
+
 function bootstrapNutritionTrustLayer() {
   if (currentAriSurface() !== "nutrition") return;
   appendOrderedScript(ARI_NUTRITION_TRUST_SCRIPT_ID, "js/nutrition-trust-layer.js?v=1.0.0");
@@ -297,6 +305,7 @@ function bootstrapGoalsActivityBurnSync() {
 }
 
 bootstrapCanonicalMealLedger();
+bootstrapNutritionTransactionClient();
 bootstrapNutritionTrustLayer();
 bootstrapNutritionDataQuality();
 bootstrapAriCentralIntentRouter();
