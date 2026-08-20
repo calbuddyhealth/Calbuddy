@@ -6,14 +6,30 @@ const home = fs.readFileSync("home.html", "utf8");
 const resilience = fs.readFileSync("js/home-resilience.js", "utf8");
 const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 
-test("home loads the iOS request resilience layer and latency guard after home.js", () => {
+test("home loads the repaired iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.0');
-  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.2.2');
+  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.0');
   const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.0.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
-  assert.ok(resilienceIndex > homeIndex, "resilience layer should load after home.js");
+  assert.ok(resilienceIndex > homeIndex, "repaired resilience layer should load after home.js");
   assert.ok(latencyIndex > resilienceIndex, "latency guard should load after resilience so it can neutralize stale cross-document recovery");
+});
+
+test("Home runtime loader accepts both runtime namespaces and cannot wait forever", () => {
+  assert.match(resilience, /window\.AriRuntime/);
+  assert.match(resilience, /window\.Ari\?\.Runtime/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.4"/);
+  assert.match(resilience, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
+  assert.match(resilience, /window\.setInterval\(finishIfReady, 25\)/);
+  assert.match(resilience, /did not initialize/);
+});
+
+test("Home passes the same AbortSignal through runtime loading and Ari ask", () => {
+  assert.match(resilience, /const signal = ariAbortController\.signal/);
+  assert.match(resilience, /loadRuntimeController\(\{ signal \}\)/);
+  assert.match(resilience, /debugTiming: true,\s*signal/);
+  assert.match(resilience, /ARI_REQUEST_ABORTED/);
 });
 
 test("pending Ari turns survive same-document backgrounding and can reconcile on resume", () => {
@@ -22,6 +38,13 @@ test("pending Ari turns survive same-document backgrounding and can reconcile on
   assert.match(resilience, /pageshow/);
   assert.match(resilience, /findSavedCompletedTurn/);
   assert.match(resilience, /MAX_BACKGROUND_RETRIES\s*=\s*1/);
+});
+
+test("in-progress duplicate turns are rechecked without starting a second model turn", () => {
+  assert.match(resilience, /ARI_TURN_IN_PROGRESS/);
+  assert.match(resilience, /MAX_PROCESSING_RECHECKS\s*=\s*8/);
+  assert.match(resilience, /PROCESSING_RECHECK_MS\s*=\s*800/);
+  assert.match(resilience, /processingChecks/);
 });
 
 test("fresh document loads clear stale pending turns before recovery can auto-resend", () => {
