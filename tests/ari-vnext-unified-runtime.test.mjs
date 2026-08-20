@@ -21,7 +21,7 @@ assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.0\.2/, "runtime must bo
 assert.match(runtime, /AriVNextMealPlanAdapter\?\.ready === true/, "runtime must wait for Meal Plan adapter readiness");
 assert.match(runtime, /AriVNextContextGuard\?\.ready === true/, "runtime must wait for canonical context guard readiness");
 
-assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.0/, "shared Home/Nutrition router must boot the unified runtime controller");
+assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.1/, "shared Home/Nutrition router must boot the unified runtime controller");
 assert.doesNotMatch(router, /appendOrderedScript\([\s\S]{0,120}ari-vnext-context-guard\.js/, "router should not independently race the runtime controller for vNext brain dependencies");
 assert.match(auth, /ari-central-intent-router\.js\?v=1\.5\.0/, "auth bootstrap must request the unified shared router version");
 
