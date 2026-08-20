@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const SOURCE = "ari_vnext_activity_adapter";
   let servicePromise = null;
 
@@ -14,7 +14,7 @@
 
   function loadService() {
     if (!servicePromise) {
-      servicePromise = import("../../js/training/activity-log-service.js?v=1.0.0")
+      servicePromise = import("../../js/training/activity-log-service.js?v=1.1.0")
         .then((module) => module.default || module.ActivityLogService);
     }
     return servicePromise;

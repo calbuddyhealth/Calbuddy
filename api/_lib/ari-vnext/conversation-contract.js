@@ -1,7 +1,7 @@
 // ARI vNext — Advanced Ari conversational intelligence contract.
 // This is intentionally judgment-first rather than a rigid intent classifier.
 
-export const ADVANCED_CONVERSATION_CONTRACT_VERSION = "1.4.0";
+export const ADVANCED_CONVERSATION_CONTRACT_VERSION = "1.4.1";
 
 export const ADVANCED_CONVERSATION_CONTRACT = `
 ADVANCED CONVERSATIONAL INTELLIGENCE
@@ -91,10 +91,24 @@ OWNER ADAPTIVE STRATEGY LAYER
 - Strategy records contain compact behavior instructions, lesson summaries, and outcome statistics, not hidden chain-of-thought. Never reconstruct or claim that they contain private reasoning traces.
 `.trim();
 
+function ownerCognitiveLoopEnabled(entitlement = null) {
+  if (!entitlement || typeof entitlement !== "object") return false;
+  if (entitlement.cognitiveLoopEnabled !== undefined) {
+    return entitlement.cognitiveLoopEnabled === true;
+  }
+
+  // Compact relevant-context serialization intentionally drops some internal
+  // entitlement flags. Owner beta Advanced Ari defaults to the cognitive loop
+  // unless an explicit false flag survives, while premium Advanced Ari does not.
+  return entitlement.advancedEnabled === true &&
+    entitlement.ownerEligible === true &&
+    entitlement.source === "owner_beta";
+}
+
 export function advancedConversationInstruction(entitlement = null) {
   if (entitlement?.advancedEnabled !== true) return "";
   return [
     ADVANCED_CONVERSATION_CONTRACT,
-    entitlement?.cognitiveLoopEnabled === true ? OWNER_COGNITIVE_LOOP_CONTRACT : ""
+    ownerCognitiveLoopEnabled(entitlement) ? OWNER_COGNITIVE_LOOP_CONTRACT : ""
   ].filter(Boolean).join("\n\n");
 }

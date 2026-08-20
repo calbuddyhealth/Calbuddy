@@ -50,7 +50,7 @@
     // initialized before Ari can answer. This avoids parallel boot races.
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.3.0"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.1"
     );
   }
 

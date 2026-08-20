@@ -1,4 +1,4 @@
-name: ARI vNext intelligence tests
+name: ARI vNext and nutrition trust tests
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - main
       - agent/ari-vnext-intelligence
       - agent/ari-owner-advanced-controls
+      - agent/ari-trust-layer-p0
     paths:
       - "api/ari-vnext.js"
       - "api/_lib/ari-vnext/**"
@@ -13,7 +14,12 @@ on:
       - "ari/runtime/ari-runtime-controller.js"
       - "ari/intent/ari-central-intent-router.js"
       - "js/auth.js"
+      - "js/nutrition-trust-layer.js"
+      - "js/nutrition-transaction-client.js"
+      - "js/ari-nutrition-data-quality.js"
+      - "supabase/migrations/*nutrition*.sql"
       - "tests/ari-vnext-*.test.mjs"
+      - "tests/nutrition-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
   pull_request:
     branches:
@@ -25,7 +31,12 @@ on:
       - "ari/runtime/ari-runtime-controller.js"
       - "ari/intent/ari-central-intent-router.js"
       - "js/auth.js"
+      - "js/nutrition-trust-layer.js"
+      - "js/nutrition-transaction-client.js"
+      - "js/ari-nutrition-data-quality.js"
+      - "supabase/migrations/*nutrition*.sql"
       - "tests/ari-vnext-*.test.mjs"
+      - "tests/nutrition-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
   workflow_dispatch:
 
@@ -46,5 +57,5 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Run Ari vNext deterministic tests
-        run: node --test tests/ari-vnext-*.test.mjs
+      - name: Run Ari vNext and nutrition trust deterministic tests
+        run: node --test tests/ari-vnext-*.test.mjs tests/nutrition-*.test.mjs
