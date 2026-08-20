@@ -37,6 +37,38 @@ test("cognitive workspace carries prior state without claiming consciousness", (
   assert.match(instruction, /user agency\/consent/);
 });
 
+test("filtered relevant memory enters only the current workspace and is not copied into persistent cognitive state", () => {
+  const workspace = deriveCognitiveWorkspace({
+    previous: { turnCount: 4 },
+    turn: { message: "What do you think I should do?" },
+    route: {},
+    context: { relevantMemory: "User prefers concise recommendations and previously chose option B." }
+  });
+
+  assert.equal(workspace.continuity.currentTurnRelevantMemoryAvailable, true);
+  assert.match(workspace.continuity.currentTurnRelevantMemory, /previously chose option B/);
+  assert.equal(workspace.continuity.currentTurnRelevantMemoryEphemeral, true);
+  assert.equal(workspace.salience.some((item) => item.id === "relevant_durable_memory"), true);
+
+  const next = advanceCognitiveState({
+    previous: { turnCount: 4 },
+    workspace,
+    turn: { turnId: "turn-5", surface: "home" },
+    result: {
+      reply: "I would choose B again for the same reason.",
+      metacognition: { confidence: "grounded", missingEvidence: [], evidenceSignals: [] },
+      selfModel: { current: { familiarity: "familiar", persistentRecognition: true } },
+      relationshipContinuity: { recognizedUser: true },
+      goalHierarchy: {},
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(next.continuity.persistentRecognition, true);
+  assert.equal(Object.hasOwn(next.continuity, "currentTurnRelevantMemory"), false);
+  assert.equal(JSON.stringify(next).includes("previously chose option B"), false);
+});
+
 test("cognitive state advances from metacognition, self-model, and unresolved work", () => {
   const workspace = deriveCognitiveWorkspace({
     previous: { turnCount: 1 },
