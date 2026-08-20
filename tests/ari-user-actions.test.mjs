@@ -18,7 +18,7 @@ const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
 const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
 test("Home and Nutrition share one central intent gateway boundary", () => {
-  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.5\.0/);
+  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.5\.1/);
   assert.match(routerClient, /CalBuddy\.askAri = async function ariCentralIntentBoundary/);
   assert.match(routerClient, /intentDecision/);
   assert.match(routerClient, /\/api\/ari-intent-router/);
