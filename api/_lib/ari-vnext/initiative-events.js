@@ -1,6 +1,8 @@
 // ARI vNext — persistent initiative lifecycle and repeat suppression.
 
-export const ARI_INITIATIVE_EVENTS_VERSION = "1.0.0";
+import { maybeDeliverAriSignalPush } from "./ari-signals.js";
+
+export const ARI_INITIATIVE_EVENTS_VERSION = "1.1.0";
 const TABLE = "ari_vnext_initiative_events";
 
 export async function listRecentInitiatives({ userId, limit = 20 } = {}) {
@@ -68,7 +70,14 @@ export async function recordInitiativeSurface({ userId, candidate } = {}) {
     });
     const data = await response.json().catch(() => []);
     const saved = Array.isArray(data) ? data[0] : data;
-    return response.ok && saved ? { stored: true, event: normalizeRow(saved) } : { stored: false };
+    if (!response.ok || !saved) return { stored: false };
+    const event = normalizeRow(saved);
+    const push = await maybeDeliverAriSignalPush({
+      userId: id,
+      signalId: event?.id,
+      candidate
+    }).catch(() => ({ attempted: false, reason: "push_delivery_failed" }));
+    return { stored: true, event, push };
   } catch {
     return { stored: false };
   }
