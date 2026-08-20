@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.1
+// Version: 1.3.2
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -17,6 +17,8 @@
 //   - vNext manual activity logs use the shared Training activity writer.
 //   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
 //   - Initiative checks are deterministic and do not spend an LLM call.
+//   - ask() accepts both legacy object input and message/options input without
+//     ever stringifying the request object into "[object Object]".
 // =====================================================
 
 (() => {
@@ -25,7 +27,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.1";
+  const VERSION = "1.3.2";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -34,7 +36,7 @@
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
-    "ari/vnext/ari-vnext-bridge.js?v=1.7.0",
+    "ari/vnext/ari-vnext-bridge.js?v=1.7.1",
     "ari/vnext/ari-vnext-context-guard.js?v=1.0.2",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
@@ -57,6 +59,35 @@
 
   function clean(value = "") {
     return String(value || "").trim();
+  }
+
+  function normalizeAskRequest(messageOrInput = "", options = {}) {
+    const objectInput =
+      messageOrInput &&
+      typeof messageOrInput === "object" &&
+      !Array.isArray(messageOrInput)
+        ? messageOrInput
+        : null;
+
+    const input = objectInput
+      ? { ...objectInput, ...(options && typeof options === "object" ? options : {}) }
+      : {
+          ...(options && typeof options === "object" ? options : {}),
+          message: messageOrInput
+        };
+
+    const message = clean(input?.message);
+    const history = Array.isArray(input?.history) ? input.history : [];
+
+    return {
+      input: {
+        ...input,
+        message,
+        history
+      },
+      message,
+      history
+    };
   }
 
   function safeMode(value) {
@@ -275,7 +306,7 @@
 
     const execution = await window.AriVNextActionAdapter.executeConfirmed({
       vnextPendingAction: originalPending,
-      currentTurnId: result?.turn?.turnId || null
+      currentTurnId: result?.turn?.turnId || result?.turnId || null
     });
     window.AriVNextBridge?.clearPendingAction?.();
 
@@ -333,25 +364,32 @@
     return { success: true, reply: payload?.reply || "Experiment updated." };
   }
 
-  async function ask(message, options = {}) {
+  async function ask(messageOrInput = "", options = {}) {
+    const request = normalizeAskRequest(messageOrInput, options);
+    const { input, message } = request;
+
+    if (!message) {
+      return { success: false, ready: false, reply: "Say something first." };
+    }
+
     const mode = getMode();
     if (mode !== "vnext") {
       if (!legacy.askAri) throw new Error("Ari Rebirth fallback is unavailable.");
-      return await legacy.askAri(message, options);
+      return await legacy.askAri(input);
     }
 
     try {
       await ensureVNext();
       await markInitiativeEngaged();
-      const context = options?.context || (await getUserContext());
-      let result = await window.AriVNextBridge.ask(message, { ...options, context });
+      const context = input?.context || (await getUserContext());
+      let result = await window.AriVNextBridge.ask(message, { ...input, context });
       result = await normalizePendingAction(result);
       result = await executeTypedConfirmation(result);
       return result;
     } catch (error) {
       console.error("Ari vNext runtime failed; using Rebirth fallback:", error);
       if (!legacy.askAri) throw error;
-      return await legacy.askAri(message, options);
+      return await legacy.askAri(input);
     }
   }
 
