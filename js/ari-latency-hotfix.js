@@ -57,12 +57,13 @@
 
     const mutation = /\b(log|add|save|record|edit|delete|remove|change|update|undo|complete|mark|replace|clear|cancel)\b/.test(text);
     const personalState = /\b(my|mine|today|tonight|this morning|this afternoon|left|remaining|logged|ate|eaten|consumed|burned|current|goal|history|recent)\b/.test(text);
-    const appDomain = /\b(calorie|calories|meal|meals|food|macro|macros|protein|carb|carbs|fat|nutrition|weight|weigh|goal|goals|activity|workout|training|exercise)\b/.test(text);
+    const ledgerDomain = /\b(calorie|calories|meal|meals|food|macro|macros|protein|carb|carbs|fat|nutrition|weight|weigh|goal|goals|activity)\b/.test(text);
     const exactLedgerQuestion = /\b(what did i eat|what have i eaten|how many calories (?:do i have|are) left|calories left|what did i log|what have i logged)\b/.test(text);
 
-    // Generic coaching/advice should not wait on the whole application ledger.
-    // Explicit mutations and questions about the user's actual stored state do.
-    return exactLedgerQuestion || (appDomain && (mutation || personalState));
+    // Generic coaching/advice and Training-only questions should not wait on
+    // Nutrition/profile/weight hydration. Canonical Training context is loaded
+    // independently by AriVNextBridge when the message is about Training.
+    return exactLedgerQuestion || (ledgerDomain && (mutation || personalState));
   }
 
   function readJson(key, fallback = {}) {
@@ -84,7 +85,11 @@
 
   async function buildLightContext() {
     const goals = readJson("calbuddyGoals", {});
-    const session = await CalBuddy.getCurrentSession?.().catch?.(() => null) || null;
+    let session = null;
+    try {
+      session = await CalBuddy.getCurrentSession?.();
+    } catch {}
+
     const dailyGoal = localNumber(
       localStorage.getItem("calbuddyDailyCalorieGoal"),
       goals.calorieGoal,
