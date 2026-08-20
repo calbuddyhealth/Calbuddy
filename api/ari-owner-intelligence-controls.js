@@ -12,6 +12,7 @@ import {
   loadAriIntelligenceControls,
   saveAriIntelligenceControls
 } from "../server/ari-intelligence-control-store.js";
+import { ARI_ADAPTIVE_STRATEGY_VERSION } from "./_lib/ari-vnext/adaptive-strategy.js";
 import {
   ARI_COGNITIVE_LOOP_VERSION,
   ARI_COGNITIVE_STATE_VERSION,
@@ -48,6 +49,7 @@ export default async function handler(req, res) {
       entitlement,
       runtime: runtimeSummary(entitlement),
       cognitiveLoop: cognitiveLoopSummary(entitlement),
+      adaptiveStrategyLayer: adaptiveStrategySummary(entitlement),
       ownerOnly: true,
       storage: "server",
       premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true"
@@ -74,6 +76,7 @@ export default async function handler(req, res) {
     entitlement,
     runtime: runtimeSummary(entitlement),
     cognitiveLoop: cognitiveLoopSummary(entitlement),
+    adaptiveStrategyLayer: adaptiveStrategySummary(entitlement),
     storage: "server",
     premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true",
     message: entitlement.advancedEnabled
@@ -83,6 +86,7 @@ export default async function handler(req, res) {
 }
 
 function runtimeSummary(entitlement = null) {
+  const cognitiveLoopActive = isOwnerCognitiveLoopEnabled(entitlement);
   return {
     advancedModel: process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6",
     modelFamily: "GPT-5.6 Sol",
@@ -90,8 +94,11 @@ function runtimeSummary(entitlement = null) {
     conversationContractVersion: ADVANCED_CONVERSATION_CONTRACT_VERSION,
     cognitiveLoopVersion: ARI_COGNITIVE_LOOP_VERSION,
     cognitiveStateVersion: ARI_COGNITIVE_STATE_VERSION,
-    cognitiveLoopActive: isOwnerCognitiveLoopEnabled(entitlement),
+    cognitiveLoopActive,
     cognitiveLoopOwnerOnly: true,
+    adaptiveStrategyVersion: ARI_ADAPTIVE_STRATEGY_VERSION,
+    adaptiveStrategyActive: cognitiveLoopActive,
+    adaptiveStrategyOwnerOnly: true,
     serverBackedControls: true
   };
 }
@@ -103,6 +110,22 @@ function cognitiveLoopSummary(entitlement = null) {
     ownerOnly: true,
     version: ARI_COGNITIVE_LOOP_VERSION,
     stateVersion: ARI_COGNITIVE_STATE_VERSION,
+    storesHiddenChainOfThought: false
+  };
+}
+
+function adaptiveStrategySummary(entitlement = null) {
+  const active = isOwnerCognitiveLoopEnabled(entitlement);
+  return {
+    available: entitlement?.cognitiveLoopAllowed === true,
+    active,
+    ownerOnly: true,
+    selfUpdating: true,
+    version: ARI_ADAPTIVE_STRATEGY_VERSION,
+    persistentStrategies: true,
+    outcomeDrivenPromotion: true,
+    automaticRetirement: true,
+    applicationPermissionsUnchanged: true,
     storesHiddenChainOfThought: false
   };
 }
