@@ -52,6 +52,7 @@ export async function reflectOnAdaptiveStrategy({
     "If an active adopted strategy should materially change, propose a NEW strategyKey and set replacesStrategyKey to the old key. Do not silently rewrite an adopted strategy.",
     "Testing strategies are hypotheses. Keep confidence calibrated.",
     "Examples of valid strategy forms: verify changing facts before answering; compare plausible alternatives before high-consequence recommendations; ask one minimal clarifying question only when ambiguity changes the decision; lead with the strongest recommendation when many options would create friction.",
+    "Keep strategyKey under 90 characters, title under 120, instruction under 520, rationale under 420, userVisibleSummary under 320, use at most 6 domains, and confidence from 0 to 1. The server validates and clamps these fields before persistence.",
     "Return only the requested JSON object."
   ].join("\n");
 
@@ -93,13 +94,12 @@ export async function reflectOnAdaptiveStrategy({
           ],
           properties: {
             shouldPropose: { type: "boolean" },
-            strategyKey: { type: "string", maxLength: 90 },
-            title: { type: "string", maxLength: 120 },
-            instruction: { type: "string", maxLength: 520 },
-            rationale: { type: "string", maxLength: 420 },
+            strategyKey: { type: "string" },
+            title: { type: "string" },
+            instruction: { type: "string" },
+            rationale: { type: "string" },
             domains: {
               type: "array",
-              maxItems: 6,
               items: {
                 type: "string",
                 enum: [
@@ -118,9 +118,9 @@ export async function reflectOnAdaptiveStrategy({
                 ]
               }
             },
-            confidence: { type: "number", minimum: 0, maximum: 1 },
-            replacesStrategyKey: { type: "string", maxLength: 90 },
-            userVisibleSummary: { type: "string", maxLength: 320 }
+            confidence: { type: "number" },
+            replacesStrategyKey: { type: "string" },
+            userVisibleSummary: { type: "string" }
           }
         }
       }
