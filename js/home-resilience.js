@@ -1,12 +1,13 @@
 // =====================================================
 // ARI XP
 // File: js/home-resilience.js
-// Version: 1.2.0
+// Version: 1.2.1
 // Purpose:
 //   Keep Ask Ari recoverable when an iOS WebView is backgrounded while routing
 //   Home through the selected Ari runtime.
 //   - Loads the vNext runtime controller before the first Ari request.
 //   - Persists the in-flight user turn before network work begins.
+//   - Reuses one stable turn ID across retries so the server can deduplicate.
 //   - Never renders raw transport or deliberation diagnostics to users.
 //   - Reconciles a completed Supabase conversation turn on resume.
 //   - Retries one interrupted turn when no completed answer was saved.
@@ -20,7 +21,7 @@
   const PENDING_KEY = "arixp_pending_ari_turn_v1";
   const MAX_BACKGROUND_RETRIES = 1;
   const RESUME_DELAY_MS = 350;
-  const RUNTIME_CONTROLLER_SRC = "ari/runtime/ari-runtime-controller.js?v=1.3.0";
+  const RUNTIME_CONTROLLER_SRC = "ari/runtime/ari-runtime-controller.js?v=1.3.2";
 
   let requestInFlight = false;
   let recoveryTimer = null;
@@ -91,7 +92,7 @@
   function readPendingTurn() {
     try {
       const saved = JSON.parse(localStorage.getItem(PENDING_KEY) || "null");
-      if (!saved?.message || !saved?.startedAt) return null;
+      if (!saved?.id || !saved?.message || !saved?.startedAt) return null;
       return saved;
     } catch {
       return null;
@@ -155,6 +156,21 @@
     if (!client || !session?.user?.id) return null;
 
     try {
+      // Prefer exact turn identity after the idempotency migration. During a
+      // rolling deploy, gracefully fall back to the older message/time lookup.
+      const exact = await client
+        .from("ari_conversation_turns")
+        .select("turn_id,user_message,assistant_message,created_at")
+        .eq("user_id", session.user.id)
+        .eq("turn_id", pending.id)
+        .limit(1);
+
+      if (!exact?.error) {
+        const row = Array.isArray(exact?.data) ? exact.data[0] : null;
+        const reply = cleanText(row?.assistant_message);
+        if (reply && !isInternalFailureText(reply)) return row;
+      }
+
       const { data, error } = await client
         .from("ari_conversation_turns")
         .select("user_message,assistant_message,created_at")
@@ -195,6 +211,7 @@
     try {
       await loadRuntimeController();
       const response = await CalBuddy.askAri({
+        turnId: pending.id,
         message: pending.message,
         history: ariChatHistory,
         debugTiming: true

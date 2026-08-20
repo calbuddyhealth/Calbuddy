@@ -1,7 +1,8 @@
 // ARI vNext — targeted long-term memory retrieval.
 // Retrieves only user-owned memories and ranks them for the current turn.
 
-export const MEMORY_SERVICE_VERSION = "1.3.0";
+export const MEMORY_SERVICE_VERSION = "1.3.1";
+const MEMORY_SUMMARY_BUDGET = 5000;
 
 export async function retrieveRelevantMemories({ userId, message, limit = 6 } = {}) {
   const id = String(userId || "").trim();
@@ -38,7 +39,7 @@ export async function retrieveRelevantMemories({ userId, message, limit = 6 } = 
 
     return {
       memories,
-      summary: memories.map((item) => `- ${item.content}`).join("\n").slice(0, 5000)
+      summary: buildMemorySummary(memories)
     };
   } catch (error) {
     console.warn("[ARI vNext Memory] Retrieval failed:", error?.message || error);
@@ -61,9 +62,36 @@ export function filterMemoryResultForPrivacy(result = {}, privacyControls = null
   return {
     ...result,
     memories,
-    summary: memories.map((item) => `- ${item.content}`).join("\n").slice(0, 5000),
+    summary: buildMemorySummary(memories),
     privacyFiltered: true
   };
+}
+
+export function buildMemorySummary(memories = [], maxCharacters = MEMORY_SUMMARY_BUDGET) {
+  const budget = Math.max(0, Number(maxCharacters) || MEMORY_SUMMARY_BUDGET);
+  if (!budget || !Array.isArray(memories)) return "";
+
+  const lines = [];
+  let used = 0;
+  const seen = new Set();
+
+  for (const item of memories) {
+    const content = String(item?.content || "").trim();
+    if (!content) continue;
+
+    const dedupeKey = content.toLowerCase().replace(/\s+/g, " ");
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    const line = `- ${content}`;
+    const additional = line.length + (lines.length ? 1 : 0);
+    if (used + additional > budget) break;
+
+    lines.push(line);
+    used += additional;
+  }
+
+  return lines.join("\n");
 }
 
 export function rankMemories(memories = [], message = "") {

@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.13 — Loads central Ari router v1.5.1 / runtime v1.3.2 hardening chain.
 // V1.10.12 — Routes signed-in meal writes through the nutrition mutation journal.
 // V1.10.11 — Loads nutrition data-quality context on Home + Nutrition.
 // V1.10.10 — Loads Nutrition trust layer for transactional plan logging.
@@ -259,7 +260,7 @@ function bootstrapNutritionDataQuality() {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.0");
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.1");
 }
 
 function bootstrapAriMealAction() {
