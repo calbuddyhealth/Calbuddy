@@ -72,11 +72,9 @@ export function resolveAriIntelligenceEntitlement({
     cognitiveLoopOwnerOnly: true,
     source: advancedEnabled
       ? ownerEligible ? "owner_beta" : "premium"
-      : ownerEligible
-        ? "owner_standard"
-        : premiumEligible
-          ? "premium_standard"
-          : "standard_default"
+      : advancedAllowed
+        ? "eligible_not_enabled"
+        : "standard_default"
   };
 }
 
