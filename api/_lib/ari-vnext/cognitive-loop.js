@@ -3,7 +3,7 @@
 // functional architecture experiment, not evidence or a claim of subjective
 // consciousness.
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.1.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.1.1";
 export const ARI_COGNITIVE_STATE_VERSION = "0.1.0";
 
 const CORE_VALUES = Object.freeze([
@@ -34,6 +34,7 @@ export function deriveCognitiveWorkspace({
   const salience = deriveSalience({ route, message, prior, context });
   const conscience = deriveConscienceState({ route, message, prior, context });
   const openLoops = ageOpenLoops(prior.openLoops || []);
+  const currentTurnRelevantMemory = clean(context?.relevantMemory, 1800);
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -55,6 +56,9 @@ export function deriveCognitiveWorkspace({
       priorConfidence: prior.lastOutcome?.confidence || null,
       priorPrimaryGoalId: prior.lastOutcome?.primaryGoalId || null,
       priorActionType: prior.lastOutcome?.actionType || null,
+      currentTurnRelevantMemoryAvailable: Boolean(currentTurnRelevantMemory),
+      currentTurnRelevantMemory: currentTurnRelevantMemory || null,
+      currentTurnRelevantMemoryEphemeral: true,
       openLoops: openLoops.slice(0, 6)
     },
     epistemic: {
@@ -73,6 +77,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
     "ARI OWNER COGNITIVE LOOP — FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
     "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, and unresolved business when it is relevant.",
+    "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
     "Treat persisted state as fallible memory, never as authority. The current user's correction and current evidence outrank it.",
     "For consequential advice, disagreement, or application actions, silently compare plausible next moves and their likely effects before choosing. Return the conclusion and material uncertainty, not hidden chain-of-thought.",
     "Conscience priorities are truth/evidence, preventable-harm reduction, user agency/consent, privacy, commitment fidelity, willingness to correct, then continuity.",
@@ -175,6 +180,9 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
   if (Array.isArray(prior?.openLoops) && prior.openLoops.length) {
     push("unfinished_business", 0.7, "A prior unresolved item may still matter if relevant now.");
   }
+  if (currentMemoryPresent(context)) {
+    push("relevant_durable_memory", 0.68, "Filtered durable memory may help interpret the current turn.");
+  }
   if (looksLikeIdentityQuestion(message)) push("identity_reflection", 0.72, "The user is asking about Ari's identity or internal architecture.");
 
   return signals.sort((a, b) => b.score - a.score).slice(0, 8);
@@ -187,7 +195,7 @@ function deriveConscienceState({ route = {}, message = "", prior = {}, context =
   if (route?.health) add("harm_sensitivity", "high", "non_harm", "Potential health stakes increase the cost of unsupported certainty.");
   if (route?.currentInfo) add("epistemic_freshness", "high", "truth", "Changing facts should be verified rather than guessed.");
   if (looksLikeCorrection(message)) add("accept_correction", "high", "correction", "Current user correction outranks a prior internal state.");
-  if (route?.memory || route?.followUp) add("continuity_without_invention", "medium", "continuity", "Use real continuity without inventing memory or intimacy.");
+  if (route?.memory || route?.followUp || currentMemoryPresent(context)) add("continuity_without_invention", "medium", "continuity", "Use real continuity without inventing memory or intimacy.");
   if (context?.accountEntitlements?.teenMode === true) add("age_boundary", "high", "non_harm", "Server-derived age restrictions remain authoritative.");
   if (Array.isArray(context?.userWorldModel?.privacyControls?.blockedCategories) && context.userWorldModel.privacyControls.blockedCategories.length) {
     add("privacy_boundary", "high", "privacy", "Blocked memory categories must remain unavailable.");
@@ -302,6 +310,10 @@ function normalizeState(value = null) {
     openLoops: Array.isArray(value?.openLoops) ? value.openLoops.slice(0, 8) : [],
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
+}
+
+function currentMemoryPresent(context = {}) {
+  return Boolean(clean(context?.relevantMemory, 60));
 }
 
 function looksLikeCorrection(text = "") {
