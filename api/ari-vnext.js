@@ -1,5 +1,16 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
+import {
+  advanceCognitiveState,
+  ARI_COGNITIVE_LOOP_VERSION,
+  ARI_COGNITIVE_STATE_VERSION,
+  deriveCognitiveWorkspace,
+  isOwnerCognitiveLoopEnabled
+} from "./_lib/ari-vnext/cognitive-loop.js";
+import {
+  loadAriCognitiveState,
+  persistAriCognitiveState
+} from "./_lib/ari-vnext/cognitive-state-store.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import {
   buildCommunicationExposure,
@@ -88,19 +99,20 @@ export default async function handler(req, res) {
       subscriptionTier: commercialEntitlement.subscriptionTier,
       subscriptionStatus: commercialEntitlement.subscriptionStatus
     });
+    const cognitiveLoopEnabled = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
 
-    const recentContinuity = shouldRecoverRecentConversation(turn)
+    const recentContinuity = (cognitiveLoopEnabled || shouldRecoverRecentConversation(turn))
       ? await hydrateRecentConversation({
           userId: auth.userId,
           history: turn.history,
-          limitPairs: intelligenceEntitlement.advancedEnabled ? 8 : 4
+          limitPairs: cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4
         })
       : { history: turn.history, hydratedPairs: 0 };
     turn.history = recentContinuity.history;
 
     const routePreview = routeContext(turn);
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
-    const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute);
+    const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute || cognitiveLoopEnabled);
 
     const [
       retrievedRaw,
@@ -108,13 +120,14 @@ export default async function handler(req, res) {
       persistedWorldModel,
       recentDecisions,
       communicationOutcomes,
-      accountEntitlements
+      accountEntitlements,
+      persistedCognitiveState
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
             userId: auth.userId,
             message: turn.message,
-            limit: routePreview.memory ? 6 : 5
+            limit: routePreview.memory || cognitiveLoopEnabled ? 6 : 5
           })
         : Promise.resolve({ memories: [], summary: "" }),
       fitnessRoute
@@ -127,7 +140,10 @@ export default async function handler(req, res) {
       fitnessRoute
         ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 })
         : Promise.resolve([]),
-      loadAccountEntitlements({ userId: auth.userId })
+      loadAccountEntitlements({ userId: auth.userId }),
+      cognitiveLoopEnabled
+        ? loadAriCognitiveState({ userId: auth.userId })
+        : Promise.resolve(null)
     ]);
 
     const retrieved = filterMemoryResultForPrivacy(retrievedRaw, persistedWorldModel?.privacyControls || null);
@@ -143,12 +159,33 @@ export default async function handler(req, res) {
       ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
       : null;
 
+    const cognitiveWorkspace = cognitiveLoopEnabled
+      ? deriveCognitiveWorkspace({
+          previous: persistedCognitiveState,
+          turn,
+          route: routePreview,
+          context: {
+            ...(turn.context || {}),
+            accountEntitlements,
+            userWorldModel: persistedWorldModel,
+            decisionState,
+            temporalTimeline,
+            relevantMemory: turn.memory || ""
+          }
+        })
+      : null;
+
+    const worldModelForTurn = cognitiveWorkspace
+      ? { ...(persistedWorldModel || {}), ariCognitiveWorkspace: cognitiveWorkspace }
+      : persistedWorldModel;
+
     turn.context = {
       ...(turn.context || {}),
       accountEntitlements,
       intelligenceEntitlement,
+      recentContinuityPairs: recentContinuity.hydratedPairs,
       ...(experimentLedger ? { experimentLedger } : {}),
-      ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
+      ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(communicationLearning ? { communicationLearning } : {}),
       ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
@@ -169,6 +206,16 @@ export default async function handler(req, res) {
       coachingState: result?.coachingState || null,
       longitudinalState: result?.longitudinalState || null
     });
+
+    const nextCognitiveState = cognitiveLoopEnabled
+      ? advanceCognitiveState({
+          previous: persistedCognitiveState,
+          workspace: cognitiveWorkspace,
+          turn,
+          result
+        })
+      : null;
+
     const decisionRecord = fitnessRoute
       ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
       : null;
@@ -206,6 +253,8 @@ export default async function handler(req, res) {
             intelligenceSource: intelligenceEntitlement.source,
             reasoningProfile: intelligenceEntitlement.reasoningProfile,
             reasoningEffort: result?.modelPolicy?.reasoningEffort || null,
+            cognitiveLoopActive: cognitiveLoopEnabled,
+            cognitiveTurnCount: nextCognitiveState?.turnCount || persistedCognitiveState?.turnCount || 0,
             mode: result?.modelPolicy?.mode || null,
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
@@ -244,6 +293,9 @@ export default async function handler(req, res) {
     });
 
     const worldModelTask = persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
+    const cognitiveStateTask = nextCognitiveState
+      ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
+      : Promise.resolve(false);
     const decisionJournalTask = decisionRecord
       ? recordDecision({ userId: auth.userId, record: decisionRecord })
       : Promise.resolve({ stored: false, reason: "not_significant" });
@@ -259,13 +311,14 @@ export default async function handler(req, res) {
       : Promise.resolve({ stored: false, reason: "not_significant" });
 
     const [
-      , turnPersistence, durablePersistence, worldPersistence, decisionPersistence,
+      , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence, decisionPersistence,
       communicationResolution, communicationPersistence
     ] = await Promise.allSettled([
       usageTask,
       turnPersistenceTask,
       durableMemoryTask,
       worldModelTask,
+      cognitiveStateTask,
       decisionJournalTask,
       communicationResolutionTask,
       communicationExposureTask
@@ -274,6 +327,7 @@ export default async function handler(req, res) {
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
     const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
     const worldModelStored = worldPersistence.status === "fulfilled" && worldPersistence.value === true;
+    const cognitiveStateStored = cognitivePersistence.status === "fulfilled" && cognitivePersistence.value === true;
     const decisionJournalStored = decisionPersistence.status === "fulfilled" && decisionPersistence.value?.stored === true;
     const communicationOutcomeResolved = communicationResolution.status === "fulfilled" ? Number(communicationResolution.value?.resolved || 0) : 0;
     const communicationExposureStored = communicationPersistence.status === "fulfilled" && communicationPersistence.value?.stored === true;
@@ -292,10 +346,22 @@ export default async function handler(req, res) {
       communicationLearning,
       temporalTimeline,
       proactiveInsights,
+      cognitiveLoop: cognitiveLoopEnabled
+        ? {
+            active: true,
+            ownerOnly: true,
+            version: ARI_COGNITIVE_LOOP_VERSION,
+            stateVersion: ARI_COGNITIVE_STATE_VERSION,
+            turnCount: nextCognitiveState?.turnCount || Number(persistedCognitiveState?.turnCount || 0),
+            priorStateLoaded: Boolean(persistedCognitiveState),
+            stateStored: cognitiveStateStored
+          }
+        : { active: false, ownerOnly: true },
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
       durableMemoryStored,
       worldModelStored,
+      cognitiveStateStored,
       decisionJournalStored,
       communicationOutcomeResolved,
       communicationExposureStored,
