@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - agent/ari-vnext-intelligence
+      - agent/ari-owner-advanced-controls
     paths:
       - "api/ari-vnext.js"
       - "api/_lib/ari-vnext/**"
