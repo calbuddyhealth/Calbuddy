@@ -30,6 +30,11 @@ import {
   loadUserWorldModel,
   persistUserWorldModel
 } from "./_lib/ari-vnext/user-world-model.js";
+import { resolveAriIntelligenceEntitlement } from "../server/ari-intelligence-entitlement.js";
+import {
+  loadAriCommercialEntitlement,
+  loadAriIntelligenceControls
+} from "../server/ari-intelligence-control-store.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -70,11 +75,25 @@ export default async function handler(req, res) {
       });
     }
 
+    const shouldLoadAdvancedControl = isAdvancedEntitlementCandidate(auth.userId);
+    const [intelligenceControls, commercialEntitlement] = await Promise.all([
+      shouldLoadAdvancedControl
+        ? loadAriIntelligenceControls({ userId: auth.userId })
+        : Promise.resolve({ enabled: false, reasoningProfile: "adaptive", source: "not_eligible" }),
+      loadAriCommercialEntitlement({ userId: auth.userId })
+    ]);
+    const intelligenceEntitlement = resolveAriIntelligenceEntitlement({
+      userId: auth.userId,
+      controls: intelligenceControls,
+      subscriptionTier: commercialEntitlement.subscriptionTier,
+      subscriptionStatus: commercialEntitlement.subscriptionStatus
+    });
+
     const recentContinuity = shouldRecoverRecentConversation(turn)
       ? await hydrateRecentConversation({
           userId: auth.userId,
           history: turn.history,
-          limitPairs: 4
+          limitPairs: intelligenceEntitlement.advancedEnabled ? 8 : 4
         })
       : { history: turn.history, hydratedPairs: 0 };
     turn.history = recentContinuity.history;
@@ -127,6 +146,7 @@ export default async function handler(req, res) {
     turn.context = {
       ...(turn.context || {}),
       accountEntitlements,
+      intelligenceEntitlement,
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(persistedWorldModel ? { userWorldModel: persistedWorldModel } : {}),
       ...(decisionState ? { decisionState } : {}),
@@ -171,7 +191,7 @@ export default async function handler(req, res) {
           userId: auth.userId,
           endpoint: "/api/ari-vnext",
           usageType: "chat",
-          requestCategory: `ari_vnext_${result?.modelPolicy?.mode || "standard"}`,
+          requestCategory: `ari_vnext_${intelligenceEntitlement.tier}_${result?.modelPolicy?.mode || "standard"}`,
           model: result?.provider?.model || result?.modelPolicy?.model,
           responseData: {
             id: result?.provider?.id,
@@ -182,6 +202,10 @@ export default async function handler(req, res) {
           metadata: {
             turnId: turn.turnId,
             surface: turn.surface,
+            intelligenceTier: intelligenceEntitlement.tier,
+            intelligenceSource: intelligenceEntitlement.source,
+            reasoningProfile: intelligenceEntitlement.reasoningProfile,
+            reasoningEffort: result?.modelPolicy?.reasoningEffort || null,
             mode: result?.modelPolicy?.mode || null,
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
@@ -258,6 +282,7 @@ export default async function handler(req, res) {
       ...result,
       turnId: turn.turnId,
       accountEntitlements,
+      intelligenceEntitlement,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
       memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),
@@ -296,6 +321,13 @@ function shouldRecoverRecentConversation(turn = {}) {
   if (!text) return false;
 
   return /^(why|how so|what about|and|but|then|the other one|make it|do that|instead|continue|pick up)\b|\b(last time|earlier|before|remember when|we talked|we discussed|we decided|you said|you told me|what did we|where were we|continue from|pick up where)\b/i.test(text);
+}
+
+function isAdvancedEntitlementCandidate(userId = "") {
+  const id = String(userId || "").trim().toLowerCase();
+  const ownerId = String(process.env.ARI_OWNER_USER_ID || "").trim().toLowerCase();
+  const premiumFeatureEnabled = String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").trim().toLowerCase() === "true";
+  return Boolean((id && ownerId && id === ownerId) || premiumFeatureEnabled);
 }
 
 async function authenticateRequest(req) {
