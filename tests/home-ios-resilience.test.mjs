@@ -4,21 +4,30 @@ import fs from "node:fs";
 
 const home = fs.readFileSync("home.html", "utf8");
 const resilience = fs.readFileSync("js/home-resilience.js", "utf8");
+const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 
-test("home loads the iOS request resilience layer after home.js", () => {
+test("home loads the iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.0');
-  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.0.0');
+  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.2.2');
+  const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.0.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
   assert.ok(resilienceIndex > homeIndex, "resilience layer should load after home.js");
+  assert.ok(latencyIndex > resilienceIndex, "latency guard should load after resilience so it can neutralize stale cross-document recovery");
 });
 
-test("pending Ari turns survive app backgrounding and reconcile on resume", () => {
+test("pending Ari turns survive same-document backgrounding and can reconcile on resume", () => {
   assert.match(resilience, /arixp_pending_ari_turn_v1/);
   assert.match(resilience, /visibilitychange/);
   assert.match(resilience, /pageshow/);
   assert.match(resilience, /findSavedCompletedTurn/);
   assert.match(resilience, /MAX_BACKGROUND_RETRIES\s*=\s*1/);
+});
+
+test("fresh document loads clear stale pending turns before recovery can auto-resend", () => {
+  assert.match(latencyHotfix, /localStorage\.removeItem\(PENDING_KEY\)/);
+  assert.match(latencyHotfix, /setAriComposerThinking\?\.\(false\)/);
+  assert.match(latencyHotfix, /finishAriThinkingSequence\?\.\(\)/);
 });
 
 test("raw WebView and deliberation failures are never treated as user replies", () => {
