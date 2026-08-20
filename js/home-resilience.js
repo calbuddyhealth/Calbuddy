@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/home-resilience.js
-// Version: 1.2.2
+// Version: 1.3.0
 // Purpose:
 //   Keep Ask Ari recoverable when an iOS WebView is backgrounded while routing
 //   Home through the selected Ari runtime.
@@ -13,6 +13,9 @@
 //   - Retries one interrupted turn when no completed answer was saved.
 //   - Filters internal failure markers from short-term conversation history.
 //   - Surfaces deterministic vNext initiative messages in the same thread.
+//   - Accepts both window.AriRuntime and window.Ari.Runtime runtime identities.
+//   - Never waits forever on an already-loaded runtime script.
+//   - Propagates the Home STOP AbortSignal through the Ari request pipeline.
 // =====================================================
 
 (() => {
@@ -20,8 +23,12 @@
 
   const PENDING_KEY = "arixp_pending_ari_turn_v1";
   const MAX_BACKGROUND_RETRIES = 1;
+  const MAX_PROCESSING_RECHECKS = 8;
   const RESUME_DELAY_MS = 350;
-  const RUNTIME_CONTROLLER_SRC = "ari/runtime/ari-runtime-controller.js?v=1.3.3";
+  const PROCESSING_RECHECK_MS = 800;
+  const RUNTIME_LOAD_TIMEOUT_MS = 5000;
+  const REQUIRED_RUNTIME_VERSION = "1.3.4";
+  const RUNTIME_CONTROLLER_SRC = `ari/runtime/ari-runtime-controller.js?v=${REQUIRED_RUNTIME_VERSION}`;
 
   let requestInFlight = false;
   let recoveryTimer = null;
@@ -31,6 +38,57 @@
 
   function cleanText(value = "") {
     return String(value || "").trim();
+  }
+
+  function versionAtLeast(actual = "", required = "") {
+    const normalize = (value) => String(value || "")
+      .split(".")
+      .map((part) => Number.parseInt(part, 10) || 0);
+    const left = normalize(actual);
+    const right = normalize(required);
+    const length = Math.max(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+      const a = left[index] || 0;
+      const b = right[index] || 0;
+      if (a > b) return true;
+      if (a < b) return false;
+    }
+    return true;
+  }
+
+  function currentRuntimeController() {
+    const candidates = [window.AriRuntime, window.Ari?.Runtime];
+    return candidates.find((runtime) =>
+      typeof runtime?.ask === "function" &&
+      versionAtLeast(runtime?.version, REQUIRED_RUNTIME_VERSION)
+    ) || null;
+  }
+
+  function makeAbortError() {
+    const error = new Error("Ari request was cancelled.");
+    error.name = "AbortError";
+    error.code = "ARI_REQUEST_ABORTED";
+    return error;
+  }
+
+  function awaitWithSignal(promise, signal = null) {
+    if (!signal) return promise;
+    if (signal.aborted) return Promise.reject(makeAbortError());
+
+    return new Promise((resolve, reject) => {
+      const onAbort = () => reject(makeAbortError());
+      signal.addEventListener("abort", onAbort, { once: true });
+      promise.then(
+        (value) => {
+          signal.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        (error) => {
+          signal.removeEventListener("abort", onAbort);
+          reject(error);
+        }
+      );
+    });
   }
 
   function isInternalFailureText(value = "") {
@@ -45,48 +103,83 @@
 
   function isTransientRequestError(error) {
     const name = cleanText(error?.name).toLowerCase();
+    const code = cleanText(error?.code).toLowerCase();
     const message = cleanText(error?.message || error).toLowerCase();
     if (document.visibilityState === "hidden") return true;
     if (name === "aborterror" || name === "networkerror") return true;
-    return /load failed|failed to fetch|network|offline|internet|connection|request aborted|cancelled|canceled|timed? out|ari_internal_transient/.test(message);
+    if (code === "ari_turn_in_progress") return true;
+    return /load failed|failed to fetch|network|offline|internet|connection|request aborted|cancelled|canceled|timed? out|ari_internal_transient|ari turn is still processing/.test(message);
   }
 
-  function loadRuntimeController() {
-    if (window.AriRuntime?.ask) return Promise.resolve(window.AriRuntime);
-    if (runtimeControllerPromise) return runtimeControllerPromise;
+  function loadRuntimeController({ signal = null } = {}) {
+    const ready = currentRuntimeController();
+    if (ready) return Promise.resolve(ready);
 
-    runtimeControllerPromise = new Promise((resolve, reject) => {
-      const existing = [...document.scripts].find((script) =>
-        String(script.getAttribute("src") || "").includes("ari-runtime-controller.js")
-      );
-      const finish = () => {
-        if (window.AriRuntime?.ask) resolve(window.AriRuntime);
-        else reject(new Error("Ari runtime controller did not initialize."));
-      };
+    if (!runtimeControllerPromise) {
+      runtimeControllerPromise = new Promise((resolve, reject) => {
+        let settled = false;
+        let pollTimer = null;
+        let timeoutTimer = null;
 
-      if (existing) {
-        if (window.AriRuntime?.ask) {
-          resolve(window.AriRuntime);
-          return;
+        const cleanup = () => {
+          if (pollTimer) window.clearInterval(pollTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          pollTimer = null;
+          timeoutTimer = null;
+        };
+
+        const fail = (error) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(error);
+        };
+
+        const finishIfReady = () => {
+          const runtime = currentRuntimeController();
+          if (!runtime || settled) return false;
+          settled = true;
+          cleanup();
+          try { window.AriRuntime = runtime; } catch {}
+          resolve(runtime);
+          return true;
+        };
+
+        if (finishIfReady()) return;
+
+        const exactScript = [...document.scripts].find((script) =>
+          String(script.getAttribute("src") || "").includes(RUNTIME_CONTROLLER_SRC)
+        );
+
+        if (!exactScript) {
+          const script = document.createElement("script");
+          script.src = RUNTIME_CONTROLLER_SRC;
+          script.async = false;
+          script.dataset.ariRuntimeController = "true";
+          script.addEventListener("load", finishIfReady, { once: true });
+          script.addEventListener(
+            "error",
+            () => fail(new Error("Ari runtime controller failed to load.")),
+            { once: true }
+          );
+          document.head.appendChild(script);
         }
-        existing.addEventListener("load", finish, { once: true });
-        existing.addEventListener("error", () => reject(new Error("Ari runtime controller failed to load.")), { once: true });
-        return;
-      }
 
-      const script = document.createElement("script");
-      script.src = RUNTIME_CONTROLLER_SRC;
-      script.async = false;
-      script.dataset.ariRuntimeController = "true";
-      script.addEventListener("load", finish, { once: true });
-      script.addEventListener("error", () => reject(new Error("Ari runtime controller failed to load.")), { once: true });
-      document.head.appendChild(script);
-    });
+        // Polling is intentional. An older controller may already be loaded, or
+        // an exact script may have completed before this listener was attached.
+        // In either case Home must resolve the runtime or fail within a bound.
+        pollTimer = window.setInterval(finishIfReady, 25);
+        timeoutTimer = window.setTimeout(() => {
+          fail(new Error(`Ari runtime controller ${REQUIRED_RUNTIME_VERSION} did not initialize.`));
+        }, RUNTIME_LOAD_TIMEOUT_MS);
+      });
 
-    runtimeControllerPromise.catch(() => {
-      runtimeControllerPromise = null;
-    });
-    return runtimeControllerPromise;
+      runtimeControllerPromise.catch(() => {
+        runtimeControllerPromise = null;
+      });
+    }
+
+    return awaitWithSignal(runtimeControllerPromise, signal);
   }
 
   function readPendingTurn() {
@@ -115,7 +208,8 @@
         : `ari-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       message: cleanText(message),
       startedAt: new Date().toISOString(),
-      retries: 0
+      retries: 0,
+      processingChecks: 0
     });
   }
 
@@ -199,6 +293,7 @@
     requestInFlight = true;
     ariStopped = false;
     ariAbortController = new AbortController();
+    const signal = ariAbortController.signal;
 
     if (recovery) {
       enterAriConversationMode();
@@ -207,12 +302,13 @@
     }
 
     try {
-      await loadRuntimeController();
+      await loadRuntimeController({ signal });
       const response = await CalBuddy.askAri({
         turnId: pending.id,
         message: pending.message,
         history: ariChatHistory,
-        debugTiming: true
+        debugTiming: true,
+        signal
       });
       if (ariStopped) {
         clearPendingTurn();
@@ -220,13 +316,28 @@
       }
       await applySuccessfulResponse(pending, response);
     } catch (error) {
-      if (ariStopped) {
+      if (ariStopped || error?.name === "AbortError" || error?.code === "ARI_REQUEST_ABORTED") {
         clearPendingTurn();
         return;
       }
 
-      const transient = isTransientRequestError(error);
       const latest = readPendingTurn() || pending;
+      if (error?.code === "ARI_TURN_IN_PROGRESS") {
+        const processingChecks = Number(latest.processingChecks || 0) + 1;
+        if (processingChecks <= MAX_PROCESSING_RECHECKS) {
+          writePendingTurn({
+            ...latest,
+            retries: Math.max(0, Number(latest.retries || 0) - 1),
+            processingChecks
+          });
+          finishAriThinkingSequence();
+          setAriComposerThinking(false);
+          schedulePendingRecovery(PROCESSING_RECHECK_MS);
+          return;
+        }
+      }
+
+      const transient = isTransientRequestError(error);
       if (transient && Number(latest.retries || 0) < MAX_BACKGROUND_RETRIES) {
         finishAriThinkingSequence();
         setAriComposerThinking(false);
@@ -281,12 +392,12 @@
     await executePendingTurn(retryTurn, { recovery: true });
   }
 
-  function schedulePendingRecovery() {
+  function schedulePendingRecovery(delayMs = RESUME_DELAY_MS) {
     clearTimeout(recoveryTimer);
     recoveryTimer = setTimeout(() => {
       recoveryTimer = null;
       void recoverPendingTurn();
-    }, RESUME_DELAY_MS);
+    }, delayMs);
   }
 
   async function resilientSendAriMessage() {
