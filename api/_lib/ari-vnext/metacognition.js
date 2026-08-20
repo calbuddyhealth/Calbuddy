@@ -2,7 +2,7 @@
 // This tracks what evidence is available for the current turn; it never stores
 // or exposes hidden chain-of-thought.
 
-export const ARI_METACOGNITION_VERSION = "1.0.0";
+export const ARI_METACOGNITION_VERSION = "1.1.0";
 
 export function deriveMetacognition({ route = {}, context = {}, safety = {}, coachingState = null, longitudinalState = null } = {}) {
   const requestedDomains = [];
@@ -30,6 +30,7 @@ export function deriveMetacognition({ route = {}, context = {}, safety = {}, coa
       : ratio >= 0.5
         ? "partial"
         : "limited";
+  const consequenceTier = safety?.highStakes ? "high" : "ordinary";
 
   const evidenceSignals = [];
   if (Array.isArray(coachingState?.signals) && coachingState.signals.length) evidenceSignals.push("cross_feature_signals");
@@ -44,11 +45,23 @@ export function deriveMetacognition({ route = {}, context = {}, safety = {}, coa
     coverage,
     missingEvidence: missing,
     evidenceSignals,
+    exploration: {
+      consequenceTier,
+      uncertaintyIsInformationNotParalysis: true,
+      hypothesisFormationAllowed: true,
+      reversibleExperimentAllowed: consequenceTier !== "high",
+      consequentialExecutionRequiresExistingChecks: true,
+      failureIsEvidenceNotVerdict: true,
+      generalizedRetreatFromSingleFailure: false
+    },
     rules: {
       unknownIsNotNegativeEvidence: true,
       currentUserCorrectionWins: true,
       distinguishObservationFromInference: true,
-      askOnlyWhenMissingInformationBlocksUsefulness: true
+      askOnlyWhenMissingInformationBlocksUsefulness: true,
+      lowConfidenceIsNotAStopSignal: true,
+      guardConsequencesNotImagination: true,
+      learnLocallyFromFailure: true
     }
   };
 }
@@ -61,16 +74,22 @@ export function metacognitionToInstruction(state = null) {
   const signals = Array.isArray(state.evidenceSignals) && state.evidenceSignals.length
     ? state.evidenceSignals.join(", ")
     : "none";
+  const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
 
   return [
     `Evidence confidence: ${state.confidence}.`,
+    `Consequence tier: ${consequenceTier}.`,
     `Current attention: ${(state.attention || []).join(", ")}.`,
     `Missing relevant evidence: ${missing}.`,
     `Structured evidence available: ${signals}.`,
     "Do not turn missing data into a negative conclusion. Separate observed app data from inference or opinion.",
-    "If evidence is partial, still answer what can be answered and qualify only the part that depends on missing evidence.",
-    "Ask a clarifying question only when the missing fact genuinely blocks a useful answer or a safe app mutation."
-  ].join("\n").slice(0, 1800);
+    "Uncertainty changes how strongly you state a conclusion; it is not, by itself, a reason to stop thinking, become vague, or refuse to take a useful position.",
+    "If evidence is partial or limited and consequences are ordinary, make the best calibrated inference you can. Prefer a clearly bounded hypothesis, recommendation, or reversible experiment over unnecessary paralysis.",
+    "Ask a clarifying question only when the missing fact genuinely blocks a useful answer or a safe app mutation.",
+    "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
+    "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
+    "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution."
+  ].join("\n").slice(0, 2600);
 }
 
 function hasTrainingEvidence(context = {}) {
