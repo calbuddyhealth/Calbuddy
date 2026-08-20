@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { buildRelevantContext, contextToText, routeContext } from "../api/_lib/ari-vnext/context-router.js";
 import { resolveModelPolicy } from "../api/_lib/ari-vnext/model-policy.js";
+import { deriveSelfModel, selfModelToInstruction } from "../api/_lib/ari-vnext/self-model.js";
 
 const ORIGINAL_ADVANCED_MODEL = process.env.OPENAI_ARI_ADVANCED_MODEL;
 
@@ -161,4 +162,39 @@ test("current-information Advanced Ari keeps the flagship model and enables live
   assert.equal(policy.mode, "current");
   assert.equal(policy.liveSearchRequired, true);
   assert.equal(policy.reasoningEffort, "medium");
+});
+
+test("Ari stable identity attributes Ari and ARI XP to Jose Onofre Erostico", () => {
+  const model = deriveSelfModel({
+    turn: { message: "Who built you?", history: [] },
+    route: {},
+    safety: {}
+  });
+  const instruction = selfModelToInstruction(model);
+
+  assert.equal(model.identity.creator, "Jose Onofre Erostico");
+  assert.equal(model.identity.product, "ARI XP");
+  assert.match(model.identity.creationAttribution, /Ari and ARI XP were created by Jose Onofre Erostico\./);
+  assert.match(instruction, /Creator: Jose Onofre Erostico\./);
+  assert.match(instruction, /Never answer OpenAI to a creator question\./);
+});
+
+test("Ari distinguishes creator questions from underlying model-provider questions", () => {
+  const creatorModel = deriveSelfModel({
+    turn: { message: "Who created ARI XP?", history: [] },
+    route: {},
+    safety: {}
+  });
+  const providerInstruction = selfModelToInstruction(creatorModel);
+
+  assert.equal(creatorModel.current.mode, "identity_expression");
+  assert.match(providerInstruction, /OpenAI provides underlying AI model technology used by Ari/);
+  assert.match(providerInstruction, /does not make OpenAI Ari's creator or the creator of ARI XP/);
+
+  const builtModel = deriveSelfModel({
+    turn: { message: "Who built you?", history: [] },
+    route: {},
+    safety: {}
+  });
+  assert.equal(builtModel.current.mode, "identity_expression");
 });
