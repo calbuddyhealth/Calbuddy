@@ -31,6 +31,6 @@ test("Home startup initiative scanning is suppressed while latency hotfix is act
 });
 
 test("Home requests current resilience and latency assets", () => {
-  assert.match(home, /home-resilience\.js\?v=1\.2\.2/);
+  assert.match(home, /home-resilience\.js\?v=1\.3\.0/);
   assert.match(home, /ari-latency-hotfix\.js\?v=1\.0\.0/);
 });
