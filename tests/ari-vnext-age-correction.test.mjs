@@ -119,7 +119,7 @@ test("Circle authorization remains separate from editable adult Goals age", () =
   const goalsPolicy = source("js/goals-age-policy.js");
   assert.match(entitlement, /ari_account_state/i);
   assert.match(entitlement, /date_of_birth/i);
-  assert.match(entitlement, /circleAllowed: active && ageBand === "adult"/i);
+  assert.match(entitlement, /circleAllowed:\s*authorizationKnown[\s\S]*active && ageBand === "adult"[\s\S]*:\s*null/i);
   assert.doesNotMatch(entitlement, /profiles\.age/i);
   assert.doesNotMatch(goalsPolicy, /circleAllowed\s*=/i);
 });
