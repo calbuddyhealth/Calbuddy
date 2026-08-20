@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildIntelligenceControlCookies,
   normalizeReasoningProfile,
-  readIntelligenceControlCookies,
   resolveAriIntelligenceEntitlement
 } from "../server/ari-intelligence-entitlement.js";
 
@@ -37,7 +35,7 @@ test("owner can enable Advanced Ari with a verified user id", () => {
   assert.equal(result.source, "owner_beta");
 });
 
-test("a non-owner cannot unlock Advanced Ari by setting the preference cookie", () => {
+test("a non-owner cannot unlock Advanced Ari by supplying advanced controls", () => {
   process.env.ARI_OWNER_USER_ID = "11111111-1111-4111-8111-111111111111";
   process.env.ARI_PREMIUM_ADVANCED_ENABLED = "false";
 
@@ -50,6 +48,21 @@ test("a non-owner cannot unlock Advanced Ari by setting the preference cookie", 
   assert.equal(result.advancedAllowed, false);
   assert.equal(result.advancedEnabled, false);
   assert.equal(result.reasoningProfile, "standard");
+});
+
+test("owner remains Standard Ari until the owner control is explicitly enabled", () => {
+  process.env.ARI_OWNER_USER_ID = "11111111-1111-4111-8111-111111111111";
+  process.env.ARI_PREMIUM_ADVANCED_ENABLED = "false";
+
+  const result = resolveAriIntelligenceEntitlement({
+    userId: "11111111-1111-4111-8111-111111111111",
+    controls: { enabled: false, reasoningProfile: "deep" }
+  });
+
+  assert.equal(result.advancedAllowed, true);
+  assert.equal(result.advancedEnabled, false);
+  assert.equal(result.tier, "standard");
+  assert.equal(result.source, "eligible_not_enabled");
 });
 
 test("premium access stays locked until the server rollout flag is enabled", () => {
@@ -74,23 +87,6 @@ test("premium access stays locked until the server rollout flag is enabled", () 
   assert.equal(enabled.tier, "advanced");
   assert.equal(enabled.premiumEligible, true);
   assert.equal(enabled.source, "premium");
-});
-
-test("owner control cookies are HttpOnly and parse back into controls", () => {
-  const cookies = buildIntelligenceControlCookies({ enabled: true, reasoningProfile: "balanced" });
-  assert.equal(cookies.length, 2);
-  assert.ok(cookies.every((value) => /HttpOnly/i.test(value)));
-  assert.ok(cookies.every((value) => /Secure/i.test(value)));
-
-  const request = {
-    headers: {
-      cookie: cookies.map((value) => value.split(";")[0]).join("; ")
-    }
-  };
-  assert.deepEqual(readIntelligenceControlCookies(request), {
-    enabled: true,
-    reasoningProfile: "balanced"
-  });
 });
 
 test("unknown reasoning profiles fail closed to adaptive", () => {
