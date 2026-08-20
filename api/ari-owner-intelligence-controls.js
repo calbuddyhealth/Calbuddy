@@ -4,11 +4,14 @@ import {
   verifyOwnerRequest
 } from "../server/ari-owner-auth.js";
 import {
-  buildIntelligenceControlCookies,
   normalizeReasoningProfile,
-  readIntelligenceControlCookies,
   resolveAriIntelligenceEntitlement
 } from "../server/ari-intelligence-entitlement.js";
+import {
+  loadAriCommercialEntitlement,
+  loadAriIntelligenceControls,
+  saveAriIntelligenceControls
+} from "../server/ari-intelligence-control-store.js";
 
 export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
@@ -22,37 +25,49 @@ export default async function handler(req, res) {
   const authorization = await verifyOwnerRequest(req);
   if (!authorization?.authorized) return sendOwnerAuthorizationError(res, authorization);
 
+  const userId = authorization.user?.id;
+  const commercial = await loadAriCommercialEntitlement({ userId });
+
   if (req.method === "GET") {
-    const controls = readIntelligenceControlCookies(req);
+    const controls = await loadAriIntelligenceControls({ userId });
     return res.status(200).json({
       success: true,
       controls,
       entitlement: resolveAriIntelligenceEntitlement({
-        userId: authorization.user?.id,
-        controls
+        userId,
+        controls,
+        subscriptionTier: commercial.subscriptionTier,
+        subscriptionStatus: commercial.subscriptionStatus
       }),
       ownerOnly: true,
+      storage: "server",
       premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true"
     });
   }
 
   const body = resolveBody(req);
-  const enabled = body?.enabled === true;
-  const reasoningProfile = normalizeReasoningProfile(body?.reasoningProfile);
-  const controls = { enabled, reasoningProfile };
+  const controls = await saveAriIntelligenceControls({
+    userId,
+    enabled: body?.enabled === true,
+    reasoningProfile: normalizeReasoningProfile(body?.reasoningProfile)
+  });
 
-  res.setHeader("Set-Cookie", buildIntelligenceControlCookies(controls));
+  const entitlement = resolveAriIntelligenceEntitlement({
+    userId,
+    controls,
+    subscriptionTier: commercial.subscriptionTier,
+    subscriptionStatus: commercial.subscriptionStatus
+  });
 
   return res.status(200).json({
     success: true,
     controls,
-    entitlement: resolveAriIntelligenceEntitlement({
-      userId: authorization.user?.id,
-      controls
-    }),
-    message: enabled
-      ? "Advanced Ari owner beta is enabled on this device."
-      : "Advanced Ari owner beta is disabled on this device."
+    entitlement,
+    storage: "server",
+    premiumRolloutEnabled: String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").toLowerCase() === "true",
+    message: entitlement.advancedEnabled
+      ? "Advanced Ari owner beta is enabled for your account."
+      : "Advanced Ari owner beta is disabled for your account."
   });
 }
 
