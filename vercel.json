@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/ari-signals-scan",
+      "schedule": "17 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/knowledge",
