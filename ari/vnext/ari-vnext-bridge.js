@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.7.1",
+  version: "1.7.2",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -22,6 +22,9 @@ window.AriVNextBridge = {
     const context = await this.buildContext({ ...options, message: text, history });
     const surface = options?.page || options?.surface || window.location.pathname || "unknown";
     const turnId = normalizeTurnId(options?.turnId || options?.requestId) || makeTurnId();
+    const signal = options?.signal || null;
+
+    if (signal?.aborted) throw makeBridgeAbortError();
 
     const payload = {
       turnId,
@@ -35,18 +38,34 @@ window.AriVNextBridge = {
       pendingAction: this.getPendingAction()
     };
 
-    const response = await fetch("/api/ari-vnext", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "X-Ari-Turn-Id": turnId
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store"
-    });
+    let response;
+    try {
+      response = await fetch("/api/ari-vnext", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-Ari-Turn-Id": turnId
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        ...(signal ? { signal } : {})
+      });
+    } catch (error) {
+      if (error?.name === "AbortError" || signal?.aborted) throw makeBridgeAbortError();
+      throw error;
+    }
 
     const data = await response.json().catch(() => ({}));
+
+    if (response.status === 202 && data?.code === "ARI_TURN_IN_PROGRESS") {
+      const error = new Error("Ari turn is still processing.");
+      error.code = "ARI_TURN_IN_PROGRESS";
+      error.turnId = data?.turnId || turnId;
+      error.transient = true;
+      throw error;
+    }
+
     if (!response.ok) throw new Error(data?.error || "Ari vNext request failed.");
 
     if (data?.pendingAction) this.setPendingAction(data.pendingAction);
@@ -399,6 +418,13 @@ function experimentExecutionReply(execution = {}, pending = {}) {
   }
   if (pending?.name === "cancel_experiment") return "Experiment cancelled. I won't treat the unfinished observation window as evidence.";
   return "Experiment ledger updated.";
+}
+
+function makeBridgeAbortError() {
+  const error = new Error("Ari request was cancelled.");
+  error.name = "AbortError";
+  error.code = "ARI_REQUEST_ABORTED";
+  return error;
 }
 
 function normalizeTurnId(value = "") {

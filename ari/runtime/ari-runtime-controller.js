@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.3
+// Version: 1.3.4
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -23,6 +23,9 @@
 //     userContext so personalization is not silently discarded.
 //   - Narrow greetings skip heavy browser-side profile/nutrition hydration.
 //   - Expired vNext-linked legacy actions can never execute as a fallback.
+//   - window.Ari.Runtime is canonical and window.AriRuntime is a compatibility
+//     alias for Home/iOS callers during the cutover.
+//   - Abort and in-progress transport states never fall through to Rebirth.
 // =====================================================
 
 (() => {
@@ -31,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.3";
+  const VERSION = "1.3.4";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -40,7 +43,7 @@
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
-    "ari/vnext/ari-vnext-bridge.js?v=1.7.1",
+    "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.0.2",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
@@ -63,6 +66,52 @@
 
   function clean(value = "") {
     return String(value || "").trim();
+  }
+
+  function versionAtLeast(actual = "", required = "") {
+    const normalize = (value) => String(value || "")
+      .split(".")
+      .map((part) => Number.parseInt(part, 10) || 0);
+    const left = normalize(actual);
+    const right = normalize(required);
+    const length = Math.max(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+      const a = left[index] || 0;
+      const b = right[index] || 0;
+      if (a > b) return true;
+      if (a < b) return false;
+    }
+    return true;
+  }
+
+  function makeAbortError() {
+    const error = new Error("Ari request was cancelled.");
+    error.name = "AbortError";
+    error.code = "ARI_REQUEST_ABORTED";
+    return error;
+  }
+
+  function throwIfAborted(signal = null) {
+    if (signal?.aborted) throw makeAbortError();
+  }
+
+  function awaitWithSignal(promise, signal = null) {
+    if (!signal) return promise;
+    if (signal.aborted) return Promise.reject(makeAbortError());
+    return new Promise((resolve, reject) => {
+      const onAbort = () => reject(makeAbortError());
+      signal.addEventListener("abort", onAbort, { once: true });
+      promise.then(
+        (value) => {
+          signal.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        (error) => {
+          signal.removeEventListener("abort", onAbort);
+          reject(error);
+        }
+      );
+    });
   }
 
   function normalizeAskRequest(messageOrInput = "", options = {}) {
@@ -136,7 +185,10 @@
     if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
-    if (base.endsWith("ari-vnext-bridge.js")) return typeof window.AriVNextBridge?.ask === "function";
+    if (base.endsWith("ari-vnext-bridge.js")) {
+      return typeof window.AriVNextBridge?.ask === "function" &&
+        versionAtLeast(window.AriVNextBridge?.version, "1.7.2");
+    }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
     if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
     return true;
@@ -153,12 +205,13 @@
   }
 
   function loadScript(src) {
-    const base = dependencyBase(src);
-    const existing = [...document.scripts].find((script) => {
-      const current = dependencyBase(script.getAttribute("src") || "");
-      return current === base || current.endsWith(`/${base}`);
+    if (dependencyReady(src)) return Promise.resolve(true);
+
+    const exact = [...document.scripts].find((script) => {
+      const current = String(script.getAttribute("src") || "");
+      return current === src || current.endsWith(`/${src}`) || current.includes(src);
     });
-    if (existing) return Promise.resolve(true);
+    if (exact) return Promise.resolve(true);
 
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
@@ -168,7 +221,7 @@
       script.addEventListener("load", () => resolve(true), { once: true });
       script.addEventListener(
         "error",
-        () => reject(new Error(`Could not load ${base}.`)),
+        () => reject(new Error(`Could not load ${dependencyBase(src)}.`)),
         { once: true }
       );
       document.head.appendChild(script);
@@ -177,7 +230,8 @@
 
   function vNextReady() {
     return Boolean(
-      window.AriVNextBridge?.ask &&
+      typeof window.AriVNextBridge?.ask === "function" &&
+      versionAtLeast(window.AriVNextBridge?.version, "1.7.2") &&
       window.AriVNextActionAdapter &&
       window.AriVNextActivityAdapter &&
       window.AriVNextMealPlanAdapter?.ready === true &&
@@ -185,28 +239,31 @@
     );
   }
 
-  async function ensureVNext() {
+  async function ensureVNext(signal = null) {
+    throwIfAborted(signal);
     if (vNextReady()) return true;
-    if (dependencyPromise) return await dependencyPromise;
 
-    dependencyPromise = (async () => {
-      for (const src of VNEXT_SCRIPTS) {
-        await loadScript(src);
-        await waitForDependency(src);
-      }
+    if (!dependencyPromise) {
+      dependencyPromise = (async () => {
+        for (const src of VNEXT_SCRIPTS) {
+          await loadScript(src);
+          await waitForDependency(src);
+        }
 
-      if (!vNextReady()) {
-        throw new Error("Ari vNext brain stack did not initialize completely.");
-      }
-      return true;
-    })();
+        if (!vNextReady()) {
+          throw new Error("Ari vNext brain stack did not initialize completely.");
+        }
+        return true;
+      })();
 
-    try {
-      return await dependencyPromise;
-    } catch (error) {
-      dependencyPromise = null;
-      throw error;
+      dependencyPromise.catch(() => {
+        dependencyPromise = null;
+      });
     }
+
+    const ready = await awaitWithSignal(dependencyPromise, signal);
+    throwIfAborted(signal);
+    return ready;
   }
 
   async function getUserContext() {
@@ -387,13 +444,24 @@
     return Number.isFinite(expiresAt) && expiresAt <= Date.now();
   }
 
+  function shouldPropagateTransportError(error) {
+    return Boolean(
+      error?.name === "AbortError" ||
+      error?.code === "ARI_REQUEST_ABORTED" ||
+      error?.code === "ARI_TURN_IN_PROGRESS"
+    );
+  }
+
   async function ask(messageOrInput = "", options = {}) {
     const request = normalizeAskRequest(messageOrInput, options);
     const { input, message } = request;
+    const signal = input?.signal || null;
 
     if (!message) {
       return { success: false, ready: false, reply: "Say something first." };
     }
+
+    throwIfAborted(signal);
 
     const mode = getMode();
     if (mode !== "vnext") {
@@ -402,8 +470,10 @@
     }
 
     try {
-      await ensureVNext();
+      await ensureVNext(signal);
+      throwIfAborted(signal);
       await markInitiativeEngaged();
+      throwIfAborted(signal);
 
       const casualConversation = isCasualConversation(message);
       const userContext =
@@ -411,15 +481,20 @@
         input?.context ||
         (casualConversation ? {} : await getUserContext());
 
+      throwIfAborted(signal);
+
       let result = await window.AriVNextBridge.ask(message, {
         ...input,
         userContext,
-        casualConversation
+        casualConversation,
+        signal
       });
+      throwIfAborted(signal);
       result = await normalizePendingAction(result);
       result = await executeTypedConfirmation(result);
       return result;
     } catch (error) {
+      if (shouldPropagateTransportError(error)) throw error;
       console.error("Ari vNext runtime failed; using Rebirth fallback:", error);
       if (!legacy.askAri) throw error;
       return await legacy.askAri(input);
@@ -488,7 +563,8 @@
   CalBuddy.setAriRuntimeMode = setMode;
   CalBuddy.getAriRuntimeMode = getMode;
   CalBuddy.checkAriInitiative = checkInitiative;
-  window.Ari.Runtime = Object.freeze({
+
+  const runtimeApi = Object.freeze({
     version: VERSION,
     ask,
     ensureVNext,
@@ -496,4 +572,12 @@
     getMode,
     setMode
   });
+
+  window.Ari.Runtime = runtimeApi;
+  window.AriRuntime = runtimeApi;
+  window.dispatchEvent(
+    new CustomEvent("ari:runtimeReady", {
+      detail: { version: VERSION, runtime: "vnext", source: "ari-runtime-controller" }
+    })
+  );
 })();
