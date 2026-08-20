@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.7.0",
+  version: "1.7.1",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -21,14 +21,17 @@ window.AriVNextBridge = {
     const history = Array.isArray(options?.history) ? options.history.slice(-16) : [];
     const context = await this.buildContext({ ...options, message: text, history });
     const surface = options?.page || options?.surface || window.location.pathname || "unknown";
+    const turnId = normalizeTurnId(options?.turnId || options?.requestId) || makeTurnId();
 
     const payload = {
+      turnId,
       message: text,
       history,
       surface,
       context,
       preferences: options?.preferences || options?.userContext?.preferences || {},
-      memorySummary: options?.coachMemorySummary || options?.userContext?.coachMemorySummary || "",
+      // vNext owns identity, permissions, and durable memory retrieval. Do not
+      // forward the legacy CalBuddy coachMemorySummary prompt into the model.
       pendingAction: this.getPendingAction()
     };
 
@@ -36,7 +39,8 @@ window.AriVNextBridge = {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Ari-Turn-Id": turnId
       },
       body: JSON.stringify(payload),
       cache: "no-store"
@@ -300,7 +304,14 @@ window.AriVNextBridge = {
   getPendingAction() {
     try {
       const value = sessionStorage.getItem(this.pendingStorageKey);
-      return value ? JSON.parse(value) : null;
+      if (!value) return null;
+      const pending = JSON.parse(value);
+      const expiresAt = Date.parse(String(pending?.expiresAt || ""));
+      if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+        this.clearPendingAction();
+        return null;
+      }
+      return pending;
     } catch {
       return null;
     }
@@ -308,6 +319,11 @@ window.AriVNextBridge = {
 
   setPendingAction(action) {
     if (!action) return this.clearPendingAction();
+    const expiresAt = Date.parse(String(action?.expiresAt || ""));
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      this.clearPendingAction();
+      return null;
+    }
     sessionStorage.setItem(this.pendingStorageKey, JSON.stringify(action));
     window.dispatchEvent(new CustomEvent("ari:vnextPendingAction", { detail: { action } }));
     return action;
@@ -383,6 +399,20 @@ function experimentExecutionReply(execution = {}, pending = {}) {
   }
   if (pending?.name === "cancel_experiment") return "Experiment cancelled. I won't treat the unfinished observation window as evidence.";
   return "Experiment ledger updated.";
+}
+
+function normalizeTurnId(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9:_-]/g, "")
+    .slice(0, 200);
+}
+
+function makeTurnId() {
+  if (typeof window.crypto?.randomUUID === "function") {
+    return `turn_${window.crypto.randomUUID()}`;
+  }
+  return `turn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function signedWeeklyGoal(value, goalType) {
