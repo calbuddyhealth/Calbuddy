@@ -1,29 +1,10 @@
-// ARI XP — server-authoritative intelligence entitlement foundation.
-// Owner beta is enabled by an HttpOnly preference cookie only after owner auth.
-// Future premium access can reuse this resolver without changing the client contract.
+// ARI XP — server-authoritative intelligence entitlement.
+// Owner beta controls are persisted by the server in Supabase. Client flags are
+// never authorization. Future premium access reuses the same resolver.
 
-export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.0.0";
-export const ARI_INTELLIGENCE_COOKIE = "ari_xp_advanced_ari";
-export const ARI_REASONING_COOKIE = "ari_xp_reasoning_profile";
+export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.1.0";
 
 const REASONING_PROFILES = new Set(["adaptive", "economy", "balanced", "deep"]);
-
-export function readIntelligenceControlCookies(req = {}) {
-  const cookies = parseCookies(req?.headers?.cookie || "");
-  return {
-    enabled: cookies[ARI_INTELLIGENCE_COOKIE] === "1",
-    reasoningProfile: normalizeReasoningProfile(cookies[ARI_REASONING_COOKIE])
-  };
-}
-
-export function buildIntelligenceControlCookies({ enabled = false, reasoningProfile = "adaptive" } = {}) {
-  const maxAge = 60 * 60 * 24 * 30;
-  const common = `Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
-  return [
-    `${ARI_INTELLIGENCE_COOKIE}=${enabled ? "1" : "0"}; ${common}`,
-    `${ARI_REASONING_COOKIE}=${encodeURIComponent(normalizeReasoningProfile(reasoningProfile))}; ${common}`
-  ];
-}
 
 export function resolveAriIntelligenceEntitlement({
   userId = "",
@@ -72,21 +53,4 @@ export function resolveAriIntelligenceEntitlement({
 export function normalizeReasoningProfile(value = "adaptive") {
   const candidate = String(value || "").trim().toLowerCase();
   return REASONING_PROFILES.has(candidate) ? candidate : "adaptive";
-}
-
-function parseCookies(header = "") {
-  const output = {};
-  for (const piece of String(header || "").split(";")) {
-    const index = piece.indexOf("=");
-    if (index <= 0) continue;
-    const key = piece.slice(0, index).trim();
-    const raw = piece.slice(index + 1).trim();
-    if (!key) continue;
-    try {
-      output[key] = decodeURIComponent(raw);
-    } catch {
-      output[key] = raw;
-    }
-  }
-  return output;
 }
