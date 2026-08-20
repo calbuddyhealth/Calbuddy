@@ -1,10 +1,10 @@
 // ARI vNext — owner-only adaptive reasoning strategy policy.
 // Strategies are compact reusable instructions, not hidden chain-of-thought.
 
-export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.2.0";
-export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.2.0";
+export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.3.0";
+export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.3.0";
 
-const ACTIVE_STATUSES = new Set(["testing", "adopted"]);
+const ACTIVE_STATUSES = new Set(["testing", "adopted", "practical_prior"]);
 const ALLOWED_DOMAINS = new Set([
   "general",
   "conversation",
@@ -21,7 +21,7 @@ const ALLOWED_DOMAINS = new Set([
 ]);
 
 export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}) {
-  const currentDomains = routeDomains(route);
+  const currentDomains = deriveAdaptiveStrategyContextDomains(route);
   const active = (Array.isArray(strategies) ? strategies : [])
     .map(normalizeStrategyRow)
     .filter((item) => ACTIVE_STATUSES.has(item.status))
@@ -34,15 +34,20 @@ export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}
     ownerOnly: true,
     selfUpdating: true,
     nonRegressiveEvolution: true,
+    practicalPriorMaturation: true,
     storesHiddenChainOfThought: false,
     policy: {
       preserveBestKnownMethod: true,
       adoptedStrategiesDoNotAutoRetireFromOrdinaryNegativeFeedback: true,
       challengersTestBesideIncumbents: true,
-      replacementsRequireStrongerEvidence: true
+      replacementsRequireStrongerEvidence: true,
+      practicalPriorsAreDefaultsNotDogma: true,
+      currentEvidenceOverridesPracticalPriors: true,
+      preserveLessonsWithoutReplayingFailures: true
     },
     domains: [...currentDomains],
     activeCount: active.length,
+    practicalPriorCount: active.filter((item) => item.status === "practical_prior").length,
     adoptedCount: active.filter((item) => item.status === "adopted").length,
     testingCount: active.filter((item) => item.status === "testing").length,
     active: active.map(publicStrategy)
@@ -52,15 +57,16 @@ export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}
 export function adaptiveStrategyInstruction(state = null) {
   if (!state?.ownerOnly || !Array.isArray(state?.active) || !state.active.length) return "";
   return [
-    "ARI ADAPTIVE STRATEGY LAYER — NON-REGRESSIVE EVOLUTION",
-    "The following are Ari-authored reusable strategy hypotheses learned from prior interactions and outcomes.",
-    "Preserve the best-known working capability while testing improvements. An adopted strategy is the incumbent method; a testing strategy is a challenger and must not erase or suppress the incumbent merely because it is new.",
-    "Adopted strategies may guide how you reason or communicate when applicable. Testing strategies are experiments: use them lightly, compare their usefulness against the incumbent, and allow current evidence to override them.",
-    "Negative evidence about an adopted strategy is a reason to investigate and test a better alternative, not a reason to become less capable by dropping the strategy with no demonstrated replacement.",
-    "These strategies are not facts, memories, values, permissions, or application commands. Current user instructions, current evidence, safety requirements, and explicit app-action authorization always outrank them.",
-    "Do not expose hidden reasoning or narrate routine self-adjustments. You may briefly explain a meaningful adopted strategy if the user asks or if the change materially affects the interaction.",
+    "ARI ADAPTIVE STRATEGY LAYER — NON-REGRESSIVE EVOLUTION + PRACTICAL PRIORS",
+    "The following are Ari-authored reusable strategy hypotheses and mature practical priors learned from prior interactions and outcomes.",
+    "A practical_prior is accumulated practical judgment: use it as the sensible default when applicable, not as unquestionable truth. Current evidence and explicit current user correction outrank it.",
+    "An adopted strategy is the best-known incumbent method that has passed initial testing. A testing strategy is a challenger. Preserve useful incumbent capability while testing improvements beside it.",
+    "Negative evidence about an adopted strategy or practical prior is information: investigate the failed assumption, preserve the useful lesson, and test a better challenger. Do not erase capability merely because an outcome was poor.",
+    "Do not repeatedly replay old failures. Retain the compact causal lesson and let later recovery evidence strengthen or revise the practical prior.",
+    "These records are not facts, memories, values, permissions, or application commands. Current user instructions, current evidence, safety requirements, and explicit app-action authorization always outrank them.",
+    "Do not expose hidden reasoning or narrate routine self-adjustments. You may briefly explain a meaningful adopted strategy or practical prior if the user asks or if the change materially affects the interaction.",
     JSON.stringify(state.active, null, 2)
-  ].join("\n").slice(0, 7000);
+  ].join("\n").slice(0, 7600);
 }
 
 export function classifyStrategyFeedback(message = "") {
@@ -97,29 +103,33 @@ export function classifyStrategyFeedback(message = "") {
   return positive.some((pattern) => pattern.test(text)) ? "positive" : "neutral";
 }
 
-export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now = new Date()) {
+export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now = new Date(), maturityEvidence = {}) {
   const current = normalizeStrategyRow(strategy);
+  const evidence = normalizeMaturityEvidence(maturityEvidence);
   const result = ["positive", "negative", "neutral"].includes(outcome) ? outcome : "neutral";
+  const confidenceDelta = current.status === "practical_prior"
+    ? (result === "positive" ? 0.03 : result === "negative" ? -0.04 : 0.002)
+    : (result === "positive" ? 0.06 : result === "negative" ? -0.08 : 0.005);
   const next = {
     ...current,
     trials: current.trials + 1,
     positiveOutcomes: current.positiveOutcomes + (result === "positive" ? 1 : 0),
     negativeOutcomes: current.negativeOutcomes + (result === "negative" ? 1 : 0),
     neutralOutcomes: current.neutralOutcomes + (result === "neutral" ? 1 : 0),
-    confidence: clamp01(
-      current.confidence +
-      (result === "positive" ? 0.06 : result === "negative" ? -0.08 : 0.005)
-    ),
+    confidence: clamp01(current.confidence + confidenceDelta),
     lastUsedAt: iso(now)
   };
 
   const priorStatus = current.status;
   const resolved = next.positiveOutcomes + next.negativeOutcomes;
   const positiveRate = resolved > 0 ? next.positiveOutcomes / resolved : 0;
+  const maturityScore = calculateMaturityScore(next, evidence);
+  next.maturityScore = maturityScore;
   let replacementRecommended = false;
 
   if (priorStatus === "testing") {
     const isReplacement = Boolean(next.replacesStrategyKey);
+    const replacingPracticalPrior = isReplacement && evidence.replacementTargetStatus === "practical_prior";
     const evidenceAdoption = !isReplacement &&
       next.trials >= 4 &&
       next.positiveOutcomes >= 3 &&
@@ -131,40 +141,68 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
       next.trials >= 7 &&
       next.negativeOutcomes === 0 &&
       next.confidence >= 0.82;
-    const replacementAdoption = isReplacement &&
+    const replacementAdoption = isReplacement && !replacingPracticalPrior &&
       next.trials >= 7 &&
       next.positiveOutcomes >= 5 &&
       next.negativeOutcomes <= 1 &&
       resolved >= 5 &&
       positiveRate >= 0.8 &&
       next.confidence >= 0.84;
+    const practicalPriorReplacement = replacingPracticalPrior &&
+      next.trials >= 12 &&
+      next.positiveOutcomes >= 9 &&
+      next.negativeOutcomes <= 1 &&
+      resolved >= 9 &&
+      positiveRate >= 0.88 &&
+      next.confidence >= 0.9 &&
+      maturityScore >= 0.88;
     const evidenceRetirement =
       next.trials >= 5 &&
       next.negativeOutcomes >= 3 &&
       next.negativeOutcomes > next.positiveOutcomes;
 
-    if (evidenceAdoption || survivalAdoption || replacementAdoption) {
+    if (practicalPriorReplacement) {
+      next.status = "practical_prior";
+      next.adoptedAt = next.adoptedAt || iso(now);
+      next.maturedAt = iso(now);
+      next.retiredAt = null;
+    } else if (evidenceAdoption || survivalAdoption || replacementAdoption) {
       next.status = "adopted";
       next.adoptedAt = iso(now);
       next.retiredAt = null;
     } else if (evidenceRetirement) {
-      // Only an unproven testing hypothesis is retired for poor evidence.
-      // This never removes an already-adopted incumbent capability.
       next.status = "retired";
       next.retiredAt = iso(now);
     }
   } else if (priorStatus === "adopted") {
-    // Non-regression rule: ordinary negative feedback may lower confidence and
-    // trigger challenger discovery, but it never deletes the best-known method.
-    // An adopted strategy leaves active use only when a separately tested
-    // replacement has accumulated stronger evidence and supersedes it.
+    const shouldMature =
+      next.trials >= 12 &&
+      next.positiveOutcomes >= 8 &&
+      next.negativeOutcomes <= 2 &&
+      resolved >= 9 &&
+      positiveRate >= 0.82 &&
+      next.confidence >= 0.9 &&
+      maturityScore >= 0.86 &&
+      (evidence.distinctContextCount >= 2 || next.trials >= 18);
+
+    if (shouldMature) {
+      next.status = "practical_prior";
+      next.maturedAt = iso(now);
+      next.retiredAt = null;
+    } else {
+      replacementRecommended =
+        evidence.recentResolvedCount >= 5 && evidence.recentNegativeCount >= 3 ||
+        (next.trials >= 6 && next.negativeOutcomes >= 3 && resolved >= 4 && positiveRate < 0.4);
+      next.status = "adopted";
+      next.retiredAt = null;
+    }
+  } else if (priorStatus === "practical_prior") {
     replacementRecommended =
-      next.trials >= 6 &&
-      next.negativeOutcomes >= 3 &&
-      resolved >= 4 &&
-      positiveRate < 0.4;
-    next.status = "adopted";
+      evidence.recentResolvedCount >= 5 && evidence.recentNegativeCount >= 3 ||
+      next.confidence < 0.72;
+    next.status = "practical_prior";
     next.retiredAt = null;
+    next.maturedAt = current.maturedAt || iso(now);
   }
 
   return {
@@ -173,7 +211,9 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
     priorStatus,
     nextStatus: next.status,
     outcome: result,
-    replacementRecommended
+    replacementRecommended,
+    maturityScore,
+    maturityEvidence: evidence
   };
 }
 
@@ -204,6 +244,7 @@ export function normalizeAdaptiveStrategyProposal(raw = null) {
   const title = clean(raw.title, 120);
   const instruction = clean(raw.instruction, 520);
   const rationale = clean(raw.rationale, 420);
+  const lessonSummary = clean(raw.lessonSummary || raw.rationale, 420);
   const userVisibleSummary = clean(raw.userVisibleSummary, 320);
   const domains = normalizeDomains(raw.domains);
   const confidence = clamp01(Number(raw.confidence || 0));
@@ -217,6 +258,7 @@ export function normalizeAdaptiveStrategyProposal(raw = null) {
     title,
     instruction,
     rationale,
+    lessonSummary,
     domains,
     confidence,
     replacesStrategyKey,
@@ -227,7 +269,25 @@ export function normalizeAdaptiveStrategyProposal(raw = null) {
 
 export function buildStrategyAdoptionSignal(strategy = {}) {
   const item = normalizeStrategyRow(strategy);
-  if (item.status !== "adopted" || !item.strategyKey) return null;
+  if (!item.strategyKey) return null;
+  if (item.status === "practical_prior") {
+    const summary = clean(item.userVisibleSummary, 320) || `A lesson about ${item.title.toLowerCase()} has held up across enough experience that I now use it as a practical default.`;
+    return {
+      initiativeKey: `adaptive_practical_prior:${item.strategyKey}`,
+      reasonId: "adaptive_practical_prior_matured",
+      priority: "medium",
+      confidence: item.confidence,
+      source: "adaptive_strategy_layer",
+      domain: "ari_self_model",
+      opener: summary,
+      followUpPrompt: "Ask what lesson matured, what evidence supported it, or tell Ari to keep testing it.",
+      action: "review_adaptive_strategy",
+      context: `strategy_key=${item.strategyKey}; title=${item.title}; maturity=practical_prior`,
+      cooldownHours: 336,
+      requiresLanguageModelCall: false
+    };
+  }
+  if (item.status !== "adopted") return null;
   const summary = clean(item.userVisibleSummary, 320) || `I tested a more reliable way to approach ${item.title.toLowerCase()} and the evidence was strong enough to keep using it.`;
   return {
     initiativeKey: `adaptive_strategy_adopted:${item.strategyKey}`,
@@ -245,59 +305,7 @@ export function buildStrategyAdoptionSignal(strategy = {}) {
   };
 }
 
-function publicStrategy(item) {
-  return {
-    id: item.id,
-    strategyKey: item.strategyKey,
-    title: item.title,
-    instruction: item.instruction,
-    status: item.status,
-    confidence: round(item.confidence, 3),
-    domains: item.domains,
-    trials: item.trials,
-    positiveOutcomes: item.positiveOutcomes,
-    negativeOutcomes: item.negativeOutcomes,
-    neutralOutcomes: item.neutralOutcomes,
-    replacesStrategyKey: item.replacesStrategyKey
-  };
-}
-
-function normalizeStrategyRow(row = {}) {
-  return {
-    id: clean(row.id, 100) || null,
-    strategyKey: clean(row.strategyKey ?? row.strategy_key, 100),
-    title: clean(row.title, 140),
-    instruction: clean(row.instruction, 700),
-    rationale: clean(row.rationale, 500),
-    domains: normalizeDomains(row.domains),
-    status: ["testing", "adopted", "retired"].includes(String(row.status || "")) ? String(row.status) : "testing",
-    confidence: clamp01(Number(row.confidence ?? 0.65)),
-    trials: nonNegativeInt(row.trials),
-    positiveOutcomes: nonNegativeInt(row.positiveOutcomes ?? row.positive_outcomes),
-    negativeOutcomes: nonNegativeInt(row.negativeOutcomes ?? row.negative_outcomes),
-    neutralOutcomes: nonNegativeInt(row.neutralOutcomes ?? row.neutral_outcomes),
-    sourceModel: clean(row.sourceModel ?? row.source_model, 120) || null,
-    replacesStrategyKey: clean(row.replacesStrategyKey ?? row.replaces_strategy_key, 100) || null,
-    userVisibleSummary: clean(row.userVisibleSummary ?? row.user_visible_summary, 360),
-    firstProposedAt: row.firstProposedAt ?? row.first_proposed_at ?? null,
-    lastUsedAt: row.lastUsedAt ?? row.last_used_at ?? null,
-    adoptedAt: row.adoptedAt ?? row.adopted_at ?? null,
-    retiredAt: row.retiredAt ?? row.retired_at ?? null
-  };
-}
-
-function strategyWeight(item) {
-  // An incumbent adopted capability always outranks a provisional challenger.
-  // Confidence/outcomes order strategies within the same lifecycle class.
-  return (item.status === "adopted" ? 3 : 1) + item.confidence + Math.min(0.4, item.positiveOutcomes * 0.05) - Math.min(0.4, item.negativeOutcomes * 0.05);
-}
-function appliesToDomains(strategyDomains, currentDomains) {
-  const set = new Set(strategyDomains);
-  if (set.has("general")) return true;
-  for (const domain of currentDomains) if (set.has(domain)) return true;
-  return false;
-}
-function routeDomains(route = {}) {
+export function deriveAdaptiveStrategyContextDomains(route = {}) {
   const domains = new Set(["conversation"]);
   if (route.developer) domains.add("developer");
   if (route.health) domains.add("health");
@@ -308,6 +316,91 @@ function routeDomains(route = {}) {
   if (route.memory || route.followUp) domains.add("memory");
   if (route.currentInfo) domains.add("evidence");
   return domains;
+}
+
+function publicStrategy(item) {
+  return {
+    id: item.id,
+    strategyKey: item.strategyKey,
+    title: item.title,
+    instruction: item.instruction,
+    lessonSummary: item.lessonSummary,
+    status: item.status,
+    confidence: round(item.confidence, 3),
+    maturityScore: round(item.maturityScore, 3),
+    domains: item.domains,
+    trials: item.trials,
+    positiveOutcomes: item.positiveOutcomes,
+    negativeOutcomes: item.negativeOutcomes,
+    neutralOutcomes: item.neutralOutcomes,
+    replacesStrategyKey: item.replacesStrategyKey,
+    maturedAt: item.maturedAt
+  };
+}
+
+function normalizeStrategyRow(row = {}) {
+  return {
+    id: clean(row.id, 100) || null,
+    strategyKey: clean(row.strategyKey ?? row.strategy_key, 100),
+    title: clean(row.title, 140),
+    instruction: clean(row.instruction, 700),
+    rationale: clean(row.rationale, 500),
+    lessonSummary: clean(row.lessonSummary ?? row.lesson_summary ?? row.rationale, 500),
+    domains: normalizeDomains(row.domains),
+    status: ["testing", "adopted", "practical_prior", "retired"].includes(String(row.status || "")) ? String(row.status) : "testing",
+    confidence: clamp01(Number(row.confidence ?? 0.65)),
+    maturityScore: clamp01(Number(row.maturityScore ?? row.maturity_score ?? 0)),
+    trials: nonNegativeInt(row.trials),
+    positiveOutcomes: nonNegativeInt(row.positiveOutcomes ?? row.positive_outcomes),
+    negativeOutcomes: nonNegativeInt(row.negativeOutcomes ?? row.negative_outcomes),
+    neutralOutcomes: nonNegativeInt(row.neutralOutcomes ?? row.neutral_outcomes),
+    sourceModel: clean(row.sourceModel ?? row.source_model, 120) || null,
+    replacesStrategyKey: clean(row.replacesStrategyKey ?? row.replaces_strategy_key, 100) || null,
+    userVisibleSummary: clean(row.userVisibleSummary ?? row.user_visible_summary, 360),
+    firstProposedAt: row.firstProposedAt ?? row.first_proposed_at ?? null,
+    lastUsedAt: row.lastUsedAt ?? row.last_used_at ?? null,
+    adoptedAt: row.adoptedAt ?? row.adopted_at ?? null,
+    maturedAt: row.maturedAt ?? row.matured_at ?? null,
+    retiredAt: row.retiredAt ?? row.retired_at ?? null
+  };
+}
+
+function calculateMaturityScore(strategy, evidence = {}) {
+  const resolved = strategy.positiveOutcomes + strategy.negativeOutcomes;
+  const positiveRate = resolved > 0 ? strategy.positiveOutcomes / resolved : 0;
+  const volume = Math.min(1, resolved / 12);
+  const durability = Math.min(1, strategy.trials / 18);
+  const contextBreadth = Math.min(1, Number(evidence.distinctContextCount || 0) / 3);
+  return clamp01(
+    positiveRate * 0.38 +
+    strategy.confidence * 0.27 +
+    volume * 0.17 +
+    durability * 0.1 +
+    contextBreadth * 0.08
+  );
+}
+
+function normalizeMaturityEvidence(value = {}) {
+  return {
+    distinctContextCount: nonNegativeInt(value.distinctContextCount),
+    resolvedUseCount: nonNegativeInt(value.resolvedUseCount),
+    recentResolvedCount: nonNegativeInt(value.recentResolvedCount),
+    recentNegativeCount: nonNegativeInt(value.recentNegativeCount),
+    replacementTargetStatus: ["testing", "adopted", "practical_prior", "retired"].includes(String(value.replacementTargetStatus || ""))
+      ? String(value.replacementTargetStatus)
+      : null
+  };
+}
+
+function strategyWeight(item) {
+  const classWeight = item.status === "practical_prior" ? 5 : item.status === "adopted" ? 3 : 1;
+  return classWeight + item.confidence + item.maturityScore * 0.4 + Math.min(0.4, item.positiveOutcomes * 0.05) - Math.min(0.4, item.negativeOutcomes * 0.05);
+}
+function appliesToDomains(strategyDomains, currentDomains) {
+  const set = new Set(strategyDomains);
+  if (set.has("general")) return true;
+  for (const domain of currentDomains) if (set.has(domain)) return true;
+  return false;
 }
 function normalizeDomains(values) {
   const source = Array.isArray(values) ? values : [values];
