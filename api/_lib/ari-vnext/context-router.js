@@ -3,7 +3,7 @@
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.13.0";
+export const CONTEXT_ROUTER_VERSION = "1.14.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -30,24 +30,42 @@ export function routeContext(turn = {}) {
   const nutrition = PATTERNS.nutrition.test(semanticText);
   const training = PATTERNS.training.test(semanticText);
   const goals = PATTERNS.goals.test(semanticText);
+  const social = PATTERNS.social.test(semanticText);
+  const memory = PATTERNS.memory.test(semanticText) || followUp;
+  const health = PATTERNS.health.test(semanticText);
+  const currentInfo = needsCurrentInfo(semanticText);
+  const developer = PATTERNS.developer.test(semanticText);
+  const casualConversation = isCasualConversation({
+    message,
+    followUp,
+    nutrition,
+    training,
+    goals,
+    social,
+    memory,
+    health,
+    currentInfo,
+    developer
+  });
 
   return {
     version: CONTEXT_ROUTER_VERSION,
     recentConversation: true,
-    profile: true,
+    profile: !casualConversation,
     nutrition,
     training,
     goals,
     coachingState: nutrition && (training || goals) || training && goals,
-    social: PATTERNS.social.test(semanticText),
-    memory: PATTERNS.memory.test(semanticText) || followUp,
-    health: PATTERNS.health.test(semanticText),
-    currentInfo: needsCurrentInfo(semanticText),
-    developer: PATTERNS.developer.test(semanticText),
+    social,
+    memory,
+    health,
+    currentInfo,
+    developer,
     teenMode,
     circleAllowed: account?.circleAllowed === true,
     intelligenceEntitlement,
     followUp,
+    casualConversation,
     complexity: estimateComplexity(message)
   };
 }
@@ -67,8 +85,8 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
   if (source?.intelligenceEntitlement && typeof source.intelligenceEntitlement === "object") {
     selected.intelligenceEntitlement = pickObject(source.intelligenceEntitlement, [
-      "version", "tier", "advancedAllowed", "advancedEnabled", "ownerEligible", "premiumEligible",
-      "reasoningProfile", "conversationBeta", "source"
+      "version", "tier", "accountRole", "subscriptionTier", "subscriptionStatus", "accessClass", "intelligenceTier",
+      "advancedAllowed", "advancedEnabled", "ownerEligible", "premiumEligible", "reasoningProfile", "conversationBeta", "source"
     ]);
   }
 
@@ -296,6 +314,25 @@ function needsCurrentInfo(text = "") {
   const value = String(text || "");
   if (PATTERNS.liveInfo.test(value)) return true;
   return PATTERNS.recency.test(value) && PATTERNS.changingReference.test(value);
+}
+
+function isCasualConversation({
+  message = "",
+  followUp = false,
+  nutrition = false,
+  training = false,
+  goals = false,
+  social = false,
+  memory = false,
+  health = false,
+  currentInfo = false,
+  developer = false
+} = {}) {
+  const text = String(message || "").trim();
+  if (!text || text.length > 140 || followUp) return false;
+  if (nutrition || training || goals || social || memory || health || currentInfo || developer) return false;
+
+  return /^(?:(?:hey|hi|hello|yo)(?:\s+ari)?|(?:hey|hi|hello|yo)\s+there|what(?:'s| is)\s+up(?:\s+ari)?|sup(?:\s+ari)?|good\s+(?:morning|afternoon|evening)(?:\s+ari)?|how\s+are\s+you(?:\s+doing)?(?:\s+ari)?|thanks(?:\s+ari)?|thank\s+you(?:\s+ari)?)[!.?\s]*$/i.test(text);
 }
 
 function estimateComplexity(message = "") {
