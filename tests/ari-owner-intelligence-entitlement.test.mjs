@@ -32,6 +32,9 @@ test("owner can enable Advanced Ari with a verified user id", () => {
   assert.equal(result.ownerEligible, true);
   assert.equal(result.advancedEnabled, true);
   assert.equal(result.reasoningProfile, "deep");
+  assert.equal(result.cognitiveLoopAllowed, true);
+  assert.equal(result.cognitiveLoopEnabled, true);
+  assert.equal(result.cognitiveLoopOwnerOnly, true);
   assert.equal(result.source, "owner_beta");
 });
 
@@ -47,6 +50,8 @@ test("a non-owner cannot unlock Advanced Ari by supplying advanced controls", ()
   assert.equal(result.tier, "standard");
   assert.equal(result.advancedAllowed, false);
   assert.equal(result.advancedEnabled, false);
+  assert.equal(result.cognitiveLoopAllowed, false);
+  assert.equal(result.cognitiveLoopEnabled, false);
   assert.equal(result.reasoningProfile, "standard");
 });
 
@@ -61,8 +66,28 @@ test("owner remains Standard Ari until the owner control is explicitly enabled",
 
   assert.equal(result.advancedAllowed, true);
   assert.equal(result.advancedEnabled, false);
+  assert.equal(result.cognitiveLoopAllowed, true);
+  assert.equal(result.cognitiveLoopEnabled, false);
   assert.equal(result.tier, "standard");
   assert.equal(result.source, "eligible_not_enabled");
+});
+
+test("premium Advanced Ari remains outside the owner cognitive-loop experiment", () => {
+  process.env.ARI_OWNER_USER_ID = "11111111-1111-4111-8111-111111111111";
+  process.env.ARI_PREMIUM_ADVANCED_ENABLED = "true";
+
+  const result = resolveAriIntelligenceEntitlement({
+    userId: "22222222-2222-4222-8222-222222222222",
+    controls: { enabled: true, reasoningProfile: "balanced" },
+    subscriptionTier: "premium",
+    subscriptionStatus: "active"
+  });
+
+  assert.equal(result.tier, "advanced");
+  assert.equal(result.premiumEligible, true);
+  assert.equal(result.cognitiveLoopAllowed, false);
+  assert.equal(result.cognitiveLoopEnabled, false);
+  assert.equal(result.source, "premium");
 });
 
 test("premium access stays locked until the server rollout flag is enabled", () => {
@@ -86,6 +111,7 @@ test("premium access stays locked until the server rollout flag is enabled", () 
   });
   assert.equal(enabled.tier, "advanced");
   assert.equal(enabled.premiumEligible, true);
+  assert.equal(enabled.cognitiveLoopEnabled, false);
   assert.equal(enabled.source, "premium");
 });
 

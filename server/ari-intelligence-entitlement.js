@@ -2,7 +2,7 @@
 // Owner beta controls are persisted by the server in Supabase. Client flags are
 // never authorization. Future premium access reuses the same resolver.
 
-export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.1.0";
+export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.2.0";
 
 const REASONING_PROFILES = new Set(["adaptive", "economy", "balanced", "deep"]);
 
@@ -35,6 +35,12 @@ export function resolveAriIntelligenceEntitlement({
     ? normalizeReasoningProfile(controls?.reasoningProfile)
     : "standard";
 
+  // The persistent cognitive-loop experiment is intentionally stricter than
+  // Advanced Ari itself. Premium may later receive Advanced Conversation, but
+  // cannot enter this experiment until the server contract is deliberately changed.
+  const cognitiveLoopAllowed = ownerEligible;
+  const cognitiveLoopEnabled = ownerEligible && advancedEnabled;
+
   return {
     version: ARI_INTELLIGENCE_ENTITLEMENT_VERSION,
     tier: advancedEnabled ? "advanced" : "standard",
@@ -44,6 +50,9 @@ export function resolveAriIntelligenceEntitlement({
     premiumEligible,
     reasoningProfile,
     conversationBeta: advancedEnabled,
+    cognitiveLoopAllowed,
+    cognitiveLoopEnabled,
+    cognitiveLoopOwnerOnly: true,
     source: advancedEnabled
       ? ownerEligible ? "owner_beta" : "premium"
       : advancedAllowed ? "eligible_not_enabled" : "standard_default"
