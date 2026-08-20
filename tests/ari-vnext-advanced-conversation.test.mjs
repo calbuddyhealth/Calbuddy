@@ -15,8 +15,11 @@ test.afterEach(restoreEnv);
 
 function advancedEntitlement(reasoningProfile = "adaptive") {
   return {
-    version: "1.0.0",
+    version: "1.3.0",
     tier: "advanced",
+    accountRole: "owner",
+    accessClass: "owner",
+    intelligenceTier: "owner_experimental",
     advancedAllowed: true,
     advancedEnabled: true,
     ownerEligible: true,
@@ -27,14 +30,16 @@ function advancedEntitlement(reasoningProfile = "adaptive") {
   };
 }
 
-test("Advanced Ari uses GPT-5.6 Sol alias with low reasoning for quick conversation", () => {
+test("Advanced Ari uses GPT-5.6 Sol alias with low reasoning for short meaningful conversation", () => {
   delete process.env.OPENAI_ARI_ADVANCED_MODEL;
   const policy = resolveModelPolicy({
     complexity: "fast",
+    casualConversation: false,
     intelligenceEntitlement: advancedEntitlement("adaptive")
   });
 
-  assert.equal(policy.intelligenceTier, "advanced");
+  assert.equal(policy.intelligenceTier, "owner_experimental");
+  assert.equal(policy.accessClass, "owner");
   assert.equal(policy.model, "gpt-5.6");
   assert.equal(policy.reasoningEffort, "low");
   assert.equal(policy.conversationBeta, true);
@@ -77,6 +82,8 @@ test("Advanced conversation contract is present only for an entitled turn", () =
     context: {
       intelligenceEntitlement: {
         tier: "standard",
+        accessClass: "casual",
+        intelligenceTier: "standard",
         advancedEnabled: false,
         reasoningProfile: "standard"
       }
@@ -124,6 +131,9 @@ test("owner cognitive-loop contract is isolated from ordinary and premium Advanc
     context: {
       intelligenceEntitlement: {
         ...advancedEntitlement("balanced"),
+        accountRole: "user",
+        accessClass: "premium",
+        intelligenceTier: "premium_advanced",
         ownerEligible: false,
         premiumEligible: true,
         source: "premium",

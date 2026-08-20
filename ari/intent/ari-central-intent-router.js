@@ -1,11 +1,11 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.5.1
+// Version: 1.5.2
 // Purpose:
-//   Preserve the legacy semantic action boundary as a deterministic fallback,
+//   Preserve the legacy semantic action boundary only for likely mutations,
 //   then boot Ari vNext as the shared primary intelligence on Home + Nutrition.
-//   vNext owns semantic understanding; trusted app services still own writes.
+//   vNext owns normal conversation; trusted app services still own writes.
 // =====================================================
 
 (() => {
@@ -13,7 +13,7 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.5.1";
+  const VERSION = "1.5.2";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
@@ -24,6 +24,7 @@
   const cache = new Map();
 
   const clean = (value = "") => String(value ?? "").trim();
+  const MUTATION_CUE_PATTERN = /\b(log|add|save|record|create|edit|change|update|delete|remove|clear|set|mark|complete|undo|plan|schedule|consume|move|replace|rename|cancel|start|finish)\b/i;
 
   function appendOrderedScript(id, src) {
     if (document.getElementById(id)) return;
@@ -46,11 +47,9 @@
   }
 
   function loadVNextRuntime() {
-    // The controller owns every vNext dependency and waits for each one to be
-    // initialized before Ari can answer. This avoids parallel boot races.
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.3.2"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.3"
     );
   }
 
@@ -171,6 +170,10 @@
       ["create", "log", "edit", "delete", "update"].includes(clean(decision.intent));
   };
 
+  function isLikelyMutationMessage(message = "") {
+    return MUTATION_CUE_PATTERN.test(clean(message));
+  }
+
   function shouldBypassRouting(input = {}) {
     const message = clean(input.message);
     if (!message) return true;
@@ -184,7 +187,9 @@
       // Pending confirmation bypass is an optimization only.
     }
 
-    return false;
+    // Normal conversation, advice, questions, and greetings go directly to
+    // vNext. The extra intent call exists only to preflight likely mutations.
+    return !isLikelyMutationMessage(message);
   }
 
   function installLegacyActionGate() {
@@ -309,8 +314,6 @@
     const legacyGateReady = installLegacyActionGate();
 
     if (boundaryReady && legacyGateReady) {
-      // vNext captures the already-safe legacy boundary as emergency fallback.
-      // The vNext runtime controller then owns its complete brain boot sequence.
       loadVNextRuntime();
       window.clearInterval(installTimer);
       return;

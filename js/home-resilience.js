@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/home-resilience.js
-// Version: 1.2.1
+// Version: 1.2.2
 // Purpose:
 //   Keep Ask Ari recoverable when an iOS WebView is backgrounded while routing
 //   Home through the selected Ari runtime.
@@ -21,7 +21,7 @@
   const PENDING_KEY = "arixp_pending_ari_turn_v1";
   const MAX_BACKGROUND_RETRIES = 1;
   const RESUME_DELAY_MS = 350;
-  const RUNTIME_CONTROLLER_SRC = "ari/runtime/ari-runtime-controller.js?v=1.3.2";
+  const RUNTIME_CONTROLLER_SRC = "ari/runtime/ari-runtime-controller.js?v=1.3.3";
 
   let requestInFlight = false;
   let recoveryTimer = null;
@@ -156,8 +156,6 @@
     if (!client || !session?.user?.id) return null;
 
     try {
-      // Prefer exact turn identity after the idempotency migration. During a
-      // rolling deploy, gracefully fall back to the older message/time lookup.
       const exact = await client
         .from("ari_conversation_turns")
         .select("turn_id,user_message,assistant_message,created_at")

@@ -18,7 +18,7 @@ const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
 const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
 test("Home and Nutrition share one central intent gateway boundary", () => {
-  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.5\.1/);
+  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.5\.2/);
   assert.match(routerClient, /CalBuddy\.askAri = async function ariCentralIntentBoundary/);
   assert.match(routerClient, /intentDecision/);
   assert.match(routerClient, /\/api\/ari-intent-router/);
@@ -26,6 +26,12 @@ test("Home and Nutrition share one central intent gateway boundary", () => {
   assert.match(routerHandler, /response_format/);
   assert.match(routerHandler, /json_schema/);
   assert.match(routerHandler, /strict:\s*true/);
+});
+
+test("normal conversation bypasses the extra mutation preflight", () => {
+  assert.match(routerClient, /const MUTATION_CUE_PATTERN/);
+  assert.match(routerClient, /return !isLikelyMutationMessage\(message\)/);
+  assert.match(routerClient, /Normal conversation, advice, questions, and greetings go directly to/);
 });
 
 test("explicit Meal Plan requests never ask users to restate app-owned calorie budget", () => {

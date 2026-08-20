@@ -105,6 +105,9 @@ export default async function handler(req, res) {
       });
     }
 
+    const preliminaryRoute = routeContext(turn);
+    const casualConversation = preliminaryRoute.casualConversation === true;
+
     requestIdentity = { userId: auth.userId, turnId: turn.turnId };
     requestClaim = await claimAriRequest(requestIdentity);
 
@@ -138,6 +141,7 @@ export default async function handler(req, res) {
       });
     }
 
+    const hydrationStartedAt = Date.now();
     const shouldLoadAdvancedControl = isAdvancedEntitlementCandidate(auth.userId);
     const [intelligenceControls, commercialEntitlement] = await Promise.all([
       shouldLoadAdvancedControl
@@ -151,9 +155,18 @@ export default async function handler(req, res) {
       subscriptionTier: commercialEntitlement.subscriptionTier,
       subscriptionStatus: commercialEntitlement.subscriptionStatus
     });
-    const cognitiveLoopEnabled = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
 
-    const recentContinuity = (cognitiveLoopEnabled || shouldRecoverRecentConversation(turn))
+    // Attach intelligence entitlement before route preview so model policy and
+    // advanced conversation instructions see the correct owner/premium/casual tier.
+    turn.context = {
+      ...(turn.context || {}),
+      intelligenceEntitlement
+    };
+
+    const cognitiveLoopEligible = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
+    const cognitiveLoopEnabled = cognitiveLoopEligible && !casualConversation;
+
+    const recentContinuity = !casualConversation && (cognitiveLoopEnabled || shouldRecoverRecentConversation(turn))
       ? await hydrateRecentConversation({
           userId: auth.userId,
           history: turn.history,
@@ -164,7 +177,7 @@ export default async function handler(req, res) {
 
     const routePreview = routeContext(turn);
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
-    const shouldLoadMemory = Boolean(routePreview.memory || fitnessRoute || cognitiveLoopEnabled);
+    const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || cognitiveLoopEnabled));
     const strategyPreparationPromise = cognitiveLoopEnabled
       ? prepareAdaptiveStrategiesForTurn({
           userId: auth.userId,
@@ -196,14 +209,18 @@ export default async function handler(req, res) {
       fitnessRoute
         ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
         : Promise.resolve([]),
-      loadUserWorldModel({ userId: auth.userId }),
+      casualConversation
+        ? Promise.resolve(null)
+        : loadUserWorldModel({ userId: auth.userId }),
       fitnessRoute
         ? listRecentDecisions({ userId: auth.userId, limit: 12 })
         : Promise.resolve([]),
       fitnessRoute
         ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 })
         : Promise.resolve([]),
-      loadAccountEntitlements({ userId: auth.userId }),
+      casualConversation
+        ? Promise.resolve(null)
+        : loadAccountEntitlements({ userId: auth.userId }),
       cognitiveLoopEnabled
         ? loadAriCognitiveState({ userId: auth.userId })
         : Promise.resolve(null),
@@ -276,21 +293,26 @@ export default async function handler(req, res) {
       ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
     };
 
+    const modelStartedAt = Date.now();
     const result = await runAriVNext(turn);
+    const modelMs = Date.now() - modelStartedAt;
+    const serverHydrationMs = modelStartedAt - hydrationStartedAt;
 
-    const runtimeWorldModel = deriveUserWorldModel({
-      persisted: persistedWorldModel,
-      turn,
-      context: {
-        ...(turn.context || {}),
-        relevantMemory: turn.memory || "",
-        experimentLedger
-      },
-      communication: result?.communication || null,
-      selfModel: result?.selfModel || null,
-      coachingState: result?.coachingState || null,
-      longitudinalState: result?.longitudinalState || null
-    });
+    const runtimeWorldModel = casualConversation
+      ? persistedWorldModel
+      : deriveUserWorldModel({
+          persisted: persistedWorldModel,
+          turn,
+          context: {
+            ...(turn.context || {}),
+            relevantMemory: turn.memory || "",
+            experimentLedger
+          },
+          communication: result?.communication || null,
+          selfModel: result?.selfModel || null,
+          coachingState: result?.coachingState || null,
+          longitudinalState: result?.longitudinalState || null
+        });
 
     const nextCognitiveState = cognitiveLoopEnabled
       ? advanceCognitiveState({
@@ -344,7 +366,7 @@ export default async function handler(req, res) {
           userId: auth.userId,
           endpoint: "/api/ari-vnext",
           usageType: "chat",
-          requestCategory: `ari_vnext_${intelligenceEntitlement.tier}_${result?.modelPolicy?.mode || "standard"}`,
+          requestCategory: `ari_vnext_${intelligenceEntitlement.intelligenceTier || intelligenceEntitlement.tier}_${result?.modelPolicy?.mode || "standard"}`,
           model: result?.provider?.model || result?.modelPolicy?.model,
           responseData: {
             id: result?.provider?.id,
@@ -355,10 +377,15 @@ export default async function handler(req, res) {
           metadata: {
             turnId: turn.turnId,
             surface: turn.surface,
-            intelligenceTier: intelligenceEntitlement.tier,
+            accessClass: intelligenceEntitlement.accessClass,
+            accountRole: intelligenceEntitlement.accountRole,
+            intelligenceTier: intelligenceEntitlement.intelligenceTier || intelligenceEntitlement.tier,
             intelligenceSource: intelligenceEntitlement.source,
             reasoningProfile: intelligenceEntitlement.reasoningProfile,
             reasoningEffort: result?.modelPolicy?.reasoningEffort || null,
+            casualConversation,
+            serverHydrationMs,
+            modelMs,
             cognitiveLoopActive: cognitiveLoopEnabled,
             cognitiveTurnCount,
             adaptiveStrategyActive: cognitiveLoopEnabled,
@@ -419,15 +446,19 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(false);
 
-    const durableMemoryTask = persistDurableMemory({
-      userId: auth.userId,
-      message: turn.message,
-      history: turn.history,
-      route: result?.route || routePreview,
-      privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null
-    });
+    const durableMemoryTask = casualConversation
+      ? Promise.resolve({ stored: false, reason: "casual_fast_path" })
+      : persistDurableMemory({
+          userId: auth.userId,
+          message: turn.message,
+          history: turn.history,
+          route: result?.route || routePreview,
+          privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null
+        });
 
-    const worldModelTask = persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
+    const worldModelTask = casualConversation || !runtimeWorldModel
+      ? Promise.resolve(false)
+      : persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
     const cognitiveStateTask = nextCognitiveState
       ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
       : Promise.resolve(false);
@@ -495,6 +526,7 @@ export default async function handler(req, res) {
       turnId: turn.turnId,
       accountEntitlements,
       intelligenceEntitlement,
+      casualConversation,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
       memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),
@@ -514,7 +546,7 @@ export default async function handler(req, res) {
             priorStateLoaded: Boolean(persistedCognitiveState),
             stateStored: cognitiveStateStored
           }
-        : { active: false, ownerOnly: true },
+        : { active: false, ownerOnly: true, skippedForCasualConversation: casualConversation && cognitiveLoopEligible },
       adaptiveStrategyLayer: cognitiveLoopEnabled
         ? {
             active: true,
@@ -553,7 +585,11 @@ export default async function handler(req, res) {
         replayed: false,
         source: requestClaim?.source || null
       },
-      timing: { totalMs: Date.now() - startedAt }
+      timing: {
+        serverHydrationMs,
+        modelMs,
+        totalMs: Date.now() - startedAt
+      }
     };
 
     if (requestClaim?.enabled === true && requestClaim?.claimed === true) {
@@ -568,6 +604,7 @@ export default async function handler(req, res) {
       }
     }
 
+    responsePayload.timing.totalMs = Date.now() - startedAt;
     return res.status(200).json(responsePayload);
   } catch (error) {
     if (requestClaim?.enabled === true && requestClaim?.claimed === true && requestIdentity) {
