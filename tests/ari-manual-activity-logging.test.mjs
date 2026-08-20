@@ -5,8 +5,8 @@ import path from "node:path";
 
 const root = process.cwd();
 const tools = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/tools.js"), "utf8");
-const router = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/context-router.js"), "utf8");
-const adapter = fs.readFileSync(path.join(root, "ari/vnext/ari-vnext-action-adapter.js"), "utf8");
+const runtime = fs.readFileSync(path.join(root, "ari/runtime/ari-runtime-controller.js"), "utf8");
+const activityAdapter = fs.readFileSync(path.join(root, "ari/vnext/ari-vnext-activity-adapter.js"), "utf8");
 const service = fs.readFileSync(path.join(root, "js/training/activity-log-service.js"), "utf8");
 const quickLog = fs.readFileSync(path.join(root, "js/training/activity-quick-log.js"), "utf8");
 const goalsSync = fs.readFileSync(path.join(root, "js/goals-activity-burn-sync.js"), "utf8");
@@ -80,65 +80,70 @@ test("Ari activity logging requires duration when calories are unknown", async (
   assert.equal(validation.error, "activity_duration_or_calories_required");
 });
 
-test("shared Training calorie engine produces a profile-based activity estimate", () => {
-  assert.doesNotThrow(() => new Function(service));
-  assert.match(service, /estimateActivityCalories/);
-  assert.match(service, /estimateFromHeartRate/);
-  assert.match(service, /estimateFromMet/);
+test("shared Training calorie engine produces a profile-based activity estimate", async () => {
+  assert.match(service, /import CalorieCalculator from "\.\/energy\/calorie-calculator\.js"/);
+  assert.match(service, /export default ActivityLogService/);
 
-  const estimates = [];
-  const factory = new Function("window", "document", "CustomEvent", `${service}; return window.AriActivityLogService;`);
-  const mockWindow = {
-    localStorage: { getItem: () => null, setItem: () => {} },
-    CalBuddy: {},
-    dispatchEvent: () => {}
-  };
-  const api = factory(mockWindow, {}, class CustomEvent {});
-  const estimate = api.estimateActivityCalories({
+  const { estimateActivity } = await import(new URL("../js/training/activity-log-service.js", import.meta.url));
+  const estimate = await estimateActivity({
     activityName: "Walking",
     durationMinutes: 30,
-    profile: { weightLb: 185, age: 34, sex: "male", restingHr: 60, estimatedMaxHr: 186 }
+    intensity: "moderate"
+  }, {
+    weightLb: 185,
+    age: 34,
+    restingHeartRate: 60,
+    maxHeartRate: 186
   });
-  estimates.push(estimate);
-  assert.ok(estimate);
+
+  assert.equal(estimate.success, true, estimate.code || "activity estimate failed");
   assert.equal(estimate.estimated, true);
-  assert.ok(Number(estimate.roundedCalories) > 0);
-  assert.match(String(estimate.method), /estimate/i);
+  assert.ok(Number(estimate.calories) > 0);
+  assert.match(String(estimate.method), /estimate|hybrid|met|heart/i);
 });
 
 test("Training Quick Log loads from shared auth bootstrap and mounts opposite the date selector", () => {
-  const auth = source("js/auth.js");
-  const quickLog = source("js/training/activity-quick-log.js");
+  const currentAuth = source("js/auth.js");
+  const currentQuickLog = source("js/training/activity-quick-log.js");
 
-  assert.match(auth, /bootstrapTrainingQuickLog/);
-  assert.match(auth, /activity-quick-log\.js\?v=1\.1\.0/);
-  assert.match(quickLog, /\.ari-training-date-row/);
-  assert.match(quickLog, /\+ Quick Log/);
-  assert.match(quickLog, /activity \/ workout name/i);
-  assert.match(quickLog, /Calories burned/);
-  assert.match(quickLog, /Estimated from your Goals profile/i);
+  assert.match(currentAuth, /bootstrapTrainingQuickLog/);
+  assert.match(currentAuth, /activity-quick-log\.js\?v=1\.1\.0/);
+  assert.match(currentQuickLog, /\.ari-training-date-row/);
+  assert.match(currentQuickLog, /\+ Quick Log/);
+  assert.match(currentQuickLog, /ACTIVITY \/ WORKOUT NAME/i);
+  assert.match(currentQuickLog, /CALORIES BURNED/i);
+  assert.match(currentQuickLog, /Estimated from your Goals profile/i);
 });
 
 test("Quick Log and Ari share one profile-based calorie estimator and activity writer", () => {
-  assert.match(quickLog, /AriActivityLogService/);
-  assert.match(adapter, /AriActivityLogService/);
-  assert.match(quickLog, /saveActivity/);
-  assert.match(adapter, /saveActivity/);
+  assert.match(quickLog, /import\("\.\/activity-log-service\.js\?v=1\.1\.0"\)/);
+  assert.match(quickLog, /service\.estimateActivity\(input\)/);
+  assert.match(quickLog, /service\.logActivity\(input/);
+
+  assert.match(activityAdapter, /import\("\.\.\/\.\.\/js\/training\/activity-log-service\.js\?v=1\.1\.0"\)/);
+  assert.match(activityAdapter, /service\.prepareActivity\(/);
+  assert.match(activityAdapter, /service\.logActivity\(action\?\.payload/);
 });
 
-test("Ari confirmation executes log_activity through the trusted writer instead of claiming success conversationally", () => {
-  assert.match(adapter, /actionType === "log_activity"/);
-  assert.match(adapter, /await executeLogActivity/);
-  assert.match(adapter, /AriActivityLogService\.saveActivity/);
-  assert.match(adapter, /saved?.id/);
+test("Ari confirmation executes log_activity through the trusted activity adapter", () => {
+  assert.match(runtime, /ari-vnext-activity-adapter\.js\?v=1\.0\.1/);
+  assert.match(runtime, /AriVNextActionAdapter\.executeConfirmed/);
+  assert.match(activityAdapter, /clean\(pendingAction\?\.name, 120\) === "log_activity"/);
+  assert.match(activityAdapter, /action_type: "log_activity"/);
+  assert.match(activityAdapter, /type !== "log_activity"/);
+  assert.match(activityAdapter, /window\.CalBuddy\.executeAction = async function patchedExecute/);
+  assert.match(activityAdapter, /await service\.logActivity/);
+  assert.match(service, /client\.from\("activity_logs"\)\.insert/);
 });
 
 test("Goals combines completed Training calories with activity_logs instead of maintaining competing totals", () => {
   assert.doesNotThrow(() => new Function(goalsSync));
-  assert.match(goalsSync, /activity_logs/);
-  assert.match(goalsSync, /WorkoutPlanStore/);
-  assert.match(goalsSync, /calbuddyCaloriesBurned/);
-  assert.match(goalsSync, /calbuddyCaloriesBurnedDate/);
+  assert.match(goalsSync, /ari_training_completed_sessions_v2/);
+  assert.match(goalsSync, /ari_training_workout_progress_v3/);
+  assert.match(goalsSync, /\.from\("ari_workout_sessions"\)/);
+  assert.match(goalsSync, /\.from\("activity_logs"\)/);
+  assert.match(goalsSync, /const training = Math\.max\(cloudTraining, localTrainingCalories\(key\)\)/);
+  assert.match(goalsSync, /const total = training \+ other/);
 });
 
 test("activity_logs migration stores structured manual workout details without creating another ledger", () => {
