@@ -2,7 +2,7 @@
 // Authorization state comes from ari_account_state, never from Ari memory.
 // The model receives only a coarse age band / teen-mode flag — never DOB.
 
-export const ARI_ACCOUNT_ENTITLEMENTS_VERSION = "1.0.0";
+export const ARI_ACCOUNT_ENTITLEMENTS_VERSION = "1.1.0";
 const ACCOUNT_TABLE = "ari_account_state";
 
 export function ageBandForDate(value, now = new Date()) {
@@ -38,14 +38,27 @@ export function deriveAccountEntitlements(accountState = null, now = new Date())
   const active = status === "active";
   const ageVerified = Boolean(state.date_of_birth) && ageBand !== "unknown";
 
+  // Missing server state is not the same thing as a verified denial. Keep the
+  // authorization value unknown so Ari cannot contradict the interface by
+  // turning a transient lookup failure into a confident "you are not allowed."
+  // Capability/tool gates still fail closed elsewhere.
+  const authorizationKnown =
+    status !== "unknown" &&
+    (!active || ageVerified);
+
   return {
     version: ARI_ACCOUNT_ENTITLEMENTS_VERSION,
     status,
     ageBand,
     ageVerified,
+    authorizationKnown,
     teenMode: active && ageBand === "teen",
-    appAllowed: active && (ageBand === "teen" || ageBand === "adult"),
-    circleAllowed: active && ageBand === "adult",
+    appAllowed: authorizationKnown
+      ? active && (ageBand === "teen" || ageBand === "adult")
+      : null,
+    circleAllowed: authorizationKnown
+      ? active && ageBand === "adult"
+      : null,
     circleMinimumAge: 18
   };
 }
@@ -75,6 +88,17 @@ export async function loadAccountEntitlements({ userId } = {}) {
 
 export function accountEntitlementsToInstruction(value = null) {
   const state = value && typeof value === "object" ? value : {};
+
+  if (state.authorizationKnown !== true) {
+    return [
+      "ACCOUNT AUTHORIZATION STATE",
+      "Account authorization could not be verified for this turn.",
+      "Treat application and ARI Circle access as unknown — not as denied and not as allowed.",
+      "Do not tell the user they lack access solely because this server context is missing.",
+      "Available tools and trusted executors remain the hard capability boundary."
+    ].join("\n");
+  }
+
   if (!state.ageBand || state.ageBand === "unknown") return "";
   return [
     "ACCOUNT AGE SAFETY",
