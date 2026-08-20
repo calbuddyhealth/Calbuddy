@@ -1,4 +1,4 @@
-/* ARI XP — Owner ARI Intelligence Controls v1.3.0 */
+/* ARI XP — Owner ARI Intelligence Controls v1.4.0 */
 (() => {
   "use strict";
 
@@ -55,6 +55,7 @@
     const advanced = entitlement?.tier === "advanced";
     const cognitiveLoopActive = cognitiveLoop?.active === true;
     const adaptiveStrategyActive = adaptiveStrategyLayer?.active === true;
+    const practicalPriors = adaptiveStrategyLayer?.practicalPriorMaturation === true;
 
     $("advancedAriToggle").checked = controls?.enabled === true;
     $("reasoningProfileSelect").value = controls?.reasoningProfile || "adaptive";
@@ -65,12 +66,16 @@
     $("reasoningStat").textContent = entitlement?.reasoningProfile || "standard";
     $("premiumStat").textContent = data?.premiumRolloutEnabled === true ? "Enabled" : "Locked";
     $("effectiveTierTitle").textContent = adaptiveStrategyActive
-      ? "Advanced Ari + Cognitive Loop + Adaptive Strategies"
+      ? practicalPriors
+        ? "Advanced Ari + Cognitive Loop + Practical Priors"
+        : "Advanced Ari + Cognitive Loop + Adaptive Strategies"
       : cognitiveLoopActive
         ? "Advanced Ari + Cognitive Loop"
         : advanced ? "Advanced Ari is live" : "Standard Ari active";
     $("effectiveTierDescription").textContent = adaptiveStrategyActive
-      ? "Your owner conversations use GPT-5.6 Sol, the persistent Cognitive Loop, and Ari's Adaptive Strategy Layer. Ari can test reusable reasoning and communication methods, promote strategies that keep working, and retire strategies that perform poorly. This changes how Ari thinks and communicates without granting new permissions to modify ARI XP actions or production code."
+      ? practicalPriors
+        ? "Your owner conversations use GPT-5.6 Sol, the persistent Cognitive Loop, and Ari's non-regressive Adaptive Strategy Layer. Ari can preserve causal lessons from mistakes, test better methods beside existing capability, and mature repeatedly proven lessons into practical priors—default judgment that remains overridable by current evidence and your current correction."
+        : "Your owner conversations use GPT-5.6 Sol, the persistent Cognitive Loop, and Ari's Adaptive Strategy Layer. Ari can test reusable reasoning and communication methods while trusted application permissions remain unchanged."
       : cognitiveLoopActive
         ? "Your owner conversations use the Advanced Conversation Contract, GPT-5.6 Sol reasoning lane, and the private persistent Cognitive Loop. The loop carries functional working state across turns while ARI XP actions still pass through the existing trusted validation and confirmation system."
         : advanced
