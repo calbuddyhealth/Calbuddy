@@ -42,6 +42,14 @@ test("vNext pending actions are discarded after expiry in the browser boundary",
   assert.match(bridge, /this\.clearPendingAction\(\)/);
 });
 
+test("expired vNext-linked legacy actions cannot execute through fallback confirmation", () => {
+  assert.match(runtime, /function isExpiredVNextLegacyPending/);
+  assert.match(runtime, /action\?\.vnext_expires_at/);
+  assert.match(runtime, /isExpiredVNextLegacyPending\(legacyPending\)/);
+  assert.match(runtime, /legacy\.cancelPendingAction\?\.\(\)/);
+  assert.match(runtime, /That pending change expired/);
+});
+
 test("retrieved memory uses complete-record budgeting instead of slicing mid-entry", () => {
   assert.match(memory, /export function buildMemorySummary/);
   assert.match(memory, /if \(used \+ additional > budget\) break/);
@@ -77,6 +85,14 @@ test("idempotency service uses user plus turn as the unique claim", () => {
   assert.match(idempotency, /resolution=ignore-duplicates,return=representation/);
   assert.match(idempotency, /status === "completed" && existing\.response_payload/);
   assert.match(idempotency, /source: "already_processing"/);
+});
+
+test("idempotency stores a compact replay payload instead of duplicating full Ari state", () => {
+  assert.match(idempotency, /function buildReplayPayload/);
+  assert.match(idempotency, /pendingAction: safePayload\(value\.pendingAction\)/);
+  assert.match(idempotency, /intelligenceEntitlement: safePayload\(value\.intelligenceEntitlement\)/);
+  assert.doesNotMatch(idempotency, /userWorldModel: safePayload/);
+  assert.doesNotMatch(idempotency, /cognitiveLoop: safePayload/);
 });
 
 test("database migration keeps the dedup ledger server-only", () => {
