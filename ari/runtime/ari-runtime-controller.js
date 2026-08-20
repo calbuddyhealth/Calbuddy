@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.0
+// Version: 1.3.1
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -25,14 +25,14 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.3.1";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
-    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.0",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.0.2",
@@ -258,208 +258,160 @@
     }
 
     if (actionType !== "execute_pending_action" || !pending?.id) return result;
-    if (isExperimentAction(pending.name)) return result;
 
-    let execution = null;
-
-    if (legacy.confirmPendingAction && CalBuddy.getPendingAction?.()) {
-      execution = await legacy.confirmPendingAction();
-    } else if (window.AriVNextActionAdapter?.executeConfirmed) {
-      execution = await window.AriVNextActionAdapter.executeConfirmed({
-        vnextPendingAction: pending,
-        currentTurnId: result?.turn?.turnId || result?.turnId || null
-      });
+    if (isExperimentAction(pending.name)) {
+      const response = await executeExperimentAction(pending);
+      window.AriVNextBridge?.clearPendingAction?.();
+      return {
+        ...result,
+        reply: response?.reply || result.reply,
+        pendingAction: null,
+        execution: response
+      };
     }
 
+    const originalPending = result?.vnextPendingAction || window.AriVNextBridge?.getPendingAction?.();
+    if (!originalPending?.id) return result;
+
+    const execution = await window.AriVNextActionAdapter.executeConfirmed({
+      vnextPendingAction: originalPending,
+      currentTurnId: result?.turn?.turnId || null
+    });
     window.AriVNextBridge?.clearPendingAction?.();
 
-    if (!execution) {
+    if (!execution?.success) {
       return {
         ...result,
         pendingAction: null,
-        reply: "I couldn't safely apply that change. Ask me to prepare it again.",
-        actionExecution: { success: false, code: "trusted_executor_unavailable" }
+        execution,
+        reply: execution?.message || "That change could not be completed."
       };
     }
 
-    const success = execution?.success !== false;
     return {
       ...result,
       pendingAction: null,
-      actionExecution: execution,
-      reply: success
-        ? (execution?.reply || execution?.result?.reply || result?.reply || "Done.")
-        : (execution?.reply || execution?.message || result?.reply || "That change didn't go through.")
+      execution,
+      reply: execution?.result?.reply || result.reply
     };
   }
 
-  async function askVNext(input = {}) {
-    await ensureVNext();
-
-    const message = clean(input?.message);
-    const history = Array.isArray(input?.history) ? input.history : [];
-    const userContext = await getUserContext();
-
-    if (activeInitiative?.id && message) {
-      void markInitiativeEngaged();
-    }
-
-    let result = await window.AriVNextBridge.ask(message, {
-      ...input,
-      history,
-      userContext,
-      page: window.location.pathname || "/home.html"
-    });
-
-    result = await executeTypedConfirmation(result || {});
-    const normalized = await normalizePendingAction(result || {});
-
-    return {
-      ...normalized,
-      success: normalized?.success !== false,
-      ready: normalized?.ready !== false,
-      source: normalized?.source || "ari_vnext",
-      runtime: {
-        selected: "vnext",
-        fallback: false,
-        controllerVersion: VERSION
-      }
-    };
-  }
-
-  async function ask(input = {}) {
-    if (getMode() === "rebirth") {
-      if (!legacy.askAri) throw new Error("Rebirth runtime is unavailable.");
-      const result = await legacy.askAri(input);
-      return {
-        ...result,
-        runtime: {
-          selected: "rebirth",
-          fallback: false,
-          controllerVersion: VERSION
+  async function executeExperimentAction(pending = {}) {
+    const name = clean(pending?.name);
+    const args = pending?.arguments && typeof pending.arguments === "object" ? pending.arguments : {};
+    const map = {
+      track_experiment: { path: "/api/ari-vnext-experiments", body: { action: "start", hypothesisId: args.hypothesisId } },
+      complete_experiment: {
+        path: "/api/ari-vnext-experiments",
+        body: {
+          action: "complete",
+          experimentId: args.experimentId,
+          outcomeDirection: args.outcomeDirection,
+          summary: args.summary,
+          confidenceAfter: args.confidenceAfter
         }
-      };
+      },
+      cancel_experiment: { path: "/api/ari-vnext-experiments", body: { action: "cancel", experimentId: args.experimentId, reason: args.reason } }
+    };
+    const request = map[name];
+    if (!request) return { success: false, message: "Unsupported Ari experiment action." };
+
+    const session = await window.CalBuddy?.getCurrentSession?.();
+    const token = session?.access_token || null;
+    const response = await fetch(request.path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(request.body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.success === false) {
+      return { success: false, message: payload?.error || "The Ari experiment could not be updated." };
+    }
+    return { success: true, reply: payload?.reply || "Experiment updated." };
+  }
+
+  async function ask(message, options = {}) {
+    const mode = getMode();
+    if (mode !== "vnext") {
+      if (!legacy.askAri) throw new Error("Ari Rebirth fallback is unavailable.");
+      return await legacy.askAri(message, options);
     }
 
     try {
-      return await askVNext(input);
+      await ensureVNext();
+      await markInitiativeEngaged();
+      const context = options?.context || (await getUserContext());
+      let result = await window.AriVNextBridge.ask(message, { ...options, context });
+      result = await normalizePendingAction(result);
+      result = await executeTypedConfirmation(result);
+      return result;
     } catch (error) {
-      console.warn("Ari vNext failed; using Rebirth fallback:", error?.message || error);
-
+      console.error("Ari vNext runtime failed; using Rebirth fallback:", error);
       if (!legacy.askAri) throw error;
-      const fallback = await legacy.askAri(input);
-      return {
-        ...fallback,
-        runtime: {
-          selected: "rebirth",
-          fallback: true,
-          fallbackReason: clean(error?.message).slice(0, 240),
-          controllerVersion: VERSION
-        }
-      };
+      return await legacy.askAri(message, options);
     }
   }
 
   async function confirmPendingAction() {
-    const vnextPending = window.AriVNextBridge?.getPendingAction?.() || null;
-
-    if (getMode() === "vnext" && vnextPending?.id) {
-      if (isExperimentAction(vnextPending.name)) {
-        try {
-          const result = await window.AriVNextBridge.ask("yes", {
-            history: [],
-            userContext: await getUserContext(),
-            page: window.location.pathname || "/home.html"
-          });
-          window.AriVNextBridge.clearPendingAction?.();
-          return {
-            success: result?.success !== false,
-            reply: result?.reply || result?.experimentExecution?.message || "Done.",
-            result
-          };
-        } catch (error) {
-          return {
-            success: false,
-            reply: error?.message || "Ari could not confirm that experiment change."
-          };
-        }
-      }
-
-      if (legacy.confirmPendingAction) {
-        const result = await legacy.confirmPendingAction();
-        if (result?.success !== false) window.AriVNextBridge.clearPendingAction?.();
-        return result;
-      }
+    const pending = window.AriVNextBridge?.getPendingAction?.();
+    if (getMode() !== "vnext" || !pending?.id) {
+      return legacy.confirmPendingAction ? await legacy.confirmPendingAction() : null;
     }
 
-    if (!legacy.confirmPendingAction) {
-      return { success: false, reply: "I don’t have anything waiting to confirm." };
+    if (isExperimentAction(pending.name)) {
+      const response = await executeExperimentAction(pending);
+      if (response?.success) window.AriVNextBridge?.clearPendingAction?.();
+      return response;
     }
-    return await legacy.confirmPendingAction();
+
+    const execution = await window.AriVNextActionAdapter.executeConfirmed({
+      vnextPendingAction: pending,
+      currentTurnId: null
+    });
+    if (execution?.success) window.AriVNextBridge?.clearPendingAction?.();
+    return execution;
   }
 
   function cancelPendingAction() {
-    const vnextPending = window.AriVNextBridge?.getPendingAction?.() || null;
-    if (vnextPending?.id) window.AriVNextBridge.clearPendingAction?.();
-
-    if (legacy.cancelPendingAction && CalBuddy.getPendingAction?.()) {
-      return legacy.cancelPendingAction();
-    }
-
-    return {
-      success: true,
-      reply: "No problem. I won’t make that change."
-    };
+    if (getMode() !== "vnext") return legacy.cancelPendingAction?.();
+    window.AriVNextBridge?.clearPendingAction?.();
+    if (CalBuddy.getPendingAction?.()) legacy.cancelPendingAction?.();
+    return true;
   }
 
-  async function checkInitiative({ force = false } = {}) {
-    if (getMode() !== "vnext") return { success: true, shouldInitiate: false, reason: "rebirth_mode" };
-    if (initiativeCheckPromise && !force) return await initiativeCheckPromise;
-
-    initiativeCheckPromise = (async () => {
-      await ensureVNext();
-      if (!window.AriVNextInitiative?.check) {
-        return { success: false, shouldInitiate: false, reason: "initiative_client_unavailable" };
-      }
-      return await window.AriVNextInitiative.check({
-        page: window.location.pathname || "/home.html"
-      });
-    })();
-
+  async function checkInitiative(options = {}) {
+    if (getMode() !== "vnext") return null;
     try {
-      return await initiativeCheckPromise;
+      await ensureVNext();
+      if (!window.AriVNextInitiative?.check) return null;
+      if (initiativeCheckPromise) return await initiativeCheckPromise;
+      initiativeCheckPromise = window.AriVNextInitiative.check(options);
+      const result = await initiativeCheckPromise;
+      activeInitiative = result?.initiative || null;
+      return result;
     } catch (error) {
-      console.warn("Ari initiative check skipped:", error?.message || error);
-      return { success: false, shouldInitiate: false, reason: "initiative_check_failed" };
+      console.warn("Ari vNext initiative check failed:", error?.message || error);
+      return null;
     } finally {
       initiativeCheckPromise = null;
     }
   }
 
-  window.AriRuntime = {
-    version: VERSION,
-    defaultMode: DEFAULT_MODE,
-    getMode,
-    setMode,
-    ensureVNext,
-    ask,
-    confirmPendingAction,
-    cancelPendingAction,
-    checkInitiative,
-    legacyAvailable: Boolean(legacy.askAri)
-  };
-
   CalBuddy.askAri = ask;
   CalBuddy.confirmPendingAction = confirmPendingAction;
   CalBuddy.cancelPendingAction = cancelPendingAction;
-
-  window.addEventListener("ari:vnextInitiative", (event) => {
-    activeInitiative = event?.detail?.initiative || null;
+  CalBuddy.setAriRuntimeMode = setMode;
+  CalBuddy.getAriRuntimeMode = getMode;
+  CalBuddy.checkAriInitiative = checkInitiative;
+  window.Ari.Runtime = Object.freeze({
+    version: VERSION,
+    ask,
+    ensureVNext,
+    checkInitiative,
+    getMode,
+    setMode
   });
-
-  window.dispatchEvent(
-    new CustomEvent("ari:runtimeReady", {
-      detail: { mode: getMode(), version: VERSION, legacyAvailable: Boolean(legacy.askAri) }
-    })
-  );
 })();
