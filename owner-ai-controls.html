@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
-  <link rel="stylesheet" href="assets/css/owner-ai-controls.css?v=1.0.0">
+  <link rel="stylesheet" href="assets/css/owner-ai-controls.css?v=1.1.0">
 </head>
 <body>
   <main class="ari-account-page">
@@ -37,6 +37,7 @@
         </div>
         <div class="owner-ai-status-grid">
           <div class="owner-ai-stat"><strong id="tierStat">—</strong><span>Effective tier</span></div>
+          <div class="owner-ai-stat"><strong id="modelStat">—</strong><span>Model</span></div>
           <div class="owner-ai-stat"><strong id="reasoningStat">—</strong><span>Reasoning profile</span></div>
           <div class="owner-ai-stat"><strong id="premiumStat">Locked</strong><span>Public premium rollout</span></div>
         </div>
@@ -44,12 +45,12 @@
 
       <section class="owner-ai-card">
         <h3>Advanced Ari beta</h3>
-        <p>This switch only changes your verified owner session. Normal users remain on Standard Ari.</p>
+        <p>This switch changes only your verified owner account. Normal users remain on Standard Ari.</p>
 
         <div class="owner-ai-control-row">
           <div class="owner-ai-control-copy">
             <strong>Enable Advanced Ari</strong>
-            <small>Turns on the owner-only entitlement that the advanced conversation engine will use.</small>
+            <small>Routes your Ari conversations through the owner-only GPT-5.6 Sol conversation engine.</small>
           </div>
           <label class="owner-ai-toggle" aria-label="Enable Advanced Ari">
             <input id="advancedAriToggle" type="checkbox">
@@ -60,7 +61,7 @@
         <div class="owner-ai-control-row">
           <div class="owner-ai-control-copy">
             <strong>Reasoning profile</strong>
-            <small>Prepared now so the advanced model can later scale speed, cost, and depth per turn.</small>
+            <small>Controls how much reasoning Advanced Ari spends per turn while keeping one consistent Ari identity.</small>
           </div>
           <select class="owner-ai-select" id="reasoningProfileSelect" aria-label="Reasoning profile">
             <option value="adaptive">Adaptive</option>
@@ -71,7 +72,7 @@
         </div>
 
         <div class="owner-ai-note">
-          The entitlement layer is separate from the conversation engine. That means we can build the new conversational Ari aggressively next without changing Standard Ari or exposing the expensive model to everyone.
+          <strong>Adaptive</strong> is the recommended test setting. Casual conversation uses low reasoning, ordinary discussion uses medium reasoning, and complex coaching, health, or developer work escalates automatically. <strong>Deep</strong> forces xhigh reasoning and will be slower and more expensive.
         </div>
 
         <div style="height:14px"></div>
@@ -80,11 +81,12 @@
       </section>
 
       <section class="owner-ai-card">
-        <h3>What comes next</h3>
-        <div class="owner-ai-next"><b>01</b><p>Connect this entitlement to the higher GPT reasoning policy.</p></div>
-        <div class="owner-ai-next"><b>02</b><p>Install the Advanced Conversation Contract and conversational-state logic.</p></div>
-        <div class="owner-ai-next"><b>03</b><p>Run side-by-side owner conversations and measure latency, cost, action accuracy, and naturalness.</p></div>
-        <div class="owner-ai-next"><b>04</b><p>Later, premium users can receive the same entitlement from subscription state instead of owner authorization.</p></div>
+        <h3>Advanced engine status</h3>
+        <div class="owner-ai-next"><b>01</b><p><strong>Server entitlement:</strong> owner-verified and stored in Supabase, so the same setting follows your account across web and native.</p></div>
+        <div class="owner-ai-next"><b>02</b><p><strong>Reasoning:</strong> GPT-5.6 Sol with per-turn reasoning effort controlled by the profile above.</p></div>
+        <div class="owner-ai-next"><b>03</b><p><strong>Conversation:</strong> Advanced Conversation Contract is active only when your Advanced Ari entitlement is on.</p></div>
+        <div class="owner-ai-next"><b>04</b><p><strong>Actions:</strong> the existing trusted ARI XP validation and confirmation layer remains underneath the conversation.</p></div>
+        <div class="owner-ai-next"><b>05</b><p><strong>Premium later:</strong> subscription state can unlock the same entitlement when the premium rollout flag is deliberately enabled.</p></div>
       </section>
     </div>
 
@@ -94,6 +96,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
-  <script src="js/owner-ai-controls.js?v=1.0.0"></script>
+  <script src="js/owner-ai-controls.js?v=1.1.0"></script>
 </body>
 </html>
