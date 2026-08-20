@@ -18,7 +18,7 @@ const homeSource = await readFile(
 test("Home cutover defaults to Ari vNext but preserves Rebirth as fallback", () => {
   assert.match(runtimeSource, /const DEFAULT_MODE = "vnext"/);
   assert.match(runtimeSource, /legacy\.askAri/);
-  assert.match(runtimeSource, /Ari vNext failed; using Rebirth fallback/);
+  assert.match(runtimeSource, /Ari vNext runtime failed; using Rebirth fallback/);
   assert.match(runtimeSource, /ALLOWED_MODES = new Set\(\["vnext", "rebirth"\]\)/);
 });
 
@@ -28,10 +28,11 @@ test("Home resilience waits for the runtime controller before asking Ari", () =>
   assert.match(resilienceSource, /const response = await CalBuddy\.askAri/);
 });
 
-test("vNext dependencies include canonical Training, action adapter, bridge, and initiative client", () => {
+test("vNext dependencies include canonical Training, trusted action adapters, bridge, and initiative client", () => {
   for (const dependency of [
     "ari-vnext-training-context.js",
     "ari-vnext-action-adapter.js",
+    "ari-vnext-activity-adapter.js",
     "ari-vnext-bridge.js",
     "ari-vnext-initiative.js"
   ]) {
