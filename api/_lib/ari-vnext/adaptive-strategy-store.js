@@ -1,6 +1,7 @@
 // ARI vNext — server-only persistence and lifecycle for adaptive strategies.
 
 import {
+  deriveAdaptiveStrategyContextDomains,
   deriveAdaptiveStrategyState,
   evaluateStrategyOutcome,
   normalizeAdaptiveStrategyProposal
@@ -25,7 +26,7 @@ export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, mes
   };
 }
 
-export async function recordAdaptiveStrategyUses({ userId, strategies = [], turnId } = {}) {
+export async function recordAdaptiveStrategyUses({ userId, strategies = [], turnId, route = {} } = {}) {
   const id = cleanUserId(userId);
   const turn = clean(turnId, 220);
   const config = supabaseConfig();
@@ -34,11 +35,13 @@ export async function recordAdaptiveStrategyUses({ userId, strategies = [], turn
     .slice(0, 6);
   if (!id || !turn || !config || !active.length) return { stored: 0 };
 
+  const contextDomains = [...deriveAdaptiveStrategyContextDomains(route)].slice(0, 8);
   const rows = active.map((item) => ({
     user_id: id,
     strategy_id: clean(item.id, 120),
     turn_id: turn,
-    outcome: "pending"
+    outcome: "pending",
+    context_domains: contextDomains
   }));
 
   try {
@@ -65,10 +68,10 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
     return { stored: false, reason: "retired_strategy_key_locked", strategy: existing };
   }
 
-  if (existing?.status === "adopted") {
+  if (["adopted", "practical_prior"].includes(existing?.status)) {
     const sameInstruction = canonical(existing.instruction) === canonical(normalized.instruction);
     if (!sameInstruction) {
-      return { stored: false, reason: "adopted_strategy_requires_new_key", strategy: existing };
+      return { stored: false, reason: "mature_strategy_requires_new_key", strategy: existing };
     }
   }
 
@@ -78,6 +81,7 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
         title: normalized.title,
         instruction: normalized.instruction,
         rationale: normalized.rationale,
+        lesson_summary: normalized.lessonSummary || existing.lessonSummary || normalized.rationale,
         domains: normalized.domains,
         confidence: Math.min(1, Math.max(Number(existing.confidence || 0), normalized.confidence)),
         source_model: clean(sourceModel, 120) || existing.sourceModel || null,
@@ -91,13 +95,19 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
         title: normalized.title,
         instruction: normalized.instruction,
         rationale: normalized.rationale,
+        lesson_summary: normalized.lessonSummary || normalized.rationale,
         domains: normalized.domains,
         status: "testing",
         confidence: normalized.confidence,
+        maturity_score: 0,
         source_model: clean(sourceModel, 120) || null,
         replaces_strategy_key: normalized.replacesStrategyKey,
         user_visible_summary: normalized.userVisibleSummary,
-        metadata: { createdBy: "ari_adaptive_strategy_reflection", hiddenChainOfThoughtStored: false },
+        metadata: {
+          createdBy: "ari_adaptive_strategy_reflection",
+          hiddenChainOfThoughtStored: false,
+          practicalPriorEligible: true
+        },
         updated_at: now
       };
 
@@ -132,7 +142,7 @@ async function resolveLatestPendingStrategyUses({ userId, feedback = "neutral" }
     const params = new URLSearchParams({
       user_id: `eq.${id}`,
       outcome: "eq.pending",
-      select: "id,strategy_id,turn_id,created_at",
+      select: "id,strategy_id,turn_id,context_domains,created_at",
       order: "created_at.desc",
       limit: "12"
     });
@@ -153,17 +163,30 @@ async function resolveLatestPendingStrategyUses({ userId, feedback = "neutral" }
     const lifecycleChanges = [];
 
     for (const strategy of strategies) {
-      const evaluated = evaluateStrategyOutcome(strategy, feedback, now);
+      const maturityEvidence = await loadMaturityEvidence({
+        userId: id,
+        strategyId: strategy.id,
+        currentTurnId: latestTurnId,
+        currentFeedback: feedback
+      });
+      if (strategy.replacesStrategyKey) {
+        const target = await loadStrategyByKey({ userId: id, strategyKey: strategy.replacesStrategyKey });
+        maturityEvidence.replacementTargetStatus = target?.status || null;
+      }
+
+      const evaluated = evaluateStrategyOutcome(strategy, feedback, now, maturityEvidence);
       const next = evaluated.strategy;
       const patch = {
         status: next.status,
         confidence: next.confidence,
+        maturity_score: next.maturityScore,
         trials: next.trials,
         positive_outcomes: next.positiveOutcomes,
         negative_outcomes: next.negativeOutcomes,
         neutral_outcomes: next.neutralOutcomes,
         last_used_at: next.lastUsedAt,
         adopted_at: next.adoptedAt,
+        matured_at: next.maturedAt,
         retired_at: next.retiredAt,
         updated_at: now.toISOString()
       };
@@ -184,9 +207,10 @@ async function resolveLatestPendingStrategyUses({ userId, feedback = "neutral" }
           strategy: normalized,
           priorStatus: evaluated.priorStatus,
           nextStatus: evaluated.nextStatus,
-          outcome: evaluated.outcome
+          outcome: evaluated.outcome,
+          maturityScore: evaluated.maturityScore
         });
-        if (evaluated.nextStatus === "adopted" && normalized.replacesStrategyKey) {
+        if (["adopted", "practical_prior"].includes(evaluated.nextStatus) && normalized.replacesStrategyKey) {
           await retireReplacedStrategy({ userId: id, strategyKey: normalized.replacesStrategyKey, now });
         }
       }
@@ -215,16 +239,61 @@ async function resolveLatestPendingStrategyUses({ userId, feedback = "neutral" }
   }
 }
 
+async function loadMaturityEvidence({ userId, strategyId, currentTurnId, currentFeedback } = {}) {
+  const id = cleanUserId(userId);
+  const strategy = clean(strategyId, 120);
+  const config = supabaseConfig();
+  if (!id || !strategy || !config) return emptyMaturityEvidence();
+  try {
+    const params = new URLSearchParams({
+      user_id: `eq.${id}`,
+      strategy_id: `eq.${strategy}`,
+      select: "turn_id,outcome,context_domains,created_at",
+      order: "created_at.desc",
+      limit: "40"
+    });
+    const response = await timedFetch(`${config.url}/rest/v1/${USE_TABLE}?${params.toString()}`, {
+      headers: serverHeaders(config.key)
+    }, TIMEOUT_MS);
+    if (!response.ok) return emptyMaturityEvidence();
+    const rows = await response.json().catch(() => []);
+    if (!Array.isArray(rows)) return emptyMaturityEvidence();
+
+    const normalized = rows.map((row) => {
+      const isCurrent = clean(row?.turn_id, 220) === clean(currentTurnId, 220);
+      const outcome = isCurrent && row?.outcome === "pending"
+        ? normalizeOutcome(currentFeedback)
+        : normalizeOutcome(row?.outcome);
+      const domains = (Array.isArray(row?.context_domains) ? row.context_domains : ["conversation"])
+        .map((item) => clean(item, 40))
+        .filter(Boolean)
+        .sort();
+      return { outcome, contextKey: domains.join("+") || "conversation" };
+    });
+    const resolved = normalized.filter((item) => item.outcome !== "pending");
+    const recent = resolved.slice(0, 6);
+    return {
+      distinctContextCount: new Set(resolved.map((item) => item.contextKey)).size,
+      resolvedUseCount: resolved.length,
+      recentResolvedCount: recent.length,
+      recentNegativeCount: recent.filter((item) => item.outcome === "negative").length,
+      replacementTargetStatus: null
+    };
+  } catch {
+    return emptyMaturityEvidence();
+  }
+}
+
 async function loadActiveStrategyRows({ userId } = {}) {
   const id = cleanUserId(userId);
   const config = supabaseConfig();
   if (!id || !config) return [];
   const params = new URLSearchParams({
     user_id: `eq.${id}`,
-    status: "in.(testing,adopted)",
-    select: "id,strategy_key,title,instruction,rationale,domains,status,confidence,trials,positive_outcomes,negative_outcomes,neutral_outcomes,source_model,replaces_strategy_key,user_visible_summary,first_proposed_at,last_used_at,adopted_at,retired_at,updated_at",
+    status: "in.(testing,adopted,practical_prior)",
+    select: "id,strategy_key,title,instruction,rationale,lesson_summary,domains,status,confidence,maturity_score,trials,positive_outcomes,negative_outcomes,neutral_outcomes,source_model,replaces_strategy_key,user_visible_summary,first_proposed_at,last_used_at,adopted_at,matured_at,retired_at,updated_at",
     order: "updated_at.desc",
-    limit: "16"
+    limit: "18"
   });
   try {
     const response = await timedFetch(`${config.url}/rest/v1/${STRATEGY_TABLE}?${params.toString()}`, {
@@ -232,7 +301,7 @@ async function loadActiveStrategyRows({ userId } = {}) {
     }, TIMEOUT_MS);
     if (!response.ok) return [];
     const rows = await response.json().catch(() => []);
-    return Array.isArray(rows) ? rows.map(normalizeRow) : [];
+    return Array.isArray(rows) ? rows.map(normalizeRow).filter(Boolean) : [];
   } catch {
     return [];
   }
@@ -290,7 +359,11 @@ async function retireReplacedStrategy({ userId, strategyKey, now = new Date() } 
   const config = supabaseConfig();
   if (!id || !key || !config) return false;
   try {
-    const params = new URLSearchParams({ user_id: `eq.${id}`, strategy_key: `eq.${key}`, status: "eq.adopted" });
+    const params = new URLSearchParams({
+      user_id: `eq.${id}`,
+      strategy_key: `eq.${key}`,
+      status: "in.(adopted,practical_prior)"
+    });
     const response = await timedFetch(`${config.url}/rest/v1/${STRATEGY_TABLE}?${params.toString()}`, {
       method: "PATCH",
       headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
@@ -318,9 +391,11 @@ function normalizeRow(row) {
     title: clean(row.title, 140),
     instruction: clean(row.instruction, 700),
     rationale: clean(row.rationale, 500),
+    lessonSummary: clean(row.lesson_summary || row.rationale, 500),
     domains: Array.isArray(row.domains) ? row.domains.map((item) => clean(item, 40)).filter(Boolean) : ["general"],
     status: clean(row.status, 30) || "testing",
     confidence: Number(row.confidence || 0.65),
+    maturityScore: Number(row.maturity_score || 0),
     trials: Math.max(0, Number(row.trials || 0)),
     positiveOutcomes: Math.max(0, Number(row.positive_outcomes || 0)),
     negativeOutcomes: Math.max(0, Number(row.negative_outcomes || 0)),
@@ -331,6 +406,7 @@ function normalizeRow(row) {
     firstProposedAt: row.first_proposed_at || null,
     lastUsedAt: row.last_used_at || null,
     adoptedAt: row.adopted_at || null,
+    maturedAt: row.matured_at || null,
     retiredAt: row.retired_at || null,
     updatedAt: row.updated_at || null
   };
@@ -339,18 +415,34 @@ function normalizeRow(row) {
 function emptyPreparation() {
   return {
     state: {
-      version: "0.1.0",
+      version: "0.3.0",
       ownerOnly: true,
       selfUpdating: true,
+      nonRegressiveEvolution: true,
+      practicalPriorMaturation: true,
       storesHiddenChainOfThought: false,
       domains: [],
       activeCount: 0,
+      practicalPriorCount: 0,
       adoptedCount: 0,
       testingCount: 0,
       active: []
     },
     feedbackResolution: { resolved: 0, feedback: "neutral", lifecycleChanges: [] }
   };
+}
+function emptyMaturityEvidence() {
+  return {
+    distinctContextCount: 0,
+    resolvedUseCount: 0,
+    recentResolvedCount: 0,
+    recentNegativeCount: 0,
+    replacementTargetStatus: null
+  };
+}
+function normalizeOutcome(value) {
+  const outcome = clean(value, 20).toLowerCase();
+  return ["pending", "positive", "negative", "neutral"].includes(outcome) ? outcome : "neutral";
 }
 function supabaseConfig() {
   const url = clean(process.env.SUPABASE_URL, 1200).replace(/\/+$/, "");
