@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.17 — Loads consolidated Nutrition ledger/trust/data-quality runtime versions.
 // V1.10.16 — Enforces browser account isolation before Ari action/runtime boot.
 // V1.10.15 — Loads central Ari router v1.5.3 / runtime v1.3.4 response-pipeline repair.
 // V1.10.14 — Loads central Ari router v1.5.2 / runtime v1.3.3 restoration chain.
@@ -245,7 +246,7 @@ function bootstrapCanonicalMealLedger() {
   if (document.getElementById(ARI_MEAL_LEDGER_SYNC_SCRIPT_ID)) return;
   const script = document.createElement("script");
   script.id = ARI_MEAL_LEDGER_SYNC_SCRIPT_ID;
-  script.src = "js/meal-ledger-sync.js?v=1.0.1";
+  script.src = "js/meal-ledger-sync.js?v=1.1.0";
   script.defer = true;
   document.head.appendChild(script);
 }
@@ -258,13 +259,13 @@ function bootstrapNutritionTransactionClient() {
 
 function bootstrapNutritionTrustLayer() {
   if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(ARI_NUTRITION_TRUST_SCRIPT_ID, "js/nutrition-trust-layer.js?v=1.0.0");
+  appendOrderedScript(ARI_NUTRITION_TRUST_SCRIPT_ID, "js/nutrition-trust-layer.js?v=1.1.0");
 }
 
 function bootstrapNutritionDataQuality() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_NUTRITION_QUALITY_SCRIPT_ID, "js/ari-nutrition-data-quality.js?v=1.0.0");
+  appendOrderedScript(ARI_NUTRITION_QUALITY_SCRIPT_ID, "js/ari-nutrition-data-quality.js?v=1.1.0");
 }
 
 function bootstrapAriCentralIntentRouter() {
