@@ -1,16 +1,20 @@
 // =====================================================
 // ARI XP
 // File: js/nutrition-meal-plan-today.js
-// Version: 2.0.0
+// Version: 2.1.0
 // Purpose:
-//   Today-only Meal Plan tray for Nutrition.
-//   No calendar, no planner builder, no duplicate Ask Ari entry point.
+//   Today-only Meal Plan controller for Nutrition.
+//   - One Meal Plan controller; no post-render compact patch.
+//   - Favorites are the only shortcut shelf inside Meal Plan.
+//   - Existing Recent Meals history gets Favorite / Add-to-Plan actions.
+//   - Planned and Remaining calories share one summary.
+//   - Quick-meal data is loaded only when Meal Plan is opened.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.1.0";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const LOCAL_MEALS_KEY = "calbuddyMeals";
   const DAILY_GOAL_KEY = "calbuddyDailyCalorieGoal";
@@ -23,10 +27,11 @@
     user: null,
     plans: [],
     favorites: [],
-    recent: [],
-    loaded: false,
+    plansLoaded: false,
+    favoritesLoaded: false,
     busy: false,
-    discardTimer: null
+    discardTimer: null,
+    recentDecorateTimer: null
   };
 
   const els = {};
@@ -79,7 +84,8 @@
     const category = normalizeSlot(meal.category || meal.meal_slot);
     if (category) return category;
 
-    const hour = new Date().getHours();
+    const created = new Date(meal.created_at || meal.createdAt || Date.now());
+    const hour = Number.isNaN(created.getTime()) ? new Date().getHours() : created.getHours();
     if (hour < 11) return "breakfast";
     if (hour < 15) return "lunch";
     if (hour < 20) return "dinner";
@@ -137,8 +143,8 @@
       .filter(Boolean);
 
     if (normalized.length) return normalized;
-
     if (!plan) return [];
+
     return [{
       id: "whole-meal",
       name: clean(plan.name) || "Meal",
@@ -158,6 +164,21 @@
       sum.fat_g += Math.max(0, number(item.fat_g));
       return sum;
     }, { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+  }
+
+  function dedupeMeals(meals = []) {
+    const seen = new Set();
+    const output = [];
+
+    for (const meal of meals) {
+      if (!meal) continue;
+      const key = clean(meal.id) || `${clean(meal.name).toLowerCase()}|${Math.round(number(meal.calories))}|${clean(meal.category).toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push(meal);
+    }
+
+    return output;
   }
 
   async function getUser() {
@@ -180,12 +201,107 @@
   }
 
   function injectCss() {
-    if (document.getElementById("ariNutritionTodayMealPlanCss")) return;
-    const link = document.createElement("link");
-    link.id = "ariNutritionTodayMealPlanCss";
-    link.rel = "stylesheet";
-    link.href = "assets/css/nutrition-meal-plan-today.css?v=2.0.0";
-    document.head.appendChild(link);
+    if (!document.getElementById("ariNutritionTodayMealPlanCss")) {
+      const link = document.createElement("link");
+      link.id = "ariNutritionTodayMealPlanCss";
+      link.rel = "stylesheet";
+      link.href = "assets/css/nutrition-meal-plan-today.css?v=2.0.0";
+      document.head.appendChild(link);
+    }
+
+    if (document.getElementById("ariNutritionTodayIntegratedStyle")) return;
+    const style = document.createElement("style");
+    style.id = "ariNutritionTodayIntegratedStyle";
+    style.textContent = `
+      #nutritionTodayMealPlan .nutrition-today-plan-summary {
+        min-width: 205px;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        align-items: end;
+        column-gap: 14px;
+        row-gap: 2px;
+        padding: 15px 17px;
+      }
+
+      #nutritionTodayPlanPlannedLabel,
+      #nutritionTodayPlanRemainingLabel {
+        font-family: "Orbitron", sans-serif;
+        font-size: 7px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: #8695aa;
+        white-space: nowrap;
+      }
+
+      #nutritionTodayPlanPlannedLabel { grid-column: 1; grid-row: 1; }
+      #nutritionTodayPlanRemainingLabel { grid-column: 2; grid-row: 1; text-align: right; }
+      #nutritionTodayPlanCalories { grid-column: 1; grid-row: 2; text-align: left; white-space: nowrap; }
+      #nutritionTodayPlanRemaining {
+        grid-column: 2;
+        grid-row: 2;
+        color: #315de8;
+        font-size: 18px;
+        font-weight: 900;
+        line-height: 1.1;
+        text-align: right;
+        white-space: nowrap;
+      }
+      #nutritionTodayPlanSummaryText {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        margin-top: 5px;
+        text-align: right;
+      }
+
+      .nutrition-recent-plan-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        width: 100%;
+      }
+      .nutrition-recent-plan-actions button {
+        min-height: 38px;
+        border-radius: 12px;
+        border: 1px solid rgba(57, 100, 172, .14);
+        background: rgba(246, 250, 255, .94);
+        color: #31558f;
+        font-family: "Orbitron", sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .nutrition-recent-plan-actions .nutrition-recent-favorite-btn {
+        width: 42px;
+        flex: 0 0 42px;
+        padding: 0;
+        font-size: 17px;
+        color: #6c7f9a;
+      }
+      .nutrition-recent-plan-actions .nutrition-recent-favorite-btn.is-favorite {
+        color: #315de8;
+        background: #f2f6ff;
+      }
+      .nutrition-recent-plan-actions .nutrition-recent-add-plan-btn {
+        flex: 1 1 auto;
+        padding: 0 12px;
+        color: #244fc2;
+        background: linear-gradient(145deg, #f6f9ff, #edf4ff);
+      }
+
+      @media (max-width: 520px) {
+        #nutritionTodayMealPlan .nutrition-today-plan-summary {
+          min-width: 188px;
+          column-gap: 10px;
+          padding: 13px 14px;
+        }
+        #nutritionTodayPlanRemaining { font-size: 16px; }
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   function cacheElements() {
@@ -236,7 +352,10 @@
             <p class="nutrition-today-plan-date" id="nutritionTodayPlanDate"></p>
           </div>
           <div class="nutrition-today-plan-summary">
+            <span id="nutritionTodayPlanPlannedLabel">Planned</span>
+            <span id="nutritionTodayPlanRemainingLabel">Remaining</span>
             <strong id="nutritionTodayPlanCalories">0 kcal</strong>
+            <strong id="nutritionTodayPlanRemaining">—</strong>
             <span id="nutritionTodayPlanSummaryText">Nothing planned</span>
           </div>
         </div>
@@ -254,17 +373,6 @@
         </div>
         <div class="nutrition-plan-shelf-track" id="nutritionFavoriteShelf"></div>
       </section>
-
-      <section class="nutrition-plan-shelf" aria-labelledby="nutritionRecentPlanHeading">
-        <div class="nutrition-plan-shelf-heading">
-          <div>
-            <span>Quick add</span>
-            <h4 id="nutritionRecentPlanHeading">Recent</h4>
-          </div>
-          <p>Swipe to browse</p>
-        </div>
-        <div class="nutrition-plan-shelf-track" id="nutritionRecentPlanShelf"></div>
-      </section>
     `;
 
     const anchor = els.header || els.form;
@@ -274,15 +382,15 @@
     els.pane = pane;
     els.date = pane.querySelector("#nutritionTodayPlanDate");
     els.calories = pane.querySelector("#nutritionTodayPlanCalories");
+    els.remaining = pane.querySelector("#nutritionTodayPlanRemaining");
     els.summary = pane.querySelector("#nutritionTodayPlanSummaryText");
     els.planList = pane.querySelector("#nutritionTodayPlanList");
     els.favoriteShelf = pane.querySelector("#nutritionFavoriteShelf");
-    els.recentShelf = pane.querySelector("#nutritionRecentPlanShelf");
 
     pane.addEventListener("click", handlePlanPaneClick);
   }
 
-  function setMode(mode = "log") {
+  async function setMode(mode = "log") {
     state.mode = mode === "plan" ? "plan" : "log";
     const isPlan = state.mode === "plan";
     els.section?.classList.toggle("is-today-plan-mode", isPlan);
@@ -292,7 +400,7 @@
       button.setAttribute("aria-selected", String(button.dataset.mode === state.mode));
     });
 
-    if (isPlan) void refresh();
+    if (isPlan) await refresh({ includeFavorites: true });
   }
 
   async function loadPlans() {
@@ -313,6 +421,7 @@
 
       if (!error) {
         state.plans = (data || []).map((item) => ({ ...item, storage_source: "supabase" }));
+        state.plansLoaded = true;
         return state.plans;
       }
 
@@ -322,64 +431,40 @@
     state.plans = readLocalArray(PLAN_LOCAL_KEY)
       .filter((item) => item.plan_date === date && item.status === "planned")
       .map((item) => ({ ...item, storage_source: "local" }));
-
+    state.plansLoaded = true;
     return state.plans;
   }
 
-  async function loadQuickMeals() {
+  async function loadFavorites() {
     const user = await getUser();
     const client = window.calbuddySupabase;
 
     if (user?.id && client) {
-      const [{ data: recentData, error: recentError }, { data: favoriteData, error: favoriteError }] = await Promise.all([
-        client
-          .from("meals")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(20),
-        client
-          .from("meals")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("is_favorite", true)
-          .order("created_at", { ascending: false })
-          .limit(20)
-      ]);
+      const { data, error } = await client
+        .from("meals")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_favorite", true)
+        .order("created_at", { ascending: false })
+        .limit(20);
 
-      if (!recentError && !favoriteError) {
-        state.recent = dedupeMeals((recentData || []).map((meal) => ({ ...meal, storage_source: "supabase" })));
-        state.favorites = dedupeMeals((favoriteData || []).map((meal) => ({ ...meal, storage_source: "supabase" })));
-        return;
+      if (!error) {
+        state.favorites = dedupeMeals((data || []).map((meal) => ({ ...meal, storage_source: "supabase", source: "supabase" })));
+        state.favoritesLoaded = true;
+        return state.favorites;
       }
 
-      console.warn(
-        "[ARI Today Meal Plan] Quick meals cloud load failed:",
-        recentError?.message || favoriteError?.message || "unknown error"
-      );
+      console.warn("[ARI Today Meal Plan] Favorite meal load failed:", error.message);
     }
 
     const local = readLocalArray(LOCAL_MEALS_KEY)
+      .filter((meal) => meal.is_favorite === true)
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-      .map((meal) => ({ ...meal, storage_source: "local" }));
+      .map((meal) => ({ ...meal, storage_source: "local", source: "local" }));
 
-    state.recent = dedupeMeals(local).slice(0, 20);
-    state.favorites = dedupeMeals(local.filter((meal) => meal.is_favorite === true)).slice(0, 20);
-  }
-
-  function dedupeMeals(meals = []) {
-    const seen = new Set();
-    const output = [];
-
-    for (const meal of meals) {
-      if (!meal) continue;
-      const key = clean(meal.id) || `${clean(meal.name).toLowerCase()}|${Math.round(number(meal.calories))}|${clean(meal.category).toLowerCase()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      output.push(meal);
-    }
-
-    return output;
+    state.favorites = dedupeMeals(local).slice(0, 20);
+    state.favoritesLoaded = true;
+    return state.favorites;
   }
 
   function sortPlans(plans = []) {
@@ -389,6 +474,36 @@
       if (aSlot !== bSlot) return aSlot - bSlot;
       return number(a.position) - number(b.position);
     });
+  }
+
+  function dailyGoal() {
+    return Math.max(0, number(localStorage.getItem(DAILY_GOAL_KEY)));
+  }
+
+  function consumedToday() {
+    return clean(localStorage.getItem(CONSUMED_DATE_KEY)) === todayKey()
+      ? Math.max(0, number(localStorage.getItem(CONSUMED_KEY)))
+      : 0;
+  }
+
+  function updateRemainingCalories() {
+    if (!els.remaining) return;
+
+    const goal = dailyGoal();
+    const consumed = consumedToday();
+    const planned = state.plans.reduce((sum, plan) => sum + Math.max(0, number(plan.calories)), 0);
+
+    if (!goal) {
+      els.remaining.textContent = "—";
+      els.remaining.title = "Set a daily calorie goal to see remaining calories.";
+      return;
+    }
+
+    const remaining = Math.round(goal - consumed - planned);
+    els.remaining.textContent = remaining >= 0
+      ? `${remaining.toLocaleString()} kcal`
+      : `${Math.abs(remaining).toLocaleString()} over`;
+    els.remaining.title = `${Math.round(goal).toLocaleString()} goal − ${Math.round(consumed).toLocaleString()} eaten − ${Math.round(planned).toLocaleString()} planned`;
   }
 
   function render() {
@@ -405,9 +520,10 @@
         : "Nothing planned";
     }
 
+    updateRemainingCalories();
     renderPlanCards();
-    renderQuickShelf(els.favoriteShelf, state.favorites, "favorites");
-    renderQuickShelf(els.recentShelf, state.recent, "recent");
+    renderFavoriteShelf();
+    scheduleRecentDecoration();
   }
 
   function renderPlanCards() {
@@ -486,48 +602,111 @@
     `;
   }
 
-  function renderQuickShelf(container, meals = [], shelf = "recent") {
+  function renderFavoriteShelf() {
+    const container = els.favoriteShelf;
     if (!container) return;
     container.replaceChildren();
 
-    if (!meals.length) {
+    if (!state.favoritesLoaded && state.mode !== "plan") {
+      const lazy = document.createElement("div");
+      lazy.className = "nutrition-plan-shelf-empty";
+      lazy.textContent = "Favorites load when Meal Plan opens.";
+      container.appendChild(lazy);
+      return;
+    }
+
+    if (!state.favorites.length) {
       const empty = document.createElement("div");
       empty.className = "nutrition-plan-shelf-empty";
-      empty.textContent = shelf === "favorites"
-        ? "No favorites yet. Tap the star on a recent meal to keep it here."
-        : "Recent meals will appear here after you log food.";
+      empty.textContent = "No favorites yet. Tap the star on a recent meal to keep it here.";
       container.appendChild(empty);
       return;
     }
 
-    meals.forEach((meal) => {
+    state.favorites.forEach((meal) => {
       const card = document.createElement("article");
       card.className = "nutrition-quick-meal-card";
       card.dataset.mealId = clean(meal.id);
       const slot = fallbackSlotForMeal(meal);
-      const isFavorite = meal.is_favorite === true || state.favorites.some((item) => String(item.id) === String(meal.id));
 
       card.innerHTML = `
-        <button class="nutrition-quick-meal-favorite ${isFavorite ? "is-favorite" : ""}" type="button" data-plan-action="favorite" data-meal-id="${escapeHtml(meal.id)}" data-shelf="${shelf}" aria-label="${isFavorite ? "Remove from favorites" : "Add to favorites"}">${isFavorite ? "★" : "☆"}</button>
+        <button class="nutrition-quick-meal-favorite is-favorite" type="button" data-plan-action="favorite" data-meal-id="${escapeHtml(meal.id)}" aria-label="Remove from favorites">★</button>
         <span class="nutrition-quick-meal-card__slot">${escapeHtml(slotLabel(slot))}</span>
         <h5>${escapeHtml(meal.name || "Meal")}</h5>
         <p class="nutrition-quick-meal-card__meta">${Math.round(number(meal.calories)).toLocaleString()} kcal · ${roundMacro(readMealMacro(meal, "protein"))}P · ${roundMacro(readMealMacro(meal, "carbs"))}C</p>
-        <button class="nutrition-quick-meal-add" type="button" data-plan-action="quick-add" data-meal-id="${escapeHtml(meal.id)}" data-shelf="${shelf}">+ Add to ${escapeHtml(slotLabel(slot))}</button>
+        <button class="nutrition-quick-meal-add" type="button" data-plan-action="quick-add" data-meal-id="${escapeHtml(meal.id)}">+ Add to ${escapeHtml(slotLabel(slot))}</button>
       `;
 
       container.appendChild(card);
     });
   }
 
+  function getRecentPageMeals() {
+    const recent = window.AriNutritionPage?.getState?.()?.recentMeals;
+    return Array.isArray(recent) ? recent : [];
+  }
+
+  function recentContainer() {
+    return document.getElementById("recentMealList") || document.getElementById("recentMealsList");
+  }
+
+  function recentSectionIsOpen() {
+    const section = document.getElementById("recentMealsSection");
+    return !section || section.open === true;
+  }
+
+  function decorateRecentMeals() {
+    if (!recentSectionIsOpen()) return;
+
+    const container = recentContainer();
+    const recentMeals = getRecentPageMeals();
+    if (!container || !recentMeals.length) return;
+
+    const cards = Array.from(container.querySelectorAll(":scope > .nutrition-recent-meal, :scope > .nutrition-meal-card"));
+    cards.forEach((card, index) => {
+      const meal = recentMeals[index];
+      if (!meal) return;
+
+      let actions = card.querySelector(":scope > .nutrition-recent-plan-actions");
+      if (!actions) {
+        actions = document.createElement("div");
+        actions.className = "nutrition-recent-plan-actions";
+        card.appendChild(actions);
+      }
+
+      actions.replaceChildren();
+
+      const isFavorite = meal.is_favorite === true || state.favorites.some((item) => String(item.id) === String(meal.id));
+      const favorite = document.createElement("button");
+      favorite.type = "button";
+      favorite.className = `nutrition-recent-favorite-btn${isFavorite ? " is-favorite" : ""}`;
+      favorite.textContent = isFavorite ? "★" : "☆";
+      favorite.setAttribute("aria-label", isFavorite ? "Remove from Favorites" : "Add to Favorites");
+      favorite.addEventListener("click", () => void toggleFavorite(meal));
+
+      const slot = fallbackSlotForMeal(meal);
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "nutrition-recent-add-plan-btn";
+      add.textContent = `+ Add to ${slotLabel(slot)}`;
+      add.addEventListener("click", () => void addQuickMeal(meal, "recent"));
+
+      actions.append(favorite, add);
+    });
+  }
+
+  function scheduleRecentDecoration() {
+    window.clearTimeout(state.recentDecorateTimer);
+    state.recentDecorateTimer = window.setTimeout(decorateRecentMeals, 40);
+  }
+
   function findPlan(id) {
     return state.plans.find((plan) => String(plan.id) === String(id)) || null;
   }
 
-  function findQuickMeal(id, shelf) {
-    const source = shelf === "favorites" ? state.favorites : state.recent;
-    return source.find((meal) => String(meal.id) === String(id)) ||
-      state.recent.find((meal) => String(meal.id) === String(id)) ||
-      state.favorites.find((meal) => String(meal.id) === String(id)) || null;
+  function findQuickMeal(id) {
+    return state.favorites.find((meal) => String(meal.id) === String(id)) ||
+      getRecentPageMeals().find((meal) => String(meal.id) === String(id)) || null;
   }
 
   function handlePlanPaneClick(event) {
@@ -568,13 +747,13 @@
     }
 
     if (action === "quick-add") {
-      const meal = findQuickMeal(button.dataset.mealId, button.dataset.shelf);
-      if (meal) void addQuickMeal(meal, button.dataset.shelf);
+      const meal = findQuickMeal(button.dataset.mealId);
+      if (meal) void addQuickMeal(meal, "favorites");
       return;
     }
 
     if (action === "favorite") {
-      const meal = findQuickMeal(button.dataset.mealId, button.dataset.shelf);
+      const meal = findQuickMeal(button.dataset.mealId);
       if (meal) void toggleFavorite(meal);
     }
   }
@@ -598,8 +777,21 @@
     }, 2200);
   }
 
-  async function addQuickMeal(meal, shelf) {
+  async function ensurePlansLoaded() {
+    if (!state.plansLoaded) await loadPlans();
+  }
+
+  async function addQuickMeal(meal, shelf = "recent") {
+    if (state.busy) return;
+    await ensurePlansLoaded();
+
     const slot = fallbackSlotForMeal(meal);
+    const existing = state.plans.some((plan) => normalizeSlot(plan.meal_slot) === slot);
+    if (existing) {
+      showToast(`${slotLabel(slot)} already has an active plan today.`);
+      return;
+    }
+
     const record = {
       plan_date: todayKey(),
       meal_slot: slot,
@@ -613,7 +805,7 @@
       source_type: shelf === "favorites" ? "saved_meal" : "recent",
       source_ref: clean(meal.id) || null,
       items: [],
-      notes: "",
+      notes: shelf === "recent" ? "Added from Recent Meals" : "",
       status: "planned",
       position: 0,
       updated_at: new Date().toISOString()
@@ -625,7 +817,10 @@
       state.plans.push(saved);
       render();
       showToast(`${record.name} added to today's ${slotLabel(slot).toLowerCase()}.`);
-      dispatchChanged("quick_added", saved);
+      dispatchChanged(shelf === "recent" ? "recent_added" : "quick_added", saved);
+    } catch (error) {
+      console.error("[ARI Today Meal Plan] Add to plan failed:", error);
+      showToast("That meal could not be added to Meal Plan.");
     } finally {
       state.busy = false;
     }
@@ -806,12 +1001,15 @@
         state.plans = state.plans.filter((item) => String(item.id) !== String(plan.id));
       } else {
         const remainder = sumComponents(remaining);
+        const names = remaining.map((item) => clean(item.name)).filter(Boolean);
         const updated = await updatePlan(plan, {
+          name: names.length <= 3 ? names.join(" + ") : `${slotLabel(plan.meal_slot)} remaining items`,
           items: remaining,
           calories: Math.round(remainder.calories),
           protein_g: roundMacro(remainder.protein_g),
           carbs_g: roundMacro(remainder.carbs_g),
           fat_g: roundMacro(remainder.fat_g),
+          serving_size: "Remaining planned items",
           notes: clean(plan.notes)
             ? `${clean(plan.notes)} | Partially eaten`
             : "Partially eaten"
@@ -833,11 +1031,14 @@
   }
 
   async function toggleFavorite(meal) {
+    if (state.busy || !meal) return;
+
     const next = !(meal.is_favorite === true || state.favorites.some((item) => String(item.id) === String(meal.id)));
     state.busy = true;
 
     try {
-      if (meal.storage_source === "supabase" && window.calbuddySupabase) {
+      const cloudMeal = meal.storage_source === "supabase" || meal.source === "supabase";
+      if (cloudMeal && window.calbuddySupabase) {
         let query = window.calbuddySupabase
           .from("meals")
           .update({ is_favorite: next })
@@ -854,17 +1055,18 @@
         }
       }
 
-      state.recent = state.recent.map((item) => String(item.id) === String(meal.id) ? { ...item, is_favorite: next } : item);
+      meal.is_favorite = next;
       if (next) {
-        const favorite = { ...meal, is_favorite: true };
-        state.favorites = dedupeMeals([favorite, ...state.favorites]);
+        state.favorites = dedupeMeals([{ ...meal, is_favorite: true }, ...state.favorites]);
         showToast(`${meal.name || "Meal"} added to Favorites.`);
       } else {
         state.favorites = state.favorites.filter((item) => String(item.id) !== String(meal.id));
         showToast(`${meal.name || "Meal"} removed from Favorites.`);
       }
 
-      render();
+      state.favoritesLoaded = true;
+      renderFavoriteShelf();
+      scheduleRecentDecoration();
     } catch (error) {
       console.error("[ARI Today Meal Plan] Favorite update failed:", error);
       showToast("Favorite could not be updated.");
@@ -877,6 +1079,8 @@
     try {
       if (typeof window.AriNutritionPage?.refresh === "function") {
         await window.AriNutritionPage.refresh();
+      } else if (typeof window.refreshNutritionPage === "function") {
+        await window.refreshNutritionPage();
       }
     } catch (error) {
       console.warn("[ARI Today Meal Plan] Nutrition refresh failed:", error?.message || error);
@@ -900,18 +1104,14 @@
 
   function dispatchChanged(action, payload) {
     window.dispatchEvent(new CustomEvent("ari:nutritionMealPlanChanged", {
-      detail: { action, payload, date: todayKey(), version: VERSION }
+      detail: {
+        action,
+        payload,
+        date: todayKey(),
+        source: "today_meal_plan_ui",
+        version: VERSION
+      }
     }));
-  }
-
-  function dailyGoal() {
-    return Math.max(0, number(localStorage.getItem(DAILY_GOAL_KEY)));
-  }
-
-  function consumedToday() {
-    return clean(localStorage.getItem(CONSUMED_DATE_KEY)) === todayKey()
-      ? Math.max(0, number(localStorage.getItem(CONSUMED_KEY)))
-      : 0;
   }
 
   function getAriContext() {
@@ -942,9 +1142,11 @@
     return state.plans.filter((plan) => normalizeSlot(plan.meal_slot) === normalized);
   }
 
-  async function refresh() {
-    await Promise.all([loadPlans(), loadQuickMeals()]);
-    state.loaded = true;
+  async function refresh(options = {}) {
+    const includeFavorites = options.includeFavorites === true || state.mode === "plan";
+    const jobs = [loadPlans()];
+    if (includeFavorites) jobs.push(loadFavorites());
+    await Promise.all(jobs);
     render();
     return getState();
   }
@@ -955,8 +1157,7 @@
       mode: state.mode,
       date: todayKey(),
       plans: state.plans.map((plan) => ({ ...plan })),
-      favorites: state.favorites.map((meal) => ({ ...meal })),
-      recent: state.recent.map((meal) => ({ ...meal }))
+      favorites: state.favorites.map((meal) => ({ ...meal }))
     };
   }
 
@@ -967,7 +1168,29 @@
       refresh,
       getState,
       getAriContext,
-      findPlannedSlot
+      findPlannedSlot,
+      decorateRecentMeals,
+      updateRemainingCalories
+    });
+  }
+
+  function bindRecentHistoryActions() {
+    const section = document.getElementById("recentMealsSection");
+    section?.addEventListener("toggle", () => {
+      if (section.open) scheduleRecentDecoration();
+    });
+
+    window.addEventListener("calbuddy:mealsChanged", scheduleRecentDecoration);
+    window.addEventListener("ari:mealLogged", scheduleRecentDecoration);
+    window.addEventListener("ari:meal-ledger-synced", () => {
+      updateRemainingCalories();
+      scheduleRecentDecoration();
+    });
+
+    window.addEventListener("storage", (event) => {
+      if ([DAILY_GOAL_KEY, CONSUMED_KEY, CONSUMED_DATE_KEY].includes(event.key)) {
+        updateRemainingCalories();
+      }
     });
   }
 
@@ -975,22 +1198,24 @@
     let refreshingFromEvent = false;
 
     window.addEventListener("ari:nutritionMealPlanChanged", async (event) => {
-      if (event?.detail?.version === VERSION && event?.detail?.source === "today_meal_plan_ui") return;
+      if (event?.detail?.source === "today_meal_plan_ui") return;
       if (refreshingFromEvent) return;
       refreshingFromEvent = true;
       try {
-        await refresh();
+        await refresh({ includeFavorites: state.mode === "plan" });
       } finally {
         refreshingFromEvent = false;
       }
     });
 
     window.addEventListener("focus", () => {
-      if (state.mode === "plan") void refresh();
+      if (state.mode === "plan") void refresh({ includeFavorites: true });
     });
 
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && state.mode === "plan") void refresh();
+      if (!document.hidden && state.mode === "plan") {
+        void refresh({ includeFavorites: true });
+      }
     });
   }
 
@@ -1003,9 +1228,13 @@
     buildPlanPane();
     installPublicApi();
     bindExternalEvents();
+    bindRecentHistoryActions();
 
-    await refresh();
-    setMode("log");
+    // Only the small plan query runs at startup. Favorite meals stay lazy until
+    // Meal Plan is actually opened; Recent Meals are reused from Nutrition.
+    await loadPlans();
+    render();
+    await setMode("log");
 
     console.info(`[ARI Today Meal Plan] Ready. Version ${VERSION}.`);
   }
