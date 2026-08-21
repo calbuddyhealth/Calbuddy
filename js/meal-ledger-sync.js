@@ -1,24 +1,22 @@
 // =====================================================
 // ARI XP
 // File: js/meal-ledger-sync.js
-// Version: 1.0.1
+// Version: 1.1.0
 // Purpose:
-//   Make meals, Nutrition, Goals, and Ari use one canonical
-//   daily ledger and one calendar-day boundary.
+//   Canonical meal ledger boundary shared by Nutrition, Goals, and Ari.
 //
 // Canonical rules:
-//   - public.meals is the only active meal ledger.
-//   - A day runs from local midnight to local midnight.
-//   - Ari meal logging and manual Nutrition logging use the
-//     same writer when CalBuddy is available.
-//   - Cloud and local-fallback meals are merged for totals.
-//   - Goals reads the same synchronized calorie total.
+//   - public.meals is the only active consumed-meal ledger.
+//   - A nutrition day runs from local midnight to local midnight.
+//   - Ari and manual Nutrition writes converge on the same CalBuddy writer.
+//   - Cloud and local fallback rows are merged for totals.
+//   - Nutrition refreshes are single-flight and Today/Recent load in parallel.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.1.0";
   const MIDNIGHT_RESET = Object.freeze({
     hour: 12,
     minute: 0,
@@ -45,16 +43,16 @@
     "log.html"
   ]);
 
-  if (!ACTIVE_PAGES.has(page)) {
-    return;
-  }
+  if (!ACTIVE_PAGES.has(page)) return;
 
   let nutritionPatched = false;
   let goalsPatched = false;
+  let nutritionRefreshPromise = null;
+  let installTimer = null;
 
   function safeNumber(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
   }
 
   function formatLocalDate(date) {
@@ -126,14 +124,8 @@
       for (const meal of Array.isArray(collection) ? collection : []) {
         const id = meal?.id == null ? "" : String(meal.id);
 
-        if (id && ids.has(id)) {
-          continue;
-        }
-
-        if (id) {
-          ids.add(id);
-        }
-
+        if (id && ids.has(id)) continue;
+        if (id) ids.add(id);
         merged.push(meal);
       }
     }
@@ -159,9 +151,7 @@
       }
     }
 
-    if (!window.calbuddySupabase) {
-      return null;
-    }
+    if (!window.calbuddySupabase) return null;
 
     const { data, error } = await window.calbuddySupabase.auth.getSession();
     if (error) return null;
@@ -170,10 +160,7 @@
 
   async function fetchCloudMeals(windowInfo) {
     const user = await getCurrentUser();
-
-    if (!user || !window.calbuddySupabase) {
-      return [];
-    }
+    if (!user || !window.calbuddySupabase) return [];
 
     const { data, error } = await window.calbuddySupabase
       .from("meals")
@@ -230,7 +217,8 @@
       detail: {
         calories: rounded,
         nutritionDate: windowInfo.nutritionDate,
-        mealCount: meals.length
+        mealCount: meals.length,
+        version: VERSION
       }
     }));
 
@@ -238,6 +226,7 @@
   }
 
   async function getRecentMeals(limit = 12) {
+    const max = Math.max(Number(limit) || 12, 1);
     const user = await getCurrentUser();
     let cloudMeals = [];
 
@@ -247,7 +236,7 @@
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(Math.max(Number(limit) || 12, 1));
+        .limit(max);
 
       if (!error && data) {
         cloudMeals = data.map((meal) => ({ ...meal, source: "supabase" }));
@@ -259,7 +248,7 @@
       readLocalMeals().map((meal) => ({ ...meal, source: "local" }))
     )
       .sort((a, b) => getMealDate(b) - getMealDate(a))
-      .slice(0, Math.max(Number(limit) || 12, 1));
+      .slice(0, max);
   }
 
   function saveMealLocally(meal) {
@@ -316,29 +305,24 @@
       }
     }
 
-    if (!savedMeal) {
-      savedMeal = saveMealLocally(record);
-    }
+    if (!savedMeal) savedMeal = saveMealLocally(record);
 
     await syncConsumedCalories();
 
     window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
       detail: {
         action: "log",
-        meal: savedMeal
+        meal: savedMeal,
+        version: VERSION
       }
     }));
 
     window.CalBuddy?.setAriMood?.("success");
-
     return savedMeal;
   }
 
   function persistMidnightResetLocally() {
-    localStorage.setItem(
-      RESET_TIME_KEY,
-      JSON.stringify(MIDNIGHT_RESET)
-    );
+    localStorage.setItem(RESET_TIME_KEY, JSON.stringify(MIDNIGHT_RESET));
   }
 
   async function persistMidnightResetToProfile() {
@@ -362,30 +346,29 @@
 
   function patchCalBuddy() {
     const CalBuddy = window.CalBuddy;
-    if (!CalBuddy || CalBuddy.__ariMealLedgerSyncV1) return Boolean(CalBuddy);
+    if (!CalBuddy) return false;
+    if (CalBuddy.__ariMealLedgerSyncV1 === VERSION) return true;
 
     const originalClearCalorieCache =
       typeof CalBuddy.clearCalorieCache === "function"
         ? CalBuddy.clearCalorieCache.bind(CalBuddy)
         : null;
 
-    CalBuddy.getResetTime = async function () {
+    CalBuddy.getResetTime = async () => {
       persistMidnightResetLocally();
       return { ...MIDNIGHT_RESET };
     };
 
-    CalBuddy.getNutritionWindow = async function (offset = 0) {
-      return getCalendarWindow(offset);
-    };
+    CalBuddy.getNutritionWindow = async (offset = 0) => getCalendarWindow(offset);
 
-    CalBuddy.clearCalorieCache = function () {
+    CalBuddy.clearCalorieCache = () => {
       originalClearCalorieCache?.();
       localStorage.removeItem(CALORIES_KEY);
       localStorage.removeItem(CALORIES_DATE_KEY);
       localStorage.removeItem(ACTIVE_DATE_KEY);
     };
 
-    CalBuddy.changeResetTime = async function () {
+    CalBuddy.changeResetTime = async () => {
       persistMidnightResetLocally();
       await persistMidnightResetToProfile();
       CalBuddy.clearCalorieCache();
@@ -399,13 +382,53 @@
     CalBuddy.getConsumedCalories = syncConsumedCalories;
     CalBuddy.getRecentMeals = getRecentMeals;
 
-    Object.defineProperty(CalBuddy, "__ariMealLedgerSyncV1", {
-      configurable: false,
-      enumerable: false,
-      value: VERSION
-    });
+    try {
+      Object.defineProperty(CalBuddy, "__ariMealLedgerSyncV1", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: VERSION
+      });
+    } catch {
+      CalBuddy.__ariMealLedgerSyncV1 = VERSION;
+    }
 
     return true;
+  }
+
+  function createSingleFlightNutritionRefresh(originalRefresh) {
+    const canonicalRefresh = function canonicalNutritionRefresh() {
+      if (nutritionRefreshPromise) return nutritionRefreshPromise;
+
+      nutritionRefreshPromise = (async () => {
+        if (
+          typeof window.loadTodayMeals === "function" &&
+          typeof window.loadRecentMeals === "function"
+        ) {
+          const results = await Promise.allSettled([
+            window.loadTodayMeals(),
+            window.loadRecentMeals()
+          ]);
+
+          for (const result of results) {
+            if (result.status === "rejected") {
+              console.warn("ARI canonical Nutrition refresh source failed:", result.reason);
+            }
+          }
+
+          return results;
+        }
+
+        return await originalRefresh();
+      })().finally(() => {
+        nutritionRefreshPromise = null;
+      });
+
+      return nutritionRefreshPromise;
+    };
+
+    canonicalRefresh.__ariCanonicalNutritionRefresh = VERSION;
+    return canonicalRefresh;
   }
 
   function patchNutritionPage() {
@@ -428,7 +451,6 @@
 
     if (!window.saveMealRecord.__ariCanonicalMealWriter) {
       const originalSaveMealRecord = window.saveMealRecord;
-
       const canonicalSaveMealRecord = async (record) => {
         if (typeof window.CalBuddy?.logMeal === "function") {
           const meal = await window.CalBuddy.logMeal(record);
@@ -441,16 +463,28 @@
         return originalSaveMealRecord(record);
       };
 
-      canonicalSaveMealRecord.__ariCanonicalMealWriter = true;
+      canonicalSaveMealRecord.__ariCanonicalMealWriter = VERSION;
       window.saveMealRecord = canonicalSaveMealRecord;
     }
 
+    if (!window.refreshNutritionPage.__ariCanonicalNutritionRefresh) {
+      const canonicalRefresh = createSingleFlightNutritionRefresh(
+        window.refreshNutritionPage.bind(window)
+      );
+      window.refreshNutritionPage = canonicalRefresh;
+
+      try {
+        if (window.AriNutritionPage && typeof window.AriNutritionPage === "object") {
+          window.AriNutritionPage.refresh = canonicalRefresh;
+        }
+      } catch {
+        // nutrition.js may expose a non-writable diagnostic object. The global
+        // function remains authoritative even when the diagnostic object cannot
+        // be reassigned.
+      }
+    }
+
     nutritionPatched = true;
-
-    Promise.resolve(window.refreshNutritionPage()).catch((error) => {
-      console.warn("ARI Nutrition midnight refresh failed.", error);
-    });
-
     return true;
   }
 
@@ -478,9 +512,7 @@
 
     if (!ready) return false;
 
-    window.getActiveNutritionDateKey = () =>
-      getCalendarWindow().nutritionDate;
-
+    window.getActiveNutritionDateKey = () => getCalendarWindow().nutritionDate;
     goalsPatched = true;
     void refreshGoalsFromLedger();
     return true;
@@ -494,32 +526,32 @@
     return coreReady && nutritionReady && goalsReady;
   }
 
-  installRuntimePatches();
+  function scheduleInstallRetries() {
+    if (installTimer) return;
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      installRuntimePatches();
-      window.setTimeout(installRuntimePatches, 0);
-      window.setTimeout(installRuntimePatches, 250);
-    }, { once: true });
-  } else {
-    window.setTimeout(installRuntimePatches, 0);
+    let attempts = 0;
+    installTimer = window.setInterval(() => {
+      attempts += 1;
+      const complete = installRuntimePatches();
+      if (complete || attempts >= 30) {
+        window.clearInterval(installTimer);
+        installTimer = null;
+      }
+    }, 100);
   }
 
-  let patchAttempts = 0;
-  const patchTimer = window.setInterval(() => {
-    patchAttempts += 1;
-    const complete = installRuntimePatches();
+  installRuntimePatches();
+  scheduleInstallRetries();
 
-    if (complete || patchAttempts >= 20) {
-      window.clearInterval(patchTimer);
-    }
-  }, 250);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installRuntimePatches, { once: true });
+  }
+
+  window.addEventListener("ari:runtimeReady", installRuntimePatches);
+  window.addEventListener("ari:runtimeChanged", installRuntimePatches);
 
   window.addEventListener("focus", () => {
-    if (page === "goals.html") {
-      void refreshGoalsFromLedger();
-    }
+    if (page === "goals.html") void refreshGoalsFromLedger();
   });
 
   document.addEventListener("visibilitychange", () => {
@@ -545,6 +577,14 @@
     getMealsInWindow,
     getRecentMeals,
     syncConsumedCalories,
-    logMeal
+    logMeal,
+    refreshNutrition: () => window.refreshNutritionPage?.(),
+    getStatus: () => ({
+      version: VERSION,
+      page,
+      nutritionPatched,
+      goalsPatched,
+      refreshInFlight: Boolean(nutritionRefreshPromise)
+    })
   });
 })();
