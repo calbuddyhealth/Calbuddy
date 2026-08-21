@@ -10,6 +10,7 @@ function supabaseStub({ holdMealReads = false } = {}) {
   const mealResolvers = [];
   const HOLD_MEAL_READS = ${holdMealReads ? "true" : "false"};
   window.__nutritionMealReadCount = 0;
+  window.__nutritionMealReadStacks = [];
   window.__releaseNutritionMealReads = () => {
     while (mealResolvers.length) mealResolvers.shift()?.();
   };
@@ -55,6 +56,7 @@ function supabaseStub({ holdMealReads = false } = {}) {
         const finish = () => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
         if (table === "meals") {
           window.__nutritionMealReadCount += 1;
+          window.__nutritionMealReadStacks.push(new Error("Nutrition meal read").stack || "stack unavailable");
           if (HOLD_MEAL_READS) return new Promise((release) => mealResolvers.push(release)).then(finish);
         }
         return finish();
@@ -118,8 +120,6 @@ test("Nutrition stays interactive before and during on-demand food hydration", a
 
     expect(zxingRequests).toBe(0);
 
-    // Opening Nutrition must never hydrate the local food database by itself.
-    // This catches the iPhone freeze caused by the previous idle warm-start.
     await page.waitForTimeout(1000);
     expect(foodRequests).toBe(0);
 
@@ -137,12 +137,8 @@ test("Nutrition stays interactive before and during on-demand food hydration", a
 
     await page.locator("#mealName").focus();
     await expect.poll(() => foodRequests, { timeout: 3000 }).toBeGreaterThan(0);
-
-    // The loader is capped at a three-script first batch. If dozens of data
-    // requests appear here, the main-thread freeze regression has returned.
     expect(foodRequests).toBeLessThanOrEqual(3);
 
-    // Controls must remain usable while that first batch is intentionally held.
     await advanced.locator("summary").click();
     await expect(advanced).toHaveJSProperty("open", false);
     await recent.locator("summary").click();
@@ -165,12 +161,20 @@ test("Recent Meals and Meals Today toggle immediately while meal reads are slow"
   try {
     await page.goto(`${BASE_URL}/nutrition.html`, { waitUntil: "domcontentloaded" });
 
-    // Both canonical startup reads must begin before either response resolves.
-    // A count of 1 means the old serial Today -> Recent waterfall returned;
-    // a count above 2 means duplicate hydration returned.
     await expect.poll(
       () => page.evaluate(() => window.__nutritionMealReadCount || 0),
       { timeout: 3000 }
+    ).toBeGreaterThanOrEqual(2);
+
+    await page.waitForTimeout(150);
+    const diagnostics = await page.evaluate(() => ({
+      count: window.__nutritionMealReadCount || 0,
+      stacks: window.__nutritionMealReadStacks || []
+    }));
+
+    expect(
+      diagnostics.count,
+      `Expected exactly the Today and Recent startup reads. Callers:\n${diagnostics.stacks.join("\n\n---\n\n")}`
     ).toBe(2);
 
     const recent = page.locator("#recentMealsSection");
@@ -181,7 +185,6 @@ test("Recent Meals and Meals Today toggle immediately while meal reads are slow"
     await todayMeals.locator("summary").click();
     await expect(todayMeals).toHaveJSProperty("open", true);
 
-    // The native disclosure controls must still close without waiting for data.
     await recent.locator("summary").click();
     await expect(recent).toHaveJSProperty("open", false);
     await todayMeals.locator("summary").click();
