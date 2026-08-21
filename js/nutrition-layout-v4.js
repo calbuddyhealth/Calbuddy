@@ -1,5 +1,5 @@
-// ARI XP — Nutrition layout v4.4.0
-// Presentation controller + iPhone momentum safeguards + today-only Meal Plan loader.
+// ARI XP — Nutrition layout v4.5.0
+// Presentation controller + iPhone momentum safeguards + consolidated today-only Meal Plan loader.
 (() => {
   "use strict";
 
@@ -42,17 +42,7 @@
 
     const script = document.createElement("script");
     script.id = "ariNutritionMealPlannerScript";
-    script.src = "js/nutrition-meal-plan-today.js?v=2.0.0";
-    script.async = false;
-    document.head.appendChild(script);
-  }
-
-  function loadMealPlanCompact() {
-    if (document.getElementById("ariNutritionMealPlanCompactScript")) return;
-
-    const script = document.createElement("script");
-    script.id = "ariNutritionMealPlanCompactScript";
-    script.src = "js/nutrition-meal-plan-compact.js?v=1.0.0";
+    script.src = "js/nutrition-meal-plan-today.js?v=2.1.0";
     script.async = false;
     document.head.appendChild(script);
   }
@@ -60,7 +50,6 @@
   function boot() {
     installMomentumGuards();
     loadMealPlanner();
-    loadMealPlanCompact();
 
     const dashboard = document.getElementById("todayNutritionSection");
     if (dashboard && !dashboard.hasAttribute("open")) dashboard.open = true;
