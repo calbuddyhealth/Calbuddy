@@ -35,7 +35,7 @@ test("new ARI XP profiles stay neutral while loading the canonical meal ledger",
   assert.doesNotMatch(auth, /reset_minute:\s*0/);
   assert.doesNotMatch(auth, /reset_ampm:\s*"AM"/);
   assert.match(auth, /No fake health defaults/);
-  assert.match(auth, /js\/meal-ledger-sync\.js\?v=1\.0\.1/);
+  assert.match(auth, /js\/meal-ledger-sync\.js\?v=1\.1\.0/);
 });
 
 test("meal ledger uses midnight-to-midnight windows", () => {
@@ -49,12 +49,12 @@ test("Ari, Nutrition, and Goals share one meal ledger", () => {
   assert.match(sync, /\.from\("meals"\)/);
   assert.doesNotMatch(sync, /\.from\("meal_logs"\)/);
   assert.doesNotMatch(sync, /\.from\("food_entries"\)/);
-  assert.match(sync, /CalBuddy\.logMeal\s*=\s*logMeal/);
-  assert.match(sync, /CalBuddy\.getMealsInWindow\s*=\s*getMealsInWindow/);
-  assert.match(sync, /CalBuddy\.getConsumedCalories\s*=\s*syncConsumedCalories/);
-  assert.match(sync, /CalBuddy\.getRecentMeals\s*=\s*getRecentMeals/);
+  assert.match(sync, /CalBuddy\.logMeal = logMeal/);
+  assert.match(sync, /CalBuddy\.getMealsInWindow = getMealsInWindow/);
+  assert.match(sync, /CalBuddy\.getConsumedCalories = syncConsumedCalories/);
+  assert.match(sync, /CalBuddy\.getRecentMeals = getRecentMeals/);
   assert.match(sync, /window\.CalBuddy\.logMeal\(record\)/);
-  assert.match(sync, /window\.getActiveNutritionDateKey\s*=\s*\(\)\s*=>/);
+  assert.match(sync, /window\.getActiveNutritionDateKey = \(\) => getCalendarWindow\(\)\.nutritionDate/);
 });
 
 test("Goals cache date and core active date are synchronized together", () => {
@@ -70,11 +70,29 @@ test("cloud and local fallback meals are merged instead of choosing one source",
   assert.match(sync, /mergeMeals\(cloudMeals, localMeals\)/);
 });
 
-test("runtime patching is idempotent instead of refetching meals in a retry loop", () => {
+test("Nutrition refresh ownership is single-flight and parallel", () => {
+  assert.match(sync, /let nutritionRefreshPromise = null/);
+  assert.match(sync, /if \(nutritionRefreshPromise\) return nutritionRefreshPromise/);
+  assert.match(sync, /Promise\.allSettled\(\[/);
+  assert.match(sync, /window\.loadTodayMeals\(\)/);
+  assert.match(sync, /window\.loadRecentMeals\(\)/);
+  assert.match(sync, /canonicalRefresh\.__ariCanonicalNutritionRefresh = VERSION/);
+
+  const patchStart = sync.indexOf("function patchNutritionPage()");
+  const patchEnd = sync.indexOf("async function refreshGoalsFromLedger", patchStart);
+  assert.ok(patchStart >= 0 && patchEnd > patchStart);
+  const patchSource = sync.slice(patchStart, patchEnd);
+  assert.doesNotMatch(patchSource, /refreshNutritionPage\(\)\)\.catch/);
+});
+
+test("runtime patching is idempotent and bounded", () => {
   assert.match(sync, /let nutritionPatched = false/);
   assert.match(sync, /let goalsPatched = false/);
   assert.match(sync, /if \(nutritionPatched\) return true/);
   assert.match(sync, /if \(goalsPatched\) return true/);
+  assert.match(sync, /attempts >= 30/);
+  assert.match(sync, /}, 100\)/);
+  assert.doesNotMatch(sync, /window\.setTimeout\(installRuntimePatches, 250\)/);
 });
 
 test("legacy meal tables are not used by browser runtime files", () => {

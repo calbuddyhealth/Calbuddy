@@ -2,11 +2,18 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.ARI_SMOKE_BASE_URL || "http://127.0.0.1:4173";
 
-function supabaseStub() {
+function supabaseStub({ holdMealReads = false } = {}) {
   return `
 (() => {
   const user = { id: "nutrition-perf-user", email: "nutrition@arixp.test", user_metadata: { display_name: "Nutrition Test" } };
   const session = { access_token: "nutrition-test-token", user };
+  const mealResolvers = [];
+  const HOLD_MEAL_READS = ${holdMealReads ? "true" : "false"};
+  window.__nutritionMealReadCount = 0;
+  window.__nutritionMealReadQueries = [];
+  window.__releaseNutritionMealReads = () => {
+    while (mealResolvers.length) mealResolvers.shift()?.();
+  };
 
   function rowFor(table) {
     if (table === "ari_account_state") return { user_id: user.id, status: "active", setupPending: false };
@@ -23,28 +30,48 @@ function supabaseStub() {
   }
 
   function query(table) {
+    const ops = [];
+    const add = (name, args) => {
+      ops.push([name, ...Array.from(args).map((value) => {
+        if (value && typeof value === "object") {
+          try { return JSON.stringify(value); } catch { return String(value); }
+        }
+        return String(value);
+      })]);
+      return q;
+    };
+
     const q = {
-      select() { return q; },
-      eq() { return q; },
-      neq() { return q; },
-      in() { return q; },
-      is() { return q; },
-      or() { return q; },
-      match() { return q; },
-      gte() { return q; },
-      lte() { return q; },
-      gt() { return q; },
-      lt() { return q; },
-      order() { return q; },
-      range() { return q; },
-      limit() { return q; },
-      insert() { return q; },
-      update() { return q; },
-      upsert() { return q; },
-      delete() { return q; },
+      select(...args) { return add("select", args); },
+      eq(...args) { return add("eq", args); },
+      neq(...args) { return add("neq", args); },
+      in(...args) { return add("in", args); },
+      is(...args) { return add("is", args); },
+      or(...args) { return add("or", args); },
+      match(...args) { return add("match", args); },
+      gte(...args) { return add("gte", args); },
+      lte(...args) { return add("lte", args); },
+      gt(...args) { return add("gt", args); },
+      lt(...args) { return add("lt", args); },
+      ilike(...args) { return add("ilike", args); },
+      order(...args) { return add("order", args); },
+      range(...args) { return add("range", args); },
+      limit(...args) { return add("limit", args); },
+      insert(...args) { return add("insert", args); },
+      update(...args) { return add("update", args); },
+      upsert(...args) { return add("upsert", args); },
+      delete(...args) { return add("delete", args); },
       single() { return Promise.resolve({ data: rowFor(table), error: null }); },
       maybeSingle() { return Promise.resolve({ data: rowFor(table), error: null }); },
-      then(resolve, reject) { return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject); }
+      then(resolve, reject) {
+        const finish = () => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
+        if (table === "meals") {
+          window.__nutritionMealReadCount += 1;
+          window.__nutritionMealReadQueries.push(ops.map((op) => op.join(":"))); 
+          if (HOLD_MEAL_READS) return new Promise((release) => mealResolvers.push(release)).then(finish);
+        }
+        return finish();
+      }
     };
     return q;
   }
@@ -66,19 +93,23 @@ function supabaseStub() {
 })();`;
 }
 
+async function stubExternalRuntime(page, options = {}) {
+  await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
+  await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
+  await page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    body: supabaseStub(options)
+  }));
+}
+
 test("Nutrition stays interactive before and during on-demand food hydration", async ({ page }) => {
   let foodRequests = 0;
   let zxingRequests = 0;
   let releaseFoodRequests;
   const foodGate = new Promise((resolve) => { releaseFoodRequests = resolve; });
 
-  await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
-  await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
-  await page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/javascript",
-    body: supabaseStub()
-  }));
+  await stubExternalRuntime(page);
 
   await page.route("**/ari/nutrition/data/**", async (route) => {
     foodRequests += 1;
@@ -100,8 +131,6 @@ test("Nutrition stays interactive before and during on-demand food hydration", a
 
     expect(zxingRequests).toBe(0);
 
-    // Opening Nutrition must never hydrate the local food database by itself.
-    // This catches the iPhone freeze caused by the previous idle warm-start.
     await page.waitForTimeout(1000);
     expect(foodRequests).toBe(0);
 
@@ -119,12 +148,8 @@ test("Nutrition stays interactive before and during on-demand food hydration", a
 
     await page.locator("#mealName").focus();
     await expect.poll(() => foodRequests, { timeout: 3000 }).toBeGreaterThan(0);
-
-    // The loader is capped at a three-script first batch. If dozens of data
-    // requests appear here, the main-thread freeze regression has returned.
     expect(foodRequests).toBeLessThanOrEqual(3);
 
-    // Controls must remain usable while that first batch is intentionally held.
     await advanced.locator("summary").click();
     await expect(advanced).toHaveJSProperty("open", false);
     await recent.locator("summary").click();
@@ -138,5 +163,44 @@ test("Nutrition stays interactive before and during on-demand food hydration", a
     expect(foodRequests).toBeLessThanOrEqual(3);
   } finally {
     releaseFoodRequests?.();
+  }
+});
+
+test("Recent Meals and Meals Today toggle immediately while meal reads are slow", async ({ page }) => {
+  await stubExternalRuntime(page, { holdMealReads: true });
+
+  try {
+    await page.goto(`${BASE_URL}/nutrition.html`, { waitUntil: "domcontentloaded" });
+
+    await expect.poll(
+      () => page.evaluate(() => window.__nutritionMealReadCount || 0),
+      { timeout: 3000 }
+    ).toBeGreaterThanOrEqual(2);
+
+    await page.waitForTimeout(150);
+    const diagnostics = await page.evaluate(() => ({
+      count: window.__nutritionMealReadCount || 0,
+      queries: window.__nutritionMealReadQueries || []
+    }));
+
+    expect(
+      diagnostics.count,
+      `Expected exactly the Today and Recent startup reads. Queries:\n${diagnostics.queries.map((query, index) => `${index + 1}. ${query.join(" | ")}`).join("\n")}`
+    ).toBe(2);
+
+    const recent = page.locator("#recentMealsSection");
+    await recent.locator("summary").click();
+    await expect(recent).toHaveJSProperty("open", true);
+
+    const todayMeals = page.locator("#todayMealsSection");
+    await todayMeals.locator("summary").click();
+    await expect(todayMeals).toHaveJSProperty("open", true);
+
+    await recent.locator("summary").click();
+    await expect(recent).toHaveJSProperty("open", false);
+    await todayMeals.locator("summary").click();
+    await expect(todayMeals).toHaveJSProperty("open", false);
+  } finally {
+    await page.evaluate(() => window.__releaseNutritionMealReads?.()).catch(() => {});
   }
 });

@@ -1,7 +1,30 @@
-// ARI XP — Nutrition layout v4.4.0
-// Presentation controller + iPhone momentum safeguards + today-only Meal Plan loader.
+// ARI XP — Nutrition layout v4.6.0
+// Presentation controller + iPhone momentum safeguards + consolidated today-only Meal Plan loader.
 (() => {
   "use strict";
+
+  function installNutritionCoreInitBoundary() {
+    const CalBuddy = window.CalBuddy;
+    if (!CalBuddy || typeof CalBuddy.init !== "function") return;
+    if (CalBuddy.init.__ariNutritionOwnedInit === true) return;
+
+    // calbuddy-core.js owns generic multi-surface dashboard hydration. Nutrition
+    // already owns its own Today + Recent startup reads, so running the generic
+    // dashboard refresh here creates a second canonical Today ledger query and
+    // blocks first interaction behind redundant Supabase work.
+    const nutritionInit = async function nutritionOwnedCoreInit() {
+      CalBuddy.getPendingAction?.();
+      CalBuddy.setAriMood?.("idle");
+      console.log(
+        "CalBuddy core loaded.",
+        CalBuddy.version,
+        "Nutrition owns initial ledger hydration."
+      );
+    };
+
+    nutritionInit.__ariNutritionOwnedInit = true;
+    CalBuddy.init = nutritionInit;
+  }
 
   function updateTodayMealLabel() {
     const label = document.getElementById("todayMealCountLabel");
@@ -10,6 +33,63 @@
 
     const count = list.querySelectorAll(".nutrition-meal-card").length;
     label.textContent = count === 1 ? "Meals today · 1" : `Meals today · ${count}`;
+  }
+
+  function installNutritionLoadCoordinator() {
+    if (window.__ariNutritionLoadCoordinatorV1) return;
+
+    const originalToday = window.loadTodayMeals;
+    const originalRecent = window.loadRecentMeals;
+    if (typeof originalToday !== "function" || typeof originalRecent !== "function") return;
+
+    let todayCycle = null;
+    let recentCycle = null;
+    let clearTimer = null;
+
+    const startRecent = () => {
+      if (!recentCycle) {
+        recentCycle = Promise.resolve().then(() => originalRecent());
+      }
+      return recentCycle;
+    };
+
+    window.loadTodayMeals = function coordinatedTodayMealsLoad() {
+      if (todayCycle) return todayCycle;
+
+      window.clearTimeout(clearTimer);
+      const recent = startRecent();
+      const today = Promise.resolve().then(() => originalToday());
+
+      todayCycle = Promise.allSettled([today, recent])
+        .then((results) => {
+          const todayResult = results[0];
+          if (todayResult?.status === "rejected") throw todayResult.reason;
+          return todayResult?.value;
+        })
+        .finally(() => {
+          // Keep the already-completed Recent promise through the next microtask.
+          // nutrition.js currently calls `await loadTodayMeals(); await loadRecentMeals();`;
+          // this prevents that second statement from issuing a duplicate query.
+          clearTimer = window.setTimeout(() => {
+            todayCycle = null;
+            recentCycle = null;
+          }, 0);
+        });
+
+      return todayCycle;
+    };
+
+    window.loadRecentMeals = function coordinatedRecentMealsLoad() {
+      return startRecent();
+    };
+
+    window.__ariNutritionLoadCoordinatorV1 = Object.freeze({
+      version: "1.0.0",
+      getStatus: () => ({
+        todayInFlight: Boolean(todayCycle),
+        recentInFlight: Boolean(recentCycle)
+      })
+    });
   }
 
   function installMomentumGuards() {
@@ -42,25 +122,16 @@
 
     const script = document.createElement("script");
     script.id = "ariNutritionMealPlannerScript";
-    script.src = "js/nutrition-meal-plan-today.js?v=2.0.0";
-    script.async = false;
-    document.head.appendChild(script);
-  }
-
-  function loadMealPlanCompact() {
-    if (document.getElementById("ariNutritionMealPlanCompactScript")) return;
-
-    const script = document.createElement("script");
-    script.id = "ariNutritionMealPlanCompactScript";
-    script.src = "js/nutrition-meal-plan-compact.js?v=1.0.0";
+    script.src = "js/nutrition-meal-plan-today.js?v=2.1.0";
     script.async = false;
     document.head.appendChild(script);
   }
 
   function boot() {
+    installNutritionCoreInitBoundary();
+    installNutritionLoadCoordinator();
     installMomentumGuards();
     loadMealPlanner();
-    loadMealPlanCompact();
 
     const dashboard = document.getElementById("todayNutritionSection");
     if (dashboard && !dashboard.hasAttribute("open")) dashboard.open = true;
@@ -82,6 +153,11 @@
   }
 
   if (document.readyState === "loading") {
+    // Both boundaries must install immediately. calbuddy-core.js and
+    // nutrition.js registered DOM-ready handlers before this file, and those
+    // handlers resolve their globals at event time.
+    installNutritionCoreInitBoundary();
+    installNutritionLoadCoordinator();
     document.addEventListener("DOMContentLoaded", boot, { once: true });
   } else {
     boot();

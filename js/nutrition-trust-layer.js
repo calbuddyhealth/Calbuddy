@@ -1,20 +1,23 @@
 // =====================================================
 // ARI XP
 // File: js/nutrition-trust-layer.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Reliability boundary for Nutrition mutations.
+//   - Uses one shared anomaly validator with Ari context.
 //   - Consumes planned meals through one atomic Supabase RPC.
 //   - Uses mutation IDs so retries cannot double-log the same action.
 //   - Preserves partial-meal identity by renaming the remaining plan.
 //   - Returns verified totals and offers immediate Undo.
-//   - Warns on suspicious manual nutrition entries without overriding users.
+//   - Observes only meal-list containers, never the entire document body.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
+  const VALIDATOR_SCRIPT_ID = "ariNutritionValidatorScript";
+  const VALIDATOR_SRC = "js/nutrition-validator.js?v=1.0.0";
   const PAGE = String(window.location.pathname || "")
     .split("/")
     .pop()
@@ -26,7 +29,9 @@
   const state = {
     busy: false,
     repairRunning: false,
-    observer: null
+    legacyRepairAttempted: false,
+    observers: [],
+    scanTimer: null
   };
 
   const clean = (value = "") => String(value ?? "").trim();
@@ -35,6 +40,44 @@
     return Number.isFinite(parsed) ? parsed : fallback;
   };
   const round1 = (value) => Math.round(Math.max(0, number(value)) * 10) / 10;
+
+  function ensureValidator() {
+    if (typeof window.AriNutritionValidator?.detect === "function") {
+      return Promise.resolve(window.AriNutritionValidator);
+    }
+
+    return new Promise((resolve, reject) => {
+      let script = document.getElementById(VALIDATOR_SCRIPT_ID);
+
+      const finish = () => {
+        if (typeof window.AriNutritionValidator?.detect === "function") {
+          resolve(window.AriNutritionValidator);
+        } else {
+          reject(new Error("Shared Nutrition validator did not initialize."));
+        }
+      };
+
+      if (!script) {
+        script = document.createElement("script");
+        script.id = VALIDATOR_SCRIPT_ID;
+        script.src = VALIDATOR_SRC;
+        script.async = false;
+        script.addEventListener("load", finish, { once: true });
+        script.addEventListener("error", () => reject(new Error("Shared Nutrition validator could not be loaded.")), { once: true });
+        document.head.appendChild(script);
+        return;
+      }
+
+      script.addEventListener("load", finish, { once: true });
+      window.setTimeout(finish, 0);
+    });
+  }
+
+  function detectAnomalies(entry = {}) {
+    return typeof window.AriNutritionValidator?.detect === "function"
+      ? window.AriNutritionValidator.detect(entry)
+      : [];
+  }
 
   function slotLabel(value = "") {
     const slot = clean(value).toLowerCase();
@@ -145,47 +188,6 @@
     };
   }
 
-  function detectAnomalies(entry = {}) {
-    const findings = [];
-    const name = clean(entry?.name).toLowerCase();
-    const serving = clean(entry?.serving_size).toLowerCase();
-    const calories = number(entry?.calories, NaN);
-    const protein = Math.max(0, number(entry?.protein_g ?? entry?.protein, 0));
-    const carbs = Math.max(0, number(entry?.carbs_g ?? entry?.carbs, 0));
-    const fat = Math.max(0, number(entry?.fat_g ?? entry?.fat, 0));
-
-    if (!Number.isFinite(calories) || calories < 0) {
-      findings.push("Calories are missing or invalid.");
-      return findings;
-    }
-
-    const completeMealWords = /\b(burrito|bowl|burger|pizza|sandwich|wrap|plate|platter|combo|meal|entree|breakfast|lunch|dinner)\b/i;
-    const substantialServing = /\b(large|full|whole|bowl|plate|platter|meal|serving)\b/i;
-
-    if (
-      calories > 0 &&
-      calories < 100 &&
-      (completeMealWords.test(name) || substantialServing.test(serving))
-    ) {
-      findings.push("The calorie total looks unusually low for the meal description or serving.");
-    }
-
-    if (calories > 5000) {
-      findings.push("The calorie total is unusually high for one entry.");
-    }
-
-    const macroCalories = protein * 4 + carbs * 4 + fat * 9;
-    if (macroCalories > 0) {
-      const difference = Math.abs(macroCalories - calories);
-      const tolerance = Math.max(120, calories * 0.4);
-      if (difference > tolerance) {
-        findings.push("Calories and macronutrients do not appear to describe the same portion.");
-      }
-    }
-
-    return findings;
-  }
-
   async function getUser() {
     try {
       if (typeof window.getCurrentUser === "function") {
@@ -233,23 +235,28 @@
   }
 
   async function refreshAll() {
-    try {
-      if (typeof window.AriNutritionMealPlanner?.refresh === "function") {
-        await window.AriNutritionMealPlanner.refresh();
-      }
-    } catch (error) {
-      console.warn("[ARI Nutrition Trust] Meal Plan refresh failed:", error?.message || error);
+    const jobs = [];
+
+    if (typeof window.AriNutritionMealPlanner?.refresh === "function") {
+      jobs.push(
+        Promise.resolve(window.AriNutritionMealPlanner.refresh())
+          .catch((error) => console.warn("[ARI Nutrition Trust] Meal Plan refresh failed:", error?.message || error))
+      );
     }
 
-    try {
-      if (typeof window.AriNutritionPage?.refresh === "function") {
-        await window.AriNutritionPage.refresh();
-      } else if (typeof window.refreshNutritionPage === "function") {
-        await window.refreshNutritionPage();
-      }
-    } catch (error) {
-      console.warn("[ARI Nutrition Trust] Nutrition refresh failed:", error?.message || error);
+    if (typeof window.AriNutritionPage?.refresh === "function") {
+      jobs.push(
+        Promise.resolve(window.AriNutritionPage.refresh())
+          .catch((error) => console.warn("[ARI Nutrition Trust] Nutrition refresh failed:", error?.message || error))
+      );
+    } else if (typeof window.refreshNutritionPage === "function") {
+      jobs.push(
+        Promise.resolve(window.refreshNutritionPage())
+          .catch((error) => console.warn("[ARI Nutrition Trust] Nutrition refresh failed:", error?.message || error))
+      );
     }
+
+    if (jobs.length) await Promise.allSettled(jobs);
 
     try {
       await window.CalBuddy?.getConsumedCalories?.();
@@ -327,10 +334,21 @@
       });
       if (error) throw error;
 
-      await refreshAll();
-      window.dispatchEvent(new CustomEvent("ari:nutritionMealPlanChanged", {
-        detail: { action: "transaction_undone", mutationId, source: "nutrition_trust_layer", version: VERSION }
+      window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
+        detail: { action: "trusted_mutation_undone", mutationId, version: VERSION }
       }));
+
+      await refreshAll();
+
+      window.dispatchEvent(new CustomEvent("ari:nutritionMealPlanChanged", {
+        detail: {
+          action: "transaction_undone",
+          mutationId,
+          source: "nutrition_trust_layer",
+          version: VERSION
+        }
+      }));
+
       showToast(`Undone. ${Math.round(number(data?.todayCalories, 0)).toLocaleString()} kcal logged for today.`);
     } catch (error) {
       console.error("[ARI Nutrition Trust] Undo failed:", error);
@@ -387,6 +405,10 @@
 
     if (error) throw error;
 
+    window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
+      detail: { action: "trusted_plan_consumption", mutationId, version: VERSION }
+    }));
+
     await refreshAll();
 
     window.dispatchEvent(new CustomEvent("ari:nutritionMealPlanChanged", {
@@ -397,10 +419,6 @@
         source: "nutrition_trust_layer",
         version: VERSION
       }
-    }));
-
-    window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
-      detail: { action: "trusted_plan_consumption", mutationId }
     }));
 
     const total = Math.round(number(data?.todayCalories, 0)).toLocaleString();
@@ -501,22 +519,28 @@
   }
 
   function scanRenderedMealsForAnomalies() {
-    document.querySelectorAll(".nutrition-meal-card").forEach((card) => {
-      card.querySelector(".ari-trust-warning")?.remove();
-      const findings = suspiciousRenderedMeal(card);
-      if (!findings.length) return;
+    document.querySelectorAll("#todayMealList .nutrition-meal-card, #recentMealList .nutrition-meal-card, #recentMealList .nutrition-recent-meal")
+      .forEach((card) => {
+        card.querySelector(".ari-trust-warning")?.remove();
+        const findings = suspiciousRenderedMeal(card);
+        if (!findings.length) return;
 
-      const warning = document.createElement("button");
-      warning.type = "button";
-      warning.className = "ari-trust-warning";
-      warning.textContent = "Check entry";
-      warning.title = findings.join(" ");
-      warning.style.cssText = "margin-top:8px;border:1px solid rgba(255,190,70,.65);border-radius:999px;padding:5px 9px;background:rgba(255,190,70,.12);color:inherit;font-size:12px;font-weight:800";
-      warning.addEventListener("click", () => {
-        window.alert(findings.join("\n"));
+        const warning = document.createElement("button");
+        warning.type = "button";
+        warning.className = "ari-trust-warning";
+        warning.textContent = "Check entry";
+        warning.title = findings.join(" ");
+        warning.style.cssText = "margin-top:8px;border:1px solid rgba(255,190,70,.65);border-radius:999px;padding:5px 9px;background:rgba(255,190,70,.12);color:inherit;font-size:12px;font-weight:800";
+        warning.addEventListener("click", () => {
+          window.alert(findings.join("\n"));
+        });
+        card.appendChild(warning);
       });
-      card.appendChild(warning);
-    });
+  }
+
+  function scheduleScan() {
+    window.clearTimeout(state.scanTimer);
+    state.scanTimer = window.setTimeout(scanRenderedMealsForAnomalies, 60);
   }
 
   async function repairPartialRemainders() {
@@ -575,39 +599,65 @@
     }
   }
 
-  function installObserver() {
-    if (state.observer || !document.body) return;
-    let timer = null;
-    state.observer = new MutationObserver(() => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(scanRenderedMealsForAnomalies, 60);
-    });
-    state.observer.observe(document.body, { childList: true, subtree: true });
+  function installObservers() {
+    if (!("MutationObserver" in window)) return;
+
+    for (const id of ["todayMealList", "recentMealList"]) {
+      const target = document.getElementById(id);
+      if (!target || target.dataset.ariTrustObserved === "true") continue;
+
+      target.dataset.ariTrustObserved = "true";
+      const observer = new MutationObserver(scheduleScan);
+      observer.observe(target, { childList: true, subtree: false });
+      state.observers.push(observer);
+    }
+  }
+
+  function runLegacyRepairOnce() {
+    if (state.legacyRepairAttempted) return;
+    state.legacyRepairAttempted = true;
+    void repairPartialRemainders().then(() => refreshAll());
   }
 
   function install() {
     document.addEventListener("click", onPlanClickCapture, true);
     document.addEventListener("click", onManualSaveCapture, true);
 
-    window.addEventListener("ari:nutritionMealPlanChanged", () => {
+    document.addEventListener("click", (event) => {
+      if (event.target?.closest?.('#nutritionTodayModeTabs [data-mode="plan"]')) {
+        runLegacyRepairOnce();
+      }
+    });
+
+    window.addEventListener("ari:nutritionMealPlanChanged", (event) => {
+      if (event?.detail?.source === "nutrition_trust_layer") {
+        scheduleScan();
+        return;
+      }
       void repairPartialRemainders().then(() => refreshAll());
     });
 
-    window.addEventListener("ari:meal-ledger-synced", scanRenderedMealsForAnomalies);
-    window.addEventListener("calbuddy:mealsChanged", scanRenderedMealsForAnomalies);
+    window.addEventListener("ari:meal-ledger-synced", scheduleScan);
+    window.addEventListener("calbuddy:mealsChanged", scheduleScan);
 
-    installObserver();
+    installObservers();
     scanRenderedMealsForAnomalies();
-
-    // Repair legacy partial-plan remainders created before the transactional
-    // path existed. This changes only active planned rows marked Partially eaten.
-    window.setTimeout(() => void repairPartialRemainders().then(() => refreshAll()), 700);
 
     console.info(`[ARI Nutrition Trust] Ready. Version ${VERSION}.`);
   }
 
+  async function boot() {
+    try {
+      await ensureValidator();
+    } catch (error) {
+      console.warn("[ARI Nutrition Trust] Shared validator unavailable:", error?.message || error);
+    }
+    install();
+  }
+
   window.AriNutritionTrustLayer = Object.freeze({
     version: VERSION,
+    validatorVersion: () => window.AriNutritionValidator?.version || null,
     detectAnomalies,
     deriveRemainder,
     repairPartialRemainders,
@@ -615,8 +665,8 @@
   });
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", install, { once: true });
+    document.addEventListener("DOMContentLoaded", () => void boot(), { once: true });
   } else {
-    install();
+    void boot();
   }
 })();

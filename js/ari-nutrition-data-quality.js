@@ -1,18 +1,20 @@
 // =====================================================
 // ARI XP
 // File: js/ari-nutrition-data-quality.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
 //   Add compact data-quality/provenance evidence to the user context Ari sees.
-//   Suspicious records remain user data; Ari is told to question them rather
-//   than silently treating them as reliable facts.
+//   All anomaly detection comes from the shared Nutrition validator so Ari and
+//   the Nutrition trust UI cannot disagree about the same meal record.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const INSTALL_FLAG = "__ariNutritionDataQualityV1";
+  const VALIDATOR_SCRIPT_ID = "ariNutritionValidatorScript";
+  const VALIDATOR_SRC = "js/nutrition-validator.js?v=1.0.0";
   const page = String(window.location.pathname || "")
     .split("/")
     .pop()
@@ -26,40 +28,42 @@
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
-  function detect(entry = {}) {
-    const reasons = [];
-    const name = clean(entry?.name).toLowerCase();
-    const serving = clean(entry?.serving_size).toLowerCase();
-    const calories = number(entry?.calories, NaN);
-    const protein = Math.max(0, number(entry?.protein_g ?? entry?.proteinG ?? entry?.protein, 0));
-    const carbs = Math.max(0, number(entry?.carbs_g ?? entry?.carbsG ?? entry?.carbs, 0));
-    const fat = Math.max(0, number(entry?.fat_g ?? entry?.fatG ?? entry?.fat, 0));
-
-    if (!Number.isFinite(calories) || calories < 0) {
-      return ["Calories are missing or invalid."];
+  function ensureValidator() {
+    if (typeof window.AriNutritionValidator?.detect === "function") {
+      return Promise.resolve(window.AriNutritionValidator);
     }
 
-    const completeMealWords = /\b(burrito|bowl|burger|pizza|sandwich|wrap|plate|platter|combo|meal|entree|breakfast|lunch|dinner)\b/i;
-    const substantialServing = /\b(large|full|whole|bowl|plate|platter|meal|serving)\b/i;
+    return new Promise((resolve, reject) => {
+      let script = document.getElementById(VALIDATOR_SCRIPT_ID);
 
-    if (
-      calories > 0 &&
-      calories < 100 &&
-      (completeMealWords.test(name) || substantialServing.test(serving))
-    ) {
-      reasons.push("Calories look unusually low for the description or serving.");
-    }
+      const finish = () => {
+        if (typeof window.AriNutritionValidator?.detect === "function") {
+          resolve(window.AriNutritionValidator);
+        } else {
+          reject(new Error("Shared Nutrition validator did not initialize."));
+        }
+      };
 
-    const macroCalories = protein * 4 + carbs * 4 + fat * 9;
-    if (macroCalories > 0) {
-      const difference = Math.abs(macroCalories - calories);
-      const tolerance = Math.max(120, calories * 0.4);
-      if (difference > tolerance) {
-        reasons.push("Calories and macros may describe different portions.");
+      if (!script) {
+        script = document.createElement("script");
+        script.id = VALIDATOR_SCRIPT_ID;
+        script.src = VALIDATOR_SRC;
+        script.async = false;
+        script.addEventListener("load", finish, { once: true });
+        script.addEventListener("error", () => reject(new Error("Shared Nutrition validator could not be loaded.")), { once: true });
+        document.head.appendChild(script);
+        return;
       }
-    }
 
-    return reasons;
+      script.addEventListener("load", finish, { once: true });
+      window.setTimeout(finish, 0);
+    });
+  }
+
+  function detect(entry = {}) {
+    return typeof window.AriNutritionValidator?.detect === "function"
+      ? window.AriNutritionValidator.detect(entry)
+      : [];
   }
 
   function buildQuality(context = {}) {
@@ -81,6 +85,7 @@
 
     return {
       version: VERSION,
+      validatorVersion: window.AriNutritionValidator?.version || null,
       sourceOfTruth: "public.meals",
       nutritionDate: context?.nutritionDate || null,
       loggedMealCount: meals.length,
@@ -132,9 +137,26 @@
     return true;
   }
 
-  let attempts = 0;
-  const timer = window.setInterval(() => {
-    attempts += 1;
-    if (install() || attempts >= 240) window.clearInterval(timer);
-  }, 50);
+  async function boot() {
+    try {
+      await ensureValidator();
+    } catch (error) {
+      console.warn("[ARI Nutrition Data Quality] Shared validator unavailable:", error?.message || error);
+      return;
+    }
+
+    if (install()) return;
+
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (install() || attempts >= 30) window.clearInterval(timer);
+    }, 100);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => void boot(), { once: true });
+  } else {
+    void boot();
+  }
 })();

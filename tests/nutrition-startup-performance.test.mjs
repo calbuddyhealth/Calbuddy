@@ -5,6 +5,12 @@ import { readFile } from "node:fs/promises";
 const nutritionHtml = await readFile(new URL("../nutrition.html", import.meta.url), "utf8");
 const foodLoader = await readFile(new URL("../js/nutrition-food-loader.js", import.meta.url), "utf8");
 const barcodeLazy = await readFile(new URL("../js/nutrition-barcode-lazy.js", import.meta.url), "utf8");
+const layout = await readFile(new URL("../js/nutrition-layout-v4.js", import.meta.url), "utf8");
+const mealPlan = await readFile(new URL("../js/nutrition-meal-plan-today.js", import.meta.url), "utf8");
+const ledger = await readFile(new URL("../js/meal-ledger-sync.js", import.meta.url), "utf8");
+const trust = await readFile(new URL("../js/nutrition-trust-layer.js", import.meta.url), "utf8");
+const quality = await readFile(new URL("../js/ari-nutrition-data-quality.js", import.meta.url), "utf8");
+const validator = await readFile(new URL("../js/nutrition-validator.js", import.meta.url), "utf8");
 
 function indexOfRequired(source, needle) {
   const index = source.indexOf(needle);
@@ -75,10 +81,87 @@ test("ZXing is absent from initial HTML and loaded only for web scanning", () =>
   assert.match(barcodeLazy, /document\.addEventListener\("click", interceptWebScan, true\)/);
 });
 
-test("Nutrition cache-bust references match current controllers", () => {
-  assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.16/);
-  assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.4\.0/);
+test("Nutrition cache-bust references match consolidated controllers", () => {
+  assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.17/);
+  assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.6\.0/);
   assert.match(nutritionHtml, /assets\/css\/nutrition-scan\.css\?v=1\.0\.2/);
   assert.match(nutritionHtml, /js\/nutrition-scan-save-bridge\.js\?v=1\.0\.1/);
   assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.1/);
+});
+
+test("Meal Plan has one controller instead of a compact post-render patch", () => {
+  assert.match(layout, /nutrition-meal-plan-today\.js\?v=2\.1\.0/);
+  assert.doesNotMatch(layout, /nutrition-meal-plan-compact/);
+  assert.doesNotMatch(mealPlan, /nutritionRecentPlanShelf/);
+  assert.match(mealPlan, /function decorateRecentMeals\(\)/);
+  assert.match(mealPlan, /AriNutritionPage\?\.getState\?\.\(\)\?\.recentMeals/);
+  assert.match(mealPlan, /await refresh\(\{ includeFavorites: true \}\)/);
+  assert.doesNotMatch(mealPlan, /\.from\("meals"\)[\s\S]*?\.limit\(20\)[\s\S]*?\.from\("meals"\)[\s\S]*?\.limit\(20\)/);
+});
+
+test("Nutrition owns core startup instead of running generic dashboard hydration", () => {
+  assert.match(layout, /function installNutritionCoreInitBoundary\(\)/);
+  assert.match(layout, /CalBuddy\.init = nutritionInit/);
+  assert.doesNotMatch(
+    layout.slice(
+      layout.indexOf("const nutritionInit = async function nutritionOwnedCoreInit"),
+      layout.indexOf("function updateTodayMealLabel")
+    ),
+    /refreshDashboard\(/,
+    "Nutrition-specific core init must not start generic dashboard hydration"
+  );
+
+  const loadingBranch = layout.slice(layout.indexOf('if (document.readyState === "loading")'));
+  assert.ok(
+    loadingBranch.indexOf("installNutritionCoreInitBoundary()") < loadingBranch.indexOf('document.addEventListener("DOMContentLoaded", boot'),
+    "Nutrition core init ownership must install before DOMContentLoaded"
+  );
+});
+
+test("initial Nutrition hydration starts Today and Recent together", () => {
+  assert.match(layout, /function installNutritionLoadCoordinator\(\)/);
+  assert.match(layout, /const recent = startRecent\(\)/);
+  assert.match(layout, /const today = Promise\.resolve\(\)\.then\(\(\) => originalToday\(\)\)/);
+  assert.match(layout, /Promise\.allSettled\(\[today, recent\]\)/);
+  assert.match(layout, /window\.loadTodayMeals = function coordinatedTodayMealsLoad/);
+  assert.match(layout, /window\.loadRecentMeals = function coordinatedRecentMealsLoad/);
+
+  const loadingBranch = layout.slice(layout.indexOf('if (document.readyState === "loading")'));
+  assert.match(loadingBranch, /installNutritionLoadCoordinator\(\)/);
+  assert.ok(
+    loadingBranch.indexOf("installNutritionLoadCoordinator()") < loadingBranch.indexOf('document.addEventListener("DOMContentLoaded", boot'),
+    "the coordinator must install before the page DOMContentLoaded handler executes"
+  );
+});
+
+test("canonical Nutrition refresh is single-flight and loads Today/Recent concurrently", () => {
+  assert.match(ledger, /let nutritionRefreshPromise = null/);
+  assert.match(ledger, /if \(nutritionRefreshPromise\) return nutritionRefreshPromise/);
+  assert.match(ledger, /Promise\.allSettled\(\[/);
+  assert.match(ledger, /window\.loadTodayMeals\(\)/);
+  assert.match(ledger, /window\.loadRecentMeals\(\)/);
+
+  const patchStart = ledger.indexOf("function patchNutritionPage()");
+  const patchEnd = ledger.indexOf("async function refreshGoalsFromLedger", patchStart);
+  const patchSource = ledger.slice(patchStart, patchEnd);
+  assert.doesNotMatch(
+    patchSource,
+    /Promise\.resolve\(window\.refreshNutritionPage\(\)\)/,
+    "installing the ledger must not trigger a second startup Nutrition refresh"
+  );
+});
+
+test("trust observer is scoped to meal lists rather than the entire document", () => {
+  assert.match(trust, /\["todayMealList", "recentMealList"\]/);
+  assert.match(trust, /observer\.observe\(target, \{ childList: true, subtree: false \}\)/);
+  assert.doesNotMatch(trust, /observe\(document\.body/);
+});
+
+test("trust UI and Ari context share one Nutrition validator", () => {
+  assert.doesNotThrow(() => new Function(validator));
+  assert.match(validator, /window\.AriNutritionValidator = Object\.freeze/);
+  assert.match(trust, /nutrition-validator\.js\?v=1\.0\.0/);
+  assert.match(quality, /nutrition-validator\.js\?v=1\.0\.0/);
+  assert.match(trust, /AriNutritionValidator\?\.detect/);
+  assert.match(quality, /AriNutritionValidator\?\.detect/);
 });
