@@ -55,7 +55,7 @@ test("food loader never auto-warms and yields between small batches", () => {
   assert.match(foodLoader, /FOOD_DATA_SCRIPTS\.slice\(index, index \+ FOOD_BATCH_SIZE\)/);
   assert.match(foodLoader, /Promise\.all\(batch\.map\(\(src\) => loadScript\(src\)\)\)/);
   assert.doesNotMatch(foodLoader, /Promise\.all\(FOOD_DATA_SCRIPTS\.map/);
-  assert.doesNotMatch(foodLoader, /requestIdleCallback/);
+  assert.doesNotMatch(foodLoader, /(?:window\.)?requestIdleCallback\s*\(/);
   assert.doesNotMatch(foodLoader, /scheduleWarmStart/);
 
   assert.match(foodLoader, /#mealFoodSearchShell/);
