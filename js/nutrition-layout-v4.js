@@ -12,6 +12,63 @@
     label.textContent = count === 1 ? "Meals today · 1" : `Meals today · ${count}`;
   }
 
+  function installNutritionLoadCoordinator() {
+    if (window.__ariNutritionLoadCoordinatorV1) return;
+
+    const originalToday = window.loadTodayMeals;
+    const originalRecent = window.loadRecentMeals;
+    if (typeof originalToday !== "function" || typeof originalRecent !== "function") return;
+
+    let todayCycle = null;
+    let recentCycle = null;
+    let clearTimer = null;
+
+    const startRecent = () => {
+      if (!recentCycle) {
+        recentCycle = Promise.resolve().then(() => originalRecent());
+      }
+      return recentCycle;
+    };
+
+    window.loadTodayMeals = function coordinatedTodayMealsLoad() {
+      if (todayCycle) return todayCycle;
+
+      window.clearTimeout(clearTimer);
+      const recent = startRecent();
+      const today = Promise.resolve().then(() => originalToday());
+
+      todayCycle = Promise.allSettled([today, recent])
+        .then((results) => {
+          const todayResult = results[0];
+          if (todayResult?.status === "rejected") throw todayResult.reason;
+          return todayResult?.value;
+        })
+        .finally(() => {
+          // Keep the already-completed Recent promise through the next microtask.
+          // nutrition.js currently calls `await loadTodayMeals(); await loadRecentMeals();`;
+          // this prevents that second statement from issuing a duplicate query.
+          clearTimer = window.setTimeout(() => {
+            todayCycle = null;
+            recentCycle = null;
+          }, 0);
+        });
+
+      return todayCycle;
+    };
+
+    window.loadRecentMeals = function coordinatedRecentMealsLoad() {
+      return startRecent();
+    };
+
+    window.__ariNutritionLoadCoordinatorV1 = Object.freeze({
+      version: "1.0.0",
+      getStatus: () => ({
+        todayInFlight: Boolean(todayCycle),
+        recentInFlight: Boolean(recentCycle)
+      })
+    });
+  }
+
   function installMomentumGuards() {
     if (window.__ariNutritionMomentumGuards) return;
     window.__ariNutritionMomentumGuards = true;
@@ -48,6 +105,7 @@
   }
 
   function boot() {
+    installNutritionLoadCoordinator();
     installMomentumGuards();
     loadMealPlanner();
 
@@ -71,6 +129,10 @@
   }
 
   if (document.readyState === "loading") {
+    // Install the data-load coordinator immediately. The DOM-ready handler in
+    // nutrition.js runs earlier than this file's own handler, so waiting until
+    // this file's boot() would leave the initial Today -> Recent load serial.
+    installNutritionLoadCoordinator();
     document.addEventListener("DOMContentLoaded", boot, { once: true });
   } else {
     boot();
