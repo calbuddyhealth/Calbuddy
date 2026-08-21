@@ -10,7 +10,7 @@ function supabaseStub({ holdMealReads = false } = {}) {
   const mealResolvers = [];
   const HOLD_MEAL_READS = ${holdMealReads ? "true" : "false"};
   window.__nutritionMealReadCount = 0;
-  window.__nutritionMealReadStacks = [];
+  window.__nutritionMealReadQueries = [];
   window.__releaseNutritionMealReads = () => {
     while (mealResolvers.length) mealResolvers.shift()?.();
   };
@@ -30,33 +30,44 @@ function supabaseStub({ holdMealReads = false } = {}) {
   }
 
   function query(table) {
+    const ops = [];
+    const add = (name, args) => {
+      ops.push([name, ...Array.from(args).map((value) => {
+        if (value && typeof value === "object") {
+          try { return JSON.stringify(value); } catch { return String(value); }
+        }
+        return String(value);
+      })]);
+      return q;
+    };
+
     const q = {
-      select() { return q; },
-      eq() { return q; },
-      neq() { return q; },
-      in() { return q; },
-      is() { return q; },
-      or() { return q; },
-      match() { return q; },
-      gte() { return q; },
-      lte() { return q; },
-      gt() { return q; },
-      lt() { return q; },
-      ilike() { return q; },
-      order() { return q; },
-      range() { return q; },
-      limit() { return q; },
-      insert() { return q; },
-      update() { return q; },
-      upsert() { return q; },
-      delete() { return q; },
+      select(...args) { return add("select", args); },
+      eq(...args) { return add("eq", args); },
+      neq(...args) { return add("neq", args); },
+      in(...args) { return add("in", args); },
+      is(...args) { return add("is", args); },
+      or(...args) { return add("or", args); },
+      match(...args) { return add("match", args); },
+      gte(...args) { return add("gte", args); },
+      lte(...args) { return add("lte", args); },
+      gt(...args) { return add("gt", args); },
+      lt(...args) { return add("lt", args); },
+      ilike(...args) { return add("ilike", args); },
+      order(...args) { return add("order", args); },
+      range(...args) { return add("range", args); },
+      limit(...args) { return add("limit", args); },
+      insert(...args) { return add("insert", args); },
+      update(...args) { return add("update", args); },
+      upsert(...args) { return add("upsert", args); },
+      delete(...args) { return add("delete", args); },
       single() { return Promise.resolve({ data: rowFor(table), error: null }); },
       maybeSingle() { return Promise.resolve({ data: rowFor(table), error: null }); },
       then(resolve, reject) {
         const finish = () => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
         if (table === "meals") {
           window.__nutritionMealReadCount += 1;
-          window.__nutritionMealReadStacks.push(new Error("Nutrition meal read").stack || "stack unavailable");
+          window.__nutritionMealReadQueries.push(ops.map((op) => op.join(":"))); 
           if (HOLD_MEAL_READS) return new Promise((release) => mealResolvers.push(release)).then(finish);
         }
         return finish();
@@ -169,12 +180,12 @@ test("Recent Meals and Meals Today toggle immediately while meal reads are slow"
     await page.waitForTimeout(150);
     const diagnostics = await page.evaluate(() => ({
       count: window.__nutritionMealReadCount || 0,
-      stacks: window.__nutritionMealReadStacks || []
+      queries: window.__nutritionMealReadQueries || []
     }));
 
     expect(
       diagnostics.count,
-      `Expected exactly the Today and Recent startup reads. Callers:\n${diagnostics.stacks.join("\n\n---\n\n")}`
+      `Expected exactly the Today and Recent startup reads. Queries:\n${diagnostics.queries.map((query, index) => `${index + 1}. ${query.join(" | ")}`).join("\n")}`
     ).toBe(2);
 
     const recent = page.locator("#recentMealsSection");
