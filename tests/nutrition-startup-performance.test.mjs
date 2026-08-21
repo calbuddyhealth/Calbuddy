@@ -25,14 +25,14 @@ test("Nutrition no longer parser-loads the food database", () => {
     "food registry must be loaded by the interaction-driven loader"
   );
 
-  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.0/);
+  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.1/);
 });
 
 test("Nutrition binds its functional controllers before food hydration", () => {
   const controller = indexOfRequired(nutritionHtml, "js/nutrition.js?v=4.2.2");
   const barcode = indexOfRequired(nutritionHtml, "js/nutrition-barcode-scan.js?v=1.0.0");
   const lazyBarcode = indexOfRequired(nutritionHtml, "js/nutrition-barcode-lazy.js?v=1.0.0");
-  const food = indexOfRequired(nutritionHtml, "js/nutrition-food-loader.js?v=1.0.0");
+  const food = indexOfRequired(nutritionHtml, "js/nutrition-food-loader.js?v=1.0.1");
 
   assert.ok(controller < food, "Nutrition controller must bind before food hydration can start");
   assert.ok(barcode < food, "barcode controls must bind before food hydration can start");
@@ -79,4 +79,6 @@ test("Nutrition cache-bust references match current controllers", () => {
   assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.16/);
   assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.4\.0/);
   assert.match(nutritionHtml, /assets\/css\/nutrition-scan\.css\?v=1\.0\.2/);
+  assert.match(nutritionHtml, /js\/nutrition-scan-save-bridge\.js\?v=1\.0\.1/);
+  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.1/);
 });
