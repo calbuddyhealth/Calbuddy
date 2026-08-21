@@ -1,7 +1,30 @@
-// ARI XP — Nutrition layout v4.5.0
+// ARI XP — Nutrition layout v4.6.0
 // Presentation controller + iPhone momentum safeguards + consolidated today-only Meal Plan loader.
 (() => {
   "use strict";
+
+  function installNutritionCoreInitBoundary() {
+    const CalBuddy = window.CalBuddy;
+    if (!CalBuddy || typeof CalBuddy.init !== "function") return;
+    if (CalBuddy.init.__ariNutritionOwnedInit === true) return;
+
+    // calbuddy-core.js owns generic multi-surface dashboard hydration. Nutrition
+    // already owns its own Today + Recent startup reads, so running the generic
+    // dashboard refresh here creates a second canonical Today ledger query and
+    // blocks first interaction behind redundant Supabase work.
+    const nutritionInit = async function nutritionOwnedCoreInit() {
+      CalBuddy.getPendingAction?.();
+      CalBuddy.setAriMood?.("idle");
+      console.log(
+        "CalBuddy core loaded.",
+        CalBuddy.version,
+        "Nutrition owns initial ledger hydration."
+      );
+    };
+
+    nutritionInit.__ariNutritionOwnedInit = true;
+    CalBuddy.init = nutritionInit;
+  }
 
   function updateTodayMealLabel() {
     const label = document.getElementById("todayMealCountLabel");
@@ -105,6 +128,7 @@
   }
 
   function boot() {
+    installNutritionCoreInitBoundary();
     installNutritionLoadCoordinator();
     installMomentumGuards();
     loadMealPlanner();
@@ -129,9 +153,10 @@
   }
 
   if (document.readyState === "loading") {
-    // Install the data-load coordinator immediately. The DOM-ready handler in
-    // nutrition.js runs earlier than this file's own handler, so waiting until
-    // this file's boot() would leave the initial Today -> Recent load serial.
+    // Both boundaries must install immediately. calbuddy-core.js and
+    // nutrition.js registered DOM-ready handlers before this file, and those
+    // handlers resolve their globals at event time.
+    installNutritionCoreInitBoundary();
     installNutritionLoadCoordinator();
     document.addEventListener("DOMContentLoaded", boot, { once: true });
   } else {
