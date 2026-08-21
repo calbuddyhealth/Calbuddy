@@ -66,7 +66,7 @@ function supabaseStub() {
 })();`;
 }
 
-test("Nutrition controls stay interactive while the food database hydrates", async ({ page }) => {
+test("Nutrition stays interactive before and during on-demand food hydration", async ({ page }) => {
   let foodRequests = 0;
   let zxingRequests = 0;
   let releaseFoodRequests;
@@ -100,8 +100,10 @@ test("Nutrition controls stay interactive while the food database hydrates", asy
 
     expect(zxingRequests).toBe(0);
 
-    await page.locator("#mealName").focus();
-    await expect.poll(() => foodRequests, { timeout: 3000 }).toBeGreaterThan(0);
+    // Opening Nutrition must never hydrate the local food database by itself.
+    // This catches the iPhone freeze caused by the previous idle warm-start.
+    await page.waitForTimeout(1000);
+    expect(foodRequests).toBe(0);
 
     const advanced = page.locator(".ari-advanced-nutrition");
     await advanced.locator("summary").click();
@@ -115,13 +117,25 @@ test("Nutrition controls stay interactive while the food database hydrates", asy
     await todayMeals.locator("summary").click();
     await expect(todayMeals).toHaveJSProperty("open", true);
 
+    await page.locator("#mealName").focus();
+    await expect.poll(() => foodRequests, { timeout: 3000 }).toBeGreaterThan(0);
+
+    // The loader is capped at a three-script first batch. If dozens of data
+    // requests appear here, the main-thread freeze regression has returned.
+    expect(foodRequests).toBeLessThanOrEqual(3);
+
+    // Controls must remain usable while that first batch is intentionally held.
+    await advanced.locator("summary").click();
+    await expect(advanced).toHaveJSProperty("open", false);
+    await recent.locator("summary").click();
+    await expect(recent).toHaveJSProperty("open", false);
+
     await page.locator("#scanBarcodeBtn").click();
     await expect(page.locator("#nutritionScanSheet")).toBeVisible();
     await expect.poll(() => zxingRequests, { timeout: 3000 }).toBe(1);
 
-    // The database requests are still unresolved here; the controls above must
-    // not depend on them finishing.
     expect(foodRequests).toBeGreaterThan(0);
+    expect(foodRequests).toBeLessThanOrEqual(3);
   } finally {
     releaseFoodRequests?.();
   }
