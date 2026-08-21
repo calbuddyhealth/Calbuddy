@@ -2,11 +2,17 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.ARI_SMOKE_BASE_URL || "http://127.0.0.1:4173";
 
-function supabaseStub() {
+function supabaseStub({ holdMealReads = false } = {}) {
   return `
 (() => {
   const user = { id: "nutrition-perf-user", email: "nutrition@arixp.test", user_metadata: { display_name: "Nutrition Test" } };
   const session = { access_token: "nutrition-test-token", user };
+  const mealResolvers = [];
+  const HOLD_MEAL_READS = ${holdMealReads ? "true" : "false"};
+  window.__nutritionMealReadCount = 0;
+  window.__releaseNutritionMealReads = () => {
+    while (mealResolvers.length) mealResolvers.shift()?.();
+  };
 
   function rowFor(table) {
     if (table === "ari_account_state") return { user_id: user.id, status: "active", setupPending: false };
@@ -35,6 +41,7 @@ function supabaseStub() {
       lte() { return q; },
       gt() { return q; },
       lt() { return q; },
+      ilike() { return q; },
       order() { return q; },
       range() { return q; },
       limit() { return q; },
@@ -44,7 +51,14 @@ function supabaseStub() {
       delete() { return q; },
       single() { return Promise.resolve({ data: rowFor(table), error: null }); },
       maybeSingle() { return Promise.resolve({ data: rowFor(table), error: null }); },
-      then(resolve, reject) { return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject); }
+      then(resolve, reject) {
+        const finish = () => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
+        if (table === "meals") {
+          window.__nutritionMealReadCount += 1;
+          if (HOLD_MEAL_READS) return new Promise((release) => mealResolvers.push(release)).then(finish);
+        }
+        return finish();
+      }
     };
     return q;
   }
@@ -66,19 +80,23 @@ function supabaseStub() {
 })();`;
 }
 
+async function stubExternalRuntime(page, options = {}) {
+  await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
+  await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
+  await page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    body: supabaseStub(options)
+  }));
+}
+
 test("Nutrition stays interactive before and during on-demand food hydration", async ({ page }) => {
   let foodRequests = 0;
   let zxingRequests = 0;
   let releaseFoodRequests;
   const foodGate = new Promise((resolve) => { releaseFoodRequests = resolve; });
 
-  await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
-  await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
-  await page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/javascript",
-    body: supabaseStub()
-  }));
+  await stubExternalRuntime(page);
 
   await page.route("**/ari/nutrition/data/**", async (route) => {
     foodRequests += 1;
@@ -138,5 +156,39 @@ test("Nutrition stays interactive before and during on-demand food hydration", a
     expect(foodRequests).toBeLessThanOrEqual(3);
   } finally {
     releaseFoodRequests?.();
+  }
+});
+
+test("Recent Meals and Meals Today toggle immediately while meal reads are slow", async ({ page }) => {
+  await stubExternalRuntime(page, { holdMealReads: true });
+
+  try {
+    await page.goto(`${BASE_URL}/nutrition.html`, { waitUntil: "domcontentloaded" });
+
+    await expect.poll(
+      () => page.evaluate(() => window.__nutritionMealReadCount || 0),
+      { timeout: 3000 }
+    ).toBeGreaterThan(0);
+
+    // Today + Recent should start together. More than two held reads at startup
+    // indicates a duplicate hydration path has returned.
+    const reads = await page.evaluate(() => window.__nutritionMealReadCount || 0);
+    expect(reads).toBeLessThanOrEqual(2);
+
+    const recent = page.locator("#recentMealsSection");
+    await recent.locator("summary").click();
+    await expect(recent).toHaveJSProperty("open", true);
+
+    const todayMeals = page.locator("#todayMealsSection");
+    await todayMeals.locator("summary").click();
+    await expect(todayMeals).toHaveJSProperty("open", true);
+
+    // The native disclosure controls must still close without waiting for data.
+    await recent.locator("summary").click();
+    await expect(recent).toHaveJSProperty("open", false);
+    await todayMeals.locator("summary").click();
+    await expect(todayMeals).toHaveJSProperty("open", false);
+  } finally {
+    await page.evaluate(() => window.__releaseNutritionMealReads?.()).catch(() => {});
   }
 });
