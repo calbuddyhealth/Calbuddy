@@ -99,6 +99,22 @@ test("Meal Plan has one controller instead of a compact post-render patch", () =
   assert.doesNotMatch(mealPlan, /\.from\("meals"\)[\s\S]*?\.limit\(20\)[\s\S]*?\.from\("meals"\)[\s\S]*?\.limit\(20\)/);
 });
 
+test("initial Nutrition hydration starts Today and Recent together", () => {
+  assert.match(layout, /function installNutritionLoadCoordinator\(\)/);
+  assert.match(layout, /const recent = startRecent\(\)/);
+  assert.match(layout, /const today = Promise\.resolve\(\)\.then\(\(\) => originalToday\(\)\)/);
+  assert.match(layout, /Promise\.allSettled\(\[today, recent\]\)/);
+  assert.match(layout, /window\.loadTodayMeals = function coordinatedTodayMealsLoad/);
+  assert.match(layout, /window\.loadRecentMeals = function coordinatedRecentMealsLoad/);
+
+  const loadingBranch = layout.slice(layout.indexOf('if (document.readyState === "loading")'));
+  assert.match(loadingBranch, /installNutritionLoadCoordinator\(\)/);
+  assert.ok(
+    loadingBranch.indexOf("installNutritionLoadCoordinator()") < loadingBranch.indexOf('document.addEventListener("DOMContentLoaded", boot'),
+    "the coordinator must install before the page DOMContentLoaded handler executes"
+  );
+});
+
 test("canonical Nutrition refresh is single-flight and loads Today/Recent concurrently", () => {
   assert.match(ledger, /let nutritionRefreshPromise = null/);
   assert.match(ledger, /if \(nutritionRefreshPromise\) return nutritionRefreshPromise/);
