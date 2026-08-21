@@ -57,5 +57,6 @@ jobs:
           tests/build5-review-surfaces.spec.mjs
           tests/ari-training-live.spec.mjs
           tests/ari-circle-menu-live.spec.mjs
+          tests/nutrition-startup-live.spec.mjs
           --grep-invert "review-critical public and Circle surfaces render expected controls"
           --reporter=line

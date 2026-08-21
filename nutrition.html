@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="assets/css/animations.css?v=16" />
 <link rel="stylesheet" href="assets/css/nutrition.css?v=3.0.0" />
 <link rel="stylesheet" href="assets/css/nutrition-layout-v4.css?v=4.1.0" />
-<link rel="stylesheet" href="assets/css/nutrition-scan.css?v=1.0.1" />
+<link rel="stylesheet" href="assets/css/nutrition-scan.css?v=1.0.2" />
 </head>
 
 <body>
@@ -255,119 +255,17 @@
   </div>
 </section>
 
-<!-- Runtime -->
+<!-- Essential runtime only. Food data and web barcode decoding load lazily. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js?v=10"></script>
-<script src="js/auth.js?v=1.10.5"></script>
+<script src="js/auth.js?v=1.10.16"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
 <script src="ari/ari-rebirth-app-bridge.js?v=2.5.1"></script>
-
-<!-- ARI Nutrition food registry and data -->
-<script src="ari/nutrition/AriFoodRegistry.js?v=2.0.1"></script>
-<script src="ari/nutrition/data/beverages/AriFoodBeverages.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/beverages/AriFoodBeverageCore.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodSodaBrands.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodEnergyDrinkBrands.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodSportsDrinkBrands.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodJuiceBrands.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodCoffeeTeaBrands.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodWaterBrands.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodBeverageBrands2.js"></script>
-<script src="ari/nutrition/data/beverages/AriFoodBeverageBrands3.js"></script>
-
-<script src="ari/nutrition/data/condiments/AriFoodCondiments.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/condiments/AriFoodCondimentsCore.js"></script>
-<script src="ari/nutrition/data/condiments/AriFoodCondimentBrands.js"></script>
-
-<script src="ari/nutrition/data/dairy/AriFoodDairy.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/dairy/AriFoodDairyCore.js"></script>
-<script src="ari/nutrition/data/dairy/AriFoodMilkBrands.js"></script>
-<script src="ari/nutrition/data/dairy/AriFoodYogurtBrands.js"></script>
-<script src="ari/nutrition/data/dairy/AriFoodCheeseBrands.js"></script>
-<script src="ari/nutrition/data/dairy/AriFoodDairyBrands2.js"></script>
-<script src="ari/nutrition/data/dairy/AriFoodDairyBrands3.js"></script>
-
-<script src="ari/nutrition/data/fats/AriFoodFats.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/fats/AriFoodFatsCore.js"></script>
-<script src="ari/nutrition/data/fats/AriFoodFatBrands.js"></script>
-
-<script src="ari/nutrition/data/fruit/AriFoodFruit.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/fruit/AriFoodCommonFruit.js"></script>
-<script src="ari/nutrition/data/fruit/AriFoodBerries.js"></script>
-<script src="ari/nutrition/data/fruit/AriFoodCitrus.js"></script>
-<script src="ari/nutrition/data/fruit/AriFoodTropicalFruit.js"></script>
-<script src="ari/nutrition/data/fruit/AriFoodStoneFruit.js"></script>
-<script src="ari/nutrition/data/fruit/AriFoodMelons.js"></script>
-<script src="ari/nutrition/data/fruit/AriFoodDriedFruit.js"></script>
-
-<script src="ari/nutrition/data/grains/AriFoodGrains.js?v=1.1.0"></script>
-<script src="ari/nutrition/data/grains/AriFoodRice.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodPasta.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodBread.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodOats.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodOtherGrains.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodCerealBrands.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodCerealBrands2.js"></script>
-<script src="ari/nutrition/data/grains/AriFoodOatBrands.js"></script>
-
-<script src="ari/nutrition/data/nuts/AriFoodNuts.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/nuts/AriFoodNutsCore.js"></script>
-<script src="ari/nutrition/data/nuts/AriFoodNutBrands.js"></script>
-
-<script src="ari/nutrition/data/oils/AriFoodOils.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/oils/AriFoodOilsCore.js"></script>
-<script src="ari/nutrition/data/oils/AriFoodOilBrands.js"></script>
-
-<script src="ari/nutrition/data/proteins/AriFoodProteins.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/proteins/AriFoodPoultry.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodBeef.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodPork.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodSeafood.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodEggs.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodLamb.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodGameMeats.js"></script>
-<script src="ari/nutrition/data/proteins/AriFoodPlantProteins.js"></script>
-
-<script src="ari/nutrition/data/seasonings/AriFoodSeasonings.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/seasonings/AriFoodSeasoningsCore.js"></script>
-<script src="ari/nutrition/data/seasonings/AriFoodSeasoningBrands.js"></script>
-
-<script src="ari/nutrition/data/snacks/AriFoodSnacks.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/snacks/AriFoodSnacksCore.js"></script>
-<script src="ari/nutrition/data/snacks/AriFoodSnackBrands.js"></script>
-
-<script src="ari/nutrition/data/spirits/AriFoodSpirits.js?v=1.1.0"></script>
-<script src="ari/nutrition/data/spirits/AriFoodSpiritsCore.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodBeerBrands.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodWineBrands.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodLiquorBrands.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodHardSeltzerBrands.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodCannedCocktailBrands.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodMaltBeverageBrands.js"></script>
-<script src="ari/nutrition/data/spirits/AriFoodCocktailBrands.js"></script>
-
-<script src="ari/nutrition/data/syrups/AriFoodSyrups.js?v=1.0.0"></script>
-<script src="ari/nutrition/data/syrups/AriFoodSyrupsCore.js"></script>
-<script src="ari/nutrition/data/syrups/AriFoodSyrupBrands.js"></script>
-
-<script src="ari/nutrition/data/vegetables/AriFoodVegetables.js?v=1.1.0"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodLeafyVegetables.js"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodCruciferousVegetables.js"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodRootVegetables.js"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodStarchyVegetables.js"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodOtherVegetables.js"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodPeppers.js"></script>
-<script src="ari/nutrition/data/vegetables/AriFoodDriedChiles.js"></script>
-
-<script src="ari/nutrition/AriFoodSearch.js?v=1.0.0"></script>
-<script src="ari/nutrition/AriHybridFoodSearch.js?v=1.0.1"></script>
-<script src="ari/nutrition/AriFoodCalculator.js?v=1.0.0"></script>
 <script src="js/nutrition.js?v=4.2.2"></script>
-<script src="js/nutrition-layout-v4.js?v=4.0.0"></script>
-
-<!-- Client-side barcode decoding is free; native iOS can replace this through ariBarcodeScanner bridge. -->
-<script src="https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
+<script src="js/nutrition-layout-v4.js?v=4.4.0"></script>
 <script src="js/nutrition-barcode-scan.js?v=1.0.0"></script>
+<script src="js/nutrition-barcode-lazy.js?v=1.0.0"></script>
 <script src="js/nutrition-scan-save-bridge.js?v=1.0.0"></script>
+<script src="js/nutrition-food-loader.js?v=1.0.0"></script>
 </body>
 </html>
