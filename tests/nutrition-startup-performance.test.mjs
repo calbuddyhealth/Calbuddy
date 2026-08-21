@@ -22,21 +22,21 @@ test("Nutrition no longer parser-loads the food database", () => {
   assert.equal(
     nutritionHtml.includes("<script src=\"ari/nutrition/AriFoodRegistry.js"),
     false,
-    "food registry must be loaded by the background loader"
+    "food registry must be loaded by the interaction-driven loader"
   );
 
   assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.0/);
 });
 
-test("Nutrition binds its functional controllers before background food hydration", () => {
+test("Nutrition binds its functional controllers before food hydration", () => {
   const controller = indexOfRequired(nutritionHtml, "js/nutrition.js?v=4.2.2");
   const barcode = indexOfRequired(nutritionHtml, "js/nutrition-barcode-scan.js?v=1.0.0");
   const lazyBarcode = indexOfRequired(nutritionHtml, "js/nutrition-barcode-lazy.js?v=1.0.0");
   const food = indexOfRequired(nutritionHtml, "js/nutrition-food-loader.js?v=1.0.0");
 
-  assert.ok(controller < food, "Nutrition controller must bind before food hydration starts");
-  assert.ok(barcode < food, "barcode controls must bind before food hydration starts");
-  assert.ok(lazyBarcode < food, "barcode lazy decoder must be ready before food hydration starts");
+  assert.ok(controller < food, "Nutrition controller must bind before food hydration can start");
+  assert.ok(barcode < food, "barcode controls must bind before food hydration can start");
+  assert.ok(lazyBarcode < food, "barcode lazy decoder must be ready before food hydration can start");
 });
 
 test("native disclosure controls remain available without JavaScript hydration", () => {
@@ -45,13 +45,22 @@ test("native disclosure controls remain available without JavaScript hydration",
   assert.match(nutritionHtml, /<details class="ari-panel ari-data-console" id="recentMealsSection">/);
 });
 
-test("food loader waits for idle time but starts immediately when food search is touched", () => {
+test("food loader never auto-warms and yields between small batches", () => {
   const dataModules = foodLoader.match(/ari\/nutrition\/data\//g) || [];
-  assert.ok(dataModules.length >= 70, "the complete local food dataset should remain represented in the lazy loader");
-  assert.match(foodLoader, /requestIdleCallback/);
+  assert.ok(dataModules.length >= 70, "the complete local food dataset should remain represented in the loader");
+
+  assert.match(foodLoader, /const FOOD_BATCH_SIZE = 3/);
+  assert.match(foodLoader, /function yieldToBrowser\(\)/);
+  assert.match(foodLoader, /await yieldToBrowser\(\)/);
+  assert.match(foodLoader, /FOOD_DATA_SCRIPTS\.slice\(index, index \+ FOOD_BATCH_SIZE\)/);
+  assert.match(foodLoader, /Promise\.all\(batch\.map\(\(src\) => loadScript\(src\)\)\)/);
+  assert.doesNotMatch(foodLoader, /Promise\.all\(FOOD_DATA_SCRIPTS\.map/);
+  assert.doesNotMatch(foodLoader, /requestIdleCallback/);
+  assert.doesNotMatch(foodLoader, /scheduleWarmStart/);
+
   assert.match(foodLoader, /#mealFoodSearchShell/);
   assert.match(foodLoader, /event\.target\?\.id === "mealName"/);
-  assert.match(foodLoader, /script\.async = !ordered/);
+  assert.match(foodLoader, /TAP FOOD NAME TO SEARCH/);
   assert.match(foodLoader, /window\.initializeNutritionFoodSystem\?\.\(\)/);
 });
 
