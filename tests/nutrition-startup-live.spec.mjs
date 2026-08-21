@@ -165,15 +165,13 @@ test("Recent Meals and Meals Today toggle immediately while meal reads are slow"
   try {
     await page.goto(`${BASE_URL}/nutrition.html`, { waitUntil: "domcontentloaded" });
 
+    // Both canonical startup reads must begin before either response resolves.
+    // A count of 1 means the old serial Today -> Recent waterfall returned;
+    // a count above 2 means duplicate hydration returned.
     await expect.poll(
       () => page.evaluate(() => window.__nutritionMealReadCount || 0),
       { timeout: 3000 }
-    ).toBeGreaterThan(0);
-
-    // Today + Recent should start together. More than two held reads at startup
-    // indicates a duplicate hydration path has returned.
-    const reads = await page.evaluate(() => window.__nutritionMealReadCount || 0);
-    expect(reads).toBeLessThanOrEqual(2);
+    ).toBe(2);
 
     const recent = page.locator("#recentMealsSection");
     await recent.locator("summary").click();
