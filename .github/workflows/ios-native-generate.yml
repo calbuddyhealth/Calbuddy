@@ -70,12 +70,12 @@ jobs:
       - name: Install Capacitor dependencies
         run: npm ci
 
-      - name: Sync current web source into iOS
+      - name: Sync current Safari source into iOS and prove parity
         run: |
           npm run ios:sync
           npm run cap:doctor
 
-      - name: Verify Build 6 configuration and privacy purpose strings
+      - name: Verify Build 7 configuration and privacy purpose strings
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +89,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST"
 
           SETTINGS="$(xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -showBuildSettings)"
-          echo "$SETTINGS" | grep -q "CURRENT_PROJECT_VERSION = 6"
+          echo "$SETTINGS" | grep -q "CURRENT_PROJECT_VERSION = 7"
           echo "$SETTINGS" | grep -q "MARKETING_VERSION = 1.0"
           echo "$SETTINGS" | grep -q "PRODUCT_BUNDLE_IDENTIFIER = com.arixp.app"
 
