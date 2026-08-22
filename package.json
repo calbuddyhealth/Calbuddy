@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "ARI XP web + iOS application foundation",
+  "ari": {
+    "iosBuild": 7
+  },
   "scripts": {
     "cap:doctor": "cap doctor",
     "mobile:build": "node scripts/build-mobile-web.mjs",
     "ios:add": "cap add ios",
+    "ios:set-build": "node scripts/set-ios-build-number.mjs",
     "ios:verify-parity": "node scripts/verify-ios-public-parity.mjs",
-    "ios:sync": "npm run mobile:build && cap sync ios && npm run ios:verify-parity",
+    "ios:sync": "npm run mobile:build && npm run ios:set-build && cap sync ios && npm run ios:verify-parity",
     "ios:open": "cap open ios"
   },
   "dependencies": {
