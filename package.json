@@ -7,7 +7,8 @@
     "cap:doctor": "cap doctor",
     "mobile:build": "node scripts/build-mobile-web.mjs",
     "ios:add": "cap add ios",
-    "ios:sync": "npm run mobile:build && cap sync ios",
+    "ios:verify-parity": "node scripts/verify-ios-public-parity.mjs",
+    "ios:sync": "npm run mobile:build && cap sync ios && npm run ios:verify-parity",
     "ios:open": "cap open ios"
   },
   "dependencies": {
