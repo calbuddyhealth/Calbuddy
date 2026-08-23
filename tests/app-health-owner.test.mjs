@@ -52,6 +52,16 @@ test("App Health API uses owner verification and the existing release workflows"
   assert.match(source, /GITHUB_TOKEN/);
 });
 
+test("App Health targets main independently from legacy GitHub edit branch", async () => {
+  const source = await readFile(
+    new URL("../api/ari-app-health/index.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(source, /APP_HEALTH_BRANCH \|\| "main"/);
+  assert.doesNotMatch(source, /process\.env\.GITHUB_BRANCH/);
+});
+
 test("App Health is prominent for the owner but hidden by default from normal users", async () => {
   const home = await readFile(new URL("../home.html", import.meta.url), "utf8");
   const nav = await readFile(new URL("../js/app-health-nav.js", import.meta.url), "utf8");
