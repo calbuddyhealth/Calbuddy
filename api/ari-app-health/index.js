@@ -30,7 +30,9 @@ const WORKFLOWS = Object.freeze([
 function getGitHubConfiguration() {
   const token = String(process.env.GITHUB_TOKEN || "").trim();
   const repo = String(process.env.GITHUB_REPO || "").trim();
-  const branch = String(process.env.GITHUB_BRANCH || "main").trim() || "main";
+  // App Health validates the current release source. Do not reuse GITHUB_BRANCH:
+  // legacy owner GitHub editing may intentionally point that variable elsewhere.
+  const branch = String(process.env.APP_HEALTH_BRANCH || "main").trim() || "main";
 
   return {
     token,
