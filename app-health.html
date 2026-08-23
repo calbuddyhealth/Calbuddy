@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#f7f9ff" />
+<title>ARI XP App Health</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/base.css?v=16" />
+<link rel="stylesheet" href="assets/css/app-health.css?v=1.0.0" />
+</head>
+<body class="ari-app-health-page">
+<div class="app-health-shell" id="appHealthShell" hidden>
+  <header class="app-health-topbar">
+    <button class="app-health-back" type="button" onclick="history.length > 1 ? history.back() : location.replace('home.html')">BACK</button>
+    <div class="app-health-brand">
+      <strong>APP HEALTH</strong>
+      <span>OWNER DIAGNOSTICS</span>
+    </div>
+    <a class="app-health-home" href="home.html">HOME</a>
+  </header>
+
+  <main>
+    <section class="app-health-hero" aria-labelledby="appHealthTitle">
+      <p class="app-health-eyebrow"><span class="app-health-owner-badge">OWNER</span> &nbsp; ARI XP SYSTEM STATUS</p>
+      <h1 id="appHealthTitle">APP HEALTH</h1>
+      <p class="app-health-subtitle">One place to see whether critical ARI XP checks are passing, whether the iOS build still matches the current app, and whether something needs to be fixed before the next release.</p>
+
+      <div class="app-health-status-row">
+        <div class="app-health-overall" id="appHealthOverall" data-state="unknown" role="status" aria-live="polite">CHECKING SYSTEMS</div>
+        <button class="app-health-run" id="runBugSweepBtn" type="button">RUN BUG SWEEP</button>
+      </div>
+
+      <div class="app-health-meta">
+        <span id="appHealthBranch">Branch: —</span>
+        <span id="appHealthCommit">Commit: —</span>
+        <span id="appHealthChecked">Last checked: —</span>
+      </div>
+      <p class="app-health-message" id="appHealthMessage" aria-live="polite"></p>
+    </section>
+
+    <section class="app-health-section" aria-labelledby="appHealthChecksTitle">
+      <div class="app-health-section-header">
+        <div>
+          <p class="app-health-eyebrow">AUTOMATED CHECKS</p>
+          <h2 id="appHealthChecksTitle">Release-critical systems</h2>
+        </div>
+        <p>Green = pass · Amber = running/check · Red = fix required</p>
+      </div>
+
+      <div class="app-health-grid" id="appHealthGrid">
+        <article class="app-health-card" data-workflow-id="readiness" data-state="unknown">
+          <div class="app-health-card-top"><h3>ARI XP Readiness</h3><span class="app-health-chip">CHECKING</span></div>
+          <p>Node tests and browser smoke tests across critical app surfaces.</p>
+          <div class="app-health-card-meta"><span>Waiting for status…</span></div>
+        </article>
+        <article class="app-health-card" data-workflow-id="ios" data-state="unknown">
+          <div class="app-health-card-top"><h3>iOS Native Validation</h3><span class="app-health-chip">CHECKING</span></div>
+          <p>Safari-to-iOS parity, Capacitor sync, simulator build, and release build.</p>
+          <div class="app-health-card-meta"><span>Waiting for status…</span></div>
+        </article>
+        <article class="app-health-card" data-workflow-id="ari-trust" data-state="unknown">
+          <div class="app-health-card-top"><h3>Ari + Nutrition Trust</h3><span class="app-health-chip">CHECKING</span></div>
+          <p>Ari vNext and nutrition trust/data-integrity deterministic tests.</p>
+          <div class="app-health-card-meta"><span>Waiting for status…</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="app-health-note">
+      <strong>HOW TO USE THIS</strong>
+      <p>Run the Bug Sweep after major changes and before an iOS build. If a card turns red, treat that area as needing review before release. App Health detects and reports failures; it does not silently rewrite or auto-merge fixes into <code>main</code>.</p>
+    </section>
+  </main>
+</div>
+
+<div class="app-health-denied" id="appHealthDenied" hidden>
+  <div>
+    <p class="app-health-eyebrow">OWNER DIAGNOSTICS</p>
+    <h1>Access unavailable</h1>
+    <p>This tool is restricted to the verified ARI XP owner account.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js?v=10"></script>
+<script src="js/auth.js?v=1.10.17"></script>
+<script src="calbuddy-core.js?v=3.6.4"></script>
+<script src="js/app-health.js?v=1.0.0"></script>
+</body>
+</html>
