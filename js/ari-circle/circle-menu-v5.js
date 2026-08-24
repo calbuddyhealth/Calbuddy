@@ -1,15 +1,15 @@
 /* =============================================================
-   ARI CIRCLE — CONTROL DRAWER V5
-   Version: 2.2.0
-   Premium adults-only Circle controls + authoritative Real World Social shell.
+   ARI CIRCLE — CONTROL DRAWER V5.2
+   Version: 2.3.0
+   Premium adults-only Pearl controls + authoritative Real World Social shell.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "2.2.0";
+  const VERSION = "2.3.0";
   const STYLE_ID = "ariCircleMenuV5Style";
-  const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
+  const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const READY_ATTR = "data-circle-menu-v5";
   const ADULT_GUARD_SCRIPT_ID = "ariCircleAdultOnlyGuardScript";
   const ADULT_GUARD_SCRIPT_SRC = "js/ari-circle/adult-only-guard.js?v=1.0.0";
@@ -18,8 +18,7 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.1.0";
-  let observer = null;
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.2.0";
   let outsideBound = false;
 
   function adultAccessReady() {
@@ -119,7 +118,25 @@
     </${tag}>`;
   }
 
+  function group(label, rows) {
+    return `<section class="circle-v52-menu-group" aria-label="${label}">
+      <p class="circle-v52-menu-group__label">${label}</p>
+      <div class="circle-v52-menu-group__items">${rows}</div>
+    </section>`;
+  }
+
   function markup(includeProfileOptions = false) {
+    const mainRows = [
+      item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell }),
+      item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user }),
+      item({ href: "ari-circle-meetup.html", label: "Meet Up", iconMarkup: icon.meetup })
+    ].join("");
+    const accountRows = [
+      includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : item({ href: "ari-circle.html#about", label: "Profile Options", iconMarkup: icon.user }),
+      item({ href: "account.html", label: "Privacy & Visibility", iconMarkup: icon.privacy }),
+      item({ href: "help-safety.html", label: "Circle Safety", iconMarkup: icon.shield })
+    ].join("");
+
     return `
       <summary class="feed-icon-button" aria-label="Open Circle menu">${icon.menu}</summary>
       <nav class="circle-v4-menu__panel circle-v5-menu__panel" aria-label="Circle menu">
@@ -127,16 +144,10 @@
           <span class="circle-v5-menu__mark" aria-hidden="true"></span>
           <span class="circle-v5-menu__identity-text"><strong>ARI CIRCLE</strong><small>Circle controls</small></span>
         </div>
-        <div class="circle-v5-menu__items">
-          ${item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell })}
-          ${item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user })}
-          ${item({ href: "ari-circle-meetup.html", label: "Meet Up", iconMarkup: icon.meetup })}
-          ${includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : ""}
-          ${item({ href: "account.html", label: "Privacy & Visibility", iconMarkup: icon.privacy })}
-          ${item({ href: "help-safety.html", label: "Circle Safety", iconMarkup: icon.shield })}
-        </div>
-        <div class="circle-v5-menu__divider"></div>
-        ${item({ href: "home.html", label: "Exit ARI Circle", iconMarkup: icon.exit, exit: true })}
+        ${group("Main", mainRows)}
+        ${group("Account", accountRows)}
+        <div class="circle-v52-menu-exit">${item({ href: "home.html", label: "Exit ARI Circle", iconMarkup: icon.exit, exit: true })}</div>
+        <div class="circle-v52-menu-footer">V5.2</div>
       </nav>`;
   }
 
@@ -158,10 +169,10 @@
   function normalizeMenu(details) {
     if (!(details instanceof HTMLElement)) return;
     const includeProfileOptions = isProfileMenu(details);
-    const currentVersion = details.getAttribute(READY_ATTR);
     const expectedProfile = includeProfileOptions ? "profile" : "standard";
-    const hasV5Markup = Boolean(details.querySelector(".circle-v5-menu__identity"));
-    if (currentVersion === `${VERSION}:${expectedProfile}` && hasV5Markup) {
+    const currentVersion = details.getAttribute(READY_ATTR);
+    const hasV52Markup = Boolean(details.querySelector(".circle-v52-menu-group"));
+    if (currentVersion === `${VERSION}:${expectedProfile}` && hasV52Markup) {
       bindProfileOptions(details);
       return;
     }
@@ -220,35 +231,10 @@
     bindOutsideClose();
   }
 
-  function normalizeAddedNode(node) {
-    if (!(node instanceof HTMLElement)) return;
-    if (node.matches?.("details.circle-v4-menu")) normalizeMenu(node);
-    node.querySelectorAll?.("details.circle-v4-menu").forEach(normalizeMenu);
-    if (node.id === "circle-notifications-dialog" || node.querySelector?.("#circle-notifications-dialog")) {
-      ensureNotificationSettingsLink();
-    }
-  }
-
-  function watch() {
-    if (observer || !adultAccessReady() || !document.body) return;
-    observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        const target = mutation.target instanceof HTMLElement ? mutation.target : null;
-        const targetMenu = target?.matches?.("details.circle-v4-menu")
-          ? target
-          : target?.closest?.("details.circle-v4-menu");
-        if (targetMenu) normalizeMenu(targetMenu);
-        mutation.addedNodes.forEach(normalizeAddedNode);
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-
   function startAdultCircleUi() {
     if (!adultAccessReady()) return;
     revealAdultCircleUi();
     run();
-    watch();
     setTimeout(run, 160);
     setTimeout(run, 700);
   }
@@ -262,6 +248,7 @@
   }
 
   document.addEventListener("circle:app-ready", () => setTimeout(run, 0));
+  window.addEventListener("pageshow", () => setTimeout(run, 0));
 
   window.AriCircleMenuV5 = Object.freeze({ version: VERSION, refresh: run });
 })();

@@ -16,21 +16,14 @@
   <link rel="stylesheet" href="assets/css/ari-circle-moment-replies.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-launch-hardening.css?v=1.0.1" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
 </head>
-<body>
+<body class="circle-v5-real-world">
   <main class="feed-page" id="feedPage" hidden>
     <header class="feed-header">
       <details class="circle-v4-menu">
         <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
-        <nav class="circle-v4-menu__panel" aria-label="Circle menu">
-          <a href="ari-circle.html?panel=notifications"><span>Notifications</span><small>Activity</small></a>
-          <a href="ari-circle-partners.html"><span>Find People</span><small>Buddies</small></a>
-          <div class="circle-v4-menu__divider"></div>
-          <a href="account.html"><span>Account Settings</span><small>Privacy</small></a>
-          <a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a>
-          <div class="circle-v4-menu__divider"></div>
-          <a id="circleExitToHome" href="home.html?from=circle"><span>Exit ARI Circle</span><small>ARI XP</small></a>
-        </nav>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
       </details>
 
       <a class="feed-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed">
@@ -44,8 +37,8 @@
     <nav class="feed-tabs" aria-label="ARI Circle sections">
       <a class="feed-tab is-active" href="ari-circle-feed.html" aria-current="page">Feed</a>
       <a class="feed-tab" href="ari-circle.html">Profile</a>
-      <a class="feed-tab" href="ari-circle-partners.html">Buddies</a>
-      <a class="feed-tab" href="ari-circle-challenges.html">Challenges</a>
+      <a class="feed-tab" href="ari-circle-meetup.html">Meet Up</a>
+      <a class="feed-tab" href="ari-circle-quests.html">Quests</a>
     </nav>
 
     <section class="feed-composer" aria-labelledby="composerTitle">
@@ -56,7 +49,7 @@
         </div>
 
         <label class="sr-only" for="feedPostBody">Write a post</label>
-        <textarea id="feedPostBody" maxlength="1200" rows="2" placeholder="What are you up to?"></textarea>
+        <textarea id="feedPostBody" maxlength="1200" rows="1" placeholder="Share something…"></textarea>
 
         <div class="feed-media-preview" id="feedMediaPreview" hidden>
           <div class="feed-media-preview__stage" id="feedMediaPreviewStage"></div>
@@ -79,10 +72,10 @@
         </div>
 
         <div class="feed-moment-action" id="feedMomentAction" hidden>
-          <div><strong>Make it a Moment</strong><span>Photo or video · disappears after 24 hours</span></div>
+          <div><strong>Make it a Moment</strong><span>Photo or video · 24h</span></div>
           <button class="feed-moment-button" id="shareMomentButton" type="button">Add to Moment</button>
         </div>
-        <span class="feed-composer__privacy">Shared inside the adults-only ARI Circle.</span>
+        <span class="feed-composer__privacy">Friends only</span>
       </form>
     </section>
 
@@ -93,9 +86,9 @@
 
     <section class="feed-stream" aria-labelledby="streamTitle">
       <div class="feed-section-heading"><div><h2 id="streamTitle">Feed</h2></div><button class="feed-text-button" id="refreshFeedButton" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button></div>
-      <p class="feed-status" id="feedStatus" role="status" aria-live="polite">Loading your Circle…</p>
+      <p class="feed-status" id="feedStatus" role="status" aria-live="polite">Loading…</p>
       <div class="feed-list" id="feedList" aria-live="polite"></div>
-      <div class="feed-empty" id="feedEmpty" hidden><span aria-hidden="true">✦</span><h3>Quiet in here.</h3><p>Be the first person to share something.</p><button class="feed-primary" id="emptyComposeButton" type="button">Share something</button></div>
+      <div class="feed-empty" id="feedEmpty" hidden><span aria-hidden="true">✦</span><h3>Quiet in here.</h3><p>Share the first update.</p><button class="feed-primary" id="emptyComposeButton" type="button">Share</button></div>
       <button class="feed-secondary feed-full" id="loadMoreButton" type="button" hidden>Load more</button>
     </section>
   </main>
@@ -106,24 +99,15 @@
 
   <dialog class="feed-dialog feed-sheet" id="reactionDialog"><div class="feed-dialog__card"><button class="feed-close" type="button" data-close-dialog="reactionDialog" aria-label="Close">×</button><p class="feed-kicker">REACT</p><h2>Pick a reaction</h2><div class="feed-emoji-grid" id="quickReactionGrid"><button type="button" data-reaction="🔥">🔥</button><button type="button" data-reaction="💪">💪</button><button type="button" data-reaction="👏">👏</button><button type="button" data-reaction="❤️">❤️</button><button type="button" data-reaction="⚡">⚡</button><button type="button" data-reaction="😂">😂</button><button type="button" data-reaction="🎉">🎉</button><button type="button" data-reaction="🧠">🧠</button></div><form id="customReactionForm" class="feed-custom-reaction"><label for="customReactionInput">Any emoji</label><div><input id="customReactionInput" maxlength="16" inputmode="text" autocomplete="off" placeholder="🫡" /><button class="feed-primary" type="submit">React</button></div></form></div></dialog>
 
-  <dialog class="feed-dialog feed-sheet" id="commentsDialog"><div class="feed-dialog__card feed-comments-card"><button class="feed-close" type="button" data-close-dialog="commentsDialog" aria-label="Close">×</button><p class="feed-kicker">CONVERSATION</p><h2>Comments</h2><div class="feed-comments-list" id="commentsList"></div><div class="feed-empty feed-empty--compact" id="commentsEmpty" hidden><p>No comments yet. Say something.</p></div><form class="feed-comment-form" id="commentForm"><label class="sr-only" for="commentInput">Write a comment</label><input id="commentInput" maxlength="600" autocomplete="off" placeholder="Add a comment…" required /><button class="feed-primary" type="submit">Send</button></form></div></dialog>
+  <dialog class="feed-dialog feed-sheet" id="commentsDialog"><div class="feed-dialog__card feed-comments-card"><button class="feed-close" type="button" data-close-dialog="commentsDialog" aria-label="Close">×</button><p class="feed-kicker">CONVERSATION</p><h2>Comments</h2><div class="feed-comments-list" id="commentsList"></div><div class="feed-empty feed-empty--compact" id="commentsEmpty" hidden><p>No comments yet.</p></div><form class="feed-comment-form" id="commentForm"><label class="sr-only" for="commentInput">Write a comment</label><input id="commentInput" maxlength="600" autocomplete="off" placeholder="Add a comment…" required /><button class="feed-primary" type="submit">Send</button></form></div></dialog>
 
   <dialog class="feed-moment-viewer" id="momentViewer"><div class="feed-moment-viewer__card"><div class="feed-moment-viewer__top"><div class="feed-moment-viewer__identity" id="momentViewerIdentity"></div><button type="button" data-close-dialog="momentViewer" aria-label="Close Moment">×</button></div><div class="feed-moment-viewer__media" id="momentViewerMedia"></div><p class="feed-moment-viewer__caption" id="momentViewerCaption"></p><div class="feed-moment-viewer__controls"><button id="momentPrevButton" type="button" aria-label="Previous Moment">‹</button><button id="momentNextButton" type="button" aria-label="Next Moment">›</button></div></div></dialog>
 
   <div class="feed-toast" id="feedToast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.2.0" defer></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.3.0" defer></script>
   <script src="supabase-config.js?v=1.1.4"></script>
-  <script>
-    // iOS/WKWebView can preserve an unhealthy history entry. Exit Circle with
-    // replace() so Home becomes the current document instead of navigating back
-    // through a stale preview/auth page.
-    document.getElementById("circleExitToHome")?.addEventListener("click", (event) => {
-      event.preventDefault();
-      window.location.replace(`home.html?from=circle&ts=${Date.now()}`);
-    });
-  </script>
   <script src="js/ari-circle/content-moderation.js?v=1.4.0" defer></script>
   <script src="js/ari-circle/challenges/challenge-moderation-bridge.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>

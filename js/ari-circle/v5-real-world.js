@@ -1,21 +1,23 @@
 /* =============================================================
-   ARI CIRCLE V5.1 — REAL WORLD SOCIAL SHELL
+   ARI CIRCLE V5.2 — REAL WORLD SOCIAL SHELL
    Feed · Meet Up · Quests, with Profile accessible from the drawer.
-   Pearl/Halo is deliberately bounded: no global DOM observer, no
-   continuous animation loop, and no extra profile/data request.
+   Premium Pearl stays bounded: no global DOM observer, no continuous
+   animation loop, and no extra profile/data request.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.1.0";
+  const VERSION = "5.2.0";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
   const STYLE_HREF = "assets/css/ari-circle-v5-real-world.css?v=5.0.0";
   const PEARL_STYLE_ID = "ariCircleV51PearlStyle";
   const PEARL_STYLE_HREF = "assets/css/ari-circle-v5-pearl.css?v=5.1.0";
+  const PREMIUM_STYLE_ID = "ariCircleV52PremiumStyle";
+  const PREMIUM_STYLE_HREF = "assets/css/ari-circle-v5-premium.css?v=5.2.0";
   const NAV_ID = "ariCircleV5BottomNav";
-  const HALO_SEEN_KEY = "ari-circle-v51-halo-seen";
+  const HALO_SEEN_KEY = "ari-circle-v52-halo-seen";
   let queued = false;
   let happeningLoaded = false;
   let profileLoaded = false;
@@ -25,13 +27,6 @@
     meetup: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3"></circle><circle cx="16.5" cy="9" r="2.5"></circle><path d="M3.5 19c.5-3.5 2.3-5.3 5-5.3s4.6 1.8 5.1 5.3M14.2 14.2c3.4-.4 5.6 1.2 6.3 4.8"></path></svg>`,
     quests: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5.5 6.2v5.2c0 4.4 2.7 7.5 6.5 9.6 3.8-2.1 6.5-5.2 6.5-9.6V6.2L12 3Z"></path><path d="m8.8 12 2.1 2.1 4.4-5"></path></svg>`,
     message: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.25 3.75 20l.85-3.45A7.9 7.9 0 0 1 3 11.75C3 7.47 6.9 4 11.7 4h.6c4.8 0 8.7 3.47 8.7 7.75s-3.9 7.75-8.7 7.75h-.6A9.5 9.5 0 0 1 7 18.25Z"></path></svg>`
-  });
-
-  const HEADER_CONTEXT = Object.freeze({
-    feed: "YOUR CIRCLE",
-    meetup: "FIND YOUR PEOPLE",
-    quests: "DO SOMETHING TOGETHER",
-    profile: "REAL WORLD SOCIAL"
   });
 
   function pathName() {
@@ -72,6 +67,7 @@
   function ensureStyles() {
     ensureStylesheet(STYLE_ID, STYLE_HREF, "ari-circle-v5-real-world.css");
     ensureStylesheet(PEARL_STYLE_ID, PEARL_STYLE_HREF, "ari-circle-v5-pearl.css");
+    ensureStylesheet(PREMIUM_STYLE_ID, PREMIUM_STYLE_HREF, "ari-circle-v5-premium.css");
   }
 
   function activeKey() {
@@ -115,9 +111,9 @@
     });
   }
 
-  function haloMarkup(contextLabel) {
+  function haloMarkup() {
     return `<span class="circle-v51-orbit-mark" aria-hidden="true"><i></i></span>
-      <span class="circle-v51-wordmark"><strong>ARI</strong><em>CIRCLE</em><small>${contextLabel}</small></span>`;
+      <span class="circle-v51-wordmark"><strong>ARI</strong><em>CIRCLE</em></span>`;
   }
 
   function shouldPlayHaloIntro() {
@@ -131,7 +127,6 @@
   }
 
   function normalizeSignatureHeader() {
-    const context = HEADER_CONTEXT[activeKey()] || HEADER_CONTEXT.profile;
     const headers = document.querySelectorAll(".feed-header, .partner-header, .challenge-header, .circle-v5-header, .circle-header");
     let introAvailable = shouldPlayHaloIntro();
 
@@ -145,9 +140,9 @@
         brand.classList.add("circle-v51-brand");
         brand.setAttribute("href", "ari-circle-feed.html");
         brand.setAttribute("aria-label", "ARI Circle Feed");
-        if (brand.dataset.circleV51Brand !== context) {
-          brand.innerHTML = haloMarkup(context);
-          brand.dataset.circleV51Brand = context;
+        if (brand.dataset.circleV51Brand !== VERSION) {
+          brand.innerHTML = haloMarkup();
+          brand.dataset.circleV51Brand = VERSION;
         }
       }
 
@@ -194,19 +189,6 @@
         if (item.tagName === "A") item.href = "ari-circle-meetup.html";
         if (label) label.textContent = "Meet Up";
       }
-    });
-
-    document.querySelectorAll(".circle-v5-menu__items").forEach((items) => {
-      const hasProfile = [...items.querySelectorAll(".circle-v5-menu__label")]
-        .some((label) => label.textContent?.trim() === "Profile");
-      if (hasProfile || items.querySelector('[data-circle-v5-profile-link="true"]')) return;
-      const link = document.createElement("a");
-      link.href = "ari-circle.html";
-      link.className = "circle-v5-menu__item";
-      link.dataset.circleV5ProfileLink = "true";
-      link.innerHTML = `<span class="circle-v5-menu__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg></span><span class="circle-v5-menu__label">Profile</span><span class="circle-v5-menu__chevron" aria-hidden="true">›</span>`;
-      const privacy = [...items.children].find((child) => child.querySelector?.(".circle-v5-menu__label")?.textContent?.trim() === "Privacy & Visibility");
-      items.insertBefore(link, privacy || null);
     });
   }
 
