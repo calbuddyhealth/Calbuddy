@@ -1,0 +1,120 @@
+name: Temporary Conversation Style v2 Integration
+
+on:
+  push:
+    branches:
+      - feature/conversation-style-auto-default-v2
+    paths:
+      - .github/workflows/temp-conversation-style-v2-integrate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/conversation-style-auto-default-v2
+
+      - name: Integrate Conversation Style automatic defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          # Settings page: compatibility + UI must run before the existing controller.
+          path = Path('ari-preference-settings.html')
+          text = path.read_text()
+          old = '''<script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>\n\n  <!-- Page-specific controller -->\n  <script src="js/ari-preference-settings-controller.js?v=3.0.0"></script>'''
+          new = '''<script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>\n<script src="ari/profile/ari-conversation-style-auto-contract.js?v=1.0.0"></script>\n<script src="js/ari-conversation-style-auto-ui.js?v=1.0.0"></script>\n\n  <!-- Page-specific controller -->\n  <script src="js/ari-preference-settings-controller.js?v=3.0.0"></script>'''
+          assert old in text, 'settings page script anchor missing'
+          path.write_text(text.replace(old, new, 1))
+
+          # Rebirth fallback: use the same Auto compatibility semantics.
+          path = Path('ari/ari-rebirth-app-bridge.js')
+          text = path.read_text()
+          old = '''"ari/profile/ari-preference-resolver.js?v=2.1.0",\n"ari/profile/ari-preference-runtime.js?v=1.1.0",'''
+          new = '''"ari/profile/ari-preference-resolver.js?v=2.1.0",\n"ari/profile/ari-preference-runtime.js?v=1.1.0",\n"ari/profile/ari-conversation-style-auto-contract.js?v=1.0.0",'''
+          assert old in text, 'Rebirth preference dependency anchor missing'
+          path.write_text(text.replace(old, new, 1))
+
+          # vNext explicit profile recognizes the existing Natural manual option.
+          path = Path('api/_lib/ari-vnext/communication-profile.js')
+          text = path.read_text()
+          old = 'tone: new Set(["adaptive", "casual", "professional", "warm", "coach"]),'
+          new = 'tone: new Set(["adaptive", "natural", "casual", "professional", "warm", "coach"]),'
+          assert old in text, 'communication profile tone anchor missing'
+          path.write_text(text.replace(old, new, 1))
+
+          # vNext server hydration: saved settings become authoritative explicit locks.
+          path = Path('api/ari-vnext.js')
+          text = path.read_text()
+
+          old = 'import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";'
+          new = old + '\nimport { loadSavedCommunicationPreferences } from "./_lib/ari-vnext/saved-communication-preferences.js";'
+          assert old in text and 'saved-communication-preferences.js' not in text, 'vNext import anchor missing/already patched'
+          text = text.replace(old, new, 1)
+
+          old = '''      communicationOutcomes,\n      accountEntitlements,'''
+          new = '''      communicationOutcomes,\n      savedCommunicationPreferences,\n      accountEntitlements,'''
+          assert old in text, 'vNext hydration destructure anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''      shouldLoadConversationLearning\n        ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })\n        : Promise.resolve([]),\n      casualConversation'''
+          new = '''      shouldLoadConversationLearning\n        ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })\n        : Promise.resolve([]),\n      loadSavedCommunicationPreferences({ userId: auth.userId }),\n      casualConversation'''
+          assert old in text, 'vNext hydration array anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''    const communicationLearning = communicationOutcomes.length\n      ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })\n      : null;\n    const temporalTimeline = fitnessRoute'''
+          new = '''    const communicationLearning = communicationOutcomes.length\n      ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })\n      : null;\n    const savedConversationStyle = savedCommunicationPreferences || {\n      preferences: {},\n      explicitLocks: [],\n      automatic: true,\n      source: "saved_conversation_style"\n    };\n    turn.preferences = {\n      ...(turn.preferences && typeof turn.preferences === "object" ? turn.preferences : {}),\n      ...(savedConversationStyle.preferences || {})\n    };\n    const temporalTimeline = fitnessRoute'''
+          assert old in text, 'vNext communication learning anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''      ...(communicationLearning ? { communicationLearning } : {}),\n      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})'''
+          new = '''      ...(communicationLearning ? { communicationLearning } : {}),\n      conversationStyle: {\n        automatic: savedConversationStyle.automatic !== false,\n        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)\n          ? savedConversationStyle.explicitLocks\n          : [],\n        source: savedConversationStyle.source || "saved_conversation_style"\n      },\n      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})'''
+          assert old in text, 'vNext context anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''            communicationLearningSamples: communicationLearning?.resolvedCount || 0,\n            proactiveInsightCount: proactiveInsights?.userFacingCount || 0,'''
+          new = '''            communicationLearningSamples: communicationLearning?.resolvedCount || 0,\n            conversationStyleAutomatic: savedConversationStyle.automatic !== false,\n            conversationStyleLockCount: Array.isArray(savedConversationStyle.explicitLocks)\n              ? savedConversationStyle.explicitLocks.length\n              : 0,\n            proactiveInsightCount: proactiveInsights?.userFacingCount || 0,'''
+          assert old in text, 'vNext usage metadata anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''      communicationLearning,\n      temporalTimeline,'''
+          new = '''      communicationLearning,\n      conversationStyle: {\n        automatic: savedConversationStyle.automatic !== false,\n        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)\n          ? savedConversationStyle.explicitLocks\n          : [],\n        source: savedConversationStyle.source || "saved_conversation_style"\n      },\n      temporalTimeline,'''
+          assert old in text, 'vNext response payload anchor missing'
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Validate integration syntax and anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check ari/profile/ari-conversation-style-auto-contract.js
+          node --check js/ari-conversation-style-auto-ui.js
+          node --check api/_lib/ari-vnext/saved-communication-preferences.js
+          node --check api/_lib/ari-vnext/communication-profile.js
+          node --check api/ari-vnext.js
+          node --check ari/ari-rebirth-app-bridge.js
+          grep -q 'ari-conversation-style-auto-contract.js?v=1.0.0' ari-preference-settings.html
+          grep -q 'ari-conversation-style-auto-ui.js?v=1.0.0' ari-preference-settings.html
+          grep -q 'ari-conversation-style-auto-contract.js?v=1.0.0' ari/ari-rebirth-app-bridge.js
+          grep -q 'loadSavedCommunicationPreferences' api/ari-vnext.js
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ari-preference-settings.html \
+            ari/ari-rebirth-app-bridge.js \
+            api/_lib/ari-vnext/communication-profile.js \
+            api/ari-vnext.js
+          git commit -m "Wire automatic Conversation Style into Ari runtimes"
+          git push origin HEAD:feature/conversation-style-auto-default-v2
