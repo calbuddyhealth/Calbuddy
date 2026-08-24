@@ -1,11 +1,11 @@
 /* =============================================================
    ARI CIRCLE V5 — MEET UP
-   Real-world meetup discovery, fast hosting, host approval, and XP.
+   Real-world meetup discovery, fast hosting, host approval, rooms, and XP.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.1.0";
+  const VERSION = "5.2.0";
   const $ = (id) => document.getElementById(id);
   const ACTIVITY = Object.freeze({
     walking: ["Walking", "🚶"], gym: ["Gym", "🏋️"], running: ["Running", "🏃"],
@@ -124,6 +124,10 @@
     return "other";
   }
 
+  function roomUrl(meetupId) {
+    return `ari-circle-meetup-room.html?meetup=${encodeURIComponent(meetupId)}`;
+  }
+
   function setBusy(value) {
     state.busy = Boolean(value);
     document.querySelectorAll("button[data-meetup-action], button[data-request-decision], #createMeetupSubmit").forEach((button) => {
@@ -214,16 +218,17 @@
         primaryLabel = "Complete Meetup";
         primaryAction = "complete";
       }
+      secondary = `<button class="circle-v5-button" data-meetup-action="room" type="button">Room</button>`;
     } else if (row.viewer_is_host) {
-      primaryLabel = "Hosting";
-      primaryAction = "hosting";
+      primaryLabel = "Open Room";
+      primaryAction = "room";
       if (joinMode === "approval") {
         secondary += `<button class="circle-v5-button" data-meetup-action="requests" type="button">Requests${requestCount ? ` · ${requestCount}` : ""}</button>`;
       }
       secondary += `<button class="circle-v5-button" data-meetup-action="cancel" type="button">Cancel</button>`;
     } else if (row.viewer_joined) {
-      primaryLabel = "You’re Going";
-      primaryAction = "joined";
+      primaryLabel = "Open Room";
+      primaryAction = "room";
       secondary = `<button class="circle-v5-button" data-meetup-action="leave" type="button">Leave</button>`;
     } else if (joinMode === "approval" && requestStatus === "pending") {
       primaryLabel = "Requested";
@@ -244,7 +249,7 @@
       primaryAction = "full";
     }
 
-    const permanent = ["waiting","hosting","joined","requested","waitlisted","declined","full"].includes(primaryAction);
+    const permanent = ["waiting","requested","waitlisted","declined","full"].includes(primaryAction);
     const joiningCopy = joinMode === "approval" ? "Host approves requests" : "Instant join";
 
     article.innerHTML = `
@@ -266,7 +271,7 @@
         ${secondary}
         <span class="circle-v5-xp-chip">+${Math.max(0, xp)} XP</span>
       </div>
-      <p class="circle-v5-completion-note">${ended ? "Completion is open. XP releases only when every joined participant confirms." : `${escapeHtml(joiningCopy)} · ${escapeHtml(relativeEnd(row.ends_at))} · Host is the point of contact.`}</p>
+      <p class="circle-v5-completion-note">${ended ? "Completion is open. The room stays available during the completion window." : `${escapeHtml(joiningCopy)} · ${escapeHtml(relativeEnd(row.ends_at))} · Host is the point of contact.`}</p>
     `;
 
     article.querySelectorAll("[data-meetup-action]").forEach((button) => {
@@ -351,7 +356,7 @@
         requested_decision: decision
       });
       const status = clean(result?.status) || decision;
-      showToast(status === "accepted" ? "Guest accepted." : status === "waitlisted" ? "Guest moved to the waitlist." : "Request declined.");
+      showToast(status === "accepted" ? "Guest accepted. They can now enter the Meetup Room." : status === "waitlisted" ? "Guest moved to the waitlist." : "Request declined.");
       await Promise.all([loadRequests(), loadMeetups()]);
       state.requestMeetup = state.rows.find((item) => item.meetup_id === row.meetup_id) || row;
     } catch (error) {
@@ -363,6 +368,10 @@
   }
 
   async function handleAction(row, action) {
+    if (action === "room") {
+      location.href = roomUrl(row.meetup_id);
+      return;
+    }
     if (action === "requests") {
       await openRequests(row);
       return;
@@ -372,7 +381,8 @@
     try {
       if (action === "join") {
         await rpc("ari_circle_join_meetup", { requested_meetup_id: row.meetup_id });
-        showToast("You’re in. The host is your point of contact.");
+        location.href = roomUrl(row.meetup_id);
+        return;
       } else if (action === "request") {
         const result = await rpc("ari_circle_request_meetup", { requested_meetup_id: row.meetup_id });
         const requestStatus = clean(result?.status);
@@ -459,11 +469,14 @@
       });
       $("hostMeetupDialog")?.close();
       resetHostForm();
+      if (id) {
+        location.href = roomUrl(id);
+        return;
+      }
       showToast("Meetup published. You’re the point of contact; verified completion builds Host status.");
       state.activity = "";
       syncFilters();
       await loadMeetups();
-      if (id) history.replaceState(null, "", `ari-circle-meetup.html?meetup=${encodeURIComponent(id)}`);
     } catch (error) {
       console.error("Meetup creation failed:", error);
       showToast(error.message || "Could not publish the meetup.", 4600);
