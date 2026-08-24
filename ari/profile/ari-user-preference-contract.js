@@ -251,109 +251,7 @@
                   "Auto",
 
                 description:
-                  "Let Ari learn automatically.",
-
-                enforcement:
-                  "adaptive",
-
-                currentTurnAdjustable:
-                  true,
-
-                instruction:
-                  "Leave response length adaptive so Ari can use current-turn instructions and learned conversation personalization."
-              },
-
-              never: {
-                label:
-                  "Never",
-
-                description:
-                  "Do not use profanity.",
-
-                enforcement:
-                  "hard_opt_out",
-
-                currentTurnAdjustable:
-                  false,
-
-                instruction:
-                  "Do not use profanity. This is an explicit user lock and should remain in effect unless the user changes the saved Conversation Style setting."
-              },
-
-              auto: {
-                label:
-                  "Auto",
-
-                description:
-                  "Let Ari learn automatically.",
-
-                enforcement:
-                  "adaptive",
-
-                currentTurnAdjustable:
-                  true,
-
-                instruction:
-                  "Leave explanation complexity adaptive so Ari can match the conversation and learned user preference."
-              },
-
-              auto: {
-                label:
-                  "Auto",
-
-                description:
-                  "Let Ari adapt automatically.",
-
-                enforcement:
-                  "adaptive",
-
-                currentTurnAdjustable:
-                  true,
-
-                instruction:
-                  "Use Ari’s standard adaptive language. Auto does not require profanity and does not prohibit it when ordinary context supports it."
-              },
-
-              auto: {
-                label:
-                  "Auto",
-
-                description:
-                  "Let Ari adapt automatically.",
-
-                enforcement:
-                  "adaptive",
-
-                currentTurnAdjustable:
-                  true,
-
-                instruction:
-                  "Use humor contextually when it naturally fits. Auto is not a fixed humor frequency and must not force jokes."
-              },
-
-              auto: {
-                label:
-                  "Auto",
-
-                description:
-                  "Let Ari learn automatically.",
-
-                enforcement:
-                  "adaptive",
-
-                currentTurnAdjustable:
-                  true,
-
-                instruction:
-                  "Leave directness adaptive so current-turn instructions and learned conversation personalization can determine how direct Ari should be."
-              },
-
-              auto: {
-                label:
-                  "Auto",
-
-                description:
-                  "Let Ari adapt automatically.",
+                  "Let Ari adapt tone automatically.",
 
                 enforcement:
                   "adaptive",
@@ -427,9 +325,26 @@
               "Controls how directly Ari gets to the point.",
 
             defaultValue:
-              "balanced",
+              "auto",
 
             options: {
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari learn how direct to be automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Leave directness adaptive so current-turn instructions and learned conversation personalization can determine how direct Ari should be."
+              },
+
               gentle: {
                 label:
                   "Gentle",
@@ -492,9 +407,26 @@
               "Controls how often Ari actively uses humor.",
 
             defaultValue:
-              "occasional",
+              "auto",
 
             options: {
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt humor automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Use humor contextually when it naturally fits. Auto is not a fixed humor frequency and must not force jokes."
+              },
+
               none: {
                 label:
                   "None",
@@ -566,9 +498,43 @@
               "Controls how Ari uses profanity as part of its conversational voice.",
 
             defaultValue:
-              "default",
+              "auto",
 
             options: {
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt language automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Use Ari’s standard adaptive language. Auto does not require profanity and does not prohibit it when ordinary context supports it."
+              },
+
+              never: {
+                label:
+                  "Never",
+
+                description:
+                  "Do not use profanity.",
+
+                enforcement:
+                  "hard_opt_out",
+
+                currentTurnAdjustable:
+                  false,
+
+                instruction:
+                  "Do not use profanity. This is an explicit user lock and should remain in effect unless the user changes the saved Conversation Style setting."
+              },
+
               default: {
                 label:
                   "Default",
@@ -640,9 +606,26 @@
               "Controls how simple or advanced Ari's explanations are.",
 
             defaultValue:
-              "balanced",
+              "auto",
 
             options: {
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt explanation complexity automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Leave explanation complexity adaptive so Ari can match the conversation and learned user preference."
+              },
+
               simple: {
                 label:
                   "Simple",
@@ -705,9 +688,26 @@
               "Controls how much detail Ari usually provides.",
 
             defaultValue:
-              "balanced",
+              "auto",
 
             options: {
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt response length automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Leave response length adaptive so Ari can use current-turn instructions and learned conversation personalization."
+              },
+
               concise: {
                 label:
                   "Concise",
