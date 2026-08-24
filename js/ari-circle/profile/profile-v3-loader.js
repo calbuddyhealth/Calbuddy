@@ -1,6 +1,6 @@
-// ARI Circle lightweight V4 profile loader.
+// ARI Circle lightweight Profile loader.
 // Keeps the legacy profile renderer/controllers while loading only the
-// social data the simplified profile actually displays.
+// social data and compatibility modules the simplified Profile displays.
 
 const PROFILE_STYLE_ID = "ari-circle-profile-v3-style";
 const V4_STYLE_ID = "ari-circle-v4-style";
@@ -157,7 +157,7 @@ function finishProfessionalProfileBoot() {
   }
 
   const finish = () => {
-    const flow = window.AriCircleV4FlowFixes;
+    const flow = window.AriCircleProfileSocialFlow;
     const relationship = flow?.relationship?.() || "unknown";
     const ownerActions = document.getElementById("circle-owner-actions");
     const visitorActions = document.getElementById("circle-visitor-actions");
@@ -183,7 +183,7 @@ function finishProfessionalProfileBoot() {
 Promise.all([
   import("./profile-v4.js?v=4.3.0"),
   import("../v4-ui.js?v=5.3.0"),
-  import("../v4-flow-fixes.js?v=1.2.1")
+  import("./profile-social-flow.js?v=1.0.0")
 ])
   .then(() => finishProfessionalProfileBoot())
   .catch((error) => {
