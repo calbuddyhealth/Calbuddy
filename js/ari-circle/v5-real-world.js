@@ -1,13 +1,13 @@
 /* =============================================================
-   ARI CIRCLE V5.2.2 — REAL WORLD SOCIAL SHELL
+   ARI CIRCLE V5.2.3 — REAL WORLD SOCIAL SHELL
    Feed · Meet Up · Quests, with Profile accessible from the drawer.
-   Premium Pearl stays bounded: no global DOM observer, no continuous
-   animation loop, and no extra profile/data request.
+   One current navigation owner, bounded lifecycle refreshes, and no retired
+   Buddies/Challenges route shims.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.2";
+  const VERSION = "5.2.3";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -16,10 +16,8 @@
   const PEARL_STYLE_HREF = "assets/css/ari-circle-v5-pearl.css?v=5.1.0";
   const PREMIUM_STYLE_ID = "ariCircleV52PremiumStyle";
   const PREMIUM_STYLE_HREF = "assets/css/ari-circle-v5-premium.css?v=5.2.0";
-  const AUTHORITY_STYLE_ID = "ariCircleV521AuthorityStyle";
-  const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-v5-visual-authority.css?v=5.2.1";
-  const MINIMAL_STYLE_ID = "ariCircleV522MinimalStyle";
-  const MINIMAL_STYLE_HREF = "assets/css/ari-circle-v5-minimal-premium.css?v=5.2.2";
+  const AUTHORITY_STYLE_ID = "ariCircleV525AuthorityStyle";
+  const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-v5-visual-authority.css?v=5.2.5";
   const NAV_ID = "ariCircleV5BottomNav";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
   let queued = false;
@@ -41,19 +39,6 @@
     return pathName().includes("ari-circle");
   }
 
-  function routeLegacySurface() {
-    const path = pathName();
-    if (path.endsWith("/ari-circle-partners.html")) {
-      location.replace(`ari-circle-meetup.html${location.search || ""}${location.hash || ""}`);
-      return true;
-    }
-    if (path.endsWith("/ari-circle-challenges.html")) {
-      location.replace(`ari-circle-quests.html${location.search || ""}${location.hash || ""}`);
-      return true;
-    }
-    return false;
-  }
-
   function ensureStylesheet(id, href, match) {
     if (document.getElementById(id)) return;
     const existing = match ? document.querySelector(`link[rel="stylesheet"][href*="${match}"]`) : null;
@@ -73,13 +58,12 @@
     ensureStylesheet(PEARL_STYLE_ID, PEARL_STYLE_HREF, "ari-circle-v5-pearl.css");
     ensureStylesheet(PREMIUM_STYLE_ID, PREMIUM_STYLE_HREF, "ari-circle-v5-premium.css");
     ensureStylesheet(AUTHORITY_STYLE_ID, AUTHORITY_STYLE_HREF, "ari-circle-v5-visual-authority.css");
-    ensureStylesheet(MINIMAL_STYLE_ID, MINIMAL_STYLE_HREF, "ari-circle-v5-minimal-premium.css");
   }
 
   function activeKey() {
     const path = pathName();
-    if (path.includes("meetup") || path.includes("partners")) return "meetup";
-    if (path.includes("quest") || path.includes("challenge")) return "quests";
+    if (path.includes("meetup")) return "meetup";
+    if (path.includes("quest")) return "quests";
     if (path.endsWith("/ari-circle-feed.html")) return "feed";
     if (path.endsWith("/ari-circle.html")) return "profile";
     return "";
@@ -132,7 +116,7 @@
   }
 
   function normalizeSignatureHeader() {
-    const headers = document.querySelectorAll(".feed-header, .partner-header, .challenge-header, .circle-v5-header, .circle-header");
+    const headers = document.querySelectorAll(".feed-header, .circle-v5-header, .circle-header");
     let introAvailable = shouldPlayHaloIntro();
 
     headers.forEach((header) => {
@@ -140,7 +124,7 @@
       header.classList.add("circle-v51-halo-header");
       header.dataset.circleV51Halo = VERSION;
 
-      const brand = header.querySelector(".feed-brand, .partner-brand, .challenge-brand, .circle-v5-brand, .circle-header__brand");
+      const brand = header.querySelector(".feed-brand, .circle-v5-brand, .circle-header__brand");
       if (brand) {
         brand.classList.add("circle-v51-brand");
         brand.setAttribute("href", "ari-circle-feed.html");
@@ -171,21 +155,6 @@
     });
   }
 
-  function normalizeLegacyLinks() {
-    document.querySelectorAll('a[href*="ari-circle-partners.html"]').forEach((link) => {
-      const url = new URL(link.getAttribute("href"), location.href);
-      link.setAttribute("href", `ari-circle-meetup.html${url.search || ""}${url.hash || ""}`);
-      const text = String(link.textContent || "").trim();
-      if (["Buddies","Partners","Find People"].includes(text)) link.textContent = "Meet Up";
-    });
-    document.querySelectorAll('a[href*="ari-circle-challenges.html"]').forEach((link) => {
-      const url = new URL(link.getAttribute("href"), location.href);
-      link.setAttribute("href", `ari-circle-quests.html${url.search || ""}${url.hash || ""}`);
-      const text = String(link.textContent || "").trim();
-      if (text === "Challenges") link.textContent = "Quests";
-    });
-  }
-
   function normalizeDrawer() {
     document.querySelectorAll(".circle-v5-menu__item").forEach((item) => {
       const label = item.querySelector(".circle-v5-menu__label");
@@ -195,11 +164,6 @@
         if (label) label.textContent = "Meet Up";
       }
     });
-  }
-
-  function normalizeLegacyText() {
-    document.querySelectorAll(".partner-loading strong").forEach((node) => { node.textContent = "Opening Meet Up"; });
-    document.querySelectorAll(".challenge-loading strong").forEach((node) => { node.textContent = "Opening Quests"; });
   }
 
   function loadRouteModules() {
@@ -221,15 +185,13 @@
   }
 
   function run() {
-    if (!isCirclePath() || routeLegacySurface()) return;
+    if (!isCirclePath()) return;
     document.body?.classList.add("circle-v5-real-world");
     document.documentElement?.classList.add("circle-v5-real-world-root");
     ensureStyles();
     ensureBottomNav();
     normalizeSignatureHeader();
-    normalizeLegacyLinks();
     normalizeDrawer();
-    normalizeLegacyText();
     loadRouteModules();
     document.dispatchEvent(new CustomEvent("ari-circle:v5-real-world-ready", { detail: { version: VERSION } }));
   }
