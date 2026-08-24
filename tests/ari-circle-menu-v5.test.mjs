@@ -104,7 +104,7 @@ test("Feed loads Feed-only post controls instead of mixed Profile compatibility 
 
 test("Profile compatibility modules remain Profile-only and purpose-specific", () => {
   assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
-  assert.match(profileCompat, /const VERSION = "5\.3\.0"/);
+  assert.match(profileCompat, /const VERSION = "5\.3\.1"/);
   assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
   assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
   assert.match(profileCompat, /v5-real-world\.js\?v=5\.2\.3/);
@@ -113,7 +113,7 @@ test("Profile compatibility modules remain Profile-only and purpose-specific", (
   assert.doesNotMatch(profileCompat, /circleMenuMarkup|ari-circle-partners\.html|ari-circle-challenges\.html/);
 
   assert.match(profileLoader, /profile-social-flow\.js\?v=1\.0\.0/);
-  assert.match(profileLoader, /window\.AriCircleProfileSocialFlow/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.1/);
   assert.doesNotMatch(profileLoader, /v4-flow-fixes\.js|AriCircleV4FlowFixes/);
 
   assert.match(profileSocialFlow, /PROFILE SOCIAL FLOW/);
@@ -127,6 +127,14 @@ test("Profile compatibility modules remain Profile-only and purpose-specific", (
   assert.match(visitorControls, /ari_circle_block_user/);
   assert.match(visitorControls, /target_type=profile/);
   assert.doesNotMatch(visitorControls, /challenge-|buddy-|feed-composer|ari-circle-partners\.html|ari-circle-challenges\.html/);
+});
+
+test("Profile compatibility cannot re-append the dark V5 base after light Visual Authority", () => {
+  assert.doesNotMatch(profileCompat, /ensureStyle\("ari-circle-v5-real-world-style"/);
+  assert.match(profileCompat, /VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority\.css"/);
+  assert.match(profileCompat, /function promoteV5VisualAuthority\(\)/);
+  assert.match(profileCompat, /document\.head\.append\(authority\)/);
+  assert.match(profileCompat, /ari-circle:v5-real-world-ready/);
 });
 
 test("portaled drawer typography and sizing are page-independent", () => {
