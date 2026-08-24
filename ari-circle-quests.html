@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050811" />
+  <title>Quests | ARI Circle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-real-world.css?v=5.0.0" />
+</head>
+<body class="circle-v5-real-world">
+  <main class="circle-v5-page" id="questPage" hidden>
+    <header class="circle-v5-header feed-header">
+      <details class="circle-v4-menu">
+        <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
+      </details>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed"><span class="feed-brand__mark" aria-hidden="true"><i></i><i></i></span><span>ARI CIRCLE</span></a>
+      <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
+    </header>
+
+    <div class="circle-v5-page-main">
+      <section class="circle-v5-hero" aria-labelledby="questTitle">
+        <p class="circle-v5-hero__kicker">DO SOMETHING TOGETHER</p>
+        <h1 id="questTitle">Quests</h1>
+        <p>Shared objectives without dangerous leaderboards. Complete something worthwhile, have it verified when XP is involved, and build a real activity history.</p>
+        <div class="circle-v5-hero__actions"><button class="circle-v5-button-primary" id="createQuestButton" type="button">+ Create a Quest</button><a class="circle-v5-button" href="#questList">Explore Quests</a></div>
+      </section>
+
+      <section class="circle-v5-card" style="padding:15px;margin-bottom:15px">
+        <div class="circle-v5-section-heading" style="margin-bottom:7px"><div><p>SAFE BY DESIGN</p><h2>Completion over competition.</h2></div><span class="circle-v5-xp-chip">Verified XP only</span></div>
+        <p class="circle-v5-completion-note" style="margin:0">No “most hype wins,” no weight-loss contests, no dangerous stunt rewards, and no XP for likes or votes. XP-bearing Community Quests require another person to verify the completion and are capped at 3 XP each.</p>
+      </section>
+
+      <div class="circle-v5-filter-rail" id="questFilters" aria-label="Quest filters">
+        <button class="circle-v5-filter-chip is-active" type="button" data-quest-filter="all">All</button>
+        <button class="circle-v5-filter-chip" type="button" data-quest-filter="walking">Walking</button>
+        <button class="circle-v5-filter-chip" type="button" data-quest-filter="fitness">Fitness</button>
+        <button class="circle-v5-filter-chip" type="button" data-quest-filter="community">Community</button>
+        <button class="circle-v5-filter-chip" type="button" data-quest-filter="volunteer">Volunteer</button>
+        <button class="circle-v5-filter-chip" type="button" data-quest-filter="wellness">Wellness</button>
+      </div>
+
+      <section aria-labelledby="questListTitle">
+        <div class="circle-v5-section-heading"><div><p>ACTIVE</p><h2 id="questListTitle">Community Quests</h2></div><button class="circle-v5-button" id="refreshQuests" type="button" style="min-height:34px;padding:0 11px">Refresh</button></div>
+        <p id="questStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Loading Quests…</p>
+        <div class="circle-v5-list" id="questList" aria-live="polite"></div>
+        <div class="circle-v5-empty" id="questEmpty" hidden><strong>No active Quests here yet.</strong><span>Create a simple objective people would actually want to finish.</span></div>
+      </section>
+    </div>
+  </main>
+
+  <dialog class="circle-v5-dialog" id="createQuestDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">CREATE</p><h2>Build a Quest.</h2></div><button class="circle-v5-close" type="button" data-close="createQuestDialog" aria-label="Close">×</button></div>
+      <form class="circle-v5-form" id="createQuestForm">
+        <label class="circle-v5-field">Quest title<input class="circle-v5-input" id="questFormTitle" maxlength="90" placeholder="Walk three local parks this month" required /></label>
+        <label class="circle-v5-field">Description<textarea class="circle-v5-textarea" id="questFormDescription" maxlength="500" placeholder="Keep the objective clear, reasonable, and safe."></textarea></label>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Type<select class="circle-v5-select" id="questFormScope"><option value="community" selected>Community</option><option value="personal">Personal</option><option value="crew">Crew</option></select></label>
+          <label class="circle-v5-field">Category<select class="circle-v5-select" id="questFormCategory"><option value="activity">Activity</option><option value="walking">Walking</option><option value="fitness">Fitness</option><option value="community">Community</option><option value="volunteer">Volunteer</option><option value="wellness">Wellness</option><option value="other">Other</option></select></label>
+        </div>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Verification<select class="circle-v5-select" id="questFormVerification"><option value="organizer" selected>Organizer verifies</option><option value="peer">Peer verifies</option><option value="self">Self complete (0 XP only)</option></select></label>
+          <label class="circle-v5-field">XP reward<select class="circle-v5-select" id="questFormXp"><option value="0" selected>0 XP</option><option value="1">1 XP</option><option value="2">2 XP</option><option value="3">3 XP</option></select></label>
+        </div>
+        <label class="circle-v5-field">Ends<input class="circle-v5-input" id="questFormEnds" type="datetime-local" required /></label>
+        <p class="circle-v5-form-note" id="questLeaderNote">XP-bearing Community Quests are intentionally limited to established Community Leaders. Everyone can create a 0-XP Quest.</p>
+        <button class="circle-v5-button-primary" id="createQuestSubmit" type="submit">Publish Quest</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog class="circle-v5-dialog" id="questCompletionDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">COMPLETE</p><h2 id="questCompletionTitle">Submit completion</h2></div><button class="circle-v5-close" type="button" data-close="questCompletionDialog" aria-label="Close">×</button></div>
+      <form class="circle-v5-form" id="questCompletionForm">
+        <input type="hidden" id="questCompletionId" />
+        <label class="circle-v5-field">Completion note <span style="font-weight:600;color:#6f819d">optional</span><textarea class="circle-v5-textarea" id="questCompletionNote" maxlength="400" placeholder="Briefly say what you completed."></textarea></label>
+        <p class="circle-v5-form-note">For XP-bearing Quests, submitting does not award XP. An organizer or eligible Community Leader must verify it first.</p>
+        <button class="circle-v5-button-primary" type="submit">Submit Completion</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog class="circle-v5-dialog" id="questReviewDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">VERIFY</p><h2>Completion review</h2></div><button class="circle-v5-close" type="button" data-close="questReviewDialog" aria-label="Close">×</button></div>
+      <p class="circle-v5-form-note">Verification is a trust action. Verify only people whose completion you can reasonably confirm.</p>
+      <div class="circle-v5-list" id="questReviewList" style="margin-top:14px"></div>
+    </div>
+  </dialog>
+
+  <div id="questToast" role="status" aria-live="polite" hidden style="position:fixed;z-index:500;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 14px;border:1px solid rgba(109,201,255,.22);border-radius:14px;color:white;background:rgba(8,16,31,.96);box-shadow:0 18px 50px rgba(0,0,0,.45);font:700 .72rem/1.35 Inter,sans-serif"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.4"></script>
+  <script src="js/ari-circle/v5-real-world.js?v=5.0.0" defer></script>
+  <script src="js/ari-circle/quests/quests-v5.js?v=5.0.0" defer></script>
+</body>
+</html>
