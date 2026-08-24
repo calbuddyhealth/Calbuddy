@@ -1,12 +1,14 @@
 // ari/pipeline-stages/deliberation/ari-memory-stage.js
 // Ari Memory Deliberation Stage
-// Purpose: Retrieve relevant user memory and convert it into usable response context.
-// V1.0.0 — Memory Retrieval / Context Orchestration Foundation
+// Purpose: Retrieve relevant user memory and attach advisory learned personalization.
+// V1.1.0 — Memory + Deterministic Personalization Context
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryStage = {
-  version: "1.0.0",
+  version: "1.1.0",
+
+  _personalizationLoadPromise: null,
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -262,7 +264,120 @@ window.AriMemoryStage = {
     mark("after memoryContextBuilder");
 
     // =================================================
-    // 3. Normalize memory handoff
+    // 3. Deterministic Personalization
+    //
+    // This is intentionally separate from explicit preferences.
+    // It observes recent Training + Nutrition behavior only.
+    // Circle/social behavior is explicitly excluded.
+    // =================================================
+
+    mark("before personalization");
+
+    const personalizationEligibility =
+      this.resolvePersonalizationEligibility(state);
+
+    let personalizationResult =
+      this.personalizationFallback(
+        personalizationEligibility.run
+          ? "personalization_engine_not_loaded"
+          : personalizationEligibility.reason
+      );
+
+    if (personalizationEligibility.run) {
+      try {
+        const engine =
+          await this.ensurePersonalizationEngine();
+
+        if (engine?.analyze) {
+          personalizationResult =
+            await engine.analyze({
+              summary: state,
+              appContext:
+                state.appContext ||
+                null
+            });
+        }
+      } catch (error) {
+        personalizationResult =
+          this.personalizationFallback(
+            error?.message ||
+            "personalization_engine_failed"
+          );
+      }
+    }
+
+    const personalizationFacts =
+      Array.isArray(
+        personalizationResult?.facts
+      )
+        ? personalizationResult.facts
+        : [];
+
+    const personalizationAvailable =
+      personalizationResult?.available ===
+        true &&
+      personalizationFacts.length > 0;
+
+    const combinedMemoryFacts =
+      this.mergeUnique(
+        state.memoryFacts,
+        personalizationFacts
+      );
+
+    const combinedMemoryContext =
+      this.mergeContextText(
+        state.memoryContext,
+        personalizationAvailable
+          ? personalizationResult
+              .instructionText
+          : null,
+        personalizationFacts
+      );
+
+    state = {
+      ...state,
+
+      personalizationEligibility,
+
+      personalizationStagePacket:
+        personalizationResult,
+
+      personalizationFacts,
+
+      personalizationAvailable,
+
+      personalizationConfidence:
+        personalizationResult
+          ?.confidence ||
+        null,
+
+      memoryAvailable:
+        state.memoryAvailable === true ||
+        personalizationAvailable,
+
+      memoryFacts:
+        combinedMemoryFacts,
+
+      memoryContext:
+        combinedMemoryContext,
+
+      responseRequired:
+        personalizationAvailable
+          ? this.mergeUnique(
+              state.responseRequired,
+              [
+                "Treat learned behavioral patterns as advisory observations only; explicit user instructions, explicit goals, and saved Ari preferences take precedence.",
+                "Do not present learned behavioral patterns as diagnoses, causal findings, or guaranteed outcomes.",
+                "Do not infer, score, or use Ari Circle/social behavior for personalization."
+              ]
+            )
+          : state.responseRequired
+    };
+
+    mark("after personalization");
+
+    // =================================================
+    // 4. Normalize memory handoff
     // =================================================
 
     const memoryHandoff =
@@ -289,7 +404,7 @@ window.AriMemoryStage = {
     };
 
     // =================================================
-    // 4. Memory Stage Packet
+    // 5. Memory Stage Packet
     // =================================================
 
     state.memoryStagePacket =
@@ -395,6 +510,177 @@ window.AriMemoryStage = {
     };
   },
 
+  resolvePersonalizationEligibility(
+    state = {}
+  ) {
+    const developerLocked =
+      state.developerResponseLocked === true;
+
+    const safetyOverride =
+      state.safetyDisposition
+        ?.shouldStopNormalResponse === true;
+
+    const developerMode =
+      String(
+        state.routingContract?.mode ||
+        state.primaryLane ||
+        ""
+      ).toLowerCase().includes(
+        "developer"
+      );
+
+    const run =
+      !developerLocked &&
+      !safetyOverride &&
+      !developerMode;
+
+    return {
+      run,
+      source:
+        "ari-personalization-eligibility",
+      developerLocked,
+      safetyOverride,
+      developerMode,
+      circleIncluded:
+        false,
+      reason:
+        developerLocked
+          ? "developer_response_locked"
+          : safetyOverride
+            ? "safety_override_suppresses_personalization"
+            : developerMode
+              ? "developer_mode_skips_coaching_personalization"
+              : "user_behavior_personalization_allowed"
+    };
+  },
+
+  // ===================================================
+  // Personalization Loader / Fallback
+  // ===================================================
+
+  async ensurePersonalizationEngine() {
+    if (
+      window.AriPersonalizationEngine
+        ?.analyze
+    ) {
+      return window.AriPersonalizationEngine;
+    }
+
+    if (
+      typeof document === "undefined"
+    ) {
+      return null;
+    }
+
+    if (this._personalizationLoadPromise) {
+      return this._personalizationLoadPromise;
+    }
+
+    this._personalizationLoadPromise =
+      new Promise(resolve => {
+        const src =
+          "ari/personalization/ari-personalization-engine.js?v=1.0.0";
+
+        const existing =
+          document.querySelector(
+            'script[data-ari-personalization-engine="1"]'
+          );
+
+        if (existing) {
+          if (
+            window.AriPersonalizationEngine
+              ?.analyze
+          ) {
+            resolve(
+              window.AriPersonalizationEngine
+            );
+            return;
+          }
+
+          existing.addEventListener(
+            "load",
+            () => resolve(
+              window.AriPersonalizationEngine ||
+              null
+            ),
+            { once: true }
+          );
+
+          existing.addEventListener(
+            "error",
+            () => resolve(null),
+            { once: true }
+          );
+
+          return;
+        }
+
+        const script =
+          document.createElement("script");
+
+        script.src = src;
+        script.async = true;
+        script.dataset
+          .ariPersonalizationEngine =
+          "1";
+
+        script.onload =
+          () => resolve(
+            window.AriPersonalizationEngine ||
+            null
+          );
+
+        script.onerror =
+          () => resolve(null);
+
+        document.head.appendChild(script);
+      }).finally(() => {
+        this._personalizationLoadPromise =
+          null;
+      });
+
+    return this._personalizationLoadPromise;
+  },
+
+  personalizationFallback(
+    reason = "personalization_unavailable"
+  ) {
+    return {
+      ready:
+        true,
+      available:
+        false,
+      source:
+        "ari-personalization-fallback",
+      version:
+        "1.0.0",
+      facts: [],
+      patterns: [],
+      confidence:
+        "insufficient",
+      excludedDomains: [
+        "circle",
+        "social",
+        "feed",
+        "friends",
+        "challenges"
+      ],
+      reason,
+      authority: {
+        role:
+          "advisory_behavioral_personalization",
+        mayOverrideExplicitUserPreference:
+          false,
+        mayPersistPreferenceChanges:
+          false,
+        mayOverrideSafety:
+          false,
+        mayUseCircleData:
+          false
+      }
+    };
+  },
+
   // ===================================================
   // Stage input
   // ===================================================
@@ -444,6 +730,10 @@ window.AriMemoryStage = {
         summary.reasoningStagePacket ||
         null,
 
+      personalization:
+        summary.personalizationStagePacket ||
+        null,
+
       existingMemory: {
         threadMemory:
           summary.continuityEntryPointOutputs
@@ -471,7 +761,16 @@ window.AriMemoryStage = {
           summary.shouldUseRelationship === true,
 
         recentConversation:
-          summary.shouldUseThread === true
+          summary.shouldUseThread === true,
+
+        learnedTrainingPatterns:
+          true,
+
+        learnedNutritionPatterns:
+          true,
+
+        circleSocialPatterns:
+          false
       }
     };
   },
@@ -497,7 +796,8 @@ window.AriMemoryStage = {
         summary.memoryRetrievalRan === true,
 
       contextBuilt:
-        summary.memoryContextBuilderRan === true,
+        summary.memoryContextBuilderRan === true ||
+        summary.personalizationAvailable === true,
 
       context,
 
@@ -510,32 +810,41 @@ window.AriMemoryStage = {
         summary.usableMemories ||
         [],
 
+      personalization:
+        summary.personalizationStagePacket ||
+        null,
+
+      learnedPatternCount:
+        summary.personalizationFacts
+          ?.length ||
+        0,
+
       requiredBehaviors:
-        context?.requiredBehaviors ||
         [],
 
       forbiddenBehaviors:
-        context?.forbiddenBehaviors ||
         [],
 
       personalizationAllowed:
-        context?.personalizationAllowed !== false,
+        true,
 
       shouldMentionMemory:
-        context?.shouldMentionMemory === true,
+        false,
 
       confidence:
-        context?.confidence ||
+        summary.personalizationConfidence ||
         summary.memoryRetrieval
           ?.confidence ||
         null,
 
       source:
-        summary.memoryContextBuilderRan === true
-          ? "memory_context_builder"
-          : summary.memoryRetrievalRan === true
-            ? "memory_retrieval"
-            : "none"
+        summary.personalizationAvailable === true
+          ? "memory_plus_personalization"
+          : summary.memoryContextBuilderRan === true
+            ? "memory_context_builder"
+            : summary.memoryRetrievalRan === true
+              ? "memory_retrieval"
+              : "none"
     };
   },
 
@@ -588,7 +897,8 @@ window.AriMemoryStage = {
 
       context: {
         ran:
-          summary.memoryContextBuilderRan === true,
+          summary.memoryContextBuilderRan === true ||
+          summary.personalizationAvailable === true,
 
         source:
           summary.memoryContextSource ||
@@ -607,28 +917,48 @@ window.AriMemoryStage = {
           []
       },
 
+      personalization: {
+        ran:
+          summary.personalizationEligibility
+            ?.run === true,
+
+        available:
+          summary.personalizationAvailable === true,
+
+        confidence:
+          summary.personalizationConfidence ||
+          null,
+
+        facts:
+          summary.personalizationFacts ||
+          [],
+
+        packet:
+          summary.personalizationStagePacket ||
+          null,
+
+        circleIncluded:
+          false
+      },
+
       handoff:
         summary.memoryHandoff ||
         null,
 
       responseControl: {
         requiredBehaviors:
-          summary.memoryHandoff
-            ?.requiredBehaviors ||
+          summary.responseRequired ||
           [],
 
         forbiddenBehaviors:
-          summary.memoryHandoff
-            ?.forbiddenBehaviors ||
+          summary.responseAvoid ||
           [],
 
         personalizationAllowed:
-          summary.memoryHandoff
-            ?.personalizationAllowed !== false,
+          true,
 
         shouldMentionMemory:
-          summary.memoryHandoff
-            ?.shouldMentionMemory === true
+          false
       },
 
       authority: {
@@ -640,6 +970,18 @@ window.AriMemoryStage = {
 
         canProvidePersonalizationFacts:
           true,
+
+        canInferBehaviorPatterns:
+          true,
+
+        canUseCircleSocialBehavior:
+          false,
+
+        canOverrideExplicitPreferences:
+          false,
+
+        canPersistPreferenceChanges:
+          false,
 
         canChooseFinalRoute:
           false,
@@ -657,7 +999,7 @@ window.AriMemoryStage = {
           false,
 
         role:
-          "memory_retrieval_and_context_handoff"
+          "memory_retrieval_and_advisory_personalization_handoff"
       }
     };
   },
@@ -665,6 +1007,30 @@ window.AriMemoryStage = {
   // ===================================================
   // Utilities
   // ===================================================
+
+  mergeContextText(...values) {
+    const parts = [];
+
+    values.flatMap(value =>
+      Array.isArray(value)
+        ? value
+        : [value]
+    ).forEach(value => {
+      const text =
+        String(value || "").trim();
+
+      if (
+        text &&
+        !parts.includes(text)
+      ) {
+        parts.push(text);
+      }
+    });
+
+    return parts.length
+      ? parts.join("\n")
+      : null;
+  },
 
   toArray(value) {
     if (Array.isArray(value)) {
