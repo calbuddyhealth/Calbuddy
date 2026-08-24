@@ -17,6 +17,11 @@ const profileLoader = fs.readFileSync(
   "utf8"
 );
 
+const profileSocialFlow = fs.readFileSync(
+  new URL("../js/ari-circle/profile/profile-social-flow.js", import.meta.url),
+  "utf8"
+);
+
 test("ARI Circle Profile first paint does not wait for viewer inbox collections", () => {
   assert.match(supabaseConfig, /installCircleProfileBootAccelerator/);
   assert.match(supabaseConfig, /fastInitialViewerData/);
@@ -60,6 +65,14 @@ test("ARI Circle Profile caches only a verified viewer age state for a short ses
   assert.match(profileV4, /age\?\.verified === true/);
 });
 
-test("ARI Circle profile loader cache-busts the accelerated Profile V4 module", () => {
+test("Profile loader boots only the accelerated renderer, compatibility shell, and Profile social flow", () => {
   assert.match(profileLoader, /profile-v4\.js\?v=4\.3\.0/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.0/);
+  assert.match(profileLoader, /profile-social-flow\.js\?v=1\.0\.0/);
+  assert.match(profileLoader, /window\.AriCircleProfileSocialFlow/);
+  assert.doesNotMatch(profileLoader, /v4-flow-fixes\.js|AriCircleV4FlowFixes/);
+
+  assert.match(profileSocialFlow, /ari_circle_relationship_state/);
+  assert.match(profileSocialFlow, /ari_circle_profile_friends/);
+  assert.doesNotMatch(profileSocialFlow, /ari_circle_feed_hide_post|ari_circle_feed_delete_post/);
 });
