@@ -4,11 +4,14 @@ import fs from "node:fs";
 
 const migration = fs.readFileSync("supabase/migrations/20260824054500_ari_circle_v5_real_world_social.sql", "utf8");
 const completionMigration = fs.readFileSync("supabase/migrations/20260824060000_ari_circle_v5_completion_queue.sql", "utf8");
+const hardeningMigration = fs.readFileSync("supabase/migrations/20260824064500_ari_circle_v5_advisor_hardening.sql", "utf8");
 const meetupHtml = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const meetupJs = fs.readFileSync("js/ari-circle/meetups/meetups-v5.js", "utf8");
 const questHtml = fs.readFileSync("ari-circle-quests.html", "utf8");
 const questJs = fs.readFileSync("js/ari-circle/quests/quests-v5.js", "utf8");
 const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
+const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
+const moderation = fs.readFileSync("js/ari-circle/real-world-moderation-v5.js", "utf8");
 const profile = fs.readFileSync("js/ari-circle/profile/profile-v5-real-world.js", "utf8");
 const happening = fs.readFileSync("js/ari-circle/feed/happening-v5.js", "utf8");
 const css = fs.readFileSync("assets/css/ari-circle-v5-real-world.css", "utf8");
@@ -117,4 +120,28 @@ test("Circle V5 has one three-tab primary social loop and a premium safe-area vi
   assert.match(css, /\.circle-v5-bottom-nav/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /--circle5-gradient:/);
+});
+
+test("Meet Up and Quests share the adult-only V5 shell and fail-closed publication moderation", () => {
+  for (const html of [meetupHtml, questHtml]) {
+    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.1\.0/);
+    assert.match(html, /id="ariCircleV5RealWorldModerationScript"/);
+    const moderationIndex = html.indexOf("real-world-moderation-v5.js");
+    const controllerIndex = Math.max(html.indexOf("meetups-v5.js"), html.indexOf("quests-v5.js"));
+    assert.ok(moderationIndex >= 0 && controllerIndex > moderationIndex);
+  }
+  assert.match(menu, /adult-only-guard\.js/);
+  assert.match(moderation, /ari_circle_create_meetup/);
+  assert.match(moderation, /ari_circle_create_quest/);
+  assert.match(moderation, /ari_circle_submit_quest_completion/);
+  assert.match(moderation, /content-moderation\.js/);
+  assert.match(moderation, /ARI_MODERATION_UNAVAILABLE/);
+  assert.match(moderation, /client\.rpc = wrapped/);
+});
+
+test("V5 advisor hardening covers new Quest creator and verifier foreign keys", () => {
+  assert.match(hardeningMigration, /ari_circle_quests_creator_idx/i);
+  assert.match(hardeningMigration, /ari_circle_quests\(creator_user_id, created_at desc\)/i);
+  assert.match(hardeningMigration, /ari_circle_quest_members_verified_by_idx/i);
+  assert.match(hardeningMigration, /ari_circle_quest_members\(verified_by, verified_at desc\)/i);
 });
