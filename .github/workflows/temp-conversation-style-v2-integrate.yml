@@ -1,5 +1,6 @@
 name: Temporary Conversation Style v2 Integration
 
+# retrigger integration
 on:
   push:
     branches:
@@ -25,7 +26,6 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          # Settings page: compatibility + UI must run before the existing controller.
           path = Path('ari-preference-settings.html')
           text = path.read_text()
           old = '''<script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>\n\n  <!-- Page-specific controller -->\n  <script src="js/ari-preference-settings-controller.js?v=3.0.0"></script>'''
@@ -33,7 +33,6 @@ jobs:
           assert old in text, 'settings page script anchor missing'
           path.write_text(text.replace(old, new, 1))
 
-          # Rebirth fallback: use the same Auto compatibility semantics.
           path = Path('ari/ari-rebirth-app-bridge.js')
           text = path.read_text()
           old = '''"ari/profile/ari-preference-resolver.js?v=2.1.0",\n"ari/profile/ari-preference-runtime.js?v=1.1.0",'''
@@ -41,7 +40,6 @@ jobs:
           assert old in text, 'Rebirth preference dependency anchor missing'
           path.write_text(text.replace(old, new, 1))
 
-          # vNext explicit profile recognizes the existing Natural manual option.
           path = Path('api/_lib/ari-vnext/communication-profile.js')
           text = path.read_text()
           old = 'tone: new Set(["adaptive", "casual", "professional", "warm", "coach"]),'
@@ -49,7 +47,6 @@ jobs:
           assert old in text, 'communication profile tone anchor missing'
           path.write_text(text.replace(old, new, 1))
 
-          # vNext server hydration: saved settings become authoritative explicit locks.
           path = Path('api/ari-vnext.js')
           text = path.read_text()
 
@@ -87,7 +84,6 @@ jobs:
           new = '''      communicationLearning,\n      conversationStyle: {\n        automatic: savedConversationStyle.automatic !== false,\n        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)\n          ? savedConversationStyle.explicitLocks\n          : [],\n        source: savedConversationStyle.source || "saved_conversation_style"\n      },\n      temporalTimeline,'''
           assert old in text, 'vNext response payload anchor missing'
           text = text.replace(old, new, 1)
-
           path.write_text(text)
           PY
 
