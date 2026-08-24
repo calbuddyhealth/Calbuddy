@@ -1,30 +1,28 @@
 /* =============================================================
-   ARI CIRCLE V4 — STABLE UI SHELL
-   Version: 4.9.2
+   ARI CIRCLE — STABLE UI SHELL
+   Version: 5.0.0
 
-   V4.9.2:
-   - Ships the Build 5 mobile safe-area and primary-navigation refresh.
-   - Loads the current primary-nav 1.0.1 assets instead of stale cache keys.
-   - Retains Challenge video Safari recovery and the shared Circle shell.
+   V5 keeps the proven Feed/Profile controllers, then layers the Real World
+   Social shell on top: Feed · Meet Up · Quests, live Happening discovery,
+   and profile XP/reputation. Legacy Buddies/Challenges routes stay compatible.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "4.9.2";
+  const VERSION = "5.0.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
-  const PRIMARY_NAV_STYLE_ID = "ari-circle-primary-nav-style";
   let appReady = false;
   let panelHandled = false;
-  let buddiesLoaded = false;
-  let buddyCountsLoaded = false;
   let flowFixesLoaded = false;
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
   let momentRepliesLoaded = false;
   let launchSocialLoaded = false;
-  let primaryNavLoaded = false;
   let challengeVideoFixLoaded = false;
+  let realWorldLoaded = false;
+  let happeningLoaded = false;
+  let profileRealWorldLoaded = false;
   let outsideMenuBound = false;
 
   const $ = (id) => document.getElementById(id);
@@ -47,22 +45,22 @@
   function ensureStyles() {
     ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
     ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
-    ensureStyle(PRIMARY_NAV_STYLE_ID, "assets/css/ari-circle-primary-nav.css?v=1.0.1");
+    ensureStyle("ari-circle-v5-real-world-style", "assets/css/ari-circle-v5-real-world.css?v=5.0.0");
   }
 
   function circleMenuMarkup(includeProfileOptions = false) {
     return `
       <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
       <nav class="circle-v4-menu__panel" aria-label="Circle menu">
-        <a href="ari-circle.html?panel=notifications"><span>Notifications</span><small>Activity</small></a>
-        <a href="ari-circle-partners.html"><span>Find People</span><small>Buddies</small></a>
-        ${includeProfileOptions ? '<button type="button" data-v4-profile-options><span>Profile Options</span><small>Share / Safety</small></button>' : ''}
+        <a href="ari-circle.html?panel=notifications"><span>Notifications</span></a>
+        <a href="ari-circle-meetup.html"><span>Meet Up</span></a>
+        <a href="ari-circle.html"><span>Profile</span></a>
+        ${includeProfileOptions ? '<button type="button" data-v4-profile-options><span>Profile Options</span></button>' : ''}
         <div class="circle-v4-menu__divider"></div>
-        <a href="notification-settings.html"><span>Notification Settings</span><small>Alerts</small></a>
-        <a href="account.html"><span>Privacy & Visibility</span><small>Account</small></a>
-        <a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a>
+        <a href="account.html"><span>Privacy & Visibility</span></a>
+        <a href="help-safety.html"><span>Circle Safety</span></a>
         <div class="circle-v4-menu__divider"></div>
-        <a href="home.html"><span>Exit ARI Circle</span><small>ARI XP</small></a>
+        <a href="home.html"><span>Exit ARI Circle</span></a>
       </nav>`;
   }
 
@@ -90,9 +88,9 @@
 
   function standardizeMenus() {
     document.querySelectorAll(".feed-header > .circle-v4-menu, .partner-header > .circle-v4-menu, .challenge-header > .circle-v4-menu").forEach((details) => {
-      if (details.dataset.v471Menu === "true") return;
+      if (details.dataset.v5ShellMenu === "true") return;
       details.innerHTML = circleMenuMarkup(false);
-      details.dataset.v471Menu = "true";
+      details.dataset.v5ShellMenu = "true";
     });
     bindOutsideMenuClose();
   }
@@ -105,20 +103,20 @@
 
   function standardizeMessages() {
     document.querySelectorAll(".circle-v4-message").forEach((el) => {
-      if (el.dataset.v471Message === "true") return;
+      if (el.dataset.v5Message === "true") return;
       el.innerHTML = MESSAGE_ICON;
       el.setAttribute("aria-label", "Messages");
       if (el.tagName === "A") el.setAttribute("href", "ari-circle-messages.html");
-      el.dataset.v471Message = "true";
+      el.dataset.v5Message = "true";
     });
     const profileButton = $("circle-messages-button");
-    if (profileButton && profileButton.dataset.v471Message !== "true") {
+    if (profileButton && profileButton.dataset.v5Message !== "true") {
       const icon = profileButton.querySelector('span[aria-hidden="true"]');
       if (icon) icon.innerHTML = MESSAGE_ICON;
       profileButton.removeAttribute("data-circle-action");
       profileButton.setAttribute("aria-label", "Messages");
       profileButton.addEventListener("click", routeToMessages, true);
-      profileButton.dataset.v471Message = "true";
+      profileButton.dataset.v5Message = "true";
     }
   }
 
@@ -151,9 +149,9 @@
 
   function ensureProfileNav() {
     const nav = $("circleV3Nav");
-    if (!nav || nav.dataset.v471Ready === "true") return;
-    nav.innerHTML = `<a href="ari-circle-feed.html">Feed</a><a href="ari-circle-partners.html">Buddies</a><a href="ari-circle-challenges.html">Challenges</a><a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>`;
-    nav.dataset.v471Ready = "true";
+    if (!nav || nav.dataset.v5Ready === "true") return;
+    nav.innerHTML = `<a href="ari-circle-feed.html">Feed</a><a href="ari-circle-meetup.html">Meet Up</a><a href="ari-circle-quests.html">Quests</a>`;
+    nav.dataset.v5Ready = "true";
   }
 
   function simplifyProfile() {
@@ -172,8 +170,8 @@
 
   function bindProfileOptions() {
     document.querySelectorAll("[data-v4-profile-options]").forEach((button) => {
-      if (button.dataset.v471Bound === "true") return;
-      button.dataset.v471Bound = "true";
+      if (button.dataset.v5Bound === "true") return;
+      button.dataset.v5Bound = "true";
       button.addEventListener("click", () => {
         $("circle-profile-menu-button")?.click();
         button.closest("details")?.removeAttribute("open");
@@ -183,7 +181,7 @@
 
   function cleanProfileEditorLabels() {
     const editor = $("circle-profile-editor");
-    if (!editor || editor.dataset.v471Labels === "true") return;
+    if (!editor || editor.dataset.v5Labels === "true") return;
     const prompts = [
       ["ask me about", "Ask me about..."], ["current obsession", "Current obsession..."],
       ["dream trip", "Dream trip..."], ["best way to make me laugh", "Best way to make me laugh..."],
@@ -196,7 +194,7 @@
       const match = prompts.find(([needle]) => lower.includes(needle));
       if (match) el.textContent = match[1];
     });
-    editor.dataset.v471Labels = "true";
+    editor.dataset.v5Labels = "true";
   }
 
   function openRequestedPanel() {
@@ -225,11 +223,11 @@
   }
 
   function loadModules() {
-    if (!primaryNavLoaded) {
-      primaryNavLoaded = true;
-      import("/js/ari-circle/primary-nav.js?v=1.0.1").catch((error) => {
-        primaryNavLoaded = false;
-        console.warn("ARI Circle primary navigation failed to load:", error);
+    if (!realWorldLoaded) {
+      realWorldLoaded = true;
+      import("/js/ari-circle/v5-real-world.js?v=5.0.0").catch((error) => {
+        realWorldLoaded = false;
+        console.warn("ARI Circle V5 Real World shell failed to load:", error);
       });
     }
     if (!launchSocialLoaded) {
@@ -250,21 +248,7 @@
       challengeVideoFixLoaded = true;
       import("/js/ari-circle/challenges/challenge-video-web-fix.js?v=1.0.0").catch((error) => {
         challengeVideoFixLoaded = false;
-        console.warn("ARI Circle Challenge video recovery failed to load:", error);
-      });
-    }
-    if (!buddiesLoaded && document.querySelector(".partner-page")) {
-      buddiesLoaded = true;
-      import("/js/ari-circle/buddies/buddies-social.js?v=1.2.0").catch((error) => {
-        buddiesLoaded = false;
-        console.warn("ARI Circle Buddies social discovery failed to load:", error);
-      });
-    }
-    if (!buddyCountsLoaded && document.querySelector(".partner-page")) {
-      buddyCountsLoaded = true;
-      import("/js/ari-circle/buddies/buddy-counts-v4.js?v=1.1.0").catch((error) => {
-        buddyCountsLoaded = false;
-        console.warn("ARI Circle Buddy launch workflow failed to load:", error);
+        console.warn("ARI Circle legacy Challenge video recovery failed to load:", error);
       });
     }
     if (!feedPolishLoaded && document.querySelector(".feed-page")) {
@@ -288,9 +272,37 @@
         console.warn("ARI Circle Moment replies failed to load:", error);
       });
     }
+    if (!happeningLoaded && document.querySelector(".feed-page")) {
+      happeningLoaded = true;
+      import("/js/ari-circle/feed/happening-v5.js?v=5.0.0").catch((error) => {
+        happeningLoaded = false;
+        console.warn("ARI Circle Happening rail failed to load:", error);
+      });
+    }
+    if (!profileRealWorldLoaded && document.body.classList.contains("ari-circle-page")) {
+      profileRealWorldLoaded = true;
+      import("/js/ari-circle/profile/profile-v5-real-world.js?v=5.0.0").catch((error) => {
+        profileRealWorldLoaded = false;
+        console.warn("ARI Circle profile Real World XP failed to load:", error);
+      });
+    }
+  }
+
+  function routeLegacySurface() {
+    const path = String(location.pathname || "").toLowerCase();
+    if (path.endsWith("/ari-circle-partners.html")) {
+      location.replace(`ari-circle-meetup.html${location.search || ""}${location.hash || ""}`);
+      return true;
+    }
+    if (path.endsWith("/ari-circle-challenges.html")) {
+      location.replace(`ari-circle-quests.html${location.search || ""}${location.hash || ""}`);
+      return true;
+    }
+    return false;
   }
 
   function run() {
+    if (routeLegacySurface()) return;
     ensureStyles();
     standardizeMenus();
     standardizeMessages();
