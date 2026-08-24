@@ -5,15 +5,10 @@
 export const ARI_SAVED_COMMUNICATION_PREFERENCES_VERSION = "1.0.0";
 
 const TABLE = "ari_user_preferences";
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const cache = new Map();
 
 export async function loadSavedCommunicationPreferences({ userId } = {}) {
   const id = clean(userId, 200);
   if (!id) return emptyResult("missing_user");
-
-  const cached = cache.get(id);
-  if (cached && cached.expiresAt > Date.now()) return clone(cached.value);
 
   const config = supabaseConfig();
   if (!config) return emptyResult("supabase_unavailable");
@@ -32,9 +27,7 @@ export async function loadSavedCommunicationPreferences({ userId } = {}) {
 
     const rows = await response.json().catch(() => []);
     const row = Array.isArray(rows) ? rows[0] : null;
-    const value = normalizeSavedCommunicationPreferences(row);
-    cache.set(id, { value, expiresAt: Date.now() + CACHE_TTL_MS });
-    return clone(value);
+    return normalizeSavedCommunicationPreferences(row);
   } catch {
     return emptyResult("read_exception");
   }
@@ -81,12 +74,6 @@ export function normalizeSavedCommunicationPreferences(row = null) {
     legacyDefaultTreatedAsAutomatic: false,
     source: "saved_conversation_style"
   };
-}
-
-export function clearSavedCommunicationPreferencesCache(userId = null) {
-  const id = clean(userId, 200);
-  if (id) cache.delete(id);
-  else cache.clear();
 }
 
 function addLock(target, locks, key, value) {
@@ -170,10 +157,6 @@ function serverHeaders(key) {
 
 function safeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-function clone(value) {
-  try { return JSON.parse(JSON.stringify(value)); } catch { return value; }
 }
 
 function clean(value, max = 1000) {
