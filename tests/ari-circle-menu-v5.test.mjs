@@ -104,7 +104,7 @@ test("Feed loads Feed-only post controls instead of mixed Profile compatibility 
 
 test("Profile compatibility modules remain Profile-only and purpose-specific", () => {
   assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
-  assert.match(profileCompat, /const VERSION = "5\.3\.1"/);
+  assert.match(profileCompat, /const VERSION = "5\.3\.2"/);
   assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
   assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
   assert.match(profileCompat, /v5-real-world\.js\?v=5\.2\.3/);
@@ -113,7 +113,7 @@ test("Profile compatibility modules remain Profile-only and purpose-specific", (
   assert.doesNotMatch(profileCompat, /circleMenuMarkup|ari-circle-partners\.html|ari-circle-challenges\.html/);
 
   assert.match(profileLoader, /profile-social-flow\.js\?v=1\.0\.0/);
-  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.1/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.2/);
   assert.doesNotMatch(profileLoader, /v4-flow-fixes\.js|AriCircleV4FlowFixes/);
 
   assert.match(profileSocialFlow, /PROFILE SOCIAL FLOW/);
@@ -127,6 +127,15 @@ test("Profile compatibility modules remain Profile-only and purpose-specific", (
   assert.match(visitorControls, /ari_circle_block_user/);
   assert.match(visitorControls, /target_type=profile/);
   assert.doesNotMatch(visitorControls, /challenge-|buddy-|feed-composer|ari-circle-partners\.html|ari-circle-challenges\.html/);
+});
+
+test("Profile compatibility cannot recursively refresh the drawer from the V5 ready event", () => {
+  const listenerStart = profileCompat.indexOf('document.addEventListener("ari-circle:v5-real-world-ready"');
+  const listenerEnd = profileCompat.indexOf("window.AriCircleV4", listenerStart);
+  const readyListener = profileCompat.slice(listenerStart, listenerEnd);
+  assert.ok(listenerStart >= 0, "Profile must listen for V5 visual readiness");
+  assert.doesNotMatch(readyListener, /standardizeMenus\(\)|AriCircleMenuV5.*refresh/);
+  assert.match(readyListener, /promoteV5VisualAuthority\(\)/);
 });
 
 test("Profile compatibility cannot re-append the dark V5 base after light Visual Authority", () => {

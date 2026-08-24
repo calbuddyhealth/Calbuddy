@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.3.1
+   Version: 5.3.2
 
    Feed · Meet Up · Quests use the current V5 runtime directly. This file
    exists only to bridge the legacy Profile DOM into the shared V5 shell.
@@ -8,7 +8,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.3.1";
+  const VERSION = "5.3.2";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority.css";
@@ -238,8 +238,12 @@
   });
 
   document.addEventListener("ari-circle:v5-real-world-ready", () => {
+    // V5 dispatches this event synchronously from refresh(). Calling the
+    // menu refresh from here creates: menu -> V5 refresh -> this event ->
+    // menu -> V5 refresh, eventually overflowing Safari's call stack.
+    // The drawer is already normalized by the bounded Profile run above;
+    // only restore final CSS authority here.
     promoteV5VisualAuthority();
-    standardizeMenus();
   });
 
   window.AriCircleV4 = Object.freeze({ version: VERSION, refresh: run });
