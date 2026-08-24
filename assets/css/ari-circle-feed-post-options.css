@@ -1,0 +1,126 @@
+/* =============================================================
+   ARI CIRCLE — FEED POST OPTIONS
+   Version: 1.0.0
+   Feed post actions plus the mobile comments sheet presentation.
+============================================================= */
+
+:root {
+  --circle-feed-option-ink: #0b1730;
+  --circle-feed-option-soft: #6f7b92;
+  --circle-feed-option-line: rgba(35, 75, 160, 0.12);
+  --circle-feed-option-card: rgba(255, 255, 255, 0.97);
+}
+
+.circle-post-options {
+  width: min(calc(100vw - 28px), 430px);
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: transparent;
+}
+
+.circle-post-options::backdrop {
+  background: rgba(8,14,29,.34);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.circle-post-options__panel {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.95);
+  border-radius: 24px;
+  background: var(--circle-feed-option-card);
+  box-shadow: 0 26px 80px rgba(18,33,72,.20);
+}
+
+.circle-post-options__title {
+  padding: 18px 18px 12px;
+  color: var(--circle-feed-option-soft);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.circle-post-options__button {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border: 0;
+  border-top: 1px solid var(--circle-feed-option-line);
+  color: var(--circle-feed-option-ink);
+  background: transparent;
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 760;
+  text-align: left;
+}
+
+.circle-post-options__button--danger { color: #d94257; }
+
+#commentsDialog.feed-dialog.feed-sheet {
+  width: 100%;
+  max-width: none;
+  height: min(76dvh, 760px);
+  max-height: min(76dvh, 760px);
+  margin: auto 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#commentsDialog::backdrop {
+  background: rgba(8,14,29,.31);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+#commentsDialog .feed-comments-card {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  display: grid;
+  grid-template-rows: auto auto minmax(0,1fr) auto;
+  gap: 0;
+  padding: 18px 16px max(14px, env(safe-area-inset-bottom));
+  border-radius: 28px 28px 0 0;
+  background: rgba(251,252,255,.985);
+  box-shadow: 0 -22px 70px rgba(20,34,76,.16);
+}
+
+#commentsDialog .feed-comments-card > .feed-kicker,
+#commentsDialog .feed-comments-card > h2 { margin-left: 2px; }
+
+#commentsDialog .feed-comments-card > h2 {
+  margin-top: 2px;
+  margin-bottom: 12px;
+}
+
+#commentsDialog .feed-comments-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 0 14px;
+}
+
+#commentsDialog .feed-comment {
+  align-items: flex-start;
+  padding: 9px 0;
+}
+
+#commentsDialog .feed-comment__bubble {
+  border: 1px solid rgba(35,75,160,.08);
+  border-radius: 17px;
+  background: #f4f7fc;
+}
+
+#commentsDialog .feed-comment-form {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding-top: 10px;
+  background: linear-gradient(180deg, rgba(251,252,255,0), rgba(251,252,255,.98) 22%);
+}
