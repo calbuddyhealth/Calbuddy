@@ -73,10 +73,11 @@ test("server replays completed turns and suppresses concurrent duplicates", () =
   assert.match(api, /releaseAriRequest/);
 });
 
-test("continuity persists the same turn identity", () => {
-  assert.match(continuity, /persistConversationTurn\(\{ userId, turnId = null, message, reply/);
+test("continuity persists the same turn and conversation identity", () => {
+  assert.match(continuity, /persistConversationTurn\(\{ userId, turnId = null, conversationId = null, message, reply/);
   assert.match(continuity, /turn_id: safeTurnId/);
-  assert.match(continuity, /response\.status === 409 && safeTurnId/);
+  assert.match(continuity, /conversation_id: safeConversationId/);
+  assert.match(continuity, /response\.status === 409 && Boolean\(safeTurnId\)/);
 });
 
 test("idempotency service uses user plus turn as the unique claim", () => {

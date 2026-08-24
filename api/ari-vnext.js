@@ -23,6 +23,7 @@ import {
   persistAriCognitiveState
 } from "./_lib/ari-vnext/cognitive-state-store.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
+import { mergeAuthoritativeAriContext, reconcileWorldModelWithAuthoritativeContext } from "./_lib/ari-vnext/authoritative-context.js";
 import {
   buildCommunicationExposure,
   listCommunicationOutcomes,
@@ -111,6 +112,12 @@ export default async function handler(req, res) {
       });
     }
 
+    const authoritativeContext = await mergeAuthoritativeAriContext({
+      userId: auth.userId,
+      context: turn.context
+    });
+    turn.context = authoritativeContext.context;
+
     const preliminaryRoute = routeContext(turn);
     const casualConversation = preliminaryRoute.casualConversation === true;
 
@@ -175,6 +182,7 @@ export default async function handler(req, res) {
     const recentContinuity = !casualConversation && (cognitiveLoopEnabled || shouldRecoverRecentConversation(turn))
       ? await hydrateRecentConversation({
           userId: auth.userId,
+          conversationId: turn.conversationId,
           history: turn.history,
           limitPairs: cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4
         })
@@ -235,6 +243,13 @@ export default async function handler(req, res) {
         : Promise.resolve(null),
       strategyPreparationPromise
     ]);
+
+    if (persistedWorldModel) {
+      Object.assign(
+        persistedWorldModel,
+        reconcileWorldModelWithAuthoritativeContext(persistedWorldModel, turn.context) || {}
+      );
+    }
 
     const adaptiveStrategyState = adaptiveStrategyPreparation?.state || {
       version: ARI_ADAPTIVE_STRATEGY_VERSION,
@@ -512,6 +527,7 @@ export default async function handler(req, res) {
       ? persistConversationTurn({
           userId: auth.userId,
           turnId: turn.turnId,
+          conversationId: turn.conversationId,
           message: turn.message,
           reply: result.reply,
           surface: turn.surface
@@ -606,6 +622,8 @@ export default async function handler(req, res) {
     const responsePayload = {
       ...result,
       turnId: turn.turnId,
+      conversationId: turn.conversationId,
+      authoritativeContext: turn.context?.authoritativeContext || null,
       accountEntitlements,
       intelligenceEntitlement,
       casualConversation,
@@ -674,6 +692,11 @@ export default async function handler(req, res) {
         : { active: false, ownerOnly: true },
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
+      continuity: {
+        serverAuthoritative: true,
+        turnStored: continuityTurnStored,
+        conversationId: turn.conversationId || null
+      },
       durableMemoryStored,
       worldModelStored,
       cognitiveStateStored,

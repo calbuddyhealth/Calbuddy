@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.7.2",
+  version: "1.8.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -28,6 +28,7 @@ window.AriVNextBridge = {
 
     const payload = {
       turnId,
+      conversationId: normalizeTurnId(options?.conversationId || window.CalBuddy?.getConversationId?.()) || null,
       message: text,
       history,
       surface,

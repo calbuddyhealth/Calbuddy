@@ -9,7 +9,7 @@ const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 test("home loads the repaired iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.0');
   const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.0');
-  const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.0.0');
+  const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.1.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
   assert.ok(resilienceIndex > homeIndex, "repaired resilience layer should load after home.js");

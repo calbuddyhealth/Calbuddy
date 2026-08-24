@@ -1,18 +1,17 @@
 // =====================================================
 // ARI XP
 // File: js/home-conversation-persistence.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
-//   Restore the shared Supabase conversation save contract for successful
-//   Ari vNext Home replies. Rebirth and vNext fallback responses already use
-//   the legacy writer, so this bridge deliberately saves only non-fallback
-//   vNext responses to prevent duplicate turns.
+//   Keep a browser fallback for successful Ari vNext Home replies while making
+//   the vNext server the authoritative conversation writer. When the server
+//   confirms the turn was stored, do not insert a duplicate client-side copy.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   let installTimer = null;
 
   function clean(value = "") {
@@ -35,6 +34,12 @@
 
     if (runtime.selected !== "vnext" || runtime.fallback === true) {
       return false;
+    }
+
+    // vNext server persistence is canonical. The browser writer remains only as
+    // a recovery path if the server explicitly reports that the turn was not stored.
+    if (result?.continuity?.serverAuthoritative === true && result?.continuity?.turnStored === true) {
+      return true;
     }
 
     const message = clean(input?.message);
