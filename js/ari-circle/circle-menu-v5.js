@@ -142,7 +142,7 @@
       <nav class="circle-v4-menu__panel circle-v5-menu__panel" aria-label="Circle menu">
         <div class="circle-v5-menu__identity">
           <span class="circle-v5-menu__mark" aria-hidden="true"></span>
-          <span class="circle-v5-menu__identity-text"><strong>ARI CIRCLE</strong><small>Controls</small></span>
+          <span class="circle-v5-menu__identity-text"><strong>ARI CIRCLE</strong><small>Circle controls</small></span>
         </div>
         ${group("Main", mainRows)}
         ${group("Account", accountRows)}
