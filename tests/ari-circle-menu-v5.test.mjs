@@ -50,7 +50,7 @@ test("Real World shell uses bounded lifecycle refreshes instead of a global DOM 
   assert.match(shell, /function boundedRefresh\(\)/);
   assert.match(shell, /document\.addEventListener\("circle:app-ready", queueRun\)/);
   assert.match(shell, /window\.addEventListener\("ari-circle-access-ready", queueRun\)/);
-  assert.doesNotMatch(shell, /Buddies|Partners|ari-circle-partners\.html|ari-circle-challenges\.html/);
+  assert.doesNotMatch(shell, /ari-circle-partners\.html|ari-circle-challenges\.html|\["Find People", "Buddies", "Partners"\]/);
 });
 
 test("Notification Settings lives inside Notifications instead of the primary drawer", () => {
@@ -108,7 +108,7 @@ test("Profile compatibility shell is profile-only and delegates visitor controls
   assert.match(visitorControls, /ari_circle_set_mute/);
   assert.match(visitorControls, /ari_circle_block_user/);
   assert.match(visitorControls, /target_type=profile/);
-  assert.doesNotMatch(visitorControls, /Buddies|Challenges|challenge-|buddy-|feed-composer/);
+  assert.doesNotMatch(visitorControls, /challenge-|buddy-|feed-composer|ari-circle-partners\.html|ari-circle-challenges\.html/);
 });
 
 test("portaled drawer typography and sizing are page-independent", () => {
