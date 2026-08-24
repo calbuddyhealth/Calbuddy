@@ -28,7 +28,7 @@ export function resolveConversationDomain(route = {}) {
 }
 
 export function analyzeResponseStrategy({ reply = "", communication = {}, selfModel = null } = {}) {
-  const text = clean(reply, 12000);
+  const text = String(reply ?? "").slice(0, 12000).trim();
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const listItemCount = lines.filter((line) => /^[-*•]\s+|^\d+[.)]\s+/.test(line)).length;
   const headingCount = lines.filter((line) => /^#{1,4}\s+|^[A-Z][A-Z\s&/:-]{3,}$/.test(line)).length;
@@ -71,7 +71,7 @@ export function detectCurrentTurnCommunicationOverride(message = "") {
 
   if (/\b(short answer|keep it short|keep (?:this|it) brief|be concise|concise answer|quick answer|simple answer|in simple terms|just the answer|just answer)\b/i.test(text)) {
     override.detail = "brief";
-  } else if (/\b(more detail|more detailed|go into detail|explain (?:it )?(?:fully|thoroughly|in depth)|walk me through|deep dive)\b/i.test(text)) {
+  } else if (/\b(more detail|more detailed|detailed answer|give me (?:a )?detailed|go into detail|explain (?:it )?(?:fully|thoroughly|in depth)|walk me through|deep dive)\b/i.test(text)) {
     override.detail = "detailed";
   }
 
@@ -123,7 +123,7 @@ export function detectConversationSignal({ message = "" } = {}) {
   if (/\b(too basic|more technical|more advanced|technical detail)\b/i.test(text)) {
     return signal("negative", 0.9, "explicit_complexity_feedback", { complexity: "advanced" }, text);
   }
-  if (/\b(too many questions|stop asking questions|don't ask (?:me )?(?:follow[- ]?up )?questions|do not ask (?:me )?(?:follow[- ]?up )?questions|fewer questions)\b/i.test(text)) {
+  if (/\b(too many questions|stop asking (?:me )?(?:follow[- ]?up )?questions|don't ask (?:me )?(?:follow[- ]?up )?questions|do not ask (?:me )?(?:follow[- ]?up )?questions|fewer questions)\b/i.test(text)) {
     return signal("negative", 0.96, "explicit_question_burden_feedback", { questionBurden: "none" }, text);
   }
   if (/\b(use bullets|bullet points|make (?:it|this) a list|list it out|more structured)\b/i.test(text)) {
