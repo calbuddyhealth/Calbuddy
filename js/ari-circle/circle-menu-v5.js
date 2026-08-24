@@ -1,13 +1,13 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5
-   Version: 2.0.0
-   Premium adults-only Circle controls for the Real World Social shell.
+   Version: 2.1.0
+   Premium adults-only Circle controls + authoritative Real World Social shell.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.1.0";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
@@ -17,12 +17,11 @@
   const PRIVATE_MEDIA_SCRIPT_SRC = "js/ari-circle/private-media.js?v=1.0.0";
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
+  const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.0.0";
   let observer = null;
   let outsideBound = false;
 
-  // Hide Circle while the server-derived adult entitlement resolves. This is a
-  // presentation boundary only; database/RPC/storage authorization is the real
-  // security boundary.
   document.documentElement.setAttribute("data-ari-circle-gate", "pending");
   document.documentElement.style.visibility = "hidden";
 
@@ -60,6 +59,20 @@
     document.head.append(script);
   }
 
+  function loadRealWorldShell() {
+    if (!adultAccessReady()) return;
+    if (window.AriCircleV5RealWorld) {
+      window.AriCircleV5RealWorld.refresh?.();
+      return;
+    }
+    if (document.getElementById(REAL_WORLD_SCRIPT_ID)) return;
+    const script = document.createElement("script");
+    script.id = REAL_WORLD_SCRIPT_ID;
+    script.src = REAL_WORLD_SCRIPT_SRC;
+    script.defer = true;
+    document.head.append(script);
+  }
+
   function shouldLoadProfileSafety() {
     const path = String(window.location.pathname || "").toLowerCase();
     return path.endsWith("/ari-circle.html") || Boolean(document.body?.classList.contains("ari-circle-page"));
@@ -86,9 +99,7 @@
 
   function item({ href = "#", label, iconMarkup, exit = false, button = false, profileOptions = false }) {
     const tag = button ? "button" : "a";
-    const attributes = button
-      ? `type="button"${profileOptions ? " data-circle-v5-profile-options" : ""}`
-      : `href="${href}"`;
+    const attributes = button ? `type="button"${profileOptions ? " data-circle-v5-profile-options" : ""}` : `href="${href}"`;
     return `<${tag} ${attributes} class="circle-v5-menu__item${exit ? " circle-v5-menu__item--exit" : ""}">
       <span class="circle-v5-menu__icon">${iconMarkup}</span>
       <span class="circle-v5-menu__label">${label}</span>
@@ -102,10 +113,7 @@
       <nav class="circle-v4-menu__panel circle-v5-menu__panel" aria-label="Circle menu">
         <div class="circle-v5-menu__identity">
           <span class="circle-v5-menu__mark" aria-hidden="true"></span>
-          <span class="circle-v5-menu__identity-text">
-            <strong>ARI CIRCLE</strong>
-            <small>Circle controls</small>
-          </span>
+          <span class="circle-v5-menu__identity-text"><strong>ARI CIRCLE</strong><small>Circle controls</small></span>
         </div>
         <div class="circle-v5-menu__items">
           ${item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell })}
@@ -192,6 +200,7 @@
     if (!adultAccessReady()) return;
     loadPrivateMedia();
     loadProfileSafety();
+    loadRealWorldShell();
     ensureStyle();
     normalizeMenus();
     ensureNotificationSettingsLink();
