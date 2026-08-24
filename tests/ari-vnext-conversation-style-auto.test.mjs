@@ -100,7 +100,7 @@ test("Conversation Style UI installs Auto before the existing controller", async
 test("Auto compatibility layer covers all six communication settings", async () => {
   const source = await read("ari/profile/ari-conversation-style-auto-contract.js");
   for (const key of ["tone", "directness", "humor", "profanity", "complexity", "detail"]) {
-    assert.match(source, new RegExp(`\\[\\"${key}\\"`));
+    assert.ok(source.includes(`["${key}"`), `missing Auto definition for ${key}`);
   }
   assert.match(source, /runtimeDefaults = automaticSnapshot\(\)/);
   assert.match(source, /legacyDefaultTreatedAsAutomatic/);
@@ -109,8 +109,8 @@ test("Auto compatibility layer covers all six communication settings", async () 
 
 test("settings UI makes Automatic the visible default and manual choices optional", async () => {
   const source = await read("js/ari-conversation-style-auto-ui.js");
-  assert.match(source, /value=\\"auto\\"/);
-  assert.match(source, /data-default=\\"true\\"/);
+  assert.match(source, /value="auto"/);
+  assert.match(source, /data-default="true"/);
   assert.match(source, /Reset to Automatic/);
   assert.match(source, /Save style/);
   assert.match(source, /Automatic is the default/);
