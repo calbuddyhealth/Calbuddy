@@ -1,19 +1,15 @@
 /* =============================================================
-   ARI CIRCLE — STABLE UI SHELL
-   Version: 5.2.4
+   ARI CIRCLE — PROFILE COMPATIBILITY SHELL
+   Version: 5.2.5
 
-   V5 keeps the proven Profile controllers while Feed · Meet Up · Quests
-   use the current Real World Social shell. Legacy profile styling is loaded
-   only on the profile route; primary V5 surfaces must not inherit V4 CSS.
-
-   Navigation ownership note:
-   circle-menu-v5.js is the single authority for the shared Circle drawer.
-   This compatibility shell must never rewrite or bind the drawer independently.
+   The current V5 shell owns Feed · Meet Up · Quests and all shared
+   navigation. This file now exists only to bridge the legacy Profile DOM
+   into that shell without creating a second menu or retired route runtime.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.4";
+  const VERSION = "5.2.5";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -23,7 +19,6 @@
   let feedModerationLoaded = false;
   let momentRepliesLoaded = false;
   let launchSocialLoaded = false;
-  let challengeVideoFixLoaded = false;
   let realWorldLoaded = false;
   let happeningLoaded = false;
   let profileRealWorldLoaded = false;
@@ -45,29 +40,16 @@
     document.head.append(link);
   }
 
+  function isProfileRoute() {
+    return Boolean(document.body?.classList.contains("ari-circle-page"));
+  }
+
   function ensureStyles() {
-    const isProfile = Boolean(document.body?.classList.contains("ari-circle-page"));
-    if (isProfile) {
+    if (isProfileRoute()) {
       ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
       ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
     }
     ensureStyle("ari-circle-v5-real-world-style", "assets/css/ari-circle-v5-real-world.css?v=5.0.0");
-  }
-
-  function circleMenuMarkup(includeProfileOptions = false) {
-    return `
-      <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
-      <nav class="circle-v4-menu__panel" aria-label="Circle menu">
-        <a href="ari-circle.html?panel=notifications"><span>Notifications</span></a>
-        <a href="ari-circle-meetup.html"><span>Meet Up</span></a>
-        <a href="ari-circle.html"><span>Profile</span></a>
-        ${includeProfileOptions ? '<button type="button" data-v4-profile-options><span>Profile Options</span></button>' : ''}
-        <div class="circle-v4-menu__divider"></div>
-        <a href="account.html"><span>Privacy & Visibility</span></a>
-        <a href="help-safety.html"><span>Circle Safety</span></a>
-        <div class="circle-v4-menu__divider"></div>
-        <a href="home.html"><span>Exit ARI Circle</span></a>
-      </nav>`;
   }
 
   function standardizeMenus() {
@@ -88,6 +70,7 @@
       if (el.tagName === "A") el.setAttribute("href", "ari-circle-messages.html");
       el.dataset.v5Message = "true";
     });
+
     const profileButton = $("circle-messages-button");
     if (profileButton && profileButton.dataset.v5Message !== "true") {
       const icon = profileButton.querySelector('span[aria-hidden="true"]');
@@ -102,23 +85,26 @@
   function ensureProfileHeader() {
     const header = $("circle-header");
     if (!header) return;
+
     header.classList.add("circle-v4-profile-header");
     let menu = header.querySelector(":scope > .circle-v4-menu");
     if (!menu) {
       menu = document.createElement("details");
       menu.className = "circle-v4-menu circle-v4-menu--profile";
-      menu.innerHTML = circleMenuMarkup(true);
       header.prepend(menu);
-      window.AriCircleMenuV5?.refresh?.();
     }
+    window.AriCircleMenuV5?.refresh?.();
+
     const brand = header.querySelector(".circle-header__brand");
     if (brand) {
       brand.href = "ari-circle-feed.html";
       brand.setAttribute("aria-label", "ARI Circle Feed");
       if (brand.parentElement !== header) header.append(brand);
     }
+
     const messages = $("circle-messages-button");
     if (messages && messages.parentElement !== header) header.append(messages);
+
     const left = header.querySelector(".circle-header__left");
     if (left) left.hidden = true;
     const actions = header.querySelector(".circle-header__actions");
@@ -135,28 +121,18 @@
   }
 
   function simplifyProfile() {
-    if (!document.body.classList.contains("ari-circle-page")) return;
+    if (!isProfileRoute()) return;
     ensureProfileNav();
     ensureProfileHeader();
     ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel"].forEach(hide);
     $("circleV3Summary")?.remove();
     document.querySelector(".circle-v3-name-flair")?.remove();
     document.querySelector('[data-v3-profile-tab="achievements"]')?.remove();
+
     const share = $("circle-share-profile-button");
     if (share && share.textContent.trim() !== "Share Profile") share.textContent = "Share Profile";
     const remove = $("circle-remove-connection-button");
     if (remove && remove.textContent.trim() !== "Remove Friend") remove.textContent = "Remove Friend";
-  }
-
-  function bindProfileOptions() {
-    document.querySelectorAll("[data-v4-profile-options]").forEach((button) => {
-      if (button.dataset.v5Bound === "true") return;
-      button.dataset.v5Bound = "true";
-      button.addEventListener("click", () => {
-        $("circle-profile-menu-button")?.click();
-        button.closest("details")?.removeAttribute("open");
-      });
-    });
   }
 
   function cleanProfileEditorLabels() {
@@ -178,15 +154,21 @@
   }
 
   function openRequestedPanel() {
-    if (panelHandled || !appReady || !document.body.classList.contains("ari-circle-page")) return;
-    const panel = new URLSearchParams(window.location.search).get("panel");
-    if (!panel) { panelHandled = true; return; }
+    if (panelHandled || !appReady || !isProfileRoute()) return;
+    const params = new URLSearchParams(window.location.search);
+    const panel = params.get("panel");
+    if (!panel) {
+      panelHandled = true;
+      return;
+    }
+
     if (panel === "messages" || panel === "message") {
       panelHandled = true;
-      const user = new URLSearchParams(window.location.search).get("user");
+      const user = params.get("user");
       window.location.replace(user ? `ari-circle-messages.html?user=${encodeURIComponent(user)}` : "ari-circle-messages.html");
       return;
     }
+
     if (["friends","requests","sent"].includes(panel)) {
       const button = $("circle-see-friends-action") || document.querySelector('[data-circle-action="view-entire-circle"]');
       if (button) {
@@ -196,9 +178,13 @@
       }
       return;
     }
+
     if (panel === "notifications") {
       const button = $("circle-notifications-button");
-      if (button) { panelHandled = true; button.click(); }
+      if (button) {
+        panelHandled = true;
+        button.click();
+      }
     }
   }
 
@@ -210,6 +196,7 @@
         console.warn("ARI Circle V5 Real World shell failed to load:", error);
       });
     }
+
     if (!launchSocialLoaded) {
       launchSocialLoaded = true;
       import("/js/ari-circle/launch-social-v5.js?v=5.0.1").catch((error) => {
@@ -217,6 +204,7 @@
         console.warn("ARI Circle Launch Social V5 failed to load:", error);
       });
     }
+
     if (!flowFixesLoaded) {
       flowFixesLoaded = true;
       import("/js/ari-circle/v4-flow-fixes.js?v=1.2.1").catch((error) => {
@@ -224,13 +212,7 @@
         console.warn("ARI Circle flow fixes failed to load:", error);
       });
     }
-    if (!challengeVideoFixLoaded && document.querySelector(".challenge-page")) {
-      challengeVideoFixLoaded = true;
-      import("/js/ari-circle/challenges/challenge-video-web-fix.js?v=1.0.0").catch((error) => {
-        challengeVideoFixLoaded = false;
-        console.warn("ARI Circle legacy Challenge video recovery failed to load:", error);
-      });
-    }
+
     if (!feedPolishLoaded && document.querySelector(".feed-page")) {
       feedPolishLoaded = true;
       import("/js/ari-circle/feed/feed-polish.js?v=1.0.1").catch((error) => {
@@ -238,6 +220,7 @@
         console.warn("ARI Circle feed polish failed to load:", error);
       });
     }
+
     if (!feedModerationLoaded && document.querySelector(".feed-page")) {
       feedModerationLoaded = true;
       import("/js/ari-circle/feed/feed-moderation.js?v=1.1.0").catch((error) => {
@@ -245,13 +228,15 @@
         console.warn("ARI Circle feed ownership controls failed to load:", error);
       });
     }
+
     if (!momentRepliesLoaded && document.querySelector(".feed-page")) {
       momentRepliesLoaded = true;
-      import("/js/ari-circle/feed/moment-replies.js?v=1.0.0").catch((error) => {
+      import("/js/ari-circle/feed/moment-replies.js?v=3.0.0").catch((error) => {
         momentRepliesLoaded = false;
         console.warn("ARI Circle Moment replies failed to load:", error);
       });
     }
+
     if (!happeningLoaded && document.querySelector(".feed-page")) {
       happeningLoaded = true;
       import("/js/ari-circle/feed/happening-v5.js?v=5.2.2").catch((error) => {
@@ -259,7 +244,8 @@
         console.warn("ARI Circle Happening rail failed to load:", error);
       });
     }
-    if (!profileRealWorldLoaded && document.body.classList.contains("ari-circle-page")) {
+
+    if (!profileRealWorldLoaded && isProfileRoute()) {
       profileRealWorldLoaded = true;
       import("/js/ari-circle/profile/profile-v5-real-world.js?v=5.0.0").catch((error) => {
         profileRealWorldLoaded = false;
@@ -268,32 +254,26 @@
     }
   }
 
-  function routeLegacySurface() {
-    const path = String(location.pathname || "").toLowerCase();
-    if (path.endsWith("/ari-circle-partners.html")) {
-      location.replace(`ari-circle-meetup.html${location.search || ""}${location.hash || ""}`);
-      return true;
-    }
-    if (path.endsWith("/ari-circle-challenges.html")) {
-      location.replace(`ari-circle-quests.html${location.search || ""}${location.hash || ""}`);
-      return true;
-    }
-    return false;
-  }
-
   function run() {
-    if (routeLegacySurface()) return;
     ensureStyles();
     standardizeMenus();
     standardizeMessages();
     simplifyProfile();
     cleanProfileEditorLabels();
-    bindProfileOptions();
     loadModules();
     openRequestedPanel();
   }
 
-  document.addEventListener("DOMContentLoaded", () => { run(); setTimeout(run, 120); }, { once:true });
-  document.addEventListener("circle:app-ready", () => { appReady = true; run(); setTimeout(run, 120); });
-  window.AriCircleV4 = Object.freeze({ version:VERSION, refresh:run });
+  document.addEventListener("DOMContentLoaded", () => {
+    run();
+    setTimeout(run, 120);
+  }, { once: true });
+
+  document.addEventListener("circle:app-ready", () => {
+    appReady = true;
+    run();
+    setTimeout(run, 120);
+  });
+
+  window.AriCircleV4 = Object.freeze({ version: VERSION, refresh: run });
 })();
