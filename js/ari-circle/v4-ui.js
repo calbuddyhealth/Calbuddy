@@ -1,19 +1,19 @@
 /* =============================================================
    ARI CIRCLE — STABLE UI SHELL
-   Version: 5.2.3
+   Version: 5.2.4
 
-   V5 keeps the proven Feed/Profile controllers, then layers the Real World
-   Social shell on top: Feed · Meet Up · Quests, live Happening discovery,
-   and profile XP/reputation. Legacy Buddies/Challenges routes stay compatible.
+   V5 keeps the proven Profile controllers while Feed · Meet Up · Quests
+   use the current Real World Social shell. Legacy profile styling is loaded
+   only on the profile route; primary V5 surfaces must not inherit V4 CSS.
 
    Navigation ownership note:
    circle-menu-v5.js is the single authority for the shared Circle drawer.
-   This legacy shell must never rewrite or bind the drawer independently.
+   This compatibility shell must never rewrite or bind the drawer independently.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.3";
+  const VERSION = "5.2.4";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -46,8 +46,11 @@
   }
 
   function ensureStyles() {
-    ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
-    ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
+    const isProfile = Boolean(document.body?.classList.contains("ari-circle-page"));
+    if (isProfile) {
+      ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
+      ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
+    }
     ensureStyle("ari-circle-v5-real-world-style", "assets/css/ari-circle-v5-real-world.css?v=5.0.0");
   }
 
@@ -68,9 +71,6 @@
   }
 
   function standardizeMenus() {
-    // V5 drawer state, markup, portal behavior, and outside-close handling all
-    // belong to AriCircleMenuV5. The old Feed shell used to overwrite the menu
-    // after the V5 controller initialized, which created a Feed-only code path.
     window.AriCircleMenuV5?.refresh?.();
   }
 
