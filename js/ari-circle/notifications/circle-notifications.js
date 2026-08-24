@@ -1,6 +1,11 @@
 // js/ari-circle/notifications/circle-notifications.js
-// ARI Circle Notifications V2.1.0
+// ARI Circle Notifications V2.2.0
 // Single owner for notification state, rendering, badge, actions, and compact UI.
+//
+// V2.2.0:
+// - Resolved incoming Circle request cards leave the active Activity inbox immediately.
+// - Resolved request notifications are persisted as read before removal.
+// - Refreshed/realtime notification payloads cannot re-add a request already resolved this session.
 //
 // V2.1.0:
 // - Treats the notification center as an active inbox, not permanent history.
@@ -11,7 +16,7 @@
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const SOURCE = "ari-circle/notifications/circle-notifications";
 const STYLE_ID = "ari-circle-notifications-style";
 const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.1.0";
@@ -247,12 +252,19 @@ const CircleNotifications = {
         if (!requestId) return;
         const action = clean(detail.action) || "resolved";
         this.state.resolvedRequests.set(requestId, action);
-        this.state.items.forEach(item => {
-          if (item.type === NOTIFICATION_TYPES.CONNECTION_REQUEST && item.requestId === requestId) {
-            this.markRead(item.id);
-          }
+
+        const resolvedNotificationIds = this.state.items
+          .filter(item => (
+            item.type === NOTIFICATION_TYPES.CONNECTION_REQUEST &&
+            item.requestId === requestId
+          ))
+          .map(item => item.id);
+
+        resolvedNotificationIds.forEach(notificationId => {
+          // Persist the row as read, then remove it from the active inbox now.
+          this.markRead(notificationId);
+          this.removeNotification(notificationId);
         });
-        this.renderPanel();
       })
     );
   },
@@ -261,13 +273,23 @@ const CircleNotifications = {
     /*
      * Notifications are an active inbox. Persisted rows that have already
      * been read are deliberately not restored into the visible sheet.
-     * This also prevents old accepted/declined Circle requests from
-     * presenting request actions again after a refresh.
+     * Resolved request ids are also excluded so a backend/realtime refresh
+     * cannot flash an accepted/declined request back into the current inbox.
      */
     this.state.items = Array.isArray(notifications)
       ? notifications
           .map(normalizeNotification)
-          .filter(notification => notification && !notification.read)
+          .filter(notification => {
+            if (!notification || notification.read) return false;
+            if (
+              notification.type === NOTIFICATION_TYPES.CONNECTION_REQUEST &&
+              notification.requestId &&
+              this.state.resolvedRequests.has(notification.requestId)
+            ) {
+              return false;
+            }
+            return true;
+          })
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : [];
     this.syncUnreadCount();
@@ -288,6 +310,13 @@ const CircleNotifications = {
   addNotification(notification) {
     const normalized = normalizeNotification(notification);
     if (!normalized || normalized.read) return null;
+    if (
+      normalized.type === NOTIFICATION_TYPES.CONNECTION_REQUEST &&
+      normalized.requestId &&
+      this.state.resolvedRequests.has(normalized.requestId)
+    ) {
+      return null;
+    }
     this.state.items = [normalized, ...this.state.items.filter(item => item.id !== normalized.id)];
     this.syncUnreadCount();
     this.renderPanel();
