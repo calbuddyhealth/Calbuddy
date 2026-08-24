@@ -1,9 +1,9 @@
 /* =============================================================
    ARI CIRCLE — PROFILE V4
-   Version: 4.3.0
+   Version: 4.3.1
 
    Lightweight social profile layer.
-   - Feed / Profile / Buddies / Challenges navigation
+   - Feed / Meet Up / Quests navigation
    - Posts + About only
    - No profile flair or reaction scoring
    - Supports private photo/video posts with signed media URLs
@@ -16,7 +16,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.3.0";
+  const VERSION = "4.3.1";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
   const AGE_CACHE_KEY = "ari_circle_profile_verified_age_v1";
@@ -142,9 +142,8 @@
     nav.setAttribute("aria-label", "ARI Circle sections");
     nav.innerHTML = `
       <a href="ari-circle-feed.html">Feed</a>
-      <a href="ari-circle-partners.html">Buddies</a>
-      <a href="ari-circle-challenges.html">Challenges</a>
-      <a class="is-active" href="ari-circle.html" aria-current="page">Profile</a>
+      <a href="ari-circle-meetup.html">Meet Up</a>
+      <a href="ari-circle-quests.html">Quests</a>
     `;
     main.insertBefore(nav, profile);
   }
@@ -265,7 +264,7 @@
     gate.className = "circle-v3-safety-gate";
     gate.innerHTML = `
       <strong>Unlock the social side of your Circle</strong>
-      <p>Verify your birthday once so ARI can keep teen and adult discovery, messaging, feeds, and challenges separated. Your birthday is not shown here.</p>
+      <p>Verify your birthday once to confirm you’re eligible for ARI Circle. Your birthday is not shown here.</p>
       <form id="circleV4AgeForm">
         <input id="circleV4AgeInput" type="date" autocomplete="bday" required aria-label="Date of birth" />
         <button type="submit">Verify</button>
