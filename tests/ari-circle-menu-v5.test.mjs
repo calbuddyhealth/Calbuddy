@@ -21,9 +21,10 @@ test("ARI Circle V5 drawer reflects Real World Social navigation", () => {
   assert.doesNotMatch(menu, /<small>Buddies<\/small>/);
 });
 
-test("shared drawer bootstraps the authoritative V5 Real World shell", () => {
-  assert.match(menu, /REAL_WORLD_SCRIPT_SRC = "js\/ari-circle\/v5-real-world\.js\?v=5\.0\.1"/);
+test("shared drawer bootstraps the authoritative V5.1 Pearl Real World shell", () => {
+  assert.match(menu, /REAL_WORLD_SCRIPT_SRC = "js\/ari-circle\/v5-real-world\.js\?v=5\.1\.0"/);
   assert.match(menu, /loadRealWorldShell\(\)/);
+  assert.match(shell, /PEARL_STYLE_HREF = "assets\/css\/ari-circle-v5-pearl\.css\?v=5\.1\.0"/);
 });
 
 test("adult gate cannot be re-hidden after authorization already succeeded", () => {
@@ -59,7 +60,7 @@ test("ARI Circle drawer keeps premium glass and icon-led rows", () => {
 test("shared Supabase bootstrap still loads the adults-only V5 drawer", () => {
   assert.match(supabaseConfig, /shouldLoadCircleMenu/);
   assert.match(supabaseConfig, /circle-menu-v5\.js\?v=1\.0\.1/);
-  assert.match(feedHtml, /supabase-config\.js\?v=1\.1\.4/);
+  assert.match(feedHtml, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.2\.0"/);
 });
 
 test("V5 drawer self-heals only around managed menu mutations", () => {
