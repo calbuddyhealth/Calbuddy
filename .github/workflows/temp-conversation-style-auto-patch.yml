@@ -1,0 +1,243 @@
+name: Temporary Conversation Style Auto Patch
+
+on:
+  push:
+    branches:
+      - feature/conversation-style-auto-default
+    paths:
+      - .github/workflows/temp-conversation-style-auto-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/conversation-style-auto-default
+
+      - name: Apply Conversation Style automatic defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          # -------------------------------------------------
+          # Conversation Style UI
+          # -------------------------------------------------
+          path = Path('ari-preference-settings.html')
+          text = path.read_text()
+          text = text.replace('<title>Personalize Ari | ARI XP</title>', '<title>Conversation Style | ARI XP</title>')
+          text = text.replace('            PERSONALIZE ARI', '            CONVERSATION STYLE')
+          text = text.replace('            Choose how Ari talks to you.', '            Let Ari adapt automatically—or lock what you want.')
+          old_subtitle = '''            These settings change Ari's wording and presentation.\n            They do not limit what Ari can understand, reason about,\n            or help you with.'''
+          new_subtitle = '''            Automatic is the default. Ari learns how you prefer to communicate\n            and adapts over time. Choose a specific option only when you want\n            to lock that part of Ari's conversation style.'''
+          assert old_subtitle in text, 'preference subtitle anchor missing'
+          text = text.replace(old_subtitle, new_subtitle, 1)
+
+          # Remove the six old HTML defaults before inserting Auto.
+          text, removed = re.subn(r'\n\s*data-default="true"\n\s*checked', '', text)
+          assert removed == 6, f'expected six old defaults, removed {removed}'
+
+          auto_descriptions = {
+              'language.tone': 'Let Ari adapt tone to the conversation.',
+              'language.directness': 'Let Ari learn how direct to be with you.',
+              'language.humor': 'Let Ari use humor when it naturally fits.',
+              'language.profanity': 'Let Ari use her standard adaptive language.',
+              'language.complexity': 'Let Ari adapt how simple or advanced explanations should be.',
+              'language.detail': 'Let Ari learn how much detail works best for you.'
+          }
+
+          def insert_auto(html, pref_path, description):
+              marker = f'data-preference-group="{pref_path}"'
+              start = html.index(marker)
+              options = html.index('class="ari-preference-options"', start)
+              opening_end = html.index('>', options) + 1
+              option = f'''\n            <label class="ari-preference-option ari-preference-option--auto">\n              <input\n                type="radio"\n                name="{pref_path}"\n                value="auto"\n                data-path="{pref_path}"\n                data-default="true"\n                checked\n              />\n\n              <span class="ari-preference-option__content">\n                <span class="ari-preference-option__label">\n                  Auto\n                </span>\n\n                <span class="ari-preference-option__description">\n                  {description}\n                </span>\n              </span>\n            </label>\n'''
+              return html[:opening_end] + option + html[opening_end:]
+
+          for pref_path, description in auto_descriptions.items():
+              text = insert_auto(text, pref_path, description)
+
+          # Make profanity controls explicit instead of keeping a second vague Default.
+          pstart = text.index('data-preference-group="language.profanity"')
+          pend = text.index('</fieldset>', pstart)
+          block = text[pstart:pend]
+          assert 'value="default"' in block, 'legacy profanity default missing'
+          block = block.replace('value="default"', 'value="never"', 1)
+          block = block.replace('                  Default', '                  Never', 1)
+          block = block.replace("                  Use Ari's standard language.", '                  Do not use profanity.', 1)
+          text = text[:pstart] + block + text[pend:]
+
+          # User-facing wording matches vNext terminology while keeping legacy values compatible.
+          dstart = text.index('data-preference-group="language.directness"')
+          dend = text.index('</fieldset>', dstart)
+          block = text[dstart:dend]
+          block = block.replace('                  Blunt', '                  Direct', 1)
+          text = text[:dstart] + block + text[dend:]
+
+          text = text.replace('          <strong>These preferences affect expression only.</strong>', '          <strong>Automatic personalization affects conversation style only.</strong>')
+          text = text.replace('              Reset\n            </button>', '              Reset to Automatic\n            </button>', 1)
+          text = text.replace('              Save changes\n            </button>', '              Save style\n            </button>', 1)
+          text = text.replace('ari-preference-settings.css?v=8.1.0', 'ari-preference-settings.css?v=8.2.0')
+          text = text.replace('ari/profile/ari-user-preference-contract.js?v=3.0.0', 'ari/profile/ari-user-preference-contract.js?v=3.0.1')
+          text = text.replace('ari/profile/ari-user-preference-store.js?v=3.0.0', 'ari/profile/ari-user-preference-store.js?v=3.0.1')
+          text = text.replace('ari/profile/ari-preference-resolver.js?v=2.0.0', 'ari/profile/ari-preference-resolver.js?v=3.0.1')
+          text = text.replace('ari/profile/ari-preference-runtime.js?v=1.1.0', 'ari/profile/ari-preference-runtime.js?v=3.0.1')
+          text = text.replace('js/ari-preference-settings-controller.js?v=3.0.0', 'js/ari-preference-settings-controller.js?v=3.0.1')
+          path.write_text(text)
+
+          # -------------------------------------------------
+          # Canonical browser preference contract
+          # -------------------------------------------------
+          path = Path('ari/profile/ari-user-preference-contract.js')
+          text = path.read_text()
+
+          auto_specs = {
+              'language.tone': ('Let Ari adapt', 'Adapt Ari’s tone to the current conversation and user context. Do not treat Auto as a fixed tone lock.'),
+              'language.directness': ('Let Ari learn', 'Leave directness adaptive so current-turn instructions and learned conversation personalization can determine how direct Ari should be.'),
+              'language.humor': ('Let Ari adapt', 'Use humor contextually when it naturally fits. Auto is not a fixed humor frequency and must not force jokes.'),
+              'language.profanity': ('Let Ari adapt', 'Use Ari’s standard adaptive language. Auto does not require profanity and does not prohibit it when ordinary context supports it.'),
+              'language.complexity': ('Let Ari learn', 'Leave explanation complexity adaptive so Ari can match the conversation and learned user preference.'),
+              'language.detail': ('Let Ari learn', 'Leave response length adaptive so Ari can use current-turn instructions and learned conversation personalization.')
+          }
+
+          def patch_preference(contract, pref_path, description_prefix, instruction):
+              loc = contract.index(f'"{pref_path}"')
+              default_pos = contract.index('defaultValue:', loc)
+              segment_end = contract.index('options: {', default_pos)
+              segment = contract[default_pos:segment_end]
+              segment2, count = re.subn(r'defaultValue:\s*\n\s*"[^"]+"', 'defaultValue:\n              "auto"', segment, count=1)
+              assert count == 1, f'default replacement failed for {pref_path}'
+              contract = contract[:default_pos] + segment2 + contract[segment_end:]
+              loc = contract.index(f'"{pref_path}"')
+              options_pos = contract.index('options: {', loc) + len('options: {')
+              auto = f'''\n              auto: {{\n                label:\n                  "Auto",\n\n                description:\n                  "{description_prefix} automatically.",\n\n                enforcement:\n                  "adaptive",\n\n                currentTurnAdjustable:\n                  true,\n\n                instruction:\n                  "{instruction}"\n              }},\n'''
+              return contract[:options_pos] + auto + contract[options_pos:]
+
+          for pref_path, (desc, instruction) in auto_specs.items():
+              text = patch_preference(text, pref_path, desc, instruction)
+
+          # Profanity gets an explicit Never lock; keep legacy `default` accepted for old custom records.
+          ploc = text.index('"language.profanity"')
+          popt = text.index('options: {', ploc) + len('options: {')
+          auto_end = text.index('              },', popt) + len('              },')
+          never = '''\n\n              never: {\n                label:\n                  "Never",\n\n                description:\n                  "Do not use profanity.",\n\n                enforcement:\n                  "hard_opt_out",\n\n                currentTurnAdjustable:\n                  false,\n\n                instruction:\n                  "Do not use profanity. This is an explicit user lock and should remain in effect unless the user changes the saved Conversation Style setting."\n              },'''
+          text = text[:auto_end] + never + text[auto_end:]
+
+          # Automatic is the canonical default for every communication dimension.
+          rstart = text.index('    runtimeDefaults: {')
+          rend = text.index('    // ===================================================\n    // PUBLIC CONTRACT ACCESS', rstart)
+          rblock = text[rstart:rend]
+          for old in ['"natural"', '"balanced"', '"occasional"', '"default"']:
+              pass
+          rblock = re.sub(r'(tone:\s*\n\s*)"[^"]+"', r'\1"auto"', rblock, count=1)
+          rblock = re.sub(r'(directness:\s*\n\s*)"[^"]+"', r'\1"auto"', rblock, count=1)
+          rblock = re.sub(r'(humor:\s*\n\s*)"[^"]+"', r'\1"auto"', rblock, count=1)
+          rblock = re.sub(r'(profanity:\s*\n\s*)"[^"]+"', r'\1"auto"', rblock, count=1)
+          rblock = re.sub(r'(complexity:\s*\n\s*)"[^"]+"', r'\1"auto"', rblock, count=1)
+          rblock = re.sub(r'(detail:\s*\n\s*)"[^"]+"', r'\1"auto"', rblock, count=1)
+          text = text[:rstart] + rblock + text[rend:]
+          text = text.replace('          "Ari Default",', '          "Automatic",', 1)
+          text = text.replace('          "Uses the default communication preferences defined by the Personalize Ari page.",', '          "Lets Ari adapt conversation style automatically unless the user locks a specific setting.",', 1)
+          path.write_text(text)
+
+          # -------------------------------------------------
+          # Browser resolver: legacy default preset = Auto
+          # -------------------------------------------------
+          path = Path('ari/profile/ari-preference-resolver.js')
+          text = path.read_text()
+          old = '''            value:\n              persistentResolution\n                .record\n                ?.preferenceOverrides ||\n              persistentResolution.value ||\n              {},'''
+          new = '''            value:\n              activePreset === "default"\n                ? {}\n                : (\n                    persistentResolution\n                      .record\n                      ?.preferenceOverrides ||\n                    persistentResolution.value ||\n                    {}\n                  ),'''
+          assert old in text, 'resolver persistent preference anchor missing'
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          # -------------------------------------------------
+          # Settings controller: display legacy default preset as Auto
+          # -------------------------------------------------
+          path = Path('js/ari-preference-settings-controller.js')
+          text = path.read_text()
+          old = '''        if (this.hasOwnPreferenceValues(savedPreferences)) {\n          this.populateForm(savedPreferences);\n        } else {\n          this.applyHtmlDefaults();\n        }'''
+          new = '''        const activePreset =\n          this.extractActivePresetFromRecord(record);\n\n        if (activePreset === "default" || activePreset === "auto" || activePreset === "automatic") {\n          // Historical default records contain a full fixed snapshot. The new\n          // Conversation Style contract treats that untouched default as Auto.\n          this.applyHtmlDefaults();\n        } else if (this.hasOwnPreferenceValues(savedPreferences)) {\n          this.populateForm(savedPreferences);\n        } else {\n          this.applyHtmlDefaults();\n        }'''
+          assert old in text, 'controller load preference anchor missing'
+          text = text.replace(old, new, 1)
+          anchor = '''    extractPreferencesFromRecord(record) {\n      if (!record || typeof record !== "object") {\n        return {};\n      }'''
+          assert anchor in text, 'controller extract method anchor missing'
+          method_pos = text.index('    // ===================================================\n    // FORM POPULATION', text.index(anchor))
+          helper = '''    extractActivePresetFromRecord(record) {\n      if (!record || typeof record !== "object") return "default";\n\n      const candidates = [\n        record.activePreset,\n        record.active_preset,\n        record.record?.activePreset,\n        record.record?.active_preset,\n        record.data?.activePreset,\n        record.data?.active_preset\n      ];\n\n      const value = candidates\n        .map((candidate) => String(candidate || "").trim().toLowerCase())\n        .find(Boolean);\n\n      return value || "default";\n    },\n\n'''
+          text = text[:method_pos] + helper + text[method_pos:]
+          path.write_text(text)
+
+          # -------------------------------------------------
+          # vNext server runtime: authoritative saved locks
+          # -------------------------------------------------
+          path = Path('api/ari-vnext.js')
+          text = path.read_text()
+          import_anchor = 'import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";'
+          assert import_anchor in text, 'ari-vnext import anchor missing'
+          text = text.replace(import_anchor, import_anchor + '\nimport { loadSavedCommunicationPreferences } from "./_lib/ari-vnext/saved-communication-preferences.js";', 1)
+
+          old = '''      communicationOutcomes,\n      accountEntitlements,'''
+          new = '''      communicationOutcomes,\n      savedCommunicationPreferences,\n      accountEntitlements,'''
+          assert old in text, 'api Promise destructure anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''      shouldLoadConversationLearning\n        ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })\n        : Promise.resolve([]),\n      casualConversation'''
+          new = '''      shouldLoadConversationLearning\n        ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })\n        : Promise.resolve([]),\n      loadSavedCommunicationPreferences({ userId: auth.userId }),\n      casualConversation'''
+          assert old in text, 'api saved style hydration anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''    const communicationLearning = communicationOutcomes.length\n      ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })\n      : null;\n    const temporalTimeline = fitnessRoute'''
+          new = '''    const communicationLearning = communicationOutcomes.length\n      ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })\n      : null;\n    const savedConversationStyle = savedCommunicationPreferences || { preferences: {}, explicitLocks: [], automatic: true };\n    turn.preferences = {\n      ...(turn.preferences && typeof turn.preferences === "object" ? turn.preferences : {}),\n      ...(savedConversationStyle.preferences || {})\n    };\n    const temporalTimeline = fitnessRoute'''
+          assert old in text, 'api communication learning anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''      ...(communicationLearning ? { communicationLearning } : {}),\n      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})'''
+          new = '''      ...(communicationLearning ? { communicationLearning } : {}),\n      conversationStyle: {\n        automatic: savedConversationStyle.automatic !== false,\n        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks) ? savedConversationStyle.explicitLocks : [],\n        source: savedConversationStyle.source || "saved_conversation_style"\n      },\n      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})'''
+          assert old in text, 'api turn context style anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''            communicationLearningSamples: communicationLearning?.resolvedCount || 0,\n            proactiveInsightCount: proactiveInsights?.userFacingCount || 0,'''
+          new = '''            communicationLearningSamples: communicationLearning?.resolvedCount || 0,\n            conversationStyleAutomatic: savedConversationStyle.automatic !== false,\n            conversationStyleLockCount: Array.isArray(savedConversationStyle.explicitLocks) ? savedConversationStyle.explicitLocks.length : 0,\n            proactiveInsightCount: proactiveInsights?.userFacingCount || 0,'''
+          assert old in text, 'api usage metadata anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''      communicationLearning,\n      temporalTimeline,'''
+          new = '''      communicationLearning,\n      conversationStyle: {\n        automatic: savedConversationStyle.automatic !== false,\n        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks) ? savedConversationStyle.explicitLocks : [],\n        source: savedConversationStyle.source || "saved_conversation_style"\n      },\n      temporalTimeline,'''
+          assert old in text, 'api response style anchor missing'
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          # vNext accepts Natural as an explicit manual tone lock.
+          path = Path('api/_lib/ari-vnext/communication-profile.js')
+          text = path.read_text()
+          old = 'tone: new Set(["adaptive", "casual", "professional", "warm", "coach"]),'
+          new = 'tone: new Set(["adaptive", "natural", "casual", "professional", "warm", "coach"]),'
+          assert old in text, 'communication tone allow-list anchor missing'
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+
+      - name: Commit Conversation Style migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ari-preference-settings.html \
+            ari/profile/ari-user-preference-contract.js \
+            ari/profile/ari-preference-resolver.js \
+            js/ari-preference-settings-controller.js \
+            api/ari-vnext.js \
+            api/_lib/ari-vnext/communication-profile.js
+          if git diff --cached --quiet; then
+            echo "No migration changes found."
+            exit 1
+          fi
+          git commit -m "Make Conversation Style automatic by default"
+          git push origin HEAD:feature/conversation-style-auto-default
