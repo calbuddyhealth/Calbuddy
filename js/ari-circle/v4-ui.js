@@ -1,15 +1,15 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.2.5
+   Version: 5.2.6
 
    The current V5 shell owns Feed · Meet Up · Quests and all shared
-   navigation. This file now exists only to bridge the legacy Profile DOM
-   into that shell without creating a second menu or retired route runtime.
+   navigation. This file bridges the legacy Profile DOM and only loads the
+   remaining compatibility helpers that have no current V5 owner.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.5";
+  const VERSION = "5.2.6";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -17,11 +17,8 @@
   let flowFixesLoaded = false;
   let feedPolishLoaded = false;
   let feedModerationLoaded = false;
-  let momentRepliesLoaded = false;
   let launchSocialLoaded = false;
   let realWorldLoaded = false;
-  let happeningLoaded = false;
-  let profileRealWorldLoaded = false;
 
   const $ = (id) => document.getElementById(id);
   const MESSAGE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.25 3.75 20l.85-3.45A7.9 7.9 0 0 1 3 11.75C3 7.47 6.9 4 11.7 4h.6c4.8 0 8.7 3.47 8.7 7.75s-3.9 7.75-8.7 7.75h-.6A9.5 9.5 0 0 1 7 18.25Z"></path></svg>`;
@@ -189,7 +186,7 @@
   }
 
   function loadModules() {
-    if (!realWorldLoaded) {
+    if (isProfileRoute() && !realWorldLoaded && !window.AriCircleV5RealWorld) {
       realWorldLoaded = true;
       import("/js/ari-circle/v5-real-world.js?v=5.2.2").catch((error) => {
         realWorldLoaded = false;
@@ -226,30 +223,6 @@
       import("/js/ari-circle/feed/feed-moderation.js?v=1.1.0").catch((error) => {
         feedModerationLoaded = false;
         console.warn("ARI Circle feed ownership controls failed to load:", error);
-      });
-    }
-
-    if (!momentRepliesLoaded && document.querySelector(".feed-page")) {
-      momentRepliesLoaded = true;
-      import("/js/ari-circle/feed/moment-replies.js?v=3.0.0").catch((error) => {
-        momentRepliesLoaded = false;
-        console.warn("ARI Circle Moment replies failed to load:", error);
-      });
-    }
-
-    if (!happeningLoaded && document.querySelector(".feed-page")) {
-      happeningLoaded = true;
-      import("/js/ari-circle/feed/happening-v5.js?v=5.2.2").catch((error) => {
-        happeningLoaded = false;
-        console.warn("ARI Circle Happening rail failed to load:", error);
-      });
-    }
-
-    if (!profileRealWorldLoaded && isProfileRoute()) {
-      profileRealWorldLoaded = true;
-      import("/js/ari-circle/profile/profile-v5-real-world.js?v=5.0.0").catch((error) => {
-        profileRealWorldLoaded = false;
-        console.warn("ARI Circle profile Real World XP failed to load:", error);
       });
     }
   }
