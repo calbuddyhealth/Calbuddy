@@ -42,9 +42,7 @@ async function installSupabaseStub(page) {
       upsert() { return q; }, delete() { return q; },
       single() { return Promise.resolve({ data: null, error: null }); },
       maybeSingle() { return Promise.resolve({ data: null, error: null }); },
-      then(resolve, reject) {
-        return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
-      }
+      then(resolve, reject) { return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject); }
     };
     return q;
   }
@@ -58,15 +56,12 @@ async function installSupabaseStub(page) {
     },
     from: () => query(),
     rpc: async (name) => {
-      if (name === "ari_circle_my_age_state") {
-        return { data: adultCircleState, error: null };
-      }
-      if (name === "ari_circle_my_age_band") {
-        return { data: "adult", error: null };
-      }
-      if (name === "ari_circle_current_user_is_adult") {
-        return { data: true, error: null };
-      }
+      if (name === "ari_circle_my_age_state") return { data: adultCircleState, error: null };
+      if (name === "ari_circle_my_age_band") return { data: "adult", error: null };
+      if (name === "ari_circle_current_user_is_adult") return { data: true, error: null };
+      if (name === "ari_circle_list_meetups") return { data: [], error: null };
+      if (name === "ari_circle_xp_summary") return { data: { total_xp: 0, today_xp: 0, week_xp: 0, level: 1, level_progress_xp: 0, verified_meetups: 0, successful_hosts: 0, leadership_tier: "new_host" }, error: null };
+      if (name === "ari_circle_profile_xp_activity") return { data: [], error: null };
       return { data: null, error: null };
     },
     storage: {
@@ -86,46 +81,48 @@ async function installSupabaseStub(page) {
 }
 
 test.describe("ARI Circle premium control drawer", () => {
-  test("opens the simplified glass drawer and survives a legacy V4 rewrite", async ({ page }) => {
+  test("opens Real World Social drawer and installs Feed / Meet Up / Quests dock", async ({ page }) => {
     await installSupabaseStub(page);
     await page.goto(`${BASE_URL}/ari-circle-feed.html`, { waitUntil: "domcontentloaded" });
 
-    await page.waitForFunction(() => Boolean(window.AriCircleMenuV5), null, { timeout: 10000 });
+    await page.waitForFunction(() => Boolean(window.AriCircleMenuV5 && window.AriCircleV5RealWorld), null, { timeout: 10000 });
 
     await page.evaluate(() => {
       document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close?.());
       const feed = document.getElementById("feedPage");
       if (feed) feed.hidden = false;
       window.AriCircleMenuV5?.refresh?.();
+      window.AriCircleV5RealWorld?.refresh?.();
     });
 
     const details = page.locator("details.circle-v4-menu").first();
-    const summary = details.locator("summary");
-    await expect(summary).toBeVisible();
-    await summary.click();
+    await expect(details.locator("summary")).toBeVisible();
+    await details.locator("summary").click();
 
     const panel = details.locator(".circle-v5-menu__panel");
     await expect(panel).toBeVisible();
     await expect(panel.locator(".circle-v5-menu__identity strong")).toHaveText("ARI CIRCLE");
     await expect(panel.locator(".circle-v5-menu__identity small")).toHaveText("Circle controls");
-
     await expect(panel.locator(".circle-v5-menu__label")).toHaveText([
       "Notifications",
-      "Find People",
+      "Profile",
+      "Meet Up",
       "Privacy & Visibility",
       "Circle Safety",
       "Exit ARI Circle"
     ]);
+    await expect(panel.getByText("Find People", { exact: true })).toHaveCount(0);
+    await expect(panel.getByText("Buddies", { exact: true })).toHaveCount(0);
 
-    await expect(panel.getByText("Notification Settings", { exact: true })).toHaveCount(0);
-    await expect(panel.locator(".circle-v5-menu__items small")).toHaveCount(0);
+    const dock = page.locator("#ariCircleV5BottomNav .circle-v5-bottom-nav__dock");
+    await expect(dock).toBeVisible();
+    await expect(dock.locator("a span")).toHaveText(["Feed", "Meet Up", "Quests"]);
+    await expect(dock.locator('a[href="ari-circle-meetup.html"]')).toHaveCount(1);
+    await expect(dock.locator('a[href="ari-circle-quests.html"]')).toHaveCount(1);
 
     const geometry = await panel.evaluate((node) => {
       const style = getComputedStyle(node);
-      return {
-        width: node.getBoundingClientRect().width,
-        radius: parseFloat(style.borderTopLeftRadius || "0")
-      };
+      return { width: node.getBoundingClientRect().width, radius: parseFloat(style.borderTopLeftRadius || "0") };
     });
     expect(geometry.width).toBeGreaterThan(300);
     expect(geometry.radius).toBeGreaterThanOrEqual(28);
@@ -133,15 +130,11 @@ test.describe("ARI Circle premium control drawer", () => {
     await page.evaluate(() => {
       const menu = document.querySelector("details.circle-v4-menu");
       if (!menu) return;
-      menu.innerHTML = `
-        <summary class="feed-icon-button">☰</summary>
-        <nav class="circle-v4-menu__panel">
-          <a href="#"><span>Notifications</span><small>Activity</small></a>
-        </nav>`;
+      menu.innerHTML = `<summary class="feed-icon-button">☰</summary><nav class="circle-v4-menu__panel"><a href="#"><span>Notifications</span><small>Activity</small></a></nav>`;
     });
 
     await expect(details.locator(".circle-v5-menu__identity")).toBeVisible({ timeout: 3000 });
-    await expect(details.locator(".circle-v5-menu__items small")).toHaveCount(0);
+    await expect(panel.getByText("Meet Up", { exact: true })).toBeVisible();
 
     await page.evaluate(() => {
       const dialog = document.createElement("dialog");
@@ -158,10 +151,6 @@ test.describe("ARI Circle premium control drawer", () => {
 
   test("Profile critical data is not blocked by slow social background collections", async ({ page }) => {
     await installSupabaseStub(page);
-
-    // Isolate the preboot accelerator from the legacy Circle engine. The test
-    // assigns a controlled fake AriCircleApp after supabase-config installs its
-    // profile-only setter, then makes every noncritical collection deliberately slow.
     await page.route("**/js/ari-circle/index.js*", async (route) => {
       await route.fulfill({ status: 200, contentType: "application/javascript", body: "export default {};" });
     });
@@ -171,76 +160,29 @@ test.describe("ARI Circle premium control drawer", () => {
 
     const result = await page.evaluate(async () => {
       const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const state = {
-        topFinished: false,
-        loveFinished: false,
-        viewerFinished: false,
-        realtimeRefreshes: 0,
-        topWrites: 0,
-        loveWrites: 0
-      };
-
-      const store = {
-        setTopCircle() { state.topWrites += 1; },
-        setLoveState() { state.loveWrites += 1; }
-      };
-
+      const state = { topFinished: false, loveFinished: false, viewerFinished: false, realtimeRefreshes: 0, topWrites: 0, loveWrites: 0 };
+      const store = { setTopCircle() { state.topWrites += 1; }, setLoveState() { state.loveWrites += 1; } };
       const api = {
-        async resolveProfile() {
-          return { user_id: "profile-user", display_name: "Fast Profile", top_circle_limit: 6 };
-        },
-        async getConnection() {
-          return { id: "connection-1", status: "accepted" };
-        },
-        async getTopCircle() {
-          await delay(240);
-          state.topFinished = true;
-          return [];
-        },
-        async getLove() {
-          await delay(260);
-          state.loveFinished = true;
-          return { items: [], total: 0, hasMore: false };
-        },
-        async loadCircleBundle() {
-          throw new Error("legacy bundle should have been replaced");
-        }
+        async resolveProfile() { return { user_id: "profile-user", display_name: "Fast Profile", top_circle_limit: 6 }; },
+        async getConnection() { return { id: "connection-1", status: "accepted" }; },
+        async getTopCircle() { await delay(240); state.topFinished = true; return []; },
+        async getLove() { await delay(260); state.loveFinished = true; return { items: [], total: 0, hasMore: false }; },
+        async loadCircleBundle() { throw new Error("legacy bundle should have been replaced"); }
       };
-
       const app = {
         state: { ready: false },
         modules: { CircleApi: api, CircleStore: store },
-        async loadViewerData() {
-          await delay(280);
-          state.viewerFinished = true;
-          return { conversations: [], notifications: [], connectionRequests: [], connections: [] };
-        },
-        async connectRealtime() {
-          state.realtimeRefreshes += 1;
-          return true;
-        }
+        async loadViewerData() { await delay(280); state.viewerFinished = true; return { conversations: [], notifications: [], connectionRequests: [], connections: [] }; },
+        async connectRealtime() { state.realtimeRefreshes += 1; return true; }
       };
-
       window.AriCircleApp = app;
-
       const started = performance.now();
-      const bundle = await app.modules.CircleApi.loadCircleBundle({
-        viewerUserId: "viewer-user",
-        profileUserId: "profile-user"
-      });
+      const bundle = await app.modules.CircleApi.loadCircleBundle({ viewerUserId: "viewer-user", profileUserId: "profile-user" });
       const viewerPlaceholder = await app.loadViewerData("viewer-user");
       const criticalElapsed = performance.now() - started;
-
-      // Mimic the legacy boot flipping ready after first paint/realtime setup.
       app.state.ready = true;
       await delay(380);
-
-      return {
-        criticalElapsed,
-        profileName: bundle?.profile?.display_name,
-        placeholderConversations: viewerPlaceholder?.conversations?.length,
-        ...state
-      };
+      return { criticalElapsed, profileName: bundle?.profile?.display_name, placeholderConversations: viewerPlaceholder?.conversations?.length, ...state };
     });
 
     expect(result.profileName).toBe("Fast Profile");
