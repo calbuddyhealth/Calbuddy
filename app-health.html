@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="assets/css/base.css?v=16" />
 <link rel="stylesheet" href="assets/css/app-health.css?v=1.0.0" />
+<link rel="stylesheet" href="assets/css/app-health-v2.css?v=2.0.0" />
 </head>
 <body class="ari-app-health-page">
 <div class="app-health-shell" id="appHealthShell" hidden>
@@ -24,41 +25,44 @@
 
   <main>
     <section class="app-health-hero" aria-labelledby="appHealthTitle">
-      <p class="app-health-eyebrow"><span class="app-health-owner-badge">OWNER</span> &nbsp; ARI XP SYSTEM STATUS</p>
+      <p class="app-health-eyebrow"><span class="app-health-owner-badge">OWNER</span> &nbsp; RELEASE CONTROL CENTER</p>
       <h1 id="appHealthTitle">APP HEALTH</h1>
-      <p class="app-health-subtitle">One place to see whether critical ARI XP checks are passing, whether the iOS build still matches the current app, and whether something needs to be fixed before the next release.</p>
+      <p class="app-health-subtitle">Current-source diagnostics for ARI XP. Green means the checks still cover the current release source and production is serving the expected commit.</p>
 
-      <div class="app-health-status-row">
+      <div class="app-health-v2-statuses">
         <div class="app-health-overall" id="appHealthOverall" data-state="unknown" role="status" aria-live="polite">CHECKING SYSTEMS</div>
-        <button class="app-health-run" id="runBugSweepBtn" type="button">RUN BUG SWEEP</button>
+        <div class="app-health-sweep-state" id="appHealthSweepState" data-state="idle">SWEEP IDLE</div>
       </div>
 
-      <div class="app-health-meta">
-        <span id="appHealthBranch">Branch: —</span>
-        <span id="appHealthCommit">Commit: —</span>
-        <span id="appHealthChecked">Last checked: —</span>
+      <div class="app-health-v2-actions">
+        <button class="app-health-run" id="runSmartSweepBtn" type="button">SMART SWEEP</button>
+        <button class="app-health-run app-health-run-secondary" id="runFullSweepBtn" type="button">FULL RELEASE SWEEP</button>
       </div>
+      <p class="app-health-action-help">Smart Sweep always runs core readiness and skips expensive subsystem checks when no relevant source changed. Full Release Sweep runs everything, including the complete iOS build validation.</p>
+
+      <div class="app-health-meta app-health-v2-meta">
+        <span id="appHealthBranch">Branch: —</span>
+        <span id="appHealthCommit">Main: —</span>
+        <span id="appHealthProductionCommit">Production: —</span>
+        <span id="appHealthChecked">Checked: —</span>
+      </div>
+      <p class="app-health-sweep-detail" id="appHealthSweepDetail">No manual sweep has run yet.</p>
       <p class="app-health-message" id="appHealthMessage" aria-live="polite"></p>
     </section>
 
     <section class="app-health-section" aria-labelledby="appHealthChecksTitle">
       <div class="app-health-section-header">
         <div>
-          <p class="app-health-eyebrow">AUTOMATED CHECKS</p>
+          <p class="app-health-eyebrow">CURRENT RELEASE COVERAGE</p>
           <h2 id="appHealthChecksTitle">Release-critical systems</h2>
         </div>
-        <p>Green = pass · Amber = running/check · Red = fix required</p>
+        <p>Green = current/valid · Amber = retest/check · Red = release blocker</p>
       </div>
 
-      <div class="app-health-grid" id="appHealthGrid">
+      <div class="app-health-grid app-health-v2-grid" id="appHealthGrid">
         <article class="app-health-card" data-workflow-id="readiness" data-state="unknown">
           <div class="app-health-card-top"><h3>ARI XP Readiness</h3><span class="app-health-chip">CHECKING</span></div>
           <p>Node tests and browser smoke tests across critical app surfaces.</p>
-          <div class="app-health-card-meta"><span>Waiting for status…</span></div>
-        </article>
-        <article class="app-health-card" data-workflow-id="ios" data-state="unknown">
-          <div class="app-health-card-top"><h3>iOS Native Validation</h3><span class="app-health-chip">CHECKING</span></div>
-          <p>Safari-to-iOS parity, Capacitor sync, simulator build, and release build.</p>
           <div class="app-health-card-meta"><span>Waiting for status…</span></div>
         </article>
         <article class="app-health-card" data-workflow-id="ari-trust" data-state="unknown">
@@ -66,12 +70,22 @@
           <p>Ari vNext and nutrition trust/data-integrity deterministic tests.</p>
           <div class="app-health-card-meta"><span>Waiting for status…</span></div>
         </article>
+        <article class="app-health-card" data-workflow-id="ios" data-state="unknown">
+          <div class="app-health-card-top"><h3>iOS Native Validation</h3><span class="app-health-chip">CHECKING</span></div>
+          <p>Safari-to-iOS parity, Capacitor sync, simulator build, and release build.</p>
+          <div class="app-health-card-meta"><span>Waiting for status…</span></div>
+        </article>
+        <article class="app-health-card app-health-deployment-card" data-workflow-id="deployment" data-state="unknown">
+          <div class="app-health-card-top"><h3>Production Deployment</h3><span class="app-health-chip">CHECKING</span></div>
+          <p>Confirms that the production Vercel deployment is serving the same commit as current <code>main</code>.</p>
+          <div class="app-health-card-meta"><span>Waiting for deployment parity…</span></div>
+        </article>
       </div>
     </section>
 
     <section class="app-health-note">
       <strong>HOW TO USE THIS</strong>
-      <p>Run the Bug Sweep after major changes and before an iOS build. If a card turns red, treat that area as needing review before release. App Health detects and reports failures; it does not silently rewrite or auto-merge fixes into <code>main</code>.</p>
+      <p>Use <b>Smart Sweep</b> after normal changes. Use <b>Full Release Sweep</b> before an App Store build or after broad changes. A stale check is not treated as a pass if relevant code changed after it. App Health detects and reports failures; it never silently edits or merges production code.</p>
     </section>
   </main>
 </div>
@@ -88,6 +102,6 @@
 <script src="supabase-config.js?v=10"></script>
 <script src="js/auth.js?v=1.10.17"></script>
 <script src="calbuddy-core.js?v=3.6.4"></script>
-<script src="js/app-health.js?v=1.0.0"></script>
+<script src="js/app-health.js?v=2.0.0"></script>
 </body>
 </html>

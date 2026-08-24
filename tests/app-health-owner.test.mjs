@@ -78,6 +78,7 @@ test("App Health is prominent for the owner but hidden by default from normal us
   assert.match(nav, /nav\.hidden = false/);
 
   assert.match(page, /OWNER DIAGNOSTICS/);
-  assert.match(page, /RUN BUG SWEEP/);
+  assert.match(page, /SMART SWEEP/);
+  assert.match(page, /FULL RELEASE SWEEP/);
   assert.match(page, /App Health detects and reports failures/);
 });

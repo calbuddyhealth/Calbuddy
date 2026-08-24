@@ -1,0 +1,110 @@
+.app-health-v2-statuses {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.app-health-sweep-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(91, 108, 150, 0.2);
+  background: rgba(241, 244, 251, 0.92);
+  color: #5f6d8e;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.app-health-sweep-state[data-state="running"] {
+  color: #96620b;
+  background: rgba(217, 146, 23, 0.09);
+  border-color: rgba(217, 146, 23, 0.22);
+}
+
+.app-health-sweep-state[data-state="passed"] {
+  color: #087552;
+  background: rgba(26, 166, 116, 0.09);
+  border-color: rgba(26, 166, 116, 0.2);
+}
+
+.app-health-sweep-state[data-state="failed"] {
+  color: #a72d3d;
+  background: rgba(215, 66, 85, 0.09);
+  border-color: rgba(215, 66, 85, 0.22);
+}
+
+.app-health-v2-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.app-health-v2-actions .app-health-run {
+  width: 100%;
+}
+
+.app-health-run-secondary {
+  background: rgba(255, 255, 255, 0.82);
+  color: #284eaa;
+  border: 1px solid rgba(55, 92, 186, 0.25);
+  box-shadow: 0 12px 28px rgba(50, 73, 139, 0.12);
+}
+
+.app-health-action-help,
+.app-health-sweep-detail {
+  margin: 10px 0 0;
+  color: #677797;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.app-health-sweep-detail {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.app-health-v2-meta {
+  padding-top: 4px;
+}
+
+.app-health-v2-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-health-card[data-state="stale"] .app-health-chip {
+  background: rgba(217, 146, 23, 0.11);
+  color: #96620b;
+}
+
+.app-health-card[data-state="stale"] {
+  border-color: rgba(217, 146, 23, 0.34);
+  background: rgba(255, 250, 238, 0.86);
+}
+
+.app-health-card[data-state="failed"] {
+  border-color: rgba(215, 66, 85, 0.32);
+  background: rgba(255, 246, 247, 0.9);
+}
+
+.app-health-deployment-card code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78em;
+}
+
+.app-health-message.warning {
+  color: #96620b;
+}
+
+@media (max-width: 780px) {
+  .app-health-v2-grid,
+  .app-health-v2-actions {
+    grid-template-columns: 1fr;
+  }
+}
