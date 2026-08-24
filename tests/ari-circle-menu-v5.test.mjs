@@ -76,7 +76,7 @@ test("Feed, Meet Up, and Quests use the same shared navigation and final CSS aut
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
-    assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.0"/);
+    assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.1"/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.3"/);
@@ -99,6 +99,7 @@ test("Profile compatibility shell is profile-only and never owns drawer markup",
   assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
   assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
   assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
+  assert.match(profileCompat, /v5-real-world\.js\?v=5\.2\.3/);
   assert.doesNotMatch(profileCompat, /circleMenuMarkup/);
   assert.doesNotMatch(profileCompat, /challenge-video-web-fix/);
   assert.doesNotMatch(profileCompat, /ari-circle-partners\.html/);
