@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const $ = (id) => document.getElementById(id);
   const TIER = Object.freeze({
     new_host: "New Host", organizer: "Organizer", active_host: "Active Host",
@@ -132,8 +132,12 @@
       ? ""
       : `This room becomes archived after ${archiveAt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`;
 
-    $("meetupRoomPage").hidden = false;
-    $("meetupRoomLoading").hidden = true;
+    const page = $("meetupRoomPage");
+    const loader = $("meetupRoomLoading");
+    const firstReveal = page.hidden;
+    loader.hidden = true;
+    page.hidden = false;
+    if (firstReveal) requestAnimationFrame(() => window.scrollTo(0, 0));
   }
 
   function renderMeetingPoint() {
