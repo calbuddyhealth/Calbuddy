@@ -681,6 +681,40 @@ function handleAriEnter(event) {
   }
 }
 
+function renderSafeAriMessageText(container, value = "") {
+  if (!container) return;
+
+  container.textContent = "";
+  const lines = String(value ?? "").replace(/\r\n?/g, "\n").split("\n");
+
+  lines.forEach((line, lineIndex) => {
+    if (lineIndex > 0) container.appendChild(document.createElement("br"));
+    appendSafeAriInlineText(container, line);
+  });
+}
+
+function appendSafeAriInlineText(container, line = "") {
+  const value = String(line ?? "");
+  const pattern = /\*\*([^*\n]+)\*\*/g;
+  let cursor = 0;
+  let match = null;
+
+  while ((match = pattern.exec(value))) {
+    if (match.index > cursor) {
+      container.appendChild(document.createTextNode(value.slice(cursor, match.index)));
+    }
+
+    const strong = document.createElement("strong");
+    strong.textContent = match[1];
+    container.appendChild(strong);
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < value.length) {
+    container.appendChild(document.createTextNode(value.slice(cursor)));
+  }
+}
+
 function addAriMessage(text, sender = "ari") {
   const messages = document.getElementById("ariMessages");
   if (!messages) return null;
@@ -696,7 +730,7 @@ function addAriMessage(text, sender = "ari") {
   label.textContent = sender === "user" ? "You" : "Ari";
 
   const body = document.createElement("p");
-  body.textContent = text;
+  renderSafeAriMessageText(body, text);
 
   div.appendChild(label);
   div.appendChild(body);
