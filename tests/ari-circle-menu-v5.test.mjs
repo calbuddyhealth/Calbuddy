@@ -79,9 +79,10 @@ test("Feed, Meet Up, and Quests use the same shared navigation shell", () => {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
     assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.0"/);
-    assert.match(html, /ari-circle-v5-minimal-premium\.css\?v=5\.2\.3/);
+    assert.match(html, /ari-circle-v5-minimal-premium\.css\?v=5\.2\.4/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.2"/);
   }
+  assert.match(feedHtml, /js\/ari-circle\/v4-ui\.js\?v=5\.2\.3/);
 });
 
 
