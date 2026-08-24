@@ -2,7 +2,7 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.5.0";
+export const CONTINUITY_SERVICE_VERSION = "1.6.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
@@ -13,7 +13,13 @@ export async function hydrateRecentConversation({ userId, conversationId = null,
   const safeUserId = clean(userId, 200);
   const safeConversationId = conversationUuid(conversationId);
   const existing = normalizeHistory(history);
-  if (!safeUserId || existing.length >= 4) return { history: existing, hydratedPairs: 0 };
+
+  // Server continuity is thread-scoped. Never fall back to "latest turns for this
+  // user" when the caller has no valid conversation id because that can blend
+  // two intentionally separate conversations together.
+  if (!safeUserId || !safeConversationId || existing.length >= 4) {
+    return { history: existing, hydratedPairs: 0 };
+  }
 
   const config = supabaseConfig();
   if (!config) return { history: existing, hydratedPairs: 0 };
@@ -22,12 +28,11 @@ export async function hydrateRecentConversation({ userId, conversationId = null,
     const params = new URLSearchParams({
       select: "user_message,assistant_message,created_at",
       user_id: `eq.${safeUserId}`,
+      conversation_id: `eq.${safeConversationId}`,
       expires_at: `gt.${new Date().toISOString()}`,
       order: "created_at.desc",
       limit: String(Math.max(1, Math.min(6, Number(limitPairs) || 4)))
     });
-
-    if (safeConversationId) params.set("conversation_id", `eq.${safeConversationId}`);
 
     const response = await timedFetch(`${config.url}/rest/v1/ari_conversation_turns?${params.toString()}`, {
       headers: serverHeaders(config.key)
@@ -85,7 +90,7 @@ export async function persistConversationTurn({ userId, turnId = null, conversat
     // harmless; treat duplicate-key persistence as already stored.
     const stored = response.ok || (response.status === 409 && Boolean(safeTurnId));
     if (stored && safeConversationId) {
-      await upsertChatSession({
+      await syncChatSession({
         config,
         userId: safeUserId,
         conversationId: safeConversationId,
@@ -203,28 +208,54 @@ export async function persistDurableMemory({ userId, message, history = [], rout
   }
 }
 
-async function upsertChatSession({ config, userId, conversationId, message, reply } = {}) {
+async function syncChatSession({ config, userId, conversationId, message, reply } = {}) {
   if (!config || !userId || !conversationId) return false;
   const now = new Date().toISOString();
-  const params = new URLSearchParams({ on_conflict: "id" });
-  const title = conversationTitle(message);
+  const preview = clean(reply || message, 150);
+
   try {
-    const response = await timedFetch(`${config.url}/rest/v1/ari_chat_sessions?${params.toString()}`, {
-      method: "POST",
-      headers: serverHeaders(config.key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
+    // Update only a row that is already owned by this authenticated user. Never
+    // use a service-role upsert on client-supplied id alone; that could reassign
+    // another user's session if a UUID were guessed or replayed.
+    const updateParams = new URLSearchParams({
+      id: `eq.${conversationId}`,
+      user_id: `eq.${userId}`,
+      select: "id"
+    });
+    const updateResponse = await timedFetch(`${config.url}/rest/v1/ari_chat_sessions?${updateParams.toString()}`, {
+      method: "PATCH",
+      headers: serverHeaders(config.key, { Prefer: "return=representation" }),
       body: JSON.stringify({
-        id: conversationId,
-        user_id: userId,
-        title,
-        preview: clean(reply || message, 150),
+        preview,
         status: "active",
         updated_at: now,
         last_message_at: now
       })
     }, WRITE_TIMEOUT_MS);
-    return response.ok;
+
+    if (updateResponse.ok) {
+      const rows = await updateResponse.json().catch(() => []);
+      if (Array.isArray(rows) && rows.length > 0) return true;
+    }
+
+    // No owned row exists. Insert a new one. A primary-key collision with a row
+    // owned by somebody else fails safely instead of changing ownership.
+    const insertResponse = await timedFetch(`${config.url}/rest/v1/ari_chat_sessions`, {
+      method: "POST",
+      headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        id: conversationId,
+        user_id: userId,
+        title: conversationTitle(message),
+        preview,
+        status: "active",
+        updated_at: now,
+        last_message_at: now
+      })
+    }, WRITE_TIMEOUT_MS);
+    return insertResponse.ok;
   } catch (error) {
-    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Chat session upsert failed:", error?.message || error);
+    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Chat session sync failed:", error?.message || error);
     return false;
   }
 }

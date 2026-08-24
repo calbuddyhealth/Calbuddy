@@ -1,8 +1,16 @@
 // ARI vNext — authoritative user/profile context resolver.
 // Live account/profile state outranks browser cache and learned world-model copies.
 
-export const ARI_AUTHORITATIVE_CONTEXT_VERSION = "1.1.0";
+export const ARI_AUTHORITATIVE_CONTEXT_VERSION = "1.2.0";
 const READ_TIMEOUT_MS = 900;
+const USER_PROFILE_FIELDS = ["displayName", "age", "dateOfBirth", "sex", "height", "activityLevel"];
+const GOAL_PROFILE_FIELDS = ["dailyGoal", "currentWeight", "goalWeight", "goalType", "weeklyWeightChangeGoal", "activityLevel"];
+const WORLD_MODEL_VOLATILE_GOAL_FIELDS = [
+  ...GOAL_PROFILE_FIELDS,
+  "caloriesConsumed",
+  "caloriesBurned",
+  "caloriesLeft"
+];
 
 export async function mergeAuthoritativeAriContext({ userId, context = {} } = {}) {
   const id = clean(userId, 200);
@@ -29,7 +37,8 @@ export async function mergeAuthoritativeAriContext({ userId, context = {} } = {}
           version: ARI_AUTHORITATIVE_CONTEXT_VERSION,
           source: "client_fallback",
           profileLoaded: false,
-          accountStateLoaded: false
+          accountStateLoaded: false,
+          volatileFieldsAreLive: false
         }
       },
       profileLoaded: false,
@@ -52,33 +61,45 @@ export async function mergeAuthoritativeAriContext({ userId, context = {} } = {}
   const displayName = firstValue(profile?.display_name, profile?.name);
   const weeklyWeightChangeGoal = firstFinite(profile?.weekly_weight_change_goal);
 
-  const authoritativeUser = compact({
-    id,
+  const authoritativeUser = {
     displayName,
     age: authoritativeAge,
     dateOfBirth: birthDate,
     sex,
     height,
     activityLevel
-  });
-  const authoritativeGoals = compact({
+  };
+  const authoritativeGoals = {
     dailyGoal,
     currentWeight,
     goalWeight,
     goalType,
     weeklyWeightChangeGoal,
     activityLevel
-  });
+  };
 
-  const mergedUser = { ...incomingUser, ...authoritativeUser, id };
-  const mergedGoals = { ...incomingGoals, ...authoritativeGoals };
+  let mergedUser = { ...incomingUser, id };
+  let mergedGoals = { ...incomingGoals };
+
+  if (profileLoaded) {
+    mergedUser = replaceFields(mergedUser, authoritativeUser, USER_PROFILE_FIELDS);
+    mergedGoals = replaceFields(mergedGoals, authoritativeGoals, GOAL_PROFILE_FIELDS);
+  } else if (accountStateLoaded) {
+    mergedUser = replaceFields(mergedUser, {
+      age: authoritativeAge,
+      dateOfBirth: birthDate
+    }, ["age", "dateOfBirth"]);
+  }
+  mergedUser.id = id;
 
   // caloriesLeft may have been computed with a stale client-side daily target.
-  // Recompute it only when all components are available; otherwise preserve the
-  // live ledger value already supplied by the client.
+  // Recompute it only when all components are available. If the authoritative
+  // profile has no target, remove the stale derived value instead of preserving it.
   const consumed = finiteOrNull(incomingGoals.caloriesConsumed);
   const burned = finiteOrNull(incomingGoals.caloriesBurned);
-  if (dailyGoal !== null && consumed !== null && burned !== null) {
+  if (profileLoaded && dailyGoal === null) {
+    delete mergedGoals.caloriesLeft;
+  } else if (dailyGoal !== null && consumed !== null && burned !== null) {
     mergedGoals.caloriesLeft = Math.max(dailyGoal - consumed + burned, 0);
   }
 
@@ -89,11 +110,13 @@ export async function mergeAuthoritativeAriContext({ userId, context = {} } = {}
       goals: mergedGoals,
       authoritativeContext: {
         version: ARI_AUTHORITATIVE_CONTEXT_VERSION,
-        source: "supabase_profile",
+        source: profileLoaded ? "supabase_profile" : "supabase_account_state",
         profileLoaded,
         accountStateLoaded,
         ageSource: computedAge !== null ? "account_or_profile_birth_date" : authoritativeAge !== null ? "profile_age" : null,
-        volatileFieldsAreLive: true,
+        volatileFieldsAreLive: profileLoaded,
+        authoritativeUserFields: profileLoaded ? USER_PROFILE_FIELDS : ["age", "dateOfBirth"],
+        authoritativeGoalFields: profileLoaded ? GOAL_PROFILE_FIELDS : [],
         precedence: [
           "live_profile_and_account_state",
           "current_conversation",
@@ -118,16 +141,23 @@ export function reconcileWorldModelWithAuthoritativeContext(model = null, contex
   const next = clone(model);
   const liveUser = object(context?.user);
   const liveGoals = object(context?.goals);
-  next.identity = { ...object(next.identity), ...liveUser };
-  next.goals = {
-    ...object(next.goals),
-    current: { ...object(next.goals?.current), ...liveGoals }
-  };
+
+  if (metadata.profileLoaded === true) {
+    next.identity = replaceFields(object(next.identity), liveUser, ["id", ...USER_PROFILE_FIELDS]);
+    next.goals = {
+      ...object(next.goals),
+      current: replaceFields(object(next.goals?.current), liveGoals, WORLD_MODEL_VOLATILE_GOAL_FIELDS)
+    };
+  } else {
+    next.identity = replaceFields(object(next.identity), liveUser, ["id", "age", "dateOfBirth"]);
+  }
+
   next.sourceSummary = {
     ...object(next.sourceSummary),
-    profile: true,
+    profile: metadata.profileLoaded === true || Boolean(next.sourceSummary?.profile),
     authoritativeProfileReconciled: true,
-    authoritativeContextVersion: ARI_AUTHORITATIVE_CONTEXT_VERSION
+    authoritativeContextVersion: ARI_AUTHORITATIVE_CONTEXT_VERSION,
+    volatileAppStateSource: "live_context_not_learned_truth"
   };
   return next;
 }
@@ -184,6 +214,25 @@ function ageFromDateOfBirth(value) {
   return Number.isInteger(age) && age >= 0 && age <= 130 ? age : null;
 }
 
+function replaceFields(target = {}, source = {}, fields = []) {
+  const next = object(target);
+  const input = source && typeof source === "object" && !Array.isArray(source) ? source : {};
+  for (const field of fields) {
+    const value = input[field];
+    if (value === null || value === undefined || value === "") {
+      delete next[field];
+    } else {
+      next[field] = cloneValue(value);
+    }
+  }
+  return next;
+}
+
+function cloneValue(value) {
+  if (value === null || typeof value !== "object") return value;
+  try { return JSON.parse(JSON.stringify(value)); } catch { return value; }
+}
+
 function firstFinite(...values) {
   for (const value of values) {
     const number = finiteOrNull(value);
@@ -204,12 +253,6 @@ function firstValue(...values) {
     if (text) return text;
   }
   return null;
-}
-
-function compact(value = {}) {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== null && item !== undefined && item !== "")
-  );
 }
 
 function object(value) {
