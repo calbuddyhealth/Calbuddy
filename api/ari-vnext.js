@@ -177,6 +177,7 @@ export default async function handler(req, res) {
 
     const routePreview = routeContext(turn);
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
+    const shouldLoadConversationLearning = !casualConversation || cleanText(turn.message, 2000).length >= 12;
     const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || cognitiveLoopEnabled));
     const strategyPreparationPromise = cognitiveLoopEnabled
       ? prepareAdaptiveStrategiesForTurn({
@@ -215,8 +216,8 @@ export default async function handler(req, res) {
       fitnessRoute
         ? listRecentDecisions({ userId: auth.userId, limit: 12 })
         : Promise.resolve([]),
-      fitnessRoute
-        ? listCommunicationOutcomes({ userId: auth.userId, limit: 24 })
+      shouldLoadConversationLearning
+        ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })
         : Promise.resolve([]),
       casualConversation
         ? Promise.resolve(null)
@@ -252,7 +253,9 @@ export default async function handler(req, res) {
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
     const decisionState = fitnessRoute ? summarizeDecisionState(recentDecisions) : null;
-    const communicationLearning = fitnessRoute ? summarizeCommunicationLearning(communicationOutcomes) : null;
+    const communicationLearning = communicationOutcomes.length
+      ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })
+      : null;
     const temporalTimeline = fitnessRoute
       ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
       : null;
@@ -357,9 +360,12 @@ export default async function handler(req, res) {
           experimentLedger
         })
       : null;
-    const communicationExposure = fitnessRoute
-      ? buildCommunicationExposure({ turnId: turn.turnId, route: result?.route || routePreview, result })
-      : null;
+    const communicationExposure = buildCommunicationExposure({
+      turnId: turn.turnId,
+      route: result?.route || routePreview,
+      result,
+      turn
+    });
 
     const usageTask = result?.provider?.usage
       ? recordOpenAIUsage({
@@ -480,13 +486,14 @@ export default async function handler(req, res) {
     const decisionJournalTask = decisionRecord
       ? recordDecision({ userId: auth.userId, record: decisionRecord })
       : Promise.resolve({ stored: false, reason: "not_significant" });
-    const communicationResolutionTask = fitnessRoute
+    const communicationResolutionTask = shouldLoadConversationLearning
       ? resolveCommunicationOutcomes({
           userId: auth.userId,
           longitudinalState: result?.longitudinalState || null,
-          message: turn.message
+          message: turn.message,
+          rows: communicationOutcomes
         })
-      : Promise.resolve({ resolved: 0 });
+      : Promise.resolve({ resolved: 0, signal: null });
     const communicationExposureTask = communicationExposure
       ? recordCommunicationExposure({ userId: auth.userId, exposure: communicationExposure })
       : Promise.resolve({ stored: false, reason: "not_significant" });

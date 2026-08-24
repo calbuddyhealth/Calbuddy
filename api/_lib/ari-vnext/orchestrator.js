@@ -3,7 +3,7 @@
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
-import { communicationProfileToInstruction, resolveCommunicationProfile } from "./communication-profile.js";
+import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { evaluateExperimentSnapshot } from "./experiment-ledger.js";
@@ -25,7 +25,12 @@ const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.co
 export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
   const safety = classifySafety(turn, route);
-  const communication = resolveCommunicationProfile(turn?.preferences);
+  const communication = resolvePersonalizedCommunicationProfile({
+    preferences: turn?.preferences || {},
+    learning: turn?.context?.communicationLearning || null,
+    message: turn?.message || "",
+    safety
+  });
   const relationshipContinuity = deriveRelationshipContinuity({
     userWorldModel: turn?.context?.userWorldModel || null,
     decisionState: turn?.context?.decisionState || null,
