@@ -4,79 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f8faff" />
-  <title>Buddies | ARI Circle</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/ari-circle-partners.css?v=1.0.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-v4.css?v=4.0.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-v4-polish.css?v=4.1.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-buddies-v2.css?v=2.1.0" />
+  <meta http-equiv="refresh" content="0; url=ari-circle-meetup.html" />
+  <title>Meet Up | ARI Circle</title>
+  <script>
+    (() => {
+      const target = `ari-circle-meetup.html${window.location.search || ""}${window.location.hash || ""}`;
+      window.location.replace(target);
+    })();
+  </script>
 </head>
 <body>
-  <main class="partner-page" id="partnerPage" hidden>
-    <header class="partner-header">
-      <details class="circle-v4-menu"><summary class="partner-icon-button" aria-label="Open Circle menu">☰</summary><nav class="circle-v4-menu__panel" aria-label="Circle menu"><a href="ari-circle.html?panel=notifications"><span>Notifications</span><small>Activity</small></a><a href="ari-circle-partners.html"><span>Find People</span><small>Buddies</small></a><div class="circle-v4-menu__divider"></div><a href="account.html"><span>Account Settings</span><small>Privacy</small></a><a href="help-safety.html"><span>Circle Safety</span><small>Help</small></a><div class="circle-v4-menu__divider"></div><a href="home.html"><span>Exit ARI Circle</span><small>ARI XP</small></a></nav></details>
-      <a class="partner-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed"><span class="partner-brand__mark" aria-hidden="true"><i></i><i></i></span><span>ARI CIRCLE</span></a>
-      <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
-    </header>
-
-    <nav class="partner-tabs" aria-label="ARI Circle sections"><a class="partner-tab" href="ari-circle-feed.html">Feed</a><a class="partner-tab" href="ari-circle.html">Profile</a><button type="button" class="partner-tab is-active" aria-current="page">Buddies</button><a class="partner-tab" href="ari-circle-challenges.html">Challenges</a></nav>
-
-    <section class="buddy-discovery-head" aria-labelledby="partnerTitle">
-      <p class="partner-kicker">BUDDIES</p>
-      <h1 id="partnerTitle">What sounds good?</h1>
-      <div class="partner-activity-strip buddy-activity-tiles" id="activityStrip" role="list" aria-label="Buddy activity filters">
-        <button class="partner-chip is-active" type="button" data-activity=""><span>✦</span>All</button>
-        <button class="partner-chip" type="button" data-activity="coffee"><span>☕</span>Coffee</button>
-        <button class="partner-chip" type="button" data-activity="food"><span>🍴</span>Food</button>
-        <button class="partner-chip" type="button" data-activity="movies"><span>🎬</span>Movies</button>
-        <button class="partner-chip" type="button" data-activity="gaming"><span>🎮</span>Gaming</button>
-        <button class="partner-chip" type="button" data-activity="gym"><span>🏋️</span>Gym</button>
-        <button class="partner-chip buddy-more-chip" type="button" data-more-activities><span>＋</span>More</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="events" hidden><span>🎟️</span>Events</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="concerts" hidden><span>🎵</span>Concerts</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="drinks" data-adult-only hidden><span>🍸</span>Drinks</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="hiking" hidden><span>🥾</span>Hiking</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="running" hidden><span>🏃</span>Running</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="cycling" hidden><span>🚴</span>Cycling</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="sports" hidden><span>🏀</span>Sports</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="walking" hidden><span>🚶</span>Walking</button>
-        <button class="partner-chip buddy-extra-activity" type="button" data-activity="accountability" hidden><span>⚡</span>Accountability</button>
-      </div>
-    </section>
-
-    <section class="partner-own-listing buddy-own-listing" id="ownListingSection" hidden>
-      <div class="partner-section-heading"><div><p class="partner-kicker">YOUR LISTING</p></div><button class="partner-text-button" id="editIntentButton" type="button">Edit</button></div>
-      <div id="ownListingCard"></div>
-    </section>
-
-    <section class="partner-invites" id="invitesSection" hidden><div class="partner-section-heading"><div><p class="partner-kicker">NEW INVITES</p><h2>People reaching out <span id="inviteCount"></span></h2></div></div><div id="inviteList" class="partner-invite-list"></div></section>
-
-    <section class="partner-discover buddy-discover" aria-labelledby="discoverTitle">
-      <div class="partner-section-heading"><div><p class="partner-kicker">NEAR YOU</p><h2 id="discoverTitle">Find a Buddy</h2></div><button class="partner-primary buddy-listing-button" id="openIntentButton" type="button">+ My listing</button></div>
-      <form class="partner-search" id="partnerSearchForm" role="search"><div class="partner-search__row"><input id="partnerAreaSearch" aria-label="General area" type="search" maxlength="80" autocomplete="address-level2" placeholder="San Diego, North Park, etc." /><button class="partner-secondary" type="submit">Find</button></div></form>
-      <div class="partner-result-meta"><p id="partnerResultStatus" role="status" aria-live="polite">Finding people…</p><button class="partner-text-button" id="refreshPartnersButton" type="button">Refresh</button></div>
-      <div id="partnerList" class="partner-list" aria-live="polite"></div>
-      <div id="partnerEmpty" class="partner-empty buddy-empty" hidden><span aria-hidden="true">◎</span><h3>No matches yet</h3><p>Try another activity or area.</p><button class="partner-primary" id="emptyCreateButton" type="button">+ Post what I’m looking for</button></div>
-    </section>
-
-    <button class="buddy-privacy-link" type="button" id="buddyPrivacyButton">ⓘ Privacy</button>
-  </main>
-
-  <section class="partner-loading" id="partnerLoading" aria-live="polite"><div class="partner-loading__orb" aria-hidden="true"></div><strong>Opening Buddies</strong></section>
-
-  <dialog class="partner-dialog" id="ageDialog"><form class="partner-dialog__card" id="ageForm"><p class="partner-kicker">ONE-TIME SAFETY CHECK</p><h2>Verify your age</h2><p>Your date of birth stays private. We use it to keep adult and teen Buddy discovery separated.</p><label class="partner-field" for="ageDateInput"><span>Date of birth</span><input id="ageDateInput" type="date" autocomplete="bday" required /></label><p class="partner-inline-note">Your birth date is not shown on your profile.</p><button class="partner-primary partner-full" id="verifyAgeButton" type="submit">Continue</button></form></dialog>
-
-  <dialog class="partner-dialog partner-sheet" id="intentDialog"><form class="partner-dialog__card" id="intentForm"><button class="partner-close" type="button" data-close-dialog="intentDialog" aria-label="Close">×</button><p class="partner-kicker">YOUR LISTING</p><h2>What sounds fun?</h2><label class="partner-field" for="intentActivity"><span>Plan</span><select id="intentActivity" required><option value="coffee">Coffee</option><option value="food">Food</option><option value="movies">Movies</option><option value="gaming">Gaming</option><option value="events">Event</option><option value="concerts">Concert</option><option value="drinks" data-adult-only>Drinks / Bar</option><option value="gym">Gym</option><option value="hiking">Hiking</option><option value="running">Running</option><option value="cycling">Cycling</option><option value="sports">Sports</option><option value="walking">Walking</option><option value="accountability">Accountability</option><option value="other">Something else</option></select></label><fieldset class="partner-fieldset" id="modeFieldset"><legend>Connect</legend><label><input type="radio" name="intentMode" value="one_on_one" checked /><span>1-on-1</span></label><label><input type="radio" name="intentMode" value="group" /><span>Group</span></label></fieldset><input id="intentExperience" type="hidden" value="any" /><label class="partner-field" for="intentArea"><span>General area</span><input id="intentArea" type="text" maxlength="80" autocomplete="address-level2" placeholder="Example: San Diego" required /></label><fieldset class="partner-time-grid"><legend>Available</legend><label><input type="checkbox" name="intentTime" value="morning" /><span>Morning</span></label><label><input type="checkbox" name="intentTime" value="afternoon" /><span>Afternoon</span></label><label><input type="checkbox" name="intentTime" value="evening" /><span>Evening</span></label><label><input type="checkbox" name="intentTime" value="weekdays" /><span>Weekdays</span></label><label><input type="checkbox" name="intentTime" value="weekends" /><span>Weekends</span></label><label><input type="checkbox" name="intentTime" value="flexible" /><span>Flexible</span></label></fieldset><label class="partner-field" for="intentNote"><span>Short note <small>optional</small></span><textarea id="intentNote" maxlength="280" rows="3" placeholder="What would make this fun?"></textarea></label><div class="partner-teen-note" id="teenIntentNote" hidden>Teen Buddies is for online group or accountability connections. Keep your area broad and do not share exact locations, contact information, links, or off-app handles.</div><button class="partner-primary partner-full" id="saveIntentButton" type="submit">Post listing</button></form></dialog>
-
-  <dialog class="partner-dialog partner-sheet" id="inviteDialog"><div class="partner-dialog__card"><button class="partner-close" type="button" data-close-dialog="inviteDialog" aria-label="Close">×</button><p class="partner-kicker">SAY HEY</p><h2 id="inviteDialogTitle">Start easy</h2><p id="inviteDialogDescription">Pick a starter.</p><div class="partner-starters" id="starterList"><button type="button" data-starter="same_schedule">Looks like our schedules match</button><button type="button" data-starter="this_week">Want to connect sometime this week?</button><button type="button" data-starter="accountability">I’m looking for accountability too</button><button type="button" data-starter="say_hey">Hey — this sounds fun</button></div><p class="partner-inline-note">A DM opens after they accept. Teen accounts stay inside Teen Circle safety rules.</p></div></dialog>
-
-  <dialog class="partner-dialog partner-sheet" id="matchDialog"><div class="partner-dialog__card partner-match-card"><span class="partner-match-symbol" aria-hidden="true">✦</span><p class="partner-kicker">YOU CONNECTED</p><h2>Say hey.</h2><p id="matchDialogText">You’re both interested.</p><a class="partner-primary partner-full" href="ari-circle-messages.html">Message</a><button class="partner-secondary partner-full" type="button" data-close-dialog="matchDialog">Not now</button></div></dialog>
-
-  <dialog class="partner-dialog partner-sheet" id="privacyDialog"><div class="partner-dialog__card"><button class="partner-close" type="button" data-close-dialog="privacyDialog" aria-label="Close">×</button><p class="partner-kicker">PRIVACY</p><h2>Private by design</h2><p>Adult Buddies can use a rounded approximate location for 25, 50, or 100 mile discovery. Exact coordinates are never shown to other users, and general-area search remains available without location permission. Teen Buddies stays interest-based and does not use or return a real location; exact locations and off-app contact details are blocked.</p><button class="partner-primary partner-full" type="button" data-close-dialog="privacyDialog">Got it</button></div></dialog>
-
-  <div class="partner-toast" id="partnerToast" role="status" aria-live="polite" hidden></div>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js?v=1.1.0"></script><script src="js/ari-circle/content-moderation.js?v=1.4.0" defer></script><script src="js/ari-circle/partners/partner-finder.js?v=1.1.0" defer></script><script src="js/ari-circle/partners/partner-listing-remove.js?v=1.0.0" defer></script><script src="js/ari-circle/partners/buddies-discovery-ui.js?v=1.2.0" defer></script><script src="js/ari-circle/v4-ui.js?v=4.6.2" defer></script>
+  <noscript><a href="ari-circle-meetup.html">Open ARI Circle Meet Up</a></noscript>
 </body>
 </html>
