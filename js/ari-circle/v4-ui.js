@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.3.0
+   Version: 5.3.1
 
    Feed · Meet Up · Quests use the current V5 runtime directly. This file
    exists only to bridge the legacy Profile DOM into the shared V5 shell.
@@ -8,9 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.3.0";
+  const VERSION = "5.3.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
+  const VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority.css";
   let appReady = false;
   let panelHandled = false;
   let visitorControlsLoaded = false;
@@ -40,7 +41,16 @@
   function ensureStyles() {
     ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
     ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
-    ensureStyle("ari-circle-v5-real-world-style", "assets/css/ari-circle-v5-real-world.css?v=5.0.0");
+    // The shared V5 shell owns ari-circle-v5-real-world.css and its light
+    // Pearl/Premium/Visual Authority stack. Do not append the dark base CSS
+    // again here; doing so after Visual Authority makes Profile dark-only.
+  }
+
+  function promoteV5VisualAuthority() {
+    const authority = document.querySelector(`link[rel="stylesheet"][href*="${VISUAL_AUTHORITY_MATCH}"]`);
+    if (!authority || authority.parentElement !== document.head) return false;
+    if (authority !== document.head.lastElementChild) document.head.append(authority);
+    return true;
   }
 
   function standardizeMenus() {
@@ -179,12 +189,20 @@
   }
 
   function loadModules() {
-    if (!realWorldLoaded && !window.AriCircleV5RealWorld) {
+    if (window.AriCircleV5RealWorld) {
+      window.AriCircleV5RealWorld.refresh?.();
+      promoteV5VisualAuthority();
+    } else if (!realWorldLoaded) {
       realWorldLoaded = true;
-      import("/js/ari-circle/v5-real-world.js?v=5.2.3").catch((error) => {
-        realWorldLoaded = false;
-        console.warn("ARI Circle V5 Real World shell failed to load:", error);
-      });
+      import("/js/ari-circle/v5-real-world.js?v=5.2.3")
+        .then(() => {
+          window.AriCircleV5RealWorld?.refresh?.();
+          promoteV5VisualAuthority();
+        })
+        .catch((error) => {
+          realWorldLoaded = false;
+          console.warn("ARI Circle V5 Real World shell failed to load:", error);
+        });
     }
 
     if (!visitorControlsLoaded && !window.AriCircleProfileVisitorControls) {
@@ -199,11 +217,12 @@
   function run() {
     if (!isProfileRoute()) return;
     ensureStyles();
+    loadModules();
+    promoteV5VisualAuthority();
     standardizeMenus();
     standardizeMessages();
     simplifyProfile();
     cleanProfileEditorLabels();
-    loadModules();
     openRequestedPanel();
   }
 
@@ -216,6 +235,11 @@
     appReady = true;
     run();
     setTimeout(run, 120);
+  });
+
+  document.addEventListener("ari-circle:v5-real-world-ready", () => {
+    promoteV5VisualAuthority();
+    standardizeMenus();
   });
 
   window.AriCircleV4 = Object.freeze({ version: VERSION, refresh: run });
