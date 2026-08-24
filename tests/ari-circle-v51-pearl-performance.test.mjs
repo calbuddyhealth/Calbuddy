@@ -96,7 +96,7 @@ test("primary Circle pages pin the adult-gated menu asset before shared bootstra
     const menuIndex = html.indexOf('id="ariCircleMenuV5Script"');
     const configIndex = html.indexOf('src="supabase-config.js');
     assert.ok(menuIndex >= 0, "page should pin the shared Circle menu asset");
-    assert.match(html, /circle-menu-v5\.js\?v=2\.4\.0/);
+    assert.match(html, /circle-menu-v5\.js\?v=2\.4\.1/);
     assert.ok(configIndex >= 0, "page should still load shared Supabase bootstrap");
     assert.ok(menuIndex < configIndex, "deferred menu element must exist before supabase-config checks for it");
   }
