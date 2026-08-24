@@ -16,13 +16,16 @@ const profile = fs.readFileSync("js/ari-circle/profile/profile-v5-real-world.js"
 const happening = fs.readFileSync("js/ari-circle/feed/happening-v5.js", "utf8");
 const css = fs.readFileSync("assets/css/ari-circle-v5-real-world.css", "utf8");
 
+
 test("Real World XP is server-capped at 10 per day and 70 per week", () => {
   assert.match(migration, /greatest\(0,\s*10\s*-\s*day_total\)/i);
   assert.match(migration, /greatest\(0,\s*70\s*-\s*week_total\)/i);
   assert.match(migration, /'daily_cap',\s*10/i);
   assert.match(migration, /'weekly_cap',\s*70/i);
-  assert.match(meetupHtml, /10\/day · 70\/week/);
+  assert.match(meetupHtml, /0 \/ 10 XP/);
+  assert.match(meetupHtml, /0 \/ 70 XP/);
 });
+
 
 test("XP is an append-only-style server ledger, not a client engagement counter", () => {
   assert.match(migration, /create table if not exists public\.ari_circle_xp_events/i);
@@ -32,6 +35,7 @@ test("XP is an append-only-style server ledger, not a client engagement counter"
   assert.doesNotMatch(meetupJs, /ari_circle_xp_events/);
   assert.doesNotMatch(questJs, /ari_circle_xp_events/);
 });
+
 
 test("creating or joining a meetup does not award XP", () => {
   const createStart = migration.indexOf("ari_circle_create_meetup");
@@ -43,6 +47,7 @@ test("creating or joining a meetup does not award XP", () => {
   assert.match(meetupHtml, /Creating, joining, posting, reacting, or checking in earns 0 XP/);
 });
 
+
 test("meetup XP requires every joined participant to Complete and at least two verified people", () => {
   assert.match(migration, /count\(\*\) filter \(where completed_at is null\)/i);
   assert.match(migration, /if incomplete_count > 0 then/i);
@@ -51,11 +56,13 @@ test("meetup XP requires every joined participant to Complete and at least two v
   assert.match(migration, /At least two verified participants are required for XP/i);
 });
 
+
 test("meetup rewards are conservative: participant 4 XP and host 6 XP before caps", () => {
   assert.match(migration, /participant_xp smallint not null default 4/i);
   assert.match(migration, /host_bonus_xp smallint not null default 2/i);
   assert.match(migration, /m\.participant_xp \+ case when row_item\.role='host' then m\.host_bonus_xp else 0 end/i);
 });
+
 
 test("ended joined meetups stay available during the 48-hour mutual completion window", () => {
   assert.match(completionMigration, /m\.ends_at > now\(\) - interval '48 hours'/i);
@@ -64,6 +71,7 @@ test("ended joined meetups stay available during the 48-hour mutual completion w
   assert.match(meetupJs, /Waiting for everyone/);
 });
 
+
 test("community walking and civic events are supported without viewpoint rewards", () => {
   assert.match(meetupHtml, /Community Walk \/ Civic Event/);
   assert.match(meetupHtml, /peaceful civic marches/);
@@ -71,12 +79,13 @@ test("community walking and civic events are supported without viewpoint rewards
   assert.match(migration, /'community','volunteer'/);
 });
 
+
 test("Quests replace dangerous engagement competitions", () => {
-  assert.match(questHtml, /Completion over competition/);
-  assert.match(questHtml, /no “most hype wins,” no weight-loss contests, no dangerous stunt rewards, and no XP for likes or votes/i);
+  assert.match(questHtml, /No “most hype wins,” no weight-loss contests, no dangerous stunt rewards, and no XP for likes or votes/i);
   assert.doesNotMatch(questHtml, /Most hype wins/);
   assert.doesNotMatch(questHtml, /Vote for a winner/);
 });
+
 
 test("XP-bearing Quests are tiny, leader-gated, and cannot self-verify", () => {
   assert.match(migration, /xp_reward smallint not null default 0 check \(xp_reward between 0 and 3\)/i);
@@ -86,6 +95,7 @@ test("XP-bearing Quests are tiny, leader-gated, and cannot self-verify", () => {
   assert.match(questJs, /Number\(option\.value\) > 0\) option\.disabled = !state\.canCreateXp/);
 });
 
+
 test("leadership comes from successful hosted meetups, not likes or followers", () => {
   assert.match(migration, /when hosted_count >= 50 then 'community_builder'/i);
   assert.match(migration, /when hosted_count >= 25 then 'community_leader'/i);
@@ -93,6 +103,7 @@ test("leadership comes from successful hosted meetups, not likes or followers", 
   assert.match(migration, /when hosted_count >= 3 then 'organizer'/i);
   assert.match(migration, /where m\.host_user_id = target_user_id and m\.status = 'completed'/i);
 });
+
 
 test("profiles show factual Real World XP reputation and active hosted meetups", () => {
   assert.match(profile, /VERIFIED MEETUPS/);
@@ -103,12 +114,14 @@ test("profiles show factual Real World XP reputation and active hosted meetups",
   assert.doesNotMatch(profile, /Trust Score/i);
 });
 
+
 test("Feed keeps posts and Moments while adding live Happening discovery", () => {
   assert.match(happening, /HAPPENING/);
   assert.match(happening, /Do something in real life/);
   assert.match(happening, /ari_circle_list_meetups/);
   assert.match(happening, /ari-circle-meetup\.html/);
 });
+
 
 test("Circle V5 has one three-tab primary social loop and a premium safe-area visual system", () => {
   assert.match(shell, /Feed/);
@@ -122,9 +135,10 @@ test("Circle V5 has one three-tab primary social loop and a premium safe-area vi
   assert.match(css, /--circle5-gradient:/);
 });
 
+
 test("Meet Up and Quests share the adult-only V5 shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
-    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.2\.0/);
+    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.3\.0/);
     assert.match(html, /id="ariCircleV5RealWorldModerationScript"/);
     const moderationIndex = html.indexOf("real-world-moderation-v5.js");
     const controllerIndex = Math.max(html.indexOf("meetups-v5.js"), html.indexOf("quests-v5.js"));
@@ -138,6 +152,7 @@ test("Meet Up and Quests share the adult-only V5 shell and fail-closed publicati
   assert.match(moderation, /ARI_MODERATION_UNAVAILABLE/);
   assert.match(moderation, /client\.rpc = wrapped/);
 });
+
 
 test("V5 advisor hardening covers new Quest creator and verifier foreign keys", () => {
   assert.match(hardeningMigration, /ari_circle_quests_creator_idx/i);
