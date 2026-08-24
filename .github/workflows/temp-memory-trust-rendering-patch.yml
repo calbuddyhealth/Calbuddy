@@ -1,5 +1,6 @@
 name: Temporary Memory Trust Rendering Patch
 
+# retrigger
 on:
   push:
     branches:
@@ -25,63 +26,55 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          # ---------------------------------------------------
-          # api/ari-vnext.js
-          # ---------------------------------------------------
           path = Path('api/ari-vnext.js')
           text = path.read_text()
 
           old = '''import {\n  hydrateRecentConversation,\n  persistConversationTurn,\n  persistDurableMemory\n} from "./_lib/ari-vnext/continuity-service.js";'''
           new = old + '''\nimport {\n  buildMemoryActionModelNote,\n  buildVerifiedMemoryReply,\n  executeExplicitMemoryAction\n} from "./_lib/ari-vnext/memory-action.js";'''
-          assert old in text and 'memory-action.js' not in text, 'memory action import anchor missing/already patched'
+          assert old in text and 'memory-action.js' not in text
           text = text.replace(old, new, 1)
 
           old = '''    turn.preferences = {\n      ...(turn.preferences && typeof turn.preferences === "object" ? turn.preferences : {}),\n      ...(savedConversationStyle.preferences || {})\n    };\n    const temporalTimeline = fitnessRoute'''
           new = '''    turn.preferences = {\n      ...(turn.preferences && typeof turn.preferences === "object" ? turn.preferences : {}),\n      ...(savedConversationStyle.preferences || {})\n    };\n\n    // Explicit memory requests are transactional: verify persistence before Ari\n    // says anything about whether the memory was saved.\n    const explicitMemoryAction = await executeExplicitMemoryAction({\n      userId: auth.userId,\n      message: turn.message,\n      history: turn.history,\n      route: routePreview,\n      privacyControls: persistedWorldModel?.privacyControls || null\n    });\n    const memoryActionNote = buildMemoryActionModelNote(explicitMemoryAction);\n    if (memoryActionNote) {\n      turn.memory = [turn.memory, memoryActionNote].filter(Boolean).join("\\n\\n").slice(0, 8000);\n    }\n\n    const temporalTimeline = fitnessRoute'''
-          assert old in text, 'memory action execution anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
 
           old = '''      ...(communicationLearning ? { communicationLearning } : {}),\n      conversationStyle: {'''
           new = '''      ...(communicationLearning ? { communicationLearning } : {}),\n      memoryCapability: {\n        persistentUserMemory: true,\n        explicitRememberSupported: true,\n        requestDetected: explicitMemoryAction.requested === true,\n        status: explicitMemoryAction.status,\n        requestedCount: explicitMemoryAction.requestedCount,\n        storedCount: explicitMemoryAction.storedCount,\n        failedCount: explicitMemoryAction.failedCount\n      },\n      conversationStyle: {'''
-          assert old in text, 'memory capability context anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
 
           old = '''    const modelStartedAt = Date.now();\n    const result = await runAriVNext(turn);\n    const modelMs = Date.now() - modelStartedAt;'''
           new = '''    const modelStartedAt = Date.now();\n    const result = explicitMemoryAction.memoryOnly\n      ? {\n          success: true,\n          ready: true,\n          reply: buildVerifiedMemoryReply(explicitMemoryAction),\n          route: routePreview,\n          source: "ari_vnext_verified_memory_action",\n          action: {\n            type: "memory_save",\n            status: explicitMemoryAction.status,\n            requestedCount: explicitMemoryAction.requestedCount,\n            storedCount: explicitMemoryAction.storedCount,\n            failedCount: explicitMemoryAction.failedCount\n          }\n        }\n      : await runAriVNext(turn);\n    const modelMs = Date.now() - modelStartedAt;'''
-          assert old in text, 'model call anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
 
           old = '''    const communicationExposure = buildCommunicationExposure({\n      turnId: turn.turnId,\n      route: result?.route || routePreview,\n      result,\n      turn\n    });'''
           new = '''    const communicationExposure = explicitMemoryAction.memoryOnly\n      ? null\n      : buildCommunicationExposure({\n          turnId: turn.turnId,\n          route: result?.route || routePreview,\n          result,\n          turn\n        });'''
-          assert old in text, 'communication exposure anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
 
           old = '''    const durableMemoryTask = casualConversation\n      ? Promise.resolve({ stored: false, reason: "casual_fast_path" })\n      : persistDurableMemory({\n          userId: auth.userId,\n          message: turn.message,\n          history: turn.history,\n          route: result?.route || routePreview,\n          privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null\n        });'''
           new = '''    const durableMemoryTask = explicitMemoryAction.requested\n      ? Promise.resolve({\n          stored: explicitMemoryAction.storedCount > 0,\n          reason: "verified_memory_action_preflight",\n          requestedCount: explicitMemoryAction.requestedCount,\n          storedCount: explicitMemoryAction.storedCount,\n          failedCount: explicitMemoryAction.failedCount,\n          status: explicitMemoryAction.status\n        })\n      : casualConversation\n        ? Promise.resolve({ stored: false, reason: "casual_fast_path" })\n        : persistDurableMemory({\n            userId: auth.userId,\n            message: turn.message,\n            history: turn.history,\n            route: result?.route || routePreview,\n            privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null\n          });'''
-          assert old in text, 'durable memory task anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
 
           old = '''      memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),\n      experimentLedger,'''
           new = '''      memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),\n      memoryAction: explicitMemoryAction.requested\n        ? {\n            verified: true,\n            persistentMemoryAvailable: true,\n            memoryOnly: explicitMemoryAction.memoryOnly,\n            status: explicitMemoryAction.status,\n            requestedCount: explicitMemoryAction.requestedCount,\n            storedCount: explicitMemoryAction.storedCount,\n            failedCount: explicitMemoryAction.failedCount\n          }\n        : null,\n      experimentLedger,'''
-          assert old in text, 'response memory action anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
-
           path.write_text(text)
 
-          # ---------------------------------------------------
-          # js/home.js — safe minimal rich text, no innerHTML.
-          # ---------------------------------------------------
           path = Path('js/home.js')
           text = path.read_text()
-
           old = '''  const body = document.createElement("p");\n  body.textContent = text;'''
           new = '''  const body = document.createElement("p");\n  renderSafeAriMessageText(body, text);'''
-          assert old in text, 'Home message body anchor missing'
+          assert old in text
           text = text.replace(old, new, 1)
 
           anchor = '''function addAriMessage(text, sender = "ari") {'''
           helper = '''function renderSafeAriMessageText(container, value = "") {\n  if (!container) return;\n\n  container.textContent = "";\n  const lines = String(value ?? "").replace(/\\r\\n?/g, "\\n").split("\\n");\n\n  lines.forEach((line, lineIndex) => {\n    if (lineIndex > 0) container.appendChild(document.createElement("br"));\n    appendSafeAriInlineText(container, line);\n  });\n}\n\nfunction appendSafeAriInlineText(container, line = "") {\n  const value = String(line ?? "");\n  const pattern = /\\*\\*([^*\\n]+)\\*\\*/g;\n  let cursor = 0;\n  let match = null;\n\n  while ((match = pattern.exec(value))) {\n    if (match.index > cursor) {\n      container.appendChild(document.createTextNode(value.slice(cursor, match.index)));\n    }\n\n    const strong = document.createElement("strong");\n    strong.textContent = match[1];\n    container.appendChild(strong);\n    cursor = match.index + match[0].length;\n  }\n\n  if (cursor < value.length) {\n    container.appendChild(document.createTextNode(value.slice(cursor)));\n  }\n}\n\n'''
-          assert anchor in text and 'function renderSafeAriMessageText' not in text, 'Home rich text helper anchor missing/already patched'
+          assert anchor in text and 'function renderSafeAriMessageText' not in text
           text = text.replace(anchor, helper + anchor, 1)
           path.write_text(text)
           PY
