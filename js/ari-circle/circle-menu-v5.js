@@ -189,6 +189,7 @@
 
     const summary = details.querySelector("summary");
     if (summary) {
+      summary.dataset.circleV5Summary = VERSION;
       summary.setAttribute("aria-controls", panel.id);
       summary.setAttribute("aria-haspopup", "menu");
     }
@@ -223,8 +224,9 @@
     const currentVersion = details.getAttribute(READY_ATTR);
     const existingPanel = panelFor(details) || details.querySelector(".circle-v5-menu__panel, .circle-v4-menu__panel");
     const hasV52Markup = Boolean(existingPanel?.querySelector(".circle-v52-menu-group"));
+    const hasCurrentSummary = details.querySelector("summary")?.dataset.circleV5Summary === VERSION;
 
-    if (currentVersion !== `${VERSION}:${expectedProfile}` || !hasV52Markup) {
+    if (currentVersion !== `${VERSION}:${expectedProfile}` || !hasV52Markup || !hasCurrentSummary) {
       panelFor(details)?.remove();
       details.removeAttribute(PANEL_ATTR);
       details.innerHTML = markup(includeProfileOptions);
