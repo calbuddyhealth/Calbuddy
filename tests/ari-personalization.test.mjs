@@ -13,6 +13,21 @@ const memoryStageSource = fs.readFileSync(
   "utf8"
 );
 
+const iosWorkflowSource = fs.readFileSync(
+  ".github/workflows/ios-native-generate.yml",
+  "utf8"
+);
+
+const smartSweepSource = fs.readFileSync(
+  ".github/workflows/app-health-sweep.yml",
+  "utf8"
+);
+
+const ariTrustWorkflowSource = fs.readFileSync(
+  ".github/workflows/ari-vnext-tests.yml",
+  "utf8"
+);
+
 function loadEngine() {
   const window = {
     Ari: {},
@@ -176,4 +191,14 @@ test("memory stage passes personalization as advisory context without granting a
   assert.match(memoryStageSource, /canOverrideExplicitPreferences:\s*false/);
   assert.match(memoryStageSource, /canPersistPreferenceChanges:\s*false/);
   assert.match(memoryStageSource, /Treat learned behavioral patterns as advisory observations only/);
+});
+
+test("Ari personalization changes are locked into trust and iOS release validation", () => {
+  assert.match(iosWorkflowSource, /- ari\/\*\*/);
+  assert.match(smartSweepSource, /ari\/personalization\/\*/);
+  assert.match(smartSweepSource, /tests\/ari-personalization\.test\.mjs/);
+  assert.match(smartSweepSource, /ari\/\*\)/);
+  assert.match(ariTrustWorkflowSource, /ari\/personalization\/\*\*/);
+  assert.match(ariTrustWorkflowSource, /ari\/pipeline-stages\/deliberation\/ari-memory-stage\.js/);
+  assert.match(ariTrustWorkflowSource, /tests\/ari-personalization\.test\.mjs/);
 });
