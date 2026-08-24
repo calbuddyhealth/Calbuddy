@@ -8,6 +8,8 @@ const css = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5.css", impo
 const premium = fs.readFileSync(new URL("../assets/css/ari-circle-v5-premium.css", import.meta.url), "utf8");
 const supabaseConfig = fs.readFileSync(new URL("../supabase-config.js", import.meta.url), "utf8");
 const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.url), "utf8");
+const meetupHtml = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
+const questHtml = fs.readFileSync(new URL("../ari-circle-quests.html", import.meta.url), "utf8");
 
 
 test("ARI Circle V5.2 drawer reflects Real World Social navigation", () => {
@@ -70,9 +72,20 @@ test("V5.2 drawer is pearl white, grouped, and keeps only Exit destructive", () 
 });
 
 
+test("Feed, Meet Up, and Quests use the same shared navigation shell", () => {
+  for (const html of [feedHtml, meetupHtml, questHtml]) {
+    assert.match(html, /<header class="circle-v5-header feed-header">/);
+    assert.match(html, /class="feed-brand circle-v5-brand"/);
+    assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.0"/);
+    assert.match(html, /ari-circle-v5-minimal-premium\.css\?v=5\.2\.3/);
+    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.2"/);
+  }
+});
+
+
 test("shared Supabase bootstrap still loads the adults-only V5 drawer", () => {
   assert.match(supabaseConfig, /shouldLoadCircleMenu/);
-  assert.match(feedHtml, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.3\.0"/);
+  assert.match(feedHtml, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.0"/);
 });
 
 
