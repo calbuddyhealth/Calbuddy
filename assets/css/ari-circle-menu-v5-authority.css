@@ -1,0 +1,94 @@
+/* =============================================================
+   ARI CIRCLE — DRAWER COLOR AUTHORITY
+   Version: 1.0.0
+
+   The V5 drawer is portaled directly to <body>. Profile still loads legacy
+   compatibility CSS, so these selectors intentionally key off the portal
+   marker instead of a page/theme class. This keeps the drawer visually
+   identical on Feed, Profile, Meet Up, and Quests.
+============================================================= */
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"],
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] {
+  color-scheme: light !important;
+  color: #132036 !important;
+  border-color: rgba(221, 229, 239, .98) !important;
+  background: rgba(255, 255, 255, .985) !important;
+  box-shadow: 0 28px 70px rgba(32, 46, 70, .18) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"]::before,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"]::before {
+  box-shadow:
+    inset 1px 0 0 rgba(31, 205, 247, .08),
+    inset -1px 0 0 rgba(130, 85, 255, .07) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity strong,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity strong {
+  color: #142033 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity small,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity small {
+  color: #94a0b2 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__label,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__label {
+  color: #2492b0 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items {
+  border-color: #e1e8f1 !important;
+  background: #fff !important;
+  box-shadow: 0 6px 18px rgba(43, 60, 91, .055) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item {
+  color: #1d2b41 !important;
+  border-color: transparent !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item + .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item + .circle-v5-menu__item {
+  border-top: 1px solid #edf1f5 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__icon,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__icon {
+  color: #3973d0 !important;
+  border-color: #e2e9f2 !important;
+  background: #f8fbff !important;
+  box-shadow: none !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__label,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__label {
+  color: #1d2b41 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__chevron,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__chevron {
+  color: #9aa6b7 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit {
+  border-color: #f0dfe4 !important;
+  background: #fff !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__item {
+  background: #fff !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-footer,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-footer {
+  color: #a0a9b8 !important;
+}

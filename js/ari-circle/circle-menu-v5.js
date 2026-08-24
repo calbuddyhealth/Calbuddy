@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5.2
-   Version: 2.4.2
+   Version: 2.4.3
    Adults-only shared controls + authoritative Real World Social shell.
    The drawer panel is portaled to <body> so iOS Safari cannot clip it
    inside the sticky/backdrop-filtered header.
@@ -9,9 +9,11 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.4.2";
+  const VERSION = "2.4.3";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
+  const AUTHORITY_STYLE_ID = "ariCircleMenuV5AuthorityStyle";
+  const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-menu-v5-authority.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
   const PANEL_ATTR = "data-circle-menu-panel-id";
   const ADULT_GUARD_SCRIPT_ID = "ariCircleAdultOnlyGuardScript";
@@ -94,6 +96,14 @@
     return path.endsWith("/ari-circle.html") || Boolean(document.body?.classList.contains("ari-circle-page"));
   }
 
+  function primeProfileV5Theme() {
+    if (!shouldLoadProfileSafety()) return;
+    document.documentElement.classList.add("circle-v5-real-world-root");
+    document.body?.classList.add("circle-v5-real-world");
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute("content", "#f8faff");
+  }
+
   function loadProfileSafety() {
     if (!adultAccessReady() || !shouldLoadProfileSafety()) return;
     if (window.AriCircleProfileSafety || document.getElementById(PROFILE_SAFETY_SCRIPT_ID)) return;
@@ -111,6 +121,21 @@
     link.rel = "stylesheet";
     link.href = STYLE_HREF;
     document.head.append(link);
+  }
+
+  function ensureThemeAuthority() {
+    let link = document.getElementById(AUTHORITY_STYLE_ID);
+    if (!link) {
+      link = document.createElement("link");
+      link.id = AUTHORITY_STYLE_ID;
+      link.rel = "stylesheet";
+      link.href = AUTHORITY_STYLE_HREF;
+      document.head.append(link);
+      return;
+    }
+    if (link.parentElement === document.head && link !== document.head.lastElementChild) {
+      document.head.append(link);
+    }
   }
 
   function item({ href = "#", label, iconMarkup, exit = false, button = false, profileOptions = false }) {
@@ -177,6 +202,7 @@
     const open = details.open === true;
     if (summary) summary.setAttribute("aria-expanded", String(open));
     if (panel) panel.hidden = !open;
+    if (open) ensureThemeAuthority();
     syncDocumentMenuState();
   }
 
@@ -320,11 +346,14 @@
   function run() {
     if (!adultAccessReady()) return;
     revealAdultCircleUi();
+    primeProfileV5Theme();
     loadPrivateMedia();
     loadProfileSafety();
     loadRealWorldShell();
     ensureStyle();
+    ensureThemeAuthority();
     normalizeMenus();
+    ensureThemeAuthority();
     ensureNotificationSettingsLink();
     openRequestedDiscoverFriends();
     bindOutsideClose();
