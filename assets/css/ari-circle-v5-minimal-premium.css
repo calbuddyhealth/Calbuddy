@@ -1,10 +1,11 @@
 /* =============================================================
-   ARI CIRCLE V5.2.2 — MINIMAL PREMIUM
+   ARI CIRCLE V5.2.3 — MINIMAL PREMIUM
    User-approved cleanup:
    - text-only ARI CIRCLE wordmark
    - larger brand presence
    - no decorative orbit mark
    - concise primary surfaces
+   - iOS-safe sticky header + full-height control drawer
    - no continuous motion, observers, or data work
 ============================================================= */
 
@@ -108,10 +109,68 @@ body.circle-v5-real-world .circle-v5-page-main {
   padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
 }
 
+/* ---------- iOS navigation geometry ----------
+   WebKit can treat a fixed descendant of a backdrop-filtered sticky header
+   as if the header were its containing block. The Circle drawer lives inside
+   the menu <details>, so temporarily removing header compositing while open
+   keeps the fixed sheet viewport-relative instead of clipping it to the bar.
+------------------------------------------------------------- */
+body.circle-v5-real-world .circle-v51-halo-header {
+  position: sticky !important;
+  top: max(6px, env(safe-area-inset-top)) !important;
+  z-index: 200 !important;
+  overflow: visible !important;
+}
+
+body.circle-v5-real-world:has(details.circle-v4-menu[open]) {
+  overflow: hidden !important;
+}
+
+body.circle-v5-real-world:has(details.circle-v4-menu[open]) .circle-v51-halo-header {
+  transform: none !important;
+  contain: none !important;
+  isolation: auto !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.circle-v5-real-world details.circle-v4-menu[open] {
+  isolation: auto !important;
+}
+
+body.circle-v5-real-world details.circle-v4-menu[open]::before {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 225 !important;
+}
+
+body.circle-v5-real-world .circle-v5-menu__panel,
+body.circle-v5-real-world .circle-v4-menu__panel {
+  top: max(78px, calc(env(safe-area-inset-top) + 66px)) !important;
+  right: max(14px, env(safe-area-inset-right)) !important;
+  bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+  left: max(14px, env(safe-area-inset-left)) !important;
+  z-index: 230 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
 @media (max-width: 520px) {
   body.circle-v5-real-world .circle-v51-wordmark strong,
   body.circle-v5-real-world .circle-v51-wordmark em {
     font-size: clamp(1rem,5.1vw,1.2rem) !important;
+  }
+
+  body.circle-v5-real-world .circle-v5-menu__panel,
+  body.circle-v5-real-world .circle-v4-menu__panel {
+    top: max(76px, calc(env(safe-area-inset-top) + 64px)) !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+    left: max(10px, env(safe-area-inset-left)) !important;
   }
 }
 
