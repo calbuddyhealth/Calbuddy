@@ -5,13 +5,12 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.0.0";
+  const VERSION = "5.0.1";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
   const STYLE_HREF = "assets/css/ari-circle-v5-real-world.css?v=5.0.0";
   const NAV_ID = "ariCircleV5BottomNav";
-  let observer = null;
   let queued = false;
   let happeningLoaded = false;
   let profileLoaded = false;
@@ -81,14 +80,15 @@
         ${navLink("quests", "ari-circle-quests.html", "Quests")}
       </div>`;
       document.body.append(wrap);
-    } else {
-      wrap.querySelectorAll("[data-circle-v5-nav]").forEach((link) => {
-        const active = link.dataset.circleV5Nav === activeKey();
-        link.classList.toggle("is-active", active);
-        if (active) link.setAttribute("aria-current", "page");
-        else link.removeAttribute("aria-current");
-      });
+      return;
     }
+
+    wrap.querySelectorAll("[data-circle-v5-nav]").forEach((link) => {
+      const active = link.dataset.circleV5Nav === activeKey();
+      link.classList.toggle("is-active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
   }
 
   function normalizeLegacyLinks() {
@@ -175,19 +175,21 @@
     });
   }
 
-  function watch() {
-    if (observer || !document.documentElement) return;
-    observer = new MutationObserver((mutations) => {
-      if (mutations.some((mutation) => mutation.addedNodes.length)) queueRun();
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+  function boundedRefresh() {
+    run();
+    window.setTimeout(run, 120);
+    window.setTimeout(run, 700);
   }
 
   window.AriCircleV5RealWorld = Object.freeze({ version: VERSION, refresh: run });
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { run(); watch(); }, { once: true });
-  else { run(); watch(); }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boundedRefresh, { once: true });
+  } else {
+    boundedRefresh();
+  }
 
   document.addEventListener("circle:app-ready", queueRun);
+  window.addEventListener("ari-circle-access-ready", queueRun);
   window.addEventListener("pageshow", queueRun);
 })();
