@@ -69,7 +69,7 @@ export function detectCurrentTurnCommunicationOverride(message = "") {
 
   const override = {};
 
-  if (/\b(short answer|keep it short|keep (?:this|it) brief|be concise|concise answer|quick answer|simple answer|in simple terms|just the answer|just answer)\b/i.test(text)) {
+  if (/\b(short answer|keep it short|keep (?:this|it) brief|be concise|concise answer|quick answer|just the answer|just answer)\b/i.test(text)) {
     override.detail = "brief";
   } else if (/\b(more detail|more detailed|detailed answer|give me (?:a )?detailed|go into detail|explain (?:it )?(?:fully|thoroughly|in depth)|walk me through|deep dive)\b/i.test(text)) {
     override.detail = "detailed";
@@ -81,7 +81,7 @@ export function detectCurrentTurnCommunicationOverride(message = "") {
     override.directness = "gentle";
   }
 
-  if (/\b(simple terms|plain english|simpler|make it simple|less technical)\b/i.test(text)) {
+  if (/\b(simple terms|simple answer|plain english|simpler|make it simple|less technical)\b/i.test(text)) {
     override.complexity = "simple";
   } else if (/\b(more technical|technical detail|advanced explanation|more advanced)\b/i.test(text)) {
     override.complexity = "advanced";
