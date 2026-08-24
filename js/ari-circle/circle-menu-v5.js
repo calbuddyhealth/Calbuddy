@@ -1,7 +1,7 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5.2
-   Version: 2.4.0
-   Premium adults-only Pearl controls + authoritative Real World Social shell.
+   Version: 2.4.1
+   Adults-only shared controls + authoritative Real World Social shell.
    The drawer panel is portaled to <body> so iOS Safari cannot clip it
    inside the sticky/backdrop-filtered header.
 ============================================================= */
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.4.0";
+  const VERSION = "2.4.1";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const READY_ATTR = "data-circle-menu-v5";
@@ -21,7 +21,7 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.2.0";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.2.3";
   let outsideBound = false;
   let panelSequence = 0;
 
