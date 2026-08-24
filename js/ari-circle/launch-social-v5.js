@@ -1,25 +1,17 @@
 /* =============================================================
    ARI CIRCLE — LAUNCH SOCIAL V5
-   Version: 5.0.1
+   Version: 5.0.2
 
-   Launch model:
-   - Feed/Moments = friends + self.
-   - Buddies = discovery + direct messaging.
-   - Challenges = participation/discovery surface.
-   - Profile = identity + simple relationship/safety controls.
-   - Mute and Block are intentionally separate actions.
+   Current responsibilities:
+   - Feed privacy copy.
+   - Profile visitor mute / block / report controls.
    - Mobile form fields remain >=16px to prevent iOS Safari focus zoom.
-
-   V5.0.1:
-   - Removes the document-wide MutationObserver that could repeatedly
-     retrigger DOM patching and freeze ARI Circle on iPhone/Safari.
-   - Uses a few bounded startup refreshes instead.
-   - Camera code is intentionally untouched.
+   - Bounded startup refreshes only; no document-wide DOM observer.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.0.1";
+  const VERSION = "5.0.2";
   const STYLE_ID = "ari-circle-launch-social-v5-style";
   const $ = (id) => document.getElementById(id);
   const clean = (v) => String(v ?? "").trim();
@@ -40,7 +32,7 @@
   }
 
   function toast(message) {
-    let host = $("circleLaunchSocialToast") || $("feedToast") || $("challengeToast") || $("messagesToast");
+    let host = $("circleLaunchSocialToast") || $("feedToast") || $("messagesToast");
     if (!host) {
       host = document.createElement("div");
       host.id = "circleLaunchSocialToast";
@@ -127,32 +119,6 @@
         border-radius: 999px; color:#fff; background:rgba(12,24,50,.92);
         box-shadow:0 18px 46px rgba(12,24,50,.22); font:700 .78rem/1.25 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
-
-      #entriesDialog.challenge-entries-dialog[open] {
-        width: 100vw !important; max-width:none !important; height:100dvh !important;
-        max-height:100dvh !important; margin:0 !important; padding:0 !important;
-        border:0 !important; border-radius:0 !important; background:#f8faff !important;
-      }
-      #entriesDialog .challenge-entries-card {
-        width:100% !important; max-width:none !important; min-height:100dvh !important;
-        max-height:100dvh !important; border-radius:0 !important; padding-top:calc(18px + env(safe-area-inset-top)) !important;
-        overflow:hidden !important; box-shadow:none !important;
-      }
-      #entriesDialog .challenge-close {
-        position:fixed !important; z-index:40 !important; top:calc(12px + env(safe-area-inset-top)) !important; right:14px !important;
-        width:44px !important; height:44px !important; border-radius:50% !important;
-        background:rgba(255,255,255,.92) !important; box-shadow:0 10px 30px rgba(20,38,80,.14) !important;
-        -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
-      }
-      #challengeEntryList {
-        max-height:calc(100dvh - 145px) !important; overflow-y:auto !important;
-        overscroll-behavior-y:contain; scroll-snap-type:y mandatory; padding-bottom:calc(24px + env(safe-area-inset-bottom));
-        -webkit-overflow-scrolling:touch;
-      }
-      #challengeEntryList > * { scroll-snap-align:start; scroll-snap-stop:normal; }
-      #entriesDialog .challenge-entry-status::after {
-        content:"  ·  Swipe through entries"; color:#8b96aa; font-weight:600;
-      }
     `;
     document.head.append(style);
   }
@@ -165,7 +131,7 @@
   function bindFocusRecovery() {
     document.addEventListener("close", blurActiveField, true);
     document.addEventListener("click", (event) => {
-      if (event.target.closest?.("[data-close-dialog], .feed-close, .challenge-close, .buddy-inline-close")) {
+      if (event.target.closest?.("[data-close-dialog], .feed-close, .circle-launch-safety-cancel")) {
         setTimeout(blurActiveField, 0);
       }
     }, true);
@@ -221,7 +187,9 @@
     try {
       const value = await rpc("ari_circle_mute_state", { target_user_id: state.targetUserId });
       state.muted = Boolean(value);
-    } catch { state.muted = false; }
+    } catch {
+      state.muted = false;
+    }
     if (mute) {
       mute.disabled = false;
       mute.querySelector("span").textContent = state.muted ? "Unmute" : "Mute";
@@ -239,7 +207,9 @@
       state.muted = next;
       $("circleLaunchProfileSafety")?.close?.();
       toast(next ? "Muted. Their Feed posts and Moments are hidden." : "Unmuted.");
-    } catch (error) { toast(error.message || "Could not update mute."); }
+    } catch (error) {
+      toast(error.message || "Could not update mute.");
+    }
   }
 
   async function blockUser() {
@@ -252,7 +222,9 @@
       $("circleLaunchProfileSafety")?.close?.();
       toast("Blocked.");
       setTimeout(() => location.replace("ari-circle-feed.html"), 450);
-    } catch (error) { toast(error.message || "Could not block this profile."); }
+    } catch (error) {
+      toast(error.message || "Could not block this profile.");
+    }
   }
 
   function ensureVisitorProfileMenu() {
@@ -271,18 +243,10 @@
     body.append(button);
   }
 
-  function simplifyChallengeLanguage() {
-    const title = $("challengeStreamTitle");
-    if (title) title.textContent = "Happening now";
-    const copy = $("challengeStreamCopy");
-    if (copy) copy.textContent = "Jump into what people are doing right now.";
-  }
-
   function run() {
     ensureStyle();
     privacyCopy();
     ensureVisitorProfileMenu();
-    simplifyChallengeLanguage();
   }
 
   function scheduleBoundedRefreshes() {
