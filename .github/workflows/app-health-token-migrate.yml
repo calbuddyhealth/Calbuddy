@@ -1,0 +1,37 @@
+name: App Health dedicated token migration
+
+on:
+  push:
+    branches:
+      - fix/app-health-dedicated-token
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/app-health-dedicated-token
+      - name: Prefer dedicated App Health token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('api/ari-app-health/index.js')
+          text = path.read_text()
+          old = 'const token = String(process.env.GITHUB_TOKEN || "").trim();'
+          new = 'const token = String(process.env.APP_HEALTH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || "").trim();'
+          if old not in text:
+              raise SystemExit('Expected App Health token line was not found.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/ari-app-health/index.js
+          git commit -m "Use dedicated App Health GitHub token"
+          git push origin HEAD:fix/app-health-dedicated-token
