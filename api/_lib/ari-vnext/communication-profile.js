@@ -9,7 +9,7 @@ import {
 export const COMMUNICATION_PROFILE_VERSION = "2.0.0";
 
 const ALLOWED = {
-  tone: new Set(["adaptive", "casual", "professional", "warm", "coach"]),
+  tone: new Set(["adaptive", "natural", "casual", "professional", "warm", "coach"]),
   directness: new Set(["adaptive", "gentle", "balanced", "direct"]),
   detail: new Set(["adaptive", "brief", "balanced", "detailed"]),
   humor: new Set(["adaptive", "none", "occasional", "frequent"]),

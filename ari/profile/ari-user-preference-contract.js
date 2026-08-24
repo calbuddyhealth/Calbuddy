@@ -190,10 +190,10 @@
         id: "default",
 
         label:
-          "Ari Default",
+          "Automatic",
 
         description:
-          "Uses the default communication preferences defined by the Personalize Ari page.",
+          "Lets Ari adapt conversation style automatically unless the user locks a specific setting.",
 
         overrides: {}
       },
@@ -243,9 +243,128 @@
               "Controls Ari's general speaking style.",
 
             defaultValue:
-              "natural",
+              "auto",
 
             options: {
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari learn automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Leave response length adaptive so Ari can use current-turn instructions and learned conversation personalization."
+              },
+
+              never: {
+                label:
+                  "Never",
+
+                description:
+                  "Do not use profanity.",
+
+                enforcement:
+                  "hard_opt_out",
+
+                currentTurnAdjustable:
+                  false,
+
+                instruction:
+                  "Do not use profanity. This is an explicit user lock and should remain in effect unless the user changes the saved Conversation Style setting."
+              },
+
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari learn automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Leave explanation complexity adaptive so Ari can match the conversation and learned user preference."
+              },
+
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Use Ari’s standard adaptive language. Auto does not require profanity and does not prohibit it when ordinary context supports it."
+              },
+
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Use humor contextually when it naturally fits. Auto is not a fixed humor frequency and must not force jokes."
+              },
+
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari learn automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Leave directness adaptive so current-turn instructions and learned conversation personalization can determine how direct Ari should be."
+              },
+
+              auto: {
+                label:
+                  "Auto",
+
+                description:
+                  "Let Ari adapt automatically.",
+
+                enforcement:
+                  "adaptive",
+
+                currentTurnAdjustable:
+                  true,
+
+                instruction:
+                  "Adapt Ari’s tone to the current conversation and user context. Do not treat Auto as a fixed tone lock."
+              },
+
               professional: {
                 label:
                   "Professional",
@@ -646,22 +765,22 @@
     runtimeDefaults: {
       language: {
         tone:
-          "natural",
+          "auto",
 
         directness:
-          "balanced",
+          "auto",
 
         humor:
-          "occasional",
+          "auto",
 
         profanity:
-          "default",
+          "auto",
 
         complexity:
-          "balanced",
+          "auto",
 
         detail:
-          "balanced"
+          "auto"
       }
     },
 

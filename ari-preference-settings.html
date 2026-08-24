@@ -10,7 +10,7 @@
 
   <meta name="theme-color" content="#f7f9ff" />
 
-  <title>Personalize Ari | ARI XP</title>
+  <title>Conversation Style | ARI XP</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 
@@ -47,7 +47,7 @@
 
   <link
     rel="stylesheet"
-    href="assets/css/ari-preference-settings.css?v=8.1.0"
+    href="assets/css/ari-preference-settings.css?v=8.2.0"
   />
 </head>
 
@@ -154,17 +154,17 @@
       <header class="ari-preference-settings__header">
         <div>
           <p class="ari-preference-settings__eyebrow">
-            PERSONALIZE ARI
+            CONVERSATION STYLE
           </p>
 
           <h1 id="ari-preference-settings-title">
-            Choose how Ari talks to you.
+            Let Ari adapt automatically—or lock what you want.
           </h1>
 
           <p class="ari-preference-settings__subtitle">
-            These settings change Ari's wording and presentation.
-            They do not limit what Ari can understand, reason about,
-            or help you with.
+            Automatic is the default. Ari learns how you prefer to communicate
+            and adapts over time. Choose a specific option only when you want
+            to lock that part of Ari's conversation style.
           </p>
         </div>
 
@@ -231,6 +231,27 @@
             role="radiogroup"
             aria-label="Tone"
           >
+            <label class="ari-preference-option ari-preference-option--auto">
+              <input
+                type="radio"
+                name="language.tone"
+                value="auto"
+                data-path="language.tone"
+                data-default="true"
+                checked
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Auto
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Let Ari adapt tone to the conversation.
+                </span>
+              </span>
+            </label>
+
             <label class="ari-preference-option">
               <input
                 type="radio"
@@ -256,8 +277,6 @@
                 name="language.tone"
                 value="natural"
                 data-path="language.tone"
-                data-default="true"
-                checked
               />
 
               <span class="ari-preference-option__content">
@@ -321,6 +340,27 @@
             role="radiogroup"
             aria-label="Directness"
           >
+            <label class="ari-preference-option ari-preference-option--auto">
+              <input
+                type="radio"
+                name="language.directness"
+                value="auto"
+                data-path="language.directness"
+                data-default="true"
+                checked
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Auto
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Let Ari learn how direct to be with you.
+                </span>
+              </span>
+            </label>
+
             <label class="ari-preference-option">
               <input
                 type="radio"
@@ -346,8 +386,6 @@
                 name="language.directness"
                 value="balanced"
                 data-path="language.directness"
-                data-default="true"
-                checked
               />
 
               <span class="ari-preference-option__content">
@@ -371,7 +409,7 @@
 
               <span class="ari-preference-option__content">
                 <span class="ari-preference-option__label">
-                  Blunt
+                  Direct
                 </span>
 
                 <span class="ari-preference-option__description">
@@ -411,6 +449,27 @@
             role="radiogroup"
             aria-label="Humor"
           >
+            <label class="ari-preference-option ari-preference-option--auto">
+              <input
+                type="radio"
+                name="language.humor"
+                value="auto"
+                data-path="language.humor"
+                data-default="true"
+                checked
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Auto
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Let Ari use humor when it naturally fits.
+                </span>
+              </span>
+            </label>
+
             <label class="ari-preference-option">
               <input
                 type="radio"
@@ -436,8 +495,6 @@
                 name="language.humor"
                 value="occasional"
                 data-path="language.humor"
-                data-default="true"
-                checked
               />
 
               <span class="ari-preference-option__content">
@@ -501,11 +558,11 @@
             role="radiogroup"
             aria-label="Language"
           >
-            <label class="ari-preference-option">
+            <label class="ari-preference-option ari-preference-option--auto">
               <input
                 type="radio"
                 name="language.profanity"
-                value="default"
+                value="auto"
                 data-path="language.profanity"
                 data-default="true"
                 checked
@@ -513,11 +570,30 @@
 
               <span class="ari-preference-option__content">
                 <span class="ari-preference-option__label">
-                  Default
+                  Auto
                 </span>
 
                 <span class="ari-preference-option__description">
-                  Use Ari's standard language.
+                  Let Ari use her standard adaptive language.
+                </span>
+              </span>
+            </label>
+
+            <label class="ari-preference-option">
+              <input
+                type="radio"
+                name="language.profanity"
+                value="never"
+                data-path="language.profanity"
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Never
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Do not use profanity.
                 </span>
               </span>
             </label>
@@ -591,6 +667,27 @@
             role="radiogroup"
             aria-label="Explanation Type"
           >
+            <label class="ari-preference-option ari-preference-option--auto">
+              <input
+                type="radio"
+                name="language.complexity"
+                value="auto"
+                data-path="language.complexity"
+                data-default="true"
+                checked
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Auto
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Let Ari adapt how simple or advanced explanations should be.
+                </span>
+              </span>
+            </label>
+
             <label class="ari-preference-option">
               <input
                 type="radio"
@@ -616,8 +713,6 @@
                 name="language.complexity"
                 value="balanced"
                 data-path="language.complexity"
-                data-default="true"
-                checked
               />
 
               <span class="ari-preference-option__content">
@@ -681,6 +776,27 @@
             role="radiogroup"
             aria-label="Response Length"
           >
+            <label class="ari-preference-option ari-preference-option--auto">
+              <input
+                type="radio"
+                name="language.detail"
+                value="auto"
+                data-path="language.detail"
+                data-default="true"
+                checked
+              />
+
+              <span class="ari-preference-option__content">
+                <span class="ari-preference-option__label">
+                  Auto
+                </span>
+
+                <span class="ari-preference-option__description">
+                  Let Ari learn how much detail works best for you.
+                </span>
+              </span>
+            </label>
+
             <label class="ari-preference-option">
               <input
                 type="radio"
@@ -706,8 +822,6 @@
                 name="language.detail"
                 value="balanced"
                 data-path="language.detail"
-                data-default="true"
-                checked
               />
 
               <span class="ari-preference-option__content">
@@ -747,7 +861,7 @@
         ================================================== -->
 
         <p class="ari-preference-settings__scope-note">
-          <strong>These preferences affect expression only.</strong>
+          <strong>Automatic personalization affects conversation style only.</strong>
           They change how Ari communicates and explains information.
           They do not change Ari's reasoning, factual conclusions,
           safety decisions, available tools, memory retrieval, or
@@ -765,7 +879,7 @@
               class="ari-preference-button ari-preference-button--secondary"
               type="button"
             >
-              Reset
+              Reset to Automatic
             </button>
 
             <button
@@ -773,7 +887,7 @@
               class="ari-preference-button ari-preference-button--primary"
               type="submit"
             >
-              Save changes
+              Save style
             </button>
           </div>
         </div>
@@ -797,12 +911,12 @@
        Deeper Ari modules validate, persist, resolve, and apply it.
   ======================================================== -->
 
-  <script src="ari/profile/ari-user-preference-contract.js?v=3.0.0"></script>
-<script src="ari/profile/ari-user-preference-store.js?v=3.0.0"></script>
-<script src="ari/profile/ari-preference-resolver.js?v=2.0.0"></script>
-<script src="ari/profile/ari-preference-runtime.js?v=1.1.0"></script>
+  <script src="ari/profile/ari-user-preference-contract.js?v=3.0.1"></script>
+<script src="ari/profile/ari-user-preference-store.js?v=3.0.1"></script>
+<script src="ari/profile/ari-preference-resolver.js?v=3.0.1"></script>
+<script src="ari/profile/ari-preference-runtime.js?v=3.0.1"></script>
 
   <!-- Page-specific controller -->
-  <script src="js/ari-preference-settings-controller.js?v=3.0.0"></script>
+  <script src="js/ari-preference-settings-controller.js?v=3.0.1"></script>
 </body>
 </html>

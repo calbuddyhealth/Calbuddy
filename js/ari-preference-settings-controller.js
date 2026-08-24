@@ -456,7 +456,14 @@
         this.state.loadedPreferences =
           this.clone(savedPreferences);
 
-        if (this.hasOwnPreferenceValues(savedPreferences)) {
+        const activePreset =
+          this.extractActivePresetFromRecord(record);
+
+        if (activePreset === "default" || activePreset === "auto" || activePreset === "automatic") {
+          // Historical default records contain a full fixed snapshot. The new
+          // Conversation Style contract treats that untouched default as Auto.
+          this.applyHtmlDefaults();
+        } else if (this.hasOwnPreferenceValues(savedPreferences)) {
           this.populateForm(savedPreferences);
         } else {
           this.applyHtmlDefaults();
@@ -502,6 +509,25 @@
       }
 
       return {};
+    },
+
+    extractActivePresetFromRecord(record) {
+      if (!record || typeof record !== "object") return "default";
+
+      const candidates = [
+        record.activePreset,
+        record.active_preset,
+        record.record?.activePreset,
+        record.record?.active_preset,
+        record.data?.activePreset,
+        record.data?.active_preset
+      ];
+
+      const value = candidates
+        .map((candidate) => String(candidate || "").trim().toLowerCase())
+        .find(Boolean);
+
+      return value || "default";
     },
 
     // ===================================================

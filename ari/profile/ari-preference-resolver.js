@@ -160,11 +160,15 @@
             contract,
 
             value:
-              persistentResolution
-                .record
-                ?.preferenceOverrides ||
-              persistentResolution.value ||
-              {},
+              activePreset === "default"
+                ? {}
+                : (
+                    persistentResolution
+                      .record
+                      ?.preferenceOverrides ||
+                    persistentResolution.value ||
+                    {}
+                  ),
 
             source:
               persistentResolution.source ||
