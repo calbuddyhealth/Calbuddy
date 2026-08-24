@@ -5,18 +5,31 @@
 (() => {
   "use strict";
   const VERSION="5.0.0";
+  if(window.AriCircleProfileV5RealWorld?.version===VERSION)return;
+
   const clean=(value)=>String(value??"").trim();
   const escapeHtml=(value)=>String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
   const TIER={new_host:"New Host",organizer:"Organizer",active_host:"Active Host",community_leader:"Community Leader",community_builder:"Community Builder"};
 
   function client(){return window.calbuddySupabase||window.CalBuddy?.supabase||window.supabaseClient||null;}
   async function waitClient(){for(let i=0;i<140;i+=1){const c=client();if(c?.auth&&c?.rpc)return c;await new Promise((r)=>setTimeout(r,60));}return null;}
-  function profileId(viewer){const explicit=new URLSearchParams(location.search).get("user");return clean(explicit)||viewer?.id||null;}
+  async function resolveProfileId(c,viewer){
+    const params=new URLSearchParams(location.search);
+    const explicit=clean(params.get("user"));
+    if(explicit)return explicit;
+    const handle=clean(params.get("handle")).replace(/^@+/,"");
+    if(handle){
+      const {data,error}=await c.from("ari_circle_profiles").select("user_id").eq("handle",handle).maybeSingle();
+      if(error)throw error;
+      if(data?.user_id)return data.user_id;
+    }
+    return viewer?.id||null;
+  }
   function dateTime(value){const d=new Date(value);if(Number.isNaN(d.getTime()))return"";return d.toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
   function reasonLabel(reason){const map={verified_meetup_host:"Hosted verified meetup",verified_meetup_participant:"Completed verified meetup",verified_community_quest:"Completed verified Community Quest"};return map[reason]||clean(reason).replaceAll("_"," ")||"Real World XP";}
   function iconFor(type){return type==="meetup"?"◎":type==="quest"?"◇":"✦";}
 
-  function inject(summary,activity,subjectId){
+  function inject(summary,activity){
     const profile=document.getElementById("circle-profile");
     const body=profile?.querySelector(".circle-profile__body");
     if(!profile||!body)return;
@@ -58,7 +71,7 @@
       host.innerHTML=`<div class="circle-v5-hosting-card__top"><span class="circle-v5-hosting-card__label">HOSTING A MEETUP</span><span class="circle-v5-hosting-pulse" aria-hidden="true"></span></div><h3>${escapeHtml(meetup.title||"Upcoming meetup")}</h3><p>${escapeHtml(dateTime(meetup.starts_at))} · ${escapeHtml(meetup.area||"General area")} · ${Number(meetup.participant_count)||0}/${Number(meetup.max_participants)||0} going</p>`;
       profile.insertAdjacentElement("afterend",host);
       profile.classList.add("circle-v5-profile-is-hosting");
-    } else profile.classList.remove("circle-v5-profile-is-hosting");
+    }else profile.classList.remove("circle-v5-profile-is-hosting");
 
     if(Array.isArray(activity)&&activity.length){
       const card=document.createElement("section");
@@ -84,18 +97,18 @@
     try{
       const {data:userData,error:userError}=await c.auth.getUser();if(userError)throw userError;
       const viewer=userData?.user;if(!viewer)return;
-      const subject=profileId(viewer);if(!subject)return;
+      const subject=await resolveProfileId(c,viewer);if(!subject)return;
       const [summaryResult,activityResult]=await Promise.all([
         c.rpc("ari_circle_xp_summary",{target_user_id:subject}),
         c.rpc("ari_circle_profile_xp_activity",{target_user_id:subject,result_limit:12})
       ]);
       if(summaryResult.error)throw summaryResult.error;
-      inject(summaryResult.data,activityResult.error?[]:activityResult.data,subject);
+      inject(summaryResult.data,activityResult.error?[]:activityResult.data);
     }catch(error){console.warn("ARI Circle V5 profile reputation unavailable:",error);}
   }
 
+  window.AriCircleProfileV5RealWorld=Object.freeze({version:VERSION,refresh:load});
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(load,120),{once:true});else setTimeout(load,120);
   document.addEventListener("circle:app-ready",()=>setTimeout(load,80));
   document.addEventListener("ari-circle:v5-real-world-ready",()=>setTimeout(load,80));
-  window.AriCircleProfileV5RealWorld=Object.freeze({version:VERSION,refresh:load});
 })();
