@@ -1,0 +1,123 @@
+name: Temporary Conversation Style Contract Fix
+
+on:
+  push:
+    branches:
+      - feature/conversation-style-auto-default
+    paths:
+      - .github/workflows/temp-conversation-style-contract-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/conversation-style-auto-default
+          fetch-depth: 0
+
+      - name: Rebuild preference contract from clean main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show origin/main:ari/profile/ari-user-preference-contract.js > ari/profile/ari-user-preference-contract.js
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('ari/profile/ari-user-preference-contract.js')
+          text = path.read_text()
+          preferences_start = text.index('        preferences: {')
+
+          specs = {
+              'tone': {
+                  'path': 'language.tone',
+                  'description': 'Let Ari adapt tone automatically.',
+                  'instruction': 'Adapt Ari’s tone to the current conversation and user context. Do not treat Auto as a fixed tone lock.'
+              },
+              'directness': {
+                  'path': 'language.directness',
+                  'description': 'Let Ari learn how direct to be automatically.',
+                  'instruction': 'Leave directness adaptive so current-turn instructions and learned conversation personalization can determine how direct Ari should be.'
+              },
+              'humor': {
+                  'path': 'language.humor',
+                  'description': 'Let Ari adapt humor automatically.',
+                  'instruction': 'Use humor contextually when it naturally fits. Auto is not a fixed humor frequency and must not force jokes.'
+              },
+              'profanity': {
+                  'path': 'language.profanity',
+                  'description': 'Let Ari adapt language automatically.',
+                  'instruction': 'Use Ari’s standard adaptive language. Auto does not require profanity and does not prohibit it when ordinary context supports it.'
+              },
+              'complexity': {
+                  'path': 'language.complexity',
+                  'description': 'Let Ari adapt explanation complexity automatically.',
+                  'instruction': 'Leave explanation complexity adaptive so Ari can match the conversation and learned user preference.'
+              },
+              'detail': {
+                  'path': 'language.detail',
+                  'description': 'Let Ari adapt response length automatically.',
+                  'instruction': 'Leave response length adaptive so Ari can use current-turn instructions and learned conversation personalization.'
+              }
+          }
+
+          keys = list(specs)
+          for i, key in enumerate(keys):
+              start = text.index(f'          {key}: {{', preferences_start)
+              if i + 1 < len(keys):
+                  end = text.index(f'          {keys[i+1]}: {{', start)
+              else:
+                  end = text.index('        }\n      }\n    },', start)
+              block = text[start:end]
+              expected_path = specs[key]['path']
+              assert expected_path in block, f'wrong block for {key}'
+              block, count = re.subn(r'defaultValue:\s*\n\s*"[^"]+"', 'defaultValue:\n              "auto"', block, count=1)
+              assert count == 1, f'default replacement failed for {key}'
+              options_pos = block.index('            options: {') + len('            options: {')
+              auto = f'''\n              auto: {{\n                label:\n                  "Auto",\n\n                description:\n                  "{specs[key]['description']}",\n\n                enforcement:\n                  "adaptive",\n\n                currentTurnAdjustable:\n                  true,\n\n                instruction:\n                  "{specs[key]['instruction']}"\n              }},\n'''
+              block = block[:options_pos] + auto + block[options_pos:]
+              if key == 'profanity':
+                  auto_end = block.index('              },', options_pos) + len('              },')
+                  never = '''\n\n              never: {\n                label:\n                  "Never",\n\n                description:\n                  "Do not use profanity.",\n\n                enforcement:\n                  "hard_opt_out",\n\n                currentTurnAdjustable:\n                  false,\n\n                instruction:\n                  "Do not use profanity. This is an explicit user lock and should remain in effect unless the user changes the saved Conversation Style setting."\n              },'''
+                  block = block[:auto_end] + never + block[auto_end:]
+              text = text[:start] + block + text[end:]
+
+          rstart = text.index('    runtimeDefaults: {')
+          rend = text.index('    // ===================================================\n    // PUBLIC CONTRACT ACCESS', rstart)
+          rblock = text[rstart:rend]
+          for field in ['tone', 'directness', 'humor', 'profanity', 'complexity', 'detail']:
+              rblock, count = re.subn(rf'({field}:\s*\n\s*)"[^"]+"', rf'\1"auto"', rblock, count=1)
+              assert count == 1, f'runtime default failed for {field}'
+          text = text[:rstart] + rblock + text[rend:]
+
+          text = text.replace('          "Ari Default",', '          "Automatic",', 1)
+          text = text.replace('          "Uses the default communication preferences defined by the Personalize Ari page.",', '          "Lets Ari adapt conversation style automatically unless the user locks a specific setting.",', 1)
+          path.write_text(text)
+          PY
+
+      - name: Validate contract shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check ari/profile/ari-user-preference-contract.js
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('ari/profile/ari-user-preference-contract.js').read_text()
+          assert text.count('              auto: {') == 6, text.count('              auto: {')
+          assert text.count('defaultValue:\n              "auto"') == 6
+          assert '              never: {' in text
+          PY
+
+      - name: Commit corrected contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ari/profile/ari-user-preference-contract.js
+          git commit -m "Correct Conversation Style automatic contract"
+          git push origin HEAD:feature/conversation-style-auto-default
