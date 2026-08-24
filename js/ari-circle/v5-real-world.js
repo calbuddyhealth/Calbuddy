@@ -155,17 +155,6 @@
     });
   }
 
-  function normalizeDrawer() {
-    document.querySelectorAll(".circle-v5-menu__item").forEach((item) => {
-      const label = item.querySelector(".circle-v5-menu__label");
-      const text = String(label?.textContent || "").trim();
-      if (["Find People", "Buddies", "Partners"].includes(text)) {
-        if (item.tagName === "A") item.href = "ari-circle-meetup.html";
-        if (label) label.textContent = "Meet Up";
-      }
-    });
-  }
-
   function loadRouteModules() {
     const path = pathName();
     if (!happeningLoaded && (path.endsWith("/ari-circle-feed.html") || document.querySelector(".feed-page"))) {
@@ -191,7 +180,6 @@
     ensureStyles();
     ensureBottomNav();
     normalizeSignatureHeader();
-    normalizeDrawer();
     loadRouteModules();
     document.dispatchEvent(new CustomEvent("ari-circle:v5-real-world-ready", { detail: { version: VERSION } }));
   }
