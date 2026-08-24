@@ -107,6 +107,7 @@ test.describe("ARI Circle premium control drawer", () => {
       "Notifications",
       "Profile",
       "Meet Up",
+      "Profile Options",
       "Privacy & Visibility",
       "Circle Safety",
       "Exit ARI Circle"
@@ -131,6 +132,7 @@ test.describe("ARI Circle premium control drawer", () => {
       const menu = document.querySelector("details.circle-v4-menu");
       if (!menu) return;
       menu.innerHTML = `<summary class="feed-icon-button">☰</summary><nav class="circle-v4-menu__panel"><a href="#"><span>Notifications</span><small>Activity</small></a></nav>`;
+      window.AriCircleMenuV5?.refresh?.();
     });
 
     await expect(details.locator(".circle-v5-menu__identity")).toBeVisible({ timeout: 3000 });
