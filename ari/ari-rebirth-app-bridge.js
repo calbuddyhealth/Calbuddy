@@ -160,6 +160,7 @@ window.AriRebirthAppBridge = {
 "ari/profile/ari-user-preference-store.js?v=1.0.1",
 "ari/profile/ari-preference-resolver.js?v=2.1.0",
 "ari/profile/ari-preference-runtime.js?v=1.1.0",
+"ari/profile/ari-conversation-style-auto-contract.js?v=1.0.0",
 
     "ari/conversation/ari-turn-packet.js",
 

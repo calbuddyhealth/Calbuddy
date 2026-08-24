@@ -46,6 +46,7 @@ import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext
 import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import { loadSavedCommunicationPreferences } from "./_lib/ari-vnext/saved-communication-preferences.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
 import {
   claimAriRequest,
@@ -196,6 +197,7 @@ export default async function handler(req, res) {
       persistedWorldModel,
       recentDecisions,
       communicationOutcomes,
+      savedCommunicationPreferences,
       accountEntitlements,
       persistedCognitiveState,
       adaptiveStrategyPreparation
@@ -219,6 +221,7 @@ export default async function handler(req, res) {
       shouldLoadConversationLearning
         ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })
         : Promise.resolve([]),
+      loadSavedCommunicationPreferences({ userId: auth.userId }),
       casualConversation
         ? Promise.resolve(null)
         : loadAccountEntitlements({ userId: auth.userId }),
@@ -256,6 +259,16 @@ export default async function handler(req, res) {
     const communicationLearning = communicationOutcomes.length
       ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })
       : null;
+    const savedConversationStyle = savedCommunicationPreferences || {
+      preferences: {},
+      explicitLocks: [],
+      automatic: true,
+      source: "saved_conversation_style"
+    };
+    turn.preferences = {
+      ...(turn.preferences && typeof turn.preferences === "object" ? turn.preferences : {}),
+      ...(savedConversationStyle.preferences || {})
+    };
     const temporalTimeline = fitnessRoute
       ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
       : null;
@@ -293,6 +306,13 @@ export default async function handler(req, res) {
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(communicationLearning ? { communicationLearning } : {}),
+      conversationStyle: {
+        automatic: savedConversationStyle.automatic !== false,
+        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)
+          ? savedConversationStyle.explicitLocks
+          : [],
+        source: savedConversationStyle.source || "saved_conversation_style"
+      },
       ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
     };
 
@@ -412,6 +432,10 @@ export default async function handler(req, res) {
             outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
             calibrationSampleSize: decisionState?.calibration?.sampleSize || 0,
             communicationLearningSamples: communicationLearning?.resolvedCount || 0,
+            conversationStyleAutomatic: savedConversationStyle.automatic !== false,
+            conversationStyleLockCount: Array.isArray(savedConversationStyle.explicitLocks)
+              ? savedConversationStyle.explicitLocks.length
+              : 0,
             proactiveInsightCount: proactiveInsights?.userFacingCount || 0,
             idempotencyEnabled: requestClaim?.enabled === true,
             idempotencySource: requestClaim?.source || null,
@@ -541,6 +565,13 @@ export default async function handler(req, res) {
       userWorldModel: runtimeWorldModel,
       decisionState,
       communicationLearning,
+      conversationStyle: {
+        automatic: savedConversationStyle.automatic !== false,
+        explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)
+          ? savedConversationStyle.explicitLocks
+          : [],
+        source: savedConversationStyle.source || "saved_conversation_style"
+      },
       temporalTimeline,
       proactiveInsights,
       cognitiveLoop: cognitiveLoopEnabled
