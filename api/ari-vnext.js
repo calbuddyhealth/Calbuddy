@@ -346,22 +346,18 @@ export default async function handler(req, res) {
     };
 
     const modelStartedAt = Date.now();
-    const result = explicitMemoryAction.memoryOnly
-      ? {
-          success: true,
-          ready: true,
-          reply: buildVerifiedMemoryReply(explicitMemoryAction),
-          route: routePreview,
-          source: "ari_vnext_verified_memory_action",
-          action: {
-            type: "memory_save",
-            status: explicitMemoryAction.status,
-            requestedCount: explicitMemoryAction.requestedCount,
-            storedCount: explicitMemoryAction.storedCount,
-            failedCount: explicitMemoryAction.failedCount
-          }
-        }
-      : await runAriVNext(turn);
+    const result = await runAriVNext(turn);
+    if (explicitMemoryAction.memoryOnly) {
+      result.reply = buildVerifiedMemoryReply(explicitMemoryAction);
+      result.source = "ari_vnext_verified_memory_action";
+      result.action = {
+        type: "memory_save",
+        status: explicitMemoryAction.status,
+        requestedCount: explicitMemoryAction.requestedCount,
+        storedCount: explicitMemoryAction.storedCount,
+        failedCount: explicitMemoryAction.failedCount
+      };
+    }
     const modelMs = Date.now() - modelStartedAt;
     const serverHydrationMs = modelStartedAt - hydrationStartedAt;
 
