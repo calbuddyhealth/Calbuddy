@@ -35,6 +35,11 @@ import {
   persistConversationTurn,
   persistDurableMemory
 } from "./_lib/ari-vnext/continuity-service.js";
+import {
+  buildMemoryActionModelNote,
+  buildVerifiedMemoryReply,
+  executeExplicitMemoryAction
+} from "./_lib/ari-vnext/memory-action.js";
 import { routeContext } from "./_lib/ari-vnext/context-router.js";
 import {
   buildDecisionRecord,
@@ -269,6 +274,21 @@ export default async function handler(req, res) {
       ...(turn.preferences && typeof turn.preferences === "object" ? turn.preferences : {}),
       ...(savedConversationStyle.preferences || {})
     };
+
+    // Explicit memory requests are transactional: verify persistence before Ari
+    // says anything about whether the memory was saved.
+    const explicitMemoryAction = await executeExplicitMemoryAction({
+      userId: auth.userId,
+      message: turn.message,
+      history: turn.history,
+      route: routePreview,
+      privacyControls: persistedWorldModel?.privacyControls || null
+    });
+    const memoryActionNote = buildMemoryActionModelNote(explicitMemoryAction);
+    if (memoryActionNote) {
+      turn.memory = [turn.memory, memoryActionNote].filter(Boolean).join("\n\n").slice(0, 8000);
+    }
+
     const temporalTimeline = fitnessRoute
       ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
       : null;
@@ -306,6 +326,15 @@ export default async function handler(req, res) {
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(communicationLearning ? { communicationLearning } : {}),
+      memoryCapability: {
+        persistentUserMemory: true,
+        explicitRememberSupported: true,
+        requestDetected: explicitMemoryAction.requested === true,
+        status: explicitMemoryAction.status,
+        requestedCount: explicitMemoryAction.requestedCount,
+        storedCount: explicitMemoryAction.storedCount,
+        failedCount: explicitMemoryAction.failedCount
+      },
       conversationStyle: {
         automatic: savedConversationStyle.automatic !== false,
         explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)
@@ -318,6 +347,17 @@ export default async function handler(req, res) {
 
     const modelStartedAt = Date.now();
     const result = await runAriVNext(turn);
+    if (explicitMemoryAction.memoryOnly) {
+      result.reply = buildVerifiedMemoryReply(explicitMemoryAction);
+      result.source = "ari_vnext_verified_memory_action";
+      result.action = {
+        type: "memory_save",
+        status: explicitMemoryAction.status,
+        requestedCount: explicitMemoryAction.requestedCount,
+        storedCount: explicitMemoryAction.storedCount,
+        failedCount: explicitMemoryAction.failedCount
+      };
+    }
     const modelMs = Date.now() - modelStartedAt;
     const serverHydrationMs = modelStartedAt - hydrationStartedAt;
 
@@ -380,12 +420,14 @@ export default async function handler(req, res) {
           experimentLedger
         })
       : null;
-    const communicationExposure = buildCommunicationExposure({
-      turnId: turn.turnId,
-      route: result?.route || routePreview,
-      result,
-      turn
-    });
+    const communicationExposure = explicitMemoryAction.memoryOnly
+      ? null
+      : buildCommunicationExposure({
+          turnId: turn.turnId,
+          route: result?.route || routePreview,
+          result,
+          turn
+        });
 
     const usageTask = result?.provider?.usage
       ? recordOpenAIUsage({
@@ -476,15 +518,24 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(false);
 
-    const durableMemoryTask = casualConversation
-      ? Promise.resolve({ stored: false, reason: "casual_fast_path" })
-      : persistDurableMemory({
-          userId: auth.userId,
-          message: turn.message,
-          history: turn.history,
-          route: result?.route || routePreview,
-          privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null
-        });
+    const durableMemoryTask = explicitMemoryAction.requested
+      ? Promise.resolve({
+          stored: explicitMemoryAction.storedCount > 0,
+          reason: "verified_memory_action_preflight",
+          requestedCount: explicitMemoryAction.requestedCount,
+          storedCount: explicitMemoryAction.storedCount,
+          failedCount: explicitMemoryAction.failedCount,
+          status: explicitMemoryAction.status
+        })
+      : casualConversation
+        ? Promise.resolve({ stored: false, reason: "casual_fast_path" })
+        : persistDurableMemory({
+            userId: auth.userId,
+            message: turn.message,
+            history: turn.history,
+            route: result?.route || routePreview,
+            privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null
+          });
 
     const worldModelTask = casualConversation || !runtimeWorldModel
       ? Promise.resolve(false)
@@ -561,6 +612,17 @@ export default async function handler(req, res) {
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
       memoryPrivacyFiltered: Boolean(retrieved?.privacyFiltered),
+      memoryAction: explicitMemoryAction.requested
+        ? {
+            verified: true,
+            persistentMemoryAvailable: true,
+            memoryOnly: explicitMemoryAction.memoryOnly,
+            status: explicitMemoryAction.status,
+            requestedCount: explicitMemoryAction.requestedCount,
+            storedCount: explicitMemoryAction.storedCount,
+            failedCount: explicitMemoryAction.failedCount
+          }
+        : null,
       experimentLedger,
       userWorldModel: runtimeWorldModel,
       decisionState,
