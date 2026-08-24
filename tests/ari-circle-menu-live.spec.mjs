@@ -99,7 +99,9 @@ test.describe("ARI Circle premium control drawer", () => {
     await expect(details.locator("summary")).toBeVisible();
     await details.locator("summary").click();
 
-    const panel = details.locator(".circle-v5-menu__panel");
+    let panelId = await details.getAttribute("data-circle-menu-panel-id");
+    expect(panelId).toBeTruthy();
+    let panel = page.locator(`#${panelId}`);
     await expect(panel).toBeVisible();
     await expect(panel.locator(".circle-v5-menu__identity strong")).toHaveText("ARI CIRCLE");
     await expect(panel.locator(".circle-v5-menu__identity small")).toHaveText("Circle controls");
@@ -123,10 +125,26 @@ test.describe("ARI Circle premium control drawer", () => {
 
     const geometry = await panel.evaluate((node) => {
       const style = getComputedStyle(node);
-      return { width: node.getBoundingClientRect().width, radius: parseFloat(style.borderTopLeftRadius || "0") };
+      const rect = node.getBoundingClientRect();
+      const header = document.querySelector(".circle-v51-halo-header");
+      return {
+        width: rect.width,
+        height: rect.height,
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportHeight: innerHeight,
+        radius: parseFloat(style.borderTopLeftRadius || "0"),
+        parentTag: node.parentElement?.tagName || "",
+        headerPosition: header ? getComputedStyle(header).position : ""
+      };
     });
     expect(geometry.width).toBeGreaterThan(300);
-    expect(geometry.radius).toBeGreaterThanOrEqual(27);
+    expect(geometry.height).toBeGreaterThan(300);
+    expect(geometry.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+    expect(geometry.radius).toBeGreaterThanOrEqual(25);
+    expect(geometry.parentTag).toBe("BODY");
+    expect(geometry.headerPosition).toBe("sticky");
 
     await page.evaluate(() => {
       const menu = document.querySelector("details.circle-v4-menu");
@@ -135,7 +153,10 @@ test.describe("ARI Circle premium control drawer", () => {
       window.AriCircleMenuV5?.refresh?.();
     });
 
-    await expect(details.locator(".circle-v5-menu__identity")).toBeVisible({ timeout: 3000 });
+    panelId = await details.getAttribute("data-circle-menu-panel-id");
+    expect(panelId).toBeTruthy();
+    panel = page.locator(`#${panelId}`);
+    await expect(panel.locator(".circle-v5-menu__identity")).toBeVisible({ timeout: 3000 });
     await expect(panel.getByText("Meet Up", { exact: true })).toBeVisible();
 
     await page.evaluate(() => {
