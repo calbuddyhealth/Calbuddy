@@ -76,22 +76,97 @@
 
   <dialog class="circle-v5-dialog" id="hostMeetupDialog">
     <div class="circle-v5-dialog__body">
-      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">HOST</p><h2>Make something happen.</h2></div><button class="circle-v5-close" type="button" data-close="hostMeetupDialog" aria-label="Close">×</button></div>
+      <div class="circle-v5-dialog__head">
+        <div><p class="circle-v5-hero__kicker">HOST</p><h2>Make something happen.</h2></div>
+        <button class="circle-v5-close" type="button" data-close="hostMeetupDialog" aria-label="Close">×</button>
+      </div>
       <form class="circle-v5-form" id="hostMeetupForm">
-        <label class="circle-v5-field">Meetup title<input class="circle-v5-input" id="meetupFormTitle" maxlength="90" placeholder="Saturday morning hike" required /></label>
-        <div class="circle-v5-form-grid">
-          <label class="circle-v5-field">Activity<select class="circle-v5-select" id="meetupFormActivity" required><option value="walking">Walking</option><option value="gym">Gym</option><option value="running">Running</option><option value="hiking">Hiking</option><option value="sports">Sports</option><option value="cycling">Cycling</option><option value="yoga">Yoga</option><option value="coffee">Coffee</option><option value="food">Food</option><option value="community">Community Walk / Civic Event</option><option value="volunteer">Volunteer</option><option value="other">Something else</option></select></label>
-          <label class="circle-v5-field">General area<input class="circle-v5-input" id="meetupFormArea" maxlength="100" placeholder="Mission Valley, San Diego" required /></label>
-        </div>
-        <label class="circle-v5-field">Starts<input class="circle-v5-input" id="meetupFormStarts" type="datetime-local" required /></label>
-        <div class="circle-v5-form-grid">
-          <label class="circle-v5-field">Duration<select class="circle-v5-select" id="meetupFormDuration"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">90 min</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select></label>
-          <label class="circle-v5-field">Group size<select class="circle-v5-select" id="meetupFormCapacity"><option value="2">2 people</option><option value="4">4 people</option><option value="6">6 people</option><option value="8" selected>8 people</option><option value="12">12 people</option><option value="20">20 people</option><option value="30">30 people</option><option value="50">50 people</option></select></label>
-        </div>
-        <label class="circle-v5-field">Description <span style="font-weight:600;color:#6f819d">optional</span><textarea class="circle-v5-textarea" id="meetupFormDescription" maxlength="500" placeholder="Experience level, what to bring, and the vibe."></textarea></label>
-        <p class="circle-v5-form-note">📍 Approximate area only · Host +6 XP · Participant +4 XP after verified completion.</p>
+        <p class="circle-v5-form-note">You are the point of contact. Keep the setup simple; ARI Circle handles capacity and join requests.</p>
+
+        <label class="circle-v5-field">What are you doing?
+          <input class="circle-v5-input" id="meetupFormTitle" maxlength="90" placeholder="Shoulders after work" autocomplete="off" required />
+        </label>
+
+        <label class="circle-v5-field">When?
+          <input class="circle-v5-input" id="meetupFormStarts" type="datetime-local" required />
+        </label>
+
+        <label class="circle-v5-field">Where?
+          <input class="circle-v5-input" id="meetupFormArea" maxlength="100" placeholder="Mission Valley, San Diego" autocomplete="off" required />
+        </label>
+
+        <label class="circle-v5-field">Guest spots
+          <select class="circle-v5-select" id="meetupFormGuestSpots">
+            <option value="1">1 guest</option>
+            <option value="2">2 guests</option>
+            <option value="3" selected>3 guests</option>
+            <option value="5">5 guests</option>
+            <option value="7">7 guests</option>
+            <option value="11">11 guests</option>
+            <option value="19">19 guests</option>
+            <option value="29">29 guests</option>
+            <option value="49">49 guests</option>
+          </select>
+        </label>
+
+        <details>
+          <summary class="circle-v5-button">More options</summary>
+          <div class="circle-v5-form" style="margin-top:12px">
+            <label class="circle-v5-field">Activity
+              <select class="circle-v5-select" id="meetupFormActivity">
+                <option value="other" selected>Something else</option>
+                <option value="walking">Walking</option>
+                <option value="gym">Gym</option>
+                <option value="running">Running</option>
+                <option value="hiking">Hiking</option>
+                <option value="sports">Sports</option>
+                <option value="cycling">Cycling</option>
+                <option value="yoga">Yoga</option>
+                <option value="coffee">Coffee</option>
+                <option value="food">Food</option>
+                <option value="community">Community Walk / Civic Event</option>
+                <option value="volunteer">Volunteer</option>
+              </select>
+            </label>
+
+            <label class="circle-v5-field">Joining
+              <select class="circle-v5-select" id="meetupFormJoinMode">
+                <option value="instant" selected>Anyone can join</option>
+                <option value="approval">I approve requests</option>
+              </select>
+            </label>
+
+            <label class="circle-v5-field">Duration
+              <select class="circle-v5-select" id="meetupFormDuration">
+                <option value="30">30 min</option>
+                <option value="60" selected>1 hour</option>
+                <option value="90">90 min</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="240">4 hours</option>
+              </select>
+            </label>
+
+            <label class="circle-v5-field">Anything people should know? <span style="font-weight:600;color:#6f819d">optional</span>
+              <textarea class="circle-v5-textarea" id="meetupFormDescription" maxlength="500" placeholder="Experience level, what to bring, or the vibe."></textarea>
+            </label>
+          </div>
+        </details>
+
+        <p class="circle-v5-form-note">Verified completion: Host up to +6 XP · Participant up to +4 XP. Successful hosting builds your Host status.</p>
         <button class="circle-v5-button-primary" id="createMeetupSubmit" type="submit">Publish Meetup</button>
       </form>
+    </div>
+  </dialog>
+
+  <dialog class="circle-v5-dialog" id="meetupRequestsDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head">
+        <div><p class="circle-v5-hero__kicker">HOST · POC</p><h2 id="meetupRequestsTitle">Join requests</h2></div>
+        <button class="circle-v5-close" type="button" data-close="meetupRequestsDialog" aria-label="Close">×</button>
+      </div>
+      <p class="circle-v5-form-note" id="meetupRequestsStatus">Loading requests…</p>
+      <div class="circle-v5-list" id="meetupRequestsList" aria-live="polite"></div>
     </div>
   </dialog>
 
@@ -102,6 +177,6 @@
   <script src="supabase-config.js?v=1.1.4"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.0.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.3" defer></script>
-  <script src="js/ari-circle/meetups/meetups-v5.js?v=5.0.0" defer></script>
+  <script src="js/ari-circle/meetups/meetups-v5.js?v=5.1.0" defer></script>
 </body>
 </html>
