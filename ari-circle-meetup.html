@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050811" />
+  <title>Meet Up | ARI Circle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-real-world.css?v=5.0.0" />
+</head>
+<body class="circle-v5-real-world">
+  <main class="circle-v5-page" id="meetupPage" hidden>
+    <header class="circle-v5-header feed-header">
+      <details class="circle-v4-menu">
+        <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
+      </details>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed">
+        <span class="feed-brand__mark" aria-hidden="true"><i></i><i></i></span><span>ARI CIRCLE</span>
+      </a>
+      <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
+    </header>
+
+    <div class="circle-v5-page-main">
+      <section class="circle-v5-hero" aria-labelledby="meetupTitle">
+        <p class="circle-v5-hero__kicker">REAL WORLD SOCIAL</p>
+        <h1 id="meetupTitle">Meet Up</h1>
+        <p>Find people who are actually ready to do something. Join, show up, complete together, and build a real community history.</p>
+        <div class="circle-v5-hero__actions">
+          <button class="circle-v5-button-primary" id="hostMeetupButton" type="button">+ Host a Meetup</button>
+          <a class="circle-v5-button" href="#meetupList">Find something to do</a>
+        </div>
+      </section>
+
+      <section class="circle-v5-card" id="meetupXpCard" style="padding:15px;margin-bottom:15px" aria-label="Real World XP limits">
+        <div class="circle-v5-section-heading" style="margin-bottom:8px">
+          <div><p>REAL WORLD XP</p><h2>Earn it by showing up.</h2></div>
+          <span class="circle-v5-xp-chip">10/day · 70/week</span>
+        </div>
+        <div class="circle-v5-profile-cap">
+          <div class="circle-v5-profile-cap__row"><span>Today</span><span id="meetupDailyXp">0 / 10 XP</span></div>
+          <div class="circle-v5-profile-cap__track"><div class="circle-v5-profile-cap__fill" id="meetupDailyBar" style="width:0%"></div></div>
+        </div>
+        <div class="circle-v5-profile-cap">
+          <div class="circle-v5-profile-cap__row"><span>This week</span><span id="meetupWeeklyXp">0 / 70 XP</span></div>
+          <div class="circle-v5-profile-cap__track"><div class="circle-v5-profile-cap__fill" id="meetupWeeklyBar" style="width:0%"></div></div>
+        </div>
+        <p class="circle-v5-completion-note">Creating, joining, posting, reacting, or checking in earns 0 XP. Verified completion is the only reward event.</p>
+      </section>
+
+      <div class="circle-v5-filter-rail" id="meetupWindowFilters" aria-label="Meetup date filters">
+        <button class="circle-v5-filter-chip is-active" type="button" data-window="upcoming">Upcoming</button>
+        <button class="circle-v5-filter-chip" type="button" data-window="today">Today</button>
+        <button class="circle-v5-filter-chip" type="button" data-window="weekend">Weekend</button>
+      </div>
+
+      <div class="circle-v5-filter-rail" id="meetupActivityFilters" aria-label="Meetup activity filters">
+        <button class="circle-v5-filter-chip is-active" type="button" data-activity="">All</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="walking">Walking</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="gym">Gym</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="running">Running</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="hiking">Hiking</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="sports">Sports</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="community">Community</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="volunteer">Volunteer</button>
+        <button class="circle-v5-filter-chip" type="button" data-activity="coffee">Coffee</button>
+      </div>
+
+      <section aria-labelledby="happeningMeetupTitle">
+        <div class="circle-v5-section-heading">
+          <div><p>HAPPENING</p><h2 id="happeningMeetupTitle">Find your next thing</h2></div>
+          <button class="circle-v5-button" id="refreshMeetups" type="button" style="min-height:34px;padding:0 11px">Refresh</button>
+        </div>
+        <p id="meetupStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Finding meetups…</p>
+        <div class="circle-v5-list" id="meetupList" aria-live="polite"></div>
+        <div class="circle-v5-empty" id="meetupEmpty" hidden><strong>Nothing matches yet.</strong><span>Host the first meetup for your area.</span></div>
+      </section>
+
+      <section class="circle-v5-card" style="padding:16px;margin-top:16px">
+        <div class="circle-v5-section-heading" style="margin-bottom:7px"><div><p>COMMUNITY</p><h2>Walking counts when the community does.</h2></div></div>
+        <p class="circle-v5-completion-note" style="margin:0">Community walks, charity walks, volunteer events, awareness walks, and peaceful civic marches can be hosted as Community meetups. ARI Circle rewards verified participation—not a political viewpoint, crowd size, distance race, or risky behavior.</p>
+      </section>
+    </div>
+  </main>
+
+  <dialog class="circle-v5-dialog" id="hostMeetupDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">HOST</p><h2>Make something happen.</h2></div><button class="circle-v5-close" type="button" data-close="hostMeetupDialog" aria-label="Close">×</button></div>
+      <form class="circle-v5-form" id="hostMeetupForm">
+        <label class="circle-v5-field">Meetup title<input class="circle-v5-input" id="meetupFormTitle" maxlength="90" placeholder="Saturday morning Mission Trails hike" required /></label>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Activity<select class="circle-v5-select" id="meetupFormActivity" required><option value="walking">Walking</option><option value="gym">Gym</option><option value="running">Running</option><option value="hiking">Hiking</option><option value="sports">Sports</option><option value="cycling">Cycling</option><option value="yoga">Yoga</option><option value="coffee">Coffee</option><option value="food">Food</option><option value="community">Community Walk / Civic Event</option><option value="volunteer">Volunteer</option><option value="other">Something else</option></select></label>
+          <label class="circle-v5-field">General area<input class="circle-v5-input" id="meetupFormArea" maxlength="100" placeholder="Mission Valley, San Diego" required /></label>
+        </div>
+        <label class="circle-v5-field">Starts<input class="circle-v5-input" id="meetupFormStarts" type="datetime-local" required /></label>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Duration<select class="circle-v5-select" id="meetupFormDuration"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">90 min</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select></label>
+          <label class="circle-v5-field">Group size<select class="circle-v5-select" id="meetupFormCapacity"><option value="2">2 people</option><option value="4">4 people</option><option value="6">6 people</option><option value="8" selected>8 people</option><option value="12">12 people</option><option value="20">20 people</option><option value="30">30 people</option><option value="50">50 people</option></select></label>
+        </div>
+        <label class="circle-v5-field">Short description <span style="font-weight:600;color:#6f819d">optional</span><textarea class="circle-v5-textarea" id="meetupFormDescription" maxlength="500" placeholder="Experience level, what to bring, and the vibe. Keep exact private meeting details out of public text."></textarea></label>
+        <p class="circle-v5-form-note">Only a general area is public. Hosting earns 0 XP up front. A verified meetup pays up to 6 XP to the host and 4 XP to participants, subject to the 10/day and 70/week caps.</p>
+        <button class="circle-v5-button-primary" id="createMeetupSubmit" type="submit">Publish Meetup</button>
+      </form>
+    </div>
+  </dialog>
+
+  <div id="meetupToast" role="status" aria-live="polite" hidden style="position:fixed;z-index:500;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 14px;border:1px solid rgba(109,201,255,.22);border-radius:14px;color:white;background:rgba(8,16,31,.96);box-shadow:0 18px 50px rgba(0,0,0,.45);font:700 .72rem/1.35 Inter,sans-serif"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.4"></script>
+  <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.0.0" defer></script>
+  <script src="js/ari-circle/circle-menu-v5.js?v=2.1.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.0.0" defer></script>
+  <script src="js/ari-circle/meetups/meetups-v5.js?v=5.0.0" defer></script>
+</body>
+</html>

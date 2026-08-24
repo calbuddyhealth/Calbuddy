@@ -1,14 +1,13 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5
-   Version: 1.1.0
-   Rebuilds the shared Circle menu as a compact premium control drawer.
-   Also installs the shared adults-only Circle presentation gate.
+   Version: 2.1.1
+   Premium adults-only Circle controls + authoritative Real World Social shell.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "2.1.1";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
@@ -18,14 +17,29 @@
   const PRIVATE_MEDIA_SCRIPT_SRC = "js/ari-circle/private-media.js?v=1.0.0";
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
+  const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.0.1";
   let observer = null;
   let outsideBound = false;
 
-  // Hide Circle while the server-derived adult entitlement resolves. This is a
-  // presentation boundary only; database/RPC/storage authorization is the real
-  // security boundary.
-  document.documentElement.setAttribute("data-ari-circle-gate", "pending");
-  document.documentElement.style.visibility = "hidden";
+  function adultAccessReady() {
+    return window.ARI_CIRCLE_AGE_STATE?.circleAllowed === true;
+  }
+
+  function holdForAdultGate() {
+    if (adultAccessReady()) return;
+    document.documentElement.setAttribute("data-ari-circle-gate", "pending");
+    document.documentElement.style.visibility = "hidden";
+  }
+
+  function revealAdultCircleUi() {
+    if (!adultAccessReady()) return false;
+    document.documentElement.style.visibility = "";
+    document.documentElement.removeAttribute("data-ari-circle-gate");
+    return true;
+  }
+
+  holdForAdultGate();
 
   function loadAdultGuard() {
     if (window.AriCircleAdultGuard || document.getElementById(ADULT_GUARD_SCRIPT_ID)) return;
@@ -36,14 +50,10 @@
     document.head.append(script);
   }
 
-  function adultAccessReady() {
-    return window.ARI_CIRCLE_AGE_STATE?.circleAllowed === true;
-  }
-
   const icon = Object.freeze({
     menu: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"></path></svg>`,
     bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path><path d="M10 20h4"></path></svg>`,
-    people: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
+    meetup: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3"></circle><circle cx="16.5" cy="9" r="2.5"></circle><path d="M3.5 19c.5-3.5 2.3-5.3 5-5.3s4.6 1.8 5.1 5.3M14.2 14.2c3.4-.4 5.6 1.2 6.3 4.8"></path></svg>`,
     user: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg>`,
     privacy: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M9.5 12.5 11 14l3.5-4"></path></svg>`,
     shield: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M12 8v4M12 16h.01"></path></svg>`,
@@ -61,18 +71,28 @@
     document.head.append(script);
   }
 
+  function loadRealWorldShell() {
+    if (!adultAccessReady()) return;
+    if (window.AriCircleV5RealWorld) {
+      window.AriCircleV5RealWorld.refresh?.();
+      return;
+    }
+    if (document.getElementById(REAL_WORLD_SCRIPT_ID)) return;
+    const script = document.createElement("script");
+    script.id = REAL_WORLD_SCRIPT_ID;
+    script.src = REAL_WORLD_SCRIPT_SRC;
+    script.defer = true;
+    document.head.append(script);
+  }
+
   function shouldLoadProfileSafety() {
     const path = String(window.location.pathname || "").toLowerCase();
-    return (
-      path.endsWith("/ari-circle.html") ||
-      Boolean(document.body?.classList.contains("ari-circle-page"))
-    );
+    return path.endsWith("/ari-circle.html") || Boolean(document.body?.classList.contains("ari-circle-page"));
   }
 
   function loadProfileSafety() {
     if (!adultAccessReady() || !shouldLoadProfileSafety()) return;
     if (window.AriCircleProfileSafety || document.getElementById(PROFILE_SAFETY_SCRIPT_ID)) return;
-
     const script = document.createElement("script");
     script.id = PROFILE_SAFETY_SCRIPT_ID;
     script.src = PROFILE_SAFETY_SCRIPT_SRC;
@@ -91,10 +111,7 @@
 
   function item({ href = "#", label, iconMarkup, exit = false, button = false, profileOptions = false }) {
     const tag = button ? "button" : "a";
-    const attributes = button
-      ? `type="button"${profileOptions ? " data-circle-v5-profile-options" : ""}`
-      : `href="${href}"`;
-
+    const attributes = button ? `type="button"${profileOptions ? " data-circle-v5-profile-options" : ""}` : `href="${href}"`;
     return `<${tag} ${attributes} class="circle-v5-menu__item${exit ? " circle-v5-menu__item--exit" : ""}">
       <span class="circle-v5-menu__icon">${iconMarkup}</span>
       <span class="circle-v5-menu__label">${label}</span>
@@ -108,14 +125,12 @@
       <nav class="circle-v4-menu__panel circle-v5-menu__panel" aria-label="Circle menu">
         <div class="circle-v5-menu__identity">
           <span class="circle-v5-menu__mark" aria-hidden="true"></span>
-          <span class="circle-v5-menu__identity-text">
-            <strong>ARI CIRCLE</strong>
-            <small>Circle controls</small>
-          </span>
+          <span class="circle-v5-menu__identity-text"><strong>ARI CIRCLE</strong><small>Circle controls</small></span>
         </div>
         <div class="circle-v5-menu__items">
           ${item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell })}
-          ${item({ href: "ari-circle-partners.html", label: "Find People", iconMarkup: icon.people })}
+          ${item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user })}
+          ${item({ href: "ari-circle-meetup.html", label: "Meet Up", iconMarkup: icon.meetup })}
           ${includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : ""}
           ${item({ href: "account.html", label: "Privacy & Visibility", iconMarkup: icon.privacy })}
           ${item({ href: "help-safety.html", label: "Circle Safety", iconMarkup: icon.shield })}
@@ -126,8 +141,7 @@
   }
 
   function isProfileMenu(details) {
-    return details.classList.contains("circle-v4-menu--profile") ||
-      Boolean(document.body.classList.contains("ari-circle-page"));
+    return details.classList.contains("circle-v4-menu--profile") || Boolean(document.body.classList.contains("ari-circle-page"));
   }
 
   function bindProfileOptions(details) {
@@ -147,12 +161,10 @@
     const currentVersion = details.getAttribute(READY_ATTR);
     const expectedProfile = includeProfileOptions ? "profile" : "standard";
     const hasV5Markup = Boolean(details.querySelector(".circle-v5-menu__identity"));
-
     if (currentVersion === `${VERSION}:${expectedProfile}` && hasV5Markup) {
       bindProfileOptions(details);
       return;
     }
-
     details.innerHTML = markup(includeProfileOptions);
     details.setAttribute(READY_ATTR, `${VERSION}:${expectedProfile}`);
     bindProfileOptions(details);
@@ -166,7 +178,6 @@
     const dialog = document.getElementById("circle-notifications-dialog");
     const toolbar = dialog?.querySelector(".circle-notifications-toolbar");
     if (!toolbar || toolbar.querySelector(".circle-notifications-settings-link")) return;
-
     const link = document.createElement("a");
     link.className = "circle-notifications-settings-link";
     link.href = "notification-settings.html";
@@ -184,7 +195,6 @@
   function bindOutsideClose() {
     if (outsideBound) return;
     outsideBound = true;
-
     document.addEventListener("pointerdown", (event) => {
       const menu = event.target.closest?.("details.circle-v4-menu");
       if (menu) {
@@ -193,7 +203,6 @@
       }
       closeMenus();
     }, true);
-
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeMenus();
     });
@@ -201,49 +210,55 @@
 
   function run() {
     if (!adultAccessReady()) return;
+    revealAdultCircleUi();
     loadPrivateMedia();
     loadProfileSafety();
+    loadRealWorldShell();
     ensureStyle();
     normalizeMenus();
     ensureNotificationSettingsLink();
     bindOutsideClose();
   }
 
+  function normalizeAddedNode(node) {
+    if (!(node instanceof HTMLElement)) return;
+    if (node.matches?.("details.circle-v4-menu")) normalizeMenu(node);
+    node.querySelectorAll?.("details.circle-v4-menu").forEach(normalizeMenu);
+    if (node.id === "circle-notifications-dialog" || node.querySelector?.("#circle-notifications-dialog")) {
+      ensureNotificationSettingsLink();
+    }
+  }
+
   function watch() {
-    if (observer || !adultAccessReady()) return;
+    if (observer || !adultAccessReady() || !document.body) return;
     observer = new MutationObserver((mutations) => {
-      const relevant = mutations.some((mutation) =>
-        mutation.type === "childList" ||
-        (mutation.type === "attributes" && mutation.attributeName === "class")
-      );
-      if (!relevant) return;
-      queueMicrotask(run);
+      for (const mutation of mutations) {
+        const target = mutation.target instanceof HTMLElement ? mutation.target : null;
+        const targetMenu = target?.matches?.("details.circle-v4-menu")
+          ? target
+          : target?.closest?.("details.circle-v4-menu");
+        if (targetMenu) normalizeMenu(targetMenu);
+        mutation.addedNodes.forEach(normalizeAddedNode);
+      }
     });
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class"]
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   function startAdultCircleUi() {
     if (!adultAccessReady()) return;
+    revealAdultCircleUi();
     run();
     watch();
     setTimeout(run, 160);
     setTimeout(run, 700);
   }
 
-  loadAdultGuard();
   window.addEventListener("ari-circle-access-ready", startAdultCircleUi, { once: true });
+  loadAdultGuard();
 
   if (adultAccessReady()) {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", startAdultCircleUi, { once: true });
-    } else {
-      startAdultCircleUi();
-    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startAdultCircleUi, { once: true });
+    else startAdultCircleUi();
   }
 
   document.addEventListener("circle:app-ready", () => setTimeout(run, 0));
