@@ -182,7 +182,7 @@ function finishProfessionalProfileBoot() {
 
 Promise.all([
   import("./profile-v4.js?v=4.3.0"),
-  import("../v4-ui.js?v=5.2.9"),
+  import("../v4-ui.js?v=5.3.0"),
   import("../v4-flow-fixes.js?v=1.2.1")
 ])
   .then(() => finishProfessionalProfileBoot())
