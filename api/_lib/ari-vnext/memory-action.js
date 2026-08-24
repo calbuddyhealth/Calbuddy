@@ -4,6 +4,7 @@ export const ARI_MEMORY_ACTION_VERSION = "1.0.0";
 
 const TRIGGER_PATTERN = /\b(?:please\s+)?(remember(?:\s+that)?|don['’]?t\s+forget(?:\s+that)?|do\s+not\s+forget(?:\s+that)?|keep\s+in\s+mind(?:\s+that)?)\b/i;
 const FOLLOWUP_REQUEST_PATTERN = /\b(?:and|also|then)\s+(?:tell|explain|answer|show|give|help|what|why|how|can|could|would|should|do)\b/i;
+const QUESTION_FOLLOWUP_PATTERN = /(?:^|[.!;]\s+)(?:what|why|how|can|could|would|should|do|does|is|are|will|tell|explain|show|give|help)\b/i;
 
 export function prepareExplicitMemoryAction(message = "") {
   const raw = String(message ?? "").replace(/\r\n?/g, "\n").trim();
@@ -16,10 +17,18 @@ export function prepareExplicitMemoryAction(message = "") {
     .replace(/^\s*[:\-–—]\s*/, "")
     .trim();
 
-  const facts = splitMemoryFacts(content);
+  const followupMatch = FOLLOWUP_REQUEST_PATTERN.exec(content);
+  const questionFollowupMatch = QUESTION_FOLLOWUP_PATTERN.exec(content);
+  const cutPoints = [followupMatch?.index, questionFollowupMatch?.index]
+    .filter((value) => Number.isInteger(value) && value >= 0);
+  const factContent = cutPoints.length
+    ? content.slice(0, Math.min(...cutPoints)).replace(/[\s,;.!]+$/g, "").trim()
+    : content;
+
+  const facts = splitMemoryFacts(factContent);
   const triggerNearStart = (match.index || 0) <= 40;
   const hasQuestion = /\?/.test(content);
-  const hasFollowupRequest = FOLLOWUP_REQUEST_PATTERN.test(content);
+  const hasFollowupRequest = Boolean(followupMatch || questionFollowupMatch);
 
   return {
     version: ARI_MEMORY_ACTION_VERSION,
