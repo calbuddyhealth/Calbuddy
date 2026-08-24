@@ -72,7 +72,7 @@ jobs:
               [ -z "$file" ] && continue
 
               case "$file" in
-                api/ari-vnext.js|api/_lib/ari-vnext/*|ari/vnext/*|ari/runtime/ari-runtime-controller.js|ari/intent/ari-central-intent-router.js|js/auth.js|js/nutrition-trust-layer.js|js/nutrition-transaction-client.js|js/ari-nutrition-data-quality.js|tests/ari-vnext-*.test.mjs|tests/nutrition-*.test.mjs|.github/workflows/ari-vnext-tests.yml)
+                api/ari-vnext.js|api/_lib/ari-vnext/*|ari/vnext/*|ari/runtime/ari-runtime-controller.js|ari/intent/ari-central-intent-router.js|ari/personalization/*|ari/pipeline-stages/deliberation/ari-memory-stage.js|js/auth.js|js/nutrition-trust-layer.js|js/nutrition-transaction-client.js|js/ari-nutrition-data-quality.js|tests/ari-vnext-*.test.mjs|tests/ari-personalization.test.mjs|tests/nutrition-*.test.mjs|.github/workflows/ari-vnext-tests.yml)
                   RUN_ARI=true
                   ;;
                 supabase/migrations/*nutrition*.sql)
@@ -81,7 +81,7 @@ jobs:
               esac
 
               case "$file" in
-                package.json|package-lock.json|capacitor.config.json|scripts/*|ios/*|assets/*|js/*)
+                package.json|package-lock.json|capacitor.config.json|scripts/*|ios/*|assets/*|js/*|ari/*)
                   RUN_IOS=true
                   ;;
                 *)
@@ -162,7 +162,7 @@ jobs:
           node-version: "24"
 
       - name: Run Ari and nutrition deterministic tests
-        run: node --test tests/ari-vnext-*.test.mjs tests/nutrition-*.test.mjs
+        run: node --test tests/ari-vnext-*.test.mjs tests/ari-personalization.test.mjs tests/nutrition-*.test.mjs
 
   ios:
     name: iOS Native Validation
