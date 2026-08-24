@@ -1,22 +1,18 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.2.6
+   Version: 5.2.7
 
-   The current V5 shell owns Feed · Meet Up · Quests and all shared
-   navigation. This file bridges the legacy Profile DOM and only loads the
-   remaining compatibility helpers that have no current V5 owner.
+   Feed · Meet Up · Quests use the current V5 runtime directly. This file
+   now exists only to bridge the legacy Profile DOM into the shared V5 shell.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.6";
+  const VERSION = "5.2.7";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
   let panelHandled = false;
-  let flowFixesLoaded = false;
-  let feedPolishLoaded = false;
-  let feedModerationLoaded = false;
   let launchSocialLoaded = false;
   let realWorldLoaded = false;
 
@@ -42,10 +38,8 @@
   }
 
   function ensureStyles() {
-    if (isProfileRoute()) {
-      ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
-      ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
-    }
+    ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
+    ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
     ensureStyle("ari-circle-v5-real-world-style", "assets/css/ari-circle-v5-real-world.css?v=5.0.0");
   }
 
@@ -118,7 +112,6 @@
   }
 
   function simplifyProfile() {
-    if (!isProfileRoute()) return;
     ensureProfileNav();
     ensureProfileHeader();
     ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel"].forEach(hide);
@@ -151,7 +144,7 @@
   }
 
   function openRequestedPanel() {
-    if (panelHandled || !appReady || !isProfileRoute()) return;
+    if (panelHandled || !appReady) return;
     const params = new URLSearchParams(window.location.search);
     const panel = params.get("panel");
     if (!panel) {
@@ -186,7 +179,7 @@
   }
 
   function loadModules() {
-    if (isProfileRoute() && !realWorldLoaded && !window.AriCircleV5RealWorld) {
+    if (!realWorldLoaded && !window.AriCircleV5RealWorld) {
       realWorldLoaded = true;
       import("/js/ari-circle/v5-real-world.js?v=5.2.2").catch((error) => {
         realWorldLoaded = false;
@@ -201,33 +194,10 @@
         console.warn("ARI Circle Launch Social V5 failed to load:", error);
       });
     }
-
-    if (!flowFixesLoaded) {
-      flowFixesLoaded = true;
-      import("/js/ari-circle/v4-flow-fixes.js?v=1.2.1").catch((error) => {
-        flowFixesLoaded = false;
-        console.warn("ARI Circle flow fixes failed to load:", error);
-      });
-    }
-
-    if (!feedPolishLoaded && document.querySelector(".feed-page")) {
-      feedPolishLoaded = true;
-      import("/js/ari-circle/feed/feed-polish.js?v=1.0.1").catch((error) => {
-        feedPolishLoaded = false;
-        console.warn("ARI Circle feed polish failed to load:", error);
-      });
-    }
-
-    if (!feedModerationLoaded && document.querySelector(".feed-page")) {
-      feedModerationLoaded = true;
-      import("/js/ari-circle/feed/feed-moderation.js?v=1.1.0").catch((error) => {
-        feedModerationLoaded = false;
-        console.warn("ARI Circle feed ownership controls failed to load:", error);
-      });
-    }
   }
 
   function run() {
+    if (!isProfileRoute()) return;
     ensureStyles();
     standardizeMenus();
     standardizeMessages();
