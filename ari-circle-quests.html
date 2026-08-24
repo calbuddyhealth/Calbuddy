@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-real-world.css?v=5.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.1" />
 </head>
 <body class="circle-v5-real-world">
   <main class="circle-v5-page" id="questPage" hidden>
@@ -26,14 +27,13 @@
     <div class="circle-v5-page-main">
       <section class="circle-v52-page-intro" aria-labelledby="questTitle">
         <div class="circle-v52-page-intro__copy">
-          <p class="circle-v52-page-intro__eyebrow">QUESTS</p>
-          <h1 id="questTitle">Do something together</h1>
-          <p class="circle-v52-page-intro__sub">Small steps. Real impact.</p>
+          <h1 id="questTitle">Quests</h1>
+          <p class="circle-v52-page-intro__sub">Do something together.</p>
         </div>
       </section>
 
       <section class="circle-v52-quest-hero" aria-label="Quest actions">
-        <h2>Team up, get it done, earn verified XP.</h2>
+        <h2>Pick a mission. Finish it together.</h2>
         <div class="circle-v52-quest-hero__actions">
           <button class="circle-v5-button-primary" id="createQuestButton" type="button">+ Create Quest</button>
           <a class="circle-v5-button" href="#questList">Explore</a>
@@ -58,7 +58,7 @@
         <div class="circle-v5-section-heading"><div><p>ACTIVE</p><h2 id="questListTitle">Quests</h2></div><button class="circle-v5-button" id="refreshQuests" type="button" style="min-height:34px;padding:0 11px">Refresh</button></div>
         <p id="questStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Loading…</p>
         <div class="circle-v5-list" id="questList" aria-live="polite"></div>
-        <div class="circle-v5-empty" id="questEmpty" hidden><strong>No active quests yet.</strong><span>Start something worth finishing.</span></div>
+        <div class="circle-v5-empty" id="questEmpty" hidden><strong>No quests yet.</strong><span>Start one worth finishing.</span></div>
       </section>
     </div>
   </main>
@@ -110,7 +110,7 @@
   <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.3.0" defer></script>
   <script src="supabase-config.js?v=1.1.4"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.0.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.1" defer></script>
   <script src="js/ari-circle/quests/quests-v5.js?v=5.0.0" defer></script>
 </body>
 </html>
