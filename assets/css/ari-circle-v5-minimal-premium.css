@@ -1,0 +1,122 @@
+/* =============================================================
+   ARI CIRCLE V5.2.2 — MINIMAL PREMIUM
+   User-approved cleanup:
+   - text-only ARI CIRCLE wordmark
+   - larger brand presence
+   - no decorative orbit mark
+   - concise primary surfaces
+   - no continuous motion, observers, or data work
+============================================================= */
+
+:root {
+  --circle522-ink: #122039;
+  --circle522-soft: #6b788d;
+  --circle522-line: #dfe7f0;
+  --circle522-cyan: #43d8f5;
+  --circle522-blue: #6296ff;
+  --circle522-violet: #a879ff;
+  --circle522-gradient: linear-gradient(110deg,var(--circle522-cyan),var(--circle522-blue) 54%,var(--circle522-violet));
+}
+
+/* ---------- text-only premium brand ---------- */
+body.circle-v5-real-world .circle-v51-halo-header {
+  min-height: 60px !important;
+  grid-template-columns: 40px minmax(0,1fr) 40px !important;
+  padding: 6px 8px !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header::after {
+  right: 24% !important;
+  left: 24% !important;
+  background: var(--circle522-gradient) !important;
+}
+
+body.circle-v5-real-world .circle-v51-brand {
+  gap: 0 !important;
+}
+
+/* Hide both the old static mark and the V5.1 generated orbit mark. */
+body.circle-v5-real-world .circle-v51-orbit-mark,
+body.circle-v5-real-world .circle-v51-halo-header .feed-brand__mark,
+body.circle-v5-real-world .circle-v51-halo-header .partner-brand__mark,
+body.circle-v5-real-world .circle-v51-halo-header .challenge-brand__mark {
+  display: none !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark strong,
+body.circle-v5-real-world .circle-v51-wordmark em {
+  font: 800 clamp(1.02rem,4.7vw,1.28rem)/1 Orbitron,Inter,sans-serif !important;
+  letter-spacing: .075em !important;
+  white-space: nowrap !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark strong {
+  color: #14213a !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark em {
+  color: transparent !important;
+  background: var(--circle522-gradient) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  font-style: normal !important;
+}
+
+/* Static fallback before the shared shell normalizes the header. */
+body.circle-v5-real-world .circle-v51-halo-header .feed-brand > span:not(.feed-brand__mark),
+body.circle-v5-real-world .circle-v51-halo-header .circle-v5-brand > span:not(.feed-brand__mark) {
+  color: var(--circle522-ink) !important;
+  font: 800 clamp(1.02rem,4.7vw,1.28rem)/1 Orbitron,Inter,sans-serif !important;
+  letter-spacing: .075em !important;
+}
+
+/* The old mark-specific entrance animation is intentionally disabled. */
+.circle-v51-halo-intro .circle-v51-orbit-mark {
+  animation: none !important;
+}
+
+/* ---------- remove visual gaps left by deleted helper copy ---------- */
+#meetupPage .circle-v52-xp-strip {
+  margin-bottom: 14px !important;
+}
+
+#meetupPage #meetupWindowFilters,
+#questPage #questFilters {
+  margin-top: 0 !important;
+}
+
+#questPage .circle-v52-quest-hero {
+  margin-bottom: 14px !important;
+}
+
+/* Feed discovery remains clickable without a redundant CTA footer. */
+body.circle-v5-real-world .circle-v5-happening-card:has(.circle-v5-happening-card__eyebrow + h3 + p:last-child) {
+  min-height: 128px;
+}
+
+/* Maintain bottom-dock clearance after removing lower helper sections. */
+body.circle-v5-real-world .feed-page,
+body.circle-v5-real-world .circle-v5-page,
+body.circle-v5-real-world .circle-v5-page-main {
+  padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
+}
+
+@media (max-width: 520px) {
+  body.circle-v5-real-world .circle-v51-wordmark strong,
+  body.circle-v5-real-world .circle-v51-wordmark em {
+    font-size: clamp(1rem,5.1vw,1.2rem) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-v51-halo-intro .circle-v51-wordmark {
+    animation: none !important;
+  }
+}

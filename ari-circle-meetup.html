@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-minimal-premium.css?v=5.2.2" />
 </head>
 <body class="circle-v5-real-world">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -20,9 +21,7 @@
         <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
         <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
       </details>
-      <a class="feed-brand circle-v5-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed">
-        <span class="feed-brand__mark" aria-hidden="true"><i></i><i></i></span><span>ARI CIRCLE</span>
-      </a>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed"><span>ARI CIRCLE</span></a>
       <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
     </header>
 
@@ -45,11 +44,6 @@
           <span><strong id="meetupWeeklyXp">0 / 70 XP</strong><small>This week</small><span class="circle-v52-xp-meter"><i id="meetupWeeklyBar" style="width:0%"></i></span></span>
         </div>
       </section>
-
-      <details class="circle-v52-info">
-        <summary>How XP works</summary>
-        <p>Creating, joining, posting, reacting, or checking in earns 0 XP. Verified completion is the reward event.</p>
-      </details>
 
       <div class="circle-v5-filter-rail" id="meetupWindowFilters" aria-label="Meetup date filters">
         <button class="circle-v5-filter-chip is-active" type="button" data-window="upcoming">Upcoming</button>
@@ -78,11 +72,6 @@
         <div class="circle-v5-list" id="meetupList" aria-live="polite"></div>
         <div class="circle-v5-empty" id="meetupEmpty" hidden><strong>Nothing nearby yet.</strong><span>Host the first meetup.</span></div>
       </section>
-
-      <details class="circle-v52-info circle-v52-info--community">
-        <summary>Community events</summary>
-        <p>Community walks, charity walks, volunteer events, awareness walks, and peaceful civic marches can be Meet Ups. ARI Circle rewards verified participation—not a political viewpoint.</p>
-      </details>
     </div>
   </main>
 
@@ -113,7 +102,7 @@
   <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.3.0" defer></script>
   <script src="supabase-config.js?v=1.1.4"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.0.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.1" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.2" defer></script>
   <script src="js/ari-circle/meetups/meetups-v5.js?v=5.0.0" defer></script>
 </body>
 </html>

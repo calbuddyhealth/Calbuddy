@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — STABLE UI SHELL
-   Version: 5.0.0
+   Version: 5.2.2
 
    V5 keeps the proven Feed/Profile controllers, then layers the Real World
    Social shell on top: Feed · Meet Up · Quests, live Happening discovery,
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.0.0";
+  const VERSION = "5.2.2";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -225,7 +225,7 @@
   function loadModules() {
     if (!realWorldLoaded) {
       realWorldLoaded = true;
-      import("/js/ari-circle/v5-real-world.js?v=5.0.0").catch((error) => {
+      import("/js/ari-circle/v5-real-world.js?v=5.2.2").catch((error) => {
         realWorldLoaded = false;
         console.warn("ARI Circle V5 Real World shell failed to load:", error);
       });
@@ -274,7 +274,7 @@
     }
     if (!happeningLoaded && document.querySelector(".feed-page")) {
       happeningLoaded = true;
-      import("/js/ari-circle/feed/happening-v5.js?v=5.0.0").catch((error) => {
+      import("/js/ari-circle/feed/happening-v5.js?v=5.2.2").catch((error) => {
         happeningLoaded = false;
         console.warn("ARI Circle Happening rail failed to load:", error);
       });

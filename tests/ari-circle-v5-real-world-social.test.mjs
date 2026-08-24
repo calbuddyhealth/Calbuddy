@@ -37,14 +37,14 @@ test("XP is an append-only-style server ledger, not a client engagement counter"
 });
 
 
-test("creating or joining a meetup does not award XP", () => {
+test("creating or joining a meetup does not award XP even though the explanatory block is removed", () => {
   const createStart = migration.indexOf("ari_circle_create_meetup");
   const joinStart = migration.indexOf("ari_circle_join_meetup");
   const completeStart = migration.indexOf("ari_circle_complete_meetup");
   assert.ok(createStart >= 0 && joinStart > createStart && completeStart > joinStart);
   assert.doesNotMatch(migration.slice(createStart, joinStart), /ari_circle_award_xp_capped/);
   assert.doesNotMatch(migration.slice(joinStart, completeStart), /ari_circle_award_xp_capped/);
-  assert.match(meetupHtml, /Creating, joining, posting, reacting, or checking in earns 0 XP/);
+  assert.doesNotMatch(meetupHtml, /How XP works/);
 });
 
 
@@ -72,18 +72,19 @@ test("ended joined meetups stay available during the 48-hour mutual completion w
 });
 
 
-test("community walking and civic events are supported without viewpoint rewards", () => {
+test("community walking and civic event support remains available without a persistent explainer card", () => {
   assert.match(meetupHtml, /Community Walk \/ Civic Event/);
-  assert.match(meetupHtml, /peaceful civic marches/);
-  assert.match(meetupHtml, /rewards verified participation—not a political viewpoint/i);
   assert.match(migration, /'community','volunteer'/);
+  assert.doesNotMatch(meetupHtml, /<summary>Community events<\/summary>/);
+  assert.doesNotMatch(meetupHtml, /peaceful civic marches/);
 });
 
 
-test("Quests replace dangerous engagement competitions", () => {
-  assert.match(questHtml, /No “most hype wins,” no weight-loss contests, no dangerous stunt rewards, and no XP for likes or votes/i);
-  assert.doesNotMatch(questHtml, /Most hype wins/);
-  assert.doesNotMatch(questHtml, /Vote for a winner/);
+test("Quests keep dangerous engagement mechanics out of the product without a persistent explainer", () => {
+  assert.doesNotMatch(questHtml, /most hype wins/i);
+  assert.doesNotMatch(questHtml, /Vote for a winner/i);
+  assert.doesNotMatch(questHtml, /<summary>Verified XP<\/summary>/);
+  assert.match(migration, /xp_reward smallint not null default 0 check \(xp_reward between 0 and 3\)/i);
 });
 
 
@@ -120,6 +121,8 @@ test("Feed keeps posts and Moments while adding live Happening discovery", () =>
   assert.match(happening, /Do something in real life/);
   assert.match(happening, /ari_circle_list_meetups/);
   assert.match(happening, /ari-circle-meetup\.html/);
+  assert.doesNotMatch(happening, />See all</);
+  assert.doesNotMatch(happening, />Create a meetup</);
 });
 
 
