@@ -1,11 +1,12 @@
 /* =============================================================
-   ARI CIRCLE V5.2.3 — MINIMAL PREMIUM
+   ARI CIRCLE V5.2.4 — MINIMAL PREMIUM
    User-approved cleanup:
    - text-only ARI CIRCLE wordmark
    - larger brand presence
    - no decorative orbit mark
    - concise primary surfaces
    - iOS-safe sticky header + full-height control drawer
+   - one page-independent navigation typography/geometry contract
    - no continuous motion, observers, or data work
 ============================================================= */
 
@@ -17,6 +18,62 @@
   --circle522-blue: #6296ff;
   --circle522-violet: #a879ff;
   --circle522-gradient: linear-gradient(110deg,var(--circle522-cyan),var(--circle522-blue) 54%,var(--circle522-violet));
+}
+
+/* ---------- one typography contract for every Circle route ----------
+   The V2.4 drawer is portaled to <body>. Without an explicit shared font,
+   Feed inherited Inter from its legacy stylesheet while Meet Up / Quests
+   inherited Safari's default serif font from body. Do not let the page that
+   opened the drawer decide navigation typography or text autosizing.
+------------------------------------------------------------- */
+html.circle-v5-real-world-root,
+body.circle-v5-real-world {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header,
+body.circle-v5-real-world .circle-v5-bottom-nav,
+body.circle-v5-real-world .circle-v5-menu__panel,
+body.circle-v5-real-world .circle-v4-menu__panel,
+body.circle-v5-real-world .circle-v5-menu__panel *,
+body.circle-v5-real-world .circle-v4-menu__panel * {
+  box-sizing: border-box;
+}
+
+body.circle-v5-real-world .circle-v5-menu__panel,
+body.circle-v5-real-world .circle-v4-menu__panel {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+body.circle-v5-real-world .circle-v52-menu-group__items .circle-v5-menu__item,
+body.circle-v5-real-world .circle-v52-menu-exit .circle-v5-menu__item {
+  min-height: 54px !important;
+  padding: 7px 10px 7px 8px !important;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+body.circle-v5-real-world .circle-v5-menu__label {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: .82rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -.012em !important;
+}
+
+body.circle-v5-real-world .circle-v52-menu-group__label,
+body.circle-v5-real-world .circle-v52-menu-footer,
+body.circle-v5-real-world .circle-v5-menu__identity small {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+body.circle-v5-real-world .circle-v5-bottom-nav a {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 }
 
 /* ---------- text-only premium brand ---------- */
@@ -109,11 +166,18 @@ body.circle-v5-real-world .circle-v5-page-main {
   padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
 }
 
+/* Feed used to retain a legacy safe-area top padding while Meet Up / Quests
+   started at the V5 shell origin. The sticky header already owns safe-area
+   positioning, so the three primary routes must start from the same origin. */
+body.circle-v5-real-world .feed-page,
+body.circle-v5-real-world .circle-v5-page {
+  padding-top: 0 !important;
+}
+
 /* ---------- iOS navigation geometry ----------
-   WebKit can treat a fixed descendant of a backdrop-filtered sticky header
-   as if the header were its containing block. The Circle drawer lives inside
-   the menu <details>, so temporarily removing header compositing while open
-   keeps the fixed sheet viewport-relative instead of clipping it to the bar.
+   The drawer panel is portaled to <body> by circle-menu-v5.js. Keeping the
+   sticky header non-composited while the menu is open avoids WebKit clipping,
+   while explicit viewport edges make the sheet identical on every route.
 ------------------------------------------------------------- */
 body.circle-v5-real-world .circle-v51-halo-header {
   position: sticky !important;
