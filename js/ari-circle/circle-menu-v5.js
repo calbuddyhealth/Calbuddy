@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5.2
-   Version: 2.4.1
+   Version: 2.4.2
    Adults-only shared controls + authoritative Real World Social shell.
    The drawer panel is portaled to <body> so iOS Safari cannot clip it
    inside the sticky/backdrop-filtered header.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.4.1";
+  const VERSION = "2.4.2";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const READY_ATTR = "data-circle-menu-v5";
@@ -58,6 +58,7 @@
     bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path><path d="M10 20h4"></path></svg>`,
     meetup: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3"></circle><circle cx="16.5" cy="9" r="2.5"></circle><path d="M3.5 19c.5-3.5 2.3-5.3 5-5.3s4.6 1.8 5.1 5.3M14.2 14.2c3.4-.4 5.6 1.2 6.3 4.8"></path></svg>`,
     user: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg>`,
+    discover: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><path d="M2.8 17c.5-3 2.3-4.7 5.2-4.7 1.7 0 3 .6 4 1.6"></path><circle cx="16.5" cy="15.5" r="3.2"></circle><path d="m19 18 2.5 2.5"></path></svg>`,
     privacy: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M9.5 12.5 11 14l3.5-4"></path></svg>`,
     shield: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M12 8v4M12 16h.01"></path></svg>`,
     exit: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path></svg>`,
@@ -133,6 +134,7 @@
     const mainRows = [
       item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell }),
       item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user }),
+      item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover }),
       item({ href: "ari-circle-meetup.html", label: "Meet Up", iconMarkup: icon.meetup })
     ].join("");
     const accountRows = [
@@ -253,6 +255,34 @@
     toolbar.prepend(link);
   }
 
+  function isDiscoverFriendsRoute() {
+    if (!shouldLoadProfileSafety()) return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("panel") === "discover-friends";
+  }
+
+  function clearDiscoverFriendsRoute() {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("panel") !== "discover-friends") return;
+    url.searchParams.delete("panel");
+    window.history.replaceState(window.history.state, "", url.href);
+  }
+
+  function openRequestedDiscoverFriends() {
+    if (!isDiscoverFriendsRoute()) return false;
+
+    const trigger = document.getElementById("circle-find-friends-button");
+    if (!trigger || trigger.hidden || trigger.disabled) return false;
+
+    trigger.click();
+
+    const dialog = document.getElementById("circle-people-discovery");
+    if (!dialog?.open) return false;
+
+    clearDiscoverFriendsRoute();
+    return true;
+  }
+
   function closeMenus(except = null) {
     document.querySelectorAll("details.circle-v4-menu[open]").forEach((details) => {
       if (details === except) return;
@@ -296,6 +326,7 @@
     ensureStyle();
     normalizeMenus();
     ensureNotificationSettingsLink();
+    openRequestedDiscoverFriends();
     bindOutsideClose();
   }
 
