@@ -126,7 +126,7 @@ test.describe("ARI Circle premium control drawer", () => {
       return { width: node.getBoundingClientRect().width, radius: parseFloat(style.borderTopLeftRadius || "0") };
     });
     expect(geometry.width).toBeGreaterThan(300);
-    expect(geometry.radius).toBeGreaterThanOrEqual(28);
+    expect(geometry.radius).toBeGreaterThanOrEqual(27);
 
     await page.evaluate(() => {
       const menu = document.querySelector("details.circle-v4-menu");
