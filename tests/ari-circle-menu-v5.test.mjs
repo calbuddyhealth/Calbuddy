@@ -4,6 +4,7 @@ import test from "node:test";
 
 const menu = fs.readFileSync(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
 const profileCompat = fs.readFileSync(new URL("../js/ari-circle/v4-ui.js", import.meta.url), "utf8");
+const visitorControls = fs.readFileSync(new URL("../js/ari-circle/profile/profile-visitor-controls.js", import.meta.url), "utf8");
 const shell = fs.readFileSync(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5.css", import.meta.url), "utf8");
 const premium = fs.readFileSync(new URL("../assets/css/ari-circle-v5-premium.css", import.meta.url), "utf8");
@@ -13,8 +14,7 @@ const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.
 const meetupHtml = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const questHtml = fs.readFileSync(new URL("../ari-circle-quests.html", import.meta.url), "utf8");
 
-
-test("ARI Circle V5.2 drawer reflects Real World Social navigation", () => {
+test("ARI Circle drawer reflects the current Real World Social navigation", () => {
   assert.match(menu, /<small>Circle controls<\/small>/);
   assert.match(menu, /group\("Main"/);
   assert.match(menu, /group\("Account"/);
@@ -29,14 +29,12 @@ test("ARI Circle V5.2 drawer reflects Real World Social navigation", () => {
   assert.doesNotMatch(menu, /Buddies/);
 });
 
-
 test("shared shell uses one final consolidated visual authority", () => {
   assert.match(shell, /AUTHORITY_STYLE_HREF = "assets\/css\/ari-circle-v5-visual-authority\.css\?v=5\.2\.5"/);
   assert.doesNotMatch(shell, /ari-circle-v5-minimal-premium\.css/);
   assert.match(authority, /CONSOLIDATED VISUAL AUTHORITY/);
   assert.match(authority, /FORMER V5\.2\.4 MINIMAL PREMIUM OVERRIDES/);
 });
-
 
 test("adult gate cannot be re-hidden after authorization already succeeded", () => {
   assert.match(menu, /function holdForAdultGate\(\)[\s\S]*if \(adultAccessReady\(\)\) return/);
@@ -47,14 +45,13 @@ test("adult gate cannot be re-hidden after authorization already succeeded", () 
   );
 });
 
-
 test("Real World shell uses bounded lifecycle refreshes instead of a global DOM observer", () => {
   assert.doesNotMatch(shell, /new MutationObserver/);
   assert.match(shell, /function boundedRefresh\(\)/);
   assert.match(shell, /document\.addEventListener\("circle:app-ready", queueRun\)/);
   assert.match(shell, /window\.addEventListener\("ari-circle-access-ready", queueRun\)/);
+  assert.doesNotMatch(shell, /Buddies|Partners|ari-circle-partners\.html|ari-circle-challenges\.html/);
 });
-
 
 test("Notification Settings lives inside Notifications instead of the primary drawer", () => {
   assert.doesNotMatch(menu, /label: "Notification Settings"/);
@@ -62,15 +59,13 @@ test("Notification Settings lives inside Notifications instead of the primary dr
   assert.match(menu, /notification-settings\.html/);
 });
 
-
-test("V5.2 drawer is pearl white, grouped, and keeps only Exit destructive", () => {
+test("drawer is pearl white, grouped, and keeps only Exit destructive", () => {
   assert.match(css, /circle-v5-menu__icon/);
   assert.match(premium, /premium pearl drawer/i);
   assert.match(premium, /circle-v52-menu-group__items/);
   assert.match(premium, /circle-v52-menu-exit/);
   assert.match(menu, /circle-v5-menu__item--exit/);
 });
-
 
 test("Feed, Meet Up, and Quests use the same shared navigation and final CSS authority", () => {
   for (const html of [feedHtml, meetupHtml, questHtml]) {
@@ -83,29 +78,38 @@ test("Feed, Meet Up, and Quests use the same shared navigation and final CSS aut
   }
 });
 
-
-test("Feed no longer loads legacy Profile compatibility CSS or JS", () => {
+test("Feed loads only Feed concerns instead of Profile compatibility or visitor-control runtimes", () => {
   assert.doesNotMatch(feedHtml, /ari-circle-v4\.css/);
   assert.doesNotMatch(feedHtml, /ari-circle-v4-polish\.css/);
   assert.doesNotMatch(feedHtml, /ari-circle-v4-ux-fixes\.css/);
   assert.doesNotMatch(feedHtml, /js\/ari-circle\/v4-ui\.js/);
+  assert.doesNotMatch(feedHtml, /launch-social-v5\.js/);
+  assert.doesNotMatch(feedHtml, /profile-visitor-controls\.js/);
+  assert.match(feedHtml, /Friends only · kept inside your verified age space\./);
+  assert.match(feedHtml, /id="streamTitle">Your Feed</);
   assert.match(feedHtml, /js\/ari-circle\/v4-flow-fixes\.js\?v=1\.2\.1/);
   assert.match(feedHtml, /js\/ari-circle\/feed\/feed-polish\.js\?v=1\.0\.1/);
   assert.match(feedHtml, /js\/ari-circle\/feed\/feed-moderation\.js\?v=1\.1\.0/);
 });
 
-
-test("Profile compatibility shell is profile-only and never owns drawer markup", () => {
+test("Profile compatibility shell is profile-only and delegates visitor controls to one focused module", () => {
   assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
+  assert.match(profileCompat, /const VERSION = "5\.3\.0"/);
   assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
   assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
   assert.match(profileCompat, /v5-real-world\.js\?v=5\.2\.3/);
+  assert.match(profileCompat, /profile\/profile-visitor-controls\.js\?v=1\.0\.0/);
+  assert.doesNotMatch(profileCompat, /launch-social-v5\.js/);
   assert.doesNotMatch(profileCompat, /circleMenuMarkup/);
-  assert.doesNotMatch(profileCompat, /challenge-video-web-fix/);
-  assert.doesNotMatch(profileCompat, /ari-circle-partners\.html/);
-  assert.doesNotMatch(profileCompat, /ari-circle-challenges\.html/);
-});
+  assert.doesNotMatch(profileCompat, /ari-circle-partners\.html|ari-circle-challenges\.html/);
 
+  assert.match(visitorControls, /PROFILE VISITOR CONTROLS/);
+  assert.match(visitorControls, /ari_circle_mute_state/);
+  assert.match(visitorControls, /ari_circle_set_mute/);
+  assert.match(visitorControls, /ari_circle_block_user/);
+  assert.match(visitorControls, /target_type=profile/);
+  assert.doesNotMatch(visitorControls, /Buddies|Challenges|challenge-|buddy-|feed-composer/);
+});
 
 test("portaled drawer typography and sizing are page-independent", () => {
   assert.match(authority, /font-family:\s*"Inter"[\s\S]*-apple-system[\s\S]*sans-serif\s*!important/);
@@ -115,14 +119,12 @@ test("portaled drawer typography and sizing are page-independent", () => {
   assert.match(authority, /\.feed-page,[\s\S]*\.circle-v5-page[\s\S]*padding-top:\s*0\s*!important/);
 });
 
-
 test("shared Supabase bootstrap still loads the adults-only V5 drawer", () => {
   assert.match(supabaseConfig, /shouldLoadCircleMenu/);
   assert.match(feedHtml, /id="ariCircleMenuV5Script"/);
 });
 
-
-test("V5.2 drawer uses bounded lifecycle refreshes and no DOM MutationObserver", () => {
+test("drawer uses bounded lifecycle refreshes and no DOM MutationObserver", () => {
   assert.doesNotMatch(menu, /MutationObserver/);
   assert.doesNotMatch(menu, /observer\.observe/);
   assert.match(menu, /setTimeout\(run, 160\)/);
