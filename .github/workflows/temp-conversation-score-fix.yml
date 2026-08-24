@@ -1,0 +1,43 @@
+name: Temporary Conversation Score Fix
+
+on:
+  push:
+    branches:
+      - feature/ari-conversation-personalization-v2
+    paths:
+      - .github/workflows/temp-conversation-score-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ari-conversation-personalization-v2
+
+      - name: Correct explicit feedback scoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('api/_lib/ari-vnext/conversation-personalization.js')
+          text = path.read_text()
+          old = '''    const dimensions = {\n      detail: normalizeDetail(signalDimensions.detail || strategy.detail || strategy.realizedReplyLength),\n      directness: normalizeDirectness(signalDimensions.directness || strategy.directness),\n      complexity: normalizeComplexity(signalDimensions.complexity || strategy.complexity),\n      questionBurden: normalizeQuestionBurden(signalDimensions.questionBurden || strategy.questionBurden || fromQuestionCount(strategy.questionCount)),\n      formatStyle: normalizeFormatStyle(signalDimensions.formatStyle || strategy.formatStyle)\n    };\n\n    for (const [dimension, value] of Object.entries(dimensions)) {\n      if (!isScorableDimensionValue(dimension, value)) continue;\n      addEvidence(accumulators[dimension], value, item?.outcomeDirection, weight);\n    }'''
+          new = '''    const observedDimensions = {\n      detail: normalizeDetail(strategy.detail || strategy.realizedReplyLength),\n      directness: normalizeDirectness(strategy.directness),\n      complexity: normalizeComplexity(strategy.complexity),\n      questionBurden: normalizeQuestionBurden(strategy.questionBurden || fromQuestionCount(strategy.questionCount)),\n      formatStyle: normalizeFormatStyle(strategy.formatStyle)\n    };\n\n    const desiredDimensions = {\n      detail: normalizeDetail(signalDimensions.detail),\n      directness: normalizeDirectness(signalDimensions.directness),\n      complexity: normalizeComplexity(signalDimensions.complexity),\n      questionBurden: normalizeQuestionBurden(signalDimensions.questionBurden),\n      formatStyle: normalizeFormatStyle(signalDimensions.formatStyle)\n    };\n\n    for (const [dimension, observedValue] of Object.entries(observedDimensions)) {\n      if (!isScorableDimensionValue(dimension, observedValue)) continue;\n\n      const desiredValue = desiredDimensions[dimension];\n      const hasDesiredAlternative =\n        isScorableDimensionValue(dimension, desiredValue) &&\n        desiredValue !== observedValue;\n\n      if (item?.outcomeDirection === "negative" && hasDesiredAlternative) {\n        addEvidence(accumulators[dimension], observedValue, "negative", weight);\n        addEvidence(accumulators[dimension], desiredValue, "positive", weight * 1.15);\n        continue;\n      }\n\n      addEvidence(accumulators[dimension], observedValue, item?.outcomeDirection, weight);\n    }'''
+          assert old in text, 'scoreDimensions anchor missing'
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit score correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/_lib/ari-vnext/conversation-personalization.js
+          git commit -m "Correct explicit conversation feedback scoring"
+          git push origin HEAD:feature/ari-conversation-personalization-v2
