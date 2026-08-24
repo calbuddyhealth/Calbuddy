@@ -33,7 +33,7 @@ const WORKFLOWS = Object.freeze([
 ]);
 
 function getGitHubConfiguration() {
-  const token = String(process.env.GITHUB_TOKEN || "").trim();
+  const token = String(process.env.APP_HEALTH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || "").trim();
   const repo = String(process.env.GITHUB_REPO || "").trim();
   const branch = String(process.env.APP_HEALTH_BRANCH || "main").trim() || "main";
 
