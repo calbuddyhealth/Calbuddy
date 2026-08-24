@@ -11,7 +11,7 @@ const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.
 
 
 test("ARI Circle V5.2 drawer reflects Real World Social navigation", () => {
-  assert.match(menu, /<small>Controls<\/small>/);
+  assert.match(menu, /<small>Circle controls<\/small>/);
   assert.match(menu, /group\("Main"/);
   assert.match(menu, /group\("Account"/);
   assert.match(menu, /Notifications/);
