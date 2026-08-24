@@ -1,25 +1,26 @@
 // js/ari-circle/notifications/circle-notifications.js
-// ARI Circle Notifications V2.2.0
+// ARI Circle Notifications V2.4.0
 // Single owner for notification state, rendering, badge, actions, and compact UI.
+//
+// V2.4.0:
+// - Bundles repeated direct-message notifications by conversation/person.
+// - Gives incoming Circle requests a dedicated action row owned by the card.
+// - Uses the compact Activity header contract and cache-busts notification CSS.
+// - Opening a message bundle marks every bundled message read and removes the
+//   resolved bundle from the active inbox before opening the conversation.
 //
 // V2.2.0:
 // - Resolved incoming Circle request cards leave the active Activity inbox immediately.
 // - Resolved request notifications are persisted as read before removal.
 // - Refreshed/realtime notification payloads cannot re-add a request already resolved this session.
-//
-// V2.1.0:
-// - Treats the notification center as an active inbox, not permanent history.
-// - Read notifications are hidden on load.
-// - The former "Mark all read" action now clears the visible notification inbox.
-// - Resolved/accepted Circle requests no longer reappear after refresh once marked read.
 
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.2.0";
+const VERSION = "2.4.0";
 const SOURCE = "ari-circle/notifications/circle-notifications";
 const STYLE_ID = "ari-circle-notifications-style";
-const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.1.0";
+const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.4.0";
 
 const NOTIFICATION_TYPES = Object.freeze({
   CONNECTION_REQUEST: "connection_request",
@@ -112,7 +113,9 @@ function formatTime(value) {
 }
 
 function actorName(notification) {
-  return clean(notification.actorDisplayName) || clean(notification.actorHandle)?.replace(/^@/, "") || "Someone";
+  return clean(notification?.actorDisplayName) ||
+    clean(notification?.actorHandle)?.replace(/^@/, "") ||
+    "Someone";
 }
 
 function conciseTitle(notification) {
@@ -141,6 +144,50 @@ function conciseBody(notification) {
   const title = clean(notification.title);
   if (title && body.toLowerCase() === title.toLowerCase()) return null;
   return body;
+}
+
+function messageBundleKey(notification) {
+  if (notification?.type !== NOTIFICATION_TYPES.MESSAGE) return null;
+  if (notification.conversationId) return `conversation:${notification.conversationId}`;
+  if (notification.actorUserId) return `actor:${notification.actorUserId}`;
+  const handle = clean(notification.actorHandle)?.toLowerCase();
+  return handle ? `handle:${handle}` : null;
+}
+
+function newestFirst(a, b) {
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+function buildInboxEntries(notifications) {
+  const entries = [];
+  const messageGroups = new Map();
+
+  (Array.isArray(notifications) ? notifications : []).forEach(notification => {
+    const key = messageBundleKey(notification);
+    if (!key) {
+      entries.push({
+        kind: "single",
+        latest: notification,
+        notifications: [notification]
+      });
+      return;
+    }
+
+    const group = messageGroups.get(key) || [];
+    group.push(notification);
+    messageGroups.set(key, group);
+  });
+
+  messageGroups.forEach(group => {
+    const ordered = [...group].sort(newestFirst);
+    entries.push({
+      kind: ordered.length > 1 ? "message-bundle" : "single",
+      latest: ordered[0],
+      notifications: ordered
+    });
+  });
+
+  return entries.sort((a, b) => newestFirst(a.latest, b.latest));
 }
 
 function ensureStyle() {
@@ -229,6 +276,10 @@ const CircleNotifications = {
       CircleEvents.onAction("open-circle-notification", payload => {
         const id = clean(payload?.trigger?.dataset?.notificationId);
         if (id) this.activate(id);
+      }),
+      CircleEvents.onAction("open-notification-bundle", payload => {
+        const id = clean(payload?.trigger?.dataset?.notificationId);
+        if (id) this.activateMessageBundle(id);
       })
     );
   },
@@ -261,21 +312,16 @@ const CircleNotifications = {
           .map(item => item.id);
 
         resolvedNotificationIds.forEach(notificationId => {
-          // Persist the row as read, then remove it from the active inbox now.
-          this.markRead(notificationId);
-          this.removeNotification(notificationId);
+          this.markRead(notificationId, { render: false, sync: false });
+          this.removeNotification(notificationId, { render: false, sync: false });
         });
+        this.syncUnreadCount();
+        this.renderPanel();
       })
     );
   },
 
   setNotifications(notifications = []) {
-    /*
-     * Notifications are an active inbox. Persisted rows that have already
-     * been read are deliberately not restored into the visible sheet.
-     * Resolved request ids are also excluded so a backend/realtime refresh
-     * cannot flash an accepted/declined request back into the current inbox.
-     */
     this.state.items = Array.isArray(notifications)
       ? notifications
           .map(normalizeNotification)
@@ -290,7 +336,7 @@ const CircleNotifications = {
             }
             return true;
           })
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .sort(newestFirst)
       : [];
     this.syncUnreadCount();
     this.renderPanel();
@@ -317,7 +363,8 @@ const CircleNotifications = {
     ) {
       return null;
     }
-    this.state.items = [normalized, ...this.state.items.filter(item => item.id !== normalized.id)];
+    this.state.items = [normalized, ...this.state.items.filter(item => item.id !== normalized.id)]
+      .sort(newestFirst);
     this.syncUnreadCount();
     this.renderPanel();
     CircleEvents.emit(EVENT_NAMES.NOTIFICATIONS_CHANGED, {
@@ -327,15 +374,20 @@ const CircleNotifications = {
     return cloneNotification(normalized);
   },
 
-  removeNotification(notificationId) {
+  removeNotification(notificationId, options = {}) {
     const id = clean(notificationId);
     if (!id) return false;
     const before = this.state.items.length;
     this.state.items = this.state.items.filter(item => item.id !== id);
     if (before === this.state.items.length) return false;
-    this.syncUnreadCount();
-    this.renderPanel();
-    CircleEvents.emit(EVENT_NAMES.NOTIFICATIONS_CHANGED, { action: "remove", notificationId: id });
+    if (options.sync !== false) this.syncUnreadCount();
+    if (options.render !== false) this.renderPanel();
+    if (options.emit !== false) {
+      CircleEvents.emit(EVENT_NAMES.NOTIFICATIONS_CHANGED, {
+        action: "remove",
+        notificationId: id
+      });
+    }
     return true;
   },
 
@@ -349,8 +401,8 @@ const CircleNotifications = {
       return Object.freeze({ ...item, read: true });
     });
     if (!changed) return false;
-    this.syncUnreadCount();
-    this.renderPanel();
+    if (options.sync !== false) this.syncUnreadCount();
+    if (options.render !== false) this.renderPanel();
     if (options.persist !== false) {
       CircleEvents.emit("circle:notification-read", { notificationId: id, persist: true });
     }
@@ -367,8 +419,8 @@ const CircleNotifications = {
       return Object.freeze({ ...item, read: false });
     });
     if (!changed) return false;
-    this.syncUnreadCount();
-    this.renderPanel();
+    if (options.sync !== false) this.syncUnreadCount();
+    if (options.render !== false) this.renderPanel();
     if (options.persist !== false) {
       CircleEvents.emit("circle:notification-unread", { notificationId: id, persist: true });
     }
@@ -380,12 +432,6 @@ const CircleNotifications = {
     if (!count) return 0;
 
     const ids = this.state.items.map(item => item.id);
-
-    /*
-     * Clear immediately for responsive UI. The persistence event keeps the
-     * existing backend contract by marking every row read. On future loads,
-     * setNotifications() excludes those read rows, so Clear remains durable.
-     */
     this.state.items = [];
     this.syncUnreadCount();
     this.renderPanel();
@@ -402,7 +448,10 @@ const CircleNotifications = {
   },
 
   syncUnreadCount() {
-    const unreadCount = this.state.items.reduce((total, item) => total + (item.read ? 0 : 1), 0);
+    const unreadCount = this.state.items.reduce(
+      (total, item) => total + (item.read ? 0 : 1),
+      0
+    );
     CircleStore.setNotificationsState({ unreadCount });
     return unreadCount;
   },
@@ -429,6 +478,8 @@ const CircleNotifications = {
     list.replaceChildren();
 
     const notifications = this.state.items;
+    const entries = buildInboxEntries(notifications);
+
     if (this.dom.empty) {
       this.dom.empty.hidden = notifications.length > 0;
       const p = this.dom.empty.querySelector("p");
@@ -438,16 +489,16 @@ const CircleNotifications = {
       this.dom.markAll.disabled = notifications.length === 0;
     }
 
-    notifications.forEach(notification => list.appendChild(this.createNotificationElement(notification)));
+    entries.forEach(entry => {
+      if (entry.kind === "message-bundle") {
+        list.appendChild(this.createMessageBundleElement(entry));
+      } else {
+        list.appendChild(this.createNotificationElement(entry.latest));
+      }
+    });
   },
 
-  createNotificationElement(notification) {
-    const article = document.createElement("article");
-    article.className = "circle-notification-item circle-notification-item--compact";
-    article.dataset.read = notification.read ? "true" : "false";
-    article.dataset.type = notification.type;
-    article.dataset.notificationId = notification.id;
-
+  createAvatar(notification) {
     const avatar = document.createElement(notification.actorUserId ? "button" : "div");
     avatar.className = "circle-notification-item__avatar";
     if (notification.actorUserId) {
@@ -471,20 +522,25 @@ const CircleNotifications = {
       avatar.appendChild(fallback);
     }
 
-    const body = document.createElement("div");
-    body.className = "circle-notification-item__body";
+    return avatar;
+  },
 
+  createContentButton(notification, {
+    titleText = null,
+    bodyText = undefined,
+    action = "open-circle-notification"
+  } = {}) {
     const content = document.createElement("button");
     content.type = "button";
     content.className = "circle-notification-item__content";
-    content.dataset.circleAction = "open-circle-notification";
+    content.dataset.circleAction = action;
     content.dataset.notificationId = notification.id;
 
     const title = document.createElement("span");
     title.className = "circle-notification-item__title";
-    title.textContent = conciseTitle(notification);
+    title.textContent = titleText || conciseTitle(notification);
 
-    const preview = conciseBody(notification);
+    const preview = bodyText === undefined ? conciseBody(notification) : clean(bodyText);
     const text = document.createElement("span");
     text.className = "circle-notification-item__text";
     text.textContent = preview || "";
@@ -498,57 +554,106 @@ const CircleNotifications = {
     content.append(title);
     if (preview) content.append(text);
     content.append(time);
-    body.appendChild(content);
+    return content;
+  },
 
-    const actions = document.createElement("div");
-    actions.className = "circle-notification-item__actions";
+  createUnreadDot(notification) {
+    if (notification.read) return null;
+    const dot = document.createElement("span");
+    dot.className = "circle-notification-item__unread-dot";
+    dot.setAttribute("aria-label", "Unread");
+    return dot;
+  },
 
-    const resolvedAction = notification.requestId
-      ? this.state.resolvedRequests.get(notification.requestId)
-      : null;
+  createNotificationElement(notification) {
+    const isRequest = notification.type === NOTIFICATION_TYPES.CONNECTION_REQUEST;
+    const article = document.createElement("article");
+    article.className = "circle-notification-item circle-notification-item--compact";
+    if (isRequest) article.classList.add("circle-notification-item--request");
+    article.dataset.read = notification.read ? "true" : "false";
+    article.dataset.type = notification.type;
+    article.dataset.notificationId = notification.id;
 
-    if (
-      notification.type === NOTIFICATION_TYPES.CONNECTION_REQUEST &&
-      notification.requestId &&
-      !resolvedAction
-    ) {
-      const accept = document.createElement("button");
-      accept.type = "button";
-      accept.className = "circle-button circle-button--primary circle-button--small circle-notification-action";
-      accept.dataset.circleAction = "accept-incoming-request";
-      accept.dataset.requestId = notification.requestId;
-      accept.textContent = "Accept";
+    const avatar = this.createAvatar(notification);
+    const body = document.createElement("div");
+    body.className = "circle-notification-item__body";
+    body.appendChild(this.createContentButton(notification));
 
-      const decline = document.createElement("button");
-      decline.type = "button";
-      decline.className = "circle-button circle-button--secondary circle-button--small circle-notification-action";
-      decline.dataset.circleAction = "decline-incoming-request";
-      decline.dataset.requestId = notification.requestId;
-      decline.textContent = "Decline";
+    const dot = this.createUnreadDot(notification);
+    if (dot) article.append(avatar, body, dot);
+    else article.append(avatar, body);
 
-      actions.append(accept, decline);
-    } else if (resolvedAction) {
-      const status = document.createElement("span");
-      status.className = "circle-notification-item__resolved";
-      status.textContent = resolvedAction === "accepted"
-        ? "Accepted"
-        : resolvedAction === "declined"
-          ? "Declined"
-          : "Handled";
-      actions.appendChild(status);
+    if (isRequest) {
+      const actions = document.createElement("div");
+      actions.className = "circle-notification-item__actions";
+      const resolvedAction = notification.requestId
+        ? this.state.resolvedRequests.get(notification.requestId)
+        : null;
+
+      if (notification.requestId && !resolvedAction) {
+        const accept = document.createElement("button");
+        accept.type = "button";
+        accept.className = "circle-button circle-button--primary circle-button--small circle-notification-action";
+        accept.dataset.circleAction = "accept-incoming-request";
+        accept.dataset.requestId = notification.requestId;
+        accept.textContent = "Accept";
+
+        const decline = document.createElement("button");
+        decline.type = "button";
+        decline.className = "circle-button circle-button--secondary circle-button--small circle-notification-action";
+        decline.dataset.circleAction = "decline-incoming-request";
+        decline.dataset.requestId = notification.requestId;
+        decline.textContent = "Decline";
+
+        actions.append(accept, decline);
+      } else if (resolvedAction) {
+        const status = document.createElement("span");
+        status.className = "circle-notification-item__resolved";
+        status.textContent = resolvedAction === "accepted"
+          ? "Accepted"
+          : resolvedAction === "declined"
+            ? "Declined"
+            : "Handled";
+        actions.appendChild(status);
+      }
+
+      if (actions.childNodes.length) article.appendChild(actions);
     }
 
-    if (actions.childNodes.length) body.appendChild(actions);
+    return article;
+  },
 
-    if (!notification.read) {
-      const dot = document.createElement("span");
-      dot.className = "circle-notification-item__unread-dot";
-      dot.setAttribute("aria-label", "Unread");
-      article.append(avatar, body, dot);
-    } else {
-      article.append(avatar, body);
-    }
+  createMessageBundleElement(entry) {
+    const notifications = entry.notifications || [];
+    const latest = entry.latest;
+    const count = notifications.length;
+    const name = actorName(latest);
 
+    const article = document.createElement("article");
+    article.className = "circle-notification-item circle-notification-item--compact circle-notification-item--bundle";
+    article.dataset.read = notifications.some(item => !item.read) ? "false" : "true";
+    article.dataset.type = NOTIFICATION_TYPES.MESSAGE;
+    article.dataset.notificationId = latest.id;
+    article.dataset.bundleCount = String(count);
+
+    const avatar = this.createAvatar(latest);
+    const body = document.createElement("div");
+    body.className = "circle-notification-item__body";
+
+    const latestPreview = conciseBody(latest);
+    const bundleBody = latestPreview || "Tap to open conversation";
+    body.appendChild(this.createContentButton(latest, {
+      titleText: `${name} sent you ${count} messages`,
+      bodyText: bundleBody,
+      action: "open-notification-bundle"
+    }));
+
+    const countPill = document.createElement("span");
+    countPill.className = "circle-notification-item__count";
+    countPill.textContent = String(count);
+    countPill.setAttribute("aria-label", `${count} unread messages`);
+
+    article.append(avatar, body, countPill);
     return article;
   },
 
@@ -588,6 +693,48 @@ const CircleNotifications = {
       else dialog.removeAttribute("open");
     }
     CircleEvents.emit("circle:notifications-closed", {});
+    return true;
+  },
+
+  activateMessageBundle(notificationId) {
+    const anchor = this.getNotification(notificationId);
+    const key = messageBundleKey(anchor);
+    if (!anchor || !key) return this.activate(notificationId);
+
+    const bundle = this.state.items
+      .filter(item => messageBundleKey(item) === key)
+      .sort(newestFirst);
+
+    if (bundle.length <= 1) return this.activate(notificationId);
+
+    const ids = new Set(bundle.map(item => item.id));
+    bundle.forEach(item => {
+      if (!item.read) {
+        CircleEvents.emit("circle:notification-read", {
+          notificationId: item.id,
+          persist: true
+        });
+      }
+    });
+
+    this.state.items = this.state.items.filter(item => !ids.has(item.id));
+    this.syncUnreadCount();
+    this.renderPanel();
+    CircleEvents.emit(EVENT_NAMES.NOTIFICATIONS_CHANGED, {
+      action: "remove-bundle",
+      notificationIds: [...ids],
+      conversationId: anchor.conversationId || null
+    });
+
+    const latest = bundle[0];
+    if (latest.conversationId) {
+      CircleEvents.emit("circle:notification-open-conversation", {
+        notification: cloneNotification(latest),
+        conversationId: latest.conversationId,
+        bundledNotificationIds: [...ids],
+        messageCount: bundle.length
+      });
+    }
     return true;
   },
 
@@ -679,6 +826,7 @@ const CircleNotifications = {
       source: this.source,
       version: this.version,
       notificationCount: this.state.items.length,
+      renderedEntryCount: buildInboxEntries(this.state.items).length,
       unreadCount: clampUnreadCount(CircleStore.get("notifications.unreadCount")),
       panelOpen: this.state.panelOpen,
       buttonFound: Boolean(this.dom.button),
@@ -689,5 +837,11 @@ const CircleNotifications = {
   }
 };
 
-export { CircleNotifications, NOTIFICATION_TYPES, normalizeNotification };
+export {
+  CircleNotifications,
+  NOTIFICATION_TYPES,
+  normalizeNotification,
+  buildInboxEntries,
+  messageBundleKey
+};
 export default CircleNotifications;
