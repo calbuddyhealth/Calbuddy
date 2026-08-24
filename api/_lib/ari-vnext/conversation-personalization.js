@@ -305,17 +305,37 @@ function scoreDimensions(rows, { currentDomain = null, now = new Date() } = {}) 
     const domainWeight = currentDomain && item?.domain === currentDomain ? 1.15 : 1;
     const weight = ageWeight * confidenceWeight * sourceWeight * domainWeight;
 
-    const dimensions = {
-      detail: normalizeDetail(signalDimensions.detail || strategy.detail || strategy.realizedReplyLength),
-      directness: normalizeDirectness(signalDimensions.directness || strategy.directness),
-      complexity: normalizeComplexity(signalDimensions.complexity || strategy.complexity),
-      questionBurden: normalizeQuestionBurden(signalDimensions.questionBurden || strategy.questionBurden || fromQuestionCount(strategy.questionCount)),
-      formatStyle: normalizeFormatStyle(signalDimensions.formatStyle || strategy.formatStyle)
+    const observedDimensions = {
+      detail: normalizeDetail(strategy.detail || strategy.realizedReplyLength),
+      directness: normalizeDirectness(strategy.directness),
+      complexity: normalizeComplexity(strategy.complexity),
+      questionBurden: normalizeQuestionBurden(strategy.questionBurden || fromQuestionCount(strategy.questionCount)),
+      formatStyle: normalizeFormatStyle(strategy.formatStyle)
     };
 
-    for (const [dimension, value] of Object.entries(dimensions)) {
-      if (!isScorableDimensionValue(dimension, value)) continue;
-      addEvidence(accumulators[dimension], value, item?.outcomeDirection, weight);
+    const desiredDimensions = {
+      detail: normalizeDetail(signalDimensions.detail),
+      directness: normalizeDirectness(signalDimensions.directness),
+      complexity: normalizeComplexity(signalDimensions.complexity),
+      questionBurden: normalizeQuestionBurden(signalDimensions.questionBurden),
+      formatStyle: normalizeFormatStyle(signalDimensions.formatStyle)
+    };
+
+    for (const [dimension, observedValue] of Object.entries(observedDimensions)) {
+      if (!isScorableDimensionValue(dimension, observedValue)) continue;
+
+      const desiredValue = desiredDimensions[dimension];
+      const hasDesiredAlternative =
+        isScorableDimensionValue(dimension, desiredValue) &&
+        desiredValue !== observedValue;
+
+      if (item?.outcomeDirection === "negative" && hasDesiredAlternative) {
+        addEvidence(accumulators[dimension], observedValue, "negative", weight);
+        addEvidence(accumulators[dimension], desiredValue, "positive", weight * 1.15);
+        continue;
+      }
+
+      addEvidence(accumulators[dimension], observedValue, item?.outcomeDirection, weight);
     }
   }
 
