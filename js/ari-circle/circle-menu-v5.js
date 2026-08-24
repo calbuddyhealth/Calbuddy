@@ -1,16 +1,19 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5.2
-   Version: 2.3.0
+   Version: 2.4.0
    Premium adults-only Pearl controls + authoritative Real World Social shell.
+   The drawer panel is portaled to <body> so iOS Safari cannot clip it
+   inside the sticky/backdrop-filtered header.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "2.3.0";
+  const VERSION = "2.4.0";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const READY_ATTR = "data-circle-menu-v5";
+  const PANEL_ATTR = "data-circle-menu-panel-id";
   const ADULT_GUARD_SCRIPT_ID = "ariCircleAdultOnlyGuardScript";
   const ADULT_GUARD_SCRIPT_SRC = "js/ari-circle/adult-only-guard.js?v=1.0.0";
   const PRIVATE_MEDIA_SCRIPT_ID = "ariCirclePrivateMediaScript";
@@ -20,6 +23,7 @@
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
   const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.2.0";
   let outsideBound = false;
+  let panelSequence = 0;
 
   function adultAccessReady() {
     return window.ARI_CIRCLE_AGE_STATE?.circleAllowed === true;
@@ -155,14 +159,60 @@
     return details.classList.contains("circle-v4-menu--profile") || Boolean(document.body.classList.contains("ari-circle-page"));
   }
 
+  function panelFor(details) {
+    const panelId = details?.getAttribute?.(PANEL_ATTR);
+    return panelId ? document.getElementById(panelId) : null;
+  }
+
+  function syncDocumentMenuState() {
+    const anyOpen = Boolean(document.querySelector("details.circle-v4-menu[open]"));
+    document.body?.classList.toggle("circle-v5-menu-open", anyOpen);
+  }
+
+  function syncMenuState(details) {
+    const summary = details.querySelector("summary");
+    const panel = panelFor(details);
+    const open = details.open === true;
+    if (summary) summary.setAttribute("aria-expanded", String(open));
+    if (panel) panel.hidden = !open;
+    syncDocumentMenuState();
+  }
+
+  function portalPanel(details) {
+    let panel = panelFor(details);
+    if (!panel) panel = details.querySelector(".circle-v5-menu__panel, .circle-v4-menu__panel");
+    if (!panel) return null;
+
+    if (!panel.id) panel.id = `ariCircleMenuPanel${++panelSequence}`;
+    details.setAttribute(PANEL_ATTR, panel.id);
+    panel.dataset.circleV5Portal = "true";
+
+    const summary = details.querySelector("summary");
+    if (summary) {
+      summary.setAttribute("aria-controls", panel.id);
+      summary.setAttribute("aria-haspopup", "menu");
+    }
+
+    if (panel.parentElement !== document.body) document.body.append(panel);
+
+    if (details.dataset.circleV5ToggleBound !== "true") {
+      details.dataset.circleV5ToggleBound = "true";
+      details.addEventListener("toggle", () => syncMenuState(details));
+    }
+
+    syncMenuState(details);
+    return panel;
+  }
+
   function bindProfileOptions(details) {
-    const button = details.querySelector("[data-circle-v5-profile-options]");
+    const button = panelFor(details)?.querySelector("[data-circle-v5-profile-options]") || details.querySelector("[data-circle-v5-profile-options]");
     if (!button || button.dataset.bound === "true") return;
     button.dataset.bound = "true";
     button.addEventListener("click", () => {
       const legacy = document.getElementById("circle-profile-menu-button");
       if (legacy) legacy.click();
       details.removeAttribute("open");
+      syncMenuState(details);
     });
   }
 
@@ -171,13 +221,17 @@
     const includeProfileOptions = isProfileMenu(details);
     const expectedProfile = includeProfileOptions ? "profile" : "standard";
     const currentVersion = details.getAttribute(READY_ATTR);
-    const hasV52Markup = Boolean(details.querySelector(".circle-v52-menu-group"));
-    if (currentVersion === `${VERSION}:${expectedProfile}` && hasV52Markup) {
-      bindProfileOptions(details);
-      return;
+    const existingPanel = panelFor(details) || details.querySelector(".circle-v5-menu__panel, .circle-v4-menu__panel");
+    const hasV52Markup = Boolean(existingPanel?.querySelector(".circle-v52-menu-group"));
+
+    if (currentVersion !== `${VERSION}:${expectedProfile}` || !hasV52Markup) {
+      panelFor(details)?.remove();
+      details.removeAttribute(PANEL_ATTR);
+      details.innerHTML = markup(includeProfileOptions);
+      details.setAttribute(READY_ATTR, `${VERSION}:${expectedProfile}`);
     }
-    details.innerHTML = markup(includeProfileOptions);
-    details.setAttribute(READY_ATTR, `${VERSION}:${expectedProfile}`);
+
+    portalPanel(details);
     bindProfileOptions(details);
   }
 
@@ -199,17 +253,29 @@
 
   function closeMenus(except = null) {
     document.querySelectorAll("details.circle-v4-menu[open]").forEach((details) => {
-      if (details !== except) details.removeAttribute("open");
+      if (details === except) return;
+      details.removeAttribute("open");
+      syncMenuState(details);
     });
+    syncDocumentMenuState();
   }
 
   function bindOutsideClose() {
     if (outsideBound) return;
     outsideBound = true;
     document.addEventListener("pointerdown", (event) => {
+      if (event.target.closest?.(".circle-v5-menu__panel, .circle-v4-menu__panel")) return;
+
       const menu = event.target.closest?.("details.circle-v4-menu");
       if (menu) {
-        if (menu.open) closeMenus(menu);
+        if (event.target.closest?.("summary")) {
+          if (!menu.open) closeMenus(menu);
+          return;
+        }
+        if (menu.open) {
+          menu.removeAttribute("open");
+          syncMenuState(menu);
+        }
         return;
       }
       closeMenus();
