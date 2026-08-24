@@ -1,7 +1,7 @@
 /* =============================================================
    ARI CIRCLE — ACTIVITY NOTIFICATIONS
-   Version: 2.3.0
-   Compact, page-independent notification inbox authority.
+   Version: 2.4.0
+   Compact inbox with bundled messages and self-contained request actions.
 ============================================================= */
 
 #circle-notifications-dialog.circle-notifications-dialog {
@@ -19,6 +19,7 @@
 }
 
 #circle-notifications-dialog .circle-dialog__panel {
+  position: relative !important;
   display: flex !important;
   flex-direction: column !important;
   max-height: min(86dvh, 780px) !important;
@@ -26,20 +27,22 @@
   padding: 0 !important;
   border: 1px solid rgba(255,255,255,.96) !important;
   border-radius: 24px !important;
-  background: rgba(252,253,255,.985) !important;
+  background: rgba(252,253,255,.99) !important;
   box-shadow: 0 22px 62px rgba(20,37,78,.14) !important;
 }
 
+/* One header row: title on the left, Clear / Settings / Close on the right. */
 #circle-notifications-dialog .circle-dialog__header {
+  position: relative !important;
   display: flex !important;
-  min-height: 68px !important;
+  min-height: 72px !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 12px !important;
+  gap: 10px !important;
   margin: 0 !important;
-  padding: 13px 16px 11px !important;
+  padding: 13px 196px 11px 16px !important;
   border-bottom: 1px solid rgba(35,75,160,.07) !important;
-  background: rgba(255,255,255,.78) !important;
+  background: rgba(255,255,255,.82) !important;
 }
 
 #circle-notifications-dialog .circle-dialog__header > div {
@@ -49,7 +52,7 @@
 #circle-notifications-dialog .circle-section-eyebrow {
   margin: 0 0 2px !important;
   color: #3165ee !important;
-  font-size: .55rem !important;
+  font-size: .54rem !important;
   font-weight: 850 !important;
   line-height: 1.1 !important;
   letter-spacing: .14em !important;
@@ -59,14 +62,17 @@
   margin: 0 !important;
   color: #101a30 !important;
   font-family: inherit !important;
-  font-size: 1.36rem !important;
+  font-size: 1.34rem !important;
   font-weight: 780 !important;
-  line-height: 1.05 !important;
+  line-height: 1.04 !important;
   letter-spacing: -.035em !important;
+  white-space: nowrap !important;
 }
 
 #circle-notifications-dialog .circle-dialog__header .circle-icon-button {
-  position: static !important;
+  position: absolute !important;
+  top: 15px !important;
+  right: 14px !important;
   display: grid !important;
   width: 40px !important;
   height: 40px !important;
@@ -74,7 +80,6 @@
   min-height: 40px !important;
   max-width: 40px !important;
   max-height: 40px !important;
-  flex: 0 0 40px !important;
   place-items: center !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -83,7 +88,7 @@
   color: #718099 !important;
   background: #f8faff !important;
   box-shadow: none !important;
-  font-size: 1.35rem !important;
+  font-size: 1.24rem !important;
   line-height: 1 !important;
   transform: none !important;
 }
@@ -94,18 +99,24 @@
   content: none !important;
 }
 
+/* The legacy toolbar remains in the DOM for behavior, but visually joins the header. */
 #circle-notifications-dialog .circle-notifications-toolbar {
+  position: absolute !important;
+  z-index: 3 !important;
+  top: 18px !important;
+  right: 62px !important;
   display: flex !important;
+  width: auto !important;
+  min-height: 34px !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
-  min-height: 42px !important;
   align-items: center !important;
   justify-content: flex-end !important;
   gap: 6px !important;
   margin: 0 !important;
-  padding: 5px 12px !important;
-  border-bottom: 1px solid rgba(35,75,160,.055) !important;
-  background: rgba(249,251,255,.88) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
 }
 
 #circle-notifications-dialog .circle-notifications-toolbar .circle-section-note {
@@ -118,9 +129,9 @@
   display: inline-flex !important;
   width: auto !important;
   min-width: 0 !important;
-  height: 31px !important;
-  min-height: 31px !important;
-  max-height: 31px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
   flex: 0 0 auto !important;
   align-items: center !important;
   justify-content: center !important;
@@ -128,8 +139,8 @@
   margin: 0 !important;
   padding: 0 10px !important;
   border: 0 !important;
-  border-radius: 9px !important;
-  background: rgba(45,92,255,.055) !important;
+  border-radius: 10px !important;
+  background: rgba(45,92,255,.052) !important;
   box-shadow: none !important;
   font-family: inherit !important;
   font-size: .66rem !important;
@@ -165,27 +176,29 @@
 #circle-notifications-dialog .circle-notifications-list {
   min-height: 0 !important;
   overflow-y: auto !important;
-  padding: 4px 12px 14px !important;
+  padding: 8px 12px 16px !important;
   overscroll-behavior: contain !important;
   -webkit-overflow-scrolling: touch;
 }
 
+/* Default inbox row. */
 #circle-notifications-dialog .circle-notification-item,
 #circle-notifications-dialog .circle-notification-item--compact {
   position: relative !important;
   display: grid !important;
-  grid-template-columns: 40px minmax(0,1fr) 8px !important;
-  grid-auto-rows: auto !important;
-  gap: 10px !important;
-  align-items: start !important;
+  grid-template-columns: 42px minmax(0,1fr) 24px !important;
+  grid-template-rows: auto !important;
+  column-gap: 10px !important;
+  row-gap: 0 !important;
+  align-items: center !important;
   width: 100% !important;
   height: auto !important;
-  min-height: 0 !important;
+  min-height: 62px !important;
   margin: 0 !important;
-  padding: 10px 4px !important;
-  overflow: visible !important;
+  padding: 9px 7px !important;
+  overflow: hidden !important;
   border: 0 !important;
-  border-bottom: 1px solid rgba(34,68,145,.07) !important;
+  border-bottom: 1px solid rgba(34,68,145,.065) !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -198,22 +211,36 @@
 
 #circle-notifications-dialog .circle-notification-item[data-read="false"] {
   margin: 2px 0 !important;
-  padding: 10px 7px !important;
   border-bottom-color: transparent !important;
-  border-radius: 13px !important;
-  background: rgba(236,243,255,.42) !important;
-  box-shadow: inset 2px 0 0 rgba(47,100,255,.22) !important;
+  border-radius: 14px !important;
+  background: rgba(238,244,255,.40) !important;
+}
+
+/* Requests intentionally own a second grid row for actions. */
+#circle-notifications-dialog .circle-notification-item--request {
+  grid-template-rows: auto auto !important;
+  align-items: start !important;
+  min-height: 0 !important;
+  margin: 5px 0 !important;
+  padding: 11px 9px 10px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(47,100,255,.09) !important;
+  border-radius: 16px !important;
+  background: rgba(242,247,255,.72) !important;
+  box-shadow: 0 7px 20px rgba(32,63,130,.035) !important;
 }
 
 #circle-notifications-dialog .circle-notification-item__avatar {
   position: static !important;
   display: grid !important;
-  width: 40px !important;
-  height: 40px !important;
-  min-width: 40px !important;
-  min-height: 40px !important;
-  max-width: 40px !important;
-  max-height: 40px !important;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+  max-width: 42px !important;
+  max-height: 42px !important;
   place-items: center !important;
   align-self: start !important;
   margin: 0 !important;
@@ -244,12 +271,14 @@
 #circle-notifications-dialog .circle-notification-item__body {
   position: static !important;
   display: block !important;
+  grid-column: 2 !important;
+  grid-row: 1 !important;
   min-width: 0 !important;
   width: 100% !important;
-  align-self: stretch !important;
+  align-self: center !important;
   margin: 0 !important;
   padding: 0 !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 #circle-notifications-dialog .circle-notification-item__content {
@@ -262,6 +291,7 @@
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
+  color: inherit !important;
   background: transparent !important;
   box-shadow: none !important;
   text-align: left !important;
@@ -273,13 +303,15 @@
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
+  overflow: hidden !important;
   color: #111d35 !important;
   background: transparent !important;
   font-family: inherit !important;
   font-size: .82rem !important;
-  font-weight: 760 !important;
-  line-height: 1.25 !important;
+  font-weight: 770 !important;
+  line-height: 1.24 !important;
   text-align: left !important;
+  text-overflow: ellipsis !important;
   text-transform: none !important;
   letter-spacing: -.01em !important;
 }
@@ -318,6 +350,9 @@
 
 #circle-notifications-dialog .circle-notification-item__unread-dot {
   position: static !important;
+  display: block !important;
+  grid-column: 3 !important;
+  grid-row: 1 !important;
   width: 6px !important;
   height: 6px !important;
   align-self: center !important;
@@ -328,19 +363,45 @@
   box-shadow: none !important;
 }
 
+/* Bundled messages use a small count pill instead of duplicate rows. */
+#circle-notifications-dialog .circle-notification-item--bundle {
+  background: rgba(248,250,255,.82) !important;
+}
+
+#circle-notifications-dialog .circle-notification-item__count {
+  position: static !important;
+  display: grid !important;
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  width: 24px !important;
+  height: 24px !important;
+  place-items: center !important;
+  align-self: center !important;
+  justify-self: center !important;
+  margin: 0 !important;
+  border: 1px solid rgba(47,100,255,.12) !important;
+  border-radius: 999px !important;
+  color: #2f64ff !important;
+  background: rgba(233,240,255,.92) !important;
+  font-size: .61rem !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+}
+
 #circle-notifications-dialog .circle-notification-item__actions {
   position: static !important;
-  display: flex !important;
-  width: 100% !important;
+  display: grid !important;
+  grid-column: 2 / -1 !important;
+  grid-row: 2 !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: min(100%, 250px) !important;
   min-width: 0 !important;
   height: auto !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
   align-items: center !important;
-  gap: 6px !important;
-  margin: 7px 0 0 !important;
+  gap: 7px !important;
+  margin: 9px 0 0 !important;
   padding: 0 !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   transform: none !important;
 }
 
@@ -348,21 +409,21 @@
 #circle-notifications-dialog .circle-notification-action {
   position: static !important;
   display: inline-flex !important;
-  width: auto !important;
-  min-width: 86px !important;
+  width: 100% !important;
+  min-width: 0 !important;
   max-width: none !important;
-  height: 32px !important;
-  min-height: 32px !important;
-  max-height: 32px !important;
-  flex: 0 1 112px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  flex: none !important;
   align-items: center !important;
   justify-content: center !important;
   margin: 0 !important;
-  padding: 0 11px !important;
-  border-radius: 9px !important;
+  padding: 0 10px !important;
+  border-radius: 10px !important;
   font-family: inherit !important;
-  font-size: .66rem !important;
-  font-weight: 800 !important;
+  font-size: .67rem !important;
+  font-weight: 820 !important;
   line-height: 1 !important;
   letter-spacing: 0 !important;
   text-transform: none !important;
@@ -383,9 +444,10 @@
 }
 
 #circle-notifications-dialog .circle-notification-item__resolved {
+  grid-column: 1 / -1 !important;
   display: inline-flex !important;
-  width: auto !important;
-  min-height: 26px !important;
+  width: fit-content !important;
+  min-height: 27px !important;
   align-items: center !important;
   padding: 0 9px !important;
   border-radius: 999px !important;
@@ -432,58 +494,65 @@
   }
 
   #circle-notifications-dialog .circle-dialog__header {
-    min-height: 66px !important;
-    padding: 12px 15px 10px !important;
+    min-height: 68px !important;
+    padding: 11px 190px 10px 15px !important;
   }
 
   #circle-notifications-dialog .circle-dialog__header h2 {
-    font-size: 1.3rem !important;
+    font-size: 1.28rem !important;
   }
 
   #circle-notifications-dialog .circle-notifications-toolbar {
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    min-height: 40px !important;
-    gap: 6px !important;
-    margin: 0 !important;
-    padding: 4px 10px !important;
+    top: 17px !important;
+    right: 61px !important;
   }
 
   #circle-notifications-dialog .circle-notifications-list {
-    padding: 4px 10px 12px !important;
+    padding: 7px 10px 14px !important;
   }
 
   #circle-notifications-dialog .circle-notification-item,
   #circle-notifications-dialog .circle-notification-item--compact {
-    grid-template-columns: 38px minmax(0,1fr) 7px !important;
-    gap: 9px !important;
-    padding: 9px 3px !important;
+    grid-template-columns: 40px minmax(0,1fr) 22px !important;
+    column-gap: 9px !important;
+    min-height: 59px !important;
+    padding: 8px 6px !important;
   }
 
-  #circle-notifications-dialog .circle-notification-item[data-read="false"] {
-    padding: 9px 6px !important;
+  #circle-notifications-dialog .circle-notification-item--request {
+    min-height: 0 !important;
+    padding: 10px 8px 9px !important;
   }
 
   #circle-notifications-dialog .circle-notification-item__avatar {
-    width: 38px !important;
-    height: 38px !important;
-    min-width: 38px !important;
-    min-height: 38px !important;
-    max-width: 38px !important;
-    max-height: 38px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
   }
 
   #circle-notifications-dialog .circle-notification-item__title {
-    font-size: .8rem !important;
+    font-size: .79rem !important;
   }
 
-  #circle-notifications-dialog .circle-notification-item__actions .circle-button,
-  #circle-notifications-dialog .circle-notification-action {
-    min-width: 82px !important;
-    height: 31px !important;
-    min-height: 31px !important;
-    max-height: 31px !important;
-    flex-basis: 105px !important;
+  #circle-notifications-dialog .circle-notification-item__actions {
+    width: min(100%, 240px) !important;
+  }
+}
+
+@media (max-width: 360px) {
+  #circle-notifications-dialog .circle-dialog__header {
+    padding-right: 158px !important;
+  }
+
+  #circle-notifications-dialog .circle-notifications-settings-link {
+    width: 32px !important;
+    padding: 0 !important;
+  }
+
+  #circle-notifications-dialog .circle-notifications-settings-link span {
+    display: none !important;
   }
 }
