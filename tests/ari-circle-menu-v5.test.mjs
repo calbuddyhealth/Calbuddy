@@ -82,7 +82,16 @@ test("Feed, Meet Up, and Quests use the same shared navigation shell", () => {
     assert.match(html, /ari-circle-v5-minimal-premium\.css\?v=5\.2\.4/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.2"/);
   }
-  assert.match(feedHtml, /js\/ari-circle\/v4-ui\.js\?v=5\.2\.3/);
+  assert.match(feedHtml, /js\/ari-circle\/v4-ui\.js\?v=5\.2\.4/);
+});
+
+
+test("Feed no longer loads legacy V4 presentation CSS", () => {
+  assert.doesNotMatch(feedHtml, /ari-circle-v4\.css/);
+  assert.doesNotMatch(feedHtml, /ari-circle-v4-polish\.css/);
+  assert.doesNotMatch(feedHtml, /ari-circle-v4-ux-fixes\.css/);
+  assert.match(legacyShell, /const isProfile = Boolean\(document\.body\?\.classList\.contains\("ari-circle-page"\)\)/);
+  assert.match(legacyShell, /if \(isProfile\) \{/);
 });
 
 
