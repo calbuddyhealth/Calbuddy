@@ -1,10 +1,8 @@
 /* =============================================================
-   ARI CIRCLE V5.2.1 — VISUAL AUTHORITY
-   Final primary-surface authority for Feed · Meet Up · Quests.
-   - Pearl is authoritative for ordinary UI
-   - Page identity is compact navigation, not a second hero header
-   - Feed / Meet Up / Quests keep distinct accents
-   - No continuous animation, observers, or data work
+   ARI CIRCLE V5.2.5 — CONSOLIDATED VISUAL AUTHORITY
+   Feed · Meet Up · Quests final presentation authority.
+   This file now includes the former Minimal Premium override layer so the
+   current primary surfaces have one final CSS authority instead of two.
 ============================================================= */
 
 :root {
@@ -35,7 +33,6 @@ body.circle-v5-real-world {
   color-scheme: light !important;
 }
 
-/* ---------- one premium brand header ---------- */
 body.circle-v5-real-world .circle-v51-halo-header,
 body.circle-v5-real-world .circle-v51-halo-header.feed-header,
 body.circle-v5-real-world .circle-v51-halo-header.circle-v5-header {
@@ -76,7 +73,6 @@ body.circle-v5-real-world .circle-v51-halo-header .circle-v51-header-action {
 .circle-v51-orbit-mark { width: 31px !important; height: 23px !important; flex-basis: 31px !important; }
 .circle-v51-wordmark strong,.circle-v51-wordmark em { font-size: clamp(.82rem,3.4vw,1rem) !important; letter-spacing: .075em !important; }
 
-/* ---------- compact page navigation identity ---------- */
 .circle-v52-page-intro {
   position: relative;
   display: flex !important;
@@ -128,7 +124,6 @@ body.circle-v5-real-world .circle-v51-halo-header .circle-v51-header-action {
   border-radius: 13px !important;
 }
 
-/* ---------- Pearl wins on every ordinary social surface ---------- */
 body.circle-v5-real-world .feed-composer,
 body.circle-v5-real-world .feed-post,
 body.circle-v5-real-world .feed-empty,
@@ -166,7 +161,6 @@ body.circle-v5-real-world .circle-v5-completion-note {
   color: var(--circle521-soft) !important;
 }
 
-/* Feed — warm, human, content first. */
 body.circle-v5-real-world .feed-composer {
   padding: 13px !important;
   border-radius: 20px !important;
@@ -182,7 +176,6 @@ body.circle-v5-real-world .circle-v5-happening .circle-v5-card {
   background: linear-gradient(135deg,#f3fdff,#fff 50%,#f7f3ff) !important;
 }
 
-/* Meet Up — crisp discovery energy. */
 #meetupPage .circle-v52-xp-strip {
   border-color: #dce8f1 !important;
   border-radius: 17px !important;
@@ -193,7 +186,6 @@ body.circle-v5-real-world .circle-v5-happening .circle-v5-card {
 #meetupPage .circle-v5-host-badge,
 #meetupPage .circle-v5-xp-chip { box-shadow: none !important; }
 
-/* Quests — violet mission energy, less text. */
 #questPage .circle-v52-quest-hero {
   margin-bottom: 12px !important;
   padding: 17px !important;
@@ -212,7 +204,6 @@ body.circle-v5-real-world .circle-v5-happening .circle-v5-card {
   line-height: 1.18 !important;
 }
 
-/* filters should look intentionally scrollable */
 .circle-v5-filter-rail {
   padding-right: 18px !important;
   overscroll-behavior-x: contain;
@@ -225,7 +216,6 @@ body.circle-v5-real-world .circle-v5-happening .circle-v5-card {
   box-shadow: 0 3px 9px rgba(43,60,91,.035) !important;
 }
 
-/* Empty state must never fade into the card. */
 body.circle-v5-real-world .circle-v5-empty {
   min-height: 112px !important;
   place-content: center !important;
@@ -240,7 +230,6 @@ body.circle-v5-real-world .circle-v5-empty span {
   font: 620 .74rem/1.35 Inter,sans-serif !important;
 }
 
-/* Bottom dock: premium, lighter, and never covers the last card. */
 .circle-v5-bottom-nav { padding: 0 18px calc(9px + env(safe-area-inset-bottom)) !important; }
 .circle-v5-bottom-nav__dock {
   min-height: 66px !important;
@@ -263,7 +252,6 @@ body.circle-v5-real-world .circle-v5-page-main {
   padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
 }
 
-/* Media viewers remain the intentional dark exception. */
 body.circle-v5-real-world .feed-moment-viewer__card { color: #fff !important; background: #080d18 !important; }
 
 @media (max-width: 520px) {
@@ -276,4 +264,221 @@ body.circle-v5-real-world .feed-moment-viewer__card { color: #fff !important; ba
 
 @media (prefers-reduced-motion: reduce) {
   body.circle-v5-real-world * { scroll-behavior: auto !important; }
+}
+
+/* =============================================================
+   FORMER V5.2.4 MINIMAL PREMIUM OVERRIDES — CONSOLIDATED HERE
+============================================================= */
+
+:root {
+  --circle522-ink: #122039;
+  --circle522-soft: #6b788d;
+  --circle522-line: #dfe7f0;
+  --circle522-cyan: #43d8f5;
+  --circle522-blue: #6296ff;
+  --circle522-violet: #a879ff;
+  --circle522-gradient: linear-gradient(110deg,var(--circle522-cyan),var(--circle522-blue) 54%,var(--circle522-violet));
+}
+
+html.circle-v5-real-world-root,
+body.circle-v5-real-world {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header,
+body.circle-v5-real-world .circle-v5-bottom-nav,
+body.circle-v5-real-world .circle-v5-menu__panel,
+body.circle-v5-real-world .circle-v4-menu__panel,
+body.circle-v5-real-world .circle-v5-menu__panel *,
+body.circle-v5-real-world .circle-v4-menu__panel * {
+  box-sizing: border-box;
+}
+
+body.circle-v5-real-world .circle-v5-menu__panel,
+body.circle-v5-real-world .circle-v4-menu__panel {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+body.circle-v5-real-world .circle-v52-menu-group__items .circle-v5-menu__item,
+body.circle-v5-real-world .circle-v52-menu-exit .circle-v5-menu__item {
+  min-height: 54px !important;
+  padding: 7px 10px 7px 8px !important;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+body.circle-v5-real-world .circle-v5-menu__label {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: .82rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -.012em !important;
+}
+
+body.circle-v5-real-world .circle-v52-menu-group__label,
+body.circle-v5-real-world .circle-v52-menu-footer,
+body.circle-v5-real-world .circle-v5-menu__identity small {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+body.circle-v5-real-world .circle-v5-bottom-nav a {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header {
+  min-height: 60px !important;
+  grid-template-columns: 40px minmax(0,1fr) 40px !important;
+  padding: 6px 8px !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header::after {
+  right: 24% !important;
+  left: 24% !important;
+  background: var(--circle522-gradient) !important;
+}
+
+body.circle-v5-real-world .circle-v51-brand {
+  gap: 0 !important;
+}
+
+body.circle-v5-real-world .circle-v51-orbit-mark,
+body.circle-v5-real-world .circle-v51-halo-header .feed-brand__mark,
+body.circle-v5-real-world .circle-v51-halo-header .partner-brand__mark,
+body.circle-v5-real-world .circle-v51-halo-header .challenge-brand__mark {
+  display: none !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark strong,
+body.circle-v5-real-world .circle-v51-wordmark em {
+  font: 800 clamp(1.02rem,4.7vw,1.28rem)/1 Orbitron,Inter,sans-serif !important;
+  letter-spacing: .075em !important;
+  white-space: nowrap !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark strong {
+  color: #14213a !important;
+}
+
+body.circle-v5-real-world .circle-v51-wordmark em {
+  color: transparent !important;
+  background: var(--circle522-gradient) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  font-style: normal !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header .feed-brand > span:not(.feed-brand__mark),
+body.circle-v5-real-world .circle-v51-halo-header .circle-v5-brand > span:not(.feed-brand__mark) {
+  color: var(--circle522-ink) !important;
+  font: 800 clamp(1.02rem,4.7vw,1.28rem)/1 Orbitron,Inter,sans-serif !important;
+  letter-spacing: .075em !important;
+}
+
+.circle-v51-halo-intro .circle-v51-orbit-mark {
+  animation: none !important;
+}
+
+#meetupPage .circle-v52-xp-strip {
+  margin-bottom: 14px !important;
+}
+
+#meetupPage #meetupWindowFilters,
+#questPage #questFilters {
+  margin-top: 0 !important;
+}
+
+#questPage .circle-v52-quest-hero {
+  margin-bottom: 14px !important;
+}
+
+body.circle-v5-real-world .circle-v5-happening-card:has(.circle-v5-happening-card__eyebrow + h3 + p:last-child) {
+  min-height: 128px;
+}
+
+body.circle-v5-real-world .feed-page,
+body.circle-v5-real-world .circle-v5-page,
+body.circle-v5-real-world .circle-v5-page-main {
+  padding-bottom: calc(132px + env(safe-area-inset-bottom)) !important;
+}
+
+body.circle-v5-real-world .feed-page,
+body.circle-v5-real-world .circle-v5-page {
+  padding-top: 0 !important;
+}
+
+body.circle-v5-real-world .circle-v51-halo-header {
+  position: sticky !important;
+  top: max(6px, env(safe-area-inset-top)) !important;
+  z-index: 200 !important;
+  overflow: visible !important;
+}
+
+body.circle-v5-real-world:has(details.circle-v4-menu[open]) {
+  overflow: hidden !important;
+}
+
+body.circle-v5-real-world:has(details.circle-v4-menu[open]) .circle-v51-halo-header {
+  transform: none !important;
+  contain: none !important;
+  isolation: auto !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.circle-v5-real-world details.circle-v4-menu[open] {
+  isolation: auto !important;
+}
+
+body.circle-v5-real-world details.circle-v4-menu[open]::before {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 225 !important;
+}
+
+body.circle-v5-real-world .circle-v5-menu__panel,
+body.circle-v5-real-world .circle-v4-menu__panel {
+  top: max(78px, calc(env(safe-area-inset-top) + 66px)) !important;
+  right: max(14px, env(safe-area-inset-right)) !important;
+  bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+  left: max(14px, env(safe-area-inset-left)) !important;
+  z-index: 230 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+@media (max-width: 520px) {
+  body.circle-v5-real-world .circle-v51-wordmark strong,
+  body.circle-v5-real-world .circle-v51-wordmark em {
+    font-size: clamp(1rem,5.1vw,1.2rem) !important;
+  }
+
+  body.circle-v5-real-world .circle-v5-menu__panel,
+  body.circle-v5-real-world .circle-v4-menu__panel {
+    top: max(76px, calc(env(safe-area-inset-top) + 64px)) !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+    left: max(10px, env(safe-area-inset-left)) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-v51-halo-intro .circle-v51-wordmark {
+    animation: none !important;
+  }
 }
