@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const menu = fs.readFileSync(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
-const legacyShell = fs.readFileSync(new URL("../js/ari-circle/v4-ui.js", import.meta.url), "utf8");
+const profileCompat = fs.readFileSync(new URL("../js/ari-circle/v4-ui.js", import.meta.url), "utf8");
 const shell = fs.readFileSync(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5.css", import.meta.url), "utf8");
 const premium = fs.readFileSync(new URL("../assets/css/ari-circle-v5-premium.css", import.meta.url), "utf8");
@@ -82,24 +82,28 @@ test("Feed, Meet Up, and Quests use the same shared navigation shell", () => {
     assert.match(html, /ari-circle-v5-minimal-premium\.css\?v=5\.2\.4/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.2"/);
   }
-  assert.match(feedHtml, /js\/ari-circle\/v4-ui\.js\?v=5\.2\.4/);
 });
 
 
-test("Feed no longer loads legacy V4 presentation CSS", () => {
+test("Feed no longer loads legacy Profile compatibility CSS or JS", () => {
   assert.doesNotMatch(feedHtml, /ari-circle-v4\.css/);
   assert.doesNotMatch(feedHtml, /ari-circle-v4-polish\.css/);
   assert.doesNotMatch(feedHtml, /ari-circle-v4-ux-fixes\.css/);
-  assert.match(legacyShell, /const isProfile = Boolean\(document\.body\?\.classList\.contains\("ari-circle-page"\)\)/);
-  assert.match(legacyShell, /if \(isProfile\) \{/);
+  assert.doesNotMatch(feedHtml, /js\/ari-circle\/v4-ui\.js/);
+  assert.match(feedHtml, /js\/ari-circle\/v4-flow-fixes\.js\?v=1\.2\.1/);
+  assert.match(feedHtml, /js\/ari-circle\/feed\/feed-polish\.js\?v=1\.0\.1/);
+  assert.match(feedHtml, /js\/ari-circle\/feed\/feed-moderation\.js\?v=1\.1\.0/);
 });
 
 
-test("legacy Feed JS no longer owns or rewrites the shared drawer", () => {
-  assert.match(legacyShell, /Navigation ownership note/);
-  assert.match(legacyShell, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
-  assert.doesNotMatch(legacyShell, /details\.innerHTML = circleMenuMarkup\(false\)/);
-  assert.doesNotMatch(legacyShell, /bindOutsideMenuClose\(\)/);
+test("Profile compatibility shell is profile-only and never owns drawer markup", () => {
+  assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
+  assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
+  assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
+  assert.doesNotMatch(profileCompat, /circleMenuMarkup/);
+  assert.doesNotMatch(profileCompat, /challenge-video-web-fix/);
+  assert.doesNotMatch(profileCompat, /ari-circle-partners\.html/);
+  assert.doesNotMatch(profileCompat, /ari-circle-challenges\.html/);
 });
 
 
