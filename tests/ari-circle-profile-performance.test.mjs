@@ -65,8 +65,18 @@ test("ARI Circle Profile caches only a verified viewer age state for a short ses
   assert.match(profileV4, /age\?\.verified === true/);
 });
 
+test("Profile renderer exposes only current Circle routes and eligibility copy", () => {
+  assert.match(profileV4, /const VERSION = "4\.3\.1"/);
+  assert.match(profileV4, /ari-circle-feed\.html/);
+  assert.match(profileV4, /ari-circle-meetup\.html/);
+  assert.match(profileV4, /ari-circle-quests\.html/);
+  assert.match(profileV4, /confirm you’re eligible for ARI Circle/);
+  assert.doesNotMatch(profileV4, /ari-circle-partners\.html|ari-circle-challenges\.html|>Buddies<|>Challenges</);
+  assert.doesNotMatch(profileV4, /teen and adult discovery/i);
+});
+
 test("Profile loader boots only the accelerated renderer, compatibility shell, and Profile social flow", () => {
-  assert.match(profileLoader, /profile-v4\.js\?v=4\.3\.0/);
+  assert.match(profileLoader, /profile-v4\.js\?v=4\.3\.1/);
   assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.0/);
   assert.match(profileLoader, /profile-social-flow\.js\?v=1\.0\.0/);
   assert.match(profileLoader, /window\.AriCircleProfileSocialFlow/);
