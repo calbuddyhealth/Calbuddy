@@ -13,9 +13,8 @@ const criticalFiles = [
   "js/nutrition-barcode-scan.js",
   "js/nutrition-barcode-lazy.js",
   "js/nutrition-scan-save-bridge.js",
-  "ari-circle-challenges.html",
-  "js/ari-circle/challenges/challenges.js",
-  "js/ari-circle/challenges/challenge-video-recorder.js",
+  "ari-circle-quests.html",
+  "js/ari-circle/quests/quests-v5.js",
   "js/native-runtime.js"
 ];
 
@@ -26,18 +25,17 @@ const criticalMarkers = new Map([
     "js/nutrition-barcode-lazy.js",
     "js/nutrition-scan-save-bridge.js"
   ]],
-  ["ari-circle-challenges.html", [
-    "challengeVideoRecorder",
-    "js/ari-circle/challenges/challenges.js",
-    "js/ari-circle/challenges/challenge-video-recorder.js"
+  ["ari-circle-quests.html", [
+    'id="createQuestButton"',
+    "js/ari-circle/quests/quests-v5.js"
   ]],
   ["js/nutrition-barcode-scan.js", [
     "AriNutritionScanBridge",
     "decodeFromVideoDevice"
   ]],
-  ["js/ari-circle/challenges/challenge-video-recorder.js", [
-    "getUserMedia",
-    "MediaRecorder"
+  ["js/ari-circle/quests/quests-v5.js", [
+    "ari_circle_create_quest",
+    "ari_circle_verify_quest_completion"
   ]]
 ]);
 
@@ -101,7 +99,7 @@ async function main() {
   }
 
   console.log(`[ARI XP] iOS Safari parity verified: ${webFiles.length} bundled files match Xcode public.`);
-  console.log("[ARI XP] Verified critical parity: Nutrition barcode + label scan, Circle challenges/media/video, native runtime.");
+  console.log("[ARI XP] Verified critical parity: Nutrition barcode + label scan, Circle Quests, native runtime.");
 }
 
 main().catch((error) => {
