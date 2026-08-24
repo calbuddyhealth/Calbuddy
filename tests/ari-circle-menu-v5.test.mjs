@@ -3,9 +3,11 @@ import fs from "node:fs";
 import test from "node:test";
 
 const menu = fs.readFileSync(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
+const legacyShell = fs.readFileSync(new URL("../js/ari-circle/v4-ui.js", import.meta.url), "utf8");
 const shell = fs.readFileSync(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5.css", import.meta.url), "utf8");
 const premium = fs.readFileSync(new URL("../assets/css/ari-circle-v5-premium.css", import.meta.url), "utf8");
+const minimal = fs.readFileSync(new URL("../assets/css/ari-circle-v5-minimal-premium.css", import.meta.url), "utf8");
 const supabaseConfig = fs.readFileSync(new URL("../supabase-config.js", import.meta.url), "utf8");
 const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.url), "utf8");
 const meetupHtml = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
@@ -80,6 +82,23 @@ test("Feed, Meet Up, and Quests use the same shared navigation shell", () => {
     assert.match(html, /ari-circle-v5-minimal-premium\.css\?v=5\.2\.3/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.2"/);
   }
+});
+
+
+test("legacy Feed JS no longer owns or rewrites the shared drawer", () => {
+  assert.match(legacyShell, /Navigation ownership note/);
+  assert.match(legacyShell, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
+  assert.doesNotMatch(legacyShell, /details\.innerHTML = circleMenuMarkup\(false\)/);
+  assert.doesNotMatch(legacyShell, /bindOutsideMenuClose\(\)/);
+});
+
+
+test("portaled drawer typography and sizing are independent of the source page", () => {
+  assert.match(minimal, /font-family:\s*"Inter"[\s\S]*-apple-system[\s\S]*sans-serif\s*!important/);
+  assert.match(minimal, /-webkit-text-size-adjust:\s*100%\s*!important/);
+  assert.match(minimal, /circle-v52-menu-group__items \.circle-v5-menu__item/);
+  assert.match(minimal, /min-height:\s*54px\s*!important/);
+  assert.match(minimal, /\.feed-page,[\s\S]*\.circle-v5-page[\s\S]*padding-top:\s*0\s*!important/);
 });
 
 
