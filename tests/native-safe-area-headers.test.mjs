@@ -13,7 +13,7 @@ const sharedHeader = fs.readFileSync(path.join(root, "assets/css/header.css"), "
 const nutrition = fs.readFileSync(path.join(root, "assets/css/nutrition.css"), "utf8");
 const goals = fs.readFileSync(path.join(root, "assets/css/goals.css"), "utf8");
 const blockedUsers = fs.readFileSync(path.join(root, "assets/css/blocked-users.css"), "utf8");
-const circleV5 = fs.readFileSync(path.join(root, "assets/css/ari-circle-v5-minimal-premium.css"), "utf8");
+const circleV5 = fs.readFileSync(path.join(root, "assets/css/ari-circle-v5-visual-authority.css"), "utf8");
 
 test("mobile bundle marks native HTML before runtime detection", () => {
   assert.match(mobileBuild, /function markNativeDocument\(/);
@@ -97,6 +97,7 @@ test("Build 4 Blocked Users header keeps its web safe area", () => {
 });
 
 test("ARI Circle V5 header and bottom navigation keep their web safe areas", () => {
+  assert.match(circleV5, /CONSOLIDATED VISUAL AUTHORITY/);
   assert.match(circleV5, /\.circle-v51-halo-header/);
   assert.match(circleV5, /safe-area-inset-top/);
   assert.match(circleV5, /\.circle-v5-bottom-nav/);
