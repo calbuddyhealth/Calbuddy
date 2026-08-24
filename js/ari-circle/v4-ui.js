@@ -1,19 +1,19 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.2.9
+   Version: 5.3.0
 
    Feed · Meet Up · Quests use the current V5 runtime directly. This file
-   now exists only to bridge the legacy Profile DOM into the shared V5 shell.
+   exists only to bridge the legacy Profile DOM into the shared V5 shell.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.9";
+  const VERSION = "5.3.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
   let panelHandled = false;
-  let launchSocialLoaded = false;
+  let visitorControlsLoaded = false;
   let realWorldLoaded = false;
 
   const $ = (id) => document.getElementById(id);
@@ -187,11 +187,11 @@
       });
     }
 
-    if (!launchSocialLoaded) {
-      launchSocialLoaded = true;
-      import("/js/ari-circle/launch-social-v5.js?v=5.0.2").catch((error) => {
-        launchSocialLoaded = false;
-        console.warn("ARI Circle Launch Social V5 failed to load:", error);
+    if (!visitorControlsLoaded && !window.AriCircleProfileVisitorControls) {
+      visitorControlsLoaded = true;
+      import("/js/ari-circle/profile/profile-visitor-controls.js?v=1.0.0").catch((error) => {
+        visitorControlsLoaded = false;
+        console.warn("ARI Circle Profile visitor controls failed to load:", error);
       });
     }
   }
