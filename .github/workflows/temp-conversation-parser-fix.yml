@@ -1,0 +1,56 @@
+name: Temporary Conversation Parser Fix
+
+on:
+  push:
+    branches:
+      - feature/ari-conversation-personalization-v2
+    paths:
+      - .github/workflows/temp-conversation-parser-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ari-conversation-personalization-v2
+
+      - name: Fix parser edge cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('api/_lib/ari-vnext/conversation-personalization.js')
+          text = path.read_text()
+
+          old = '''  const text = clean(reply, 12000);\n  const lines = text.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean);'''
+          new = '''  const text = String(reply ?? "").slice(0, 12000).trim();\n  const lines = text.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean);'''
+          assert old in text, 'response analyzer text anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''  } else if (/\\b(more detail|more detailed|go into detail|explain (?:it )?(?:fully|thoroughly|in depth)|walk me through|deep dive)\\b/i.test(text)) {'''
+          new = '''  } else if (/\\b(more detail|more detailed|detailed answer|give me (?:a )?detailed|go into detail|explain (?:it )?(?:fully|thoroughly|in depth)|walk me through|deep dive)\\b/i.test(text)) {'''
+          assert old in text, 'detail override regex anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''  if (/\\b(too many questions|stop asking questions|don't ask (?:me )?(?:follow[- ]?up )?questions|do not ask (?:me )?(?:follow[- ]?up )?questions|fewer questions)\\b/i.test(text)) {'''
+          new = '''  if (/\\b(too many questions|stop asking (?:me )?(?:follow[- ]?up )?questions|don't ask (?:me )?(?:follow[- ]?up )?questions|do not ask (?:me )?(?:follow[- ]?up )?questions|fewer questions)\\b/i.test(text)) {'''
+          assert old in text, 'feedback question regex anchor missing'
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Commit parser fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/_lib/ari-vnext/conversation-personalization.js
+          git commit -m "Fix conversation personalization parser edge cases"
+          git push origin HEAD:feature/ari-conversation-personalization-v2
