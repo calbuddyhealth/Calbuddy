@@ -1,15 +1,19 @@
 /* =============================================================
    ARI CIRCLE — STABLE UI SHELL
-   Version: 5.2.2
+   Version: 5.2.3
 
    V5 keeps the proven Feed/Profile controllers, then layers the Real World
    Social shell on top: Feed · Meet Up · Quests, live Happening discovery,
    and profile XP/reputation. Legacy Buddies/Challenges routes stay compatible.
+
+   Navigation ownership note:
+   circle-menu-v5.js is the single authority for the shared Circle drawer.
+   This legacy shell must never rewrite or bind the drawer independently.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.2.2";
+  const VERSION = "5.2.3";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -23,7 +27,6 @@
   let realWorldLoaded = false;
   let happeningLoaded = false;
   let profileRealWorldLoaded = false;
-  let outsideMenuBound = false;
 
   const $ = (id) => document.getElementById(id);
   const MESSAGE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.25 3.75 20l.85-3.45A7.9 7.9 0 0 1 3 11.75C3 7.47 6.9 4 11.7 4h.6c4.8 0 8.7 3.47 8.7 7.75s-3.9 7.75-8.7 7.75h-.6A9.5 9.5 0 0 1 7 18.25Z"></path></svg>`;
@@ -64,35 +67,11 @@
       </nav>`;
   }
 
-  function closeOtherMenus(current = null) {
-    document.querySelectorAll("details.circle-v4-menu[open]").forEach((details) => {
-      if (details !== current) details.removeAttribute("open");
-    });
-  }
-
-  function bindOutsideMenuClose() {
-    if (outsideMenuBound) return;
-    outsideMenuBound = true;
-    document.addEventListener("pointerdown", (event) => {
-      const menu = event.target.closest?.("details.circle-v4-menu");
-      if (menu) {
-        if (menu.open) closeOtherMenus(menu);
-        return;
-      }
-      closeOtherMenus();
-    }, true);
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeOtherMenus();
-    });
-  }
-
   function standardizeMenus() {
-    document.querySelectorAll(".feed-header > .circle-v4-menu, .partner-header > .circle-v4-menu, .challenge-header > .circle-v4-menu").forEach((details) => {
-      if (details.dataset.v5ShellMenu === "true") return;
-      details.innerHTML = circleMenuMarkup(false);
-      details.dataset.v5ShellMenu = "true";
-    });
-    bindOutsideMenuClose();
+    // V5 drawer state, markup, portal behavior, and outside-close handling all
+    // belong to AriCircleMenuV5. The old Feed shell used to overwrite the menu
+    // after the V5 controller initialized, which created a Feed-only code path.
+    window.AriCircleMenuV5?.refresh?.();
   }
 
   function routeToMessages(event) {
@@ -130,6 +109,7 @@
       menu.className = "circle-v4-menu circle-v4-menu--profile";
       menu.innerHTML = circleMenuMarkup(true);
       header.prepend(menu);
+      window.AriCircleMenuV5?.refresh?.();
     }
     const brand = header.querySelector(".circle-header__brand");
     if (brand) {
