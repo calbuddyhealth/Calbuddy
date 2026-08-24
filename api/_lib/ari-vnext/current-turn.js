@@ -1,6 +1,6 @@
 // ARI vNext — current-turn normalization and action isolation.
 
-export const CURRENT_TURN_VERSION = "1.0.0";
+export const CURRENT_TURN_VERSION = "1.1.0";
 
 export function buildCurrentTurn(body = {}, userId = null) {
   const message = cleanText(body?.message, 8000);
@@ -9,11 +9,13 @@ export function buildCurrentTurn(body = {}, userId = null) {
   const preferences = normalizeObject(body?.preferences || context?.preferences);
   const memory = cleanText(body?.memorySummary || body?.coachMemorySummary, 5000);
   const surface = cleanText(body?.surface || context?.surface || context?.page, 120) || "unknown";
+  const conversationId = cleanText(body?.conversationId || context?.conversationId, 200) || null;
 
   return {
     version: CURRENT_TURN_VERSION,
     userId: cleanText(userId, 200) || null,
     turnId: cleanText(body?.turnId, 200) || makeId("turn"),
+    conversationId,
     message,
     history,
     context,

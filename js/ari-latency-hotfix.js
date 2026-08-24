@@ -1,11 +1,13 @@
 // =====================================================
 // ARI XP
 // File: js/ari-latency-hotfix.js
-// Version: 1.0.0
+// Version: 1.1.0
 // Purpose:
-//   Keep ordinary Ari conversation off legacy blocking app hydration.
+//   Keep ordinary Ari conversation off legacy blocking app hydration without
+//   allowing stale browser state to become authoritative personal context.
 //   - Capture the message before Home clears the composer.
-//   - Use lightweight local personalization for ordinary conversation/advice.
+//   - Use one lightweight, user-scoped Supabase profile read for identity/goals.
+//   - Treat localStorage only as a fallback when live profile data is unavailable.
 //   - Preserve authoritative hydration for explicit personal ledger/mutation work.
 //   - Never make ordinary chat wait for browser GitHub owner verification.
 //   - Clear stale cross-document pending turns so refresh does not auto-resend.
@@ -83,6 +85,59 @@
     return 0;
   }
 
+  function ageFromBirthday(value) {
+    const raw = clean(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const [year, month, day] = raw.split("-").map(Number);
+    const now = new Date();
+    let age = now.getFullYear() - year;
+    const beforeBirthday =
+      now.getMonth() + 1 < month ||
+      (now.getMonth() + 1 === month && now.getDate() < day);
+    if (beforeBirthday) age -= 1;
+    return age >= 0 && age <= 130 ? age : null;
+  }
+
+  async function loadLiveProfile(session) {
+    const userId = clean(session?.user?.id);
+    const client = window.calbuddySupabase || window.supabaseClient || CalBuddy.supabase;
+    if (!userId || !client?.from) return {};
+
+    try {
+      const { data, error } = await client
+        .from("profiles")
+        .select("id,name,display_name,age,birthday,height_in,height,weight_lbs,current_weight,target_weight_lbs,goal_weight,daily_calorie_goal,sex,gender,activity_level,goal,goal_type,weekly_weight_change_goal")
+        .eq("id", userId)
+        .maybeSingle();
+      if (error) {
+        console.warn("Ari lightweight profile read unavailable:", error.message);
+        return {};
+      }
+      return data && typeof data === "object" ? data : {};
+    } catch (error) {
+      console.warn("Ari lightweight profile read failed:", error?.message || error);
+      return {};
+    }
+  }
+
+  function syncLocalProfileFallback(profile = {}) {
+    const mappings = [
+      ["calbuddyCurrentWeight", profile.weight_lbs ?? profile.current_weight],
+      ["calbuddyLatestWeight", profile.weight_lbs ?? profile.current_weight],
+      ["calbuddyGoalWeight", profile.target_weight_lbs ?? profile.goal_weight],
+      ["calbuddyDailyCalorieGoal", profile.daily_calorie_goal],
+      ["calbuddy_height_in", profile.height_in ?? profile.height],
+      ["calbuddy_age", ageFromBirthday(profile.birthday) ?? profile.age],
+      ["calbuddy_sex", profile.sex ?? profile.gender],
+      ["calbuddy_activity_level", profile.activity_level],
+      ["calbuddy_goal", profile.goal ?? profile.goal_type]
+    ];
+    for (const [key, value] of mappings) {
+      if (value === null || value === undefined || value === "") continue;
+      try { localStorage.setItem(key, String(value)); } catch {}
+    }
+  }
+
   async function buildLightContext() {
     const goals = readJson("calbuddyGoals", {});
     let session = null;
@@ -90,43 +145,79 @@
       session = await CalBuddy.getCurrentSession?.();
     } catch {}
 
+    const profile = await loadLiveProfile(session);
+    const profileLoaded = Boolean(profile?.id);
+    if (profileLoaded) syncLocalProfileFallback(profile);
+
     const dailyGoal = localNumber(
+      profile.daily_calorie_goal,
       localStorage.getItem("calbuddyDailyCalorieGoal"),
       goals.calorieGoal,
       2100
     ) || 2100;
     const caloriesConsumed = localNumber(localStorage.getItem("calbuddyCaloriesConsumed"));
     const caloriesBurned = localNumber(localStorage.getItem("calbuddyCaloriesBurned"));
+    const liveAge = ageFromBirthday(profile.birthday) ?? localNumber(profile.age);
 
     return {
       userId: session?.user?.id || null,
       email: session?.user?.email || null,
+      name: profile.display_name || profile.name || null,
       dailyGoal,
       caloriesConsumed,
       caloriesBurned,
       caloriesLeft: Math.max(dailyGoal - caloriesConsumed + caloriesBurned, 0),
       currentWeight:
-        localStorage.getItem("calbuddyCurrentWeight") ||
-        localStorage.getItem("calbuddyLatestWeight") ||
-        goals.weight ||
+        profile.weight_lbs ??
+        profile.current_weight ??
+        localStorage.getItem("calbuddyCurrentWeight") ??
+        localStorage.getItem("calbuddyLatestWeight") ??
+        goals.weight ??
         null,
       goalWeight:
-        localStorage.getItem("calbuddyGoalWeight") ||
-        goals.targetWeight ||
+        profile.target_weight_lbs ??
+        profile.goal_weight ??
+        localStorage.getItem("calbuddyGoalWeight") ??
+        goals.targetWeight ??
         null,
-      height: localStorage.getItem("calbuddy_height_in") || goals.height || null,
-      age: localStorage.getItem("calbuddy_age") || goals.age || null,
-      gender: localStorage.getItem("calbuddy_sex") || goals.sex || null,
-      activityLevel: localStorage.getItem("calbuddy_activity_level") || goals.activity || null,
-      goalType: localStorage.getItem("calbuddy_goal") || goals.goalMode || null,
+      height:
+        profile.height_in ??
+        profile.height ??
+        localStorage.getItem("calbuddy_height_in") ??
+        goals.height ??
+        null,
+      age:
+        liveAge ||
+        localStorage.getItem("calbuddy_age") ||
+        goals.age ||
+        null,
+      gender:
+        profile.sex ??
+        profile.gender ??
+        localStorage.getItem("calbuddy_sex") ??
+        goals.sex ??
+        null,
+      activityLevel:
+        profile.activity_level ??
+        localStorage.getItem("calbuddy_activity_level") ??
+        goals.activity ??
+        null,
+      goalType:
+        profile.goal ??
+        profile.goal_type ??
+        localStorage.getItem("calbuddy_goal") ??
+        goals.goalMode ??
+        null,
+      weeklyWeightChangeGoal: profile.weekly_weight_change_goal ?? null,
       mealsToday: [],
       recentMeals: [],
       favoriteFoods: [],
       recentWeights: [],
       ownerVerified: CalBuddy.ownerSessionCache?.isOwner === true,
       ownerMode: CalBuddy.ownerSessionCache?.isOwner === true,
-      profile: {},
-      contextSource: "ari_light_chat_v1"
+      profile,
+      authoritativeProfileLoaded: profileLoaded,
+      contextSource: profileLoaded ? "ari_light_chat_profile_v2" : "ari_light_chat_fallback_v2"
     };
   }
 
@@ -146,9 +237,10 @@
       const context = await buildLightContext();
       window.dispatchEvent(new CustomEvent("ari:clientContextTiming", {
         detail: {
-          mode: "light",
+          mode: "light_profile_authoritative",
           elapsedMs: Math.round(performance.now() - startedAt),
-          messageLength: message.length
+          messageLength: message.length,
+          profileLoaded: context.authoritativeProfileLoaded === true
         }
       }));
       return context;
@@ -229,9 +321,10 @@
   }
 
   window.AriLatencyHotfix = Object.freeze({
-    version: "1.0.0",
+    version: "1.1.0",
     setActiveMessage,
     currentMessage,
-    needsAuthoritativeAppContext
+    needsAuthoritativeAppContext,
+    buildLightContext
   });
 })();

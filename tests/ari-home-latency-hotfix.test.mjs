@@ -5,9 +5,13 @@ import fs from "node:fs";
 const hotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 const home = fs.readFileSync("home.html", "utf8");
 
-test("ordinary conversation uses lightweight client context instead of full app hydration", () => {
+test("ordinary conversation uses lightweight authoritative profile context instead of full app hydration", () => {
   assert.match(hotfix, /needsAuthoritativeAppContext/);
-  assert.match(hotfix, /contextSource:\s*"ari_light_chat_v1"/);
+  assert.match(hotfix, /loadLiveProfile\(session\)/);
+  assert.match(hotfix, /profile\.weight_lbs[\s\S]*calbuddyCurrentWeight/);
+  assert.match(hotfix, /profile\.daily_calorie_goal[\s\S]*calbuddyDailyCalorieGoal/);
+  assert.match(hotfix, /ari_light_chat_profile_v2/);
+  assert.match(hotfix, /ari_light_chat_fallback_v2/);
   assert.match(hotfix, /return await originalGetUserContext/);
   assert.match(hotfix, /return context;/);
 });
@@ -30,7 +34,7 @@ test("Home startup initiative scanning is suppressed while latency hotfix is act
   assert.match(hotfix, /languageModelCalls:\s*0/);
 });
 
-test("Home requests current resilience and latency assets", () => {
+test("Home requests current resilience and authoritative latency assets", () => {
   assert.match(home, /home-resilience\.js\?v=1\.3\.0/);
-  assert.match(home, /ari-latency-hotfix\.js\?v=1\.0\.0/);
+  assert.match(home, /ari-latency-hotfix\.js\?v=1\.1\.0/);
 });

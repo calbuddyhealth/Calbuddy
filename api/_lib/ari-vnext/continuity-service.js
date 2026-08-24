@@ -2,15 +2,16 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.4.1";
+export const CONTINUITY_SERVICE_VERSION = "1.5.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
 const TRANSIENT_PATTERN = /\b(right now|for today|today only|just today|this minute|this second)\b/i;
 const SENSITIVE_PATTERN = /\b(diagnos|medication|medicine|pregnan|sexual|bank|debt|income|salary|passport|immigration|legal case)\b/i;
 
-export async function hydrateRecentConversation({ userId, history = [], limitPairs = 4 } = {}) {
+export async function hydrateRecentConversation({ userId, conversationId = null, history = [], limitPairs = 4 } = {}) {
   const safeUserId = clean(userId, 200);
+  const safeConversationId = conversationUuid(conversationId);
   const existing = normalizeHistory(history);
   if (!safeUserId || existing.length >= 4) return { history: existing, hydratedPairs: 0 };
 
@@ -25,6 +26,8 @@ export async function hydrateRecentConversation({ userId, history = [], limitPai
       order: "created_at.desc",
       limit: String(Math.max(1, Math.min(6, Number(limitPairs) || 4)))
     });
+
+    if (safeConversationId) params.set("conversation_id", `eq.${safeConversationId}`);
 
     const response = await timedFetch(`${config.url}/rest/v1/ari_conversation_turns?${params.toString()}`, {
       headers: serverHeaders(config.key)
@@ -52,9 +55,10 @@ export async function hydrateRecentConversation({ userId, history = [], limitPai
   }
 }
 
-export async function persistConversationTurn({ userId, turnId = null, message, reply, surface = "unknown" } = {}) {
+export async function persistConversationTurn({ userId, turnId = null, conversationId = null, message, reply, surface = "unknown" } = {}) {
   const safeUserId = clean(userId, 200);
   const safeTurnId = clean(turnId, 200) || null;
+  const safeConversationId = conversationUuid(conversationId);
   const userMessage = clean(message, 8000);
   const assistantMessage = clean(reply, 12000);
   if (!safeUserId || !userMessage || !assistantMessage) return false;
@@ -69,6 +73,7 @@ export async function persistConversationTurn({ userId, turnId = null, message, 
       body: JSON.stringify({
         user_id: safeUserId,
         turn_id: safeTurnId,
+        ...(safeConversationId ? { conversation_id: safeConversationId } : {}),
         user_message: userMessage,
         assistant_message: assistantMessage,
         page_path: clean(surface, 200) || "unknown"
@@ -78,8 +83,17 @@ export async function persistConversationTurn({ userId, turnId = null, message, 
     // A replayed network request may race persistence even though the model call
     // itself is deduplicated. The unique user_id + turn_id index makes that
     // harmless; treat duplicate-key persistence as already stored.
-    if (response.status === 409 && safeTurnId) return true;
-    return response.ok;
+    const stored = response.ok || (response.status === 409 && Boolean(safeTurnId));
+    if (stored && safeConversationId) {
+      await upsertChatSession({
+        config,
+        userId: safeUserId,
+        conversationId: safeConversationId,
+        message: userMessage,
+        reply: assistantMessage
+      });
+    }
+    return Boolean(stored);
   } catch (error) {
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Turn persistence failed:", error?.message || error);
     return false;
@@ -187,6 +201,43 @@ export async function persistDurableMemory({ userId, message, history = [], rout
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Durable memory persistence failed:", error?.message || error);
     return { stored: false, candidate };
   }
+}
+
+async function upsertChatSession({ config, userId, conversationId, message, reply } = {}) {
+  if (!config || !userId || !conversationId) return false;
+  const now = new Date().toISOString();
+  const params = new URLSearchParams({ on_conflict: "id" });
+  const title = conversationTitle(message);
+  try {
+    const response = await timedFetch(`${config.url}/rest/v1/ari_chat_sessions?${params.toString()}`, {
+      method: "POST",
+      headers: serverHeaders(config.key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
+      body: JSON.stringify({
+        id: conversationId,
+        user_id: userId,
+        title,
+        preview: clean(reply || message, 150),
+        status: "active",
+        updated_at: now,
+        last_message_at: now
+      })
+    }, WRITE_TIMEOUT_MS);
+    return response.ok;
+  } catch (error) {
+    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Chat session upsert failed:", error?.message || error);
+    return false;
+  }
+}
+
+function conversationTitle(message = "") {
+  const words = clean(message, 300).replace(/[\n\r]+/g, " ").split(/\s+/).filter(Boolean).slice(0, 7);
+  const joined = words.join(" ") || "Conversation";
+  return joined.length > 52 ? `${joined.slice(0, 49).trim()}…` : joined;
+}
+
+function conversationUuid(value = "") {
+  const id = clean(value, 200).toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id) ? id : null;
 }
 
 export function memoryCategoryForCandidate(candidate = {}) {
