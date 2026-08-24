@@ -124,7 +124,7 @@ test("Circle V5 has one three-tab primary social loop and a premium safe-area vi
 
 test("Meet Up and Quests share the adult-only V5 shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
-    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.1\.0/);
+    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.2\.0/);
     assert.match(html, /id="ariCircleV5RealWorldModerationScript"/);
     const moderationIndex = html.indexOf("real-world-moderation-v5.js");
     const controllerIndex = Math.max(html.indexOf("meetups-v5.js"), html.indexOf("quests-v5.js"));
