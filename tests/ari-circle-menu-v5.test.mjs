@@ -2,39 +2,27 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const menu = fs.readFileSync(
-  new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url),
-  "utf8"
-);
+const menu = fs.readFileSync(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
+const css = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5.css", import.meta.url), "utf8");
+const supabaseConfig = fs.readFileSync(new URL("../supabase-config.js", import.meta.url), "utf8");
+const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.url), "utf8");
 
-const css = fs.readFileSync(
-  new URL("../assets/css/ari-circle-menu-v5.css", import.meta.url),
-  "utf8"
-);
-
-const supabaseConfig = fs.readFileSync(
-  new URL("../supabase-config.js", import.meta.url),
-  "utf8"
-);
-
-const feedHtml = fs.readFileSync(
-  new URL("../ari-circle-feed.html", import.meta.url),
-  "utf8"
-);
-
-test("ARI Circle V5 drawer removes stale right-side category labels", () => {
+test("ARI Circle V5 drawer reflects Real World Social navigation", () => {
   assert.match(menu, /Circle controls/);
   assert.match(menu, /Notifications/);
-  assert.match(menu, /Find People/);
+  assert.match(menu, /label: "Profile"/);
+  assert.match(menu, /label: "Meet Up"/);
+  assert.match(menu, /ari-circle-meetup\.html/);
   assert.match(menu, /Privacy & Visibility/);
   assert.match(menu, /Circle Safety/);
   assert.match(menu, /Exit ARI Circle/);
-  assert.doesNotMatch(menu, /<small>Activity<\/small>/);
+  assert.doesNotMatch(menu, /label: "Find People"/);
   assert.doesNotMatch(menu, /<small>Buddies<\/small>/);
-  assert.doesNotMatch(menu, /<small>Alerts<\/small>/);
-  assert.doesNotMatch(menu, /<small>Account<\/small>/);
-  assert.doesNotMatch(menu, /<small>Help<\/small>/);
-  assert.doesNotMatch(menu, /<small>ARI XP<\/small>/);
+});
+
+test("shared drawer bootstraps the authoritative V5 Real World shell", () => {
+  assert.match(menu, /REAL_WORLD_SCRIPT_SRC = "js\/ari-circle\/v5-real-world\.js\?v=5\.0\.0"/);
+  assert.match(menu, /loadRealWorldShell\(\)/);
 });
 
 test("Notification Settings lives inside Notifications instead of the primary drawer", () => {
@@ -43,7 +31,7 @@ test("Notification Settings lives inside Notifications instead of the primary dr
   assert.match(menu, /notification-settings\.html/);
 });
 
-test("ARI Circle drawer uses premium pearl glass and icon-led rows", () => {
+test("ARI Circle drawer keeps premium glass and icon-led rows", () => {
   assert.match(css, /width:\s*min\(86vw, 360px\)/);
   assert.match(css, /backdrop-filter:\s*blur\(32px\) saturate\(160%\)/);
   assert.match(css, /border-radius:\s*30px/);
@@ -51,13 +39,13 @@ test("ARI Circle drawer uses premium pearl glass and icon-led rows", () => {
   assert.match(css, /circle-v5-menu__item--exit/);
 });
 
-test("shared Supabase bootstrap loads the V5 drawer on Circle pages", () => {
+test("shared Supabase bootstrap still loads the adults-only V5 drawer", () => {
   assert.match(supabaseConfig, /shouldLoadCircleMenu/);
   assert.match(supabaseConfig, /circle-menu-v5\.js\?v=1\.0\.1/);
   assert.match(feedHtml, /supabase-config\.js\?v=1\.1\.4/);
 });
 
-test("V5 drawer self-heals if the older V4 shell rewrites its contents", () => {
+test("V5 drawer self-heals if older shell code rewrites its contents", () => {
   assert.match(menu, /hasV5Markup/);
   assert.match(menu, /MutationObserver/);
   assert.match(menu, /circle-v5-menu__identity/);
