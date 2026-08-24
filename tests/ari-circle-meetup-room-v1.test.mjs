@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const migration = fs.readFileSync("supabase/migrations/20260824133500_ari_circle_meetup_room_v1.sql", "utf8");
 const roomHtml = fs.readFileSync("ari-circle-meetup-room.html", "utf8");
+const roomCss = fs.readFileSync("assets/css/ari-circle-meetup-room-v1.css", "utf8");
 const roomJs = fs.readFileSync("js/ari-circle/meetups/meetup-room-v1.js", "utf8");
 const meetupJs = fs.readFileSync("js/ari-circle/meetups/meetups-v5.js", "utf8");
 const moderation = fs.readFileSync("js/ari-circle/real-world-moderation-v5.js", "utf8");
@@ -71,6 +72,18 @@ test("room UGC uses the existing fail-closed Circle moderation wrapper", () => {
   assert.match(moderation, /ari_circle_send_meetup_message/);
   assert.match(moderation, /meetup_room_message/);
   assert.match(roomHtml, /real-world-moderation-v5\.js\?v=5\.1\.0/);
+});
+
+test("Meetup Room loader collapses instead of pushing the loaded room down one viewport", () => {
+  assert.match(roomCss, /\.meetup-room-loading\[hidden\]\{display:none!important/);
+  assert.match(roomJs, /const firstReveal = page\.hidden/);
+  assert.ok(
+    roomJs.indexOf("loader.hidden = true") < roomJs.indexOf("page.hidden = false"),
+    "the full-height loader should leave layout before the room becomes visible"
+  );
+  assert.match(roomJs, /if \(firstReveal\) requestAnimationFrame\(\(\) => window\.scrollTo\(0, 0\)\)/);
+  assert.match(roomHtml, /ari-circle-meetup-room-v1\.css\?v=1\.0\.1/);
+  assert.match(roomHtml, /meetup-room-v1\.js\?v=1\.0\.1/);
 });
 
 test("Phase 2 does not introduce a new XP award path", () => {
