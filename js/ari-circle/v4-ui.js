@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.2.7
+   Version: 5.2.8
 
    Feed · Meet Up · Quests use the current V5 runtime directly. This file
    now exists only to bridge the legacy Profile DOM into the shared V5 shell.
@@ -8,7 +8,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.2.7";
+  const VERSION = "5.2.8";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   let appReady = false;
@@ -181,7 +181,7 @@
   function loadModules() {
     if (!realWorldLoaded && !window.AriCircleV5RealWorld) {
       realWorldLoaded = true;
-      import("/js/ari-circle/v5-real-world.js?v=5.2.2").catch((error) => {
+      import("/js/ari-circle/v5-real-world.js?v=5.2.3").catch((error) => {
         realWorldLoaded = false;
         console.warn("ARI Circle V5 Real World shell failed to load:", error);
       });
