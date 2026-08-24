@@ -4,55 +4,82 @@ import test from "node:test";
 
 const shell = fs.readFileSync(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
 const pearl = fs.readFileSync(new URL("../assets/css/ari-circle-v5-pearl.css", import.meta.url), "utf8");
+const premium = fs.readFileSync(new URL("../assets/css/ari-circle-v5-premium.css", import.meta.url), "utf8");
 const feed = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.url), "utf8");
 const meetup = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const quests = fs.readFileSync(new URL("../ari-circle-quests.html", import.meta.url), "utf8");
 
-test("Circle V5.1 defaults the primary social surfaces to Pearl light mode", () => {
-  assert.match(pearl, /--circle51-bg:\s*#f5f7fb/);
+
+test("Circle V5.2 makes Premium Pearl authoritative on the primary social surfaces", () => {
   assert.match(pearl, /--circle51-surface:\s*#ffffff/);
-  assert.match(pearl, /--circle51-text:\s*#101828/);
-  assert.match(pearl, /color-scheme:\s*light\s*!important/);
+  assert.match(premium, /--circle52-surface:\s*#ffffff/);
+  assert.match(premium, /--circle52-ink:\s*#142033/);
+  assert.match(premium, /color-scheme:\s*light\s*!important/);
   for (const html of [feed, meetup, quests]) {
     assert.match(html, /ari-circle-v5-pearl\.css\?v=5\.1\.0/);
+    assert.match(html, /ari-circle-v5-premium\.css\?v=5\.2\.0/);
   }
-  assert.match(meetup, /meta name="theme-color" content="#f5f7fb"/);
-  assert.match(quests, /meta name="theme-color" content="#f5f7fb"/);
+  assert.match(meetup, /meta name="theme-color" content="#f6f8fc"/);
+  assert.match(quests, /meta name="theme-color" content="#f6f8fc"/);
 });
 
-test("Halo header is one shared cosmetic layer with no new data request", () => {
+
+test("shared ARI Circle header is slim, brand-led, and no longer carries page subtitles", () => {
+  assert.match(shell, /const VERSION = "5\.2\.0"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-orbit-mark/);
   assert.match(shell, /circle-v51-wordmark/);
-  assert.match(shell, /YOUR CIRCLE/);
-  assert.match(shell, /FIND YOUR PEOPLE/);
-  assert.match(shell, /DO SOMETHING TOGETHER/);
+  assert.doesNotMatch(shell, /YOUR CIRCLE/);
+  assert.doesNotMatch(shell, /FIND YOUR PEOPLE/);
+  assert.doesNotMatch(shell, /DO SOMETHING TOGETHER/);
+  assert.doesNotMatch(shell, /<small>\$\{/);
+  assert.match(premium, /min-height:\s*58px\s*!important/);
+  assert.match(premium, /grid-template-columns:\s*42px minmax\(0,1fr\) 42px/);
   assert.doesNotMatch(shell, /\.rpc\s*\(/);
   assert.doesNotMatch(shell, /\.from\s*\(/);
   assert.doesNotMatch(shell, /fetch\s*\(/);
 });
 
-test("Halo motion is bounded and never becomes a continuous animation loop", () => {
+
+test("Premium Pearl motion and lifecycle stay bounded", () => {
   assert.match(shell, /HALO_SEEN_KEY/);
   assert.match(shell, /sessionStorage\.getItem\(HALO_SEEN_KEY\)/);
   assert.doesNotMatch(shell, /setInterval\s*\(/);
   assert.doesNotMatch(shell, /new MutationObserver/);
   assert.match(pearl, /animation:\s*circle51HaloIn 620ms/);
-  assert.match(pearl, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.doesNotMatch(pearl, /animation:\s*[^;]*infinite/);
+  assert.match(premium, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(premium, /animation:\s*[^;]*infinite/);
 });
 
-test("Pearl cards do not stack backdrop blur while header and dock may use it", () => {
-  assert.match(pearl, /\.circle-v5-card,[\s\S]*backdrop-filter:\s*none\s*!important/);
-  assert.match(pearl, /\.circle-v51-halo-header[\s\S]*backdrop-filter:\s*blur\(18px\)/);
-  assert.match(pearl, /\.circle-v5-bottom-nav__dock[\s\S]*backdrop-filter:\s*blur\(18px\)/);
+
+test("ordinary social cards are light and do not stack backdrop blur", () => {
+  assert.match(premium, /\.circle-v5-meetup-card,[\s\S]*background:\s*var\(--circle52-surface\)\s*!important/);
+  assert.match(premium, /\.circle-v5-quest-card,[\s\S]*backdrop-filter:\s*none\s*!important/);
+  assert.match(premium, /body\.circle-v5-real-world \.feed-composer,[\s\S]*background:\s*var\(--circle52-surface\)\s*!important/);
+  assert.match(premium, /\.circle-v51-halo-header[\s\S]*backdrop-filter:\s*blur\(12px\)/);
+  assert.match(premium, /\.circle-v5-bottom-nav__dock[\s\S]*backdrop-filter:\s*blur\(12px\)/);
+  assert.match(premium, /Media remains the intentional dark exception/);
 });
 
-test("primary Circle pages pin the new adult-gated menu asset before shared bootstrap", () => {
+
+test("Meet Up and Quests use scan-first copy with long rules behind disclosures", () => {
+  assert.match(meetup, /<h1 id="meetupTitle">Find your people<\/h1>/);
+  assert.match(meetup, /Meet up\. Show up\. Earn XP\./);
+  assert.match(meetup, /<summary>How XP works<\/summary>/);
+  assert.match(quests, /<h1 id="questTitle">Do something together<\/h1>/);
+  assert.match(quests, /Small steps\. Real impact\./);
+  assert.match(quests, /<summary>Verified XP<\/summary>/);
+  assert.doesNotMatch(meetup, /Find people who are actually ready to do something/);
+  assert.doesNotMatch(quests, /Shared objectives without dangerous leaderboards/);
+});
+
+
+test("primary Circle pages pin the V5.2 adult-gated menu asset before shared bootstrap", () => {
   for (const html of [feed, meetup, quests]) {
     const menuIndex = html.indexOf('id="ariCircleMenuV5Script"');
     const configIndex = html.indexOf('src="supabase-config.js');
-    assert.ok(menuIndex >= 0, "page should pin the V5.1 Circle menu asset");
+    assert.ok(menuIndex >= 0, "page should pin the V5.2 Circle menu asset");
+    assert.match(html, /circle-menu-v5\.js\?v=2\.3\.0/);
     assert.ok(configIndex >= 0, "page should still load shared Supabase bootstrap");
     assert.ok(menuIndex < configIndex, "deferred menu element must exist before supabase-config checks for it");
   }
