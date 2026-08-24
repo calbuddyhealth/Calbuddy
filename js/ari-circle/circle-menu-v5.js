@@ -1,13 +1,13 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER V5
-   Version: 2.1.0
+   Version: 2.1.1
    Premium adults-only Circle controls + authoritative Real World Social shell.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "2.1.0";
+  const VERSION = "2.1.1";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.0.0";
   const READY_ATTR = "data-circle-menu-v5";
@@ -18,12 +18,28 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.0.0";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.0.1";
   let observer = null;
   let outsideBound = false;
 
-  document.documentElement.setAttribute("data-ari-circle-gate", "pending");
-  document.documentElement.style.visibility = "hidden";
+  function adultAccessReady() {
+    return window.ARI_CIRCLE_AGE_STATE?.circleAllowed === true;
+  }
+
+  function holdForAdultGate() {
+    if (adultAccessReady()) return;
+    document.documentElement.setAttribute("data-ari-circle-gate", "pending");
+    document.documentElement.style.visibility = "hidden";
+  }
+
+  function revealAdultCircleUi() {
+    if (!adultAccessReady()) return false;
+    document.documentElement.style.visibility = "";
+    document.documentElement.removeAttribute("data-ari-circle-gate");
+    return true;
+  }
+
+  holdForAdultGate();
 
   function loadAdultGuard() {
     if (window.AriCircleAdultGuard || document.getElementById(ADULT_GUARD_SCRIPT_ID)) return;
@@ -32,10 +48,6 @@
     script.src = ADULT_GUARD_SCRIPT_SRC;
     script.async = false;
     document.head.append(script);
-  }
-
-  function adultAccessReady() {
-    return window.ARI_CIRCLE_AGE_STATE?.circleAllowed === true;
   }
 
   const icon = Object.freeze({
@@ -198,6 +210,7 @@
 
   function run() {
     if (!adultAccessReady()) return;
+    revealAdultCircleUi();
     loadPrivateMedia();
     loadProfileSafety();
     loadRealWorldShell();
@@ -207,29 +220,47 @@
     bindOutsideClose();
   }
 
+  function normalizeAddedNode(node) {
+    if (!(node instanceof HTMLElement)) return;
+    if (node.matches?.("details.circle-v4-menu")) normalizeMenu(node);
+    node.querySelectorAll?.("details.circle-v4-menu").forEach(normalizeMenu);
+    if (node.id === "circle-notifications-dialog" || node.querySelector?.("#circle-notifications-dialog")) {
+      ensureNotificationSettingsLink();
+    }
+  }
+
   function watch() {
-    if (observer || !adultAccessReady()) return;
+    if (observer || !adultAccessReady() || !document.body) return;
     observer = new MutationObserver((mutations) => {
-      const relevant = mutations.some((mutation) => mutation.type === "childList" || (mutation.type === "attributes" && mutation.attributeName === "class"));
-      if (relevant) queueMicrotask(run);
+      for (const mutation of mutations) {
+        const target = mutation.target instanceof HTMLElement ? mutation.target : null;
+        const targetMenu = target?.matches?.("details.circle-v4-menu")
+          ? target
+          : target?.closest?.("details.circle-v4-menu");
+        if (targetMenu) normalizeMenu(targetMenu);
+        mutation.addedNodes.forEach(normalizeAddedNode);
+      }
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   function startAdultCircleUi() {
     if (!adultAccessReady()) return;
+    revealAdultCircleUi();
     run();
     watch();
     setTimeout(run, 160);
     setTimeout(run, 700);
   }
 
-  loadAdultGuard();
   window.addEventListener("ari-circle-access-ready", startAdultCircleUi, { once: true });
+  loadAdultGuard();
+
   if (adultAccessReady()) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startAdultCircleUi, { once: true });
     else startAdultCircleUi();
   }
+
   document.addEventListener("circle:app-ready", () => setTimeout(run, 0));
 
   window.AriCircleMenuV5 = Object.freeze({ version: VERSION, refresh: run });
