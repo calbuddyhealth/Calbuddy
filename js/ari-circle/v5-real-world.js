@@ -1,5 +1,5 @@
 /* =============================================================
-   ARI CIRCLE V5.2 — REAL WORLD SOCIAL SHELL
+   ARI CIRCLE V5.2.2 — REAL WORLD SOCIAL SHELL
    Feed · Meet Up · Quests, with Profile accessible from the drawer.
    Premium Pearl stays bounded: no global DOM observer, no continuous
    animation loop, and no extra profile/data request.
@@ -7,7 +7,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.2.0";
+  const VERSION = "5.2.2";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -16,8 +16,12 @@
   const PEARL_STYLE_HREF = "assets/css/ari-circle-v5-pearl.css?v=5.1.0";
   const PREMIUM_STYLE_ID = "ariCircleV52PremiumStyle";
   const PREMIUM_STYLE_HREF = "assets/css/ari-circle-v5-premium.css?v=5.2.0";
+  const AUTHORITY_STYLE_ID = "ariCircleV521AuthorityStyle";
+  const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-v5-visual-authority.css?v=5.2.1";
+  const MINIMAL_STYLE_ID = "ariCircleV522MinimalStyle";
+  const MINIMAL_STYLE_HREF = "assets/css/ari-circle-v5-minimal-premium.css?v=5.2.2";
   const NAV_ID = "ariCircleV5BottomNav";
-  const HALO_SEEN_KEY = "ari-circle-v52-halo-seen";
+  const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
   let queued = false;
   let happeningLoaded = false;
   let profileLoaded = false;
@@ -68,6 +72,8 @@
     ensureStylesheet(STYLE_ID, STYLE_HREF, "ari-circle-v5-real-world.css");
     ensureStylesheet(PEARL_STYLE_ID, PEARL_STYLE_HREF, "ari-circle-v5-pearl.css");
     ensureStylesheet(PREMIUM_STYLE_ID, PREMIUM_STYLE_HREF, "ari-circle-v5-premium.css");
+    ensureStylesheet(AUTHORITY_STYLE_ID, AUTHORITY_STYLE_HREF, "ari-circle-v5-visual-authority.css");
+    ensureStylesheet(MINIMAL_STYLE_ID, MINIMAL_STYLE_HREF, "ari-circle-v5-minimal-premium.css");
   }
 
   function activeKey() {
@@ -112,8 +118,7 @@
   }
 
   function haloMarkup() {
-    return `<span class="circle-v51-orbit-mark" aria-hidden="true"><i></i></span>
-      <span class="circle-v51-wordmark"><strong>ARI</strong><em>CIRCLE</em></span>`;
+    return `<span class="circle-v51-wordmark"><strong>ARI</strong><em>CIRCLE</em></span>`;
   }
 
   function shouldPlayHaloIntro() {
@@ -201,7 +206,7 @@
     const path = pathName();
     if (!happeningLoaded && (path.endsWith("/ari-circle-feed.html") || document.querySelector(".feed-page"))) {
       happeningLoaded = true;
-      import("/js/ari-circle/feed/happening-v5.js?v=5.0.0").catch((error) => {
+      import("/js/ari-circle/feed/happening-v5.js?v=5.2.2").catch((error) => {
         happeningLoaded = false;
         console.warn("ARI Circle Happening rail failed to load:", error);
       });
