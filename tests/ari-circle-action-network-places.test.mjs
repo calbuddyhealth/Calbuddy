@@ -14,6 +14,7 @@ function stripSqlComments(sql = "") {
 }
 
 const executable = stripSqlComments(migration);
+const listPlaces = migration.split(/create or replace function public\.ari_circle_list_places\(/i)[1]?.split(/create or replace function public\.ari_circle_list_places_for_intent/i)[0] || "";
 
 test("Places V1 models public destinations rather than live user positions", () => {
   assert.match(migration, /create table if not exists public\.ari_circle_places/i);
@@ -31,10 +32,10 @@ test("direct Place writes remain server-authoritative", () => {
 });
 
 test("Explore only returns curated safe public places", () => {
-  assert.match(migration, /p\.status = 'active'/i);
-  assert.match(migration, /p\.safe_public_place = true/i);
-  assert.match(migration, /p\.verification_state in \('curated','partner_verified'\)/i);
-  assert.doesNotMatch(migration, /verification_state in \([^)]*candidate/i);
+  assert.match(listPlaces, /p\.status = 'active'/i);
+  assert.match(listPlaces, /p\.safe_public_place = true/i);
+  assert.match(listPlaces, /p\.verification_state in \('curated','partner_verified'\)/i);
+  assert.doesNotMatch(listPlaces, /verification_state in \([^)]*candidate/i);
 });
 
 test("Place discovery can use distance without enabling a new geospatial extension", () => {
@@ -45,7 +46,6 @@ test("Place discovery can use distance without enabling a new geospatial extensi
 });
 
 test("caller location is a transient read parameter and is never persisted by Explore", () => {
-  const listPlaces = migration.split(/create or replace function public\.ari_circle_list_places\(/i)[1]?.split(/create or replace function public\.ari_circle_list_places_for_intent/i)[0] || "";
   assert.match(listPlaces, /requested_latitude numeric/i);
   assert.match(listPlaces, /requested_longitude numeric/i);
   assert.doesNotMatch(listPlaces, /insert\s+into/i);
@@ -75,7 +75,7 @@ test("Places contain activity affordances but no engagement or paid-ranking fiel
 });
 
 test("Explore result ordering is distance then deterministic name/id, not hidden engagement", () => {
-  assert.match(migration, /c\.distance_value asc nulls last/i);
-  assert.match(migration, /lower\(c\.name\) asc/i);
-  assert.match(migration, /c\.id asc/i);
+  assert.match(listPlaces, /c\.distance_value asc nulls last/i);
+  assert.match(listPlaces, /lower\(c\.name\) asc/i);
+  assert.match(listPlaces, /c\.id asc/i);
 });
