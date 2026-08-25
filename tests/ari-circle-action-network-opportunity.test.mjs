@@ -59,6 +59,22 @@ test("Opportunity V1 has one normalized contract for future ranking", () => {
   assert.match(contract, /V1 is deliberately a normalized discovery contract, not a recommendation model/i);
 });
 
+test("Mission filtering cannot be starved by unrelated Quest categories", () => {
+  assert.match(migration, /public\.ari_circle_list_quests\(50\)/i);
+  assert.match(migration, /clean_activity is null or listed\.category = clean_activity/i);
+});
+
+test("Mission today and weekend windows use overlap semantics", () => {
+  assert.match(
+    migration,
+    /source\.starts_at < date_trunc\('day', now\(\)\) \+ interval '1 day'[\s\S]*source\.ends_at > date_trunc\('day', now\(\)\)/i
+  );
+  assert.match(
+    migration,
+    /source\.starts_at < date_trunc\('week', now\(\)\) \+ interval '7 days'[\s\S]*source\.ends_at > date_trunc\('week', now\(\)\) \+ interval '5 days'/i
+  );
+});
+
 test("Action Network contract forbids pay-to-rank social advantage", () => {
   assert.match(contract, /Paid status is never a ranking signal/i);
   assert.match(contract, /organic opportunity ranking cannot be purchased/i);
