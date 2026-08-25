@@ -12,6 +12,7 @@ const shell = fs.readFileSync(new URL("../js/ari-circle/v5-real-world.js", impor
 const css = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5.css", import.meta.url), "utf8");
 const premium = fs.readFileSync(new URL("../assets/css/ari-circle-v5-premium.css", import.meta.url), "utf8");
 const authority = fs.readFileSync(new URL("../assets/css/ari-circle-v5-visual-authority.css", import.meta.url), "utf8");
+const xpAuthority = fs.readFileSync(new URL("../assets/css/ari-circle-xp.css", import.meta.url), "utf8");
 const supabaseConfig = fs.readFileSync(new URL("../supabase-config.js", import.meta.url), "utf8");
 const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.url), "utf8");
 const meetupHtml = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
@@ -32,11 +33,13 @@ test("ARI Circle drawer reflects the current Real World Social navigation", () =
   assert.doesNotMatch(menu, /Buddies/);
 });
 
-test("shared shell uses one final consolidated visual authority", () => {
+test("shared shell uses one consolidated visual stack plus one XP authority", () => {
   assert.match(shell, /AUTHORITY_STYLE_HREF = "assets\/css\/ari-circle-v5-visual-authority\.css\?v=5\.2\.5"/);
+  assert.match(shell, /XP_STYLE_HREF = "assets\/css\/ari-circle-xp\.css\?v=1\.0\.1"/);
   assert.doesNotMatch(shell, /ari-circle-v5-minimal-premium\.css/);
   assert.match(authority, /CONSOLIDATED VISUAL AUTHORITY/);
   assert.match(authority, /FORMER V5\.2\.4 MINIMAL PREMIUM OVERRIDES/);
+  assert.match(xpAuthority, /REAL WORLD XP VISUAL AUTHORITY/);
 });
 
 test("adult gate cannot be re-hidden after authorization already succeeded", () => {
@@ -70,7 +73,7 @@ test("drawer is pearl white, grouped, and keeps only Exit destructive", () => {
   assert.match(menu, /circle-v5-menu__item--exit/);
 });
 
-test("Feed, Meet Up, and Quests use the same shared navigation and final CSS authority", () => {
+test("Feed, Meet Up, and Quests use the same shared navigation and V5.2.4 shell", () => {
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
@@ -79,7 +82,7 @@ test("Feed, Meet Up, and Quests use the same shared navigation and final CSS aut
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
-    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.3"/);
+    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.4"/);
   }
 });
 
@@ -106,16 +109,18 @@ test("Feed loads Feed-only post controls instead of mixed Profile compatibility 
 
 test("Profile compatibility modules remain Profile-only and purpose-specific", () => {
   assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
-  assert.match(profileCompat, /const VERSION = "5\.3\.2"/);
+  assert.match(profileCompat, /const VERSION = "5\.3\.3"/);
+  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.2\.4"/);
   assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
   assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
-  assert.match(profileCompat, /v5-real-world\.js\?v=5\.2\.3/);
+  assert.match(profileCompat, /import\(`\/js\/ari-circle\/v5-real-world\.js\?v=\$\{REAL_WORLD_VERSION\}`\)/);
   assert.match(profileCompat, /profile\/profile-visitor-controls\.js\?v=1\.0\.0/);
   assert.doesNotMatch(profileCompat, /launch-social-v5\.js|v4-flow-fixes\.js/);
   assert.doesNotMatch(profileCompat, /circleMenuMarkup|ari-circle-partners\.html|ari-circle-challenges\.html/);
 
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
-  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.2/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.3/);
+  assert.match(profileLoader, /ari-circle-xp\.css\?v=1\.0\.1/);
   assert.doesNotMatch(profileLoader, /profile-social-flow|profile-connection-authority|v4-flow-fixes\.js|AriCircleV4FlowFixes/);
 
   assert.match(profileFriends, /PROFILE FRIENDS/);
@@ -139,11 +144,13 @@ test("Profile compatibility cannot recursively refresh the drawer from the V5 re
   assert.match(readyListener, /promoteV5VisualAuthority\(\)/);
 });
 
-test("Profile compatibility cannot re-append the dark V5 base after light Visual Authority", () => {
+test("Profile keeps light visual authority ahead of final XP authority", () => {
   assert.doesNotMatch(profileCompat, /ensureStyle\("ari-circle-v5-real-world-style"/);
   assert.match(profileCompat, /VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority\.css"/);
+  assert.match(profileCompat, /XP_AUTHORITY_MATCH = "ari-circle-xp\.css"/);
   assert.match(profileCompat, /function promoteV5VisualAuthority\(\)/);
   assert.match(profileCompat, /document\.head\.append\(authority\)/);
+  assert.match(profileCompat, /document\.head\.append\(xp\)/);
   assert.match(profileCompat, /ari-circle:v5-real-world-ready/);
 });
 
