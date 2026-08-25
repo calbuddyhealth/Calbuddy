@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.9.0";
+export const TOOL_REGISTRY_VERSION = "1.10.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -204,9 +204,6 @@ export function getAriTools(route = {}) {
       }
     ));
 
-    // Teen Ari may discuss goals and log neutral measurements, but the AI does
-    // not receive authority to write calorie/target-weight/weight-loss settings.
-    // This is deterministic capability removal, not a prompt-only suggestion.
     if (!route?.teenMode) {
       tools.push(functionTool(
         "propose_update_goal",
@@ -229,6 +226,63 @@ export function getAriTools(route = {}) {
     }
   }
 
+  // Circle write tools are available only after the server-derived adult Circle
+  // entitlement says they are allowed. The social route alone never grants them.
+  if (route?.social && route?.circleAllowed === true && route?.teenMode !== true) {
+    tools.push(functionTool(
+      "propose_create_circle_meetup",
+      "Propose hosting a new ARI Circle meetup only when the CURRENT user explicitly asks Ari to host, create, publish, or set up a real-world meetup. Require a clear title/activity, broad area, and future start time. If any of those are missing, ask for the missing detail instead of inventing it. guestSpots excludes the host. Do not expose or request an exact private meeting point in this tool.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          activity: { type: "string", enum: ["walking", "gym", "running", "hiking", "sports", "cycling", "yoga", "coffee", "food", "community", "volunteer", "other"] },
+          area: { type: "string" },
+          startsAt: { type: "string" },
+          durationMinutes: { type: "number" },
+          guestSpots: { type: "number" },
+          description: { type: "string" },
+          joinMode: { type: "string", enum: ["instant", "approval"] }
+        },
+        required: ["title", "activity", "area", "startsAt", "durationMinutes", "guestSpots", "description", "joinMode"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_join_circle_meetup",
+      "Propose joining one specific ARI Circle meetup only when the CURRENT user explicitly asks to join, request a spot, RSVP, or get into that meetup. Use the exact meetup UUID from Action Network context. The trusted server decides whether this becomes an instant join or a host-approval request.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { meetupId: { type: "string" } },
+        required: ["meetupId"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_leave_circle_meetup",
+      "Propose leaving one specific ARI Circle meetup only when the CURRENT user explicitly asks to leave, withdraw, back out, or cancel their own participation/request. Use the exact meetup UUID from Action Network context. The trusted server decides whether to withdraw a pending/waitlisted request or leave an accepted meetup. Do not use this to cancel a meetup the user hosts.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { meetupId: { type: "string" } },
+        required: ["meetupId"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_cancel_circle_meetup",
+      "Propose cancelling an entire hosted ARI Circle meetup only when the CURRENT user explicitly asks to cancel a meetup they host. Use the exact meetup UUID from Action Network context. This affects every participant, so never infer this action from ordinary schedule changes or from a request to leave someone else's meetup.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { meetupId: { type: "string" } },
+        required: ["meetupId"]
+      }
+    ));
+  }
+
   if (route?.training || route?.nutrition || route?.goals) {
     tools.push(functionTool(
       "propose_track_experiment",
@@ -236,9 +290,7 @@ export function getAriTools(route = {}) {
       {
         type: "object",
         additionalProperties: false,
-        properties: {
-          hypothesisId: { type: "string" }
-        },
+        properties: { hypothesisId: { type: "string" } },
         required: ["hypothesisId"]
       }
     ));
@@ -289,7 +341,6 @@ export function validateToolCall(call = {}, route = {}) {
   }
 
   args = normalizeToolArguments(call.name, args);
-
   const semanticValidation = validateSemantics(call.name, args);
   if (!semanticValidation.valid) return semanticValidation;
 
@@ -306,6 +357,10 @@ export function toolToApplicationAction(name = "") {
     propose_edit_workout: "edit_workout",
     propose_log_weight: "log_weight",
     propose_update_goal: "update_goal",
+    propose_create_circle_meetup: "create_circle_meetup",
+    propose_join_circle_meetup: "join_circle_meetup",
+    propose_leave_circle_meetup: "leave_circle_meetup",
+    propose_cancel_circle_meetup: "cancel_circle_meetup",
     propose_track_experiment: "track_experiment",
     propose_complete_experiment: "complete_experiment",
     propose_cancel_experiment: "cancel_experiment"
@@ -325,29 +380,23 @@ function validateSemantics(name, args) {
     if (!supportedBudgetBasis.has(String(args?.budgetBasis || ""))) {
       return { valid: false, error: "meal_plan_budget_basis_required" };
     }
-
     if (args?.targetCalories !== null && !validNullableRange(args?.targetCalories, 1, 10000)) {
       return { valid: false, error: "meal_plan_target_out_of_range" };
     }
 
     const meals = Array.isArray(args?.meals) ? args.meals : [];
     if (!meals.length || meals.length > 4) return { valid: false, error: "meal_plan_meals_required" };
-
     const slots = new Set();
     for (const meal of meals) {
       const slot = String(meal?.mealSlot || "");
-      if (!["breakfast", "lunch", "dinner", "snack"].includes(slot)) {
-        return { valid: false, error: "meal_plan_slot_invalid" };
-      }
+      if (!["breakfast", "lunch", "dinner", "snack"].includes(slot)) return { valid: false, error: "meal_plan_slot_invalid" };
       if (slots.has(slot)) return { valid: false, error: "meal_plan_duplicate_slot" };
       slots.add(slot);
-
       if (!String(meal?.name || "").trim()) return { valid: false, error: "meal_plan_name_required" };
       if (!validNullableRange(meal?.calories, 1, 5000, false)) return { valid: false, error: "meal_plan_calories_out_of_range" };
       if (!validNullableRange(meal?.proteinG, 0, 1000, false)) return { valid: false, error: "meal_plan_protein_out_of_range" };
       if (!validNullableRange(meal?.carbsG, 0, 1500, false)) return { valid: false, error: "meal_plan_carbs_out_of_range" };
       if (!validNullableRange(meal?.fatG, 0, 1000, false)) return { valid: false, error: "meal_plan_fat_out_of_range" };
-
       const items = Array.isArray(meal?.items) ? meal.items : [];
       if (!items.length || items.length > 16) return { valid: false, error: "meal_plan_items_required" };
       for (const item of items) {
@@ -397,7 +446,6 @@ function validateSemantics(name, args) {
     const operation = String(args?.operation || "");
     const exercise = String(args?.exercise || "").trim();
     const replacement = String(args?.replacementExercise || "").trim();
-
     if (!String(args?.dateText || "").trim()) return { valid: false, error: "workout_edit_date_required" };
     if (!["add", "remove", "replace", "move", "update"].includes(operation)) return { valid: false, error: "unsupported_workout_edit" };
     if (["remove", "replace", "move"].includes(operation) && !exercise) return { valid: false, error: "workout_edit_target_required" };
@@ -408,7 +456,6 @@ function validateSemantics(name, args) {
     if (!validNullableRange(args?.reps, 1, 100)) return { valid: false, error: "workout_edit_reps_out_of_range" };
     if (!validNullableRange(args?.restSeconds, 0, 900)) return { valid: false, error: "workout_edit_rest_out_of_range" };
     if (!validNullableRange(args?.durationMinutes, 10, 240)) return { valid: false, error: "workout_edit_duration_out_of_range" };
-
     if (operation === "update") {
       const hasExerciseUpdate = Boolean(exercise) && [args?.sets, args?.reps, args?.restSeconds].some((value) => value !== null && value !== undefined);
       const hasWorkoutUpdate = Boolean(String(args?.title || "").trim()) || (args?.durationMinutes !== null && args?.durationMinutes !== undefined);
@@ -424,6 +471,26 @@ function validateSemantics(name, args) {
   if (name === "propose_update_goal") {
     const supported = new Set(["daily_calorie_goal", "target_weight", "weekly_weight_change", "goal_mode"]);
     if (!supported.has(String(args?.goalType || ""))) return { valid: false, error: "unsupported_goal_type" };
+  }
+
+  if (name === "propose_create_circle_meetup") {
+    const activities = new Set(["walking", "gym", "running", "hiking", "sports", "cycling", "yoga", "coffee", "food", "community", "volunteer", "other"]);
+    const title = String(args?.title || "").trim();
+    const activity = String(args?.activity || "").trim().toLowerCase();
+    const area = String(args?.area || "").trim();
+    const starts = Date.parse(String(args?.startsAt || ""));
+    if (title.length < 3 || title.length > 90) return { valid: false, error: "circle_meetup_title_invalid" };
+    if (!activities.has(activity)) return { valid: false, error: "circle_meetup_activity_invalid" };
+    if (area.length < 2 || area.length > 100) return { valid: false, error: "circle_meetup_area_invalid" };
+    if (!Number.isFinite(starts)) return { valid: false, error: "circle_meetup_start_invalid" };
+    if (!validNullableRange(args?.durationMinutes, 30, 480, false)) return { valid: false, error: "circle_meetup_duration_invalid" };
+    if (!validNullableRange(args?.guestSpots, 1, 49, false)) return { valid: false, error: "circle_meetup_guest_spots_invalid" };
+    if (!["instant", "approval"].includes(String(args?.joinMode || "").toLowerCase())) return { valid: false, error: "circle_meetup_join_mode_invalid" };
+    if (String(args?.description || "").length > 500) return { valid: false, error: "circle_meetup_description_too_long" };
+  }
+
+  if (["propose_join_circle_meetup", "propose_leave_circle_meetup", "propose_cancel_circle_meetup"].includes(name)) {
+    if (!isUuid(args?.meetupId)) return { valid: false, error: "circle_meetup_id_invalid" };
   }
 
   if (name === "propose_track_experiment") {
@@ -453,7 +520,6 @@ function normalizeToolArguments(name, args) {
 
   const bySlot = new Map();
   const orderedSlots = [];
-
   for (const meal of args.meals) {
     const slot = String(meal?.mealSlot || "").trim().toLowerCase();
     if (!slot || !["breakfast", "lunch", "dinner", "snack"].includes(slot)) {
@@ -463,13 +529,11 @@ function normalizeToolArguments(name, args) {
       }
       continue;
     }
-
     if (!bySlot.has(slot)) {
       bySlot.set(slot, { ...meal, mealSlot: slot });
       orderedSlots.push(slot);
       continue;
     }
-
     const current = bySlot.get(slot) || {};
     bySlot.set(slot, mergeSameSlotMeals(current, meal, slot));
   }
@@ -518,6 +582,10 @@ function validNullableRange(value, min, max, allowNull = true) {
   if (value === null || value === undefined || value === "") return allowNull;
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max;
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
 }
 
 function functionTool(name, description, parameters) {
