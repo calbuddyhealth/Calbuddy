@@ -1,4 +1,5 @@
 import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
+import { loadCircleInitiativeEvents } from "./_lib/ari-vnext/circle-event-initiative.js";
 import { buildRelevantContext } from "./_lib/ari-vnext/context-router.js";
 import { listRecentDecisions, summarizeDecisionState } from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
@@ -75,11 +76,12 @@ export default async function handler(req, res) {
       context
     };
 
-    const [experiments, decisions, persistedWorldModel, priorInitiatives] = await Promise.all([
+    const [experiments, decisions, persistedWorldModel, priorInitiatives, circleEvents] = await Promise.all([
       listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 }),
       listRecentDecisions({ userId: auth.userId, limit: 16 }),
       loadUserWorldModel({ userId: auth.userId }),
-      listRecentInitiatives({ userId: auth.userId, limit: 20 })
+      listRecentInitiatives({ userId: auth.userId, limit: 20 }),
+      loadCircleInitiativeEvents({ accessToken: auth.accessToken, userId: auth.userId, now, limit: 12 })
     ]);
 
     const experimentLedger = summarizeExperimentLedger(experiments);
@@ -122,6 +124,7 @@ export default async function handler(req, res) {
       proactiveInsights,
       relationshipContinuity,
       experimentLedger,
+      circleEvents,
       now
     });
 
@@ -132,6 +135,7 @@ export default async function handler(req, res) {
         reason: initiativeState.reason || "nothing_meaningful_enough",
         relationshipContinuity,
         proactiveInsights: compactInsights(proactiveInsights),
+        circleEvents: compactCircleEventState(circleEvents),
         cost: { languageModelCalls: 0 },
         source: "ari_vnext_initiative"
       });
@@ -146,6 +150,7 @@ export default async function handler(req, res) {
         suppression,
         relationshipContinuity,
         proactiveInsights: compactInsights(proactiveInsights),
+        circleEvents: compactCircleEventState(circleEvents),
         cost: { languageModelCalls: 0 },
         source: "ari_vnext_initiative"
       });
@@ -163,6 +168,7 @@ export default async function handler(req, res) {
       },
       relationshipContinuity,
       proactiveInsights: compactInsights(proactiveInsights),
+      circleEvents: compactCircleEventState(circleEvents),
       persistence: { stored: Boolean(stored?.stored) },
       cost: { languageModelCalls: 0 },
       source: "ari_vnext_initiative"
@@ -187,6 +193,17 @@ function compactInsights(value = null) {
   };
 }
 
+function compactCircleEventState(value = null) {
+  return {
+    available: value?.available === true,
+    count: Number(value?.count || 0),
+    source: clean(value?.source, 120) || "user_scoped_circle_domain_events",
+    directFactsOnly: value?.rules?.directFactsOnly === true,
+    clientSuppliedEventAuthority: false,
+    mutationAuthority: false
+  };
+}
+
 async function authenticateRequest(req) {
   const authorization = clean(req?.headers?.authorization, 6000);
   const match = /^Bearer\s+(.+)$/i.exec(authorization);
@@ -208,7 +225,7 @@ async function authenticateRequest(req) {
     const user = data?.user || data;
     const userId = clean(user?.id, 200);
     if (!response.ok || !userId) return { authenticated: false, status: 401, code: "AUTH_TOKEN_INVALID", message: "The ARI session is no longer valid." };
-    return { authenticated: true, userId };
+    return { authenticated: true, userId, accessToken };
   } catch (error) {
     return { authenticated: false, status: 503, code: error?.name === "AbortError" ? "AUTH_VERIFICATION_TIMEOUT" : "AUTH_VERIFICATION_FAILED", message: "ARI could not verify the signed-in session." };
   } finally {

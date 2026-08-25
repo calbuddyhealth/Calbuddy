@@ -1,198 +1,138 @@
-// ARI vNext — deterministic initiative selection.
-// Ari may surface meaningful unfinished business or objective changes without an
-// LLM call. Initiative exists to help, not to maximize engagement.
+// ARI vNext — Crew-aware deterministic initiative selection.
+// The existing initiative engine is preserved unchanged in initiative-engine-core.js.
+// This facade adds only a low-frequency, server-grounded Crew candidate suggestion.
 
-export const ARI_INITIATIVE_ENGINE_VERSION = "1.0.0";
+import {
+  deriveInitiativeCandidate as deriveCoreInitiativeCandidate,
+  initiativeToConversationContext as coreInitiativeToConversationContext
+} from "./initiative-engine-core.js";
 
-export function deriveInitiativeCandidate({
-  proactiveInsights = null,
-  relationshipContinuity = null,
-  experimentLedger = null,
-  now = new Date()
-} = {}) {
-  const candidates = [];
-  const insights = Array.isArray(proactiveInsights?.items) ? proactiveInsights.items : [];
-  const threads = Array.isArray(relationshipContinuity?.unfinishedThreads) ? relationshipContinuity.unfinishedThreads : [];
+export const ARI_INITIATIVE_ENGINE_VERSION = "1.3.0";
 
-  for (const insight of insights) {
-    if (!insight || insight.priority === "internal") continue;
-    const mapped = candidateFromInsight(insight);
-    if (mapped) candidates.push(mapped);
-  }
+const CREW_MIN_COMPLETIONS_FOR_INITIATIVE = 3;
+const CREW_RECENCY_DAYS = 45;
+const CREW_COOLDOWN_HOURS = 30 * 24;
 
-  for (const thread of threads) {
-    const mapped = candidateFromThread(thread);
-    if (mapped) candidates.push(mapped);
-  }
+export function deriveInitiativeCandidate(input = {}) {
+  const core = deriveCoreInitiativeCandidate(input);
+  const crewState = input?.crewCandidates || input?.circleEvents?.crewCandidates || null;
+  const crew = candidateFromCrewState(crewState, input?.now || new Date());
 
-  const deduped = dedupe(candidates)
-    .filter((item) => item.userFacing !== false)
-    .sort((a, b) => initiativeWeight(b.priority) - initiativeWeight(a.priority) || Number(b.confidence || 0) - Number(a.confidence || 0));
+  if (!crew) return withCrewRules(core);
 
-  const best = deduped[0] || null;
-  if (!best || !["high", "medium", "positive"].includes(best.priority)) {
-    return noInitiative("nothing_meaningful_enough");
+  // Crew formation is useful but not urgent. Never let it displace a direct
+  // high/medium state change already selected by the mature initiative engine.
+  if (core?.shouldInitiate === true && ["high", "medium"].includes(core?.candidate?.priority)) {
+    return withCrewRules(core);
   }
 
   return {
     version: ARI_INITIATIVE_ENGINE_VERSION,
     shouldInitiate: true,
-    generatedAt: toIso(now),
+    generatedAt: toIso(input?.now || new Date()),
     candidate: {
-      ...best,
-      initiativeKey: initiativeKey(best),
-      generatedBy: "deterministic_vnext_initiative_engine",
+      ...crew,
+      initiativeKey: initiativeKey(crew),
+      generatedBy: "deterministic_vnext_crew_initiative",
       requiresLanguageModelCall: false
     },
-    rules: initiativeRules()
+    rules: crewRules(core?.rules)
   };
 }
 
 export function initiativeToConversationContext(candidate = null) {
-  if (!candidate) return null;
+  return coreInitiativeToConversationContext(candidate);
+}
+
+function candidateFromCrewState(state = null, now = new Date()) {
+  const items = Array.isArray(state?.items) ? state.items : [];
+  if (state?.available !== true || !items.length) return null;
+
+  const nowMs = toMs(now);
+  const maxAgeMs = CREW_RECENCY_DAYS * 24 * 60 * 60 * 1000;
+  const eligible = items
+    .filter((item) => {
+      const candidateKey = clean(item?.candidateKey, 64).toLowerCase();
+      const completedTogether = finite(item?.completedTogether);
+      const memberCount = finite(item?.memberCount);
+      const lastCompletedMs = toMs(item?.lastCompletedAt);
+      return /^[0-9a-f]{32}$/.test(candidateKey)
+        && completedTogether >= CREW_MIN_COMPLETIONS_FOR_INITIATIVE
+        && memberCount >= 3
+        && memberCount <= 8
+        && lastCompletedMs > 0
+        && lastCompletedMs <= nowMs
+        && nowMs - lastCompletedMs <= maxAgeMs;
+    })
+    .sort((a, b) => {
+      const completionDelta = finite(b?.completedTogether) - finite(a?.completedTogether);
+      if (completionDelta) return completionDelta;
+      return toMs(b?.lastCompletedAt) - toMs(a?.lastCompletedAt);
+    });
+
+  const best = eligible[0];
+  if (!best) return null;
+
+  const candidateKey = clean(best.candidateKey, 64).toLowerCase();
+  const completedTogether = Math.trunc(finite(best.completedTogether));
+  const memberCount = Math.trunc(finite(best.memberCount));
+  const topActivity = clean(best?.topActivity, 80);
+  const names = (Array.isArray(best?.members) ? best.members : [])
+    .filter((member) => member?.isViewer !== true)
+    .map((member) => clean(member?.displayName || member?.handle, 60))
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const activityPhrase = topActivity ? `, mostly around ${topActivity}` : "";
+  const peoplePhrase = names.length ? ` with ${names.join(", ")}` : " with the same group";
+
   return {
-    id: candidate.reasonId || null,
-    initiativeKey: candidate.initiativeKey || null,
-    opener: candidate.opener || null,
-    context: candidate.context || null,
-    followUpPrompt: candidate.followUpPrompt || null,
-    priority: candidate.priority || null,
-    userInitiatedFollowUp: true
+    reasonId: `circle_crew_candidate_${candidateKey}`,
+    source: "circle_crew_candidate",
+    priority: "medium",
+    confidence: 0.95,
+    domain: "social",
+    context: `Verified repeated-group evidence: ${completedTogether} completed activities by the same ${memberCount}-person group${activityPhrase}.`,
+    signature: clean(`${candidateKey}|${completedTogether}|${best.lastCompletedAt || ""}`, 1200),
+    userFacing: true,
+    opener: `You've completed ${completedTogether} activities${peoplePhrase}. If you want, this group now has enough shared history to become a Crew.`,
+    followUpPrompt: "Show me why this group qualifies as a Crew candidate before I decide whether to create it.",
+    action: "review_crew_candidate",
+    cooldownHours: CREW_COOLDOWN_HOURS,
+    crewCandidate: {
+      candidateKey,
+      memberCount,
+      completedTogether,
+      lastCompletedAt: best?.lastCompletedAt || null,
+      topActivity: topActivity || null
+    }
   };
 }
 
-function candidateFromInsight(insight = {}) {
-  const id = clean(insight.id, 140);
-  const base = {
-    reasonId: id,
-    source: "proactive_insight",
-    priority: normalizePriority(insight.priority),
-    confidence: finiteOr(insight.confidence, 0.65),
-    domain: clean(insight.domain, 80) || "general",
-    context: clean(insight.reason, 700),
-    signature: clean(`${id}|${insight.trigger || ""}|${insight.reason || ""}`, 1200),
-    userFacing: true
+function withCrewRules(state = {}) {
+  return {
+    ...state,
+    version: ARI_INITIATIVE_ENGINE_VERSION,
+    rules: crewRules(state?.rules)
   };
-
-  if (id === "experiment_review_due") {
-    return {
-      ...base,
-      priority: "high",
-      opener: "Our experiment is ready for review. I have the before-and-after context when you want to look at it.",
-      followUpPrompt: "Review the experiment we were tracking and tell me what the new evidence supports, weakens, or still cannot answer.",
-      action: "review_experiment",
-      cooldownHours: 24
-    };
-  }
-
-  if (id === "broad_performance_regression") {
-    return {
-      ...base,
-      priority: "high",
-      opener: "I noticed something in your training. Several comparable lifts are trending down at the same time.",
-      followUpPrompt: "You noticed several of my comparable lifts trending down. Walk me through what changed and what you think we should investigate before changing the program.",
-      action: "open_investigator",
-      cooldownHours: 48
-    };
-  }
-
-  if (id === "multi_pr_window") {
-    return {
-      ...base,
-      priority: "positive",
-      opener: "I noticed something good: you have multiple recent PR signals. Something we're doing may be working.",
-      followUpPrompt: "You noticed multiple recent PR signals. Tell me what looks genuinely improved and what you would keep stable for now.",
-      action: "celebrate_and_review",
-      cooldownHours: 72
-    };
-  }
-
-  if (id === "adherence_drop") {
-    return {
-      ...base,
-      opener: "I think the current training plan may be fighting your real schedule. Your recent completion pattern changed enough that it's worth looking at.",
-      followUpPrompt: "You noticed my recent training adherence dropped. Help me decide whether the plan is unrealistic or whether something else changed.",
-      action: "review_constraints",
-      cooldownHours: 72
-    };
-  }
-
-  if (id === "weight_loss_faster_than_target") {
-    return {
-      ...base,
-      opener: "Your weight trend is moving faster than the pace we were aiming for. I think it's worth checking recovery and performance before we push harder.",
-      followUpPrompt: "You noticed my weight is moving faster than planned. Review the trend with my training and recovery before recommending any change.",
-      action: "review_recovery_and_intake",
-      cooldownHours: 72
-    };
-  }
-
-  if (id === "recovery_or_deficit_pressure") {
-    return {
-      ...base,
-      opener: "I noticed a pattern I don't want to ignore: performance is slipping while recovery or deficit pressure is showing up too.",
-      followUpPrompt: "You noticed performance declines alongside recovery or deficit pressure. Compare the competing explanations before we change anything.",
-      action: "open_investigator",
-      cooldownHours: 72
-    };
-  }
-
-  if (id.startsWith("world_model_")) {
-    return {
-      ...base,
-      priority: "medium",
-      opener: "I noticed a mismatch between the plan and what has actually been happening. I think we should design around reality instead of forcing the old assumption.",
-      followUpPrompt: "You noticed a mismatch between my stated plan and my observed behavior. Show me the mismatch and help me decide whether to change the plan or intentionally test a new one.",
-      action: "review_goal_tradeoff",
-      cooldownHours: 96
-    };
-  }
-
-  return null;
 }
 
-function candidateFromThread(thread = {}) {
-  const state = clean(thread.state, 80);
-  const id = clean(thread.id, 200);
-  const base = {
-    reasonId: id,
-    source: "relationship_continuity",
-    priority: normalizePriority(thread.priority),
-    confidence: state === "review_due" ? 0.98 : state === "prediction_due" ? 0.82 : 0.62,
-    domain: clean(thread.domain, 80) || "general",
-    context: clean(thread.summary, 700),
-    signature: clean(`${id}|${state}|${thread.dueAt || ""}|${thread.summary || ""}`, 1200),
-    userFacing: true
+function crewRules(base = {}) {
+  return {
+    ...(base && typeof base === "object" ? base : {}),
+    crewCandidateRequiresThreeCompletions: true,
+    crewCandidateRecencyDays: CREW_RECENCY_DAYS,
+    crewCandidateUsesServerScopedEvidence: true,
+    crewCandidateNeverAutoCreates: true,
+    crewCandidateCannotOverrideDirectHighOrMediumInitiative: true,
+    crewCandidateCooldownHours: CREW_COOLDOWN_HOURS,
+    noCrewPopularityOrPaymentSignals: true
   };
-
-  if (thread.type === "experiment" && state === "review_due") {
-    return {
-      ...base,
-      priority: "high",
-      opener: "We have unfinished business: the experiment we were tracking has reached its review point.",
-      followUpPrompt: "Review the experiment we were tracking now that its observation window is complete.",
-      action: "review_experiment",
-      cooldownHours: 24
-    };
-  }
-
-  if (thread.type === "decision" && state === "prediction_due") {
-    return {
-      ...base,
-      priority: "medium",
-      opener: "Remember the pattern we decided to watch instead of changing immediately? Its observation window is up, so we can finally revisit it with new evidence.",
-      followUpPrompt: "Revisit the prediction we were watching now that its observation horizon has passed, and compare it with the new evidence.",
-      action: "review_prediction",
-      cooldownHours: 72
-    };
-  }
-
-  return null;
 }
 
 function initiativeKey(candidate = {}) {
-  const reason = clean(candidate.reasonId, 160) || "initiative";
-  return `${reason}:${hash(candidate.signature || candidate.context || candidate.opener || reason)}`.slice(0, 260);
+  const reason = clean(candidate?.reasonId, 160) || "crew_candidate";
+  return `${reason}:${hash(candidate?.signature || candidate?.context || candidate?.opener || reason)}`.slice(0, 260);
 }
 
 function hash(value = "") {
@@ -205,50 +145,21 @@ function hash(value = "") {
   return (h >>> 0).toString(36);
 }
 
-function dedupe(items = []) {
-  const seen = new Set();
-  const out = [];
-  for (const item of items) {
-    const key = `${item?.reasonId || ""}|${item?.action || ""}`;
-    if (!item?.opener || seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-  return out;
-}
-function initiativeRules() {
-  return {
-    noEngagementBait: true,
-    noLonelinessOrGuiltMessages: true,
-    noDependencyLanguage: true,
-    noInitiationBecauseUserWasAbsent: true,
-    onlyMeaningfulStateChangesOrUnfinishedBusiness: true,
-    deterministicDetectionFirst: true,
-    languageModelNotRequiredToSurface: true,
-    userCanDismiss: true,
-    repeatsAreSuppressed: true
-  };
-}
-function noInitiative(reason) {
-  return { version: ARI_INITIATIVE_ENGINE_VERSION, shouldInitiate: false, reason, candidate: null, rules: initiativeRules() };
-}
-function normalizePriority(value) {
-  return ["high", "medium", "positive"].includes(value) ? value : "medium";
-}
-function initiativeWeight(value) {
-  if (value === "high") return 4;
-  if (value === "medium") return 3;
-  if (value === "positive") return 2;
-  return 1;
-}
-function finiteOr(value, fallback) {
+function finite(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
+  return Number.isFinite(number) ? number : 0;
 }
+
+function toMs(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.getTime() : 0;
+}
+
 function toIso(value) {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
 }
+
 function clean(value, max = 1000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }

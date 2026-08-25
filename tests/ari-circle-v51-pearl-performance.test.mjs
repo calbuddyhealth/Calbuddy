@@ -63,12 +63,13 @@ test("ordinary social cards remain light and avoid stacked card blur", () => {
 });
 
 
-test("Meet Up and Quests keep compact navigation identity", () => {
+test("Meet Up and Missions keep compact navigation identity", () => {
   assert.match(meetup, /<h1 id="meetupTitle">Meet Up<\/h1>/);
   assert.match(meetup, /<p class="circle-v52-page-intro__sub">Find your people\.<\/p>/);
-  assert.match(quests, /<h1 id="questTitle">Quests<\/h1>/);
-  assert.match(quests, /<p class="circle-v52-page-intro__sub">Do something together\.<\/p>/);
-  assert.match(quests, /Pick a mission\. Finish it together\./);
+  assert.match(quests, /<h1 id="questTitle">Missions<\/h1>/);
+  assert.match(quests, /<p class="circle-v52-page-intro__sub">Do something worth finishing\.<\/p>/);
+  assert.match(quests, /Move something forward—alone or together\./);
+  assert.match(quests, /<h2 id="questListTitle">Quests<\/h2>/);
   assert.match(authority, /\.circle-v52-page-intro h1[\s\S]*font:\s*850 1\.08rem/);
 });
 

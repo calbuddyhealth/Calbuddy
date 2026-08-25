@@ -40,6 +40,14 @@ test("vNext dependencies include canonical Training, trusted action adapters, br
   }
 });
 
+test("Mission-capable runtime cache chain reaches Home and iOS WebViews", () => {
+  assert.match(runtimeSource, /const VERSION = "1\.3\.6"/);
+  assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
+  assert.match(resilienceSource, /Version: 1\.3\.2/);
+  assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.3\.6"/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.2/);
+});
+
 test("trusted app actions remain outside direct model execution", () => {
   assert.match(runtimeSource, /createCalBuddyPendingAction/);
   assert.match(runtimeSource, /legacy\.confirmPendingAction/);

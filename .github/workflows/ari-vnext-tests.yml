@@ -7,15 +7,35 @@ on:
       - agent/ari-vnext-intelligence
       - agent/ari-owner-advanced-controls
       - agent/ari-trust-layer-p0
+      - feature/ari-circle-mission-v2
+      - feature/ari-circle-places-explore
+      - feature/ari-circle-mission-actions
+      - feature/ari-circle-match-v2
+      - feature/ari-circle-events-v1
+      - feature/ari-circle-event-awareness
+      - feature/ari-circle-event-initiative
+      - feature/ari-circle-crews-v1
+      - feature/ari-circle-crew-awareness
+      - feature/ari-circle-crew-actions
+      - feature/ari-circle-crew-initiative
+      - feature/ari-circle-v6-experience
+      - feature/ari-circle-v6-commit
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
+      - "api/ari-vnext-initiative.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
       - "ari/intent/ari-central-intent-router.js"
       - "ari/personalization/**"
       - "ari/pipeline-stages/deliberation/ari-memory-stage.js"
+      - "home.html"
+      - "ari-circle-v6.html"
+      - "assets/css/ari-circle-v6-experience.css"
+      - "assets/css/ari-circle-v6-commit.css"
+      - "js/ari-circle/v6/**"
+      - "js/home-resilience.js"
       - "js/auth.js"
       - "js/ari-latency-hotfix.js"
       - "js/home-conversation-persistence.js"
@@ -25,6 +45,11 @@ on:
       - "supabase/migrations/*nutrition*.sql"
       - "supabase/migrations/*continuity*.sql"
       - "supabase/migrations/*action_network*.sql"
+      - "supabase/migrations/*mission_v2*.sql"
+      - "supabase/migrations/*places*.sql"
+      - "supabase/migrations/*mission_places*.sql"
+      - "supabase/migrations/*domain_events*.sql"
+      - "supabase/migrations/*crews*.sql"
       - "tests/ari-vnext-*.test.mjs"
       - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
@@ -33,15 +58,35 @@ on:
   pull_request:
     branches:
       - main
+      - feature/ari-circle-action-network
+      - feature/ari-circle-mission-v2
+      - feature/ari-circle-places-explore
+      - feature/ari-circle-mission-actions
+      - feature/ari-circle-match-v2
+      - feature/ari-circle-events-v1
+      - feature/ari-circle-event-awareness
+      - feature/ari-circle-event-initiative
+      - feature/ari-circle-crews-v1
+      - feature/ari-circle-crew-awareness
+      - feature/ari-circle-crew-actions
+      - feature/ari-circle-crew-initiative
+      - feature/ari-circle-v6-experience
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
+      - "api/ari-vnext-initiative.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
       - "ari/intent/ari-central-intent-router.js"
       - "ari/personalization/**"
       - "ari/pipeline-stages/deliberation/ari-memory-stage.js"
+      - "home.html"
+      - "ari-circle-v6.html"
+      - "assets/css/ari-circle-v6-experience.css"
+      - "assets/css/ari-circle-v6-commit.css"
+      - "js/ari-circle/v6/**"
+      - "js/home-resilience.js"
       - "js/auth.js"
       - "js/ari-latency-hotfix.js"
       - "js/home-conversation-persistence.js"
@@ -51,6 +96,11 @@ on:
       - "supabase/migrations/*nutrition*.sql"
       - "supabase/migrations/*continuity*.sql"
       - "supabase/migrations/*action_network*.sql"
+      - "supabase/migrations/*mission_v2*.sql"
+      - "supabase/migrations/*places*.sql"
+      - "supabase/migrations/*mission_places*.sql"
+      - "supabase/migrations/*domain_events*.sql"
+      - "supabase/migrations/*crews*.sql"
       - "tests/ari-vnext-*.test.mjs"
       - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
