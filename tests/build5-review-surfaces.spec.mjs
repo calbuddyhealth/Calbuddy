@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.ARI_SMOKE_BASE_URL || "http://127.0.0.1:4173";
 
-test("Build 5 review surfaces expose legal, safety and moderated Circle controls", async ({ browser }) => {
+test("Current review surfaces expose legal, safety and moderated Circle controls", async ({ browser }) => {
   const context = await browser.newContext({
     javaScriptEnabled: false,
     viewport: { width: 390, height: 844 }
@@ -25,15 +25,23 @@ test("Build 5 review surfaces expose legal, safety and moderated Circle controls
   const circlePages = [
     {
       path: "ari-circle-feed.html",
-      controls: ["#feedPostBody", "#publishPostButton"]
+      controls: ["#feedPostBody", "#publishPostButton"],
+      moderation: 'script[src*="js/ari-circle/content-moderation.js"]'
     },
     {
       path: "ari-circle-messages.html",
-      controls: ["#messageInput", "#sendMessageButton"]
+      controls: ["#messageInput", "#sendMessageButton"],
+      moderation: 'script[src*="js/ari-circle/content-moderation.js"]'
     },
     {
-      path: "ari-circle-challenges.html",
-      controls: ["#openCreateChallenge", "#challengeEntryMediaInput"]
+      path: "ari-circle-meetup.html",
+      controls: ["#hostMeetupButton", "#hostMeetupForm"],
+      moderation: 'script[src*="js/ari-circle/real-world-moderation-v5.js"]'
+    },
+    {
+      path: "ari-circle-quests.html",
+      controls: ["#createQuestButton", "#createQuestForm"],
+      moderation: 'script[src*="js/ari-circle/real-world-moderation-v5.js"]'
     }
   ];
 
@@ -44,8 +52,7 @@ test("Build 5 review surfaces expose legal, safety and moderated Circle controls
       await expect(page.locator(selector)).toHaveCount(1);
     }
 
-    const moderationScripts = page.locator('script[src*="js/ari-circle/content-moderation.js"]');
-    await expect(moderationScripts).toHaveCount(1);
+    await expect(page.locator(surface.moderation)).toHaveCount(1);
   }
 
   await context.close();
