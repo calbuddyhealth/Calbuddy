@@ -1,12 +1,13 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 //   - Expose today's active Meal Plan to the model as read-only context.
 //   - Treat an unset calorie goal as unknown instead of inventing a fallback.
 //   - Recover a small recent conversation window on fresh/reloaded sessions.
 //   - Hydrate read-only ARI Circle Action Network context only when relevant.
+//   - Require the trusted Circle lifecycle executor before vNext is marked ready.
 //   - Enable the existing bounded GPT-4o-mini peer reflection for Owner Mode.
 // =====================================================
 
@@ -16,12 +17,13 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
   const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
   const CIRCLE_CONTEXT_TTL_MS = 15 * 1000;
+  const CIRCLE_ACTION_SCRIPT = "ari/vnext/ari-vnext-circle-action-adapter.js?v=1.0.0";
 
   let circleContextCache = null;
   let circleContextCacheAt = 0;
@@ -29,7 +31,8 @@
 
   window.AriVNextContextGuard = {
     version: VERSION,
-    ready: false
+    ready: false,
+    clearCircleCache
   };
 
   function clean(value = "") {
@@ -45,6 +48,12 @@
   function positive(value) {
     const number = finite(value);
     return number !== null && number > 0 ? number : null;
+  }
+
+  function clearCircleCache() {
+    circleContextCache = null;
+    circleContextCacheAt = 0;
+    circleContextCacheToken = null;
   }
 
   function localDateKey() {
@@ -189,8 +198,6 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.available !== true) return null;
 
-      // The endpoint deliberately omits exact meeting points, DMs, raw
-      // coordinates, and feed content. Keep that privacy boundary intact here.
       circleContextCache = data;
       circleContextCacheAt = Date.now();
       circleContextCacheToken = accessToken;
@@ -199,6 +206,23 @@
       console.warn("Ari vNext Circle context read skipped:", error?.message || error);
       return null;
     }
+  }
+
+  function ensureCircleActionAdapter() {
+    if (window.AriVNextCircleActionAdapter?.ready === true) return true;
+
+    const existing = [...document.scripts].find((script) => {
+      const src = String(script.getAttribute("src") || "");
+      return src === CIRCLE_ACTION_SCRIPT || src.endsWith(`/${CIRCLE_ACTION_SCRIPT}`) || src.includes("ari-vnext-circle-action-adapter.js");
+    });
+    if (existing) return false;
+
+    const script = document.createElement("script");
+    script.src = CIRCLE_ACTION_SCRIPT;
+    script.async = false;
+    script.dataset.ariRuntimeDependency = "vnext-circle-actions";
+    document.head.appendChild(script);
+    return false;
   }
 
   function installUserContextGuard() {
@@ -354,10 +378,12 @@
   }
 
   function installAll() {
+    ensureCircleActionAdapter();
+    const circleActionReady = window.AriVNextCircleActionAdapter?.ready === true;
     const contextReady = installUserContextGuard();
     const continuityReady = installBridgeContinuityGuard();
     const peerReady = installOwnerPeerGuard();
-    const ready = contextReady && continuityReady && peerReady;
+    const ready = circleActionReady && contextReady && continuityReady && peerReady;
     window.AriVNextContextGuard.ready = ready;
     if (ready) {
       window.dispatchEvent(new CustomEvent("ari:vnextContextGuardReady", {
@@ -366,6 +392,8 @@
     }
     return ready;
   }
+
+  window.addEventListener("ari:circleChanged", clearCircleCache);
 
   if (!installAll()) {
     let attempts = 0;
