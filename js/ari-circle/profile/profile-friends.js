@@ -23,7 +23,8 @@
   const state = {
     client: null,
     viewerUserId: null,
-    started: false
+    started: false,
+    subscribed: false
   };
 
   function app() {
@@ -204,7 +205,11 @@
       button.className = "circle-button circle-button--secondary";
       button.type = "button";
       button.textContent = "See Friends";
-      button.addEventListener("click", () => openProfileFriends(profileUserId));
+      button.addEventListener("click", () => {
+        const currentProfile = store()?.get?.("profile") || store()?.getState?.()?.profile || null;
+        const currentProfileId = clean(currentProfile?.user_id || currentProfile?.userId || currentProfile?.id);
+        if (currentProfileId) openProfileFriends(currentProfileId);
+      });
       actions.append(button);
     }
 
@@ -222,8 +227,8 @@
 
   function bindStore() {
     const currentStore = store();
-    if (!currentStore?.subscribe || currentStore.__ariProfileFriendsSubscribed) return;
-    currentStore.__ariProfileFriendsSubscribed = true;
+    if (!currentStore?.subscribe || state.subscribed) return;
+    state.subscribed = true;
     currentStore.subscribe((_, change) => {
       const keys = Array.isArray(change?.keys) ? change.keys : [];
       if (!keys.length || keys.includes("context") || keys.includes("connection") || keys.includes("profile")) {
