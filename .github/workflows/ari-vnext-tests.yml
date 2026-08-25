@@ -9,6 +9,7 @@ on:
       - agent/ari-trust-layer-p0
     paths:
       - "api/ari-vnext.js"
+      - "api/ari-vnext-circle-context.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
@@ -23,7 +24,9 @@ on:
       - "js/ari-nutrition-data-quality.js"
       - "supabase/migrations/*nutrition*.sql"
       - "supabase/migrations/*continuity*.sql"
+      - "supabase/migrations/*action_network*.sql"
       - "tests/ari-vnext-*.test.mjs"
+      - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
       - "tests/nutrition-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
@@ -32,6 +35,7 @@ on:
       - main
     paths:
       - "api/ari-vnext.js"
+      - "api/ari-vnext-circle-context.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
@@ -46,7 +50,9 @@ on:
       - "js/ari-nutrition-data-quality.js"
       - "supabase/migrations/*nutrition*.sql"
       - "supabase/migrations/*continuity*.sql"
+      - "supabase/migrations/*action_network*.sql"
       - "tests/ari-vnext-*.test.mjs"
+      - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
       - "tests/nutrition-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
@@ -69,5 +75,5 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Run Ari vNext, personalization, and nutrition trust deterministic tests
-        run: node --test tests/ari-vnext-*.test.mjs tests/ari-personalization.test.mjs tests/nutrition-*.test.mjs
+      - name: Run Ari vNext, Action Network, personalization, and nutrition trust deterministic tests
+        run: node --test tests/ari-vnext-*.test.mjs tests/ari-circle-action-network-*.test.mjs tests/ari-personalization.test.mjs tests/nutrition-*.test.mjs
