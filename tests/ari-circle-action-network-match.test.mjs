@@ -46,11 +46,20 @@ test("Match Engine V1 does not use reward size, payment, popularity, or engageme
   assert.match(migration, /V1 deliberately does not score XP, payment, popularity, followers, or engagement/i);
   assert.match(migration, /Reward XP remains display metadata only/i);
   assert.match(migration, /excluded[\s\S]*from internal_match_score/i);
-  assert.doesNotMatch(executableSql, /premium/i);
-  assert.doesNotMatch(executableSql, /sponsor/i);
-  assert.doesNotMatch(executableSql, /followers?/i);
-  assert.doesNotMatch(executableSql, /likes?/i);
-  assert.doesNotMatch(executableSql, /reaction/i);
+
+  // Check executable SQL for social/commercial ranking fields. Use whole words
+  // so PostgreSQL's legitimate LIKE operator is not confused with a like count.
+  for (const forbidden of [
+    /\bpremium\b/i,
+    /\bsponsor(?:ed|ship)?\b/i,
+    /\bfollowers?\b/i,
+    /\blikes\b/i,
+    /\breactions?\b/i,
+    /\bengagement_(?:score|count|rate)\b/i
+  ]) {
+    assert.doesNotMatch(executableSql, forbidden);
+  }
+
   assert.match(contract, /Paid status is never a ranking signal/i);
 });
 
