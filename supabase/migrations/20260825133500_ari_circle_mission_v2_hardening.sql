@@ -50,7 +50,8 @@ for each row execute function public.ari_circle_validate_mission_contribution_sh
 -- Review visibility follows the same authority as review itself. For
 -- organizer-verified Missions, the organizer reviews member contributions.
 -- If the organizer contributes, another joined established leader may review
--- that organizer contribution; this avoids an unverifiable self-review path.
+-- only that organizer's submitted contribution; this avoids both self-review
+-- and unnecessary exposure of every member's proof/evidence.
 create or replace function public.ari_circle_list_mission_contributions(
   requested_mission_id uuid,
   result_limit integer default 50
@@ -125,6 +126,17 @@ begin
   where c.quest_id = q.id
     and public.ari_circle_user_is_adult(c.user_id)
     and not public.ari_circle_social_pair_is_blocked(caller_id, c.user_id)
+    and (
+      caller_id = q.creator_user_id
+      or q.verification_mode = 'peer'
+      or (
+        q.verification_mode = 'organizer'
+        and reviewer_is_member
+        and reviewer_is_leader
+        and c.user_id = q.creator_user_id
+        and c.status = 'submitted'
+      )
+    )
   order by
     case c.status when 'submitted' then 0 when 'verified' then 1 else 2 end,
     c.submitted_at asc,
