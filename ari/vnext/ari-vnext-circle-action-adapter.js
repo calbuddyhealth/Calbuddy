@@ -5,13 +5,16 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_circle_action_adapter";
   const ACTIONS = new Set([
     "create_circle_meetup",
     "join_circle_meetup",
     "leave_circle_meetup",
-    "cancel_circle_meetup"
+    "cancel_circle_meetup",
+    "create_circle_mission",
+    "join_circle_mission",
+    "submit_circle_mission_progress"
   ]);
 
   function clean(value = "", max = 220) {
@@ -60,6 +63,30 @@
     }
   }
 
+  function stableUuid() {
+    try {
+      if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    } catch {}
+    const bytes = new Uint8Array(16);
+    try {
+      globalThis.crypto?.getRandomValues?.(bytes);
+    } catch {
+      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function missionUnit(objectiveType, supplied = "") {
+    const explicit = clean(supplied, 40).toLowerCase();
+    if (objectiveType === "count") return explicit || "actions";
+    if (objectiveType === "distance") return explicit || "miles";
+    if (objectiveType === "duration") return explicit || "minutes";
+    return explicit;
+  }
+
   function mapCircleAction(pending = {}, args = {}) {
     const name = clean(pending?.name, 120);
 
@@ -92,10 +119,46 @@
       });
     }
 
+    if (name === "create_circle_mission") {
+      const title = clean(args?.title, 90);
+      const scope = clean(args?.scope, 20).toLowerCase();
+      const category = clean(args?.category, 20).toLowerCase() || scope;
+      const verificationMode = clean(args?.verificationMode, 30).toLowerCase();
+      const objectiveType = clean(args?.objectiveType, 30).toLowerCase();
+      const progressMode = clean(args?.progressMode, 30).toLowerCase();
+      const targetValue = number(args?.targetValue);
+      const endsAt = clean(args?.endsAt, 80);
+      const maxParticipants = args?.maxParticipants === null || args?.maxParticipants === undefined
+        ? null
+        : Math.round(number(args?.maxParticipants) || 0);
+
+      if (!title || !scope || !verificationMode || !objectiveType || !progressMode || !targetValue || !endsAt) {
+        return failure("circle_mission_fields_required", "Mission title, scope, verification, objective, target, and end time are required.");
+      }
+
+      return successAction(pending, {
+        action_type: "circle_create_mission",
+        payload: {
+          requested_title: title,
+          requested_description: clean(args?.description, 1000) || null,
+          requested_scope: scope,
+          requested_category: category,
+          requested_verification_mode: verificationMode,
+          requested_objective_type: objectiveType,
+          requested_progress_mode: progressMode,
+          requested_target_value: targetValue,
+          requested_unit: missionUnit(objectiveType, args?.unit),
+          requested_ends_at: endsAt,
+          requested_max_participants: maxParticipants
+        },
+        confirmation_text: `Create “${title}” as a ${progressMode} ${objectiveType} Mission with a target of ${targetValue} ${missionUnit(objectiveType, args?.unit)} ending ${formatDate(endsAt)}?`
+      });
+    }
+
     const meetupId = clean(args?.meetupId, 120);
-    if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
 
     if (name === "join_circle_meetup") {
+      if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
       return successAction(pending, {
         action_type: "circle_join_meetup",
         payload: { requested_meetup_id: meetupId },
@@ -104,6 +167,7 @@
     }
 
     if (name === "leave_circle_meetup") {
+      if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
       return successAction(pending, {
         action_type: "circle_leave_meetup",
         payload: { requested_meetup_id: meetupId },
@@ -112,10 +176,39 @@
     }
 
     if (name === "cancel_circle_meetup") {
+      if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
       return successAction(pending, {
         action_type: "circle_cancel_meetup",
         payload: { requested_meetup_id: meetupId },
         confirmation_text: "Cancel this hosted meetup for everyone?"
+      });
+    }
+
+    const missionId = clean(args?.missionId, 120);
+
+    if (name === "join_circle_mission") {
+      if (!missionId) return failure("circle_mission_id_required", "A specific ARI Circle Mission is required.");
+      return successAction(pending, {
+        action_type: "circle_join_mission",
+        payload: { requested_quest_id: missionId },
+        confirmation_text: "Join this ARI Circle Mission?"
+      });
+    }
+
+    if (name === "submit_circle_mission_progress") {
+      if (!missionId) return failure("circle_mission_id_required", "A specific ARI Circle Mission is required.");
+      const amount = number(args?.amount);
+      if (!amount || amount <= 0) return failure("circle_mission_progress_required", "Mission progress must be greater than zero.");
+      const clientEventId = clean(args?.clientEventId, 120) || stableUuid();
+      return successAction(pending, {
+        action_type: "circle_submit_mission_progress",
+        payload: {
+          requested_quest_id: missionId,
+          requested_amount: amount,
+          requested_note: clean(args?.note, 500) || null,
+          requested_client_event_id: clientEventId
+        },
+        confirmation_text: `Submit ${amount} ${clean(args?.unit, 40) || "units"} of progress to this Mission?`
       });
     }
 
@@ -187,6 +280,34 @@
       const result = { meetupId: clean(payload?.requested_meetup_id, 120), resolution: "cancelled" };
       emitChanged("meetup_cancelled", result);
       return { success: true, result, reply: "Meetup cancelled." };
+    }
+
+    if (type === "circle_create_mission") {
+      const missionId = await rpc("ari_circle_create_mission_v2", payload);
+      if (!missionId) return failure("circle_mission_create_failed", "The Mission was not created.");
+      const result = { missionId: clean(missionId, 120), resolution: "created" };
+      emitChanged("mission_created", result);
+      return { success: true, result, reply: "Mission created." };
+    }
+
+    if (type === "circle_join_mission") {
+      const joined = await rpc("ari_circle_join_quest", payload);
+      if (joined !== true) return failure("circle_mission_join_not_applied", "That Mission could not be joined.");
+      const result = { missionId: clean(payload?.requested_quest_id, 120), resolution: "joined" };
+      emitChanged("mission_joined", result);
+      return { success: true, result, reply: "You're in the Mission." };
+    }
+
+    if (type === "circle_submit_mission_progress") {
+      const data = await rpc("ari_circle_submit_mission_progress", payload);
+      if (!data) return failure("circle_mission_progress_not_applied", "Mission progress was not submitted.");
+      const result = object(data);
+      emitChanged("mission_progress_submitted", result);
+      return {
+        success: true,
+        result,
+        reply: result?.status === "verified" ? "Mission progress added and verified." : "Mission progress submitted for verification."
+      };
     }
 
     return failure("unsupported_circle_executor_action", `Unsupported Circle executor action: ${type}.`);
