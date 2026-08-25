@@ -1,18 +1,20 @@
 /* =============================================================
    ARI CIRCLE V6.1 — FOR YOU COMMIT
    Adds a direct commitment action to For You cards while keeping the existing
-   detail link. Fresh server context resolves the exact Opportunity at tap time.
-   No stale/ambiguous card identity is ever used as mutation authority.
+   detail link. Each rendered card is bound to the exact Opportunity UUID from
+   the same server context that rendered it, then reverified at tap time.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const MAX_FRESH_MATCHES = 10;
   const state = {
     client: null,
     busyCards: new WeakSet(),
-    observer: null
+    observer: null,
+    syncing: false,
+    syncQueued: false
   };
 
   const clean = (value, max = 1000) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -29,6 +31,17 @@
       await new Promise((resolve) => setTimeout(resolve, 60));
     }
     throw new Error("ARI Circle could not connect right now.");
+  }
+
+  async function waitForV6Ready(timeout = 8000) {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const api = window.AriCircleActionNetworkV6;
+      const page = document.getElementById("v6Page");
+      if (api && typeof api.refresh === "function" && page && !page.hasAttribute("hidden")) return api;
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    throw new Error("The Circle V6 experience is not ready yet.");
   }
 
   async function rpc(name, params = {}) {
@@ -64,18 +77,45 @@
   }
 
   function cardIdentity(card) {
+    const opportunityId = clean(card?.dataset?.v6OpportunityId, 120);
     const title = clean(card?.querySelector?.("h3")?.textContent, 120);
     const eyebrow = clean(card?.querySelector?.(".v6-eyebrow")?.textContent, 160).toLowerCase();
     const type = eyebrow.startsWith("mission") ? "mission" : eyebrow.startsWith("meet up") ? "meetup" : "";
-    return { title, type };
+    return { opportunityId, title, type };
+  }
+
+  function bindCardIdentities(context = {}) {
+    const list = document.getElementById("v6ForYouList");
+    if (!list) return;
+
+    const cards = [...list.querySelectorAll(".v6-opportunity")];
+    const rows = (Array.isArray(context?.bestMatches) ? context.bestMatches : []).slice(0, 6);
+
+    cards.forEach((card, index) => {
+      delete card.dataset.v6OpportunityId;
+      const item = rows[index];
+      if (!item) return;
+
+      const identity = cardIdentity(card);
+      const itemId = clean(item?.id, 120);
+      const itemType = clean(item?.type, 30).toLowerCase();
+      const itemTitle = clean(item?.title, 120);
+
+      if (!isUuid(itemId) || !identity.type || !identity.title) return;
+      if (itemType !== identity.type || itemTitle !== identity.title) return;
+      card.dataset.v6OpportunityId = itemId;
+    });
   }
 
   function resolveFreshOpportunity(card, context = {}) {
     const identity = cardIdentity(card);
-    if (!identity.title || !identity.type) return { target: null, reason: "card_identity_missing" };
+    if (!isUuid(identity.opportunityId) || !identity.title || !identity.type) {
+      return { target: null, reason: "card_identity_missing" };
+    }
 
     const matches = (Array.isArray(context?.bestMatches) ? context.bestMatches : [])
       .slice(0, MAX_FRESH_MATCHES)
+      .filter((item) => clean(item?.id, 120) === identity.opportunityId)
       .filter((item) => clean(item?.type, 30).toLowerCase() === identity.type)
       .filter((item) => clean(item?.title, 120) === identity.title);
 
@@ -83,9 +123,7 @@
       return { target: null, reason: matches.length ? "ambiguous_current_match" : "recommendation_changed" };
     }
 
-    const target = matches[0];
-    if (!clean(target?.id, 120)) return { target: null, reason: "opportunity_identity_missing" };
-    return { target, reason: "exact_current_match" };
+    return { target: matches[0], reason: "exact_current_match" };
   }
 
   function decorateCards() {
@@ -93,11 +131,15 @@
     if (!list) return;
 
     list.querySelectorAll(".v6-opportunity").forEach((card) => {
-      const existing = card.querySelector("[data-v6-commit-action]");
-      if (existing) return;
-
       const openLink = card.querySelector(".v6-primary-link");
       if (!openLink) return;
+
+      openLink.classList.add("v6-commit-details");
+      openLink.textContent = "Details";
+
+      const existing = card.querySelector("[data-v6-commit-action]");
+      if (existing) return;
+      if (!isUuid(card?.dataset?.v6OpportunityId)) return;
 
       const actions = document.createElement("div");
       actions.className = "v6-commit-actions";
@@ -107,10 +149,8 @@
       commit.className = "v6-card-action is-primary";
       commit.dataset.v6CommitAction = "true";
       commit.textContent = cardIdentity(card).type === "mission" ? "Join Mission" : "Join / Request";
-      commit.addEventListener("click", () => commitCard(card, commit));
+      commit.addEventListener("click", () => commitCard(card));
 
-      openLink.classList.add("v6-commit-details");
-      openLink.textContent = "Details";
       openLink.parentNode?.insertBefore(actions, openLink);
       actions.append(commit, openLink);
 
@@ -122,7 +162,7 @@
     });
   }
 
-  async function commitCard(card, button) {
+  async function commitCard(card) {
     if (!card || state.busyCards.has(card)) return;
     state.busyCards.add(card);
     setBusy(card, true);
@@ -202,11 +242,45 @@
   }
 
   async function refreshV6() {
+    if (state.syncing) return null;
     const api = window.AriCircleActionNetworkV6;
-    if (api && typeof api.refresh === "function") {
-      await api.refresh();
+    if (!api || typeof api.refresh !== "function") return null;
+
+    state.syncing = true;
+    try {
+      const context = await api.refresh();
+      bindCardIdentities(context);
       decorateCards();
+      return context;
+    } finally {
+      state.syncing = false;
     }
+  }
+
+  function scheduleSync() {
+    if (state.syncing || state.syncQueued) return;
+    state.syncQueued = true;
+    queueMicrotask(async () => {
+      state.syncQueued = false;
+      if (state.syncing) return;
+
+      const list = document.getElementById("v6ForYouList");
+      if (!list) return;
+      const hasUnboundCard = [...list.querySelectorAll(".v6-opportunity")]
+        .some((card) => !isUuid(card?.dataset?.v6OpportunityId));
+
+      if (!hasUnboundCard) {
+        decorateCards();
+        return;
+      }
+
+      try {
+        await refreshV6();
+      } catch (error) {
+        console.warn("[ARI Circle V6 For You Commit sync]", clean(error?.message, 300) || error);
+        decorateCards();
+      }
+    });
   }
 
   function setBusy(card, busy) {
@@ -227,13 +301,15 @@
   async function boot() {
     try {
       state.client = await waitForClient();
+      await waitForV6Ready();
       const list = document.getElementById("v6ForYouList");
       if (!list) return;
-      decorateCards();
-      state.observer = new MutationObserver(() => decorateCards());
+      state.observer = new MutationObserver(scheduleSync);
       state.observer.observe(list, { childList: true });
+      await refreshV6();
     } catch (error) {
       console.warn("[ARI Circle V6 For You Commit]", clean(error?.message, 300) || error);
+      decorateCards();
     }
   }
 
