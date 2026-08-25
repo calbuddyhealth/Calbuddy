@@ -2,11 +2,12 @@
 // Uses the signed-in user's JWT for every Circle RPC so adult access, blocking,
 // and source-RPC authorization remain authoritative. No service-role fallback.
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const MAX_OPPORTUNITIES = 12;
 const MAX_INTENTS = 3;
 const MAX_MATCH_INTENTS = 2;
 const MAX_MATCHES_PER_INTENT = 6;
+const MAX_RELATIONSHIPS = 8;
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -52,7 +53,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const [opportunitiesRaw, intentsRaw] = await Promise.all([
+    const [opportunitiesRaw, intentsRaw, relationshipsRaw] = await Promise.all([
       callRpc(config, accessToken, "ari_circle_list_opportunities", {
         requested_types: ["meetup", "mission"],
         requested_activity: null,
@@ -62,11 +63,15 @@ export default async function handler(req, res) {
       callRpc(config, accessToken, "ari_circle_list_my_action_intents", {
         include_inactive: false,
         result_limit: MAX_INTENTS
+      }),
+      callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_action_relationships", {
+        result_limit: MAX_RELATIONSHIPS
       })
     ]);
 
     const opportunities = array(opportunitiesRaw).map(compactOpportunity).filter(Boolean);
     const activeIntents = array(intentsRaw).map(compactIntent).filter(Boolean);
+    const relationships = array(relationshipsRaw).map(compactRelationship).filter(Boolean);
 
     const matchBatches = await Promise.all(
       activeIntents.slice(0, MAX_MATCH_INTENTS).map(async (intent) => {
@@ -84,7 +89,7 @@ export default async function handler(req, res) {
     );
 
     const bestMatches = dedupeMatches(matchBatches.flat()).slice(0, 10);
-    const situation = buildSituation({ opportunities, activeIntents, bestMatches });
+    const situation = buildSituation({ opportunities, activeIntents, bestMatches, relationships });
 
     return res.status(200).json({
       success: true,
@@ -97,7 +102,8 @@ export default async function handler(req, res) {
         exactMeetingPointsIncluded: false,
         directMessagesIncluded: false,
         rawCoordinatesIncluded: false,
-        rawFeedContentIncluded: false
+        rawFeedContentIncluded: false,
+        durableSocialLearningIncluded: false
       }
     });
   } catch (error) {
@@ -114,7 +120,7 @@ export default async function handler(req, res) {
   }
 }
 
-export function buildSituation({ opportunities = [], activeIntents = [], bestMatches = [] } = {}) {
+export function buildSituation({ opportunities = [], activeIntents = [], bestMatches = [], relationships = [] } = {}) {
   const schedule = opportunities.filter((item) => [
     "host", "joined", "pending", "waitlisted", "creator", "submitted", "verified", "completed"
   ].includes(item.viewerState)).slice(0, 8);
@@ -124,16 +130,24 @@ export function buildSituation({ opportunities = [], activeIntents = [], bestMat
     return total + Math.max(0, number(item.pendingRequestCount) || 0);
   }, 0);
 
+  const repeatRelationshipCount = relationships.reduce(
+    (total, relationship) => total + ((number(relationship?.completedTogether) || 0) >= 2 ? 1 : 0),
+    0
+  );
+
   return {
     summary: {
       opportunityCount: opportunities.length,
       activeIntentCount: activeIntents.length,
       bestMatchCount: bestMatches.length,
       scheduledCount: schedule.length,
-      hostPendingRequestCount
+      hostPendingRequestCount,
+      relationshipCount: relationships.length,
+      repeatRelationshipCount
     },
     activeIntents,
     bestMatches,
+    relationships: relationships.slice(0, MAX_RELATIONSHIPS),
     schedule,
     opportunities: opportunities.slice(0, 10)
   };
@@ -161,6 +175,15 @@ async function callRpc(config, accessToken, name, args) {
     throw error;
   }
   return data;
+}
+
+async function callOptionalActionNetworkRpc(config, accessToken, name, args) {
+  try {
+    return await callRpc(config, accessToken, name, args);
+  } catch (error) {
+    if (isMissingActionNetworkRpc(error)) return [];
+    throw error;
+  }
 }
 
 function compactOpportunity(row = {}) {
@@ -218,6 +241,26 @@ function compactMatch(row = {}, intentId = null) {
     intentId,
     matchScore: number(row?.match_score),
     matchReasons: array(row?.match_reasons).map((item) => clean(item, 140)).filter(Boolean).slice(0, 6)
+  };
+}
+
+function compactRelationship(row = {}) {
+  const userId = clean(row?.other_user_id, 120);
+  if (!userId) return null;
+  return {
+    userId,
+    displayName: clean(row?.display_name, 100) || null,
+    handle: clean(row?.handle, 80) || null,
+    avatarUrl: clean(row?.avatar_url, 1000) || null,
+    completedTogether: number(row?.completed_together) || 0,
+    repeatCount: number(row?.repeat_count) || 0,
+    firstCompletedAt: row?.first_completed_at || null,
+    lastCompletedAt: row?.last_completed_at || null,
+    hostedByMe: number(row?.hosted_by_me) || 0,
+    hostedByThem: number(row?.hosted_by_them) || 0,
+    uniqueActivities: number(row?.unique_activities) || 0,
+    topActivity: clean(row?.top_activity, 80) || null,
+    sharedActivityCounts: object(row?.shared_activity_counts)
   };
 }
 
