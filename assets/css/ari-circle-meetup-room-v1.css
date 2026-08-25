@@ -1,1 +1,513 @@
-.meetup-room-page{min-height:100dvh}.meetup-room-main{display:grid;gap:14px;padding-bottom:calc(116px + env(safe-area-inset-bottom))}.meetup-room-loading{min-height:100dvh;display:grid;place-items:center;padding:24px;color:#6c7892;font:800 .82rem/1.4 Inter,sans-serif;letter-spacing:.04em}.meetup-room-loading[hidden]{display:none!important;min-height:0!important;padding:0!important}.meetup-room-back{text-decoration:none;display:grid;place-items:center;font-size:1.35rem}.meetup-room-hero,.meetup-room-section{border:1px solid rgba(36,88,255,.1);border-radius:24px;background:rgba(255,255,255,.9);box-shadow:0 16px 44px rgba(31,47,91,.08)}.meetup-room-hero{padding:22px}.meetup-room-kicker-row,.meetup-room-section-head,.meetup-room-host-card,.meetup-room-meta,.meetup-room-composer{display:flex;align-items:center}.meetup-room-kicker-row,.meetup-room-section-head{justify-content:space-between;gap:14px}.meetup-room-kicker-row p,.meetup-room-section-head p{margin:0;color:#58709e;font:900 .65rem/1.2 Orbitron,Inter,sans-serif;letter-spacing:.12em}.meetup-room-hero h1{margin:8px 0 5px;color:#14213b;font:900 clamp(1.65rem,6vw,2.35rem)/1.05 Inter,sans-serif}.meetup-room-description{margin:8px 0 0;color:#63708a;font:600 .88rem/1.55 Inter,sans-serif}.meetup-room-status,.meetup-room-private-badge,.meetup-room-chat-state{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;background:#eef3ff;color:#3157af;font:850 .64rem/1 Inter,sans-serif}.meetup-room-meta{flex-wrap:wrap;gap:8px;margin-top:16px}.meetup-room-meta span{padding:7px 10px;border-radius:999px;background:#f4f7fc;color:#506079;font:750 .7rem/1.2 Inter,sans-serif}.meetup-room-section{padding:18px}.meetup-room-section-head h2{margin:4px 0 0;color:#17233d;font:900 1.03rem/1.15 Inter,sans-serif}.meetup-room-point{position:relative;overflow:hidden}.meetup-room-point:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,#2c5fff,#7c55ff)}.meetup-room-point-value{margin:16px 0 8px;color:#17233d;font:800 .95rem/1.45 Inter,sans-serif}.meetup-room-copy{min-height:34px;padding:0 12px}.meetup-room-point-form{display:grid;gap:11px;margin-top:14px}.meetup-room-host-card{gap:12px;margin-top:14px}.meetup-room-host-avatar{flex:0 0 auto}.meetup-room-host-copy{min-width:0;display:grid;gap:3px;flex:1}.meetup-room-host-copy strong{overflow:hidden;text-overflow:ellipsis;color:#17233d;font:850 .91rem/1.2 Inter,sans-serif}.meetup-room-host-copy span{color:#74819a;font:700 .7rem/1.2 Inter,sans-serif}.meetup-room-message-host{white-space:nowrap;text-decoration:none}.meetup-room-attendees{display:grid;gap:9px;margin-top:14px}.meetup-room-attendee{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(38,72,140,.07)}.meetup-room-attendee:last-child{border-bottom:0}.meetup-room-attendee__avatar{width:42px;height:42px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#eef3ff;color:#315de7;font:850 .8rem Inter,sans-serif}.meetup-room-attendee__avatar img{width:100%;height:100%;object-fit:cover}.meetup-room-attendee__copy{min-width:0}.meetup-room-attendee__copy strong,.meetup-room-attendee__copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.meetup-room-attendee__copy strong{color:#1b2742;font:800 .82rem/1.2 Inter,sans-serif}.meetup-room-attendee__copy span{margin-top:3px;color:#7a879e;font:650 .67rem/1.2 Inter,sans-serif}.meetup-room-attendee__role{padding:5px 8px;border-radius:999px;background:#f2f5fb;color:#60708b;font:800 .6rem/1 Inter,sans-serif}.meetup-room-chat{display:grid;gap:12px}.meetup-room-messages{display:grid;gap:9px;max-height:46dvh;overflow:auto;padding:6px 2px;scroll-behavior:smooth}.meetup-room-message{display:grid;grid-template-columns:34px minmax(0,1fr);gap:8px;align-items:end}.meetup-room-message.is-mine{grid-template-columns:minmax(0,1fr);justify-items:end}.meetup-room-message.is-mine .meetup-room-message__avatar{display:none}.meetup-room-message__avatar{width:34px;height:34px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#edf3ff;color:#315de7;font:800 .7rem Inter,sans-serif}.meetup-room-message__avatar img{width:100%;height:100%;object-fit:cover}.meetup-room-message__stack{max-width:min(82%,520px)}.meetup-room-message__name{margin:0 0 4px 4px;color:#7a879b;font:750 .62rem/1.2 Inter,sans-serif}.meetup-room-message__bubble{padding:10px 12px;border-radius:17px 17px 17px 5px;background:#f2f5fa;color:#25314a;font:600 .79rem/1.42 Inter,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}.meetup-room-message.is-mine .meetup-room-message__bubble{border-radius:17px 17px 5px 17px;background:linear-gradient(135deg,#315fff,#7259f3);color:#fff}.meetup-room-message__time{display:block;margin-top:4px;color:#99a2b3;font:650 .58rem/1.2 Inter,sans-serif}.meetup-room-message.is-mine .meetup-room-message__time{text-align:right}.meetup-room-chat-empty,.meetup-room-readonly{padding:18px 8px;text-align:center;color:#8792a7;font:700 .72rem/1.4 Inter,sans-serif}.meetup-room-composer{gap:8px;position:sticky;bottom:calc(72px + env(safe-area-inset-bottom));padding-top:8px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 18%)}.meetup-room-composer textarea{min-width:0;flex:1;max-height:116px;resize:none;padding:12px 14px;border:1px solid rgba(37,73,150,.13);border-radius:16px;background:#f6f8fc;color:#17233d;font:600 16px/1.35 Inter,sans-serif;outline:none}.meetup-room-composer textarea:focus{border-color:rgba(49,95,255,.42);box-shadow:0 0 0 3px rgba(49,95,255,.08)}.meetup-room-composer button{min-width:72px}.meetup-room-archive-note{margin:0;padding:0 12px;text-align:center;color:#8b95a7;font:650 .64rem/1.45 Inter,sans-serif}#meetupRoomToast{position:fixed;z-index:600;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 14px;border:1px solid #dfe7ef;border-radius:14px;color:#142033;background:#fff;box-shadow:0 18px 50px rgba(31,45,70,.18);font:700 .72rem/1.35 Inter,sans-serif}@media(max-width:520px){.meetup-room-main{gap:10px}.meetup-room-hero,.meetup-room-section{border-radius:20px}.meetup-room-hero{padding:18px}.meetup-room-section{padding:16px}.meetup-room-host-card{align-items:flex-start;flex-wrap:wrap}.meetup-room-message-host{margin-left:54px}.meetup-room-messages{max-height:42dvh}.meetup-room-message__stack{max-width:88%}}
+.meetup-room-page {
+  min-height: 100dvh;
+}
+
+.meetup-room-main {
+  display: grid;
+  gap: 12px;
+  padding-bottom: calc(116px + env(safe-area-inset-bottom));
+}
+
+.meetup-room-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #6c7892;
+  font: 800 .82rem/1.4 Inter, sans-serif;
+  letter-spacing: .04em;
+}
+
+.meetup-room-loading[hidden] {
+  display: none !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+.meetup-room-back {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  font-size: 1.35rem;
+}
+
+.meetup-room-hero,
+.meetup-room-section {
+  border: 1px solid rgba(36, 88, 255, .10);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 14px 38px rgba(31, 47, 91, .075);
+}
+
+.meetup-room-hero {
+  padding: 20px;
+}
+
+.meetup-room-kicker-row,
+.meetup-room-section-head,
+.meetup-room-meta,
+.meetup-room-composer,
+.meetup-room-point-summary,
+.meetup-room-point-actions,
+.meetup-room-point-form-actions {
+  display: flex;
+  align-items: center;
+}
+
+.meetup-room-kicker-row,
+.meetup-room-section-head,
+.meetup-room-point-summary {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.meetup-room-kicker-row p,
+.meetup-room-section-head p {
+  margin: 0;
+  color: #58709e;
+  font: 900 .63rem/1.2 Orbitron, Inter, sans-serif;
+  letter-spacing: .12em;
+}
+
+.meetup-room-hero h1 {
+  margin: 8px 0 4px;
+  color: #14213b;
+  font: 900 clamp(1.65rem, 6vw, 2.35rem)/1.05 Inter, sans-serif;
+}
+
+.meetup-room-description {
+  margin: 8px 0 0;
+  color: #63708a;
+  font: 600 .86rem/1.5 Inter, sans-serif;
+}
+
+.meetup-room-status,
+.meetup-room-chat-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #3157af;
+  font: 850 .64rem/1 Inter, sans-serif;
+}
+
+.meetup-room-meta {
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.meetup-room-meta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f4f7fc;
+  color: #506079;
+  font: 750 .69rem/1.2 Inter, sans-serif;
+}
+
+.meetup-room-countdown {
+  width: fit-content;
+  margin: 11px 0 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(42, 204, 235, .13), rgba(113, 84, 245, .10));
+  color: #2c5ec7;
+  font: 800 .68rem/1.2 Inter, sans-serif;
+}
+
+.meetup-room-section {
+  padding: 17px;
+}
+
+.meetup-room-section-head h2 {
+  margin: 4px 0 0;
+  color: #17233d;
+  font: 900 1.03rem/1.15 Inter, sans-serif;
+}
+
+.meetup-room-point {
+  position: relative;
+  overflow: hidden;
+}
+
+.meetup-room-point::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, #31d0e9, #3164ff, #8b5cf6);
+}
+
+.meetup-room-point-summary {
+  margin-top: 13px;
+}
+
+.meetup-room-point-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.meetup-room-point-copy strong {
+  color: #17233d;
+  font: 820 .92rem/1.35 Inter, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.meetup-room-point-copy span {
+  color: #8692a7;
+  font: 680 .65rem/1.3 Inter, sans-serif;
+}
+
+.meetup-room-point-actions {
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.meetup-room-copy,
+.meetup-room-edit-point {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.meetup-room-point-form {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(40, 78, 150, .08);
+}
+
+.meetup-room-point-form .circle-v5-input {
+  min-height: 48px;
+}
+
+.meetup-room-point-form-actions {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.meetup-room-point-form-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+}
+
+.meetup-room-attendees {
+  display: grid;
+  margin-top: 11px;
+}
+
+.meetup-room-attendee {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(38, 72, 140, .07);
+}
+
+.meetup-room-attendee:first-child {
+  padding-top: 4px;
+}
+
+.meetup-room-attendee:last-child {
+  padding-bottom: 2px;
+  border-bottom: 0;
+}
+
+.meetup-room-attendee__avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #eef3ff;
+  color: #315de7;
+  font: 850 .8rem Inter, sans-serif;
+}
+
+.meetup-room-attendee__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meetup-room-attendee__copy {
+  min-width: 0;
+}
+
+.meetup-room-attendee__copy strong,
+.meetup-room-attendee__copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meetup-room-attendee__copy strong {
+  color: #1b2742;
+  font: 820 .84rem/1.2 Inter, sans-serif;
+}
+
+.meetup-room-attendee__copy span {
+  margin-top: 3px;
+  color: #7a879e;
+  font: 650 .66rem/1.2 Inter, sans-serif;
+}
+
+.meetup-room-attendee__actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.meetup-room-attendee__role {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(49, 208, 233, .12), rgba(116, 84, 245, .10));
+  color: #355cba;
+  font: 850 .58rem/1 Inter, sans-serif;
+  letter-spacing: .03em;
+}
+
+.meetup-room-attendee__message {
+  min-height: 32px;
+  padding: 0 10px;
+  text-decoration: none;
+  font-size: .65rem;
+}
+
+.meetup-room-chat {
+  display: grid;
+  gap: 10px;
+  min-height: 280px;
+}
+
+.meetup-room-messages {
+  display: grid;
+  gap: 9px;
+  max-height: 46dvh;
+  overflow: auto;
+  padding: 4px 2px;
+  scroll-behavior: smooth;
+}
+
+.meetup-room-message {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.meetup-room-message.is-mine {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: end;
+}
+
+.meetup-room-message.is-mine .meetup-room-message__avatar {
+  display: none;
+}
+
+.meetup-room-message__avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #edf3ff;
+  color: #315de7;
+  font: 800 .7rem Inter, sans-serif;
+}
+
+.meetup-room-message__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meetup-room-message__stack {
+  max-width: min(82%, 520px);
+}
+
+.meetup-room-message__name {
+  margin: 0 0 4px 4px;
+  color: #7a879b;
+  font: 750 .62rem/1.2 Inter, sans-serif;
+}
+
+.meetup-room-message__bubble {
+  padding: 10px 12px;
+  border-radius: 17px 17px 17px 5px;
+  background: #f2f5fa;
+  color: #25314a;
+  font: 600 .79rem/1.42 Inter, sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meetup-room-message.is-mine .meetup-room-message__bubble {
+  border-radius: 17px 17px 5px 17px;
+  background: linear-gradient(135deg, #315fff, #7259f3);
+  color: #fff;
+}
+
+.meetup-room-message__time {
+  display: block;
+  margin-top: 4px;
+  color: #99a2b3;
+  font: 650 .58rem/1.2 Inter, sans-serif;
+}
+
+.meetup-room-message.is-mine .meetup-room-message__time {
+  text-align: right;
+}
+
+.meetup-room-chat-empty,
+.meetup-room-readonly {
+  padding: 18px 8px;
+  text-align: center;
+  color: #8792a7;
+  font: 700 .72rem/1.4 Inter, sans-serif;
+}
+
+.meetup-room-quick-actions {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 1px 0 2px;
+  scrollbar-width: none;
+}
+
+.meetup-room-quick-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.meetup-room-quick-actions button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(49, 95, 255, .12);
+  border-radius: 999px;
+  background: #f5f8ff;
+  color: #3f5f9f;
+  font: 780 .65rem/1 Inter, sans-serif;
+}
+
+.meetup-room-quick-actions button:active {
+  transform: scale(.98);
+}
+
+.meetup-room-composer {
+  gap: 8px;
+  position: sticky;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  padding-top: 7px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 18%);
+}
+
+.meetup-room-composer textarea {
+  min-width: 0;
+  flex: 1;
+  max-height: 116px;
+  resize: none;
+  padding: 12px 14px;
+  border: 1px solid rgba(37, 73, 150, .13);
+  border-radius: 16px;
+  background: #f6f8fc;
+  color: #17233d;
+  font: 600 16px/1.35 Inter, sans-serif;
+  outline: none;
+}
+
+.meetup-room-composer textarea:focus {
+  border-color: rgba(49, 95, 255, .42);
+  box-shadow: 0 0 0 3px rgba(49, 95, 255, .08);
+}
+
+.meetup-room-composer button {
+  min-width: 72px;
+}
+
+.meetup-room-archive-note {
+  margin: 0;
+  padding-top: 2px;
+  text-align: center;
+  color: #9aa3b2;
+  font: 650 .61rem/1.4 Inter, sans-serif;
+}
+
+#meetupRoomToast {
+  position: fixed;
+  z-index: 600;
+  left: 50%;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: min(90vw, 480px);
+  padding: 11px 14px;
+  border: 1px solid #dfe7ef;
+  border-radius: 14px;
+  color: #142033;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(31, 45, 70, .18);
+  font: 700 .72rem/1.35 Inter, sans-serif;
+}
+
+@media (max-width: 520px) {
+  .meetup-room-main {
+    gap: 9px;
+  }
+
+  .meetup-room-hero,
+  .meetup-room-section {
+    border-radius: 20px;
+  }
+
+  .meetup-room-hero {
+    padding: 17px;
+  }
+
+  .meetup-room-section {
+    padding: 15px;
+  }
+
+  .meetup-room-point-summary {
+    align-items: flex-start;
+  }
+
+  .meetup-room-attendee {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+
+  .meetup-room-attendee__avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .meetup-room-attendee__actions {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .meetup-room-messages {
+    max-height: 44dvh;
+  }
+
+  .meetup-room-message__stack {
+    max-width: 88%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meetup-room-messages {
+    scroll-behavior: auto;
+  }
+
+  .meetup-room-quick-actions button:active {
+    transform: none;
+  }
+}
