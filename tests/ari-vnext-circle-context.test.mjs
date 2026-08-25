@@ -20,16 +20,20 @@ test("Circle context endpoint executes guarded RPCs with the signed-in JWT and n
   assert.doesNotMatch(endpointSource, /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
-test("Circle context packet excludes private meetup, message, coordinate, feed, and durable social-learning surfaces", () => {
+test("Circle context packet excludes private meetup, message, coordinate, feed, Mission proof, and durable social-learning surfaces", () => {
   assert.match(endpointSource, /exactMeetingPointsIncluded:\s*false/);
   assert.match(endpointSource, /directMessagesIncluded:\s*false/);
   assert.match(endpointSource, /rawCoordinatesIncluded:\s*false/);
   assert.match(endpointSource, /rawFeedContentIncluded:\s*false/);
   assert.match(endpointSource, /durableSocialLearningIncluded:\s*false/);
+  assert.match(endpointSource, /missionProofNotesIncluded:\s*false/);
+  assert.match(endpointSource, /missionReviewerIdentitiesIncluded:\s*false/);
   assert.doesNotMatch(endpointSource, /row\?\.meeting_point/);
   assert.doesNotMatch(endpointSource, /row\?\.approximate_latitude/);
   assert.doesNotMatch(endpointSource, /row\?\.approximate_longitude/);
   assert.doesNotMatch(endpointSource, /ari_circle_list_meetup_messages/);
+  assert.doesNotMatch(endpointSource, /proof_note/);
+  assert.doesNotMatch(endpointSource, /verified_by/);
 });
 
 test("vNext context guard hydrates Action Network only for relevant turns and fails soft", () => {
@@ -76,12 +80,51 @@ test("Action Network packet is included in model context without becoming mutati
   assert.match(routerSource, /Never claim that Ari joined, hosted, cancelled, messaged, accepted, or changed Circle state/);
 });
 
-test("Circle situation summarizes schedules, host requests, and verified repeat relationships without inventing state", () => {
+test("Ari Circle context keeps safe Mission objective and progress fields only", () => {
+  for (const field of [
+    "objectiveType",
+    "progressMode",
+    "targetValue",
+    "unit",
+    "verifiedProgress",
+    "viewerVerifiedProgress",
+    "viewerPendingProgress",
+    "progressPercent",
+    "objectiveReachedAt"
+  ]) {
+    assert.match(endpointSource, new RegExp(`\\b${field}\\b`));
+  }
+  assert.match(endpointSource, /const mission = type === "mission"/);
+  assert.match(endpointSource, /missionProofNotesIncluded:\s*false/);
+  assert.match(endpointSource, /missionReviewerIdentitiesIncluded:\s*false/);
+});
+
+test("Circle situation summarizes schedules, host requests, verified repeat relationships, and metric Missions without inventing state", () => {
   const situation = buildSituation({
     opportunities: [
       { key: "meetup:1", viewerState: "host", pendingRequestCount: 3 },
       { key: "meetup:2", viewerState: "joined", pendingRequestCount: null },
-      { key: "mission:1", viewerState: "available", pendingRequestCount: null }
+      {
+        key: "mission:1",
+        type: "mission",
+        viewerState: "joined",
+        pendingRequestCount: null,
+        mission: {
+          objectiveType: "distance",
+          progressMode: "collective",
+          targetValue: 100,
+          unit: "miles",
+          verifiedProgress: 42,
+          progressPercent: 42
+        }
+      },
+      {
+        key: "mission:2",
+        type: "mission",
+        viewerState: "available",
+        pendingRequestCount: null,
+        mission: { objectiveType: "completion", progressMode: "individual" }
+      }
     ],
     activeIntents: [{ intentId: "intent-1", activity: "gym" }],
     bestMatches: [{ key: "meetup:3", matchScore: 90 }],
@@ -91,12 +134,13 @@ test("Circle situation summarizes schedules, host requests, and verified repeat 
     ]
   });
 
-  assert.equal(situation.summary.opportunityCount, 3);
+  assert.equal(situation.summary.opportunityCount, 4);
   assert.equal(situation.summary.activeIntentCount, 1);
   assert.equal(situation.summary.bestMatchCount, 1);
-  assert.equal(situation.summary.scheduledCount, 2);
+  assert.equal(situation.summary.scheduledCount, 3);
   assert.equal(situation.summary.hostPendingRequestCount, 3);
   assert.equal(situation.summary.relationshipCount, 2);
   assert.equal(situation.summary.repeatRelationshipCount, 1);
+  assert.equal(situation.summary.activeMetricMissionCount, 1);
   assert.equal(situation.relationships[0].completedTogether, 3);
 });
