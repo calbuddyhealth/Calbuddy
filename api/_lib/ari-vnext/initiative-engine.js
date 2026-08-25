@@ -2,17 +2,24 @@
 // Ari may surface meaningful unfinished business or objective changes without an
 // LLM call. Initiative exists to help, not to maximize engagement.
 
-export const ARI_INITIATIVE_ENGINE_VERSION = "1.0.0";
+export const ARI_INITIATIVE_ENGINE_VERSION = "1.1.0";
 
 export function deriveInitiativeCandidate({
   proactiveInsights = null,
   relationshipContinuity = null,
   experimentLedger = null,
+  circleEvents = null,
   now = new Date()
 } = {}) {
   const candidates = [];
   const insights = Array.isArray(proactiveInsights?.items) ? proactiveInsights.items : [];
   const threads = Array.isArray(relationshipContinuity?.unfinishedThreads) ? relationshipContinuity.unfinishedThreads : [];
+  const socialEvents = Array.isArray(circleEvents?.items) ? circleEvents.items : [];
+
+  for (const event of socialEvents) {
+    const mapped = candidateFromCircleEvent(event);
+    if (mapped) candidates.push(mapped);
+  }
 
   for (const insight of insights) {
     if (!insight || insight.priority === "internal") continue;
@@ -59,6 +66,101 @@ export function initiativeToConversationContext(candidate = null) {
     priority: candidate.priority || null,
     userInitiatedFollowUp: true
   };
+}
+
+function candidateFromCircleEvent(event = {}) {
+  const eventId = clean(event.eventId, 180);
+  const type = clean(event.type, 100).toLowerCase();
+  const subjectId = clean(event.subjectId, 180);
+  if (!eventId || !type || !subjectId) return null;
+
+  const actorName = clean(event?.actor?.displayName, 100);
+  const actorPhrase = actorName ? `${actorName} ` : "The host ";
+  const base = {
+    reasonId: `circle_${type.replace(/[^a-z0-9]+/g, "_")}_${eventId}`.slice(0, 240),
+    source: "circle_domain_event",
+    priority: "medium",
+    confidence: 0.99,
+    domain: "social",
+    context: `Verified Circle state change: ${type}.`,
+    signature: clean(`${eventId}|${type}|${subjectId}|${event.occurredAt || ""}`, 1200),
+    userFacing: true,
+    cooldownHours: 24
+  };
+
+  if (type === "meetup.accepted") {
+    return {
+      ...base,
+      priority: "high",
+      opener: `${actorPhrase}accepted your meetup request.`,
+      followUpPrompt: "Show me my upcoming Circle schedule and what I should know about the meetup that was just accepted.",
+      action: "review_circle_schedule"
+    };
+  }
+
+  if (type === "meetup.cancelled") {
+    return {
+      ...base,
+      priority: "high",
+      opener: "A meetup you were attending was cancelled.",
+      followUpPrompt: "A Circle meetup I was attending was cancelled. Show me the best current alternatives that fit my active intent.",
+      action: "find_circle_replacement"
+    };
+  }
+
+  if (type === "meetup.waitlisted") {
+    return {
+      ...base,
+      priority: "medium",
+      opener: "Your meetup request moved to the waitlist.",
+      followUpPrompt: "My Circle request was waitlisted. Show me my current status and other good opportunities I could choose instead.",
+      action: "review_circle_status"
+    };
+  }
+
+  if (type === "meetup.declined") {
+    return {
+      ...base,
+      priority: "medium",
+      opener: "Your meetup request wasn't accepted.",
+      followUpPrompt: "My Circle meetup request was declined. Find the strongest current alternatives that fit what I wanted to do.",
+      action: "find_circle_alternative"
+    };
+  }
+
+  if (type === "mission.progress_verified") {
+    return {
+      ...base,
+      priority: "positive",
+      opener: "Your Mission progress was verified.",
+      followUpPrompt: "My Mission progress was verified. Show me where the Mission stands now and what remains.",
+      action: "review_mission_progress",
+      cooldownHours: 48
+    };
+  }
+
+  if (type === "mission.progress_rejected") {
+    return {
+      ...base,
+      priority: "medium",
+      opener: "A Mission progress submission wasn't verified.",
+      followUpPrompt: "My Mission progress was rejected. Show me the current Mission state and what I can do next without guessing why it was rejected.",
+      action: "review_mission_progress"
+    };
+  }
+
+  if (type === "mission.objective_reached") {
+    return {
+      ...base,
+      priority: "positive",
+      opener: "Your Mission reached its objective.",
+      followUpPrompt: "The Circle Mission reached its objective. Show me the final progress and what we accomplished.",
+      action: "review_mission_completion",
+      cooldownHours: 72
+    };
+  }
+
+  return null;
 }
 
 function candidateFromInsight(insight = {}) {
@@ -226,7 +328,10 @@ function initiativeRules() {
     deterministicDetectionFirst: true,
     languageModelNotRequiredToSurface: true,
     userCanDismiss: true,
-    repeatsAreSuppressed: true
+    repeatsAreSuppressed: true,
+    circleEventsMustBeServerGrounded: true,
+    noGenericCircleCreationInitiative: true,
+    noCircleMutationFromInitiative: true
   };
 }
 function noInitiative(reason) {
