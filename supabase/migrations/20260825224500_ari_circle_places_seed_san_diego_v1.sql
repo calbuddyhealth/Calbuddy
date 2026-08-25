@@ -23,7 +23,7 @@ with seeds(
       'Balboa Park',
       'park',
       'Large central urban park with walking paths, gardens, open lawns, trails, and recreation areas.',
-      'Balboa Park / Central San Diego',
+      'Balboa Park / Central',
       'San Diego',
       'CA',
       'US',
