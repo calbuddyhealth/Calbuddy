@@ -14,7 +14,11 @@ const requests = fs.readFileSync(
 test("accepted or declined Circle requests leave the active notification inbox immediately", () => {
   assert.match(notifications, /circle:incoming-request-resolved/);
   assert.match(notifications, /const resolvedNotificationIds = this\.state\.items/);
-  assert.match(notifications, /this\.markRead\(notificationId\);\s*this\.removeNotification\(notificationId\);/s);
+  assert.match(
+    notifications,
+    /this\.markRead\(notificationId,\s*\{\s*render:\s*false,\s*sync:\s*false\s*\}\);\s*this\.removeNotification\(notificationId,\s*\{\s*render:\s*false,\s*sync:\s*false\s*\}\);/s
+  );
+  assert.match(notifications, /resolvedNotificationIds\.forEach[\s\S]*this\.syncUnreadCount\(\);\s*this\.renderPanel\(\);/s);
 });
 
 test("resolved request rows stay out during refresh and realtime add", () => {
