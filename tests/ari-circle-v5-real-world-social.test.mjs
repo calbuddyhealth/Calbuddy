@@ -140,7 +140,7 @@ test("Circle V5 has one current three-tab social loop and final visual authority
 test("Meet Up and Quests share the current adult-only shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
     assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3/);
-    assert.match(html, /js\/ari-circle\/social-badges\.js\?v=1\.1\.0/);
+    assert.match(html, /js\/ari-circle\/social-badges\.js\?v=1\.2\.0/);
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.3"/);
     assert.match(html, /id="ariCircleV5RealWorldModerationScript" src="js\/ari-circle\/real-world-moderation-v5\.js\?v=5\.1\.0"/);
