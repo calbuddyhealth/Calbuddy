@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.10.0";
+export const TOOL_REGISTRY_VERSION = "1.11.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -281,6 +281,56 @@ export function getAriTools(route = {}) {
         required: ["meetupId"]
       }
     ));
+
+    tools.push(functionTool(
+      "propose_create_circle_mission",
+      "Propose creating a measurable ARI Circle Mission only when the CURRENT user explicitly asks Ari to create, start, publish, or set up a Mission or shared objective. This Phase 1 tool creates count, distance, or duration Missions only and awards no XP. Do not invent a target or end time. Personal Missions must use individual progress.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          scope: { type: "string", enum: ["personal", "community", "crew"] },
+          category: { type: "string", enum: ["personal", "community", "crew"] },
+          verificationMode: { type: "string", enum: ["self", "organizer", "peer"] },
+          objectiveType: { type: "string", enum: ["count", "distance", "duration"] },
+          progressMode: { type: "string", enum: ["individual", "collective"] },
+          targetValue: { type: "number" },
+          unit: { type: "string", enum: ["actions", "miles", "minutes"] },
+          endsAt: { type: "string" },
+          maxParticipants: { type: ["number", "null"] }
+        },
+        required: ["title", "description", "scope", "category", "verificationMode", "objectiveType", "progressMode", "targetValue", "unit", "endsAt", "maxParticipants"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_join_circle_mission",
+      "Propose joining one specific measurable ARI Circle Mission only when the CURRENT user explicitly asks to join or participate in it. Use the exact Mission UUID from Action Network context. This only changes membership; it does not submit progress or verify anyone.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { missionId: { type: "string" } },
+        required: ["missionId"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_submit_circle_mission_progress",
+      "Propose submitting measurable progress to one specific ARI Circle Mission only when the CURRENT user explicitly asks Ari to add, record, submit, or contribute progress. Use the exact Mission UUID and the user's stated amount. Do not infer an amount from unrelated health or training data. This does not verify another person's contribution and cannot award XP.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          missionId: { type: "string" },
+          amount: { type: "number" },
+          unit: { type: "string", enum: ["actions", "miles", "minutes"] },
+          note: { type: "string" }
+        },
+        required: ["missionId", "amount", "unit", "note"]
+      }
+    ));
   }
 
   if (route?.training || route?.nutrition || route?.goals) {
@@ -361,6 +411,9 @@ export function toolToApplicationAction(name = "") {
     propose_join_circle_meetup: "join_circle_meetup",
     propose_leave_circle_meetup: "leave_circle_meetup",
     propose_cancel_circle_meetup: "cancel_circle_meetup",
+    propose_create_circle_mission: "create_circle_mission",
+    propose_join_circle_mission: "join_circle_mission",
+    propose_submit_circle_mission_progress: "submit_circle_mission_progress",
     propose_track_experiment: "track_experiment",
     propose_complete_experiment: "complete_experiment",
     propose_cancel_experiment: "cancel_experiment"
@@ -491,6 +544,53 @@ function validateSemantics(name, args) {
 
   if (["propose_join_circle_meetup", "propose_leave_circle_meetup", "propose_cancel_circle_meetup"].includes(name)) {
     if (!isUuid(args?.meetupId)) return { valid: false, error: "circle_meetup_id_invalid" };
+  }
+
+  if (name === "propose_create_circle_mission") {
+    const title = String(args?.title || "").trim();
+    const description = String(args?.description || "");
+    const scope = String(args?.scope || "").trim().toLowerCase();
+    const category = String(args?.category || "").trim().toLowerCase();
+    const verificationMode = String(args?.verificationMode || "").trim().toLowerCase();
+    const objectiveType = String(args?.objectiveType || "").trim().toLowerCase();
+    const progressMode = String(args?.progressMode || "").trim().toLowerCase();
+    const unit = String(args?.unit || "").trim().toLowerCase();
+    const targetValue = Number(args?.targetValue);
+    const ends = Date.parse(String(args?.endsAt || ""));
+    const scopes = new Set(["personal", "community", "crew"]);
+    const verifications = new Set(["self", "organizer", "peer"]);
+    const objectives = new Set(["count", "distance", "duration"]);
+    const expectedUnit = { count: "actions", distance: "miles", duration: "minutes" }[objectiveType];
+
+    if (title.length < 3 || title.length > 90) return { valid: false, error: "circle_mission_title_invalid" };
+    if (description.length > 1000) return { valid: false, error: "circle_mission_description_too_long" };
+    if (!scopes.has(scope) || !scopes.has(category)) return { valid: false, error: "circle_mission_scope_invalid" };
+    if (!verifications.has(verificationMode)) return { valid: false, error: "circle_mission_verification_invalid" };
+    if (!objectives.has(objectiveType)) return { valid: false, error: "circle_mission_objective_invalid" };
+    if (!["individual", "collective"].includes(progressMode)) return { valid: false, error: "circle_mission_progress_mode_invalid" };
+    if (scope === "personal" && progressMode !== "individual") return { valid: false, error: "circle_mission_personal_collective_invalid" };
+    if (!Number.isFinite(targetValue) || targetValue <= 0 || targetValue > 1000000) return { valid: false, error: "circle_mission_target_invalid" };
+    if (objectiveType === "count" && !Number.isInteger(targetValue)) return { valid: false, error: "circle_mission_count_target_invalid" };
+    if (unit !== expectedUnit) return { valid: false, error: "circle_mission_unit_invalid" };
+    if (!Number.isFinite(ends) || ends <= Date.now()) return { valid: false, error: "circle_mission_end_invalid" };
+    if (args?.maxParticipants !== null) {
+      const maxParticipants = Number(args?.maxParticipants);
+      if (!Number.isInteger(maxParticipants) || maxParticipants < 2 || maxParticipants > 500) return { valid: false, error: "circle_mission_capacity_invalid" };
+    }
+  }
+
+  if (name === "propose_join_circle_mission") {
+    if (!isUuid(args?.missionId)) return { valid: false, error: "circle_mission_id_invalid" };
+  }
+
+  if (name === "propose_submit_circle_mission_progress") {
+    if (!isUuid(args?.missionId)) return { valid: false, error: "circle_mission_id_invalid" };
+    const amount = Number(args?.amount);
+    const unit = String(args?.unit || "").trim().toLowerCase();
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) return { valid: false, error: "circle_mission_progress_invalid" };
+    if (!["actions", "miles", "minutes"].includes(unit)) return { valid: false, error: "circle_mission_unit_invalid" };
+    if (unit === "actions" && !Number.isInteger(amount)) return { valid: false, error: "circle_mission_count_progress_invalid" };
+    if (String(args?.note || "").length > 500) return { valid: false, error: "circle_mission_note_too_long" };
   }
 
   if (name === "propose_track_experiment") {
