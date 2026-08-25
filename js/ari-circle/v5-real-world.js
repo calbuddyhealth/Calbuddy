@@ -19,7 +19,7 @@
   const AUTHORITY_STYLE_ID = "ariCircleV525AuthorityStyle";
   const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-v5-visual-authority.css?v=5.2.5";
   const XP_STYLE_ID = "ariCircleXpStyle";
-  const XP_STYLE_HREF = "assets/css/ari-circle-xp.css?v=1.0.0";
+  const XP_STYLE_HREF = "assets/css/ari-circle-xp.css?v=1.0.1";
   const NAV_ID = "ariCircleV5BottomNav";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
   let queued = false;
