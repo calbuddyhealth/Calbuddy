@@ -10,7 +10,7 @@ const source = await readFile(
 );
 
 test("Ari Crew awareness reads only guarded caller-scoped RPC projections", () => {
-  assert.match(source, /const VERSION = "1\.5\.0"/i);
+  assert.match(source, /const VERSION = "1\.5\.1"/i);
   assert.match(source, /callOptionalActionNetworkRpc\(config, accessToken, "ari_circle_list_my_crews"/i);
   assert.match(source, /callOptionalActionNetworkRpc\(config, accessToken, "ari_circle_list_crew_candidates"/i);
   assert.match(source, /SUPABASE_ANON_KEY \|\| process\.env\.SUPABASE_PUBLISHABLE_KEY/i);
