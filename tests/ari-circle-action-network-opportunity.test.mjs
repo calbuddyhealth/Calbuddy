@@ -1,0 +1,72 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const migration = fs.readFileSync(
+  "supabase/migrations/20260825094500_ari_circle_action_network_opportunity_v1.sql",
+  "utf8"
+);
+const contract = fs.readFileSync("docs/ARI_CIRCLE_ACTION_NETWORK_V6.md", "utf8");
+
+test("Opportunity V1 unifies Meetups and Missions without replacing source authorities", () => {
+  assert.match(migration, /create or replace function public\.ari_circle_list_opportunities/i);
+  assert.match(migration, /public\.ari_circle_list_meetups\(/i);
+  assert.match(migration, /public\.ari_circle_list_quests\(/i);
+  assert.match(migration, /'meetup:' \|\| m\.meetup_id::text/i);
+  assert.match(migration, /'mission:' \|\| listed\.quest_id::text/i);
+  assert.match(contract, /An Opportunity is a read model/i);
+  assert.match(contract, /Existing source tables remain authoritative for writes/i);
+});
+
+test("Opportunity V1 inherits adult and block safety from guarded source RPCs", () => {
+  assert.match(migration, /perform public\.ari_circle_assert_adult_access\(\)/i);
+  assert.match(migration, /public\.ari_circle_list_meetups\(/i);
+  assert.match(migration, /public\.ari_circle_list_quests\(/i);
+  assert.doesNotMatch(migration, /grant execute[^;]+to anon/i);
+  assert.match(migration, /grant execute[^;]+to authenticated, service_role/i);
+});
+
+test("Opportunity V1 never exposes the private meetup meeting point", () => {
+  assert.doesNotMatch(migration, /meeting_point/i);
+  assert.match(contract, /Exact meetup points remain accepted-room-only/i);
+  assert.match(contract, /never expose a live map of individual users/i);
+});
+
+test("Opportunity V1 is read-only and cannot award XP or mutate social state", () => {
+  assert.doesNotMatch(migration, /ari_circle_award_xp_capped/i);
+  assert.doesNotMatch(migration, /insert\s+into\s+public\.ari_circle_/i);
+  assert.doesNotMatch(migration, /update\s+public\.ari_circle_/i);
+  assert.doesNotMatch(migration, /delete\s+from\s+public\.ari_circle_/i);
+  assert.match(migration, /stable\s*\nsecurity definer/i);
+});
+
+test("Opportunity V1 has one normalized contract for future ranking", () => {
+  for (const field of [
+    "opportunity_key",
+    "opportunity_type",
+    "opportunity_id",
+    "organizer_user_id",
+    "participant_count",
+    "spots_remaining",
+    "viewer_state",
+    "verification_mode",
+    "join_mode",
+    "reward_xp",
+    "metadata"
+  ]) {
+    assert.match(migration, new RegExp(`\\b${field}\\b`));
+  }
+  assert.match(contract, /V1 is deliberately a normalized discovery contract, not a recommendation model/i);
+});
+
+test("Action Network contract forbids pay-to-rank social advantage", () => {
+  assert.match(contract, /Paid status is never a ranking signal/i);
+  assert.match(contract, /organic opportunity ranking cannot be purchased/i);
+  assert.match(contract, /Sponsored content must be explicitly labeled/i);
+});
+
+test("Action Network measures real-world outcomes instead of engagement farming", () => {
+  assert.match(contract, /Verified real-world actions completed per active Circle member/i);
+  assert.match(contract, /Minutes in app, post volume, reaction volume, and notification opens are not north-star metrics/i);
+  assert.match(contract, /Content documents life after it happens/i);
+});
