@@ -1,10 +1,11 @@
 /* =============================================================
    ARI CIRCLE V5 — PROFILE REAL WORLD REPUTATION
+   Version: 5.1.0
    Displays earned XP, verified participation, hosting history, and active meetup.
 ============================================================= */
 (() => {
   "use strict";
-  const VERSION="5.0.0";
+  const VERSION="5.1.0";
   if(window.AriCircleProfileV5RealWorld?.version===VERSION)return;
 
   const clean=(value)=>String(value??"").trim();
@@ -28,6 +29,7 @@
   function dateTime(value){const d=new Date(value);if(Number.isNaN(d.getTime()))return"";return d.toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
   function reasonLabel(reason){const map={verified_meetup_host:"Hosted verified meetup",verified_meetup_participant:"Completed verified meetup",verified_community_quest:"Completed verified Community Quest"};return map[reason]||clean(reason).replaceAll("_"," ")||"Real World XP";}
   function iconFor(type){return type==="meetup"?"◎":type==="quest"?"◇":"✦";}
+  function clamp(value,max=100){return Math.max(0,Math.min(max,Number(value)||0));}
 
   function inject(summary,activity){
     const profile=document.getElementById("circle-profile");
@@ -37,28 +39,55 @@
     document.getElementById("circleV5HostingCard")?.remove();
     document.getElementById("circleV5ActivityCard")?.remove();
 
-    const total=Number(summary?.total_xp)||0;
-    const level=Number(summary?.level)||1;
-    const progress=Number(summary?.level_progress_xp)||0;
-    const today=Number(summary?.today_xp)||0;
-    const week=Number(summary?.week_xp)||0;
+    const total=Math.max(0,Number(summary?.total_xp)||0);
+    const level=Math.max(1,Number(summary?.level)||1);
+    const progress=clamp(summary?.level_progress_xp);
+    const progressMid=clamp(progress*.58);
+    const remaining=Math.max(0,100-progress);
+    const today=clamp(summary?.today_xp,10);
+    const week=clamp(summary?.week_xp,70);
     const tier=TIER[summary?.leadership_tier]||"New Host";
+    const verifiedMeetups=Math.max(0,Number(summary?.verified_meetups)||0);
+    const successfulHosts=Math.max(0,Number(summary?.successful_hosts)||0);
 
     const rep=document.createElement("section");
     rep.id="circleV5ProfileReputation";
-    rep.className="circle-v5-profile-reputation";
+    rep.className="circle-v5-profile-reputation circle-xp-profile-card";
+    rep.setAttribute("aria-label","Real World XP and reputation");
     rep.innerHTML=`
-      <div class="circle-v5-profile-level-row">
-        <div class="circle-v5-level-orb" style="--xp-progress:${Math.max(0,Math.min(100,progress))}%"><strong>${level}</strong></div>
-        <div class="circle-v5-level-copy"><small>REAL WORLD XP</small><h2>${total.toLocaleString()} XP</h2><p>${escapeHtml(tier)} · ${progress}/100 XP to next level</p></div>
+      <div class="circle-xp-profile-top">
+        <div class="circle-xp-level-ring" style="--xp-progress:${progress}%;--xp-progress-mid:${progressMid}%" aria-label="Level ${level}, ${progress} percent toward the next level">
+          <span class="circle-xp-level-ring__label">LV</span>
+          <strong>${level}</strong>
+        </div>
+        <div class="circle-xp-profile-copy">
+          <div class="circle-xp-kicker"><span aria-hidden="true">✦</span> REAL WORLD XP</div>
+          <div class="circle-xp-profile-title-row">
+            <h2>${total.toLocaleString()} XP</h2>
+            <span class="circle-xp-tier" title="${escapeHtml(tier)}">${escapeHtml(tier)}</span>
+          </div>
+          <div class="circle-xp-level-meta"><span>Level ${level}</span><strong>${progress} / 100 XP</strong></div>
+          <div class="circle-xp-level-track" aria-hidden="true"><i style="width:${progress}%"></i></div>
+          <p>${remaining} XP to Level ${level+1}</p>
+        </div>
       </div>
-      <div class="circle-v5-profile-stats">
-        <div class="circle-v5-profile-stat"><strong>${Number(summary?.verified_meetups)||0}</strong><span>VERIFIED MEETUPS</span></div>
-        <div class="circle-v5-profile-stat"><strong>${Number(summary?.successful_hosts)||0}</strong><span>SUCCESSFUL HOSTS</span></div>
-        <div class="circle-v5-profile-stat"><strong>${escapeHtml(tier)}</strong><span>COMMUNITY STATUS</span></div>
+
+      <div class="circle-xp-profile-stats" aria-label="Real World reputation stats">
+        <div class="circle-xp-profile-stat"><strong>${verifiedMeetups}</strong><span>Verified meetups</span></div>
+        <div class="circle-xp-profile-stat"><strong>${successfulHosts}</strong><span>Hosted meetups</span></div>
+        <div class="circle-xp-profile-stat"><strong title="${escapeHtml(tier)}">${escapeHtml(tier)}</strong><span>Community status</span></div>
       </div>
-      <div class="circle-v5-profile-cap"><div class="circle-v5-profile-cap__row"><span>Today</span><span>${today}/10 XP</span></div><div class="circle-v5-profile-cap__track"><div class="circle-v5-profile-cap__fill" style="width:${Math.min(100,today*10)}%"></div></div></div>
-      <div class="circle-v5-profile-cap"><div class="circle-v5-profile-cap__row"><span>This week</span><span>${week}/70 XP</span></div><div class="circle-v5-profile-cap__track"><div class="circle-v5-profile-cap__fill" style="width:${Math.min(100,(week/70)*100)}%"></div></div></div>
+
+      <div class="circle-xp-caps" aria-label="XP earning limits">
+        <div class="circle-xp-cap">
+          <div class="circle-xp-cap-head"><span>Today</span><strong>${today} / 10 XP</strong></div>
+          <div class="circle-xp-cap-track" aria-hidden="true"><i style="width:${today*10}%"></i></div>
+        </div>
+        <div class="circle-xp-cap">
+          <div class="circle-xp-cap-head"><span>This week</span><strong>${week} / 70 XP</strong></div>
+          <div class="circle-xp-cap-track" aria-hidden="true"><i style="width:${Math.min(100,(week/70)*100)}%"></i></div>
+        </div>
+      </div>
     `;
     body.append(rep);
 
