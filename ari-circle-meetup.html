@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-xp.css?v=1.0.0" />
 </head>
 <body class="circle-v5-real-world">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -33,14 +34,20 @@
         <button class="circle-v5-button-primary" id="hostMeetupButton" type="button">+ Host</button>
       </section>
 
-      <section class="circle-v52-xp-strip" id="meetupXpCard" aria-label="Real World XP">
-        <div class="circle-v52-xp-stat">
-          <span class="circle-v52-xp-stat__icon" aria-hidden="true">✦</span>
-          <span><strong id="meetupDailyXp">0 / 10 XP</strong><small>Today</small><span class="circle-v52-xp-meter"><i id="meetupDailyBar" style="width:0%"></i></span></span>
+      <section class="circle-v52-xp-strip circle-xp-meetup-hud" id="meetupXpCard" aria-label="Real World XP">
+        <div class="circle-xp-meetup-hud__head">
+          <span class="circle-xp-meetup-hud__title">✦ REAL WORLD XP</span>
+          <span class="circle-xp-meetup-hud__note">Verified meetups earn XP</span>
         </div>
-        <div class="circle-v52-xp-stat">
-          <span class="circle-v52-xp-stat__icon" aria-hidden="true">◫</span>
-          <span><strong id="meetupWeeklyXp">0 / 70 XP</strong><small>This week</small><span class="circle-v52-xp-meter"><i id="meetupWeeklyBar" style="width:0%"></i></span></span>
+        <div class="circle-xp-meetup-hud__grid">
+          <div class="circle-v52-xp-stat">
+            <span class="circle-v52-xp-stat__icon" aria-hidden="true">✦</span>
+            <span><small>Today</small><strong id="meetupDailyXp">0 / 10 XP</strong><span class="circle-v52-xp-meter"><i id="meetupDailyBar" style="width:0%"></i></span></span>
+          </div>
+          <div class="circle-v52-xp-stat">
+            <span class="circle-v52-xp-stat__icon" aria-hidden="true">◫</span>
+            <span><small>This week</small><strong id="meetupWeeklyXp">0 / 70 XP</strong><span class="circle-v52-xp-meter"><i id="meetupWeeklyBar" style="width:0%"></i></span></span>
+          </div>
         </div>
       </section>
 
@@ -177,7 +184,7 @@
   <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
   <script src="supabase-config.js?v=1.1.8"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.3" defer></script>
-  <script src="js/ari-circle/meetups/meetups-v5.js?v=5.2.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
+  <script src="js/ari-circle/meetups/meetups-v5.js?v=5.2.1" defer></script>
 </body>
 </html>
