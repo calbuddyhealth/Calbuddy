@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f6f8fc" />
-  <title>Quests | ARI Circle</title>
+  <title>Missions | ARI Circle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-mission-v2.css?v=2.0.0" />
 </head>
 <body class="circle-v5-real-world">
   <main class="circle-v5-page" id="questPage" hidden>
@@ -27,20 +28,20 @@
     <div class="circle-v5-page-main">
       <section class="circle-v52-page-intro" aria-labelledby="questTitle">
         <div class="circle-v52-page-intro__copy">
-          <h1 id="questTitle">Quests</h1>
-          <p class="circle-v52-page-intro__sub">Do something together.</p>
+          <h1 id="questTitle">Missions</h1>
+          <p class="circle-v52-page-intro__sub">Do something worth finishing.</p>
         </div>
       </section>
 
-      <section class="circle-v52-quest-hero" aria-label="Quest actions">
-        <h2>Pick a mission. Finish it together.</h2>
+      <section class="circle-v52-quest-hero" aria-label="Mission actions">
+        <h2>Move something forward—alone or together.</h2>
         <div class="circle-v52-quest-hero__actions">
-          <button class="circle-v5-button-primary" id="createQuestButton" type="button">+ Create Quest</button>
-          <a class="circle-v5-button" href="#questList">Explore</a>
+          <button class="circle-v5-button-primary" id="createMissionButton" type="button">+ Create Mission</button>
+          <button class="circle-v5-button" id="createQuestButton" type="button">Classic Quest</button>
         </div>
       </section>
 
-      <div class="circle-v5-filter-rail" id="questFilters" aria-label="Quest filters">
+      <div class="circle-v5-filter-rail" id="questFilters" aria-label="Mission filters">
         <button class="circle-v5-filter-chip is-active" type="button" data-quest-filter="all">All</button>
         <button class="circle-v5-filter-chip" type="button" data-quest-filter="walking">Walking</button>
         <button class="circle-v5-filter-chip" type="button" data-quest-filter="fitness">Fitness</button>
@@ -49,18 +50,90 @@
         <button class="circle-v5-filter-chip" type="button" data-quest-filter="wellness">Wellness</button>
       </div>
 
-      <section aria-labelledby="questListTitle">
-        <div class="circle-v5-section-heading"><div><p>ACTIVE</p><h2 id="questListTitle">Quests</h2></div><button class="circle-v5-button" id="refreshQuests" type="button" style="min-height:34px;padding:0 11px">Refresh</button></div>
+      <section class="circle-mission-v2-shell" aria-labelledby="missionListTitle">
+        <div class="circle-v5-section-heading">
+          <div><p>MEASURABLE</p><h2 id="missionListTitle">Missions</h2></div>
+          <button class="circle-v5-button" id="refreshMissions" type="button" style="min-height:34px;padding:0 11px">Refresh</button>
+        </div>
+        <p id="missionStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Loading…</p>
+        <div class="circle-v5-list" id="missionList" aria-live="polite"></div>
+        <div class="circle-v5-empty" id="missionEmpty" hidden><strong>No measurable Missions yet.</strong><span>Create one people can actually move forward.</span></div>
+      </section>
+
+      <section aria-labelledby="questListTitle" style="margin-top:24px">
+        <div class="circle-v5-section-heading">
+          <div><p>CLASSIC</p><h2 id="questListTitle">Quests</h2></div>
+          <button class="circle-v5-button" id="refreshQuests" type="button" style="min-height:34px;padding:0 11px">Refresh</button>
+        </div>
         <p id="questStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Loading…</p>
         <div class="circle-v5-list" id="questList" aria-live="polite"></div>
-        <div class="circle-v5-empty" id="questEmpty" hidden><strong>No quests yet.</strong><span>Start one worth finishing.</span></div>
+        <div class="circle-v5-empty" id="questEmpty" hidden><strong>No classic Quests.</strong><span>They remain available during the Mission V2 transition.</span></div>
       </section>
     </div>
   </main>
 
+  <dialog class="circle-v5-dialog" id="createMissionDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head">
+        <div><p class="circle-v5-hero__kicker">CREATE</p><h2>Build a Mission.</h2></div>
+        <button class="circle-v5-close" type="button" data-mission-close="createMissionDialog" aria-label="Close">×</button>
+      </div>
+      <form class="circle-v5-form" id="createMissionForm">
+        <label class="circle-v5-field">Mission title<input class="circle-v5-input" id="missionFormTitle" maxlength="90" placeholder="Move 100 miles together" required /></label>
+        <label class="circle-v5-field">Description<textarea class="circle-v5-textarea" id="missionFormDescription" maxlength="1000" placeholder="What are people working toward?"></textarea></label>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Scope<select class="circle-v5-select" id="missionFormScope"><option value="community" selected>Community</option><option value="personal">Personal</option></select></label>
+          <label class="circle-v5-field">Category<select class="circle-v5-select" id="missionFormCategory"><option value="activity">Activity</option><option value="walking">Walking</option><option value="fitness">Fitness</option><option value="community">Community</option><option value="volunteer">Volunteer</option><option value="wellness">Wellness</option><option value="other">Other</option></select></label>
+        </div>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Objective<select class="circle-v5-select" id="missionFormObjective"><option value="count" selected>Count</option><option value="distance">Distance</option><option value="duration">Time</option></select></label>
+          <label class="circle-v5-field">Progress<select class="circle-v5-select" id="missionFormProgressMode"><option value="individual" selected>Each person</option><option value="collective">Everyone together</option></select></label>
+        </div>
+        <div class="circle-mission-v2-unit-row">
+          <label class="circle-v5-field">Target<input class="circle-v5-input" id="missionFormTarget" type="number" min="0.1" step="1" value="5" required /></label>
+          <label class="circle-v5-field">Unit<select class="circle-v5-select" id="missionFormUnit"></select></label>
+        </div>
+        <div class="circle-v5-form-grid">
+          <label class="circle-v5-field">Verification<select class="circle-v5-select" id="missionFormVerification"><option value="self" selected>Self verified</option><option value="organizer">Organizer verifies</option><option value="peer">Peer verifies</option></select></label>
+          <label class="circle-v5-field">Ends<input class="circle-v5-input" id="missionFormEnds" type="datetime-local" required /></label>
+        </div>
+        <p class="circle-mission-v2-zero-xp">Measurable Missions are 0 XP in this phase. Progress must become trustworthy before rewards are attached to it.</p>
+        <button class="circle-v5-button-primary" type="submit">Publish Mission</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog class="circle-v5-dialog" id="missionProgressDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head">
+        <div><p class="circle-v5-hero__kicker">PROGRESS</p><h2 id="missionProgressTitle">Add progress</h2></div>
+        <button class="circle-v5-close" type="button" data-mission-close="missionProgressDialog" aria-label="Close">×</button>
+      </div>
+      <form class="circle-v5-form" id="missionProgressForm">
+        <input type="hidden" id="missionProgressId" />
+        <input type="hidden" id="missionProgressEventId" />
+        <label class="circle-v5-field">Amount<div class="circle-mission-v2-progress-input"><input class="circle-v5-input" id="missionProgressAmount" type="number" min="0.01" step="0.1" required /><span id="missionProgressUnit">units</span></div></label>
+        <label class="circle-v5-field">Note <span style="font-weight:600;color:#6f819d">optional</span><textarea class="circle-v5-textarea" id="missionProgressNote" maxlength="500" placeholder="What did you contribute?"></textarea></label>
+        <p class="circle-mission-v2-form-note">The same contribution identity is reused if a submission needs to be retried, so progress cannot double-count from a network retry.</p>
+        <button class="circle-v5-button-primary" type="submit">Add Progress</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog class="circle-v5-dialog" id="missionReviewDialog">
+    <div class="circle-v5-dialog__body">
+      <div class="circle-v5-dialog__head">
+        <div><p class="circle-v5-hero__kicker">VERIFY</p><h2 id="missionReviewTitle">Mission progress</h2></div>
+        <button class="circle-v5-close" type="button" data-mission-close="missionReviewDialog" aria-label="Close">×</button>
+      </div>
+      <p class="circle-v5-form-note">Verify only progress you can reasonably confirm. Rejected progress does not move the Mission.</p>
+      <div class="circle-v5-list" id="missionReviewList" style="margin-top:14px"></div>
+    </div>
+  </dialog>
+
   <dialog class="circle-v5-dialog" id="createQuestDialog">
     <div class="circle-v5-dialog__body">
-      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">CREATE</p><h2>Build a Quest.</h2></div><button class="circle-v5-close" type="button" data-close="createQuestDialog" aria-label="Close">×</button></div>
+      <div class="circle-v5-dialog__head"><div><p class="circle-v5-hero__kicker">CLASSIC</p><h2>Build a Quest.</h2></div><button class="circle-v5-close" type="button" data-close="createQuestDialog" aria-label="Close">×</button></div>
       <form class="circle-v5-form" id="createQuestForm">
         <label class="circle-v5-field">Quest title<input class="circle-v5-input" id="questFormTitle" maxlength="90" placeholder="Walk three local parks" required /></label>
         <label class="circle-v5-field">Description<textarea class="circle-v5-textarea" id="questFormDescription" maxlength="500" placeholder="Keep it clear, reasonable, and safe."></textarea></label>
@@ -108,5 +181,6 @@
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/quests/quests-v5.js?v=5.0.0" defer></script>
+  <script src="js/ari-circle/quests/missions-v2.js?v=2.0.1" defer></script>
 </body>
 </html>

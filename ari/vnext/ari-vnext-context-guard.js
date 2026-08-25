@@ -1,6 +1,6 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.2.0
+// Version: 1.2.2
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 //   - Expose today's active Meal Plan to the model as read-only context.
@@ -17,13 +17,13 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.2.2";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
   const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
   const CIRCLE_CONTEXT_TTL_MS = 15 * 1000;
-  const CIRCLE_ACTION_SCRIPT = "ari/vnext/ari-vnext-circle-action-adapter.js?v=1.0.0";
+  const CIRCLE_ACTION_SCRIPT = "ari/vnext/ari-vnext-circle-action-adapter.js?v=1.1.1";
 
   let circleContextCache = null;
   let circleContextCacheAt = 0;

@@ -1,17 +1,28 @@
 // ARI vNext — trusted ARI Circle lifecycle action adapter.
 // The model only proposes actions. Existing guarded Circle RPCs remain the
-// authority for adult access, blocking, capacity, host ownership, and state.
+// authority for adult access, blocking, capacity, host ownership, Crew evidence,
+// Crew consent, and state.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.2.0";
   const SOURCE = "ari_vnext_circle_action_adapter";
+  const MISSION_PROGRESS_EVENTS = new Map();
+  const CREW_CREATION_OPERATIONS = new Map();
   const ACTIONS = new Set([
     "create_circle_meetup",
     "join_circle_meetup",
     "leave_circle_meetup",
-    "cancel_circle_meetup"
+    "cancel_circle_meetup",
+    "create_circle_mission",
+    "join_circle_mission",
+    "submit_circle_mission_progress",
+    "create_circle_crew",
+    "accept_circle_crew_invite",
+    "decline_circle_crew_invite",
+    "leave_circle_crew",
+    "archive_circle_crew"
   ]);
 
   function clean(value = "", max = 220) {
@@ -60,6 +71,46 @@
     }
   }
 
+  function stableUuid() {
+    try {
+      if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    } catch {}
+    const bytes = new Uint8Array(16);
+    try {
+      globalThis.crypto?.getRandomValues?.(bytes);
+    } catch {
+      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function missionProgressEventId(pending = {}, missionId = "") {
+    const key = clean(pending?.id, 160) || `${clean(pending?.sourceTurnId, 160)}:${clean(missionId, 120)}`;
+    if (MISSION_PROGRESS_EVENTS.has(key)) return MISSION_PROGRESS_EVENTS.get(key);
+    const id = stableUuid();
+    MISSION_PROGRESS_EVENTS.set(key, id);
+    return id;
+  }
+
+  function crewCreationOperationId(pending = {}, candidateKey = "") {
+    const key = clean(pending?.id, 160) || `${clean(pending?.sourceTurnId, 160)}:${clean(candidateKey, 64)}`;
+    if (CREW_CREATION_OPERATIONS.has(key)) return CREW_CREATION_OPERATIONS.get(key);
+    const id = stableUuid();
+    CREW_CREATION_OPERATIONS.set(key, id);
+    return id;
+  }
+
+  function missionUnit(objectiveType, supplied = "") {
+    const explicit = clean(supplied, 40).toLowerCase();
+    if (objectiveType === "count") return explicit || "activities";
+    if (objectiveType === "distance") return explicit || "miles";
+    if (objectiveType === "duration") return explicit || "minutes";
+    return explicit;
+  }
+
   function mapCircleAction(pending = {}, args = {}) {
     const name = clean(pending?.name, 120);
 
@@ -92,10 +143,63 @@
       });
     }
 
+    if (name === "create_circle_mission") {
+      const title = clean(args?.title, 90);
+      const scope = clean(args?.scope, 20).toLowerCase();
+      const category = clean(args?.category, 20).toLowerCase() || "activity";
+      const verificationMode = clean(args?.verificationMode, 30).toLowerCase();
+      const objectiveType = clean(args?.objectiveType, 30).toLowerCase();
+      const progressMode = clean(args?.progressMode, 30).toLowerCase();
+      const targetValue = number(args?.targetValue);
+      const endsAt = clean(args?.endsAt, 80);
+      const maxParticipants = args?.maxParticipants === null || args?.maxParticipants === undefined
+        ? null
+        : Math.round(number(args?.maxParticipants) || 0);
+
+      if (!title || !scope || !verificationMode || !objectiveType || !progressMode || !targetValue || !endsAt) {
+        return failure("circle_mission_fields_required", "Mission title, scope, verification, objective, target, and end time are required.");
+      }
+
+      return successAction(pending, {
+        action_type: "circle_create_mission",
+        payload: {
+          requested_title: title,
+          requested_description: clean(args?.description, 1000) || null,
+          requested_scope: scope,
+          requested_category: category,
+          requested_verification_mode: verificationMode,
+          requested_objective_type: objectiveType,
+          requested_progress_mode: progressMode,
+          requested_target_value: targetValue,
+          requested_unit: missionUnit(objectiveType, args?.unit),
+          requested_ends_at: endsAt,
+          requested_max_participants: maxParticipants
+        },
+        confirmation_text: `Create “${title}” as a ${progressMode} ${objectiveType} Mission with a target of ${targetValue} ${missionUnit(objectiveType, args?.unit)} ending ${formatDate(endsAt)}?`
+      });
+    }
+
+    if (name === "create_circle_crew") {
+      const candidateKey = clean(args?.candidateKey, 64).toLowerCase();
+      const crewName = clean(args?.name, 60);
+      if (!/^[0-9a-f]{32}$/.test(candidateKey) || !crewName) {
+        return failure("circle_crew_fields_required", "A valid Crew candidate and Crew name are required.");
+      }
+      return successAction(pending, {
+        action_type: "circle_create_crew",
+        payload: {
+          requested_candidate_key: candidateKey,
+          requested_name: crewName,
+          requested_operation_id: crewCreationOperationId(pending, candidateKey)
+        },
+        confirmation_text: `Create “${crewName}” as a private Crew from this repeated-activity group and invite the other founding members?`
+      });
+    }
+
     const meetupId = clean(args?.meetupId, 120);
-    if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
 
     if (name === "join_circle_meetup") {
+      if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
       return successAction(pending, {
         action_type: "circle_join_meetup",
         payload: { requested_meetup_id: meetupId },
@@ -104,6 +208,7 @@
     }
 
     if (name === "leave_circle_meetup") {
+      if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
       return successAction(pending, {
         action_type: "circle_leave_meetup",
         payload: { requested_meetup_id: meetupId },
@@ -112,10 +217,76 @@
     }
 
     if (name === "cancel_circle_meetup") {
+      if (!meetupId) return failure("circle_meetup_id_required", "A specific ARI Circle meetup is required.");
       return successAction(pending, {
         action_type: "circle_cancel_meetup",
         payload: { requested_meetup_id: meetupId },
         confirmation_text: "Cancel this hosted meetup for everyone?"
+      });
+    }
+
+    const missionId = clean(args?.missionId, 120);
+
+    if (name === "join_circle_mission") {
+      if (!missionId) return failure("circle_mission_id_required", "A specific ARI Circle Mission is required.");
+      return successAction(pending, {
+        action_type: "circle_join_mission",
+        payload: { requested_quest_id: missionId },
+        confirmation_text: "Join this ARI Circle Mission?"
+      });
+    }
+
+    if (name === "submit_circle_mission_progress") {
+      if (!missionId) return failure("circle_mission_id_required", "A specific ARI Circle Mission is required.");
+      const amount = number(args?.amount);
+      if (!amount || amount <= 0) return failure("circle_mission_progress_required", "Mission progress must be greater than zero.");
+      return successAction(pending, {
+        action_type: "circle_submit_mission_progress",
+        payload: {
+          requested_quest_id: missionId,
+          requested_amount: amount,
+          requested_note: clean(args?.note, 500) || null,
+          requested_client_event_id: missionProgressEventId(pending, missionId)
+        },
+        confirmation_text: `Submit ${amount} ${clean(args?.unit, 40) || "units"} of progress to this Mission?`
+      });
+    }
+
+    const crewId = clean(args?.crewId, 120);
+
+    if (name === "accept_circle_crew_invite") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_accept_crew_invite",
+        payload: { requested_crew_id: crewId, requested_accept: true },
+        confirmation_text: "Accept this Crew invitation and join the Crew?"
+      });
+    }
+
+    if (name === "decline_circle_crew_invite") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_decline_crew_invite",
+        payload: { requested_crew_id: crewId, requested_accept: false },
+        confirmation_text: "Decline this Crew invitation?"
+      });
+    }
+
+    if (name === "leave_circle_crew") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_leave_crew",
+        payload: { requested_crew_id: crewId },
+        confirmation_text: "Leave this Crew?"
+      });
+    }
+
+    if (name === "archive_circle_crew") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_archive_crew",
+        payload: { requested_crew_id: crewId },
+        confirmation_text: "Archive this Crew for all members?"
       });
     }
 
@@ -187,6 +358,77 @@
       const result = { meetupId: clean(payload?.requested_meetup_id, 120), resolution: "cancelled" };
       emitChanged("meetup_cancelled", result);
       return { success: true, result, reply: "Meetup cancelled." };
+    }
+
+    if (type === "circle_create_mission") {
+      const missionId = await rpc("ari_circle_create_mission_v2", payload);
+      if (!missionId) return failure("circle_mission_create_failed", "The Mission was not created.");
+      const result = { missionId: clean(missionId, 120), resolution: "created" };
+      emitChanged("mission_created", result);
+      return { success: true, result, reply: "Mission created." };
+    }
+
+    if (type === "circle_join_mission") {
+      const joined = await rpc("ari_circle_join_quest", payload);
+      if (joined !== true) return failure("circle_mission_join_not_applied", "That Mission could not be joined.");
+      const result = { missionId: clean(payload?.requested_quest_id, 120), resolution: "joined" };
+      emitChanged("mission_joined", result);
+      return { success: true, result, reply: "You're in the Mission." };
+    }
+
+    if (type === "circle_submit_mission_progress") {
+      const data = await rpc("ari_circle_submit_mission_progress", payload);
+      if (!data) return failure("circle_mission_progress_not_applied", "Mission progress was not submitted.");
+      const result = object(data);
+      emitChanged("mission_progress_submitted", result);
+      return {
+        success: true,
+        result,
+        reply: result?.status === "verified" ? "Mission progress added and verified." : "Mission progress submitted for verification."
+      };
+    }
+
+    if (type === "circle_create_crew") {
+      const data = await rpc("ari_circle_create_crew", payload);
+      if (!data) return failure("circle_crew_create_failed", "The Crew was not created.");
+      const result = object(data);
+      emitChanged("crew_created", result);
+      return {
+        success: true,
+        result,
+        reply: result?.replayed === true
+          ? "That Crew already exists from this request."
+          : "Crew created. The other founding members were invited and must accept for the Crew to become active."
+      };
+    }
+
+    if (type === "circle_accept_crew_invite" || type === "circle_decline_crew_invite") {
+      const data = await rpc("ari_circle_respond_crew_invite", payload);
+      if (!data) return failure("circle_crew_invite_response_failed", "The Crew invitation could not be updated.");
+      const result = object(data);
+      const accepted = payload?.requested_accept === true;
+      emitChanged(accepted ? "crew_invite_accepted" : "crew_invite_declined", result);
+      return {
+        success: true,
+        result,
+        reply: accepted ? "Crew invitation accepted." : "Crew invitation declined."
+      };
+    }
+
+    if (type === "circle_leave_crew") {
+      const data = await rpc("ari_circle_leave_crew", payload);
+      if (!data) return failure("circle_crew_leave_failed", "You could not leave that Crew.");
+      const result = object(data);
+      emitChanged("crew_left", result);
+      return { success: true, result, reply: "You left the Crew." };
+    }
+
+    if (type === "circle_archive_crew") {
+      const data = await rpc("ari_circle_archive_crew", payload);
+      if (!data) return failure("circle_crew_archive_failed", "That Crew could not be archived.");
+      const result = object(data);
+      emitChanged("crew_archived", result);
+      return { success: true, result, reply: "Crew archived." };
     }
 
     return failure("unsupported_circle_executor_action", `Unsupported Circle executor action: ${type}.`);
