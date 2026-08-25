@@ -15,6 +15,7 @@ on:
       - feature/ari-circle-event-awareness
       - feature/ari-circle-event-initiative
       - feature/ari-circle-crews-v1
+      - feature/ari-circle-crew-awareness
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -57,6 +58,7 @@ on:
       - feature/ari-circle-events-v1
       - feature/ari-circle-event-awareness
       - feature/ari-circle-event-initiative
+      - feature/ari-circle-crews-v1
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
