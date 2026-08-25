@@ -1,12 +1,19 @@
 /* =============================================================
    ARI CIRCLE — PROFILE CONNECTION ACTION AUTHORITY
-   Version: 1.0.0
+   Version: 1.0.1
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
-  const state = { started:false, applying:false, observer:null, unsubscribe:null };
+  const VERSION = "1.0.1";
+  const state = {
+    started: false,
+    applying: false,
+    scheduled: false,
+    observer: null,
+    unsubscribe: null
+  };
+
   const normalize = (value) => String(value ?? "").trim().toLowerCase();
   const app = () => window.AriCircleApp || window.Ari?.circle || null;
   const store = () => app()?.modules?.CircleStore || null;
@@ -15,63 +22,133 @@
   function canonicalState() {
     const currentStore = store();
     if (!currentStore) return null;
+
     const context = currentStore.get?.("context") || currentStore.getState?.()?.context || null;
     const connection = currentStore.get?.("connection") || currentStore.getState?.()?.connection || {};
-    return { context, status: normalize(connection?.status) || "none" };
+
+    return {
+      context,
+      status: normalize(connection?.status) || "none"
+    };
+  }
+
+  function desiredUi(status) {
+    if (status === "outgoing_pending") {
+      return {
+        text: "Requested ✓",
+        ariaLabel: "Cancel Circle request"
+      };
+    }
+
+    if (status === "incoming_pending") {
+      return {
+        text: "Respond to Request",
+        ariaLabel: "Respond to Circle request"
+      };
+    }
+
+    return {
+      text: "Add to Circle",
+      ariaLabel: "Add to Circle"
+    };
   }
 
   function apply() {
-    if (state.applying) return;
+    if (state.applying) return false;
+
     const target = button();
     const current = canonicalState();
-    if (!target || !current?.context?.isVisitor) return;
+    if (!target || !current?.context?.isVisitor) return false;
 
     const status = current.status;
-    if (!["none", "outgoing_pending", "incoming_pending"].includes(status)) return;
+    if (!["none", "outgoing_pending", "incoming_pending"].includes(status)) return false;
+
+    const desired = desiredUi(status);
+    let changed = false;
 
     state.applying = true;
     try {
-      target.hidden = false;
-      target.disabled = false;
-      target.dataset.circleAction = "connection";
-      target.dataset.connectionState = status;
+      if (target.hidden) {
+        target.hidden = false;
+        changed = true;
+      }
 
-      if (status === "outgoing_pending") {
-        target.textContent = "Requested ✓";
-        target.setAttribute("aria-label", "Cancel Circle request");
-      } else if (status === "incoming_pending") {
-        target.textContent = "Respond to Request";
-        target.setAttribute("aria-label", "Respond to Circle request");
-      } else {
-        target.textContent = "Add to Circle";
-        target.setAttribute("aria-label", "Add to Circle");
+      if (target.disabled) {
+        target.disabled = false;
+        changed = true;
+      }
+
+      if (target.dataset.circleAction !== "connection") {
+        target.dataset.circleAction = "connection";
+        changed = true;
+      }
+
+      if (target.dataset.connectionState !== status) {
+        target.dataset.connectionState = status;
+        changed = true;
+      }
+
+      if (target.textContent !== desired.text) {
+        target.textContent = desired.text;
+        changed = true;
+      }
+
+      if (target.getAttribute("aria-label") !== desired.ariaLabel) {
+        target.setAttribute("aria-label", desired.ariaLabel);
+        changed = true;
       }
     } finally {
       state.applying = false;
     }
+
+    return changed;
+  }
+
+  function scheduleApply() {
+    if (state.applying || state.scheduled) return;
+
+    state.scheduled = true;
+    queueMicrotask(() => {
+      state.scheduled = false;
+      apply();
+    });
   }
 
   function observeButton() {
     const target = button();
     if (!target || state.observer) return;
+
     state.observer = new MutationObserver(() => {
-      if (state.applying) return;
-      queueMicrotask(apply);
+      scheduleApply();
     });
+
     state.observer.observe(target, {
-      attributes:true,
-      attributeFilter:["disabled","hidden","data-circle-action","data-connection-state","aria-label"],
-      childList:true,
-      subtree:true
+      attributes: true,
+      attributeFilter: [
+        "disabled",
+        "hidden",
+        "data-circle-action",
+        "data-connection-state",
+        "aria-label"
+      ],
+      childList: true
     });
   }
 
   function bindStore() {
     const currentStore = store();
     if (!currentStore?.subscribe || state.unsubscribe) return;
+
     state.unsubscribe = currentStore.subscribe((_, change) => {
       const keys = Array.isArray(change?.keys) ? change.keys : [];
-      if (!keys.length || keys.includes("connection") || keys.includes("context") || keys.includes("profile")) apply();
+      if (
+        !keys.length ||
+        keys.includes("connection") ||
+        keys.includes("context") ||
+        keys.includes("profile")
+      ) {
+        apply();
+      }
     });
   }
 
@@ -83,6 +160,7 @@
 
   function start() {
     if (state.started || !document.body.classList.contains("ari-circle-page")) return;
+
     state.started = true;
     refresh();
     requestAnimationFrame(refresh);
@@ -90,12 +168,18 @@
     setTimeout(refresh, 320);
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once:true });
-  else start();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
 
   document.addEventListener("circle:app-ready", refresh);
   document.addEventListener("circle:connection-changed", refresh);
   document.addEventListener("circle:connection-requested", refresh);
 
-  window.AriCircleProfileConnectionAuthority = Object.freeze({ version: VERSION, refresh });
+  window.AriCircleProfileConnectionAuthority = Object.freeze({
+    version: VERSION,
+    refresh
+  });
 })();
