@@ -1,5 +1,5 @@
 /* =============================================================
-   ARI CIRCLE V5.2.3 — REAL WORLD SOCIAL SHELL
+   ARI CIRCLE V5.2.4 — REAL WORLD SOCIAL SHELL
    Feed · Meet Up · Quests, with Profile accessible from the drawer.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
@@ -7,7 +7,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.2.3";
+  const VERSION = "5.2.4";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -18,6 +18,8 @@
   const PREMIUM_STYLE_HREF = "assets/css/ari-circle-v5-premium.css?v=5.2.0";
   const AUTHORITY_STYLE_ID = "ariCircleV525AuthorityStyle";
   const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-v5-visual-authority.css?v=5.2.5";
+  const XP_STYLE_ID = "ariCircleXpStyle";
+  const XP_STYLE_HREF = "assets/css/ari-circle-xp.css?v=1.0.0";
   const NAV_ID = "ariCircleV5BottomNav";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
   let queued = false;
@@ -58,6 +60,7 @@
     ensureStylesheet(PEARL_STYLE_ID, PEARL_STYLE_HREF, "ari-circle-v5-pearl.css");
     ensureStylesheet(PREMIUM_STYLE_ID, PREMIUM_STYLE_HREF, "ari-circle-v5-premium.css");
     ensureStylesheet(AUTHORITY_STYLE_ID, AUTHORITY_STYLE_HREF, "ari-circle-v5-visual-authority.css");
+    ensureStylesheet(XP_STYLE_ID, XP_STYLE_HREF, "ari-circle-xp.css");
   }
 
   function activeKey() {
@@ -96,7 +99,7 @@
     wrap.querySelectorAll("[data-circle-v5-nav]").forEach((link) => {
       const active = link.dataset.circleV5Nav === activeKey();
       link.classList.toggle("is-active", active);
-      if (active) link.setAttribute("aria-current", "page");
+      if (active) link.setAttribute("aria-current","page");
       else link.removeAttribute("aria-current");
     });
   }
@@ -166,7 +169,7 @@
     }
     if (!profileLoaded && (path.endsWith("/ari-circle.html") || document.body?.classList.contains("ari-circle-page"))) {
       profileLoaded = true;
-      import("/js/ari-circle/profile/profile-v5-real-world.js?v=5.0.0").catch((error) => {
+      import("/js/ari-circle/profile/profile-v5-real-world.js?v=5.1.0").catch((error) => {
         profileLoaded = false;
         console.warn("ARI Circle Real World profile failed to load:", error);
       });
