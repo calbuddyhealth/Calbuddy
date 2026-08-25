@@ -18,6 +18,7 @@ on:
       - feature/ari-circle-crew-awareness
       - feature/ari-circle-crew-actions
       - feature/ari-circle-crew-initiative
+      - feature/ari-circle-v6-experience
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -29,6 +30,9 @@ on:
       - "ari/personalization/**"
       - "ari/pipeline-stages/deliberation/ari-memory-stage.js"
       - "home.html"
+      - "ari-circle-v6.html"
+      - "assets/css/ari-circle-v6-experience.css"
+      - "js/ari-circle/v6/**"
       - "js/home-resilience.js"
       - "js/auth.js"
       - "js/ari-latency-hotfix.js"
@@ -63,6 +67,7 @@ on:
       - feature/ari-circle-crews-v1
       - feature/ari-circle-crew-awareness
       - feature/ari-circle-crew-actions
+      - feature/ari-circle-crew-initiative
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -74,6 +79,9 @@ on:
       - "ari/personalization/**"
       - "ari/pipeline-stages/deliberation/ari-memory-stage.js"
       - "home.html"
+      - "ari-circle-v6.html"
+      - "assets/css/ari-circle-v6-experience.css"
+      - "js/ari-circle/v6/**"
       - "js/home-resilience.js"
       - "js/auth.js"
       - "js/ari-latency-hotfix.js"
