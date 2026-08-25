@@ -13,9 +13,11 @@ on:
       - feature/ari-circle-match-v2
       - feature/ari-circle-events-v1
       - feature/ari-circle-event-awareness
+      - feature/ari-circle-event-initiative
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
+      - "api/ari-vnext-initiative.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
@@ -51,9 +53,11 @@ on:
       - feature/ari-circle-mission-actions
       - feature/ari-circle-match-v2
       - feature/ari-circle-events-v1
+      - feature/ari-circle-event-awareness
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
+      - "api/ari-vnext-initiative.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
