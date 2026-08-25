@@ -7,6 +7,7 @@
 
   const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_circle_action_adapter";
+  const MISSION_PROGRESS_EVENTS = new Map();
   const ACTIONS = new Set([
     "create_circle_meetup",
     "join_circle_meetup",
@@ -77,6 +78,14 @@
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function missionProgressEventId(pending = {}, missionId = "") {
+    const key = clean(pending?.id, 160) || `${clean(pending?.sourceTurnId, 160)}:${clean(missionId, 120)}`;
+    if (MISSION_PROGRESS_EVENTS.has(key)) return MISSION_PROGRESS_EVENTS.get(key);
+    const id = stableUuid();
+    MISSION_PROGRESS_EVENTS.set(key, id);
+    return id;
   }
 
   function missionUnit(objectiveType, supplied = "") {
@@ -199,14 +208,13 @@
       if (!missionId) return failure("circle_mission_id_required", "A specific ARI Circle Mission is required.");
       const amount = number(args?.amount);
       if (!amount || amount <= 0) return failure("circle_mission_progress_required", "Mission progress must be greater than zero.");
-      const clientEventId = clean(args?.clientEventId, 120) || stableUuid();
       return successAction(pending, {
         action_type: "circle_submit_mission_progress",
         payload: {
           requested_quest_id: missionId,
           requested_amount: amount,
           requested_note: clean(args?.note, 500) || null,
-          requested_client_event_id: clientEventId
+          requested_client_event_id: missionProgressEventId(pending, missionId)
         },
         confirmation_text: `Submit ${amount} ${clean(args?.unit, 40) || "units"} of progress to this Mission?`
       });
