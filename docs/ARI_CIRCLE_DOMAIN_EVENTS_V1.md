@@ -12,6 +12,7 @@ The event ledger exists so trusted consumers can react to meaningful Circle stat
 - `meetup.created`
 - `meetup.requested`
 - `meetup.waitlisted`
+- `meetup.accepted`
 - `meetup.declined`
 - `meetup.withdrawn`
 - `meetup.joined`
@@ -19,6 +20,8 @@ The event ledger exists so trusted consumers can react to meaningful Circle stat
 - `meetup.spot_opened`
 - `meetup.cancelled`
 - `meetup.completed`
+
+`meetup.accepted` is a private host-approval event. The host is the actor and the applicant is the affected user. Approval Meetups do not also emit a misleading user-authored `meetup.joined` event.
 
 ### Mission
 - `mission.created`
@@ -36,7 +39,7 @@ The event ledger exists so trusted consumers can react to meaningful Circle stat
 4. Events expire within 30 days and reads never return expired rows.
 5. The authenticated read RPC re-checks current source visibility, adult access, and blocking before returning public Opportunity events.
 6. Private coordination events are limited to involved users.
-7. Event metadata must never contain exact meeting points, user coordinates, messages, proof notes, contact information, XP/reward data, payment/subscription state, popularity, or engagement ranking signals.
+7. Event metadata must never contain exact meeting points, user coordinates, messages, proof notes, contact information, XP/reward data, payment/subscription state, popularity, or engagement ranking signals. This applies to nested metadata keys as well as top-level keys.
 8. `meetup.spot_opened` is emitted only when a real departure changes a previously full scheduled Meetup to exactly one available spot.
 9. Completion-style legacy Quests do not enter the Mission V2 event path.
 10. The event ledger is coordination infrastructure, not durable Ari social memory or a user-engagement feed.
