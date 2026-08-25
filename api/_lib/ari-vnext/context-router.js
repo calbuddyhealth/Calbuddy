@@ -3,13 +3,13 @@
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.14.0";
+export const CONTEXT_ROUTER_VERSION = "1.15.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
   training: /\b(workout|training|train|trained|exercise|exercised|lift|lifted|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|ran|running|jog|jogged|jogging|walk|walked|walking|bike|biked|biking|cycle|cycled|cycling|hike|hiked|hiking|swim|swam|swimming|row|rowed|rowing|elliptical|stairs?|stairmaster|stepmill|push[ -]?ups?|pull[ -]?ups?|burpees?|calisthenics?|basketball|soccer|tennis|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
-  social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy)\b/i,
+  social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy|meet[ -]?ups?|missions?|quests?|crews?|hosting?|hosted|join requests?|open spots?|opportunit(?:y|ies)|activity partner|workout partner|training partner)\b/i,
   memory: /\b(last time|before|remember|you know|again|like last|what did i|what was|what do i prefer|what do i like|what do i dislike|my favorite|my favourite|i prefer|i dislike|from now on|going forward|correction|my wife|my husband|my brother|my sister|my friend)\b/i,
   health: /\b(injury|injured|pain|sore|soreness|medical|medicine|medication|symptom|pregnan|blood pressure|heart rate|doctor|nurse)\b/i,
   liveInfo: /\b(news|weather|forecast|price|prices|score|scores|standings|stock price|market price|exchange rate|release date|availability|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|in office|who is .* president|who's .* president)\b/i,
@@ -30,7 +30,8 @@ export function routeContext(turn = {}) {
   const nutrition = PATTERNS.nutrition.test(semanticText);
   const training = PATTERNS.training.test(semanticText);
   const goals = PATTERNS.goals.test(semanticText);
-  const social = PATTERNS.social.test(semanticText);
+  const actionNetworkAvailable = turn?.context?.social?.actionNetwork?.available === true;
+  const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
   const currentInfo = needsCurrentInfo(semanticText);
@@ -172,6 +173,17 @@ function cognitiveContextRules(context = {}) {
       "- Teen mode is server-derived account context, not a memory or user-claimed fact.",
       "- Do not infer a different age from conversation or help bypass the adult-only ARI Circle entitlement.",
       "- Never expose or request the user's DOB merely to change authorization."
+    );
+  }
+
+  if (context?.social?.actionNetwork?.available === true) {
+    lines.push(
+      "ARI CIRCLE ACTION NETWORK RULES:",
+      "- Action Network context is authoritative read-only Circle state for this signed-in user.",
+      "- Use opportunities, active intents, schedule state, and match reasons as factual app context; do not invent unavailable activities or people.",
+      "- Match scores rank opportunity fit for a specific intent. They are not ratings of a person's worth, attractiveness, safety, or character.",
+      "- Exact meeting points, direct messages, raw coordinates, and raw feed content are intentionally absent. Never infer or reconstruct them.",
+      "- This context does not authorize a mutation. Never claim that Ari joined, hosted, cancelled, messaged, accepted, or changed Circle state unless a trusted executor later verifies it."
     );
   }
 
