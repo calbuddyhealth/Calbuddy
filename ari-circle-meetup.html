@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-xp.css?v=1.0.1" />
 </head>
 <body class="circle-v5-real-world">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -33,14 +34,20 @@
         <button class="circle-v5-button-primary" id="hostMeetupButton" type="button">+ Host</button>
       </section>
 
-      <section class="circle-v52-xp-strip" id="meetupXpCard" aria-label="Real World XP">
-        <div class="circle-v52-xp-stat">
-          <span class="circle-v52-xp-stat__icon" aria-hidden="true">✦</span>
-          <span><strong id="meetupDailyXp">0 / 10 XP</strong><small>Today</small><span class="circle-v52-xp-meter"><i id="meetupDailyBar" style="width:0%"></i></span></span>
+      <section class="circle-v52-xp-strip circle-xp-meetup-hud" id="meetupXpCard" aria-label="Real World XP">
+        <div class="circle-xp-meetup-hud__head">
+          <span class="circle-xp-meetup-hud__title">✦ REAL WORLD XP</span>
+          <span class="circle-xp-meetup-hud__note">Verified meetups earn XP</span>
         </div>
-        <div class="circle-v52-xp-stat">
-          <span class="circle-v52-xp-stat__icon" aria-hidden="true">◫</span>
-          <span><strong id="meetupWeeklyXp">0 / 70 XP</strong><small>This week</small><span class="circle-v52-xp-meter"><i id="meetupWeeklyBar" style="width:0%"></i></span></span>
+        <div class="circle-xp-meetup-hud__grid">
+          <div class="circle-v52-xp-stat">
+            <span class="circle-v52-xp-stat__icon" aria-hidden="true">✦</span>
+            <span><small>Today</small><strong id="meetupDailyXp">0 / 10 XP</strong><span class="circle-v52-xp-meter"><i id="meetupDailyBar" style="width:0%"></i></span></span>
+          </div>
+          <div class="circle-v52-xp-stat">
+            <span class="circle-v52-xp-stat__icon" aria-hidden="true">◫</span>
+            <span><small>This week</small><strong id="meetupWeeklyXp">0 / 70 XP</strong><span class="circle-v52-xp-meter"><i id="meetupWeeklyBar" style="width:0%"></i></span></span>
+          </div>
         </div>
       </section>
 
@@ -64,12 +71,12 @@
 
       <section aria-labelledby="happeningMeetupTitle">
         <div class="circle-v5-section-heading">
-          <div><p>HAPPENING</p><h2 id="happeningMeetupTitle">Near you</h2></div>
+          <div><p>HAPPENING</p><h2 id="happeningMeetupTitle">Upcoming meetups</h2></div>
           <button class="circle-v5-button" id="refreshMeetups" type="button" style="min-height:34px;padding:0 11px">Refresh</button>
         </div>
         <p id="meetupStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Finding meetups…</p>
         <div class="circle-v5-list" id="meetupList" aria-live="polite"></div>
-        <div class="circle-v5-empty" id="meetupEmpty" hidden><strong>Nothing nearby yet.</strong><span>Host the first meetup.</span></div>
+        <div class="circle-v5-empty" id="meetupEmpty" hidden><strong>Nothing scheduled yet.</strong><span>Host the first meetup.</span></div>
       </section>
     </div>
   </main>
@@ -173,10 +180,11 @@
   <div id="meetupToast" role="status" aria-live="polite" hidden style="position:fixed;z-index:500;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 14px;border:1px solid #dfe7ef;border-radius:14px;color:#142033;background:#fff;box-shadow:0 18px 50px rgba(31,45,70,.18);font:700 .72rem/1.35 Inter,sans-serif"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.1" defer></script>
-  <script src="supabase-config.js?v=1.1.4"></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.3" defer></script>
+  <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
+  <script src="supabase-config.js?v=1.1.8"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.3" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/meetups/meetups-v5.js?v=5.2.0" defer></script>
 </body>
 </html>

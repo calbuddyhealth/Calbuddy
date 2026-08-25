@@ -108,6 +108,7 @@ test.describe("ARI Circle premium control drawer", () => {
     await expect(panel.locator(".circle-v5-menu__label")).toHaveText([
       "Notifications",
       "Profile",
+      "Discover Friends",
       "Meet Up",
       "Profile Options",
       "Privacy & Visibility",

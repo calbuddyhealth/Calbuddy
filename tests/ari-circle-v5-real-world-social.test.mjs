@@ -15,6 +15,7 @@ const moderation = fs.readFileSync("js/ari-circle/real-world-moderation-v5.js", 
 const profile = fs.readFileSync("js/ari-circle/profile/profile-v5-real-world.js", "utf8");
 const happening = fs.readFileSync("js/ari-circle/feed/happening-v5.js", "utf8");
 const authority = fs.readFileSync("assets/css/ari-circle-v5-visual-authority.css", "utf8");
+const xpAuthority = fs.readFileSync("assets/css/ari-circle-xp.css", "utf8");
 
 test("Real World XP is server-capped at 10 per day and 70 per week", () => {
   assert.match(migration, /greatest\(0,\s*10\s*-\s*day_total\)/i);
@@ -72,11 +73,24 @@ test("community walking and civic events stay available without persistent expla
   assert.doesNotMatch(meetupHtml, /peaceful civic marches/);
 });
 
+test("meetup discovery copy does not claim proximity before geographic filtering exists", () => {
+  assert.match(meetupHtml, /Upcoming meetups/);
+  assert.match(meetupHtml, /Nothing scheduled yet\./);
+  assert.doesNotMatch(meetupHtml, />Near you</i);
+  assert.doesNotMatch(meetupHtml, /Nothing nearby yet/i);
+});
+
 test("Quests exclude winner-voting engagement mechanics", () => {
   assert.doesNotMatch(questHtml, /most hype wins/i);
   assert.doesNotMatch(questHtml, /Vote for a winner/i);
   assert.doesNotMatch(questHtml, /<summary>Verified XP<\/summary>/);
   assert.match(migration, /xp_reward smallint not null default 0 check \(xp_reward between 0 and 3\)/i);
+});
+
+test("Quest creation exposes only implemented Personal and Community scopes", () => {
+  assert.match(questHtml, /<option value="community" selected>Community<\/option>/);
+  assert.match(questHtml, /<option value="personal">Personal<\/option>/);
+  assert.doesNotMatch(questHtml, /<option value="crew">/);
 });
 
 test("XP-bearing Quests are leader-gated and cannot self-verify", () => {
@@ -95,12 +109,21 @@ test("leadership comes from successful hosted meetups", () => {
 });
 
 test("profiles show factual Real World reputation and active hosted meetups", () => {
-  assert.match(profile, /VERIFIED MEETUPS/);
-  assert.match(profile, /SUCCESSFUL HOSTS/);
-  assert.match(profile, /COMMUNITY STATUS/);
+  assert.match(profile, /Verified meetups/);
+  assert.match(profile, /Hosted meetups/);
+  assert.match(profile, /Community status/);
   assert.match(profile, /HOSTING A MEETUP/);
   assert.match(profile, /active_hosted_meetup/);
+  assert.match(profile, /circle-xp-level-ring/);
   assert.doesNotMatch(profile, /Trust Score/i);
+});
+
+test("shared XP visuals do not redefine XP award mechanics", () => {
+  assert.match(xpAuthority, /Visual only: no XP math, caps, or award rules live here/);
+  assert.match(xpAuthority, /circle-xp-profile-card/);
+  assert.match(xpAuthority, /circle-xp-meetup-hud/);
+  assert.match(xpAuthority, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(xpAuthority, /ari_circle_award_xp|ari_circle_xp_events/);
 });
 
 test("Feed keeps posts and Moments while adding live Happening discovery", () => {
@@ -113,6 +136,7 @@ test("Feed keeps posts and Moments while adding live Happening discovery", () =>
 });
 
 test("Circle V5 has one current three-tab social loop and final visual authority", () => {
+  assert.match(shell, /const VERSION = "5\.2\.4"/);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("meetup", "ari-circle-meetup\.html", "Meet Up"\)/);
   assert.match(shell, /navLink\("quests", "ari-circle-quests\.html", "Quests"\)/);
@@ -126,9 +150,11 @@ test("Circle V5 has one current three-tab social loop and final visual authority
 
 test("Meet Up and Quests share the current adult-only shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
-    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.1/);
-    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.3"/);
-    assert.match(html, /id="ariCircleV5RealWorldModerationScript"/);
+    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3/);
+    assert.match(html, /js\/ari-circle\/social-badges\.js\?v=1\.2\.0/);
+    assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
+    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.4"/);
+    assert.match(html, /id="ariCircleV5RealWorldModerationScript" src="js\/ari-circle\/real-world-moderation-v5\.js\?v=5\.1\.0"/);
     const moderationIndex = html.indexOf("real-world-moderation-v5.js");
     const controllerIndex = Math.max(html.indexOf("meetups-v5.js"), html.indexOf("quests-v5.js"));
     assert.ok(moderationIndex >= 0 && controllerIndex > moderationIndex);

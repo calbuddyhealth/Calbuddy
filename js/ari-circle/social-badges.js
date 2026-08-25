@@ -1,11 +1,11 @@
 /* =============================================================
    ARI CIRCLE — SOCIAL BADGES
-   Version: 1.1.0
+   Version: 1.2.0
 
-   Lightweight unread indicators inspired by familiar social apps.
+   Lightweight unread indicators for current Circle surfaces.
    - Home ARI Circle card: total unread Circle notifications.
    - Circle message button: unread message count.
-   - Buddies tab: pending friend request count.
+   - Discover Friends: pending Circle request count.
    - Circle menu Notifications row: unread Circle activity count.
 
    Performance/privacy rules:
@@ -18,7 +18,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const CACHE_KEY = "ari_circle_badges_v1";
   const CACHE_MS = 30000;
   const REFRESH_MS = 60000;
@@ -30,7 +30,7 @@
     started: false,
     authorized: false,
     timer: 0,
-    counts: { activity: 0, messages: 0, buddies: 0 }
+    counts: { activity: 0, messages: 0, requests: 0 }
   };
 
   const clampCount = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
@@ -45,12 +45,10 @@
       .ari-social-badge[hidden]{display:none!important}
       .nav-circle{position:relative}
       .nav-circle>.ari-social-badge{top:22px;right:24px}
-      .circle-v4-message{position:relative}
+      .circle-v4-message,#circle-messages-button{position:relative}
       .circle-v4-message>.ari-social-badge,#circle-messages-button>.ari-social-badge{top:-5px;right:-6px;min-width:18px;height:18px;padding:0 5px;font-size:10px}
-      .feed-tab,.partner-tab,.challenge-tab,#circleV3Nav a{position:relative}
-      .feed-tab>.ari-social-badge,.partner-tab>.ari-social-badge,.challenge-tab>.ari-social-badge,#circleV3Nav a>.ari-social-badge{top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;font-size:9px;box-shadow:0 3px 10px rgba(57,74,255,.22),0 0 0 2px rgba(248,250,255,.98)}
-      .circle-v4-menu__panel a{position:relative}
-      .circle-v4-menu__panel a>.ari-social-badge{top:50%;right:14px;transform:translateY(-50%);min-width:18px;height:18px;padding:0 5px;font-size:10px}
+      .circle-v4-menu__panel a,.circle-v5-menu__panel a{position:relative}
+      .circle-v4-menu__panel a>.ari-social-badge,.circle-v5-menu__panel a>.ari-social-badge{top:50%;right:14px;transform:translateY(-50%);min-width:18px;height:18px;padding:0 5px;font-size:10px}
       @media(max-width:480px){.nav-circle>.ari-social-badge{top:20px;right:22px}}
     `;
     document.head.append(style);
@@ -81,19 +79,21 @@
   function paint(counts = state.counts) {
     if (!state.authorized) return;
     ensureStyle();
+
     const activity = clampCount(counts.activity);
     const messages = clampCount(counts.messages);
-    const buddies = clampCount(counts.buddies);
+    const requests = clampCount(counts.requests);
 
     document.querySelectorAll(".nav-circle").forEach((host) => paintOne(host, "activity", activity));
     document.querySelectorAll(".circle-v4-message, #circle-messages-button").forEach((host) => paintOne(host, "messages", messages));
 
-    document.querySelectorAll('a[href="ari-circle-partners.html"], a[href$="/ari-circle-partners.html"]').forEach((host) => {
-      if (host.closest(".circle-v4-menu__panel")) return;
-      paintOne(host, "buddies", buddies);
-    });
+    document.querySelectorAll(
+      '.circle-v4-menu__panel a[href*="panel=discover-friends"], .circle-v5-menu__panel a[href*="panel=discover-friends"]'
+    ).forEach((host) => paintOne(host, "requests", requests));
 
-    document.querySelectorAll('.circle-v4-menu__panel a[href*="panel=notifications"]').forEach((host) => paintOne(host, "activity", activity));
+    document.querySelectorAll(
+      '.circle-v4-menu__panel a[href*="panel=notifications"], .circle-v5-menu__panel a[href*="panel=notifications"]'
+    ).forEach((host) => paintOne(host, "activity", activity));
   }
 
   function readCache() {
@@ -104,21 +104,27 @@
       return {
         activity: clampCount(parsed.activity),
         messages: clampCount(parsed.messages),
-        buddies: clampCount(parsed.buddies)
+        requests: clampCount(parsed.requests ?? parsed.buddies)
       };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   function writeCache(counts) {
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...counts, at: Date.now() })); } catch {}
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...counts, at: Date.now() }));
+    } catch {}
   }
 
   async function resolveAdultEntitlement() {
     const known = window.ARI_ACCOUNT_ENTITLEMENTS || window.ARI_CIRCLE_AGE_STATE || null;
     if (known) return known.circleAllowed === true;
     if (!state.client?.rpc) return false;
+
     const { data, error } = await state.client.rpc("ari_circle_my_age_state");
     if (error) return false;
+
     const ageBand = String(data?.age_band || data?.ageBand || "").toLowerCase();
     const explicitAllowed = data?.circle_allowed ?? data?.circleAllowed;
     return ageBand === "adult" && explicitAllowed !== false;
@@ -139,7 +145,7 @@
     return (Array.isArray(data) ? data : []).reduce((sum, row) => sum + clampCount(row?.unread_count), 0);
   }
 
-  async function getBuddyCount() {
+  async function getRequestCount() {
     const { data, error } = await state.client.rpc("ari_circle_my_social_counts");
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
@@ -149,16 +155,17 @@
   async function refresh() {
     if (!state.client || !state.authorized || state.busy || document.hidden) return;
     state.busy = true;
+
     try {
       const results = await Promise.allSettled([
         getActivityCount(),
         getMessageCount(),
-        getBuddyCount()
+        getRequestCount()
       ]);
 
       if (results[0].status === "fulfilled") state.counts.activity = results[0].value;
       if (results[1].status === "fulfilled") state.counts.messages = results[1].value;
-      if (results[2].status === "fulfilled") state.counts.buddies = results[2].value;
+      if (results[2].status === "fulfilled") state.counts.requests = results[2].value;
 
       paint();
       writeCache(state.counts);
@@ -176,7 +183,11 @@
   }
 
   async function start() {
-    if (state.started) { paint(); return; }
+    if (state.started) {
+      paint();
+      return;
+    }
+
     state.client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
     if (!state.client) {
       window.setTimeout(start, 250);
@@ -197,7 +208,9 @@
 
     scheduleInitialRefresh();
     window.addEventListener("focus", () => window.setTimeout(refresh, 180));
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) window.setTimeout(refresh, 180); });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) window.setTimeout(refresh, 180);
+    });
     state.timer = window.setInterval(refresh, REFRESH_MS);
   }
 

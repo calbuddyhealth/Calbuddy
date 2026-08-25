@@ -1,60 +1,14 @@
 /* =============================================================
-   ARI CIRCLE — PROFILE SOCIAL FLOW
+   ARI CIRCLE — PROFILE FRIENDS
    Version: 1.0.0
-   Profile relationship actions and viewed-profile friends only.
+   Viewed-profile friends dialog only.
 ============================================================= */
 
 :root {
-  --circle-profile-flow-ink: #0b1730;
-  --circle-profile-flow-soft: #6f7b92;
-  --circle-profile-flow-line: rgba(35, 75, 160, 0.12);
-  --circle-profile-flow-blue: #2458ff;
-  --circle-profile-flow-violet: #8255ff;
-}
-
-.circle-v4-message,
-#circle-messages-button {
-  display: grid !important;
-  place-items: center !important;
-  width: 44px !important;
-  height: 44px !important;
-  padding: 0 !important;
-  border-radius: 14px !important;
-  color: var(--circle-profile-flow-ink) !important;
-  background: rgba(255,255,255,.88) !important;
-  border: 1px solid rgba(39,74,145,.08) !important;
-  box-shadow: 0 8px 24px rgba(31,52,104,.055) !important;
-}
-
-.circle-v4-message svg,
-#circle-messages-button svg {
-  width: 24px !important;
-  height: 24px !important;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.85;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-#circle-owner-actions[hidden],
-#circle-visitor-actions[hidden] {
-  display: none !important;
-}
-
-#circle-visitor-actions.is-connected #circle-message-action {
-  order: 1;
-  color: #fff !important;
-  border-color: transparent !important;
-  background: linear-gradient(135deg, var(--circle-profile-flow-blue), #3767ff 55%, var(--circle-profile-flow-violet)) !important;
-}
-
-#circle-visitor-actions.is-connected #circle-connection-action {
-  order: 2;
-  color: var(--circle-profile-flow-blue) !important;
-  border: 1px solid rgba(36,88,255,.14) !important;
-  background: rgba(255,255,255,.92) !important;
+  --circle-profile-friends-ink: #0b1730;
+  --circle-profile-friends-soft: #6f7b92;
+  --circle-profile-friends-line: rgba(35, 75, 160, 0.12);
+  --circle-profile-friends-blue: #2458ff;
 }
 
 .circle-profile-friends-dialog {
@@ -90,25 +44,25 @@
   justify-content: space-between;
   gap: 14px;
   padding: 18px;
-  border-bottom: 1px solid var(--circle-profile-flow-line);
+  border-bottom: 1px solid var(--circle-profile-friends-line);
 }
 
 .circle-profile-friends-dialog__header h2 {
   margin: 0;
-  color: var(--circle-profile-flow-ink);
+  color: var(--circle-profile-friends-ink);
   font-size: 1.18rem;
 }
 
 .circle-profile-friends-dialog__header p {
   margin: 3px 0 0;
-  color: var(--circle-profile-flow-soft);
+  color: var(--circle-profile-friends-soft);
   font-size: .72rem;
 }
 
 .circle-profile-friends-dialog__close {
   width: 40px;
   height: 40px;
-  border: 1px solid var(--circle-profile-flow-line);
+  border: 1px solid var(--circle-profile-friends-line);
   border-radius: 14px;
   background: #fff;
   font-size: 1.35rem;
@@ -136,7 +90,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: 50%;
-  color: var(--circle-profile-flow-blue);
+  color: var(--circle-profile-friends-blue);
   background: #edf3ff;
   text-decoration: none;
   font-weight: 800;
@@ -163,13 +117,13 @@
 }
 
 .circle-profile-friend-row__identity strong {
-  color: var(--circle-profile-flow-ink);
+  color: var(--circle-profile-friends-ink);
   font-size: .88rem;
 }
 
 .circle-profile-friend-row__identity span {
   margin-top: 3px;
-  color: var(--circle-profile-flow-soft);
+  color: var(--circle-profile-friends-soft);
   font-size: .72rem;
 }
 
@@ -178,7 +132,7 @@
   padding: 0 13px;
   border: 1px solid rgba(36,88,255,.13);
   border-radius: 13px;
-  color: var(--circle-profile-flow-blue);
+  color: var(--circle-profile-friends-blue);
   background: #f5f8ff;
   text-decoration: none;
   display: inline-flex;
@@ -189,7 +143,7 @@
 
 .circle-profile-friends-dialog__empty {
   padding: 42px 12px;
-  color: var(--circle-profile-flow-soft);
+  color: var(--circle-profile-friends-soft);
   text-align: center;
 }
 

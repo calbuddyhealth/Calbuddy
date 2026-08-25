@@ -65,7 +65,7 @@
         <label class="circle-v5-field">Quest title<input class="circle-v5-input" id="questFormTitle" maxlength="90" placeholder="Walk three local parks" required /></label>
         <label class="circle-v5-field">Description<textarea class="circle-v5-textarea" id="questFormDescription" maxlength="500" placeholder="Keep it clear, reasonable, and safe."></textarea></label>
         <div class="circle-v5-form-grid">
-          <label class="circle-v5-field">Type<select class="circle-v5-select" id="questFormScope"><option value="community" selected>Community</option><option value="personal">Personal</option><option value="crew">Crew</option></select></label>
+          <label class="circle-v5-field">Type<select class="circle-v5-select" id="questFormScope"><option value="community" selected>Community</option><option value="personal">Personal</option></select></label>
           <label class="circle-v5-field">Category<select class="circle-v5-select" id="questFormCategory"><option value="activity">Activity</option><option value="walking">Walking</option><option value="fitness">Fitness</option><option value="community">Community</option><option value="volunteer">Volunteer</option><option value="wellness">Wellness</option><option value="other">Other</option></select></label>
         </div>
         <div class="circle-v5-form-grid">
@@ -102,10 +102,11 @@
   <div id="questToast" role="status" aria-live="polite" hidden style="position:fixed;z-index:500;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 14px;border:1px solid #dfe7ef;border-radius:14px;color:#142033;background:#fff;box-shadow:0 18px 50px rgba(31,45,70,.18);font:700 .72rem/1.35 Inter,sans-serif"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.1" defer></script>
-  <script src="supabase-config.js?v=1.1.4"></script>
-  <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.0.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.3" defer></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.3" defer></script>
+  <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
+  <script src="supabase-config.js?v=1.1.8"></script>
+  <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/quests/quests-v5.js?v=5.0.0" defer></script>
 </body>
 </html>

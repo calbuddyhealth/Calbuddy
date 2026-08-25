@@ -1,0 +1,373 @@
+/* =============================================================
+   ARI CIRCLE — REAL WORLD XP VISUAL AUTHORITY
+   Version: 1.0.1
+   Shared reward/progression presentation for Profile + Meet Up.
+   Visual only: no XP math, caps, or award rules live here.
+============================================================= */
+
+:root {
+  --circle-xp-cyan: #39d8f4;
+  --circle-xp-blue: #3978f6;
+  --circle-xp-violet: #9368f7;
+  --circle-xp-ink: #122039;
+  --circle-xp-text: #2f3d55;
+  --circle-xp-soft: #738096;
+  --circle-xp-line: #dce6f1;
+  --circle-xp-track: #e9eef5;
+  --circle-xp-gradient: linear-gradient(110deg,var(--circle-xp-cyan),var(--circle-xp-blue) 54%,var(--circle-xp-violet));
+  --circle-xp-shadow: 0 14px 34px rgba(42,64,104,.10);
+}
+
+/* ---------------- PROFILE ---------------- */
+body.circle-v5-real-world .circle-xp-profile-card {
+  position: relative;
+  overflow: hidden;
+  margin: 14px 0 !important;
+  padding: 18px !important;
+  color: var(--circle-xp-ink) !important;
+  border: 1px solid #d9e6f2 !important;
+  border-radius: 26px !important;
+  background:
+    radial-gradient(circle at 100% 0%,rgba(147,104,247,.11),transparent 15rem),
+    radial-gradient(circle at 0% 100%,rgba(57,216,244,.12),transparent 16rem),
+    linear-gradient(145deg,#fff 0%,#fbfdff 58%,#f9fbff 100%) !important;
+  box-shadow: var(--circle-xp-shadow) !important;
+}
+
+body.circle-v5-real-world .circle-xp-profile-card::before {
+  position: absolute;
+  top: 0;
+  right: 15%;
+  left: 15%;
+  height: 2px;
+  border-radius: 999px;
+  content: "";
+  background: var(--circle-xp-gradient);
+  opacity: .82;
+}
+
+.circle-xp-profile-top {
+  display: grid;
+  grid-template-columns: 92px minmax(0,1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.circle-xp-level-ring {
+  --xp-progress: 0%;
+  --xp-progress-mid: 0%;
+  position: relative;
+  display: grid;
+  width: 90px;
+  height: 90px;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  background: conic-gradient(from -90deg,
+    var(--circle-xp-cyan) 0%,
+    var(--circle-xp-blue) var(--xp-progress-mid),
+    var(--circle-xp-violet) var(--xp-progress),
+    var(--circle-xp-track) var(--xp-progress),
+    var(--circle-xp-track) 100%);
+  box-shadow: 0 10px 28px rgba(57,120,246,.14), 0 0 0 7px rgba(57,216,244,.045);
+}
+
+.circle-xp-level-ring::after {
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(217,230,242,.95);
+  border-radius: 50%;
+  content: "";
+  background: linear-gradient(145deg,#fff,#f7faff);
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.circle-xp-level-ring__label,
+.circle-xp-level-ring strong {
+  position: relative;
+  z-index: 1;
+}
+
+.circle-xp-level-ring__label {
+  margin-bottom: 3px;
+  color: #4d7eb8;
+  font: 850 .52rem/1 Inter,sans-serif;
+  letter-spacing: .12em;
+}
+
+.circle-xp-level-ring strong {
+  color: #10213d;
+  font: 900 1.5rem/.9 Inter,sans-serif;
+  letter-spacing: -.04em;
+}
+
+.circle-xp-profile-copy { min-width: 0; }
+
+.circle-xp-kicker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #369bbd;
+  font: 850 .61rem/1 Inter,sans-serif;
+  letter-spacing: .12em;
+}
+
+.circle-xp-profile-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+body.circle-v5-real-world .circle-xp-profile-title-row h2 {
+  margin: 0 !important;
+  color: var(--circle-xp-ink) !important;
+  font: 900 1.52rem/1 Inter,sans-serif !important;
+  letter-spacing: -.045em !important;
+}
+
+.circle-xp-tier {
+  min-width: 0;
+  overflow: hidden;
+  padding: 5px 8px;
+  color: #355c91 !important;
+  border: 1px solid #d6e4f5;
+  border-radius: 999px;
+  background: rgba(242,248,255,.9);
+  font: 800 .56rem/1 Inter,sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.circle-xp-level-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 11px;
+  color: var(--circle-xp-soft);
+  font: 720 .64rem/1 Inter,sans-serif;
+}
+.circle-xp-level-meta strong { color: #53647d; font-weight: 850; }
+
+.circle-xp-level-track,
+.circle-xp-cap-track,
+#meetupPage .circle-v52-xp-meter {
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--circle-xp-track);
+}
+
+.circle-xp-level-track {
+  height: 9px;
+  margin-top: 7px;
+  box-shadow: inset 0 1px 2px rgba(48,68,101,.06);
+}
+
+.circle-xp-level-track > i,
+.circle-xp-cap-track > i,
+#meetupPage .circle-v52-xp-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--circle-xp-gradient);
+  box-shadow: 0 0 12px rgba(57,120,246,.18);
+  transform-origin: left center;
+}
+
+body.circle-v5-real-world .circle-xp-profile-copy > p {
+  margin: 6px 0 0 !important;
+  color: #8390a3 !important;
+  font: 650 .59rem/1.25 Inter,sans-serif !important;
+}
+
+.circle-xp-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.circle-xp-profile-stat {
+  min-width: 0;
+  padding: 12px 8px;
+  text-align: center;
+  border: 1px solid #e2e9f2;
+  border-radius: 16px;
+  background: rgba(255,255,255,.78);
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.circle-xp-profile-stat strong {
+  display: block;
+  overflow: hidden;
+  color: #172741;
+  font: 900 .92rem/1.05 Inter,sans-serif;
+  text-overflow: ellipsis;
+}
+
+.circle-xp-profile-stat span {
+  display: block;
+  margin-top: 5px;
+  color: #7d899b !important;
+  font: 780 .53rem/1.2 Inter,sans-serif;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.circle-xp-caps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid #edf1f6;
+}
+
+.circle-xp-cap-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #6f7d91;
+  font: 760 .61rem/1 Inter,sans-serif;
+}
+.circle-xp-cap-head strong { color: #40516a; font: 850 .62rem/1 Inter,sans-serif; }
+.circle-xp-cap-track { height: 6px; margin-top: 7px; }
+
+/* ---------------- MEET UP ---------------- */
+#meetupPage .circle-xp-meetup-hud.circle-v52-xp-strip {
+  display: block !important;
+  overflow: hidden !important;
+  margin: 0 0 14px !important;
+  padding: 14px !important;
+  border: 1px solid #d8e6f2 !important;
+  border-radius: 21px !important;
+  background:
+    radial-gradient(circle at 96% 0%,rgba(147,104,247,.11),transparent 10rem),
+    radial-gradient(circle at 0% 100%,rgba(57,216,244,.12),transparent 11rem),
+    linear-gradient(145deg,#fff,#fbfdff) !important;
+  box-shadow: 0 9px 24px rgba(42,64,104,.075) !important;
+}
+
+.circle-xp-meetup-hud__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.circle-xp-meetup-hud__title {
+  color: #369bbd;
+  font: 850 .61rem/1 Inter,sans-serif;
+  letter-spacing: .12em;
+}
+
+.circle-xp-meetup-hud__note {
+  color: #8a95a7;
+  font: 650 .57rem/1 Inter,sans-serif;
+  white-space: nowrap;
+}
+
+.circle-xp-meetup-hud__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+#meetupPage .circle-v52-xp-stat {
+  display: grid !important;
+  grid-template-columns: 35px minmax(0,1fr) !important;
+  gap: 9px !important;
+  align-items: center !important;
+  padding: 10px !important;
+  border: 1px solid #e5ebf3 !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.78) !important;
+}
+
+#meetupPage .circle-v52-xp-stat + .circle-v52-xp-stat { border-left: 1px solid #e5ebf3 !important; }
+
+#meetupPage .circle-v52-xp-stat__icon {
+  display: grid;
+  width: 35px !important;
+  height: 35px !important;
+  place-items: center;
+  color: #fff !important;
+  border-radius: 12px !important;
+  background: var(--circle-xp-gradient) !important;
+  box-shadow: 0 7px 16px rgba(57,120,246,.18) !important;
+  font-size: .86rem;
+}
+
+#meetupPage .circle-v52-xp-stat small {
+  display: block !important;
+  margin: 0 0 4px !important;
+  color: #7d899b !important;
+  font: 720 .55rem/1 Inter,sans-serif !important;
+}
+
+#meetupPage .circle-v52-xp-stat strong {
+  display: block;
+  color: #182943 !important;
+  font: 900 .72rem/1 Inter,sans-serif !important;
+  letter-spacing: -.015em;
+}
+
+#meetupPage .circle-v52-xp-meter {
+  height: 6px;
+  margin-top: 7px;
+}
+
+#meetupPage .circle-v5-xp-chip,
+#meetupPage .circle-xp-reward-chip {
+  flex: 0 0 auto;
+  min-height: 31px;
+  padding: 0 10px !important;
+  color: #315c95 !important;
+  border: 1px solid #cfe0f6 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg,#effcff,#f3f7ff 54%,#f6f0ff) !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+  font: 850 .58rem/1 Inter,sans-serif !important;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .circle-xp-profile-top { grid-template-columns: 82px minmax(0,1fr); gap: 13px; }
+  .circle-xp-level-ring { width: 80px; height: 80px; }
+  body.circle-v5-real-world .circle-xp-profile-title-row h2 { font-size: 1.32rem !important; }
+  .circle-xp-profile-stats { gap: 6px; }
+  .circle-xp-profile-stat { padding: 10px 5px; }
+  .circle-xp-profile-stat strong { font-size: .82rem; }
+  .circle-xp-profile-stat span { font-size: .49rem; }
+  .circle-xp-caps { gap: 9px; }
+  .circle-xp-meetup-hud__note { display: none; }
+  #meetupPage .circle-v52-xp-stat { grid-template-columns: 31px minmax(0,1fr) !important; padding: 9px !important; }
+  #meetupPage .circle-v52-xp-stat__icon { width: 31px !important; height: 31px !important; }
+  #meetupPage .circle-v52-xp-stat strong { font-size: .66rem !important; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .circle-xp-profile-card { animation: circleXpCardIn 420ms cubic-bezier(.2,.8,.2,1) both; }
+  .circle-xp-level-track > i,
+  .circle-xp-cap-track > i,
+  #meetupPage .circle-v52-xp-meter > i { animation: circleXpBarIn 620ms cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes circleXpCardIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes circleXpBarIn {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-xp-profile-card,
+  .circle-xp-level-track > i,
+  .circle-xp-cap-track > i,
+  #meetupPage .circle-v52-xp-meter > i { animation: none !important; transition: none !important; }
+}

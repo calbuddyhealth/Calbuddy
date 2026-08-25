@@ -350,24 +350,24 @@ test.describe("ARI XP App Store browser smoke", () => {
     await page.goto(`${BASE_URL}/ari-circle-feed.html`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#feedPostBody")).toHaveCount(1);
     await expect(page.locator("#publishPostButton")).toHaveCount(1);
-    await expect(page.locator('script[src*="content-moderation.js?v=1.4.0"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="js/ari-circle/content-moderation.js"]')).toHaveCount(1);
     await expect(page.locator('a[href="ari-circle-meetup.html"]')).toHaveCount(1);
     await expect(page.locator('a[href="ari-circle-quests.html"]')).toHaveCount(1);
 
     await page.goto(`${BASE_URL}/ari-circle-messages.html`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#messageInput")).toHaveCount(1);
     await expect(page.locator("#sendMessageButton")).toHaveCount(1);
-    await expect(page.locator('script[src*="content-moderation.js?v=1.4.0"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="js/ari-circle/content-moderation.js"]')).toHaveCount(1);
 
     await page.goto(`${BASE_URL}/ari-circle-meetup.html`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#hostMeetupButton")).toHaveCount(1);
     await expect(page.locator("#hostMeetupForm")).toHaveCount(1);
-    await expect(page.locator('script[src*="real-world-moderation-v5.js?v=5.0.0"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="js/ari-circle/real-world-moderation-v5.js"]')).toHaveCount(1);
 
     await page.goto(`${BASE_URL}/ari-circle-quests.html`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#createQuestButton")).toHaveCount(1);
     await expect(page.locator("#createQuestForm")).toHaveCount(1);
-    await expect(page.locator('script[src*="real-world-moderation-v5.js?v=5.0.0"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="js/ari-circle/real-world-moderation-v5.js"]')).toHaveCount(1);
 
     await context.close();
   });
