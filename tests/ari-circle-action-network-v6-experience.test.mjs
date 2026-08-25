@@ -16,7 +16,7 @@ test("Circle V6 is one integrated Action Network experience rather than another 
   assert.match(html, /BEST NEXT ACTIONS/i);
   assert.match(html, /GO SOMEWHERE/i);
   assert.match(html, /PEOPLE YOU ACTUALLY DO THINGS WITH/i);
-  assert.match(html, /activity first, content second/i);
+  assert.match(controller, /activity first, content second/i);
   assert.doesNotMatch(html, /Trending People|Top Users|Most Popular/i);
 });
 
