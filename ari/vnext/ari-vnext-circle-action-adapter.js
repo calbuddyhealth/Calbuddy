@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.1.1";
   const SOURCE = "ari_vnext_circle_action_adapter";
   const MISSION_PROGRESS_EVENTS = new Map();
   const ACTIONS = new Set([
@@ -90,7 +90,7 @@
 
   function missionUnit(objectiveType, supplied = "") {
     const explicit = clean(supplied, 40).toLowerCase();
-    if (objectiveType === "count") return explicit || "actions";
+    if (objectiveType === "count") return explicit || "activities";
     if (objectiveType === "distance") return explicit || "miles";
     if (objectiveType === "duration") return explicit || "minutes";
     return explicit;
@@ -131,7 +131,7 @@
     if (name === "create_circle_mission") {
       const title = clean(args?.title, 90);
       const scope = clean(args?.scope, 20).toLowerCase();
-      const category = clean(args?.category, 20).toLowerCase() || scope;
+      const category = clean(args?.category, 20).toLowerCase() || "activity";
       const verificationMode = clean(args?.verificationMode, 30).toLowerCase();
       const objectiveType = clean(args?.objectiveType, 30).toLowerCase();
       const progressMode = clean(args?.progressMode, 30).toLowerCase();
