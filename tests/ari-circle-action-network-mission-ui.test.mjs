@@ -13,7 +13,12 @@ test("Mission V2 becomes the primary measurable surface while classic Quests rem
   assert.ok(html.indexOf('id="missionList"') < html.indexOf('id="questList"'));
   assert.match(html, /Classic Quest/i);
   assert.match(html, /quests-v5\.js\?v=5\.0\.0/);
-  assert.match(html, /missions-v2\.js\?v=2\.0\.0/);
+  assert.match(html, /missions-v2\.js\?v=2\.0\.1/);
+});
+
+test("Mission V2 controller remains valid browser JavaScript", () => {
+  assert.doesNotThrow(() => new Function(controller));
+  assert.match(controller, /const VERSION = "2\.0\.1"/);
 });
 
 test("Mission V2 controller uses guarded RPCs and never direct table writes", () => {
@@ -52,7 +57,15 @@ test("Mission progress retries preserve one client event identity until success"
   assert.match(controller, /\$\("missionProgressEventId"\)\.value = randomEventId\(\)/);
   assert.match(controller, /requested_client_event_id: eventId/);
   assert.match(controller, /\$\("missionProgressEventId"\)\.value = ""/);
+  assert.match(controller, /window\.crypto\?\.randomUUID/);
+  assert.match(controller, /window\.crypto\?\.getRandomValues/);
+  assert.match(controller, /Math\.random\(\) \* 256/);
   assert.match(html, /same contribution identity is reused if a submission needs to be retried/i);
+});
+
+test("Mission review refresh never reopens an already-open modal", () => {
+  assert.match(controller, /const dialog = \$\("missionReviewDialog"\)/);
+  assert.match(controller, /if \(!dialog\.open\) dialog\.showModal\?\.\(\)/);
 });
 
 test("Mission cards render verified progress rather than engagement counters", () => {
