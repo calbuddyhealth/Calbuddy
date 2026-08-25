@@ -2,13 +2,16 @@
 // Uses the signed-in user's JWT for every Circle RPC so adult access, blocking,
 // and source-RPC authorization remain authoritative. No service-role fallback.
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const MAX_OPPORTUNITIES = 12;
 const MAX_INTENTS = 3;
 const MAX_MATCH_INTENTS = 2;
 const MAX_MATCHES_PER_INTENT = 6;
 const MAX_RELATIONSHIPS = 8;
 const MAX_PLACES = 8;
+const MAX_DOMAIN_EVENTS = 16;
+const MAX_CONTEXT_EVENTS = 8;
+const MAX_ACTIONABLE_EVENTS = 5;
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -54,7 +57,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const [opportunitiesRaw, intentsRaw, relationshipsRaw] = await Promise.all([
+    const viewerId = jwtSubject(accessToken);
+    const [opportunitiesRaw, intentsRaw, relationshipsRaw, domainEventsRaw] = await Promise.all([
       callRpc(config, accessToken, "ari_circle_list_opportunities", {
         requested_types: ["meetup", "mission"],
         requested_activity: null,
@@ -67,12 +71,19 @@ export default async function handler(req, res) {
       }),
       callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_action_relationships", {
         result_limit: MAX_RELATIONSHIPS
+      }),
+      callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_domain_events", {
+        requested_since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        result_limit: MAX_DOMAIN_EVENTS
       })
     ]);
 
     const opportunities = array(opportunitiesRaw).map(compactOpportunity).filter(Boolean);
     const activeIntents = array(intentsRaw).map(compactIntent).filter(Boolean);
     const relationships = array(relationshipsRaw).map(compactRelationship).filter(Boolean);
+    const recentEvents = array(domainEventsRaw)
+      .map((row) => compactDomainEvent(row, viewerId))
+      .filter(Boolean);
 
     const matchBatches = await Promise.all(
       activeIntents.slice(0, MAX_MATCH_INTENTS).map(async (intent) => {
@@ -106,7 +117,16 @@ export default async function handler(req, res) {
 
     const bestMatches = dedupeMatches(matchBatches.flat()).slice(0, 10);
     const places = dedupePlaces(placeBatches.flat()).slice(0, MAX_PLACES);
-    const situation = buildSituation({ opportunities, activeIntents, bestMatches, relationships, places });
+    const eventAwareness = deriveEventAwareness({ recentEvents, bestMatches, opportunities });
+    const situation = buildSituation({
+      opportunities,
+      activeIntents,
+      bestMatches,
+      relationships,
+      places,
+      recentEvents: eventAwareness.recentEvents,
+      actionableEvents: eventAwareness.actionableEvents
+    });
 
     return res.status(200).json({
       success: true,
@@ -115,6 +135,13 @@ export default async function handler(req, res) {
       source: "guarded_circle_rpcs",
       generatedAt: new Date().toISOString(),
       ...situation,
+      eventAwareness: {
+        version: "circle_event_awareness_v1",
+        initiativeNotAutomatic: true,
+        selfGeneratedActionsSuppressed: true,
+        genericCreationEventsNotInitiativeEligible: true,
+        spotOpenRequiresCurrentMatch: true
+      },
       privacy: {
         exactMeetingPointsIncluded: false,
         directMessagesIncluded: false,
@@ -123,7 +150,9 @@ export default async function handler(req, res) {
         rawFeedContentIncluded: false,
         durableSocialLearningIncluded: false,
         missionProofNotesIncluded: false,
-        missionReviewerIdentitiesIncluded: false
+        missionReviewerIdentitiesIncluded: false,
+        rawDomainEventMetadataIncluded: false,
+        domainEventsPersistedAsAriMemory: false
       }
     });
   } catch (error) {
@@ -140,7 +169,15 @@ export default async function handler(req, res) {
   }
 }
 
-export function buildSituation({ opportunities = [], activeIntents = [], bestMatches = [], relationships = [], places = [] } = {}) {
+export function buildSituation({
+  opportunities = [],
+  activeIntents = [],
+  bestMatches = [],
+  relationships = [],
+  places = [],
+  recentEvents = [],
+  actionableEvents = []
+} = {}) {
   const schedule = opportunities.filter((item) => [
     "host", "joined", "pending", "waitlisted", "creator", "submitted", "verified", "completed"
   ].includes(item.viewerState)).slice(0, 8);
@@ -170,15 +207,126 @@ export function buildSituation({ opportunities = [], activeIntents = [], bestMat
       relationshipCount: relationships.length,
       repeatRelationshipCount,
       activeMetricMissionCount,
-      placeSuggestionCount: places.length
+      placeSuggestionCount: places.length,
+      recentEventCount: recentEvents.length,
+      actionableEventCount: actionableEvents.length
     },
     activeIntents,
     bestMatches,
     relationships: relationships.slice(0, MAX_RELATIONSHIPS),
     places: places.slice(0, MAX_PLACES),
+    recentEvents: recentEvents.slice(0, MAX_CONTEXT_EVENTS),
+    actionableEvents: actionableEvents.slice(0, MAX_ACTIONABLE_EVENTS),
     schedule,
     opportunities: opportunities.slice(0, 10)
   };
+}
+
+export function deriveEventAwareness({ recentEvents = [], bestMatches = [], opportunities = [] } = {}) {
+  const matchedSubjectIds = new Set(
+    bestMatches.map((item) => clean(item?.id, 120)).filter(Boolean)
+  );
+  const currentSubjectIds = new Set(
+    opportunities.map((item) => clean(item?.id, 120)).filter(Boolean)
+  );
+
+  const seen = new Set();
+  const compact = [];
+  const actionable = [];
+
+  for (const event of recentEvents) {
+    if (!event?.eventId || seen.has(event.eventId)) continue;
+    seen.add(event.eventId);
+
+    const subjectIsCurrent = currentSubjectIds.has(event.subjectId);
+    const subjectIsMatched = matchedSubjectIds.has(event.subjectId);
+    const classified = classifyEventAwareness(event, { subjectIsCurrent, subjectIsMatched });
+    if (!classified.includeInContext) continue;
+
+    const next = {
+      ...event,
+      priority: classified.priority,
+      initiativeEligible: classified.initiativeEligible,
+      relevanceReason: classified.reason
+    };
+    compact.push(next);
+    if (classified.initiativeEligible) actionable.push(next);
+  }
+
+  const sorted = compact.sort(eventSort);
+  const actionableSorted = actionable.sort(eventSort);
+  return {
+    recentEvents: sorted.slice(0, MAX_CONTEXT_EVENTS),
+    actionableEvents: actionableSorted.slice(0, MAX_ACTIONABLE_EVENTS)
+  };
+}
+
+function classifyEventAwareness(event = {}, { subjectIsCurrent = false, subjectIsMatched = false } = {}) {
+  const type = clean(event?.type, 80);
+  const selfGenerated = event?.actorIsViewer === true;
+
+  if (selfGenerated) {
+    return {
+      includeInContext: true,
+      initiativeEligible: false,
+      priority: "context",
+      reason: "self_generated_action"
+    };
+  }
+
+  if (type === "meetup.accepted") {
+    return { includeInContext: true, initiativeEligible: true, priority: "high", reason: "host_accepted_request" };
+  }
+  if (type === "meetup.cancelled") {
+    return { includeInContext: true, initiativeEligible: true, priority: "high", reason: "joined_or_hosted_meetup_cancelled" };
+  }
+  if (type === "meetup.declined") {
+    return { includeInContext: true, initiativeEligible: true, priority: "medium", reason: "host_declined_request" };
+  }
+  if (type === "meetup.waitlisted") {
+    return { includeInContext: true, initiativeEligible: true, priority: "medium", reason: "request_waitlisted" };
+  }
+  if (type === "meetup.requested") {
+    return { includeInContext: true, initiativeEligible: true, priority: "medium", reason: "host_request_needs_attention" };
+  }
+  if (type === "mission.progress_verified") {
+    return { includeInContext: true, initiativeEligible: true, priority: "positive", reason: "mission_progress_verified" };
+  }
+  if (type === "mission.progress_rejected") {
+    return { includeInContext: true, initiativeEligible: true, priority: "medium", reason: "mission_progress_rejected" };
+  }
+  if (type === "mission.progress_submitted") {
+    return { includeInContext: true, initiativeEligible: true, priority: "medium", reason: "mission_progress_needs_review" };
+  }
+  if (type === "mission.objective_reached") {
+    return { includeInContext: true, initiativeEligible: true, priority: "positive", reason: "mission_objective_reached" };
+  }
+  if (type === "meetup.spot_opened") {
+    return {
+      includeInContext: subjectIsMatched,
+      initiativeEligible: subjectIsMatched,
+      priority: "medium",
+      reason: subjectIsMatched ? "matched_opportunity_spot_opened" : "unmatched_spot_opened"
+    };
+  }
+  if (type === "meetup.created" || type === "mission.created") {
+    return {
+      includeInContext: subjectIsMatched,
+      initiativeEligible: false,
+      priority: "context",
+      reason: subjectIsMatched ? "new_matched_opportunity" : "generic_creation_event"
+    };
+  }
+  if (type === "meetup.completed" || type === "meetup.joined" || type === "meetup.left" || type === "meetup.withdrawn" || type === "mission.joined") {
+    return {
+      includeInContext: subjectIsCurrent || type.startsWith("mission."),
+      initiativeEligible: false,
+      priority: "context",
+      reason: "recent_coordination_history"
+    };
+  }
+
+  return { includeInContext: false, initiativeEligible: false, priority: "context", reason: "not_meaningful_enough" };
 }
 
 async function callRpc(config, accessToken, name, args) {
@@ -325,6 +473,47 @@ function compactPlace(row = {}, intentId = null) {
   };
 }
 
+function compactDomainEvent(row = {}, viewerId = null) {
+  const eventId = clean(row?.event_id, 120);
+  const type = clean(row?.event_type, 80);
+  const subjectType = clean(row?.subject_type, 40);
+  const subjectId = clean(row?.subject_id, 120);
+  if (!eventId || !type || !subjectType || !subjectId) return null;
+
+  const metadata = safeEventMetadata(row?.metadata);
+  const actorUserId = clean(row?.actor_user_id, 120) || null;
+  return {
+    eventId,
+    type,
+    subjectType,
+    subjectId,
+    actor: actorUserId
+      ? {
+          displayName: clean(row?.actor_display_name, 100) || null,
+          handle: clean(row?.actor_handle, 80) || null
+        }
+      : null,
+    actorIsViewer: Boolean(viewerId && actorUserId && viewerId === actorUserId),
+    metadata,
+    occurredAt: row?.occurred_at || null
+  };
+}
+
+function safeEventMetadata(value) {
+  const source = object(value);
+  const output = {};
+  const requestStatus = clean(source?.request_status, 40);
+  const spotsRemaining = number(source?.spots_remaining);
+  const contributionAmount = number(source?.contribution_amount);
+  const unit = clean(source?.unit, 40);
+
+  if (requestStatus) output.requestStatus = requestStatus;
+  if (spotsRemaining !== null) output.spotsRemaining = Math.max(0, spotsRemaining);
+  if (contributionAmount !== null) output.contributionAmount = contributionAmount;
+  if (unit) output.unit = unit;
+  return output;
+}
+
 function dedupeMatches(rows = []) {
   const byKey = new Map();
   for (const row of rows) {
@@ -362,6 +551,21 @@ function dedupePlaces(rows = []) {
   });
 }
 
+function eventSort(a, b) {
+  const weightDelta = eventPriorityWeight(b?.priority) - eventPriorityWeight(a?.priority);
+  if (weightDelta) return weightDelta;
+  const aTime = Date.parse(a?.occurredAt || "") || 0;
+  const bTime = Date.parse(b?.occurredAt || "") || 0;
+  return bTime - aTime || clean(a?.eventId, 120).localeCompare(clean(b?.eventId, 120));
+}
+
+function eventPriorityWeight(value) {
+  if (value === "high") return 4;
+  if (value === "medium") return 3;
+  if (value === "positive") return 2;
+  return 1;
+}
+
 function supabaseConfig() {
   const url = clean(process.env.SUPABASE_URL, 1000).replace(/\/+$/, "");
   // Deliberately no service-role fallback. Circle RPCs must execute as the user.
@@ -372,6 +576,19 @@ function supabaseConfig() {
 function bearerToken(value = "") {
   const match = /^Bearer\s+(.+)$/i.exec(clean(value, 7000));
   return clean(match?.[1], 7000) || null;
+}
+
+function jwtSubject(token = "") {
+  try {
+    const payload = clean(token, 7000).split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+    return clean(decoded?.sub, 120) || null;
+  } catch {
+    return null;
+  }
 }
 
 function isMissingActionNetworkRpc(error) {
