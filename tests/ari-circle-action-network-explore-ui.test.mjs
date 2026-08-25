@@ -38,7 +38,8 @@ test("Explore V1 never requests browser GPS or live user presence", () => {
 test("nearby Place ranking reuses a private expiring Action Intent instead of exposing coordinates", () => {
   assert.match(controller, /activeIntent\(\)/);
   assert.match(controller, /ari_circle_list_places_for_intent/);
-  assert.match(html, /privacy-safe nearby ranking/i);
+  assert.match(controller, /Using your private, expiring Action Intent to rank public places/i);
+  assert.match(controller, /Your intent coordinates are not shown here/i);
   assert.doesNotMatch(controller, /approximate_latitude|approximate_longitude/);
 });
 
