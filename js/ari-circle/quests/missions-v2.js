@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.0.1";
   const $ = (id) => document.getElementById(id);
   const state = {
     client: null,
@@ -305,7 +305,13 @@
   function randomEventId() {
     if (window.crypto?.randomUUID) return window.crypto.randomUUID();
     const bytes = new Uint8Array(16);
-    window.crypto?.getRandomValues?.(bytes);
+    if (window.crypto?.getRandomValues) {
+      window.crypto.getRandomValues(bytes);
+    } else {
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = Math.floor(Math.random() * 256);
+      }
+    }
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -347,10 +353,11 @@
 
   async function openReview(row) {
     const list = $("missionReviewList");
-    if (!list) return;
+    const dialog = $("missionReviewDialog");
+    if (!list || !dialog) return;
     list.innerHTML = '<div class="circle-v5-empty"><span>Loading progress…</span></div>';
     $("missionReviewTitle").textContent = row.title || "Mission progress";
-    $("missionReviewDialog")?.showModal?.();
+    if (!dialog.open) dialog.showModal?.();
 
     try {
       const rows = await rpc("ari_circle_list_mission_contributions", {
