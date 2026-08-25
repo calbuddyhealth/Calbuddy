@@ -118,7 +118,7 @@ test("vNext refuses readiness until trusted Circle executor is loaded", () => {
 test("semantic verifier treats discovery as read-only and distinguishes leave from host cancellation", () => {
   assert.match(verifier, /anything going on tonight\?/i);
   assert.match(verifier, /discovery\/read request/i);
-  assert.match(verifier, /cancel the user's OWN participation/i);
-  assert.match(verifier, /cancel an entire HOSTED meetup/i);
+  assert.match(verifier, /cancelling the user's OWN participation/i);
+  assert.match(verifier, /cancelling an entire HOSTED meetup/i);
   assert.match(verifier, /join, RSVP, request a spot, leave, withdraw/i);
 });
