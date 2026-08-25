@@ -2,7 +2,7 @@
 // Uses the signed-in user's JWT for every Circle RPC so adult access, blocking,
 // and source-RPC authorization remain authoritative. No service-role fallback.
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 const MAX_OPPORTUNITIES = 12;
 const MAX_INTENTS = 3;
 const MAX_MATCH_INTENTS = 2;
@@ -12,6 +12,9 @@ const MAX_PLACES = 8;
 const MAX_DOMAIN_EVENTS = 16;
 const MAX_CONTEXT_EVENTS = 8;
 const MAX_ACTIONABLE_EVENTS = 5;
+const MAX_CREWS = 6;
+const MAX_CREW_CANDIDATES = 4;
+const MAX_CREW_MEMBERS = 8;
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -58,7 +61,7 @@ export default async function handler(req, res) {
     }
 
     const viewerId = jwtSubject(accessToken);
-    const [opportunitiesRaw, intentsRaw, relationshipsRaw, domainEventsRaw] = await Promise.all([
+    const [opportunitiesRaw, intentsRaw, relationshipsRaw, domainEventsRaw, crewsRaw, crewCandidatesRaw] = await Promise.all([
       callRpc(config, accessToken, "ari_circle_list_opportunities", {
         requested_types: ["meetup", "mission"],
         requested_activity: null,
@@ -75,12 +78,20 @@ export default async function handler(req, res) {
       callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_domain_events", {
         requested_since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
         result_limit: MAX_DOMAIN_EVENTS
+      }),
+      callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_my_crews", {
+        result_limit: MAX_CREWS
+      }),
+      callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_crew_candidates", {
+        result_limit: MAX_CREW_CANDIDATES
       })
     ]);
 
     const opportunities = array(opportunitiesRaw).map(compactOpportunity).filter(Boolean);
     const activeIntents = array(intentsRaw).map(compactIntent).filter(Boolean);
     const relationships = array(relationshipsRaw).map(compactRelationship).filter(Boolean);
+    const crews = array(crewsRaw).map(compactCrew).filter(Boolean).slice(0, MAX_CREWS);
+    const crewCandidates = array(crewCandidatesRaw).map(compactCrewCandidate).filter(Boolean).slice(0, MAX_CREW_CANDIDATES);
     const recentEvents = array(domainEventsRaw)
       .map((row) => compactDomainEvent(row, viewerId))
       .filter(Boolean);
@@ -124,6 +135,8 @@ export default async function handler(req, res) {
       bestMatches,
       relationships,
       places,
+      crews,
+      crewCandidates,
       recentEvents: eventAwareness.recentEvents,
       actionableEvents: eventAwareness.actionableEvents
     });
@@ -140,7 +153,16 @@ export default async function handler(req, res) {
         initiativeNotAutomatic: true,
         selfGeneratedActionsSuppressed: true,
         genericCreationEventsNotInitiativeEligible: true,
-        spotOpenRequiresCurrentMatch: true
+        spotOpenRequiresCurrentMatch: true,
+        crewLifecycleContextOnlyUntilDedicatedInitiativeGate: true
+      },
+      crewAwareness: {
+        version: "circle_crew_awareness_v1",
+        candidateEvidenceMinimumCompletions: 2,
+        rawCandidateMemberIdsIncluded: false,
+        publicCrewDiscoveryIncluded: false,
+        arbitraryGroupSuggestionsIncluded: false,
+        crewCreationAuthorityIncluded: false
       },
       privacy: {
         exactMeetingPointsIncluded: false,
@@ -152,7 +174,9 @@ export default async function handler(req, res) {
         missionProofNotesIncluded: false,
         missionReviewerIdentitiesIncluded: false,
         rawDomainEventMetadataIncluded: false,
-        domainEventsPersistedAsAriMemory: false
+        domainEventsPersistedAsAriMemory: false,
+        rawCrewTablesIncluded: false,
+        rawCrewCandidateMemberIdsIncluded: false
       }
     });
   } catch (error) {
@@ -175,6 +199,8 @@ export function buildSituation({
   bestMatches = [],
   relationships = [],
   places = [],
+  crews = [],
+  crewCandidates = [],
   recentEvents = [],
   actionableEvents = []
 } = {}) {
@@ -197,6 +223,15 @@ export function buildSituation({
     return total + (item.mission.objectiveType && item.mission.objectiveType !== "completion" ? 1 : 0);
   }, 0);
 
+  const crewInviteCount = crews.reduce(
+    (total, crew) => total + (crew?.viewerStatus === "invited" ? 1 : 0),
+    0
+  );
+  const activeCrewCount = crews.reduce(
+    (total, crew) => total + (crew?.status === "active" && crew?.viewerStatus === "active" ? 1 : 0),
+    0
+  );
+
   return {
     summary: {
       opportunityCount: opportunities.length,
@@ -208,6 +243,10 @@ export function buildSituation({
       repeatRelationshipCount,
       activeMetricMissionCount,
       placeSuggestionCount: places.length,
+      crewCount: crews.length,
+      activeCrewCount,
+      crewInviteCount,
+      crewCandidateCount: crewCandidates.length,
       recentEventCount: recentEvents.length,
       actionableEventCount: actionableEvents.length
     },
@@ -215,6 +254,8 @@ export function buildSituation({
     bestMatches,
     relationships: relationships.slice(0, MAX_RELATIONSHIPS),
     places: places.slice(0, MAX_PLACES),
+    crews: crews.slice(0, MAX_CREWS),
+    crewCandidates: crewCandidates.slice(0, MAX_CREW_CANDIDATES),
     recentEvents: recentEvents.slice(0, MAX_CONTEXT_EVENTS),
     actionableEvents: actionableEvents.slice(0, MAX_ACTIONABLE_EVENTS),
     schedule,
@@ -324,6 +365,15 @@ function classifyEventAwareness(event = {}, { subjectIsCurrent = false, subjectI
       priority: "context",
       reason: "recent_coordination_history"
     };
+  }
+  if (type === "crew.invited") {
+    return { includeInContext: true, initiativeEligible: false, priority: "high", reason: "crew_invitation_received" };
+  }
+  if (type === "crew.activated" || type === "crew.archived") {
+    return { includeInContext: true, initiativeEligible: false, priority: "medium", reason: `crew_${type.split(".")[1]}` };
+  }
+  if (type === "crew.created" || type === "crew.joined" || type === "crew.declined" || type === "crew.left") {
+    return { includeInContext: true, initiativeEligible: false, priority: "context", reason: "recent_crew_coordination" };
   }
 
   return { includeInContext: false, initiativeEligible: false, priority: "context", reason: "not_meaningful_enough" };
@@ -473,6 +523,55 @@ function compactPlace(row = {}, intentId = null) {
   };
 }
 
+function compactCrew(row = {}) {
+  const crewId = clean(row?.crew_id, 120);
+  if (!crewId) return null;
+  const members = array(row?.members).map(compactCrewMember).filter(Boolean).slice(0, MAX_CREW_MEMBERS);
+  return {
+    crewId,
+    name: clean(row?.name, 60),
+    status: clean(row?.crew_status, 30),
+    viewerRole: clean(row?.viewer_role, 30),
+    viewerStatus: clean(row?.viewer_status, 30),
+    activeMemberCount: Math.max(0, number(row?.active_member_count) || 0),
+    invitedMemberCount: Math.max(0, number(row?.invited_member_count) || 0),
+    completedActivityCount: Math.max(0, number(row?.completed_activity_count) || 0),
+    lastActivityAt: row?.last_activity_at || null,
+    createdAt: row?.created_at || null,
+    members
+  };
+}
+
+function compactCrewCandidate(row = {}) {
+  const candidateKey = clean(row?.candidate_key, 64);
+  const completedTogether = number(row?.completed_together) || 0;
+  if (!candidateKey || completedTogether < 2) return null;
+  const members = array(row?.members).map(compactCrewMember).filter(Boolean).slice(0, MAX_CREW_MEMBERS);
+  return {
+    candidateKey,
+    memberCount: Math.max(0, number(row?.member_count) || members.length),
+    completedTogether,
+    firstCompletedAt: row?.first_completed_at || null,
+    lastCompletedAt: row?.last_completed_at || null,
+    topActivity: clean(row?.top_activity, 80) || null,
+    members
+  };
+}
+
+function compactCrewMember(row = {}) {
+  const displayName = clean(row?.display_name, 100) || null;
+  const handle = clean(row?.handle, 80) || null;
+  if (!displayName && !handle && row?.is_viewer !== true) return null;
+  return {
+    displayName,
+    handle,
+    avatarUrl: clean(row?.avatar_url, 1000) || null,
+    role: clean(row?.role, 30) || null,
+    status: clean(row?.status, 30) || null,
+    isViewer: row?.is_viewer === true
+  };
+}
+
 function compactDomainEvent(row = {}, viewerId = null) {
   const eventId = clean(row?.event_id, 120);
   const type = clean(row?.event_type, 80);
@@ -506,11 +605,15 @@ function safeEventMetadata(value) {
   const spotsRemaining = number(source?.spots_remaining);
   const contributionAmount = number(source?.contribution_amount);
   const unit = clean(source?.unit, 40);
+  const crewStatus = clean(source?.crew_status, 30);
+  const memberStatus = clean(source?.member_status, 30);
 
   if (requestStatus) output.requestStatus = requestStatus;
   if (spotsRemaining !== null) output.spotsRemaining = Math.max(0, spotsRemaining);
   if (contributionAmount !== null) output.contributionAmount = contributionAmount;
   if (unit) output.unit = unit;
+  if (crewStatus) output.crewStatus = crewStatus;
+  if (memberStatus) output.memberStatus = memberStatus;
   return output;
 }
 
