@@ -72,11 +72,24 @@ test("community walking and civic events stay available without persistent expla
   assert.doesNotMatch(meetupHtml, /peaceful civic marches/);
 });
 
+test("meetup discovery copy does not claim proximity before geographic filtering exists", () => {
+  assert.match(meetupHtml, /Upcoming meetups/);
+  assert.match(meetupHtml, /Nothing scheduled yet\./);
+  assert.doesNotMatch(meetupHtml, />Near you</i);
+  assert.doesNotMatch(meetupHtml, /Nothing nearby yet/i);
+});
+
 test("Quests exclude winner-voting engagement mechanics", () => {
   assert.doesNotMatch(questHtml, /most hype wins/i);
   assert.doesNotMatch(questHtml, /Vote for a winner/i);
   assert.doesNotMatch(questHtml, /<summary>Verified XP<\/summary>/);
   assert.match(migration, /xp_reward smallint not null default 0 check \(xp_reward between 0 and 3\)/i);
+});
+
+test("Quest creation exposes only implemented Personal and Community scopes", () => {
+  assert.match(questHtml, /<option value="community" selected>Community<\/option>/);
+  assert.match(questHtml, /<option value="personal">Personal<\/option>/);
+  assert.doesNotMatch(questHtml, /<option value="crew">/);
 });
 
 test("XP-bearing Quests are leader-gated and cannot self-verify", () => {
@@ -126,9 +139,11 @@ test("Circle V5 has one current three-tab social loop and final visual authority
 
 test("Meet Up and Quests share the current adult-only shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
-    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.1/);
+    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3/);
+    assert.match(html, /js\/ari-circle\/social-badges\.js\?v=1\.1\.0/);
+    assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.3"/);
-    assert.match(html, /id="ariCircleV5RealWorldModerationScript"/);
+    assert.match(html, /id="ariCircleV5RealWorldModerationScript" src="js\/ari-circle\/real-world-moderation-v5\.js\?v=5\.1\.0"/);
     const moderationIndex = html.indexOf("real-world-moderation-v5.js");
     const controllerIndex = Math.max(html.indexOf("meetups-v5.js"), html.indexOf("quests-v5.js"));
     assert.ok(moderationIndex >= 0 && controllerIndex > moderationIndex);
