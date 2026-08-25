@@ -1,6 +1,6 @@
-// ARI Circle lightweight Profile loader.
-// Keeps the legacy profile renderer/controllers while loading only the
-// social data and compatibility modules the simplified Profile displays.
+// ARI Circle lightweight Profile compatibility loader.
+// The legacy Profile DOM still needs V4 rendering, but relationship and
+// messaging state are owned only by the canonical Circle controllers.
 
 const PROFILE_STYLE_ID = "ari-circle-profile-v3-style";
 const V4_STYLE_ID = "ari-circle-v4-style";
@@ -145,6 +145,20 @@ function primeOwnProfileActions() {
   }
 }
 
+function canonicalProfileReady() {
+  const app = window.AriCircleApp || window.Ari?.circle || null;
+  const store = app?.modules?.CircleStore || null;
+  const snapshot = store?.getState?.() || null;
+  const context = store?.get?.("context") || snapshot?.context || null;
+  const profile = store?.get?.("profile") || snapshot?.profile || null;
+
+  return Boolean(
+    profile &&
+    context &&
+    (context.isOwner || context.isVisitor || context.isGuest)
+  );
+}
+
 function finishProfessionalProfileBoot() {
   const started = performance.now();
 
@@ -157,20 +171,10 @@ function finishProfessionalProfileBoot() {
   }
 
   const finish = () => {
-    const flow = window.AriCircleProfileSocialFlow;
-    const relationship = flow?.relationship?.() || "unknown";
-    const ownerActions = document.getElementById("circle-owner-actions");
-    const visitorActions = document.getElementById("circle-visitor-actions");
-
-    if (relationship !== "unknown" && ownerActions && visitorActions) {
+    if (canonicalProfileReady() || performance.now() - started > 1200) {
       requestAnimationFrame(() => {
         document.documentElement.classList.remove("circle-profile-hydrating");
       });
-      return;
-    }
-
-    if (performance.now() - started > 1200) {
-      document.documentElement.classList.remove("circle-profile-hydrating");
       return;
     }
 
@@ -183,8 +187,7 @@ function finishProfessionalProfileBoot() {
 Promise.all([
   import("./profile-v4.js?v=4.3.1"),
   import("../v4-ui.js?v=5.3.2"),
-  import("./profile-social-flow.js?v=1.0.0"),
-  import("./profile-connection-authority.js?v=1.0.1")
+  import("./profile-friends.js?v=1.0.0")
 ])
   .then(() => finishProfessionalProfileBoot())
   .catch((error) => {
