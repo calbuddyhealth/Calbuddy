@@ -75,7 +75,7 @@ test("Feed, Meet Up, and Quests use the same shared navigation and final CSS aut
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
     assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3"/);
-    assert.match(html, /id="ariCircleSocialBadgesScript" src="js\/ari-circle\/social-badges\.js\?v=1\.1\.0"/);
+    assert.match(html, /id="ariCircleSocialBadgesScript" src="js\/ari-circle\/social-badges\.js\?v=1\.2\.0"/);
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
