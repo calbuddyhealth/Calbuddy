@@ -2,7 +2,7 @@
 // Ari may surface meaningful unfinished business or objective changes without an
 // LLM call. Initiative exists to help, not to maximize engagement.
 
-export const ARI_INITIATIVE_ENGINE_VERSION = "1.1.0";
+export const ARI_INITIATIVE_ENGINE_VERSION = "1.2.0";
 
 export function deriveInitiativeCandidate({
   proactiveInsights = null,
@@ -76,6 +76,9 @@ function candidateFromCircleEvent(event = {}) {
 
   const actorName = clean(event?.actor?.displayName, 100);
   const actorPhrase = actorName ? `${actorName} ` : "The host ";
+  const matchReasons = Array.isArray(event?.matchReasons)
+    ? event.matchReasons.map((reason) => clean(reason, 140)).filter(Boolean).slice(0, 4)
+    : [];
   const base = {
     reasonId: `circle_${type.replace(/[^a-z0-9]+/g, "_")}_${eventId}`.slice(0, 240),
     source: "circle_domain_event",
@@ -125,6 +128,22 @@ function candidateFromCircleEvent(event = {}) {
       opener: "Your meetup request wasn't accepted.",
       followUpPrompt: "My Circle meetup request was declined. Find the strongest current alternatives that fit what I wanted to do.",
       action: "find_circle_alternative"
+    };
+  }
+
+  if (type === "meetup.spot_opened") {
+    return {
+      ...base,
+      priority: "medium",
+      confidence: 0.97,
+      context: clean(
+        `Verified Circle state change: meetup.spot_opened. Server-grounded Match Engine reasons: ${matchReasons.join("; ") || "matched active intent"}.`,
+        700
+      ),
+      opener: "A spot opened in a meetup that matches what you're looking for.",
+      followUpPrompt: "A spot opened in a Circle meetup that matches my active intent. Show me why it matches and its current availability before I decide.",
+      action: "review_matched_circle_spot",
+      cooldownHours: 12
     };
   }
 
@@ -330,6 +349,7 @@ function initiativeRules() {
     userCanDismiss: true,
     repeatsAreSuppressed: true,
     circleEventsMustBeServerGrounded: true,
+    matchedSpotOpenRequiresServerMatch: true,
     noGenericCircleCreationInitiative: true,
     noCircleMutationFromInitiative: true
   };
