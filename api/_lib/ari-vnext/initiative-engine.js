@@ -15,7 +15,8 @@ const CREW_COOLDOWN_HOURS = 30 * 24;
 
 export function deriveInitiativeCandidate(input = {}) {
   const core = deriveCoreInitiativeCandidate(input);
-  const crew = candidateFromCrewState(input?.crewCandidates, input?.now || new Date());
+  const crewState = input?.crewCandidates || input?.circleEvents?.crewCandidates || null;
+  const crew = candidateFromCrewState(crewState, input?.now || new Date());
 
   if (!crew) return withCrewRules(core);
 
