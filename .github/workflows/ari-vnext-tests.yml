@@ -11,6 +11,7 @@ on:
       - feature/ari-circle-places-explore
       - feature/ari-circle-mission-actions
       - feature/ari-circle-match-v2
+      - feature/ari-circle-events-v1
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -34,6 +35,7 @@ on:
       - "supabase/migrations/*mission_v2*.sql"
       - "supabase/migrations/*places*.sql"
       - "supabase/migrations/*mission_places*.sql"
+      - "supabase/migrations/*domain_events*.sql"
       - "tests/ari-vnext-*.test.mjs"
       - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
@@ -46,6 +48,8 @@ on:
       - feature/ari-circle-mission-v2
       - feature/ari-circle-places-explore
       - feature/ari-circle-mission-actions
+      - feature/ari-circle-match-v2
+      - feature/ari-circle-events-v1
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -69,6 +73,7 @@ on:
       - "supabase/migrations/*mission_v2*.sql"
       - "supabase/migrations/*places*.sql"
       - "supabase/migrations/*mission_places*.sql"
+      - "supabase/migrations/*domain_events*.sql"
       - "tests/ari-vnext-*.test.mjs"
       - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
