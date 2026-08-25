@@ -26,6 +26,7 @@ const adultCircleRoute = {
 
 const meetupId = "11111111-1111-4111-8111-111111111111";
 const missionId = "22222222-2222-4222-8222-222222222222";
+const futureEnd = (days = 2) => new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
 test("Circle lifecycle tools require server-derived adult Circle entitlement", () => {
   const adultTools = getAriTools(adultCircleRoute).map((tool) => tool.name);
@@ -90,7 +91,7 @@ test("Circle participant mutations require exact UUIDs", () => {
 });
 
 test("Mission creation is measurable, reward-neutral, and semantically bounded", () => {
-  const endsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+  const endsAt = futureEnd();
   const valid = validateToolCall({
     name: "propose_create_circle_mission",
     arguments: JSON.stringify({
@@ -115,6 +116,12 @@ test("Mission creation is measurable, reward-neutral, and semantically bounded",
     assert.equal(forbidden in schema.properties, false, forbidden);
   }
 
+  assert.deepEqual(schema.properties.category.enum, ["activity", "walking", "fitness", "community", "volunteer", "wellness", "other"]);
+  assert.ok(schema.properties.unit.enum.includes("kilometers"));
+  assert.ok(schema.properties.unit.enum.includes("hours"));
+  assert.ok(schema.properties.unit.enum.includes("sessions"));
+  assert.equal(schema.properties.unit.enum.includes("actions"), false);
+
   const wrongUnit = validateToolCall({
     name: "propose_create_circle_mission",
     arguments: JSON.stringify({
@@ -134,10 +141,46 @@ test("Mission creation is measurable, reward-neutral, and semantically bounded",
   assert.equal(wrongUnit.valid, false);
   assert.equal(wrongUnit.error, "circle_mission_unit_invalid");
 
+  const kilometers = validateToolCall({
+    name: "propose_create_circle_mission",
+    arguments: JSON.stringify({
+      title: "Walk 10K",
+      description: "",
+      scope: "community",
+      category: "walking",
+      verificationMode: "self",
+      objectiveType: "distance",
+      progressMode: "collective",
+      targetValue: 10,
+      unit: "kilometers",
+      endsAt,
+      maxParticipants: 20
+    })
+  }, adultCircleRoute);
+  assert.equal(kilometers.valid, true, kilometers.error);
+
+  const hours = validateToolCall({
+    name: "propose_create_circle_mission",
+    arguments: JSON.stringify({
+      title: "Move 20 Hours",
+      description: "",
+      scope: "community",
+      category: "fitness",
+      verificationMode: "self",
+      objectiveType: "duration",
+      progressMode: "collective",
+      targetValue: 20,
+      unit: "hours",
+      endsAt,
+      maxParticipants: null
+    })
+  }, adultCircleRoute);
+  assert.equal(hours.valid, true, hours.error);
+
   const personalCollective = validateToolCall({
     name: "propose_create_circle_mission",
     arguments: JSON.stringify({
-      title: "My actions",
+      title: "My activities",
       description: "",
       scope: "personal",
       category: "activity",
@@ -154,6 +197,35 @@ test("Mission creation is measurable, reward-neutral, and semantically bounded",
   assert.equal(personalCollective.error, "circle_mission_personal_collective_invalid");
 });
 
+test("Mission creation enforces the same future window as Mission V2 authority", () => {
+  const base = {
+    title: "Timed Mission",
+    description: "",
+    scope: "community",
+    category: "activity",
+    verificationMode: "self",
+    objectiveType: "count",
+    progressMode: "individual",
+    targetValue: 5,
+    unit: "activities",
+    maxParticipants: null
+  };
+
+  const tooSoon = validateToolCall({
+    name: "propose_create_circle_mission",
+    arguments: JSON.stringify({ ...base, endsAt: new Date(Date.now() + 10 * 60 * 1000).toISOString() })
+  }, adultCircleRoute);
+  assert.equal(tooSoon.valid, false);
+  assert.equal(tooSoon.error, "circle_mission_end_invalid");
+
+  const tooLate = validateToolCall({
+    name: "propose_create_circle_mission",
+    arguments: JSON.stringify({ ...base, endsAt: futureEnd(91) })
+  }, adultCircleRoute);
+  assert.equal(tooLate.valid, false);
+  assert.equal(tooLate.error, "circle_mission_end_invalid");
+});
+
 test("Mission join and progress require exact Mission identity and valid measurable progress", () => {
   const join = validateToolCall({
     name: "propose_join_circle_mission",
@@ -168,11 +240,13 @@ test("Mission join and progress require exact Mission identity and valid measura
   assert.equal(badJoin.valid, false);
   assert.equal(badJoin.error, "circle_mission_id_invalid");
 
-  const progress = validateToolCall({
-    name: "propose_submit_circle_mission_progress",
-    arguments: JSON.stringify({ missionId, amount: 3.2, unit: "miles", note: "Evening run" })
-  }, adultCircleRoute);
-  assert.equal(progress.valid, true, progress.error);
+  for (const [amount, unit] of [[3.2, "miles"], [5, "kilometers"], [45.5, "minutes"], [1.5, "hours"], [2, "sessions"]]) {
+    const progress = validateToolCall({
+      name: "propose_submit_circle_mission_progress",
+      arguments: JSON.stringify({ missionId, amount, unit, note: "Progress" })
+    }, adultCircleRoute);
+    assert.equal(progress.valid, true, `${unit}: ${progress.error || "valid progress rejected"}`);
+  }
 
   const fractionalCount = validateToolCall({
     name: "propose_submit_circle_mission_progress",
@@ -204,6 +278,12 @@ test("Mission action executor delegates to existing guarded Mission authorities"
   assert.doesNotMatch(adapter, /ari_circle_review_mission_contribution/);
 });
 
+test("Mission adapter defaults remain valid under Mission V2 authority", () => {
+  assert.match(adapter, /objectiveType === "count"\) return explicit \|\| "activities"/);
+  assert.match(adapter, /const category = clean\(args\?\.category, 20\)\.toLowerCase\(\) \|\| "activity"/);
+  assert.doesNotMatch(adapter, /return explicit \|\| "actions"/);
+});
+
 test("Mission progress action preserves one client event identity across repeated mapping", () => {
   assert.match(adapter, /const MISSION_PROGRESS_EVENTS = new Map\(\)/);
   assert.match(adapter, /function missionProgressEventId/);
@@ -233,7 +313,7 @@ test("browser Circle adapter executes only through guarded RPCs after confirmati
 });
 
 test("vNext refuses readiness until trusted Mission-capable Circle executor is loaded", () => {
-  assert.match(guard, /ari-vnext-circle-action-adapter\.js\?v=1\.1\.0/);
+  assert.match(guard, /ari-vnext-circle-action-adapter\.js\?v=1\.1\.1/);
   assert.match(guard, /AriVNextCircleActionAdapter\?\.ready === true/);
   assert.match(guard, /circleActionReady && contextReady && continuityReady && peerReady/);
   assert.match(guard, /ari:circleChanged/);
