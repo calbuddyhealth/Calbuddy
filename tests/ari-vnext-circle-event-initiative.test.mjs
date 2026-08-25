@@ -9,6 +9,10 @@ const loaderSource = await readFile(
   new URL("../api/_lib/ari-vnext/circle-event-initiative.js", import.meta.url),
   "utf8"
 );
+const coreLoaderSource = await readFile(
+  new URL("../api/_lib/ari-vnext/circle-event-initiative-core.js", import.meta.url),
+  "utf8"
+);
 const endpointSource = await readFile(
   new URL("../api/ari-vnext-initiative.js", import.meta.url),
   "utf8"
@@ -38,16 +42,18 @@ test("initiative endpoint independently loads Circle events with authenticated s
 });
 
 test("Circle initiative loader never falls back to service role and uses bounded server RPCs", () => {
-  assert.match(loaderSource, /ari_circle_list_domain_events/i);
-  assert.match(loaderSource, /ari_circle_list_my_action_intents/i);
-  assert.match(loaderSource, /ari_circle_match_opportunities/i);
-  assert.match(loaderSource, /SUPABASE_ANON_KEY \|\| process\.env\.SUPABASE_PUBLISHABLE_KEY/i);
-  assert.doesNotMatch(loaderSource, /SUPABASE_SERVICE_ROLE_KEY/i);
-  assert.match(loaderSource, /12 \* 60 \* 60 \* 1000/i);
-  assert.match(loaderSource, /matchedSpotOpenServerGrounded: true/i);
-  assert.match(loaderSource, /matchedSpotRequiresAvailableViewerState: true/i);
-  assert.match(loaderSource, /noClientSuppliedEventAuthority: true/i);
-  assert.match(loaderSource, /noMutationAuthority: true/i);
+  assert.match(loaderSource, /circle-event-initiative-core\.js/i);
+  assert.match(loaderSource, /loadCoreCircleInitiativeEvents/i);
+  assert.match(coreLoaderSource, /ari_circle_list_domain_events/i);
+  assert.match(coreLoaderSource, /ari_circle_list_my_action_intents/i);
+  assert.match(coreLoaderSource, /ari_circle_match_opportunities/i);
+  assert.match(coreLoaderSource, /SUPABASE_ANON_KEY \|\| process\.env\.SUPABASE_PUBLISHABLE_KEY/i);
+  assert.doesNotMatch(`${loaderSource}\n${coreLoaderSource}`, /SUPABASE_SERVICE_ROLE_KEY/i);
+  assert.match(coreLoaderSource, /12 \* 60 \* 60 \* 1000/i);
+  assert.match(coreLoaderSource, /matchedSpotOpenServerGrounded: true/i);
+  assert.match(coreLoaderSource, /matchedSpotRequiresAvailableViewerState: true/i);
+  assert.match(coreLoaderSource, /noClientSuppliedEventAuthority: true/i);
+  assert.match(coreLoaderSource, /noMutationAuthority: true/i);
 });
 
 test("direct initiative path admits only direct coordination facts", () => {
