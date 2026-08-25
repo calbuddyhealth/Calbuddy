@@ -1,11 +1,12 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.0.2
+// Version: 1.1.0
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 //   - Expose today's active Meal Plan to the model as read-only context.
 //   - Treat an unset calorie goal as unknown instead of inventing a fallback.
 //   - Recover a small recent conversation window on fresh/reloaded sessions.
+//   - Hydrate read-only ARI Circle Action Network context only when relevant.
 //   - Enable the existing bounded GPT-4o-mini peer reflection for Owner Mode.
 // =====================================================
 
@@ -15,11 +16,16 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.0.2";
+  const VERSION = "1.1.0";
   const PLAN_LOCAL_KEY = "ariNutritionMealPlanV1";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
   const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
+  const CIRCLE_CONTEXT_TTL_MS = 15 * 1000;
+
+  let circleContextCache = null;
+  let circleContextCacheAt = 0;
+  let circleContextCacheToken = null;
 
   window.AriVNextContextGuard = {
     version: VERSION,
@@ -141,6 +147,60 @@
     return merged.slice(-16);
   }
 
+  function needsCircleActionContext(message = "", history = []) {
+    const text = clean(message);
+    if (!text) return false;
+
+    const followUp = /^(why|how|what about|and|but|then|the other one|make it|do that|yes|yeah|no|instead)\b/i.test(text);
+    const recent = followUp
+      ? (Array.isArray(history) ? history : []).slice(-6).map((item) => clean(item?.content)).join("\n")
+      : "";
+    const semantic = `${recent}\n${text}`;
+
+    return /\b(circle|meet[ -]?ups?|missions?|quests?|crews?|budd(?:y|ies)|friends?|challenges?|hosting?|hosted|join requests?|open spots?|opportunit(?:y|ies)|activity partner|workout partner|training partner)\b|\b(anything going on|what(?:'s| is) happening|something to do|things to do|what should i do tonight|what can i do tonight|find me something to do)\b/i.test(semantic);
+  }
+
+  async function readCircleActionContext(bridge, message = "", history = []) {
+    if (!needsCircleActionContext(message, history)) return null;
+    if (!bridge || typeof bridge.getSession !== "function") return null;
+
+    const session = await bridge.getSession();
+    const accessToken = clean(session?.access_token);
+    if (!accessToken) return null;
+
+    if (
+      circleContextCache &&
+      circleContextCacheToken === accessToken &&
+      Date.now() - circleContextCacheAt < CIRCLE_CONTEXT_TTL_MS
+    ) {
+      return circleContextCache;
+    }
+
+    try {
+      const response = await fetch("/api/ari-vnext-circle-context", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: "{}",
+        cache: "no-store"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.available !== true) return null;
+
+      // The endpoint deliberately omits exact meeting points, DMs, raw
+      // coordinates, and feed content. Keep that privacy boundary intact here.
+      circleContextCache = data;
+      circleContextCacheAt = Date.now();
+      circleContextCacheToken = accessToken;
+      return data;
+    } catch (error) {
+      console.warn("Ari vNext Circle context read skipped:", error?.message || error);
+      return null;
+    }
+  }
+
   function installUserContextGuard() {
     const CalBuddy = window.CalBuddy;
     if (!CalBuddy || CalBuddy[CONTEXT_FLAG]) return Boolean(CalBuddy?.[CONTEXT_FLAG]);
@@ -235,7 +295,29 @@
         }
       }
 
-      return await originalAsk(message, { ...options, history });
+      let nextOptions = { ...options, history };
+      const actionNetwork = await readCircleActionContext(bridge, message, history);
+      if (actionNetwork?.available === true) {
+        const userContext = options?.userContext && typeof options.userContext === "object"
+          ? options.userContext
+          : {};
+        const social = userContext?.social && typeof userContext.social === "object"
+          ? userContext.social
+          : {};
+
+        nextOptions = {
+          ...nextOptions,
+          userContext: {
+            ...userContext,
+            social: {
+              ...social,
+              actionNetwork
+            }
+          }
+        };
+      }
+
+      return await originalAsk(message, nextOptions);
     };
 
     Object.defineProperty(bridge, BRIDGE_FLAG, {
@@ -244,7 +326,7 @@
       value: true
     });
 
-    console.log("ARI vNext continuity guard installed:", VERSION);
+    console.log("ARI vNext continuity + Action Network guard installed:", VERSION);
     return true;
   }
 
