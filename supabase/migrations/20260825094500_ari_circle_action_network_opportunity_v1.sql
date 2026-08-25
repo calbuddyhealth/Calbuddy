@@ -161,15 +161,25 @@ begin
         else 4
       end as state_rank,
       listed.ends_at as sort_at
-    from public.ari_circle_list_quests(cap) listed
+    -- Pull the full existing Quest discovery cap first so an activity filter
+    -- cannot starve matching Missions behind unrelated categories.
+    from public.ari_circle_list_quests(50) listed
     join public.ari_circle_quests source on source.id = listed.quest_id
     join public.ari_circle_profiles profile on profile.user_id = listed.creator_user_id
     where 'mission' = any(clean_types)
       and (clean_activity is null or listed.category = clean_activity)
       and (
         clean_window = 'upcoming'
-        or (clean_window = 'today' and source.starts_at < date_trunc('day', now()) + interval '1 day')
-        or (clean_window = 'weekend' and extract(isodow from source.starts_at) in (6,7))
+        or (
+          clean_window = 'today'
+          and source.starts_at < date_trunc('day', now()) + interval '1 day'
+          and source.ends_at > date_trunc('day', now())
+        )
+        or (
+          clean_window = 'weekend'
+          and source.starts_at < date_trunc('week', now()) + interval '7 days'
+          and source.ends_at > date_trunc('week', now()) + interval '5 days'
+        )
       )
   ),
   normalized as (
