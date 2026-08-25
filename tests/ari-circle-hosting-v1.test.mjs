@@ -38,10 +38,14 @@ test("approval mode cannot bypass the host through the instant join RPC", () => 
 });
 
 test("host creation keeps the primary path to four simple inputs", () => {
-  assert.match(meetupHtml, />What are you doing\?</i);
-  assert.match(meetupHtml, />When\?</i);
-  assert.match(meetupHtml, />Where\?</i);
-  assert.match(meetupHtml, />Guest spots/i);
+  assert.match(meetupHtml, /<label class="circle-v5-field">What are you doing\?/i);
+  assert.match(meetupHtml, /<label class="circle-v5-field">When\?/i);
+  assert.match(meetupHtml, /<label class="circle-v5-field">Where\?/i);
+  assert.match(meetupHtml, /<label class="circle-v5-field">Guest spots/i);
+  assert.match(meetupHtml, /id="meetupFormTitle"[^>]*required/i);
+  assert.match(meetupHtml, /id="meetupFormStarts"[^>]*required/i);
+  assert.match(meetupHtml, /id="meetupFormArea"[^>]*required/i);
+  assert.match(meetupHtml, /id="meetupFormGuestSpots"/i);
   assert.match(meetupHtml, /<summary class="circle-v5-button">More options<\/summary>/i);
   assert.match(meetupHtml, />Anyone can join</i);
   assert.match(meetupHtml, />I approve requests</i);
