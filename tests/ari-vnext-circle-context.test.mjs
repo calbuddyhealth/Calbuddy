@@ -15,15 +15,17 @@ test("Circle context endpoint executes guarded RPCs with the signed-in JWT and n
   assert.match(endpointSource, /ari_circle_list_opportunities/);
   assert.match(endpointSource, /ari_circle_list_my_action_intents/);
   assert.match(endpointSource, /ari_circle_match_opportunities/);
+  assert.match(endpointSource, /ari_circle_list_action_relationships/);
   assert.match(endpointSource, /SUPABASE_ANON_KEY \|\| process\.env\.SUPABASE_PUBLISHABLE_KEY/);
   assert.doesNotMatch(endpointSource, /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
-test("Circle context packet excludes private meetup, message, coordinate, and feed surfaces", () => {
+test("Circle context packet excludes private meetup, message, coordinate, feed, and durable social-learning surfaces", () => {
   assert.match(endpointSource, /exactMeetingPointsIncluded:\s*false/);
   assert.match(endpointSource, /directMessagesIncluded:\s*false/);
   assert.match(endpointSource, /rawCoordinatesIncluded:\s*false/);
   assert.match(endpointSource, /rawFeedContentIncluded:\s*false/);
+  assert.match(endpointSource, /durableSocialLearningIncluded:\s*false/);
   assert.doesNotMatch(endpointSource, /row\?\.meeting_point/);
   assert.doesNotMatch(endpointSource, /row\?\.approximate_latitude/);
   assert.doesNotMatch(endpointSource, /row\?\.approximate_longitude/);
@@ -61,7 +63,8 @@ test("Action Network packet is included in model context without becoming mutati
   const packet = {
     available: true,
     bestMatches: [{ key: "meetup:1", title: "Chest after work", matchScore: 85 }],
-    privacy: { exactMeetingPointsIncluded: false }
+    relationships: [{ userId: "u-2", displayName: "Marcus", completedTogether: 3, topActivity: "gym" }],
+    privacy: { exactMeetingPointsIncluded: false, durableSocialLearningIncluded: false }
   };
   const context = buildRelevantContext({
     surface: "/home.html",
@@ -73,7 +76,7 @@ test("Action Network packet is included in model context without becoming mutati
   assert.match(routerSource, /Never claim that Ari joined, hosted, cancelled, messaged, accepted, or changed Circle state/);
 });
 
-test("Circle situation summarizes schedules and host requests without inventing state", () => {
+test("Circle situation summarizes schedules, host requests, and verified repeat relationships without inventing state", () => {
   const situation = buildSituation({
     opportunities: [
       { key: "meetup:1", viewerState: "host", pendingRequestCount: 3 },
@@ -81,7 +84,11 @@ test("Circle situation summarizes schedules and host requests without inventing 
       { key: "mission:1", viewerState: "available", pendingRequestCount: null }
     ],
     activeIntents: [{ intentId: "intent-1", activity: "gym" }],
-    bestMatches: [{ key: "meetup:3", matchScore: 90 }]
+    bestMatches: [{ key: "meetup:3", matchScore: 90 }],
+    relationships: [
+      { userId: "u-2", completedTogether: 3, topActivity: "gym" },
+      { userId: "u-3", completedTogether: 1, topActivity: "walking" }
+    ]
   });
 
   assert.equal(situation.summary.opportunityCount, 3);
@@ -89,4 +96,7 @@ test("Circle situation summarizes schedules and host requests without inventing 
   assert.equal(situation.summary.bestMatchCount, 1);
   assert.equal(situation.summary.scheduledCount, 2);
   assert.equal(situation.summary.hostPendingRequestCount, 3);
+  assert.equal(situation.summary.relationshipCount, 2);
+  assert.equal(situation.summary.repeatRelationshipCount, 1);
+  assert.equal(situation.relationships[0].completedTogether, 3);
 });
