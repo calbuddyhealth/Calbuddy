@@ -3,9 +3,11 @@
 // signed-in user's JWT. Browser-supplied Circle context is never initiative
 // authority. No service-role fallback and no Circle mutation authority.
 
-export const CIRCLE_EVENT_INITIATIVE_VERSION = "1.0.0";
+export const CIRCLE_EVENT_INITIATIVE_VERSION = "1.1.0";
 
 const MAX_EVENTS = 12;
+const MAX_INTENTS = 2;
+const MAX_MATCHES_PER_INTENT = 12;
 const DIRECT_INITIATIVE_TYPES = new Set([
   "meetup.accepted",
   "meetup.cancelled",
@@ -26,15 +28,25 @@ export async function loadCircleInitiativeEvents({ accessToken, userId, now = ne
 
   const since = new Date(validDate(now).getTime() - 12 * 60 * 60 * 1000).toISOString();
   try {
-    const rows = await callRpc(config, token, "ari_circle_list_domain_events", {
+    const rows = array(await callRpc(config, token, "ari_circle_list_domain_events", {
       requested_since: since,
       result_limit: Math.max(1, Math.min(Number(limit) || MAX_EVENTS, MAX_EVENTS))
-    });
+    }));
 
-    const items = array(rows)
+    const directItems = rows
       .map((row) => compactDirectEvent(row, viewerId))
-      .filter(Boolean)
-      .sort((a, b) => (Date.parse(b.occurredAt || "") || 0) - (Date.parse(a.occurredAt || "") || 0));
+      .filter(Boolean);
+
+    const matchedSpotItems = await loadMatchedSpotEvents({ config, accessToken: token, viewerId, rows });
+    const byId = new Map();
+    for (const item of [...directItems, ...matchedSpotItems]) {
+      if (!item?.eventId || byId.has(item.eventId)) continue;
+      byId.set(item.eventId, item);
+    }
+
+    const items = [...byId.values()]
+      .sort((a, b) => (Date.parse(b.occurredAt || "") || 0) - (Date.parse(a.occurredAt || "") || 0))
+      .slice(0, MAX_EVENTS);
 
     return {
       version: CIRCLE_EVENT_INITIATIVE_VERSION,
@@ -63,7 +75,77 @@ export function compactDirectEvent(row = {}, viewerId = null) {
   // presentation suppression only; RPC authorization remains authoritative.
   if (actorUserId && viewerId && actorUserId === viewerId) return null;
 
-  const metadata = safeMetadata(row?.metadata);
+  return compactEvent(row, { eventId, type, subjectType, subjectId, actorUserId, matchReasons: [] });
+}
+
+export function compactMatchedSpotEvent(row = {}, viewerId = null, match = null) {
+  const eventId = clean(row?.event_id, 160);
+  const type = clean(row?.event_type, 80).toLowerCase();
+  const subjectId = clean(row?.subject_id, 160);
+  if (!eventId || type !== "meetup.spot_opened" || !subjectId || !match) return null;
+  const matchSubjectId = clean(match?.opportunity_id, 160);
+  const viewerState = clean(match?.viewer_state, 40).toLowerCase();
+  if (matchSubjectId !== subjectId || viewerState !== "available") return null;
+
+  const actorUserId = clean(row?.actor_user_id, 200) || null;
+  if (actorUserId && viewerId && actorUserId === viewerId) return null;
+  return compactEvent(row, {
+    eventId,
+    type,
+    subjectType: "meetup",
+    subjectId,
+    actorUserId,
+    matchReasons: array(match?.match_reasons).map((reason) => clean(reason, 140)).filter(Boolean).slice(0, 4)
+  });
+}
+
+async function loadMatchedSpotEvents({ config, accessToken, viewerId, rows = [] } = {}) {
+  const spotRows = array(rows).filter((row) => clean(row?.event_type, 80).toLowerCase() === "meetup.spot_opened");
+  if (!spotRows.length) return [];
+
+  try {
+    const intents = array(await callRpc(config, accessToken, "ari_circle_list_my_action_intents", {
+      include_inactive: false,
+      result_limit: MAX_INTENTS
+    })).slice(0, MAX_INTENTS);
+    if (!intents.length) return [];
+
+    const matchBatches = await Promise.all(intents.map(async (intent) => {
+      const intentId = clean(intent?.intent_id, 160);
+      if (!intentId) return [];
+      try {
+        return array(await callRpc(config, accessToken, "ari_circle_match_opportunities", {
+          requested_intent_id: intentId,
+          result_limit: MAX_MATCHES_PER_INTENT
+        }));
+      } catch (error) {
+        if (isMissingRpc(error)) return [];
+        throw error;
+      }
+    }));
+
+    const matchesBySubject = new Map();
+    for (const match of matchBatches.flat()) {
+      const subjectId = clean(match?.opportunity_id, 160);
+      if (!subjectId || clean(match?.opportunity_type, 40).toLowerCase() !== "meetup") continue;
+      if (clean(match?.viewer_state, 40).toLowerCase() !== "available") continue;
+      const current = matchesBySubject.get(subjectId);
+      const score = finite(match?.match_score) || 0;
+      if (!current || score > (finite(current?.match_score) || 0)) matchesBySubject.set(subjectId, match);
+    }
+
+    return spotRows
+      .map((row) => compactMatchedSpotEvent(row, viewerId, matchesBySubject.get(clean(row?.subject_id, 160))))
+      .filter(Boolean);
+  } catch (error) {
+    // A failed/missing Match substrate must never turn a public spot event into
+    // ungrounded initiative. Direct private facts can still proceed.
+    console.warn("[ARI Circle Spot Match Initiative]", clean(error?.message, 300) || "match grounding failed");
+    return [];
+  }
+}
+
+function compactEvent(row, { eventId, type, subjectType, subjectId, actorUserId, matchReasons = [] }) {
   return {
     eventId,
     type,
@@ -75,7 +157,8 @@ export function compactDirectEvent(row = {}, viewerId = null) {
           handle: clean(row?.actor_handle, 80) || null
         }
       : null,
-    metadata,
+    metadata: safeMetadata(row?.metadata),
+    matchReasons,
     occurredAt: safeIso(row?.occurred_at)
   };
 }
@@ -84,9 +167,11 @@ function safeMetadata(value) {
   const source = object(value);
   const output = {};
   const requestStatus = clean(source?.request_status, 40).toLowerCase();
+  const spotsRemaining = finite(source?.spots_remaining);
   const contributionAmount = finite(source?.contribution_amount);
   const unit = clean(source?.unit, 40).toLowerCase();
   if (requestStatus) output.requestStatus = requestStatus;
+  if (spotsRemaining !== null) output.spotsRemaining = Math.max(0, spotsRemaining);
   if (contributionAmount !== null) output.contributionAmount = contributionAmount;
   if (unit) output.unit = unit;
   return output;
@@ -123,9 +208,10 @@ function supabaseConfig() {
 
 function initiativeSourceRules() {
   return {
-    directFactsOnly: true,
+    directFactsOnlyExceptServerMatchedSpotOpen: true,
     noGenericCreationEvents: true,
-    noSpotOpenInitiativeUntilServerMatchGrounded: true,
+    matchedSpotOpenServerGrounded: true,
+    matchedSpotRequiresAvailableViewerState: true,
     selfGeneratedActionsSuppressed: true,
     noClientSuppliedEventAuthority: true,
     noServiceRoleFallback: true,
