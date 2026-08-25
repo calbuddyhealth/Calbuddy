@@ -4,7 +4,7 @@
 // its own guarded user-scoped RPC and attached as a separate evidence packet.
 
 import {
-  CIRCLE_EVENT_INITIATIVE_VERSION as CORE_CIRCLE_EVENT_INITIATIVE_VERSION,
+  CIRCLE_EVENT_INITIATIVE_VERSION as CORE_EVENT_VERSION,
   loadCircleInitiativeEvents as loadCoreCircleInitiativeEvents,
   compactDirectEvent,
   compactMatchedSpotEvent
@@ -12,7 +12,7 @@ import {
 import { loadCrewInitiativeCandidates } from "./crew-initiative.js";
 
 export const CIRCLE_EVENT_INITIATIVE_VERSION = "1.2.0";
-export const CORE_CIRCLE_EVENT_INITIATIVE_VERSION = CORE_CIRCLE_EVENT_INITIATIVE_VERSION;
+export const CORE_CIRCLE_EVENT_INITIATIVE_VERSION = CORE_EVENT_VERSION;
 export { compactDirectEvent, compactMatchedSpotEvent };
 
 export async function loadCircleInitiativeEvents({ accessToken, userId, now = new Date(), limit } = {}) {
