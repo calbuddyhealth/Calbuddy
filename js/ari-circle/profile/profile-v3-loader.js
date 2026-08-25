@@ -7,6 +7,7 @@ const V4_STYLE_ID = "ari-circle-v4-style";
 const V4_POLISH_STYLE_ID = "ari-circle-v4-polish-style";
 const MEDIA_STYLE_ID = "ari-circle-media-style";
 const PROFILE_BOOT_STYLE_ID = "ari-circle-profile-boot-style";
+const XP_STYLE_ID = "ariCircleXpStyle";
 
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 if (themeMeta) themeMeta.setAttribute("content", "#f8faff");
@@ -121,6 +122,16 @@ if (!document.getElementById(MEDIA_STYLE_ID)) {
   document.head.append(link);
 }
 
+// Load the XP authority early on Profile so Safari cannot paint the legacy XP
+// block first and then restyle it after the V5 shell arrives.
+if (!document.getElementById(XP_STYLE_ID)) {
+  const link = document.createElement("link");
+  link.id = XP_STYLE_ID;
+  link.rel = "stylesheet";
+  link.href = "assets/css/ari-circle-xp.css?v=1.0.1";
+  document.head.append(link);
+}
+
 function primeOwnProfileActions() {
   if (!isOwnProfileRoute) return;
 
@@ -186,7 +197,7 @@ function finishProfessionalProfileBoot() {
 
 Promise.all([
   import("./profile-v4.js?v=4.3.1"),
-  import("../v4-ui.js?v=5.3.2"),
+  import("../v4-ui.js?v=5.3.3"),
   import("./profile-friends.js?v=1.0.0")
 ])
   .then(() => finishProfessionalProfileBoot())
