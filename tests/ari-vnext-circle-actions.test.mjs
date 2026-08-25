@@ -274,7 +274,7 @@ test("Mission action executor delegates to existing guarded Mission authorities"
   assert.match(adapter, /ari_circle_join_quest/);
   assert.match(circleV5Migration, /create or replace function public\.ari_circle_join_quest/i);
   assert.match(missionMigration, /perform public\.ari_circle_assert_adult_access\(\)/i);
-  assert.match(missionMigration, /requested_xp_reward\s*=>\s*0/i);
+  assert.match(missionMigration, /check \(objective_type = 'completion' or xp_reward = 0\)/i);
   assert.doesNotMatch(adapter, /ari_circle_review_mission_contribution/);
 });
 
