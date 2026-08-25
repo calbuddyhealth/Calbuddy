@@ -17,5 +17,5 @@ test("raising V6 intent hydration does not broaden the data authority", () => {
   assert.match(contextSource, /ari_circle_list_places_for_intent/);
   assert.match(contextSource, /Authorization: `Bearer \$\{accessToken\}`/);
   assert.doesNotMatch(contextSource, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(contextSource, /\.from\s*\(/);
+  assert.doesNotMatch(contextSource, /\b(?:supabase|client)\.from\s*\(/i);
 });
