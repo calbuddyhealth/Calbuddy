@@ -19,6 +19,7 @@ on:
       - feature/ari-circle-crew-actions
       - feature/ari-circle-crew-initiative
       - feature/ari-circle-v6-experience
+      - feature/ari-circle-v6-commit
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -68,6 +69,7 @@ on:
       - feature/ari-circle-crew-awareness
       - feature/ari-circle-crew-actions
       - feature/ari-circle-crew-initiative
+      - feature/ari-circle-v6-experience
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
