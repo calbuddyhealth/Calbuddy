@@ -7,6 +7,9 @@ const migration = fs.readFileSync(
   "utf8"
 );
 const contract = fs.readFileSync("docs/ARI_CIRCLE_ACTION_NETWORK_V6.md", "utf8");
+const executableSql = migration
+  .replace(/--[^\n]*/g, "")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
 
 test("Match Engine V1 only matches from an active intent owned by the caller", () => {
   assert.match(migration, /perform public\.ari_circle_assert_adult_access\(\)/i);
@@ -40,13 +43,14 @@ test("Match Engine V1 is deterministic and explainable", () => {
 });
 
 test("Match Engine V1 does not use reward size, payment, popularity, or engagement to rank", () => {
+  assert.match(migration, /V1 deliberately does not score XP, payment, popularity, followers, or engagement/i);
   assert.match(migration, /Reward XP remains display metadata only/i);
   assert.match(migration, /excluded[\s\S]*from internal_match_score/i);
-  assert.doesNotMatch(migration, /premium/i);
-  assert.doesNotMatch(migration, /sponsor/i);
-  assert.doesNotMatch(migration, /followers?/i);
-  assert.doesNotMatch(migration, /likes?/i);
-  assert.doesNotMatch(migration, /reaction/i);
+  assert.doesNotMatch(executableSql, /premium/i);
+  assert.doesNotMatch(executableSql, /sponsor/i);
+  assert.doesNotMatch(executableSql, /followers?/i);
+  assert.doesNotMatch(executableSql, /likes?/i);
+  assert.doesNotMatch(executableSql, /reaction/i);
   assert.match(contract, /Paid status is never a ranking signal/i);
 });
 
