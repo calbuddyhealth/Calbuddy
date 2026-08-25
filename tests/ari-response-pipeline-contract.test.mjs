@@ -110,17 +110,18 @@ function bridgeSandbox(fetchImpl) {
 
 test("Home cache chain points at one repaired runtime/bridge version", () => {
   assert.match(homeSource, /js\/auth\.js\?v=1\.10\.16/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.0/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.1/);
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
   assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.3/);
-  assert.match(routerSource, /ari-runtime-controller\.js\?v=1\.3\.4/);
+  assert.match(routerSource, /ari-runtime-controller\.js\?v=1\.3\.5/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
+  assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.1\.0/);
 });
 
 test("runtime publishes canonical and compatibility identities together", () => {
   const { sandbox, events } = runtimeSandbox();
   assert.equal(sandbox.window.Ari.Runtime, sandbox.window.AriRuntime);
-  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.4");
+  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.5");
   assert.equal(typeof sandbox.window.Ari.Runtime.ask, "function");
   assert.ok(events.some((event) => event.type === "ari:runtimeReady"));
 });
@@ -169,7 +170,7 @@ test("bridge forwards Home AbortSignal to /api/ari-vnext and exposes 202 as proc
 
 test("Home loader is version-aware, dual-namespace aware, and bounded", () => {
   assert.match(resilienceSource, /window\.AriRuntime, window\.Ari\?\.Runtime/);
-  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.4"/);
+  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.5"/);
   assert.match(resilienceSource, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilienceSource, /loadRuntimeController\(\{ signal \}\)/);
   assert.match(resilienceSource, /ARI_TURN_IN_PROGRESS/);
