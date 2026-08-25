@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const $ = (id) => document.getElementById(id);
   const state = {
     client: null,
@@ -14,6 +14,8 @@
     opportunities: [],
     places: [],
     intents: [],
+    placeMissions: new Map(),
+    placeMissionLoading: new Set(),
     activity: "",
     area: "",
     window: "upcoming",
@@ -135,6 +137,8 @@
         });
       }
       state.places = Array.isArray(rows) ? rows : [];
+      state.placeMissions.clear();
+      state.placeMissionLoading.clear();
       syncPlaceBasis(intent);
     } catch (error) {
       console.error("Explore place load failed:", error);
@@ -226,6 +230,7 @@
     const tags = Array.isArray(row.activity_tags) ? row.activity_tags.slice(0, 6) : [];
     const distance = Number(row.distance_miles);
     const verified = row.verification_state === "partner_verified" ? "Partner verified" : "Curated public place";
+    const placeId = clean(row.place_id);
 
     article.innerHTML = `
       <div class="circle-explore-card__top">
@@ -239,8 +244,85 @@
         ${Number.isFinite(distance) ? `<span>${distance.toFixed(1)} mi from your intent area</span>` : ""}
         ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
       </div>
+      <div class="circle-explore-place-actions"></div>
+      <div class="circle-explore-place-missions" hidden></div>
     `;
+
+    if (placeId) {
+      const actions = article.querySelector(".circle-explore-place-actions");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "circle-v5-button";
+      button.textContent = "See Missions";
+      button.addEventListener("click", () => togglePlaceMissions(article, row, button));
+      actions?.append(button);
+    }
+
     return article;
+  }
+
+  async function togglePlaceMissions(article, row, button) {
+    const panel = article?.querySelector?.(".circle-explore-place-missions");
+    const placeId = clean(row?.place_id);
+    if (!panel || !placeId) return;
+
+    if (!panel.hidden) {
+      panel.hidden = true;
+      button.textContent = "See Missions";
+      return;
+    }
+
+    panel.hidden = false;
+    button.textContent = "Hide Missions";
+
+    if (state.placeMissions.has(placeId)) {
+      renderPlaceMissions(panel, state.placeMissions.get(placeId));
+      return;
+    }
+
+    if (state.placeMissionLoading.has(placeId)) return;
+    state.placeMissionLoading.add(placeId);
+    panel.innerHTML = '<p class="circle-v5-completion-note">Finding Missions at this place…</p>';
+
+    try {
+      const rows = await rpc("ari_circle_list_place_missions", {
+        requested_place_id: placeId,
+        result_limit: 8
+      });
+      const missions = Array.isArray(rows) ? rows : [];
+      state.placeMissions.set(placeId, missions);
+      renderPlaceMissions(panel, missions);
+    } catch (error) {
+      console.error("Explore Place Mission load failed:", error);
+      panel.innerHTML = `<p class="circle-v5-completion-note">${escapeHtml(error.message || "Place Missions are unavailable right now.")}</p>`;
+    } finally {
+      state.placeMissionLoading.delete(placeId);
+    }
+  }
+
+  function renderPlaceMissions(panel, missions = []) {
+    if (!missions.length) {
+      panel.innerHTML = '<div class="circle-v5-empty"><strong>No active Missions here yet.</strong><span>This Place can still be useful for activities and future community objectives.</span></div>';
+      return;
+    }
+
+    panel.replaceChildren();
+    missions.forEach((mission) => {
+      const target = Number(mission.target_value) || 0;
+      const progress = Number(mission.verified_progress) || 0;
+      const percent = Number(mission.progress_percent);
+      const item = document.createElement("div");
+      item.className = "circle-v5-activity-row";
+      item.innerHTML = `
+        <span class="circle-v5-activity-icon">◎</span>
+        <span class="circle-v5-activity-row__copy">
+          <strong>${escapeHtml(mission.title || "Mission")}</strong>
+          <small>${Number.isFinite(percent) ? `${Math.max(0, Math.min(100, Math.round(percent)))}% complete · ` : ""}${escapeHtml(String(progress))} / ${escapeHtml(String(target))} ${escapeHtml(clean(mission.unit))}</small>
+        </span>
+        <a class="circle-v5-button" href="ari-circle-quests.html">Open</a>
+      `;
+      panel.append(item);
+    });
   }
 
   async function refreshAll() {
