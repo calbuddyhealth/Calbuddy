@@ -17,8 +17,18 @@ const profileLoader = fs.readFileSync(
   "utf8"
 );
 
-const profileSocialFlow = fs.readFileSync(
-  new URL("../js/ari-circle/profile/profile-social-flow.js", import.meta.url),
+const profileFriends = fs.readFileSync(
+  new URL("../js/ari-circle/profile/profile-friends.js", import.meta.url),
+  "utf8"
+);
+
+const connectionsController = fs.readFileSync(
+  new URL("../js/ari-circle/connections/connections-controller.js", import.meta.url),
+  "utf8"
+);
+
+const messagesController = fs.readFileSync(
+  new URL("../js/ari-circle/messaging/messages-controller.js", import.meta.url),
   "utf8"
 );
 
@@ -75,14 +85,24 @@ test("Profile renderer exposes only current Circle routes and eligibility copy",
   assert.doesNotMatch(profileV4, /teen and adult discovery/i);
 });
 
-test("Profile loader boots only the accelerated renderer, compatibility shell, and Profile social flow", () => {
+test("Profile loader keeps one relationship owner and one messaging owner", () => {
   assert.match(profileLoader, /profile-v4\.js\?v=4\.3\.1/);
-  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.0/);
-  assert.match(profileLoader, /profile-social-flow\.js\?v=1\.0\.0/);
-  assert.match(profileLoader, /window\.AriCircleProfileSocialFlow/);
-  assert.doesNotMatch(profileLoader, /v4-flow-fixes\.js|AriCircleV4FlowFixes/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.2/);
+  assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
+  assert.match(profileLoader, /canonicalProfileReady/);
+  assert.doesNotMatch(profileLoader, /profile-social-flow|profile-connection-authority|AriCircleProfileSocialFlow/);
 
-  assert.match(profileSocialFlow, /ari_circle_relationship_state/);
-  assert.match(profileSocialFlow, /ari_circle_profile_friends/);
-  assert.doesNotMatch(profileSocialFlow, /ari_circle_feed_hide_post|ari_circle_feed_delete_post/);
+  assert.match(connectionsController, /Own the connection relationship UI/);
+  assert.match(connectionsController, /case CONNECTION_STATES\.OUTGOING_PENDING/);
+  assert.match(connectionsController, /this\.confirmCancelRequest\(\)/);
+  assert.match(messagesController, /Single routing authority for messaging entry points/);
+  assert.match(messagesController, /CircleEvents\.onAction\("message"/);
+});
+
+test("Profile friends module is social-display only", () => {
+  assert.match(profileFriends, /ari_circle_profile_friends/);
+  assert.match(profileFriends, /view-entire-circle/);
+  assert.doesNotMatch(profileFriends, /ari_circle_relationship_state/);
+  assert.doesNotMatch(profileFriends, /ari_circle_feed_hide_post|ari_circle_feed_delete_post/);
+  assert.doesNotMatch(profileFriends, /data\.circleAction\s*=\s*"connection"/);
 });
