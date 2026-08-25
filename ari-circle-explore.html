@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f6f8fc" />
+  <title>Explore | ARI Circle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-real-world.css?v=5.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-explore-v1.css?v=1.0.0" />
+</head>
+<body class="circle-v5-real-world">
+  <main class="circle-v5-page" id="explorePage" hidden>
+    <header class="circle-v5-header feed-header">
+      <details class="circle-v4-menu">
+        <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
+      </details>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed"><span>ARI CIRCLE</span></a>
+      <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
+    </header>
+
+    <div class="circle-v5-page-main">
+      <section class="circle-explore-hero" aria-labelledby="exploreTitle">
+        <span class="circle-v5-hero__kicker">ACTION NETWORK</span>
+        <h1 id="exploreTitle">Explore</h1>
+        <p>Find something worth doing—not people to scroll through.</p>
+        <form class="circle-explore-search" id="exploreAreaForm">
+          <input class="circle-v5-input" id="exploreAreaInput" maxlength="100" placeholder="Search an area, city, or region" autocomplete="off" aria-label="Search Explore area" />
+          <button class="circle-v5-button-primary" type="submit">Search</button>
+          <button class="circle-v5-button" id="exploreClearArea" type="button">Clear</button>
+        </form>
+      </section>
+
+      <div class="circle-v5-filter-rail" aria-label="Explore activity filters">
+        <button class="circle-v5-filter-chip is-active" type="button" data-explore-activity="">All</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="walking">Walking</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="gym">Gym</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="running">Running</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="hiking">Hiking</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="sports">Sports</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="cycling">Cycling</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="community">Community</button>
+        <button class="circle-v5-filter-chip" type="button" data-explore-activity="volunteer">Volunteer</button>
+      </div>
+
+      <section class="circle-explore-section" aria-labelledby="exploreOpportunityTitle">
+        <div class="circle-v5-section-heading">
+          <div><p>WORTH DOING</p><h2 id="exploreOpportunityTitle">Opportunities</h2></div>
+          <button class="circle-v5-button" id="exploreRefresh" type="button" style="min-height:34px;padding:0 11px">Refresh</button>
+        </div>
+        <div class="circle-v5-filter-rail" aria-label="Opportunity time filters">
+          <button class="circle-v5-filter-chip is-active" type="button" data-explore-window="upcoming">Upcoming</button>
+          <button class="circle-v5-filter-chip" type="button" data-explore-window="today">Today</button>
+          <button class="circle-v5-filter-chip" type="button" data-explore-window="weekend">Weekend</button>
+        </div>
+        <p id="exploreOpportunityStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Loading…</p>
+        <div class="circle-explore-grid" id="exploreOpportunityList"></div>
+        <div class="circle-v5-empty" id="exploreOpportunityEmpty" hidden><strong>Nothing fits right now.</strong><span>Try another activity or time window.</span></div>
+      </section>
+
+      <section class="circle-explore-section" aria-labelledby="explorePlaceTitle">
+        <div class="circle-v5-section-heading">
+          <div><p>GO SOMEWHERE</p><h2 id="explorePlaceTitle">Public places</h2></div>
+        </div>
+        <p class="circle-explore-basis" id="explorePlaceBasis">Curated public activity places.</p>
+        <p id="explorePlaceStatus" class="circle-v5-completion-note" role="status" aria-live="polite">Loading…</p>
+        <div class="circle-explore-grid" id="explorePlaceList"></div>
+        <div class="circle-v5-empty" id="explorePlaceEmpty" hidden><strong>No curated places match yet.</strong><span>Explore never fills the map with unverified or live-user locations.</span></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.3" defer></script>
+  <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
+  <script src="supabase-config.js?v=1.1.8"></script>
+  <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
+  <script src="js/ari-circle/explore/explore-v1.js?v=1.0.0" defer></script>
+</body>
+</html>
