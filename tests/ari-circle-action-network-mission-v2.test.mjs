@@ -123,6 +123,11 @@ test("organizer verification has a non-self path for the organizer's own contrib
   assert.match(hardening, /A joined Community Leader must verify the organizer contribution/i);
 });
 
+test("organizer fallback reviewer can see only the organizer's submitted contribution", () => {
+  assert.match(hardening, /q\.verification_mode = 'organizer'[\s\S]*reviewer_is_member[\s\S]*reviewer_is_leader[\s\S]*c\.user_id = q\.creator_user_id[\s\S]*c\.status = 'submitted'/i);
+  assert.match(hardening, /caller_id = q\.creator_user_id[\s\S]*or q\.verification_mode = 'peer'/i);
+});
+
 test("Mission review is bounded to the active mission plus a short settlement window", () => {
   assert.match(hardening, /q\.status <> 'active'/i);
   assert.match(hardening, /q\.ends_at \+ interval '48 hours'/i);
