@@ -87,8 +87,9 @@ test("Profile renderer exposes only current Circle routes and eligibility copy",
 
 test("Profile loader keeps one relationship owner and one messaging owner", () => {
   assert.match(profileLoader, /profile-v4\.js\?v=4\.3\.1/);
-  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.2/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.3/);
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
+  assert.match(profileLoader, /ari-circle-xp\.css\?v=1\.0\.1/);
   assert.match(profileLoader, /canonicalProfileReady/);
   assert.doesNotMatch(profileLoader, /profile-social-flow|profile-connection-authority|AriCircleProfileSocialFlow/);
 
