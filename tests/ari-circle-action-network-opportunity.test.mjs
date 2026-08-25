@@ -6,6 +6,10 @@ const migration = fs.readFileSync(
   "supabase/migrations/20260825094500_ari_circle_action_network_opportunity_v1.sql",
   "utf8"
 );
+const missionProjection = fs.readFileSync(
+  "supabase/migrations/20260825134500_ari_circle_mission_v2_opportunity_projection.sql",
+  "utf8"
+);
 const contract = fs.readFileSync("docs/ARI_CIRCLE_ACTION_NETWORK_V6.md", "utf8");
 
 test("Opportunity V1 unifies Meetups and Missions without replacing source authorities", () => {
@@ -73,6 +77,42 @@ test("Mission today and weekend windows use overlap semantics", () => {
     migration,
     /source\.starts_at < date_trunc\('week', now\(\)\) \+ interval '7 days'[\s\S]*source\.ends_at > date_trunc\('week', now\(\)\) \+ interval '5 days'/i
   );
+});
+
+test("Mission V2 replaces only the Mission projection and keeps Meetups on their existing authority", () => {
+  assert.match(missionProjection, /create or replace function public\.ari_circle_list_opportunities/i);
+  assert.match(missionProjection, /public\.ari_circle_list_meetups\(/i);
+  assert.match(missionProjection, /public\.ari_circle_list_missions_v2\(50\)/i);
+  assert.match(missionProjection, /'mission:' \|\| listed\.mission_id::text/i);
+  assert.doesNotMatch(missionProjection, /public\.ari_circle_list_quests\(/i);
+});
+
+test("Mission V2 Opportunity metadata carries verified progress but not contribution evidence", () => {
+  for (const field of [
+    "objective_type",
+    "progress_mode",
+    "target_value",
+    "unit",
+    "verified_progress",
+    "viewer_verified_progress",
+    "viewer_pending_progress",
+    "progress_percent",
+    "objective_reached_at"
+  ]) {
+    assert.match(missionProjection, new RegExp(`'${field}'`));
+  }
+  assert.doesNotMatch(missionProjection, /proof_note/i);
+  assert.doesNotMatch(missionProjection, /verified_by/i);
+  assert.doesNotMatch(missionProjection, /ari_circle_mission_contributions/i);
+  assert.doesNotMatch(missionProjection, /meeting_point/i);
+});
+
+test("Mission V2 Opportunity projection remains read-only and reward-neutral", () => {
+  assert.doesNotMatch(missionProjection, /ari_circle_award_xp_capped/i);
+  assert.doesNotMatch(missionProjection, /insert\s+into\s+public\.ari_circle_/i);
+  assert.doesNotMatch(missionProjection, /update\s+public\.ari_circle_/i);
+  assert.doesNotMatch(missionProjection, /delete\s+from\s+public\.ari_circle_/i);
+  assert.match(missionProjection, /stable\s*\nsecurity definer/i);
 });
 
 test("Action Network contract forbids pay-to-rank social advantage", () => {
