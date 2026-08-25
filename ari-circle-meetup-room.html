@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
-  <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-v1.css?v=1.0.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-v1.css?v=1.1.0" />
 </head>
 <body class="circle-v5-real-world">
   <div class="meetup-room-loading" id="meetupRoomLoading" role="status" aria-live="polite">Opening meetup room…</div>
@@ -37,57 +37,64 @@
           <span id="meetupRoomArea">📍 Area</span>
           <span id="meetupRoomCount">👥 0 going</span>
         </div>
+        <p class="meetup-room-countdown" id="meetupRoomCountdown" hidden></p>
       </section>
 
       <section class="meetup-room-section meetup-room-point" aria-labelledby="meetingPointTitle">
         <div class="meetup-room-section-head">
-          <div><p>PRIVATE LOGISTICS</p><h2 id="meetingPointTitle">Meeting point</h2></div>
-          <span class="meetup-room-private-badge">Joined only</span>
+          <div><p>MEET HERE</p><h2 id="meetingPointTitle">📍 Meeting point</h2></div>
         </div>
-        <p class="meetup-room-point-value" id="meetingPointValue">The host has not shared the exact meeting point yet.</p>
-        <button class="circle-v5-button meetup-room-copy" id="copyMeetingPoint" type="button" hidden>Copy</button>
+
+        <div class="meetup-room-point-summary">
+          <div class="meetup-room-point-copy">
+            <strong id="meetingPointValue">Not set yet</strong>
+            <span id="meetingPointPrivacy">Private to attendees</span>
+          </div>
+          <div class="meetup-room-point-actions">
+            <button class="circle-v5-button meetup-room-copy" id="copyMeetingPoint" type="button" hidden>Copy</button>
+            <button class="circle-v5-button meetup-room-edit-point" id="editMeetingPoint" type="button" hidden>Set</button>
+          </div>
+        </div>
+
         <form class="meetup-room-point-form" id="meetingPointForm" hidden>
-          <label class="circle-v5-field">Exact meeting point
-            <input class="circle-v5-input" id="meetingPointInput" maxlength="180" placeholder="North entrance by the front desk" autocomplete="off" />
-          </label>
-          <p class="circle-v5-form-note">Only joined attendees can see this. Use a public meeting place when appropriate.</p>
-          <button class="circle-v5-button-primary" id="saveMeetingPoint" type="submit">Save meeting point</button>
+          <label class="sr-only" for="meetingPointInput">Exact meeting point</label>
+          <input class="circle-v5-input" id="meetingPointInput" maxlength="180" placeholder="North entrance by the front desk" autocomplete="off" />
+          <div class="meetup-room-point-form-actions">
+            <button class="circle-v5-button-primary" id="saveMeetingPoint" type="submit">Save</button>
+            <button class="circle-v5-button" id="cancelMeetingPoint" type="button">Cancel</button>
+          </div>
         </form>
       </section>
 
-      <section class="meetup-room-section" aria-labelledby="hostPocTitle">
-        <div class="meetup-room-section-head"><div><p>POINT OF CONTACT</p><h2 id="hostPocTitle">Host</h2></div></div>
-        <div class="meetup-room-host-card">
-          <a class="circle-v5-avatar meetup-room-host-avatar" id="meetupHostProfile" href="ari-circle.html"><span id="meetupHostInitial">A</span></a>
-          <div class="meetup-room-host-copy">
-            <strong id="meetupHostName">ARI User</strong>
-            <span id="meetupHostMeta">Host</span>
-          </div>
-          <a class="circle-v5-button meetup-room-message-host" id="messageMeetupHost" href="ari-circle-messages.html">Message Host</a>
+      <section class="meetup-room-section meetup-room-people" aria-labelledby="goingTitle">
+        <div class="meetup-room-section-head">
+          <div><p>PEOPLE</p><h2 id="goingTitle">Going</h2></div>
         </div>
-      </section>
-
-      <section class="meetup-room-section" aria-labelledby="goingTitle">
-        <div class="meetup-room-section-head"><div><p>GOING</p><h2 id="goingTitle">Attendees</h2></div><span id="goingCount">0</span></div>
         <div class="meetup-room-attendees" id="meetupAttendeeList" aria-live="polite"></div>
       </section>
 
       <section class="meetup-room-section meetup-room-chat" aria-labelledby="meetupChatTitle">
         <div class="meetup-room-section-head">
-          <div><p>LOGISTICS</p><h2 id="meetupChatTitle">Meetup chat</h2></div>
+          <div><p>CHAT</p><h2 id="meetupChatTitle">Meetup chat</h2></div>
           <span class="meetup-room-chat-state" id="meetupChatState">Live</span>
         </div>
-        <p class="circle-v5-form-note">Use this chat for meetup details everyone attending should see. Private questions can go directly to the host.</p>
+
         <div class="meetup-room-messages" id="meetupRoomMessages" aria-live="polite"></div>
-        <div class="meetup-room-chat-empty" id="meetupChatEmpty">No messages yet. The host can start with the meetup details.</div>
+        <div class="meetup-room-chat-empty" id="meetupChatEmpty">No messages yet. Say something 👋</div>
+
+        <div class="meetup-room-quick-actions" id="meetupRoomQuickActions" aria-label="Quick meetup messages">
+          <button type="button" data-meetup-quick-message="On my way 🚶">On my way</button>
+          <button type="button" data-meetup-quick-message="I'm here 👋">I'm here 👋</button>
+          <button type="button" data-meetup-quick-message="Running a little late">Running late</button>
+        </div>
+
         <form class="meetup-room-composer" id="meetupRoomMessageForm">
-          <textarea id="meetupRoomMessageInput" maxlength="1000" rows="1" placeholder="Message the meetup…" aria-label="Message the meetup"></textarea>
+          <textarea id="meetupRoomMessageInput" maxlength="1000" rows="1" placeholder="Say something…" aria-label="Message the meetup"></textarea>
           <button class="circle-v5-button-primary" id="meetupRoomSend" type="submit">Send</button>
         </form>
-        <p class="meetup-room-readonly" id="meetupRoomReadonly" hidden>This meetup room is now read-only.</p>
+        <p class="meetup-room-readonly" id="meetupRoomReadonly" hidden>This meetup chat is now read-only.</p>
+        <p class="meetup-room-archive-note" id="meetupRoomArchiveNote"></p>
       </section>
-
-      <p class="meetup-room-archive-note" id="meetupRoomArchiveNote"></p>
     </div>
   </main>
 
@@ -99,6 +106,6 @@
   <script src="supabase-config.js?v=1.1.8"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
-  <script src="js/ari-circle/meetups/meetup-room-v1.js?v=1.0.1" defer></script>
+  <script src="js/ari-circle/meetups/meetup-room-v1.js?v=1.1.0" defer></script>
 </body>
 </html>
