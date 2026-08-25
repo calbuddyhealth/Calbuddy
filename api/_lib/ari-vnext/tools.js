@@ -4,14 +4,14 @@
 // proposals on top of that trusted registry.
 
 import {
-  TOOL_REGISTRY_VERSION as CORE_TOOL_REGISTRY_VERSION,
+  TOOL_REGISTRY_VERSION as CORE_REGISTRY_VERSION,
   getAriTools as getCoreAriTools,
   validateToolCall as validateCoreToolCall,
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
 export const TOOL_REGISTRY_VERSION = "1.12.0";
-export const CORE_TOOL_REGISTRY_VERSION = CORE_TOOL_REGISTRY_VERSION;
+export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const CREW_TOOL_NAMES = new Set([
   "propose_create_circle_crew",
