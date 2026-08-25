@@ -6,6 +6,8 @@ const html = await readFile(new URL("../ari-circle-v6.html", import.meta.url), "
 const controller = await readFile(new URL("../js/ari-circle/v6/action-network-v6.js", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/ari-circle-v6-experience.css", import.meta.url), "utf8");
 const productionMenu = await readFile(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
+const homeHtml = await readFile(new URL("../home.html", import.meta.url), "utf8");
+const legacyProfileHtml = await readFile(new URL("../ari-circle.html", import.meta.url), "utf8");
 
 test("Circle V6 is one integrated Action Network experience rather than another feed", () => {
   assert.match(html, /What are you up for\?/i);
@@ -127,9 +129,12 @@ test("V6 stays mobile and Safari-safe with touch targets, safe areas, and one-co
   assert.match(css, /\.v6-crew-create\{grid-template-columns:1fr\}/);
 });
 
-test("V6 is still an isolated lab route and does not silently replace production Circle navigation", () => {
-  assert.match(html, /REAL-WORLD ACTION NETWORK · LAB/i);
+test("V6 is the default Circle entry while legacy profile and control routes remain available", () => {
+  assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
   assert.match(html, /ari-circle-v6-experience\.css\?v=0\.2\.0/);
   assert.match(html, /action-network-v6\.js\?v=0\.2\.0/);
-  assert.doesNotMatch(productionMenu, /ari-circle-v6\.html/i);
+  assert.match(homeHtml, /href="ari-circle-v6\.html"[^>]*class="ari-nav-link nav-circle"/i);
+  assert.match(legacyProfileHtml, /id="circle-profile"/i);
+  assert.match(productionMenu, /ari-circle\.html\?panel=notifications/i);
+  assert.match(productionMenu, /ari-circle-meetup\.html/i);
 });
