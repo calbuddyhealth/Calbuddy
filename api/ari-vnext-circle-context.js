@@ -2,12 +2,13 @@
 // Uses the signed-in user's JWT for every Circle RPC so adult access, blocking,
 // and source-RPC authorization remain authoritative. No service-role fallback.
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const MAX_OPPORTUNITIES = 12;
 const MAX_INTENTS = 3;
 const MAX_MATCH_INTENTS = 2;
 const MAX_MATCHES_PER_INTENT = 6;
 const MAX_RELATIONSHIPS = 8;
+const MAX_PLACES = 8;
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -88,8 +89,24 @@ export default async function handler(req, res) {
       })
     );
 
+    const placeBatches = await Promise.all(
+      activeIntents.slice(0, MAX_MATCH_INTENTS).map(async (intent) => {
+        try {
+          const rows = await callOptionalActionNetworkRpc(config, accessToken, "ari_circle_list_places_for_intent", {
+            requested_intent_id: intent.intentId,
+            result_limit: MAX_PLACES
+          });
+          return array(rows).map((row) => compactPlace(row, intent.intentId)).filter(Boolean);
+        } catch (error) {
+          if (isMissingActionNetworkRpc(error)) return [];
+          throw error;
+        }
+      })
+    );
+
     const bestMatches = dedupeMatches(matchBatches.flat()).slice(0, 10);
-    const situation = buildSituation({ opportunities, activeIntents, bestMatches, relationships });
+    const places = dedupePlaces(placeBatches.flat()).slice(0, MAX_PLACES);
+    const situation = buildSituation({ opportunities, activeIntents, bestMatches, relationships, places });
 
     return res.status(200).json({
       success: true,
@@ -102,6 +119,7 @@ export default async function handler(req, res) {
         exactMeetingPointsIncluded: false,
         directMessagesIncluded: false,
         rawCoordinatesIncluded: false,
+        rawPlaceCoordinatesIncluded: false,
         rawFeedContentIncluded: false,
         durableSocialLearningIncluded: false,
         missionProofNotesIncluded: false,
@@ -122,7 +140,7 @@ export default async function handler(req, res) {
   }
 }
 
-export function buildSituation({ opportunities = [], activeIntents = [], bestMatches = [], relationships = [] } = {}) {
+export function buildSituation({ opportunities = [], activeIntents = [], bestMatches = [], relationships = [], places = [] } = {}) {
   const schedule = opportunities.filter((item) => [
     "host", "joined", "pending", "waitlisted", "creator", "submitted", "verified", "completed"
   ].includes(item.viewerState)).slice(0, 8);
@@ -151,11 +169,13 @@ export function buildSituation({ opportunities = [], activeIntents = [], bestMat
       hostPendingRequestCount,
       relationshipCount: relationships.length,
       repeatRelationshipCount,
-      activeMetricMissionCount
+      activeMetricMissionCount,
+      placeSuggestionCount: places.length
     },
     activeIntents,
     bestMatches,
     relationships: relationships.slice(0, MAX_RELATIONSHIPS),
+    places: places.slice(0, MAX_PLACES),
     schedule,
     opportunities: opportunities.slice(0, 10)
   };
@@ -288,6 +308,23 @@ function compactRelationship(row = {}) {
   };
 }
 
+function compactPlace(row = {}, intentId = null) {
+  const placeId = clean(row?.place_id, 120);
+  if (!placeId) return null;
+  return {
+    placeId,
+    intentId,
+    name: clean(row?.place_name, 120),
+    type: clean(row?.place_type, 60),
+    area: clean(row?.area, 120),
+    city: clean(row?.city, 100) || null,
+    region: clean(row?.region, 100) || null,
+    activityTags: array(row?.activity_tags).map((item) => clean(item, 60)).filter(Boolean).slice(0, 12),
+    verificationState: clean(row?.verification_state, 40),
+    distanceMiles: number(row?.distance_miles)
+  };
+}
+
 function dedupeMatches(rows = []) {
   const byKey = new Map();
   for (const row of rows) {
@@ -301,6 +338,27 @@ function dedupeMatches(rows = []) {
     const scoreDelta = (number(b.matchScore) || 0) - (number(a.matchScore) || 0);
     if (scoreDelta) return scoreDelta;
     return Date.parse(a?.startsAt || "") - Date.parse(b?.startsAt || "");
+  });
+}
+
+function dedupePlaces(rows = []) {
+  const byId = new Map();
+  for (const row of rows) {
+    if (!row?.placeId) continue;
+    const current = byId.get(row.placeId);
+    const nextDistance = number(row?.distanceMiles);
+    const currentDistance = number(current?.distanceMiles);
+    if (!current || (nextDistance !== null && (currentDistance === null || nextDistance < currentDistance))) {
+      byId.set(row.placeId, row);
+    }
+  }
+  return [...byId.values()].sort((a, b) => {
+    const aDistance = number(a?.distanceMiles);
+    const bDistance = number(b?.distanceMiles);
+    if (aDistance !== null && bDistance !== null && aDistance !== bDistance) return aDistance - bDistance;
+    if (aDistance !== null && bDistance === null) return -1;
+    if (aDistance === null && bDistance !== null) return 1;
+    return clean(a?.name, 120).localeCompare(clean(b?.name, 120));
   });
 }
 
