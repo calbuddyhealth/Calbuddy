@@ -5,7 +5,7 @@ import test from "node:test";
 const menu = fs.readFileSync(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
 const profileCompat = fs.readFileSync(new URL("../js/ari-circle/v4-ui.js", import.meta.url), "utf8");
 const profileLoader = fs.readFileSync(new URL("../js/ari-circle/profile/profile-v3-loader.js", import.meta.url), "utf8");
-const profileSocialFlow = fs.readFileSync(new URL("../js/ari-circle/profile/profile-social-flow.js", import.meta.url), "utf8");
+const profileFriends = fs.readFileSync(new URL("../js/ari-circle/profile/profile-friends.js", import.meta.url), "utf8");
 const visitorControls = fs.readFileSync(new URL("../js/ari-circle/profile/profile-visitor-controls.js", import.meta.url), "utf8");
 const feedPostOptions = fs.readFileSync(new URL("../js/ari-circle/feed/feed-post-options.js", import.meta.url), "utf8");
 const shell = fs.readFileSync(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
@@ -74,7 +74,9 @@ test("Feed, Meet Up, and Quests use the same shared navigation and final CSS aut
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
-    assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.1"/);
+    assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3"/);
+    assert.match(html, /id="ariCircleSocialBadgesScript" src="js\/ari-circle\/social-badges\.js\?v=1\.1\.0"/);
+    assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
     assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.3"/);
@@ -112,14 +114,13 @@ test("Profile compatibility modules remain Profile-only and purpose-specific", (
   assert.doesNotMatch(profileCompat, /launch-social-v5\.js|v4-flow-fixes\.js/);
   assert.doesNotMatch(profileCompat, /circleMenuMarkup|ari-circle-partners\.html|ari-circle-challenges\.html/);
 
-  assert.match(profileLoader, /profile-social-flow\.js\?v=1\.0\.0/);
+  assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
   assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.2/);
-  assert.doesNotMatch(profileLoader, /v4-flow-fixes\.js|AriCircleV4FlowFixes/);
+  assert.doesNotMatch(profileLoader, /profile-social-flow|profile-connection-authority|v4-flow-fixes\.js|AriCircleV4FlowFixes/);
 
-  assert.match(profileSocialFlow, /PROFILE SOCIAL FLOW/);
-  assert.match(profileSocialFlow, /ari_circle_relationship_state/);
-  assert.match(profileSocialFlow, /ari_circle_profile_friends/);
-  assert.doesNotMatch(profileSocialFlow, /ari_circle_feed_hide_post|ari_circle_feed_delete_post|feed-report-link/);
+  assert.match(profileFriends, /PROFILE FRIENDS/);
+  assert.match(profileFriends, /ari_circle_profile_friends/);
+  assert.doesNotMatch(profileFriends, /ari_circle_relationship_state|ari_circle_feed_hide_post|ari_circle_feed_delete_post|data\.circleAction\s*=\s*"connection"/);
 
   assert.match(visitorControls, /PROFILE VISITOR CONTROLS/);
   assert.match(visitorControls, /ari_circle_mute_state/);
