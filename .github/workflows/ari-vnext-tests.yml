@@ -9,6 +9,7 @@ on:
       - agent/ari-trust-layer-p0
       - feature/ari-circle-mission-v2
       - feature/ari-circle-places-explore
+      - feature/ari-circle-mission-actions
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
@@ -40,6 +41,7 @@ on:
       - main
       - feature/ari-circle-action-network
       - feature/ari-circle-mission-v2
+      - feature/ari-circle-places-explore
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
