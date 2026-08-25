@@ -1,13 +1,15 @@
 // ARI vNext — trusted ARI Circle lifecycle action adapter.
 // The model only proposes actions. Existing guarded Circle RPCs remain the
-// authority for adult access, blocking, capacity, host ownership, and state.
+// authority for adult access, blocking, capacity, host ownership, Crew evidence,
+// Crew consent, and state.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.1";
+  const VERSION = "1.2.0";
   const SOURCE = "ari_vnext_circle_action_adapter";
   const MISSION_PROGRESS_EVENTS = new Map();
+  const CREW_CREATION_OPERATIONS = new Map();
   const ACTIONS = new Set([
     "create_circle_meetup",
     "join_circle_meetup",
@@ -15,7 +17,12 @@
     "cancel_circle_meetup",
     "create_circle_mission",
     "join_circle_mission",
-    "submit_circle_mission_progress"
+    "submit_circle_mission_progress",
+    "create_circle_crew",
+    "accept_circle_crew_invite",
+    "decline_circle_crew_invite",
+    "leave_circle_crew",
+    "archive_circle_crew"
   ]);
 
   function clean(value = "", max = 220) {
@@ -85,6 +92,14 @@
     if (MISSION_PROGRESS_EVENTS.has(key)) return MISSION_PROGRESS_EVENTS.get(key);
     const id = stableUuid();
     MISSION_PROGRESS_EVENTS.set(key, id);
+    return id;
+  }
+
+  function crewCreationOperationId(pending = {}, candidateKey = "") {
+    const key = clean(pending?.id, 160) || `${clean(pending?.sourceTurnId, 160)}:${clean(candidateKey, 64)}`;
+    if (CREW_CREATION_OPERATIONS.has(key)) return CREW_CREATION_OPERATIONS.get(key);
+    const id = stableUuid();
+    CREW_CREATION_OPERATIONS.set(key, id);
     return id;
   }
 
@@ -164,6 +179,23 @@
       });
     }
 
+    if (name === "create_circle_crew") {
+      const candidateKey = clean(args?.candidateKey, 64).toLowerCase();
+      const crewName = clean(args?.name, 60);
+      if (!/^[0-9a-f]{32}$/.test(candidateKey) || !crewName) {
+        return failure("circle_crew_fields_required", "A valid Crew candidate and Crew name are required.");
+      }
+      return successAction(pending, {
+        action_type: "circle_create_crew",
+        payload: {
+          requested_candidate_key: candidateKey,
+          requested_name: crewName,
+          requested_operation_id: crewCreationOperationId(pending, candidateKey)
+        },
+        confirmation_text: `Create “${crewName}” as a private Crew from this repeated-activity group and invite the other founding members?`
+      });
+    }
+
     const meetupId = clean(args?.meetupId, 120);
 
     if (name === "join_circle_meetup") {
@@ -217,6 +249,44 @@
           requested_client_event_id: missionProgressEventId(pending, missionId)
         },
         confirmation_text: `Submit ${amount} ${clean(args?.unit, 40) || "units"} of progress to this Mission?`
+      });
+    }
+
+    const crewId = clean(args?.crewId, 120);
+
+    if (name === "accept_circle_crew_invite") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_accept_crew_invite",
+        payload: { requested_crew_id: crewId, requested_accept: true },
+        confirmation_text: "Accept this Crew invitation and join the Crew?"
+      });
+    }
+
+    if (name === "decline_circle_crew_invite") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_decline_crew_invite",
+        payload: { requested_crew_id: crewId, requested_accept: false },
+        confirmation_text: "Decline this Crew invitation?"
+      });
+    }
+
+    if (name === "leave_circle_crew") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_leave_crew",
+        payload: { requested_crew_id: crewId },
+        confirmation_text: "Leave this Crew?"
+      });
+    }
+
+    if (name === "archive_circle_crew") {
+      if (!crewId) return failure("circle_crew_id_required", "A specific ARI Circle Crew is required.");
+      return successAction(pending, {
+        action_type: "circle_archive_crew",
+        payload: { requested_crew_id: crewId },
+        confirmation_text: "Archive this Crew for all members?"
       });
     }
 
@@ -316,6 +386,49 @@
         result,
         reply: result?.status === "verified" ? "Mission progress added and verified." : "Mission progress submitted for verification."
       };
+    }
+
+    if (type === "circle_create_crew") {
+      const data = await rpc("ari_circle_create_crew", payload);
+      if (!data) return failure("circle_crew_create_failed", "The Crew was not created.");
+      const result = object(data);
+      emitChanged("crew_created", result);
+      return {
+        success: true,
+        result,
+        reply: result?.replayed === true
+          ? "That Crew already exists from this request."
+          : "Crew created. The other founding members were invited and must accept for the Crew to become active."
+      };
+    }
+
+    if (type === "circle_accept_crew_invite" || type === "circle_decline_crew_invite") {
+      const data = await rpc("ari_circle_respond_crew_invite", payload);
+      if (!data) return failure("circle_crew_invite_response_failed", "The Crew invitation could not be updated.");
+      const result = object(data);
+      const accepted = payload?.requested_accept === true;
+      emitChanged(accepted ? "crew_invite_accepted" : "crew_invite_declined", result);
+      return {
+        success: true,
+        result,
+        reply: accepted ? "Crew invitation accepted." : "Crew invitation declined."
+      };
+    }
+
+    if (type === "circle_leave_crew") {
+      const data = await rpc("ari_circle_leave_crew", payload);
+      if (!data) return failure("circle_crew_leave_failed", "You could not leave that Crew.");
+      const result = object(data);
+      emitChanged("crew_left", result);
+      return { success: true, result, reply: "You left the Crew." };
+    }
+
+    if (type === "circle_archive_crew") {
+      const data = await rpc("ari_circle_archive_crew", payload);
+      if (!data) return failure("circle_crew_archive_failed", "That Crew could not be archived.");
+      const result = object(data);
+      emitChanged("crew_archived", result);
+      return { success: true, result, reply: "Crew archived." };
     }
 
     return failure("unsupported_circle_executor_action", `Unsupported Circle executor action: ${type}.`);
