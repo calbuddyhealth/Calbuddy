@@ -235,6 +235,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-owner-intelligence-controls.js",
     "ari-signals-scan.js",
     "ari-signals.js",
+    "ari-vnext-circle-context.js",
     "ari-vnext-experiments.js",
     "ari-vnext-expert.js",
     "ari-vnext-growth.js",

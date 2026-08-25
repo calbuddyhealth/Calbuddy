@@ -17,11 +17,11 @@ const contextGuard = read("ari/vnext/ari-vnext-context-guard.js");
 
 assert.match(runtime, /const DEFAULT_MODE = "vnext"/, "vNext must remain the default Ari runtime");
 assert.match(runtime, /ari-vnext-meal-plan-adapter\.js\?v=1\.0\.1/, "runtime must boot the trusted Meal Plan adapter");
-assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.0\.2/, "runtime must boot the canonical context/continuity guard");
+assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.1\.0/, "runtime must boot the canonical context/continuity guard");
 assert.match(runtime, /AriVNextMealPlanAdapter\?\.ready === true/, "runtime must wait for Meal Plan adapter readiness");
 assert.match(runtime, /AriVNextContextGuard\?\.ready === true/, "runtime must wait for canonical context guard readiness");
 
-assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.4/, "shared Home/Nutrition router must boot the repaired unified runtime controller");
+assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.5/, "shared Home/Nutrition router must boot the repaired unified runtime controller");
 assert.doesNotMatch(router, /appendOrderedScript\([\s\S]{0,120}ari-vnext-context-guard\.js/, "router should not independently race the runtime controller for vNext brain dependencies");
 assert.match(auth, /ari-central-intent-router\.js\?v=1\.5\.3/, "auth bootstrap must request the repaired shared router version");
 

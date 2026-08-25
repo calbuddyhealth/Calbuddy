@@ -44,7 +44,9 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     "Ari's primary reasoning pass has already run. Independently verify whether the CURRENT user message explicitly authorizes an ARI XP mutation.",
     "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
     "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
-    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, update, start, complete, or cancel something and a matching tool is available, select that tool.",
+    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, update, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, or back out of something and a matching tool is available, select that tool.",
+    "For ARI Circle, distinguish cancelling the user's OWN participation from cancelling an entire HOSTED meetup. 'I can't make it, take me out' means leave/withdraw. 'Cancel the meetup I'm hosting' means cancel the hosted meetup. Never escalate one into the other.",
+    "For ARI Circle, a discovery question such as 'anything going on tonight?' or 'what should I do?' is read-only and must use decision=none. Only choose a Circle mutation tool when the current message explicitly asks to change Circle state.",
     "Interpret natural language semantically. The user does not need to use the exact tool or feature name. For example, 'figure out what I should eat for the rest of today using my calories left and set it up for me' can be a request to create today's Meal Plan.",
     "ARI XP Meal Plan is strictly TODAY ONLY. If the user asks Ari to create or schedule a Meal Plan for tomorrow or another future day, select blocked_future_meal_plan instead of any tool.",
     "If the user asks Ari to create today's Meal Plan based on their saved Daily Calorie Goal or remaining calorie budget, but that saved goal is unknown and the user did not provide an explicit numeric calorie target in the CURRENT message, select blocked_missing_daily_goal.",
@@ -52,8 +54,8 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     "Do not select blocked_future_meal_plan for a general future nutrition question that is not asking to create/schedule the ARI XP Meal Plan.",
     `Saved Daily Calorie Goal known: ${dailyGoalKnown ? "true" : "false"}.`,
     `Available app tools: ${availableTools.join(", ")}.`,
-    `Current route: ${JSON.stringify({ nutrition: Boolean(route?.nutrition), training: Boolean(route?.training), goals: Boolean(route?.goals), teenMode: Boolean(route?.teenMode) })}.`,
-    "Use decision=none when the message is advice, explanation, casual conversation, a factual statement, or otherwise does not explicitly authorize a write."
+    `Current route: ${JSON.stringify({ nutrition: Boolean(route?.nutrition), training: Boolean(route?.training), goals: Boolean(route?.goals), social: Boolean(route?.social), circleAllowed: Boolean(route?.circleAllowed), teenMode: Boolean(route?.teenMode) })}.`,
+    "Use decision=none when the message is advice, explanation, casual conversation, a factual statement, a discovery/read request, or otherwise does not explicitly authorize a write."
   ].join("\n");
 
   const controller = new AbortController();
@@ -109,10 +111,6 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
 
     if (!decisions.includes(decision)) return null;
 
-    // Whether a saved Daily Calorie Goal exists is app state, not a semantic
-    // judgment. Never let the verifier contradict verified context. If the model
-    // interpreted the request as a budget-based Meal Plan but falsely called the
-    // known goal "missing", preserve the semantic intent and route to Meal Plan.
     if (
       decision === "blocked_missing_daily_goal" &&
       dailyGoalKnown &&
@@ -122,7 +120,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     }
 
     return {
-      version: "1.2.0",
+      version: "1.3.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),

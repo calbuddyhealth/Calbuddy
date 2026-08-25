@@ -8,7 +8,7 @@ const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 
 test("home loads the repaired iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.0');
-  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.0');
+  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.1');
   const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.1.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
@@ -19,7 +19,7 @@ test("home loads the repaired iOS request resilience layer and latency guard aft
 test("Home runtime loader accepts both runtime namespaces and cannot wait forever", () => {
   assert.match(resilience, /window\.AriRuntime/);
   assert.match(resilience, /window\.Ari\?\.Runtime/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.4"/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.5"/);
   assert.match(resilience, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilience, /window\.setInterval\(finishIfReady, 25\)/);
   assert.match(resilience, /did not initialize/);
