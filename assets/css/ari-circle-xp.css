@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — REAL WORLD XP VISUAL AUTHORITY
-   Version: 1.0.0
+   Version: 1.0.1
    Shared reward/progression presentation for Profile + Meet Up.
    Visual only: no XP math, caps, or award rules live here.
 ============================================================= */
@@ -55,6 +55,7 @@ body.circle-v5-real-world .circle-xp-profile-card::before {
 
 .circle-xp-level-ring {
   --xp-progress: 0%;
+  --xp-progress-mid: 0%;
   position: relative;
   display: grid;
   width: 90px;
@@ -64,7 +65,7 @@ body.circle-v5-real-world .circle-xp-profile-card::before {
   border-radius: 50%;
   background: conic-gradient(from -90deg,
     var(--circle-xp-cyan) 0%,
-    var(--circle-xp-blue) calc(var(--xp-progress) * .58),
+    var(--circle-xp-blue) var(--xp-progress-mid),
     var(--circle-xp-violet) var(--xp-progress),
     var(--circle-xp-track) var(--xp-progress),
     var(--circle-xp-track) 100%);
@@ -319,6 +320,7 @@ body.circle-v5-real-world .circle-xp-profile-copy > p {
   margin-top: 7px;
 }
 
+#meetupPage .circle-v5-xp-chip,
 #meetupPage .circle-xp-reward-chip {
   flex: 0 0 auto;
   min-height: 31px;
