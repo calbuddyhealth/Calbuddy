@@ -2,10 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const migration = await readFile(
+const core = await readFile(
   new URL("../supabase/migrations/20260825133000_ari_circle_mission_v2.sql", import.meta.url),
   "utf8"
 );
+const hardening = await readFile(
+  new URL("../supabase/migrations/20260825133500_ari_circle_mission_v2_hardening.sql", import.meta.url),
+  "utf8"
+);
+const migration = `${core}\n${hardening}`;
 
 function stripSqlComments(sql = "") {
   return String(sql)
@@ -89,7 +94,7 @@ test("Mission list exposes verified progress without exposing proof notes to ord
   assert.match(migration, /viewer_verified_progress numeric/i);
   assert.match(migration, /viewer_pending_progress numeric/i);
   assert.match(migration, /progress_percent numeric/i);
-  const listFunction = migration.split(/create or replace function public\.ari_circle_list_missions_v2/i)[1] || "";
+  const listFunction = core.split(/create or replace function public\.ari_circle_list_missions_v2/i)[1] || "";
   assert.doesNotMatch(listFunction, /proof_note/i);
 });
 
@@ -100,12 +105,19 @@ test("Mission V2 stores no location, messaging, or engagement data", () => {
   assert.doesNotMatch(executable, /\b(likes|reactions|followers|views)\b/i);
 });
 
-test("count Missions reserve whole-number semantics", () => {
-  assert.match(migration, /clean_objective = 'count'/i);
-  assert.match(migration, /trunc\(/i);
+test("count Missions use whole-number target and contribution semantics", () => {
+  assert.match(hardening, /objective_type <> 'count' or target_value = trunc\(target_value\)/i);
+  assert.match(hardening, /q\.objective_type = 'count' and new\.amount <> trunc\(new\.amount\)/i);
+  assert.match(hardening, /before insert or update of quest_id, amount/i);
 });
 
 test("organizer verification has a non-self path for the organizer's own contribution", () => {
-  assert.match(migration, /c\.user_id = q\.creator_user_id/i);
-  assert.match(migration, /ari_circle_can_create_xp_quest\(caller_id\)/i);
+  assert.match(hardening, /c\.user_id = q\.creator_user_id/i);
+  assert.match(hardening, /reviewer_is_leader := public\.ari_circle_can_create_xp_quest\(caller_id\)/i);
+  assert.match(hardening, /A joined Community Leader must verify the organizer contribution/i);
+});
+
+test("Mission review is bounded to the active mission plus a short settlement window", () => {
+  assert.match(hardening, /q\.status <> 'active'/i);
+  assert.match(hardening, /q\.ends_at \+ interval '48 hours'/i);
 });
