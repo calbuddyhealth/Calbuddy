@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.11.0";
+export const TOOL_REGISTRY_VERSION = "1.11.1";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -292,12 +292,12 @@ export function getAriTools(route = {}) {
           title: { type: "string" },
           description: { type: "string" },
           scope: { type: "string", enum: ["personal", "community", "crew"] },
-          category: { type: "string", enum: ["personal", "community", "crew"] },
+          category: { type: "string", enum: ["activity", "walking", "fitness", "community", "volunteer", "wellness", "other"] },
           verificationMode: { type: "string", enum: ["self", "organizer", "peer"] },
           objectiveType: { type: "string", enum: ["count", "distance", "duration"] },
           progressMode: { type: "string", enum: ["individual", "collective"] },
           targetValue: { type: "number" },
-          unit: { type: "string", enum: ["actions", "miles", "minutes"] },
+          unit: { type: "string", enum: ["activities", "sessions", "visits", "times", "reps", "items", "people", "miles", "kilometers", "minutes", "hours"] },
           endsAt: { type: "string" },
           maxParticipants: { type: ["number", "null"] }
         },
@@ -318,14 +318,14 @@ export function getAriTools(route = {}) {
 
     tools.push(functionTool(
       "propose_submit_circle_mission_progress",
-      "Propose submitting measurable progress to one specific ARI Circle Mission only when the CURRENT user explicitly asks Ari to add, record, submit, or contribute progress. Use the exact Mission UUID and the user's stated amount. Do not infer an amount from unrelated health or training data. This does not verify another person's contribution and cannot award XP.",
+      "Propose submitting measurable progress to one specific ARI Circle Mission only when the CURRENT user explicitly asks Ari to add, record, submit, or contribute progress. Use the exact Mission UUID and the user's stated amount/unit. Do not infer an amount from unrelated health or training data. This does not verify another person's contribution and cannot award XP.",
       {
         type: "object",
         additionalProperties: false,
         properties: {
           missionId: { type: "string" },
           amount: { type: "number" },
-          unit: { type: "string", enum: ["actions", "miles", "minutes"] },
+          unit: { type: "string", enum: ["activities", "sessions", "visits", "times", "reps", "items", "people", "miles", "kilometers", "minutes", "hours"] },
           note: { type: "string" }
         },
         required: ["missionId", "amount", "unit", "note"]
@@ -557,22 +557,36 @@ function validateSemantics(name, args) {
     const unit = String(args?.unit || "").trim().toLowerCase();
     const targetValue = Number(args?.targetValue);
     const ends = Date.parse(String(args?.endsAt || ""));
+    const now = Date.now();
     const scopes = new Set(["personal", "community", "crew"]);
+    const categories = new Set(["activity", "walking", "fitness", "community", "volunteer", "wellness", "other"]);
     const verifications = new Set(["self", "organizer", "peer"]);
     const objectives = new Set(["count", "distance", "duration"]);
-    const expectedUnit = { count: "actions", distance: "miles", duration: "minutes" }[objectiveType];
+    const countUnits = new Set(["activities", "sessions", "visits", "times", "reps", "items", "people"]);
+    const distanceUnits = new Set(["miles", "kilometers"]);
+    const durationUnits = new Set(["minutes", "hours"]);
+    const validUnit = objectiveType === "count"
+      ? countUnits.has(unit)
+      : objectiveType === "distance"
+        ? distanceUnits.has(unit)
+        : objectiveType === "duration"
+          ? durationUnits.has(unit)
+          : false;
 
     if (title.length < 3 || title.length > 90) return { valid: false, error: "circle_mission_title_invalid" };
     if (description.length > 1000) return { valid: false, error: "circle_mission_description_too_long" };
-    if (!scopes.has(scope) || !scopes.has(category)) return { valid: false, error: "circle_mission_scope_invalid" };
+    if (!scopes.has(scope)) return { valid: false, error: "circle_mission_scope_invalid" };
+    if (!categories.has(category)) return { valid: false, error: "circle_mission_category_invalid" };
     if (!verifications.has(verificationMode)) return { valid: false, error: "circle_mission_verification_invalid" };
     if (!objectives.has(objectiveType)) return { valid: false, error: "circle_mission_objective_invalid" };
     if (!["individual", "collective"].includes(progressMode)) return { valid: false, error: "circle_mission_progress_mode_invalid" };
     if (scope === "personal" && progressMode !== "individual") return { valid: false, error: "circle_mission_personal_collective_invalid" };
     if (!Number.isFinite(targetValue) || targetValue <= 0 || targetValue > 1000000) return { valid: false, error: "circle_mission_target_invalid" };
     if (objectiveType === "count" && !Number.isInteger(targetValue)) return { valid: false, error: "circle_mission_count_target_invalid" };
-    if (unit !== expectedUnit) return { valid: false, error: "circle_mission_unit_invalid" };
-    if (!Number.isFinite(ends) || ends <= Date.now()) return { valid: false, error: "circle_mission_end_invalid" };
+    if (!validUnit) return { valid: false, error: "circle_mission_unit_invalid" };
+    if (!Number.isFinite(ends) || ends <= now + 30 * 60 * 1000 || ends > now + 90 * 24 * 60 * 60 * 1000) {
+      return { valid: false, error: "circle_mission_end_invalid" };
+    }
     if (args?.maxParticipants !== null) {
       const maxParticipants = Number(args?.maxParticipants);
       if (!Number.isInteger(maxParticipants) || maxParticipants < 2 || maxParticipants > 500) return { valid: false, error: "circle_mission_capacity_invalid" };
@@ -587,9 +601,11 @@ function validateSemantics(name, args) {
     if (!isUuid(args?.missionId)) return { valid: false, error: "circle_mission_id_invalid" };
     const amount = Number(args?.amount);
     const unit = String(args?.unit || "").trim().toLowerCase();
+    const countUnits = new Set(["activities", "sessions", "visits", "times", "reps", "items", "people"]);
+    const validUnits = new Set([...countUnits, "miles", "kilometers", "minutes", "hours"]);
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) return { valid: false, error: "circle_mission_progress_invalid" };
-    if (!["actions", "miles", "minutes"].includes(unit)) return { valid: false, error: "circle_mission_unit_invalid" };
-    if (unit === "actions" && !Number.isInteger(amount)) return { valid: false, error: "circle_mission_count_progress_invalid" };
+    if (!validUnits.has(unit)) return { valid: false, error: "circle_mission_unit_invalid" };
+    if (countUnits.has(unit) && !Number.isInteger(amount)) return { valid: false, error: "circle_mission_count_progress_invalid" };
     if (String(args?.note || "").length > 500) return { valid: false, error: "circle_mission_note_too_long" };
   }
 
