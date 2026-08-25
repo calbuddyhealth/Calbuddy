@@ -39,7 +39,9 @@ test("only the host controls the exact meeting point", () => {
   assert.match(migration, /m\.host_user_id<>caller_id then raise exception 'Only the host can update the meeting point'/i);
   assert.match(migration, /Meeting point must be 2-180 characters/i);
   assert.match(roomJs, /ari_circle_set_meetup_point/);
-  assert.match(roomJs, /Only joined attendees can see this/i);
+  assert.match(roomJs, /form\.hidden = !room\.viewer_is_host/);
+  assert.match(roomJs, /if \(state\.busy \|\| !state\.room\?\.viewer_is_host\) return/);
+  assert.match(roomJs, /Meeting point updated for joined attendees\./i);
 });
 
 test("meetup chat is scoped to the room and closes after the meetup window", () => {
