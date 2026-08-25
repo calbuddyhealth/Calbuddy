@@ -2,7 +2,7 @@
 // Uses the signed-in user's JWT for every Circle RPC so adult access, blocking,
 // and source-RPC authorization remain authoritative. No service-role fallback.
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const MAX_OPPORTUNITIES = 12;
 const MAX_INTENTS = 3;
 const MAX_MATCH_INTENTS = 2;
@@ -103,7 +103,9 @@ export default async function handler(req, res) {
         directMessagesIncluded: false,
         rawCoordinatesIncluded: false,
         rawFeedContentIncluded: false,
-        durableSocialLearningIncluded: false
+        durableSocialLearningIncluded: false,
+        missionProofNotesIncluded: false,
+        missionReviewerIdentitiesIncluded: false
       }
     });
   } catch (error) {
@@ -135,6 +137,11 @@ export function buildSituation({ opportunities = [], activeIntents = [], bestMat
     0
   );
 
+  const activeMetricMissionCount = opportunities.reduce((total, item) => {
+    if (item?.type !== "mission" || !item?.mission) return total;
+    return total + (item.mission.objectiveType && item.mission.objectiveType !== "completion" ? 1 : 0);
+  }, 0);
+
   return {
     summary: {
       opportunityCount: opportunities.length,
@@ -143,7 +150,8 @@ export function buildSituation({ opportunities = [], activeIntents = [], bestMat
       scheduledCount: schedule.length,
       hostPendingRequestCount,
       relationshipCount: relationships.length,
-      repeatRelationshipCount
+      repeatRelationshipCount,
+      activeMetricMissionCount
     },
     activeIntents,
     bestMatches,
@@ -189,10 +197,25 @@ async function callOptionalActionNetworkRpc(config, accessToken, name, args) {
 function compactOpportunity(row = {}) {
   const key = clean(row?.opportunity_key, 160);
   if (!key) return null;
+  const type = clean(row?.opportunity_type, 40);
   const metadata = object(row?.metadata);
+  const mission = type === "mission"
+    ? {
+        objectiveType: clean(metadata?.objective_type, 40) || "completion",
+        progressMode: clean(metadata?.progress_mode, 40) || "individual",
+        targetValue: number(metadata?.target_value),
+        unit: clean(metadata?.unit, 40) || null,
+        verifiedProgress: number(metadata?.verified_progress),
+        viewerVerifiedProgress: number(metadata?.viewer_verified_progress),
+        viewerPendingProgress: number(metadata?.viewer_pending_progress),
+        progressPercent: number(metadata?.progress_percent),
+        objectiveReachedAt: metadata?.objective_reached_at || null
+      }
+    : null;
+
   return {
     key,
-    type: clean(row?.opportunity_type, 40),
+    type,
     id: clean(row?.opportunity_id, 120),
     title: clean(row?.title, 120),
     activity: clean(row?.activity, 80),
@@ -211,7 +234,8 @@ function compactOpportunity(row = {}) {
     verificationMode: clean(row?.verification_mode, 60) || null,
     joinMode: clean(row?.join_mode, 40) || null,
     rewardXp: number(row?.reward_xp),
-    pendingRequestCount: number(metadata?.pending_request_count)
+    pendingRequestCount: number(metadata?.pending_request_count),
+    mission
   };
 }
 
