@@ -12,6 +12,7 @@ on:
       - feature/ari-circle-mission-actions
       - feature/ari-circle-match-v2
       - feature/ari-circle-events-v1
+      - feature/ari-circle-event-awareness
     paths:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
