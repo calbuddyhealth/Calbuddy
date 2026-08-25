@@ -10,6 +10,7 @@ import {
 
 const adapter = await readFile(new URL("../ari/vnext/ari-vnext-circle-action-adapter.js", import.meta.url), "utf8");
 const wrappers = await readFile(new URL("../supabase/migrations/20260825113000_ari_circle_action_network_agent_actions_v1.sql", import.meta.url), "utf8");
+const circleV5Migration = await readFile(new URL("../supabase/migrations/20260824054500_ari_circle_v5_real_world_social.sql", import.meta.url), "utf8");
 const missionMigration = await readFile(new URL("../supabase/migrations/20260825133000_ari_circle_mission_v2.sql", import.meta.url), "utf8");
 const guard = await readFile(new URL("../ari/vnext/ari-vnext-context-guard.js", import.meta.url), "utf8");
 const verifier = await readFile(new URL("../api/_lib/ari-vnext/action-intent-verifier.js", import.meta.url), "utf8");
@@ -120,7 +121,7 @@ test("Mission creation is measurable, reward-neutral, and semantically bounded",
       title: "Walk 10",
       description: "",
       scope: "community",
-      category: "community",
+      category: "walking",
       verificationMode: "self",
       objectiveType: "distance",
       progressMode: "collective",
@@ -139,12 +140,12 @@ test("Mission creation is measurable, reward-neutral, and semantically bounded",
       title: "My actions",
       description: "",
       scope: "personal",
-      category: "personal",
+      category: "activity",
       verificationMode: "self",
       objectiveType: "count",
       progressMode: "collective",
       targetValue: 5,
-      unit: "actions",
+      unit: "activities",
       endsAt,
       maxParticipants: null
     })
@@ -175,7 +176,7 @@ test("Mission join and progress require exact Mission identity and valid measura
 
   const fractionalCount = validateToolCall({
     name: "propose_submit_circle_mission_progress",
-    arguments: JSON.stringify({ missionId, amount: 1.5, unit: "actions", note: "" })
+    arguments: JSON.stringify({ missionId, amount: 1.5, unit: "activities", note: "" })
   }, adultCircleRoute);
   assert.equal(fractionalCount.valid, false);
   assert.equal(fractionalCount.error, "circle_mission_count_progress_invalid");
@@ -192,10 +193,12 @@ test("join and leave intent wrappers delegate to existing guarded Circle authori
 });
 
 test("Mission action executor delegates to existing guarded Mission authorities", () => {
-  for (const rpc of ["ari_circle_create_mission_v2", "ari_circle_join_quest", "ari_circle_submit_mission_progress"]) {
+  for (const rpc of ["ari_circle_create_mission_v2", "ari_circle_submit_mission_progress"]) {
     assert.match(adapter, new RegExp(rpc));
     assert.match(missionMigration, new RegExp(`create or replace function public\\.${rpc}`, "i"));
   }
+  assert.match(adapter, /ari_circle_join_quest/);
+  assert.match(circleV5Migration, /create or replace function public\.ari_circle_join_quest/i);
   assert.match(missionMigration, /perform public\.ari_circle_assert_adult_access\(\)/i);
   assert.match(missionMigration, /requested_xp_reward\s*=>\s*0/i);
   assert.doesNotMatch(adapter, /ari_circle_review_mission_contribution/);
