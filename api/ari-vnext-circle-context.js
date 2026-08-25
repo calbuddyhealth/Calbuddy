@@ -2,10 +2,10 @@
 // Uses the signed-in user's JWT for every Circle RPC so adult access, blocking,
 // and source-RPC authorization remain authoritative. No service-role fallback.
 
-const VERSION = "1.5.0";
+const VERSION = "1.5.1";
 const MAX_OPPORTUNITIES = 12;
 const MAX_INTENTS = 3;
-const MAX_MATCH_INTENTS = 2;
+const MAX_MATCH_INTENTS = 3;
 const MAX_MATCHES_PER_INTENT = 6;
 const MAX_RELATIONSHIPS = 8;
 const MAX_PLACES = 8;
