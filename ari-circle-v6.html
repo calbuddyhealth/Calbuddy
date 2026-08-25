@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
-  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.2.0" />
 </head>
 <body class="circle-v5-real-world v6-action-network-body">
   <main class="circle-v5-page v6-action-network" id="v6Page" hidden>
@@ -36,7 +36,7 @@
       <section class="v6-hero" id="for-you" aria-labelledby="v6Title">
         <span class="v6-eyebrow">REAL-WORLD ACTION NETWORK · LAB</span>
         <h1 id="v6Title">What are you up for?</h1>
-        <p>Choose what sounds good. Circle narrows nearby opportunities around your intent, not around who can keep you scrolling.</p>
+        <p>Choose what sounds good. Circle narrows worthwhile opportunities around your intent, not around who can keep you scrolling.</p>
         <p class="v6-network-summary" id="v6NetworkSummary">Loading your Action Network…</p>
 
         <form class="v6-intent-composer" id="v6IntentForm">
@@ -79,12 +79,20 @@
           </label>
           <button class="circle-v5-button-primary v6-intent-submit" id="v6IntentSubmit" type="submit">Find what fits</button>
         </form>
-        <p class="v6-privacy-line">No GPS prompt. Your intent is private and expires with its time window.</p>
+
+        <p class="v6-privacy-line">No GPS prompt. Your intents are private matching inputs and expire with their time windows.</p>
         <p class="circle-v5-completion-note" id="v6IntentStatus" role="status" aria-live="polite"></p>
         <div class="v6-intent-live" id="v6ActiveIntent" hidden></div>
       </section>
 
       <p class="circle-v5-completion-note v6-page-status" id="v6PageStatus" role="status" aria-live="polite"></p>
+
+      <section class="v6-section v6-attention" id="v6Attention" aria-labelledby="v6AttentionTitle" hidden>
+        <div class="v6-section-heading">
+          <div><span class="v6-eyebrow">STATE CHANGED</span><h2 id="v6AttentionTitle">Needs attention</h2></div>
+        </div>
+        <div class="v6-attention-list" id="v6AttentionList"></div>
+      </section>
 
       <section class="v6-section" aria-labelledby="v6ForYouTitle">
         <div class="v6-section-heading">
@@ -144,6 +152,6 @@
   <script src="supabase-config.js?v=1.1.8"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
-  <script src="js/ari-circle/v6/action-network-v6.js?v=0.1.0" defer></script>
+  <script src="js/ari-circle/v6/action-network-v6.js?v=0.2.0" defer></script>
 </body>
 </html>
