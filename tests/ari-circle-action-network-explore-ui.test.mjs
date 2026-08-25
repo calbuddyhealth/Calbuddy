@@ -20,7 +20,8 @@ test("Explore controller is valid browser JavaScript and reads through guarded R
     "ari_circle_list_opportunities",
     "ari_circle_list_my_action_intents",
     "ari_circle_list_places",
-    "ari_circle_list_places_for_intent"
+    "ari_circle_list_places_for_intent",
+    "ari_circle_list_place_missions"
   ]) {
     assert.match(controller, new RegExp(rpc));
   }
@@ -49,7 +50,19 @@ test("manual area search sends no coordinates", () => {
   assert.match(controller, /requested_longitude: null/);
 });
 
-test("Explore does not expose engagement or popularity ranking", () => {
+test("Place-linked Missions load only on explicit Place expansion", () => {
+  assert.match(controller, /button\.textContent = "See Missions"/);
+  assert.match(controller, /togglePlaceMissions/);
+  assert.match(controller, /ari_circle_list_place_missions/);
+  assert.match(controller, /state\.placeMissions\.has\(placeId\)/);
+  assert.match(controller, /result_limit: 8/);
+  const loadPlacesBody = controller.split(/async function loadPlaces\(\)/)[1]?.split(/function syncPlaceBasis/)[0] || "";
+  assert.doesNotMatch(loadPlacesBody, /ari_circle_list_place_missions/);
+});
+
+test("Place Mission cards show verified progress rather than engagement counters", () => {
+  assert.match(controller, /mission\.verified_progress/);
+  assert.match(controller, /mission\.progress_percent/);
   assert.doesNotMatch(controller, /\b(likes|reactions|followers|views|popularity_score|sponsored_rank|premium_rank)\b/i);
   assert.doesNotMatch(html, /Most Popular|Trending People|Top Users/i);
 });
@@ -62,7 +75,7 @@ test("Explore does not make ungrounded proximity claims without a distance resul
 
 test("Explore remains a lab route and does not replace current Circle navigation yet", () => {
   assert.match(html, /ari-circle-explore-v1\.css\?v=1\.0\.0/);
-  assert.match(html, /explore-v1\.js\?v=1\.0\.0/);
+  assert.match(html, /explore-v1\.js\?v=1\.1\.0/);
   assert.match(css, /\.circle-explore-card/);
   assert.match(css, /\.circle-explore-place-card/);
 });
