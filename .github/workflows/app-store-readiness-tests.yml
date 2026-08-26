@@ -28,19 +28,7 @@ jobs:
           node-version: "24"
 
       - name: Run ARI XP Node tests
-        shell: bash
-        run: |
-          set +e
-          node --test tests/*.test.mjs > /tmp/ari-xp-node-tests.log 2>&1
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            echo "ARI XP Node test failure summary:"
-            grep -n -E '✖|failing tests:|AssertionError|ERR_ASSERTION|test at ' /tmp/ari-xp-node-tests.log | tail -n 180 || true
-            echo "--- final test output ---"
-            tail -n 240 /tmp/ari-xp-node-tests.log
-            exit "$status"
-          fi
-          tail -n 40 /tmp/ari-xp-node-tests.log
+        run: node --test tests/*.test.mjs
 
       - name: Install Playwright
         run: |
