@@ -93,7 +93,7 @@ revoke all on function private.ari_circle_insert_meetup_notification(uuid,uuid,t
 revoke all on function private.ari_circle_insert_meetup_notification(uuid,uuid,text,text,text,text,uuid,uuid,text) from anon;
 revoke all on function private.ari_circle_insert_meetup_notification(uuid,uuid,text,text,text,text,uuid,uuid,text) from authenticated;
 
-create or replace function public.ari_circle_fanout_meetup_domain_notification()
+create or replace function private.ari_circle_fanout_meetup_domain_notification()
 returns trigger
 language plpgsql
 security definer
@@ -120,7 +120,7 @@ begin
     return new;
   end if;
 
-  href_text := 'ari-circle-v6.html';
+  href_text := 'ari-circle-meetup.html';
 
   case new.event_type
     when 'meetup.requested' then
@@ -128,7 +128,7 @@ begin
       if target_id = new.actor_user_id then return new; end if;
       kind := 'meetup_request';
       title_text := 'New meetup request';
-      body_text := 'Someone asked to join “' || meetup_row.title || '”. Open Circle to review the request.';
+      body_text := 'Someone asked to join “' || meetup_row.title || '”. Open Meet Up to review the request.';
 
     when 'meetup.waitlisted' then
       if new.actor_user_id = meetup_row.host_user_id
@@ -150,7 +150,7 @@ begin
       target_id := new.affected_user_id;
       kind := 'meetup_accepted';
       title_text := 'Meetup request accepted';
-      body_text := 'You’re in for “' || meetup_row.title || '”. Open Circle to review the plan.';
+      body_text := 'You’re in for “' || meetup_row.title || '”. Open Meet Up to review the plan.';
 
     when 'meetup.declined' then
       target_id := new.affected_user_id;
@@ -169,7 +169,7 @@ begin
       target_id := meetup_row.host_user_id;
       kind := 'meetup_spot_opened';
       title_text := 'A meetup spot opened';
-      body_text := 'A spot opened in “' || meetup_row.title || '”. Open Circle to choose someone from the waitlist.';
+      body_text := 'A spot opened in “' || meetup_row.title || '”. Open Meet Up to choose someone from the waitlist.';
 
     when 'meetup.cancelled' then
       for participant_row in
@@ -237,15 +237,15 @@ begin
 end;
 $$;
 
-revoke all on function public.ari_circle_fanout_meetup_domain_notification() from public;
-revoke all on function public.ari_circle_fanout_meetup_domain_notification() from anon;
-revoke all on function public.ari_circle_fanout_meetup_domain_notification() from authenticated;
+revoke all on function private.ari_circle_fanout_meetup_domain_notification() from public;
+revoke all on function private.ari_circle_fanout_meetup_domain_notification() from anon;
+revoke all on function private.ari_circle_fanout_meetup_domain_notification() from authenticated;
 
 drop trigger if exists ari_circle_domain_events_meetup_notification_fanout
   on public.ari_circle_domain_events;
 create trigger ari_circle_domain_events_meetup_notification_fanout
 after insert on public.ari_circle_domain_events
-for each row execute function public.ari_circle_fanout_meetup_domain_notification();
+for each row execute function private.ari_circle_fanout_meetup_domain_notification();
 
 create or replace function private.ari_circle_materialize_meetup_reminders()
 returns integer
@@ -277,7 +277,7 @@ begin
       'meetup_reminder',
       'Meetup tomorrow',
       '“' || reminder_row.title || '” is coming up within 24 hours.',
-      'ari-circle-v6.html',
+      'ari-circle-meetup.html',
       case when reminder_row.user_id = reminder_row.host_user_id then null else reminder_row.host_user_id end,
       null,
       reminder_key
@@ -303,7 +303,7 @@ begin
       'meetup_reminder',
       'Meetup starts soon',
       '“' || reminder_row.title || '” starts in about two hours.',
-      'ari-circle-v6.html',
+      'ari-circle-meetup.html',
       case when reminder_row.user_id = reminder_row.host_user_id then null else reminder_row.host_user_id end,
       null,
       reminder_key
