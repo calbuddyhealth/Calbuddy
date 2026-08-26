@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.0.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.3.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.3.1" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-commit.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-intent-bundles.css?v=1.0.0" />
 </head>
@@ -37,53 +37,11 @@
         <div data-ari-circle-search-location data-surface="for-you"></div>
 
         <form class="v6-intent-composer" id="v6IntentForm">
-          <label>
-            <span>Activity</span>
-            <select id="v6IntentActivity" class="circle-v5-input">
-              <option value="any">Anything active</option>
-              <option value="walking">Walking</option>
-              <option value="gym">Gym</option>
-              <option value="running">Running</option>
-              <option value="hiking">Hiking</option>
-              <option value="sports">Sports</option>
-              <option value="cycling">Cycling</option>
-              <option value="yoga">Yoga</option>
-              <option value="outdoor">Outdoor</option>
-              <option value="community">Community</option>
-              <option value="volunteer">Volunteer</option>
-            </select>
-          </label>
-          <label>
-            <span>When</span>
-            <select id="v6IntentWhen" class="circle-v5-input">
-              <option value="next3h">Next 3 hours</option>
-              <option value="tomorrow_evening">Tomorrow evening</option>
-              <option value="weekend">This weekend</option>
-              <option value="next7d">Next 7 days</option>
-            </select>
-          </label>
-          <label>
-            <span>Group</span>
-            <select id="v6IntentGroup" class="circle-v5-input">
-              <option value="1-8">Open</option>
-              <option value="2-4">Small · 2–4</option>
-              <option value="3-8">Social · 3–8</option>
-            </select>
-          </label>
-          <label>
-            <span>Distance</span>
-            <select id="v6IntentRadius" class="circle-v5-input" aria-label="Search distance">
-              <option value="5">5 mi</option>
-              <option value="10">10 mi</option>
-              <option value="25" selected>25 mi</option>
-              <option value="50">50 mi</option>
-              <option value="100">100 mi</option>
-            </select>
-          </label>
-          <label class="v6-area-field">
-            <span>General area <small>optional</small></span>
-            <input id="v6IntentArea" class="circle-v5-input" maxlength="100" autocomplete="off" placeholder="Mission Valley, San Diego…" />
-          </label>
+          <label><span>Activity</span><select id="v6IntentActivity" class="circle-v5-input"><option value="any">Anything active</option><option value="walking">Walking</option><option value="gym">Gym</option><option value="running">Running</option><option value="hiking">Hiking</option><option value="sports">Sports</option><option value="cycling">Cycling</option><option value="yoga">Yoga</option><option value="outdoor">Outdoor</option><option value="community">Community</option><option value="volunteer">Volunteer</option></select></label>
+          <label><span>When</span><select id="v6IntentWhen" class="circle-v5-input"><option value="next3h">Next 3 hours</option><option value="tomorrow_evening">Tomorrow evening</option><option value="weekend">This weekend</option><option value="next7d">Next 7 days</option></select></label>
+          <label><span>Group</span><select id="v6IntentGroup" class="circle-v5-input"><option value="1-8">Open</option><option value="2-4">Small · 2–4</option><option value="3-8">Social · 3–8</option></select></label>
+          <label><span>Distance</span><select id="v6IntentRadius" class="circle-v5-input" aria-label="Search distance"><option value="5">5 mi</option><option value="10">10 mi</option><option value="25" selected>25 mi</option><option value="50">50 mi</option><option value="100">100 mi</option></select></label>
+          <label class="v6-area-field"><span>General area <small>optional</small></span><input id="v6IntentArea" class="circle-v5-input" maxlength="100" autocomplete="off" placeholder="Mission Valley, San Diego…" /></label>
           <button class="circle-v5-button-primary v6-intent-submit" id="v6IntentSubmit" type="submit">Find what fits</button>
         </form>
 
@@ -94,46 +52,25 @@
 
       <p class="circle-v5-completion-note v6-page-status" id="v6PageStatus" role="status" aria-live="polite"></p>
 
-      <section class="v6-section v6-attention" id="v6Attention" aria-labelledby="v6AttentionTitle" hidden>
-        <div class="v6-section-heading">
-          <div><span class="v6-eyebrow">STATE CHANGED</span><h2 id="v6AttentionTitle">Needs attention</h2></div>
-        </div>
-        <div class="v6-attention-list" id="v6AttentionList"></div>
-      </section>
+      <section class="v6-section v6-attention" id="v6Attention" aria-labelledby="v6AttentionTitle" hidden><div class="v6-section-heading"><div><span class="v6-eyebrow">STATE CHANGED</span><h2 id="v6AttentionTitle">Needs attention</h2></div></div><div class="v6-attention-list" id="v6AttentionList"></div></section>
 
       <section class="v6-section" aria-labelledby="v6ForYouTitle">
-        <div class="v6-section-heading">
-          <div><span class="v6-eyebrow">BEST NEXT ACTIONS</span><h2 id="v6ForYouTitle">For You</h2></div>
-          <button class="v6-quiet-button" id="v6Refresh" type="button">Refresh</button>
-        </div>
+        <div class="v6-section-heading"><div><span class="v6-eyebrow">BEST NEXT ACTIONS</span><h2 id="v6ForYouTitle">For You</h2></div><button class="v6-quiet-button" id="v6Refresh" type="button">Refresh</button></div>
         <div class="v6-opportunity-grid" id="v6ForYouList"></div>
-        <div class="v6-empty" id="v6ForYouEmpty" hidden>
-          <strong>No strong fits yet.</strong>
-          <span>Set an intent above or open Explore to browse public opportunities.</span>
-          <a href="ari-circle-explore.html">Explore</a>
-        </div>
+        <div class="v6-empty" id="v6ForYouEmpty" hidden><strong>No strong fits yet.</strong><span>Set an intent above or open Explore to browse public opportunities.</span><a href="ari-circle-explore.html">Explore</a></div>
       </section>
 
       <section class="v6-section v6-intent-bundles" id="v6IntentBundles" aria-labelledby="v6IntentBundlesTitle" hidden>
-        <div class="v6-section-heading">
-          <div><span class="v6-eyebrow">PEOPLE + PLACE + TIME</span><h2 id="v6IntentBundlesTitle">Ari matched plans</h2></div>
-        </div>
+        <div class="v6-section-heading"><div><span class="v6-eyebrow">PEOPLE + PLACE + TIME</span><h2 id="v6IntentBundlesTitle">Ari matched plans</h2></div></div>
         <p class="v6-section-copy">Circle combines your private intent with compatible people, a public place, and a current opportunity without assuming anyone has agreed to attend.</p>
         <p class="circle-v5-completion-note" id="v6IntentBundleStatus" role="status" aria-live="polite"></p>
         <div class="v6-intent-bundle-grid" id="v6IntentBundleList"></div>
       </section>
 
-      <section class="v6-section" aria-labelledby="v6ScheduleTitle">
-        <div class="v6-section-heading"><div><span class="v6-eyebrow">COMMITTED</span><h2 id="v6ScheduleTitle">Your next</h2></div></div>
-        <div class="v6-schedule" id="v6ScheduleList"></div>
-        <div class="v6-empty" id="v6ScheduleEmpty" hidden><strong>Nothing committed yet.</strong><span>Your accepted, hosted, or joined opportunities will show here.</span></div>
-      </section>
+      <section class="v6-section" aria-labelledby="v6ScheduleTitle"><div class="v6-section-heading"><div><span class="v6-eyebrow">COMMITTED</span><h2 id="v6ScheduleTitle">Your next</h2></div></div><div class="v6-schedule" id="v6ScheduleList"></div><div class="v6-empty" id="v6ScheduleEmpty" hidden><strong>Nothing committed yet.</strong><span>Your accepted, hosted, or joined opportunities will show here.</span></div></section>
 
       <section class="v6-section" aria-labelledby="v6ExploreTitle">
-        <div class="v6-section-heading">
-          <div><span class="v6-eyebrow">GO SOMEWHERE</span><h2 id="v6ExploreTitle">Explore the physical world</h2></div>
-          <a class="v6-text-link" href="ari-circle-explore.html">Open Explore →</a>
-        </div>
+        <div class="v6-section-heading"><div><span class="v6-eyebrow">GO SOMEWHERE</span><h2 id="v6ExploreTitle">Explore the physical world</h2></div><a class="v6-text-link" href="ari-circle-explore.html">Open Explore →</a></div>
         <p class="v6-section-copy">Public Places are destinations for activity and Missions—not a live map of people.</p>
         <div class="v6-place-grid" id="v6PlaceList"></div>
         <div class="v6-empty" id="v6PlaceEmpty" hidden><strong>No Place suggestions yet.</strong><span>Explore can still browse curated public places by area without using your device location.</span></div>
@@ -142,23 +79,11 @@
       <section class="v6-section" id="crews" aria-labelledby="v6CrewsTitle">
         <div class="v6-section-heading"><div><span class="v6-eyebrow">PEOPLE YOU ACTUALLY DO THINGS WITH</span><h2 id="v6CrewsTitle">Crews</h2></div></div>
         <p class="v6-section-copy">Crews emerge from repeated verified activity. They are not follower groups and nobody is silently added.</p>
-
-        <div class="v6-subsection">
-          <h3>Invitations</h3>
-          <div class="v6-crew-grid" id="v6CrewInviteList"></div>
-        </div>
-        <div class="v6-subsection">
-          <h3>Your Crews</h3>
-          <div class="v6-crew-grid" id="v6CrewList"></div>
-        </div>
-        <div class="v6-subsection">
-          <h3>Groups taking shape</h3>
-          <div class="v6-crew-grid" id="v6CrewCandidateList"></div>
-        </div>
+        <div class="v6-subsection"><h3>Invitations</h3><div class="v6-crew-grid" id="v6CrewInviteList"></div></div>
+        <div class="v6-subsection"><h3>Your Crews</h3><div class="v6-crew-grid" id="v6CrewList"></div></div>
+        <div class="v6-subsection"><h3>Groups taking shape</h3><div class="v6-crew-grid" id="v6CrewCandidateList"></div></div>
         <div class="v6-empty" id="v6CrewEmpty" hidden><strong>No Crew yet.</strong><span>That is fine. Repeated shared activity creates Crew eligibility naturally.</span></div>
       </section>
-
-      <section class="v6-section v6-moments-bridge" id="v6MomentsBridge" aria-label="Feed"></section>
     </div>
   </main>
 
