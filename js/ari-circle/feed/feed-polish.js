@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED POLISH
-   Version: 1.0.1
+   Version: 1.0.2
 
    - Cleaner composer copy
    - Inline recent comments without extra taps
@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const STYLE_ID = "ari-circle-feed-polish-style";
 
   const state = {
@@ -95,8 +95,8 @@
       <strong>Pull to refresh</strong>
     `;
 
-    const tabs = document.querySelector(".feed-tabs");
-    if (tabs) tabs.insertAdjacentElement("afterend", indicator);
+    const header = document.querySelector(".feed-header");
+    if (header) header.insertAdjacentElement("afterend", indicator);
     else document.querySelector(".feed-page")?.prepend(indicator);
     return indicator;
   }

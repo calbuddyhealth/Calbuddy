@@ -9,7 +9,7 @@ const meetupHtml = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const meetups = fs.readFileSync("js/ari-circle/meetups/meetups-v5.js", "utf8");
 
 test("V6 matched plans expose Make this happen without auto-mutating membership", () => {
-  assert.match(bundles, /const VERSION = "1\.1\.0"/);
+  assert.match(bundles, /const VERSION = "1\.2\.0"/);
   assert.match(bundles, /Make this happen/);
   assert.match(bundles, /Host a new one/);
   assert.match(bundles, /Open existing meetup/);
@@ -65,6 +65,6 @@ test("canonical Meet Up remains the only meetup creation mutation", () => {
 });
 
 test("V6 loads the updated intent-bundle handoff", () => {
-  assert.match(v6Html, /intent-bundles-v1\.js\?v=1\.1\.0/);
+  assert.match(v6Html, /intent-bundles-v1\.js\?v=1\.2\.0/);
   assert.match(meetupHtml, /matched-draft-v1\.js\?v=1\.0\.0/);
 });
