@@ -81,7 +81,7 @@ async function installSupabaseStub(page) {
 }
 
 test.describe("ARI Circle premium control drawer", () => {
-  test("opens Real World Social drawer and installs Feed / Meet Up / Quests dock", async ({ page }) => {
+  test("opens Circle controls and installs Feed / Connect / ARI Next dock", async ({ page }) => {
     await installSupabaseStub(page);
     await page.goto(`${BASE_URL}/ari-circle-feed.html`, { waitUntil: "domcontentloaded" });
 
@@ -109,7 +109,6 @@ test.describe("ARI Circle premium control drawer", () => {
       "Notifications",
       "Profile",
       "Discover Friends",
-      "Meet Up",
       "Profile Options",
       "Privacy & Visibility",
       "Circle Safety",
@@ -117,12 +116,15 @@ test.describe("ARI Circle premium control drawer", () => {
     ]);
     await expect(panel.getByText("Find People", { exact: true })).toHaveCount(0);
     await expect(panel.getByText("Buddies", { exact: true })).toHaveCount(0);
+    await expect(panel.getByText("Meet Up", { exact: true })).toHaveCount(0);
 
     const dock = page.locator("#ariCircleV5BottomNav .circle-v5-bottom-nav__dock");
     await expect(dock).toBeVisible();
-    await expect(dock.locator("a span")).toHaveText(["Feed", "Meet Up", "Quests"]);
+    await expect(dock.locator("a span")).toHaveText(["Feed", "Connect", "ARI Next"]);
+    await expect(dock.locator('a[href="ari-circle-feed.html"]')).toHaveCount(1);
     await expect(dock.locator('a[href="ari-circle-meetup.html"]')).toHaveCount(1);
-    await expect(dock.locator('a[href="ari-circle-quests.html"]')).toHaveCount(1);
+    await expect(dock.locator('a[href="ari-circle-v6.html"]')).toHaveCount(1);
+    await expect(dock.locator('a[href="ari-circle-quests.html"]')).toHaveCount(0);
 
     const geometry = await panel.evaluate((node) => {
       const style = getComputedStyle(node);
@@ -158,7 +160,8 @@ test.describe("ARI Circle premium control drawer", () => {
     expect(panelId).toBeTruthy();
     panel = page.locator(`#${panelId}`);
     await expect(panel.locator(".circle-v5-menu__identity")).toBeVisible({ timeout: 3000 });
-    await expect(panel.getByText("Meet Up", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Discover Friends", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Meet Up", { exact: true })).toHaveCount(0);
 
     await page.evaluate(() => {
       const dialog = document.createElement("dialog");
