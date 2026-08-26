@@ -25,7 +25,6 @@ test("ARI Circle drawer contains secondary controls without duplicating primary 
   assert.match(menu, /Notifications/);
   assert.match(menu, /label: "Profile"/);
   assert.match(menu, /label: "Discover Friends"/);
-  assert.match(menu, /label: "Quests"/);
   assert.match(menu, /Profile Options/);
   assert.match(menu, /Privacy & Visibility/);
   assert.match(menu, /Circle Safety/);
@@ -33,6 +32,7 @@ test("ARI Circle drawer contains secondary controls without duplicating primary 
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-meetup\.html"/);
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-feed\.html"/);
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-v6\.html"/);
+  assert.match(shell, /removeRedundantQuestDrawerLink/);
   assert.doesNotMatch(menu, /label: "Find People"/);
   assert.doesNotMatch(menu, /Buddies/);
 });
@@ -77,7 +77,7 @@ test("drawer is pearl white, grouped, and keeps only Exit destructive", () => {
   assert.match(menu, /circle-v5-menu__item--exit/);
 });
 
-test("Feed, Meet Up, and Quests still use the shared Circle header and shell", () => {
+test("Feed, Meetups, and Missions still use the shared Circle header and shell", () => {
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
@@ -92,13 +92,16 @@ test("Feed, Meet Up, and Quests still use the shared Circle header and shell", (
     assert.match(html, /circle-menu-v5\.js\?v=2\.4\.3/);
     assert.match(html, /v5-real-world\.js\?v=5\.2\.4/);
   }
+  assert.match(shell, /ensureConnectModeNav/);
+  assert.match(shell, />Meetups<\/a>/);
+  assert.match(shell, />Missions<\/a>/);
 });
 
 test("Feed has no second navigation row and keeps Moments inside Feed", () => {
   assert.doesNotMatch(feedHtml, /class="feed-tabs"/);
-  assert.match(feedHtml, /href="ari-circle-v6\.html" aria-label="ARI Circle For You"/);
-  assert.match(feedHtml, /id="momentsTitle">Moments</);
-  assert.match(feedHtml, /id="streamTitle">Your Feed</);
+  assert.match(feedHtml, /id="momentsTitle">Moments/);
+  assert.match(feedHtml, /id="streamTitle">Your Feed/);
+  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle ARI Next"\)/);
 });
 
 test("Feed loads Feed-only post controls instead of mixed Profile compatibility flow", () => {
