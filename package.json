@@ -11,8 +11,9 @@
     "mobile:build": "node scripts/build-mobile-web.mjs",
     "ios:add": "cap add ios",
     "ios:set-build": "node scripts/set-ios-build-number.mjs",
+    "ios:push-capability": "node scripts/ensure-ios-push-capability.mjs",
     "ios:verify-parity": "node scripts/verify-ios-public-parity.mjs",
-    "ios:sync": "npm run mobile:build && npm run ios:set-build && cap sync ios && npm run ios:verify-parity",
+    "ios:sync": "npm run mobile:build && npm run ios:set-build && cap sync ios && npm run ios:push-capability && npm run ios:verify-parity",
     "ios:open": "cap open ios"
   },
   "dependencies": {
