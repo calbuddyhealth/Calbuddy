@@ -197,7 +197,7 @@ function finishProfessionalProfileBoot() {
 
 Promise.all([
   import("./profile-v4.js?v=4.3.1"),
-  import("../v4-ui.js?v=5.3.3"),
+  import("../v4-ui.js?v=5.4.0"),
   import("./profile-friends.js?v=1.0.0")
 ])
   .then(() => finishProfessionalProfileBoot())
