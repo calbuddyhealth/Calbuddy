@@ -45,6 +45,7 @@ const allowedRootExtensions = new Set([
 ]);
 
 const nativeRuntimeTag = '<script src="js/native-runtime.js?v=1.6.0"></script>';
+const nativePushRuntimeTag = '<script src="js/native-push-runtime.js?v=1.0.0" data-ari-native-push="true"></script>';
 const nativeSafeAreaTag = '<link rel="stylesheet" href="assets/css/native-safe-area.css?v=1.2.0" data-ari-native-safe-area="true">';
 const nativeTrainingHeaderTag = '<link rel="stylesheet" href="assets/css/ari-training-native-header.css?v=1.1.0" data-ari-native-training-header="true">';
 const nativeSettingsHeaderTag = '<link rel="stylesheet" href="assets/css/native-settings-header.css?v=1.1.0" data-ari-native-settings-header="true">';
@@ -155,6 +156,7 @@ async function injectNativeRuntime() {
     }
 
     html = injectHeadTag(html, nativeRuntimeTag, "js/native-runtime.js");
+    html = injectHeadTag(html, nativePushRuntimeTag, "data-ari-native-push");
 
     await writeFile(htmlFile, html, "utf8");
   }
