@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-commit.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v6-intent-bundles.css?v=1.0.0" />
 </head>
 <body class="circle-v5-real-world v6-action-network-body">
   <main class="circle-v5-page v6-action-network" id="v6Page" hidden>
@@ -108,6 +109,15 @@
         </div>
       </section>
 
+      <section class="v6-section v6-intent-bundles" id="v6IntentBundles" aria-labelledby="v6IntentBundlesTitle" hidden>
+        <div class="v6-section-heading">
+          <div><span class="v6-eyebrow">PEOPLE + PLACE + TIME</span><h2 id="v6IntentBundlesTitle">Ari matched plans</h2></div>
+        </div>
+        <p class="v6-section-copy">Circle combines your private intent with compatible people, a public place, and a current opportunity without assuming anyone has agreed to attend.</p>
+        <p class="circle-v5-completion-note" id="v6IntentBundleStatus" role="status" aria-live="polite"></p>
+        <div class="v6-intent-bundle-grid" id="v6IntentBundleList"></div>
+      </section>
+
       <section class="v6-section" aria-labelledby="v6ScheduleTitle">
         <div class="v6-section-heading"><div><span class="v6-eyebrow">COMMITTED</span><h2 id="v6ScheduleTitle">Your next</h2></div></div>
         <div class="v6-schedule" id="v6ScheduleList"></div>
@@ -154,6 +164,7 @@
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/v6/action-network-v6.js?v=0.2.0" defer></script>
+  <script src="js/ari-circle/v6/intent-bundles-v1.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/v6/for-you-commit-v1.js?v=1.1.0" defer></script>
   <script src="js/ari-circle/meetups/host-flow-v2.js?v=2.0.1" defer></script>
 </body>
