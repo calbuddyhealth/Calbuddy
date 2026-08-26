@@ -34,18 +34,18 @@
         <h1 id="v6Title">What are you up for?</h1>
         <p>Tell Ari what sounds good. She’ll narrow the current options down to the few things that fit best.</p>
         <p class="v6-network-summary" id="v6NetworkSummary">Loading your Action Network…</p>
-        <div data-ari-circle-search-location data-surface="ari-next"></div>
+        <div data-ari-circle-search-location data-surface="ari-next" hidden aria-hidden="true"></div>
 
         <form class="v6-intent-composer" id="v6IntentForm">
           <label><span>Activity</span><select id="v6IntentActivity" class="circle-v5-input"><option value="any">Anything active</option><option value="walking">Walking</option><option value="gym">Gym</option><option value="running">Running</option><option value="hiking">Hiking</option><option value="sports">Sports</option><option value="cycling">Cycling</option><option value="yoga">Yoga</option><option value="outdoor">Outdoor</option><option value="community">Community</option><option value="volunteer">Volunteer</option></select></label>
           <label><span>When</span><select id="v6IntentWhen" class="circle-v5-input"><option value="next3h">Next 3 hours</option><option value="tomorrow_evening">Tomorrow evening</option><option value="weekend">This weekend</option><option value="next7d">Next 7 days</option></select></label>
           <label><span>Group</span><select id="v6IntentGroup" class="circle-v5-input"><option value="1-8">Open</option><option value="2-4">Small · 2–4</option><option value="3-8">Social · 3–8</option></select></label>
-          <input type="hidden" id="v6IntentRadius" value="25" />
+          <input type="hidden" id="v6IntentRadius" value="" />
           <input type="hidden" id="v6IntentArea" value="" />
           <button class="circle-v5-button-primary v6-intent-submit" id="v6IntentSubmit" type="submit">Find what fits</button>
         </form>
 
-        <p class="v6-privacy-line">ARI Next automatically uses your saved Circle search area and distance. Change the shared search setting above only when you want to search somewhere else. Exact meetup points stay protected.</p>
+        <p class="v6-privacy-line">ARI Next automatically uses your saved Circle search area and distance. Search controls live in Connect → Meetups so ARI Next can stay focused on recommendations. Exact meetup points stay protected.</p>
         <p class="circle-v5-completion-note" id="v6IntentStatus" role="status" aria-live="polite"></p>
         <div class="v6-intent-live" id="v6ActiveIntent" hidden></div>
       </section>
@@ -95,7 +95,7 @@
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.3.0" defer></script>
   <script src="js/ari-circle/v6/action-network-v6.js?v=0.3.0" defer></script>
-  <script src="js/ari-circle/v6/intent-bundles-v1.js?v=1.1.0" defer></script>
+  <script src="js/ari-circle/v6/intent-bundles-v1.js?v=1.2.0" defer></script>
   <script src="js/ari-circle/v6/for-you-commit-v1.js?v=1.1.0" defer></script>
   <script src="js/ari-circle/meetups/host-flow-v2.js?v=2.0.1" defer></script>
 </body>
