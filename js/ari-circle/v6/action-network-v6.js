@@ -8,8 +8,9 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.2.0";
+  const VERSION = "0.3.0";
   const $ = (id) => document.getElementById(id);
+  const ALLOWED_RADIUS_MILES = new Set([5, 10, 25, 50, 100]);
   const state = {
     client: null,
     user: null,
@@ -153,6 +154,12 @@
       return;
     }
 
+    const radiusControl = $("v6IntentRadius");
+    const preferredRadius = Number(rows[0]?.radiusMiles);
+    if (radiusControl && ALLOWED_RADIUS_MILES.has(preferredRadius)) {
+      radiusControl.value = String(preferredRadius);
+    }
+
     node.hidden = false;
     node.classList.toggle("has-multiple", rows.length > 1);
     rows.forEach((intent) => {
@@ -163,12 +170,14 @@
       const group = [intent?.desiredGroupMin, intent?.desiredGroupMax]
         .filter((value) => Number.isFinite(Number(value)))
         .join("–");
+      const radius = Number(intent?.radiusMiles);
+      const radiusLabel = ALLOWED_RADIUS_MILES.has(radius) ? `${radius} mi` : "";
 
       row.innerHTML = `
         <div class="v6-intent-live__copy">
           <span class="v6-eyebrow">ACTIVE INTENT</span>
           <strong>${escapeHtml(activityLabel(activity))}</strong>
-          <span>${escapeHtml(relativeWindowLabel(intent))}${area ? ` · ${escapeHtml(area)}` : ""}${group ? ` · ${escapeHtml(group)} people` : ""}</span>
+          <span>${escapeHtml(relativeWindowLabel(intent))}${area ? ` · ${escapeHtml(area)}` : ""}${group ? ` · ${escapeHtml(group)} people` : ""}${radiusLabel ? ` · within ${escapeHtml(radiusLabel)}` : ""}</span>
         </div>
       `;
 
@@ -616,6 +625,7 @@
     const preset = clean($("v6IntentWhen")?.value, 40) || "next3h";
     const area = clean($("v6IntentArea")?.value, 100) || null;
     const group = clean($("v6IntentGroup")?.value, 20) || "1-8";
+    const radius = Number(clean($("v6IntentRadius")?.value, 8) || "25");
     const [groupMin, groupMax] = group.split("-").map((value) => Number(value));
     const window = intentWindow(preset);
     const button = $("v6IntentSubmit");
@@ -623,6 +633,11 @@
 
     if (!Number.isInteger(groupMin) || !Number.isInteger(groupMax) || groupMin < 1 || groupMax < groupMin) {
       if (status) status.textContent = "Choose a valid group size.";
+      return;
+    }
+
+    if (!ALLOWED_RADIUS_MILES.has(radius)) {
+      if (status) status.textContent = "Choose a valid search distance.";
       return;
     }
 
@@ -639,7 +654,7 @@
         requested_group_min: groupMin,
         requested_group_max: groupMax,
         requested_area: area,
-        requested_radius_miles: 25,
+        requested_radius_miles: radius,
         requested_note: null,
         requested_latitude: null,
         requested_longitude: null
