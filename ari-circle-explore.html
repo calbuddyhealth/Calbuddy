@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-explore-v1.css?v=1.0.0" />
 </head>
 <body class="circle-v5-real-world">
@@ -30,6 +31,7 @@
         <span class="circle-v5-hero__kicker">ACTION NETWORK</span>
         <h1 id="exploreTitle">Explore</h1>
         <p>Find something worth doing—not people to scroll through.</p>
+        <div data-ari-circle-search-location data-surface="explore"></div>
         <form class="circle-explore-search" id="exploreAreaForm">
           <input class="circle-v5-input" id="exploreAreaInput" maxlength="100" placeholder="Search an area, city, or region" autocomplete="off" aria-label="Search Explore area" />
           <button class="circle-v5-button-primary" type="submit">Search</button>
@@ -80,6 +82,7 @@
   <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.3" defer></script>
   <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
   <script src="supabase-config.js?v=1.1.8"></script>
+  <script src="js/ari-circle/location/search-location-v1.js?v=1.0.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/explore/explore-v1.js?v=1.1.0" defer></script>
