@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 const notifications = fs.readFileSync('js/ari-circle/notifications/circle-notifications.js', 'utf8');
 const css = fs.readFileSync('assets/css/ari-circle-notifications-v4.css', 'utf8');
 
-assert.match(notifications, /const VERSION = "2\.4\.0"/);
-assert.match(notifications, /ari-circle-notifications-v4\.css\?v=2\.4\.0/);
+assert.match(notifications, /const VERSION = "2\.4\.1"/);
+assert.match(notifications, /ari-circle-notifications-v4\.css\?v=2\.4\.1/);
 assert.match(notifications, /function messageBundleKey\(/);
 assert.match(notifications, /kind: ordered\.length > 1 \? "message-bundle" : "single"/);
 assert.match(notifications, /sent you \$\{count\} messages/);
@@ -14,6 +14,10 @@ assert.match(notifications, /activateMessageBundle\(/);
 assert.match(notifications, /circle-notification-item--request/);
 assert.match(notifications, /if \(actions\.childNodes\.length\) article\.appendChild\(actions\)/);
 assert.doesNotMatch(notifications, /if \(actions\.childNodes\.length\) body\.appendChild\(actions\)/);
+assert.match(notifications, /const href = clean\(notification\?\.data\?\.href\)/);
+assert.match(notifications, /url\.origin === window\.location\.origin/);
+assert.match(notifications, /window\.location\.assign\(url\.href\)/);
+assert.match(notifications, /circle:notification-open-system/);
 
 assert.match(css, /Version: 2\.4\.0/);
 assert.match(css, /\.circle-notification-item--request/);

@@ -1,6 +1,10 @@
 // js/ari-circle/notifications/circle-notifications.js
-// ARI Circle Notifications V2.4.0
+// ARI Circle Notifications V2.4.1
 // Single owner for notification state, rendering, badge, actions, and compact UI.
+//
+// V2.4.1:
+// - Allows actionable system notifications to navigate to a same-origin href.
+// - Rejects cross-origin notification hrefs and preserves the legacy system event fallback.
 //
 // V2.4.0:
 // - Bundles repeated direct-message notifications by conversation/person.
@@ -17,10 +21,10 @@
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.4.0";
+const VERSION = "2.4.1";
 const SOURCE = "ari-circle/notifications/circle-notifications";
 const STYLE_ID = "ari-circle-notifications-style";
-const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.4.0";
+const STYLE_HREF = "assets/css/ari-circle-notifications-v4.css?v=2.4.1";
 
 const NOTIFICATION_TYPES = Object.freeze({
   CONNECTION_REQUEST: "connection_request",
@@ -778,9 +782,23 @@ const CircleNotifications = {
           profileUserId: notification.profileUserId
         });
         break;
-      default:
+      default: {
+        const href = clean(notification?.data?.href);
+        if (href) {
+          try {
+            const url = new URL(href, window.location.href);
+            if (url.origin === window.location.origin) {
+              this.closeNotifications();
+              window.location.assign(url.href);
+              break;
+            }
+          } catch (error) {
+            console.warn("ARI Circle notification href was invalid:", error);
+          }
+        }
         CircleEvents.emit("circle:notification-open-system", { notification });
         break;
+      }
     }
     return true;
   },
