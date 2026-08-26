@@ -9,12 +9,12 @@
 .v6-hero>p{max-width:680px;margin:0;color:#65718a;line-height:1.55}
 .v6-eyebrow{font-size:.68rem;font-weight:900;letter-spacing:.13em;text-transform:uppercase;color:#4a68b7}
 .v6-network-summary{margin-top:13px!important;font-weight:700;color:#26385d!important}
-.v6-intent-composer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:20px;padding:14px;border-radius:18px;background:#edf3ff;border:1px solid rgba(58,94,171,.12)}
+.v6-intent-composer{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:20px;padding:14px;border-radius:18px;background:#edf3ff;border:1px solid rgba(58,94,171,.12)}
 .v6-intent-composer label{display:grid;gap:6px;font-size:.72rem;font-weight:800;color:#52617d}
 .v6-intent-composer label>span{padding-left:2px}
 .v6-intent-composer small{font-weight:600;color:#8a96aa}
 .v6-intent-composer .circle-v5-input{min-height:44px;border-radius:12px;background:white}
-.v6-area-field{grid-column:span 2}
+.v6-area-field{grid-column:span 3}
 .v6-intent-submit{min-height:44px;align-self:end;touch-action:manipulation}
 .v6-privacy-line{margin-top:10px!important;font-size:.74rem;line-height:1.35!important;color:#7a879d!important}
 .v6-intent-live{margin-top:12px;display:grid;gap:8px;padding:8px;border:1px solid rgba(48,88,169,.14);border-radius:15px;background:#fff}
