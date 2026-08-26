@@ -47,7 +47,8 @@ test("V6 renders multiple active intents truthfully instead of silently choosing
   assert.match(controller, /renderActiveIntents\(context\.activeIntents \|\| \[\]\)/);
   assert.match(controller, /intents\.slice\(0, 3\)/);
   assert.match(controller, /Clear \$\{activityLabel\(activity\)\} intent/);
-  assert.match(html, /Your intents are private matching inputs and expire with their time windows/i);
+  assert.match(html, /Distance guides nearby matching when an approximate location is available/i);
+  assert.match(html, /exact meetup points stay protected/i);
 });
 
 test("For You exposes reasons and outcomes without exposing the internal Match Engine score", () => {
@@ -131,8 +132,8 @@ test("V6 stays mobile and Safari-safe with touch targets, safe areas, and one-co
 
 test("V6 is the default Circle entry while legacy profile and control routes remain available", () => {
   assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
-  assert.match(html, /ari-circle-v6-experience\.css\?v=0\.2\.0/);
-  assert.match(html, /action-network-v6\.js\?v=0\.2\.0/);
+  assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.0/);
+  assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
   assert.match(homeHtml, /href="ari-circle-v6\.html"[^>]*class="ari-nav-link nav-circle"/i);
   assert.match(legacyProfileHtml, /id="circle-profile"/i);
   assert.match(productionMenu, /ari-circle\.html\?panel=notifications/i);

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
-  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.2.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.3.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-commit.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-intent-bundles.css?v=1.0.0" />
 </head>
@@ -75,6 +75,16 @@
               <option value="3-8">Social · 3–8</option>
             </select>
           </label>
+          <label>
+            <span>Distance</span>
+            <select id="v6IntentRadius" class="circle-v5-input" aria-label="Search distance">
+              <option value="5">5 mi</option>
+              <option value="10">10 mi</option>
+              <option value="25" selected>25 mi</option>
+              <option value="50">50 mi</option>
+              <option value="100">100 mi</option>
+            </select>
+          </label>
           <label class="v6-area-field">
             <span>General area <small>optional</small></span>
             <input id="v6IntentArea" class="circle-v5-input" maxlength="100" autocomplete="off" placeholder="Mission Valley, San Diego…" />
@@ -82,7 +92,7 @@
           <button class="circle-v5-button-primary v6-intent-submit" id="v6IntentSubmit" type="submit">Find what fits</button>
         </form>
 
-        <p class="v6-privacy-line">No GPS prompt. Your intents are private matching inputs and expire with their time windows.</p>
+        <p class="v6-privacy-line">Distance guides nearby matching when an approximate location is available. No automatic GPS prompt; exact meetup points stay protected.</p>
         <p class="circle-v5-completion-note" id="v6IntentStatus" role="status" aria-live="polite"></p>
         <div class="v6-intent-live" id="v6ActiveIntent" hidden></div>
       </section>
@@ -163,7 +173,7 @@
   <script src="supabase-config.js?v=1.1.8"></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
-  <script src="js/ari-circle/v6/action-network-v6.js?v=0.2.0" defer></script>
+  <script src="js/ari-circle/v6/action-network-v6.js?v=0.3.0" defer></script>
   <script src="js/ari-circle/v6/intent-bundles-v1.js?v=1.1.0" defer></script>
   <script src="js/ari-circle/v6/for-you-commit-v1.js?v=1.1.0" defer></script>
   <script src="js/ari-circle/meetups/host-flow-v2.js?v=2.0.1" defer></script>
