@@ -77,23 +77,31 @@ jobs:
           npm run ios:sync
           npm run cap:doctor
 
-      - name: Verify Build 7 configuration and privacy purpose strings
+      - name: Verify Build 7 configuration, push capability, and privacy purpose strings
         shell: bash
         run: |
           set -euo pipefail
           PLIST="ios/App/App/Info.plist"
+          ENTITLEMENTS="ios/App/App/App.entitlements"
 
           test -f "$PLIST"
+          test -f "$ENTITLEMENTS"
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :aps-environment" "$ENTITLEMENTS" | grep -q 'ARI_APS_ENVIRONMENT'
 
           SETTINGS="$(xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -showBuildSettings)"
           echo "$SETTINGS" | grep -q "CURRENT_PROJECT_VERSION = 7"
           echo "$SETTINGS" | grep -q "MARKETING_VERSION = 1.0"
           echo "$SETTINGS" | grep -q "PRODUCT_BUNDLE_IDENTIFIER = com.arixp.app"
+          echo "$SETTINGS" | grep -q "CODE_SIGN_ENTITLEMENTS = App/App.entitlements"
+          echo "$SETTINGS" | grep -q "ARI_APS_ENVIRONMENT = production"
+          grep -q "com.apple.Push" ios/App/App.xcodeproj/project.pbxproj
+          grep -q "native-push-runtime.js?v=1.0.0" www/home.html
+          grep -q "native-push-runtime.js?v=1.0.0" www/ari-circle-v6.html
 
       - name: Validate iOS simulator build
         run: |
