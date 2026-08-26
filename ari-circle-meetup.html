@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-xp.css?v=1.0.1" />
 </head>
 <body class="circle-v5-real-world">
@@ -50,6 +51,8 @@
           </div>
         </div>
       </section>
+
+      <div data-ari-circle-search-location data-surface="meetup"></div>
 
       <div class="circle-v5-filter-rail" id="meetupWindowFilters" aria-label="Meetup date filters">
         <button class="circle-v5-filter-chip is-active" type="button" data-window="upcoming">Upcoming</button>
@@ -101,6 +104,7 @@
         <label class="circle-v5-field">Where?
           <input class="circle-v5-input" id="meetupFormArea" maxlength="100" placeholder="Mission Valley, San Diego" autocomplete="off" required />
         </label>
+        <p class="circle-v5-form-note">Use a broad area, not a home address. If it matches your saved Circle search area, ARI can attach only the same coarse discovery location for nearby ranking; the exact meeting point stays private.</p>
 
         <label class="circle-v5-field">Guest spots
           <select class="circle-v5-select" id="meetupFormGuestSpots">
@@ -184,6 +188,7 @@
   <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.3" defer></script>
   <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
   <script src="supabase-config.js?v=1.1.8"></script>
+  <script src="js/ari-circle/location/search-location-v1.js?v=1.0.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/meetups/meetups-v5.js?v=5.3.0" defer></script>
