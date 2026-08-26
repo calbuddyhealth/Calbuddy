@@ -67,17 +67,9 @@
 
   function routeNotificationData(data = {}) {
     const direct = safeDeepLink(data?.deepLink);
-    if (direct) {
-      window.location.assign(direct);
-      return true;
-    }
-
-    const signalId = clean(data?.ariSignalId || data?.signalId, 200);
-    if (signalId) {
-      window.location.assign(`home.html?ariSignal=${encodeURIComponent(signalId)}`);
-      return true;
-    }
-    return false;
+    if (!direct) return false;
+    window.location.assign(direct);
+    return true;
   }
 
   async function installRoutingListeners() {
