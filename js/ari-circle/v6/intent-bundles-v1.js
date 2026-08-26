@@ -1,13 +1,15 @@
 /* =============================================================
    ARI CIRCLE — INTENT BUNDLES V1
-   Read-only V6 composition:
+   V6 composition:
    private Action Intent → compatible people + public place + current opportunity.
-   This layer never auto-invites, auto-joins, or mutates meetup membership.
+   This layer can hand a one-time draft to the canonical Meet Up host form, but
+   never auto-invites, auto-joins, or mutates meetup membership itself.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
+  const DRAFT_STORAGE_KEY = "ariCircleMatchedMeetupDraftV1";
   const MAX_INTENTS = 2;
   const MAX_PEOPLE = 3;
   const state = { client: null, busy: false, refreshTimer: null };
@@ -82,7 +84,9 @@
       activity: clean(row?.activity, 40) || "any",
       area: clean(row?.area, 100),
       startsAt: row?.time_window_start || null,
-      endsAt: row?.time_window_end || null
+      endsAt: row?.time_window_end || null,
+      desiredGroupMin: Math.max(1, Number(row?.desired_group_min) || 1),
+      desiredGroupMax: Math.max(1, Number(row?.desired_group_max) || 8)
     };
   }
 
@@ -158,7 +162,8 @@
     }
   }
 
-  function bundleCard({ intent = {}, people = [], opportunity = null, place = null } = {}) {
+  function bundleCard(bundle = {}) {
+    const { intent = {}, people = [], opportunity = null, place = null } = bundle;
     const article = document.createElement("article");
     article.className = "v6-intent-bundle";
 
@@ -189,23 +194,100 @@
     if (peopleNode) renderPeople(peopleNode, people);
 
     const actions = article.querySelector("[data-bundle-actions]");
-    if (actions) {
-      if (opportunityTitle) {
-        const open = document.createElement("a");
-        open.className = "v6-card-action is-primary";
-        open.href = opportunityHref(opportunity);
-        open.textContent = "Open match";
-        actions.append(open);
-      }
-
-      const host = document.createElement("a");
-      host.className = "v6-card-action";
-      host.href = "ari-circle-meetup.html";
-      host.textContent = opportunityTitle ? "Host another" : "Host this";
-      actions.append(host);
-    }
+    if (actions) renderBundleActions(actions, bundle);
 
     return article;
+  }
+
+  function renderBundleActions(actions, bundle = {}) {
+    const opportunity = bundle?.opportunity || null;
+    const opportunityTitle = clean(opportunity?.title, 120);
+    const opportunityType = clean(opportunity?.opportunity_type, 20).toLowerCase();
+
+    if (opportunityTitle && opportunityType === "meetup") {
+      const open = document.createElement("a");
+      open.className = "v6-card-action is-primary";
+      open.href = opportunityHref(opportunity);
+      open.textContent = "Open existing meetup";
+      actions.append(open);
+
+      const host = document.createElement("button");
+      host.className = "v6-card-action";
+      host.type = "button";
+      host.textContent = "Host a new one";
+      host.addEventListener("click", () => handoffMatchedPlan(bundle));
+      actions.append(host);
+      return;
+    }
+
+    const make = document.createElement("button");
+    make.className = "v6-card-action is-primary";
+    make.type = "button";
+    make.textContent = "Make this happen";
+    make.addEventListener("click", () => handoffMatchedPlan(bundle));
+    actions.append(make);
+
+    if (opportunityTitle) {
+      const open = document.createElement("a");
+      open.className = "v6-card-action";
+      open.href = opportunityHref(opportunity);
+      open.textContent = "Open match";
+      actions.append(open);
+    }
+  }
+
+  function draftTitle(intent = {}, place = null) {
+    const activity = activityLabel(intent?.activity === "any" ? "Meetup" : intent?.activity);
+    const placeName = clean(place?.place_name, 60);
+    return clean(placeName ? `${activity} at ${placeName}` : `${activity} meetup`, 90);
+  }
+
+  function draftArea(intent = {}, place = null) {
+    const placeName = clean(place?.place_name, 60);
+    const placeArea = clean(place?.area, 80) || clean([place?.city, place?.region].filter(Boolean).join(", "), 80);
+    if (placeName && placeArea) return clean(`${placeName} · ${placeArea}`, 100);
+    if (placeName) return placeName;
+    if (placeArea) return placeArea;
+    return clean(intent?.area, 100);
+  }
+
+  function draftPeople(people = []) {
+    return (Array.isArray(people) ? people : []).slice(0, MAX_PEOPLE).map((person) => ({
+      displayName: clean(person?.display_name, 80),
+      handle: clean(person?.handle, 80).replace(/^@+/, ""),
+      avatarUrl: clean(person?.avatar_url, 1000)
+    }));
+  }
+
+  function matchedDraft(bundle = {}) {
+    const intent = bundle?.intent || {};
+    const maxGroup = Math.max(2, Math.min(50, Number(intent?.desiredGroupMax) || 8));
+    return {
+      version: 1,
+      source: "ari_circle_intent_bundle_v1",
+      createdAt: new Date().toISOString(),
+      intentId: clean(intent?.intentId, 120),
+      title: draftTitle(intent, bundle?.place),
+      activity: clean(intent?.activity, 40) || "other",
+      area: draftArea(intent, bundle?.place),
+      startsAt: intent?.startsAt || null,
+      durationMinutes: 60,
+      guestSpots: Math.max(1, maxGroup - 1),
+      joinMode: "approval",
+      people: draftPeople(bundle?.people)
+    };
+  }
+
+  function handoffMatchedPlan(bundle = {}) {
+    const status = $("v6IntentBundleStatus");
+    try {
+      const draft = matchedDraft(bundle);
+      if (!draft.intentId) throw new Error("This matched plan no longer has an active intent.");
+      sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      window.location.assign("ari-circle-meetup.html?draft=matched");
+    } catch (error) {
+      if (status) status.textContent = clean(error?.message, 240) || "Could not prepare this meetup draft.";
+    }
   }
 
   function renderPeople(node, people = []) {
