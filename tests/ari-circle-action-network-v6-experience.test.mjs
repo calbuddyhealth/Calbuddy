@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../ari-circle-v6.html", import.meta.url), "utf8");
 const controller = await readFile(new URL("../js/ari-circle/v6/action-network-v6.js", import.meta.url), "utf8");
+const bundles = await readFile(new URL("../js/ari-circle/v6/intent-bundles-v1.js", import.meta.url), "utf8");
+const searchLocation = await readFile(new URL("../js/ari-circle/location/search-location-v1.js", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/ari-circle-v6-experience.css", import.meta.url), "utf8");
 const productionMenu = await readFile(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
 const shell = await readFile(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
@@ -27,6 +29,7 @@ test("ARI Next is one integrated Action Network intelligence surface rather than
 
 test("V6 controller is valid browser JavaScript and reads sanitized server Action Network context", () => {
   assert.doesNotThrow(() => new Function(controller));
+  assert.doesNotThrow(() => new Function(bundles));
   assert.match(controller, /fetch\("\/api\/ari-vnext-circle-context"/);
   assert.match(controller, /Authorization: `Bearer \$\{token\}`/);
   assert.match(controller, /data\?\.available !== true/);
@@ -34,21 +37,22 @@ test("V6 controller is valid browser JavaScript and reads sanitized server Actio
   assert.doesNotMatch(controller, /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
-test("What are you up for creates only private expiring Action Intents without browser GPS", () => {
+test("What are you up for creates private expiring Action Intents while Connect owns location controls", () => {
   assert.match(controller, /ari_circle_create_action_intent/);
   assert.match(controller, /ari_circle_cancel_action_intent/);
-  assert.match(controller, /requested_latitude: null/);
-  assert.match(controller, /requested_longitude: null/);
   assert.match(controller, /requested_area: area/);
   assert.match(controller, /requested_radius_miles: radius/);
   assert.match(controller, /requested_time_window_start/);
   assert.match(controller, /requested_time_window_end/);
   assert.doesNotMatch(controller, /navigator\.geolocation|getCurrentPosition|watchPosition/i);
   assert.doesNotMatch(controller, /ari_circle_presence|currently_here|live users?/i);
-  assert.match(html, /type="hidden" id="v6IntentRadius" value="25"/);
+  assert.match(html, /data-ari-circle-search-location data-surface="ari-next" hidden aria-hidden="true"/);
+  assert.match(html, /type="hidden" id="v6IntentRadius" value=""/);
   assert.match(html, /type="hidden" id="v6IntentArea" value=""/);
+  assert.match(html, /Search controls live in Connect → Meetups/i);
   assert.doesNotMatch(html, /<label><span>Distance<\/span>/);
-  assert.doesNotMatch(html, /class="v6-area-field"/);
+  assert.match(searchLocation, /v6Radius\.value = String\(pref\.radiusMiles\)/);
+  assert.match(searchLocation, /v6Area\.value = pref\.areaLabel/);
 });
 
 test("V6 renders multiple active intents truthfully instead of silently choosing one", () => {
@@ -59,10 +63,12 @@ test("V6 renders multiple active intents truthfully instead of silently choosing
   assert.match(html, /Exact meetup points stay protected/i);
 });
 
-test("ARI Next exposes reasons and outcomes without exposing the internal Match Engine score", () => {
+test("ARI Next exposes reasons and outcomes without exposing numeric Match Engine scores", () => {
   assert.match(controller, /item\?\.matchReasons/);
   assert.match(controller, /BEST FIT/);
   assert.doesNotMatch(controller, /\bmatchScore\b|\bmatch_score\b/);
+  assert.doesNotMatch(bundles, /\bmatchScore\b|\bmatch_score\b|%\s*fit|\d+\s*fit/i);
+  assert.match(bundles, /SUGGESTED/);
   assert.doesNotMatch(html, /compatibility\s*[:=]|match score|% compatible/i);
   assert.doesNotMatch(controller, /\b(likes|followers|views|popularity_score|sponsored_rank|premium_rank)\b/i);
 });
@@ -121,6 +127,7 @@ test("Feed Connect ARI Next is the primary model while deeper features remain re
   assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
   assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.1/);
   assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
+  assert.match(html, /intent-bundles-v1\.js\?v=1\.2\.0/);
   assert.match(html, /circle-menu-v5\.js\?v=2\.5\.0/);
   assert.match(html, /v5-real-world\.js\?v=5\.3\.0/);
   assert.match(homeHtml, /href="ari-circle-v6\.html"[^>]*class="ari-nav-link nav-circle"/i);
