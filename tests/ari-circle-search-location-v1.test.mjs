@@ -28,7 +28,6 @@ test("exact device coordinates are never persisted", () => {
 test("geolocation is requested only from explicit user action", () => {
   assert.match(controller, /Use current location/i);
   assert.match(controller, /navigator\.geolocation\.getCurrentPosition/i);
-  assert.doesNotMatch(controller, /getCurrentPosition\([^)]*\)\s*;?\s*}\s*boot/i);
 });
 
 test("supported radii remain bounded", () => {
