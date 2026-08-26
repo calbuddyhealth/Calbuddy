@@ -1,6 +1,6 @@
 /* =============================================================
-   ARI CIRCLE — CONTROL DRAWER V5.2
-   Version: 2.4.3
+   ARI CIRCLE — CONTROL DRAWER V5.3
+   Version: 2.5.0
    Adults-only shared controls + authoritative Real World Social shell.
    The drawer panel is portaled to <body> so iOS Safari cannot clip it
    inside the sticky/backdrop-filtered header.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.4.3";
+  const VERSION = "2.5.0";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const AUTHORITY_STYLE_ID = "ariCircleMenuV5AuthorityStyle";
@@ -23,7 +23,7 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.2.3";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.3.0";
   let outsideBound = false;
   let panelSequence = 0;
 
@@ -58,7 +58,7 @@
   const icon = Object.freeze({
     menu: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"></path></svg>`,
     bell: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path><path d="M10 20h4"></path></svg>`,
-    meetup: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3"></circle><circle cx="16.5" cy="9" r="2.5"></circle><path d="M3.5 19c.5-3.5 2.3-5.3 5-5.3s4.6 1.8 5.1 5.3M14.2 14.2c3.4-.4 5.6 1.2 6.3 4.8"></path></svg>`,
+    quest: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5.5 6.2v5.2c0 4.4 2.7 7.5 6.5 9.6 3.8-2.1 6.5-5.2 6.5-9.6V6.2L12 3Z"></path><path d="m8.8 12 2.1 2.1 4.4-5"></path></svg>`,
     user: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg>`,
     discover: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><path d="M2.8 17c.5-3 2.3-4.7 5.2-4.7 1.7 0 3 .6 4 1.6"></path><circle cx="16.5" cy="15.5" r="3.2"></circle><path d="m19 18 2.5 2.5"></path></svg>`,
     privacy: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M9.5 12.5 11 14l3.5-4"></path></svg>`,
@@ -79,11 +79,11 @@
 
   function loadRealWorldShell() {
     if (!adultAccessReady()) return;
-    if (window.AriCircleV5RealWorld) {
+    if (window.AriCircleV5RealWorld?.version === "5.3.0") {
       window.AriCircleV5RealWorld.refresh?.();
       return;
     }
-    if (document.getElementById(REAL_WORLD_SCRIPT_ID)) return;
+    if (document.querySelector(`script[src*="v5-real-world.js?v=5.3.0"]`)) return;
     const script = document.createElement("script");
     script.id = REAL_WORLD_SCRIPT_ID;
     script.src = REAL_WORLD_SCRIPT_SRC;
@@ -160,7 +160,7 @@
       item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell }),
       item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user }),
       item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover }),
-      item({ href: "ari-circle-meetup.html", label: "Meet Up", iconMarkup: icon.meetup })
+      item({ href: "ari-circle-quests.html", label: "Quests", iconMarkup: icon.quest })
     ].join("");
     const accountRows = [
       includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : item({ href: "ari-circle.html#about", label: "Profile Options", iconMarkup: icon.user }),
@@ -178,7 +178,7 @@
         ${group("Main", mainRows)}
         ${group("Account", accountRows)}
         <div class="circle-v52-menu-exit">${item({ href: "home.html", label: "Exit ARI Circle", iconMarkup: icon.exit, exit: true })}</div>
-        <div class="circle-v52-menu-footer">V5.2</div>
+        <div class="circle-v52-menu-footer">V5.3</div>
       </nav>`;
   }
 
