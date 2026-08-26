@@ -135,14 +135,17 @@ test("Feed keeps posts and Moments while adding live Happening discovery", () =>
   assert.doesNotMatch(happening, />Create a meetup</);
 });
 
-test("Circle has one simple three-tab primary navigation and final visual authority", () => {
+test("Circle has one Feed Connect ARI Next primary navigation and final visual authority", () => {
   assert.match(shell, /const VERSION = "5\.3\.0"/);
-  assert.match(shell, /navLink\("foryou", "ari-circle-v6\.html", "For You"\)/);
-  assert.match(shell, /navLink\("meetup", "ari-circle-meetup\.html", "Meet Up"\)/);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
-  assert.doesNotMatch(shell, /navLink\("quests"/);
+  assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
+  assert.match(shell, /navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\)/);
+  assert.doesNotMatch(shell, /navLink\("quests"|navLink\("missions"|navLink\("meetup"|navLink\("foryou"/);
   assert.match(shell, /brand\.setAttribute\("href", "ari-circle-v6\.html"\)/);
-  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle For You"\)/);
+  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle ARI Next"\)/);
+  assert.match(shell, /ensureConnectModeNav/);
+  assert.match(shell, />Meetups<\/a>/);
+  assert.match(shell, />Missions<\/a>/);
   assert.doesNotMatch(shell, /ari-circle-partners\.html/);
   assert.doesNotMatch(shell, /ari-circle-challenges\.html/);
   assert.match(authority, /CONSOLIDATED VISUAL AUTHORITY/);
@@ -151,7 +154,7 @@ test("Circle has one simple three-tab primary navigation and final visual author
   assert.match(authority, /--circle521-gradient:/);
 });
 
-test("secondary drawer avoids duplicating primary tabs", () => {
+test("secondary drawer avoids duplicating primary tabs and Connect owns Missions navigation", () => {
   assert.match(menu, /ari-circle-quests\.html/);
   assert.match(menu, /label: "Profile"/);
   assert.match(menu, /label: "Notifications"/);
@@ -159,9 +162,10 @@ test("secondary drawer avoids duplicating primary tabs", () => {
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-meetup\.html"/);
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-feed\.html"/);
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-v6\.html"/);
+  assert.match(shell, /removeRedundantQuestDrawerLink/);
 });
 
-test("Meet Up and Quests share the current adult-only shell and fail-closed publication moderation", () => {
+test("Meetups and Missions share the current adult-only shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
     assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3/);
     assert.match(html, /js\/ari-circle\/social-badges\.js\?v=1\.2\.0/);
