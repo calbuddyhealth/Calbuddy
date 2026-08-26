@@ -6,19 +6,21 @@ const html = await readFile(new URL("../ari-circle-v6.html", import.meta.url), "
 const controller = await readFile(new URL("../js/ari-circle/v6/action-network-v6.js", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/ari-circle-v6-experience.css", import.meta.url), "utf8");
 const productionMenu = await readFile(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
+const shell = await readFile(new URL("../js/ari-circle/v5-real-world.js", import.meta.url), "utf8");
 const homeHtml = await readFile(new URL("../home.html", import.meta.url), "utf8");
 const legacyProfileHtml = await readFile(new URL("../ari-circle.html", import.meta.url), "utf8");
 
-test("Circle V6 is one integrated Action Network experience rather than another feed", () => {
+test("Circle V6 is one integrated Action Network home rather than another feed or navigation layer", () => {
   assert.match(html, /What are you up for\?/i);
-  assert.match(html, />For You</i);
-  assert.match(html, />Explore</i);
-  assert.match(html, />Crews</i);
-  assert.match(html, />Moments</i);
+  assert.match(html, /id="v6ForYouTitle"[^>]*>For You</i);
+  assert.match(html, /href="ari-circle-explore\.html"/i);
+  assert.match(html, /id="crews"/i);
   assert.match(html, /BEST NEXT ACTIONS/i);
   assert.match(html, /GO SOMEWHERE/i);
   assert.match(html, /PEOPLE YOU ACTUALLY DO THINGS WITH/i);
   assert.match(controller, /activity first, content second/i);
+  assert.doesNotMatch(html, /class="v6-mode-nav"/i);
+  assert.doesNotMatch(html, />Moments<\/a>/i);
   assert.doesNotMatch(html, /Trending People|Top Users|Most Popular/i);
 });
 
@@ -118,24 +120,28 @@ test("Circle mutations invalidate Ari Circle context instead of leaving stale sh
   assert.match(controller, /await loadContext\(\);\s*render\(\);/);
 });
 
-test("V6 stays mobile and Safari-safe with touch targets, safe areas, and one-column collapse", () => {
+test("V6 stays mobile and Safari-safe without requiring a second sticky navigation bar", () => {
   assert.match(css, /env\(safe-area-inset-bottom,0px\)/);
-  assert.match(css, /env\(safe-area-inset-top,0px\)/);
-  assert.match(css, /-webkit-backdrop-filter:blur\(18px\)/);
-  assert.match(css, /\.v6-mode-nav a\{[^}]*min-height:44px/);
   assert.match(css, /\.v6-primary-link\{[^}]*min-height:44px/);
   assert.match(css, /@media\(max-width:720px\)/);
   assert.match(css, /@media\(max-width:430px\)/);
   assert.match(css, /\.v6-opportunity-grid,\.v6-place-grid,\.v6-crew-grid\{grid-template-columns:1fr\}/);
   assert.match(css, /\.v6-crew-create\{grid-template-columns:1fr\}/);
+  assert.doesNotMatch(html, /v6-mode-nav/);
 });
 
-test("V6 is the default Circle entry while legacy profile and control routes remain available", () => {
+test("For You is the Circle home while secondary features remain reachable without duplicate primary tabs", () => {
   assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
   assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.0/);
   assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
+  assert.match(html, /circle-menu-v5\.js\?v=2\.5\.0/);
+  assert.match(html, /v5-real-world\.js\?v=5\.3\.0/);
   assert.match(homeHtml, /href="ari-circle-v6\.html"[^>]*class="ari-nav-link nav-circle"/i);
   assert.match(legacyProfileHtml, /id="circle-profile"/i);
+  assert.match(shell, /navLink\("foryou", "ari-circle-v6\.html", "For You"\)/);
+  assert.match(shell, /navLink\("meetup", "ari-circle-meetup\.html", "Meet Up"\)/);
+  assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(productionMenu, /ari-circle\.html\?panel=notifications/i);
-  assert.match(productionMenu, /ari-circle-meetup\.html/i);
+  assert.match(productionMenu, /ari-circle-quests\.html/i);
+  assert.doesNotMatch(productionMenu, /item\(\{ href: "ari-circle-meetup\.html"/i);
 });
