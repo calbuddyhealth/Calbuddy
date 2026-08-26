@@ -77,17 +77,28 @@ test("drawer is pearl white, grouped, and keeps only Exit destructive", () => {
   assert.match(menu, /circle-v5-menu__item--exit/);
 });
 
-test("Feed, Meet Up, and Quests still load the same shared Circle shell", () => {
+test("Feed, Meet Up, and Quests still use the shared Circle header and shell", () => {
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
-    assert.match(html, /id="ariCircleMenuV5Script" src="js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3"/);
     assert.match(html, /id="ariCircleSocialBadgesScript" src="js\/ari-circle\/social-badges\.js\?v=1\.2\.0"/);
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
-    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.4"/);
   }
+  assert.match(feedHtml, /circle-menu-v5\.js\?v=2\.5\.0/);
+  assert.match(feedHtml, /v5-real-world\.js\?v=5\.3\.0/);
+  for (const html of [meetupHtml, questHtml]) {
+    assert.match(html, /circle-menu-v5\.js\?v=2\.4\.3/);
+    assert.match(html, /v5-real-world\.js\?v=5\.2\.4/);
+  }
+});
+
+test("Feed has no second navigation row and keeps Moments inside Feed", () => {
+  assert.doesNotMatch(feedHtml, /class="feed-tabs"/);
+  assert.match(feedHtml, /href="ari-circle-v6\.html" aria-label="ARI Circle For You"/);
+  assert.match(feedHtml, /id="momentsTitle">Moments</);
+  assert.match(feedHtml, /id="streamTitle">Your Feed</);
 });
 
 test("Feed loads Feed-only post controls instead of mixed Profile compatibility flow", () => {
@@ -100,8 +111,7 @@ test("Feed loads Feed-only post controls instead of mixed Profile compatibility 
   assert.doesNotMatch(feedHtml, /profile-visitor-controls\.js|profile-social-flow\.js/);
   assert.match(feedHtml, /js\/ari-circle\/feed\/feed-post-options\.js\?v=1\.0\.0/);
   assert.match(feedHtml, /Friends only · kept inside your verified age space\./);
-  assert.match(feedHtml, /id="streamTitle">Your Feed</);
-  assert.match(feedHtml, /js\/ari-circle\/feed\/feed-polish\.js\?v=1\.0\.1/);
+  assert.match(feedHtml, /js\/ari-circle\/feed\/feed-polish\.js\?v=1\.0\.2/);
   assert.match(feedHtml, /js\/ari-circle\/feed\/feed-moderation\.js\?v=1\.1\.0/);
 
   assert.match(feedPostOptions, /FEED POST OPTIONS/);
@@ -111,19 +121,23 @@ test("Feed loads Feed-only post controls instead of mixed Profile compatibility 
   assert.doesNotMatch(feedPostOptions, /relationship_state|ari_circle_profile_friends|circle-owner-actions|circle-visitor-actions/);
 });
 
-test("Profile compatibility modules remain Profile-only and purpose-specific", () => {
+test("Profile compatibility stays Profile-only and does not recreate primary navigation", () => {
   assert.match(profileCompat, /PROFILE COMPATIBILITY SHELL/);
-  assert.match(profileCompat, /const VERSION = "5\.3\.3"/);
-  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.2\.4"/);
+  assert.match(profileCompat, /const VERSION = "5\.4\.0"/);
+  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.3\.0"/);
   assert.match(profileCompat, /if \(!isProfileRoute\(\)\) return/);
   assert.match(profileCompat, /window\.AriCircleMenuV5\?\.refresh\?\.\(\)/);
   assert.match(profileCompat, /import\(`\/js\/ari-circle\/v5-real-world\.js\?v=\$\{REAL_WORLD_VERSION\}`\)/);
   assert.match(profileCompat, /profile\/profile-visitor-controls\.js\?v=1\.0\.0/);
+  assert.match(profileCompat, /brand\.href = "ari-circle-v6\.html"/);
+  assert.match(profileCompat, /removeLegacyProfileNav/);
+  assert.match(profileCompat, /\$\("circleV3Nav"\)\?\.remove\(\)/);
+  assert.doesNotMatch(profileCompat, /nav\.innerHTML = `<a href="ari-circle-feed\.html"/);
   assert.doesNotMatch(profileCompat, /launch-social-v5\.js|v4-flow-fixes\.js/);
   assert.doesNotMatch(profileCompat, /circleMenuMarkup|ari-circle-partners\.html|ari-circle-challenges\.html/);
 
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
-  assert.match(profileLoader, /v4-ui\.js\?v=5\.3\.3/);
+  assert.match(profileLoader, /v4-ui\.js\?v=5\.4\.0/);
   assert.match(profileLoader, /ari-circle-xp\.css\?v=1\.0\.1/);
   assert.doesNotMatch(profileLoader, /profile-social-flow|profile-connection-authority|v4-flow-fixes\.js|AriCircleV4FlowFixes/);
 
