@@ -20,7 +20,7 @@ test("Circle V6 is one integrated Action Network home rather than another feed o
   assert.match(html, /PEOPLE YOU ACTUALLY DO THINGS WITH/i);
   assert.match(controller, /activity first, content second/i);
   assert.doesNotMatch(html, /class="v6-mode-nav"/i);
-  assert.doesNotMatch(html, />Moments<\/a>/i);
+  assert.doesNotMatch(html, /v6MomentsBridge|v6-moments-bridge/i);
   assert.doesNotMatch(html, /Trending People|Top Users|Most Popular/i);
 });
 
@@ -64,33 +64,14 @@ test("For You exposes reasons and outcomes without exposing the internal Match E
 test("Needs attention surfaces meaningful state changes without becoming a generic notification feed", () => {
   assert.match(html, /id="v6Attention"/);
   assert.match(html, /Needs attention/i);
-  for (const eventType of [
-    "meetup.accepted",
-    "meetup.cancelled",
-    "meetup.waitlisted",
-    "meetup.declined",
-    "meetup.requested",
-    "mission.progress_submitted",
-    "mission.progress_verified",
-    "mission.progress_rejected",
-    "mission.objective_reached",
-    "meetup.spot_opened",
-    "crew.invited"
-  ]) {
+  for (const eventType of ["meetup.accepted","meetup.cancelled","meetup.waitlisted","meetup.declined","meetup.requested","mission.progress_submitted","mission.progress_verified","mission.progress_rejected","mission.objective_reached","meetup.spot_opened","crew.invited"]) {
     assert.match(controller, new RegExp(eventType.replace(".", "\\.")));
   }
   assert.match(controller, /unique\.length >= 5/);
 });
 
 test("Crew actions use only guarded Crew RPCs and never accept arbitrary member identities", () => {
-  for (const rpc of [
-    "ari_circle_create_crew",
-    "ari_circle_respond_crew_invite",
-    "ari_circle_leave_crew",
-    "ari_circle_archive_crew"
-  ]) {
-    assert.match(controller, new RegExp(rpc));
-  }
+  for (const rpc of ["ari_circle_create_crew","ari_circle_respond_crew_invite","ari_circle_leave_crew","ari_circle_archive_crew"]) assert.match(controller, new RegExp(rpc));
   assert.match(controller, /requested_candidate_key: candidateKey/);
   assert.match(controller, /requested_operation_id: operationId/);
   assert.doesNotMatch(controller, /requested_member_ids|member_ids\s*:|add_member|remove_member|invite_user/i);
@@ -120,19 +101,19 @@ test("Circle mutations invalidate Ari Circle context instead of leaving stale sh
   assert.match(controller, /await loadContext\(\);\s*render\(\);/);
 });
 
-test("V6 stays mobile and Safari-safe without requiring a second sticky navigation bar", () => {
+test("V6 stays mobile and Safari-safe without a second sticky navigation bar", () => {
   assert.match(css, /env\(safe-area-inset-bottom,0px\)/);
   assert.match(css, /\.v6-primary-link\{[^}]*min-height:44px/);
   assert.match(css, /@media\(max-width:720px\)/);
   assert.match(css, /@media\(max-width:430px\)/);
   assert.match(css, /\.v6-opportunity-grid,\.v6-place-grid,\.v6-crew-grid\{grid-template-columns:1fr\}/);
   assert.match(css, /\.v6-crew-create\{grid-template-columns:1fr\}/);
-  assert.doesNotMatch(html, /v6-mode-nav/);
+  assert.doesNotMatch(css, /v6-mode-nav|v6-moments-bridge/);
 });
 
 test("For You is the Circle home while secondary features remain reachable without duplicate primary tabs", () => {
   assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
-  assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.0/);
+  assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.1/);
   assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
   assert.match(html, /circle-menu-v5\.js\?v=2\.5\.0/);
   assert.match(html, /v5-real-world\.js\?v=5\.3\.0/);
