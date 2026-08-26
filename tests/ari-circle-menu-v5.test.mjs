@@ -77,20 +77,16 @@ test("drawer is pearl white, grouped, and keeps only Exit destructive", () => {
   assert.match(menu, /circle-v5-menu__item--exit/);
 });
 
-test("Feed, Meetups, and Missions still use the shared Circle header and shell", () => {
+test("Feed, Meetups, and Missions all use the current shared Circle header and shell", () => {
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
     assert.match(html, /id="ariCircleSocialBadgesScript" src="js\/ari-circle\/social-badges\.js\?v=1\.2\.0"/);
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
+    assert.match(html, /circle-menu-v5\.js\?v=2\.5\.0/);
+    assert.match(html, /v5-real-world\.js\?v=5\.3\.0/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
-  }
-  assert.match(feedHtml, /circle-menu-v5\.js\?v=2\.5\.0/);
-  assert.match(feedHtml, /v5-real-world\.js\?v=5\.3\.0/);
-  for (const html of [meetupHtml, questHtml]) {
-    assert.match(html, /circle-menu-v5\.js\?v=2\.4\.3/);
-    assert.match(html, /v5-real-world\.js\?v=5\.2\.4/);
   }
   assert.match(shell, /ensureConnectModeNav/);
   assert.match(shell, />Meetups<\/a>/);
