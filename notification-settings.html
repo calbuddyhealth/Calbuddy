@@ -22,15 +22,25 @@
       <div class="ari-page-symbol" aria-hidden="true">◌</div>
       <p class="ari-page-kicker">ATTENTION</p>
       <h1 class="ari-page-title">Notifications</h1>
-      <p class="ari-page-description">One useful choice, without a wall of unnecessary switches.</p>
+      <p class="ari-page-description">Useful updates without a wall of unnecessary switches.</p>
     </section>
 
     <div class="ari-status" id="notificationStatus" role="status" aria-live="polite"></div>
 
     <div class="ari-content-stack">
+      <section class="ari-content-card" id="phoneNotificationCard" hidden>
+        <div class="ari-choice-row">
+          <div class="ari-choice-copy"><strong>Phone notifications</strong><small>Allow important ARI and Circle updates to reach this iPhone. Quiet hours still apply.</small></div>
+          <label class="ari-toggle">
+            <input id="phoneNotificationToggle" type="checkbox" aria-label="Phone notifications">
+            <span class="ari-toggle-track" aria-hidden="true"></span>
+          </label>
+        </div>
+      </section>
+
       <section class="ari-content-card">
         <div class="ari-choice-row">
-          <div class="ari-choice-copy"><strong>Circle activity</strong><small>Show connection, message-request, and social activity inside ARI Circle.</small></div>
+          <div class="ari-choice-copy"><strong>Circle activity</strong><small>Show connection, message-request, meetup, and social activity inside ARI Circle. Important meetup updates can also use phone notifications when enabled.</small></div>
           <label class="ari-toggle">
             <input id="circleNotificationToggle" type="checkbox" checked aria-label="Circle activity notifications">
             <span class="ari-toggle-track" aria-hidden="true"></span>
@@ -47,6 +57,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/notification-settings.js?v=1.0.0"></script>
+  <script src="js/notification-settings.js?v=1.1.0"></script>
 </body>
 </html>
