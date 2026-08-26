@@ -18,17 +18,21 @@ const feedHtml = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.
 const meetupHtml = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const questHtml = fs.readFileSync(new URL("../ari-circle-quests.html", import.meta.url), "utf8");
 
-test("ARI Circle drawer reflects the current Real World Social navigation", () => {
+test("ARI Circle drawer contains secondary controls without duplicating primary navigation", () => {
   assert.match(menu, /<small>Circle controls<\/small>/);
   assert.match(menu, /group\("Main"/);
   assert.match(menu, /group\("Account"/);
   assert.match(menu, /Notifications/);
   assert.match(menu, /label: "Profile"/);
-  assert.match(menu, /label: "Meet Up"/);
+  assert.match(menu, /label: "Discover Friends"/);
+  assert.match(menu, /label: "Quests"/);
   assert.match(menu, /Profile Options/);
   assert.match(menu, /Privacy & Visibility/);
   assert.match(menu, /Circle Safety/);
   assert.match(menu, /Exit ARI Circle/);
+  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-meetup\.html"/);
+  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-feed\.html"/);
+  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-v6\.html"/);
   assert.doesNotMatch(menu, /label: "Find People"/);
   assert.doesNotMatch(menu, /Buddies/);
 });
@@ -73,7 +77,7 @@ test("drawer is pearl white, grouped, and keeps only Exit destructive", () => {
   assert.match(menu, /circle-v5-menu__item--exit/);
 });
 
-test("Feed, Meet Up, and Quests use the same shared navigation and V5.2.4 shell", () => {
+test("Feed, Meet Up, and Quests still load the same shared Circle shell", () => {
   for (const html of [feedHtml, meetupHtml, questHtml]) {
     assert.match(html, /<header class="circle-v5-header feed-header">/);
     assert.match(html, /class="feed-brand circle-v5-brand"/);
