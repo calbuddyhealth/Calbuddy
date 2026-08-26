@@ -172,8 +172,8 @@ grant execute on function public.ari_circle_get_my_search_location() to authenti
 grant execute on function public.ari_circle_set_my_search_location(text,numeric,numeric,integer,text) to authenticated, service_role;
 grant execute on function public.ari_circle_clear_my_search_location() to authenticated, service_role;
 
--- Allow Meet Up discovery to carry a coarse discovery origin that is separate
--- from the private meeting_point. These coordinates are not returned by meetup reads.
+-- Meet Up may carry a coarse discovery origin that is separate from its private
+-- meeting_point. These coordinates are never returned by the canonical meetup read.
 alter table public.ari_circle_meetups
   add column if not exists approximate_latitude numeric(6,2),
   add column if not exists approximate_longitude numeric(7,2);
@@ -215,274 +215,9 @@ create index if not exists ari_circle_meetups_area_starts_idx
   on public.ari_circle_meetups (lower(area), starts_at)
   where status = 'scheduled';
 
--- Existing canonical Action Intent mutation now falls back to the caller's
--- private Circle search location only when the caller did not provide a
--- different explicit area/location. Per-intent distance remains authoritative.
-create or replace function public.ari_circle_create_action_intent(
-  requested_activity text,
-  requested_time_window_start timestamptz,
-  requested_time_window_end timestamptz,
-  requested_experience_level text default 'any',
-  requested_intensity text default 'any',
-  requested_group_min integer default 1,
-  requested_group_max integer default 8,
-  requested_area text default null,
-  requested_radius_miles integer default 25,
-  requested_note text default null,
-  requested_latitude numeric default null,
-  requested_longitude numeric default null
-)
-returns uuid
-language plpgsql
-security definer
-set search_path to 'public', 'pg_temp'
-as $function$
-declare
-  caller_id uuid := auth.uid();
-  clean_activity text := lower(btrim(coalesce(requested_activity, '')));
-  clean_experience text := lower(btrim(coalesce(requested_experience_level, 'any')));
-  clean_intensity text := lower(btrim(coalesce(requested_intensity, 'any')));
-  clean_area text := nullif(btrim(coalesce(requested_area, '')), '');
-  clean_note text := nullif(btrim(coalesce(requested_note, '')), '');
-  safe_group_min integer := coalesce(requested_group_min, 1);
-  safe_group_max integer := coalesce(requested_group_max, 8);
-  safe_radius integer := coalesce(requested_radius_miles, 25);
-  safe_lat numeric(6,2) := null;
-  safe_lon numeric(7,2) := null;
-  search_location private.ari_circle_search_locations%rowtype;
-  result_id uuid;
-begin
-  perform public.ari_circle_assert_adult_access();
-
-  if clean_activity not in (
-    'any','walking','gym','running','hiking','sports','cycling','yoga',
-    'coffee','food','community','volunteer','wellness','outdoor','other'
-  ) then
-    raise exception 'Unsupported action intent activity';
-  end if;
-
-  if clean_experience not in ('any','beginner','intermediate','advanced') then
-    raise exception 'Unsupported experience level';
-  end if;
-
-  if clean_intensity not in ('any','easy','moderate','hard') then
-    raise exception 'Unsupported activity intensity';
-  end if;
-
-  if safe_group_min < 1 or safe_group_min > 50
-     or safe_group_max < 1 or safe_group_max > 50
-     or safe_group_max < safe_group_min then
-    raise exception 'Choose a valid group-size range';
-  end if;
-
-  if safe_radius not in (5,10,25,50,100) then
-    raise exception 'Unsupported discovery radius';
-  end if;
-
-  if requested_time_window_start is null or requested_time_window_end is null then
-    raise exception 'Choose when you are available';
-  end if;
-
-  if requested_time_window_start < now() - interval '15 minutes' then
-    raise exception 'Action intent cannot start in the past';
-  end if;
-
-  if requested_time_window_start > now() + interval '30 days' then
-    raise exception 'Action intent is too far in the future';
-  end if;
-
-  if requested_time_window_end <= greatest(requested_time_window_start, now()) then
-    raise exception 'Action intent needs a future end time';
-  end if;
-
-  if requested_time_window_end > requested_time_window_start + interval '30 days' then
-    raise exception 'Action intent window is too long';
-  end if;
-
-  if clean_area is not null and (char_length(clean_area) < 2 or char_length(clean_area) > 100) then
-    raise exception 'Use a general area up to 100 characters';
-  end if;
-
-  if clean_note is not null and char_length(clean_note) > 280 then
-    raise exception 'Action intent note is too long';
-  end if;
-
-  if requested_latitude is not null or requested_longitude is not null then
-    if requested_latitude is null or requested_longitude is null
-       or requested_latitude < -90 or requested_latitude > 90
-       or requested_longitude < -180 or requested_longitude > 180 then
-      raise exception 'A valid approximate location is required';
-    end if;
-    safe_lat := round(requested_latitude, 2);
-    safe_lon := round(requested_longitude, 2);
-  else
-    select * into search_location
-    from private.ari_circle_search_locations s
-    where s.user_id = caller_id;
-
-    if search_location.user_id is not null then
-      if clean_area is null and search_location.area_label is not null then
-        clean_area := search_location.area_label;
-      end if;
-
-      if search_location.approximate_latitude is not null
-         and (
-           requested_area is null
-           or nullif(btrim(coalesce(requested_area, '')), '') is null
-           or (
-             search_location.area_label is not null
-             and (
-               lower(clean_area) like '%' || lower(search_location.area_label) || '%'
-               or lower(search_location.area_label) like '%' || lower(clean_area) || '%'
-             )
-           )
-         ) then
-        safe_lat := search_location.approximate_latitude;
-        safe_lon := search_location.approximate_longitude;
-      end if;
-    end if;
-  end if;
-
-  insert into public.ari_circle_action_intents (
-    user_id, activity, experience_level, intensity,
-    desired_group_min, desired_group_max, area,
-    approximate_latitude, approximate_longitude, radius_miles,
-    time_window_start, time_window_end, note, status, expires_at
-  ) values (
-    caller_id, clean_activity, clean_experience, clean_intensity,
-    safe_group_min, safe_group_max, clean_area,
-    safe_lat, safe_lon, safe_radius,
-    requested_time_window_start, requested_time_window_end, clean_note,
-    'active', requested_time_window_end
-  )
-  returning id into result_id;
-
-  return result_id;
-end;
-$function$;
-
--- Explore falls back to the same private search location only when the caller
--- did not explicitly provide an area or coordinates.
-create or replace function public.ari_circle_list_places(
-  requested_activity text default null,
-  requested_area text default null,
-  requested_latitude numeric default null,
-  requested_longitude numeric default null,
-  requested_radius_miles integer default 25,
-  result_limit integer default 30
-)
-returns table (
-  place_id uuid,
-  place_name text,
-  place_type text,
-  description text,
-  area text,
-  city text,
-  region text,
-  country_code text,
-  latitude numeric,
-  longitude numeric,
-  activity_tags text[],
-  verification_state text,
-  distance_miles numeric
-)
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  caller_id uuid := auth.uid();
-  clean_activity text := nullif(lower(btrim(coalesce(requested_activity, ''))), '');
-  clean_area text := nullif(lower(btrim(coalesce(requested_area, ''))), '');
-  safe_radius integer := coalesce(requested_radius_miles, 25);
-  cap integer := greatest(1, least(coalesce(result_limit, 30), 50));
-  location_lat numeric := requested_latitude;
-  location_lon numeric := requested_longitude;
-  use_location boolean := false;
-  search_location private.ari_circle_search_locations%rowtype;
-begin
-  perform public.ari_circle_assert_adult_access();
-
-  if requested_latitude is null and requested_longitude is null and clean_area is null then
-    select * into search_location
-    from private.ari_circle_search_locations s
-    where s.user_id = caller_id;
-
-    if search_location.user_id is not null then
-      clean_area := nullif(lower(btrim(coalesce(search_location.area_label, ''))), '');
-      location_lat := search_location.approximate_latitude;
-      location_lon := search_location.approximate_longitude;
-      safe_radius := search_location.radius_miles;
-    end if;
-  end if;
-
-  if safe_radius not in (5,10,25,50,100) then
-    raise exception 'Unsupported Explore radius';
-  end if;
-
-  if location_lat is null and location_lon is null then
-    use_location := false;
-  elsif location_lat is null or location_lon is null
-     or location_lat < -90 or location_lat > 90
-     or location_lon < -180 or location_lon > 180 then
-    raise exception 'A valid approximate Explore location is required';
-  else
-    use_location := true;
-  end if;
-
-  return query
-  with candidates as (
-    select
-      p.*,
-      case
-        when use_location then (
-          3958.7613 * 2 * asin(
-            least(1::double precision, sqrt(
-              power(sin(radians((p.latitude::double precision - location_lat::double precision) / 2)), 2)
-              + cos(radians(location_lat::double precision))
-                * cos(radians(p.latitude::double precision))
-                * power(sin(radians((p.longitude::double precision - location_lon::double precision) / 2)), 2)
-            ))
-          )
-        )
-        else null::double precision
-      end as distance_value
-    from public.ari_circle_places p
-    where p.status = 'active'
-      and p.safe_public_place = true
-      and p.verification_state in ('curated','partner_verified')
-      and (
-        clean_activity is null
-        or clean_activity = 'any'
-        or clean_activity = any(p.activity_tags)
-      )
-      and (
-        clean_area is null
-        or lower(p.area) like ('%' || clean_area || '%')
-        or lower(coalesce(p.city, '')) like ('%' || clean_area || '%')
-        or lower(coalesce(p.region, '')) like ('%' || clean_area || '%')
-      )
-  )
-  select
-    c.id, c.name, c.place_type, c.description, c.area, c.city, c.region,
-    c.country_code, c.latitude, c.longitude, c.activity_tags,
-    c.verification_state,
-    case when c.distance_value is null then null else round(c.distance_value::numeric, 1) end
-  from candidates c
-  where not use_location or c.distance_value <= safe_radius
-  order by
-    case when c.distance_value is null then 1 else 0 end,
-    c.distance_value asc nulls last,
-    lower(c.name) asc,
-    c.id asc
-  limit cap;
-end;
-$$;
-
--- Meet Up hosting reuses the canonical mutation. Coarse coordinates are copied
--- only when the host's broad meetup area matches the label attached to their
--- private Circle search location; the private meeting point remains separate.
+-- The canonical host mutation remains the only publisher. If the broad meetup
+-- area matches the host's saved Circle area, it may copy the already-rounded
+-- private search origin for discovery. An unrelated host area never inherits it.
 create or replace function public.ari_circle_create_meetup(
   requested_title text,
   requested_activity text,
@@ -551,10 +286,11 @@ begin
 end;
 $function$;
 
--- Canonical Meet Up read applies the shared search preference. Known coarse
--- locations are radius-filtered; manual area preferences use broad area text.
--- Legacy/area-only meetup rows remain visible as a compatibility fallback and
--- are ordered after location-grounded matches rather than falsely assigned miles.
+-- Canonical Meet Up discovery applies the shared preference without changing
+-- its public return shape. Coarse-located rows are radius filtered and ranked;
+-- manual-area preferences use area text. Joined/hosted meetups always remain.
+-- Legacy area-only rows stay as a current-location compatibility fallback and
+-- are not falsely assigned a numeric distance.
 create or replace function public.ari_circle_list_meetups(
   requested_activity text default null,
   requested_window text default 'upcoming',
@@ -710,13 +446,8 @@ begin
 end;
 $function$;
 
--- Reassert the existing public API grants after function replacement.
-revoke all on function public.ari_circle_create_action_intent(text,timestamptz,timestamptz,text,text,integer,integer,text,integer,text,numeric,numeric) from public, anon, authenticated;
-revoke all on function public.ari_circle_list_places(text,text,numeric,numeric,integer,integer) from public, anon, authenticated;
 revoke all on function public.ari_circle_create_meetup(text,text,text,timestamptz,integer,integer,text,text) from public, anon, authenticated;
 revoke all on function public.ari_circle_list_meetups(text,text,integer) from public, anon, authenticated;
-grant execute on function public.ari_circle_create_action_intent(text,timestamptz,timestamptz,text,text,integer,integer,text,integer,text,numeric,numeric) to authenticated, service_role;
-grant execute on function public.ari_circle_list_places(text,text,numeric,numeric,integer,integer) to authenticated, service_role;
 grant execute on function public.ari_circle_create_meetup(text,text,text,timestamptz,integer,integer,text,text) to authenticated, service_role;
 grant execute on function public.ari_circle_list_meetups(text,text,integer) to authenticated, service_role;
 
