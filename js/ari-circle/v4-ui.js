@@ -1,15 +1,15 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.3.3
+   Version: 5.4.0
 
-   Feed · Meet Up · Quests use the current V5 runtime directly. This file
-   exists only to bridge the legacy Profile DOM into the shared V5 shell.
+   Profile remains a purpose-specific secondary surface. Primary navigation is
+   owned only by the shared For You · Meet Up · Feed shell.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.3.3";
-  const REAL_WORLD_VERSION = "5.2.4";
+  const VERSION = "5.4.0";
+  const REAL_WORLD_VERSION = "5.3.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority.css";
@@ -103,8 +103,8 @@
 
     const brand = header.querySelector(".circle-header__brand");
     if (brand) {
-      brand.href = "ari-circle-feed.html";
-      brand.setAttribute("aria-label", "ARI Circle Feed");
+      brand.href = "ari-circle-v6.html";
+      brand.setAttribute("aria-label", "ARI Circle For You");
       if (brand.parentElement !== header) header.append(brand);
     }
 
@@ -119,15 +119,12 @@
     hide("circle-back-button");
   }
 
-  function ensureProfileNav() {
-    const nav = $("circleV3Nav");
-    if (!nav || nav.dataset.v5Ready === "true") return;
-    nav.innerHTML = `<a href="ari-circle-feed.html">Feed</a><a href="ari-circle-meetup.html">Meet Up</a><a href="ari-circle-quests.html">Quests</a>`;
-    nav.dataset.v5Ready = "true";
+  function removeLegacyProfileNav() {
+    $("circleV3Nav")?.remove();
   }
 
   function simplifyProfile() {
-    ensureProfileNav();
+    removeLegacyProfileNav();
     ensureProfileHeader();
     ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel"].forEach(hide);
     $("circleV3Summary")?.remove();
