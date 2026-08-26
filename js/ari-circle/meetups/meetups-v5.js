@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.2.0";
+  const VERSION = "5.3.0";
   const $ = (id) => document.getElementById(id);
   const ACTIVITY = Object.freeze({
     walking: ["Walking", "🚶"], gym: ["Gym", "🏋️"], running: ["Running", "🏃"],
@@ -128,6 +128,12 @@
     return `ari-circle-meetup-room.html?meetup=${encodeURIComponent(meetupId)}`;
   }
 
+  function guestSpotsOpen(row = {}) {
+    const count = Math.max(0, Number(row.participant_count) || 0);
+    const capacity = Math.max(0, Number(row.max_participants) || 0);
+    return Math.max(0, capacity - count);
+  }
+
   function setBusy(value) {
     state.busy = Boolean(value);
     document.querySelectorAll("button[data-meetup-action], button[data-request-decision], #createMeetupSubmit").forEach((button) => {
@@ -146,6 +152,26 @@
       $("meetupWeeklyBar").style.width = `${Math.min(100, (week / 70) * 100)}%`;
     } catch (error) {
       console.warn("Meet Up XP summary unavailable:", error);
+    }
+  }
+
+  async function loadHostSummary() {
+    const note = document.querySelector("#meetupXpCard .circle-xp-meetup-hud__note");
+    if (!note) return;
+    try {
+      const summary = await rpc("ari_circle_my_host_summary");
+      const hosted = Math.max(0, Number(summary?.verified_hosted_meetups) || 0);
+      const tier = TIER[clean(summary?.tier)] || "New Host";
+      const nextTierKey = clean(summary?.next_tier);
+      const nextTier = TIER[nextTierKey] || "";
+      const remaining = Math.max(0, Number(summary?.remaining_to_next) || 0);
+      const verifiedXp = Math.max(0, Number(summary?.verified_host_xp) || 6);
+      note.textContent = nextTier
+        ? `${tier} · ${hosted} verified hosted · ${remaining} to ${nextTier} · up to +${verifiedXp} XP`
+        : `${tier} · ${hosted} verified hosted · top Host tier · up to +${verifiedXp} XP`;
+    } catch (error) {
+      console.warn("Meet Up Host progress unavailable:", error);
+      note.textContent = "Verified meetups earn XP and build Host status";
     }
   }
 
@@ -284,10 +310,13 @@
   async function openRequests(row) {
     state.requestMeetup = row;
     $("meetupRequestsTitle").textContent = row.title || "Join requests";
-    $("meetupRequestsStatus").textContent = "Loading requests…";
+    $("meetupRequestsStatus").textContent = "Refreshing capacity…";
     $("meetupRequestsList").replaceChildren();
     const dialog = $("meetupRequestsDialog");
     if (typeof dialog?.showModal === "function" && !dialog.open) dialog.showModal();
+
+    await loadMeetups();
+    state.requestMeetup = state.rows.find((item) => item.meetup_id === row.meetup_id) || row;
     await loadRequests();
   }
 
@@ -304,16 +333,25 @@
         status.textContent = "No join requests yet.";
         return;
       }
+
       const actionable = rows.filter((request) => ["pending","waitlisted"].includes(clean(request.request_status))).length;
-      status.textContent = actionable ? `${actionable} request${actionable === 1 ? "" : "s"} to review.` : "Everyone here has been reviewed.";
-      rows.forEach((request) => list.append(createRequestCard(request)));
+      const openSpots = guestSpotsOpen(row);
+      if (actionable && openSpots > 0) {
+        const selectable = Math.min(openSpots, actionable);
+        status.textContent = `${openSpots} guest spot${openSpots === 1 ? "" : "s"} open · choose up to ${selectable} of ${actionable} waiting request${actionable === 1 ? "" : "s"}.`;
+      } else if (actionable) {
+        status.textContent = `Meetup is full · ${actionable} request${actionable === 1 ? " is" : "s are"} waiting. Accept unlocks when a spot opens.`;
+      } else {
+        status.textContent = "Everyone here has been reviewed.";
+      }
+      rows.forEach((request) => list.append(createRequestCard(request, openSpots)));
     } catch (error) {
       console.error("Meet Up requests failed:", error);
       status.textContent = error.message || "Could not load requests.";
     }
   }
 
-  function createRequestCard(request) {
+  function createRequestCard(request, openSpots = 0) {
     const article = document.createElement("article");
     article.className = "circle-v5-meetup-card";
     const handle = clean(request.handle) ? `@${clean(request.handle).replace(/^@+/, "")}` : "ARI Circle";
@@ -321,6 +359,7 @@
     const tier = TIER[request.leadership_tier] || "Member";
     const verified = Number(request.verified_meetups) || 0;
     const canReview = ["pending","waitlisted"].includes(status);
+    const canAccept = canReview && openSpots > 0;
 
     article.innerHTML = `
       <div class="circle-v5-card-top">
@@ -333,13 +372,14 @@
       </div>
       <p class="circle-v5-completion-note">${escapeHtml(tier)}</p>
       ${canReview ? `<div class="circle-v5-card-actions">
-        <button class="circle-v5-button-primary" data-request-decision="accept" type="button">Accept</button>
+        <button class="circle-v5-button-primary" data-request-decision="accept" type="button" ${canAccept ? "" : 'data-permanent-disabled="true" disabled'}>${canAccept ? "Accept" : "Full"}</button>
         <button class="circle-v5-button" data-request-decision="waitlist" type="button">Waitlist</button>
         <button class="circle-v5-button" data-request-decision="decline" type="button">Decline</button>
       </div>` : ""}
     `;
 
     article.querySelectorAll("[data-request-decision]").forEach((button) => {
+      if (button.dataset.permanentDisabled === "true") return;
       button.addEventListener("click", () => reviewRequest(request.user_id, button.dataset.requestDecision));
     });
     return article;
@@ -357,8 +397,10 @@
       });
       const status = clean(result?.status) || decision;
       showToast(status === "accepted" ? "Guest accepted. They can now enter the Meetup Room." : status === "waitlisted" ? "Guest moved to the waitlist." : "Request declined.");
-      await Promise.all([loadRequests(), loadMeetups()]);
+
+      await loadMeetups();
       state.requestMeetup = state.rows.find((item) => item.meetup_id === row.meetup_id) || row;
+      await loadRequests();
     } catch (error) {
       console.error("Meet Up request review failed:", error);
       showToast(error.message || "Could not review that request.", 4600);
@@ -404,7 +446,7 @@
         if (result?.settled) showToast(result.message || `Meetup verified. +${Number(result?.xp_awarded) || 0} XP`);
         else showToast(`Completion saved. Waiting on ${Number(result?.waiting_on) || 0} participant${Number(result?.waiting_on) === 1 ? "" : "s"}.`);
       }
-      await Promise.all([loadMeetups(), loadXpSummary()]);
+      await Promise.all([loadMeetups(), loadXpSummary(), loadHostSummary()]);
     } catch (error) {
       console.error(`Meet Up ${action} failed:`, error);
       showToast(error.message || "That action could not be completed.", 4600);
@@ -493,7 +535,7 @@
   function bind() {
     $("hostMeetupButton")?.addEventListener("click", openHostDialog);
     $("hostMeetupForm")?.addEventListener("submit", createMeetup);
-    $("refreshMeetups")?.addEventListener("click", loadMeetups);
+    $("refreshMeetups")?.addEventListener("click", () => Promise.all([loadMeetups(), loadHostSummary()]));
     document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close)?.close()));
 
     $("meetupFormTitle")?.addEventListener("input", (event) => {
@@ -528,7 +570,7 @@
       bind();
       resetHostForm();
       $("meetupPage").hidden = false;
-      await Promise.all([loadMeetups(), loadXpSummary()]);
+      await Promise.all([loadMeetups(), loadXpSummary(), loadHostSummary()]);
       window.AriCircleV5RealWorld?.refresh?.();
     } catch (error) {
       console.error("Meet Up initialization failed:", error);
