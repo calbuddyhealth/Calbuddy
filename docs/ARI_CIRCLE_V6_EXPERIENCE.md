@@ -1,8 +1,8 @@
-# ARI Circle V6 Experience Lab
+# ARI Circle V6 Experience
 
 ## Product contract
 
-ARI Circle V6 is the first integrated Action Network experience built on the existing Opportunity, Action Intent, Match, Places, Mission, Domain Event, Action Graph, and Crew substrates.
+ARI Circle V6 is the integrated Action Network experience built on the existing Opportunity, Action Intent, Match, Places, Mission, Domain Event, Action Graph, and Crew substrates.
 
 The primary loop is:
 
@@ -10,20 +10,25 @@ The primary loop is:
 
 The page is intentionally not another social feed. The user starts with **What are you up for?** and receives current, explainable actions rather than people ranked for attention.
 
-## V6 views
+## Navigation contract
 
-- **For You** — current Match Engine recommendations with user-readable reasons. Internal match scores are not displayed.
-- **Explore** — public Places, Meetups, and Missions. Public destinations are not live-user location surfaces.
-- **Crews** — private repeated-activity groups. Crew eligibility comes from verified shared activity, not follows, popularity, or manual arbitrary member selection.
-- **Moments** — downstream storytelling after activity; activity first, content second.
+Circle has one persistent three-destination navigation model:
+
+- **For You** — Circle home and intelligence layer. It contains Action Intents, Match Engine recommendations, Explore entry points, Crews, current opportunities, and upcoming commitments.
+- **Meet Up** — real-world hosting and coordination: browse, host, requests, attendees, and Meetup Rooms.
+- **Feed** — social storytelling: posts, Moments, photos/video, reactions, comments, and activity-after-the-fact content.
+
+There is no second V6 top navigation bar. **Explore**, **Crews**, and **Quests** are secondary features reached from For You or the control drawer rather than competing permanent tabs. **Moments** is a Feed content type, not a separate global destination. Profile, notifications, friend discovery, privacy, and safety remain secondary controls rather than primary tabs.
+
+The ARI CIRCLE wordmark always returns to **For You**.
 
 ## Intent boundary
 
 The V6 composer writes only the signed-in user's private, expiring Action Intent through `ari_circle_create_action_intent` and clears it through `ari_circle_cancel_action_intent`.
 
-- no browser GPS prompt
-- no persisted exact location
-- optional general area only in the V6 composer
+- no automatic browser GPS prompt
+- no persisted exact device location
+- the shared Circle Search Location is user-controlled and coarse
 - multiple active intents are rendered truthfully instead of silently hiding all but one
 - the Match Engine remains the ranking authority
 
@@ -62,4 +67,4 @@ V6 does not introduce:
 
 ## Rollout state
 
-`ari-circle-v6.html` remains a **lab route**. Production Circle navigation is intentionally unchanged until the dependent backend stack is merged/applied, V6 CI is green, and Safari/iOS smoke testing is complete.
+`ari-circle-v6.html` is the default ARI Circle entry. The persistent Circle shell owns primary navigation across For You, Meet Up, Feed, Explore, Quests, Profile, and related Circle routes so secondary pages do not invent their own competing navigation.
