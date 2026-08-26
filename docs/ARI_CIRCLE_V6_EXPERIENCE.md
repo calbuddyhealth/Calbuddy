@@ -8,19 +8,40 @@ The primary loop is:
 
 `Intent → best current actions → commitment → real-world activity → verified history → Crew/community → next action`
 
-The page is intentionally not another social feed. The user starts with **What are you up for?** and receives current, explainable actions rather than people ranked for attention.
+The Ari-driven surface is **ARI Next**. It is intentionally not another social feed or a second manual meetup browser. The user starts with **What are you up for?** and receives current, explainable recommendations rather than people ranked for attention.
 
 ## Navigation contract
 
-Circle has one persistent three-destination navigation model:
+Circle has one persistent three-destination navigation model, in this order:
 
-- **For You** — Circle home and intelligence layer. It contains Action Intents, Match Engine recommendations, Explore entry points, Crews, current opportunities, and upcoming commitments.
-- **Meet Up** — real-world hosting and coordination: browse, host, requests, attendees, and Meetup Rooms.
 - **Feed** — social storytelling: posts, Moments, photos/video, reactions, comments, and activity-after-the-fact content.
+- **Connect** — manual participation. It contains two peer modes: **Meetups** for time/place/people coordination and **Missions** for measurable objectives and progress.
+- **ARI Next** — Circle intelligence. It contains Action Intents, Match Engine recommendations, Explore entry points, Crews, selected opportunities, matched plans, and a compact summary of upcoming commitments.
 
-There is no second V6 top navigation bar. **Explore**, **Crews**, and **Quests** are secondary features reached from For You or the control drawer rather than competing permanent tabs. **Moments** is a Feed content type, not a separate global destination. Profile, notifications, friend discovery, privacy, and safety remain secondary controls rather than primary tabs.
+There is no second global navigation row. **Meetups | Missions** is a contextual switch inside Connect, not another primary navigation system. **Explore** and **Crews** are secondary ARI Next features. **Moments** is a Feed content type, not a separate global destination. Profile, notifications, friend discovery, privacy, safety, and Messages remain secondary controls rather than primary tabs.
 
-The ARI CIRCLE wordmark always returns to **For You**.
+The ARI CIRCLE wordmark always returns to **ARI Next**.
+
+## Surface boundaries
+
+### Feed
+
+Feed answers: **What are people sharing?** It owns Moments, posts, media, reactions, comments, and social storytelling after or around activity. It does not own meetup coordination or Ari recommendation logic.
+
+### Connect
+
+Connect answers: **What can I deliberately join, create, or manage?**
+
+- **Meetups** are events: a real time, broad area/place, host, capacity, join state, attendees, requests, and Meetup Room coordination. The shared Circle Search Location and radius are meaningful here because meetup discovery is local.
+- **Missions** are objectives: measurable goals, progress, verification, and completion. Missions are not forced into a radius because some are local and some can be completed anywhere.
+
+ARI Next may hand a suggested meetup draft into the canonical Connect/Meetups host flow, but it does not silently publish a meetup or add people.
+
+### ARI Next
+
+ARI Next answers: **What should I do next?** It can recommend Meetups, Missions, public Places, compatible people, or a matched plan. It should show a small number of strong options and shortcuts, not recreate the Connect catalog or management tools.
+
+The intent composer asks for the user's immediate intent such as activity, time, and group preference. It does not repeat the visible radius/general-area controls. ARI Next automatically uses the shared Circle Search Location preference as the location authority.
 
 ## Intent boundary
 
@@ -29,12 +50,14 @@ The V6 composer writes only the signed-in user's private, expiring Action Intent
 - no automatic browser GPS prompt
 - no persisted exact device location
 - the shared Circle Search Location is user-controlled and coarse
+- location/radius are not repeatedly requested inside the ARI Next intent form
 - multiple active intents are rendered truthfully instead of silently hiding all but one
 - the Match Engine remains the ranking authority
+- internal match scores are not displayed to users
 
 ## Needs attention
 
-The V6 page surfaces a bounded set of meaningful shared-state changes such as accepted/cancelled/waitlisted Meetup state, host requests, Mission review state, matched spot openings, and Crew invitations.
+ARI Next surfaces a bounded set of meaningful shared-state changes such as accepted/cancelled/waitlisted Meetup state, host requests, Mission review state, matched spot openings, and Crew invitations.
 
 This is not a generic engagement notification feed. The controller caps the surface and derives it only from the sanitized Action Network context already provided by the server.
 
@@ -67,4 +90,4 @@ V6 does not introduce:
 
 ## Rollout state
 
-`ari-circle-v6.html` is the default ARI Circle entry. The persistent Circle shell owns primary navigation across For You, Meet Up, Feed, Explore, Quests, Profile, and related Circle routes so secondary pages do not invent their own competing navigation.
+`ari-circle-v6.html` is the canonical **ARI Next** route. The persistent Circle shell owns primary navigation across Feed, Connect, ARI Next, Explore, Missions, Profile, and related Circle routes so secondary pages do not invent competing navigation.
