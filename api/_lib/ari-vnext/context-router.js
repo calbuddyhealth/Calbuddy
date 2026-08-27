@@ -2,8 +2,9 @@
 // This is intentionally small. The primary model still owns semantic judgment.
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
+import { buildReferencePacket, isReferenceFollowUp } from "./reference-context.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.15.0";
+export const CONTEXT_ROUTER_VERSION = "1.16.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -20,7 +21,7 @@ const PATTERNS = {
 
 export function routeContext(turn = {}) {
   const message = String(turn?.message || "");
-  const followUp = isFollowUp(message);
+  const followUp = isFollowUp(message) || isReferenceFollowUp(message);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
   const semanticText = followUp ? `${recent}\n${message}` : message;
   const account = turn?.context?.accountEntitlements || {};
@@ -77,6 +78,9 @@ export function buildRelevantContext(turn = {}, route = {}) {
     surface: turn?.surface || "unknown",
     user: pickObject(source?.user, ["displayName", "firstName", "age", "sex", "height", "activityLevel"])
   };
+
+  const referencePacket = buildReferencePacket(turn, route);
+  if (referencePacket) selected.referencePacket = referencePacket;
 
   if (source?.accountEntitlements && typeof source.accountEntitlements === "object") {
     selected.accountEntitlements = pickObject(source.accountEntitlements, [
@@ -165,6 +169,18 @@ function cognitiveContextRules(context = {}) {
 
   if (conversationInstruction) {
     lines.push(conversationInstruction);
+  }
+
+  if (context?.referencePacket?.active === true) {
+    lines.push(
+      "REFERENCE RESOLUTION RULES:",
+      "- The CURRENT user message alone determines whether a mutation is authorized. Recent conversation never grants write permission by itself.",
+      "- The bounded Reference Packet may identify what words such as it, them, that, those, this, the other one, or the second one refer to.",
+      "- When the current message explicitly requests a supported mutation and a recent reference resolves its target unambiguously, use that resolved target with the matching application tool.",
+      "- Prefer the nearest domain-compatible candidate. If authoritative application state conflicts with conversational wording, authoritative application state wins.",
+      "- If two candidates are materially plausible, ask one concise clarification question instead of guessing.",
+      "- Never invent a missing target, quantity, date, identity, or persisted record merely to complete an action."
+    );
   }
 
   if (context?.accountEntitlements?.teenMode === true) {
