@@ -8,6 +8,7 @@ const bridgeSource = fs.readFileSync("ari/vnext/ari-vnext-bridge.js", "utf8");
 const initiativeSource = fs.readFileSync("ari/vnext/ari-vnext-initiative.js", "utf8");
 const nutritionResolverSource = fs.readFileSync("ari/vnext/ari-vnext-nutrition-resolution-adapter.js", "utf8");
 const structuredReferenceSource = fs.readFileSync("ari/vnext/ari-vnext-structured-reference-capabilities.js", "utf8");
+const phase8cSource = fs.readFileSync("ari/vnext/ari-vnext-operation-registry-phase8c.js", "utf8");
 const resilienceSource = fs.readFileSync("js/home-resilience.js", "utf8");
 const authSource = fs.readFileSync("js/auth.js", "utf8");
 const routerSource = fs.readFileSync("ari/intent/ari-central-intent-router.js", "utf8");
@@ -115,9 +116,9 @@ function bridgeSandbox(fetchImpl) {
 
 test("Home and Nutrition pin the current runtime above the legacy loader cache chain", () => {
   assert.match(homeSource, /<script id="ariVNextRuntimeController"><\/script>/);
-  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.4/);
+  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.5/);
   assert.match(nutritionSource, /<script id="ariVNextRuntimeController"><\/script>/);
-  assert.match(nutritionSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.4/);
+  assert.match(nutritionSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.5/);
 
   assert.ok(
     homeSource.indexOf('<script id="ariVNextRuntimeController"></script>') <
@@ -136,27 +137,31 @@ test("Home and Nutrition pin the current runtime above the legacy loader cache c
   assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.1/);
 });
 
-test("runtime requires the Nutrition resolver and structured-reference capability bootstrap before readiness", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.4\.4"/);
+test("runtime requires the final Phase 8C capability bootstrap before readiness", () => {
+  assert.match(runtimeSource, /const VERSION = "1\.4\.5"/);
   assert.match(runtimeSource, /ari-vnext-activity-adapter\.js\?v=1\.1\.0/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
   assert.match(runtimeSource, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
-  assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.3\.0/);
-  assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.3\.0"\)/);
+  assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.4\.0/);
+  assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.4\.0"\)/);
+  assert.match(initiativeSource, /const VERSION = "1\.4\.0"/);
   assert.match(initiativeSource, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
   assert.match(initiativeSource, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
   assert.match(initiativeSource, /ari-vnext-structured-reference-capabilities\.js\?v=1\.0\.0/);
   assert.match(initiativeSource, /AriVNextStructuredReferenceCapabilities\?\.ready === true/);
+  assert.match(initiativeSource, /ari-vnext-operation-registry-phase8c\.js\?v=1\.0\.0/);
+  assert.match(initiativeSource, /AriVNextOperationRegistryPhase8C\?\.ready === true/);
+  assert.match(phase8cSource, /fallbackPolicy: "no_model_visible_mutation_requires_captured_fallback"/);
   assert.match(nutritionResolverSource, /const VERSION = "1\.1\.0"/);
   assert.match(structuredReferenceSource, /current Meal Plan and ARI Circle objects/i);
-  assert.match(initiativeLabSource, /ari-vnext-initiative\.js\?v=1\.3\.0/);
+  assert.match(initiativeLabSource, /ari-vnext-initiative\.js\?v=1\.4\.0/);
 });
 
 test("runtime publishes canonical and compatibility identities together", () => {
   const { sandbox, events } = runtimeSandbox();
   assert.equal(sandbox.window.Ari.Runtime, sandbox.window.AriRuntime);
-  assert.equal(sandbox.window.Ari.Runtime.version, "1.4.4");
+  assert.equal(sandbox.window.Ari.Runtime.version, "1.4.5");
   assert.equal(typeof sandbox.window.Ari.Runtime.ask, "function");
   assert.ok(events.some((event) => event.type === "ari:runtimeReady"));
 });
