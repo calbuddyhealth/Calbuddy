@@ -8,18 +8,16 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const STORAGE_PREFIX = "ari_vnext_reference_state_v1";
   const MAX_REFERENCES = 8;
   const MAX_AGE_MS = 6 * 60 * 60 * 1000;
+  const ADAPTER_FLAG = "__ariReferenceLifecycleV1";
+  const BRIDGE_FLAG = "__ariReferenceContextV1";
+  const CANCEL_FLAG = "__ariReferenceCancelV1";
 
   function clean(value = "", max = 180) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
-  }
-
-  function finite(value) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : null;
   }
 
   function hash(value = "") {
@@ -70,7 +68,7 @@
     return references
       .filter((reference) => {
         if (!reference || typeof reference !== "object") return false;
-        if (["cancelled", "failed", "expired"].includes(clean(reference.state, 40))) return false;
+        if (["cancelled", "failed", "expired", "deleted"].includes(clean(reference.state, 40))) return false;
         const updatedAt = Date.parse(clean(reference.updatedAt, 80));
         return !Number.isFinite(updatedAt) || now - updatedAt <= MAX_AGE_MS;
       })
@@ -122,7 +120,7 @@
   function entityTypeForAction(name = "") {
     const action = clean(name, 120).toLowerCase();
     if (action === "log_meal") return "meal";
-    if (/meal_plan|planned_meal/.test(action)) return "meal_plan_item";
+    if (/meal_plan|planned_meal|plan_meal/.test(action)) return "meal_plan_item";
     if (action === "log_activity") return "activity_log";
     if (action === "log_weight") return "weight_log";
     if (action === "update_goal") return "goal";
@@ -159,7 +157,7 @@
     if (name === "log_weight") return `${clean(args.value, 40)} ${clean(args.unit, 20) || "lb"}`.trim();
     if (name === "update_goal") return `${clean(args.goalType, 80) || "goal"}${args.value !== null && args.value !== undefined ? ` ${clean(args.value, 60)}` : ""}`.trim();
     if (/workout/.test(name)) return clean(args.title || args.focus, 220) || `${clean(args.dateText, 80) || "Planned"} workout`;
-    if (/meal_plan|planned_meal/.test(name)) return clean(args.title || args.name || args.mealSlot || args.slot, 220) || "Meal Plan item";
+    if (/meal_plan|planned_meal|plan_meal/.test(name)) return clean(args.title || args.name || args.mealSlot || args.slot, 220) || "Meal Plan item";
     return clean(args.title || args.name || args.label, 220) || name.replaceAll("_", " ") || "Recent Ari action";
   }
 
@@ -293,9 +291,110 @@
     return true;
   }
 
+  function patchActionAdapter() {
+    const adapter = window.AriVNextActionAdapter;
+    if (!adapter || adapter[ADAPTER_FLAG]) return Boolean(adapter?.[ADAPTER_FLAG]);
+    if (typeof adapter.createCalBuddyPendingAction !== "function" || typeof adapter.executeConfirmed !== "function") return false;
+
+    const originalCreate = adapter.createCalBuddyPendingAction.bind(adapter);
+    const originalExecute = adapter.executeConfirmed.bind(adapter);
+
+    adapter.createCalBuddyPendingAction = async function referenceAwareCreate(pendingAction = {}) {
+      const result = await originalCreate(pendingAction);
+      if (result?.success && result?.action) {
+        rememberPending({ pendingAction });
+      }
+      return result;
+    };
+
+    adapter.executeConfirmed = async function referenceAwareExecute(input = {}) {
+      const pendingAction = input?.vnextPendingAction || null;
+      try {
+        const execution = await originalExecute(input);
+        if (execution?.success) {
+          const reference = commit({ pendingAction, execution });
+          return { ...execution, referenceLifecycle: reference };
+        }
+        fail({ pendingAction });
+        return execution;
+      } catch (error) {
+        fail({ pendingAction });
+        throw error;
+      }
+    };
+
+    Object.defineProperty(adapter, ADAPTER_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+    return true;
+  }
+
+  function patchBridge() {
+    const bridge = window.AriVNextBridge;
+    if (!bridge || bridge[BRIDGE_FLAG]) return Boolean(bridge?.[BRIDGE_FLAG]);
+    if (typeof bridge.ask !== "function" || typeof bridge.buildContext !== "function") return false;
+
+    const originalAsk = bridge.ask.bind(bridge);
+    const originalBuildContext = bridge.buildContext.bind(bridge);
+
+    bridge.buildContext = async function referenceAwareContext(options = {}) {
+      const context = await originalBuildContext(options);
+      const referenceState = snapshot({ conversationId: options?.conversationId || null });
+      if (!referenceState) return context;
+      return { ...context, referenceState };
+    };
+
+    bridge.ask = async function referenceAwareAsk(message, options = {}) {
+      const pendingBefore = bridge.getPendingAction?.() || null;
+      const result = await originalAsk(message, options);
+      if (result?.action?.type === "cancel_pending_action") {
+        cancel({ pendingAction: result?.pendingAction || pendingBefore });
+      }
+      return result;
+    };
+
+    Object.defineProperty(bridge, BRIDGE_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+    return true;
+  }
+
+  function patchCancelBoundary() {
+    const CalBuddy = window.CalBuddy;
+    if (!CalBuddy || CalBuddy[CANCEL_FLAG]) return Boolean(CalBuddy?.[CANCEL_FLAG]);
+    if (typeof CalBuddy.cancelPendingAction !== "function") return false;
+
+    const originalCancel = CalBuddy.cancelPendingAction.bind(CalBuddy);
+    CalBuddy.cancelPendingAction = function referenceAwareCancel(...args) {
+      const pending = window.AriVNextBridge?.getPendingAction?.() || null;
+      const result = originalCancel(...args);
+      cancel({ pendingAction: pending });
+      return result;
+    };
+
+    Object.defineProperty(CalBuddy, CANCEL_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+    return true;
+  }
+
+  function install() {
+    const adapterReady = patchActionAdapter();
+    const bridgeReady = patchBridge();
+    const cancelReady = patchCancelBoundary();
+    return adapterReady && bridgeReady && cancelReady;
+  }
+
   window.AriVNextReferenceState = Object.freeze({
     version: VERSION,
     source: "ari-vnext-reference-state",
+    ready: true,
     rememberPending,
     commit,
     cancel,
@@ -303,6 +402,14 @@
     snapshot,
     clear
   });
+
+  if (!install()) {
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (install() || attempts >= 300) window.clearInterval(timer);
+    }, 40);
+  }
 
   window.dispatchEvent(new CustomEvent("ari:vnextReferenceStateReady", {
     detail: { version: VERSION }
