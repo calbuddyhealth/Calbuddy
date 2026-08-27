@@ -3,19 +3,26 @@
 // reference-bound Nutrition/Weight/cross-domain mutation extensions and the
 // current-context Meal Plan/Circle reference layer are ready, so the runtime
 // readiness gate cannot race those trusted capabilities.
+// Successful trusted vNext execution also synchronizes the bridge and legacy
+// pending-action stores so completed actions cannot reappear after navigation.
 
 window.Ari = window.Ari || {};
 
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.2.1";
+  const PENDING_SYNC_FLAG = "__ariPendingActionSyncV1";
   const CAPABILITY_SCRIPTS = [
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-weight-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0",
     "ari/vnext/ari-vnext-structured-reference-capabilities.js?v=1.0.0"
   ];
+
+  function clean(value = "", max = 200) {
+    return String(value ?? "").trim().slice(0, max);
+  }
 
   function scriptBase(src = "") {
     return String(src || "").split("?")[0];
@@ -72,6 +79,76 @@ window.Ari = window.Ari || {};
 
   async function installCapabilities() {
     for (const src of CAPABILITY_SCRIPTS) await loadScript(src);
+  }
+
+  function clearMatchingPendingCopies(pendingAction = null) {
+    const pendingId = clean(pendingAction?.id);
+    if (!pendingId) return false;
+
+    const bridge = window.AriVNextBridge;
+    const bridgePending = bridge?.getPendingAction?.() || null;
+    if (clean(bridgePending?.id) === pendingId) {
+      bridge?.clearPendingAction?.();
+    }
+
+    const CalBuddy = window.CalBuddy;
+    const legacyPending = CalBuddy?.getPendingAction?.() || null;
+    if (clean(legacyPending?.vnext_action_id) === pendingId) {
+      CalBuddy?.clearPendingAction?.();
+    }
+
+    return true;
+  }
+
+  function reconcileOrphanedLegacyPending() {
+    const CalBuddy = window.CalBuddy;
+    const bridge = window.AriVNextBridge;
+    if (!CalBuddy?.getPendingAction || !CalBuddy?.clearPendingAction || !bridge?.getPendingAction) return false;
+
+    const legacyPending = CalBuddy.getPendingAction() || null;
+    const linkedId = clean(legacyPending?.vnext_action_id);
+    if (!linkedId) return false;
+
+    const bridgePending = bridge.getPendingAction() || null;
+    if (clean(bridgePending?.id) === linkedId) return false;
+
+    // A vNext-linked legacy action without its authoritative bridge action is
+    // orphaned. This is the exact stale state that previously resurfaced on Home
+    // after a successful log and page navigation.
+    CalBuddy.clearPendingAction();
+    return true;
+  }
+
+  function installPendingActionSync() {
+    const adapter = window.AriVNextActionAdapter;
+    if (!adapter) return false;
+    if (adapter[PENDING_SYNC_FLAG]) {
+      reconcileOrphanedLegacyPending();
+      return true;
+    }
+    if (typeof adapter.executeConfirmed !== "function") return false;
+
+    const originalExecute = adapter.executeConfirmed.bind(adapter);
+    adapter.executeConfirmed = async function pendingStateSynchronizedExecute(input = {}) {
+      const pendingAction = input?.vnextPendingAction || null;
+      const execution = await originalExecute(input);
+
+      // Only a verified successful executor result consumes the pending action.
+      // Failed actions remain available for the existing retry/error handling.
+      if (execution?.success === true) {
+        clearMatchingPendingCopies(pendingAction);
+      }
+      return execution;
+    };
+
+    Object.defineProperty(adapter, PENDING_SYNC_FLAG, {
+      configurable: false,
+      enumerable: false,
+      value: true
+    });
+
+    reconcileOrphanedLegacyPending();
+    return true;
   }
 
   function createClient() {
@@ -151,6 +228,9 @@ window.Ari = window.Ari || {};
 
   installCapabilities()
     .then(() => {
+      if (!installPendingActionSync()) {
+        throw new Error("Ari pending-action synchronization did not initialize.");
+      }
       window.AriVNextInitiative = createClient();
       window.dispatchEvent(new CustomEvent("ari:vnextInitiativeReady", { detail: { version: VERSION } }));
     })
