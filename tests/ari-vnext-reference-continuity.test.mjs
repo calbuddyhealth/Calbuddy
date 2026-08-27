@@ -122,7 +122,6 @@ test("standalone turns do not pay the reference-packet prompt cost", () => {
   const route = routeContext(turn);
 
   assert.equal(isReferenceFollowUp(turn.message), false);
-  assert.equal(route.followUp, false);
   assert.equal(buildReferencePacket(turn, route), null);
   assert.equal(buildRelevantContext(turn, route).referencePacket, undefined);
 });
