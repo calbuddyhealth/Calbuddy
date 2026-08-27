@@ -34,6 +34,7 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
     AriVNextWeightAdapter: { ready: true },
     AriVNextReferenceCapabilityExtension: { ready: true },
     AriVNextStructuredReferenceCapabilities: { ready: true },
+    AriVNextAuthoritativeReferenceRehydration: { version: "1.0.0", ready: true },
     AriVNextActionAdapter: {
       async executeConfirmed() {
         return { success: executionSuccess, result: { ok: executionSuccess } };
