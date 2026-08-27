@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.4.0
+// Version: 1.4.1
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -35,18 +35,18 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.0";
+  const VERSION = "1.4.1";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
-    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
-    "ari/vnext/ari-vnext-reference-state.js?v=1.1.0",
+    "ari/vnext/ari-vnext-reference-state.js?v=1.2.0",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
 
@@ -185,14 +185,20 @@
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
     if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
-    if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
+    if (base.endsWith("ari-vnext-activity-adapter.js")) {
+      return Boolean(window.AriVNextActivityAdapter) &&
+        versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0");
+    }
     if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.7.2");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
-    if (base.endsWith("ari-vnext-reference-state.js")) return window.AriVNextReferenceState?.ready === true;
+    if (base.endsWith("ari-vnext-reference-state.js")) {
+      return window.AriVNextReferenceState?.ready === true &&
+        versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0");
+    }
     if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
     return true;
   }
@@ -237,9 +243,11 @@
       versionAtLeast(window.AriVNextBridge?.version, "1.7.2") &&
       window.AriVNextActionAdapter &&
       window.AriVNextActivityAdapter &&
+      versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0") &&
       window.AriVNextMealPlanAdapter?.ready === true &&
       window.AriVNextContextGuard?.ready === true &&
-      window.AriVNextReferenceState?.ready === true
+      window.AriVNextReferenceState?.ready === true &&
+      versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0")
     );
   }
 
