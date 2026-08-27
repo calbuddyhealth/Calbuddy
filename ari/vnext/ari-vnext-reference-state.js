@@ -3,13 +3,13 @@
 // This is a pointer layer, not another application database. It remembers a
 // small set of recent Ari action targets so later turns can resolve words such
 // as "that" or "it" to the canonical object that the trusted app executor
-// actually created or changed. Reference-bound Undo is resolved here against
-// the verified pointer and the existing Nutrition mutation journal.
+// actually created or changed. Reference-bound Nutrition Undo and Training
+// activity edits/deletes resolve only through verified persisted pointers.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const STORAGE_PREFIX = "ari_vnext_reference_state_v1";
   const MAX_REFERENCES = 8;
   const MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -17,6 +17,13 @@
   const BRIDGE_FLAG = "__ariReferenceContextV1";
   const CANCEL_FLAG = "__ariReferenceCancelV1";
   const REFERENCE_UNDO_ACTION = "undo_nutrition_mutation";
+  const REFERENCE_ACTIVITY_UPDATE_ACTION = "update_activity_log";
+  const REFERENCE_ACTIVITY_DELETE_ACTION = "delete_activity_log";
+  const REFERENCE_ACTIONS = new Set([
+    REFERENCE_UNDO_ACTION,
+    REFERENCE_ACTIVITY_UPDATE_ACTION,
+    REFERENCE_ACTIVITY_DELETE_ACTION
+  ]);
 
   function clean(value = "", max = 180) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -144,7 +151,8 @@
     const args = pending?.arguments && typeof pending.arguments === "object" ? pending.arguments : {};
     const allowed = [
       "calories", "proteinG", "carbsG", "fatG", "quantity", "unit", "servingSize", "mealCategory",
-      "dateText", "activityName", "durationMinutes", "goalType", "value", "focus", "operation", "exercise",
+      "dateText", "activityName", "durationMinutes", "sets", "repsPerSet", "caloriesBurned", "intensity",
+      "averageHeartRate", "notes", "goalType", "value", "focus", "operation", "exercise",
       "replacementExercise", "slot", "mealSlot", "title"
     ];
     const details = {};
@@ -152,7 +160,7 @@
       const value = args[key];
       if (value === null || value === undefined || value === "") continue;
       if (typeof value === "number" && Number.isFinite(value)) details[key] = value;
-      else if (typeof value === "string") details[key] = clean(value, 180);
+      else if (typeof value === "string") details[key] = clean(value, key === "notes" ? 220 : 180);
     }
     return details;
   }
@@ -174,8 +182,17 @@
     return actionId ? `ref_action_${hash(actionId)}` : `ref_action_${Date.now().toString(36)}`;
   }
 
+  function isReferenceAction(pending = {}) {
+    return REFERENCE_ACTIONS.has(clean(pending?.name, 120));
+  }
+
   function isReferenceUndoAction(pending = {}) {
     return clean(pending?.name, 120) === REFERENCE_UNDO_ACTION;
+  }
+
+  function isReferenceActivityAction(pending = {}) {
+    const name = clean(pending?.name, 120);
+    return name === REFERENCE_ACTIVITY_UPDATE_ACTION || name === REFERENCE_ACTIVITY_DELETE_ACTION;
   }
 
   function pendingReference(pending = {}) {
@@ -245,16 +262,19 @@
   }
 
   function rememberPending({ pendingAction, conversationId = null } = {}) {
-    if (!pendingAction?.id || !pendingAction?.name || isReferenceUndoAction(pendingAction)) return null;
+    if (!pendingAction?.id || !pendingAction?.name || isReferenceAction(pendingAction)) return null;
     return upsert(pendingReference(pendingAction), conversationId);
+  }
+
+  function resolveReference(referenceId = "", conversationId = null) {
+    const id = clean(referenceId, 160);
+    if (!id) return null;
+    return read(conversationId).references.find((reference) => reference.referenceId === id) || null;
   }
 
   function resolveUndoTarget(pendingAction = {}, conversationId = null) {
     if (!isReferenceUndoAction(pendingAction)) return null;
-    const referenceId = clean(pendingAction?.arguments?.referenceId, 160);
-    if (!referenceId) return null;
-
-    const target = read(conversationId).references.find((reference) => reference.referenceId === referenceId);
+    const target = resolveReference(pendingAction?.arguments?.referenceId, conversationId);
     if (!target) return null;
     if (clean(target.state, 40) !== "persisted") return null;
     if (clean(target.domain, 40) !== "nutrition") return null;
@@ -262,6 +282,44 @@
     if (target?.verification?.verifiedByTrustedExecutor !== true) return null;
     if (!isUuid(target?.canonical?.mutationId)) return null;
     return target;
+  }
+
+  function resolveActivityTarget(pendingAction = {}, conversationId = null) {
+    if (!isReferenceActivityAction(pendingAction)) return null;
+    const target = resolveReference(pendingAction?.arguments?.referenceId, conversationId);
+    if (!target) return null;
+    if (clean(target.state, 40) !== "persisted") return null;
+    if (clean(target.domain, 40) !== "training") return null;
+    if (clean(target.entityType, 60) !== "activity_log") return null;
+    if (target?.verification?.verifiedByTrustedExecutor !== true) return null;
+    if (!clean(target?.canonical?.id, 160)) return null;
+    if (!clean(target?.canonical?.logDate, 40)) return null;
+    return target;
+  }
+
+  function removeReference(referenceId = "", conversationId = null) {
+    const id = clean(referenceId, 160);
+    if (!id) return false;
+    const state = read(conversationId);
+    write({ references: state.references.filter((reference) => reference.referenceId !== id) }, conversationId);
+    return true;
+  }
+
+  function tombstone(target = {}, verification = {}, conversationId = null) {
+    if (!target?.referenceId) return null;
+    removeReference(target.referenceId, conversationId);
+    return compactReference({
+      ...target,
+      state: "deleted",
+      verification: {
+        ...target.verification,
+        verifiedByTrustedExecutor: true,
+        executorSuccess: true,
+        ...verification
+      },
+      updatedAt: new Date().toISOString(),
+      expiresAt: null
+    });
   }
 
   function commitUndo({ pendingAction, execution, conversationId = null } = {}) {
@@ -272,29 +330,72 @@
     const executedMutationId = clean(execution?.referenceUndo?.mutationId, 160);
     if (executedMutationId && executedMutationId !== clean(target?.canonical?.mutationId, 160)) return null;
 
-    const state = read(conversationId);
-    write({
-      references: state.references.filter((reference) => reference.referenceId !== target.referenceId)
-    }, conversationId);
+    return tombstone(target, { undoVerified: true }, conversationId);
+  }
 
-    return compactReference({
+  function detailsFromActivity(activity = {}, previous = {}) {
+    return compactObject({
+      ...previous,
+      activityName: clean(activity?.activity_name, 180) || previous?.activityName,
+      durationMinutes: activity?.duration_minutes ?? previous?.durationMinutes,
+      sets: activity?.sets ?? previous?.sets,
+      repsPerSet: activity?.reps_per_set ?? previous?.repsPerSet,
+      caloriesBurned: activity?.calories_burned ?? previous?.caloriesBurned,
+      intensity: clean(activity?.intensity, 40) || previous?.intensity,
+      averageHeartRate: activity?.average_heart_rate ?? previous?.averageHeartRate,
+      dateText: clean(activity?.log_date, 40) || previous?.dateText,
+      notes: clean(activity?.notes, 220) || undefined
+    }, 12);
+  }
+
+  function commitActivityMutation({ pendingAction, execution, conversationId = null } = {}) {
+    if (execution?.success === false) return null;
+    const target = resolveActivityTarget(pendingAction, conversationId) || execution?.referenceActivity?.target || null;
+    if (!target?.referenceId) return null;
+
+    const executedActivityId = clean(execution?.referenceActivity?.activityId, 160);
+    if (executedActivityId && executedActivityId !== clean(target?.canonical?.id, 160)) return null;
+
+    if (clean(pendingAction?.name, 120) === REFERENCE_ACTIVITY_DELETE_ACTION) {
+      return tombstone(target, { deleteVerified: true }, conversationId);
+    }
+
+    const activity = execution?.result?.activity && typeof execution.result.activity === "object"
+      ? execution.result.activity
+      : {};
+    const canonicalId = clean(activity?.id, 160) || clean(target?.canonical?.id, 160);
+    const logDate = clean(activity?.log_date, 40) || clean(target?.canonical?.logDate, 40);
+    if (!canonicalId || !logDate) return null;
+
+    return upsert(compactReference({
       ...target,
-      state: "deleted",
+      actionName: "log_activity",
+      label: clean(activity?.activity_name, 220) || target.label,
+      state: "persisted",
+      canonical: {
+        ...target.canonical,
+        id: canonicalId,
+        logDate
+      },
+      details: detailsFromActivity(activity, target.details),
       verification: {
         ...target.verification,
         verifiedByTrustedExecutor: true,
         executorSuccess: true,
-        undoVerified: true
+        updateVerified: true
       },
       updatedAt: new Date().toISOString(),
       expiresAt: null
-    });
+    }), conversationId);
   }
 
   function commit({ pendingAction, execution, conversationId = null } = {}) {
     if (!pendingAction?.id || execution?.success === false) return null;
     if (isReferenceUndoAction(pendingAction)) {
       return commitUndo({ pendingAction, execution, conversationId });
+    }
+    if (isReferenceActivityAction(pendingAction)) {
+      return commitActivityMutation({ pendingAction, execution, conversationId });
     }
 
     const state = read(conversationId);
@@ -353,26 +454,11 @@
     return { success: false, code, message };
   }
 
-  async function createReferenceUndoPendingAction(pendingAction = {}) {
-    const target = resolveUndoTarget(pendingAction);
-    if (!target) {
-      return failure(
-        "reference_undo_target_unavailable",
-        "That meal is no longer available as a verified recent journaled entry."
-      );
-    }
+  async function storeLegacyPendingAction(pendingAction = {}, action = {}, resolution = {}) {
     if (typeof window.CalBuddy?.createPendingAction !== "function") {
       return failure("pending_action_service_unavailable", "CalBuddy pending action service is unavailable.");
     }
 
-    const action = {
-      action_type: REFERENCE_UNDO_ACTION,
-      payload: {
-        mutation_id: target.canonical.mutationId,
-        reference_id: target.referenceId
-      },
-      confirmation_text: `Undo ${clean(target.label, 160) || "that meal"}?`
-    };
     const stored = await window.CalBuddy.createPendingAction(action);
     const wrapped = {
       ...stored,
@@ -386,13 +472,89 @@
     return {
       success: true,
       action: wrapped,
-      resolution: {
-        referenceId: target.referenceId,
-        entityType: target.entityType,
-        label: target.label,
-        journaled: true
-      }
+      resolution
     };
+  }
+
+  async function createReferenceUndoPendingAction(pendingAction = {}) {
+    const target = resolveUndoTarget(pendingAction);
+    if (!target) {
+      return failure(
+        "reference_undo_target_unavailable",
+        "That meal is no longer available as a verified recent journaled entry."
+      );
+    }
+
+    return await storeLegacyPendingAction(pendingAction, {
+      action_type: REFERENCE_UNDO_ACTION,
+      payload: {
+        mutation_id: target.canonical.mutationId,
+        reference_id: target.referenceId
+      },
+      confirmation_text: `Undo ${clean(target.label, 160) || "that meal"}?`
+    }, {
+      referenceId: target.referenceId,
+      entityType: target.entityType,
+      label: target.label,
+      journaled: true
+    });
+  }
+
+  function describeActivityChanges(changes = []) {
+    const parts = [];
+    for (const change of (Array.isArray(changes) ? changes : []).slice(0, 4)) {
+      const field = clean(change?.field, 80);
+      const value = Number.isFinite(Number(change?.numberValue))
+        ? Number(change.numberValue)
+        : clean(change?.textValue, 100);
+      if (field === "duration_minutes") parts.push(`duration to ${value} min`);
+      else if (field === "calories_burned") parts.push(`calories to ${value} kcal`);
+      else if (field === "average_heart_rate") parts.push(`average heart rate to ${value} bpm`);
+      else if (field === "sets") parts.push(`sets to ${value}`);
+      else if (field === "reps_per_set") parts.push(`reps per set to ${value}`);
+      else if (field === "activity_name") parts.push(`name to ${value}`);
+      else if (field === "intensity") parts.push(`intensity to ${String(value).replaceAll("_", " ")}`);
+      else if (field === "log_date") parts.push(`date to ${value}`);
+      else if (field === "notes") parts.push("notes");
+    }
+    return parts.join(", ");
+  }
+
+  async function createReferenceActivityPendingAction(pendingAction = {}) {
+    const target = resolveActivityTarget(pendingAction);
+    if (!target) {
+      return failure(
+        "activity_reference_target_unavailable",
+        "That activity is no longer available as a verified recent Training entry."
+      );
+    }
+
+    const name = clean(pendingAction?.name, 120);
+    const deleting = name === REFERENCE_ACTIVITY_DELETE_ACTION;
+    const changes = Array.isArray(pendingAction?.arguments?.changes)
+      ? pendingAction.arguments.changes.slice(0, 8)
+      : [];
+    if (!deleting && !changes.length) {
+      return failure("activity_reference_changes_required", "Tell Ari what should change about that activity.");
+    }
+
+    const summary = describeActivityChanges(changes);
+    return await storeLegacyPendingAction(pendingAction, {
+      action_type: name,
+      payload: {
+        activity_id: target.canonical.id,
+        reference_id: target.referenceId,
+        changes
+      },
+      confirmation_text: deleting
+        ? `Delete ${clean(target.label, 160) || "that activity"}?`
+        : `Update ${clean(target.label, 160) || "that activity"}${summary ? ` — ${summary}` : ""}?`
+    }, {
+      referenceId: target.referenceId,
+      entityType: target.entityType,
+      label: target.label,
+      operation: deleting ? "delete" : "update"
+    });
   }
 
   async function executeReferenceUndo({ pendingAction, currentTurnId = null } = {}) {
@@ -446,6 +608,77 @@
     }
   }
 
+  async function executeReferenceActivityMutation({ pendingAction, currentTurnId = null } = {}) {
+    if (!pendingAction?.id || !pendingAction?.sourceTurnId) {
+      return failure("missing_vnext_pending_action", "There is no turn-bound vNext action to execute.");
+    }
+    if (pendingAction?.expiresAt && Date.parse(pendingAction.expiresAt) < Date.now()) {
+      return failure("vnext_action_expired", "That pending change expired. Ask Ari to prepare it again.");
+    }
+
+    const target = resolveActivityTarget(pendingAction);
+    if (!target) {
+      return failure(
+        "activity_reference_target_unavailable",
+        "That activity is no longer available as a verified recent Training entry."
+      );
+    }
+
+    const adapter = window.AriVNextActivityAdapter;
+    const deleting = clean(pendingAction?.name, 120) === REFERENCE_ACTIVITY_DELETE_ACTION;
+    const executor = deleting ? adapter?.deleteReferencedActivity : adapter?.updateReferencedActivity;
+    if (typeof executor !== "function") {
+      return failure("activity_reference_executor_unavailable", "The Training activity service is not ready right now.");
+    }
+
+    const activityId = clean(target.canonical.id, 160);
+    const logDate = clean(target.canonical.logDate, 40);
+    const changes = Array.isArray(pendingAction?.arguments?.changes)
+      ? pendingAction.arguments.changes.slice(0, 8)
+      : [];
+
+    try {
+      const result = await executor({ activityId, logDate, changes });
+      if (!result?.success) {
+        return failure(
+          result?.code || (deleting ? "activity_reference_delete_failed" : "activity_reference_update_failed"),
+          result?.message || (deleting ? "That activity could not be deleted." : "That activity could not be updated.")
+        );
+      }
+
+      window.CalBuddy.cancelPendingAction?.();
+      return {
+        success: true,
+        result,
+        action: {
+          action_type: deleting ? REFERENCE_ACTIVITY_DELETE_ACTION : REFERENCE_ACTIVITY_UPDATE_ACTION,
+          payload: {
+            activity_id: activityId,
+            reference_id: target.referenceId,
+            changes: deleting ? [] : changes
+          },
+          vnext_action_id: pendingAction.id,
+          vnext_source_turn_id: pendingAction.sourceTurnId,
+          vnext_confirmation_turn_id: clean(currentTurnId, 200) || null,
+          vnext_source: "ari_vnext_reference_state"
+        },
+        referenceActivity: {
+          referenceId: target.referenceId,
+          activityId,
+          operation: deleting ? "delete" : "update",
+          target
+        }
+      };
+    } catch (error) {
+      return failure(
+        deleting ? "activity_reference_delete_failed" : "activity_reference_update_failed",
+        error?.message || (deleting
+          ? "That activity could not be deleted. Nothing else was changed."
+          : "That activity could not be updated. Nothing else was changed.")
+      );
+    }
+  }
+
   function patchActionAdapter() {
     const adapter = window.AriVNextActionAdapter;
     if (!adapter || adapter[ADAPTER_FLAG]) return Boolean(adapter?.[ADAPTER_FLAG]);
@@ -455,9 +688,14 @@
     const originalExecute = adapter.executeConfirmed.bind(adapter);
 
     adapter.createCalBuddyPendingAction = async function referenceAwareCreate(pendingAction = {}) {
-      const result = isReferenceUndoAction(pendingAction)
-        ? await createReferenceUndoPendingAction(pendingAction)
-        : await originalCreate(pendingAction);
+      let result;
+      if (isReferenceUndoAction(pendingAction)) {
+        result = await createReferenceUndoPendingAction(pendingAction);
+      } else if (isReferenceActivityAction(pendingAction)) {
+        result = await createReferenceActivityPendingAction(pendingAction);
+      } else {
+        result = await originalCreate(pendingAction);
+      }
       if (result?.success && result?.action) {
         rememberPending({ pendingAction });
       }
@@ -467,9 +705,14 @@
     adapter.executeConfirmed = async function referenceAwareExecute(input = {}) {
       const pendingAction = input?.vnextPendingAction || null;
       try {
-        const execution = isReferenceUndoAction(pendingAction)
-          ? await executeReferenceUndo({ pendingAction, currentTurnId: input?.currentTurnId || null })
-          : await originalExecute(input);
+        let execution;
+        if (isReferenceUndoAction(pendingAction)) {
+          execution = await executeReferenceUndo({ pendingAction, currentTurnId: input?.currentTurnId || null });
+        } else if (isReferenceActivityAction(pendingAction)) {
+          execution = await executeReferenceActivityMutation({ pendingAction, currentTurnId: input?.currentTurnId || null });
+        } else {
+          execution = await originalExecute(input);
+        }
         if (execution?.success) {
           const reference = commit({ pendingAction, execution });
           return { ...execution, referenceLifecycle: reference };
