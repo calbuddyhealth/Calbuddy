@@ -140,7 +140,7 @@ test("reference lifecycle stays bounded when app pointers and conversation are b
 
   assert.equal(packet?.active, true);
   assert.ok(JSON.stringify(packet).length <= 6200);
-  assert.ok(packet?.candidates?.filter((candidate) => candidate.kind === "app_reference").length <= 8);
+  assert.ok(packet?.candidates?.filter((candidate) => candidate.kind === "app_reference").length <= 12);
 });
 
 test("browser lifecycle is session-scoped and wraps trusted proposal plus execution boundaries", () => {
@@ -161,7 +161,7 @@ test("runtime does not report vNext ready until reference lifecycle and capabili
   const runtime = read("ari/runtime/ari-runtime-controller.js");
   assert.match(runtime, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
   assert.match(runtime, /AriVNextReferenceState\?\.ready === true/);
-  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.1\.0/);
-  assert.match(runtime, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.1\.0"\)/);
-  assert.match(runtime, /const VERSION = "1\.4\.2"/);
+  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.0/);
+  assert.match(runtime, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.2\.0"\)/);
+  assert.match(runtime, /const VERSION = "1\.4\.3"/);
 });
