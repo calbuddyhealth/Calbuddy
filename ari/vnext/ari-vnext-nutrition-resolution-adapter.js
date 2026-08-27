@@ -1,26 +1,45 @@
 // ARI vNext — trusted Nutrition Resolution Adapter.
-// Version 1.0.0
+// Version 1.1.0
 //
-// The model identifies foods and portions. This adapter decides nutrition truth:
-// personal mapping -> verified/canonical ARI food -> validated cloud candidate ->
-// bounded model estimate. Serving math and integrity checks are deterministic.
-// Successful resolved logs use one atomic Supabase RPC that stores the aggregate
-// meal, item provenance, resolution evidence, and high-confidence personal food
-// mappings without a second OpenAI request.
+// The language model identifies foods and user-supplied portions. This adapter
+// decides nutrition truth using existing ARI XP food infrastructure:
+// personal mapping -> verified/canonical ARI food -> validated cloud candidate
+// -> bounded AI estimate as a last resort. The model never writes the ledger.
+//
+// Important invariants:
+// - Final calories/macros always carry a serving basis.
+// - Raw/cooked WEIGHT ambiguity is never silently guessed for state-sensitive
+//   generic foods.
+// - Retried confirmations reuse the same mutation UUID, so a lost RPC response
+//   cannot create a duplicate meal.
+// - The app's canonical Nutrition window supplies nutrition_date; server UTC is
+//   never allowed to redefine the user's Nutrition day.
+// - Alcohol energy is included in integrity checks.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_nutrition_resolution_adapter";
   const INSTALL_FLAG = "__ariNutritionResolutionV1";
   const EXECUTOR_FLAG = "__ariResolvedNutritionExecutorV1";
   const FOOD_LOADER_URL = "js/nutrition-food-loader.js?v=1.0.1";
   const MAX_ITEMS = 16;
-  const MIN_CANONICAL_IDENTITY = 0.82;
-  const MIN_CANONICAL_NUTRITION = 0.72;
+  const MIN_IDENTITY_CONFIDENCE = 0.82;
+  const MIN_NUTRITION_CONFIDENCE = 0.72;
   const MIN_ESTIMATE_CONFIDENCE = 0.45;
+  const RESOLUTION_CACHE_MS = 10 * 60 * 1000;
+  const MUTATION_PREFIX = "ari_resolved_nutrition_mutation_v1";
   const cache = new Map();
+
+  const WEIGHT_UNITS = new Set([
+    "g", "gram", "grams", "kg", "kilogram", "kilograms",
+    "oz", "ounce", "ounces", "lb", "lbs", "pound", "pounds"
+  ]);
+
+  // These generic food families commonly change calorie density materially when
+  // water is gained/lost in cooking. Exact branded/package records are exempt.
+  const COOK_STATE_SENSITIVE = /\b(chicken|turkey|beef|steak|pork|ham|lamb|veal|duck|fish|salmon|tuna|tilapia|cod|shrimp|prawn|rice|pasta|noodle|oat|oatmeal|quinoa|couscous|barley|farro|lentil|bean)\b/i;
 
   function clean(value = "", max = 240) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -60,8 +79,63 @@
   }
 
   function makeMutationId() {
+    if (typeof window.crypto?.randomUUID === "function") return window.crypto.randomUUID();
     if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
     return "00000000-0000-4000-8000-" + Math.random().toString(16).slice(2).padEnd(12, "0").slice(0, 12);
+  }
+
+  function hash(value = "") {
+    const source = String(value || "resolved-nutrition");
+    let result = 2166136261;
+    for (let index = 0; index < source.length; index += 1) {
+      result ^= source.charCodeAt(index);
+      result = Math.imul(result, 16777619);
+    }
+    return (result >>> 0).toString(36);
+  }
+
+  function mutationStorageKey(action = {}) {
+    const identity = clean(action?.vnext_action_id || action?.vnext_source_turn_id || "", 220);
+    return `${MUTATION_PREFIX}:${hash(identity || "fallback")}`;
+  }
+
+  function mutationIdForAction(action = {}) {
+    const key = mutationStorageKey(action);
+    try {
+      const existing = sessionStorage.getItem(key);
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing || "")) {
+        return { id: existing, key };
+      }
+      const id = makeMutationId();
+      sessionStorage.setItem(key, id);
+      return { id, key };
+    } catch {
+      return { id: makeMutationId(), key: null };
+    }
+  }
+
+  function clearMutationStorage(key) {
+    if (!key) return;
+    try { sessionStorage.removeItem(key); } catch {}
+  }
+
+  function localDate(value = new Date()) {
+    const date = value instanceof Date ? value : new Date(value);
+    const safe = Number.isFinite(date.getTime()) ? date : new Date();
+    const year = safe.getFullYear();
+    const month = String(safe.getMonth() + 1).padStart(2, "0");
+    const day = String(safe.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  async function resolveNutritionDate() {
+    if (typeof window.CalBuddy?.getNutritionWindow === "function") {
+      try {
+        const date = clean((await window.CalBuddy.getNutritionWindow())?.nutritionDate, 20);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+      } catch {}
+    }
+    return localDate();
   }
 
   function loadScript(src) {
@@ -196,7 +270,6 @@
     const candidateState = normalize(food.state);
     if (requestedState === "raw" && candidateState && candidateState !== "raw") return 0;
     if (requestedState === "cooked" && candidateState === "raw") return 0;
-    if ((requestedState === "ready to drink" || requestedState === "ready-to-drink") && candidateState && !candidateState.includes("ready")) score -= 0.12;
 
     const requestedPrep = normalize(item.preparation);
     const candidatePrep = normalize(food.preparation);
@@ -226,16 +299,10 @@
     for (const food of results) {
       const identity = identityConfidence(food, item);
       const profile = sourceProfile(food);
-      if (identity < MIN_CANONICAL_IDENTITY || profile.confidence < MIN_CANONICAL_NUTRITION) continue;
+      if (identity < MIN_IDENTITY_CONFIDENCE || profile.confidence < MIN_NUTRITION_CONFIDENCE) continue;
       const combined = identity * 0.58 + profile.confidence * 0.42;
       if (!best || combined > best.combined) {
-        best = {
-          food,
-          identityConfidence: identity,
-          nutritionConfidence: profile.confidence,
-          sourceType: profile.type,
-          combined
-        };
+        best = { food, identityConfidence: identity, nutritionConfidence: profile.confidence, sourceType: profile.type, combined };
       }
     }
     return best;
@@ -246,17 +313,13 @@
     const token = clean(session?.access_token, 5000);
     const registry = window.AriFoodRegistry;
     if (!token || !registry?.register) return [];
-
     const query = buildQuery(item) || clean(item.foodText, 220);
     if (query.length < 2) return [];
+
     try {
       const response = await fetch("/api/ari-food-search", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ query, limit: 8, localCount })
       });
       const data = await response.json().catch(() => ({}));
@@ -270,6 +333,37 @@
     }
   }
 
+  function normalizedUnit(unit = "") {
+    const value = normalize(unit);
+    const aliases = {
+      gram: "g", grams: "g", kilogram: "kg", kilograms: "kg",
+      ounce: "oz", ounces: "oz", lbs: "lb", pound: "lb", pounds: "lb"
+    };
+    return aliases[value] || value;
+  }
+
+  function isWeightPortion(item = {}, mapping = null) {
+    const unit = normalizedUnit(item.unit || mapping?.unit || "");
+    return WEIGHT_UNITS.has(unit);
+  }
+
+  function effectiveMeasurementState(item = {}, mapping = null) {
+    const explicit = normalize(item.measurementState).replaceAll(" ", "_");
+    if (["raw", "cooked", "not_applicable"].includes(explicit)) return explicit;
+    const learned = normalize(mapping?.measurement_state).replaceAll(" ", "_");
+    if (["raw", "cooked", "not_applicable"].includes(learned)) return learned;
+    return "unknown";
+  }
+
+  function requiresMeasurementClarification(item = {}, candidate = {}) {
+    if (!isWeightPortion(item, candidate.mapping)) return false;
+    if (effectiveMeasurementState(item, candidate.mapping) !== "unknown") return false;
+    const profile = sourceProfile(candidate.food || {});
+    if (profile.verified === true || profile.type === "manufacturer_candidate") return false;
+    const text = `${item.foodText || ""} ${candidate.food?.name || ""} ${candidate.food?.displayName || ""} ${candidate.food?.category || ""}`;
+    return COOK_STATE_SENSITIVE.test(text);
+  }
+
   function genericDefaultUnit(unit = "") {
     return ["", "serving", "item", "piece", "bottle", "can", "beer", "drink", "meal", "portion"].includes(normalize(unit));
   }
@@ -278,6 +372,9 @@
     const food = candidate.food;
     const calculator = window.AriFoodCalculator;
     if (!food?.id || !calculator) return null;
+    if (requiresMeasurementClarification(item, candidate)) {
+      return { clarificationRequired: true, reason: "raw_cooked_weight_ambiguous" };
+    }
 
     let quantity = number(item.quantity, null);
     let unit = clean(item.unit, 80).toLowerCase();
@@ -286,9 +383,7 @@
     if (!unit && mapping) unit = clean(mapping.unit, 80).toLowerCase();
 
     let calculation = null;
-    if (quantity !== null && unit && !genericDefaultUnit(unit)) {
-      calculation = calculator.calculate(food.id, quantity, unit);
-    }
+    if (quantity !== null && unit && !genericDefaultUnit(unit)) calculation = calculator.calculate(food.id, quantity, unit);
     if ((!calculation || calculation.ok !== true) && quantity !== null && unit && genericDefaultUnit(unit)) {
       calculation = calculator.calculateDefaultServing(food.id, quantity);
     }
@@ -300,11 +395,8 @@
 
     const multiplier = number(calculation?.resolved?.multiplier, 1);
     const alcoholG = round(number(food?.nutrition?.alcohol, 0) * multiplier, 2);
-    const portionConfidence = item.quantity !== null && clean(item.unit)
-      ? 0.98
-      : mapping
-        ? 0.95
-        : 0.82;
+    const portionConfidence = item.quantity !== null && clean(item.unit) ? 0.98 : mapping ? 0.95 : 0.82;
+    const measurementState = effectiveMeasurementState(item, mapping);
 
     const component = {
       user_phrase: clean(item.userPhrase || item.foodText, 260),
@@ -334,13 +426,14 @@
       metadata: {
         state: clean(food.state || item.state, 80),
         preparation: clean(food.preparation || item.preparation, 100),
+        measurementState,
         brand: clean(food.brand || item.brand, 160),
         resolvedBy: clean(calculation?.resolved?.resolvedBy, 100),
         searchScore: number(food?.search?.score, null)
       }
     };
 
-    return integrityCheck(component, candidate.food) ? component : null;
+    return integrityCheck(component, food) ? component : null;
   }
 
   function integrityCheck(component = {}, food = null) {
@@ -356,8 +449,7 @@
 
     if (calories === 0) {
       const text = normalize(`${component.name} ${food?.category || ""} ${food?.tags?.join?.(" ") || ""}`);
-      const plausibleZero = /water|diet|zero sugar|zero calorie|unsweetened tea|black coffee/.test(text);
-      if (!plausibleZero) return false;
+      if (!/water|diet|zero sugar|zero calorie|unsweetened tea|black coffee/.test(text)) return false;
     }
 
     if (unverifiedExternal && calories > 0 && macroEnergy > 0) {
@@ -396,7 +488,7 @@
       source_type: "ai_estimate",
       source_id: null,
       source_label: "Ari bounded estimate fallback",
-      nutrition_basis: {},
+      nutrition_basis: { type: "requested_portion_estimate", quantity: number(item.quantity, 1), unit: clean(item.unit || "serving", 80) },
       identity_confidence: round(Math.min(0.85, confidence + 0.1), 3),
       nutrition_confidence: round(confidence, 3),
       portion_confidence: round(item.quantity !== null && clean(item.unit) ? Math.min(0.85, confidence + 0.12) : confidence, 3),
@@ -406,6 +498,7 @@
       metadata: {
         state: clean(item.state, 80),
         preparation: clean(item.preparation, 100),
+        measurementState: effectiveMeasurementState(item),
         brand: clean(item.brand, 160),
         fallbackReason: clean(item.fallbackReason, 500)
       }
@@ -426,9 +519,9 @@
 
     if (candidate) {
       const resolved = calculateCandidate(candidate, item);
+      if (resolved?.clarificationRequired) return resolved;
       if (resolved) return resolved;
     }
-
     return estimateComponent(item);
   }
 
@@ -476,7 +569,7 @@
   async function resolveMeal(pending = {}) {
     const key = clean(pending.id, 200);
     const cached = cache.get(key);
-    if (cached && Date.now() - cached.savedAt < 10 * 60 * 1000) return cached.value;
+    if (cached && Date.now() - cached.savedAt < RESOLUTION_CACHE_MS) return cached.value;
 
     await ensureFoodSystem();
     const args = object(pending.arguments);
@@ -487,6 +580,13 @@
     const components = [];
     for (const item of items) {
       const resolved = await resolveOne(object(item), mappings);
+      if (resolved?.clarificationRequired) {
+        return {
+          success: false,
+          code: resolved.reason || "nutrition_clarification_required",
+          message: `Was ${clean(item?.quantity, 40)} ${clean(item?.unit, 30)} of ${clean(item?.foodText, 120) || "that food"} weighed before or after cooking?`
+        };
+      }
       if (!resolved) {
         return {
           success: false,
@@ -531,11 +631,13 @@
       return { success: false, code: "resolved_nutrition_session_required", error: "A signed-in ARI XP session is required to save resolved nutrition." };
     }
 
-    const mutationId = makeMutationId();
+    const mutation = mutationIdForAction(action);
+    const nutritionDate = await resolveNutritionDate();
     const meal = {
       name: clean(payload.name, 220),
       calories: Math.round(number(payload.calories, 0)),
       category: clean(payload.category, 80) || "Meal",
+      nutrition_date: nutritionDate,
       protein_g: Math.max(0, number(payload.protein_g, 0)),
       carbs_g: Math.max(0, number(payload.carbs_g, 0)),
       fat_g: Math.max(0, number(payload.fat_g, 0)),
@@ -547,21 +649,24 @@
 
     window.CalBuddy?.setAriMood?.("logging");
     const { data, error } = await client.rpc("ari_log_resolved_nutrition_meal", {
-      p_mutation_id: mutationId,
+      p_mutation_id: mutation.id,
       p_meal: meal,
       p_components: Array.isArray(payload.ari_components) ? payload.ari_components : [],
       p_resolution: object(payload.ari_resolution)
     });
 
     if (error) {
+      // Keep the action-scoped mutation UUID for retry. If the server committed
+      // before the response was lost, its journal will return idempotently.
       window.CalBuddy?.setAriMood?.("concerned");
       return { success: false, code: "resolved_nutrition_write_failed", error: error.message || "The resolved meal could not be saved. Nothing was changed." };
     }
 
+    clearMutationStorage(mutation.key);
     const saved = data?.meal && typeof data.meal === "object"
       ? { ...data.meal, source: "supabase" }
       : { ...meal, id: data?.mealId || null, source: "supabase" };
-    saved.ari_mutation_id = mutationId;
+    saved.ari_mutation_id = mutation.id;
     saved.ari_today_calories = number(data?.todayCalories, null);
     saved.ari_undo_available = data?.undoAvailable === true;
     saved.ari_resolution = data?.resolution || payload.ari_resolution || null;
@@ -569,7 +674,7 @@
     try {
       if (Number.isFinite(Number(data?.todayCalories))) {
         localStorage.setItem("calbuddyCaloriesConsumed", String(Math.round(Number(data.todayCalories))));
-        if (data?.nutritionDate) localStorage.setItem("calbuddyCaloriesConsumedDate", String(data.nutritionDate));
+        localStorage.setItem("calbuddyCaloriesConsumedDate", String(data?.nutritionDate || nutritionDate));
       }
     } catch {}
 
@@ -577,7 +682,7 @@
       window.dispatchEvent(new CustomEvent("ari:nutritionMutationCommitted", {
         detail: {
           action: "log_meal",
-          mutationId,
+          mutationId: mutation.id,
           meal: saved,
           todayCalories: data?.todayCalories ?? null,
           undoAvailable: data?.undoAvailable === true,
@@ -587,7 +692,7 @@
         }
       }));
       window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
-        detail: { action: "log", meal: saved, mutationId }
+        detail: { action: "log", meal: saved, mutationId: mutation.id }
       }));
     } catch {}
 
@@ -597,7 +702,7 @@
       success: true,
       result: saved,
       meal: saved,
-      mutationId,
+      mutationId: mutation.id,
       todayCalories: data?.todayCalories ?? null,
       undoAvailable: data?.undoAvailable === true,
       resolution: data?.resolution || payload.ari_resolution || null,
@@ -643,7 +748,8 @@
       ready: true,
       source: SOURCE,
       resolveMeal,
-      integrityCheck
+      integrityCheck,
+      requiresMeasurementClarification
     });
     window.dispatchEvent(new CustomEvent("ari:vnextNutritionResolutionReady", { detail: { version: VERSION } }));
     return true;
