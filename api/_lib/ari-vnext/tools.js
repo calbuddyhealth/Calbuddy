@@ -34,16 +34,14 @@ function referenceTools(route = {}) {
   return [
     functionTool(
       "propose_undo_nutrition_mutation",
-      "Propose undoing one RECENT, JOURNALED meal mutation only when the CURRENT user explicitly asks Ari to undo, delete, or remove that recently logged meal. Use this only when the Reference Packet contains one verified persisted meal app_reference with an exact canonical mutationId. Copy mutationId and referenceId from that same app_reference and use its label. Never invent an ID, never use conversation text alone as mutation authority, and never use this tool for a meal that lacks a trusted mutationId.",
+      "Propose undoing one RECENT, JOURNALED meal mutation only when the CURRENT user explicitly asks Ari to undo, delete, or remove that recently logged meal. Use this only when the Reference Packet contains one verified persisted meal app_reference with a canonical mutationId. Pass only the exact referenceId from that app_reference. The trusted browser reference lifecycle resolves the canonical mutationId itself. Never invent a reference ID, never use conversation text alone as mutation authority, and never use this tool for a meal that lacks a trusted journaled mutation.",
       {
         type: "object",
         additionalProperties: false,
         properties: {
-          mutationId: { type: "string" },
-          referenceId: { type: "string" },
-          label: { type: "string" }
+          referenceId: { type: "string" }
         },
-        required: ["mutationId", "referenceId", "label"]
+        required: ["referenceId"]
       }
     )
   ];
@@ -142,18 +140,15 @@ function validateReferenceTool(call = {}, route = {}) {
   const args = parseArguments(call);
   if (!args) return { valid: false, error: "invalid_tool_arguments" };
 
-  const mutationId = String(args?.mutationId || "").trim();
   const referenceId = String(args?.referenceId || "").trim();
-  const label = String(args?.label || "").replace(/\s+/g, " ").trim();
-
-  if (!isUuid(mutationId)) return { valid: false, error: "nutrition_mutation_id_invalid" };
-  if (!/^ref_action_[a-z0-9]+$/i.test(referenceId)) return { valid: false, error: "nutrition_reference_id_invalid" };
-  if (!label || label.length > 220) return { valid: false, error: "nutrition_reference_label_invalid" };
+  if (!/^ref_action_[a-z0-9]+$/i.test(referenceId)) {
+    return { valid: false, error: "nutrition_reference_id_invalid" };
+  }
 
   return {
     valid: true,
     name: "propose_undo_nutrition_mutation",
-    arguments: { mutationId, referenceId, label }
+    arguments: { referenceId }
   };
 }
 
@@ -183,6 +178,5 @@ function parseArguments(call = {}) {
 }
 
 function isUuid(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(String(value || "").trim()) ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
 }
