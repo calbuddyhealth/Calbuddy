@@ -350,7 +350,8 @@
 
     registerBuiltInDelegates();
 
-    window.AriVNextOperationRegistry = Object.freeze({
+    const registryTarget = {};
+    const registryCore = {
       version: VERSION,
       source: SOURCE,
       ready: true,
@@ -361,6 +362,31 @@
       normalizeExecution,
       reconcileOrphanedLegacyPending,
       snapshot
+    };
+    for (const [key, value] of Object.entries(registryCore)) {
+      Object.defineProperty(registryTarget, key, {
+        configurable: false,
+        enumerable: true,
+        writable: false,
+        value
+      });
+    }
+
+    // Core registry authority is immutable. Migration modules may attach only
+    // private non-enumerable install markers; they cannot replace registry APIs.
+    window.AriVNextOperationRegistry = new Proxy(registryTarget, {
+      defineProperty(target, property, descriptor = {}) {
+        const key = typeof property === "string" ? property : "";
+        if (!/^__ariOperationRegistry[A-Za-z0-9_]*$/.test(key) || Reflect.has(target, property)) return false;
+        return Reflect.defineProperty(target, property, {
+          configurable: false,
+          enumerable: false,
+          writable: false,
+          value: descriptor.value
+        });
+      },
+      set() { return false; },
+      deleteProperty() { return false; }
     });
 
     reconcileOrphanedLegacyPending();
