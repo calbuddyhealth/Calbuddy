@@ -389,7 +389,7 @@
 
     registry.registerOperation("log_meal", {
       source: `${SOURCE}:core`, priority: 10000,
-      match(pending = {}) { return Array.isArray(pending?.arguments?.items); },
+      match(input = {}) { return Array.isArray(pendingFrom(input)?.arguments?.items); },
       async prepare(pending = {}) { return await nutrition.resolveMeal(pending); },
       async createPending(pending = {}) { return await createStoredPending(pending); },
       async executeConfirmed(input = {}) { return await executePreparedApplication(input); }
