@@ -42,6 +42,16 @@
     return null;
   }
 
+  async function waitForInitialRender(timeout = 6000) {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const page = $("v6Page");
+      if (page && !page.hasAttribute("hidden")) return true;
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    }
+    return false;
+  }
+
   function inferActivity(text) {
     const value = clean(text, 400).toLowerCase();
     if (!value) return null;
@@ -199,6 +209,13 @@
   }
 
   async function showCurrentOptionsWhenNoIntent() {
+    if (!(await waitForInitialRender())) return;
+
+    const list = $("v6ForYouList");
+    const activeIntent = $("v6ActiveIntent");
+    if (!list || list.childElementCount > 0) return;
+    if (activeIntent && !activeIntent.hidden) return;
+
     const supabase = await waitForClient();
     if (!supabase) return;
     const { data } = await supabase.auth.getSession().catch(() => ({ data: null }));
@@ -223,10 +240,9 @@
     const opportunities = Array.isArray(context?.opportunities) ? context.opportunities.slice(0, 4) : [];
     if (!opportunities.length) return;
 
-    const list = $("v6ForYouList");
     const empty = $("v6ForYouEmpty");
     const title = $("v6ForYouTitle");
-    if (!list || !empty || list.childElementCount) return;
+    if (!empty || list.childElementCount) return;
 
     list.replaceChildren(...opportunities.map((item, index) => genericOpportunityCard(item, index === 0)));
     empty.hidden = true;
