@@ -104,6 +104,7 @@ test("deterministic routine authorization stays narrow and route-scoped", () => 
 
   assert.equal(review("I ate 2 eggs.", "propose_log_meal", { nutrition: true }), null);
   assert.equal(review("Should I log 2 eggs?", "propose_log_meal", { nutrition: true }), null);
+  assert.equal(review("Can I please log 2 eggs?", "propose_log_meal", { nutrition: true }), null);
   assert.equal(review("I want to log 2 eggs.", "propose_log_meal", { nutrition: true }), null);
   assert.equal(review("Log my 30 minute run.", "propose_log_activity", { nutrition: true }), null);
 });
