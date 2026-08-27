@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.6
+// Version: 1.4.0
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -16,6 +16,7 @@
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
 //   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
+//   - A bounded reference lifecycle binds recent conversation to trusted app objects.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -34,7 +35,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.6";
+  const VERSION = "1.4.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -45,6 +46,7 @@
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
+    "ari/vnext/ari-vnext-reference-state.js?v=1.1.0",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
 
@@ -190,6 +192,7 @@
         versionAtLeast(window.AriVNextBridge?.version, "1.7.2");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
+    if (base.endsWith("ari-vnext-reference-state.js")) return window.AriVNextReferenceState?.ready === true;
     if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
     return true;
   }
@@ -235,7 +238,8 @@
       window.AriVNextActionAdapter &&
       window.AriVNextActivityAdapter &&
       window.AriVNextMealPlanAdapter?.ready === true &&
-      window.AriVNextContextGuard?.ready === true
+      window.AriVNextContextGuard?.ready === true &&
+      window.AriVNextReferenceState?.ready === true
     );
   }
 

@@ -131,7 +131,7 @@ test("runtime restores canonical userContext into the vNext bridge", () => {
 test("normal conversation bypasses the legacy intent preflight", () => {
   assert.match(router, /const MUTATION_CUE_PATTERN/);
   assert.match(router, /return !isLikelyMutationMessage\(message\)/);
-  assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.5/);
+  assert.match(router, /ari-runtime-controller\.js\?v=1\.4\.0/);
 });
 
 test("server skips owner cognitive hydration for casual conversation only", () => {
