@@ -1,5 +1,5 @@
 // ARI vNext — semantic verification for explicit app mutations.
-// Clear routine logging and reference-bound undo commands are authorized
+// Clear routine logging and bounded reference mutations are authorized
 // deterministically; ambiguous writes still use the bounded GPT-4o-mini
 // verifier. Neither path executes data.
 
@@ -10,7 +10,11 @@ const ROUTINE_LOG_TOOLS = new Set([
   "propose_log_activity",
   "propose_log_weight"
 ]);
-const REFERENCE_UNDO_TOOL = "propose_undo_nutrition_mutation";
+const REFERENCE_MUTATION_TOOLS = new Set([
+  "propose_undo_nutrition_mutation",
+  "propose_update_activity_log",
+  "propose_delete_activity_log"
+]);
 
 export function reviewDeterministicRoutineLogIntent({
   turn = {},
@@ -20,20 +24,20 @@ export function reviewDeterministicRoutineLogIntent({
 } = {}) {
   const decision = String(functionCall?.name || "").trim();
 
-  if (decision === REFERENCE_UNDO_TOOL) {
+  if (REFERENCE_MUTATION_TOOLS.has(decision)) {
     if (!availableTools.includes(decision)) return null;
-    if (route?.nutrition !== true) return null;
-    if (!isDirectReferenceUndoCommand(turn?.message)) return null;
+    if (!referenceRouteSupports(decision, route)) return null;
+    if (!isDirectReferenceMutationCommand(turn?.message, decision)) return null;
     return {
-      version: "1.7.0",
+      version: "1.8.0",
       decision,
       confidence: 1,
-      reason: "Explicit current-turn reference-bound nutrition undo verified deterministically.",
+      reason: "Explicit current-turn reference-bound mutation verified deterministically.",
       dailyGoalKnown: resolveDailyGoalKnown(turn),
       model: null,
       providerRequestId: null,
       usage: null,
-      source: "deterministic_reference_undo"
+      source: referenceIntentSource(decision)
     };
   }
 
@@ -43,7 +47,7 @@ export function reviewDeterministicRoutineLogIntent({
   if (!isDirectRoutineLogCommand(turn?.message, decision)) return null;
 
   return {
-    version: "1.7.0",
+    version: "1.8.0",
     decision,
     confidence: 1,
     reason: "Explicit current-turn routine logging command verified deterministically.",
@@ -108,8 +112,10 @@ export async function reviewExplicitApplicationIntent({
     "Ari's primary reasoning pass has already run. Independently verify whether the CURRENT user message explicitly authorizes an ARI XP mutation.",
     "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
     "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
-    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, delete, undo, update, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
+    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, delete, undo, update, correct, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
     "For reference-bound Nutrition Undo, 'undo that', 'delete that', or 'remove it' can select propose_undo_nutrition_mutation only when that tool is available. The CURRENT message supplies permission; the trusted Reference Packet supplies target identity. Never treat an older conversation turn as permission to undo.",
+    "For reference-bound Training activity changes, 'change that run to 45 minutes', 'update that to 400 calories', 'correct the duration on that activity', or 'make that 45 minutes' can select propose_update_activity_log only when that tool is available. 'Delete that run', 'remove that activity', or 'undo that activity log' can select propose_delete_activity_log. The CURRENT message supplies permission; the trusted Reference Packet supplies the exact target. Never accept a database activity ID from conversation text and never use history itself as authorization.",
+    "A bare fact such as 'I ran 45 minutes' is not permission to modify a saved activity. A correction must clearly be framed as changing, correcting, updating, editing, or making a new value for the recent saved activity.",
     "For ARI Circle Meetups, distinguish cancelling the user's OWN participation from cancelling an entire HOSTED meetup. 'I can't make it, take me out' means leave/withdraw. 'Cancel the meetup I'm hosting' means cancel the hosted meetup. Never escalate one into the other.",
     "For ARI Circle Missions, distinguish read-only discovery from a write. 'What Missions are active?', 'show me Missions at Mission Bay', or 'how close are we?' are read-only and must use decision=none. 'Create a 100-mile community Mission', 'join that Mission', and 'add my 3 miles to that Mission' are explicit writes when the matching tool is available.",
     "Never treat a request to review, approve, verify, reject, or judge ANOTHER person's Mission contribution as permission for create/join/progress tools. No Mission-review mutation tool is available in this phase.",
@@ -191,7 +197,7 @@ export async function reviewExplicitApplicationIntent({
     }
 
     return {
-      version: "1.7.0",
+      version: "1.8.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
@@ -217,6 +223,21 @@ function routineRouteSupports(decision, route = {}) {
   return false;
 }
 
+function referenceRouteSupports(decision, route = {}) {
+  if (decision === "propose_undo_nutrition_mutation") return route?.nutrition === true;
+  if (decision === "propose_update_activity_log" || decision === "propose_delete_activity_log") {
+    return route?.training === true;
+  }
+  return false;
+}
+
+function referenceIntentSource(decision = "") {
+  if (decision === "propose_undo_nutrition_mutation") return "deterministic_reference_undo";
+  if (decision === "propose_update_activity_log") return "deterministic_reference_activity_update";
+  if (decision === "propose_delete_activity_log") return "deterministic_reference_activity_delete";
+  return "deterministic_reference_mutation";
+}
+
 function isDirectRoutineLogCommand(message = "", decision = "") {
   const text = String(message || "").replace(/\s+/g, " ").trim();
   if (!text) return false;
@@ -240,15 +261,29 @@ function isDirectRoutineLogCommand(message = "", decision = "") {
   return false;
 }
 
-function isDirectReferenceUndoCommand(message = "") {
+function isDirectReferenceMutationCommand(message = "", decision = "") {
   const text = String(message || "").replace(/\s+/g, " ").trim();
   if (!text) return false;
 
   const ariPrefix = "(?:(?:(?:hey|hi)\\s+)?ari[,:-]?\\s*)?";
-  const direct = new RegExp(`^${ariPrefix}(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:undo|delete|remove)\\b`, "i");
-  const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:undo|delete|remove)\\b`, "i");
-  const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:undo|delete|remove)\\b`, "i");
-  return direct.test(text) || ask.test(text) || want.test(text);
+
+  if (decision === "propose_undo_nutrition_mutation" || decision === "propose_delete_activity_log") {
+    const direct = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:undo|delete|remove)\\b`, "i");
+    const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:undo|delete|remove)\\b`, "i");
+    const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:undo|delete|remove)\\b`, "i");
+    return direct.test(text) || ask.test(text) || want.test(text);
+  }
+
+  if (decision === "propose_update_activity_log") {
+    const direct = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:change|update|edit|correct|fix)\\b`, "i");
+    const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:change|update|edit|correct|fix)\\b`, "i");
+    const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:change|update|edit|correct|fix)\\b`, "i");
+    const makeThat = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?make\\s+(?:that|it|this)\\b`, "i");
+    const askMake = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?make\\s+(?:that|it|this)\\b`, "i");
+    return direct.test(text) || ask.test(text) || want.test(text) || makeThat.test(text) || askMake.test(text);
+  }
+
+  return false;
 }
 
 function resolveDailyGoalKnown(turn = {}) {
