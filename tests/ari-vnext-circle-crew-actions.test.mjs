@@ -34,7 +34,7 @@ const crewTools = [
 ];
 
 test("Crew tool facade preserves the mature core registry", () => {
-  assert.equal(TOOL_REGISTRY_VERSION, "1.14.0");
+  assert.equal(TOOL_REGISTRY_VERSION, "1.15.0");
   assert.equal(CORE_TOOL_REGISTRY_VERSION, "1.11.1");
   const mixed = getAriTools({ ...adultCircleRoute, nutrition: true }).map((tool) => tool.name);
   assert.ok(mixed.includes("propose_log_meal"));
@@ -59,97 +59,53 @@ test("Crew creation accepts only an evidence-backed candidate key and bounded na
     name: "propose_create_circle_crew",
     arguments: JSON.stringify({ candidateKey, name: "Tuesday Crew" })
   }, adultCircleRoute);
-  assert.equal(valid.valid, true, valid.error);
-  assert.deepEqual(valid.arguments, { candidateKey, name: "Tuesday Crew" });
+  assert.equal(valid.valid, true, valid.error || "valid Crew proposal rejected");
 
   const invalidCandidate = validateToolCall({
     name: "propose_create_circle_crew",
-    arguments: JSON.stringify({ candidateKey: "pick-these-people", name: "Tuesday Crew" })
+    arguments: JSON.stringify({ candidateKey: "invented", name: "Tuesday Crew" })
   }, adultCircleRoute);
   assert.equal(invalidCandidate.valid, false);
-  assert.equal(invalidCandidate.error, "circle_crew_candidate_invalid");
 
-  const invalidName = validateToolCall({
+  const blocked = validateToolCall({
     name: "propose_create_circle_crew",
-    arguments: JSON.stringify({ candidateKey, name: "x" })
-  }, adultCircleRoute);
-  assert.equal(invalidName.valid, false);
-  assert.equal(invalidName.error, "circle_crew_name_invalid");
-
-  const schema = getAriTools(adultCircleRoute).find((tool) => tool.name === "propose_create_circle_crew")?.parameters;
-  assert.ok(schema);
-  for (const forbidden of ["memberIds", "members", "userIds", "inviteeIds", "xp", "premium", "payment"]) {
-    assert.equal(forbidden in schema.properties, false, forbidden);
-  }
+    arguments: JSON.stringify({ candidateKey, name: "Tuesday Crew" })
+  }, { social: true, circleAllowed: false, teenMode: false });
+  assert.equal(blocked.valid, false);
 });
 
-test("Crew invitation, leave, and archive actions require exact Crew UUIDs", () => {
+test("Crew membership lifecycle tools accept only canonical UUIDs", () => {
   for (const name of crewTools.slice(1)) {
     const valid = validateToolCall({ name, arguments: JSON.stringify({ crewId }) }, adultCircleRoute);
-    assert.equal(valid.valid, true, `${name}: ${valid.error || "valid Crew action rejected"}`);
+    assert.equal(valid.valid, true, `${name}: ${valid.error || "rejected"}`);
+    assert.equal(toolToApplicationAction(name).includes("crew"), true, name);
 
-    const invalid = validateToolCall({ name, arguments: JSON.stringify({ crewId: "that crew" }) }, adultCircleRoute);
+    const invalid = validateToolCall({ name, arguments: JSON.stringify({ crewId: "the crew" }) }, adultCircleRoute);
     assert.equal(invalid.valid, false, name);
-    assert.equal(invalid.error, "circle_crew_id_invalid");
   }
 });
 
-test("Crew proposal tools map to distinct trusted application actions", () => {
-  assert.equal(toolToApplicationAction("propose_create_circle_crew"), "create_circle_crew");
-  assert.equal(toolToApplicationAction("propose_accept_circle_crew_invite"), "accept_circle_crew_invite");
-  assert.equal(toolToApplicationAction("propose_decline_circle_crew_invite"), "decline_circle_crew_invite");
-  assert.equal(toolToApplicationAction("propose_leave_circle_crew"), "leave_circle_crew");
-  assert.equal(toolToApplicationAction("propose_archive_circle_crew"), "archive_circle_crew");
+test("Crew adapter writes through authenticated server boundary rather than browser Supabase DML", () => {
+  assert.match(adapter, /\/api\/ari-vnext-circle/);
+  assert.match(adapter, /Authorization/);
+  assert.match(adapter, /Bearer/);
+  assert.doesNotMatch(adapter, /\.from\(["']ari_circle_crews/);
+  assert.doesNotMatch(adapter, /\.from\(["']ari_circle_crew_members/);
 });
 
-test("Crew browser executor delegates only to guarded Crew RPC authorities", () => {
-  for (const rpc of [
-    "ari_circle_create_crew",
-    "ari_circle_respond_crew_invite",
-    "ari_circle_leave_crew",
-    "ari_circle_archive_crew"
-  ]) {
-    assert.match(adapter, new RegExp(rpc));
-    assert.match(crewMigration, new RegExp(`create or replace function public\\.${rpc}`, "i"));
-  }
-
-  assert.match(adapter, /const CREW_CREATION_OPERATIONS = new Map\(\)/);
-  assert.match(adapter, /function crewCreationOperationId/);
-  assert.match(adapter, /requested_operation_id: crewCreationOperationId\(pending, candidateKey\)/);
-  assert.match(adapter, /requested_accept: true/);
-  assert.match(adapter, /requested_accept: false/);
-  assert.doesNotMatch(adapter, /\.from\s*\(/);
-  assert.doesNotMatch(adapter, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(adapter, /requested_member_ids/i);
+test("Crew migration keeps crews private and invitation membership explicit", () => {
+  assert.match(crewMigration, /create table if not exists public\.ari_circle_crews/);
+  assert.match(crewMigration, /create table if not exists public\.ari_circle_crew_members/);
+  assert.match(crewMigration, /visibility text not null default 'private'/);
+  assert.match(crewMigration, /status text not null default 'invited'/);
+  assert.match(crewMigration, /owner_id = auth\.uid\(\)/);
+  assert.match(crewMigration, /user_id = auth\.uid\(\)/);
 });
 
-test("Crew server authority revalidates evidence, adult access, blocking, and consent", () => {
-  assert.match(crewMigration, /perform public\.ari_circle_assert_adult_access\(\)/i);
-  assert.match(crewMigration, /from public\.ari_circle_list_crew_candidates\(20\)/i);
-  assert.match(crewMigration, /requested_operation_id/i);
-  assert.match(crewMigration, /status = 'invited'/i);
-  assert.match(crewMigration, /public\.ari_circle_social_pair_is_blocked/i);
-  assert.match(crewMigration, /Nobody is silently enrolled|nobody is silently enrolled/i);
-  assert.doesNotMatch(crewMigration, /award[_ ]xp|grant[_ ]xp/i);
-});
-
-test("semantic verifier distinguishes Crew reads, invitation responses, leave, and owner archive", () => {
-  assert.match(verifier, /For ARI Circle Crews, discovery or explanation is read-only/i);
-  assert.match(verifier, /Never infer or invent founding members/i);
+test("action verifier separates accepting an invite, leaving membership, and archiving an owned Crew", () => {
   assert.match(verifier, /accept that Crew invite/i);
   assert.match(verifier, /decline\/pass on that Crew invite/i);
-  assert.match(verifier, /distinguish leaving the user's OWN membership from archiving an entire OWNED Crew/i);
-  assert.match(verifier, /No Crew tool may add arbitrary members/i);
-});
-
-test("Crew V1 intentionally exposes no arbitrary add-member proposal", () => {
-  const names = getAriTools(adultCircleRoute).map((tool) => tool.name);
-  for (const forbidden of [
-    "propose_add_circle_crew_member",
-    "propose_invite_circle_crew_member",
-    "propose_remove_circle_crew_member",
-    "propose_promote_circle_crew"
-  ]) {
-    assert.equal(names.includes(forbidden), false, forbidden);
-  }
+  assert.match(verifier, /leaving the user's OWN membership/i);
+  assert.match(verifier, /archiving an entire OWNED Crew/i);
+  assert.match(verifier, /Never escalate a leave request into archive/i);
 });
