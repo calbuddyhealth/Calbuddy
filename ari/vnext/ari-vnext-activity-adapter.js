@@ -1,10 +1,11 @@
 // ARI vNext — activity logging extension.
-// Adds one trusted log_activity action without modifying legacy meal/workout execution.
+// Adds trusted activity logging plus canonical reference edit/delete helpers
+// without modifying legacy meal/workout execution.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_activity_adapter";
   let servicePromise = null;
 
@@ -66,6 +67,120 @@
       confirmation_text:
         `Log ${activity.activity_name}${activity.duration_minutes ? ` for ${Math.round(activity.duration_minutes)} min` : ""} — ${Math.round(activity.calories_burned)}${estimateLabel} kcal?`
     });
+  }
+
+  function activityInputFromRow(row = {}) {
+    return {
+      activityName: clean(row?.activity_name, 180),
+      durationMinutes: row?.duration_minutes ?? null,
+      sets: row?.sets ?? null,
+      repsPerSet: row?.reps_per_set ?? null,
+      caloriesBurned: row?.calories_burned ?? null,
+      intensity: clean(row?.intensity, 40) || "moderate",
+      averageHeartRate: row?.average_heart_rate ?? null,
+      dateText: clean(row?.log_date, 40) || "today",
+      notes: clean(row?.notes, 500),
+      calorieSource: clean(row?.calorie_source, 40) || null,
+      estimationMethod: clean(row?.estimation_method, 120) || null
+    };
+  }
+
+  function applyReferenceChanges(existing = {}, changes = []) {
+    const input = activityInputFromRow(existing);
+    const fields = new Set();
+
+    for (const change of Array.isArray(changes) ? changes : []) {
+      const field = clean(change?.field, 80).toLowerCase();
+      fields.add(field);
+      const numberValue = Number(change?.numberValue);
+      const textValue = change?.textValue === null || change?.textValue === undefined
+        ? ""
+        : clean(change.textValue, field === "notes" ? 500 : 180);
+
+      if (field === "activity_name") input.activityName = textValue;
+      else if (field === "duration_minutes") input.durationMinutes = Number.isFinite(numberValue) ? numberValue : null;
+      else if (field === "sets") input.sets = Number.isFinite(numberValue) ? numberValue : null;
+      else if (field === "reps_per_set") input.repsPerSet = Number.isFinite(numberValue) ? numberValue : null;
+      else if (field === "calories_burned") input.caloriesBurned = Number.isFinite(numberValue) ? numberValue : null;
+      else if (field === "intensity") input.intensity = textValue;
+      else if (field === "average_heart_rate") input.averageHeartRate = Number.isFinite(numberValue) ? numberValue : null;
+      else if (field === "log_date") input.dateText = textValue;
+      else if (field === "notes") input.notes = textValue;
+    }
+
+    if (fields.has("calories_burned")) {
+      input.calorieSource = null;
+      input.estimationMethod = null;
+    } else {
+      const estimationDrivers = [
+        "activity_name",
+        "duration_minutes",
+        "sets",
+        "reps_per_set",
+        "intensity",
+        "average_heart_rate"
+      ];
+      const shouldReestimate =
+        clean(existing?.calorie_source, 40) === "profile_estimate" &&
+        estimationDrivers.some((field) => fields.has(field));
+      if (shouldReestimate) {
+        input.caloriesBurned = null;
+        input.calorieSource = null;
+        input.estimationMethod = null;
+      }
+    }
+
+    return input;
+  }
+
+  async function findReferencedActivity({ activityId = "", logDate = "" } = {}) {
+    const id = clean(activityId, 160);
+    const date = clean(logDate, 40);
+    if (!id || !date) {
+      return { success: false, code: "activity_reference_identity_required", message: "That activity could not be identified safely." };
+    }
+
+    const service = await loadService();
+    const rows = await service.listActivities(date);
+    const activity = (Array.isArray(rows) ? rows : []).find((row) => clean(row?.id, 160) === id) || null;
+    if (!activity) {
+      return { success: false, code: "activity_reference_not_found", message: "That recent activity is no longer available." };
+    }
+
+    return { success: true, activity, service };
+  }
+
+  async function updateReferencedActivity({ activityId = "", logDate = "", changes = [] } = {}) {
+    const resolved = await findReferencedActivity({ activityId, logDate });
+    if (!resolved.success) return resolved;
+
+    const input = applyReferenceChanges(resolved.activity, changes);
+    const result = await resolved.service.updateActivity(activityId, input, {
+      source: "ari_vnext_reference_update"
+    });
+    if (!result?.success) {
+      return {
+        success: false,
+        code: result?.code || "activity_reference_update_failed",
+        message: result?.message || "That activity could not be updated."
+      };
+    }
+    return result;
+  }
+
+  async function deleteReferencedActivity({ activityId = "", logDate = "" } = {}) {
+    const resolved = await findReferencedActivity({ activityId, logDate });
+    if (!resolved.success) return resolved;
+
+    const result = await resolved.service.deleteActivity(activityId);
+    if (!result?.success) {
+      return {
+        success: false,
+        code: result?.code || "activity_reference_delete_failed",
+        message: result?.message || "That activity could not be deleted."
+      };
+    }
+    return result;
   }
 
   function patchVNextAdapter() {
@@ -146,7 +261,9 @@
     window.AriVNextActivityAdapter = Object.freeze({
       version: VERSION,
       source: SOURCE,
-      prepare: mapActivity
+      prepare: mapActivity,
+      updateReferencedActivity,
+      deleteReferencedActivity
     });
 
     window.dispatchEvent(new CustomEvent("ari:vnextActivityReady", {
