@@ -3,7 +3,8 @@
 -- A resolved meal can later be manually corrected through the existing trusted
 -- reference-mutation RPC. Aggregate nutrition edits must never leave the old
 -- component breakdown looking current. Preserve the evidence for audit/Undo,
--- but hide it from normal authenticated reads until the correction is undone.
+-- but hide it from normal authenticated reads until all material corrections
+-- affecting that meal have been undone.
 
 alter table public.nutrition_meal_components
   add column if not exists invalidated_at timestamptz null,
@@ -235,10 +236,12 @@ begin
 end;
 $$;
 
--- Existing ari_undo_nutrition_mutation changes the mutation status from applied
--- to undone after restoring the aggregate meal. This trigger restores only the
--- evidence invalidated by that exact correction. A later still-applied material
--- correction keeps the old evidence invalidated.
+-- Existing ari_undo_nutrition_mutation restores the aggregate meal and then
+-- changes the journal row from applied to undone in the same transaction.
+-- Raising from this trigger therefore rolls the whole Undo back if a caller
+-- tries to undo an older correction while a newer correction is still applied.
+-- Once no material correction remains applied, all preserved evidence for the
+-- meal becomes current again, regardless of which correction first invalidated it.
 create or replace function public.ari_restore_nutrition_resolution_after_undo()
 returns trigger
 language plpgsql
@@ -247,7 +250,8 @@ set search_path = public
 as $$
 declare
   v_meal_id uuid;
-  v_has_later_material_correction boolean := false;
+  v_has_later_applied_update boolean := false;
+  v_has_applied_material_correction boolean := false;
 begin
   if old.status = 'applied'
      and new.status = 'undone'
@@ -263,17 +267,31 @@ begin
           and later.status = 'applied'
           and later.id <> new.id
           and nullif(later.after_state->>'mealId', '')::uuid = v_meal_id
-          and coalesce((later.after_state->>'resolutionMaterialChange')::boolean, false) = true
-          and later.created_at >= new.created_at
-      ) into v_has_later_material_correction;
+          and later.created_at > new.created_at
+      ) into v_has_later_applied_update;
 
-      if not v_has_later_material_correction then
+      if v_has_later_applied_update then
+        raise exception 'Undo the newest meal correction first.' using errcode = 'P0001';
+      end if;
+
+      select exists (
+        select 1
+        from public.ari_nutrition_mutations applied
+        where applied.user_id = new.user_id
+          and applied.action_type = 'update_meal'
+          and applied.status = 'applied'
+          and applied.id <> new.id
+          and nullif(applied.after_state->>'mealId', '')::uuid = v_meal_id
+          and coalesce((applied.after_state->>'resolutionMaterialChange')::boolean, false) = true
+      ) into v_has_applied_material_correction;
+
+      if not v_has_applied_material_correction then
         update public.nutrition_meal_components
         set invalidated_at = null,
             invalidated_by_mutation_id = null
         where meal_id = v_meal_id
           and user_id = new.user_id
-          and invalidated_by_mutation_id = new.id;
+          and invalidated_at is not null;
 
         update public.nutrition_resolution_events
         set invalidated_at = null,
@@ -281,7 +299,7 @@ begin
             invalidation_reason = null
         where meal_id = v_meal_id
           and user_id = new.user_id
-          and invalidated_by_mutation_id = new.id;
+          and invalidated_at is not null;
       end if;
     end if;
   end if;
