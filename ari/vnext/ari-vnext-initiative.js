@@ -1,6 +1,7 @@
 // ARI vNext — browser initiative client + final capability bootstrap.
 // The runtime loads this file last. AriVNextInitiative is exposed only after
-// trusted reference capabilities and evidence-resolved Nutrition are ready.
+// trusted reference capabilities, authoritative reference rehydration, and
+// evidence-resolved Nutrition are ready.
 
 window.Ari = window.Ari || {};
 
@@ -14,7 +15,8 @@ window.Ari = window.Ari || {};
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-weight-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0",
-    "ari/vnext/ari-vnext-structured-reference-capabilities.js?v=1.0.0"
+    "ari/vnext/ari-vnext-structured-reference-capabilities.js?v=1.0.0",
+    "ari/vnext/ari-vnext-authoritative-reference-rehydration.js?v=1.0.0"
   ];
 
   function clean(value = "", max = 200) {
@@ -32,6 +34,7 @@ window.Ari = window.Ari || {};
     if (base.endsWith("ari-vnext-weight-adapter.js")) return window.AriVNextWeightAdapter?.ready === true;
     if (base.endsWith("ari-vnext-reference-capability-extension.js")) return window.AriVNextReferenceCapabilityExtension?.ready === true;
     if (base.endsWith("ari-vnext-structured-reference-capabilities.js")) return window.AriVNextStructuredReferenceCapabilities?.ready === true;
+    if (base.endsWith("ari-vnext-authoritative-reference-rehydration.js")) return window.AriVNextAuthoritativeReferenceRehydration?.ready === true;
     return true;
   }
 
