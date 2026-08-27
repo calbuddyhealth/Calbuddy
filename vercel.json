@@ -8,6 +8,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/ari-vnext-circle-context",
+      "destination": "/api/ari-vnext-circle-context-bridge"
+    },
+    {
       "source": "/api/knowledge",
       "destination": "/api/secure-ai-gateway?route=knowledge"
     },
