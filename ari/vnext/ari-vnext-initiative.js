@@ -8,7 +8,7 @@ window.Ari = window.Ari || {};
 (() => {
   "use strict";
 
-  const VERSION = "1.4.0";
+  const VERSION = "1.3.0";
   const CAPABILITY_SCRIPTS = [
     "ari/vnext/ari-vnext-nutrition-resolution-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
