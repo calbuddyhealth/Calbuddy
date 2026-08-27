@@ -13,6 +13,9 @@
 // - Failed execution preserves pending state for retry.
 // - Execution replies are normalized so typed/button confirmations share one
 //   result contract regardless of which trusted domain executor produced it.
+// - Structured Nutrition and manual-activity preparation enter through this
+//   registry directly; their older adapter patches remain only as compatibility
+//   fallbacks during the Phase 8 migration.
 
 (() => {
   "use strict";
@@ -28,10 +31,6 @@
 
   function clean(value = "", max = 500) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
-  }
-
-  function object(value) {
-    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
   }
 
   function failure(code, message, extra = {}) {
@@ -242,6 +241,33 @@
     return current;
   }
 
+  function registerBuiltInDelegates() {
+    const nutrition = window.AriVNextNutritionResolutionAdapter;
+    if (nutrition?.ready === true && typeof nutrition.resolveMeal === "function") {
+      registerOperation("log_meal", {
+        source: "ari_vnext_nutrition_resolution_adapter",
+        priority: 1000,
+        match(pending = {}) {
+          return Array.isArray(pending?.arguments?.items);
+        },
+        async prepare(pending = {}) {
+          return await nutrition.resolveMeal(pending);
+        }
+      });
+    }
+
+    const activity = window.AriVNextActivityAdapter;
+    if (activity && typeof activity.prepare === "function") {
+      registerOperation("log_activity", {
+        source: "ari_vnext_activity_adapter",
+        priority: 900,
+        async prepare(pending = {}) {
+          return await activity.prepare(pending, pending?.arguments || {});
+        }
+      });
+    }
+  }
+
   function snapshot() {
     return {
       version: VERSION,
@@ -322,6 +348,8 @@
       value: VERSION
     });
 
+    registerBuiltInDelegates();
+
     window.AriVNextOperationRegistry = Object.freeze({
       version: VERSION,
       source: SOURCE,
@@ -337,7 +365,7 @@
 
     reconcileOrphanedLegacyPending();
     window.dispatchEvent(new CustomEvent("ari:vnextOperationRegistryReady", {
-      detail: { version: VERSION, source: SOURCE }
+      detail: { version: VERSION, source: SOURCE, operations: snapshot().operationNames }
     }));
     return true;
   }
