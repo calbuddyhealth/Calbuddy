@@ -2,9 +2,9 @@
 // This is intentionally small. The primary model still owns semantic judgment.
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
-import { buildReferencePacket, isReferenceFollowUp } from "./reference-context.js";
+import { activeReferenceDomains, buildReferencePacket, isReferenceFollowUp } from "./reference-context.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.16.0";
+export const CONTEXT_ROUTER_VERSION = "1.17.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -24,19 +24,20 @@ export function routeContext(turn = {}) {
   const followUp = isFollowUp(message) || isReferenceFollowUp(message);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
   const semanticText = followUp ? `${recent}\n${message}` : message;
+  const referenceDomains = followUp ? activeReferenceDomains(turn?.context?.referenceState) : [];
   const account = turn?.context?.accountEntitlements || {};
   const intelligenceEntitlement = turn?.context?.intelligenceEntitlement || null;
   const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
-  const nutrition = PATTERNS.nutrition.test(semanticText);
-  const training = PATTERNS.training.test(semanticText);
-  const goals = PATTERNS.goals.test(semanticText);
+  const nutrition = PATTERNS.nutrition.test(semanticText) || referenceDomains.includes("nutrition");
+  const training = PATTERNS.training.test(semanticText) || referenceDomains.includes("training");
+  const goals = PATTERNS.goals.test(semanticText) || referenceDomains.includes("goals");
   const actionNetworkAvailable = turn?.context?.social?.actionNetwork?.available === true;
-  const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
+  const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable || referenceDomains.includes("social");
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
   const currentInfo = needsCurrentInfo(semanticText);
-  const developer = PATTERNS.developer.test(semanticText);
+  const developer = PATTERNS.developer.test(semanticText) || referenceDomains.includes("developer");
   const casualConversation = isCasualConversation({
     message,
     followUp,
@@ -174,9 +175,11 @@ function cognitiveContextRules(context = {}) {
   if (context?.referencePacket?.active === true) {
     lines.push(
       "REFERENCE RESOLUTION RULES:",
-      "- The CURRENT user message alone determines whether a mutation is authorized. Recent conversation never grants write permission by itself.",
+      "- The CURRENT user message alone determines whether a mutation is authorized. Recent conversation or prior app references never grant write permission by themselves.",
       "- The bounded Reference Packet may identify what words such as it, them, that, those, this, the other one, or the second one refer to.",
-      "- When the current message explicitly requests a supported mutation and a recent reference resolves its target unambiguously, use that resolved target with the matching application tool.",
+      "- app_reference candidates are bounded pointers produced from trusted app action lifecycle state; they are not a second database.",
+      "- A verified persisted app_reference should be preferred for object identity/canonical locator when it matches the current domain. Conversation text may explain the object but must not override its canonical identity.",
+      "- When the current message explicitly requests a supported mutation and a reference resolves its target unambiguously, use that resolved target with the matching application tool.",
       "- Prefer the nearest domain-compatible candidate. If authoritative application state conflicts with conversational wording, authoritative application state wins.",
       "- If two candidates are materially plausible, ask one concise clarification question instead of guessing.",
       "- Never invent a missing target, quantity, date, identity, or persisted record merely to complete an action."
