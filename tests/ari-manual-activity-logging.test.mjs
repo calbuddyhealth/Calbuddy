@@ -126,7 +126,7 @@ test("Quick Log and Ari share one profile-based calorie estimator and activity w
 });
 
 test("Ari confirmation executes log_activity through the trusted activity adapter", () => {
-  assert.match(runtime, /ari-vnext-activity-adapter\.js\?v=1\.0\.1/);
+  assert.match(runtime, /ari-vnext-activity-adapter\.js\?v=1\.1\.0/);
   assert.match(runtime, /AriVNextActionAdapter\.executeConfirmed/);
   assert.match(activityAdapter, /clean\(pendingAction\?\.name, 120\) === "log_activity"/);
   assert.match(activityAdapter, /action_type: "log_activity"/);
