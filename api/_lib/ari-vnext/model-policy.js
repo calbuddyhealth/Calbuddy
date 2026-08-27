@@ -1,6 +1,6 @@
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "2.1.0";
+export const MODEL_POLICY_VERSION = "2.2.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -12,15 +12,19 @@ export function resolveModelPolicy(route = {}) {
   const primaryModel = process.env.OPENAI_ARI_VNEXT_MODEL || "gpt-4o-mini";
   const deepModel = process.env.OPENAI_ARI_VNEXT_DEEP_MODEL || "gpt-5.6-luna";
   const currentModel = process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini";
+  const nutritionModel = process.env.OPENAI_ARI_NUTRITION_MODEL || "gpt-5.6-luna";
 
   const mode = resolveWorkMode(route);
-  const model = mode === "current"
-    ? currentModel
-    : mode === "deep"
-      ? deepModel
-      : mode === "fast"
-        ? fastModel
-        : primaryModel;
+  const nutritionOnly = isNutritionOnlyTurn(route);
+  const model = nutritionOnly
+    ? nutritionModel
+    : mode === "current"
+      ? currentModel
+      : mode === "deep"
+        ? deepModel
+        : mode === "fast"
+          ? fastModel
+          : primaryModel;
   const supportsReasoning = isReasoningModel(model);
 
   return {
@@ -31,17 +35,20 @@ export function resolveModelPolicy(route = {}) {
     model,
     supportsReasoning,
     reasoningEffort: supportsReasoning
-      ? mode === "deep"
-        ? "high"
-        : mode === "current"
-          ? "low"
-          : "medium"
+      ? nutritionOnly
+        ? "low"
+        : mode === "deep"
+          ? "high"
+          : mode === "current"
+            ? "low"
+            : "medium"
       : null,
-    maxOutputTokens: mode === "deep" ? 2200 : mode === "current" ? 1200 : mode === "standard" ? 1800 : 700,
-    timeoutMs: mode === "deep" ? 45000 : mode === "current" ? 25000 : mode === "standard" ? 26000 : 12000,
-    costTier: mode === "deep" ? "escalated" : mode === "current" ? "live_search" : "economy",
+    maxOutputTokens: nutritionOnly ? 1800 : mode === "deep" ? 2200 : mode === "current" ? 1200 : mode === "standard" ? 1800 : 700,
+    timeoutMs: nutritionOnly ? 26000 : mode === "deep" ? 45000 : mode === "current" ? 25000 : mode === "standard" ? 26000 : 12000,
+    costTier: nutritionOnly ? "nutrition_economy" : mode === "deep" ? "escalated" : mode === "current" ? "live_search" : "economy",
     liveSearchRequired: Boolean(route?.currentInfo),
-    casualConversation: route?.casualConversation === true
+    casualConversation: route?.casualConversation === true,
+    nutritionResolutionModel: nutritionOnly
   };
 }
 
@@ -49,6 +56,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const owner = intelligence?.ownerEligible === true || intelligence?.accessClass === "owner";
   const premium = !owner && (intelligence?.premiumEligible === true || intelligence?.accessClass === "premium");
   const casualConversation = route?.casualConversation === true;
+  const nutritionOnly = isNutritionOnlyTurn(route);
 
   const advancedModel = owner
     ? process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6"
@@ -56,16 +64,23 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const fastModel = owner
     ? process.env.OPENAI_ARI_OWNER_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini"
     : process.env.OPENAI_ARI_PREMIUM_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
+  const nutritionModel = process.env.OPENAI_ARI_NUTRITION_MODEL || "gpt-5.6-luna";
 
-  // Advanced accounts stay advanced for real conversation and advice, even when
-  // the prompt is short. Only narrow casual conversation (hello/thanks/etc.) is
-  // moved to the fast model.
-  const model = casualConversation ? fastModel : advancedModel;
+  // Advanced conversational/coaching work remains on the advanced model. A
+  // Nutrition-only turn uses the dedicated economy interpreter because the
+  // trusted resolver, not the language model, determines nutrition truth.
+  const model = nutritionOnly
+    ? nutritionModel
+    : casualConversation
+      ? fastModel
+      : advancedModel;
   const mode = resolveWorkMode(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
-    ? resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation })
+    ? nutritionOnly
+      ? "low"
+      : resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation })
     : null;
 
   return {
@@ -77,31 +92,51 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     supportsReasoning,
     reasoningProfile,
     reasoningEffort,
-    maxOutputTokens: casualConversation
-      ? 500
-      : mode === "deep"
-        ? 3200
-        : mode === "current"
-          ? 2000
-          : mode === "fast"
-            ? 1400
-            : 2400,
-    timeoutMs: casualConversation
-      ? 12000
-      : reasoningEffort === "xhigh" || reasoningEffort === "max"
-        ? 60000
+    maxOutputTokens: nutritionOnly
+      ? 1800
+      : casualConversation
+        ? 500
         : mode === "deep"
-          ? 50000
-          : mode === "fast"
-            ? 30000
-            : 40000,
-    costTier: casualConversation
-      ? owner ? "owner_fast" : "premium_fast"
-      : owner ? "owner_advanced_sol" : "premium_advanced",
+          ? 3200
+          : mode === "current"
+            ? 2000
+            : mode === "fast"
+              ? 1400
+              : 2400,
+    timeoutMs: nutritionOnly
+      ? 26000
+      : casualConversation
+        ? 12000
+        : reasoningEffort === "xhigh" || reasoningEffort === "max"
+          ? 60000
+          : mode === "deep"
+            ? 50000
+            : mode === "fast"
+              ? 30000
+              : 40000,
+    costTier: nutritionOnly
+      ? "nutrition_economy"
+      : casualConversation
+        ? owner ? "owner_fast" : "premium_fast"
+        : owner ? "owner_advanced_sol" : "premium_advanced",
     liveSearchRequired: Boolean(route?.currentInfo),
     conversationBeta: true,
-    casualConversation
+    casualConversation,
+    nutritionResolutionModel: nutritionOnly
   };
+}
+
+function isNutritionOnlyTurn(route = {}) {
+  return Boolean(
+    route?.nutrition === true &&
+    route?.training !== true &&
+    route?.goals !== true &&
+    route?.social !== true &&
+    route?.health !== true &&
+    route?.developer !== true &&
+    route?.currentInfo !== true &&
+    route?.coachingState !== true
+  );
 }
 
 function resolveWorkMode(route = {}) {
