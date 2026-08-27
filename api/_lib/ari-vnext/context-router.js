@@ -4,10 +4,11 @@
 import { advancedConversationInstruction } from "./conversation-contract.js";
 import { activeReferenceDomains, buildReferencePacket, isReferenceFollowUp } from "./reference-context.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.17.0";
+export const CONTEXT_ROUTER_VERSION = "1.18.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
+  nutritionLogging: /\b(?:log|record|save)\b|\b(?:add|track)\b(?=[^?.!]{0,90}\b(?:food|meal|breakfast|lunch|dinner|snack|calories?|protein|carbs?|fat|eggs?|chicken|rice|potato|beer|drink)\b)/i,
   training: /\b(workout|training|train|trained|exercise|exercised|lift|lifted|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|ran|running|jog|jogged|jogging|walk|walked|walking|bike|biked|biking|cycle|cycled|cycling|hike|hiked|hiking|swim|swam|swimming|row|rowed|rowing|elliptical|stairs?|stairmaster|stepmill|push[ -]?ups?|pull[ -]?ups?|burpees?|calisthenics?|basketball|soccer|tennis|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy|meet[ -]?ups?|missions?|quests?|crews?|hosting?|hosted|join requests?|open spots?|opportunit(?:y|ies)|activity partner|workout partner|training partner)\b/i,
@@ -30,6 +31,10 @@ export function routeContext(turn = {}) {
   const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
   const nutrition = PATTERNS.nutrition.test(semanticText) || referenceDomains.includes("nutrition");
+  // Model routing must be based on the CURRENT user's logging wording, not on
+  // history. Prior turns may identify the food target, but they never convert a
+  // read-only/advice turn into a cheap mutation-interpreter turn.
+  const nutritionLogging = nutrition && PATTERNS.nutritionLogging.test(message);
   const training = PATTERNS.training.test(semanticText) || referenceDomains.includes("training");
   const goals = PATTERNS.goals.test(semanticText) || referenceDomains.includes("goals");
   const actionNetworkAvailable = turn?.context?.social?.actionNetwork?.available === true;
@@ -56,6 +61,7 @@ export function routeContext(turn = {}) {
     recentConversation: true,
     profile: !casualConversation,
     nutrition,
+    nutritionLogging,
     training,
     goals,
     coachingState: nutrition && (training || goals) || training && goals,
