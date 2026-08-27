@@ -204,10 +204,9 @@ function isDirectRoutineLogCommand(message = "", decision = "") {
   const directLog = new RegExp(`^${ariPrefix}(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:log|record)\\b`, "i");
   const directAsk = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:log|record)\\b`, "i");
   const directWant = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:log|record)\\b`, "i");
-  const politeLog = /(?:^|\s)please\s+(?:log|record)\b/i;
   const addToLog = new RegExp(`^${ariPrefix}(?:please\\s+)?(?:add|save)\\b.{0,160}\\bto\\s+(?:my\\s+)?(?:food\\s+|meal\\s+|activity\\s+|training\\s+|weight\\s+)?log\\b`, "i");
 
-  if (directLog.test(text) || directAsk.test(text) || directWant.test(text) || politeLog.test(text) || addToLog.test(text)) {
+  if (directLog.test(text) || directAsk.test(text) || directWant.test(text) || addToLog.test(text)) {
     return true;
   }
 
