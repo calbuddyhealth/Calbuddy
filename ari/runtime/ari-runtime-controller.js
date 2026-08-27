@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.4.3
+// Version: 1.4.4
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -21,6 +21,8 @@
 //     through the final trusted structured-reference capability bootstrap.
 //   - The final initiative/capability bootstrap must satisfy its minimum version
 //     before vNext can report itself ready.
+//   - Initiative 1.3+ guarantees the trusted Nutrition Resolution capability is
+//     installed before vNext can accept a conversational food log.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -39,7 +41,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.3";
+  const VERSION = "1.4.4";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -51,7 +53,7 @@
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
     "ari/vnext/ari-vnext-reference-state.js?v=1.2.0",
-    "ari/vnext/ari-vnext-initiative.js?v=1.2.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.3.0"
   ];
 
   const legacy = {
@@ -205,7 +207,7 @@
     }
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(window.AriVNextInitiative) &&
-        versionAtLeast(window.AriVNextInitiative?.version, "1.2.0");
+        versionAtLeast(window.AriVNextInitiative?.version, "1.3.0");
     }
     return true;
   }
@@ -256,7 +258,7 @@
       window.AriVNextReferenceState?.ready === true &&
       versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0") &&
       window.AriVNextInitiative &&
-      versionAtLeast(window.AriVNextInitiative?.version, "1.2.0")
+      versionAtLeast(window.AriVNextInitiative?.version, "1.3.0")
     );
   }
 
