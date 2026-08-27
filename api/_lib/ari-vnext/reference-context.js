@@ -8,7 +8,7 @@
 //   CURRENT user message can authorize a write; history may identify its target.
 // - Add no extra model call. Trusted domain adapters remain authoritative.
 
-export const REFERENCE_CONTEXT_VERSION = "1.0.0";
+export const REFERENCE_CONTEXT_VERSION = "1.0.1";
 
 const MAX_REFERENCE_TURNS = 8;
 const MAX_REFERENCE_TEXT = 900;
@@ -34,7 +34,7 @@ export function isReferenceFollowUp(message = "") {
 export function buildReferencePacket(turn = {}, route = {}) {
   const message = clean(turn?.message, 8000);
   const history = Array.isArray(turn?.history) ? turn.history : [];
-  const active = Boolean(history.length && (route?.followUp === true || isReferenceFollowUp(message)));
+  const active = Boolean(history.length && isReferenceFollowUp(message));
 
   if (!active) return null;
 
