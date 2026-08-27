@@ -29,6 +29,7 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
 
   const window = {
     Ari: {},
+    AriVNextNutritionResolutionAdapter: { ready: true },
     AriVNextNutritionReferenceAdapter: { ready: true },
     AriVNextWeightAdapter: { ready: true },
     AriVNextReferenceCapabilityExtension: { ready: true },
@@ -112,7 +113,7 @@ test("successful trusted vNext execution consumes both pending-action copies", a
   const harness = makeHarness();
   await settleBootstrap();
 
-  assert.equal(harness.window.AriVNextInitiative?.version, "1.2.1");
+  assert.equal(harness.window.AriVNextInitiative?.version, "1.3.0");
 
   const execution = await harness.window.AriVNextActionAdapter.executeConfirmed({
     vnextPendingAction: harness.pending
