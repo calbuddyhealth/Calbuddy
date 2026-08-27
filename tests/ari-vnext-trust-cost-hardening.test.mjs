@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import {
+  reviewDeterministicRoutineLogIntent,
+  reviewExplicitApplicationIntent
+} from "../api/_lib/ari-vnext/action-intent-verifier.js";
+
 const read = async (relative) => await readFile(new URL(`../${relative}`, import.meta.url), "utf8");
 
 const runtime = await read("ari/runtime/ari-runtime-controller.js");
 const bridge = await read("ari/vnext/ari-vnext-bridge.js");
 const resilience = await read("js/home-resilience.js");
 const api = await read("api/ari-vnext.js");
+const orchestrator = await read("api/_lib/ari-vnext/orchestrator.js");
 const continuity = await read("api/_lib/ari-vnext/continuity-service.js");
 const memory = await read("api/_lib/ari-vnext/memory-service.js");
 const idempotency = await read("api/_lib/ari-vnext/request-idempotency.js");
@@ -48,6 +54,76 @@ test("expired vNext-linked legacy actions cannot execute through fallback confir
   assert.match(runtime, /isExpiredVNextLegacyPending\(legacyPending\)/);
   assert.match(runtime, /legacy\.cancelPendingAction\?\.\(\)/);
   assert.match(runtime, /That pending change expired/);
+});
+
+test("clear routine logging commands use deterministic authorization only", async () => {
+  const tools = [{ type: "function", name: "propose_log_meal" }];
+  let fetchCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error("deterministic routine log must not call a verifier model");
+  };
+
+  try {
+    const result = await reviewExplicitApplicationIntent({
+      turn: { message: "Please log 2 eggs and toast." },
+      route: { nutrition: true },
+      tools,
+      functionCall: { name: "propose_log_meal" }
+    });
+
+    assert.equal(result?.decision, "propose_log_meal");
+    assert.equal(result?.confidence, 1);
+    assert.equal(result?.source, "deterministic_routine_log");
+    assert.equal(result?.model, null);
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("deterministic routine authorization stays narrow and route-scoped", () => {
+  const availableTools = [
+    "propose_log_meal",
+    "propose_log_planned_meal",
+    "propose_log_activity",
+    "propose_log_weight"
+  ];
+
+  const review = (message, name, route) => reviewDeterministicRoutineLogIntent({
+    turn: { message },
+    route,
+    availableTools,
+    functionCall: { name }
+  });
+
+  assert.equal(review("Log my chicken bowl, 620 calories.", "propose_log_meal", { nutrition: true })?.decision, "propose_log_meal");
+  assert.equal(review("Can you record my 30 minute run?", "propose_log_activity", { training: true })?.decision, "propose_log_activity");
+  assert.equal(review("Update my weight to 185 pounds.", "propose_log_weight", { goals: true })?.decision, "propose_log_weight");
+
+  assert.equal(review("I ate 2 eggs.", "propose_log_meal", { nutrition: true }), null);
+  assert.equal(review("Should I log 2 eggs?", "propose_log_meal", { nutrition: true }), null);
+  assert.equal(review("Can I please log 2 eggs?", "propose_log_meal", { nutrition: true }), null);
+  assert.equal(review("I want to log 2 eggs.", "propose_log_meal", { nutrition: true }), null);
+  assert.equal(review("Log my 30 minute run.", "propose_log_activity", { nutrition: true }), null);
+});
+
+test("routine logging proposals skip only the redundant confirmation model continuation", () => {
+  assert.match(orchestrator, /reviewExplicitApplicationIntent\(\{ turn, route, tools, functionCall \}\)/);
+  assert.match(orchestrator, /if \(isRoutineLogAction\(applicationAction\)\)/);
+  assert.match(orchestrator, /source: "ari_vnext_routine_action_proposal"/);
+  assert.match(orchestrator, /provider: providerSummary\(first\)/);
+  assert.match(orchestrator, /function routineLogConfirmationReply/);
+
+  const routineReturn = orchestrator.indexOf("if (isRoutineLogAction(applicationAction))");
+  const continuation = orchestrator.indexOf("const second = await callResponses");
+  assert.ok(routineReturn >= 0 && continuation >= 0 && routineReturn < continuation);
+
+  // Complex mutations retain the natural model continuation path.
+  assert.match(orchestrator, /const toolResult = \{/);
+  assert.match(orchestrator, /const second = await callResponses/);
+  assert.match(orchestrator, /provider: providerSummary\(second\)/);
 });
 
 test("retrieved memory uses complete-record budgeting instead of slicing mid-entry", () => {

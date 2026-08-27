@@ -1,19 +1,63 @@
 // ARI vNext — semantic verification for explicit app mutations.
-// This bounded GPT-4o-mini pass independently verifies whether the CURRENT
-// message authorizes a write. It never executes an action itself.
+// Clear routine logging commands are authorized deterministically; ambiguous
+// writes still use the bounded GPT-4o-mini verifier. Neither path executes data.
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const ROUTINE_LOG_TOOLS = new Set([
+  "propose_log_meal",
+  "propose_log_planned_meal",
+  "propose_log_activity",
+  "propose_log_weight"
+]);
 
-export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, tools = [] } = {}) {
-  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) return null;
+export function reviewDeterministicRoutineLogIntent({
+  turn = {},
+  route = {},
+  functionCall = null,
+  availableTools = []
+} = {}) {
+  const decision = String(functionCall?.name || "").trim();
+  if (!ROUTINE_LOG_TOOLS.has(decision)) return null;
+  if (!availableTools.includes(decision)) return null;
+  if (!routineRouteSupports(decision, route)) return null;
+  if (!isDirectRoutineLogCommand(turn?.message, decision)) return null;
 
+  return {
+    version: "1.6.0",
+    decision,
+    confidence: 1,
+    reason: "Explicit current-turn routine logging command verified deterministically.",
+    dailyGoalKnown: resolveDailyGoalKnown(turn),
+    model: null,
+    providerRequestId: null,
+    usage: null,
+    source: "deterministic_routine_log"
+  };
+}
+
+export async function reviewExplicitApplicationIntent({
+  turn = {},
+  route = {},
+  tools = [],
+  functionCall = null
+} = {}) {
   const availableTools = (Array.isArray(tools) ? tools : [])
     .filter((tool) => tool?.type === "function" && typeof tool?.name === "string")
     .map((tool) => String(tool.name).trim())
     .filter(Boolean);
 
   if (!availableTools.length) return null;
+
+  const deterministic = reviewDeterministicRoutineLogIntent({
+    turn,
+    route,
+    functionCall,
+    availableTools
+  });
+  if (deterministic) return deterministic;
+
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) return null;
 
   const dailyGoalKnown = resolveDailyGoalKnown(turn);
   const decisions = [
@@ -126,20 +170,53 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     }
 
     return {
-      version: "1.5.0",
+      version: "1.6.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
       dailyGoalKnown,
       model: data?.model || body.model,
       providerRequestId: data?.id || null,
-      usage: data?.usage || null
+      usage: data?.usage || null,
+      source: "model_verifier"
     };
   } catch {
     return null;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function routineRouteSupports(decision, route = {}) {
+  if (decision === "propose_log_meal" || decision === "propose_log_planned_meal") {
+    return route?.nutrition === true;
+  }
+  if (decision === "propose_log_activity") return route?.training === true;
+  if (decision === "propose_log_weight") return route?.goals === true;
+  return false;
+}
+
+function isDirectRoutineLogCommand(message = "", decision = "") {
+  const text = String(message || "").replace(/\s+/g, " ").trim();
+  if (!text) return false;
+
+  const ariPrefix = "(?:(?:(?:hey|hi)\\s+)?ari[,:-]?\\s*)?";
+  const directLog = new RegExp(`^${ariPrefix}(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:log|record)\\b`, "i");
+  const directAsk = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:log|record)\\b`, "i");
+  const directWant = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:log|record)\\b`, "i");
+  const addToLog = new RegExp(`^${ariPrefix}(?:please\\s+)?(?:add|save)\\b.{0,160}\\bto\\s+(?:my\\s+)?(?:food\\s+|meal\\s+|activity\\s+|training\\s+|weight\\s+)?log\\b`, "i");
+
+  if (directLog.test(text) || directAsk.test(text) || directWant.test(text) || addToLog.test(text)) {
+    return true;
+  }
+
+  if (decision === "propose_log_weight") {
+    const updateWeight = new RegExp(`^${ariPrefix}(?:please\\s+)?(?:set|update)\\s+(?:my\\s+)?weight\\b`, "i");
+    const askUpdateWeight = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:set|update)\\s+(?:my\\s+)?weight\\b`, "i");
+    return updateWeight.test(text) || askUpdateWeight.test(text);
+  }
+
+  return false;
 }
 
 function resolveDailyGoalKnown(turn = {}) {

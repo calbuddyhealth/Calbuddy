@@ -167,12 +167,12 @@ export async function runAriVNext(turn = {}) {
       .map((tool) => String(tool.name))
   );
 
-  // The primary model remains the main semantic authority. A tiny GPT-4o-mini
-  // verifier is used only when the primary model attempts a mutation, or when
-  // a command-like turn received no tool call and may have been missed.
+  // The primary model remains the main semantic authority. Clear routine logs
+  // can be authorized deterministically inside the verifier; ambiguous or
+  // complex writes still spend the bounded GPT-4o-mini verification call.
   const shouldVerify = Boolean(functionCall) || shouldReviewNoToolTurn(turn);
   const semanticActionReview = shouldVerify
-    ? await reviewExplicitApplicationIntent({ turn, route, tools })
+    ? await reviewExplicitApplicationIntent({ turn, route, tools, functionCall })
     : null;
 
   if (
@@ -349,6 +349,40 @@ export async function runAriVNext(turn = {}) {
     args: canonical.arguments,
     confirmationRequired: true
   });
+
+  // Routine logs already have deterministic, detailed confirmation_text in the
+  // existing browser action adapters. Do not spend another full Ari model call
+  // merely to paraphrase that confirmation.
+  if (isRoutineLogAction(applicationAction)) {
+    return {
+      success: true,
+      ready: true,
+      reply: routineLogConfirmationReply(applicationAction),
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction,
+      action: {
+        type: "proposed_action",
+        applicationAction,
+        pendingActionId: pendingAction.id,
+        arguments: pendingAction.arguments
+      },
+      provider: providerSummary(first),
+      semanticActionReview: publicActionReview(semanticActionReview),
+      source: "ari_vnext_routine_action_proposal"
+    };
+  }
 
   const toolResult = {
     status: "confirmation_required",
@@ -584,6 +618,18 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function isRoutineLogAction(action = "") {
+  return ["log_meal", "log_planned_meal", "log_activity", "log_weight"].includes(String(action || ""));
+}
+
+function routineLogConfirmationReply(action = "") {
+  if (action === "log_meal") return "I’ve got that meal ready to log. Check the details below and confirm.";
+  if (action === "log_planned_meal") return "I’ve got that planned meal ready to log. Check the details below and confirm.";
+  if (action === "log_activity") return "I’ve got that activity ready to log. Check the details below and confirm.";
+  if (action === "log_weight") return "I’ve got that weight ready to log. Check the details below and confirm.";
+  return "I’ve got that ready to log. Check the details below and confirm.";
 }
 
 function shouldReviewNoToolTurn(turn = {}) {
