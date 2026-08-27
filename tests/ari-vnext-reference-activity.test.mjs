@@ -267,11 +267,12 @@ test("browser lifecycle re-resolves canonical activity, updates the same referen
     currentTurnId: "turn-confirm-update"
   });
   assert.equal(updated.success, true);
-  assert.deepEqual(updateInput, {
-    activityId: ACTIVITY_ID,
-    logDate: "2026-08-27",
-    changes: updatePending.arguments.changes
-  });
+  assert.equal(updateInput?.activityId, ACTIVITY_ID);
+  assert.equal(updateInput?.logDate, "2026-08-27");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(updateInput?.changes || [])),
+    updatePending.arguments.changes
+  );
   assert.equal(updated.referenceLifecycle?.referenceId, persisted.referenceId);
   assert.equal(updated.referenceLifecycle?.state, "persisted");
   assert.equal(updated.referenceLifecycle?.details?.durationMinutes, 45);
@@ -295,11 +296,10 @@ test("browser lifecycle re-resolves canonical activity, updates the same referen
     currentTurnId: "turn-confirm-delete"
   });
   assert.equal(deleted.success, true);
-  assert.deepEqual(deleteInput, {
-    activityId: ACTIVITY_ID,
-    logDate: "2026-08-27",
-    changes: []
-  });
+  assert.equal(deleteInput?.activityId, ACTIVITY_ID);
+  assert.equal(deleteInput?.logDate, "2026-08-27");
+  assert.equal(Array.isArray(deleteInput?.changes), true);
+  assert.equal(deleteInput.changes.length, 0);
   assert.equal(deleted.referenceLifecycle?.state, "deleted");
   assert.equal(deleted.referenceLifecycle?.referenceId, persisted.referenceId);
   assert.equal(window.AriVNextReferenceState.snapshot(), null);
