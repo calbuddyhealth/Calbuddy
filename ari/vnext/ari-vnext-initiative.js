@@ -1,19 +1,16 @@
 // ARI vNext — browser initiative client + final capability bootstrap.
 // The runtime loads this file last. AriVNextInitiative is exposed only after
-// reference-bound Nutrition/Weight/cross-domain mutation extensions and the
-// current-context Meal Plan/Circle reference layer are ready, so the runtime
-// readiness gate cannot race those trusted capabilities.
-// Successful trusted vNext execution also synchronizes the bridge and legacy
-// pending-action stores so completed actions cannot reappear after navigation.
+// trusted reference capabilities and evidence-resolved Nutrition are ready.
 
 window.Ari = window.Ari || {};
 
 (() => {
   "use strict";
 
-  const VERSION = "1.2.1";
+  const VERSION = "1.3.0";
   const PENDING_SYNC_FLAG = "__ariPendingActionSyncV1";
   const CAPABILITY_SCRIPTS = [
+    "ari/vnext/ari-vnext-nutrition-resolution-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-weight-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0",
@@ -30,6 +27,7 @@ window.Ari = window.Ari || {};
 
   function ready(src = "") {
     const base = scriptBase(src);
+    if (base.endsWith("ari-vnext-nutrition-resolution-adapter.js")) return window.AriVNextNutritionResolutionAdapter?.ready === true;
     if (base.endsWith("ari-vnext-nutrition-reference-adapter.js")) return window.AriVNextNutritionReferenceAdapter?.ready === true;
     if (base.endsWith("ari-vnext-weight-adapter.js")) return window.AriVNextWeightAdapter?.ready === true;
     if (base.endsWith("ari-vnext-reference-capability-extension.js")) return window.AriVNextReferenceCapabilityExtension?.ready === true;
@@ -87,16 +85,11 @@ window.Ari = window.Ari || {};
 
     const bridge = window.AriVNextBridge;
     const bridgePending = bridge?.getPendingAction?.() || null;
-    if (clean(bridgePending?.id) === pendingId) {
-      bridge?.clearPendingAction?.();
-    }
+    if (clean(bridgePending?.id) === pendingId) bridge?.clearPendingAction?.();
 
     const CalBuddy = window.CalBuddy;
     const legacyPending = CalBuddy?.getPendingAction?.() || null;
-    if (clean(legacyPending?.vnext_action_id) === pendingId) {
-      CalBuddy?.clearPendingAction?.();
-    }
-
+    if (clean(legacyPending?.vnext_action_id) === pendingId) CalBuddy?.clearPendingAction?.();
     return true;
   }
 
@@ -112,9 +105,6 @@ window.Ari = window.Ari || {};
     const bridgePending = bridge.getPendingAction() || null;
     if (clean(bridgePending?.id) === linkedId) return false;
 
-    // A vNext-linked legacy action without its authoritative bridge action is
-    // orphaned. This is the exact stale state that previously resurfaced on Home
-    // after a successful log and page navigation.
     CalBuddy.clearPendingAction();
     return true;
   }
@@ -132,12 +122,7 @@ window.Ari = window.Ari || {};
     adapter.executeConfirmed = async function pendingStateSynchronizedExecute(input = {}) {
       const pendingAction = input?.vnextPendingAction || null;
       const execution = await originalExecute(input);
-
-      // Only a verified successful executor result consumes the pending action.
-      // Failed actions remain available for the existing retry/error handling.
-      if (execution?.success === true) {
-        clearMatchingPendingCopies(pendingAction);
-      }
+      if (execution?.success === true) clearMatchingPendingCopies(pendingAction);
       return execution;
     };
 
@@ -164,8 +149,6 @@ window.Ari = window.Ari || {};
         const accessToken = String(session?.access_token || "").trim();
         if (!accessToken) throw new Error("A signed-in ARI session is required.");
 
-        // This message only loads canonical history for deterministic initiative
-        // evaluation. It is never sent to a language model.
         const context = await bridge.buildContext({
           ...options,
           message: "Review recent training goals weight trend adherence experiments and recovery for meaningful changes",
@@ -228,13 +211,11 @@ window.Ari = window.Ari || {};
 
   installCapabilities()
     .then(() => {
-      if (!installPendingActionSync()) {
-        throw new Error("Ari pending-action synchronization did not initialize.");
-      }
+      if (!installPendingActionSync()) throw new Error("Ari pending-action synchronization did not initialize.");
       window.AriVNextInitiative = createClient();
       window.dispatchEvent(new CustomEvent("ari:vnextInitiativeReady", { detail: { version: VERSION } }));
     })
     .catch((error) => {
-      console.error("[Ari vNext] Reference capability bootstrap failed:", error?.message || error);
+      console.error("[Ari vNext] Capability bootstrap failed:", error?.message || error);
     });
 })();
