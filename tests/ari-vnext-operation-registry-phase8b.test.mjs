@@ -15,7 +15,7 @@ function storage() {
   };
 }
 
-function makeHarness({ failedBaseExecution = false, liveReference = null } = {}) {
+async function makeHarness({ failedBaseExecution = false, liveReference = null } = {}) {
   const counters = {
     basePrepare: 0,
     baseExecute: 0,
@@ -173,11 +173,15 @@ function makeHarness({ failedBaseExecution = false, liveReference = null } = {})
   vm.runInContext(registrySource, sandbox, { filename: "ari-vnext-operation-registry.js" });
   vm.runInContext(phase8bSource, sandbox, { filename: "ari-vnext-operation-registry-phase8b.js" });
 
+  for (let attempt = 0; attempt < 20 && window.AriVNextOperationRegistryPhase8B?.ready !== true; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
   return { window, counters, actionAdapter, getBridgePending: () => bridgePending, setBridgePending: (value) => { bridgePending = value; } };
 }
 
 test("Phase 8B registers Circle prepare and application execution ahead of compatibility fallbacks", async () => {
-  const harness = makeHarness();
+  const harness = await makeHarness();
   assert.equal(harness.window.AriVNextOperationRegistryPhase8B?.ready, true);
 
   const prepared = await harness.actionAdapter.prepareCalBuddyAction({
@@ -210,7 +214,7 @@ test("authoritative live meal edits bypass the compatibility execute stack and r
       staleCheckRequiredBeforeWrite: true
     }
   };
-  const harness = makeHarness({ liveReference });
+  const harness = await makeHarness({ liveReference });
   const execution = await harness.actionAdapter.executeConfirmed({
     vnextPendingAction: {
       id: "edit-meal",
@@ -227,7 +231,7 @@ test("authoritative live meal edits bypass the compatibility execute stack and r
 });
 
 test("failed trusted execution restores vNext pending state and blocks the runtime's immediate clear once", async () => {
-  const harness = makeHarness({ failedBaseExecution: true });
+  const harness = await makeHarness({ failedBaseExecution: true });
   const pending = { id: "retry-action", sourceTurnId: "turn-retry", name: "update_goal", arguments: {} };
   harness.setBridgePending(null);
 
@@ -245,7 +249,7 @@ test("failed trusted execution restores vNext pending state and blocks the runti
 });
 
 test("referenced Meal Plan discard runs through registry and verifies canonical state after the write", async () => {
-  const harness = makeHarness();
+  const harness = await makeHarness();
   const pending = {
     id: "discard-plan",
     sourceTurnId: "turn-discard-plan",
