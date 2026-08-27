@@ -3,7 +3,8 @@
 // This is a pointer layer, not another application database. It remembers a
 // small set of recent Ari action targets so later turns can resolve words such
 // as "that" or "it" to the canonical object that the trusted app executor
-// actually created or changed.
+// actually created or changed. Reference-bound Undo is resolved here against
+// the verified pointer and the existing Nutrition mutation journal.
 
 (() => {
   "use strict";
@@ -15,9 +16,14 @@
   const ADAPTER_FLAG = "__ariReferenceLifecycleV1";
   const BRIDGE_FLAG = "__ariReferenceContextV1";
   const CANCEL_FLAG = "__ariReferenceCancelV1";
+  const REFERENCE_UNDO_ACTION = "undo_nutrition_mutation";
 
   function clean(value = "", max = 180) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+  }
+
+  function isUuid(value = "") {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(value, 160));
   }
 
   function hash(value = "") {
@@ -38,43 +44,16 @@
     return `${STORAGE_PREFIX}:${hash(currentConversationId(conversationId))}`;
   }
 
-  function read(conversationId = null) {
-    try {
-      const raw = sessionStorage.getItem(storageKey(conversationId));
-      if (!raw) return { version: VERSION, references: [] };
-      const parsed = JSON.parse(raw);
-      const references = Array.isArray(parsed?.references) ? parsed.references : [];
-      return { version: VERSION, references: prune(references) };
-    } catch {
-      return { version: VERSION, references: [] };
+  function compactObject(value, maxKeys = 10) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const output = {};
+    for (const [key, raw] of Object.entries(value).slice(0, maxKeys)) {
+      if (raw === null || raw === undefined || raw === "") continue;
+      if (typeof raw === "number" && Number.isFinite(raw)) output[key] = raw;
+      else if (typeof raw === "boolean") output[key] = raw;
+      else if (typeof raw === "string") output[key] = clean(raw, 220);
     }
-  }
-
-  function write(state = {}, conversationId = null) {
-    const next = {
-      version: VERSION,
-      references: prune(Array.isArray(state?.references) ? state.references : [])
-    };
-    try {
-      sessionStorage.setItem(storageKey(conversationId), JSON.stringify(next));
-    } catch {
-      // Storage restrictions should never block Ari or trusted app writes.
-    }
-    return next;
-  }
-
-  function prune(references = []) {
-    const now = Date.now();
-    return references
-      .filter((reference) => {
-        if (!reference || typeof reference !== "object") return false;
-        if (["cancelled", "failed", "expired", "deleted"].includes(clean(reference.state, 40))) return false;
-        const updatedAt = Date.parse(clean(reference.updatedAt, 80));
-        return !Number.isFinite(updatedAt) || now - updatedAt <= MAX_AGE_MS;
-      })
-      .sort((left, right) => Date.parse(right?.updatedAt || 0) - Date.parse(left?.updatedAt || 0))
-      .slice(0, MAX_REFERENCES)
-      .map(compactReference);
+    return output;
   }
 
   function compactReference(reference = {}) {
@@ -95,16 +74,45 @@
     };
   }
 
-  function compactObject(value, maxKeys = 10) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    const output = {};
-    for (const [key, raw] of Object.entries(value).slice(0, maxKeys)) {
-      if (raw === null || raw === undefined || raw === "") continue;
-      if (typeof raw === "number" && Number.isFinite(raw)) output[key] = raw;
-      else if (typeof raw === "boolean") output[key] = raw;
-      else if (typeof raw === "string") output[key] = clean(raw, 220);
+  function prune(references = []) {
+    const now = Date.now();
+    return references
+      .filter((reference) => {
+        if (!reference || typeof reference !== "object") return false;
+        if (["cancelled", "failed", "expired", "deleted"].includes(clean(reference.state, 40))) return false;
+        const updatedAt = Date.parse(clean(reference.updatedAt, 80));
+        return !Number.isFinite(updatedAt) || now - updatedAt <= MAX_AGE_MS;
+      })
+      .sort((left, right) => Date.parse(right?.updatedAt || 0) - Date.parse(left?.updatedAt || 0))
+      .slice(0, MAX_REFERENCES)
+      .map(compactReference);
+  }
+
+  function read(conversationId = null) {
+    try {
+      const raw = sessionStorage.getItem(storageKey(conversationId));
+      if (!raw) return { version: VERSION, references: [] };
+      const parsed = JSON.parse(raw);
+      return {
+        version: VERSION,
+        references: prune(Array.isArray(parsed?.references) ? parsed.references : [])
+      };
+    } catch {
+      return { version: VERSION, references: [] };
     }
-    return output;
+  }
+
+  function write(state = {}, conversationId = null) {
+    const next = {
+      version: VERSION,
+      references: prune(Array.isArray(state?.references) ? state.references : [])
+    };
+    try {
+      sessionStorage.setItem(storageKey(conversationId), JSON.stringify(next));
+    } catch {
+      // Storage restrictions should never block Ari or trusted app writes.
+    }
+    return next;
   }
 
   function domainForAction(name = "") {
@@ -164,6 +172,10 @@
   function makeReferenceId(pending = {}) {
     const actionId = clean(pending?.id, 200);
     return actionId ? `ref_action_${hash(actionId)}` : `ref_action_${Date.now().toString(36)}`;
+  }
+
+  function isReferenceUndoAction(pending = {}) {
+    return clean(pending?.name, 120) === REFERENCE_UNDO_ACTION;
   }
 
   function pendingReference(pending = {}) {
@@ -233,12 +245,58 @@
   }
 
   function rememberPending({ pendingAction, conversationId = null } = {}) {
-    if (!pendingAction?.id || !pendingAction?.name) return null;
+    if (!pendingAction?.id || !pendingAction?.name || isReferenceUndoAction(pendingAction)) return null;
     return upsert(pendingReference(pendingAction), conversationId);
+  }
+
+  function resolveUndoTarget(pendingAction = {}, conversationId = null) {
+    if (!isReferenceUndoAction(pendingAction)) return null;
+    const referenceId = clean(pendingAction?.arguments?.referenceId, 160);
+    if (!referenceId) return null;
+
+    const target = read(conversationId).references.find((reference) => reference.referenceId === referenceId);
+    if (!target) return null;
+    if (clean(target.state, 40) !== "persisted") return null;
+    if (clean(target.domain, 40) !== "nutrition") return null;
+    if (clean(target.entityType, 60) !== "meal") return null;
+    if (target?.verification?.verifiedByTrustedExecutor !== true) return null;
+    if (!isUuid(target?.canonical?.mutationId)) return null;
+    return target;
+  }
+
+  function commitUndo({ pendingAction, execution, conversationId = null } = {}) {
+    if (execution?.success === false) return null;
+    const target = resolveUndoTarget(pendingAction, conversationId) || execution?.referenceUndo?.target || null;
+    if (!target?.referenceId) return null;
+
+    const executedMutationId = clean(execution?.referenceUndo?.mutationId, 160);
+    if (executedMutationId && executedMutationId !== clean(target?.canonical?.mutationId, 160)) return null;
+
+    const state = read(conversationId);
+    write({
+      references: state.references.filter((reference) => reference.referenceId !== target.referenceId)
+    }, conversationId);
+
+    return compactReference({
+      ...target,
+      state: "deleted",
+      verification: {
+        ...target.verification,
+        verifiedByTrustedExecutor: true,
+        executorSuccess: true,
+        undoVerified: true
+      },
+      updatedAt: new Date().toISOString(),
+      expiresAt: null
+    });
   }
 
   function commit({ pendingAction, execution, conversationId = null } = {}) {
     if (!pendingAction?.id || execution?.success === false) return null;
+    if (isReferenceUndoAction(pendingAction)) {
+      return commitUndo({ pendingAction, execution, conversationId });
+    }
+
     const state = read(conversationId);
     const referenceId = makeReferenceId(pendingAction);
     const existing = state.references.find((item) => item.referenceId === referenceId) || pendingReference(pendingAction);
@@ -291,6 +349,103 @@
     return true;
   }
 
+  function failure(code, message) {
+    return { success: false, code, message };
+  }
+
+  async function createReferenceUndoPendingAction(pendingAction = {}) {
+    const target = resolveUndoTarget(pendingAction);
+    if (!target) {
+      return failure(
+        "reference_undo_target_unavailable",
+        "That meal is no longer available as a verified recent journaled entry."
+      );
+    }
+    if (typeof window.CalBuddy?.createPendingAction !== "function") {
+      return failure("pending_action_service_unavailable", "CalBuddy pending action service is unavailable.");
+    }
+
+    const action = {
+      action_type: REFERENCE_UNDO_ACTION,
+      payload: {
+        mutation_id: target.canonical.mutationId,
+        reference_id: target.referenceId
+      },
+      confirmation_text: `Undo ${clean(target.label, 160) || "that meal"}?`
+    };
+    const stored = await window.CalBuddy.createPendingAction(action);
+    const wrapped = {
+      ...stored,
+      vnext_action_id: pendingAction.id,
+      vnext_source_turn_id: pendingAction.sourceTurnId,
+      vnext_expires_at: pendingAction.expiresAt || null,
+      vnext_source: "ari_vnext_reference_state"
+    };
+
+    window.CalBuddy.setPendingAction?.(wrapped);
+    return {
+      success: true,
+      action: wrapped,
+      resolution: {
+        referenceId: target.referenceId,
+        entityType: target.entityType,
+        label: target.label,
+        journaled: true
+      }
+    };
+  }
+
+  async function executeReferenceUndo({ pendingAction, currentTurnId = null } = {}) {
+    if (!pendingAction?.id || !pendingAction?.sourceTurnId) {
+      return failure("missing_vnext_pending_action", "There is no turn-bound vNext action to execute.");
+    }
+    if (pendingAction?.expiresAt && Date.parse(pendingAction.expiresAt) < Date.now()) {
+      return failure("vnext_action_expired", "That pending change expired. Ask Ari to prepare it again.");
+    }
+
+    const target = resolveUndoTarget(pendingAction);
+    if (!target) {
+      return failure(
+        "reference_undo_target_unavailable",
+        "That meal is no longer available as a verified recent journaled entry."
+      );
+    }
+    if (typeof window.CalBuddy?.undoNutritionMutation !== "function") {
+      return failure("nutrition_undo_unavailable", "The Nutrition undo service is not ready right now.");
+    }
+
+    const mutationId = clean(target.canonical.mutationId, 160);
+    try {
+      const result = await window.CalBuddy.undoNutritionMutation(mutationId);
+      window.CalBuddy.cancelPendingAction?.();
+      return {
+        success: true,
+        result,
+        action: {
+          action_type: REFERENCE_UNDO_ACTION,
+          payload: {
+            mutation_id: mutationId,
+            reference_id: target.referenceId
+          },
+          vnext_action_id: pendingAction.id,
+          vnext_source_turn_id: pendingAction.sourceTurnId,
+          vnext_confirmation_turn_id: clean(currentTurnId, 200) || null,
+          vnext_source: "ari_vnext_reference_state"
+        },
+        referenceUndo: {
+          referenceId: target.referenceId,
+          mutationId,
+          target
+        }
+      };
+    } catch (error) {
+      return failure(
+        "nutrition_undo_failed",
+        error?.message || "That nutrition change could not be undone. Nothing else was changed."
+      );
+    }
+  }
+
   function patchActionAdapter() {
     const adapter = window.AriVNextActionAdapter;
     if (!adapter || adapter[ADAPTER_FLAG]) return Boolean(adapter?.[ADAPTER_FLAG]);
@@ -300,7 +455,9 @@
     const originalExecute = adapter.executeConfirmed.bind(adapter);
 
     adapter.createCalBuddyPendingAction = async function referenceAwareCreate(pendingAction = {}) {
-      const result = await originalCreate(pendingAction);
+      const result = isReferenceUndoAction(pendingAction)
+        ? await createReferenceUndoPendingAction(pendingAction)
+        : await originalCreate(pendingAction);
       if (result?.success && result?.action) {
         rememberPending({ pendingAction });
       }
@@ -310,7 +467,9 @@
     adapter.executeConfirmed = async function referenceAwareExecute(input = {}) {
       const pendingAction = input?.vnextPendingAction || null;
       try {
-        const execution = await originalExecute(input);
+        const execution = isReferenceUndoAction(pendingAction)
+          ? await executeReferenceUndo({ pendingAction, currentTurnId: input?.currentTurnId || null })
+          : await originalExecute(input);
         if (execution?.success) {
           const reference = commit({ pendingAction, execution });
           return { ...execution, referenceLifecycle: reference };

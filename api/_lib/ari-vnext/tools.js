@@ -1,7 +1,7 @@
-// ARI vNext — Crew-aware model-visible application capabilities.
+// ARI vNext — model-visible application capability facade.
 // The mature nutrition/training/goals/Meetup/Mission registry remains unchanged
-// in tools-core.js. This facade adds only bounded, confirmation-gated Crew
-// proposals on top of that trusted registry.
+// in tools-core.js. This facade adds bounded capabilities that depend on newer
+// trusted context contracts: Crew actions and reference-bound nutrition Undo.
 
 import {
   TOOL_REGISTRY_VERSION as CORE_REGISTRY_VERSION,
@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.12.0";
+export const TOOL_REGISTRY_VERSION = "1.13.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const CREW_TOOL_NAMES = new Set([
@@ -20,9 +20,31 @@ const CREW_TOOL_NAMES = new Set([
   "propose_leave_circle_crew",
   "propose_archive_circle_crew"
 ]);
+const REFERENCE_TOOL_NAMES = new Set([
+  "propose_undo_nutrition_mutation"
+]);
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
+}
+
+function referenceTools(route = {}) {
+  if (route?.nutrition !== true) return [];
+
+  return [
+    functionTool(
+      "propose_undo_nutrition_mutation",
+      "Propose undoing one RECENT, JOURNALED meal mutation only when the CURRENT user explicitly asks Ari to undo, delete, or remove that recently logged meal. Use this only when the Reference Packet contains one verified persisted meal app_reference with a canonical mutationId. Pass only the exact referenceId from that app_reference. The trusted browser reference lifecycle resolves the canonical mutationId itself. Never invent a reference ID, never use conversation text alone as mutation authority, and never use this tool for a meal that lacks a trusted journaled mutation.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          referenceId: { type: "string" }
+        },
+        required: ["referenceId"]
+      }
+    )
+  ];
 }
 
 function crewTools(route = {}) {
@@ -86,26 +108,20 @@ function crewTools(route = {}) {
 }
 
 export function getAriTools(route = {}) {
-  return [...getCoreAriTools(route), ...crewTools(route)];
+  return [...getCoreAriTools(route), ...referenceTools(route), ...crewTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
   const name = String(call?.name || "").trim();
+  if (REFERENCE_TOOL_NAMES.has(name)) return validateReferenceTool(call, route);
   if (!CREW_TOOL_NAMES.has(name)) return validateCoreToolCall(call, route);
 
   if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) {
     return { valid: false, error: "tool_not_allowed_for_turn" };
   }
 
-  let args = null;
-  try {
-    args = typeof call?.arguments === "string" ? JSON.parse(call.arguments) : call?.arguments;
-  } catch {
-    return { valid: false, error: "invalid_tool_arguments" };
-  }
-  if (!args || typeof args !== "object" || Array.isArray(args)) {
-    return { valid: false, error: "invalid_tool_arguments" };
-  }
+  const args = parseArguments(call);
+  if (!args) return { valid: false, error: "invalid_tool_arguments" };
 
   if (name === "propose_create_circle_crew") {
     const candidateKey = String(args?.candidateKey || "").trim().toLowerCase();
@@ -119,7 +135,29 @@ export function validateToolCall(call = {}, route = {}) {
   return { valid: true, name, arguments: { crewId: String(args.crewId).trim() } };
 }
 
+function validateReferenceTool(call = {}, route = {}) {
+  if (route?.nutrition !== true) return { valid: false, error: "tool_not_allowed_for_turn" };
+  const args = parseArguments(call);
+  if (!args) return { valid: false, error: "invalid_tool_arguments" };
+
+  const referenceId = String(args?.referenceId || "").trim();
+  if (!/^ref_action_[a-z0-9]+$/i.test(referenceId)) {
+    return { valid: false, error: "nutrition_reference_id_invalid" };
+  }
+
+  return {
+    valid: true,
+    name: "propose_undo_nutrition_mutation",
+    arguments: { referenceId }
+  };
+}
+
 export function toolToApplicationAction(name = "") {
+  const referenceAction = ({
+    propose_undo_nutrition_mutation: "undo_nutrition_mutation"
+  })[name];
+  if (referenceAction) return referenceAction;
+
   const crewAction = ({
     propose_create_circle_crew: "create_circle_crew",
     propose_accept_circle_crew_invite: "accept_circle_crew_invite",
@@ -128,6 +166,15 @@ export function toolToApplicationAction(name = "") {
     propose_archive_circle_crew: "archive_circle_crew"
   })[name];
   return crewAction || coreToolToApplicationAction(name);
+}
+
+function parseArguments(call = {}) {
+  try {
+    const args = typeof call?.arguments === "string" ? JSON.parse(call.arguments) : call?.arguments;
+    return args && typeof args === "object" && !Array.isArray(args) ? args : null;
+  } catch {
+    return null;
+  }
 }
 
 function isUuid(value) {
