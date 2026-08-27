@@ -197,14 +197,18 @@ test("manual nutrition corrections invalidate stale resolved evidence without de
   assert.doesNotMatch(materialFields, /'name'|'category'/);
 });
 
-test("undo restores only provenance invalidated by that trusted correction", () => {
+test("Undo is newest-first and restores provenance only after material corrections are gone", () => {
   assert.match(correctionMigration, /create or replace function public\.ari_restore_nutrition_resolution_after_undo/);
   assert.match(correctionMigration, /old\.status = 'applied'/);
   assert.match(correctionMigration, /new\.status = 'undone'/);
   assert.match(correctionMigration, /later\.status = 'applied'/);
+  assert.match(correctionMigration, /later\.created_at > new\.created_at/);
+  assert.match(correctionMigration, /raise exception 'Undo the newest meal correction first\.'/);
+  assert.match(correctionMigration, /v_has_applied_material_correction/);
   assert.match(correctionMigration, /resolutionMaterialChange/);
-  assert.match(correctionMigration, /invalidated_by_mutation_id = new\.id/);
+  assert.match(correctionMigration, /and invalidated_at is not null/);
   assert.match(correctionMigration, /set invalidated_at = null,\s*invalidated_by_mutation_id = null/);
+  assert.doesNotMatch(correctionMigration, /invalidated_by_mutation_id = new\.id/);
   assert.match(correctionMigration, /after update of status on public\.ari_nutrition_mutations/);
 });
 
