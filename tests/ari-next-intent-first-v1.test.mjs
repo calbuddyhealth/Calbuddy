@@ -48,6 +48,9 @@ test("Ari interprets common natural-language intent without using device locatio
 
 test("ARI Next can surface current options before a user creates an intent without calling them matched", () => {
   assert.match(assist, /showCurrentOptionsWhenNoIntent/);
+  assert.match(assist, /waitForInitialRender/);
+  assert.match(assist, /list\.childElementCount > 0/);
+  assert.match(assist, /activeIntent && !activeIntent\.hidden/);
   assert.match(assist, /context\?\.activeIntents/);
   assert.match(assist, /context\?\.bestMatches/);
   assert.match(assist, /context\?\.opportunities/);
