@@ -157,9 +157,11 @@ test("browser lifecycle is session-scoped and wraps trusted proposal plus execut
   assert.match(source, /referenceState/);
 });
 
-test("runtime does not report vNext ready until reference lifecycle is installed", () => {
+test("runtime does not report vNext ready until reference lifecycle and capability bootstrap are installed", () => {
   const runtime = read("ari/runtime/ari-runtime-controller.js");
   assert.match(runtime, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
   assert.match(runtime, /AriVNextReferenceState\?\.ready === true/);
-  assert.match(runtime, /const VERSION = "1\.4\.1"/);
+  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.1\.0/);
+  assert.match(runtime, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.1\.0"\)/);
+  assert.match(runtime, /const VERSION = "1\.4\.2"/);
 });
