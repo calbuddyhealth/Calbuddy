@@ -1,18 +1,20 @@
 // ARI vNext — browser initiative client + final capability bootstrap.
 // The runtime loads this file last. AriVNextInitiative is exposed only after
-// reference-bound Nutrition/Weight/cross-domain mutation extensions are ready,
-// so the runtime readiness gate cannot race those trusted capabilities.
+// reference-bound Nutrition/Weight/cross-domain mutation extensions and the
+// current-context Meal Plan/Circle reference layer are ready, so the runtime
+// readiness gate cannot race those trusted capabilities.
 
 window.Ari = window.Ari || {};
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const CAPABILITY_SCRIPTS = [
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-weight-adapter.js?v=1.0.0",
-    "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0"
+    "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0",
+    "ari/vnext/ari-vnext-structured-reference-capabilities.js?v=1.0.0"
   ];
 
   function scriptBase(src = "") {
@@ -24,6 +26,7 @@ window.Ari = window.Ari || {};
     if (base.endsWith("ari-vnext-nutrition-reference-adapter.js")) return window.AriVNextNutritionReferenceAdapter?.ready === true;
     if (base.endsWith("ari-vnext-weight-adapter.js")) return window.AriVNextWeightAdapter?.ready === true;
     if (base.endsWith("ari-vnext-reference-capability-extension.js")) return window.AriVNextReferenceCapabilityExtension?.ready === true;
+    if (base.endsWith("ari-vnext-structured-reference-capabilities.js")) return window.AriVNextStructuredReferenceCapabilities?.ready === true;
     return true;
   }
 

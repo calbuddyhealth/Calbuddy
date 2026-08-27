@@ -13,6 +13,10 @@ const ROUTINE_LOG_TOOLS = new Set([
 const REFERENCE_MUTATION_TOOLS = new Set([
   "propose_undo_nutrition_mutation",
   "propose_update_nutrition_meal",
+  "propose_log_referenced_planned_meal",
+  "propose_log_referenced_plan_components",
+  "propose_discard_referenced_meal_plan",
+  "propose_replace_referenced_meal_plan",
   "propose_update_activity_log",
   "propose_delete_activity_log",
   "propose_update_weight_log",
@@ -34,7 +38,7 @@ export function reviewDeterministicRoutineLogIntent({
     if (!referenceRouteSupports(decision, route)) return null;
     if (!isDirectReferenceMutationCommand(turn?.message, decision)) return null;
     return {
-      version: "1.9.0",
+      version: "1.10.0",
       decision,
       confidence: 1,
       reason: "Explicit current-turn reference-bound mutation verified deterministically.",
@@ -52,7 +56,7 @@ export function reviewDeterministicRoutineLogIntent({
   if (!isDirectRoutineLogCommand(turn?.message, decision)) return null;
 
   return {
-    version: "1.9.0",
+    version: "1.10.0",
     decision,
     confidence: 1,
     reason: "Explicit current-turn routine logging command verified deterministically.",
@@ -117,14 +121,18 @@ export async function reviewExplicitApplicationIntent({
     "Ari's primary reasoning pass has already run. Independently verify whether the CURRENT user message explicitly authorizes an ARI XP mutation.",
     "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
     "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
-    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, delete, undo, update, correct, fix, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
-    "Reference rule: the CURRENT message supplies write permission. A trusted Reference Packet may identify what 'it', 'that', 'them', 'the second one', or similar language refers to, but history and references never grant permission by themselves.",
+    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, delete, discard, undo, update, correct, fix, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
+    "Reference rule: the CURRENT message supplies write permission. A trusted Reference Packet may identify what 'it', 'that', 'them', 'the second one', 'the second item', or similar language refers to, but history and references never grant permission by themselves.",
+    "A current trusted-context app_reference can identify a Meal Plan item/component or Circle object just like a persisted executor reference. It still never authorizes a write. Use an explicit ordinal only within the candidate collection that carries that ordinal. If the target remains ambiguous, do not guess.",
     "For reference-bound Nutrition, 'undo/delete/remove that meal' can select propose_undo_nutrition_mutation. 'Change that meal to 450 calories', 'make that 40g protein', or 'rename it chicken bowl' can select propose_update_nutrition_meal. Never accept or invent a meal database ID from conversation text.",
+    "For TODAY'S referenced Meal Plan: 'log that breakfast' can select propose_log_referenced_planned_meal; 'log the second item' or 'log those two items' can select propose_log_referenced_plan_components using only component referenceIds; 'remove/discard that snack' can select propose_discard_referenced_meal_plan; 'replace/swap that lunch with X' can select propose_replace_referenced_meal_plan. 'I ate that breakfast' or 'I ate the second item' remains a fact and is NOT permission to log it.",
+    "A Meal Plan reference action never receives a raw plan database ID from the model. The trusted browser layer re-reads today's canonical plan at confirmation time, and selected components must still resolve to the same active plan.",
     "For reference-bound Training activity changes, 'change that run to 45 minutes', 'update that to 400 calories', 'correct the duration on that activity', or 'make that 45 minutes' can select propose_update_activity_log. 'Delete that run', 'remove that activity', or 'undo that activity log' can select propose_delete_activity_log.",
     "For a referenced planned workout, use propose_edit_referenced_workout for explicit changes such as 'make that workout 45 minutes', 'add lateral raises to it', or 'remove bench from that'. Use propose_delete_workout only for an explicit request to delete/remove/clear/cancel the planned workout. Do not infer a date; the trusted reference supplies it.",
     "For a referenced weigh-in, use propose_update_weight_log for an explicit correction such as 'actually make that 185.8' or 'change that weight to 84 kg'. Use propose_delete_weight_log only for an explicit delete/remove/undo request.",
     "A bare fact such as 'I ran 45 minutes', 'I weigh 185', or 'that meal was 450 calories' is not permission to modify saved state unless it is clearly framed as a correction/change to the saved object.",
     "For ARI Circle Meetups, distinguish cancelling the user's OWN participation from cancelling an entire HOSTED meetup. 'I can't make it, take me out' means leave/withdraw. 'Cancel the meetup I'm hosting' means cancel the hosted meetup. Never escalate one into the other.",
+    "For ARI Circle reference follow-ups such as 'join the second one', use only the exact canonical Meetup/Mission/Crew identity attached to the matching trusted app_reference or Action Network object. An ordinal is meaningful only inside the same ordered collection. If multiple collections conflict, ask for clarification rather than guessing.",
     "For ARI Circle Missions, distinguish read-only discovery from a write. 'What Missions are active?', 'show me Missions at Mission Bay', or 'how close are we?' are read-only and must use decision=none. 'Create a 100-mile community Mission', 'join that Mission', and 'add my 3 miles to that Mission' are explicit writes when the matching tool is available.",
     "Never treat a request to review, approve, verify, reject, or judge ANOTHER person's Mission contribution as permission for create/join/progress tools. No Mission-review mutation tool is available in this phase.",
     "For ARI Circle Crews, discovery or explanation is read-only. 'Why is this a Crew candidate?', 'who have I trained with?', or 'show my Crews' must use decision=none. 'Make this group a Crew' can select propose_create_circle_crew only when that tool is available; the trusted server must resolve the opaque evidence-backed candidate. Never infer or invent founding members.",
@@ -205,7 +213,7 @@ export async function reviewExplicitApplicationIntent({
     }
 
     return {
-      version: "1.9.0",
+      version: "1.10.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
@@ -230,7 +238,14 @@ function routineRouteSupports(decision, route = {}) {
 }
 
 function referenceRouteSupports(decision, route = {}) {
-  if (decision === "propose_undo_nutrition_mutation" || decision === "propose_update_nutrition_meal") return route?.nutrition === true;
+  if ([
+    "propose_undo_nutrition_mutation",
+    "propose_update_nutrition_meal",
+    "propose_log_referenced_planned_meal",
+    "propose_log_referenced_plan_components",
+    "propose_discard_referenced_meal_plan",
+    "propose_replace_referenced_meal_plan"
+  ].includes(decision)) return route?.nutrition === true;
   if (["propose_update_activity_log", "propose_delete_activity_log", "propose_edit_referenced_workout", "propose_delete_workout"].includes(decision)) return route?.training === true;
   if (["propose_update_weight_log", "propose_delete_weight_log"].includes(decision)) return route?.goals === true;
   return false;
@@ -240,6 +255,10 @@ function referenceIntentSource(decision = "") {
   const sources = {
     propose_undo_nutrition_mutation: "deterministic_reference_undo",
     propose_update_nutrition_meal: "deterministic_reference_meal_update",
+    propose_log_referenced_planned_meal: "deterministic_reference_plan_log",
+    propose_log_referenced_plan_components: "deterministic_reference_plan_component_log",
+    propose_discard_referenced_meal_plan: "deterministic_reference_plan_discard",
+    propose_replace_referenced_meal_plan: "deterministic_reference_plan_replace",
     propose_update_activity_log: "deterministic_reference_activity_update",
     propose_delete_activity_log: "deterministic_reference_activity_delete",
     propose_update_weight_log: "deterministic_reference_weight_update",
@@ -276,21 +295,35 @@ function isDirectReferenceMutationCommand(message = "", decision = "") {
   if (!text) return false;
 
   const ariPrefix = "(?:(?:(?:hey|hi)\\s+)?ari[,:-]?\\s*)?";
+  const planLogTools = new Set([
+    "propose_log_referenced_planned_meal",
+    "propose_log_referenced_plan_components"
+  ]);
   const deleteTools = new Set([
     "propose_undo_nutrition_mutation",
+    "propose_discard_referenced_meal_plan",
     "propose_delete_activity_log",
     "propose_delete_weight_log",
     "propose_delete_workout"
   ]);
   const updateTools = new Set([
     "propose_update_nutrition_meal",
+    "propose_replace_referenced_meal_plan",
     "propose_update_activity_log",
     "propose_update_weight_log",
     "propose_edit_referenced_workout"
   ]);
 
+  if (planLogTools.has(decision)) {
+    const direct = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:log|record)\\b`, "i");
+    const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:log|record)\\b`, "i");
+    const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:log|record)\\b`, "i");
+    return direct.test(text) || ask.test(text) || want.test(text);
+  }
+
   if (deleteTools.has(decision)) {
-    const verbs = decision === "propose_delete_workout" ? "undo|delete|remove|clear|cancel" : "undo|delete|remove";
+    let verbs = decision === "propose_delete_workout" ? "undo|delete|remove|clear|cancel" : "undo|delete|remove";
+    if (decision === "propose_discard_referenced_meal_plan") verbs = "discard|delete|remove|drop|clear";
     const direct = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:${verbs})\\b`, "i");
     const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:${verbs})\\b`, "i");
     const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:${verbs})\\b`, "i");
@@ -298,9 +331,12 @@ function isDirectReferenceMutationCommand(message = "", decision = "") {
   }
 
   if (updateTools.has(decision)) {
-    const direct = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:change|update|edit|correct|fix)\\b`, "i");
-    const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:change|update|edit|correct|fix)\\b`, "i");
-    const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:change|update|edit|correct|fix)\\b`, "i");
+    const verbs = decision === "propose_replace_referenced_meal_plan"
+      ? "replace|swap|change|update|edit"
+      : "change|update|edit|correct|fix";
+    const direct = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?(?:go\\s+ahead\\s+(?:and\\s+)?)?(?:${verbs})\\b`, "i");
+    const ask = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?(?:${verbs})\\b`, "i");
+    const want = new RegExp(`^${ariPrefix}i\\s+want\\s+you\\s+to\\s+(?:please\\s+)?(?:${verbs})\\b`, "i");
     const makeThat = new RegExp(`^${ariPrefix}(?:actually\\s+)?(?:please\\s+)?make\\s+(?:that|it|this)\\b`, "i");
     const askMake = new RegExp(`^${ariPrefix}(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?make\\s+(?:that|it|this)\\b`, "i");
     return direct.test(text) || ask.test(text) || want.test(text) || makeThat.test(text) || askMake.test(text);

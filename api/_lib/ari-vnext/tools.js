@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.15.0";
+export const TOOL_REGISTRY_VERSION = "1.16.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const CREW_TOOL_NAMES = new Set([
@@ -20,9 +20,16 @@ const CREW_TOOL_NAMES = new Set([
   "propose_leave_circle_crew",
   "propose_archive_circle_crew"
 ]);
+const PLAN_REFERENCE_TOOL_NAMES = new Set([
+  "propose_log_referenced_planned_meal",
+  "propose_log_referenced_plan_components",
+  "propose_discard_referenced_meal_plan",
+  "propose_replace_referenced_meal_plan"
+]);
 const REFERENCE_TOOL_NAMES = new Set([
   "propose_undo_nutrition_mutation",
   "propose_update_nutrition_meal",
+  ...PLAN_REFERENCE_TOOL_NAMES,
   "propose_update_activity_log",
   "propose_delete_activity_log",
   "propose_update_weight_log",
@@ -59,6 +66,8 @@ const MEAL_NUMERIC_FIELDS = new Map([
   ["multiplier", { min: 0.01, max: 100 }]
 ]);
 const MEAL_TEXT_FIELDS = new Set(["name", "category", "serving_size"]);
+const PLAN_REFERENCE_ID = /^(?:ref_ctx_meal_plan_[a-z0-9]+|ref_action_[a-z0-9]+)$/i;
+const PLAN_COMPONENT_REFERENCE_ID = /^ref_ctx_meal_component_[a-z0-9]+$/i;
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
@@ -107,6 +116,66 @@ function referenceTools(route = {}) {
           }
         },
         required: ["referenceId", "changes"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_log_referenced_planned_meal",
+      "Propose logging one specific CURRENT planned meal as eaten only when the CURRENT user explicitly asks Ari to log or record that referenced Meal Plan item. Use the exact meal_plan_item app_reference referenceId. The browser trust boundary re-reads today’s canonical plan and executes the existing atomic nutrition-plan transaction; never pass a plan database ID directly.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { referenceId: { type: "string" } },
+        required: ["referenceId"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_log_referenced_plan_components",
+      "Propose logging one or more specifically referenced CURRENT Meal Plan components as eaten only when the CURRENT user explicitly asks to log or record those items. Use only exact meal_plan_component referenceIds from the same current plan. The trusted transaction re-resolves every component, logs the selected food atomically, and preserves a truthful remaining plan. Never infer components that are not in the Reference Packet.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          referenceIds: {
+            type: "array",
+            minItems: 1,
+            maxItems: 16,
+            items: { type: "string" }
+          }
+        },
+        required: ["referenceIds"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_discard_referenced_meal_plan",
+      "Propose removing one specific CURRENT planned meal from today’s Meal Plan only when the CURRENT user explicitly asks Ari to discard, remove, delete, or drop that planned meal. Use its exact meal_plan_item referenceId. This does NOT delete a consumed meal; the trusted Meal Plan sync marks only the current planned row skipped after confirmation.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { referenceId: { type: "string" } },
+        required: ["referenceId"]
+      }
+    ));
+
+    tools.push(functionTool(
+      "propose_replace_referenced_meal_plan",
+      "Propose replacing one specific CURRENT planned meal in place only when the CURRENT user explicitly asks Ari to replace, swap, or change that referenced Meal Plan item. Use the exact meal_plan_item referenceId; never pass a plan database ID. Supply a complete bounded nutrition estimate for the replacement. The trusted adapter preserves the canonical date and meal slot, re-checks the current plan, checks the saved remaining-calorie budget when available, and updates the same user-scoped plan row after confirmation.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          referenceId: { type: "string" },
+          name: { type: "string" },
+          calories: { type: "number" },
+          proteinG: { type: "number" },
+          carbsG: { type: "number" },
+          fatG: { type: "number" },
+          servingSize: { type: "string" },
+          notes: { type: "string" }
+        },
+        required: ["referenceId", "name", "calories", "proteinG", "carbsG", "fatG", "servingSize", "notes"]
       }
     ));
   }
@@ -297,7 +366,8 @@ export function validateToolCall(call = {}, route = {}) {
 
 function validateReferenceTool(call = {}, route = {}) {
   const name = String(call?.name || "").trim();
-  const nutritionTool = name === "propose_undo_nutrition_mutation" || name === "propose_update_nutrition_meal";
+  const planTool = PLAN_REFERENCE_TOOL_NAMES.has(name);
+  const nutritionTool = planTool || name === "propose_undo_nutrition_mutation" || name === "propose_update_nutrition_meal";
   const activityTool = name === "propose_update_activity_log" || name === "propose_delete_activity_log";
   const workoutTool = name === "propose_edit_referenced_workout" || name === "propose_delete_workout";
   const weightTool = name === "propose_update_weight_log" || name === "propose_delete_weight_log";
@@ -308,6 +378,8 @@ function validateReferenceTool(call = {}, route = {}) {
 
   const args = parseArguments(call);
   if (!args) return { valid: false, error: "invalid_tool_arguments" };
+
+  if (planTool) return validatePlanReferenceTool(name, args);
 
   const referenceId = String(args?.referenceId || "").trim();
   if (!/^ref_action_[a-z0-9]+$/i.test(referenceId)) {
@@ -384,6 +456,65 @@ function validateReferenceTool(call = {}, route = {}) {
   }
 
   return { valid: false, error: "reference_tool_not_supported" };
+}
+
+function validatePlanReferenceTool(name, args = {}) {
+  if (name === "propose_log_referenced_plan_components") {
+    const referenceIds = Array.isArray(args?.referenceIds)
+      ? Array.from(new Set(args.referenceIds.map((value) => String(value || "").trim()).filter(Boolean)))
+      : [];
+    if (referenceIds.length < 1 || referenceIds.length > 16) return { valid: false, error: "meal_plan_component_references_invalid" };
+    if (referenceIds.some((referenceId) => !PLAN_COMPONENT_REFERENCE_ID.test(referenceId))) {
+      return { valid: false, error: "meal_plan_component_reference_id_invalid" };
+    }
+    return { valid: true, name, arguments: { referenceIds } };
+  }
+
+  const referenceId = String(args?.referenceId || "").trim();
+  if (!PLAN_REFERENCE_ID.test(referenceId)) return { valid: false, error: "meal_plan_reference_id_invalid" };
+
+  if (name === "propose_log_referenced_planned_meal" || name === "propose_discard_referenced_meal_plan") {
+    return { valid: true, name, arguments: { referenceId } };
+  }
+
+  if (name === "propose_replace_referenced_meal_plan") {
+    const replacement = validatePlanReplacement(args);
+    if (!replacement.valid) return replacement;
+    return { valid: true, name, arguments: { referenceId, ...replacement.arguments } };
+  }
+
+  return { valid: false, error: "meal_plan_reference_tool_not_supported" };
+}
+
+function validatePlanReplacement(args = {}) {
+  const name = String(args?.name || "").trim();
+  const servingSize = String(args?.servingSize || "").trim();
+  const notes = String(args?.notes || "").trim();
+  const calories = Number(args?.calories);
+  const proteinG = Number(args?.proteinG);
+  const carbsG = Number(args?.carbsG);
+  const fatG = Number(args?.fatG);
+
+  if (!name || name.length > 180) return { valid: false, error: "meal_plan_replacement_name_invalid" };
+  if (!servingSize || servingSize.length > 220) return { valid: false, error: "meal_plan_replacement_serving_invalid" };
+  if (notes.length > 500) return { valid: false, error: "meal_plan_replacement_notes_invalid" };
+  if (!Number.isFinite(calories) || calories <= 0 || calories > 5000) return { valid: false, error: "meal_plan_replacement_calories_invalid" };
+  if (![proteinG, carbsG, fatG].every((value) => Number.isFinite(value) && value >= 0 && value <= 2000)) {
+    return { valid: false, error: "meal_plan_replacement_macros_invalid" };
+  }
+
+  return {
+    valid: true,
+    arguments: {
+      name,
+      calories: Math.round(calories),
+      proteinG: Math.round(proteinG * 10) / 10,
+      carbsG: Math.round(carbsG * 10) / 10,
+      fatG: Math.round(fatG * 10) / 10,
+      servingSize,
+      notes
+    }
+  };
 }
 
 function validateMealChanges(rawChanges) {
@@ -474,6 +605,10 @@ export function toolToApplicationAction(name = "") {
   const referenceAction = ({
     propose_undo_nutrition_mutation: "undo_nutrition_mutation",
     propose_update_nutrition_meal: "update_nutrition_meal",
+    propose_log_referenced_planned_meal: "log_referenced_planned_meal",
+    propose_log_referenced_plan_components: "log_referenced_plan_components",
+    propose_discard_referenced_meal_plan: "discard_referenced_meal_plan",
+    propose_replace_referenced_meal_plan: "replace_referenced_meal_plan",
     propose_update_activity_log: "update_activity_log",
     propose_delete_activity_log: "delete_activity_log",
     propose_update_weight_log: "update_weight_log",

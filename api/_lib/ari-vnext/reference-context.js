@@ -2,21 +2,21 @@
 //
 // Purpose:
 // - Detect short context-dependent follow-ups such as "log them", "change it",
-//   "do that", or "join the second one".
-// - Prefer recent canonical app references when trusted executors have already
-//   created or changed the object being discussed.
+//   "do that", "log the second item", or "join the second one".
+// - Prefer recent canonical app references from trusted executors and current
+//   authoritative app context over free-form conversation text.
 // - Keep mutation authorization and reference resolution separate: only the
 //   CURRENT user message can authorize a write; prior state may identify target.
 // - Add no extra model call. Trusted domain adapters remain authoritative.
 
-export const REFERENCE_CONTEXT_VERSION = "1.1.0";
+export const REFERENCE_CONTEXT_VERSION = "1.2.0";
 
 const MAX_REFERENCE_TURNS = 8;
 const MAX_REFERENCE_TEXT = 900;
-const MAX_APP_REFERENCES = 8;
+const MAX_APP_REFERENCES = 12;
 const MAX_PACKET_CHARACTERS = 6200;
 
-const REFERENCE_MARKER = /\b(?:it|its|them|they|their|that|this|those|these|one|ones|the other one|the first one|the second one|the third one|first one|second one|third one|former|latter|same one|previous one|last one)\b/i;
+const REFERENCE_MARKER = /\b(?:it|its|them|they|their|that|this|those|these|one|ones|the other one|the (?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|(?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|former|latter|same one|previous one|last one)\b/i;
 const CONTINUATION_PHRASE = /^(?:and|but|then|instead|okay|ok|yeah|yes|no|nope|make it|do that|use that|use it|go with that|go with it|the other one)\b/i;
 
 const DOMAIN_PATTERNS = {
@@ -64,7 +64,7 @@ export function buildReferencePacket(turn = {}, route = {}) {
     version: REFERENCE_CONTEXT_VERSION,
     active: true,
     source: appReferences.length
-      ? "canonical_app_and_recent_conversation_reference_index"
+      ? "trusted_app_and_recent_conversation_reference_index"
       : "recent_conversation_reference_index",
     currentMessage: message.slice(0, 600),
     referenceDetected: REFERENCE_MARKER.test(message),
@@ -74,9 +74,11 @@ export function buildReferencePacket(turn = {}, route = {}) {
       historyMayResolveTargetOnly: true,
       historyNeverGrantsWritePermission: true,
       appReferencesNeverGrantWritePermission: true,
+      currentTrustedContextNeverGrantsWritePermission: true,
       preferPersistedCanonicalReference: true,
       preferNearestCompatibleReference: true,
       preferAuthoritativeAppStateOnConflict: true,
+      useExplicitOrdinalWithinSameCollection: true,
       clarifyWhenAmbiguous: true,
       neverInventMissingTarget: true
     }
@@ -111,11 +113,14 @@ function normalizeAppReference(reference = {}, index = 0) {
   const canonical = compactObject(reference?.canonical, 10);
   const details = compactObject(reference?.details, 12);
   const verification = compactObject(reference?.verification, 8);
+  const trustedExecutor = verification?.verifiedByTrustedExecutor === true;
+  const trustedContext = verification?.verifiedByTrustedContext === true && verification?.currentContextRead === true;
 
   return {
     referenceId,
     kind: "app_reference",
-    authoritative: state === "persisted" && verification?.verifiedByTrustedExecutor === true,
+    authoritative: state === "persisted" && (trustedExecutor || trustedContext),
+    authoritySource: trustedExecutor ? "trusted_executor" : trustedContext ? "current_trusted_context" : "unverified",
     state,
     domain,
     domains: [domain],

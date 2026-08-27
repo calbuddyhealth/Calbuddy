@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.4.2
+// Version: 1.4.3
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -17,6 +17,8 @@
 //   - vNext manual activity logs use the shared Training activity writer.
 //   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
 //   - A bounded reference lifecycle binds recent conversation to trusted app objects.
+//   - Current Meal Plan and Circle objects can enter that reference lifecycle only
+//     through the final trusted structured-reference capability bootstrap.
 //   - The final initiative/capability bootstrap must satisfy its minimum version
 //     before vNext can report itself ready.
 //   - Initiative checks are deterministic and do not spend an LLM call.
@@ -37,7 +39,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.2";
+  const VERSION = "1.4.3";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -49,7 +51,7 @@
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
     "ari/vnext/ari-vnext-reference-state.js?v=1.2.0",
-    "ari/vnext/ari-vnext-initiative.js?v=1.1.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.2.0"
   ];
 
   const legacy = {
@@ -203,7 +205,7 @@
     }
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(window.AriVNextInitiative) &&
-        versionAtLeast(window.AriVNextInitiative?.version, "1.1.0");
+        versionAtLeast(window.AriVNextInitiative?.version, "1.2.0");
     }
     return true;
   }
@@ -254,7 +256,7 @@
       window.AriVNextReferenceState?.ready === true &&
       versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0") &&
       window.AriVNextInitiative &&
-      versionAtLeast(window.AriVNextInitiative?.version, "1.1.0")
+      versionAtLeast(window.AriVNextInitiative?.version, "1.2.0")
     );
   }
 
