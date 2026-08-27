@@ -3,12 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const initiativeSource = await readFile(
-  new URL("../ari/vnext/ari-vnext-initiative.js", import.meta.url),
+const registrySource = await readFile(
+  new URL("../ari/vnext/ari-vnext-operation-registry.js", import.meta.url),
   "utf8"
 );
 
-function makeHarness({ executionSuccess = true, bridgePending = true, legacyPending = true } = {}) {
+function makeHarness({ executionSuccess = true, bridgePending = true, legacyPending = true, executionReply = "" } = {}) {
   const pending = {
     id: "action_sync_test",
     sourceTurnId: "turn_sync_test",
@@ -26,18 +26,22 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
     : null;
   let bridgeClears = 0;
   let legacyClears = 0;
+  let baseExecutions = 0;
 
   const window = {
     Ari: {},
-    AriVNextNutritionResolutionAdapter: { ready: true },
-    AriVNextNutritionReferenceAdapter: { ready: true },
-    AriVNextWeightAdapter: { ready: true },
-    AriVNextReferenceCapabilityExtension: { ready: true },
-    AriVNextStructuredReferenceCapabilities: { ready: true },
-    AriVNextAuthoritativeReferenceRehydration: { version: "1.0.0", ready: true },
     AriVNextActionAdapter: {
+      async prepareCalBuddyAction(pendingAction) {
+        return { success: true, action: { action_type: pendingAction?.name || "unknown" } };
+      },
+      async createCalBuddyPendingAction() {
+        return { success: true, action: legacyValue };
+      },
       async executeConfirmed() {
-        return { success: executionSuccess, result: { ok: executionSuccess } };
+        baseExecutions += 1;
+        return executionReply
+          ? { success: executionSuccess, reply: executionReply, result: { ok: executionSuccess } }
+          : { success: executionSuccess, result: { ok: executionSuccess } };
       }
     },
     AriVNextBridge: {
@@ -50,6 +54,9 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
       }
     },
     CalBuddy: {
+      async executeAction(action) {
+        return { success: true, action };
+      },
       getPendingAction() {
         return legacyValue;
       },
@@ -66,13 +73,6 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
 
   const context = vm.createContext({
     window,
-    document: {
-      scripts: [],
-      head: { appendChild() {} },
-      createElement() {
-        return {};
-      }
-    },
     CustomEvent: class CustomEvent {
       constructor(type, init = {}) {
         this.type = type;
@@ -85,10 +85,11 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
     setInterval,
     clearInterval,
     Date,
-    Promise
+    Promise,
+    Object
   });
 
-  vm.runInContext(initiativeSource, context, { filename: "ari-vnext-initiative.js" });
+  vm.runInContext(registrySource, context, { filename: "ari-vnext-operation-registry.js" });
 
   return {
     window,
@@ -98,23 +99,16 @@ function makeHarness({ executionSuccess = true, bridgePending = true, legacyPend
         bridgeValue,
         legacyValue,
         bridgeClears,
-        legacyClears
+        legacyClears,
+        baseExecutions
       };
     }
   };
 }
 
-async function settleBootstrap() {
-  await Promise.resolve();
-  await Promise.resolve();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-test("successful trusted vNext execution consumes both pending-action copies", async () => {
+test("successful trusted vNext execution consumes both matching pending-action copies", async () => {
   const harness = makeHarness();
-  await settleBootstrap();
-
-  assert.equal(harness.window.AriVNextInitiative?.version, "1.3.0");
+  assert.equal(harness.window.AriVNextOperationRegistry?.version, "1.0.0");
 
   const execution = await harness.window.AriVNextActionAdapter.executeConfirmed({
     vnextPendingAction: harness.pending
@@ -126,11 +120,11 @@ test("successful trusted vNext execution consumes both pending-action copies", a
   assert.equal(state.legacyValue, null);
   assert.equal(state.bridgeClears, 1);
   assert.equal(state.legacyClears, 1);
+  assert.equal(state.baseExecutions, 1);
 });
 
-test("failed trusted execution does not consume a still-valid pending action", async () => {
+test("failed trusted execution preserves a still-valid pending action for retry", async () => {
   const harness = makeHarness({ executionSuccess: false });
-  await settleBootstrap();
 
   const execution = await harness.window.AriVNextActionAdapter.executeConfirmed({
     vnextPendingAction: harness.pending
@@ -144,12 +138,61 @@ test("failed trusted execution does not consume a still-valid pending action", a
   assert.equal(state.legacyClears, 0);
 });
 
-test("bootstrap clears an orphaned vNext-linked legacy pending action", async () => {
+test("registry bootstrap clears an orphaned vNext-linked legacy pending action", () => {
   const harness = makeHarness({ bridgePending: false, legacyPending: true });
-  await settleBootstrap();
-
   const state = harness.snapshot();
   assert.equal(state.legacyValue, null);
   assert.equal(state.legacyClears, 1);
   assert.equal(state.bridgeClears, 0);
+});
+
+test("execution reply is normalized into both top-level and typed-confirmation result shape", async () => {
+  const harness = makeHarness({ executionReply: "Meal logged." });
+  const execution = await harness.window.AriVNextActionAdapter.executeConfirmed({
+    vnextPendingAction: harness.pending
+  });
+
+  assert.equal(execution.reply, "Meal logged.");
+  assert.equal(execution.result?.reply, "Meal logged.");
+});
+
+test("registered operation handlers run before the captured compatibility stack", async () => {
+  const harness = makeHarness();
+  let registeredExecutions = 0;
+
+  harness.window.AriVNextOperationRegistry.registerOperation("log_meal", {
+    source: "test_registered_operation",
+    priority: 100,
+    async executeConfirmed(input) {
+      registeredExecutions += 1;
+      return {
+        success: true,
+        reply: `Registered ${input?.vnextPendingAction?.name}.`,
+        result: { via: "registry" }
+      };
+    }
+  });
+
+  const execution = await harness.window.AriVNextActionAdapter.executeConfirmed({
+    vnextPendingAction: harness.pending
+  });
+
+  assert.equal(registeredExecutions, 1);
+  assert.equal(harness.snapshot().baseExecutions, 0);
+  assert.equal(execution.result?.via, "registry");
+  assert.equal(execution.result?.reply, "Registered log_meal.");
+});
+
+test("registry rejects expired pending actions before any trusted writer is reached", async () => {
+  const harness = makeHarness();
+  const execution = await harness.window.AriVNextActionAdapter.executeConfirmed({
+    vnextPendingAction: {
+      ...harness.pending,
+      expiresAt: "2000-01-01T00:00:00.000Z"
+    }
+  });
+
+  assert.equal(execution.success, false);
+  assert.equal(execution.code, "vnext_action_expired");
+  assert.equal(harness.snapshot().baseExecutions, 0);
 });
