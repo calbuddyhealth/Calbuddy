@@ -3,15 +3,17 @@
 // Purpose:
 // - Detect short context-dependent follow-ups such as "log them", "change it",
 //   "do that", or "join the second one".
-// - Give the primary Ari model a compact candidate index from recent turns.
+// - Prefer recent canonical app references when trusted executors have already
+//   created or changed the object being discussed.
 // - Keep mutation authorization and reference resolution separate: only the
-//   CURRENT user message can authorize a write; history may identify its target.
+//   CURRENT user message can authorize a write; prior state may identify target.
 // - Add no extra model call. Trusted domain adapters remain authoritative.
 
-export const REFERENCE_CONTEXT_VERSION = "1.0.1";
+export const REFERENCE_CONTEXT_VERSION = "1.1.0";
 
 const MAX_REFERENCE_TURNS = 8;
 const MAX_REFERENCE_TEXT = 900;
+const MAX_APP_REFERENCES = 8;
 const MAX_PACKET_CHARACTERS = 6200;
 
 const REFERENCE_MARKER = /\b(?:it|its|them|they|their|that|this|those|these|one|ones|the other one|the first one|the second one|the third one|first one|second one|third one|former|latter|same one|previous one|last one)\b/i;
@@ -31,25 +33,39 @@ export function isReferenceFollowUp(message = "") {
   return REFERENCE_MARKER.test(text) || CONTINUATION_PHRASE.test(text);
 }
 
+export function activeReferenceDomains(referenceState = {}) {
+  const references = Array.isArray(referenceState?.references) ? referenceState.references : [];
+  return Array.from(new Set(
+    references
+      .filter((reference) => isActiveAppReference(reference))
+      .map((reference) => clean(reference?.domain, 40).toLowerCase())
+      .filter(Boolean)
+  ));
+}
+
 export function buildReferencePacket(turn = {}, route = {}) {
   const message = clean(turn?.message, 8000);
   const history = Array.isArray(turn?.history) ? turn.history : [];
-  const active = Boolean(history.length && isReferenceFollowUp(message));
+  const appReferences = normalizeAppReferences(turn?.context?.referenceState);
+  const active = Boolean(isReferenceFollowUp(message) && (history.length || appReferences.length));
 
   if (!active) return null;
 
-  const candidates = history
+  const conversationCandidates = history
     .slice(-MAX_REFERENCE_TURNS)
     .reverse()
-    .map((item, index) => normalizeCandidate(item, index + 1))
+    .map((item, index) => normalizeConversationCandidate(item, index + 1))
     .filter(Boolean);
 
+  const candidates = [...appReferences, ...conversationCandidates];
   if (!candidates.length) return null;
 
   const packet = {
     version: REFERENCE_CONTEXT_VERSION,
     active: true,
-    source: "recent_conversation_reference_index",
+    source: appReferences.length
+      ? "canonical_app_and_recent_conversation_reference_index"
+      : "recent_conversation_reference_index",
     currentMessage: message.slice(0, 600),
     referenceDetected: REFERENCE_MARKER.test(message),
     candidates,
@@ -57,6 +73,8 @@ export function buildReferencePacket(turn = {}, route = {}) {
       currentTurnAuthorizesMutation: true,
       historyMayResolveTargetOnly: true,
       historyNeverGrantsWritePermission: true,
+      appReferencesNeverGrantWritePermission: true,
+      preferPersistedCanonicalReference: true,
       preferNearestCompatibleReference: true,
       preferAuthoritativeAppStateOnConflict: true,
       clarifyWhenAmbiguous: true,
@@ -67,7 +85,52 @@ export function buildReferencePacket(turn = {}, route = {}) {
   return trimPacket(packet);
 }
 
-function normalizeCandidate(item = {}, turnDistance = 1) {
+function normalizeAppReferences(referenceState = {}) {
+  const references = Array.isArray(referenceState?.references) ? referenceState.references : [];
+  return references
+    .filter((reference) => isActiveAppReference(reference))
+    .slice(0, MAX_APP_REFERENCES)
+    .map((reference, index) => normalizeAppReference(reference, index))
+    .filter(Boolean);
+}
+
+function isActiveAppReference(reference = {}) {
+  const state = clean(reference?.state, 40).toLowerCase();
+  if (!reference || typeof reference !== "object") return false;
+  if (["cancelled", "failed", "expired", "deleted"].includes(state)) return false;
+  if (!clean(reference?.referenceId, 160)) return false;
+  return true;
+}
+
+function normalizeAppReference(reference = {}, index = 0) {
+  const referenceId = clean(reference?.referenceId, 160);
+  if (!referenceId) return null;
+
+  const domain = clean(reference?.domain, 40).toLowerCase() || "general";
+  const state = clean(reference?.state, 40).toLowerCase() || "discussed";
+  const canonical = compactObject(reference?.canonical, 10);
+  const details = compactObject(reference?.details, 12);
+  const verification = compactObject(reference?.verification, 8);
+
+  return {
+    referenceId,
+    kind: "app_reference",
+    authoritative: state === "persisted" && verification?.verifiedByTrustedExecutor === true,
+    state,
+    domain,
+    domains: [domain],
+    entityType: clean(reference?.entityType, 60) || "app_object",
+    label: clean(reference?.label, 220) || "Recent Ari action",
+    actionName: clean(reference?.actionName, 120) || null,
+    sourceTurnId: clean(reference?.sourceTurnId, 200) || null,
+    canonical,
+    details,
+    verification,
+    recencyRank: index + 1
+  };
+}
+
+function normalizeConversationCandidate(item = {}, turnDistance = 1) {
   const role = item?.role === "assistant" ? "assistant" : "user";
   const text = clean(item?.content, MAX_REFERENCE_TEXT);
   if (!text) return null;
@@ -97,6 +160,18 @@ function makeReferenceId({ role = "user", text = "", turnDistance = 1 } = {}) {
     hash = Math.imul(hash, 16777619);
   }
   return `ref_turn_${turnDistance}_${(hash >>> 0).toString(36)}`;
+}
+
+function compactObject(value = {}, maxKeys = 10) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const output = {};
+  for (const [key, raw] of Object.entries(value).slice(0, maxKeys)) {
+    if (raw === null || raw === undefined || raw === "") continue;
+    if (typeof raw === "boolean") output[key] = raw;
+    else if (typeof raw === "number" && Number.isFinite(raw)) output[key] = raw;
+    else if (typeof raw === "string") output[key] = clean(raw, 220);
+  }
+  return output;
 }
 
 function trimPacket(packet = {}) {
