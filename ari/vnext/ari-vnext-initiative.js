@@ -16,7 +16,8 @@ window.Ari = window.Ari || {};
     "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0",
     "ari/vnext/ari-vnext-structured-reference-capabilities.js?v=1.0.0",
     "ari/vnext/ari-vnext-authoritative-reference-rehydration.js?v=1.0.0",
-    "ari/vnext/ari-vnext-operation-registry.js?v=1.0.0"
+    "ari/vnext/ari-vnext-operation-registry.js?v=1.0.0",
+    "ari/vnext/ari-vnext-operation-registry-phase8b.js?v=1.0.0"
   ];
 
   function clean(value = "", max = 200) {
@@ -36,6 +37,7 @@ window.Ari = window.Ari || {};
     if (base.endsWith("ari-vnext-structured-reference-capabilities.js")) return window.AriVNextStructuredReferenceCapabilities?.ready === true;
     if (base.endsWith("ari-vnext-authoritative-reference-rehydration.js")) return window.AriVNextAuthoritativeReferenceRehydration?.ready === true;
     if (base.endsWith("ari-vnext-operation-registry.js")) return window.AriVNextOperationRegistry?.ready === true;
+    if (base.endsWith("ari-vnext-operation-registry-phase8b.js")) return window.AriVNextOperationRegistryPhase8B?.ready === true;
     return true;
   }
 
