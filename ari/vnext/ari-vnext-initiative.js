@@ -1,7 +1,7 @@
 // ARI vNext — browser initiative client + final capability bootstrap.
 // The runtime loads this file last. AriVNextInitiative is exposed only after
-// trusted reference capabilities, authoritative reference rehydration, and
-// evidence-resolved Nutrition are ready.
+// trusted reference capabilities, authoritative reference rehydration,
+// evidence-resolved Nutrition, and the canonical operation registry are ready.
 
 window.Ari = window.Ari || {};
 
@@ -9,14 +9,14 @@ window.Ari = window.Ari || {};
   "use strict";
 
   const VERSION = "1.3.0";
-  const PENDING_SYNC_FLAG = "__ariPendingActionSyncV1";
   const CAPABILITY_SCRIPTS = [
     "ari/vnext/ari-vnext-nutrition-resolution-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-weight-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-reference-capability-extension.js?v=1.0.0",
     "ari/vnext/ari-vnext-structured-reference-capabilities.js?v=1.0.0",
-    "ari/vnext/ari-vnext-authoritative-reference-rehydration.js?v=1.0.0"
+    "ari/vnext/ari-vnext-authoritative-reference-rehydration.js?v=1.0.0",
+    "ari/vnext/ari-vnext-operation-registry.js?v=1.0.0"
   ];
 
   function clean(value = "", max = 200) {
@@ -35,6 +35,7 @@ window.Ari = window.Ari || {};
     if (base.endsWith("ari-vnext-reference-capability-extension.js")) return window.AriVNextReferenceCapabilityExtension?.ready === true;
     if (base.endsWith("ari-vnext-structured-reference-capabilities.js")) return window.AriVNextStructuredReferenceCapabilities?.ready === true;
     if (base.endsWith("ari-vnext-authoritative-reference-rehydration.js")) return window.AriVNextAuthoritativeReferenceRehydration?.ready === true;
+    if (base.endsWith("ari-vnext-operation-registry.js")) return window.AriVNextOperationRegistry?.ready === true;
     return true;
   }
 
@@ -80,63 +81,6 @@ window.Ari = window.Ari || {};
 
   async function installCapabilities() {
     for (const src of CAPABILITY_SCRIPTS) await loadScript(src);
-  }
-
-  function clearMatchingPendingCopies(pendingAction = null) {
-    const pendingId = clean(pendingAction?.id);
-    if (!pendingId) return false;
-
-    const bridge = window.AriVNextBridge;
-    const bridgePending = bridge?.getPendingAction?.() || null;
-    if (clean(bridgePending?.id) === pendingId) bridge?.clearPendingAction?.();
-
-    const CalBuddy = window.CalBuddy;
-    const legacyPending = CalBuddy?.getPendingAction?.() || null;
-    if (clean(legacyPending?.vnext_action_id) === pendingId) CalBuddy?.clearPendingAction?.();
-    return true;
-  }
-
-  function reconcileOrphanedLegacyPending() {
-    const CalBuddy = window.CalBuddy;
-    const bridge = window.AriVNextBridge;
-    if (!CalBuddy?.getPendingAction || !CalBuddy?.clearPendingAction || !bridge?.getPendingAction) return false;
-
-    const legacyPending = CalBuddy.getPendingAction() || null;
-    const linkedId = clean(legacyPending?.vnext_action_id);
-    if (!linkedId) return false;
-
-    const bridgePending = bridge.getPendingAction() || null;
-    if (clean(bridgePending?.id) === linkedId) return false;
-
-    CalBuddy.clearPendingAction();
-    return true;
-  }
-
-  function installPendingActionSync() {
-    const adapter = window.AriVNextActionAdapter;
-    if (!adapter) return false;
-    if (adapter[PENDING_SYNC_FLAG]) {
-      reconcileOrphanedLegacyPending();
-      return true;
-    }
-    if (typeof adapter.executeConfirmed !== "function") return false;
-
-    const originalExecute = adapter.executeConfirmed.bind(adapter);
-    adapter.executeConfirmed = async function pendingStateSynchronizedExecute(input = {}) {
-      const pendingAction = input?.vnextPendingAction || null;
-      const execution = await originalExecute(input);
-      if (execution?.success === true) clearMatchingPendingCopies(pendingAction);
-      return execution;
-    };
-
-    Object.defineProperty(adapter, PENDING_SYNC_FLAG, {
-      configurable: false,
-      enumerable: false,
-      value: true
-    });
-
-    reconcileOrphanedLegacyPending();
-    return true;
   }
 
   function createClient() {
@@ -214,7 +158,6 @@ window.Ari = window.Ari || {};
 
   installCapabilities()
     .then(() => {
-      if (!installPendingActionSync()) throw new Error("Ari pending-action synchronization did not initialize.");
       window.AriVNextInitiative = createClient();
       window.dispatchEvent(new CustomEvent("ari:vnextInitiativeReady", { detail: { version: VERSION } }));
     })
