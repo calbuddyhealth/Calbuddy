@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.4.1
+// Version: 1.4.2
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -17,6 +17,8 @@
 //   - vNext manual activity logs use the shared Training activity writer.
 //   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
 //   - A bounded reference lifecycle binds recent conversation to trusted app objects.
+//   - The final initiative/capability bootstrap must satisfy its minimum version
+//     before vNext can report itself ready.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -35,7 +37,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.1";
+  const VERSION = "1.4.2";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -47,7 +49,7 @@
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
     "ari/vnext/ari-vnext-reference-state.js?v=1.2.0",
-    "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.1.0"
   ];
 
   const legacy = {
@@ -199,7 +201,10 @@
       return window.AriVNextReferenceState?.ready === true &&
         versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0");
     }
-    if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
+    if (base.endsWith("ari-vnext-initiative.js")) {
+      return Boolean(window.AriVNextInitiative) &&
+        versionAtLeast(window.AriVNextInitiative?.version, "1.1.0");
+    }
     return true;
   }
 
@@ -247,7 +252,9 @@
       window.AriVNextMealPlanAdapter?.ready === true &&
       window.AriVNextContextGuard?.ready === true &&
       window.AriVNextReferenceState?.ready === true &&
-      versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0")
+      versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0") &&
+      window.AriVNextInitiative &&
+      versionAtLeast(window.AriVNextInitiative?.version, "1.1.0")
     );
   }
 
@@ -516,7 +523,6 @@
   async function confirmPendingAction() {
     const pending = window.AriVNextBridge?.getPendingAction?.();
     const legacyPending = CalBuddy.getPendingAction?.() || null;
-
     if (getMode() === "vnext" && !pending?.id && isExpiredVNextLegacyPending(legacyPending)) {
       legacy.cancelPendingAction?.();
       return {
