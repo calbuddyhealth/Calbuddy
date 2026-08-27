@@ -21,7 +21,8 @@ const RESOLVED_MEAL_TOOL = Object.freeze({
   description: [
     "Propose logging food or a meal only when the CURRENT user message explicitly asks to log, add, record, or save it.",
     "Do not decide the final nutrition for foods that ARI XP may be able to resolve from personal mappings, verified branded products, or canonical foods.",
-    "Instead describe each food as a structured item with the amount the user gave, including raw/cooked state, preparation, and brand only when supported by the user's wording or current context.",
+    "Instead describe each food as a structured item with the amount the user gave, including food state, preparation, brand, and measurementState only when supported by the user's wording or current context.",
+    "measurementState means whether a WEIGHED portion was measured raw/dry or cooked/prepared. Use unknown when the user did not say; do not infer cooked weight merely because the food was eaten.",
     "For each item also provide a conservative fallback estimate for THAT REQUESTED PORTION. The trusted Nutrition Resolver ignores the estimate whenever stronger evidence resolves the item and uses it only when authoritative resolution fails.",
     "If one missing fact would materially change the result (for example raw versus cooked weight) and no reasonable estimate can be made, ask one concise clarification question instead of calling this tool.",
     "A casual statement such as 'I ate eggs' is not permission to log food."
@@ -46,6 +47,7 @@ const RESOLVED_MEAL_TOOL = Object.freeze({
             brand: { type: "string" },
             state: { type: "string" },
             preparation: { type: "string" },
+            measurementState: { type: "string", enum: ["unknown", "raw", "cooked", "not_applicable"] },
             quantity: { type: ["number", "null"] },
             unit: { type: "string" },
             servingHint: { type: "string" },
@@ -60,7 +62,7 @@ const RESOLVED_MEAL_TOOL = Object.freeze({
             fallbackReason: { type: "string" }
           },
           required: [
-            "userPhrase", "foodText", "brand", "state", "preparation", "quantity", "unit", "servingHint",
+            "userPhrase", "foodText", "brand", "state", "preparation", "measurementState", "quantity", "unit", "servingHint",
             "fallbackCaloriesLow", "fallbackCaloriesMid", "fallbackCaloriesHigh", "fallbackProteinG", "fallbackCarbsG",
             "fallbackFatG", "fallbackAlcoholG", "fallbackConfidence", "fallbackReason"
           ]
@@ -101,6 +103,9 @@ export function validateToolCall(call = {}, route = {}) {
       return { valid: false, error: "meal_item_invalid" };
     }
     if (!clean(item.foodText, 220)) return { valid: false, error: "meal_item_food_required" };
+    if (!["unknown", "raw", "cooked", "not_applicable"].includes(String(item.measurementState || ""))) {
+      return { valid: false, error: "meal_item_measurement_state_invalid" };
+    }
     if (item.quantity !== null && !validRange(item.quantity, 0.01, 100000)) {
       return { valid: false, error: "meal_item_quantity_out_of_range" };
     }
@@ -152,6 +157,7 @@ function normalizeItem(item = {}) {
     brand: clean(item.brand, 160),
     state: clean(item.state, 80).toLowerCase(),
     preparation: clean(item.preparation, 100).toLowerCase(),
+    measurementState: String(item.measurementState || "unknown"),
     quantity: item.quantity === null ? null : Number(item.quantity),
     unit: clean(item.unit, 80).toLowerCase(),
     servingHint: clean(item.servingHint, 180),
