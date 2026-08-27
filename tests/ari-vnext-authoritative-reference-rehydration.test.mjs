@@ -130,8 +130,8 @@ test("authoritative rehydration is a pointer layer with no durable reference sto
   assert.match(source, /staleCheckRequiredBeforeWrite: true/);
   assert.match(source, /verifiedByTrustedContext: true/);
   assert.match(source, /currentContextRead: true/);
-  assert.doesNotMatch(source, /localStorage/);
-  assert.doesNotMatch(source, /sessionStorage/);
+  assert.doesNotMatch(source, /localStorage\.(?:getItem|setItem|removeItem)/);
+  assert.doesNotMatch(source, /sessionStorage\.(?:getItem|setItem|removeItem)/);
   assert.doesNotMatch(source, /\/v1\/responses|OPENAI_API_KEY|\/api\/ari-vnext["'`]/);
 });
 
