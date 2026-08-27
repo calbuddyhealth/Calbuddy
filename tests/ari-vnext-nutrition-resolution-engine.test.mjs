@@ -14,6 +14,7 @@ const read = async (relative) => await readFile(new URL(`../${relative}`, import
 const adapter = await read("ari/vnext/ari-vnext-nutrition-resolution-adapter.js");
 const initiative = await read("ari/vnext/ari-vnext-initiative.js");
 const migration = await read("supabase/migrations/20260827131500_nutrition_resolution_engine.sql");
+const correctionMigration = await read("supabase/migrations/20260827145000_nutrition_resolution_correction_consistency.sql");
 
 function mealArgs(overrides = {}) {
   return {
@@ -177,6 +178,34 @@ test("resolved Nutrition schema stores item provenance and personal mappings beh
   assert.match(migration, /ari_nutrition_mutations/);
   assert.match(migration, /identity_confidence >= 0\.90/);
   assert.match(migration, /nutrition_confidence >= 0\.90/);
+});
+
+test("manual nutrition corrections invalidate stale resolved evidence without deleting provenance", () => {
+  assert.match(correctionMigration, /add column if not exists invalidated_at timestamptz null/);
+  assert.match(correctionMigration, /invalidated_by_mutation_id uuid null/);
+  assert.match(correctionMigration, /using \(auth\.uid\(\) = user_id and invalidated_at is null\)/);
+  assert.match(correctionMigration, /set invalidated_at = now\(\),\s*invalidated_by_mutation_id = p_mutation_id/);
+  assert.match(correctionMigration, /invalidation_reason = 'meal_nutrition_manually_corrected'/);
+  assert.match(correctionMigration, /'resolutionMaterialChange', v_resolution_material_change/);
+  assert.match(correctionMigration, /'resolutionInvalidated', \(v_components_invalidated > 0 or v_resolution_events_invalidated > 0\)/);
+  assert.doesNotMatch(correctionMigration, /delete from public\.nutrition_meal_components/);
+
+  const materialFields = correctionMigration.match(/v_resolution_material_change := p_changes \?\| array\[([\s\S]*?)\];/)?.[1] || "";
+  for (const field of ["calories", "protein_g", "carbs_g", "fat_g", "serving_size", "multiplier"]) {
+    assert.match(materialFields, new RegExp(`'${field}'`));
+  }
+  assert.doesNotMatch(materialFields, /'name'|'category'/);
+});
+
+test("undo restores only provenance invalidated by that trusted correction", () => {
+  assert.match(correctionMigration, /create or replace function public\.ari_restore_nutrition_resolution_after_undo/);
+  assert.match(correctionMigration, /old\.status = 'applied'/);
+  assert.match(correctionMigration, /new\.status = 'undone'/);
+  assert.match(correctionMigration, /later\.status = 'applied'/);
+  assert.match(correctionMigration, /resolutionMaterialChange/);
+  assert.match(correctionMigration, /invalidated_by_mutation_id = new\.id/);
+  assert.match(correctionMigration, /set invalidated_at = null,\s*invalidated_by_mutation_id = null/);
+  assert.match(correctionMigration, /after update of status on public\.ari_nutrition_mutations/);
 });
 
 test("final capability bootstrap requires the hardened Nutrition resolver", () => {
