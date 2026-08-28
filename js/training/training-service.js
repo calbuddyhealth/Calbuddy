@@ -163,10 +163,27 @@ export async function applyValidatedWorkoutEdit(action = {}) {
   };
 }
 
+export async function deleteWorkout({ scheduledDate = "" } = {}) {
+  const date = clean(scheduledDate, 20);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return failure("workout_delete_date_required", "That planned workout could not be identified safely.");
+
+  const controller = await getController();
+  const current = controller.getDate(date);
+  if (!hasWorkout(current)) return failure("workout_reference_not_found", "That planned workout is no longer available.");
+  if (current?.completed === true || current?.progress?.completed === true) return failure("workout_reference_completed", "A completed workout cannot be deleted through Ari.");
+  if (typeof controller.clearDate !== "function" || controller.clearDate(date) === false) return failure("workout_delete_failed", "Training could not delete that workout safely.");
+
+  const remoteSaved = await controller.save({ remote: true });
+  if (remoteSaved === false) return failure("workout_delete_remote_failed", "The workout changed locally but ARI XP could not confirm the remote save.");
+
+  return { success: true, deleted: true, scheduled_date: date, reply: "That planned workout was deleted." };
+}
+
 export const TrainingService = Object.freeze({
   getController,
   createValidatedWorkout,
-  applyValidatedWorkoutEdit
+  applyValidatedWorkoutEdit,
+  deleteWorkout
 });
 
 export default TrainingService;
