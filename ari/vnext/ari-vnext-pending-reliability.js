@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_pending_reliability";
   const BRIDGE_CLEAR_FLAG = "__ariPendingReliabilityV1";
   let protectedPendingId = null;
@@ -37,11 +37,7 @@
         }
         return originalClear();
       };
-      Object.defineProperty(bridge, BRIDGE_CLEAR_FLAG, {
-        configurable: false,
-        enumerable: false,
-        value: VERSION
-      });
+      Object.defineProperty(bridge, BRIDGE_CLEAR_FLAG, { configurable: false, enumerable: false, value: VERSION });
     }
 
     registry.registerAfterExecution((input = {}, execution = {}) => {
@@ -49,7 +45,6 @@
       const pending = pendingFrom(input);
       const pendingId = clean(pending?.id);
       if (!pendingId) return execution;
-
       bridge.setPendingAction(pending);
       protectedPendingId = pendingId;
       const protectedId = pendingId;
@@ -60,25 +55,8 @@
     }, { source: SOURCE, priority: 10000 });
 
     installed = true;
-    window.AriVNextPendingReliability = Object.freeze({
-      version: VERSION,
-      source: SOURCE,
-      ready: true
-    });
-
-    // Temporary readiness alias for Phase 8C while that file is retired next.
-    // No Phase 8B behavior or routing remains behind this marker.
-    window.AriVNextOperationRegistryPhase8B = Object.freeze({
-      version: "retired",
-      source: SOURCE,
-      ready: true,
-      retired: true,
-      successor: "AriVNextPendingReliability"
-    });
-
-    window.dispatchEvent(new CustomEvent("ari:vnextPendingReliabilityReady", {
-      detail: { version: VERSION, source: SOURCE }
-    }));
+    window.AriVNextPendingReliability = Object.freeze({ version: VERSION, source: SOURCE, ready: true });
+    window.dispatchEvent(new CustomEvent("ari:vnextPendingReliabilityReady", { detail: { version: VERSION, source: SOURCE } }));
     return true;
   }
 
