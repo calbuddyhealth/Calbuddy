@@ -28,19 +28,6 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
   };
   let bridgePending = null;
   let legacyPending = null;
-  let plans = [{
-    id: "plan-1",
-    plan_date: "2026-08-27",
-    meal_slot: "lunch",
-    name: "Chicken bowl",
-    calories: 620,
-    protein_g: 48,
-    carbs_g: 61,
-    fat_g: 19,
-    serving_size: "1 bowl",
-    status: "planned",
-    items: []
-  }];
 
   const actionAdapter = {
     async prepareCalBuddyAction(pending) {
@@ -75,33 +62,17 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
       async createPendingAction(action) { return { ...action, id: "legacy-pending" }; },
       setPendingAction(action) { legacyPending = action; },
       getPendingAction() { return legacyPending; },
-      clearPendingAction() { legacyPending = null; },
-      async getUserContext() {
-        return { dailyGoal: 2400, caloriesConsumed: 500, plannedCalories: 620, caloriesRemainingAfterPlan: 1280, plannedMeals: plans };
-      },
-      async getConsumedCalories() { return 500; }
+      clearPendingAction() { legacyPending = null; }
     },
-    AriVNextStructuredReferenceCapabilities: {
-      ready: true,
-      planReferenceId(plan) { return plan?.id === "plan-1" ? "plan-ref" : ""; },
-      componentReferenceId(plan, item, index) { return `${plan?.id}:component:${index}:${item?.id || item?.name}`; }
-    },
+    AriVNextStructuredReferenceCapabilities: { ready: true },
     AriVNextAuthoritativeReferenceRehydration: {
       ready: true,
       resolveReference(referenceId) {
         return referenceId === liveReference?.referenceId ? liveReference : null;
       }
     },
-    AriVNextActivityAdapter: {
-      version: "1.1.0",
-      async updateReferencedActivity() { return { success: true, activity: { id: "activity-1", log_date: "2026-08-27" } }; },
-      async deleteReferencedActivity() { return { success: true, deleted: true }; }
-    },
-    AriVNextWeightAdapter: {
-      ready: true,
-      async updateReferencedWeight() { return { success: true, weight: { log_date: "2026-08-27", weight_lbs: 185 } }; },
-      async deleteReferencedWeight() { return { success: true, deleted: true }; }
-    },
+    AriVNextActivityAdapter: {},
+    AriVNextWeightAdapter: { ready: true },
     AriVNextReferenceState: {
       snapshot() { return { references: [] }; },
       rememberPending() {},
@@ -118,18 +89,6 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
         return { success: true, result: { id: action?.payload?.meetupId || "circle-result" }, reply: "Circle action complete." };
       }
     },
-    AriNutritionPlanSync: {
-      async loadToday() { return plans.filter((plan) => plan.status === "planned"); },
-      async pushRecords(records) {
-        for (const record of records) {
-          const current = plans.find((plan) => plan.id === record.id || plan.id === record.cloud_id);
-          if (current) Object.assign(current, record);
-        }
-        plans = plans.filter((plan) => plan.status === "planned");
-        return records;
-      }
-    },
-    calbuddySupabase: { async rpc() { return { data: {}, error: null }; } },
     dispatchEvent() {},
     setTimeout,
     clearTimeout,
@@ -167,24 +126,13 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
   return { window, counters, actionAdapter, getBridgePending: () => bridgePending, setBridgePending: (value) => { bridgePending = value; } };
 }
 
-test("Phase 8B registers Circle prepare and application execution ahead of compatibility fallbacks", async () => {
+test("Phase 8B no longer owns Circle routing", async () => {
   const harness = await makeHarness();
   assert.equal(harness.window.AriVNextOperationRegistryPhase8B?.ready, true);
-
-  const prepared = await harness.actionAdapter.prepareCalBuddyAction({
-    id: "circle-action",
-    sourceTurnId: "turn-circle",
-    name: "join_circle_meetup",
-    arguments: { meetupId: "meetup-1" }
-  });
-  assert.equal(prepared.success, true);
-  assert.equal(harness.counters.circlePrepare, 1);
-  assert.equal(harness.counters.basePrepare, 0);
-
-  const executed = await harness.window.CalBuddy.executeAction({ action_type: "circle_join_meetup", payload: { meetupId: "meetup-1" } });
-  assert.equal(executed.success, true);
-  assert.equal(harness.counters.circleExecute, 1);
-  assert.equal(harness.counters.baseApplicationExecute, 0);
+  assert.deepEqual(Array.from(harness.window.AriVNextOperationRegistryPhase8B?.migratedOperations || []), []);
+  assert.deepEqual(Array.from(harness.window.AriVNextOperationRegistryPhase8B?.migratedApplicationActions || []), []);
+  assert.equal(harness.counters.circlePrepare, 0);
+  assert.equal(harness.counters.circleExecute, 0);
 });
 
 test("Phase 8B no longer owns superseded Nutrition reference mutations", async () => {
