@@ -4,10 +4,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const SOURCE = "ari_vnext_domain_bootstrap";
   const DOMAIN_MODULES = Object.freeze([
-    "./ari-vnext-weight-goals-service-adapter.js?v=1.1.0",
+    "./ari-vnext-weight-goals-service-adapter.js?v=1.2.0",
     "./ari-vnext-training-registry-adapter.js?v=2.0.0",
     "./ari-vnext-nutrition-registry-adapter.js?v=1.2.0"
   ]);
