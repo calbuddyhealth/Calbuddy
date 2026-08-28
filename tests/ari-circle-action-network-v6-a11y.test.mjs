@@ -7,7 +7,7 @@ const css = await readFile(new URL("../assets/css/ari-circle-v6-experience.css",
 
 test("Circle V6 keeps status updates and navigation keyboard/screen-reader friendly", () => {
   assert.match(html, /role="status" aria-live="polite"/i);
-  assert.match(html, /aria-label="ARI Circle ARI Next"/i);
+  assert.match(html, /aria-label="ARI Circle Feed"/i);
   assert.match(html, /aria-label="Open Circle menu"/i);
   assert.match(html, /aria-label="Messages"/i);
   assert.match(html, /aria-labelledby="v6Title"/i);
