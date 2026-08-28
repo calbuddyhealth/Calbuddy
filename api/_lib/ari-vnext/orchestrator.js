@@ -6,10 +6,13 @@
 // Phase 10E can share one bounded primary interpretation across independent
 // deterministic clauses; every clause still traverses the mature core afterward.
 // Phase 10F evaluates structural performance budgets after orchestration only.
+// Phase 11A/B records sanitized decisions/outcomes outside the trusted core.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
 import { planCompoundPrimary, COMPOUND_PRIMARY_PLANNER_VERSION } from "./compound-primary-planner.js";
 import { budgetTurnContext } from "./context-budget.js";
+import { buildAriDecisionTrace, buildAriFailureTrace } from "./decision-trace.js";
+import { recordAriObservabilityTurn, ARI_OBSERVABILITY_STORE_VERSION } from "./observability-store.js";
 import { runAriVNext as runAriVNextCore } from "./orchestrator-core.js";
 import {
   markCompoundFanout,
@@ -69,20 +72,68 @@ const DESTRUCTIVE_OPERATIONS = new Set([
 
 const STRONG_COMPOUND_SIGNAL = /(?:;|,\s*(?:and\s+)?then\b|\band\s+then\b|\bthen\b|,\s*(?:log|record|save|add|change|update|edit|correct|fix|remove|delete|undo|discard|replace|swap|move|set|make|clear|cancel)\b|\band\s+(?:log|record|save|add|remove|delete|undo|discard|replace|swap|move|clear|cancel)\b)/i;
 
+async function persistSuccessfulObservation(turn = {}, result = {}) {
+  try {
+    const decisionTrace = buildAriDecisionTrace({ turn, result });
+    const persistence = await recordAriObservabilityTurn({
+      userId: turn?.userId || null,
+      turnId: turn?.turnId || null,
+      conversationId: turn?.conversationId || null,
+      trace: decisionTrace
+    });
+    return {
+      ...result,
+      decisionTrace,
+      observability: {
+        version: ARI_OBSERVABILITY_STORE_VERSION,
+        stored: persistence?.stored === true,
+        reason: clean(persistence?.reason, 100) || null
+      }
+    };
+  } catch {
+    return {
+      ...result,
+      observability: {
+        version: ARI_OBSERVABILITY_STORE_VERSION,
+        stored: false,
+        reason: "observation_error"
+      }
+    };
+  }
+}
+
+async function rethrowObservedError({ turn = {}, error = null, trace = null } = {}) {
+  try {
+    const optimizationTrace = summarizeOptimizationTrace(trace);
+    const decisionTrace = buildAriFailureTrace({ turn, error, optimizationTrace });
+    await recordAriObservabilityTurn({
+      userId: turn?.userId || null,
+      turnId: turn?.turnId || null,
+      conversationId: turn?.conversationId || null,
+      trace: decisionTrace
+    });
+    if (error && typeof error === "object") error.ariDecisionTrace = decisionTrace;
+  } catch {
+    // Observability is fail-soft and must never replace the original failure.
+  }
+  throw error;
+}
+
 export async function runAriVNext(turn = {}) {
   return await withOptimizationTrace(turn, async (trace) => {
-    const result = await runObservedAriVNext(turn, trace);
+    const result = await runObservedAriVNext(turn, trace).catch(async (error) => await rethrowObservedError({ turn, error, trace }));
     const optimizationTrace = summarizeOptimizationTrace(trace);
     const performanceBudget = evaluatePerformanceBudget({
       turn,
       result,
       optimizationTrace
     });
-    return {
+    const observedResult = {
       ...result,
       optimizationTrace,
       performanceBudget
     };
+    return await persistSuccessfulObservation(turn, observedResult);
   });
 }
 
