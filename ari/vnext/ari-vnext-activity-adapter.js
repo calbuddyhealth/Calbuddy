@@ -250,6 +250,10 @@
     window.addEventListener("ari:vnextOperationRegistryReady", registerOperation, { once: true });
   }
 
+  import("./ari-vnext-weight-goals-service-adapter.js?v=1.0.0").catch((error) => {
+    console.warn("[Ari vNext] Weight/Goals service adapter failed to load:", error?.message || error);
+  });
+
   window.dispatchEvent(new CustomEvent("ari:vnextActivityReady", {
     detail: { version: VERSION, source: SOURCE }
   }));
