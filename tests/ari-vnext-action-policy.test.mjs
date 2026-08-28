@@ -94,7 +94,7 @@ test("stale or cross-turn personal proposals do not auto execute", () => {
   assert.equal(result.actionPolicy.reason, "not_current_turn_authorized");
 });
 
-test("low-confidence semantic intent stays confirmation gated", () => {
+test("semantic confidence metadata cannot create a second authority gate", () => {
   const candidate = proposedResult("log_activity");
   candidate.semanticActionReview.confidence = 0.6;
 
@@ -103,8 +103,8 @@ test("low-confidence semantic intent stays confirmation gated", () => {
     result: candidate
   });
 
-  assert.equal(result.action.type, "proposed_action");
-  assert.equal(result.actionPolicy.reason, "semantic_intent_below_auto_execute_threshold");
+  assert.equal(result.action.type, "execute_pending_action");
+  assert.equal(result.actionPolicy.reason, "current_turn_personal_change");
 });
 
 test("pending action account mismatch is blocked before browser execution", () => {
