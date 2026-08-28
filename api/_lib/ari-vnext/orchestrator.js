@@ -6,7 +6,7 @@
 // Phase 10E can share one bounded primary interpretation across independent
 // deterministic clauses; every clause still traverses the mature core afterward.
 // Phase 10F evaluates structural performance budgets after orchestration only.
-// Phase 11A/B adds sanitized decision tracing and a fail-soft server ledger.
+// Phase 11A/B records sanitized decisions/outcomes outside the trusted core.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
 import { planCompoundPrimary, COMPOUND_PRIMARY_PLANNER_VERSION } from "./compound-primary-planner.js";
@@ -124,15 +124,12 @@ async function runObservedAriVNext(turn = {}, trace = null) {
 
   if (clauses.length < 2) {
     const budgeted = budgetTurnContext(turn);
-    const coreResult = await runAriVNextCore({
+    turn = {
       ...budgeted.turn,
       phase10dContextBudget: budgeted.budget
-    });
-    return {
-      ...coreResult,
-      observabilityContextBudget: publicContextBudget(budgeted.budget)
     };
   }
+  if (clauses.length < 2) return await runAriVNextCore(turn);
 
   markCompoundFanout(trace, clauses.length);
   const sharedPlan = await planCompoundPrimary({ turn, clauses });
@@ -164,14 +161,9 @@ async function runObservedAriVNext(turn = {}, trace = null) {
     });
 
     const prepared = sharedPlan?.usable === true ? sharedPlan.preparedCalls?.[index] : null;
-    const result = prepared
+    return prepared
       ? await withPreparedPrimary(prepared, runCore)
       : await runCore();
-
-    return {
-      ...result,
-      observabilityContextBudget: publicContextBudget(budgeted.budget)
-    };
   }));
 
   const providerInputs = sharedPlan?.provider
@@ -263,10 +255,7 @@ async function runObservedAriVNext(turn = {}, trace = null) {
       canonicalPreflightRequired: true,
       sharedPrimaryUsed,
       sharedPrimaryVersion: sharedPrimaryUsed ? COMPOUND_PRIMARY_PLANNER_VERSION : null,
-      sharedPrimaryFallbackReason: sharedPrimaryUsed ? null : clean(sharedPlan?.reason, 160) || null,
-      contextProfiles: subResults
-        .map((result) => clean(result?.observabilityContextBudget?.profile, 60))
-        .filter(Boolean)
+      sharedPrimaryFallbackReason: sharedPrimaryUsed ? null : clean(sharedPlan?.reason, 160) || null
     },
     source: sharedPrimaryUsed
       ? "ari_vnext_phase10e_compound_action_proposal"
@@ -338,26 +327,10 @@ function blockedCompoundResult({
       failedIndex,
       clauses,
       preparedCount: subResults.filter((result) => result?.pendingAction?.id && result?.action?.type === "proposed_action").length,
-      sharedPrimaryUsed: Boolean(sharedPrimaryUsed),
-      contextProfiles: subResults
-        .map((result) => clean(result?.observabilityContextBudget?.profile, 60))
-        .filter(Boolean)
+      sharedPrimaryUsed: Boolean(sharedPrimaryUsed)
     },
     source: "ari_vnext_phase9c_compound_action_blocked",
     turn: turn?.turnId ? { turnId: turn.turnId } : undefined
-  };
-}
-
-function publicContextBudget(budget = {}) {
-  return {
-    version: clean(budget?.version, 40) || null,
-    profile: clean(budget?.profile, 60) || null,
-    routingClass: clean(budget?.routingClass, 80) || null,
-    historyBefore: Math.max(0, Number(budget?.historyTurnsBefore || 0)),
-    historyAfter: Math.max(0, Number(budget?.historyTurnsAfter || 0)),
-    referenceHistoryFloorApplied: Number(budget?.historyTurnsAfter || 0) >= 6 && Number(budget?.historyTurnsBefore || 0) >= 6,
-    canonicalStatePreserved: budget?.canonicalContextPreserved === true,
-    referenceStatePreserved: budget?.referenceStatePreserved !== false
   };
 }
 
