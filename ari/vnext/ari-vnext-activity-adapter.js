@@ -1,17 +1,16 @@
 // ARI vNext — Activity domain adapter.
 //
 // Activity preparation, persistence, and reference mutations delegate to the
-// canonical ActivityLogService. This module no longer monkey-patches
-// AriVNextActionAdapter or CalBuddy.executeAction; the operation registry is the
-// single execution boundary.
+// canonical ActivityLogService. This module does not monkey-patch global Ari or
+// CalBuddy executors. The operation registry is the single execution boundary.
 
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.1.0";
   const SOURCE = "ari_vnext_activity_adapter";
   let servicePromise = null;
-  let executorRegistered = false;
+  let operationRegistered = false;
 
   function clean(value = "", max = 180) {
     return String(value ?? "").trim().slice(0, max);
@@ -77,14 +76,51 @@
     const result = await service.logActivity(action?.payload || {}, {
       source: clean(action?.payload?.source || "ari_vnext", 80)
     });
-    if (!result?.success) {
-      return {
-        success: false,
-        code: result?.code || "activity_log_failed",
-        message: result?.message || "Activity could not be saved."
-      };
+    return result?.success ? result : {
+      success: false,
+      code: result?.code || "activity_log_failed",
+      message: result?.message || "Activity could not be saved."
+    };
+  }
+
+  async function createPending(pending = {}) {
+    if (typeof window.CalBuddy?.createPendingAction !== "function") {
+      return { success: false, code: "pending_action_service_unavailable", message: "Ari could not prepare that activity safely." };
     }
-    return result;
+    const prepared = await prepare(pending, pending?.arguments || {});
+    if (!prepared?.success || !prepared?.action) return prepared;
+    const stored = await window.CalBuddy.createPendingAction(prepared.action);
+    const wrapped = {
+      ...stored,
+      vnext_action_id: pending.id,
+      vnext_source_turn_id: pending.sourceTurnId,
+      vnext_expires_at: pending.expiresAt || null,
+      vnext_source: SOURCE
+    };
+    window.CalBuddy.setPendingAction?.(wrapped);
+    return { success: true, action: wrapped };
+  }
+
+  async function executeConfirmed(input = {}) {
+    const pending = input?.vnextPendingAction || input || {};
+    const prepared = await prepare(pending, pending?.arguments || {});
+    if (!prepared?.success || !prepared?.action) return prepared;
+    const action = {
+      ...prepared.action,
+      vnext_action_id: pending.id,
+      vnext_source_turn_id: pending.sourceTurnId,
+      vnext_confirmation_turn_id: clean(input?.currentTurnId, 200) || null,
+      vnext_source: SOURCE
+    };
+    const result = await execute(action);
+    if (!result?.success) return result;
+    return {
+      success: true,
+      result,
+      activity: result?.activity || result?.result || null,
+      action,
+      ...(clean(result?.reply, 2000) ? { reply: clean(result.reply, 2000) } : {})
+    };
   }
 
   function activityInputFromRow(row = {}) {
@@ -140,7 +176,6 @@
         input.estimationMethod = null;
       }
     }
-
     return input;
   }
 
@@ -150,7 +185,6 @@
     if (!id || !date) {
       return { success: false, code: "activity_reference_identity_required", message: "That activity could not be identified safely." };
     }
-
     const service = await loadService();
     const rows = await service.listActivities(date);
     const activity = (Array.isArray(rows) ? rows : []).find((row) => clean(row?.id, 160) === id) || null;
@@ -186,16 +220,18 @@
     };
   }
 
-  function registerExecutor() {
-    if (executorRegistered) return true;
+  function registerOperation() {
+    if (operationRegistered) return true;
     const registry = window.AriVNextOperationRegistry;
-    if (!registry?.ready || typeof registry.registerApplicationExecutor !== "function") return false;
-    registry.registerApplicationExecutor("log_activity", {
+    if (!registry?.ready || typeof registry.registerOperation !== "function") return false;
+    registry.registerOperation("log_activity", {
       source: SOURCE,
-      priority: 1200,
-      execute
+      priority: 12000,
+      prepare: async (pending = {}) => await prepare(pending, pending?.arguments || {}),
+      createPending,
+      executeConfirmed
     });
-    executorRegistered = true;
+    operationRegistered = true;
     return true;
   }
 
@@ -204,12 +240,14 @@
     source: SOURCE,
     prepare,
     execute,
+    createPending,
+    executeConfirmed,
     updateReferencedActivity,
     deleteReferencedActivity
   });
 
-  if (!registerExecutor()) {
-    window.addEventListener("ari:vnextOperationRegistryReady", registerExecutor, { once: true });
+  if (!registerOperation()) {
+    window.addEventListener("ari:vnextOperationRegistryReady", registerOperation, { once: true });
   }
 
   window.dispatchEvent(new CustomEvent("ari:vnextActivityReady", {
