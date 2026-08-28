@@ -37,6 +37,19 @@ const REFERENCE_TOOL_NAMES = new Set([
   "propose_edit_referenced_workout",
   "propose_delete_workout"
 ]);
+const SINGLE_REFERENCE_TOOL_NAMES = new Set([
+  "propose_undo_nutrition_mutation",
+  "propose_update_nutrition_meal",
+  "propose_log_referenced_planned_meal",
+  "propose_discard_referenced_meal_plan",
+  "propose_replace_referenced_meal_plan",
+  "propose_update_activity_log",
+  "propose_delete_activity_log",
+  "propose_update_weight_log",
+  "propose_delete_weight_log",
+  "propose_edit_referenced_workout",
+  "propose_delete_workout"
+]);
 const ACTIVITY_NUMERIC_FIELDS = new Map([
   ["duration_minutes", { min: 1, max: 1440 }],
   ["sets", { min: 1, max: 100 }],
@@ -68,6 +81,7 @@ const MEAL_NUMERIC_FIELDS = new Map([
 const MEAL_TEXT_FIELDS = new Set(["name", "category", "serving_size"]);
 const PLAN_REFERENCE_ID = /^(?:ref_ctx_meal_plan_[a-z0-9]+|ref_action_[a-z0-9]+)$/i;
 const PLAN_COMPONENT_REFERENCE_ID = /^ref_ctx_meal_component_[a-z0-9]+$/i;
+const LIFECYCLE_REFERENCE_ID = /^ref_action_[a-z0-9]+$/i;
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
@@ -379,10 +393,13 @@ function validateReferenceTool(call = {}, route = {}) {
   const args = parseArguments(call);
   if (!args) return { valid: false, error: "invalid_tool_arguments" };
 
+  const referenceGate = validateDeterministicReferenceGate(name, args, route);
+  if (referenceGate) return referenceGate;
+
   if (planTool) return validatePlanReferenceTool(name, args);
 
   const referenceId = String(args?.referenceId || "").trim();
-  if (!/^ref_action_[a-z0-9]+$/i.test(referenceId)) {
+  if (!validReferenceIdForTool({ referenceId, nutritionTool, activityTool, workoutTool, weightTool })) {
     return {
       valid: false,
       error: nutritionTool
@@ -456,6 +473,38 @@ function validateReferenceTool(call = {}, route = {}) {
   }
 
   return { valid: false, error: "reference_tool_not_supported" };
+}
+
+function validateDeterministicReferenceGate(name = "", args = {}, route = {}) {
+  if (!SINGLE_REFERENCE_TOOL_NAMES.has(name)) return null;
+  if (!Object.prototype.hasOwnProperty.call(route || {}, "referenceResolution")) return null;
+
+  const resolution = route?.referenceResolution || {};
+  if (resolution?.status !== "resolved" || !String(resolution?.selectedReferenceId || "").trim()) {
+    return {
+      valid: false,
+      error: resolution?.status === "ambiguous"
+        ? "reference_target_ambiguous"
+        : "reference_target_unresolved"
+    };
+  }
+
+  const requestedReferenceId = String(args?.referenceId || "").trim();
+  const selectedReferenceId = String(resolution.selectedReferenceId || "").trim();
+  if (!requestedReferenceId || requestedReferenceId !== selectedReferenceId) {
+    return { valid: false, error: "reference_target_mismatch" };
+  }
+
+  return null;
+}
+
+function validReferenceIdForTool({ referenceId = "", nutritionTool = false, activityTool = false, workoutTool = false, weightTool = false } = {}) {
+  if (LIFECYCLE_REFERENCE_ID.test(referenceId)) return true;
+  if (nutritionTool) return /^ref_live_meal_[a-z0-9]+$/i.test(referenceId);
+  if (activityTool) return /^ref_live_activity_log_[a-z0-9]+$/i.test(referenceId);
+  if (workoutTool) return /^ref_live_workout_[a-z0-9]+$/i.test(referenceId);
+  if (weightTool) return /^ref_live_weight_log_[a-z0-9]+$/i.test(referenceId);
+  return false;
 }
 
 function validatePlanReferenceTool(name, args = {}) {
