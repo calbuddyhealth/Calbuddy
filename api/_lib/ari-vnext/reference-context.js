@@ -8,14 +8,16 @@
 //   CURRENT user message can authorize a write; prior state may identify target.
 // - Add no extra model call. Trusted domain adapters remain authoritative.
 
-export const REFERENCE_CONTEXT_VERSION = "1.4.0";
+export const REFERENCE_CONTEXT_VERSION = "1.5.0";
 
 const MAX_REFERENCE_TURNS = 8;
 const MAX_REFERENCE_TEXT = 900;
 const MAX_APP_REFERENCES = 12;
+const MAX_RECENT_INVALIDATIONS = 4;
 const MAX_PACKET_CHARACTERS = 6200;
 
 const REFERENCE_MARKER = /\b(?:it|its|them|they|their|that|this|those|these|one|ones|the other one|the (?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|(?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|former|latter|same one|previous one|last one)\b/i;
+const GENERIC_TARGET_REFERENCE = /\b(?:it|that|this|them|those|these|one|ones|the other one|same one|previous one|last one)\b/i;
 const CONTINUATION_PHRASE = /^(?:and|but|then|instead|okay|ok|yeah|yes|no|nope|make it|do that|use that|use it|go with that|go with it|the other one)\b/i;
 const CORRECTION_PHRASE = /^(?:actually\b|no[,;:]?\s+(?:i\s+)?meant\b|i\s+meant\b|wait[,;:]?\b|sorry[,;:]?\b|correction\b|rather\b)/i;
 const ORDINAL_REFERENCE = /\b(?:the\s+)?(first|second|third)\s+(?:one|item|meal|option|workout|activity|weigh-?in|meetup|mission|crew)?\b/i;
@@ -48,12 +50,14 @@ export function isReferenceFollowUp(message = "") {
 
 export function activeReferenceDomains(referenceState = {}) {
   const references = Array.isArray(referenceState?.references) ? referenceState.references : [];
-  return Array.from(new Set(
-    references
-      .filter((reference) => isActiveAppReference(reference))
-      .map((reference) => clean(reference?.domain, 40).toLowerCase())
-      .filter(Boolean)
-  ));
+  const referenceDomains = references
+    .filter((reference) => isActiveAppReference(reference))
+    .map((reference) => clean(reference?.domain, 40).toLowerCase())
+    .filter(Boolean);
+  const invalidationDomains = normalizeRecentInvalidations(referenceState)
+    .map((item) => item.domain)
+    .filter(Boolean);
+  return Array.from(new Set([...referenceDomains, ...invalidationDomains]));
 }
 
 export function resolveReferenceTarget({ message = "", referenceState = {}, route = {} } = {}) {
@@ -64,8 +68,16 @@ export function resolveReferenceTarget({ message = "", referenceState = {}, rout
 
   const authoritative = normalizeAppReferences(referenceState)
     .filter((candidate) => candidate.authoritative === true);
+  const recentInvalidations = normalizeRecentInvalidations(referenceState);
 
   if (!authoritative.length) {
+    if (shouldBlockOnRecentInvalidation({ message: text, candidates: [], invalidations: recentInvalidations, route })) {
+      const invalidation = shouldBlockOnRecentInvalidation({ message: text, candidates: [], invalidations: recentInvalidations, route });
+      return resolution("unresolved", "recent_reference_invalidated", [], true, {
+        invalidatedReferenceIds: [invalidation.referenceId],
+        invalidationOperation: invalidation.operation
+      });
+    }
     return resolution("context_only", "no_authoritative_app_reference");
   }
 
@@ -78,6 +90,19 @@ export function resolveReferenceTarget({ message = "", referenceState = {}, rout
       [],
       narrowed.explicitSelectorMiss
     );
+  }
+
+  const invalidation = shouldBlockOnRecentInvalidation({
+    message: text,
+    candidates,
+    invalidations: recentInvalidations,
+    route
+  });
+  if (invalidation) {
+    return resolution("unresolved", "recent_reference_invalidated", [], true, {
+      invalidatedReferenceIds: [invalidation.referenceId],
+      invalidationOperation: invalidation.operation
+    });
   }
 
   const ordinal = explicitOrdinal(text);
@@ -106,8 +131,10 @@ export function resolveReferenceTarget({ message = "", referenceState = {}, rout
 export function buildReferencePacket(turn = {}, route = {}) {
   const message = clean(turn?.message, 8000);
   const history = Array.isArray(turn?.history) ? turn.history : [];
-  const appReferences = normalizeAppReferences(turn?.context?.referenceState);
-  const active = Boolean(isReferenceFollowUp(message) && (history.length || appReferences.length));
+  const referenceState = turn?.context?.referenceState || {};
+  const appReferences = normalizeAppReferences(referenceState);
+  const recentInvalidations = normalizeRecentInvalidations(referenceState);
+  const active = Boolean(isReferenceFollowUp(message) && (history.length || appReferences.length || recentInvalidations.length));
 
   if (!active) return null;
 
@@ -118,29 +145,33 @@ export function buildReferencePacket(turn = {}, route = {}) {
     .filter(Boolean);
 
   const candidates = [...appReferences, ...conversationCandidates];
-  if (!candidates.length) return null;
+  if (!candidates.length && !recentInvalidations.length) return null;
 
   const packet = {
     version: REFERENCE_CONTEXT_VERSION,
     active: true,
     source: appReferences.length
       ? "trusted_app_and_recent_conversation_reference_index"
-      : "recent_conversation_reference_index",
+      : recentInvalidations.length
+        ? "recent_reference_invalidation_index"
+        : "recent_conversation_reference_index",
     currentMessage: message.slice(0, 600),
     referenceDetected: REFERENCE_MARKER.test(message),
     correctionDetected: CORRECTION_PHRASE.test(message),
     resolution: resolveReferenceTarget({
       message,
-      referenceState: turn?.context?.referenceState,
+      referenceState,
       route
     }),
     candidates,
+    ...(recentInvalidations.length ? { recentInvalidations } : {}),
     policy: {
       currentTurnAuthorizesMutation: true,
       historyMayResolveTargetOnly: true,
       historyNeverGrantsWritePermission: true,
       appReferencesNeverGrantWritePermission: true,
       currentTrustedContextNeverGrantsWritePermission: true,
+      recentInvalidationNeverGrantsWritePermission: true,
       preferPersistedCanonicalReference: true,
       preferNearestCompatibleReference: true,
       preferAuthoritativeAppStateOnConflict: true,
@@ -148,6 +179,7 @@ export function buildReferencePacket(turn = {}, route = {}) {
       deterministicResolutionPrecedesModelChoice: true,
       correctionLanguageMayResolveTargetButNeverGrantWritePermission: true,
       explicitSelectorMissMustNotRetarget: true,
+      barePronounAfterRecentInvalidationMustClarify: true,
       clarifyWhenAmbiguous: true,
       neverInventMissingTarget: true
     }
@@ -210,6 +242,32 @@ function narrowByCurrentMessage(candidates = [], message = "", route = {}) {
   }
 
   return { candidates: output, selectorApplied, explicitSelectorMiss: false };
+}
+
+function shouldBlockOnRecentInvalidation({ message = "", candidates = [], invalidations = [], route = {} } = {}) {
+  if (!Array.isArray(invalidations) || !invalidations.length) return null;
+  const text = clean(message, 600);
+
+  // An explicit current selector is stronger than the old deleted anchor.
+  if (explicitOrdinal(text) || mealCategoryHint(text) || explicitDateHint(text) || namedSelectorTokens(text).length) return null;
+  if (!GENERIC_TARGET_REFERENCE.test(text) && !CORRECTION_PHRASE.test(text)) return null;
+
+  const explicitDomains = inferDomains(text).filter((domain) => domain !== "general");
+  const routeDomains = ["nutrition", "training", "goals", "social", "developer"]
+    .filter((domain) => route?.[domain] === true);
+  const candidateDomains = Array.from(new Set((Array.isArray(candidates) ? candidates : []).map((candidate) => candidate?.domain).filter(Boolean)));
+  const relevantDomains = explicitDomains.length
+    ? explicitDomains
+    : routeDomains.length === 1
+      ? routeDomains
+      : candidateDomains;
+  const entityTypes = entityTypeHints(text);
+
+  return invalidations.find((item) => {
+    if (relevantDomains.length && !relevantDomains.includes(item.domain)) return false;
+    if (entityTypes.length === 1 && item.entityType && item.entityType !== entityTypes[0]) return false;
+    return true;
+  }) || null;
 }
 
 function entityTypeHints(message = "") {
@@ -324,7 +382,7 @@ function resolveOrdinalCandidates(candidates = [], ordinal = null) {
   return matches;
 }
 
-function resolution(status, reason, candidates = [], requiresClarification = false) {
+function resolution(status, reason, candidates = [], requiresClarification = false, extra = {}) {
   const normalized = Array.isArray(candidates) ? candidates : [];
   const selected = status === "resolved" && normalized.length === 1 ? normalized[0] : null;
   return {
@@ -332,7 +390,8 @@ function resolution(status, reason, candidates = [], requiresClarification = fal
     reason,
     requiresClarification: Boolean(requiresClarification),
     selectedReferenceId: selected?.referenceId || null,
-    candidateReferenceIds: normalized.map((candidate) => candidate.referenceId).filter(Boolean).slice(0, MAX_APP_REFERENCES)
+    candidateReferenceIds: normalized.map((candidate) => candidate.referenceId).filter(Boolean).slice(0, MAX_APP_REFERENCES),
+    ...(extra && typeof extra === "object" && !Array.isArray(extra) ? extra : {})
   };
 }
 
@@ -343,6 +402,29 @@ function normalizeAppReferences(referenceState = {}) {
     .slice(0, MAX_APP_REFERENCES)
     .map((reference, index) => normalizeAppReference(reference, index))
     .filter(Boolean);
+}
+
+function normalizeRecentInvalidations(referenceState = {}) {
+  const now = Date.now();
+  return (Array.isArray(referenceState?.recentInvalidations) ? referenceState.recentInvalidations : [])
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .map((item) => ({
+      referenceId: clean(item?.referenceId, 180),
+      operation: clean(item?.operation, 120),
+      domain: clean(item?.domain, 40).toLowerCase(),
+      entityType: clean(item?.entityType, 60),
+      state: clean(item?.state, 40).toLowerCase(),
+      invalidatedAt: clean(item?.invalidatedAt, 80),
+      expiresAt: clean(item?.expiresAt, 80)
+    }))
+    .filter((item) => item.referenceId && item.operation && item.domain)
+    .filter((item) => !item.state || item.state === "invalidated")
+    .filter((item) => {
+      const expiresAt = Date.parse(item.expiresAt);
+      return Number.isFinite(expiresAt) && expiresAt > now;
+    })
+    .sort((left, right) => Date.parse(right.invalidatedAt || 0) - Date.parse(left.invalidatedAt || 0))
+    .slice(0, MAX_RECENT_INVALIDATIONS);
 }
 
 function isActiveAppReference(reference = {}) {
