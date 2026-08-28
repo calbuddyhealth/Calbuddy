@@ -49,7 +49,7 @@
   function loadVNextRuntime() {
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.4.1"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.5"
     );
   }
 

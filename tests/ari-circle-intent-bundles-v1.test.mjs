@@ -68,12 +68,12 @@ test("V6 bundles combine people, opportunity and place without auto-actions", ()
   }
 });
 
-test("V6 surface loads the bundle presentation and keeps ARI Next intact", () => {
+test("V6 surface loads the bundle presentation and keeps For You intact", () => {
   assert.match(html, /id="v6IntentBundles"/);
   assert.match(html, /id="v6IntentBundleList"/);
   assert.match(html, /PEOPLE \+ PLACE \+ TIME/);
   assert.match(html, /ari-circle-v6-intent-bundles\.css\?v=1\.0\.0/);
-  assert.match(html, /intent-bundles-v1\.js\?v=1\.2\.0/);
+  assert.match(html, /intent-bundles-v1\.js\?v=1\.1\.0/);
   assert.match(html, /id="v6ForYouList"/);
   assert.match(html, /for-you-commit-v1\.js\?v=1\.1\.0/);
   assert.match(css, /\.v6-intent-bundle/);
@@ -83,5 +83,5 @@ test("people cards link to profiles by handle and refresh with Circle changes", 
   assert.match(js, /ari-circle\.html\?handle=/);
   assert.match(js, /ari:circleChanged/);
   assert.match(js, /AriCircleIntentBundlesV1/);
-  assert.match(js, /const VERSION = "1\.2\.0"/);
+  assert.match(js, /const VERSION = "1\.1\.0"/);
 });

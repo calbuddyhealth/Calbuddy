@@ -2,13 +2,11 @@
 // This is intentionally small. The primary model still owns semantic judgment.
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
-import { activeReferenceDomains, buildReferencePacket, isReferenceFollowUp } from "./reference-context.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.18.0";
+export const CONTEXT_ROUTER_VERSION = "1.15.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
-  nutritionLogging: /\b(?:log|record|save)\b|\b(?:add|track)\b(?=[^?.!]{0,90}\b(?:food|meal|breakfast|lunch|dinner|snack|calories?|protein|carbs?|fat|eggs?|chicken|rice|potato|beer|drink)\b)/i,
   training: /\b(workout|training|train|trained|exercise|exercised|lift|lifted|lifting|sets?|reps?|shoulder|chest|back|legs?|arms?|cardio|run|ran|running|jog|jogged|jogging|walk|walked|walking|bike|biked|biking|cycle|cycled|cycling|hike|hiked|hiking|swim|swam|swimming|row|rowed|rowing|elliptical|stairs?|stairmaster|stepmill|push[ -]?ups?|pull[ -]?ups?|burpees?|calisthenics?|basketball|soccer|tennis|gym|strength|rest day|recovery|plateau|pr|personal record|progression|volume|frequency|missed workout|experiment|hypothesis|intervention|observation window)\b/i,
   goals: /\b(goal|weight|cut|bulk|maintain|maintenance|lose|gain|progress|target|bmi|calorie goal|pace|trend|velocity|on pace)\b/i,
   social: /\b(circle|friend|friends|challenge|moment|post|reaction|comment|message|buddy|meet[ -]?ups?|missions?|quests?|crews?|hosting?|hosted|join requests?|open spots?|opportunit(?:y|ies)|activity partner|workout partner|training partner)\b/i,
@@ -22,27 +20,22 @@ const PATTERNS = {
 
 export function routeContext(turn = {}) {
   const message = String(turn?.message || "");
-  const followUp = isFollowUp(message) || isReferenceFollowUp(message);
+  const followUp = isFollowUp(message);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
   const semanticText = followUp ? `${recent}\n${message}` : message;
-  const referenceDomains = followUp ? activeReferenceDomains(turn?.context?.referenceState) : [];
   const account = turn?.context?.accountEntitlements || {};
   const intelligenceEntitlement = turn?.context?.intelligenceEntitlement || null;
   const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
-  const nutrition = PATTERNS.nutrition.test(semanticText) || referenceDomains.includes("nutrition");
-  // Model routing must be based on the CURRENT user's logging wording, not on
-  // history. Prior turns may identify the food target, but they never convert a
-  // read-only/advice turn into a cheap mutation-interpreter turn.
-  const nutritionLogging = nutrition && PATTERNS.nutritionLogging.test(message);
-  const training = PATTERNS.training.test(semanticText) || referenceDomains.includes("training");
-  const goals = PATTERNS.goals.test(semanticText) || referenceDomains.includes("goals");
+  const nutrition = PATTERNS.nutrition.test(semanticText);
+  const training = PATTERNS.training.test(semanticText);
+  const goals = PATTERNS.goals.test(semanticText);
   const actionNetworkAvailable = turn?.context?.social?.actionNetwork?.available === true;
-  const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable || referenceDomains.includes("social");
+  const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
   const currentInfo = needsCurrentInfo(semanticText);
-  const developer = PATTERNS.developer.test(semanticText) || referenceDomains.includes("developer");
+  const developer = PATTERNS.developer.test(semanticText);
   const casualConversation = isCasualConversation({
     message,
     followUp,
@@ -61,7 +54,6 @@ export function routeContext(turn = {}) {
     recentConversation: true,
     profile: !casualConversation,
     nutrition,
-    nutritionLogging,
     training,
     goals,
     coachingState: nutrition && (training || goals) || training && goals,
@@ -85,9 +77,6 @@ export function buildRelevantContext(turn = {}, route = {}) {
     surface: turn?.surface || "unknown",
     user: pickObject(source?.user, ["displayName", "firstName", "age", "sex", "height", "activityLevel"])
   };
-
-  const referencePacket = buildReferencePacket(turn, route);
-  if (referencePacket) selected.referencePacket = referencePacket;
 
   if (source?.accountEntitlements && typeof source.accountEntitlements === "object") {
     selected.accountEntitlements = pickObject(source.accountEntitlements, [
@@ -176,20 +165,6 @@ function cognitiveContextRules(context = {}) {
 
   if (conversationInstruction) {
     lines.push(conversationInstruction);
-  }
-
-  if (context?.referencePacket?.active === true) {
-    lines.push(
-      "REFERENCE RESOLUTION RULES:",
-      "- The CURRENT user message alone determines whether a mutation is authorized. Recent conversation or prior app references never grant write permission by themselves.",
-      "- The bounded Reference Packet may identify what words such as it, them, that, those, this, the other one, or the second one refer to.",
-      "- app_reference candidates are bounded pointers produced from trusted app action lifecycle state; they are not a second database.",
-      "- A verified persisted app_reference should be preferred for object identity/canonical locator when it matches the current domain. Conversation text may explain the object but must not override its canonical identity.",
-      "- When the current message explicitly requests a supported mutation and a reference resolves its target unambiguously, use that resolved target with the matching application tool.",
-      "- Prefer the nearest domain-compatible candidate. If authoritative application state conflicts with conversational wording, authoritative application state wins.",
-      "- If two candidates are materially plausible, ask one concise clarification question instead of guessing.",
-      "- Never invent a missing target, quantity, date, identity, or persisted record merely to complete an action."
-    );
   }
 
   if (context?.accountEntitlements?.teenMode === true) {

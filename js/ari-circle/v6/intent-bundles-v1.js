@@ -8,7 +8,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.1.0";
   const DRAFT_STORAGE_KEY = "ariCircleMatchedMeetupDraftV1";
   const MAX_INTENTS = 2;
   const MAX_PEOPLE = 3;
@@ -170,12 +170,13 @@
     const opportunityTitle = clean(opportunity?.title, 120);
     const placeName = clean(place?.place_name, 120);
     const timeLabel = [dateTime(intent?.startsAt), dateTime(intent?.endsAt)].filter(Boolean).join(" → ");
+    const matchScore = Number(opportunity?.match_score);
     const reasons = Array.isArray(opportunity?.match_reasons) ? opportunity.match_reasons.slice(0, 2) : [];
 
     article.innerHTML = `
       <div class="v6-card-topline">
         <span class="v6-eyebrow">ARI MATCHED PLAN · ${escapeHtml(activityLabel(intent?.activity))}</span>
-        <span class="v6-fit-pill">SUGGESTED</span>
+        ${Number.isFinite(matchScore) ? `<span class="v6-fit-pill">${Math.max(0, Math.min(100, Math.round(matchScore)))} FIT</span>` : ""}
       </div>
       <h3>${escapeHtml(opportunityTitle || `${activityLabel(intent?.activity)} around your intent`)}</h3>
       <div class="v6-bundle-facts">
@@ -307,12 +308,13 @@
       const name = clean(person?.display_name || person?.handle, 80) || "Circle member";
       const handle = clean(person?.handle, 80);
       const reasons = Array.isArray(person?.match_reasons) ? person.match_reasons.slice(0, 2) : [];
+      const score = Number(person?.match_score);
 
       link.innerHTML = `
         ${avatar ? `<img src="${escapeHtml(avatar)}" alt="" loading="lazy" />` : `<span class="v6-bundle-person__avatar" aria-hidden="true">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>`}
         <span class="v6-bundle-person__copy">
           <strong>${escapeHtml(name)}</strong>
-          <small>${handle ? `@${escapeHtml(handle.replace(/^@+/, ""))}` : "Compatible Circle member"}</small>
+          <small>${handle ? `@${escapeHtml(handle.replace(/^@+/, ""))}` : ""}${Number.isFinite(score) ? `${handle ? " · " : ""}${Math.max(0, Math.min(100, Math.round(score)))} fit` : ""}</small>
           ${reasons.length ? `<em>${escapeHtml(reasons.join(" · "))}</em>` : ""}
         </span>
         <span aria-hidden="true">›</span>

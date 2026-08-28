@@ -5,15 +5,10 @@ import vm from "node:vm";
 
 const runtimeSource = fs.readFileSync("ari/runtime/ari-runtime-controller.js", "utf8");
 const bridgeSource = fs.readFileSync("ari/vnext/ari-vnext-bridge.js", "utf8");
-const initiativeSource = fs.readFileSync("ari/vnext/ari-vnext-initiative.js", "utf8");
-const nutritionResolverSource = fs.readFileSync("ari/vnext/ari-vnext-nutrition-resolution-adapter.js", "utf8");
-const structuredReferenceSource = fs.readFileSync("ari/vnext/ari-vnext-structured-reference-capabilities.js", "utf8");
 const resilienceSource = fs.readFileSync("js/home-resilience.js", "utf8");
 const authSource = fs.readFileSync("js/auth.js", "utf8");
 const routerSource = fs.readFileSync("ari/intent/ari-central-intent-router.js", "utf8");
 const homeSource = fs.readFileSync("home.html", "utf8");
-const nutritionSource = fs.readFileSync("nutrition.html", "utf8");
-const initiativeLabSource = fs.readFileSync("ari-vnext-initiative.html", "utf8");
 
 function storage() {
   const values = new Map();
@@ -113,50 +108,21 @@ function bridgeSandbox(fetchImpl) {
   return sandbox;
 }
 
-test("Home and Nutrition pin the current runtime above the legacy loader cache chain", () => {
-  assert.match(homeSource, /<script id="ariVNextRuntimeController"><\/script>/);
-  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.4/);
-  assert.match(nutritionSource, /<script id="ariVNextRuntimeController"><\/script>/);
-  assert.match(nutritionSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.4/);
-
-  assert.ok(
-    homeSource.indexOf('<script id="ariVNextRuntimeController"></script>') <
-      homeSource.indexOf('js/auth.js?v=1.10.16'),
-    "Home must block the legacy router runtime injection before auth boots."
-  );
-  assert.ok(
-    nutritionSource.indexOf('<script id="ariVNextRuntimeController"></script>') <
-      nutritionSource.indexOf('js/auth.js?v=1.10.17'),
-    "Nutrition must block the legacy router runtime injection before auth boots."
-  );
-
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.4/);
+test("Home cache chain points at current repaired runtime and bridge assets", () => {
+  assert.match(homeSource, /js\/auth\.js\?v=1\.10\.16/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.2/);
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
   assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.3/);
-  assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.1/);
-});
-
-test("runtime requires the Nutrition resolver and structured-reference capability bootstrap before readiness", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.4\.4"/);
-  assert.match(runtimeSource, /ari-vnext-activity-adapter\.js\?v=1\.1\.0/);
+  assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.\d+/);
+  assert.match(runtimeSource, /const VERSION = "1\.3\.6"/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
-  assert.match(runtimeSource, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
-  assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.3\.0/);
-  assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.3\.0"\)/);
-  assert.match(initiativeSource, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
-  assert.match(initiativeSource, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
-  assert.match(initiativeSource, /ari-vnext-structured-reference-capabilities\.js\?v=1\.0\.0/);
-  assert.match(initiativeSource, /AriVNextStructuredReferenceCapabilities\?\.ready === true/);
-  assert.match(nutritionResolverSource, /const VERSION = "1\.1\.0"/);
-  assert.match(structuredReferenceSource, /current Meal Plan and ARI Circle objects/i);
-  assert.match(initiativeLabSource, /ari-vnext-initiative\.js\?v=1\.3\.0/);
 });
 
 test("runtime publishes canonical and compatibility identities together", () => {
   const { sandbox, events } = runtimeSandbox();
   assert.equal(sandbox.window.Ari.Runtime, sandbox.window.AriRuntime);
-  assert.equal(sandbox.window.Ari.Runtime.version, "1.4.4");
+  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.6");
   assert.equal(typeof sandbox.window.Ari.Runtime.ask, "function");
   assert.ok(events.some((event) => event.type === "ari:runtimeReady"));
 });
@@ -205,7 +171,7 @@ test("bridge forwards Home AbortSignal to /api/ari-vnext and exposes 202 as proc
 
 test("Home loader is version-aware, dual-namespace aware, and bounded", () => {
   assert.match(resilienceSource, /window\.AriRuntime, window\.Ari\?\.Runtime/);
-  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.4\.1"/);
+  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.6"/);
   assert.match(resilienceSource, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilienceSource, /loadRuntimeController\(\{ signal \}\)/);
   assert.match(resilienceSource, /ARI_TURN_IN_PROGRESS/);

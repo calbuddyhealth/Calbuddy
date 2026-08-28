@@ -34,8 +34,8 @@ const crewTools = [
 ];
 
 test("Crew tool facade preserves the mature core registry", () => {
-  assert.equal(TOOL_REGISTRY_VERSION, "1.16.0");
-  assert.equal(CORE_TOOL_REGISTRY_VERSION, "1.12.0");
+  assert.equal(TOOL_REGISTRY_VERSION, "1.12.0");
+  assert.equal(CORE_TOOL_REGISTRY_VERSION, "1.11.1");
   const mixed = getAriTools({ ...adultCircleRoute, nutrition: true }).map((tool) => tool.name);
   assert.ok(mixed.includes("propose_log_meal"));
   assert.ok(mixed.includes("propose_create_circle_mission"));

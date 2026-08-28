@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.4.4
+// Version: 1.3.6
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -16,13 +16,6 @@
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
 //   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
-//   - A bounded reference lifecycle binds recent conversation to trusted app objects.
-//   - Current Meal Plan and Circle objects can enter that reference lifecycle only
-//     through the final trusted structured-reference capability bootstrap.
-//   - The final initiative/capability bootstrap must satisfy its minimum version
-//     before vNext can report itself ready.
-//   - Initiative 1.3+ guarantees the trusted Nutrition Resolution capability is
-//     installed before vNext can accept a conversational food log.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -41,19 +34,18 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.4";
+  const VERSION = "1.3.6";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
-    "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
-    "ari/vnext/ari-vnext-reference-state.js?v=1.2.0",
-    "ari/vnext/ari-vnext-initiative.js?v=1.3.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
 
   const legacy = {
@@ -191,24 +183,14 @@
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
     if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
-    if (base.endsWith("ari-vnext-activity-adapter.js")) {
-      return Boolean(window.AriVNextActivityAdapter) &&
-        versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0");
-    }
+    if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.7.2");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
-    if (base.endsWith("ari-vnext-reference-state.js")) {
-      return window.AriVNextReferenceState?.ready === true &&
-        versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0");
-    }
-    if (base.endsWith("ari-vnext-initiative.js")) {
-      return Boolean(window.AriVNextInitiative) &&
-        versionAtLeast(window.AriVNextInitiative?.version, "1.3.0");
-    }
+    if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
     return true;
   }
 
@@ -252,13 +234,8 @@
       versionAtLeast(window.AriVNextBridge?.version, "1.7.2") &&
       window.AriVNextActionAdapter &&
       window.AriVNextActivityAdapter &&
-      versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0") &&
       window.AriVNextMealPlanAdapter?.ready === true &&
-      window.AriVNextContextGuard?.ready === true &&
-      window.AriVNextReferenceState?.ready === true &&
-      versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0") &&
-      window.AriVNextInitiative &&
-      versionAtLeast(window.AriVNextInitiative?.version, "1.3.0")
+      window.AriVNextContextGuard?.ready === true
     );
   }
 
@@ -527,6 +504,7 @@
   async function confirmPendingAction() {
     const pending = window.AriVNextBridge?.getPendingAction?.();
     const legacyPending = CalBuddy.getPendingAction?.() || null;
+
     if (getMode() === "vnext" && !pending?.id && isExpiredVNextLegacyPending(legacyPending)) {
       legacy.cancelPendingAction?.();
       return {

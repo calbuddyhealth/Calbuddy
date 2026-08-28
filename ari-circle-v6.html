@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f6f8fc" />
-  <title>ARI Next | ARI Circle</title>
+  <title>For You | ARI Circle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -13,8 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.0.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.3.1" />
-  <link rel="stylesheet" href="assets/css/ari-next-assist-v1.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v6-experience.css?v=0.3.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-commit.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v6-intent-bundles.css?v=1.0.0" />
 </head>
@@ -25,73 +24,123 @@
         <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
         <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
       </details>
-      <a class="feed-brand circle-v5-brand" href="ari-circle-v6.html" aria-label="ARI Circle ARI Next"><span>ARI CIRCLE</span></a>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-v6.html" aria-label="ARI Circle For You"><span>ARI CIRCLE</span></a>
       <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
     </header>
 
     <div class="circle-v5-page-main v6-page-main">
-      <section class="v6-hero" id="ari-next" aria-labelledby="v6Title">
-        <span class="v6-eyebrow">ARI NEXT</span>
+      <nav class="v6-mode-nav" aria-label="Action Network views">
+        <a class="is-active" href="#for-you">For You</a>
+        <a href="ari-circle-explore.html">Explore</a>
+        <a href="#crews">Crews</a>
+        <a href="ari-circle-feed.html">Moments</a>
+      </nav>
+
+      <section class="v6-hero" id="for-you" aria-labelledby="v6Title">
+        <span class="v6-eyebrow">REAL-WORLD ACTION NETWORK</span>
         <h1 id="v6Title">What are you up for?</h1>
-        <p>Tell Ari what sounds good. She’ll handle the searching and narrow it down to the few things that fit best.</p>
-        <p class="v6-network-summary" id="v6NetworkSummary" hidden></p>
-        <div data-ari-circle-search-location data-surface="ari-next" hidden aria-hidden="true"></div>
+        <p>Choose what sounds good. Circle narrows worthwhile opportunities around your intent, not around who can keep you scrolling.</p>
+        <p class="v6-network-summary" id="v6NetworkSummary">Loading your Action Network…</p>
+        <div data-ari-circle-search-location data-surface="for-you"></div>
 
         <form class="v6-intent-composer" id="v6IntentForm">
-          <div class="v6-intent-prompt-wrap">
-            <label class="v6-intent-prompt-label" for="v6IntentPrompt">
-              <span>Tell Ari what you feel like doing</span>
-              <input class="v6-intent-prompt" id="v6IntentPrompt" type="text" maxlength="400" autocomplete="off" placeholder="Tell Ari what you feel like doing…" />
-            </label>
-            <button class="circle-v5-button-primary v6-intent-submit" id="v6IntentSubmit" type="submit">Ask Ari</button>
-          </div>
-
-          <div class="v6-quick-intents" aria-label="Quick ideas">
-            <button class="v6-quick-intent" type="button" data-v6-quick-intent="anything">Anything</button>
-            <button class="v6-quick-intent" type="button" data-v6-quick-intent="workout">Workout</button>
-            <button class="v6-quick-intent" type="button" data-v6-quick-intent="outside">Outside</button>
-            <button class="v6-quick-intent" type="button" data-v6-quick-intent="social">Social</button>
-          </div>
-
-          <details class="v6-intent-refine" id="v6IntentRefine">
-            <summary><span class="v6-intent-refine-summary-copy">Refine preferences <small>Optional</small></span></summary>
-            <div class="v6-intent-refine-grid">
-              <label><span>Activity</span><select id="v6IntentActivity" class="circle-v5-input"><option value="any">Anything active</option><option value="walking">Walking</option><option value="gym">Gym</option><option value="running">Running</option><option value="hiking">Hiking</option><option value="sports">Sports</option><option value="cycling">Cycling</option><option value="yoga">Yoga</option><option value="outdoor">Outdoor</option><option value="community">Community</option><option value="volunteer">Volunteer</option></select></label>
-              <label><span>When</span><select id="v6IntentWhen" class="circle-v5-input"><option value="next3h">Next 3 hours</option><option value="tomorrow_evening">Tomorrow evening</option><option value="weekend">This weekend</option><option value="next7d">Next 7 days</option></select></label>
-              <label><span>Group</span><select id="v6IntentGroup" class="circle-v5-input"><option value="1-8">Open</option><option value="1-1">Solo</option><option value="2-4">Small · 2–4</option><option value="3-8">Social · 3–8</option></select></label>
-            </div>
-          </details>
-
-          <input type="hidden" id="v6IntentRadius" value="" />
-          <input type="hidden" id="v6IntentArea" value="" />
+          <label>
+            <span>Activity</span>
+            <select id="v6IntentActivity" class="circle-v5-input">
+              <option value="any">Anything active</option>
+              <option value="walking">Walking</option>
+              <option value="gym">Gym</option>
+              <option value="running">Running</option>
+              <option value="hiking">Hiking</option>
+              <option value="sports">Sports</option>
+              <option value="cycling">Cycling</option>
+              <option value="yoga">Yoga</option>
+              <option value="outdoor">Outdoor</option>
+              <option value="community">Community</option>
+              <option value="volunteer">Volunteer</option>
+            </select>
+          </label>
+          <label>
+            <span>When</span>
+            <select id="v6IntentWhen" class="circle-v5-input">
+              <option value="next3h">Next 3 hours</option>
+              <option value="tomorrow_evening">Tomorrow evening</option>
+              <option value="weekend">This weekend</option>
+              <option value="next7d">Next 7 days</option>
+            </select>
+          </label>
+          <label>
+            <span>Group</span>
+            <select id="v6IntentGroup" class="circle-v5-input">
+              <option value="1-8">Open</option>
+              <option value="2-4">Small · 2–4</option>
+              <option value="3-8">Social · 3–8</option>
+            </select>
+          </label>
+          <label>
+            <span>Distance</span>
+            <select id="v6IntentRadius" class="circle-v5-input" aria-label="Search distance">
+              <option value="5">5 mi</option>
+              <option value="10">10 mi</option>
+              <option value="25" selected>25 mi</option>
+              <option value="50">50 mi</option>
+              <option value="100">100 mi</option>
+            </select>
+          </label>
+          <label class="v6-area-field">
+            <span>General area <small>optional</small></span>
+            <input id="v6IntentArea" class="circle-v5-input" maxlength="100" autocomplete="off" placeholder="Mission Valley, San Diego…" />
+          </label>
+          <button class="circle-v5-button-primary v6-intent-submit" id="v6IntentSubmit" type="submit">Find what fits</button>
         </form>
 
-        <p class="v6-privacy-line">ARI Next automatically uses your saved Circle search area and distance. Search controls live in Connect → Meetups. Exact meetup points stay protected.</p>
+        <p class="v6-privacy-line">Distance guides nearby matching when an approximate location is available. No automatic GPS prompt; exact meetup points stay protected.</p>
         <p class="circle-v5-completion-note" id="v6IntentStatus" role="status" aria-live="polite"></p>
         <div class="v6-intent-live" id="v6ActiveIntent" hidden></div>
       </section>
 
       <p class="circle-v5-completion-note v6-page-status" id="v6PageStatus" role="status" aria-live="polite"></p>
 
-      <section class="v6-section v6-attention" id="v6Attention" aria-labelledby="v6AttentionTitle" hidden><div class="v6-section-heading"><div><span class="v6-eyebrow">STATE CHANGED</span><h2 id="v6AttentionTitle">Needs attention</h2></div></div><div class="v6-attention-list" id="v6AttentionList"></div></section>
+      <section class="v6-section v6-attention" id="v6Attention" aria-labelledby="v6AttentionTitle" hidden>
+        <div class="v6-section-heading">
+          <div><span class="v6-eyebrow">STATE CHANGED</span><h2 id="v6AttentionTitle">Needs attention</h2></div>
+        </div>
+        <div class="v6-attention-list" id="v6AttentionList"></div>
+      </section>
 
       <section class="v6-section" aria-labelledby="v6ForYouTitle">
-        <div class="v6-section-heading"><div><span class="v6-eyebrow">BEST NEXT ACTIONS</span><h2 id="v6ForYouTitle">Best next</h2></div><button class="v6-quiet-button" id="v6Refresh" type="button">Refresh</button></div>
+        <div class="v6-section-heading">
+          <div><span class="v6-eyebrow">BEST NEXT ACTIONS</span><h2 id="v6ForYouTitle">For You</h2></div>
+          <button class="v6-quiet-button" id="v6Refresh" type="button">Refresh</button>
+        </div>
         <div class="v6-opportunity-grid" id="v6ForYouList"></div>
-        <div class="v6-empty" id="v6ForYouEmpty" hidden><strong>No strong fits yet.</strong><span>Tell Ari what you are up for above, or open Explore to browse public opportunities yourself.</span><a href="ari-circle-explore.html">Explore</a></div>
+        <div class="v6-empty" id="v6ForYouEmpty" hidden>
+          <strong>No strong fits yet.</strong>
+          <span>Set an intent above or open Explore to browse public opportunities.</span>
+          <a href="ari-circle-explore.html">Explore</a>
+        </div>
       </section>
 
       <section class="v6-section v6-intent-bundles" id="v6IntentBundles" aria-labelledby="v6IntentBundlesTitle" hidden>
-        <div class="v6-section-heading"><div><span class="v6-eyebrow">PEOPLE + PLACE + TIME</span><h2 id="v6IntentBundlesTitle">Ari matched plans</h2></div></div>
-        <p class="v6-section-copy">ARI Next combines your private intent with compatible people, a public place, and a current opportunity without assuming anyone has agreed to attend.</p>
+        <div class="v6-section-heading">
+          <div><span class="v6-eyebrow">PEOPLE + PLACE + TIME</span><h2 id="v6IntentBundlesTitle">Ari matched plans</h2></div>
+        </div>
+        <p class="v6-section-copy">Circle combines your private intent with compatible people, a public place, and a current opportunity without assuming anyone has agreed to attend.</p>
         <p class="circle-v5-completion-note" id="v6IntentBundleStatus" role="status" aria-live="polite"></p>
         <div class="v6-intent-bundle-grid" id="v6IntentBundleList"></div>
       </section>
 
-      <section class="v6-section" aria-labelledby="v6ScheduleTitle"><div class="v6-section-heading"><div><span class="v6-eyebrow">COMMITTED</span><h2 id="v6ScheduleTitle">Coming up</h2></div></div><div class="v6-schedule" id="v6ScheduleList"></div><div class="v6-empty" id="v6ScheduleEmpty" hidden><strong>Nothing committed yet.</strong><span>Your accepted, hosted, or joined opportunities will show here as a quick summary.</span></div></section>
+      <section class="v6-section" aria-labelledby="v6ScheduleTitle">
+        <div class="v6-section-heading"><div><span class="v6-eyebrow">COMMITTED</span><h2 id="v6ScheduleTitle">Your next</h2></div></div>
+        <div class="v6-schedule" id="v6ScheduleList"></div>
+        <div class="v6-empty" id="v6ScheduleEmpty" hidden><strong>Nothing committed yet.</strong><span>Your accepted, hosted, or joined opportunities will show here.</span></div>
+      </section>
 
       <section class="v6-section" aria-labelledby="v6ExploreTitle">
-        <div class="v6-section-heading"><div><span class="v6-eyebrow">GO SOMEWHERE</span><h2 id="v6ExploreTitle">Explore the physical world</h2></div><a class="v6-text-link" href="ari-circle-explore.html">Open Explore →</a></div>
+        <div class="v6-section-heading">
+          <div><span class="v6-eyebrow">GO SOMEWHERE</span><h2 id="v6ExploreTitle">Explore the physical world</h2></div>
+          <a class="v6-text-link" href="ari-circle-explore.html">Open Explore →</a>
+        </div>
         <p class="v6-section-copy">Public Places are destinations for activity and Missions—not a live map of people.</p>
         <div class="v6-place-grid" id="v6PlaceList"></div>
         <div class="v6-empty" id="v6PlaceEmpty" hidden><strong>No Place suggestions yet.</strong><span>Explore can still browse curated public places by area without using your device location.</span></div>
@@ -100,24 +149,35 @@
       <section class="v6-section" id="crews" aria-labelledby="v6CrewsTitle">
         <div class="v6-section-heading"><div><span class="v6-eyebrow">PEOPLE YOU ACTUALLY DO THINGS WITH</span><h2 id="v6CrewsTitle">Crews</h2></div></div>
         <p class="v6-section-copy">Crews emerge from repeated verified activity. They are not follower groups and nobody is silently added.</p>
-        <div class="v6-subsection"><h3>Invitations</h3><div class="v6-crew-grid" id="v6CrewInviteList"></div></div>
-        <div class="v6-subsection"><h3>Your Crews</h3><div class="v6-crew-grid" id="v6CrewList"></div></div>
-        <div class="v6-subsection"><h3>Groups taking shape</h3><div class="v6-crew-grid" id="v6CrewCandidateList"></div></div>
+
+        <div class="v6-subsection">
+          <h3>Invitations</h3>
+          <div class="v6-crew-grid" id="v6CrewInviteList"></div>
+        </div>
+        <div class="v6-subsection">
+          <h3>Your Crews</h3>
+          <div class="v6-crew-grid" id="v6CrewList"></div>
+        </div>
+        <div class="v6-subsection">
+          <h3>Groups taking shape</h3>
+          <div class="v6-crew-grid" id="v6CrewCandidateList"></div>
+        </div>
         <div class="v6-empty" id="v6CrewEmpty" hidden><strong>No Crew yet.</strong><span>That is fine. Repeated shared activity creates Crew eligibility naturally.</span></div>
       </section>
+
+      <section class="v6-section v6-moments-bridge" id="v6MomentsBridge" aria-label="Moments"></section>
     </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.5.0" defer></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.4.3" defer></script>
   <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
   <script src="supabase-config.js?v=1.1.8"></script>
   <script src="js/ari-circle/location/search-location-v1.js?v=1.0.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.3.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.2.4" defer></script>
   <script src="js/ari-circle/v6/action-network-v6.js?v=0.3.0" defer></script>
-  <script src="js/ari-circle/v6/ari-next-assist-v1.js?v=1.0.0" defer></script>
-  <script src="js/ari-circle/v6/intent-bundles-v1.js?v=1.2.0" defer></script>
+  <script src="js/ari-circle/v6/intent-bundles-v1.js?v=1.1.0" defer></script>
   <script src="js/ari-circle/v6/for-you-commit-v1.js?v=1.1.0" defer></script>
   <script src="js/ari-circle/meetups/host-flow-v2.js?v=2.0.1" defer></script>
 </body>

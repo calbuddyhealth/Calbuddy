@@ -135,17 +135,11 @@ test("Feed keeps posts and Moments while adding live Happening discovery", () =>
   assert.doesNotMatch(happening, />Create a meetup</);
 });
 
-test("Circle has one Feed Connect ARI Next primary navigation and final visual authority", () => {
-  assert.match(shell, /const VERSION = "5\.3\.0"/);
+test("Circle V5 has one current three-tab social loop and final visual authority", () => {
+  assert.match(shell, /const VERSION = "5\.2\.4"/);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
-  assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
-  assert.match(shell, /navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\)/);
-  assert.doesNotMatch(shell, /navLink\("quests"|navLink\("missions"|navLink\("meetup"|navLink\("foryou"/);
-  assert.match(shell, /brand\.setAttribute\("href", "ari-circle-v6\.html"\)/);
-  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle ARI Next"\)/);
-  assert.match(shell, /ensureConnectModeNav/);
-  assert.match(shell, />Meetups<\/a>/);
-  assert.match(shell, />Missions<\/a>/);
+  assert.match(shell, /navLink\("meetup", "ari-circle-meetup\.html", "Meet Up"\)/);
+  assert.match(shell, /navLink\("quests", "ari-circle-quests\.html", "Quests"\)/);
   assert.doesNotMatch(shell, /ari-circle-partners\.html/);
   assert.doesNotMatch(shell, /ari-circle-challenges\.html/);
   assert.match(authority, /CONSOLIDATED VISUAL AUTHORITY/);
@@ -154,30 +148,18 @@ test("Circle has one Feed Connect ARI Next primary navigation and final visual a
   assert.match(authority, /--circle521-gradient:/);
 });
 
-test("secondary drawer avoids duplicating primary tabs and Connect owns Missions navigation", () => {
-  assert.match(menu, /ari-circle-quests\.html/);
-  assert.match(menu, /label: "Profile"/);
-  assert.match(menu, /label: "Notifications"/);
-  assert.match(menu, /label: "Discover Friends"/);
-  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-meetup\.html"/);
-  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-feed\.html"/);
-  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-v6\.html"/);
-  assert.match(shell, /removeRedundantQuestDrawerLink/);
-});
-
-test("Meetups and Missions share the current adult-only shell and fail-closed publication moderation", () => {
+test("Meet Up and Quests share the current adult-only shell and fail-closed publication moderation", () => {
   for (const html of [meetupHtml, questHtml]) {
-    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.5\.0/);
+    assert.match(html, /js\/ari-circle\/circle-menu-v5\.js\?v=2\.4\.3/);
     assert.match(html, /js\/ari-circle\/social-badges\.js\?v=1\.2\.0/);
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
-    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.3\.0"/);
+    assert.match(html, /id="ariCircleV5RealWorldScript" src="js\/ari-circle\/v5-real-world\.js\?v=5\.2\.4"/);
     assert.match(html, /id="ariCircleV5RealWorldModerationScript" src="js\/ari-circle\/real-world-moderation-v5\.js\?v=5\.1\.0"/);
     const moderationIndex = html.indexOf("real-world-moderation-v5.js");
     const controllerIndex = Math.max(html.indexOf("meetups-v5.js"), html.indexOf("quests-v5.js"));
     assert.ok(moderationIndex >= 0 && controllerIndex > moderationIndex);
   }
   assert.match(menu, /adult-only-guard\.js/);
-  assert.match(menu, /v5-real-world\.js\?v=5\.3\.0/);
   assert.match(moderation, /ari_circle_create_meetup/);
   assert.match(moderation, /ari_circle_create_quest/);
   assert.match(moderation, /ari_circle_submit_quest_completion/);
