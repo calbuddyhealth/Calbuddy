@@ -96,7 +96,8 @@ export function prepareCompoundActionBatch({
       functionCall: call,
       availableTools
     });
-    if (!review || review?.decision !== clean(call?.name, 140) || Number(review?.confidence || 0) < 0.99) {
+    const boundedExplicit = Boolean(review) || boundedCompoundClauseAuthorization(call?.name, clause);
+    if (!boundedExplicit || (review && (review?.decision !== clean(call?.name, 140) || Number(review?.confidence || 0) < 0.99))) {
       return {
         valid: false,
         error: "compound_subaction_not_explicit",
@@ -161,6 +162,15 @@ export function prepareCompoundActionBatch({
       browserMustRevalidateBeforeExecution: true
     }
   };
+}
+
+function boundedCompoundClauseAuthorization(toolName = "", clause = "") {
+  const name = clean(toolName, 160);
+  const text = clean(clause, 700);
+  if (name === "propose_edit_referenced_workout") {
+    return /^(?:(?:(?:hey|hi)\s+)?ari[,:-]?\s*)?(?:please\s+)?(?:move|add|remove|replace|change|update|edit|correct|fix)\b/i.test(text);
+  }
+  return false;
 }
 
 function destructiveConflict(actions = []) {
