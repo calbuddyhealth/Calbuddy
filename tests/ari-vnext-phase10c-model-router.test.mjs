@@ -19,10 +19,10 @@ function advancedEntitlement(reasoningProfile = "adaptive") {
   };
 }
 
-test("Phase 10C routes simple single-domain app reads to fast model even for Advanced Ari", () => {
+test("Phase 10C routes simple single-domain Training work to fast model even for Advanced Ari", () => {
   const route = {
-    nutrition: true,
-    training: false,
+    nutrition: false,
+    training: true,
     goals: false,
     social: false,
     complexity: "fast",
@@ -31,13 +31,36 @@ test("Phase 10C routes simple single-domain app reads to fast model even for Adv
   };
   const policy = resolveModelPolicy(route);
 
-  assert.equal(MODEL_POLICY_VERSION, "2.4.0");
+  assert.equal(MODEL_POLICY_VERSION, "2.4.1");
   assert.equal(policy.routingClass, "simple_app");
   assert.equal(policy.fastEligible, true);
   assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini");
   assert.equal(policy.costTier, "owner_fast");
   assert.equal(policy.escalationAllowed, true);
   assert.equal(policy.escalationModel, process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6");
+});
+
+test("Phase 10C keeps Advanced Nutrition advice advanced while routine logging stays on Luna", () => {
+  const advice = resolveModelPolicy({
+    nutrition: true,
+    nutritionLogging: false,
+    complexity: "fast",
+    casualConversation: false,
+    intelligenceEntitlement: advancedEntitlement()
+  });
+  assert.equal(advice.routingClass, "nutrition_advice");
+  assert.equal(advice.fastEligible, false);
+  assert.equal(advice.model, process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6");
+
+  const logging = resolveModelPolicy({
+    nutrition: true,
+    nutritionLogging: true,
+    complexity: "fast",
+    casualConversation: false,
+    intelligenceEntitlement: advancedEntitlement()
+  });
+  assert.equal(logging.routingClass, "nutrition_logging");
+  assert.equal(logging.model, process.env.OPENAI_ARI_NUTRITION_MODEL || "gpt-5.6-luna");
 });
 
 test("Phase 10C keeps meaningful non-app conversation on Advanced Ari", () => {
@@ -64,7 +87,7 @@ test("Phase 10C routes casual conversation to fast model without changing entitl
   assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini");
 });
 
-test("Phase 10C escalates cross-domain coaching before the model call", () => {
+test("Phase 10C escalates cross-domain coaching before the model call without changing standard economy accounting", () => {
   const routing = resolveRoutingClass({
     nutrition: true,
     training: true,
@@ -74,6 +97,15 @@ test("Phase 10C escalates cross-domain coaching before the model call", () => {
   assert.equal(routing.routingClass, "cross_domain_coaching");
   assert.equal(routing.requiresStrongModel, true);
   assert.equal(routing.fastEligible, false);
+
+  const standard = resolveModelPolicy({
+    nutrition: true,
+    training: true,
+    complexity: "fast"
+  });
+  assert.equal(standard.mode, "standard");
+  assert.equal(standard.costTier, "economy");
+  assert.equal(standard.model, process.env.OPENAI_ARI_VNEXT_MODEL || "gpt-4o-mini");
 
   const advanced = resolveModelPolicy({
     nutrition: true,
