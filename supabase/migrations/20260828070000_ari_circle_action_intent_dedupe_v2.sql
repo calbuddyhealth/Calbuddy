@@ -102,6 +102,10 @@ begin
     safe_lon := round(requested_longitude, 2);
   end if;
 
+  -- Serialize intent creation per user so simultaneous repeat taps cannot both
+  -- pass the duplicate lookup before either insert becomes visible.
+  perform pg_advisory_xact_lock(hashtext(caller_id::text));
+
   -- Treat a near-identical active request as the same user intent. The 15-minute
   -- tolerance covers repeated taps and free-text resubmissions whose rolling
   -- "next few hours" window moves by seconds, while still allowing a genuinely
