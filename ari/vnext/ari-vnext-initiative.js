@@ -2,15 +2,15 @@
 // The runtime loads this file last. AriVNextInitiative is exposed only after
 // trusted reference capabilities, authoritative reference rehydration,
 // evidence-resolved Nutrition, the finalized canonical operation registry,
-// Phase 9B correction continuity, and Phase 9D refresh/relaunch continuity are
-// ready.
+// Phase 9B correction continuity, Phase 9D refresh/relaunch continuity, and
+// Phase 9C compound-action reliability are ready.
 
 window.Ari = window.Ari || {};
 
 (() => {
   "use strict";
 
-  const VERSION = "1.6.0";
+  const VERSION = "1.7.0";
   const CAPABILITY_SCRIPTS = [
     "ari/vnext/ari-vnext-nutrition-resolution-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
@@ -22,7 +22,8 @@ window.Ari = window.Ari || {};
     "ari/vnext/ari-vnext-operation-registry-phase8b.js?v=1.0.0",
     "ari/vnext/ari-vnext-operation-registry-phase8c.js?v=1.0.0",
     "ari/vnext/ari-vnext-phase9b-correction-continuity.js?v=1.0.0",
-    "ari/vnext/ari-vnext-phase9d-continuity-reliability.js?v=1.0.0"
+    "ari/vnext/ari-vnext-phase9d-continuity-reliability.js?v=1.0.0",
+    "ari/vnext/ari-vnext-phase9c-compound-actions.js?v=1.0.0"
   ];
 
   function clean(value = "", max = 200) {
@@ -46,6 +47,7 @@ window.Ari = window.Ari || {};
     if (base.endsWith("ari-vnext-operation-registry-phase8c.js")) return window.AriVNextOperationRegistryPhase8C?.ready === true;
     if (base.endsWith("ari-vnext-phase9b-correction-continuity.js")) return window.AriVNextPhase9BCorrectionContinuity?.ready === true;
     if (base.endsWith("ari-vnext-phase9d-continuity-reliability.js")) return window.AriVNextPhase9DContinuityReliability?.ready === true;
+    if (base.endsWith("ari-vnext-phase9c-compound-actions.js")) return window.AriVNextPhase9CCompoundActions?.ready === true;
     return true;
   }
 

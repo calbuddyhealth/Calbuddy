@@ -14,6 +14,7 @@ const bridge = await read("ari/vnext/ari-vnext-bridge.js");
 const resilience = await read("js/home-resilience.js");
 const api = await read("api/ari-vnext.js");
 const orchestrator = await read("api/_lib/ari-vnext/orchestrator.js");
+const orchestratorCore = await read("api/_lib/ari-vnext/orchestrator-core.js");
 const continuity = await read("api/_lib/ari-vnext/continuity-service.js");
 const memory = await read("api/_lib/ari-vnext/memory-service.js");
 const idempotency = await read("api/_lib/ari-vnext/request-idempotency.js");
@@ -110,20 +111,24 @@ test("deterministic routine authorization stays narrow and route-scoped", () => 
 });
 
 test("routine logging proposals skip only the redundant confirmation model continuation", () => {
-  assert.match(orchestrator, /reviewExplicitApplicationIntent\(\{ turn, route, tools, functionCall \}\)/);
-  assert.match(orchestrator, /if \(isRoutineLogAction\(applicationAction\)\)/);
-  assert.match(orchestrator, /source: "ari_vnext_routine_action_proposal"/);
-  assert.match(orchestrator, /provider: providerSummary\(first\)/);
-  assert.match(orchestrator, /function routineLogConfirmationReply/);
+  assert.match(orchestrator, /runAriVNextCore/);
+  assert.match(orchestrator, /if \(clauses\.length < 2\) return await runAriVNextCore\(turn\)/);
 
-  const routineReturn = orchestrator.indexOf("if (isRoutineLogAction(applicationAction))");
-  const continuation = orchestrator.indexOf("const second = await callResponses");
+  assert.match(orchestratorCore, /reviewExplicitApplicationIntent\(\{ turn, route, tools, functionCall \}\)/);
+  assert.match(orchestratorCore, /if \(isRoutineLogAction\(applicationAction\)\)/);
+  assert.match(orchestratorCore, /source: "ari_vnext_routine_action_proposal"/);
+  assert.match(orchestratorCore, /provider: providerSummary\(first\)/);
+  assert.match(orchestratorCore, /function routineLogConfirmationReply/);
+
+  const routineReturn = orchestratorCore.indexOf("if (isRoutineLogAction(applicationAction))");
+  const continuation = orchestratorCore.indexOf("const second = await callResponses");
   assert.ok(routineReturn >= 0 && continuation >= 0 && routineReturn < continuation);
 
-  // Complex mutations retain the natural model continuation path.
-  assert.match(orchestrator, /const toolResult = \{/);
-  assert.match(orchestrator, /const second = await callResponses/);
-  assert.match(orchestrator, /provider: providerSummary\(second\)/);
+  // Complex mutations retain the natural model continuation path inside the
+  // preserved single-action core used by every Phase 9C sub-clause.
+  assert.match(orchestratorCore, /const toolResult = \{/);
+  assert.match(orchestratorCore, /const second = await callResponses/);
+  assert.match(orchestratorCore, /provider: providerSummary\(second\)/);
 });
 
 test("retrieved memory uses complete-record budgeting instead of slicing mid-entry", () => {

@@ -10,6 +10,7 @@ const nutritionResolverSource = fs.readFileSync("ari/vnext/ari-vnext-nutrition-r
 const structuredReferenceSource = fs.readFileSync("ari/vnext/ari-vnext-structured-reference-capabilities.js", "utf8");
 const phase8cSource = fs.readFileSync("ari/vnext/ari-vnext-operation-registry-phase8c.js", "utf8");
 const phase9dSource = fs.readFileSync("ari/vnext/ari-vnext-phase9d-continuity-reliability.js", "utf8");
+const phase9cSource = fs.readFileSync("ari/vnext/ari-vnext-phase9c-compound-actions.js", "utf8");
 const resilienceSource = fs.readFileSync("js/home-resilience.js", "utf8");
 const authSource = fs.readFileSync("js/auth.js", "utf8");
 const routerSource = fs.readFileSync("ari/intent/ari-central-intent-router.js", "utf8");
@@ -138,7 +139,7 @@ test("Home and Nutrition pin the current runtime above the legacy loader cache c
   assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.1/);
 });
 
-test("runtime reaches the final Phase 9D capability bootstrap before readiness", () => {
+test("runtime reaches the final Phase 9C capability bootstrap before readiness", () => {
   assert.match(runtimeSource, /const VERSION = "1\.4\.5"/);
   assert.match(runtimeSource, /ari-vnext-activity-adapter\.js\?v=1\.1\.0/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
@@ -146,7 +147,7 @@ test("runtime reaches the final Phase 9D capability bootstrap before readiness",
   assert.match(runtimeSource, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
   assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.4\.0/);
   assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.4\.0"\)/);
-  assert.match(initiativeSource, /const VERSION = "1\.6\.0"/);
+  assert.match(initiativeSource, /const VERSION = "1\.7\.0"/);
   assert.match(initiativeSource, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
   assert.match(initiativeSource, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
   assert.match(initiativeSource, /ari-vnext-structured-reference-capabilities\.js\?v=1\.0\.0/);
@@ -157,8 +158,12 @@ test("runtime reaches the final Phase 9D capability bootstrap before readiness",
   assert.match(initiativeSource, /AriVNextPhase9BCorrectionContinuity\?\.ready === true/);
   assert.match(initiativeSource, /ari-vnext-phase9d-continuity-reliability\.js\?v=1\.0\.0/);
   assert.match(initiativeSource, /AriVNextPhase9DContinuityReliability\?\.ready === true/);
+  assert.match(initiativeSource, /ari-vnext-phase9c-compound-actions\.js\?v=1\.0\.0/);
+  assert.match(initiativeSource, /AriVNextPhase9CCompoundActions\?\.ready === true/);
   assert.match(phase9dSource, /authoritativeCoverage/);
   assert.match(phase9dSource, /staleReferencesDropped/);
+  assert.match(phase9cSource, /compound_action_batch/);
+  assert.match(phase9cSource, /preflightBatch/);
   assert.match(phase8cSource, /fallbackPolicy: "no_model_visible_mutation_requires_captured_fallback"/);
   assert.match(nutritionResolverSource, /const VERSION = "1\.1\.0"/);
   assert.match(structuredReferenceSource, /current Meal Plan and ARI Circle objects/i);
