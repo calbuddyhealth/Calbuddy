@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - integration/ari-maintainability
+      - integration/ari-simple-authority
       - agent/ari-vnext-intelligence
       - agent/ari-owner-advanced-controls
       - agent/ari-trust-layer-p0
