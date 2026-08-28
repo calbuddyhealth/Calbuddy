@@ -27,22 +27,22 @@ const VALID_SEVERITIES = new Set(["fail", "warn"]);
 const VALID_MATCHERS = new Set(["exact", "oneOf", "range", "exists", "absent"]);
 
 export function defineAriEvalScenario(input = {}) {
-  const scenario = normalizeScenario(input);
-  const privacy = validateScenarioPrivacy(scenario);
+  const privacy = validateScenarioPrivacy(input);
   if (!privacy.ok) {
     const error = new Error(`Invalid ARI eval scenario: ${privacy.code}`);
     error.code = privacy.code;
     throw error;
   }
-  return Object.freeze(scenario);
+  return Object.freeze(normalizeScenario(input));
 }
 
 export function evaluateAriScenario({ scenario = {}, actual = {} } = {}) {
-  const normalized = normalizeScenario(scenario);
-  const privacy = validateScenarioPrivacy(normalized);
-  if (!privacy.ok) {
-    return scenarioResult(normalized, "fail", [{ code: privacy.code, severity: "fail", path: privacy.path || null }]);
+  const rawPrivacy = validateScenarioPrivacy(scenario);
+  if (!rawPrivacy.ok) {
+    const normalized = normalizeScenario({ id: scenario?.id, category: scenario?.category });
+    return scenarioResult(normalized, "fail", [{ code: rawPrivacy.code, severity: "fail", path: rawPrivacy.path || null }]);
   }
+  const normalized = normalizeScenario(scenario);
 
   const findings = [];
   for (const expectation of normalized.expectations) {
@@ -63,7 +63,7 @@ export function evaluateAriSuite({ suiteId = "ari_eval_suite", scenarios = [], a
   const results = scenarios.map((scenario) => {
     const normalized = normalizeScenario(scenario);
     return evaluateAriScenario({
-      scenario: normalized,
+      scenario,
       actual: Object.prototype.hasOwnProperty.call(actualById, normalized.id) ? actualById[normalized.id] : {}
     });
   });
