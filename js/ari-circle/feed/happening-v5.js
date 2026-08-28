@@ -21,6 +21,7 @@
     section=document.createElement("section");
     section.id="circleV5Happening";
     section.className="circle-v5-happening";
+    section.hidden=true;
     section.innerHTML=`<div class="circle-v5-section-heading"><div><p>HAPPENING</p><h2>Do something in real life</h2></div></div><div class="circle-v5-happening__rail" id="circleV5HappeningRail"></div>`;
     const composer=document.querySelector(".feed-composer");
     const moments=document.getElementById("momentsSection");
