@@ -1,17 +1,16 @@
 // ARI vNext — simple deterministic mutation intent facade.
 //
 // The primary Ari model chooses the capability. This layer does NOT spend a
-// second model call re-judging the first model. It only preserves the few
-// deterministic checks that make execution trustworthy: current-route tool
-// availability, canonical reference resolution, and bounded current-turn
-// routine/correction authorization.
+// second model call re-judging the first model. It preserves only deterministic
+// checks that make execution trustworthy: current-route tool availability,
+// canonical reference resolution, and bounded current-turn intent recognition.
 //
 // Product policy does not belong here. Account ownership, payload validation,
-// repository constraints, idempotency, and actual persistence remain downstream.
+// repository constraints, idempotency, and persistence remain downstream.
 
 import {
-  reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent
-} from "./action-intent-verifier-core.js";
+  reviewDeterministicRoutineLogIntent as reviewDeterministicMutationIntent
+} from "./deterministic-mutation-intent.js";
 import { normalizeNutritionPlanReview } from "./nutrition-plan-policy.js";
 import { resolveReferenceTarget } from "./reference-context.js";
 
@@ -40,7 +39,7 @@ const SINGLE_REFERENCE_MUTATION_TOOLS = new Set([
 const REFERENCE_LANGUAGE = /\b(?:it|that|this|those|these|them|one|ones|first|second|third|former|latter|same|previous|other)\b/i;
 
 export function reviewDeterministicRoutineLogIntent(args = {}) {
-  return reviewCoreDeterministicRoutineLogIntent({
+  return reviewDeterministicMutationIntent({
     turn: args?.turn || {},
     route: args?.route || {},
     functionCall: args?.functionCall || null,
@@ -70,7 +69,7 @@ export async function reviewExplicitApplicationIntent(args = {}) {
     };
   }
 
-  const deterministic = reviewCoreDeterministicRoutineLogIntent({
+  const deterministic = reviewDeterministicMutationIntent({
     turn,
     route,
     functionCall,
@@ -88,8 +87,6 @@ export async function reviewExplicitApplicationIntent(args = {}) {
   if (!decision) return null;
   if (!new Set(availableTools).has(decision)) return null;
 
-  // No semantic verifier model call. The primary Ari capability proceeds to
-  // deterministic tool validation/canonicalization and the simple action policy.
   return normalizeNutritionPlanReview({
     review: {
       version: "2.0.0",
@@ -126,7 +123,7 @@ export function reviewDeterministicDirectMutation({
     version: "2.0.0",
     decision,
     confidence: 1,
-    reason: "Explicit current-turn direct mutation command verified deterministically.",
+    reason: "Explicit current-turn direct mutation command recognized deterministically.",
     dailyGoalKnown: null,
     model: null,
     providerRequestId: null,
