@@ -19,12 +19,14 @@ test("Training proposal service preserves model-designed workout through canonic
   assert.match(proposal, /vnext_prebuilt_workout/);
   assert.match(proposal, /registryValidated: true/);
   assert.match(training, /createValidatedWorkout/);
-  assert.match(training, /savePreparedWorkout/);
+  assert.match(training, /setBuiltWorkoutForDate/);
+  assert.match(training, /controller\.save\(\{ remote: true \}\)/);
 });
 
 test("Training service refuses to overwrite an existing workout", () => {
   assert.match(training, /workout_date_conflict/);
-  assert.match(training, /already has a workout/i);
+  assert.match(training, /already planned for/);
+  assert.match(training, /didn['\\]t overwrite it/);
 });
 
 test("Training proposal service keeps unvalidated exercise names out of persistence", () => {
