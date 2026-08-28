@@ -1,18 +1,19 @@
 // ARI vNext — simple deterministic mutation intent facade.
 //
 // The primary Ari model chooses the capability. This layer does NOT spend a
-// second model call re-judging the first model. It only checks that the selected
-// function is actually available for the current route and preserves the mature
-// deterministic reference/routine checks where they add value.
+// second model call re-judging the first model. It only preserves the few
+// deterministic checks that make execution trustworthy: current-route tool
+// availability, canonical reference resolution, and bounded current-turn
+// routine/correction authorization.
 //
-// Safety remains downstream and independent: tool validation, canonical
-// reference resolution, account ownership, pending-action scoping, domain
-// policy, and repository constraints still decide whether a mutation can run.
+// Product policy does not belong here. Account ownership, payload validation,
+// repository constraints, idempotency, and actual persistence remain downstream.
 
 import {
   reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent
 } from "./action-intent-verifier-core.js";
 import { normalizeNutritionPlanReview } from "./nutrition-plan-policy.js";
+import { resolveReferenceTarget } from "./reference-context.js";
 
 const DIRECT_SAFE_TOOLS = Object.freeze({
   propose_update_goal: ["set", "update", "change"],
@@ -22,32 +23,73 @@ const DIRECT_SAFE_TOOLS = Object.freeze({
   propose_create_circle_crew: ["create", "make", "form"]
 });
 
+const SINGLE_REFERENCE_MUTATION_TOOLS = new Set([
+  "propose_undo_nutrition_mutation",
+  "propose_update_nutrition_meal",
+  "propose_log_referenced_planned_meal",
+  "propose_discard_referenced_meal_plan",
+  "propose_replace_referenced_meal_plan",
+  "propose_update_activity_log",
+  "propose_delete_activity_log",
+  "propose_update_weight_log",
+  "propose_delete_weight_log",
+  "propose_edit_referenced_workout",
+  "propose_delete_workout"
+]);
+
 const REFERENCE_LANGUAGE = /\b(?:it|that|this|those|these|them|one|ones|first|second|third|former|latter|same|previous|other)\b/i;
 
 export function reviewDeterministicRoutineLogIntent(args = {}) {
-  return reviewCoreDeterministicRoutineLogIntent(args);
+  return reviewCoreDeterministicRoutineLogIntent({
+    turn: args?.turn || {},
+    route: args?.route || {},
+    functionCall: args?.functionCall || null,
+    availableTools: Array.from(availableToolNames(args?.tools || args?.availableTools))
+  });
 }
 
 export async function reviewExplicitApplicationIntent(args = {}) {
-  const deterministic = reviewCoreDeterministicRoutineLogIntent(args);
+  const turn = args?.turn || {};
+  const route = args?.route || {};
+  const functionCall = args?.functionCall || null;
+  const availableTools = Array.from(availableToolNames(args?.tools));
+  const decision = clean(functionCall?.name, 120);
+
+  const resolution = attachReferenceResolution({ turn, route });
+  if (decision && SINGLE_REFERENCE_MUTATION_TOOLS.has(decision) && referenceResolutionBlocks(resolution)) {
+    return {
+      version: "2.0.0",
+      decision: "none",
+      confidence: 1,
+      reason: "Reference target is ambiguous or unresolved; clarification is required before mutation.",
+      dailyGoalKnown: null,
+      model: null,
+      providerRequestId: null,
+      usage: null,
+      source: "deterministic_reference_resolution_block"
+    };
+  }
+
+  const deterministic = reviewCoreDeterministicRoutineLogIntent({
+    turn,
+    route,
+    functionCall,
+    availableTools
+  });
   if (deterministic) {
-    return normalizeNutritionPlanReview({ review: deterministic, route: args?.route || {} });
+    return normalizeNutritionPlanReview({ review: deterministic, route });
   }
 
-  const direct = reviewDeterministicDirectMutation(args);
+  const direct = reviewDeterministicDirectMutation({ ...args, route });
   if (direct) {
-    return normalizeNutritionPlanReview({ review: direct, route: args?.route || {} });
+    return normalizeNutritionPlanReview({ review: direct, route });
   }
 
-  const decision = clean(args?.functionCall?.name, 120);
   if (!decision) return null;
+  if (!new Set(availableTools).has(decision)) return null;
 
-  const available = availableToolNames(args?.tools);
-  if (!available.has(decision)) return null;
-
-  // Do not reinterpret product policy or call another LLM here. The primary
-  // model already selected a capability. Canonicalization and the simple action
-  // policy determine whether it executes immediately or remains reviewable.
+  // No semantic verifier model call. The primary Ari capability proceeds to
+  // deterministic tool validation/canonicalization and the simple action policy.
   return normalizeNutritionPlanReview({
     review: {
       version: "2.0.0",
@@ -60,7 +102,7 @@ export async function reviewExplicitApplicationIntent(args = {}) {
       usage: null,
       source: "primary_capability"
     },
-    route: args?.route || {}
+    route
   });
 }
 
@@ -93,11 +135,29 @@ export function reviewDeterministicDirectMutation({
   };
 }
 
+function attachReferenceResolution({ turn = {}, route = {} } = {}) {
+  if (!route || typeof route !== "object" || Array.isArray(route)) return null;
+  const resolution = resolveReferenceTarget({
+    message: turn?.message || "",
+    referenceState: turn?.context?.referenceState || {},
+    route
+  });
+  route.referenceResolution = resolution;
+  return resolution;
+}
+
+function referenceResolutionBlocks(resolution = null) {
+  if (!resolution || typeof resolution !== "object") return false;
+  if (resolution?.requiresClarification === true) return true;
+  return resolution?.status === "ambiguous" || resolution?.status === "unresolved";
+}
+
 function availableToolNames(tools = []) {
+  const values = Array.isArray(tools) ? tools : [];
   return new Set(
-    (Array.isArray(tools) ? tools : [])
-      .filter((tool) => tool?.type === "function" && tool?.name)
-      .map((tool) => clean(tool.name, 120))
+    values
+      .map((tool) => typeof tool === "string" ? tool : (tool?.type === "function" ? tool?.name : ""))
+      .map((name) => clean(name, 120))
       .filter(Boolean)
   );
 }
