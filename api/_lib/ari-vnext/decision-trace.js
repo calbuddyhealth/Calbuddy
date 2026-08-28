@@ -4,7 +4,8 @@
 // excludes prompt text, user/reply text, tool arguments, app payloads, memories,
 // secrets, and hidden chain-of-thought.
 
-import { resolveReferenceTarget } from "./reference-context.js";
+import { budgetTurnContext } from "./context-budget.js";
+import { isReferenceFollowUp, resolveReferenceTarget } from "./reference-context.js";
 
 export const ARI_DECISION_TRACE_VERSION = "1.0.0";
 
@@ -18,7 +19,7 @@ export function buildAriDecisionTrace({ turn = {}, result = {} } = {}) {
   const optimization = plainObject(result?.optimizationTrace);
   const performance = plainObject(result?.performanceBudget);
   const compound = plainObject(result?.compoundAction);
-  const contextBudget = plainObject(result?.observabilityContextBudget);
+  const contextBudget = deriveContextBudgetTrace(turn, compound);
   const reference = safeReferenceResolution(turn, route);
 
   return {
@@ -42,14 +43,7 @@ export function buildAriDecisionTrace({ turn = {}, result = {} } = {}) {
       reasoningEffort: clean(modelPolicy?.reasoningEffort, 40) || null,
       fastEligible: modelPolicy?.fastEligible === true
     },
-    context: {
-      profile: clean(contextBudget?.profile, 60) || compoundContextProfile(compound),
-      historyBefore: nonNegative(contextBudget?.historyBefore),
-      historyAfter: nonNegative(contextBudget?.historyAfter),
-      referenceHistoryFloorApplied: contextBudget?.referenceHistoryFloorApplied === true,
-      canonicalStatePreserved: contextBudget?.canonicalStatePreserved !== false,
-      referenceStatePreserved: contextBudget?.referenceStatePreserved !== false
-    },
+    context: contextBudget,
     reference,
     authorization: {
       mode: authorizationMode(semanticReview),
@@ -114,14 +108,7 @@ export function buildAriFailureTrace({ turn = {}, error = null, optimizationTrac
       coachingState: false
     },
     model: { model: null, routingClass: null, mode: null, reasoningEffort: null, fastEligible: false },
-    context: {
-      profile: null,
-      historyBefore: 0,
-      historyAfter: 0,
-      referenceHistoryFloorApplied: false,
-      canonicalStatePreserved: true,
-      referenceStatePreserved: true
-    },
+    context: safeFailureContextTrace(turn),
     reference: { status: "unknown", reason: "turn_failed_before_reference_outcome", candidateCount: 0, clarificationRequired: false },
     authorization: { mode: "unknown", decision: "none", confidence: 0, verifierModel: null },
     action: { type: "none", applicationAction: null, pending: false, confirmation: "none" },
@@ -166,6 +153,84 @@ export function assertSanitizedDecisionTrace(trace = {}) {
   return serialized.length <= 16000;
 }
 
+function deriveContextBudgetTrace(turn = {}, compound = {}) {
+  const clauses = Array.isArray(compound?.clauses)
+    ? compound.clauses.map((value) => clean(value, 1800)).filter(Boolean).slice(0, 4)
+    : [];
+
+  if (clauses.length >= 2) {
+    const budgets = clauses.map((clause, index) => {
+      try {
+        return budgetTurnContext({
+          ...turn,
+          message: clause,
+          pendingAction: null,
+          phase9cCompound: {
+            version: clean(compound?.version, 40) || null,
+            index,
+            total: clauses.length,
+            originalMessage: clean(turn?.message, 1600)
+          }
+        })?.budget || {};
+      } catch {
+        return {};
+      }
+    });
+    return aggregateContextBudgets(budgets, clauses);
+  }
+
+  try {
+    const budget = budgetTurnContext(turn)?.budget || {};
+    return publicContextBudget(budget, turn?.message || "");
+  } catch {
+    return emptyContextTrace();
+  }
+}
+
+function aggregateContextBudgets(budgets = [], clauses = []) {
+  const profiles = [...new Set(budgets.map((budget) => clean(budget?.profile, 60)).filter(Boolean))];
+  return {
+    profile: profiles.length === 1 ? profiles[0] : profiles.length > 1 ? "mixed" : null,
+    historyBefore: Math.max(0, ...budgets.map((budget) => nonNegative(budget?.historyTurnsBefore))),
+    historyAfter: Math.max(0, ...budgets.map((budget) => nonNegative(budget?.historyTurnsAfter))),
+    referenceHistoryFloorApplied: clauses.some((clause, index) =>
+      isReferenceFollowUp(clause) && nonNegative(budgets[index]?.historyTurnsAfter) >= 6
+    ),
+    canonicalStatePreserved: budgets.every((budget) => budget?.canonicalContextPreserved !== false),
+    referenceStatePreserved: budgets.every((budget) => budget?.referenceStatePreserved !== false)
+  };
+}
+
+function publicContextBudget(budget = {}, message = "") {
+  return {
+    profile: clean(budget?.profile, 60) || null,
+    historyBefore: nonNegative(budget?.historyTurnsBefore),
+    historyAfter: nonNegative(budget?.historyTurnsAfter),
+    referenceHistoryFloorApplied: isReferenceFollowUp(message) && nonNegative(budget?.historyTurnsAfter) >= 6,
+    canonicalStatePreserved: budget?.canonicalContextPreserved !== false,
+    referenceStatePreserved: budget?.referenceStatePreserved !== false
+  };
+}
+
+function safeFailureContextTrace(turn = {}) {
+  try {
+    return publicContextBudget(budgetTurnContext(turn)?.budget || {}, turn?.message || "");
+  } catch {
+    return emptyContextTrace();
+  }
+}
+
+function emptyContextTrace() {
+  return {
+    profile: null,
+    historyBefore: 0,
+    historyAfter: 0,
+    referenceHistoryFloorApplied: false,
+    canonicalStatePreserved: true,
+    referenceStatePreserved: true
+  };
+}
+
 function safeReferenceResolution(turn, route) {
   try {
     const resolution = resolveReferenceTarget({
@@ -204,14 +269,6 @@ function compoundMode(compound = {}) {
   if (compound?.blocked === true) return "blocked";
   if (compound?.sharedPrimaryUsed === true) return "shared_primary";
   return "independent";
-}
-
-function compoundContextProfile(compound = {}) {
-  const values = Array.isArray(compound?.contextProfiles)
-    ? [...new Set(compound.contextProfiles.map((value) => clean(value, 60)).filter(Boolean))]
-    : [];
-  if (!values.length) return null;
-  return values.length === 1 ? values[0] : "mixed";
 }
 
 function outcomeStatus(result = {}) {
