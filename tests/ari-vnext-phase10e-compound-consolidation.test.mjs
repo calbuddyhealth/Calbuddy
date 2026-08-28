@@ -48,9 +48,9 @@ test("Phase 10E consolidates only uniquely deterministic independent tools", () 
   );
 });
 
-test("Phase 10E supports a deterministic direct goal command plus a routine log", () => {
+test("Phase 10E supports a deterministic single-domain goal command plus a routine log", () => {
   const clauses = [
-    "Set my calorie goal to 2200.",
+    "Set my target weight to 180 pounds.",
     "Log my weight as 185 pounds."
   ];
   const analysis = analyzeCompoundPrimaryEligibility({
