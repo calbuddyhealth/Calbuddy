@@ -31,7 +31,8 @@ function makeEnv() {
   const registry = {
     ready: true,
     registerOperation(name, handlers) { handler = { name, ...handlers }; },
-    snapshot() { return { operationNames: ["update_nutrition_meal", "update_activity_log", "compound_action_batch"] }; }
+    snapshot() { return { operationNames: ["update_nutrition_meal", "update_activity_log", "compound_action_batch"] }; },
+    async executeConfirmed() { calls += 1; return { success: true, result: { reply: "done" } }; }
   };
   const window = {
     Ari: {},
@@ -45,9 +46,6 @@ function makeEnv() {
       async buildContext() { return { referenceState: { references: [live] } }; },
       getPendingAction() { return null; },
       clearPendingAction() {}
-    },
-    AriVNextActionAdapter: {
-      async executeConfirmed() { calls += 1; return { success: true, result: { reply: "done" } }; }
     },
     CalBuddy: {
       async getUserContext() { return {}; },
@@ -102,4 +100,6 @@ test("Phase 9C source requires canonical identity equality for lifecycle handoff
   assert.match(source, /canonicalIdentity\(lifecycle\)/);
   assert.match(source, /canonicalIdentity\(reference\) === identity/);
   assert.match(source, /verifiedByTrustedExecutor !== true/);
+  assert.match(source, /registry\.executeConfirmed/);
+  assert.doesNotMatch(source, /AriVNextActionAdapter/);
 });

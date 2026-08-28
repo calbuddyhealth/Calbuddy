@@ -7,7 +7,10 @@
 // deterministic clauses; every clause still traverses the mature core afterward.
 // Phase 10F evaluates structural performance budgets after orchestration only.
 // Phase 11A/B records sanitized decisions/outcomes outside the trusted core.
+// The centralized Action Policy now decides whether an already trusted,
+// canonicalized mutation executes now or remains confirmation-gated.
 
+import { applyActionPolicyToResult } from "./action-policy.js";
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
 import { planCompoundPrimary, COMPOUND_PRIMARY_PLANNER_VERSION } from "./compound-primary-planner.js";
 import { budgetTurnContext } from "./context-budget.js";
@@ -122,14 +125,15 @@ async function rethrowObservedError({ turn = {}, error = null, trace = null } = 
 export async function runAriVNext(turn = {}) {
   return await withOptimizationTrace(turn, async (trace) => {
     const result = await runObservedAriVNext(turn, trace).catch(async (error) => await rethrowObservedError({ turn, error, trace }));
+    const policyResult = applyActionPolicyToResult({ turn, result });
     const optimizationTrace = summarizeOptimizationTrace(trace);
     const performanceBudget = evaluatePerformanceBudget({
       turn,
-      result,
+      result: policyResult,
       optimizationTrace
     });
     const observedResult = {
-      ...result,
+      ...policyResult,
       optimizationTrace,
       performanceBudget
     };

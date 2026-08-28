@@ -1,12 +1,13 @@
 /* =============================================================
    ARI CIRCLE — SOCIAL BADGES
-   Version: 1.2.0
+   Version: 1.3.0
 
    Lightweight unread indicators for current Circle surfaces.
    - Home ARI Circle card: total unread Circle notifications.
    - Circle message button: unread message count.
    - Discover Friends: pending Circle request count.
    - Circle menu Notifications row: unread Circle activity count.
+   - During the ARI Next owner beta, public app entry lands on Feed.
 
    Performance/privacy rules:
    - Never blocks initial page rendering.
@@ -18,7 +19,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const CACHE_KEY = "ari_circle_badges_v1";
   const CACHE_MS = 30000;
   const REFRESH_MS = 60000;
@@ -35,6 +36,13 @@
 
   const clampCount = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
   const labelCount = (value) => value > 99 ? "99+" : String(value);
+
+  function normalizePublicCircleEntry() {
+    document.querySelectorAll('.nav-circle[href="ari-circle-v6.html"]').forEach((link) => {
+      link.setAttribute("href", "ari-circle-feed.html");
+      link.dataset.circleEntry = "feed-connect-public";
+    });
+  }
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -77,6 +85,7 @@
   }
 
   function paint(counts = state.counts) {
+    normalizePublicCircleEntry();
     if (!state.authorized) return;
     ensureStyle();
 
@@ -153,6 +162,7 @@
   }
 
   async function refresh() {
+    normalizePublicCircleEntry();
     if (!state.client || !state.authorized || state.busy || document.hidden) return;
     state.busy = true;
 
@@ -183,6 +193,7 @@
   }
 
   async function start() {
+    normalizePublicCircleEntry();
     if (state.started) {
       paint();
       return;
@@ -214,6 +225,7 @@
     state.timer = window.setInterval(refresh, REFRESH_MS);
   }
 
+  normalizePublicCircleEntry();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
   else start();
 
@@ -222,5 +234,5 @@
   document.addEventListener("circle:app-ready", () => { paint(); scheduleInitialRefresh(); });
   window.addEventListener("ari:circle-badges-refresh", refresh);
 
-  window.AriCircleSocialBadges = Object.freeze({ version: VERSION, refresh, paint });
+  window.AriCircleSocialBadges = Object.freeze({ version: VERSION, refresh, paint, normalizePublicCircleEntry });
 })();

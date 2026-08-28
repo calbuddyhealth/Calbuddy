@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - integration/ari-maintainability
+      - integration/ari-simple-authority
       - agent/ari-vnext-intelligence
       - agent/ari-owner-advanced-controls
       - agent/ari-trust-layer-p0
@@ -58,6 +60,7 @@ on:
   pull_request:
     branches:
       - main
+      - feature/ari-next-owner-beta-lifecycle
       - feature/ari-circle-action-network
       - feature/ari-circle-mission-v2
       - feature/ari-circle-places-explore

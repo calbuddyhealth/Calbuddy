@@ -11,7 +11,7 @@ import {
   MODEL_CALL_OPTIMIZER_VERSION
 } from "../api/_lib/ari-vnext/model-call-optimizer.js";
 
-test("Phase 10B deterministically authorizes bounded direct create/plan/set commands", () => {
+test("simple authority deterministically recognizes bounded direct create/plan/set commands", () => {
   const result = reviewDeterministicDirectMutation({
     turn: { message: "Please plan a chest workout for me." },
     tools: [{ type: "function", name: "propose_plan_workout" }],
@@ -24,7 +24,7 @@ test("Phase 10B deterministically authorizes bounded direct create/plan/set comm
   assert.equal(result?.source, "deterministic_direct_mutation");
 });
 
-test("Phase 10B direct authorization refuses advice phrasing and reference-dependent language", () => {
+test("direct recognition refuses advice phrasing and reference-dependent language", () => {
   const tools = [{ type: "function", name: "propose_plan_workout" }];
 
   assert.equal(reviewDeterministicDirectMutation({
@@ -40,7 +40,7 @@ test("Phase 10B direct authorization refuses advice phrasing and reference-depen
   }), null);
 });
 
-test("Phase 10B does not bypass verifier for Meal Plan future-date boundaries", () => {
+test("Meal Plan product boundaries do not become generic direct authority", () => {
   const result = reviewDeterministicDirectMutation({
     turn: { message: "Plan tomorrow's meals for me." },
     tools: [{ type: "function", name: "propose_today_meal_plan" }],
@@ -49,7 +49,7 @@ test("Phase 10B does not bypass verifier for Meal Plan future-date boundaries", 
   assert.equal(result, null);
 });
 
-test("Phase 10B preserves the mature deterministic routine/reference verifier export", () => {
+test("simple authority preserves deterministic routine/reference recognition", () => {
   const result = reviewDeterministicRoutineLogIntent({
     turn: { message: "Log 185 pounds." },
     route: { goals: true },
@@ -60,7 +60,7 @@ test("Phase 10B preserves the mature deterministic routine/reference verifier ex
   assert.equal(result?.source, "deterministic_routine_log");
 });
 
-test("Phase 10B replaces only a trusted deterministic confirmation paraphrase", async () => {
+test("confirmation presentation is deterministic after a real pending action exists", async () => {
   const body = {
     model: "model-a",
     input: [
@@ -105,7 +105,7 @@ test("Phase 10B replaces only a trusted deterministic confirmation paraphrase", 
   assert.match(payload.output_text, /meal correction ready/i);
 });
 
-test("Phase 10B preserves model continuation when semantic verifier was required", () => {
+test("legacy semantic-verifier trace cannot force another confirmation model call", async () => {
   const optimized = maybeOptimizeModelCall({
     stage: "confirmation_continuation",
     body: {
@@ -128,10 +128,12 @@ test("Phase 10B preserves model continuation when semantic verifier was required
     }
   });
 
-  assert.equal(optimized, null);
+  assert.equal(optimized?.optimized, true);
+  const payload = await optimized.response.json();
+  assert.match(payload.output_text, /Meetup ready to create/i);
 });
 
-test("Phase 10B refuses to synthesize confirmation without a real pending-action output", () => {
+test("confirmation presentation refuses to synthesize without a real pending-action output", () => {
   assert.equal(extractConfirmationToolResult([]), null);
   assert.equal(extractConfirmationToolResult([{ type: "function_call_output", output: "{}" }]), null);
   assert.equal(extractConfirmationToolResult([{

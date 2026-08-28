@@ -43,6 +43,11 @@ function sandbox({
     },
     snapshot() {
       return { operationNames: [...supportedOperations, "compound_action_batch"] };
+    },
+    async executeConfirmed(input) {
+      executionCalls.push(input);
+      const configured = executions[executionCalls.length - 1];
+      return configured || { success: true, result: { reply: "done" } };
     }
   };
 
@@ -57,13 +62,6 @@ function sandbox({
       },
       getPendingAction() { return bridgePending; },
       clearPendingAction() { bridgePending = null; }
-    },
-    AriVNextActionAdapter: {
-      async executeConfirmed(input) {
-        executionCalls.push(input);
-        const configured = executions[executionCalls.length - 1];
-        return configured || { success: true, result: { reply: "done" } };
-      }
     },
     CalBuddy: {
       async getUserContext() { return {}; },
@@ -132,7 +130,7 @@ test("Phase 9C registers one compound operation on the canonical operation regis
   const env = sandbox();
   const registered = env.getRegistered();
   assert.equal(env.window.AriVNextPhase9CCompoundActions.ready, true);
-  assert.equal(env.window.AriVNextPhase9CCompoundActions.version, "1.0.0");
+  assert.equal(env.window.AriVNextPhase9CCompoundActions.version, "1.1.0");
   assert.equal(registered.name, "compound_action_batch");
   assert.equal(typeof registered.handlers.createPending, "function");
   assert.equal(typeof registered.handlers.executeConfirmed, "function");
@@ -174,7 +172,7 @@ test("Phase 9C stale reference preflight blocks the whole batch before any write
   assert.equal(env.executionCalls.length, 0);
 });
 
-test("Phase 9C preflights every target first, then delegates sub-actions through the existing adapter in order", async () => {
+test("Phase 9C preflights every target first, then delegates sub-actions through OperationRegistry in order", async () => {
   const env = sandbox({
     contexts: {
       "change lunch": [authoritative("ref_live_meal_a")],
@@ -196,7 +194,7 @@ test("Phase 9C preflights every target first, then delegates sub-actions through
   assert.equal(env.executionCalls.length, 2);
   assert.equal(env.executionCalls[0].vnextPendingAction.name, "update_nutrition_meal");
   assert.equal(env.executionCalls[1].vnextPendingAction.name, "edit_referenced_workout");
-  assert.equal(env.executionCalls[0].vnextPendingAction.phase9cBatchId, pending.id);
+  assert.equal(env.executionCalls[0].vnextPendingAction.compoundBatchId, pending.id);
   assert.equal(env.executionCalls[1].currentTurnId, "confirm-turn");
 });
 
@@ -245,6 +243,7 @@ test("Phase 9C capability contains no model, database, or standalone network exe
   assert.doesNotMatch(source, /OPENAI_API_KEY|\/v1\/responses/);
   assert.doesNotMatch(source, /\.from\(|\.rpc\(|supabase/i);
   assert.doesNotMatch(source, /\bfetch\s*\(/);
-  assert.match(source, /AriVNextActionAdapter/);
+  assert.doesNotMatch(source, /AriVNextActionAdapter/);
   assert.match(source, /AriVNextOperationRegistry/);
+  assert.match(source, /registry\.executeConfirmed/);
 });

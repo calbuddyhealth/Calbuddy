@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.4.5
+// Version: 1.5.0
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -11,7 +11,7 @@
 //   - The runtime controller owns the ordered vNext dependency boot sequence.
 //   - Rebirth remains available by local emergency override.
 //   - A vNext transport/runtime failure falls back once to Rebirth.
-//   - Existing trusted CalBuddy action execution remains authoritative.
+//   - OperationRegistry is the only Ari application execution API.
 //   - Typed and button confirmations share the same trusted action boundary.
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
@@ -21,8 +21,6 @@
 //     through the final trusted structured-reference capability bootstrap.
 //   - The final initiative/capability bootstrap must satisfy its minimum version
 //     before vNext can report itself ready.
-//   - Initiative 1.4+ guarantees the trusted Nutrition Resolution capability and
-//     final Phase 8C operation-registry cutover are installed before vNext is ready.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -41,19 +39,19 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.5";
+  const VERSION = "1.5.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
-    "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
-    "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
+    "ari/vnext/ari-vnext-operation-registry.js?v=2.0.1",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=2.3.0",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
-    "ari/vnext/ari-vnext-reference-state.js?v=1.2.0",
-    "ari/vnext/ari-vnext-initiative.js?v=1.4.0"
+    "ari/vnext/ari-vnext-reference-state.js?v=1.3.0",
+    "ari/vnext/ari-vnext-initiative.js?v=1.9.0"
   ];
 
   const legacy = {
@@ -190,10 +188,13 @@
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
-    if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
+    if (base.endsWith("ari-vnext-operation-registry.js")) {
+      return window.AriVNextOperationRegistry?.ready === true &&
+        versionAtLeast(window.AriVNextOperationRegistry?.version, "2.0.1");
+    }
     if (base.endsWith("ari-vnext-activity-adapter.js")) {
       return Boolean(window.AriVNextActivityAdapter) &&
-        versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0");
+        versionAtLeast(window.AriVNextActivityAdapter?.version, "2.3.0");
     }
     if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
     if (base.endsWith("ari-vnext-bridge.js")) {
@@ -203,11 +204,11 @@
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
     if (base.endsWith("ari-vnext-reference-state.js")) {
       return window.AriVNextReferenceState?.ready === true &&
-        versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0");
+        versionAtLeast(window.AriVNextReferenceState?.version, "1.3.0");
     }
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(window.AriVNextInitiative) &&
-        versionAtLeast(window.AriVNextInitiative?.version, "1.4.0");
+        versionAtLeast(window.AriVNextInitiative?.version, "1.9.0");
     }
     return true;
   }
@@ -250,15 +251,16 @@
     return Boolean(
       typeof window.AriVNextBridge?.ask === "function" &&
       versionAtLeast(window.AriVNextBridge?.version, "1.7.2") &&
-      window.AriVNextActionAdapter &&
+      window.AriVNextOperationRegistry?.ready === true &&
+      versionAtLeast(window.AriVNextOperationRegistry?.version, "2.0.1") &&
       window.AriVNextActivityAdapter &&
-      versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0") &&
+      versionAtLeast(window.AriVNextActivityAdapter?.version, "2.3.0") &&
       window.AriVNextMealPlanAdapter?.ready === true &&
       window.AriVNextContextGuard?.ready === true &&
       window.AriVNextReferenceState?.ready === true &&
-      versionAtLeast(window.AriVNextReferenceState?.version, "1.2.0") &&
+      versionAtLeast(window.AriVNextReferenceState?.version, "1.3.0") &&
       window.AriVNextInitiative &&
-      versionAtLeast(window.AriVNextInitiative?.version, "1.4.0")
+      versionAtLeast(window.AriVNextInitiative?.version, "1.9.0")
     );
   }
 
@@ -327,7 +329,7 @@
       };
     }
 
-    const mapped = await window.AriVNextActionAdapter.createCalBuddyPendingAction(pending);
+    const mapped = await window.AriVNextOperationRegistry.createPending(pending);
     if (!mapped?.success || !mapped?.action) {
       console.warn(
         "Ari vNext action mapping blocked:",
@@ -344,6 +346,7 @@
       };
     }
 
+    window.AriVNextReferenceState?.rememberPending?.({ pendingAction: pending });
     return {
       ...result,
       pendingAction: mapped.action,
@@ -394,7 +397,7 @@
     const originalPending = result?.vnextPendingAction || window.AriVNextBridge?.getPendingAction?.();
     if (!originalPending?.id) return result;
 
-    const execution = await window.AriVNextActionAdapter.executeConfirmed({
+    const execution = await window.AriVNextOperationRegistry.executeConfirmed({
       vnextPendingAction: originalPending,
       currentTurnId: result?.turn?.turnId || result?.turnId || null
     });
@@ -413,7 +416,7 @@
       ...result,
       pendingAction: null,
       execution,
-      reply: execution?.result?.reply || result.reply
+      reply: execution?.result?.reply || execution?.reply || result.reply
     };
   }
 
@@ -456,11 +459,7 @@
 
   function isExpiredVNextLegacyPending(action = null) {
     if (!action || typeof action !== "object") return false;
-    const linked = Boolean(
-      action?.vnext_action_id ||
-      action?.vnext_source_turn_id ||
-      clean(action?.vnext_source) === "ari_vnext_action_adapter"
-    );
+    const linked = Boolean(action?.vnext_action_id || action?.vnext_source_turn_id);
     if (!linked) return false;
 
     const expiresAt = Date.parse(String(action?.vnext_expires_at || ""));
@@ -546,7 +545,7 @@
       return response;
     }
 
-    const execution = await window.AriVNextActionAdapter.executeConfirmed({
+    const execution = await window.AriVNextOperationRegistry.executeConfirmed({
       vnextPendingAction: pending,
       currentTurnId: null
     });

@@ -7,13 +7,13 @@ import {
   toolToApplicationAction,
   validateToolCall
 } from "../api/_lib/ari-vnext/tools.js";
+import { reviewExplicitApplicationIntent } from "../api/_lib/ari-vnext/action-intent-verifier.js";
 
 const adapter = await readFile(new URL("../ari/vnext/ari-vnext-circle-action-adapter.js", import.meta.url), "utf8");
 const wrappers = await readFile(new URL("../supabase/migrations/20260825113000_ari_circle_action_network_agent_actions_v1.sql", import.meta.url), "utf8");
 const circleV5Migration = await readFile(new URL("../supabase/migrations/20260824054500_ari_circle_v5_real_world_social.sql", import.meta.url), "utf8");
 const missionMigration = await readFile(new URL("../supabase/migrations/20260825133000_ari_circle_mission_v2.sql", import.meta.url), "utf8");
 const guard = await readFile(new URL("../ari/vnext/ari-vnext-context-guard.js", import.meta.url), "utf8");
-const verifier = await readFile(new URL("../api/_lib/ari-vnext/action-intent-verifier.js", import.meta.url), "utf8");
 
 const adultCircleRoute = {
   social: true,
@@ -320,13 +320,35 @@ test("vNext refuses readiness until trusted Mission-capable Circle executor is l
   assert.match(guard, /clearCircleCache/);
 });
 
-test("semantic verifier treats Circle discovery as read-only and bounds Mission writes", () => {
-  assert.match(verifier, /anything going on tonight\?/i);
-  assert.match(verifier, /discovery\/read request/i);
-  assert.match(verifier, /cancelling the user's OWN participation/i);
-  assert.match(verifier, /cancelling an entire HOSTED meetup/i);
-  assert.match(verifier, /What Missions are active\?/i);
-  assert.match(verifier, /add my 3 miles to that Mission/i);
-  assert.match(verifier, /No Mission-review mutation tool is available/i);
-  assert.match(verifier, /join, RSVP, request a spot, leave, withdraw/i);
+test("Circle discovery stays read-only and only route-exposed Mission capabilities can mutate", async () => {
+  const tools = getAriTools(adultCircleRoute);
+  const readReview = await reviewExplicitApplicationIntent({
+    turn: { message: "Anything going on tonight?" },
+    route: { ...adultCircleRoute },
+    tools,
+    functionCall: null
+  });
+  assert.equal(readReview, null);
+
+  const progressReview = await reviewExplicitApplicationIntent({
+    turn: { message: "Add my 3 miles to that Mission." },
+    route: { ...adultCircleRoute },
+    tools,
+    functionCall: {
+      name: "propose_submit_circle_mission_progress",
+      arguments: JSON.stringify({ missionId, amount: 3, unit: "miles", note: "" })
+    }
+  });
+  assert.equal(progressReview?.decision, "propose_submit_circle_mission_progress");
+
+  const forbiddenReview = await reviewExplicitApplicationIntent({
+    turn: { message: "Approve that Mission proof." },
+    route: { ...adultCircleRoute },
+    tools,
+    functionCall: {
+      name: "propose_review_circle_mission_contribution",
+      arguments: JSON.stringify({ missionId })
+    }
+  });
+  assert.equal(forbiddenReview, null);
 });

@@ -10,6 +10,7 @@ const routerHandler = fs.readFileSync(path.join(root, "api/_lib/gateway/ari-inte
 const vercel = fs.readFileSync(path.join(root, "vercel.json"), "utf8");
 const mealPlanAction = fs.readFileSync(path.join(root, "ari/actions/ari-meal-plan-action-v2.js"), "utf8");
 const mealPlanGoalGuard = fs.readFileSync(path.join(root, "ari/actions/ari-meal-plan-goal-guard.js"), "utf8");
+const nutritionPlanPolicy = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/nutrition-plan-policy.js"), "utf8");
 const meals = fs.readFileSync(path.join(root, "ari/actions/ari-meal-action.js"), "utf8");
 const workouts = fs.readFileSync(path.join(root, "ari/actions/ari-workout-plan-action.js"), "utf8");
 const nutritionUi = fs.readFileSync(path.join(root, "ari/actions/ari-nutrition-action-ui.js"), "utf8");
@@ -52,11 +53,16 @@ test("today-only Meal Plan reads goal and consumption context itself", () => {
   assert.match(mealPlanAction, /Unallocated calories today:/);
 });
 
-test("Meal Plan refuses to invent a budget when no Daily Calorie Goal exists", () => {
+test("Meal Plan product boundaries are server-owned and the legacy browser guard has no veto authority", () => {
+  // Keep the old script load temporarily for compatibility with existing pages,
+  // but it must no longer wrap the Ask Ari runtime or independently reject plans.
   assert.match(routerClient, /ari-meal-plan-goal-guard\.js\?v=1\.0\.0/);
-  assert.match(mealPlanGoalGuard, /calbuddyDailyCalorieGoal/);
-  assert.match(mealPlanGoalGuard, /dailyCalorieGoal\(\) <= 0/);
-  assert.match(mealPlanGoalGuard, /I need your Daily Calorie Goal first/);
+  assert.match(mealPlanGoalGuard, /Compatibility shim only/);
+  assert.doesNotMatch(mealPlanGoalGuard, /CalBuddy\._askAriInternal\s*=/);
+  assert.doesNotMatch(mealPlanGoalGuard, /dailyCalorieGoal\(\) <= 0/);
+  assert.match(nutritionPlanPolicy, /future_date_not_supported/);
+  assert.match(nutritionPlanPolicy, /calorie_budget_required/);
+  assert.match(nutritionPlanPolicy, /authorization itself was not rejected/);
 });
 
 test("central router is the authority over legacy action classification", () => {

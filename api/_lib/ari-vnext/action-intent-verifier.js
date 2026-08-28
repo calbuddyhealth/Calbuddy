@@ -1,28 +1,18 @@
-// ARI vNext — Phase 10B verifier facade.
+// ARI vNext — simple deterministic mutation intent facade.
 //
-// Keep the mature semantic verifier intact in action-intent-verifier-core.js.
-// This facade removes only verifier calls whose CURRENT-turn write permission
-// is unambiguous from bounded direct syntax. Tool validation, canonicalization,
-// confirmation, reference trust, and the operation registry remain authoritative.
+// The primary Ari model chooses the capability. This layer does NOT spend a
+// second model call re-judging the first model. It preserves only deterministic
+// checks that make execution trustworthy: current-route tool availability,
+// canonical reference resolution, and bounded current-turn intent recognition.
 //
-// Core semantic-policy anchors intentionally preserved behind this facade:
-// - Circle discovery such as "anything going on tonight?" remains a discovery/read request.
-// - Meetup semantics distinguish cancelling the user's OWN participation from
-//   cancelling an entire HOSTED meetup; explicit action vocabulary still includes
-//   join, RSVP, request a spot, leave, withdraw.
-// - Mission discovery such as "What Missions are active?" remains read-only while
-//   explicit progress such as "add my 3 miles to that Mission" is bounded.
-// - No Mission-review mutation tool is available.
-// - For ARI Circle Crews, discovery or explanation is read-only; Crew creation
-//   must Never infer or invent founding members. The core distinguishes
-//   "accept that Crew invite" from "decline/pass on that Crew invite", and it must
-//   distinguish leaving the user's OWN membership from archiving an entire OWNED Crew.
-//   No Crew tool may add arbitrary members.
+// Product policy does not belong here. Account ownership, payload validation,
+// repository constraints, idempotency, and persistence remain downstream.
 
 import {
-  reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent,
-  reviewExplicitApplicationIntent as reviewCoreExplicitApplicationIntent
-} from "./action-intent-verifier-core.js";
+  reviewDeterministicRoutineLogIntent as reviewDeterministicMutationIntent
+} from "./deterministic-mutation-intent.js";
+import { normalizeNutritionPlanReview } from "./nutrition-plan-policy.js";
+import { resolveReferenceTarget } from "./reference-context.js";
 
 const DIRECT_SAFE_TOOLS = Object.freeze({
   propose_update_goal: ["set", "update", "change"],
@@ -32,16 +22,85 @@ const DIRECT_SAFE_TOOLS = Object.freeze({
   propose_create_circle_crew: ["create", "make", "form"]
 });
 
+const SINGLE_REFERENCE_MUTATION_TOOLS = new Set([
+  "propose_undo_nutrition_mutation",
+  "propose_update_nutrition_meal",
+  "propose_log_referenced_planned_meal",
+  "propose_discard_referenced_meal_plan",
+  "propose_replace_referenced_meal_plan",
+  "propose_update_activity_log",
+  "propose_delete_activity_log",
+  "propose_update_weight_log",
+  "propose_delete_weight_log",
+  "propose_edit_referenced_workout",
+  "propose_delete_workout"
+]);
+
 const REFERENCE_LANGUAGE = /\b(?:it|that|this|those|these|them|one|ones|first|second|third|former|latter|same|previous|other)\b/i;
 
 export function reviewDeterministicRoutineLogIntent(args = {}) {
-  return reviewCoreDeterministicRoutineLogIntent(args);
+  return reviewDeterministicMutationIntent({
+    turn: args?.turn || {},
+    route: args?.route || {},
+    functionCall: args?.functionCall || null,
+    availableTools: Array.from(availableToolNames(args?.tools || args?.availableTools))
+  });
 }
 
 export async function reviewExplicitApplicationIntent(args = {}) {
-  const direct = reviewDeterministicDirectMutation(args);
-  if (direct) return direct;
-  return await reviewCoreExplicitApplicationIntent(args);
+  const turn = args?.turn || {};
+  const route = args?.route || {};
+  const functionCall = args?.functionCall || null;
+  const availableTools = Array.from(availableToolNames(args?.tools));
+  const decision = clean(functionCall?.name, 120);
+
+  const resolution = attachReferenceResolution({ turn, route });
+  if (decision && SINGLE_REFERENCE_MUTATION_TOOLS.has(decision) && referenceResolutionBlocks(resolution)) {
+    return {
+      version: "2.0.0",
+      decision: "none",
+      confidence: 1,
+      reason: "Reference target is ambiguous or unresolved; clarification is required before mutation.",
+      dailyGoalKnown: null,
+      model: null,
+      providerRequestId: null,
+      usage: null,
+      source: "deterministic_reference_resolution_block"
+    };
+  }
+
+  const deterministic = reviewDeterministicMutationIntent({
+    turn,
+    route,
+    functionCall,
+    availableTools
+  });
+  if (deterministic) {
+    return normalizeNutritionPlanReview({ review: deterministic, route });
+  }
+
+  const direct = reviewDeterministicDirectMutation({ ...args, route });
+  if (direct) {
+    return normalizeNutritionPlanReview({ review: direct, route });
+  }
+
+  if (!decision) return null;
+  if (!new Set(availableTools).has(decision)) return null;
+
+  return normalizeNutritionPlanReview({
+    review: {
+      version: "2.0.0",
+      decision,
+      confidence: 1,
+      reason: "Primary Ari capability accepted for deterministic validation; no secondary semantic verifier call.",
+      dailyGoalKnown: null,
+      model: null,
+      providerRequestId: null,
+      usage: null,
+      source: "primary_capability"
+    },
+    route
+  });
 }
 
 export function reviewDeterministicDirectMutation({
@@ -53,12 +112,7 @@ export function reviewDeterministicDirectMutation({
   const verbs = DIRECT_SAFE_TOOLS[decision];
   if (!verbs) return null;
 
-  const available = new Set(
-    (Array.isArray(tools) ? tools : [])
-      .filter((tool) => tool?.type === "function" && tool?.name)
-      .map((tool) => clean(tool.name, 120))
-      .filter(Boolean)
-  );
+  const available = availableToolNames(tools);
   if (!available.has(decision)) return null;
 
   const message = clean(turn?.message, 1000);
@@ -66,16 +120,43 @@ export function reviewDeterministicDirectMutation({
   if (!matchesDirectCommand(message, verbs)) return null;
 
   return {
-    version: "1.12.0",
+    version: "2.0.0",
     decision,
     confidence: 1,
-    reason: "Explicit current-turn direct mutation command verified deterministically before semantic verifier fallback.",
+    reason: "Explicit current-turn direct mutation command recognized deterministically.",
     dailyGoalKnown: null,
     model: null,
     providerRequestId: null,
     usage: null,
     source: "deterministic_direct_mutation"
   };
+}
+
+function attachReferenceResolution({ turn = {}, route = {} } = {}) {
+  if (!route || typeof route !== "object" || Array.isArray(route)) return null;
+  const resolution = resolveReferenceTarget({
+    message: turn?.message || "",
+    referenceState: turn?.context?.referenceState || {},
+    route
+  });
+  route.referenceResolution = resolution;
+  return resolution;
+}
+
+function referenceResolutionBlocks(resolution = null) {
+  if (!resolution || typeof resolution !== "object") return false;
+  if (resolution?.requiresClarification === true) return true;
+  return resolution?.status === "ambiguous" || resolution?.status === "unresolved";
+}
+
+function availableToolNames(tools = []) {
+  const values = Array.isArray(tools) ? tools : [];
+  return new Set(
+    values
+      .map((tool) => typeof tool === "string" ? tool : (tool?.type === "function" ? tool?.name : ""))
+      .map((name) => clean(name, 120))
+      .filter(Boolean)
+  );
 }
 
 function matchesDirectCommand(message = "", verbs = []) {

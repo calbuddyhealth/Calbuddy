@@ -14,6 +14,7 @@ const ROUTE_DOMAINS = ["nutrition", "training", "goals", "social"];
 export function buildAriDecisionTrace({ turn = {}, result = {} } = {}) {
   const route = plainObject(result?.route);
   const action = plainObject(result?.action);
+  const actionPolicy = plainObject(result?.actionPolicy);
   const semanticReview = plainObject(result?.semanticActionReview);
   const modelPolicy = plainObject(result?.modelPolicy);
   const optimization = plainObject(result?.optimizationTrace);
@@ -55,7 +56,9 @@ export function buildAriDecisionTrace({ turn = {}, result = {} } = {}) {
       type: clean(action?.type, 100) || "none",
       applicationAction: clean(action?.applicationAction || result?.pendingAction?.name, 160) || null,
       pending: Boolean(result?.pendingAction?.id),
-      confirmation: confirmationState(result)
+      confirmation: confirmationState(result),
+      policyDecision: clean(actionPolicy?.decision, 80) || null,
+      risk: clean(actionPolicy?.risk, 40) || null
     },
     compound: {
       mode: compoundMode(compound),
@@ -111,7 +114,7 @@ export function buildAriFailureTrace({ turn = {}, error = null, optimizationTrac
     context: safeFailureContextTrace(turn),
     reference: { status: "unknown", reason: "turn_failed_before_reference_outcome", candidateCount: 0, clarificationRequired: false },
     authorization: { mode: "unknown", decision: "none", confidence: 0, verifierModel: null },
-    action: { type: "none", applicationAction: null, pending: false, confirmation: "none" },
+    action: { type: "none", applicationAction: null, pending: false, confirmation: "none", policyDecision: null, risk: null },
     compound: { mode: "none", actionCount: 0, independentCorePasses: false, canonicalPreflightRequired: false, blocked: false },
     performance: {
       status: "error",
@@ -258,6 +261,12 @@ function authorizationMode(review) {
 
 function confirmationState(result = {}) {
   const actionType = clean(result?.action?.type, 100);
+  const actionPolicy = plainObject(result?.actionPolicy);
+  if (
+    actionType === "execute_pending_action" &&
+    actionPolicy?.executeImmediately === true &&
+    actionPolicy?.requiresConfirmation !== true
+  ) return "not_required";
   if (actionType === "execute_pending_action") return "confirmed_execute";
   if (actionType === "cancel_pending_action") return "cancelled";
   if (result?.pendingAction?.id || actionType === "proposed_action") return "required";
