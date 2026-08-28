@@ -1,7 +1,17 @@
 // Canonical Nutrition mutation service.
-// Owns resolved meal persistence and idempotent mutation identity.
+// Owns resolved meal persistence, reference-bound meal updates, and idempotent mutation identity.
 
 const MUTATION_PREFIX = "ari_resolved_nutrition_mutation_v2";
+const ALLOWED_MEAL_UPDATE_FIELDS = new Set([
+  "name",
+  "calories",
+  "category",
+  "protein_g",
+  "carbs_g",
+  "fat_g",
+  "serving_size",
+  "multiplier"
+]);
 
 function clean(value = "", max = 240) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -15,6 +25,10 @@ function number(value, fallback = null) {
 
 function object(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function failure(code, message) {
+  return { success: false, code, message };
 }
 
 function makeMutationId() {
@@ -94,12 +108,47 @@ async function currentSession() {
   }
 }
 
+function updateConsumedCache(data = {}, fallbackDate = "") {
+  try {
+    if (Number.isFinite(Number(data?.todayCalories))) {
+      localStorage.setItem("calbuddyCaloriesConsumed", String(Math.round(Number(data.todayCalories))));
+      const date = clean(data?.nutritionDate || fallbackDate, 20);
+      if (date) localStorage.setItem("calbuddyCaloriesConsumedDate", date);
+    }
+  } catch {}
+}
+
+function dispatchMealMutation({ action, mutationId, previousMutationId = null, meal = null, todayCalories = null, undoAvailable = false, resolution = null }) {
+  try {
+    window.dispatchEvent(new CustomEvent("ari:nutritionMutationCommitted", {
+      detail: {
+        action,
+        mutationId,
+        previousMutationId,
+        meal,
+        todayCalories,
+        undoAvailable,
+        resolution,
+        source: "nutrition_service",
+        version: "1.1.0"
+      }
+    }));
+    window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
+      detail: {
+        action: action === "update_meal" ? "update" : "log",
+        meal,
+        mutationId
+      }
+    }));
+  } catch {}
+}
+
 export async function logResolvedMeal(action = {}) {
   const payload = object(action.payload);
   const client = window?.calbuddySupabase;
   const session = await currentSession();
   if (!session?.user?.id || !client?.rpc) {
-    return { success: false, code: "resolved_nutrition_session_required", error: "A signed-in ARI XP session is required to save resolved nutrition." };
+    return failure("resolved_nutrition_session_required", "A signed-in ARI XP session is required to save resolved nutrition.");
   }
 
   const mutation = mutationIdForAction(action);
@@ -128,7 +177,7 @@ export async function logResolvedMeal(action = {}) {
 
   if (error) {
     window?.CalBuddy?.setAriMood?.("concerned");
-    return { success: false, code: "resolved_nutrition_write_failed", error: error.message || "The resolved meal could not be saved. Nothing was changed." };
+    return failure("resolved_nutrition_write_failed", error.message || "The resolved meal could not be saved. Nothing was changed.");
   }
 
   clearMutationStorage(mutation.key);
@@ -140,30 +189,15 @@ export async function logResolvedMeal(action = {}) {
   saved.ari_undo_available = data?.undoAvailable === true;
   saved.ari_resolution = data?.resolution || payload.ari_resolution || null;
 
-  try {
-    if (Number.isFinite(Number(data?.todayCalories))) {
-      localStorage.setItem("calbuddyCaloriesConsumed", String(Math.round(Number(data.todayCalories))));
-      localStorage.setItem("calbuddyCaloriesConsumedDate", String(data?.nutritionDate || nutritionDate));
-    }
-  } catch {}
-
-  try {
-    window.dispatchEvent(new CustomEvent("ari:nutritionMutationCommitted", {
-      detail: {
-        action: "log_meal",
-        mutationId: mutation.id,
-        meal: saved,
-        todayCalories: data?.todayCalories ?? null,
-        undoAvailable: data?.undoAvailable === true,
-        resolution: data?.resolution || payload.ari_resolution || null,
-        source: "nutrition_service",
-        version: "1.0.0"
-      }
-    }));
-    window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
-      detail: { action: "log", meal: saved, mutationId: mutation.id }
-    }));
-  } catch {}
+  updateConsumedCache(data, nutritionDate);
+  dispatchMealMutation({
+    action: "log_meal",
+    mutationId: mutation.id,
+    meal: saved,
+    todayCalories: data?.todayCalories ?? null,
+    undoAvailable: data?.undoAvailable === true,
+    resolution: data?.resolution || payload.ari_resolution || null
+  });
 
   window?.CalBuddy?.setAriMood?.("success");
   return {
@@ -178,8 +212,86 @@ export async function logResolvedMeal(action = {}) {
   };
 }
 
+export function normalizeMealChanges(changes = []) {
+  if (!Array.isArray(changes) || !changes.length) {
+    return failure("nutrition_reference_changes_required", "Tell Ari what should change about that meal.");
+  }
+
+  const payload = {};
+  const seen = new Set();
+  for (const change of changes.slice(0, 8)) {
+    const field = clean(change?.field, 80).toLowerCase();
+    if (!ALLOWED_MEAL_UPDATE_FIELDS.has(field) || seen.has(field)) {
+      return failure("nutrition_reference_change_invalid", "That meal change is not supported safely.");
+    }
+    seen.add(field);
+
+    if (["calories", "protein_g", "carbs_g", "fat_g", "multiplier"].includes(field)) {
+      const value = Number(change?.numberValue);
+      if (!Number.isFinite(value)) return failure(`nutrition_reference_${field}_invalid`, "That meal number is invalid.");
+      if (field === "calories" && (value <= 0 || value > 10000)) return failure("nutrition_reference_calories_invalid", "Meal calories are outside the supported range.");
+      if (["protein_g", "carbs_g", "fat_g"].includes(field) && (value < 0 || value > 2000)) return failure(`nutrition_reference_${field}_invalid`, "That macro value is outside the supported range.");
+      if (field === "multiplier" && (value <= 0 || value > 100)) return failure("nutrition_reference_multiplier_invalid", "That serving multiplier is outside the supported range.");
+      payload[field] = value;
+      continue;
+    }
+
+    const value = clean(change?.textValue, field === "name" ? 180 : 220);
+    if (!value) return failure(`nutrition_reference_${field}_invalid`, "That meal text value is required.");
+    payload[field] = value;
+  }
+  return { success: true, payload };
+}
+
+export async function updateMeal({ mealId = "", changes = [] } = {}) {
+  const id = clean(mealId, 160);
+  if (!/^[0-9a-f-]{20,}$/i.test(id)) {
+    return failure("nutrition_reference_meal_identity_required", "That meal could not be identified safely.");
+  }
+
+  const normalized = normalizeMealChanges(changes);
+  if (!normalized.success) return normalized;
+
+  const client = window?.calbuddySupabase;
+  const session = await currentSession();
+  if (!session?.user?.id || typeof client?.rpc !== "function") {
+    return failure("nutrition_reference_session_required", "Meal edits require a signed-in ARI XP session.");
+  }
+
+  const mutationId = makeMutationId();
+  const { data, error } = await client.rpc("ari_update_nutrition_meal", {
+    p_mutation_id: mutationId,
+    p_meal_id: id,
+    p_changes: normalized.payload
+  });
+
+  if (error) {
+    return failure("nutrition_reference_update_failed", error.message || "That meal could not be updated. Nothing else was changed.");
+  }
+
+  updateConsumedCache(data);
+  try { await window?.CalBuddy?.getConsumedCalories?.(); } catch {}
+  dispatchMealMutation({
+    action: "update_meal",
+    mutationId: data?.mutationId || mutationId,
+    previousMutationId: data?.previousMutationId || null,
+    meal: data?.meal || null,
+    todayCalories: data?.todayCalories ?? null,
+    undoAvailable: data?.undoAvailable === true
+  });
+
+  return {
+    success: true,
+    ...data,
+    mutationId: data?.mutationId || mutationId,
+    source: "nutrition_service"
+  };
+}
+
 export const NutritionService = Object.freeze({
-  logResolvedMeal
+  logResolvedMeal,
+  normalizeMealChanges,
+  updateMeal
 });
 
 export default NutritionService;
