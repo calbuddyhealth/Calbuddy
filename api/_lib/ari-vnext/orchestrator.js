@@ -3,8 +3,11 @@
 // existing trust path without changing what Ari is allowed to do.
 // Phase 10D applies trust-preserving context budgets before each single-action
 // core pass while leaving canonical app/reference state intact.
+// Phase 10E can share one bounded primary interpretation across independent
+// deterministic clauses; every clause still traverses the mature core afterward.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
+import { planCompoundPrimary, COMPOUND_PRIMARY_PLANNER_VERSION } from "./compound-primary-planner.js";
 import { budgetTurnContext } from "./context-budget.js";
 import { runAriVNext as runAriVNextCore } from "./orchestrator-core.js";
 import {
@@ -13,6 +16,7 @@ import {
   withOptimizationTrace
 } from "./optimization-trace.js";
 import { createPendingAction } from "./pending-action.js";
+import { withPreparedPrimary } from "./prepared-primary.js";
 
 const BATCHABLE_OPERATIONS = new Set([
   "log_meal",
@@ -86,6 +90,7 @@ async function runObservedAriVNext(turn = {}, trace = null) {
   if (clauses.length < 2) return await runAriVNextCore(turn);
 
   markCompoundFanout(trace, clauses.length);
+  const sharedPlan = await planCompoundPrimary({ turn, clauses });
 
   const subResults = await Promise.all(clauses.map(async (clause, index) => {
     const budgeted = budgetTurnContext({
@@ -100,11 +105,28 @@ async function runObservedAriVNext(turn = {}, trace = null) {
       }
     });
 
-    return await runAriVNextCore({
+    const runCore = async () => await runAriVNextCore({
       ...budgeted.turn,
-      phase10dContextBudget: budgeted.budget
+      phase10dContextBudget: budgeted.budget,
+      phase10eSharedPrimary: sharedPlan?.usable === true
+        ? {
+            version: COMPOUND_PRIMARY_PLANNER_VERSION,
+            index,
+            total: clauses.length,
+            prepared: true
+          }
+        : null
     });
+
+    const prepared = sharedPlan?.usable === true ? sharedPlan.preparedCalls?.[index] : null;
+    return prepared
+      ? await withPreparedPrimary(prepared, runCore)
+      : await runCore();
   }));
+
+  const providerInputs = sharedPlan?.provider
+    ? [{ provider: sharedPlan.provider }, ...subResults]
+    : subResults;
 
   const proposals = [];
   for (let index = 0; index < subResults.length; index += 1) {
@@ -114,7 +136,15 @@ async function runObservedAriVNext(turn = {}, trace = null) {
     const name = clean(pending?.name, 120);
 
     if (!pending?.id || !pending?.sourceTurnId || !proposed || !BATCHABLE_OPERATIONS.has(name)) {
-      return blockedCompoundResult({ turn, clauses, subResults, failedIndex: index, failedResult: result });
+      return blockedCompoundResult({
+        turn,
+        clauses,
+        subResults,
+        failedIndex: index,
+        failedResult: result,
+        sharedProvider: sharedPlan?.provider || null,
+        sharedPrimaryUsed: sharedPlan?.usable === true
+      });
     }
 
     proposals.push({
@@ -137,7 +167,9 @@ async function runObservedAriVNext(turn = {}, trace = null) {
       subResults,
       failedIndex: conflict.index,
       failedResult: null,
-      reason: conflict.reason
+      reason: conflict.reason,
+      sharedProvider: sharedPlan?.provider || null,
+      sharedPrimaryUsed: sharedPlan?.usable === true
     });
   }
 
@@ -148,6 +180,7 @@ async function runObservedAriVNext(turn = {}, trace = null) {
     confirmationRequired: true
   });
   const primary = subResults[0] || {};
+  const sharedPrimaryUsed = sharedPlan?.usable === true;
 
   return {
     ...primary,
@@ -162,7 +195,7 @@ async function runObservedAriVNext(turn = {}, trace = null) {
       pendingActionId: pendingAction.id,
       arguments: pendingAction.arguments
     },
-    provider: aggregateProvider(subResults),
+    provider: aggregateProvider(providerInputs),
     semanticActionReview: {
       version: COMPOUND_ACTION_VERSION,
       decision: "compound_action_batch",
@@ -175,10 +208,16 @@ async function runObservedAriVNext(turn = {}, trace = null) {
       actionCount: proposals.length,
       clauses,
       independentlyPrepared: true,
+      independentCorePasses: true,
       oneConfirmationRequired: true,
-      canonicalPreflightRequired: true
+      canonicalPreflightRequired: true,
+      sharedPrimaryUsed,
+      sharedPrimaryVersion: sharedPrimaryUsed ? COMPOUND_PRIMARY_PLANNER_VERSION : null,
+      sharedPrimaryFallbackReason: sharedPrimaryUsed ? null : clean(sharedPlan?.reason, 160) || null
     },
-    source: "ari_vnext_phase9c_compound_action_proposal"
+    source: sharedPrimaryUsed
+      ? "ari_vnext_phase10e_compound_action_proposal"
+      : "ari_vnext_phase9c_compound_action_proposal"
   };
 }
 
@@ -217,10 +256,20 @@ function compoundConflict(actions = []) {
   return null;
 }
 
-function blockedCompoundResult({ turn = {}, clauses = [], subResults = [], failedIndex = 0, failedResult = null, reason = "" } = {}) {
+function blockedCompoundResult({
+  turn = {},
+  clauses = [],
+  subResults = [],
+  failedIndex = 0,
+  failedResult = null,
+  reason = "",
+  sharedProvider = null,
+  sharedPrimaryUsed = false
+} = {}) {
   const failed = failedResult || subResults[failedIndex] || {};
   const reply = clean(reason, 1200) || clean(failed?.reply, 1200) ||
     `I can handle those changes together, but change ${failedIndex + 1} is not safe to prepare yet. Specify the exact target for that change and I won’t guess.`;
+  const providerInputs = sharedProvider ? [{ provider: sharedProvider }, ...subResults] : subResults;
 
   return {
     ...failed,
@@ -229,13 +278,14 @@ function blockedCompoundResult({ turn = {}, clauses = [], subResults = [], faile
     reply,
     pendingAction: null,
     action: null,
-    provider: aggregateProvider(subResults),
+    provider: aggregateProvider(providerInputs),
     compoundAction: {
       version: COMPOUND_ACTION_VERSION,
       blocked: true,
       failedIndex,
       clauses,
-      preparedCount: subResults.filter((result) => result?.pendingAction?.id && result?.action?.type === "proposed_action").length
+      preparedCount: subResults.filter((result) => result?.pendingAction?.id && result?.action?.type === "proposed_action").length,
+      sharedPrimaryUsed: Boolean(sharedPrimaryUsed)
     },
     source: "ari_vnext_phase9c_compound_action_blocked",
     turn: turn?.turnId ? { turnId: turn.turnId } : undefined
