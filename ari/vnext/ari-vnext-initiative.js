@@ -2,15 +2,16 @@
 // The runtime loads this file last. AriVNextInitiative is exposed only after
 // trusted reference capabilities, authoritative reference rehydration,
 // evidence-resolved Nutrition, the finalized canonical operation registry,
-// permanent pending reliability, Phase 9B correction continuity, Phase 9D
-// refresh/relaunch continuity, and Phase 9C compound-action reliability are ready.
+// permanent pending reliability, permanent Circle registry, Phase 9B correction
+// continuity, Phase 9D refresh/relaunch continuity, and Phase 9C compound-action
+// reliability are ready.
 
 window.Ari = window.Ari || {};
 
 (() => {
   "use strict";
 
-  const VERSION = "1.8.0";
+  const VERSION = "1.8.1";
   const CAPABILITY_SCRIPTS = [
     "ari/vnext/ari-vnext-nutrition-resolution-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-nutrition-reference-adapter.js?v=1.0.0",
@@ -20,6 +21,7 @@ window.Ari = window.Ari || {};
     "ari/vnext/ari-vnext-authoritative-reference-rehydration.js?v=1.0.0",
     "ari/vnext/ari-vnext-operation-registry.js?v=1.0.0",
     "ari/vnext/ari-vnext-pending-reliability.js?v=1.0.0",
+    "ari/vnext/ari-vnext-circle-registry-adapter.js?v=1.0.0",
     "ari/vnext/ari-vnext-operation-registry-phase8c.js?v=1.0.0",
     "ari/vnext/ari-vnext-phase9b-correction-continuity.js?v=1.0.0",
     "ari/vnext/ari-vnext-phase9d-continuity-reliability.js?v=1.0.0",
@@ -44,6 +46,7 @@ window.Ari = window.Ari || {};
     if (base.endsWith("ari-vnext-authoritative-reference-rehydration.js")) return window.AriVNextAuthoritativeReferenceRehydration?.ready === true;
     if (base.endsWith("ari-vnext-operation-registry.js")) return window.AriVNextOperationRegistry?.ready === true;
     if (base.endsWith("ari-vnext-pending-reliability.js")) return window.AriVNextPendingReliability?.ready === true;
+    if (base.endsWith("ari-vnext-circle-registry-adapter.js")) return window.AriVNextCircleRegistryAdapter?.ready === true;
     if (base.endsWith("ari-vnext-operation-registry-phase8c.js")) return window.AriVNextOperationRegistryPhase8C?.ready === true;
     if (base.endsWith("ari-vnext-phase9b-correction-continuity.js")) return window.AriVNextPhase9BCorrectionContinuity?.ready === true;
     if (base.endsWith("ari-vnext-phase9d-continuity-reliability.js")) return window.AriVNextPhase9DContinuityReliability?.ready === true;
