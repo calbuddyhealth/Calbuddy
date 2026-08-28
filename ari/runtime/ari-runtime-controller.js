@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.6
+// Version: 1.3.7
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -13,6 +13,7 @@
 //   - A vNext transport/runtime failure falls back once to Rebirth.
 //   - Existing trusted CalBuddy action execution remains authoritative.
 //   - Typed and button confirmations share the same trusted action boundary.
+//   - Successful vNext confirmations clear both vNext and legacy pending mirrors.
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
 //   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
@@ -34,7 +35,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.6";
+  const VERSION = "1.3.7";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -376,6 +377,7 @@
       currentTurnId: result?.turn?.turnId || result?.turnId || null
     });
     window.AriVNextBridge?.clearPendingAction?.();
+    if (execution?.success) CalBuddy.clearPendingAction?.();
 
     if (!execution?.success) {
       return {
@@ -528,7 +530,10 @@
       vnextPendingAction: pending,
       currentTurnId: null
     });
-    if (execution?.success) window.AriVNextBridge?.clearPendingAction?.();
+    if (execution?.success) {
+      window.AriVNextBridge?.clearPendingAction?.();
+      CalBuddy.clearPendingAction?.();
+    }
     return execution;
   }
 
