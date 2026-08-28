@@ -1,21 +1,23 @@
-// ARI vNext — centralized mutation strictness policy.
+// ARI vNext — simple action authority policy.
 //
-// This module decides whether a trusted, already-canonicalized application
-// mutation should execute in the current turn or remain confirmation-gated.
-// It does not resolve references, validate domain payloads, authorize accounts,
-// or write application data.
+// This is intentionally small. It does not re-interpret the user's language,
+// resolve references, enforce product rules, validate domain payloads, or write
+// data. Those responsibilities belong to the primary Ari model, ReferenceService,
+// domain policy/services, and repositories.
+//
+// The policy answers only one question: after a capability is canonicalized and
+// scoped to the signed-in user, should it execute now or remain reviewable?
 
-export const ARI_ACTION_POLICY_VERSION = "1.0.0";
+export const ARI_ACTION_POLICY_VERSION = "2.0.0";
 
 export const ACTION_POLICY_DECISIONS = Object.freeze({
   EXECUTE: "execute",
   EXECUTE_WITH_UNDO: "execute_with_undo",
   CONFIRM: "confirm",
-  CLARIFY: "clarify",
   BLOCK: "block"
 });
 
-const IMMEDIATE_PERSONAL_OPERATIONS = new Set([
+const PERSONAL_OPERATIONS = new Set([
   "log_meal",
   "log_activity",
   "log_weight",
@@ -43,16 +45,10 @@ const UNDO_CAPABLE_OPERATIONS = new Set([
   "update_nutrition_meal"
 ]);
 
-const MEDIUM_RISK_PERSONAL_OPERATIONS = new Set([
-  "undo_nutrition_mutation",
-  "delete_weight_log",
-  "delete_activity_log",
-  "delete_workout",
-  "discard_referenced_meal_plan",
-  "replace_referenced_meal_plan"
-]);
-
-const CONFIRM_REQUIRED_OPERATIONS = new Set([
+// These operations change shared/social state, represent several writes at once,
+// or manage experiments. They stay reviewable because the consequence extends
+// beyond a simple personal record mutation.
+const REVIEW_OPERATIONS = new Set([
   "compound_action_batch",
   "track_experiment",
   "complete_experiment",
@@ -71,38 +67,33 @@ const CONFIRM_REQUIRED_OPERATIONS = new Set([
   "archive_circle_crew"
 ]);
 
-export function resolveActionPolicy({ operation = "", pendingAction = null, turn = null, result = null } = {}) {
+export function resolveActionPolicy({ operation = "", pendingAction = null, turn = null } = {}) {
   const name = clean(operation || pendingAction?.name, 120);
-  if (!name) {
-    return policy(ACTION_POLICY_DECISIONS.BLOCK, "high", true, false, "missing_operation");
+  if (!name) return policy(ACTION_POLICY_DECISIONS.BLOCK, true, false, "missing_operation");
+
+  if (REVIEW_OPERATIONS.has(name)) {
+    return policy(ACTION_POLICY_DECISIONS.CONFIRM, true, false, "shared_or_multi_action_change");
   }
 
-  if (CONFIRM_REQUIRED_OPERATIONS.has(name)) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "high", true, false, "external_or_multi_action_change");
+  if (!PERSONAL_OPERATIONS.has(name)) {
+    return policy(ACTION_POLICY_DECISIONS.CONFIRM, true, false, "unknown_operation_review_required");
   }
 
-  if (!IMMEDIATE_PERSONAL_OPERATIONS.has(name)) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "medium", true, false, "unclassified_operation_defaults_to_confirmation");
-  }
-
+  // Current-turn ownership is the only generic execution gate for personal
+  // actions. Language semantics were already handled by Ari; target identity and
+  // ownership are handled by canonicalization/reference/account layers.
   const sourceTurnId = clean(pendingAction?.sourceTurnId, 220);
   const currentTurnId = clean(turn?.turnId, 220);
   if (!sourceTurnId || !currentTurnId || sourceTurnId !== currentTurnId) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "medium", true, false, "not_current_turn_authorized");
-  }
-
-  const confidence = Number(result?.semanticActionReview?.confidence);
-  if (Number.isFinite(confidence) && confidence > 0 && confidence < 0.78) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "medium", true, false, "semantic_intent_below_auto_execute_threshold");
+    return policy(ACTION_POLICY_DECISIONS.CONFIRM, true, false, "not_current_turn_authorized");
   }
 
   const undoCapable = UNDO_CAPABLE_OPERATIONS.has(name);
   return policy(
     undoCapable ? ACTION_POLICY_DECISIONS.EXECUTE_WITH_UNDO : ACTION_POLICY_DECISIONS.EXECUTE,
-    MEDIUM_RISK_PERSONAL_OPERATIONS.has(name) ? "medium" : "low",
     false,
     true,
-    undoCapable ? "clear_current_turn_personal_change_with_undo" : "clear_current_turn_personal_change"
+    undoCapable ? "current_turn_personal_change_with_undo" : "current_turn_personal_change"
   );
 }
 
@@ -115,15 +106,16 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
   const userId = clean(turn?.userId, 220);
   const claimedOwner = clean(pending?.ownerUserId || pending?.owner_user_id || pending?.user_id, 220);
 
+  // This remains a hard invariant: never execute another account's action.
   if (claimedOwner && userId && claimedOwner !== userId) {
     return {
       ...result,
       success: true,
       ready: true,
-      reply: "I blocked that change because the pending action belongs to a different signed-in account.",
+      reply: "I blocked that change because it belongs to a different signed-in account.",
       pendingAction: null,
       action: null,
-      actionPolicy: publicPolicy(policy(ACTION_POLICY_DECISIONS.BLOCK, "high", true, false, "pending_action_account_mismatch")),
+      actionPolicy: publicPolicy(policy(ACTION_POLICY_DECISIONS.BLOCK, true, false, "pending_action_account_mismatch")),
       source: "ari_vnext_action_policy_blocked"
     };
   }
@@ -149,8 +141,7 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
   const actionPolicy = resolveActionPolicy({
     operation: result?.action?.applicationAction || scopedPending?.name,
     pendingAction: scopedPending,
-    turn,
-    result
+    turn
   });
 
   if (actionPolicy.executeImmediately === true && userId) {
@@ -162,10 +153,6 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
 
     return {
       ...result,
-      // Avoid leaving a stale "confirm" sentence visible after the runtime
-      // executes the action in this same turn. The trusted executor supplies the
-      // final mutation reply. Keep the original source so performance and routing
-      // observability continue to classify the underlying request correctly.
       reply: "",
       pendingAction: readyPending,
       action: {
@@ -197,11 +184,10 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
   };
 }
 
-function policy(decision, risk, requiresConfirmation, executeImmediately, reason) {
+function policy(decision, requiresConfirmation, executeImmediately, reason) {
   return {
     version: ARI_ACTION_POLICY_VERSION,
     decision,
-    risk,
     requiresConfirmation: requiresConfirmation === true,
     executeImmediately: executeImmediately === true,
     reason: clean(reason, 160)
@@ -212,7 +198,6 @@ function publicPolicy(value = {}) {
   return {
     version: ARI_ACTION_POLICY_VERSION,
     decision: clean(value?.decision, 80),
-    risk: clean(value?.risk, 40),
     requiresConfirmation: value?.requiresConfirmation === true,
     executeImmediately: value?.executeImmediately === true,
     reason: clean(value?.reason, 160)
