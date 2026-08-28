@@ -1,14 +1,11 @@
 // ARI vNext — Phase 10E shared primary planner for bounded compound turns.
 //
 // This layer is deliberately narrower than Phase 9C. It consolidates only
-// independent clauses whose CURRENT language already deterministically authorizes
-// one exact routine/direct tool. The shared model proposes arguments; it does not
+// independent routine-log clauses whose CURRENT language already deterministically
+// authorizes one exact tool. The shared model proposes arguments; it does not
 // authorize, canonicalize, confirm, or execute any mutation.
 
-import {
-  reviewDeterministicDirectMutation,
-  reviewDeterministicRoutineLogIntent
-} from "./action-intent-verifier.js";
+import { reviewDeterministicRoutineLogIntent } from "./action-intent-verifier.js";
 import { budgetTurnContext } from "./context-budget.js";
 import { isReferenceFollowUp } from "./reference-context.js";
 import { getAriTools, toolToApplicationAction } from "./tools.js";
@@ -20,9 +17,7 @@ const MAX_SHARED_CLAUSES = 3;
 const SAFE_SHARED_OPERATIONS = new Set([
   "log_meal",
   "log_activity",
-  "log_weight",
-  "update_goal",
-  "plan_workout"
+  "log_weight"
 ]);
 const DESTRUCTIVE_OR_TARGETED = /\b(?:undo|delete|remove|discard|replace|swap|cancel|leave|withdraw|archive|decline|accept|join|rsvp|edit|correct|fix)\b/i;
 
@@ -71,15 +66,7 @@ export function analyzeCompoundPrimaryEligibility({ turn = {}, clauses = [] } = 
         functionCall,
         availableTools
       });
-      const direct = reviewDeterministicDirectMutation({
-        turn: budgeted.turn,
-        route,
-        tools: safeTools,
-        functionCall
-      });
-      if (routine?.decision === tool.name || direct?.decision === tool.name) {
-        deterministicNames.push(String(tool.name));
-      }
+      if (routine?.decision === tool.name) deterministicNames.push(String(tool.name));
     }
 
     const unique = [...new Set(deterministicNames)];
@@ -110,7 +97,7 @@ export function analyzeCompoundPrimaryEligibility({ turn = {}, clauses = [] } = 
 
   return {
     eligible: true,
-    reason: "unique_deterministic_independent_clauses",
+    reason: "unique_deterministic_routine_log_clauses",
     clauseSpecs,
     model: choosePlannerModel(clauseSpecs),
     tools: clauseSpecs.map((spec) => spec.tool)
@@ -224,8 +211,8 @@ export function validatePreparedCalls(calls = [], clauseSpecs = []) {
 function buildPlannerInstructions(specs = []) {
   return [
     "PHASE 10E COMPOUND PRIMARY INTERPRETATION",
-    "Interpret the numbered independent ARI XP mutation clauses below with exactly one function call per clause, in clause order.",
-    "The server has already determined that each CURRENT clause explicitly authorizes exactly one listed tool. You do not authorize any write; only prepare that tool's arguments from the clause.",
+    "Interpret the numbered independent ARI XP routine-log clauses below with exactly one function call per clause, in clause order.",
+    "The server has already determined that each CURRENT clause explicitly authorizes exactly one listed routine-log tool. You do not authorize any write; only prepare that tool's arguments from the clause.",
     "Never merge clauses, never borrow quantities or identities from another clause, and never invent a persisted ID or target.",
     "Return no conversational answer. Emit exactly the expected function calls in order.",
     ...specs.map((spec) => `Clause ${spec.index + 1} expected tool: ${spec.expectedToolName}.`)
