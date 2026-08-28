@@ -137,7 +137,7 @@ test("Home and Nutrition pin the current runtime above the legacy loader cache c
   assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.1/);
 });
 
-test("runtime requires the final Phase 8C capability bootstrap before readiness", () => {
+test("runtime requires the final Phase 9B capability bootstrap before readiness", () => {
   assert.match(runtimeSource, /const VERSION = "1\.4\.5"/);
   assert.match(runtimeSource, /ari-vnext-activity-adapter\.js\?v=1\.1\.0/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
@@ -145,13 +145,15 @@ test("runtime requires the final Phase 8C capability bootstrap before readiness"
   assert.match(runtimeSource, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
   assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.4\.0/);
   assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.4\.0"\)/);
-  assert.match(initiativeSource, /const VERSION = "1\.4\.0"/);
+  assert.match(initiativeSource, /const VERSION = "1\.5\.0"/);
   assert.match(initiativeSource, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
   assert.match(initiativeSource, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
   assert.match(initiativeSource, /ari-vnext-structured-reference-capabilities\.js\?v=1\.0\.0/);
   assert.match(initiativeSource, /AriVNextStructuredReferenceCapabilities\?\.ready === true/);
   assert.match(initiativeSource, /ari-vnext-operation-registry-phase8c\.js\?v=1\.0\.0/);
   assert.match(initiativeSource, /AriVNextOperationRegistryPhase8C\?\.ready === true/);
+  assert.match(initiativeSource, /ari-vnext-phase9b-correction-continuity\.js\?v=1\.0\.0/);
+  assert.match(initiativeSource, /AriVNextPhase9BCorrectionContinuity\?\.ready === true/);
   assert.match(phase8cSource, /fallbackPolicy: "no_model_visible_mutation_requires_captured_fallback"/);
   assert.match(nutritionResolverSource, /const VERSION = "1\.1\.0"/);
   assert.match(structuredReferenceSource, /current Meal Plan and ARI Circle objects/i);

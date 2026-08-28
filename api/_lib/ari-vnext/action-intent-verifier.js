@@ -1,7 +1,7 @@
 // ARI vNext — semantic verification for explicit app mutations.
-// Clear routine logging and bounded reference mutations are authorized
-// deterministically; ambiguous writes still use the bounded GPT-4o-mini
-// verifier. Neither path executes data.
+// Clear routine logging, bounded reference mutations, and same-operation
+// correction supersessions are authorized deterministically; ambiguous writes
+// still use the bounded GPT-4o-mini verifier. Neither path executes data.
 
 import { resolveReferenceTarget } from "./reference-context.js";
 
@@ -39,6 +39,21 @@ const SINGLE_REFERENCE_MUTATION_TOOLS = new Set([
   "propose_edit_referenced_workout",
   "propose_delete_workout"
 ]);
+const CORRECTION_PREFIX = /^(?:actually\b|no[,;:]?\s+(?:i\s+)?meant\b|i\s+meant\b|wait[,;:]?\b|sorry[,;:]?\b|correction\b|rather\b)/i;
+const CORRECTION_TOOL_OPERATIONS = Object.freeze({
+  propose_undo_nutrition_mutation: "undo_nutrition_mutation",
+  propose_update_nutrition_meal: "update_nutrition_meal",
+  propose_log_referenced_planned_meal: "log_referenced_planned_meal",
+  propose_log_referenced_plan_components: "log_referenced_plan_components",
+  propose_discard_referenced_meal_plan: "discard_referenced_meal_plan",
+  propose_replace_referenced_meal_plan: "replace_referenced_meal_plan",
+  propose_update_activity_log: "update_activity_log",
+  propose_delete_activity_log: "delete_activity_log",
+  propose_update_weight_log: "update_weight_log",
+  propose_delete_weight_log: "delete_weight_log",
+  propose_edit_referenced_workout: "edit_referenced_workout",
+  propose_delete_workout: "delete_workout"
+});
 
 export function reviewDeterministicRoutineLogIntent({
   turn = {},
@@ -51,17 +66,23 @@ export function reviewDeterministicRoutineLogIntent({
   if (REFERENCE_MUTATION_TOOLS.has(decision)) {
     if (!availableTools.includes(decision)) return null;
     if (!referenceRouteSupports(decision, route)) return null;
-    if (!isDirectReferenceMutationCommand(turn?.message, decision)) return null;
+    const direct = isDirectReferenceMutationCommand(turn?.message, decision);
+    const correctionSupersession = isMatchingCorrectionSupersession(turn, decision);
+    if (!direct && !correctionSupersession) return null;
     return {
-      version: "1.10.0",
+      version: "1.11.0",
       decision,
       confidence: 1,
-      reason: "Explicit current-turn reference-bound mutation verified deterministically.",
+      reason: correctionSupersession
+        ? "Current-turn correction supersedes a prior proposal of the same operation and is verified deterministically."
+        : "Explicit current-turn reference-bound mutation verified deterministically.",
       dailyGoalKnown: resolveDailyGoalKnown(turn),
       model: null,
       providerRequestId: null,
       usage: null,
-      source: referenceIntentSource(decision)
+      source: correctionSupersession
+        ? "deterministic_reference_correction_supersession"
+        : referenceIntentSource(decision)
     };
   }
 
@@ -71,7 +92,7 @@ export function reviewDeterministicRoutineLogIntent({
   if (!isDirectRoutineLogCommand(turn?.message, decision)) return null;
 
   return {
-    version: "1.10.0",
+    version: "1.11.0",
     decision,
     confidence: 1,
     reason: "Explicit current-turn routine logging command verified deterministically.",
@@ -110,6 +131,7 @@ export async function reviewExplicitApplicationIntent({
   if (!apiKey) return null;
 
   const dailyGoalKnown = resolveDailyGoalKnown(turn);
+  const supersededOperation = normalizedSupersededPending(turn)?.operation || "none";
   const decisions = [
     "none",
     "blocked_future_meal_plan",
@@ -139,6 +161,8 @@ export async function reviewExplicitApplicationIntent({
     "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
     "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
     "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, delete, discard, undo, update, correct, fix, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
+    "A current-turn correction such as 'No, I meant lunch' may authorize PREPARING a corrected proposal only when the trusted correction context says it superseded the same operation. It never executes the old proposal, and it cannot change one operation type into another.",
+    `Superseded correction operation: ${supersededOperation}.`,
     "Reference rule: the CURRENT message supplies write permission. A trusted Reference Packet may identify what 'it', 'that', 'them', 'the second one', 'the second item', or similar language refers to, but history and references never grant permission by themselves.",
     "A current trusted-context app_reference can identify a Meal Plan item/component or Circle object just like a persisted executor reference. It still never authorizes a write. Use an explicit ordinal only within the candidate collection that carries that ordinal. If the target remains ambiguous, do not guess.",
     "For reference-bound Nutrition, 'undo/delete/remove that meal' can select propose_undo_nutrition_mutation. 'Change that meal to 450 calories', 'make that 40g protein', or 'rename it chicken bowl' can select propose_update_nutrition_meal. Never accept or invent a meal database ID from conversation text.",
@@ -230,7 +254,7 @@ export async function reviewExplicitApplicationIntent({
     }
 
     return enforceReferenceResolutionOnReview({
-      version: "1.10.0",
+      version: "1.11.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
@@ -276,6 +300,25 @@ function enforceReferenceResolutionOnReview(review = {}, { turn = {}, route = {}
     source: "deterministic_reference_resolution_block",
     referenceResolution: resolution || null
   };
+}
+
+function normalizedSupersededPending(turn = {}) {
+  const raw = turn?.context?.referenceState?.supersededPendingAction;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const state = String(raw?.state || "").trim().toLowerCase();
+  const operation = String(raw?.operation || "").trim();
+  const executable = raw?.executable === true;
+  if (state !== "superseded" || !operation || executable) return null;
+  return { operation };
+}
+
+function isMatchingCorrectionSupersession(turn = {}, decision = "") {
+  const text = String(turn?.message || "").replace(/\s+/g, " ").trim();
+  if (!text || !CORRECTION_PREFIX.test(text)) return false;
+  const expectedOperation = CORRECTION_TOOL_OPERATIONS[decision];
+  if (!expectedOperation) return false;
+  const superseded = normalizedSupersededPending(turn);
+  return superseded?.operation === expectedOperation;
 }
 
 function routineRouteSupports(decision, route = {}) {
