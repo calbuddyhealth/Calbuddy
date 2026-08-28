@@ -6,11 +6,14 @@ import {
   applyActionPolicyToResult,
   resolveActionPolicy
 } from "../api/_lib/ari-vnext/action-policy.js";
+import { buildAriDecisionTrace } from "../api/_lib/ari-vnext/decision-trace.js";
 
 function proposedResult(name, overrides = {}) {
   return {
     success: true,
     ready: true,
+    source: name === "log_meal" ? "ari_vnext_routine_action_proposal" : "ari_vnext_test_proposal",
+    route: { nutrition: name.includes("meal") },
     reply: "Please confirm.",
     semanticActionReview: { decision: name, confidence: 0.95 },
     pendingAction: {
@@ -45,6 +48,7 @@ test("clear personal log executes in the current turn", () => {
   assert.equal(result.pendingAction.ownerUserId, "user_1");
   assert.equal(result.actionPolicy.decision, ACTION_POLICY_DECISIONS.EXECUTE_WITH_UNDO);
   assert.equal(result.reply, "");
+  assert.equal(result.source, "ari_vnext_routine_action_proposal");
 });
 
 test("clear single-record delete executes without a second confirmation turn", () => {
@@ -127,4 +131,22 @@ test("unclassified operations fail closed to confirmation", () => {
 
   assert.equal(actionPolicy.decision, ACTION_POLICY_DECISIONS.CONFIRM);
   assert.equal(actionPolicy.executeImmediately, false);
+});
+
+test("decision trace distinguishes auto execution from explicit confirmation", () => {
+  const turn = {
+    turnId: "turn_1",
+    conversationId: "conversation_1",
+    userId: "user_1",
+    message: "Log my meal",
+    history: [],
+    context: {}
+  };
+  const result = applyActionPolicyToResult({ turn, result: proposedResult("log_meal") });
+  const trace = buildAriDecisionTrace({ turn, result });
+
+  assert.equal(trace.action.confirmation, "not_required");
+  assert.equal(trace.action.policyDecision, ACTION_POLICY_DECISIONS.EXECUTE_WITH_UNDO);
+  assert.equal(trace.action.risk, "low");
+  assert.equal(trace.outcome.status, "execute_pending");
 });

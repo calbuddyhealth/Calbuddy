@@ -164,7 +164,8 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
       ...result,
       // Avoid leaving a stale "confirm" sentence visible after the runtime
       // executes the action in this same turn. The trusted executor supplies the
-      // final mutation reply.
+      // final mutation reply. Keep the original source so performance and routing
+      // observability continue to classify the underlying request correctly.
       reply: "",
       pendingAction: readyPending,
       action: {
@@ -173,8 +174,7 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
         pendingActionId: readyPending.id,
         arguments: readyPending.arguments || {}
       },
-      actionPolicy: publicPolicy(actionPolicy),
-      source: "ari_vnext_action_policy_execute"
+      actionPolicy: publicPolicy(actionPolicy)
     };
   }
 

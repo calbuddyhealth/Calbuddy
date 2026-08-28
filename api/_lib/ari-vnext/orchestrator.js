@@ -124,16 +124,16 @@ async function rethrowObservedError({ turn = {}, error = null, trace = null } = 
 
 export async function runAriVNext(turn = {}) {
   return await withOptimizationTrace(turn, async (trace) => {
-    const rawResult = await runObservedAriVNext(turn, trace).catch(async (error) => await rethrowObservedError({ turn, error, trace }));
-    const result = applyActionPolicyToResult({ turn, result: rawResult });
+    const result = await runObservedAriVNext(turn, trace).catch(async (error) => await rethrowObservedError({ turn, error, trace }));
+    const policyResult = applyActionPolicyToResult({ turn, result });
     const optimizationTrace = summarizeOptimizationTrace(trace);
     const performanceBudget = evaluatePerformanceBudget({
       turn,
-      result,
+      result: policyResult,
       optimizationTrace
     });
     const observedResult = {
-      ...result,
+      ...policyResult,
       optimizationTrace,
       performanceBudget
     };
