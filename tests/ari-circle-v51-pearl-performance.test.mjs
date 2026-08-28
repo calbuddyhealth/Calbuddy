@@ -31,8 +31,8 @@ test("current Circle V5 presentation ends in consolidated visual and XP authorit
 });
 
 
-test("shared ARI Circle header is text-only, larger, and pearl", () => {
-  assert.match(shell, /const VERSION = "5\.3\.0"/);
+test("shared ARI Circle header stays text-only and pearl while owner verification stays server-bound", () => {
+  assert.match(shell, /const VERSION = "5\.3\.1"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-wordmark/);
   assert.doesNotMatch(shell, /circle-v51-orbit-mark/);
@@ -41,7 +41,8 @@ test("shared ARI Circle header is text-only, larger, and pearl", () => {
   assert.match(authority, /font:\s*800 clamp\(1\.02rem,4\.7vw,1\.28rem\)/);
   assert.doesNotMatch(shell, /\.rpc\s*\(/);
   assert.doesNotMatch(shell, /\.from\s*\(/);
-  assert.doesNotMatch(shell, /fetch\s*\(/);
+  assert.match(shell, /fetch\("\/api\/ari-github-read"/);
+  assert.match(shell, /payload\?\.isOwner === true/);
 });
 
 
