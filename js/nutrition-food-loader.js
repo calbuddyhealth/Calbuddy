@@ -30,8 +30,6 @@
     "ari/nutrition/AriFoodCalculator.js?v=1.0.0"
   ]);
 
-  // Preserve the historical dependency order. Category roots intentionally
-  // precede their child/core/brand modules.
   const FOOD_DATA_SCRIPTS = Object.freeze([
     "ari/nutrition/data/beverages/AriFoodBeverages.js?v=1.0.0",
     "ari/nutrition/data/beverages/AriFoodBeverageCore.js",
@@ -80,6 +78,7 @@
     "ari/nutrition/data/grains/AriFoodOatBrands.js",
 
     "ari/nutrition/data/prepared-meals/AriFoodPreparedMealsCore.js?v=1.0.0",
+    "ari/nutrition/data/prepared-meals/AriFoodEverydayBreakfastSides.js?v=1.0.0",
 
     "ari/nutrition/data/nuts/AriFoodNuts.js?v=1.0.0",
     "ari/nutrition/data/nuts/AriFoodNutsCore.js",
@@ -173,10 +172,7 @@
   function yieldToBrowser() {
     return new Promise((resolve) => {
       const finish = () => window.setTimeout(resolve, 0);
-      if (
-        document.visibilityState === "visible" &&
-        typeof window.requestAnimationFrame === "function"
-      ) {
+      if (document.visibilityState === "visible" && typeof window.requestAnimationFrame === "function") {
         window.requestAnimationFrame(finish);
         return;
       }
@@ -187,10 +183,6 @@
   async function loadFoodDataInBatches() {
     for (let index = 0; index < FOOD_DATA_SCRIPTS.length; index += FOOD_BATCH_SIZE) {
       const batch = FOOD_DATA_SCRIPTS.slice(index, index + FOOD_BATCH_SIZE);
-
-      // Keep only a few registrations in one execution burst. async=false keeps
-      // this batch's historical dependency order while the browser can overlap
-      // their network fetches.
       await Promise.all(batch.map((src) => loadScript(src)));
       state.loadedModules += batch.length;
       setFoodStatus(
@@ -236,7 +228,6 @@
       try {
         await loadScript(REGISTRY_SCRIPT);
         await yieldToBrowser();
-
         await loadFoodDataInBatches();
 
         for (const src of ENGINE_SCRIPTS) {
@@ -266,8 +257,6 @@
     setFoodStatus("TAP FOOD NAME TO SEARCH", "idle");
   }
 
-  // Deliberately no requestIdleCallback/setTimeout warm start. The full local
-  // database must never begin executing just because Nutrition opened.
   document.addEventListener("pointerdown", (event) => {
     if (event.target?.closest?.("#mealFoodSearchShell")) start().catch(() => {});
   }, { capture: true, passive: true });
