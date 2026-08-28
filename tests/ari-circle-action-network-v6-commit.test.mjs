@@ -3,13 +3,16 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../ari-circle-v6.html", import.meta.url), "utf8");
+const ownerBootstrap = await readFile(new URL("../js/ari-circle/v6/ari-next-owner-beta-v1.js", import.meta.url), "utf8");
 const source = await readFile(new URL("../js/ari-circle/v6/for-you-commit-v1.js", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/ari-circle-v6-commit.css", import.meta.url), "utf8");
 
 test("For You commitment enhancer is isolated, valid browser JavaScript, and keeps Details available", () => {
   assert.doesNotThrow(() => new Function(source));
   assert.match(source, /const VERSION = "1\.1\.0"/);
-  assert.match(html, /for-you-commit-v1\.js\?v=1\.1\.0/);
+  assert.match(html, /ari-next-owner-beta-v1\.js\?v=1\.0\.0/);
+  assert.match(ownerBootstrap, /for-you-commit-v1\.js\?v=1\.1\.0/);
+  assert.doesNotMatch(html, /<script[^>]+for-you-commit-v1\.js\?v=1\.1\.0/i);
   assert.match(html, /ari-circle-v6-commit\.css\?v=1\.0\.0/);
   assert.match(source, /openLink\.textContent = "Details"/);
   assert.match(source, /Join Mission/);
