@@ -203,4 +203,8 @@
   }
 
   if (!install()) window.addEventListener("ari:vnextOperationRegistryReady", install, { once: true });
+
+  import("./ari-vnext-training-registry-adapter.js?v=1.0.0").catch((error) => {
+    console.warn("[Ari vNext] Training registry adapter failed to load:", error?.message || error);
+  });
 })();
