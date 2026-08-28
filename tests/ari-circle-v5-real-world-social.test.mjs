@@ -135,14 +135,16 @@ test("Feed keeps posts and Moments while adding live Happening discovery", () =>
   assert.doesNotMatch(happening, />Create a meetup</);
 });
 
-test("Circle has one Feed Connect ARI Next primary navigation and final visual authority", () => {
-  assert.match(shell, /const VERSION = "5\.3\.0"/);
+test("Circle keeps one primary shell while ARI Next is owner-only", () => {
+  assert.match(shell, /const VERSION = "5\.3\.1"/);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
-  assert.match(shell, /navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\)/);
+  assert.match(shell, /ownerAccess \? navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\) : ""/);
   assert.doesNotMatch(shell, /navLink\("quests"|navLink\("missions"|navLink\("meetup"|navLink\("foryou"/);
-  assert.match(shell, /brand\.setAttribute\("href", "ari-circle-v6\.html"\)/);
-  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle ARI Next"\)/);
+  assert.match(shell, /brand\.setAttribute\("href", ownerAccess \? "ari-circle-v6\.html" : "ari-circle-feed\.html"\)/);
+  assert.match(shell, /brand\.setAttribute\("aria-label", ownerAccess \? "ARI Circle ARI Next" : "ARI Circle Feed"\)/);
+  assert.match(shell, /fetch\("\/api\/ari-github-read"/);
+  assert.match(shell, /payload\?\.isOwner === true/);
   assert.match(shell, /ensureConnectModeNav/);
   assert.match(shell, />Meetups<\/a>/);
   assert.match(shell, />Missions<\/a>/);
