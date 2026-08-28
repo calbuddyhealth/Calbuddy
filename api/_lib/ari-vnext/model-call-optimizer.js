@@ -6,7 +6,7 @@
 // pending action has already been created. This module never authorizes or
 // executes a mutation.
 
-export const MODEL_CALL_OPTIMIZER_VERSION = "1.0.0";
+export const MODEL_CALL_OPTIMIZER_VERSION = "1.0.1";
 
 export function maybeOptimizeModelCall({ stage = "", body = {}, trace = null } = {}) {
   if (stage !== "confirmation_continuation") return null;
@@ -21,13 +21,14 @@ export function maybeOptimizeModelCall({ stage = "", body = {}, trace = null } =
   const toolResult = extractConfirmationToolResult(body?.input);
   if (!toolResult) return null;
 
+  const realProvider = summarizePriorProvider(calls, body?.model);
   const reply = confirmationReply(toolResult.applicationAction);
   return {
     optimized: true,
     version: MODEL_CALL_OPTIMIZER_VERSION,
     reason: "trusted_confirmation_paraphrase_replaced",
     applicationAction: toolResult.applicationAction,
-    response: syntheticResponse({ body, reply })
+    response: syntheticResponse({ body, reply, realProvider })
   };
 }
 
@@ -72,11 +73,32 @@ export function confirmationReply(applicationAction = "") {
   return map[action] || "I’ve got that change ready. Review the details below and confirm.";
 }
 
-function syntheticResponse({ body = {}, reply = "" } = {}) {
+function summarizePriorProvider(calls = [], fallbackModel = "") {
+  const completed = calls.filter((call) => call?.status === "completed");
+  const usage = {};
+  const models = [];
+  const ids = [];
+
+  for (const call of completed) {
+    const model = clean(call?.model, 120);
+    if (model) models.push(model);
+    const id = clean(call?.providerRequestId, 180);
+    if (id) ids.push(id);
+    mergeNumbers(usage, call?.usage);
+  }
+
+  return {
+    id: ids.length === 1 ? ids[0] : ids.length ? `trace:${ids.join("+").slice(0, 170)}` : null,
+    model: models[0] || clean(fallbackModel, 120) || "deterministic_confirmation",
+    usage
+  };
+}
+
+function syntheticResponse({ body = {}, reply = "", realProvider = {} } = {}) {
   const payload = {
-    id: `ari_phase10b_confirmation_${Date.now().toString(36)}`,
+    id: realProvider?.id || `ari_phase10b_confirmation_${Date.now().toString(36)}`,
     object: "response",
-    model: clean(body?.model, 120) || "deterministic_confirmation",
+    model: clean(realProvider?.model || body?.model, 120) || "deterministic_confirmation",
     output_text: reply,
     output: [
       {
@@ -85,13 +107,28 @@ function syntheticResponse({ body = {}, reply = "" } = {}) {
         content: [{ type: "output_text", text: reply }]
       }
     ],
-    usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
+    usage: realProvider?.usage && typeof realProvider.usage === "object"
+      ? realProvider.usage
+      : { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
   };
 
   return new Response(JSON.stringify(payload), {
     status: 200,
     headers: { "Content-Type": "application/json" }
   });
+}
+
+function mergeNumbers(target, source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return target;
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      target[key] = Number(target[key] || 0) + value;
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      target[key] = target[key] && typeof target[key] === "object" && !Array.isArray(target[key]) ? target[key] : {};
+      mergeNumbers(target[key], value);
+    }
+  }
+  return target;
 }
 
 function clean(value = "", max = 1000) {
