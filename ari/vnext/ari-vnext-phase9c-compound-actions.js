@@ -7,8 +7,10 @@
 //
 // Before the first write, every reference-bound sub-action is rehydrated from
 // current canonical app context. If any referenced object vanished or changed
-// identity, the entire batch is rejected before mutation. No second database,
-// model call, or parallel executor is introduced.
+// identity, the entire batch is rejected before mutation. A trusted lifecycle
+// ref_action pointer may hand off to a fresh stable ref_live pointer only when
+// both resolve to the same unique canonical identity. No second database,
+// model call, or parallel executor is introduced here.
 
 (() => {
   "use strict";
@@ -150,6 +152,63 @@
       (verification?.verifiedByTrustedContext === true && verification?.currentContextRead === true);
   }
 
+  function canonicalIdentity(reference = null) {
+    if (!reference || typeof reference !== "object") return "";
+    const canonical = object(reference?.canonical);
+    const domain = clean(reference?.domain, 40).toLowerCase();
+    const entityType = clean(reference?.entityType, 60).toLowerCase();
+    const identity = clean(
+      canonical?.id ??
+      canonical?.mealId ??
+      canonical?.activityId ??
+      canonical?.logDate ??
+      canonical?.date ??
+      canonical?.planId ??
+      canonical?.crewId ??
+      canonical?.meetupId ??
+      canonical?.missionId ??
+      canonical?.candidateKey,
+      220
+    );
+    return domain && entityType && identity ? `${domain}|${entityType}|${identity}` : "";
+  }
+
+  function lifecycleReference(referenceId = "") {
+    const requested = clean(referenceId, 180);
+    if (!requested) return null;
+    try {
+      const direct = window.AriVNextReferenceState?.resolveReference?.(requested);
+      if (direct) return direct;
+    } catch {}
+    try {
+      return array(window.AriVNextReferenceState?.snapshot?.()?.references)
+        .find((reference) => clean(reference?.referenceId, 180) === requested) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function freshReferenceMatches(referenceId = "", references = []) {
+    const requested = clean(referenceId, 180);
+    const current = array(references).filter((reference) =>
+      clean(reference?.referenceId, 180) === requested && authoritativeReference(reference)
+    );
+    if (current.length) return current;
+
+    // After refresh/relaunch a trusted executor pointer can be replaced by a
+    // stable rehydrated pointer. The old opaque reference is accepted only as a
+    // lookup key; current canonical context must still contain exactly one item
+    // with the same domain/entity/identity before execution may proceed.
+    const lifecycle = lifecycleReference(requested);
+    const verification = object(lifecycle?.verification);
+    if (!lifecycle || clean(lifecycle?.state, 40) !== "persisted" || verification?.verifiedByTrustedExecutor !== true) return [];
+    const identity = canonicalIdentity(lifecycle);
+    if (!identity) return [];
+    return array(references).filter((reference) =>
+      authoritativeReference(reference) && canonicalIdentity(reference) === identity
+    );
+  }
+
   function requestedReferenceIds(action = {}) {
     const args = object(action?.arguments);
     const ids = [];
@@ -174,7 +233,7 @@
 
     const resolved = [];
     for (const referenceId of referenceIds) {
-      const matches = references.filter((reference) => clean(reference?.referenceId, 180) === referenceId && authoritativeReference(reference));
+      const matches = freshReferenceMatches(referenceId, references);
       if (matches.length !== 1) {
         return failure(
           matches.length > 1 ? "compound_reference_ambiguous" : "compound_reference_stale",
@@ -184,7 +243,7 @@
           { referenceId }
         );
       }
-      resolved.push(referenceId);
+      resolved.push({ requestedReferenceId: referenceId, currentReferenceId: clean(matches[0]?.referenceId, 180) });
     }
     return { success: true, references: resolved };
   }
