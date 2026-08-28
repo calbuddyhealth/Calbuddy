@@ -1,9 +1,9 @@
-// ARI vNext — Phase 9C compound-action confirmation/execution boundary.
+// ARI vNext — compound-action confirmation/execution boundary.
 //
 // The server prepares one turn-bound `compound_action_batch` only after every
 // sub-action passed its existing tool validator and independent reference gate.
 // This browser capability adds one confirmation surface and delegates confirmed
-// sub-actions back through the canonical Phase 8C operation registry.
+// sub-actions directly through the canonical OperationRegistry.
 //
 // Before the first write, every reference-bound sub-action is rehydrated from
 // current canonical app context. If any referenced object vanished or changed
@@ -15,7 +15,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_phase9c_compound_actions";
   const INSTALL_FLAG = "__ariOperationRegistryPhase9C";
   const OPERATION = "compound_action_batch";
@@ -195,10 +195,6 @@
     );
     if (current.length) return current;
 
-    // After refresh/relaunch a trusted executor pointer can be replaced by a
-    // stable rehydrated pointer. The old opaque reference is accepted only as a
-    // lookup key; current canonical context must still contain exactly one item
-    // with the same domain/entity/identity before execution may proceed.
     const lifecycle = lifecycleReference(requested);
     const verification = object(lifecycle?.verification);
     if (!lifecycle || clean(lifecycle?.state, 40) !== "persisted" || verification?.verifiedByTrustedExecutor !== true) return [];
@@ -270,8 +266,8 @@
       confirmationRequired: true,
       createdAt: batch?.createdAt || new Date().toISOString(),
       expiresAt: batch?.expiresAt || null,
-      phase9cBatchId: clean(batch?.id, 180),
-      phase9cSubactionIndex: index
+      compoundBatchId: clean(batch?.id, 180),
+      compoundSubactionIndex: index
     };
   }
 
@@ -297,15 +293,15 @@
     const preflight = await preflightBatch(actions);
     if (!preflight?.success) return preflight;
 
-    const adapter = window.AriVNextActionAdapter;
-    if (typeof adapter?.executeConfirmed !== "function") {
-      return failure("compound_executor_unavailable", "Ari's trusted action executor is unavailable.");
+    const registry = window.AriVNextOperationRegistry;
+    if (typeof registry?.executeConfirmed !== "function") {
+      return failure("compound_executor_unavailable", "Ari's trusted operation registry is unavailable.");
     }
 
     const results = [];
     for (let index = 0; index < actions.length; index += 1) {
       const action = actions[index];
-      const execution = await adapter.executeConfirmed({
+      const execution = await registry.executeConfirmed({
         vnextPendingAction: subPending(batch, action, index),
         currentTurnId: input?.currentTurnId || null
       });
@@ -319,11 +315,7 @@
 
       if (execution?.success !== true) {
         const completedCount = results.filter((item) => item.success).length;
-        if (completedCount > 0) {
-          // Never leave a partially completed batch retryable: re-confirming it
-          // could duplicate earlier successful sub-actions.
-          clearOuterPending(batch);
-        }
+        if (completedCount > 0) clearOuterPending(batch);
         return failure(
           completedCount > 0 ? "compound_partial_execution" : (clean(execution?.code, 120) || "compound_subaction_failed"),
           completedCount > 0
