@@ -212,10 +212,12 @@ test("Undo is newest-first and restores provenance only after material correctio
   assert.match(correctionMigration, /after update of status on public\.ari_nutrition_mutations/);
 });
 
-test("final capability bootstrap requires the hardened Nutrition resolver and Phase 8C registry", () => {
-  assert.match(initiative, /const VERSION = "1\.4\.0"/);
+test("final capability bootstrap requires Nutrition, Phase 8C, and Phase 9B trust layers", () => {
+  assert.match(initiative, /const VERSION = "1\.5\.0"/);
   assert.match(initiative, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
   assert.match(initiative, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
   assert.match(initiative, /ari-vnext-operation-registry-phase8c\.js\?v=1\.0\.0/);
   assert.match(initiative, /AriVNextOperationRegistryPhase8C\?\.ready === true/);
+  assert.match(initiative, /ari-vnext-phase9b-correction-continuity\.js\?v=1\.0\.0/);
+  assert.match(initiative, /AriVNextPhase9BCorrectionContinuity\?\.ready === true/);
 });
