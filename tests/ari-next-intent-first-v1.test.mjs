@@ -84,8 +84,9 @@ test("suggestion cards can be dismissed and immediately restored", () => {
   assert.match(bundles, /suggestion dismissed\. /i);
 });
 
-test("server-side intent creation is idempotent for near-identical accidental repeats", () => {
+test("server-side intent creation is idempotent for near-identical and concurrent accidental repeats", () => {
   assert.match(dedupeMigration, /create or replace function public\.ari_circle_create_action_intent/);
+  assert.match(dedupeMigration, /pg_advisory_xact_lock\(hashtext\(caller_id::text\)\)/);
   assert.match(dedupeMigration, /i\.status = 'active'/);
   assert.match(dedupeMigration, /i\.activity = clean_activity/);
   assert.match(dedupeMigration, /i\.area is not distinct from clean_area/);
