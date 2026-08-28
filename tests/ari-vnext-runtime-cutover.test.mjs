@@ -64,10 +64,11 @@ test("Mission-capable runtime cache chain reaches Home and iOS WebViews", () => 
 });
 
 test("trusted app actions remain outside direct model execution", () => {
-  assert.match(runtimeSource, /createCalBuddyPendingAction/);
-  assert.match(runtimeSource, /legacy\.confirmPendingAction/);
+  assert.match(runtimeSource, /AriVNextOperationRegistry\.createPending/);
   assert.match(runtimeSource, /AriVNextOperationRegistry\.executeConfirmed/);
+  assert.match(runtimeSource, /legacy\.confirmPendingAction/);
   assert.match(runtimeSource, /Typed and button confirmations share the same trusted action boundary/);
+  assert.doesNotMatch(runtimeSource, /createCalBuddyPendingAction/);
 });
 
 test("typed yes and no cannot leave stale mapped pending actions", () => {
