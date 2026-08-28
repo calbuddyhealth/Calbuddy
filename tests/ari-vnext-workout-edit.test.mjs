@@ -31,7 +31,6 @@ test("valid replacement edit passes semantic validation", () => {
       instruction: "Replace dumbbell bench with barbell bench"
     })
   }, { training: true });
-
   assert.equal(result.valid, true);
 });
 
@@ -52,20 +51,20 @@ test("move edit requires a valid position", () => {
       instruction: "Move squat first"
     })
   }, { training: true });
-
   assert.equal(result.valid, false);
   assert.equal(result.error, "workout_edit_position_required");
 });
 
-test("browser action adapter parses and uses canonical surgical edit APIs", () => {
-  const source = fs.readFileSync(new URL("../ari/vnext/ari-vnext-action-adapter.js", import.meta.url), "utf8");
-  assert.doesNotThrow(() => new Function(source));
-  assert.match(source, /mapWorkoutEditValidated/);
-  assert.match(source, /executeValidatedWorkoutEdit/);
-  assert.match(source, /controller\.addExercise/);
-  assert.match(source, /controller\.updateExercise/);
-  assert.match(source, /controller\.removeExercise/);
-  assert.match(source, /controller\.setDate/);
-  assert.match(source, /workout_edit_target_changed/);
-  assert.match(source, /completed workout cannot be rewritten/i);
+test("Training proposal and persistence services own canonical surgical edit APIs", () => {
+  const proposal = fs.readFileSync(new URL("../js/training/training-proposal-service.js", import.meta.url), "utf8");
+  const service = fs.readFileSync(new URL("../js/training/training-service.js", import.meta.url), "utf8");
+  assert.match(proposal, /prepareWorkoutEdit/);
+  assert.match(proposal, /resolveDayExercise/);
+  assert.match(proposal, /completed workout cannot be rewritten/i);
+  assert.match(service, /applyValidatedWorkoutEdit/);
+  assert.match(service, /addExercise/);
+  assert.match(service, /moveExercise/);
+  assert.match(service, /removeExercise/);
+  assert.match(service, /setExerciseSets|setExerciseReps/);
+  assert.match(service, /replaceExercise/);
 });
