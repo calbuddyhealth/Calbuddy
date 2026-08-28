@@ -63,7 +63,7 @@ test("Phase 10D uses a minimal budget for casual turns", () => {
 test("Phase 10D focused app budget preserves canonical domain and reference state", () => {
   const sourceContext = denseContext();
   const result = budgetTurnContext({
-    message: "How many workouts have I done?",
+    message: "Training today?",
     history: history(11),
     context: sourceContext
   });
@@ -96,7 +96,7 @@ test("Phase 10D reference follow-ups keep enough history and memory for target c
 
 test("Phase 10D keeps full cognitive context for high-stakes and cross-domain turns", () => {
   for (const turn of [
-    { message: "My shoulder hurts when I bench press.", context: denseContext(), history: history(12) },
+    { message: "I have shoulder pain when I bench press.", context: denseContext(), history: history(12) },
     { message: "Compare my training and nutrition progress.", context: denseContext(), history: history(12) }
   ]) {
     const result = budgetTurnContext(turn);
