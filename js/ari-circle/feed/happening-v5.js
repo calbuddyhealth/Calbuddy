@@ -1,7 +1,7 @@
-/* ARI Circle V5.2.2 — live Meet Up discovery rail for the existing Feed. */
+/* ARI Circle V5.2.3 — live Meet Up discovery rail for the existing Feed. */
 (() => {
   "use strict";
-  const VERSION = "5.2.2";
+  const VERSION = "5.2.3";
   const clean = (value) => String(value ?? "").trim();
   const escapeHtml = (value) => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
   const ACTIVITY = { walking:"Walking",gym:"Gym",running:"Running",hiking:"Hiking",sports:"Sports",cycling:"Cycling",yoga:"Yoga",coffee:"Coffee",food:"Food",community:"Community",volunteer:"Volunteer",other:"Meetup" };
@@ -50,9 +50,10 @@
       const rows=(Array.isArray(data)?data:[]).filter((row)=>new Date(row.ends_at).getTime()>Date.now()).slice(0,6);
       rail.replaceChildren();
       if (!rows.length) {
-        rail.innerHTML='<a class="circle-v5-happening-card" href="ari-circle-meetup.html"><span class="circle-v5-happening-card__eyebrow">MEET UP</span><h3>Nothing planned yet.</h3><p>Host something people can actually show up for.</p></a>';
+        section.hidden=true;
         return;
       }
+      section.hidden=false;
       rows.forEach((row)=>rail.append(card(row)));
     } catch (error) {
       console.warn("ARI Circle Happening rail unavailable:",error);
