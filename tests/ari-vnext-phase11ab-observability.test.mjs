@@ -16,6 +16,8 @@ import {
 
 const read = async (relative) => await readFile(new URL(`../${relative}`, import.meta.url), "utf8");
 const orchestrator = await read("api/_lib/ari-vnext/orchestrator.js");
+const decisionTraceSource = await read("api/_lib/ari-vnext/decision-trace.js");
+const observabilityStoreSource = await read("api/_lib/ari-vnext/observability-store.js");
 const migration = await read("supabase/migrations/20260828044500_ari_observability_turns.sql");
 
 function routineResult() {
@@ -167,7 +169,7 @@ test("Phase 11B persistence is idempotent, service-role only, and fail-soft", as
   }
 });
 
-test("Phase 11A/B integration runs after trust orchestration and never replaces the core", () => {
+test("Phase 11A/B integration runs after trust orchestration and never gains mutation authority", () => {
   assert.match(orchestrator, /runObservedAriVNext\(turn, trace\)/);
   assert.match(orchestrator, /evaluatePerformanceBudget/);
   assert.match(orchestrator, /buildAriDecisionTrace/);
@@ -175,7 +177,10 @@ test("Phase 11A/B integration runs after trust orchestration and never replaces 
   assert.match(orchestrator, /runAriVNextCore/);
   assert.match(orchestrator, /canonicalPreflightRequired: true/);
   assert.match(orchestrator, /independentCorePasses: true/);
-  assert.doesNotMatch(orchestrator, /decisionTrace.*createPendingAction/s);
+
+  for (const source of [decisionTraceSource, observabilityStoreSource]) {
+    assert.doesNotMatch(source, /createPendingAction|validateToolCall|AriVNextOperationRegistry|CalBuddy\.executeAction|\.rpc\(/i);
+  }
 });
 
 test("Phase 11B schema is RLS-enabled and inaccessible to normal clients", () => {
