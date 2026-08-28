@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  activeReferenceDomains,
   buildReferencePacket,
   isReferenceFollowUp,
   resolveReferenceTarget
@@ -23,6 +24,24 @@ function meal({ id, name, category = "lunch", date = "2026-08-26", state = "pers
       nutritionDate: date
     },
     verification: { verifiedByTrustedContext: true, currentContextRead: true }
+  };
+}
+
+function invalidation({
+  referenceId = "ref_live_meal_deleted",
+  operation = "undo_nutrition_mutation",
+  domain = "nutrition",
+  entityType = "meal",
+  expiresInMs = 120000
+} = {}) {
+  return {
+    referenceId,
+    operation,
+    domain,
+    entityType,
+    state: "invalidated",
+    invalidatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + expiresInMs).toISOString()
   };
 }
 
@@ -152,4 +171,115 @@ test("Phase 9B supports exact dated corrections without guessing relative dates"
 
   assert.equal(result.status, "resolved");
   assert.equal(result.selectedReferenceId, "ref_live_lunch_26");
+});
+
+test("Phase 9B delete then bare pronoun cannot retarget the only surviving meal", () => {
+  const result = resolveReferenceTarget({
+    message: "Change that to 600 calories.",
+    referenceState: {
+      references: [meal({ id: "ref_live_salmon", name: "Salmon Bowl", category: "dinner" })],
+      recentInvalidations: [invalidation()]
+    },
+    route: { nutrition: true }
+  });
+
+  assert.equal(result.status, "unresolved");
+  assert.equal(result.reason, "recent_reference_invalidated");
+  assert.equal(result.requiresClarification, true);
+  assert.equal(result.selectedReferenceId, null);
+  assert.deepEqual(result.invalidatedReferenceIds, ["ref_live_meal_deleted"]);
+});
+
+test("Phase 9B an explicit new selector can move on from a deleted anchor", () => {
+  const result = resolveReferenceTarget({
+    message: "Change the salmon to 600 calories.",
+    referenceState: {
+      references: [meal({ id: "ref_live_salmon", name: "Salmon Bowl", category: "dinner" })],
+      recentInvalidations: [invalidation()]
+    },
+    route: { nutrition: true }
+  });
+
+  assert.equal(result.status, "resolved");
+  assert.equal(result.selectedReferenceId, "ref_live_salmon");
+});
+
+test("Phase 9B an explicit ordinal remains valid after a different target was deleted", () => {
+  const result = resolveReferenceTarget({
+    message: "Change the second one.",
+    referenceState: {
+      references: [
+        meal({ id: "ref_live_first", name: "Egg Bowl", ordinal: 1 }),
+        meal({ id: "ref_live_second", name: "Salmon Bowl", ordinal: 2 })
+      ],
+      recentInvalidations: [invalidation()]
+    },
+    route: { nutrition: true }
+  });
+
+  assert.equal(result.status, "resolved");
+  assert.equal(result.selectedReferenceId, "ref_live_second");
+});
+
+test("Phase 9B invalidation only blocks the matching domain and entity", () => {
+  const workout = {
+    referenceId: "ref_live_workout_current",
+    state: "persisted",
+    domain: "training",
+    entityType: "workout",
+    label: "Chest Day",
+    canonical: { id: "workout-current" },
+    details: { collection: "recent_workouts", ordinal: 1 },
+    verification: { verifiedByTrustedContext: true, currentContextRead: true }
+  };
+  const result = resolveReferenceTarget({
+    message: "Change that workout.",
+    referenceState: {
+      references: [workout],
+      recentInvalidations: [invalidation()]
+    },
+    route: { training: true }
+  });
+
+  assert.equal(result.status, "resolved");
+  assert.equal(result.selectedReferenceId, "ref_live_workout_current");
+});
+
+test("Phase 9B expired invalidations do not shadow current authoritative references", () => {
+  const result = resolveReferenceTarget({
+    message: "Change that to 600 calories.",
+    referenceState: {
+      references: [meal({ id: "ref_live_salmon", name: "Salmon Bowl", category: "dinner" })],
+      recentInvalidations: [invalidation({ expiresInMs: -1000 })]
+    },
+    route: { nutrition: true }
+  });
+
+  assert.equal(result.status, "resolved");
+  assert.equal(result.selectedReferenceId, "ref_live_salmon");
+});
+
+test("Phase 9B invalidation stays route-visible but never becomes mutation authority", () => {
+  const referenceState = {
+    references: [],
+    recentInvalidations: [invalidation({
+      referenceId: "ref_live_activity_deleted",
+      operation: "delete_activity_log",
+      domain: "training",
+      entityType: "activity_log"
+    })]
+  };
+  assert.deepEqual(activeReferenceDomains(referenceState), ["training"]);
+
+  const packet = buildReferencePacket({
+    message: "Change that.",
+    history: [],
+    context: { referenceState }
+  }, { training: true });
+
+  assert.equal(packet?.resolution?.status, "unresolved");
+  assert.equal(packet?.resolution?.reason, "recent_reference_invalidated");
+  assert.equal(packet?.policy?.recentInvalidationNeverGrantsWritePermission, true);
+  assert.equal(packet?.policy?.barePronounAfterRecentInvalidationMustClarify, true);
+  assert.equal(packet?.recentInvalidations?.[0]?.referenceId, "ref_live_activity_deleted");
 });
