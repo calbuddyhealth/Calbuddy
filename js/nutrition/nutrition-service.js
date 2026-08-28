@@ -1,7 +1,8 @@
 // Canonical Nutrition mutation service.
-// Owns resolved meal persistence, reference-bound meal updates, and idempotent mutation identity.
+// Owns resolved meal persistence, reference-bound meal updates, Undo, and idempotent mutation identity.
 
 const MUTATION_PREFIX = "ari_resolved_nutrition_mutation_v2";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_MEAL_UPDATE_FIELDS = new Set([
   "name",
   "calories",
@@ -56,9 +57,7 @@ function mutationIdForAction(action = {}) {
   const key = mutationStorageKey(action);
   try {
     const existing = sessionStorage.getItem(key);
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing || "")) {
-      return { id: existing, key };
-    }
+    if (UUID_RE.test(existing || "")) return { id: existing, key };
     const id = makeMutationId();
     sessionStorage.setItem(key, id);
     return { id, key };
@@ -130,7 +129,7 @@ function dispatchMealMutation({ action, mutationId, previousMutationId = null, m
         undoAvailable,
         resolution,
         source: "nutrition_service",
-        version: "1.1.0"
+        version: "1.2.0"
       }
     }));
     window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
@@ -139,6 +138,22 @@ function dispatchMealMutation({ action, mutationId, previousMutationId = null, m
         meal,
         mutationId
       }
+    }));
+  } catch {}
+}
+
+function dispatchUndo({ mutationId, todayCalories = null }) {
+  try {
+    window.dispatchEvent(new CustomEvent("ari:nutritionMutationUndone", {
+      detail: {
+        mutationId,
+        todayCalories,
+        source: "nutrition_service",
+        version: "1.2.0"
+      }
+    }));
+    window.dispatchEvent(new CustomEvent("calbuddy:mealsChanged", {
+      detail: { action: "undo", mutationId }
     }));
   } catch {}
 }
@@ -288,10 +303,43 @@ export async function updateMeal({ mealId = "", changes = [] } = {}) {
   };
 }
 
+export async function undoMutation(mutationId = "") {
+  const id = clean(mutationId, 160);
+  if (!UUID_RE.test(id)) {
+    return failure("nutrition_undo_identity_required", "That Nutrition change could not be identified safely.");
+  }
+
+  const client = window?.calbuddySupabase;
+  const session = await currentSession();
+  if (!session?.user?.id || typeof client?.rpc !== "function") {
+    return failure("nutrition_undo_session_required", "Undo requires a signed-in ARI XP session.");
+  }
+
+  const { data, error } = await client.rpc("ari_undo_nutrition_mutation", {
+    p_mutation_id: id
+  });
+  if (error) {
+    return failure("nutrition_undo_failed", error.message || "That Nutrition change could not be undone.");
+  }
+
+  updateConsumedCache(data);
+  try { await window?.CalBuddy?.getConsumedCalories?.(); } catch {}
+  dispatchUndo({ mutationId: id, todayCalories: data?.todayCalories ?? null });
+
+  return {
+    success: true,
+    ...data,
+    mutationId: id,
+    source: "nutrition_service",
+    reply: clean(data?.reply, 1000) || "Nutrition change undone."
+  };
+}
+
 export const NutritionService = Object.freeze({
   logResolvedMeal,
   normalizeMealChanges,
-  updateMeal
+  updateMeal,
+  undoMutation
 });
 
 export default NutritionService;
