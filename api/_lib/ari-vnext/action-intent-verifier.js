@@ -1,28 +1,16 @@
-// ARI vNext — Phase 10B verifier facade.
+// ARI vNext — simple deterministic mutation intent facade.
 //
-// Keep the mature semantic verifier intact in action-intent-verifier-core.js.
-// This facade removes only verifier calls whose CURRENT-turn write permission
-// is unambiguous from bounded direct syntax. Tool validation, canonicalization,
-// confirmation, reference trust, and the operation registry remain authoritative.
-// Product-specific boundaries are normalized outside global authorization.
+// The primary Ari model chooses the capability. This layer does NOT spend a
+// second model call re-judging the first model. It only checks that the selected
+// function is actually available for the current route and preserves the mature
+// deterministic reference/routine checks where they add value.
 //
-// Core semantic-policy anchors intentionally preserved behind this facade:
-// - Circle discovery such as "anything going on tonight?" remains a discovery/read request.
-// - Meetup semantics distinguish cancelling the user's OWN participation from
-//   cancelling an entire HOSTED meetup; explicit action vocabulary still includes
-//   join, RSVP, request a spot, leave, withdraw.
-// - Mission discovery such as "What Missions are active?" remains read-only while
-//   explicit progress such as "add my 3 miles to that Mission" is bounded.
-// - No Mission-review mutation tool is available.
-// - For ARI Circle Crews, discovery or explanation is read-only; Crew creation
-//   must Never infer or invent founding members. The core distinguishes
-//   "accept that Crew invite" from "decline/pass on that Crew invite", and it must
-//   distinguish leaving the user's OWN membership from archiving an entire OWNED Crew.
-//   No Crew tool may add arbitrary members.
+// Safety remains downstream and independent: tool validation, canonical
+// reference resolution, account ownership, pending-action scoping, domain
+// policy, and repository constraints still decide whether a mutation can run.
 
 import {
-  reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent,
-  reviewExplicitApplicationIntent as reviewCoreExplicitApplicationIntent
+  reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent
 } from "./action-intent-verifier-core.js";
 import { normalizeNutritionPlanReview } from "./nutrition-plan-policy.js";
 
@@ -41,12 +29,37 @@ export function reviewDeterministicRoutineLogIntent(args = {}) {
 }
 
 export async function reviewExplicitApplicationIntent(args = {}) {
-  const direct = reviewDeterministicDirectMutation(args);
-  if (direct) return direct;
+  const deterministic = reviewCoreDeterministicRoutineLogIntent(args);
+  if (deterministic) {
+    return normalizeNutritionPlanReview({ review: deterministic, route: args?.route || {} });
+  }
 
-  const review = await reviewCoreExplicitApplicationIntent(args);
+  const direct = reviewDeterministicDirectMutation(args);
+  if (direct) {
+    return normalizeNutritionPlanReview({ review: direct, route: args?.route || {} });
+  }
+
+  const decision = clean(args?.functionCall?.name, 120);
+  if (!decision) return null;
+
+  const available = availableToolNames(args?.tools);
+  if (!available.has(decision)) return null;
+
+  // Do not reinterpret product policy or call another LLM here. The primary
+  // model already selected a capability. Canonicalization and the simple action
+  // policy determine whether it executes immediately or remains reviewable.
   return normalizeNutritionPlanReview({
-    review,
+    review: {
+      version: "2.0.0",
+      decision,
+      confidence: 1,
+      reason: "Primary Ari capability accepted for deterministic validation; no secondary semantic verifier call.",
+      dailyGoalKnown: null,
+      model: null,
+      providerRequestId: null,
+      usage: null,
+      source: "primary_capability"
+    },
     route: args?.route || {}
   });
 }
@@ -60,12 +73,7 @@ export function reviewDeterministicDirectMutation({
   const verbs = DIRECT_SAFE_TOOLS[decision];
   if (!verbs) return null;
 
-  const available = new Set(
-    (Array.isArray(tools) ? tools : [])
-      .filter((tool) => tool?.type === "function" && tool?.name)
-      .map((tool) => clean(tool.name, 120))
-      .filter(Boolean)
-  );
+  const available = availableToolNames(tools);
   if (!available.has(decision)) return null;
 
   const message = clean(turn?.message, 1000);
@@ -73,16 +81,25 @@ export function reviewDeterministicDirectMutation({
   if (!matchesDirectCommand(message, verbs)) return null;
 
   return {
-    version: "1.13.0",
+    version: "2.0.0",
     decision,
     confidence: 1,
-    reason: "Explicit current-turn direct mutation command verified deterministically before semantic verifier fallback.",
+    reason: "Explicit current-turn direct mutation command verified deterministically.",
     dailyGoalKnown: null,
     model: null,
     providerRequestId: null,
     usage: null,
     source: "deterministic_direct_mutation"
   };
+}
+
+function availableToolNames(tools = []) {
+  return new Set(
+    (Array.isArray(tools) ? tools : [])
+      .filter((tool) => tool?.type === "function" && tool?.name)
+      .map((tool) => clean(tool.name, 120))
+      .filter(Boolean)
+  );
 }
 
 function matchesDirectCommand(message = "", verbs = []) {
