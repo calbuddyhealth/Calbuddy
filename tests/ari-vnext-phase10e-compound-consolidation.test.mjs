@@ -26,7 +26,7 @@ function baseTurn(message = "") {
   };
 }
 
-test("Phase 10E consolidates only uniquely deterministic independent tools", () => {
+test("Phase 10E consolidates only uniquely deterministic independent routine logs", () => {
   const clauses = [
     "Log my chicken bowl, 620 calories.",
     "Log my weight as 185 pounds."
@@ -48,10 +48,10 @@ test("Phase 10E consolidates only uniquely deterministic independent tools", () 
   );
 });
 
-test("Phase 10E supports a proven deterministic workout command plus a routine log", () => {
+test("Phase 10E supports the existing deterministic activity and weight log vocabulary", () => {
   const clauses = [
-    "Please plan a chest workout for me.",
-    "Log my weight as 185 pounds."
+    "Can you record my 30 minute run?",
+    "Update my weight to 185 pounds."
   ];
   const analysis = analyzeCompoundPrimaryEligibility({
     turn: baseTurn(clauses.join(" Then ")),
@@ -61,15 +61,28 @@ test("Phase 10E supports a proven deterministic workout command plus a routine l
   assert.equal(analysis.eligible, true);
   assert.deepEqual(
     analysis.clauseSpecs.map((item) => item.expectedToolName),
-    ["propose_plan_workout", "propose_log_weight"]
+    ["propose_log_activity", "propose_log_weight"]
   );
+});
+
+test("Phase 10E leaves direct goal and workout commands on the independent core path", () => {
+  for (const clauses of [
+    ["Please plan a chest workout for me.", "Log my weight as 185 pounds."],
+    ["Set my calorie goal to 2200.", "Log my weight as 185 pounds."]
+  ]) {
+    const analysis = analyzeCompoundPrimaryEligibility({
+      turn: baseTurn(clauses.join(" Then ")),
+      clauses
+    });
+    assert.equal(analysis.eligible, false);
+  }
 });
 
 test("Phase 10E falls back for reference-bound and destructive compound turns", () => {
   for (const clauses of [
     ["Delete the second one.", "Log my weight as 185 pounds."],
     ["Undo that meal.", "Log my 30 minute run."],
-    ["Remove that workout.", "Set my calorie goal to 2200."]
+    ["Remove that workout.", "Update my weight to 185 pounds."]
   ]) {
     const analysis = analyzeCompoundPrimaryEligibility({
       turn: baseTurn(clauses.join(" Then ")),
@@ -95,14 +108,13 @@ test("Phase 10E refuses duplicate same-tool clauses so arguments cannot be swapp
 
 test("Phase 10E refuses high-stakes, current-info, developer, and coaching clauses", () => {
   const cases = [
-    ["Log my shoulder pain as an activity.", "Log my weight as 185 pounds."],
-    ["Log my run, then check the current weather."],
-    ["Set my calorie goal to 2200.", "Debug my API code."],
+    ["Log my shoulder pain as an activity.", "Update my weight to 185 pounds."],
+    ["Can you record my 30 minute run?", "Check the current weather."],
+    ["Update my weight to 185 pounds.", "Debug my API code."],
     ["Log my chicken bowl, 620 calories.", "Compare my training and nutrition progress."]
   ];
 
-  for (const value of cases) {
-    const clauses = value.length === 1 ? value[0].split(/, then /i) : value;
+  for (const clauses of cases) {
     const analysis = analyzeCompoundPrimaryEligibility({
       turn: baseTurn(clauses.join(" Then ")),
       clauses
@@ -141,9 +153,13 @@ test("Phase 10E prepared-primary injection replaces only the primary provider ca
   assert.doesNotMatch(preparedSource, /createPendingAction|validateToolCall|AriVNextOperationRegistry|supabase|\.rpc\(/i);
 });
 
-test("Phase 10E planner proposes arguments only and has no mutation authority", () => {
+test("Phase 10E planner proposes routine-log arguments only and has no mutation authority", () => {
   assert.match(plannerSource, /reviewDeterministicRoutineLogIntent/);
-  assert.match(plannerSource, /reviewDeterministicDirectMutation/);
+  assert.doesNotMatch(plannerSource, /reviewDeterministicDirectMutation/);
+  assert.match(plannerSource, /"log_meal"/);
+  assert.match(plannerSource, /"log_activity"/);
+  assert.match(plannerSource, /"log_weight"/);
+  assert.doesNotMatch(plannerSource, /"update_goal"|"plan_workout"/);
   assert.match(plannerSource, /validatePreparedCalls/);
   assert.match(plannerSource, /shared_primary_shape_mismatch/);
   assert.doesNotMatch(plannerSource, /createPendingAction|AriVNextOperationRegistry|CalBuddy\.executeAction|supabase|\.rpc\(/i);
