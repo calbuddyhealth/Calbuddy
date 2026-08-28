@@ -32,7 +32,7 @@ test("current Circle V5 presentation ends in consolidated visual and XP authorit
 
 
 test("shared ARI Circle header is text-only, larger, and pearl", () => {
-  assert.match(shell, /const VERSION = "5\.2\.4"/);
+  assert.match(shell, /const VERSION = "5\.3\.0"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-wordmark/);
   assert.doesNotMatch(shell, /circle-v51-orbit-mark/);
@@ -92,7 +92,7 @@ test("Feed loads current V5 without Profile compatibility presentation", () => {
   const realWorldIndex = feed.indexOf('id="ari-circle-v5-real-world-style"');
   const authorityIndex = feed.indexOf("ari-circle-v5-visual-authority.css?v=5.2.5");
   assert.ok(realWorldIndex >= 0 && authorityIndex > realWorldIndex, "visual authority must load after the V5 base");
-  assert.match(feed, /v5-real-world\.js\?v=5\.2\.4/);
+  assert.match(feed, /v5-real-world\.js\?v=5\.3\.0/);
 });
 
 
@@ -101,7 +101,7 @@ test("primary Circle pages pin the adult-gated menu asset before shared bootstra
     const menuIndex = html.indexOf('id="ariCircleMenuV5Script"');
     const configIndex = html.indexOf('src="supabase-config.js');
     assert.ok(menuIndex >= 0, "page should pin the shared Circle menu asset");
-    assert.match(html, /circle-menu-v5\.js\?v=2\.4\.3/);
+    assert.match(html, /circle-menu-v5\.js\?v=2\.5\.0/);
     assert.ok(configIndex >= 0, "page should still load shared Supabase bootstrap");
     assert.ok(menuIndex < configIndex, "deferred menu element must exist before supabase-config checks for it");
   }

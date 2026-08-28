@@ -12,7 +12,7 @@ const meetupIndex = menu.indexOf('label: "Meet Up"');
 assert.ok(notificationsIndex >= 0, "Notifications remains in the Main drawer group");
 assert.ok(profileIndex > notificationsIndex, "Profile remains below Notifications");
 assert.ok(discoverIndex > profileIndex, "Discover Friends is below Profile");
-assert.ok(meetupIndex > discoverIndex, "Discover Friends is above Meet Up");
+assert.equal(meetupIndex, -1, "Connect/Meet Up is primary navigation and is not duplicated in the drawer");
 
 assert.match(
   menu,
