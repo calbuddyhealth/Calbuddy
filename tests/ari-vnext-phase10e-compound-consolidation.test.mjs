@@ -48,9 +48,9 @@ test("Phase 10E consolidates only uniquely deterministic independent tools", () 
   );
 });
 
-test("Phase 10E supports a deterministic single-domain goal command plus a routine log", () => {
+test("Phase 10E supports a proven deterministic workout command plus a routine log", () => {
   const clauses = [
-    "Set my target weight to 180 pounds.",
+    "Please plan a chest workout for me.",
     "Log my weight as 185 pounds."
   ];
   const analysis = analyzeCompoundPrimaryEligibility({
@@ -61,7 +61,7 @@ test("Phase 10E supports a deterministic single-domain goal command plus a routi
   assert.equal(analysis.eligible, true);
   assert.deepEqual(
     analysis.clauseSpecs.map((item) => item.expectedToolName),
-    ["propose_update_goal", "propose_log_weight"]
+    ["propose_plan_workout", "propose_log_weight"]
   );
 });
 
