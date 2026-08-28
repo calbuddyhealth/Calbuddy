@@ -97,7 +97,7 @@ test("Feed has no second navigation row and keeps Moments inside Feed", () => {
   assert.doesNotMatch(feedHtml, /class="feed-tabs"/);
   assert.match(feedHtml, /id="momentsTitle">Moments/);
   assert.match(feedHtml, /id="streamTitle">Your Feed/);
-  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle ARI Next"\)/);
+  assert.match(shell, /brand\.setAttribute\("aria-label", ownerAccess \? "ARI Circle ARI Next" : "ARI Circle Feed"\)/);
 });
 
 test("Feed loads Feed-only post controls instead of mixed Profile compatibility flow", () => {
