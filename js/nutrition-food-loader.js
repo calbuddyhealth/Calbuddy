@@ -1,9 +1,12 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.3
+   Version: 1.0.4
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
+
+   V1.0.4:
+   - Loads audited v1.0.1 curated prepared, breakfast/side, and deli modules.
 
    V1.0.3:
    - Adds curated deli/lunch meats.
@@ -15,7 +18,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.3";
+  const VERSION = "1.0.4";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -71,8 +74,8 @@
     "ari/nutrition/data/grains/AriFoodCerealBrands2.js",
     "ari/nutrition/data/grains/AriFoodOatBrands.js",
 
-    "ari/nutrition/data/prepared-meals/AriFoodPreparedMealsCore.js?v=1.0.0",
-    "ari/nutrition/data/prepared-meals/AriFoodEverydayBreakfastSides.js?v=1.0.0",
+    "ari/nutrition/data/prepared-meals/AriFoodPreparedMealsCore.js?v=1.0.1",
+    "ari/nutrition/data/prepared-meals/AriFoodEverydayBreakfastSides.js?v=1.0.1",
 
     "ari/nutrition/data/nuts/AriFoodNuts.js?v=1.0.0",
     "ari/nutrition/data/nuts/AriFoodNutsCore.js",
@@ -91,7 +94,7 @@
     "ari/nutrition/data/proteins/AriFoodLamb.js",
     "ari/nutrition/data/proteins/AriFoodGameMeats.js",
     "ari/nutrition/data/proteins/AriFoodPlantProteins.js",
-    "ari/nutrition/data/proteins/AriFoodDeliMeatsCore.js?v=1.0.0",
+    "ari/nutrition/data/proteins/AriFoodDeliMeatsCore.js?v=1.0.1",
 
     "ari/nutrition/data/seasonings/AriFoodSeasonings.js?v=1.0.0",
     "ari/nutrition/data/seasonings/AriFoodSeasoningsCore.js",
