@@ -5,24 +5,29 @@ import fs from "node:fs";
 const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
 const ariNext = fs.readFileSync("ari-circle-v6.html", "utf8");
+const ownerBeta = fs.readFileSync("js/ari-circle/v6/ari-next-owner-beta-v1.js", "utf8");
 const feed = fs.readFileSync("ari-circle-feed.html", "utf8");
 const profileCompat = fs.readFileSync("js/ari-circle/v4-ui.js", "utf8");
 const css = fs.readFileSync("assets/css/ari-circle-v6-experience.css", "utf8");
 
-test("Circle has exactly one three-destination primary navigation contract", () => {
-  const navCalls = [...shell.matchAll(/navLink\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)/g)]
-    .map((match) => match.slice(1));
-  assert.deepEqual(navCalls, [
-    ["feed", "ari-circle-feed.html", "Feed"],
-    ["connect", "ari-circle-meetup.html", "Connect"],
-    ["arinext", "ari-circle-v6.html", "ARI Next"]
-  ]);
-  assert.match(shell, /NAV_MODEL = "feed-connect-ari-next"/);
+test("Circle public navigation is Feed + Connect and ARI Next is conditional owner beta", () => {
+  assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
+  assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
+  assert.match(shell, /if \(ownerBetaAccess\) links\.push\(navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\)\)/);
+  assert.match(shell, /feed-connect-public/);
+  assert.match(shell, /feed-connect-ari-next-owner-beta/);
+  assert.match(shell, /ownerBetaAccess \? 3 : 2/);
+  assert.match(shell, /\/api\/ari-github-read/);
 });
 
-test("ARI Next is the Ari-driven recommendation surface without duplicate location questions", () => {
-  assert.match(ariNext, /<title>ARI Next \| ARI Circle<\/title>/);
-  assert.match(ariNext, />ARI NEXT<\/span>/);
+test("ARI Next is an owner-only beta route and still keeps the recommendation surface intact", () => {
+  assert.match(ariNext, /<title>ARI Next Beta \| ARI Circle<\/title>/);
+  assert.match(ariNext, />ARI NEXT · OWNER BETA<\/span>/);
+  assert.match(ariNext, /ari-next-owner-beta-v1\.js\?v=1\.0\.0/);
+  assert.doesNotMatch(ariNext, /<script src="js\/ari-circle\/v6\/action-network-v6\.js/);
+  assert.match(ownerBeta, /\/api\/ari-github-read/);
+  assert.match(ownerBeta, /window\.location\.replace\("ari-circle-feed\.html"\)/);
+  assert.match(ownerBeta, /action-network-v6\.js\?v=0\.3\.0/);
   assert.match(ariNext, /What are you up for\?/);
   assert.match(ariNext, /id="v6ForYouTitle">Best next<\/h2>/);
   assert.match(ariNext, /type="hidden" id="v6IntentRadius"/);
@@ -68,9 +73,8 @@ test("secondary drawer does not become another Connect navigation surface", () =
   assert.match(shell, /a\[href="ari-circle-quests\.html"\]/);
 });
 
-test("ARI CIRCLE wordmark consistently returns to ARI Next", () => {
-  assert.match(shell, /brand\.setAttribute\("href", "ari-circle-v6\.html"\)/);
-  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle ARI Next"\)/);
-  assert.match(ariNext, /href="ari-circle-v6\.html" aria-label="ARI Circle ARI Next"/);
-  assert.match(profileCompat, /brand\.href = "ari-circle-v6\.html"/);
+test("ARI CIRCLE wordmark returns to the public Feed instead of exposing the beta", () => {
+  assert.match(shell, /brand\.setAttribute\("href", "ari-circle-feed\.html"\)/);
+  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle Feed"\)/);
+  assert.match(ariNext, /href="ari-circle-feed\.html" aria-label="ARI Circle Feed"/);
 });
