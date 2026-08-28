@@ -72,50 +72,73 @@ const DESTRUCTIVE_OPERATIONS = new Set([
 
 const STRONG_COMPOUND_SIGNAL = /(?:;|,\s*(?:and\s+)?then\b|\band\s+then\b|\bthen\b|,\s*(?:log|record|save|add|change|update|edit|correct|fix|remove|delete|undo|discard|replace|swap|move|set|make|clear|cancel)\b|\band\s+(?:log|record|save|add|remove|delete|undo|discard|replace|swap|move|clear|cancel)\b)/i;
 
+async function persistSuccessfulObservation(turn = {}, result = {}) {
+  try {
+    const decisionTrace = buildAriDecisionTrace({ turn, result });
+    const persistence = await recordAriObservabilityTurn({
+      userId: turn?.userId || null,
+      turnId: turn?.turnId || null,
+      conversationId: turn?.conversationId || null,
+      trace: decisionTrace
+    });
+    return {
+      ...result,
+      decisionTrace,
+      observability: {
+        version: ARI_OBSERVABILITY_STORE_VERSION,
+        stored: persistence?.stored === true,
+        reason: clean(persistence?.reason, 100) || null
+      }
+    };
+  } catch {
+    return {
+      ...result,
+      observability: {
+        version: ARI_OBSERVABILITY_STORE_VERSION,
+        stored: false,
+        reason: "observation_error"
+      }
+    };
+  }
+}
+
+async function rethrowObservedError({ turn = {}, error = null, trace = null } = {}) {
+  try {
+    const optimizationTrace = summarizeOptimizationTrace(trace);
+    const decisionTrace = buildAriFailureTrace({ turn, error, optimizationTrace });
+    await recordAriObservabilityTurn({
+      userId: turn?.userId || null,
+      turnId: turn?.turnId || null,
+      conversationId: turn?.conversationId || null,
+      trace: decisionTrace
+    });
+    if (error && typeof error === "object") error.ariDecisionTrace = decisionTrace;
+  } catch {
+    // Observability is fail-soft and must never replace the original failure.
+  }
+  throw error;
+}
+
 export async function runAriVNext(turn = {}) {
   return await withOptimizationTrace(turn, async (trace) => {
+    let result;
     try {
-      const result = await runObservedAriVNext(turn, trace);
-      const optimizationTrace = summarizeOptimizationTrace(trace);
-      const performanceBudget = evaluatePerformanceBudget({
-        turn,
-        result,
-        optimizationTrace
-      });
-      const observedResult = {
-        ...result,
-        optimizationTrace,
-        performanceBudget
-      };
-      const decisionTrace = buildAriDecisionTrace({ turn, result: observedResult });
-      const persistence = await recordAriObservabilityTurn({
-        userId: turn?.userId || null,
-        turnId: turn?.turnId || null,
-        conversationId: turn?.conversationId || null,
-        trace: decisionTrace
-      });
-
-      return {
-        ...observedResult,
-        decisionTrace,
-        observability: {
-          version: ARI_OBSERVABILITY_STORE_VERSION,
-          stored: persistence?.stored === true,
-          reason: clean(persistence?.reason, 100) || null
-        }
-      };
+      result = await runObservedAriVNext(turn, trace);
     } catch (error) {
-      const optimizationTrace = summarizeOptimizationTrace(trace);
-      const decisionTrace = buildAriFailureTrace({ turn, error, optimizationTrace });
-      await recordAriObservabilityTurn({
-        userId: turn?.userId || null,
-        turnId: turn?.turnId || null,
-        conversationId: turn?.conversationId || null,
-        trace: decisionTrace
-      });
-      error.ariDecisionTrace = decisionTrace;
-      throw error;
+      return await rethrowObservedError({ turn, error, trace });
     }
+    const optimizationTrace = summarizeOptimizationTrace(trace);
+    const performanceBudget = evaluatePerformanceBudget({
+      turn,
+      result,
+      optimizationTrace
+    });
+    const observedResult = {
+      ...result,
+      optimizationTrace,
+      performanceBudget
+    };
+    return await persistSuccessfulObservation(turn, observedResult);
   });
 }
 
