@@ -120,4 +120,8 @@
   if (!register()) {
     window.addEventListener("ari:vnextOperationRegistryReady", register, { once: true });
   }
+
+  import("./ari-vnext-nutrition-registry-adapter.js?v=1.0.0").catch((error) => {
+    console.warn("[Ari vNext] Nutrition registry adapter failed to load:", error?.message || error);
+  });
 })();
