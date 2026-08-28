@@ -34,7 +34,7 @@ test("first prepared meal batch covers high-frequency everyday concepts", () => 
 });
 
 test("Nutrition lazy loader includes the curated prepared meals module", () => {
-  assert.match(loader, /Version:\s*1\.0\.3/);
-  assert.match(loader, /const VERSION = "1\.0\.3"/);
-  assert.match(loader, /prepared-meals\/AriFoodPreparedMealsCore\.js\?v=1\.0\.0/);
+  assert.match(loader, /Version:\s*1\.0\.4/);
+  assert.match(loader, /const VERSION = "1\.0\.4"/);
+  assert.match(loader, /prepared-meals\/AriFoodPreparedMealsCore\.js\?v=1\.0\.1/);
 });
