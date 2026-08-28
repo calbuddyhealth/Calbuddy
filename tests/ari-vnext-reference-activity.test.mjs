@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -15,16 +14,6 @@ import { reviewDeterministicRoutineLogIntent } from "../api/_lib/ari-vnext/actio
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-const ACTIVITY_ID = "33333333-3333-4333-8333-333333333333";
-
-function makeSessionStorage() {
-  const values = new Map();
-  return {
-    getItem(key) { return values.has(key) ? values.get(key) : null; },
-    setItem(key, value) { values.set(key, String(value)); },
-    removeItem(key) { values.delete(key); }
-  };
-}
 
 test("Training exposes reference-only activity edit and delete capabilities", () => {
   const tools = getAriTools({ training: true });
@@ -114,207 +103,34 @@ test("explicit current-turn activity corrections and deletes are verified determ
   assert.equal(bareFact, null);
 });
 
-test("browser lifecycle re-resolves canonical activity, updates the same reference, then tombstones it on delete", async () => {
-  const source = read("ari/vnext/ari-vnext-reference-state.js");
-  new vm.Script(source, { filename: "ari-vnext-reference-state.js" });
+test("activity reference lifecycle is observational and follows trusted registry execution", () => {
+  const lifecycle = read("ari/vnext/ari-vnext-reference-state.js");
+  const registry = read("ari/vnext/ari-vnext-operation-registry.js");
 
-  let legacyPending = null;
-  let updateInput = null;
-  let deleteInput = null;
-  const sessionStorage = makeSessionStorage();
-
-  const CalBuddy = {
-    getConversationId: () => "conversation-reference-activity-test",
-    createPendingAction: async (action) => ({ ...action, id: `legacy-${action.action_type}` }),
-    setPendingAction: (action) => { legacyPending = action; },
-    getPendingAction: () => legacyPending,
-    cancelPendingAction: () => { legacyPending = null; return true; }
-  };
-
-  const AriVNextActionAdapter = {
-    createCalBuddyPendingAction: async () => ({ success: false, code: "unexpected_original_create" }),
-    executeConfirmed: async () => ({ success: false, code: "unexpected_original_execute" })
-  };
-
-  const AriVNextActivityAdapter = {
-    updateReferencedActivity: async (input) => {
-      updateInput = input;
-      return {
-        success: true,
-        activity: {
-          id: ACTIVITY_ID,
-          activity_name: "Outdoor run",
-          duration_minutes: 45,
-          calories_burned: 400,
-          intensity: "vigorous",
-          log_date: "2026-08-27",
-          notes: "corrected"
-        },
-        reply: "Updated Outdoor run."
-      };
-    },
-    deleteReferencedActivity: async (input) => {
-      deleteInput = input;
-      return {
-        success: true,
-        activity: {
-          id: ACTIVITY_ID,
-          activity_name: "Outdoor run",
-          log_date: "2026-08-27"
-        }
-      };
-    }
-  };
-
-  const AriVNextBridge = {
-    ask: async () => ({ success: true }),
-    buildContext: async () => ({}),
-    getPendingAction: () => null
-  };
-
-  const window = {
-    Ari: {},
-    CalBuddy,
-    AriVNextActionAdapter,
-    AriVNextActivityAdapter,
-    AriVNextBridge,
-    setInterval,
-    clearInterval,
-    setTimeout,
-    dispatchEvent: () => true
-  };
-  window.window = window;
-
-  const context = vm.createContext({
-    window,
-    sessionStorage,
-    CustomEvent: class CustomEvent {
-      constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
-    },
-    console,
-    setInterval,
-    clearInterval,
-    setTimeout,
-    Date,
-    Math,
-    JSON,
-    Object,
-    String,
-    Number,
-    RegExp,
-    Set
-  });
-  vm.runInContext(source, context, { filename: "ari-vnext-reference-state.js" });
-
-  const logged = {
-    id: "vnext-log-activity-1",
-    name: "log_activity",
-    sourceTurnId: "turn-log-activity",
-    arguments: {
-      activityName: "Outdoor run",
-      durationMinutes: 30,
-      caloriesBurned: 300,
-      intensity: "moderate",
-      dateText: "2026-08-27",
-      notes: ""
-    }
-  };
-  window.AriVNextReferenceState.rememberPending({ pendingAction: logged });
-  const persisted = window.AriVNextReferenceState.commit({
-    pendingAction: logged,
-    execution: {
-      success: true,
-      result: {
-        activity: {
-          id: ACTIVITY_ID,
-          activity_name: "Outdoor run",
-          duration_minutes: 30,
-          calories_burned: 300,
-          intensity: "moderate",
-          log_date: "2026-08-27"
-        }
-      }
-    }
-  });
-
-  assert.equal(persisted?.state, "persisted");
-  assert.equal(persisted?.canonical?.id, ACTIVITY_ID);
-  assert.equal(persisted?.canonical?.logDate, "2026-08-27");
-
-  const updatePending = {
-    id: "vnext-update-activity-1",
-    name: "update_activity_log",
-    sourceTurnId: "turn-update-activity",
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    arguments: {
-      referenceId: persisted.referenceId,
-      changes: [
-        { field: "duration_minutes", numberValue: 45, textValue: null },
-        { field: "calories_burned", numberValue: 400, textValue: null }
-      ]
-    }
-  };
-
-  const preparedUpdate = await window.AriVNextActionAdapter.createCalBuddyPendingAction(updatePending);
-  assert.equal(preparedUpdate.success, true);
-  assert.equal(preparedUpdate.action.action_type, "update_activity_log");
-  assert.equal(preparedUpdate.action.payload.activity_id, ACTIVITY_ID);
-  assert.match(preparedUpdate.action.confirmation_text, /45 min/i);
-  assert.match(preparedUpdate.action.confirmation_text, /400 kcal/i);
-
-  const updated = await window.AriVNextActionAdapter.executeConfirmed({
-    vnextPendingAction: updatePending,
-    currentTurnId: "turn-confirm-update"
-  });
-  assert.equal(updated.success, true);
-  assert.equal(updateInput?.activityId, ACTIVITY_ID);
-  assert.equal(updateInput?.logDate, "2026-08-27");
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(updateInput?.changes || [])),
-    updatePending.arguments.changes
-  );
-  assert.equal(updated.referenceLifecycle?.referenceId, persisted.referenceId);
-  assert.equal(updated.referenceLifecycle?.state, "persisted");
-  assert.equal(updated.referenceLifecycle?.details?.durationMinutes, 45);
-  assert.equal(updated.referenceLifecycle?.details?.caloriesBurned, 400);
-
-  const deletePending = {
-    id: "vnext-delete-activity-1",
-    name: "delete_activity_log",
-    sourceTurnId: "turn-delete-activity",
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    arguments: { referenceId: persisted.referenceId }
-  };
-
-  const preparedDelete = await window.AriVNextActionAdapter.createCalBuddyPendingAction(deletePending);
-  assert.equal(preparedDelete.success, true);
-  assert.equal(preparedDelete.action.action_type, "delete_activity_log");
-  assert.equal(preparedDelete.action.payload.activity_id, ACTIVITY_ID);
-
-  const deleted = await window.AriVNextActionAdapter.executeConfirmed({
-    vnextPendingAction: deletePending,
-    currentTurnId: "turn-confirm-delete"
-  });
-  assert.equal(deleted.success, true);
-  assert.equal(deleteInput?.activityId, ACTIVITY_ID);
-  assert.equal(deleteInput?.logDate, "2026-08-27");
-  assert.equal(Array.isArray(deleteInput?.changes), true);
-  assert.equal(deleteInput.changes.length, 0);
-  assert.equal(deleted.referenceLifecycle?.state, "deleted");
-  assert.equal(deleted.referenceLifecycle?.referenceId, persisted.referenceId);
-  assert.equal(window.AriVNextReferenceState.snapshot(), null);
+  assert.match(lifecycle, /const registry = window\.AriVNextOperationRegistry/);
+  assert.match(lifecycle, /registry\.registerAfterExecution/);
+  assert.match(lifecycle, /const authoritative = execution\?\.authoritativeReference/);
+  assert.match(lifecycle, /const target = authoritative\?\.target \|\| resolveReference/);
+  assert.match(lifecycle, /\/undo\|delete\/\.test\(operation\)/);
+  assert.match(lifecycle, /\/update\|edit\/\.test\(operation\)/);
+  assert.match(lifecycle, /state: "persisted"/);
+  assert.match(lifecycle, /state: "deleted"/);
+  assert.doesNotMatch(lifecycle, /AriVNextActionAdapter/);
+  assert.match(registry, /async function executeConfirmed/);
 });
 
-test("Training reference execution re-reads and writes through the existing user-scoped activity service", () => {
+test("Training reference execution stays on canonical identity and the user-scoped activity service", () => {
   const tools = read("api/_lib/ari-vnext/tools.js");
   const lifecycle = read("ari/vnext/ari-vnext-reference-state.js");
   const adapter = read("ari/vnext/ari-vnext-activity-adapter.js");
 
   assert.doesNotMatch(tools, /properties:\s*\{\s*activityId:/);
   assert.match(tools, /referenceId:/);
-  assert.match(lifecycle, /target\?\.canonical\?\.id|target\.canonical\.id/);
-  assert.match(lifecycle, /verifiedByTrustedExecutor !== true/);
+  assert.match(lifecycle, /authoritative\?\.target \|\| resolveReference\(pendingAction\?\.arguments\?\.referenceId/);
+  assert.match(lifecycle, /verifiedByTrustedExecutor: true/);
   assert.match(adapter, /service\.listActivities\(date\)/);
   assert.match(adapter, /service\.updateActivity\(activityId/);
   assert.match(adapter, /service\.deleteActivity\(activityId\)/);
+  assert.match(adapter, /registerOperation\("update_activity_log"/);
+  assert.match(adapter, /registerOperation\("delete_activity_log"/);
 });
