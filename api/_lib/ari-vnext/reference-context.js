@@ -21,6 +21,7 @@ const CORRECTION_PHRASE = /^(?:actually\b|no[,;:]?\s+(?:i\s+)?meant\b|i\s+meant\
 const ORDINAL_REFERENCE = /\b(?:the\s+)?(first|second|third)\s+(?:one|item|meal|option|workout|activity|weigh-?in|meetup|mission|crew)?\b/i;
 const ORDINALS = Object.freeze({ first: 1, second: 2, third: 3 });
 const GENERIC_SELECTOR_WORDS = new Set([
+  "the", "a", "an", "my", "i", "no", "to", "for", "of", "and", "or", "is", "was", "be",
   "actually", "again", "that", "this", "those", "these", "them", "they", "their", "it", "its",
   "one", "ones", "other", "same", "previous", "last", "first", "second", "third", "item", "option",
   "please", "can", "could", "would", "will", "you", "make", "change", "update", "edit", "correct", "fix",
@@ -192,7 +193,9 @@ function narrowByCurrentMessage(candidates = [], message = "", route = {}) {
     else return { candidates: [], selectorApplied: true, explicitSelectorMiss: true };
   }
 
-  const selectorTokens = namedSelectorTokens(message);
+  // Ordinals are already a deterministic selector with collection semantics.
+  // Do not let generic words around "the second one" become a competing named selector.
+  const selectorTokens = explicitOrdinal(message) ? [] : namedSelectorTokens(message);
   if (selectorTokens.length) {
     const scored = output
       .map((candidate) => ({ candidate, score: selectorScore(candidate, selectorTokens) }))
