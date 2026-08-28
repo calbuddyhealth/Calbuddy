@@ -3,7 +3,8 @@
 // This layer closes two narrow conversational trust gaps without creating a new
 // execution authority:
 // 1) correction language supersedes an older pending confirmation before the
-//    corrected turn is sent to Ari; and
+//    corrected turn is sent to Ari while preserving only non-executable proposal
+//    context for the corrected turn; and
 // 2) a successful reference delete leaves a short-lived, non-writable
 //    invalidation pointer so a bare pronoun on the next turn cannot silently
 //    retarget a different surviving object.
@@ -30,6 +31,7 @@
   ]);
 
   const CORRECTION_PREFIX = /^(?:actually\b|no[,;:]?\s+(?:i\s+)?meant\b|i\s+meant\b|wait[,;:]?\b|sorry[,;:]?\b|correction\b|rather\b)/i;
+  const IDENTITY_KEY = /(?:^id$|_id$|Id$|referenceId$|mutationId$|mealId$|activityId$|workoutId$|crewId$|meetupId$|missionId$|planId$)/;
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -141,6 +143,40 @@
     return next[0] || null;
   }
 
+  function sanitizeContextValue(value, depth = 0) {
+    if (depth > 3 || value === null || value === undefined) return null;
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value === "string") return clean(value, 300);
+    if (Array.isArray(value)) {
+      return value.slice(0, 12).map((item) => sanitizeContextValue(item, depth + 1)).filter((item) => item !== null);
+    }
+    if (typeof value !== "object") return null;
+
+    const output = {};
+    for (const [key, raw] of Object.entries(value).slice(0, 16)) {
+      if (IDENTITY_KEY.test(key)) continue;
+      const next = sanitizeContextValue(raw, depth + 1);
+      if (next === null) continue;
+      output[key] = next;
+    }
+    return output;
+  }
+
+  function supersededContext(pendingAction = null) {
+    const operation = clean(pendingAction?.name, 120);
+    if (!operation) return null;
+    const previousReferenceId = clean(pendingAction?.arguments?.referenceId, 180) || null;
+    return {
+      state: "superseded",
+      operation,
+      ...(previousReferenceId ? { previousReferenceId } : {}),
+      priorArguments: sanitizeContextValue(pendingAction?.arguments || {}),
+      supersededAt: new Date().toISOString(),
+      executable: false
+    };
+  }
+
   function isCorrectionSupersession(message = "") {
     return CORRECTION_PREFIX.test(clean(message, 500));
   }
@@ -186,16 +222,24 @@
 
     bridge.ask = async function phase9BCorrectionAwareAsk(message, options = {}) {
       const pendingBefore = bridge.getPendingAction?.() || null;
+      let supersededPendingAction = null;
       if (pendingBefore && isCorrectionSupersession(message)) {
+        supersededPendingAction = supersededContext(pendingBefore);
         supersedePending(pendingBefore);
       }
-      return await originalAsk(message, options);
+      return await originalAsk(message, supersededPendingAction
+        ? { ...options, phase9bSupersededPendingAction: supersededPendingAction }
+        : options);
     };
 
     bridge.buildContext = async function phase9BInvalidationAwareContext(options = {}) {
       const context = await originalBuildContext(options);
       const recentInvalidations = readInvalidations(options?.conversationId || null);
-      if (!recentInvalidations.length) return context;
+      const supersededPendingAction = options?.phase9bSupersededPendingAction &&
+        typeof options.phase9bSupersededPendingAction === "object"
+          ? options.phase9bSupersededPendingAction
+          : null;
+      if (!recentInvalidations.length && !supersededPendingAction) return context;
       const referenceState = context?.referenceState && typeof context.referenceState === "object"
         ? context.referenceState
         : {};
@@ -203,7 +247,8 @@
         ...context,
         referenceState: {
           ...referenceState,
-          recentInvalidations
+          ...(recentInvalidations.length ? { recentInvalidations } : {}),
+          ...(supersededPendingAction ? { supersededPendingAction } : {})
         }
       };
     };
