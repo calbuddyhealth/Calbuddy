@@ -22,11 +22,9 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
     baseApplicationExecute: 0,
     circlePrepare: 0,
     circleExecute: 0,
-    mealUpdates: 0,
     referenceCommits: 0,
     bridgeClears: 0,
-    bridgeSets: 0,
-    planPushes: 0
+    bridgeSets: 0
   };
   let bridgePending = null;
   let legacyPending = null;
@@ -81,8 +79,7 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
       async getUserContext() {
         return { dailyGoal: 2400, caloriesConsumed: 500, plannedCalories: 620, caloriesRemainingAfterPlan: 1280, plannedMeals: plans };
       },
-      async getConsumedCalories() { return 500; },
-      async undoNutritionMutation() { return { success: true, reply: "Undone." }; }
+      async getConsumedCalories() { return 500; }
     },
     AriVNextStructuredReferenceCapabilities: {
       ready: true,
@@ -99,13 +96,6 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
       version: "1.1.0",
       async updateReferencedActivity() { return { success: true, activity: { id: "activity-1", log_date: "2026-08-27" } }; },
       async deleteReferencedActivity() { return { success: true, deleted: true }; }
-    },
-    AriVNextNutritionReferenceAdapter: {
-      ready: true,
-      async updateReferencedMeal() {
-        counters.mealUpdates += 1;
-        return { success: true, meal: { id: "meal-1", name: "Corrected meal" } };
-      }
     },
     AriVNextWeightAdapter: {
       ready: true,
@@ -131,7 +121,6 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
     AriNutritionPlanSync: {
       async loadToday() { return plans.filter((plan) => plan.status === "planned"); },
       async pushRecords(records) {
-        counters.planPushes += 1;
         for (const record of records) {
           const current = plans.find((plan) => plan.id === record.id || plan.id === record.cloud_id);
           if (current) Object.assign(current, record);
@@ -140,9 +129,7 @@ async function makeHarness({ failedBaseExecution = false, liveReference = null }
         return records;
       }
     },
-    calbuddySupabase: {
-      async rpc() { return { data: {}, error: null }; }
-    },
+    calbuddySupabase: { async rpc() { return { data: {}, error: null }; } },
     dispatchEvent() {},
     setTimeout,
     clearTimeout,
@@ -200,12 +187,11 @@ test("Phase 8B registers Circle prepare and application execution ahead of compa
   assert.equal(harness.counters.baseApplicationExecute, 0);
 });
 
-test("authoritative live meal edits bypass the compatibility execute stack and re-use trusted Nutrition writer", async () => {
+test("Phase 8B no longer owns superseded Nutrition reference mutations", async () => {
   const liveReference = {
     referenceId: "live-meal-ref",
     domain: "nutrition",
     entityType: "meal",
-    label: "Lunch",
     canonical: { id: "meal-1" },
     verification: {
       verifiedByTrustedContext: true,
@@ -215,6 +201,7 @@ test("authoritative live meal edits bypass the compatibility execute stack and r
     }
   };
   const harness = await makeHarness({ liveReference });
+
   const execution = await harness.actionAdapter.executeConfirmed({
     vnextPendingAction: {
       id: "edit-meal",
@@ -223,11 +210,16 @@ test("authoritative live meal edits bypass the compatibility execute stack and r
       arguments: { referenceId: "live-meal-ref", changes: [{ field: "calories", numberValue: 650 }] }
     }
   });
-
   assert.equal(execution.success, true);
-  assert.equal(harness.counters.mealUpdates, 1);
-  assert.equal(harness.counters.baseExecute, 0);
-  assert.match(execution.reply, /updated/i);
+  assert.equal(harness.counters.baseExecute, 1, "Phase 8B must not intercept Nutrition meal edits anymore");
+
+  const pending = await harness.window.AriVNextActionAdapter.createCalBuddyPendingAction({
+    id: "discard-plan",
+    sourceTurnId: "turn-discard-plan",
+    name: "discard_referenced_meal_plan",
+    arguments: { referenceId: "plan-ref" }
+  });
+  assert.equal(pending.action.action_type, "base_pending", "Phase 8B must not prepare referenced Meal Plan mutations anymore");
 });
 
 test("failed trusted execution restores vNext pending state and blocks the runtime's immediate clear once", async () => {
@@ -246,24 +238,4 @@ test("failed trusted execution restores vNext pending state and blocks the runti
   await new Promise((resolve) => setTimeout(resolve, 1));
   harness.window.AriVNextBridge.clearPendingAction();
   assert.equal(harness.getBridgePending(), null, "a later explicit clear/cancel must still work");
-});
-
-test("referenced Meal Plan discard runs through registry and verifies canonical state after the write", async () => {
-  const harness = await makeHarness();
-  const pending = {
-    id: "discard-plan",
-    sourceTurnId: "turn-discard-plan",
-    name: "discard_referenced_meal_plan",
-    arguments: { referenceId: "plan-ref" }
-  };
-
-  const prepared = await harness.window.AriVNextActionAdapter.createCalBuddyPendingAction(pending);
-  assert.equal(prepared.success, true);
-  assert.match(prepared.action.confirmation_text, /remove/i);
-
-  const execution = await harness.actionAdapter.executeConfirmed({ vnextPendingAction: pending });
-  assert.equal(execution.success, true);
-  assert.equal(harness.counters.planPushes, 1);
-  assert.equal(harness.counters.baseExecute, 0);
-  assert.match(execution.reply, /removed/i);
 });
