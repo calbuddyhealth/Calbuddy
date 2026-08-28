@@ -7,6 +7,7 @@
 //
 // The policy answers only one question: after a capability is canonicalized and
 // scoped to the signed-in user, should it execute now or remain reviewable?
+// Risk labels are observational metadata only and NEVER change execution.
 
 export const ARI_ACTION_POLICY_VERSION = "2.0.0";
 
@@ -45,6 +46,15 @@ const UNDO_CAPABLE_OPERATIONS = new Set([
   "update_nutrition_meal"
 ]);
 
+const MEDIUM_RISK_LABEL_OPERATIONS = new Set([
+  "undo_nutrition_mutation",
+  "delete_weight_log",
+  "delete_activity_log",
+  "delete_workout",
+  "discard_referenced_meal_plan",
+  "replace_referenced_meal_plan"
+]);
+
 // These operations change shared/social state, represent several writes at once,
 // or manage experiments. They stay reviewable because the consequence extends
 // beyond a simple personal record mutation.
@@ -69,14 +79,14 @@ const REVIEW_OPERATIONS = new Set([
 
 export function resolveActionPolicy({ operation = "", pendingAction = null, turn = null } = {}) {
   const name = clean(operation || pendingAction?.name, 120);
-  if (!name) return policy(ACTION_POLICY_DECISIONS.BLOCK, true, false, "missing_operation");
+  if (!name) return policy(ACTION_POLICY_DECISIONS.BLOCK, "high", true, false, "missing_operation");
 
   if (REVIEW_OPERATIONS.has(name)) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, true, false, "shared_or_multi_action_change");
+    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "high", true, false, "shared_or_multi_action_change");
   }
 
   if (!PERSONAL_OPERATIONS.has(name)) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, true, false, "unknown_operation_review_required");
+    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "medium", true, false, "unknown_operation_review_required");
   }
 
   // Current-turn ownership is the only generic execution gate for personal
@@ -85,12 +95,14 @@ export function resolveActionPolicy({ operation = "", pendingAction = null, turn
   const sourceTurnId = clean(pendingAction?.sourceTurnId, 220);
   const currentTurnId = clean(turn?.turnId, 220);
   if (!sourceTurnId || !currentTurnId || sourceTurnId !== currentTurnId) {
-    return policy(ACTION_POLICY_DECISIONS.CONFIRM, true, false, "not_current_turn_authorized");
+    return policy(ACTION_POLICY_DECISIONS.CONFIRM, "medium", true, false, "not_current_turn_authorized");
   }
 
   const undoCapable = UNDO_CAPABLE_OPERATIONS.has(name);
+  const risk = MEDIUM_RISK_LABEL_OPERATIONS.has(name) ? "medium" : "low";
   return policy(
     undoCapable ? ACTION_POLICY_DECISIONS.EXECUTE_WITH_UNDO : ACTION_POLICY_DECISIONS.EXECUTE,
+    risk,
     false,
     true,
     undoCapable ? "current_turn_personal_change_with_undo" : "current_turn_personal_change"
@@ -115,7 +127,7 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
       reply: "I blocked that change because it belongs to a different signed-in account.",
       pendingAction: null,
       action: null,
-      actionPolicy: publicPolicy(policy(ACTION_POLICY_DECISIONS.BLOCK, true, false, "pending_action_account_mismatch")),
+      actionPolicy: publicPolicy(policy(ACTION_POLICY_DECISIONS.BLOCK, "high", true, false, "pending_action_account_mismatch")),
       source: "ari_vnext_action_policy_blocked"
     };
   }
@@ -133,6 +145,7 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
       actionPolicy: result?.actionPolicy || {
         version: ARI_ACTION_POLICY_VERSION,
         decision: actionType === "execute_pending_action" ? "execute_confirmed" : "unchanged",
+        risk: null,
         requiresConfirmation: scopedPending?.confirmationRequired === true
       }
     };
@@ -184,10 +197,11 @@ export function applyActionPolicyToResult({ turn = null, result = null } = {}) {
   };
 }
 
-function policy(decision, requiresConfirmation, executeImmediately, reason) {
+function policy(decision, risk, requiresConfirmation, executeImmediately, reason) {
   return {
     version: ARI_ACTION_POLICY_VERSION,
     decision,
+    risk,
     requiresConfirmation: requiresConfirmation === true,
     executeImmediately: executeImmediately === true,
     reason: clean(reason, 160)
@@ -198,6 +212,7 @@ function publicPolicy(value = {}) {
   return {
     version: ARI_ACTION_POLICY_VERSION,
     decision: clean(value?.decision, 80),
+    risk: clean(value?.risk, 40) || null,
     requiresConfirmation: value?.requiresConfirmation === true,
     executeImmediately: value?.executeImmediately === true,
     reason: clean(value?.reason, 160)
