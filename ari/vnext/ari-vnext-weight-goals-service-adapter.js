@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const SOURCE = "ari_vnext_weight_goals_service_adapter";
   let servicesPromise = null;
   let installed = false;
@@ -220,8 +220,4 @@
   }
 
   if (!install()) window.addEventListener("ari:vnextOperationRegistryReady", install, { once: true });
-
-  import("./ari-vnext-training-registry-adapter.js?v=1.0.0").catch((error) => {
-    console.warn("[Ari vNext] Training registry adapter failed to load:", error?.message || error);
-  });
 })();
