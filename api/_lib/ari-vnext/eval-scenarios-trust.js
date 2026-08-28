@@ -8,9 +8,9 @@ export const ARI_TRUST_EVAL_SUITE_VERSION = "11D.1.0";
 
 export const ARI_TRUST_EVAL_SCENARIOS = Object.freeze([
   scenario("reference_zero_targets", [
-    expectation("reference.status", "oneOf", ["context_only", "unresolved"]),
-    expectation("reference.requiresClarification", "exact", true),
-    expectation("reference.selected", "exact", null)
+    expectation("reference.status", "exact", "context_only"),
+    expectation("reference.selected", "exact", null),
+    expectation("authorizationBlocked", "exact", true)
   ]),
   scenario("reference_one_target", [
     expectation("reference.status", "exact", "resolved"),
