@@ -1,30 +1,30 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodDeliMeatsCore.js
-// Version: 1.0.0
+// Version: 1.0.1
 //
 // Curated generic deli/lunch meats. One human food concept per record.
-// USDA FoodData Central/FNDDS is the reference anchor; branded products
+// USDA FoodData Central/FNDDS is a reference anchor; branded products
 // belong in exact-match manufacturer-label records.
 // =====================================================
 (function initializeAriFoodDeliMeatsCore(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const MODULE_NAME = "AriFoodDeliMeatsCore";
   const VERIFIED_AT = "2026-08-28";
 
   const rows = [
-    ["deli-turkey-breast", "Deli Turkey Breast", ["deli turkey", "turkey lunch meat", "sliced turkey", "turkey breast lunch meat"], 56, 10, 2, 1, 520],
-    ["deli-ham", "Deli Ham", ["deli ham", "ham lunch meat", "sliced ham"], 60, 9, 2, 2, 570],
-    ["deli-roast-beef", "Deli Roast Beef", ["deli roast beef", "roast beef lunch meat", "sliced roast beef"], 70, 11, 1, 2.5, 450],
+    ["deli-turkey-breast", "Deli Turkey Breast", ["deli turkey", "turkey lunch meat", "sliced turkey", "turkey breast lunch meat"], 60, 11, 2, 1, 500],
+    ["deli-ham", "Deli Ham", ["deli ham", "ham lunch meat", "sliced ham"], 70, 10, 2, 2, 650],
+    ["deli-roast-beef", "Deli Roast Beef", ["deli roast beef", "roast beef lunch meat", "sliced roast beef"], 80, 12, 1, 3, 500],
     ["deli-chicken-breast", "Deli Chicken Breast", ["deli chicken", "chicken lunch meat", "sliced chicken breast"], 60, 11, 2, 1, 500],
-    ["deli-hard-salami", "Hard Salami", ["salami", "hard salami", "deli salami", "sliced salami"], 120, 6, 1, 10, 530],
-    ["deli-bologna", "Bologna", ["bologna", "baloney", "bologna lunch meat"], 90, 4, 2, 7, 380],
-    ["deli-pastrami", "Pastrami", ["pastrami", "deli pastrami", "sliced pastrami"], 70, 10, 1, 3, 550],
-    ["deli-prosciutto", "Prosciutto", ["prosciutto", "sliced prosciutto", "italian ham"], 80, 9, 0, 4.5, 680],
-    ["deli-pepperoni", "Pepperoni", ["pepperoni", "sliced pepperoni", "deli pepperoni"], 140, 6, 1, 12, 500],
-    ["deli-mortadella", "Mortadella", ["mortadella", "deli mortadella", "sliced mortadella"], 100, 5, 1, 8, 430]
+    ["deli-hard-salami", "Hard Salami", ["salami", "hard salami", "deli salami", "sliced salami"], 220, 12, 2, 18, 900],
+    ["deli-bologna", "Bologna", ["bologna", "baloney", "bologna lunch meat"], 170, 7, 4, 14, 600],
+    ["deli-pastrami", "Pastrami", ["pastrami", "deli pastrami", "sliced pastrami"], 90, 12, 1, 4, 600],
+    ["deli-prosciutto", "Prosciutto", ["prosciutto", "sliced prosciutto", "italian ham"], 140, 16, 0, 8, 1000],
+    ["deli-pepperoni", "Pepperoni", ["pepperoni", "sliced pepperoni", "deli pepperoni"], 280, 12, 2, 25, 1000],
+    ["deli-mortadella", "Mortadella", ["mortadella", "deli mortadella", "sliced mortadella"], 180, 9, 2, 15, 650]
   ];
 
   const FOODS = Object.freeze(rows.map(([id, displayName, aliases, calories, protein, carbs, fat, sodiumMg]) => Object.freeze({
@@ -47,7 +47,7 @@
       { id: "three-ounces", label: "3 oz", amount: 3, unit: "oz", grams: 85 }
     ],
     source: MODULE_NAME,
-    verified: true,
+    verified: false,
     metadata: Object.freeze({
       foodFamily: "deli-meats",
       genericFood: true,
@@ -61,7 +61,8 @@
         verifiedAt: VERIFIED_AT
       }),
       offlineReference: true,
-      notes: "Representative generic deli-meat entry. Sodium, fat, curing, and slice weight vary by product; use manufacturer label data for branded exact matches."
+      estimate: true,
+      notes: "Representative generic 2 oz deli-meat estimate. Sodium, fat, curing, and slice weight vary by product; manufacturer-label data should override this for branded exact matches."
     })
   })));
 
