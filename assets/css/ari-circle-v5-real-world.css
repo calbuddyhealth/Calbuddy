@@ -446,3 +446,8 @@ body.circle-v5-real-world .circle-v5-menu__identity small { color:#72829d !impor
   .circle-v5-meetup-card:hover,
   .circle-v5-quest-card:hover { transform:translateY(-2px); border-color:rgba(75,207,255,.28); box-shadow:0 22px 54px rgba(0,0,0,.32); }
 }
+
+/* Members without ARI Next use the full dock width evenly; owner mode keeps the three-tab layout. */
+.circle-v5-bottom-nav__dock:not(:has([data-circle-v5-nav="arinext"])) {
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
