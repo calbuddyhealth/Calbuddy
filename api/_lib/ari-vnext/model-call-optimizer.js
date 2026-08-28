@@ -1,21 +1,17 @@
-// ARI vNext — Phase 10B redundant model-call elimination.
+// ARI vNext — deterministic confirmation continuation.
 //
-// The only call synthesized here is the post-validation confirmation paraphrase.
-// By the time this stage is reached, the tool has already passed semantic write
-// authorization, trusted tool validation, canonical argument validation, and a
-// pending action has already been created. This module never authorizes or
-// executes a mutation.
+// Once a real pending action already exists, asking another model to paraphrase
+// "review and confirm" adds cost and latency but no useful reasoning. This module
+// synthesizes that presentation response deterministically. It never authorizes,
+// canonicalizes, confirms, or executes a mutation.
 
-export const MODEL_CALL_OPTIMIZER_VERSION = "1.0.1";
+export const MODEL_CALL_OPTIMIZER_VERSION = "2.0.0";
 
 export function maybeOptimizeModelCall({ stage = "", body = {}, trace = null } = {}) {
   if (stage !== "confirmation_continuation") return null;
   if (String(process.env.ARI_PHASE10_DETERMINISTIC_CONFIRMATION_ENABLED || "true").toLowerCase() === "false") return null;
 
   const calls = Array.isArray(trace?.calls) ? trace.calls : [];
-  // If a semantic verifier model was needed, preserve the mature continuation
-  // path for now. 10B only removes paraphrasing after deterministic permission.
-  if (calls.some((call) => call?.stage === "semantic_verifier" && call?.status === "completed")) return null;
   if (calls.some((call) => call?.status && call.status !== "completed")) return null;
 
   const toolResult = extractConfirmationToolResult(body?.input);
@@ -26,7 +22,7 @@ export function maybeOptimizeModelCall({ stage = "", body = {}, trace = null } =
   return {
     optimized: true,
     version: MODEL_CALL_OPTIMIZER_VERSION,
-    reason: "trusted_confirmation_paraphrase_replaced",
+    reason: "deterministic_confirmation_presentation",
     applicationAction: toolResult.applicationAction,
     response: syntheticResponse({ body, reply, realProvider })
   };
@@ -96,7 +92,7 @@ function summarizePriorProvider(calls = [], fallbackModel = "") {
 
 function syntheticResponse({ body = {}, reply = "", realProvider = {} } = {}) {
   const payload = {
-    id: realProvider?.id || `ari_phase10b_confirmation_${Date.now().toString(36)}`,
+    id: realProvider?.id || `ari_confirmation_${Date.now().toString(36)}`,
     object: "response",
     model: clean(realProvider?.model || body?.model, 120) || "deterministic_confirmation",
     output_text: reply,
