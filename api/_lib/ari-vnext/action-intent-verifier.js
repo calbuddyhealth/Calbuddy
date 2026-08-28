@@ -11,8 +11,8 @@
 //   cancelling an entire HOSTED meetup; explicit action vocabulary still includes
 //   join, RSVP, request a spot, leave, withdraw.
 // - Mission discovery such as "What Missions are active?" remains read-only while
-//   explicit progress such as "add my 3 miles to that Mission" is bounded; No
-//   Mission-review mutation tool is available.
+//   explicit progress such as "add my 3 miles to that Mission" is bounded.
+// - No Mission-review mutation tool is available.
 // - For ARI Circle Crews, discovery or explanation is read-only; Crew creation
 //   must Never infer or invent founding members. The core distinguishes
 //   "accept that Crew invite" from "decline/pass on that Crew invite", and it must
