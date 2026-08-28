@@ -5,6 +5,7 @@
 // core pass while leaving canonical app/reference state intact.
 // Phase 10E can share one bounded primary interpretation across independent
 // deterministic clauses; every clause still traverses the mature core afterward.
+// Phase 10F evaluates structural performance budgets after orchestration only.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
 import { planCompoundPrimary, COMPOUND_PRIMARY_PLANNER_VERSION } from "./compound-primary-planner.js";
@@ -15,6 +16,7 @@ import {
   summarizeOptimizationTrace,
   withOptimizationTrace
 } from "./optimization-trace.js";
+import { evaluatePerformanceBudget } from "./performance-budget.js";
 import { createPendingAction } from "./pending-action.js";
 import { withPreparedPrimary } from "./prepared-primary.js";
 
@@ -70,9 +72,16 @@ const STRONG_COMPOUND_SIGNAL = /(?:;|,\s*(?:and\s+)?then\b|\band\s+then\b|\bthen
 export async function runAriVNext(turn = {}) {
   return await withOptimizationTrace(turn, async (trace) => {
     const result = await runObservedAriVNext(turn, trace);
+    const optimizationTrace = summarizeOptimizationTrace(trace);
+    const performanceBudget = evaluatePerformanceBudget({
+      turn,
+      result,
+      optimizationTrace
+    });
     return {
       ...result,
-      optimizationTrace: summarizeOptimizationTrace(trace)
+      optimizationTrace,
+      performanceBudget
     };
   });
 }
