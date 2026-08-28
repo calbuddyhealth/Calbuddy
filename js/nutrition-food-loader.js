@@ -1,24 +1,24 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.1
+   Version: 1.0.4
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
 
-   V1.0.1:
-   - Never hydrates the full database automatically on page open.
-   - Starts only when the user interacts with Food Name or code
-     explicitly requests start().
-   - Loads food modules in small ordered batches.
-   - Yields back to the browser between batches so taps, scrolling,
-     disclosure controls, barcode UI, and manual meal entry remain
-     responsive on iPhone/WKWebView.
+   V1.0.4:
+   - Loads audited v1.0.1 curated prepared, breakfast/side, and deli modules.
+
+   V1.0.3:
+   - Adds curated deli/lunch meats.
+
+   V1.0.2:
+   - Adds curated prepared meals, breakfast, and common sides.
 ===================================================== */
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.4";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -27,8 +27,6 @@
     "ari/nutrition/AriFoodCalculator.js?v=1.0.0"
   ]);
 
-  // Preserve the historical dependency order. Category roots intentionally
-  // precede their child/core/brand modules.
   const FOOD_DATA_SCRIPTS = Object.freeze([
     "ari/nutrition/data/beverages/AriFoodBeverages.js?v=1.0.0",
     "ari/nutrition/data/beverages/AriFoodBeverageCore.js",
@@ -76,6 +74,9 @@
     "ari/nutrition/data/grains/AriFoodCerealBrands2.js",
     "ari/nutrition/data/grains/AriFoodOatBrands.js",
 
+    "ari/nutrition/data/prepared-meals/AriFoodPreparedMealsCore.js?v=1.0.1",
+    "ari/nutrition/data/prepared-meals/AriFoodEverydayBreakfastSides.js?v=1.0.1",
+
     "ari/nutrition/data/nuts/AriFoodNuts.js?v=1.0.0",
     "ari/nutrition/data/nuts/AriFoodNutsCore.js",
     "ari/nutrition/data/nuts/AriFoodNutBrands.js",
@@ -93,6 +94,7 @@
     "ari/nutrition/data/proteins/AriFoodLamb.js",
     "ari/nutrition/data/proteins/AriFoodGameMeats.js",
     "ari/nutrition/data/proteins/AriFoodPlantProteins.js",
+    "ari/nutrition/data/proteins/AriFoodDeliMeatsCore.js?v=1.0.1",
 
     "ari/nutrition/data/seasonings/AriFoodSeasonings.js?v=1.0.0",
     "ari/nutrition/data/seasonings/AriFoodSeasoningsCore.js",
@@ -126,14 +128,7 @@
     "ari/nutrition/data/vegetables/AriFoodDriedChiles.js"
   ]);
 
-  const state = {
-    status: "idle",
-    startedAt: 0,
-    readyAt: 0,
-    promise: null,
-    error: null,
-    loadedModules: 0
-  };
+  const state = { status: "idle", startedAt: 0, readyAt: 0, promise: null, error: null, loadedModules: 0 };
 
   function setFoodStatus(text, stateName = "loading") {
     const container = document.getElementById("manualFoodSystemStatus");
@@ -153,7 +148,6 @@
   function loadScript(src, { ordered = true } = {}) {
     const existing = existingScript(src);
     if (existing) return Promise.resolve(existing);
-
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src = src;
@@ -168,10 +162,7 @@
   function yieldToBrowser() {
     return new Promise((resolve) => {
       const finish = () => window.setTimeout(resolve, 0);
-      if (
-        document.visibilityState === "visible" &&
-        typeof window.requestAnimationFrame === "function"
-      ) {
+      if (document.visibilityState === "visible" && typeof window.requestAnimationFrame === "function") {
         window.requestAnimationFrame(finish);
         return;
       }
@@ -182,63 +173,36 @@
   async function loadFoodDataInBatches() {
     for (let index = 0; index < FOOD_DATA_SCRIPTS.length; index += FOOD_BATCH_SIZE) {
       const batch = FOOD_DATA_SCRIPTS.slice(index, index + FOOD_BATCH_SIZE);
-
-      // Keep only a few registrations in one execution burst. async=false keeps
-      // this batch's historical dependency order while the browser can overlap
-      // their network fetches.
       await Promise.all(batch.map((src) => loadScript(src)));
       state.loadedModules += batch.length;
-      setFoodStatus(
-        `FOOD SEARCH LOADING ${Math.min(state.loadedModules, FOOD_DATA_SCRIPTS.length)}/${FOOD_DATA_SCRIPTS.length}`,
-        "loading"
-      );
+      setFoodStatus(`FOOD SEARCH LOADING ${Math.min(state.loadedModules, FOOD_DATA_SCRIPTS.length)}/${FOOD_DATA_SCRIPTS.length}`, "loading");
       await yieldToBrowser();
     }
   }
 
   function announceReady() {
-    try { window.initializeNutritionFoodSystem?.(); } catch (error) {
-      console.warn("[ARI Nutrition Food Loader] food status refresh failed", error);
-    }
-
+    try { window.initializeNutritionFoodSystem?.(); } catch (error) { console.warn("[ARI Nutrition Food Loader] food status refresh failed", error); }
     const nameInput = document.getElementById("mealName");
-    if (nameInput?.value?.trim()) {
-      try { window.scheduleManualFoodSearch?.(); } catch {}
-    }
-
+    if (nameInput?.value?.trim()) { try { window.scheduleManualFoodSearch?.(); } catch {} }
     try {
-      window.dispatchEvent(new CustomEvent("ari:nutritionFoodReady", {
-        detail: {
-          version: VERSION,
-          foodCount: window.AriFoodRegistry?.count?.() || 0,
-          loadMs: Math.max(0, Math.round(state.readyAt - state.startedAt))
-        }
-      }));
+      window.dispatchEvent(new CustomEvent("ari:nutritionFoodReady", { detail: { version: VERSION, foodCount: window.AriFoodRegistry?.count?.() || 0, loadMs: Math.max(0, Math.round(state.readyAt - state.startedAt)) } }));
     } catch {}
   }
 
   async function start() {
     if (state.status === "ready") return true;
     if (state.promise) return state.promise;
-
     state.status = "loading";
     state.startedAt = performance.now();
     state.error = null;
     state.loadedModules = 0;
     setFoodStatus("FOOD SEARCH LOADING", "loading");
-
     state.promise = (async () => {
       try {
         await loadScript(REGISTRY_SCRIPT);
         await yieldToBrowser();
-
         await loadFoodDataInBatches();
-
-        for (const src of ENGINE_SCRIPTS) {
-          await loadScript(src);
-          await yieldToBrowser();
-        }
-
+        for (const src of ENGINE_SCRIPTS) { await loadScript(src); await yieldToBrowser(); }
         state.readyAt = performance.now();
         state.status = "ready";
         announceReady();
@@ -252,40 +216,13 @@
         return false;
       }
     })();
-
     return state.promise;
   }
 
-  function markIdle() {
-    if (state.status !== "idle") return;
-    setFoodStatus("TAP FOOD NAME TO SEARCH", "idle");
-  }
+  function markIdle() { if (state.status === "idle") setFoodStatus("TAP FOOD NAME TO SEARCH", "idle"); }
+  document.addEventListener("pointerdown", (event) => { if (event.target?.closest?.("#mealFoodSearchShell")) start().catch(() => {}); }, { capture: true, passive: true });
+  document.addEventListener("focusin", (event) => { if (event.target?.id === "mealName") start().catch(() => {}); }, { capture: true });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", markIdle, { once: true }); else markIdle();
 
-  // Deliberately no requestIdleCallback/setTimeout warm start. The full local
-  // database must never begin executing just because Nutrition opened.
-  document.addEventListener("pointerdown", (event) => {
-    if (event.target?.closest?.("#mealFoodSearchShell")) start().catch(() => {});
-  }, { capture: true, passive: true });
-
-  document.addEventListener("focusin", (event) => {
-    if (event.target?.id === "mealName") start().catch(() => {});
-  }, { capture: true });
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", markIdle, { once: true });
-  } else {
-    markIdle();
-  }
-
-  window.AriNutritionFoodLoader = Object.freeze({
-    version: VERSION,
-    start,
-    getStatus: () => ({
-      status: state.status,
-      error: state.error?.message || null,
-      foodCount: window.AriFoodRegistry?.count?.() || 0,
-      loadedModules: state.loadedModules,
-      totalModules: FOOD_DATA_SCRIPTS.length
-    })
-  });
+  window.AriNutritionFoodLoader = Object.freeze({ version: VERSION, start, getStatus: () => ({ status: state.status, error: state.error?.message || null, foodCount: window.AriFoodRegistry?.count?.() || 0, loadedModules: state.loadedModules, totalModules: FOOD_DATA_SCRIPTS.length }) });
 })();
