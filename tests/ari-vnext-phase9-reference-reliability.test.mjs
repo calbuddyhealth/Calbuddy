@@ -70,7 +70,7 @@ test("Phase 9A uses the current message to narrow cross-domain targets", () => {
 
 test("Phase 9A publishes deterministic resolution before model choice", () => {
   const packet = buildReferencePacket({ message: "delete that", history: [{ role: "assistant", content: "You have two meals in view." }], context: { referenceState: { references: [reference({ id: "ref_live_meal_a", domain: "nutrition", entityType: "meal", collection: "meals_today", ordinal: 1 }), reference({ id: "ref_live_meal_b", domain: "nutrition", entityType: "meal", collection: "meals_today", ordinal: 2 })] } } }, { nutrition: true });
-  assert.equal(REFERENCE_CONTEXT_VERSION, "1.3.0");
+  assert.equal(REFERENCE_CONTEXT_VERSION, "1.4.0");
   assert.equal(packet?.resolution?.status, "ambiguous");
   assert.equal(packet?.resolution?.requiresClarification, true);
   assert.equal(packet?.policy?.deterministicResolutionPrecedesModelChoice, true);
