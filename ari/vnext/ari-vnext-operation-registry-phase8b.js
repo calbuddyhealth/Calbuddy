@@ -1,11 +1,10 @@
 // ARI vNext — remaining Phase 8B compatibility registrations.
-// Superseded Nutrition mutation handlers have been removed. Permanent domain
-// services now own meal edit/undo and referenced Meal Plan mutations.
+// Nutrition and workout reference mutations have moved to permanent domain services.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const SOURCE = "ari_vnext_operation_registry_phase8b";
   const INSTALL_FLAG = "__ariOperationRegistryPhase8B";
   const BRIDGE_CLEAR_FLAG = "__ariRegistryFailurePreserveV1";
@@ -20,16 +19,13 @@
   const CIRCLE_ACTION_TYPES = [
     "circle_create_meetup", "circle_join_meetup", "circle_leave_meetup", "circle_cancel_meetup",
     "circle_create_mission", "circle_join_mission", "circle_submit_mission_progress",
-    "circle_create_crew", "circle_accept_crew_invite", "circle_decline_crew_invite",
+    "circle_create_crew", "circle_accept_circle_crew_invite", "circle_decline_circle_crew_invite",
     "circle_leave_crew", "circle_archive_crew"
   ];
 
-  // Only non-Nutrition reference mutations remain here. Nutrition reference
-  // mutations are owned by ari-vnext-nutrition-registry-adapter.js.
   const LIVE_REFERENCE_ACTIONS = new Set([
     "update_weight_log", "delete_weight_log",
-    "update_activity_log", "delete_activity_log",
-    "edit_referenced_workout", "delete_workout"
+    "update_activity_log", "delete_activity_log"
   ]);
 
   let activityServicePromise = null;
@@ -108,7 +104,6 @@
 
     if (["update_weight_log", "delete_weight_log"].includes(name) && clean(reference?.domain, 40) === "goals" && clean(reference?.entityType, 60) === "weight_log" && /^\d{4}-\d{2}-\d{2}$/.test(clean(reference?.canonical?.logDate, 40))) return reference;
     if (["update_activity_log", "delete_activity_log"].includes(name) && clean(reference?.domain, 40) === "training" && clean(reference?.entityType, 60) === "activity_log" && clean(reference?.canonical?.id, 180) && /^\d{4}-\d{2}-\d{2}$/.test(clean(reference?.canonical?.logDate, 40))) return reference;
-    if (["edit_referenced_workout", "delete_workout"].includes(name) && clean(reference?.domain, 40) === "training" && clean(reference?.entityType, 60) === "workout" && /^\d{4}-\d{2}-\d{2}$/.test(clean(reference?.canonical?.date, 40))) return reference;
     return null;
   }
 
@@ -118,32 +113,6 @@
       const value = Number.isFinite(Number(change?.numberValue)) ? Number(change.numberValue) : clean(change?.textValue, 100);
       return field && value !== "" ? `${field} to ${value}` : field;
     }).filter(Boolean).join(", ");
-  }
-
-  function referencedWorkoutEdit(pending = {}, target = {}) {
-    const args = object(pending?.arguments);
-    return {
-      ...pending,
-      id: `${clean(pending?.id, 180)}_phase8b`,
-      name: "edit_workout",
-      arguments: {
-        dateText: clean(target?.canonical?.date, 40),
-        operation: clean(args?.operation, 40),
-        exercise: clean(args?.exercise, 180),
-        replacementExercise: clean(args?.replacementExercise, 180),
-        sets: args?.sets ?? null,
-        reps: args?.reps ?? null,
-        restSeconds: args?.restSeconds ?? null,
-        position: args?.position ?? null,
-        durationMinutes: args?.durationMinutes ?? null,
-        title: clean(args?.title, 160),
-        instruction: clean(args?.instruction, 500)
-      }
-    };
-  }
-
-  async function prepareReferencedWorkoutEdit(pending, target) {
-    return await window.AriVNextActionAdapter?.prepareCalBuddyAction?.(referencedWorkoutEdit(pending, target));
   }
 
   async function createLivePending(pending = {}, target = {}) {
@@ -170,36 +139,14 @@
       }, { referenceId: target.referenceId, authority: "rehydrated_current_context" });
     }
 
-    if (["update_activity_log", "delete_activity_log"].includes(name)) {
-      const deleting = name === "delete_activity_log";
-      const changes = deleting ? [] : array(args?.changes).slice(0, 8);
-      if (!deleting && !changes.length) return failure("activity_reference_changes_required", "Tell Ari what should change about that activity.");
-      return await storePending(pending, {
-        action_type: name,
-        payload: { activity_id: target.canonical.id, reference_id: target.referenceId, changes },
-        confirmation_text: deleting ? `Delete ${label}?` : `Update ${label}${summarizeChanges(changes) ? ` — ${summarizeChanges(changes)}` : ""}?`
-      }, { referenceId: target.referenceId, authority: "rehydrated_current_context" });
-    }
-
-    if (name === "edit_referenced_workout") {
-      const prepared = await prepareReferencedWorkoutEdit(pending, target);
-      if (!prepared?.success || !prepared?.action) return prepared || failure("workout_reference_prepare_failed", "That workout edit could not be prepared safely.");
-      return await storePending(pending, {
-        ...prepared.action,
-        action_type: name,
-        payload: { ...prepared.action.payload, reference_id: target.referenceId }
-      }, { referenceId: target.referenceId, authority: "rehydrated_current_context", prepared: prepared.resolution || null });
-    }
-
-    if (name === "delete_workout") {
-      return await storePending(pending, {
-        action_type: name,
-        payload: { scheduled_date: target.canonical.date, reference_id: target.referenceId },
-        confirmation_text: `Delete ${label}?`
-      }, { referenceId: target.referenceId, authority: "rehydrated_current_context" });
-    }
-
-    return failure("reference_action_not_supported", "That reference action is not supported.");
+    const deleting = name === "delete_activity_log";
+    const changes = deleting ? [] : array(args?.changes).slice(0, 8);
+    if (!deleting && !changes.length) return failure("activity_reference_changes_required", "Tell Ari what should change about that activity.");
+    return await storePending(pending, {
+      action_type: name,
+      payload: { activity_id: target.canonical.id, reference_id: target.referenceId, changes },
+      confirmation_text: deleting ? `Delete ${label}?` : `Update ${label}${summarizeChanges(changes) ? ` — ${summarizeChanges(changes)}` : ""}?`
+    }, { referenceId: target.referenceId, authority: "rehydrated_current_context" });
   }
 
   function executionEnvelope(pending, target, currentTurnId, result, operation, reply = "") {
@@ -243,43 +190,13 @@
       return executionEnvelope(pending, target, currentTurnId, result, deleting ? "weight_delete" : "weight_update", deleting ? "Weigh-in deleted." : "Weigh-in updated.");
     }
 
-    if (["update_activity_log", "delete_activity_log"].includes(name)) {
-      const deleting = name === "delete_activity_log";
-      const adapter = window.AriVNextActivityAdapter;
-      const result = deleting
-        ? await adapter?.deleteReferencedActivity?.({ activityId: target.canonical.id, logDate: target.canonical.logDate })
-        : await adapter?.updateReferencedActivity?.({ activityId: target.canonical.id, logDate: target.canonical.logDate, changes: array(args?.changes).slice(0, 8) });
-      if (!result?.success) return result || failure("activity_reference_write_failed", "That activity could not be changed.");
-      return executionEnvelope(pending, target, currentTurnId, result, deleting ? "activity_delete" : "activity_update", deleting ? "Activity deleted." : "Activity updated.");
-    }
-
-    if (name === "edit_referenced_workout") {
-      const synthetic = referencedWorkoutEdit(pending, target);
-      const prepared = await window.AriVNextActionAdapter?.prepareCalBuddyAction?.(synthetic);
-      if (!prepared?.success || !prepared?.action) return prepared || failure("workout_reference_prepare_failed", "That workout edit could not be prepared safely.");
-      const result = await window.AriVNextActionAdapter?.executeValidatedWorkoutEdit?.({ action: prepared.action, pending: synthetic, currentTurnId });
-      if (!result?.success) return result || failure("workout_reference_update_failed", "That workout could not be updated.");
-      return executionEnvelope(pending, target, currentTurnId, result, "workout_edit", clean(result?.reply, 1000) || clean(result?.result?.reply, 1000) || "Workout updated.");
-    }
-
-    if (name === "delete_workout") {
-      const adapter = window.AriVNextActionAdapter;
-      let controller;
-      try { controller = await adapter?.getWorkoutController?.(); } catch (error) {
-        return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
-      }
-      const date = clean(target?.canonical?.date, 40);
-      const current = controller?.getDate?.(date);
-      if (!current || current?.type !== "workout" || !array(current?.exercises).length) return failure("workout_reference_not_found", "That planned workout is no longer available.");
-      if (current?.completed === true || current?.progress?.completed === true) return failure("workout_reference_completed", "A completed workout cannot be deleted through Ari.");
-      if (typeof controller?.clearDate !== "function" || controller.clearDate(date) === false) return failure("workout_delete_failed", "Training could not delete that workout safely.");
-      const saved = await controller.save?.({ remote: true });
-      if (saved === false) return failure("workout_delete_remote_failed", "The workout changed locally but ARI XP could not confirm the remote save.");
-      window.dispatchEvent(new CustomEvent("ari:trainingWorkoutUpdated", { detail: { scheduledDate: date, mode: "delete", source: SOURCE } }));
-      return executionEnvelope(pending, target, currentTurnId, { deleted: true, scheduled_date: date, reply: "That planned workout was deleted." }, "workout_delete", "That planned workout was deleted.");
-    }
-
-    return failure("reference_action_not_supported", "That reference action is not supported.");
+    const deleting = name === "delete_activity_log";
+    const adapter = window.AriVNextActivityAdapter;
+    const result = deleting
+      ? await adapter?.deleteReferencedActivity?.({ activityId: target.canonical.id, logDate: target.canonical.logDate })
+      : await adapter?.updateReferencedActivity?.({ activityId: target.canonical.id, logDate: target.canonical.logDate, changes: array(args?.changes).slice(0, 8) });
+    if (!result?.success) return result || failure("activity_reference_write_failed", "That activity could not be changed.");
+    return executionEnvelope(pending, target, currentTurnId, result, deleting ? "activity_delete" : "activity_update", deleting ? "Activity deleted." : "Activity updated.");
   }
 
   function persistedActivityTarget(pending = {}) {
@@ -483,8 +400,6 @@
   }
 
   function registerMealPlan(registry) {
-    // Only creation and slot logging remain in Phase 8B. Referenced plan
-    // consumption/discard/replacement now belong to NutritionPlanService.
     registry.registerOperation("plan_meal", {
       source: `${SOURCE}:meal-plan`, priority: 2200,
       async prepare(pending = {}) { return await prepareTodayPlan(pending); }
