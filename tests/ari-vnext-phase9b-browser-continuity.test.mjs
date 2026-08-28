@@ -147,7 +147,10 @@ test("Phase 9B correction supersedes the old vNext and linked legacy pending act
   assert.equal(superseded?.operation, "update_nutrition_meal");
   assert.equal(superseded?.previousReferenceId, "ref_live_dinner");
   assert.equal(superseded?.executable, false);
-  assert.deepEqual(superseded?.priorArguments?.changes, [{ field: "calories", numberValue: 500 }]);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(superseded?.priorArguments?.changes || [])),
+    [{ field: "calories", numberValue: 500 }]
+  );
   assert.equal(superseded?.priorArguments?.referenceId, undefined);
   assert.equal(superseded?.priorArguments?.mealId, undefined);
   assert.equal(JSON.stringify(superseded).includes(pending.id), false);
