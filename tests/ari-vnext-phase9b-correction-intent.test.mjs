@@ -27,7 +27,7 @@ function meal({ id, name, category = "lunch", date = "2026-08-26", ordinal = 1 }
   };
 }
 
-function superseded(operation = "update_nutrition_meal", previousReferenceId = "ref_live_dinner") {
+function superseded(operation = "update_nutrition_meal", previousReferenceId = "ref_live_meal_dinner") {
   return {
     state: "superseded",
     operation,
@@ -39,15 +39,15 @@ function superseded(operation = "update_nutrition_meal", previousReferenceId = "
 
 test("Phase 9B no-I-meant can prepare a corrected proposal only for the same superseded operation", async () => {
   const references = [
-    meal({ id: "ref_live_lunch", name: "Chicken Wrap", category: "lunch", ordinal: 1 }),
-    meal({ id: "ref_live_dinner", name: "Salmon Dinner", category: "dinner", ordinal: 2 })
+    meal({ id: "ref_live_meal_lunch", name: "Chicken Wrap", category: "lunch", ordinal: 1 }),
+    meal({ id: "ref_live_meal_dinner", name: "Salmon Dinner", category: "dinner", ordinal: 2 })
   ];
   const turn = {
     message: "No, I meant the lunch.",
     context: {
       referenceState: {
         references,
-        supersededPendingAction: superseded("update_nutrition_meal", "ref_live_dinner")
+        supersededPendingAction: superseded("update_nutrition_meal", "ref_live_meal_dinner")
       }
     }
   };
@@ -55,7 +55,7 @@ test("Phase 9B no-I-meant can prepare a corrected proposal only for the same sup
   const functionCall = {
     name: "propose_update_nutrition_meal",
     arguments: JSON.stringify({
-      referenceId: "ref_live_lunch",
+      referenceId: "ref_live_meal_lunch",
       changes: [{ field: "calories", numberValue: 500, textValue: null }]
     })
   };
@@ -71,7 +71,7 @@ test("Phase 9B no-I-meant can prepare a corrected proposal only for the same sup
   assert.equal(review?.decision, "propose_update_nutrition_meal");
   assert.equal(review?.source, "deterministic_reference_correction_supersession");
   assert.equal(review?.model, null);
-  assert.equal(route.referenceResolution?.selectedReferenceId, "ref_live_lunch");
+  assert.equal(route.referenceResolution?.selectedReferenceId, "ref_live_meal_lunch");
   assert.equal(validation.valid, true, validation.error);
 });
 
@@ -90,7 +90,7 @@ test("Phase 9B correction context cannot switch an update proposal into a delete
     route: { nutrition: true },
     functionCall: {
       name: "propose_undo_nutrition_mutation",
-      arguments: JSON.stringify({ referenceId: "ref_live_lunch" })
+      arguments: JSON.stringify({ referenceId: "ref_live_meal_lunch" })
     },
     availableTools: ["propose_undo_nutrition_mutation"]
   });
@@ -119,7 +119,7 @@ test("Phase 9B executable or malformed superseded context never authorizes a cor
 
 test("Phase 9B edit to edit to undo keeps the same authoritative reference target", () => {
   const references = [
-    meal({ id: "ref_live_chicken", name: "Chicken Burrito Bowl", category: "lunch", ordinal: 1 })
+    meal({ id: "ref_live_meal_chicken", name: "Chicken Burrito Bowl", category: "lunch", ordinal: 1 })
   ];
 
   const firstEdit = resolveReferenceTarget({
@@ -138,16 +138,16 @@ test("Phase 9B edit to edit to undo keeps the same authoritative reference targe
     route: { nutrition: true }
   });
 
-  assert.equal(firstEdit.selectedReferenceId, "ref_live_chicken");
-  assert.equal(secondEdit.selectedReferenceId, "ref_live_chicken");
-  assert.equal(undo.selectedReferenceId, "ref_live_chicken");
+  assert.equal(firstEdit.selectedReferenceId, "ref_live_meal_chicken");
+  assert.equal(secondEdit.selectedReferenceId, "ref_live_meal_chicken");
+  assert.equal(undo.selectedReferenceId, "ref_live_meal_chicken");
 });
 
 test("Phase 9B long correction chains stop on ambiguity and resume only after an exact selector", () => {
   const references = [
-    meal({ id: "ref_live_lunch_26", name: "Chicken Wrap", category: "lunch", date: "2026-08-26", ordinal: 1 }),
-    meal({ id: "ref_live_lunch_27", name: "Turkey Wrap", category: "lunch", date: "2026-08-27", ordinal: 2 }),
-    meal({ id: "ref_live_dinner", name: "Salmon Dinner", category: "dinner", date: "2026-08-27", ordinal: 3 })
+    meal({ id: "ref_live_meal_lunch_26", name: "Chicken Wrap", category: "lunch", date: "2026-08-26", ordinal: 1 }),
+    meal({ id: "ref_live_meal_lunch_27", name: "Turkey Wrap", category: "lunch", date: "2026-08-27", ordinal: 2 }),
+    meal({ id: "ref_live_meal_dinner", name: "Salmon Dinner", category: "dinner", date: "2026-08-27", ordinal: 3 })
   ];
 
   const ambiguous = resolveReferenceTarget({
@@ -165,5 +165,5 @@ test("Phase 9B long correction chains stop on ambiguity and resume only after an
     route: { nutrition: true }
   });
   assert.equal(corrected.status, "resolved");
-  assert.equal(corrected.selectedReferenceId, "ref_live_lunch_26");
+  assert.equal(corrected.selectedReferenceId, "ref_live_meal_lunch_26");
 });
