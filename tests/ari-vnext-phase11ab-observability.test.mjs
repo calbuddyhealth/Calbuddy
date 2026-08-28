@@ -20,6 +20,29 @@ const decisionTraceSource = await read("api/_lib/ari-vnext/decision-trace.js");
 const observabilityStoreSource = await read("api/_lib/ari-vnext/observability-store.js");
 const migration = await read("supabase/migrations/20260828044500_ari_observability_turns.sql");
 
+function history(count = 9) {
+  return Array.from({ length: count }, (_, index) => ({
+    role: index % 2 ? "assistant" : "user",
+    content: `history-${index}`
+  }));
+}
+
+function routineTurn(turnId = "turn_routine") {
+  return {
+    turnId,
+    conversationId: "conversation_routine",
+    message: "Log my chicken bowl, 620 calories.",
+    history: history(9),
+    context: {
+      referenceState: { version: "test", references: [] },
+      accountEntitlements: { teenMode: false, circleAllowed: false },
+      intelligenceEntitlement: { advancedEnabled: false, accessClass: "casual" },
+      nutrition: { calories: 1000 },
+      mealsToday: [{ id: "meal-1" }]
+    }
+  };
+}
+
 function routineResult() {
   return {
     success: true,
@@ -34,14 +57,6 @@ function routineResult() {
       fastEligible: true
     },
     provider: { model: "gpt-5.6-luna" },
-    observabilityContextBudget: {
-      profile: "focused",
-      historyBefore: 9,
-      historyAfter: 4,
-      referenceHistoryFloorApplied: false,
-      canonicalStatePreserved: true,
-      referenceStatePreserved: true
-    },
     semanticActionReview: {
       decision: "propose_log_meal",
       confidence: 1,
@@ -67,21 +82,19 @@ function routineResult() {
 }
 
 test("Phase 11A builds an explainable trace without prompt, reply, arguments, memory, or hidden reasoning", () => {
-  const trace = buildAriDecisionTrace({
-    turn: {
-      turnId: "turn_11a",
-      conversationId: "conversation_11a",
-      message: "Log my secret meal description.",
-      memory: "private memory payload",
-      context: { userWorldModel: { private: true } }
-    },
-    result: routineResult()
-  });
+  const turn = routineTurn("turn_11a");
+  turn.message = "Log my secret meal description, 620 calories.";
+  turn.memory = "private memory payload";
+  turn.context.userWorldModel = { private: true };
+
+  const trace = buildAriDecisionTrace({ turn, result: routineResult() });
 
   assert.equal(trace.version, ARI_DECISION_TRACE_VERSION);
   assert.deepEqual(trace.route.activeDomains, ["nutrition"]);
   assert.equal(trace.model.routingClass, "nutrition_logging");
   assert.equal(trace.context.profile, "focused");
+  assert.equal(trace.context.historyBefore, 9);
+  assert.equal(trace.context.historyAfter, 4);
   assert.equal(trace.authorization.mode, "deterministic");
   assert.equal(trace.authorization.decision, "propose_log_meal");
   assert.equal(trace.action.applicationAction, "log_meal");
@@ -114,7 +127,7 @@ test("Phase 11A failure trace stores only a safe error code and counters", () =>
 });
 
 test("Phase 11B row projection contains decision codes and counters only", () => {
-  const trace = buildAriDecisionTrace({ turn: { turnId: "turn_row" }, result: routineResult() });
+  const trace = buildAriDecisionTrace({ turn: routineTurn("turn_row"), result: routineResult() });
   const row = toObservabilityRow({
     userId: "00000000-0000-0000-0000-000000000001",
     turnId: "turn_row",
@@ -147,7 +160,7 @@ test("Phase 11B persistence is idempotent, service-role only, and fail-soft", as
   };
 
   try {
-    const trace = buildAriDecisionTrace({ turn: { turnId: "turn_store" }, result: routineResult() });
+    const trace = buildAriDecisionTrace({ turn: routineTurn("turn_store"), result: routineResult() });
     const stored = await recordAriObservabilityTurn({
       userId: "00000000-0000-0000-0000-000000000001",
       turnId: "turn_store",
@@ -161,7 +174,7 @@ test("Phase 11B persistence is idempotent, service-role only, and fail-soft", as
     assert.match(requests[0].init.headers.Prefer, /ignore-duplicates/);
 
     const payload = requests[0].init.body;
-    assert.doesNotMatch(payload, /secret meal description|privateFoodPayload|This text must never enter/i);
+    assert.doesNotMatch(payload, /privateFoodPayload|This text must never enter/i);
   } finally {
     globalThis.fetch = originalFetch;
     if (previousUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = previousUrl;
@@ -174,7 +187,7 @@ test("Phase 11A/B integration runs after trust orchestration and never gains mut
   assert.match(orchestrator, /evaluatePerformanceBudget/);
   assert.match(orchestrator, /buildAriDecisionTrace/);
   assert.match(orchestrator, /recordAriObservabilityTurn/);
-  assert.match(orchestrator, /runAriVNextCore/);
+  assert.match(orchestrator, /if \(clauses\.length < 2\) return await runAriVNextCore\(turn\)/);
   assert.match(orchestrator, /canonicalPreflightRequired: true/);
   assert.match(orchestrator, /independentCorePasses: true/);
 
