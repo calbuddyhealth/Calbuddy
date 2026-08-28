@@ -54,7 +54,7 @@ test("persisted app reference routes a bare follow-up back to its canonical doma
     history: [],
     context: {
       referenceState: {
-        version: "1.1.0",
+        version: "1.3.0",
         references: [persistedMealReference()]
       }
     }
@@ -143,28 +143,30 @@ test("reference lifecycle stays bounded when app pointers and conversation are b
   assert.ok(packet?.candidates?.filter((candidate) => candidate.kind === "app_reference").length <= 12);
 });
 
-test("browser lifecycle is session-scoped and wraps trusted proposal plus execution boundaries", () => {
+test("browser lifecycle is session-scoped and observes trusted OperationRegistry execution", () => {
   const source = read("ari/vnext/ari-vnext-reference-state.js");
   new vm.Script(source, { filename: "ari-vnext-reference-state.js" });
 
   assert.match(source, /sessionStorage\.getItem/);
   assert.match(source, /sessionStorage\.setItem/);
   assert.doesNotMatch(source, /localStorage\.setItem\([^)]*reference/i);
-  assert.match(source, /adapter\.createCalBuddyPendingAction = async function referenceAwareCreate/);
-  assert.match(source, /adapter\.executeConfirmed = async function referenceAwareExecute/);
+  assert.match(source, /const registry = window\.AriVNextOperationRegistry/);
+  assert.match(source, /registry\.registerAfterExecution/);
+  assert.match(source, /const referenceLifecycle = commit\(\{ pendingAction, execution \}\)/);
   assert.match(source, /verifiedByTrustedExecutor: true/);
   assert.match(source, /bridge\.buildContext = async function referenceAwareContext/);
   assert.match(source, /referenceState/);
+  assert.doesNotMatch(source, /AriVNextActionAdapter/);
 });
 
 test("runtime does not report vNext ready until reference lifecycle and capability bootstrap are installed", () => {
   const runtime = read("ari/runtime/ari-runtime-controller.js");
   const initiative = read("ari/vnext/ari-vnext-initiative.js");
-  assert.match(runtime, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
+  assert.match(runtime, /ari-vnext-reference-state\.js\?v=1\.3\.0/);
   assert.match(runtime, /AriVNextReferenceState\?\.ready === true/);
-  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.4\.0/);
-  assert.match(runtime, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.4\.0"\)/);
-  assert.match(runtime, /const VERSION = "1\.4\.5"/);
+  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.9\.0/);
+  assert.match(runtime, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.9\.0"\)/);
+  assert.match(runtime, /const VERSION = "1\.5\.0"/);
   assert.match(initiative, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
   assert.match(initiative, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
 });
