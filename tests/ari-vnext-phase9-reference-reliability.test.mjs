@@ -6,6 +6,8 @@ import {
   REFERENCE_CONTEXT_VERSION,
   resolveReferenceTarget
 } from "../api/_lib/ari-vnext/reference-context.js";
+import { reviewExplicitApplicationIntent } from "../api/_lib/ari-vnext/action-intent-verifier.js";
+import { validateToolCall } from "../api/_lib/ari-vnext/tools.js";
 
 function reference({
   id,
@@ -28,6 +30,13 @@ function reference({
       verifiedByTrustedContext: true,
       currentContextRead: true
     }
+  };
+}
+
+function nutritionTurn(message, references) {
+  return {
+    message,
+    context: { referenceState: { references } }
   };
 }
 
@@ -156,4 +165,131 @@ test("Phase 9A publishes deterministic resolution before model choice", () => {
   assert.equal(packet?.resolution?.status, "ambiguous");
   assert.equal(packet?.resolution?.requiresClarification, true);
   assert.equal(packet?.policy?.deterministicResolutionPrecedesModelChoice, true);
+});
+
+test("Phase 9A verifier blocks an ambiguous explicit mutation before a pending action can be created", async () => {
+  const refs = [
+    reference({ id: "ref_live_meal_a", domain: "nutrition", entityType: "meal", collection: "meals_today", ordinal: 1 }),
+    reference({ id: "ref_live_meal_b", domain: "nutrition", entityType: "meal", collection: "meals_today", ordinal: 2 })
+  ];
+  const route = { nutrition: true };
+  const tool = "propose_undo_nutrition_mutation";
+  const review = await reviewExplicitApplicationIntent({
+    turn: nutritionTurn("delete that", refs),
+    route,
+    tools: [{ type: "function", name: tool }],
+    functionCall: { name: tool, arguments: JSON.stringify({ referenceId: "ref_live_meal_a" }) }
+  });
+
+  assert.equal(review?.decision, "none");
+  assert.equal(review?.confidence, 1);
+  assert.equal(review?.source, "deterministic_reference_resolution_block");
+  assert.equal(route.referenceResolution?.status, "ambiguous");
+});
+
+test("Phase 9A tool gate accepts the exact uniquely resolved live meal reference", async () => {
+  const refs = [
+    reference({ id: "ref_live_meal_a", domain: "nutrition", entityType: "meal", collection: "meals_today", ordinal: 1 })
+  ];
+  const route = { nutrition: true };
+  const tool = "propose_update_nutrition_meal";
+  const functionCall = {
+    name: tool,
+    arguments: JSON.stringify({
+      referenceId: "ref_live_meal_a",
+      changes: [{ field: "calories", numberValue: 500, textValue: null }]
+    })
+  };
+
+  const review = await reviewExplicitApplicationIntent({
+    turn: nutritionTurn("change that to 500 calories", refs),
+    route,
+    tools: [{ type: "function", name: tool }],
+    functionCall
+  });
+  const validation = validateToolCall(functionCall, route);
+
+  assert.equal(review?.decision, tool);
+  assert.equal(route.referenceResolution?.selectedReferenceId, "ref_live_meal_a");
+  assert.equal(validation.valid, true, validation.error);
+  assert.equal(validation.arguments.referenceId, "ref_live_meal_a");
+});
+
+test("Phase 9A tool gate rejects a syntactically valid but different reference", () => {
+  const route = {
+    nutrition: true,
+    referenceResolution: {
+      status: "resolved",
+      selectedReferenceId: "ref_live_meal_a",
+      candidateReferenceIds: ["ref_live_meal_a"]
+    }
+  };
+  const validation = validateToolCall({
+    name: "propose_update_nutrition_meal",
+    arguments: JSON.stringify({
+      referenceId: "ref_live_meal_b",
+      changes: [{ field: "calories", numberValue: 500, textValue: null }]
+    })
+  }, route);
+
+  assert.equal(validation.valid, false);
+  assert.equal(validation.error, "reference_target_mismatch");
+});
+
+test("Phase 9A tool gate rejects ambiguous or unresolved single-reference targets", () => {
+  const ambiguous = validateToolCall({
+    name: "propose_delete_workout",
+    arguments: JSON.stringify({ referenceId: "ref_live_workout_a" })
+  }, {
+    training: true,
+    referenceResolution: { status: "ambiguous", selectedReferenceId: null }
+  });
+  assert.equal(ambiguous.valid, false);
+  assert.equal(ambiguous.error, "reference_target_ambiguous");
+
+  const unresolved = validateToolCall({
+    name: "propose_delete_weight_log",
+    arguments: JSON.stringify({ referenceId: "ref_live_weight_log_a" })
+  }, {
+    goals: true,
+    referenceResolution: { status: "unresolved", selectedReferenceId: null }
+  });
+  assert.equal(unresolved.valid, false);
+  assert.equal(unresolved.error, "reference_target_unresolved");
+});
+
+test("Phase 9A live reference prefixes remain type bounded", () => {
+  const meal = validateToolCall({
+    name: "propose_update_nutrition_meal",
+    arguments: JSON.stringify({
+      referenceId: "ref_live_meal_a",
+      changes: [{ field: "calories", numberValue: 500, textValue: null }]
+    })
+  }, { nutrition: true });
+  assert.equal(meal.valid, true, meal.error);
+
+  const wrongType = validateToolCall({
+    name: "propose_update_nutrition_meal",
+    arguments: JSON.stringify({
+      referenceId: "ref_live_workout_a",
+      changes: [{ field: "calories", numberValue: 500, textValue: null }]
+    })
+  }, { nutrition: true });
+  assert.equal(wrongType.valid, false);
+  assert.equal(wrongType.error, "nutrition_reference_id_invalid");
+});
+
+test("Phase 9A does not prematurely block explicit multi-component Meal Plan logging", () => {
+  const validation = validateToolCall({
+    name: "propose_log_referenced_plan_components",
+    arguments: JSON.stringify({
+      referenceIds: ["ref_ctx_meal_component_a", "ref_ctx_meal_component_b"]
+    })
+  }, {
+    nutrition: true,
+    referenceResolution: { status: "ambiguous", selectedReferenceId: null }
+  });
+
+  assert.equal(validation.valid, true, validation.error);
+  assert.deepEqual(validation.arguments.referenceIds, ["ref_ctx_meal_component_a", "ref_ctx_meal_component_b"]);
 });
