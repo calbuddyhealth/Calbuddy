@@ -1,13 +1,13 @@
 /* =============================================================
-   ARI CIRCLE V5.3.0 — REAL WORLD SOCIAL SHELL
-   Feed · Connect · ARI Next, with secondary features in-page or in the drawer.
+   ARI CIRCLE V5.3.1 — REAL WORLD SOCIAL SHELL
+   Feed · Connect for members; ARI Next remains owner-only while it is experimental.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.3.0";
+  const VERSION = "5.3.1";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -23,11 +23,15 @@
   const NAV_ID = "ariCircleV5BottomNav";
   const CONNECT_STYLE_ID = "ariCircleConnectModeStyle";
   const CONNECT_NAV_ID = "ariCircleConnectModeNav";
-  const NAV_MODEL = "feed-connect-ari-next";
+  const NAV_MODEL = "feed-connect-owner-ari-next";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
+  const OWNER_ROUTE_FALLBACK = "ari-circle-feed.html";
   let queued = false;
   let happeningLoaded = false;
   let profileLoaded = false;
+  let ownerAccess = false;
+  let ownerAccessResolved = false;
+  let ownerVerificationPromise = null;
 
   const ICONS = Object.freeze({
     arinext: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 14.2 9l5.8 1.1-4.5 3.8 1.4 5.8-4.9-3.1-4.9 3.1 1.4-5.8L4 10.1 9.8 9 12 3.5Z"></path></svg>`,
@@ -43,6 +47,68 @@
   function isCirclePath() {
     return pathName().includes("ari-circle");
   }
+
+  function isOwnerOnlyPath() {
+    const path = pathName();
+    return path.endsWith("/ari-circle-v6.html") || path.includes("ari-circle-explore");
+  }
+
+  function holdOwnerOnlyRoute() {
+    if (!isOwnerOnlyPath() || ownerAccessResolved) return;
+    document.documentElement.style.visibility = "hidden";
+    document.documentElement.setAttribute("data-ari-circle-owner-gate", "pending");
+  }
+
+  function releaseOwnerOnlyRoute() {
+    document.documentElement.style.visibility = "";
+    document.documentElement.removeAttribute("data-ari-circle-owner-gate");
+  }
+
+  async function verifyOwnerAccess() {
+    if (ownerAccessResolved) return ownerAccess;
+    if (ownerVerificationPromise) return ownerVerificationPromise;
+
+    ownerVerificationPromise = (async () => {
+      let verified = false;
+      try {
+        const client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase || null;
+        const { data, error } = client?.auth?.getSession ? await client.auth.getSession() : { data: null, error: null };
+        const session = error ? null : data?.session;
+        const accessToken = String(session?.access_token || "").trim();
+
+        if (accessToken) {
+          const response = await fetch("/api/ari-github-read", {
+            method: "GET",
+            headers: { Authorization: `Bearer ${accessToken}` },
+            cache: "no-store"
+          });
+          const payload = await response.json().catch(() => ({}));
+          verified = response.ok && payload?.isOwner === true;
+        }
+      } catch (error) {
+        console.warn("ARI Circle owner verification unavailable:", error?.message || error);
+      }
+
+      ownerAccess = verified;
+      ownerAccessResolved = true;
+      ownerVerificationPromise = null;
+
+      if (isOwnerOnlyPath()) {
+        if (!verified) {
+          window.location.replace(OWNER_ROUTE_FALLBACK);
+          return false;
+        }
+        releaseOwnerOnlyRoute();
+      }
+
+      run();
+      return verified;
+    })();
+
+    return ownerVerificationPromise;
+  }
+
+  holdOwnerOnlyRoute();
 
   function ensureStylesheet(id, href, match) {
     if (document.getElementById(id)) return;
@@ -83,10 +149,7 @@
     const path = pathName();
     if (path.includes("ari-circle-meetup") || path.includes("ari-circle-quest")) return "connect";
     if (path.endsWith("/ari-circle-feed.html")) return "feed";
-    if (
-      path.endsWith("/ari-circle-v6.html") ||
-      path.includes("ari-circle-explore")
-    ) return "arinext";
+    if (ownerAccess && (path.endsWith("/ari-circle-v6.html") || path.includes("ari-circle-explore"))) return "arinext";
     return "";
   }
 
@@ -102,7 +165,7 @@
     return `<div class="circle-v5-bottom-nav__dock">
       ${navLink("feed", "ari-circle-feed.html", "Feed")}
       ${navLink("connect", "ari-circle-meetup.html", "Connect")}
-      ${navLink("arinext", "ari-circle-v6.html", "ARI Next")}
+      ${ownerAccess ? navLink("arinext", "ari-circle-v6.html", "ARI Next") : ""}
     </div>`;
   }
 
@@ -116,9 +179,10 @@
       document.body.append(wrap);
     }
 
-    if (wrap.dataset.circleNavModel !== NAV_MODEL) {
+    const model = `${NAV_MODEL}:${ownerAccess ? "owner" : "member"}`;
+    if (wrap.dataset.circleNavModel !== model) {
       wrap.innerHTML = bottomNavMarkup();
-      wrap.dataset.circleNavModel = NAV_MODEL;
+      wrap.dataset.circleNavModel = model;
     }
 
     wrap.querySelectorAll("[data-circle-v5-nav]").forEach((link) => {
@@ -183,8 +247,8 @@
       const brand = header.querySelector(".feed-brand, .circle-v5-brand, .circle-header__brand");
       if (brand) {
         brand.classList.add("circle-v51-brand");
-        brand.setAttribute("href", "ari-circle-v6.html");
-        brand.setAttribute("aria-label", "ARI Circle ARI Next");
+        brand.setAttribute("href", ownerAccess ? "ari-circle-v6.html" : "ari-circle-feed.html");
+        brand.setAttribute("aria-label", ownerAccess ? "ARI Circle ARI Next" : "ARI Circle Feed");
         if (brand.dataset.circleV51Brand !== VERSION) {
           brand.innerHTML = haloMarkup();
           brand.dataset.circleV51Brand = VERSION;
@@ -239,7 +303,8 @@
     normalizeSignatureHeader();
     removeRedundantQuestDrawerLink();
     loadRouteModules();
-    document.dispatchEvent(new CustomEvent("ari-circle:v5-real-world-ready", { detail: { version: VERSION } }));
+    document.dispatchEvent(new CustomEvent("ari-circle:v5-real-world-ready", { detail: { version: VERSION, ownerAccess } }));
+    if (!ownerAccessResolved) void verifyOwnerAccess();
   }
 
   function queueRun() {
@@ -257,7 +322,12 @@
     window.setTimeout(run, 700);
   }
 
-  window.AriCircleV5RealWorld = Object.freeze({ version: VERSION, refresh: run });
+  window.AriCircleV5RealWorld = Object.freeze({
+    version: VERSION,
+    refresh: run,
+    verifyOwnerAccess,
+    isOwner: () => ownerAccessResolved && ownerAccess
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boundedRefresh, { once: true });
