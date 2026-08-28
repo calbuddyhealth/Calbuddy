@@ -17,18 +17,21 @@ const contextGuard = read("ari/vnext/ari-vnext-context-guard.js");
 
 assert.match(runtime, /const DEFAULT_MODE = "vnext"/, "vNext must remain the default Ari runtime");
 assert.match(runtime, /ari-vnext-meal-plan-adapter\.js\?v=1\.0\.1/, "runtime must boot the trusted Meal Plan adapter");
-assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.2/, "runtime must boot the canonical context/continuity guard");
+assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.2/, "runtime must boot the canonical context\/continuity guard");
 assert.match(runtime, /ari-vnext-reference-state\.js\?v=1\.2\.0/, "runtime must boot the universal reference lifecycle");
 assert.match(runtime, /AriVNextMealPlanAdapter\?\.ready === true/, "runtime must wait for Meal Plan adapter readiness");
 assert.match(runtime, /AriVNextContextGuard\?\.ready === true/, "runtime must wait for canonical context guard readiness");
 assert.match(runtime, /AriVNextReferenceState\?\.ready === true/, "runtime must wait for universal reference lifecycle readiness");
 
-assert.match(router, /ari-runtime-controller\.js\?v=1\.4\.1/, "shared Home/Nutrition router must boot the reference-aware unified runtime controller");
+assert.match(router, /ari-runtime-controller\.js\?v=1\.4\.1/, "shared Home\/Nutrition router must boot the reference-aware unified runtime controller");
 assert.doesNotMatch(router, /appendOrderedScript\([\s\S]{0,120}ari-vnext-context-guard\.js/, "router should not independently race the runtime controller for vNext brain dependencies");
 assert.match(auth, /ari-central-intent-router\.js\?v=1\.5\.3/, "auth bootstrap must request the repaired shared router version");
 
-assert.match(mealAdapter, /window\.AriVNextMealPlanAdapter =/, "Meal Plan adapter must expose readiness state");
-assert.match(mealAdapter, /window\.AriVNextMealPlanAdapter\.ready = true/, "Meal Plan adapter must signal ready only after trusted action wrapping");
+assert.match(mealAdapter, /const VERSION = "2\.0\.0"/, "Meal Plan adapter must expose the permanent registry-owned version");
+assert.match(mealAdapter, /window\.AriVNextMealPlanAdapter = Object\.freeze/, "Meal Plan adapter must expose immutable readiness state");
+assert.match(mealAdapter, /registry\.registerOperation\("plan_meal"/, "Meal Plan creation must register directly with the canonical registry");
+assert.match(mealAdapter, /registry\.registerOperation\("log_planned_meal"/, "planned-meal consumption must register directly with the canonical registry");
+assert.doesNotMatch(mealAdapter, /prepareCalBuddyAction\s*=/, "Meal Plan must not monkey-patch the legacy action adapter");
 assert.match(contextGuard, /window\.AriVNextContextGuard =/, "context guard must expose readiness state");
 assert.match(contextGuard, /burnedAddsFoodAllowance: false/, "vNext nutrition context must not add exercise calories to food allowance");
 assert.match(contextGuard, /unknownGoalMustRemainUnknown: true/, "vNext must never synthesize a missing Daily Calorie Goal");
