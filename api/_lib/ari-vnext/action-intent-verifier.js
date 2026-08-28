@@ -4,6 +4,7 @@
 // This facade removes only verifier calls whose CURRENT-turn write permission
 // is unambiguous from bounded direct syntax. Tool validation, canonicalization,
 // confirmation, reference trust, and the operation registry remain authoritative.
+// Product-specific boundaries are normalized outside global authorization.
 //
 // Core semantic-policy anchors intentionally preserved behind this facade:
 // - Circle discovery such as "anything going on tonight?" remains a discovery/read request.
@@ -23,6 +24,7 @@ import {
   reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent,
   reviewExplicitApplicationIntent as reviewCoreExplicitApplicationIntent
 } from "./action-intent-verifier-core.js";
+import { normalizeNutritionPlanReview } from "./nutrition-plan-policy.js";
 
 const DIRECT_SAFE_TOOLS = Object.freeze({
   propose_update_goal: ["set", "update", "change"],
@@ -41,7 +43,12 @@ export function reviewDeterministicRoutineLogIntent(args = {}) {
 export async function reviewExplicitApplicationIntent(args = {}) {
   const direct = reviewDeterministicDirectMutation(args);
   if (direct) return direct;
-  return await reviewCoreExplicitApplicationIntent(args);
+
+  const review = await reviewCoreExplicitApplicationIntent(args);
+  return normalizeNutritionPlanReview({
+    review,
+    route: args?.route || {}
+  });
 }
 
 export function reviewDeterministicDirectMutation({
@@ -66,7 +73,7 @@ export function reviewDeterministicDirectMutation({
   if (!matchesDirectCommand(message, verbs)) return null;
 
   return {
-    version: "1.12.0",
+    version: "1.13.0",
     decision,
     confidence: 1,
     reason: "Explicit current-turn direct mutation command verified deterministically before semantic verifier fallback.",
