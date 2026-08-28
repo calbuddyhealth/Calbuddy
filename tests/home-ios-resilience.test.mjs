@@ -8,21 +8,25 @@ const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 
 test("home loads the repaired iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.0');
-  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.4');
+  const runtimeIndex = home.indexOf('ari/runtime/ari-runtime-controller.js?v=1.5.0');
+  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.5');
   const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.1.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
-  assert.ok(resilienceIndex > homeIndex, "repaired resilience layer should load after home.js");
+  assert.ok(runtimeIndex > homeIndex, "runtime 1.5.0 should load after home.js");
+  assert.ok(resilienceIndex > runtimeIndex, "resilience should load after the matching runtime");
   assert.ok(latencyIndex > resilienceIndex, "latency guard should load after resilience so it can neutralize stale cross-document recovery");
 });
 
-test("Home runtime loader accepts both runtime namespaces and cannot wait forever", () => {
+test("Home runtime loader accepts both runtime namespaces and requires the authoritative runtime", () => {
   assert.match(resilience, /window\.AriRuntime/);
   assert.match(resilience, /window\.Ari\?\.Runtime/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.4\.1"/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.5\.0"/);
+  assert.match(resilience, /RUNTIME_CONTROLLER_SRC = `ari\/runtime\/ari-runtime-controller\.js\?v=\$\{REQUIRED_RUNTIME_VERSION\}`/);
   assert.match(resilience, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilience, /window\.setInterval\(finishIfReady, 25\)/);
   assert.match(resilience, /did not initialize/);
+  assert.doesNotMatch(home, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\./);
 });
 
 test("Home passes the same AbortSignal through runtime loading and Ari ask", () => {
