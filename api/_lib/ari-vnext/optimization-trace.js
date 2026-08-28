@@ -1,4 +1,4 @@
-// ARI vNext — Phase 10A request-scoped optimization audit.
+// ARI vNext — Phase 10 request-scoped optimization audit and bounded call optimizer.
 //
 // This layer observes OpenAI Responses API request metadata only. It never
 // records prompts, user text, tool arguments, model output, or chain-of-thought.
@@ -6,8 +6,9 @@
 // allowing compound clauses to contribute to one turn-level trace.
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { maybeOptimizeModelCall } from "./model-call-optimizer.js";
 
-export const OPTIMIZATION_TRACE_VERSION = "1.0.0";
+export const OPTIMIZATION_TRACE_VERSION = "1.1.0";
 
 const RUNTIME_KEY = Symbol.for("ari.phase10.optimization.runtime.v1");
 const DEFAULT_RESPONSES_URL = "https://api.openai.com/v1/responses";
@@ -59,10 +60,26 @@ export function recordOptimizationCall(trace = null, call = {}) {
   return normalized;
 }
 
+export function recordAvoidedModelCall(trace = null, avoided = {}) {
+  const target = trace || currentOptimizationTrace();
+  if (!target) return null;
+  const normalized = {
+    index: target.avoidedCalls.length + 1,
+    stage: clean(avoided?.stage, 80) || "unknown",
+    reason: clean(avoided?.reason, 160) || "optimized",
+    applicationAction: clean(avoided?.applicationAction, 120) || null,
+    model: clean(avoided?.model, 120) || null
+  };
+  target.avoidedCalls.push(normalized);
+  return normalized;
+}
+
 export function summarizeOptimizationTrace(trace = null) {
   if (!trace) return null;
   const calls = Array.isArray(trace.calls) ? trace.calls : [];
+  const avoidedCalls = Array.isArray(trace.avoidedCalls) ? trace.avoidedCalls : [];
   const stageCounts = {};
+  const avoidedStageCounts = {};
   const modelCounts = {};
   const usage = {};
   let modelLatencyMs = 0;
@@ -78,19 +95,56 @@ export function summarizeOptimizationTrace(trace = null) {
     mergeNumbers(usage, call?.usage);
   }
 
+  for (const call of avoidedCalls) {
+    const stage = clean(call?.stage, 80) || "unknown";
+    avoidedStageCounts[stage] = Number(avoidedStageCounts[stage] || 0) + 1;
+  }
+
   const pricing = estimateCost(calls);
   return {
     version: OPTIMIZATION_TRACE_VERSION,
     callCount: calls.length,
+    avoidedCallCount: avoidedCalls.length,
     failedCallCount,
     compoundClauseCount: Math.max(0, Number(trace.compoundClauseCount || 0)),
     modelLatencyMs,
     elapsedMs: Math.max(0, Date.now() - Number(trace.startedAtMs || Date.now())),
     stageCounts,
+    avoidedStageCounts,
     modelCounts,
     usage,
     costEstimate: pricing,
-    calls: calls.map((call) => ({ ...call }))
+    calls: calls.map((call) => ({ ...call })),
+    avoidedCalls: avoidedCalls.map((call) => ({ ...call }))
+  };
+}
+
+export function providerFromOptimizationTrace(trace = null, fallback = null) {
+  const calls = (Array.isArray(trace?.calls) ? trace.calls : [])
+    .filter((call) => call?.status === "completed" && call?.model);
+  if (!calls.length) return fallback;
+
+  const models = Array.from(new Set(calls.map((call) => clean(call?.model, 120)).filter(Boolean)));
+  // Do not collapse mixed-model usage into one priced provider row. The public
+  // optimization trace remains authoritative for those turns until Phase 10F
+  // adds per-call ledger persistence.
+  if (models.length !== 1) return fallback;
+
+  const usage = {};
+  const ids = [];
+  for (const call of calls) {
+    mergeNumbers(usage, call?.usage);
+    const id = clean(call?.providerRequestId, 180);
+    if (id) ids.push(id);
+  }
+
+  return {
+    ...(fallback && typeof fallback === "object" ? fallback : {}),
+    id: ids.length === 1 ? ids[0] : ids.length ? `trace:${ids.join("+").slice(0, 170)}` : null,
+    model: models[0],
+    usage,
+    optimizationAggregated: true,
+    modelCallCount: calls.length
   };
 }
 
@@ -129,6 +183,17 @@ function installFetchObserver(state) {
 
     const requestBody = parseJson(init?.body);
     const stage = classifyOpenAIRequest(requestBody);
+    const optimized = maybeOptimizeModelCall({ stage, body: requestBody, trace });
+    if (optimized?.optimized && optimized?.response) {
+      recordAvoidedModelCall(trace, {
+        stage,
+        reason: optimized.reason,
+        applicationAction: optimized.applicationAction,
+        model: requestBody?.model
+      });
+      return optimized.response;
+    }
+
     const startedAt = Date.now();
 
     try {
@@ -256,7 +321,8 @@ function createTrace(turn = {}) {
     startedAtMs: Date.now(),
     turnId: clean(turn?.turnId, 200) || null,
     compoundClauseCount: 0,
-    calls: []
+    calls: [],
+    avoidedCalls: []
   };
 }
 
