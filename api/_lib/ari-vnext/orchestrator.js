@@ -6,10 +6,13 @@
 // Phase 10E can share one bounded primary interpretation across independent
 // deterministic clauses; every clause still traverses the mature core afterward.
 // Phase 10F evaluates structural performance budgets after orchestration only.
+// Phase 11A/B adds sanitized decision tracing and a fail-soft server ledger.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
 import { planCompoundPrimary, COMPOUND_PRIMARY_PLANNER_VERSION } from "./compound-primary-planner.js";
 import { budgetTurnContext } from "./context-budget.js";
+import { buildAriDecisionTrace, buildAriFailureTrace } from "./decision-trace.js";
+import { recordAriObservabilityTurn, ARI_OBSERVABILITY_STORE_VERSION } from "./observability-store.js";
 import { runAriVNext as runAriVNextCore } from "./orchestrator-core.js";
 import {
   markCompoundFanout,
@@ -71,18 +74,48 @@ const STRONG_COMPOUND_SIGNAL = /(?:;|,\s*(?:and\s+)?then\b|\band\s+then\b|\bthen
 
 export async function runAriVNext(turn = {}) {
   return await withOptimizationTrace(turn, async (trace) => {
-    const result = await runObservedAriVNext(turn, trace);
-    const optimizationTrace = summarizeOptimizationTrace(trace);
-    const performanceBudget = evaluatePerformanceBudget({
-      turn,
-      result,
-      optimizationTrace
-    });
-    return {
-      ...result,
-      optimizationTrace,
-      performanceBudget
-    };
+    try {
+      const result = await runObservedAriVNext(turn, trace);
+      const optimizationTrace = summarizeOptimizationTrace(trace);
+      const performanceBudget = evaluatePerformanceBudget({
+        turn,
+        result,
+        optimizationTrace
+      });
+      const observedResult = {
+        ...result,
+        optimizationTrace,
+        performanceBudget
+      };
+      const decisionTrace = buildAriDecisionTrace({ turn, result: observedResult });
+      const persistence = await recordAriObservabilityTurn({
+        userId: turn?.userId || null,
+        turnId: turn?.turnId || null,
+        conversationId: turn?.conversationId || null,
+        trace: decisionTrace
+      });
+
+      return {
+        ...observedResult,
+        decisionTrace,
+        observability: {
+          version: ARI_OBSERVABILITY_STORE_VERSION,
+          stored: persistence?.stored === true,
+          reason: clean(persistence?.reason, 100) || null
+        }
+      };
+    } catch (error) {
+      const optimizationTrace = summarizeOptimizationTrace(trace);
+      const decisionTrace = buildAriFailureTrace({ turn, error, optimizationTrace });
+      await recordAriObservabilityTurn({
+        userId: turn?.userId || null,
+        turnId: turn?.turnId || null,
+        conversationId: turn?.conversationId || null,
+        trace: decisionTrace
+      });
+      error.ariDecisionTrace = decisionTrace;
+      throw error;
+    }
   });
 }
 
@@ -91,12 +124,15 @@ async function runObservedAriVNext(turn = {}, trace = null) {
 
   if (clauses.length < 2) {
     const budgeted = budgetTurnContext(turn);
-    turn = {
+    const coreResult = await runAriVNextCore({
       ...budgeted.turn,
       phase10dContextBudget: budgeted.budget
+    });
+    return {
+      ...coreResult,
+      observabilityContextBudget: publicContextBudget(budgeted.budget)
     };
   }
-  if (clauses.length < 2) return await runAriVNextCore(turn);
 
   markCompoundFanout(trace, clauses.length);
   const sharedPlan = await planCompoundPrimary({ turn, clauses });
@@ -128,9 +164,14 @@ async function runObservedAriVNext(turn = {}, trace = null) {
     });
 
     const prepared = sharedPlan?.usable === true ? sharedPlan.preparedCalls?.[index] : null;
-    return prepared
+    const result = prepared
       ? await withPreparedPrimary(prepared, runCore)
       : await runCore();
+
+    return {
+      ...result,
+      observabilityContextBudget: publicContextBudget(budgeted.budget)
+    };
   }));
 
   const providerInputs = sharedPlan?.provider
@@ -222,7 +263,10 @@ async function runObservedAriVNext(turn = {}, trace = null) {
       canonicalPreflightRequired: true,
       sharedPrimaryUsed,
       sharedPrimaryVersion: sharedPrimaryUsed ? COMPOUND_PRIMARY_PLANNER_VERSION : null,
-      sharedPrimaryFallbackReason: sharedPrimaryUsed ? null : clean(sharedPlan?.reason, 160) || null
+      sharedPrimaryFallbackReason: sharedPrimaryUsed ? null : clean(sharedPlan?.reason, 160) || null,
+      contextProfiles: subResults
+        .map((result) => clean(result?.observabilityContextBudget?.profile, 60))
+        .filter(Boolean)
     },
     source: sharedPrimaryUsed
       ? "ari_vnext_phase10e_compound_action_proposal"
@@ -294,10 +338,26 @@ function blockedCompoundResult({
       failedIndex,
       clauses,
       preparedCount: subResults.filter((result) => result?.pendingAction?.id && result?.action?.type === "proposed_action").length,
-      sharedPrimaryUsed: Boolean(sharedPrimaryUsed)
+      sharedPrimaryUsed: Boolean(sharedPrimaryUsed),
+      contextProfiles: subResults
+        .map((result) => clean(result?.observabilityContextBudget?.profile, 60))
+        .filter(Boolean)
     },
     source: "ari_vnext_phase9c_compound_action_blocked",
     turn: turn?.turnId ? { turnId: turn.turnId } : undefined
+  };
+}
+
+function publicContextBudget(budget = {}) {
+  return {
+    version: clean(budget?.version, 40) || null,
+    profile: clean(budget?.profile, 60) || null,
+    routingClass: clean(budget?.routingClass, 80) || null,
+    historyBefore: Math.max(0, Number(budget?.historyTurnsBefore || 0)),
+    historyAfter: Math.max(0, Number(budget?.historyTurnsAfter || 0)),
+    referenceHistoryFloorApplied: Number(budget?.historyTurnsAfter || 0) >= 6 && Number(budget?.historyTurnsBefore || 0) >= 6,
+    canonicalStatePreserved: budget?.canonicalContextPreserved === true,
+    referenceStatePreserved: budget?.referenceStatePreserved !== false
   };
 }
 
