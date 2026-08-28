@@ -1,9 +1,12 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.1
+   Version: 1.0.2
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
+
+   V1.0.2:
+   - Adds the curated prepared-meals core module.
 
    V1.0.1:
    - Never hydrates the full database automatically on page open.
@@ -18,7 +21,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -75,6 +78,8 @@
     "ari/nutrition/data/grains/AriFoodCerealBrands.js",
     "ari/nutrition/data/grains/AriFoodCerealBrands2.js",
     "ari/nutrition/data/grains/AriFoodOatBrands.js",
+
+    "ari/nutrition/data/prepared-meals/AriFoodPreparedMealsCore.js?v=1.0.0",
 
     "ari/nutrition/data/nuts/AriFoodNuts.js?v=1.0.0",
     "ari/nutrition/data/nuts/AriFoodNutsCore.js",
