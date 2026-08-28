@@ -3,6 +3,8 @@
 // deterministically; ambiguous writes still use the bounded GPT-4o-mini
 // verifier. Neither path executes data.
 
+import { resolveReferenceTarget } from "./reference-context.js";
+
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const ROUTINE_LOG_TOOLS = new Set([
   "propose_log_meal",
@@ -15,6 +17,19 @@ const REFERENCE_MUTATION_TOOLS = new Set([
   "propose_update_nutrition_meal",
   "propose_log_referenced_planned_meal",
   "propose_log_referenced_plan_components",
+  "propose_discard_referenced_meal_plan",
+  "propose_replace_referenced_meal_plan",
+  "propose_update_activity_log",
+  "propose_delete_activity_log",
+  "propose_update_weight_log",
+  "propose_delete_weight_log",
+  "propose_edit_referenced_workout",
+  "propose_delete_workout"
+]);
+const SINGLE_REFERENCE_MUTATION_TOOLS = new Set([
+  "propose_undo_nutrition_mutation",
+  "propose_update_nutrition_meal",
+  "propose_log_referenced_planned_meal",
   "propose_discard_referenced_meal_plan",
   "propose_replace_referenced_meal_plan",
   "propose_update_activity_log",
@@ -74,6 +89,8 @@ export async function reviewExplicitApplicationIntent({
   tools = [],
   functionCall = null
 } = {}) {
+  attachReferenceResolution({ turn, route });
+
   const availableTools = (Array.isArray(tools) ? tools : [])
     .filter((tool) => tool?.type === "function" && typeof tool?.name === "string")
     .map((tool) => String(tool.name).trim())
@@ -87,7 +104,7 @@ export async function reviewExplicitApplicationIntent({
     functionCall,
     availableTools
   });
-  if (deterministic) return deterministic;
+  if (deterministic) return enforceReferenceResolutionOnReview(deterministic, { turn, route });
 
   const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
   if (!apiKey) return null;
@@ -212,7 +229,7 @@ export async function reviewExplicitApplicationIntent({
       decision = "propose_today_meal_plan";
     }
 
-    return {
+    return enforceReferenceResolutionOnReview({
       version: "1.10.0",
       decision,
       confidence,
@@ -222,12 +239,43 @@ export async function reviewExplicitApplicationIntent({
       providerRequestId: data?.id || null,
       usage: data?.usage || null,
       source: "model_verifier"
-    };
+    }, { turn, route });
   } catch {
     return null;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function attachReferenceResolution({ turn = {}, route = {} } = {}) {
+  if (!route || typeof route !== "object") return null;
+  const resolution = resolveReferenceTarget({
+    message: turn?.message || "",
+    referenceState: turn?.context?.referenceState || {},
+    route
+  });
+  route.referenceResolution = resolution;
+  return resolution;
+}
+
+function enforceReferenceResolutionOnReview(review = {}, { turn = {}, route = {} } = {}) {
+  const decision = String(review?.decision || "").trim();
+  if (!SINGLE_REFERENCE_MUTATION_TOOLS.has(decision)) return review;
+
+  const resolution = route?.referenceResolution || attachReferenceResolution({ turn, route });
+  if (resolution?.status === "resolved" && resolution?.selectedReferenceId) return review;
+
+  const ambiguous = resolution?.status === "ambiguous";
+  return {
+    ...review,
+    decision: "none",
+    confidence: 1,
+    reason: ambiguous
+      ? "The current reference matches multiple authoritative app targets, so Ari must clarify instead of guessing."
+      : "The current reference does not resolve to exactly one authoritative app target, so Ari must clarify instead of guessing.",
+    source: "deterministic_reference_resolution_block",
+    referenceResolution: resolution || null
+  };
 }
 
 function routineRouteSupports(decision, route = {}) {

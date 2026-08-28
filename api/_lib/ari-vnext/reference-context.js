@@ -9,7 +9,7 @@
 //   CURRENT user message can authorize a write; prior state may identify target.
 // - Add no extra model call. Trusted domain adapters remain authoritative.
 
-export const REFERENCE_CONTEXT_VERSION = "1.2.0";
+export const REFERENCE_CONTEXT_VERSION = "1.3.0";
 
 const MAX_REFERENCE_TURNS = 8;
 const MAX_REFERENCE_TEXT = 900;
@@ -18,11 +18,13 @@ const MAX_PACKET_CHARACTERS = 6200;
 
 const REFERENCE_MARKER = /\b(?:it|its|them|they|their|that|this|those|these|one|ones|the other one|the (?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|(?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|former|latter|same one|previous one|last one)\b/i;
 const CONTINUATION_PHRASE = /^(?:and|but|then|instead|okay|ok|yeah|yes|no|nope|make it|do that|use that|use it|go with that|go with it|the other one)\b/i;
+const ORDINAL_REFERENCE = /\b(?:the\s+)?(first|second|third)\s+(?:one|item|meal|option|workout|activity|weigh-?in|meetup|mission|crew)?\b/i;
+const ORDINALS = Object.freeze({ first: 1, second: 2, third: 3 });
 
 const DOMAIN_PATTERNS = {
   nutrition: /\b(?:calorie|calories|kcal|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|eaten|breakfast|lunch|dinner|snack|nutrition|diet|potato|potatoes|rice|chicken|beef|salmon|egg|eggs|drink|drank)\b/i,
   training: /\b(?:workout|training|train|exercise|sets?|reps?|gym|bench|squat|deadlift|press|row|run|running|walk|walking|bike|cycling|hike|cardio|chest|back|legs?|shoulders?|arms?|biceps?|triceps?)\b/i,
-  goals: /\b(?:goal|weight|target|calorie goal|daily goal|lose|gain|maintain|maintenance|cut|bulk|bmi)\b/i,
+  goals: /\b(?:goal|weight|weigh-?in|target|calorie goal|daily goal|lose|gain|maintain|maintenance|cut|bulk|bmi)\b/i,
   social: /\b(?:circle|meetup|meet-up|mission|crew|challenge|friend|post|event|join|rsvp|host)\b/i,
   developer: /\b(?:github|repo|repository|branch|commit|deploy|vercel|supabase|api|code|javascript|html|css|sql)\b/i
 };
@@ -41,6 +43,43 @@ export function activeReferenceDomains(referenceState = {}) {
       .map((reference) => clean(reference?.domain, 40).toLowerCase())
       .filter(Boolean)
   ));
+}
+
+export function resolveReferenceTarget({ message = "", referenceState = {}, route = {} } = {}) {
+  const text = clean(message, 600);
+  if (!isReferenceFollowUp(text)) {
+    return resolution("inactive", "not_a_reference_follow_up");
+  }
+
+  const authoritative = normalizeAppReferences(referenceState)
+    .filter((candidate) => candidate.authoritative === true);
+
+  if (!authoritative.length) {
+    return resolution("context_only", "no_authoritative_app_reference");
+  }
+
+  const candidates = narrowByCurrentMessage(authoritative, text, route);
+  if (!candidates.length) {
+    return resolution("unresolved", "no_compatible_authoritative_target");
+  }
+
+  const ordinal = explicitOrdinal(text);
+  if (ordinal) {
+    const ordinalMatches = resolveOrdinalCandidates(candidates, ordinal);
+    if (ordinalMatches.length === 1) {
+      return resolution("resolved", "unique_authoritative_ordinal", ordinalMatches);
+    }
+    if (ordinalMatches.length > 1) {
+      return resolution("ambiguous", "ordinal_matches_multiple_collections", ordinalMatches, true);
+    }
+    return resolution("unresolved", "ordinal_not_found_in_authoritative_collection", candidates, true);
+  }
+
+  if (candidates.length === 1) {
+    return resolution("resolved", "unique_authoritative_target", candidates);
+  }
+
+  return resolution("ambiguous", "multiple_authoritative_targets", candidates, true);
 }
 
 export function buildReferencePacket(turn = {}, route = {}) {
@@ -68,6 +107,11 @@ export function buildReferencePacket(turn = {}, route = {}) {
       : "recent_conversation_reference_index",
     currentMessage: message.slice(0, 600),
     referenceDetected: REFERENCE_MARKER.test(message),
+    resolution: resolveReferenceTarget({
+      message,
+      referenceState: turn?.context?.referenceState,
+      route
+    }),
     candidates,
     policy: {
       currentTurnAuthorizesMutation: true,
@@ -79,12 +123,88 @@ export function buildReferencePacket(turn = {}, route = {}) {
       preferNearestCompatibleReference: true,
       preferAuthoritativeAppStateOnConflict: true,
       useExplicitOrdinalWithinSameCollection: true,
+      deterministicResolutionPrecedesModelChoice: true,
       clarifyWhenAmbiguous: true,
       neverInventMissingTarget: true
     }
   };
 
   return trimPacket(packet);
+}
+
+function narrowByCurrentMessage(candidates = [], message = "", route = {}) {
+  let output = [...candidates];
+  const explicitDomains = inferDomains(message).filter((domain) => domain !== "general");
+
+  if (explicitDomains.length === 1) {
+    output = output.filter((candidate) => candidate.domain === explicitDomains[0]);
+  } else {
+    const routeDomains = ["nutrition", "training", "goals", "social", "developer"]
+      .filter((domain) => route?.[domain] === true);
+    if (routeDomains.length === 1) {
+      output = output.filter((candidate) => candidate.domain === routeDomains[0]);
+    }
+  }
+
+  const entityTypes = entityTypeHints(message);
+  if (entityTypes.length === 1) {
+    const narrowed = output.filter((candidate) => entityTypes.includes(candidate.entityType));
+    if (narrowed.length) output = narrowed;
+  }
+
+  return output;
+}
+
+function entityTypeHints(message = "") {
+  const text = clean(message, 600).toLowerCase();
+  const types = [];
+  if (/\bplanned meal|meal plan\b/.test(text)) types.push("meal_plan_item");
+  else if (/\bmeal|breakfast|lunch|dinner|snack\b/.test(text)) types.push("meal");
+  if (/\bworkout\b/.test(text)) types.push("workout");
+  if (/\bactivity\b/.test(text)) types.push("activity_log");
+  if (/\bweigh-?in|weight log\b/.test(text)) types.push("weight_log");
+  if (/\bmeet-?up\b/.test(text)) types.push("meetup");
+  if (/\bmission\b/.test(text)) types.push("mission");
+  if (/\bcrew\b/.test(text)) types.push("crew");
+  return Array.from(new Set(types));
+}
+
+function explicitOrdinal(message = "") {
+  const match = clean(message, 600).match(ORDINAL_REFERENCE);
+  return match ? ORDINALS[String(match[1] || "").toLowerCase()] || null : null;
+}
+
+function resolveOrdinalCandidates(candidates = [], ordinal = null) {
+  if (!ordinal) return [];
+  const collections = new Map();
+
+  for (const candidate of candidates) {
+    const collection = clean(candidate?.details?.collection, 160);
+    const candidateOrdinal = Number(candidate?.details?.ordinal);
+    if (!collection || !Number.isInteger(candidateOrdinal) || candidateOrdinal < 1) continue;
+    const key = `${candidate.domain}|${candidate.entityType}|${collection}`;
+    if (!collections.has(key)) collections.set(key, []);
+    collections.get(key).push(candidate);
+  }
+
+  const matches = [];
+  for (const collection of collections.values()) {
+    const match = collection.find((candidate) => Number(candidate?.details?.ordinal) === ordinal);
+    if (match) matches.push(match);
+  }
+  return matches;
+}
+
+function resolution(status, reason, candidates = [], requiresClarification = false) {
+  const normalized = Array.isArray(candidates) ? candidates : [];
+  const selected = status === "resolved" && normalized.length === 1 ? normalized[0] : null;
+  return {
+    status,
+    reason,
+    requiresClarification: Boolean(requiresClarification),
+    selectedReferenceId: selected?.referenceId || null,
+    candidateReferenceIds: normalized.map((candidate) => candidate.referenceId).filter(Boolean).slice(0, MAX_APP_REFERENCES)
+  };
 }
 
 function normalizeAppReferences(referenceState = {}) {
