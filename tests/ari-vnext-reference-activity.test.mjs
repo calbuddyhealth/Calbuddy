@@ -131,6 +131,6 @@ test("Training reference execution stays on canonical identity and the user-scop
   assert.match(adapter, /service\.listActivities\(date\)/);
   assert.match(adapter, /service\.updateActivity\(activityId/);
   assert.match(adapter, /service\.deleteActivity\(activityId\)/);
-  assert.match(adapter, /registerOperation\("update_activity_log"/);
-  assert.match(adapter, /registerOperation\("delete_activity_log"/);
+  assert.match(adapter, /for \(const name of \["update_activity_log", "delete_activity_log"\]\)/);
+  assert.match(adapter, /registry\.registerOperation\(name,/);
 });
