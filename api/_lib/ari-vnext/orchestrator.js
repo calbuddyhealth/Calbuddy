@@ -1,13 +1,14 @@
 // ARI vNext — Phase 9C compound-aware orchestration wrapper.
-//
-// The mature single-action orchestrator remains unchanged in orchestrator-core.
-// This wrapper detects only explicit bounded multi-mutation language, runs every
-// clause through that full trusted path independently, and combines successful
-// proposals into one turn-bound compound_action_batch. No sub-action executes
-// before the user confirms the outer batch.
+// Phase 10A adds request-scoped model-call/token/latency auditing around the
+// existing trust path without changing what Ari is allowed to do.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
 import { runAriVNext as runAriVNextCore } from "./orchestrator-core.js";
+import {
+  markCompoundFanout,
+  summarizeOptimizationTrace,
+  withOptimizationTrace
+} from "./optimization-trace.js";
 import { createPendingAction } from "./pending-action.js";
 
 const BATCHABLE_OPERATIONS = new Set([
@@ -60,8 +61,20 @@ const DESTRUCTIVE_OPERATIONS = new Set([
 const STRONG_COMPOUND_SIGNAL = /(?:;|,\s*(?:and\s+)?then\b|\band\s+then\b|\bthen\b|,\s*(?:log|record|save|add|change|update|edit|correct|fix|remove|delete|undo|discard|replace|swap|move|set|make|clear|cancel)\b|\band\s+(?:log|record|save|add|remove|delete|undo|discard|replace|swap|move|clear|cancel)\b)/i;
 
 export async function runAriVNext(turn = {}) {
+  return await withOptimizationTrace(turn, async (trace) => {
+    const result = await runObservedAriVNext(turn, trace);
+    return {
+      ...result,
+      optimizationTrace: summarizeOptimizationTrace(trace)
+    };
+  });
+}
+
+async function runObservedAriVNext(turn = {}, trace = null) {
   const clauses = compoundClauses(turn?.message || "");
   if (clauses.length < 2) return await runAriVNextCore(turn);
+
+  markCompoundFanout(trace, clauses.length);
 
   const subResults = await Promise.all(clauses.map((clause, index) => runAriVNextCore({
     ...turn,
