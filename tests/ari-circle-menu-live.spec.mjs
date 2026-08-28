@@ -81,7 +81,7 @@ async function installSupabaseStub(page) {
 }
 
 test.describe("ARI Circle premium control drawer", () => {
-  test("opens Circle controls and installs Feed / Connect / ARI Next dock", async ({ page }) => {
+  test("opens Circle controls and keeps ARI Next hidden from a normal member", async ({ page }) => {
     await installSupabaseStub(page);
     await page.goto(`${BASE_URL}/ari-circle-feed.html`, { waitUntil: "domcontentloaded" });
 
@@ -120,10 +120,10 @@ test.describe("ARI Circle premium control drawer", () => {
 
     const dock = page.locator("#ariCircleV5BottomNav .circle-v5-bottom-nav__dock");
     await expect(dock).toBeVisible();
-    await expect(dock.locator("a span")).toHaveText(["Feed", "Connect", "ARI Next"]);
+    await expect(dock.locator("a span")).toHaveText(["Feed", "Connect"]);
     await expect(dock.locator('a[href="ari-circle-feed.html"]')).toHaveCount(1);
     await expect(dock.locator('a[href="ari-circle-meetup.html"]')).toHaveCount(1);
-    await expect(dock.locator('a[href="ari-circle-v6.html"]')).toHaveCount(1);
+    await expect(dock.locator('a[href="ari-circle-v6.html"]')).toHaveCount(0);
     await expect(dock.locator('a[href="ari-circle-quests.html"]')).toHaveCount(0);
 
     const geometry = await panel.evaluate((node) => {
