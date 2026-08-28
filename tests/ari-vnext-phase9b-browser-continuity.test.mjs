@@ -14,6 +14,7 @@ function createHarness() {
   let bridgePending = null;
   let legacyPending = null;
   let pendingSeenByOriginalAsk = null;
+  let contextSeenByOriginalAsk = null;
   let referenceCancelCount = 0;
   let orphanReconcileCount = 0;
   let afterExecutionHook = null;
@@ -42,8 +43,13 @@ function createHarness() {
     AriVNextBridge: {
       getPendingAction() { return bridgePending; },
       clearPendingAction() { bridgePending = null; },
-      async ask(message) {
+      async ask(message, options = {}) {
         pendingSeenByOriginalAsk = bridgePending;
+        contextSeenByOriginalAsk = await window.AriVNextBridge.buildContext({
+          ...options,
+          message,
+          conversationId: "conversation-phase9b"
+        });
         return { success: true, message };
       },
       async buildContext() {
@@ -99,6 +105,7 @@ function createHarness() {
     getBridgePending() { return bridgePending; },
     getLegacyPending() { return legacyPending; },
     getPendingSeenByOriginalAsk() { return pendingSeenByOriginalAsk; },
+    getContextSeenByOriginalAsk() { return contextSeenByOriginalAsk; },
     getReferenceCancelCount() { return referenceCancelCount; },
     getOrphanReconcileCount() { return orphanReconcileCount; },
     getAfterExecutionHook() { return afterExecutionHook; }
@@ -118,7 +125,11 @@ test("Phase 9B correction supersedes the old vNext and linked legacy pending act
     id: "action-old-dinner",
     name: "update_nutrition_meal",
     sourceTurnId: "turn-old",
-    arguments: { referenceId: "ref_live_dinner" }
+    arguments: {
+      referenceId: "ref_live_dinner",
+      mealId: "canonical-meal-id-must-not-cross",
+      changes: [{ field: "calories", numberValue: 500, textValue: null }]
+    }
   };
   harness.setBridgePending(pending);
   harness.setLegacyPending({ vnext_action_id: pending.id, action_type: "update_nutrition_meal" });
@@ -130,6 +141,18 @@ test("Phase 9B correction supersedes the old vNext and linked legacy pending act
   assert.equal(harness.getLegacyPending(), null);
   assert.equal(harness.getReferenceCancelCount(), 1);
   assert.ok(harness.getOrphanReconcileCount() >= 1);
+
+  const superseded = harness.getContextSeenByOriginalAsk()?.referenceState?.supersededPendingAction;
+  assert.equal(superseded?.state, "superseded");
+  assert.equal(superseded?.operation, "update_nutrition_meal");
+  assert.equal(superseded?.previousReferenceId, "ref_live_dinner");
+  assert.equal(superseded?.executable, false);
+  assert.deepEqual(superseded?.priorArguments?.changes, [{ field: "calories", numberValue: 500 }]);
+  assert.equal(superseded?.priorArguments?.referenceId, undefined);
+  assert.equal(superseded?.priorArguments?.mealId, undefined);
+  assert.equal(JSON.stringify(superseded).includes(pending.id), false);
+  assert.equal(JSON.stringify(superseded).includes(pending.sourceTurnId), false);
+  assert.equal(JSON.stringify(superseded).includes("canonical-meal-id-must-not-cross"), false);
 });
 
 test("Phase 9B ordinary confirmation wording is not silently superseded", async () => {
@@ -146,6 +169,7 @@ test("Phase 9B ordinary confirmation wording is not silently superseded", async 
 
   assert.equal(harness.getPendingSeenByOriginalAsk()?.id, pending.id);
   assert.equal(harness.getReferenceCancelCount(), 0);
+  assert.equal(harness.getContextSeenByOriginalAsk()?.referenceState?.supersededPendingAction, undefined);
 });
 
 test("Phase 9B confirmed delete records only a short-lived non-writable invalidation pointer", async () => {
