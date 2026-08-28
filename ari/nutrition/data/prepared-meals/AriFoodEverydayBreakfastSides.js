@@ -1,23 +1,25 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodEverydayBreakfastSides.js
-// Version: 1.0.0
+// Version: 1.0.1
 //
 // Purpose:
 //   Curated generic breakfast foods and common sides.
 //
 // Data policy:
-//   - USDA FoodData Central / FNDDS is the reference anchor.
+//   - USDA FoodData Central / FNDDS is a reference anchor, not a UI dataset.
 //   - One human food concept per record.
 //   - Portions are servings, not duplicate food records.
 //   - Generic prepared foods are representative estimates because
-//     recipes and restaurants vary materially.
+//     recipes, restaurants, and portion sizes vary materially.
+//   - Calories are checked against protein/carbohydrate/fat energy and
+//     serving mass before a record is accepted as a useful default.
 // =====================================================
 
 (function initializeAriFoodEverydayBreakfastSides(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const MODULE_NAME = "AriFoodEverydayBreakfastSides";
   const VERIFIED_AT = "2026-08-28";
 
@@ -49,7 +51,7 @@
         isDefault: true
       })],
       source: MODULE_NAME,
-      verified: true,
+      verified: false,
       metadata: Object.freeze({
         foodFamily: "prepared-meals",
         genericFood: true,
@@ -58,13 +60,13 @@
         dataVerifiedAt: VERIFIED_AT,
         confidence: "medium",
         sourceProvenance: Object.freeze({
-          provider: "USDA FoodData Central / FNDDS",
-          sourceType: "curated representative generic prepared-food reference",
+          provider: "USDA FoodData Central / FNDDS reference anchor",
+          sourceType: "curated representative generic prepared-food estimate",
           verifiedAt: VERIFIED_AT
         }),
         offlineReference: true,
         estimate: true,
-        notes: "Representative generic serving anchored to USDA FoodData Central/FNDDS prepared-food references. Recipes and restaurants can vary materially."
+        notes: "Representative generic serving. Calories and macros are intentionally useful estimates, not claims that every recipe or restaurant preparation is identical."
       })
     });
   }
@@ -75,8 +77,8 @@
       "Pancakes",
       ["pancakes", "plain pancakes", "breakfast pancakes"],
       ["breakfast", "pancakes"],
-      { label: "2 medium pancakes", unit: "serving", grams: 150 },
-      { calories: 340, protein: 9, carbs: 56, fat: 9, fiber: 2, sugar: 10, sodiumMg: 760 }
+      { label: "2 medium pancakes", unit: "serving", grams: 86 },
+      { calories: 190, protein: 5, carbs: 34, fat: 4, fiber: 1, sugar: 7, sodiumMg: 400 }
     ),
     food(
       "prepared-waffle-plain",
@@ -164,7 +166,7 @@
       ["baked beans", "beans baked", "barbecue baked beans"],
       ["side", "beans"],
       { label: "1 cup", unit: "cup", grams: 250 },
-      { calories: 240, protein: 12, carbs: 48, fat: 2, fiber: 10, sugar: 18, sodiumMg: 850 }
+      { calories: 260, protein: 12, carbs: 48, fat: 2, fiber: 10, sugar: 18, sodiumMg: 850 }
     ),
     food(
       "prepared-potato-salad",
