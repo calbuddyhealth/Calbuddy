@@ -1,15 +1,14 @@
 // ARI vNext — bounded universal conversational reference context.
 //
 // Purpose:
-// - Detect short context-dependent follow-ups such as "log them", "change it",
-//   "do that", "log the second item", or "join the second one".
+// - Detect short context-dependent follow-ups and real-world correction turns.
 // - Prefer recent canonical app references from trusted executors and current
 //   authoritative app context over free-form conversation text.
 // - Keep mutation authorization and reference resolution separate: only the
 //   CURRENT user message can authorize a write; prior state may identify target.
 // - Add no extra model call. Trusted domain adapters remain authoritative.
 
-export const REFERENCE_CONTEXT_VERSION = "1.3.0";
+export const REFERENCE_CONTEXT_VERSION = "1.4.0";
 
 const MAX_REFERENCE_TURNS = 8;
 const MAX_REFERENCE_TEXT = 900;
@@ -18,8 +17,19 @@ const MAX_PACKET_CHARACTERS = 6200;
 
 const REFERENCE_MARKER = /\b(?:it|its|them|they|their|that|this|those|these|one|ones|the other one|the (?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|(?:first|second|third) (?:one|item|meal|option|workout|meetup|mission|crew)|former|latter|same one|previous one|last one)\b/i;
 const CONTINUATION_PHRASE = /^(?:and|but|then|instead|okay|ok|yeah|yes|no|nope|make it|do that|use that|use it|go with that|go with it|the other one)\b/i;
+const CORRECTION_PHRASE = /^(?:actually\b|no[,;:]?\s+(?:i\s+)?meant\b|i\s+meant\b|wait[,;:]?\b|sorry[,;:]?\b|correction\b|rather\b)/i;
 const ORDINAL_REFERENCE = /\b(?:the\s+)?(first|second|third)\s+(?:one|item|meal|option|workout|activity|weigh-?in|meetup|mission|crew)?\b/i;
 const ORDINALS = Object.freeze({ first: 1, second: 2, third: 3 });
+const GENERIC_SELECTOR_WORDS = new Set([
+  "actually", "again", "that", "this", "those", "these", "them", "they", "their", "it", "its",
+  "one", "ones", "other", "same", "previous", "last", "first", "second", "third", "item", "option",
+  "please", "can", "could", "would", "will", "you", "make", "change", "update", "edit", "correct", "fix",
+  "delete", "remove", "undo", "replace", "swap", "log", "record", "save", "add", "use", "meant", "mean",
+  "instead", "rather", "sorry", "wait", "with", "without", "from", "into", "before", "after", "then",
+  "meal", "food", "workout", "activity", "weight", "weighin", "meetup", "mission", "crew",
+  "breakfast", "lunch", "dinner", "snack", "today", "yesterday", "tomorrow",
+  "ounce", "ounces", "gram", "grams", "calorie", "calories", "protein", "carbs", "fat"
+]);
 
 const DOMAIN_PATTERNS = {
   nutrition: /\b(?:calorie|calories|kcal|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|eaten|breakfast|lunch|dinner|snack|nutrition|diet|potato|potatoes|rice|chicken|beef|salmon|egg|eggs|drink|drank)\b/i,
@@ -31,8 +41,8 @@ const DOMAIN_PATTERNS = {
 
 export function isReferenceFollowUp(message = "") {
   const text = clean(message, 600);
-  if (!text || text.length > 240) return false;
-  return REFERENCE_MARKER.test(text) || CONTINUATION_PHRASE.test(text);
+  if (!text || text.length > 300) return false;
+  return REFERENCE_MARKER.test(text) || CONTINUATION_PHRASE.test(text) || CORRECTION_PHRASE.test(text);
 }
 
 export function activeReferenceDomains(referenceState = {}) {
@@ -58,9 +68,15 @@ export function resolveReferenceTarget({ message = "", referenceState = {}, rout
     return resolution("context_only", "no_authoritative_app_reference");
   }
 
-  const candidates = narrowByCurrentMessage(authoritative, text, route);
+  const narrowed = narrowByCurrentMessage(authoritative, text, route);
+  const candidates = narrowed.candidates;
   if (!candidates.length) {
-    return resolution("unresolved", "no_compatible_authoritative_target");
+    return resolution(
+      "unresolved",
+      narrowed.explicitSelectorMiss ? "explicit_selector_not_found" : "no_compatible_authoritative_target",
+      [],
+      narrowed.explicitSelectorMiss
+    );
   }
 
   const ordinal = explicitOrdinal(text);
@@ -76,7 +92,11 @@ export function resolveReferenceTarget({ message = "", referenceState = {}, rout
   }
 
   if (candidates.length === 1) {
-    return resolution("resolved", "unique_authoritative_target", candidates);
+    return resolution(
+      "resolved",
+      narrowed.selectorApplied ? "unique_authoritative_named_target" : "unique_authoritative_target",
+      candidates
+    );
   }
 
   return resolution("ambiguous", "multiple_authoritative_targets", candidates, true);
@@ -107,6 +127,7 @@ export function buildReferencePacket(turn = {}, route = {}) {
       : "recent_conversation_reference_index",
     currentMessage: message.slice(0, 600),
     referenceDetected: REFERENCE_MARKER.test(message),
+    correctionDetected: CORRECTION_PHRASE.test(message),
     resolution: resolveReferenceTarget({
       message,
       referenceState: turn?.context?.referenceState,
@@ -124,6 +145,8 @@ export function buildReferencePacket(turn = {}, route = {}) {
       preferAuthoritativeAppStateOnConflict: true,
       useExplicitOrdinalWithinSameCollection: true,
       deterministicResolutionPrecedesModelChoice: true,
+      correctionLanguageMayResolveTargetButNeverGrantWritePermission: true,
+      explicitSelectorMissMustNotRetarget: true,
       clarifyWhenAmbiguous: true,
       neverInventMissingTarget: true
     }
@@ -134,6 +157,7 @@ export function buildReferencePacket(turn = {}, route = {}) {
 
 function narrowByCurrentMessage(candidates = [], message = "", route = {}) {
   let output = [...candidates];
+  let selectorApplied = false;
   const explicitDomains = inferDomains(message).filter((domain) => domain !== "general");
 
   if (explicitDomains.length === 1) {
@@ -152,7 +176,37 @@ function narrowByCurrentMessage(candidates = [], message = "", route = {}) {
     if (narrowed.length) output = narrowed;
   }
 
-  return output;
+  const category = mealCategoryHint(message);
+  if (category) {
+    selectorApplied = true;
+    const categoryMatches = output.filter((candidate) => candidateMealCategory(candidate) === category);
+    if (categoryMatches.length) output = categoryMatches;
+    else return { candidates: [], selectorApplied: true, explicitSelectorMiss: true };
+  }
+
+  const explicitDate = explicitDateHint(message);
+  if (explicitDate) {
+    selectorApplied = true;
+    const dateMatches = output.filter((candidate) => candidateDate(candidate) === explicitDate);
+    if (dateMatches.length) output = dateMatches;
+    else return { candidates: [], selectorApplied: true, explicitSelectorMiss: true };
+  }
+
+  const selectorTokens = namedSelectorTokens(message);
+  if (selectorTokens.length) {
+    const scored = output
+      .map((candidate) => ({ candidate, score: selectorScore(candidate, selectorTokens) }))
+      .filter((item) => item.score > 0);
+    const best = scored.length ? Math.max(...scored.map((item) => item.score)) : 0;
+    if (best > 0) {
+      selectorApplied = true;
+      output = scored.filter((item) => item.score === best).map((item) => item.candidate);
+    } else if (hasLikelyNamedSelector(message, selectorTokens)) {
+      return { candidates: [], selectorApplied: true, explicitSelectorMiss: true };
+    }
+  }
+
+  return { candidates: output, selectorApplied, explicitSelectorMiss: false };
 }
 
 function entityTypeHints(message = "") {
@@ -167,6 +221,78 @@ function entityTypeHints(message = "") {
   if (/\bmission\b/.test(text)) types.push("mission");
   if (/\bcrew\b/.test(text)) types.push("crew");
   return Array.from(new Set(types));
+}
+
+function mealCategoryHint(message = "") {
+  const match = clean(message, 600).toLowerCase().match(/\b(breakfast|lunch|dinner|snack)\b/);
+  return match ? match[1] : "";
+}
+
+function candidateMealCategory(candidate = {}) {
+  const direct = clean(candidate?.details?.mealCategory ?? candidate?.details?.meal_slot ?? candidate?.details?.mealSlot, 60).toLowerCase();
+  if (["breakfast", "lunch", "dinner", "snack"].includes(direct)) return direct;
+  const label = clean(candidate?.label, 220).toLowerCase();
+  const match = label.match(/\b(breakfast|lunch|dinner|snack)\b/);
+  return match ? match[1] : "";
+}
+
+function explicitDateHint(message = "") {
+  const match = clean(message, 600).match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  return match ? match[1] : "";
+}
+
+function candidateDate(candidate = {}) {
+  const values = [
+    candidate?.details?.nutritionDate,
+    candidate?.details?.logDate,
+    candidate?.details?.date,
+    candidate?.canonical?.nutritionDate,
+    candidate?.canonical?.logDate,
+    candidate?.canonical?.date
+  ];
+  for (const value of values) {
+    const text = clean(value, 40);
+    if (/^20\d{2}-\d{2}-\d{2}$/.test(text)) return text;
+  }
+  return "";
+}
+
+function namedSelectorTokens(message = "") {
+  return normalizeWords(message)
+    .filter((word) => word.length >= 3)
+    .filter((word) => !GENERIC_SELECTOR_WORDS.has(word))
+    .filter((word) => !/^\d+(?:\.\d+)?$/.test(word))
+    .slice(0, 8);
+}
+
+function hasLikelyNamedSelector(message = "", tokens = []) {
+  if (!tokens.length) return false;
+  const text = clean(message, 600).toLowerCase();
+  return /\b(?:the|my)\s+[a-z0-9]/.test(text) || CORRECTION_PHRASE.test(text);
+}
+
+function selectorScore(candidate = {}, selectorTokens = []) {
+  const candidateTokens = new Set(normalizeWords([
+    candidate?.label,
+    candidate?.details?.name,
+    candidate?.details?.title,
+    candidate?.details?.activityName,
+    candidate?.details?.activity,
+    candidate?.details?.focus
+  ].filter(Boolean).join(" ")));
+  let score = 0;
+  for (const token of selectorTokens) {
+    if (candidateTokens.has(token)) score += 1;
+  }
+  return score;
+}
+
+function normalizeWords(value = "") {
+  return clean(value, 1000)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
 function explicitOrdinal(message = "") {
@@ -231,7 +357,7 @@ function normalizeAppReference(reference = {}, index = 0) {
   const domain = clean(reference?.domain, 40).toLowerCase() || "general";
   const state = clean(reference?.state, 40).toLowerCase() || "discussed";
   const canonical = compactObject(reference?.canonical, 10);
-  const details = compactObject(reference?.details, 12);
+  const details = compactObject(reference?.details, 14);
   const verification = compactObject(reference?.verification, 8);
   const trustedExecutor = verification?.verifiedByTrustedExecutor === true;
   const trustedContext = verification?.verifiedByTrustedContext === true && verification?.currentContextRead === true;
