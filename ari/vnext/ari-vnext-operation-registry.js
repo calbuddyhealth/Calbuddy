@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.0.1";
+  const VERSION = "2.1.0";
   const SOURCE = "ari_vnext_operation_registry";
   const NEXT = Object.freeze({ next: true });
   const operations = new Map();
@@ -141,18 +141,6 @@
 
   const registry = Object.freeze({ version: VERSION, source: SOURCE, ready: true, NEXT, registerOperation, registerApplicationExecutor, registerAfterExecution, prepare, createPending, executeConfirmed, executeApplication, normalizeExecution, reconcileOrphanedLegacyPending, snapshot });
   window.AriVNextOperationRegistry = registry;
-
-  // Temporary API-name compatibility only. Runtime/older continuity code may still
-  // call AriVNextActionAdapter while their source-shape contracts are being retired;
-  // all authority now delegates into this registry and no legacy mapper executes.
-  const compatibility = window.AriVNextActionAdapter || {};
-  compatibility.version = "registry-facade-1.0.0";
-  compatibility.source = "ari_vnext_operation_registry_facade";
-  compatibility.prepareCalBuddyAction = prepare;
-  compatibility.createCalBuddyPendingAction = createPending;
-  compatibility.executeConfirmed = executeConfirmed;
-  window.AriVNextActionAdapter = compatibility;
-  window.Ari.vNextActionAdapter = compatibility;
 
   reconcileOrphanedLegacyPending();
   window.dispatchEvent(new CustomEvent("ari:vnextOperationRegistryReady", { detail: { version: VERSION, source: SOURCE, operations: snapshot().operationNames } }));
