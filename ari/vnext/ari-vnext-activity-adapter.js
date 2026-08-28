@@ -163,11 +163,10 @@
   async function updateReferencedActivity({ activityId = "", logDate = "", changes = [] } = {}) {
     const resolved = await findReferencedActivity({ activityId, logDate });
     if (!resolved.success) return resolved;
-    const result = await resolved.service.updateActivity(
-      activityId,
-      applyReferenceChanges(resolved.activity, changes),
-      { source: "ari_vnext_reference_update" }
-    );
+    const service = resolved.service;
+    const result = await service.updateActivity(activityId, applyReferenceChanges(resolved.activity, changes), {
+      source: "ari_vnext_reference_update"
+    });
     return result?.success ? result : {
       success: false,
       code: result?.code || "activity_reference_update_failed",
@@ -178,7 +177,8 @@
   async function deleteReferencedActivity({ activityId = "", logDate = "" } = {}) {
     const resolved = await findReferencedActivity({ activityId, logDate });
     if (!resolved.success) return resolved;
-    const result = await resolved.service.deleteActivity(activityId);
+    const service = resolved.service;
+    const result = await service.deleteActivity(activityId);
     return result?.success ? result : {
       success: false,
       code: result?.code || "activity_reference_delete_failed",
