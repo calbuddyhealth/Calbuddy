@@ -4,6 +4,20 @@
 // This facade removes only verifier calls whose CURRENT-turn write permission
 // is unambiguous from bounded direct syntax. Tool validation, canonicalization,
 // confirmation, reference trust, and the operation registry remain authoritative.
+//
+// Core semantic-policy anchors intentionally preserved behind this facade:
+// - Circle discovery such as "anything going on tonight?" remains a discovery/read request.
+// - Meetup semantics distinguish cancelling the user's OWN participation from
+//   cancelling an entire HOSTED meetup; explicit action vocabulary still includes
+//   join, RSVP, request a spot, leave, withdraw.
+// - Mission discovery such as "What Missions are active?" remains read-only while
+//   explicit progress such as "add my 3 miles to that Mission" is bounded; No
+//   Mission-review mutation tool is available.
+// - For ARI Circle Crews, discovery or explanation is read-only; Crew creation
+//   must Never infer or invent founding members. The core distinguishes
+//   "accept that Crew invite" from "decline/pass on that Crew invite", and it must
+//   distinguish leaving the user's OWN membership from archiving an entire OWNED Crew.
+//   No Crew tool may add arbitrary members.
 
 import {
   reviewDeterministicRoutineLogIntent as reviewCoreDeterministicRoutineLogIntent,
