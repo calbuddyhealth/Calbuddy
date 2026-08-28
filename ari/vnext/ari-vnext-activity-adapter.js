@@ -1,13 +1,17 @@
-// ARI vNext — activity logging extension.
-// Adds trusted activity logging plus canonical reference edit/delete helpers
-// without modifying legacy meal/workout execution.
+// ARI vNext — Activity domain adapter.
+//
+// Activity preparation, persistence, and reference mutations delegate to the
+// canonical ActivityLogService. This module no longer monkey-patches
+// AriVNextActionAdapter or CalBuddy.executeAction; the operation registry is the
+// single execution boundary.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "2.0.0";
   const SOURCE = "ari_vnext_activity_adapter";
   let servicePromise = null;
+  let executorRegistered = false;
 
   function clean(value = "", max = 180) {
     return String(value ?? "").trim().slice(0, max);
@@ -33,7 +37,7 @@
     };
   }
 
-  async function mapActivity(pending = {}, args = {}) {
+  async function prepare(pending = {}, args = {}) {
     const service = await loadService();
     const prepared = await service.prepareActivity({
       activityName: args.activityName,
@@ -60,13 +64,27 @@
 
     const activity = prepared.activity;
     const estimateLabel = activity.calorie_source === "profile_estimate" ? " estimated" : "";
-
     return successAction(pending, {
       action_type: "log_activity",
       payload: activity,
       confirmation_text:
         `Log ${activity.activity_name}${activity.duration_minutes ? ` for ${Math.round(activity.duration_minutes)} min` : ""} — ${Math.round(activity.calories_burned)}${estimateLabel} kcal?`
     });
+  }
+
+  async function execute(action = {}) {
+    const service = await loadService();
+    const result = await service.logActivity(action?.payload || {}, {
+      source: clean(action?.payload?.source || "ari_vnext", 80)
+    });
+    if (!result?.success) {
+      return {
+        success: false,
+        code: result?.code || "activity_log_failed",
+        message: result?.message || "Activity could not be saved."
+      };
+    }
+    return result;
   }
 
   function activityInputFromRow(row = {}) {
@@ -112,17 +130,10 @@
       input.calorieSource = null;
       input.estimationMethod = null;
     } else {
-      const estimationDrivers = [
-        "activity_name",
-        "duration_minutes",
-        "sets",
-        "reps_per_set",
-        "intensity",
-        "average_heart_rate"
-      ];
+      const drivers = ["activity_name", "duration_minutes", "sets", "reps_per_set", "intensity", "average_heart_rate"];
       const shouldReestimate =
         clean(existing?.calorie_source, 40) === "profile_estimate" &&
-        estimationDrivers.some((field) => fields.has(field));
+        drivers.some((field) => fields.has(field));
       if (shouldReestimate) {
         input.caloriesBurned = null;
         input.calorieSource = null;
@@ -146,130 +157,62 @@
     if (!activity) {
       return { success: false, code: "activity_reference_not_found", message: "That recent activity is no longer available." };
     }
-
     return { success: true, activity, service };
   }
 
   async function updateReferencedActivity({ activityId = "", logDate = "", changes = [] } = {}) {
     const resolved = await findReferencedActivity({ activityId, logDate });
     if (!resolved.success) return resolved;
-
-    const input = applyReferenceChanges(resolved.activity, changes);
-    const result = await resolved.service.updateActivity(activityId, input, {
-      source: "ari_vnext_reference_update"
-    });
-    if (!result?.success) {
-      return {
-        success: false,
-        code: result?.code || "activity_reference_update_failed",
-        message: result?.message || "That activity could not be updated."
-      };
-    }
-    return result;
+    const result = await resolved.service.updateActivity(
+      activityId,
+      applyReferenceChanges(resolved.activity, changes),
+      { source: "ari_vnext_reference_update" }
+    );
+    return result?.success ? result : {
+      success: false,
+      code: result?.code || "activity_reference_update_failed",
+      message: result?.message || "That activity could not be updated."
+    };
   }
 
   async function deleteReferencedActivity({ activityId = "", logDate = "" } = {}) {
     const resolved = await findReferencedActivity({ activityId, logDate });
     if (!resolved.success) return resolved;
-
     const result = await resolved.service.deleteActivity(activityId);
-    if (!result?.success) {
-      return {
-        success: false,
-        code: result?.code || "activity_reference_delete_failed",
-        message: result?.message || "That activity could not be deleted."
-      };
-    }
-    return result;
+    return result?.success ? result : {
+      success: false,
+      code: result?.code || "activity_reference_delete_failed",
+      message: result?.message || "That activity could not be deleted."
+    };
   }
 
-  function patchVNextAdapter() {
-    const adapter = window.AriVNextActionAdapter;
-    if (!adapter || adapter.__activityLoggingV1) return Boolean(adapter);
-
-    const originalPrepare = adapter.prepareCalBuddyAction.bind(adapter);
-    const originalToCalBuddy = adapter.toCalBuddyAction.bind(adapter);
-
-    adapter.prepareCalBuddyAction = async function patchedPrepare(pendingAction = {}) {
-      if (clean(pendingAction?.name, 120) === "log_activity") {
-        return await mapActivity(pendingAction, pendingAction?.arguments || {});
-      }
-      return await originalPrepare(pendingAction);
-    };
-
-    adapter.toCalBuddyAction = function patchedSyncMap(pendingAction = {}) {
-      if (clean(pendingAction?.name, 120) === "log_activity") {
-        return {
-          success: false,
-          code: "activity_requires_profile_resolution",
-          message: "Activity logging is prepared asynchronously from the user's profile."
-        };
-      }
-      return originalToCalBuddy(pendingAction);
-    };
-
-    Object.defineProperty(adapter, "__activityLoggingV1", {
-      configurable: false,
-      enumerable: false,
-      value: true
-    });
-
-    return true;
-  }
-
-  function patchCalBuddyExecutor() {
-    window.CalBuddy = window.CalBuddy || {};
-    if (window.CalBuddy.__activityExecutorV1) return true;
-    if (typeof window.CalBuddy.executeAction !== "function") return false;
-
-    const originalExecute = window.CalBuddy.executeAction.bind(window.CalBuddy);
-
-    window.CalBuddy.executeAction = async function patchedExecute(action = {}) {
-      const type = clean(action?.action_type || action?.type, 120);
-      if (type !== "log_activity") return await originalExecute(action);
-
-      const service = await loadService();
-      const result = await service.logActivity(action?.payload || {}, {
-        source: clean(action?.payload?.source || "ari_vnext", 80)
-      });
-
-      if (!result?.success) {
-        throw new Error(result?.message || "Activity could not be saved.");
-      }
-
-      return result;
-    };
-
-    Object.defineProperty(window.CalBuddy, "__activityExecutorV1", {
-      configurable: false,
-      enumerable: false,
-      value: true
-    });
-
-    return true;
-  }
-
-  function install() {
-    const adapterReady = patchVNextAdapter();
-    const executorReady = patchCalBuddyExecutor();
-
-    if (!adapterReady || !executorReady) {
-      window.setTimeout(install, 25);
-      return;
-    }
-
-    window.AriVNextActivityAdapter = Object.freeze({
-      version: VERSION,
+  function registerExecutor() {
+    if (executorRegistered) return true;
+    const registry = window.AriVNextOperationRegistry;
+    if (!registry?.ready || typeof registry.registerApplicationExecutor !== "function") return false;
+    registry.registerApplicationExecutor("log_activity", {
       source: SOURCE,
-      prepare: mapActivity,
-      updateReferencedActivity,
-      deleteReferencedActivity
+      priority: 1200,
+      execute
     });
-
-    window.dispatchEvent(new CustomEvent("ari:vnextActivityReady", {
-      detail: { version: VERSION }
-    }));
+    executorRegistered = true;
+    return true;
   }
 
-  install();
+  window.AriVNextActivityAdapter = Object.freeze({
+    version: VERSION,
+    source: SOURCE,
+    prepare,
+    execute,
+    updateReferencedActivity,
+    deleteReferencedActivity
+  });
+
+  if (!registerExecutor()) {
+    window.addEventListener("ari:vnextOperationRegistryReady", registerExecutor, { once: true });
+  }
+
+  window.dispatchEvent(new CustomEvent("ari:vnextActivityReady", {
+    detail: { version: VERSION, source: SOURCE }
+  }));
 })();
