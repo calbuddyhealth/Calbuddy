@@ -11,6 +11,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 const extension = read("ari/vnext/ari-vnext-reference-capability-extension.js");
 const nutritionAdapter = read("ari/vnext/ari-vnext-nutrition-reference-adapter.js");
+const nutritionService = read("js/nutrition/nutrition-service.js");
 const weightAdapter = read("ari/vnext/ari-vnext-weight-adapter.js");
 const initiative = read("ari/vnext/ari-vnext-initiative.js");
 const migration = read("supabase/migrations/20260827010000_nutrition_reference_meal_update.sql");
@@ -135,9 +136,12 @@ test("browser extension resolves canonical pointers and delegates to trusted ada
   assert.doesNotMatch(extension, /localStorage\.setItem\([^)]*reference/i);
 });
 
-test("trusted meal and weight adapters remain user-scoped", () => {
-  assert.match(nutritionAdapter, /ari_update_nutrition_meal/);
-  assert.match(nutritionAdapter, /getCurrentSession/);
+test("trusted meal and weight persistence remains user-scoped after service consolidation", () => {
+  assert.match(nutritionAdapter, /NutritionService/);
+  assert.match(nutritionAdapter, /service\.updateMeal/);
+  assert.doesNotMatch(nutritionAdapter, /\.rpc\(/);
+  assert.match(nutritionService, /ari_update_nutrition_meal/);
+  assert.match(nutritionService, /currentSession/);
   assert.match(weightAdapter, /\.eq\("user_id", auth\.userId\)/);
   assert.match(weightAdapter, /\.eq\("user_id", resolved\.userId\)/);
 });
