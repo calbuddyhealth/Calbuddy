@@ -30,10 +30,6 @@ const orchestratorSource = await readFile(
   new URL("../api/_lib/ari-vnext/orchestrator.js", import.meta.url),
   "utf8"
 );
-const orchestratorCoreSource = await readFile(
-  new URL("../api/_lib/ari-vnext/orchestrator-core.js", import.meta.url),
-  "utf8"
-);
 
 function row({
   domain = "general",
@@ -321,7 +317,6 @@ test("Ari vNext uses personalized communication for ordinary conversations, not 
   assert.match(apiSource, /summarizeCommunicationLearning\(communicationOutcomes, \{ route: routePreview \}\)/);
   assert.match(apiSource, /buildCommunicationExposure\(\{[\s\S]*turn[\s\S]*\}\)/);
   assert.doesNotMatch(apiSource, /const communicationLearning = fitnessRoute \?/);
-  assert.match(orchestratorSource, /runAriVNextCore/);
-  assert.match(orchestratorCoreSource, /resolvePersonalizedCommunicationProfile/);
-  assert.match(orchestratorCoreSource, /learning: turn\?\.context\?\.communicationLearning/);
+  assert.match(orchestratorSource, /resolvePersonalizedCommunicationProfile/);
+  assert.match(orchestratorSource, /learning: turn\?\.context\?\.communicationLearning/);
 });

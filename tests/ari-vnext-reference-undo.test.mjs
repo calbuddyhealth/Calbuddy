@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -14,6 +15,17 @@ import { reviewDeterministicRoutineLogIntent } from "../api/_lib/ari-vnext/actio
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+
+const MEAL_MUTATION_ID = "11111111-1111-4111-8111-111111111111";
+
+function makeSessionStorage() {
+  const values = new Map();
+  return {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); },
+    removeItem(key) { values.delete(key); }
+  };
+}
 
 test("Nutrition exposes a reference-only Undo capability", () => {
   const tools = getAriTools({ nutrition: true });
@@ -61,19 +73,126 @@ test("explicit current-turn Undo is verified without history granting permission
   assert.equal(statement, null);
 });
 
-test("reference Undo lifecycle follows authoritative execution output and tombstones the target", () => {
-  const lifecycle = read("ari/vnext/ari-vnext-reference-state.js");
-  const registry = read("ari/vnext/ari-vnext-operation-registry.js");
+test("browser reference lifecycle resolves canonical mutation id, executes journal Undo, and tombstones the target", async () => {
+  const source = read("ari/vnext/ari-vnext-reference-state.js");
+  new vm.Script(source, { filename: "ari-vnext-reference-state.js" });
 
-  assert.match(lifecycle, /const authoritative = execution\?\.authoritativeReference/);
-  assert.match(lifecycle, /const target = authoritative\?\.target \|\| resolveReference\(pendingAction\?\.arguments\?\.referenceId/);
-  assert.match(lifecycle, /const operation = clean\(authoritative\?\.operation/);
-  assert.match(lifecycle, /\/undo\|delete\/\.test\(operation\)/);
-  assert.match(lifecycle, /return tombstone\(target, conversationId\)/);
-  assert.match(lifecycle, /registry\.registerAfterExecution/);
-  assert.match(lifecycle, /const referenceLifecycle = commit\(\{ pendingAction, execution \}\)/);
-  assert.doesNotMatch(lifecycle, /AriVNextActionAdapter/);
-  assert.match(registry, /async function executeConfirmed/);
+  let legacyPending = null;
+  let bridgePending = null;
+  let undoneMutationId = null;
+  const sessionStorage = makeSessionStorage();
+
+  const CalBuddy = {
+    getConversationId: () => "conversation-reference-undo-test",
+    createPendingAction: async (action) => ({ ...action, id: "legacy-pending-1" }),
+    setPendingAction: (action) => { legacyPending = action; },
+    getPendingAction: () => legacyPending,
+    cancelPendingAction: () => { legacyPending = null; return true; },
+    undoNutritionMutation: async (mutationId) => {
+      undoneMutationId = mutationId;
+      return { success: true, mutationId, todayCalories: 1234 };
+    }
+  };
+
+  const AriVNextActionAdapter = {
+    createCalBuddyPendingAction: async () => ({ success: false, code: "unexpected_original_create" }),
+    executeConfirmed: async () => ({ success: false, code: "unexpected_original_execute" })
+  };
+
+  const AriVNextBridge = {
+    ask: async () => ({ success: true }),
+    buildContext: async () => ({}),
+    getPendingAction: () => bridgePending
+  };
+
+  const window = {
+    Ari: {},
+    CalBuddy,
+    AriVNextActionAdapter,
+    AriVNextBridge,
+    setInterval,
+    clearInterval,
+    setTimeout,
+    dispatchEvent: () => true
+  };
+  window.window = window;
+
+  const context = vm.createContext({
+    window,
+    sessionStorage,
+    CustomEvent: class CustomEvent {
+      constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
+    },
+    console,
+    setInterval,
+    clearInterval,
+    setTimeout,
+    Date,
+    Math,
+    JSON,
+    Object,
+    String,
+    Number,
+    RegExp
+  });
+  vm.runInContext(source, context, { filename: "ari-vnext-reference-state.js" });
+
+  const mealPending = {
+    id: "vnext-log-meal-1",
+    name: "log_meal",
+    sourceTurnId: "turn-log-meal",
+    arguments: {
+      name: "5 small red potatoes",
+      calories: 300,
+      quantity: 5,
+      unit: "small potatoes",
+      mealCategory: "Meal"
+    }
+  };
+  window.AriVNextReferenceState.rememberPending({ pendingAction: mealPending });
+  const persisted = window.AriVNextReferenceState.commit({
+    pendingAction: mealPending,
+    execution: {
+      success: true,
+      result: {
+        saved: {
+          id: "22222222-2222-4222-8222-222222222222",
+          ari_mutation_id: MEAL_MUTATION_ID,
+          nutrition_date: "2026-08-27"
+        }
+      }
+    }
+  });
+
+  assert.equal(persisted?.state, "persisted");
+  assert.equal(persisted?.canonical?.mutationId, MEAL_MUTATION_ID);
+
+  const undoPending = {
+    id: "vnext-undo-meal-1",
+    name: "undo_nutrition_mutation",
+    sourceTurnId: "turn-undo-meal",
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    arguments: { referenceId: persisted.referenceId }
+  };
+  bridgePending = undoPending;
+
+  const prepared = await window.AriVNextActionAdapter.createCalBuddyPendingAction(undoPending);
+  assert.equal(prepared.success, true);
+  assert.equal(prepared.action.action_type, "undo_nutrition_mutation");
+  assert.equal(prepared.action.payload.mutation_id, MEAL_MUTATION_ID);
+  assert.match(prepared.action.confirmation_text, /5 small red potatoes/i);
+
+  const execution = await window.AriVNextActionAdapter.executeConfirmed({
+    vnextPendingAction: undoPending,
+    currentTurnId: "turn-confirm-undo"
+  });
+
+  assert.equal(execution.success, true);
+  assert.equal(undoneMutationId, MEAL_MUTATION_ID);
+  assert.equal(execution.referenceLifecycle?.state, "deleted");
+  assert.equal(execution.referenceLifecycle?.referenceId, persisted.referenceId);
+  assert.equal(window.AriVNextReferenceState.snapshot(), null);
+  assert.equal(legacyPending, null);
 });
 
 test("reference lifecycle never trusts a model-supplied mutation id", () => {
@@ -82,8 +201,8 @@ test("reference lifecycle never trusts a model-supplied mutation id", () => {
 
   assert.match(tools, /properties:\s*\{\s*referenceId:/);
   assert.doesNotMatch(tools, /properties:\s*\{\s*mutationId:/);
-  assert.match(lifecycle, /canonical\.mutationId = clean\(findValue\(result, \["ari_mutation_id", "mutationId"\]\)/);
-  assert.match(lifecycle, /verifiedByTrustedExecutor: true/);
-  assert.match(lifecycle, /authoritative\?\.target \|\| resolveReference/);
+  assert.match(lifecycle, /target\?\.canonical\?\.mutationId/);
+  assert.match(lifecycle, /verifiedByTrustedExecutor !== true/);
+  assert.match(lifecycle, /undoNutritionMutation\(mutationId\)/);
   assert.match(lifecycle, /state: "deleted"/);
 });

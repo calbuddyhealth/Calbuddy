@@ -5,7 +5,6 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("../ari-circle-v6.html", import.meta.url), "utf8");
 const controller = await readFile(new URL("../js/ari-circle/v6/action-network-v6.js", import.meta.url), "utf8");
 const bundles = await readFile(new URL("../js/ari-circle/v6/intent-bundles-v1.js", import.meta.url), "utf8");
-const ownerBeta = await readFile(new URL("../js/ari-circle/v6/ari-next-owner-beta-v1.js", import.meta.url), "utf8");
 const searchLocation = await readFile(new URL("../js/ari-circle/location/search-location-v1.js", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/ari-circle-v6-experience.css", import.meta.url), "utf8");
 const productionMenu = await readFile(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
@@ -13,9 +12,8 @@ const shell = await readFile(new URL("../js/ari-circle/v5-real-world.js", import
 const homeHtml = await readFile(new URL("../home.html", import.meta.url), "utf8");
 const legacyProfileHtml = await readFile(new URL("../ari-circle.html", import.meta.url), "utf8");
 
-test("ARI Next remains one integrated Action Network intelligence surface while marked owner beta", () => {
-  assert.match(html, /<title>ARI Next Beta \| ARI Circle<\/title>/i);
-  assert.match(html, /ARI NEXT · OWNER BETA/i);
+test("ARI Next is one integrated Action Network intelligence surface rather than another feed or manual browser", () => {
+  assert.match(html, /<title>ARI Next \| ARI Circle<\/title>/i);
   assert.match(html, /What are you up for\?/i);
   assert.match(html, /id="v6ForYouTitle"[^>]*>Best next</i);
   assert.match(html, /href="ari-circle-explore\.html"/i);
@@ -32,21 +30,11 @@ test("ARI Next remains one integrated Action Network intelligence surface while 
 test("V6 controller is valid browser JavaScript and reads sanitized server Action Network context", () => {
   assert.doesNotThrow(() => new Function(controller));
   assert.doesNotThrow(() => new Function(bundles));
-  assert.doesNotThrow(() => new Function(ownerBeta));
   assert.match(controller, /fetch\("\/api\/ari-vnext-circle-context"/);
   assert.match(controller, /Authorization: `Bearer \$\{token\}`/);
   assert.match(controller, /data\?\.available !== true/);
   assert.doesNotMatch(controller, /\.from\s*\(/);
   assert.doesNotMatch(controller, /SUPABASE_SERVICE_ROLE_KEY/);
-});
-
-test("owner bootstrap prevents public ARI Next behavior from loading before owner verification", () => {
-  assert.match(ownerBeta, /\/api\/ari-github-read/);
-  assert.match(ownerBeta, /body\?\.isOwner === true/);
-  assert.match(ownerBeta, /window\.location\.replace\("ari-circle-feed\.html"\)/);
-  assert.match(ownerBeta, /action-network-v6\.js\?v=0\.3\.0/);
-  assert.match(ownerBeta, /intent-bundles-v1\.js\?v=1\.3\.0/);
-  assert.doesNotMatch(html, /<script src="js\/ari-circle\/v6\/action-network-v6\.js/);
 });
 
 test("What are you up for creates private expiring Action Intents while Connect owns location controls", () => {
@@ -81,7 +69,6 @@ test("ARI Next exposes reasons and outcomes without exposing numeric Match Engin
   assert.doesNotMatch(controller, /\bmatchScore\b|\bmatch_score\b/);
   assert.doesNotMatch(bundles, /\bmatchScore\b|\bmatch_score\b|%\s*fit|\d+\s*fit/i);
   assert.match(bundles, /SUGGESTED/);
-  assert.match(bundles, /Dismiss suggestion/);
   assert.doesNotMatch(html, /compatibility\s*[:=]|match score|% compatible/i);
   assert.doesNotMatch(controller, /\b(likes|followers|views|popularity_score|sponsored_rank|premium_rank)\b/i);
 });
@@ -136,18 +123,18 @@ test("ARI Next stays mobile and Safari-safe without a second sticky navigation b
   assert.doesNotMatch(css, /v6-mode-nav|v6-moments-bridge/);
 });
 
-test("public Circle is Feed + Connect while owner accounts can reveal ARI Next", () => {
+test("Feed Connect ARI Next is the primary model while deeper features remain reachable", () => {
   assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
-  assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.2/);
-  assert.match(html, /ari-next-owner-beta-v1\.js\?v=1\.0\.0/);
+  assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.1/);
+  assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
+  assert.match(html, /intent-bundles-v1\.js\?v=1\.2\.0/);
   assert.match(html, /circle-menu-v5\.js\?v=2\.5\.0/);
   assert.match(html, /v5-real-world\.js\?v=5\.3\.0/);
-  assert.match(homeHtml, /class="ari-nav-link nav-circle"/i);
+  assert.match(homeHtml, /href="ari-circle-v6\.html"[^>]*class="ari-nav-link nav-circle"/i);
   assert.match(legacyProfileHtml, /id="circle-profile"/i);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
-  assert.match(shell, /if \(ownerBetaAccess\) links\.push\(navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\)\)/);
-  assert.match(shell, /feed-connect-public/);
+  assert.match(shell, /navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\)/);
   assert.match(shell, /ensureConnectModeNav/);
   assert.match(shell, />Meetups<\/a>/);
   assert.match(shell, />Missions<\/a>/);

@@ -1,25 +1,18 @@
 /* =============================================================
-   ARI CIRCLE — INTENT BUNDLES V1.3
+   ARI CIRCLE — INTENT BUNDLES V1
    V6 composition:
    private Action Intent → compatible people + public place + current opportunity.
    This layer can hand a one-time draft to the canonical Meet Up host form, but
    never auto-invites, auto-joins, or mutates meetup membership itself.
-   Suggested plans are explicitly dismissible and can be restored immediately.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.2.0";
   const DRAFT_STORAGE_KEY = "ariCircleMatchedMeetupDraftV1";
   const MAX_INTENTS = 2;
   const MAX_PEOPLE = 3;
-  const state = {
-    client: null,
-    busy: false,
-    mutationBusy: false,
-    refreshTimer: null,
-    lastDismissed: null
-  };
+  const state = { client: null, busy: false, refreshTimer: null };
 
   const $ = (id) => document.getElementById(id);
   const clean = (value, max = 1000) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -89,10 +82,7 @@
     return {
       intentId: clean(row?.intent_id, 120),
       activity: clean(row?.activity, 40) || "any",
-      experienceLevel: clean(row?.experience_level, 40) || "any",
-      intensity: clean(row?.intensity, 40) || "any",
       area: clean(row?.area, 100),
-      radiusMiles: Number(row?.radius_miles) || 25,
       startsAt: row?.time_window_start || null,
       endsAt: row?.time_window_end || null,
       desiredGroupMin: Math.max(1, Number(row?.desired_group_min) || 1),
@@ -132,7 +122,7 @@
     if (!section || !list) return;
 
     state.busy = true;
-    if (status && !state.lastDismissed) status.textContent = "Matching people, place, and time…";
+    if (status) status.textContent = "Matching people, place, and time…";
 
     try {
       const intentsRaw = await rpc("ari_circle_list_my_action_intents", {
@@ -143,17 +133,15 @@
 
       if (!intents.length) {
         list.replaceChildren();
-        section.hidden = !state.lastDismissed;
-        if (state.lastDismissed) renderUndoStatus(state.lastDismissed);
-        else if (status) status.textContent = "";
+        section.hidden = true;
+        if (status) status.textContent = "";
         return;
       }
 
       const bundles = await Promise.all(intents.map(bundleForIntent));
       renderBundles(bundles);
       section.hidden = false;
-      if (state.lastDismissed) renderUndoStatus(state.lastDismissed);
-      else if (status) status.textContent = "";
+      if (status) status.textContent = "";
     } catch (error) {
       console.warn("[ARI Circle Intent Bundles]", error);
       list.replaceChildren();
@@ -178,7 +166,6 @@
     const { intent = {}, people = [], opportunity = null, place = null } = bundle;
     const article = document.createElement("article");
     article.className = "v6-intent-bundle";
-    article.dataset.intentId = clean(intent?.intentId, 120);
 
     const opportunityTitle = clean(opportunity?.title, 120);
     const placeName = clean(place?.place_name, 120);
@@ -229,105 +216,22 @@
       host.textContent = "Host a new one";
       host.addEventListener("click", () => handoffMatchedPlan(bundle));
       actions.append(host);
-    } else {
-      const make = document.createElement("button");
-      make.className = "v6-card-action is-primary";
-      make.type = "button";
-      make.textContent = "Make this happen";
-      make.addEventListener("click", () => handoffMatchedPlan(bundle));
-      actions.append(make);
-
-      if (opportunityTitle) {
-        const open = document.createElement("a");
-        open.className = "v6-card-action";
-        open.href = opportunityHref(opportunity);
-        open.textContent = "Open match";
-        actions.append(open);
-      }
+      return;
     }
 
-    const dismiss = document.createElement("button");
-    dismiss.className = "v6-card-action is-dismiss";
-    dismiss.type = "button";
-    dismiss.textContent = "Dismiss suggestion";
-    dismiss.addEventListener("click", () => dismissSuggestion(bundle?.intent));
-    actions.append(dismiss);
-  }
+    const make = document.createElement("button");
+    make.className = "v6-card-action is-primary";
+    make.type = "button";
+    make.textContent = "Make this happen";
+    make.addEventListener("click", () => handoffMatchedPlan(bundle));
+    actions.append(make);
 
-  async function dismissSuggestion(intent = {}) {
-    const intentId = clean(intent?.intentId, 120);
-    if (!intentId || state.mutationBusy) return false;
-    const status = $("v6IntentBundleStatus");
-    state.mutationBusy = true;
-    if (status) status.textContent = "Dismissing suggestion…";
-
-    try {
-      const { data, error } = await state.client.rpc("ari_circle_cancel_action_intent", {
-        requested_intent_id: intentId
-      });
-      if (error) throw error;
-      if (data !== true) throw new Error("That suggestion is no longer active.");
-      state.lastDismissed = { ...intent };
-      window.dispatchEvent(new CustomEvent("ari:circleChanged", { detail: { source: "ari_next_intent_bundle_dismiss" } }));
-      await window.AriCircleActionNetworkV6?.refresh?.();
-      await loadBundles();
-      renderUndoStatus(state.lastDismissed);
-      return true;
-    } catch (error) {
-      if (status) status.textContent = clean(error?.message, 240) || "That suggestion could not be dismissed.";
-      return false;
-    } finally {
-      state.mutationBusy = false;
-    }
-  }
-
-  function renderUndoStatus(intent) {
-    const status = $("v6IntentBundleStatus");
-    if (!status || !intent) return;
-    status.replaceChildren();
-    const text = document.createElement("span");
-    text.textContent = `${activityLabel(intent.activity)} suggestion dismissed. `;
-    const undo = document.createElement("button");
-    undo.type = "button";
-    undo.className = "v6-inline-undo";
-    undo.textContent = "Undo";
-    undo.addEventListener("click", () => restoreSuggestion(intent));
-    status.append(text, undo);
-  }
-
-  async function restoreSuggestion(intent = {}) {
-    if (state.mutationBusy || !intent?.startsAt || !intent?.endsAt) return false;
-    const status = $("v6IntentBundleStatus");
-    state.mutationBusy = true;
-    if (status) status.textContent = "Restoring suggestion…";
-
-    try {
-      const { error } = await state.client.rpc("ari_circle_create_action_intent", {
-        requested_activity: clean(intent?.activity, 40).toLowerCase() || "any",
-        requested_time_window_start: intent.startsAt,
-        requested_time_window_end: intent.endsAt,
-        requested_experience_level: clean(intent?.experienceLevel, 40).toLowerCase() || "any",
-        requested_intensity: clean(intent?.intensity, 40).toLowerCase() || "any",
-        requested_group_min: Math.max(1, Number(intent?.desiredGroupMin) || 1),
-        requested_group_max: Math.max(1, Number(intent?.desiredGroupMax) || 8),
-        requested_area: clean(intent?.area, 100) || null,
-        requested_radius_miles: Number(intent?.radiusMiles) || 25,
-        requested_note: null,
-        requested_latitude: null,
-        requested_longitude: null
-      });
-      if (error) throw error;
-      state.lastDismissed = null;
-      window.dispatchEvent(new CustomEvent("ari:circleChanged", { detail: { source: "ari_next_intent_bundle_restore" } }));
-      await window.AriCircleActionNetworkV6?.refresh?.();
-      await loadBundles();
-      if (status) status.textContent = "Suggestion restored.";
-      return true;
-    } catch (error) {
-      if (status) status.textContent = clean(error?.message, 240) || "That suggestion could not be restored.";
-      return false;
-    } finally {
-      state.mutationBusy = false;
+    if (opportunityTitle) {
+      const open = document.createElement("a");
+      open.className = "v6-card-action";
+      open.href = opportunityHref(opportunity);
+      open.textContent = "Open match";
+      actions.append(open);
     }
   }
 
@@ -423,10 +327,7 @@
   }
 
   function bind() {
-    window.addEventListener("ari:circleChanged", (event) => {
-      if (event?.detail?.source === "ari_next_intent_bundle_restore") state.lastDismissed = null;
-      scheduleRefresh(160);
-    });
+    window.addEventListener("ari:circleChanged", () => scheduleRefresh(160));
     $("v6Refresh")?.addEventListener("click", () => scheduleRefresh(250));
   }
 
@@ -443,12 +344,7 @@
 
   window.AriCircleIntentBundlesV1 = Object.freeze({
     version: VERSION,
-    refresh: loadBundles,
-    dismissIntent: async (intentId) => {
-      const rows = await rpc("ari_circle_list_my_action_intents", { include_inactive: false, result_limit: MAX_INTENTS });
-      const intent = rows.map(normalizeIntent).find((item) => item.intentId === clean(intentId, 120));
-      return intent ? dismissSuggestion(intent) : false;
-    }
+    refresh: loadBundles
   });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });

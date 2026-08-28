@@ -5,11 +5,9 @@ on:
     branches:
       - main
       - Ari-rebirth-experiment
-      - integration/ari-maintainability
   pull_request:
     branches:
       - main
-      - feature/ari-next-owner-beta-lifecycle
   workflow_dispatch:
 
 permissions:

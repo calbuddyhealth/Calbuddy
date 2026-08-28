@@ -32,43 +32,38 @@ test("Home resilience waits for the runtime controller before asking Ari", () =>
   assert.match(resilienceSource, /const response = await CalBuddy\.askAri/);
 });
 
-test("vNext dependencies use OperationRegistry as the sole application execution authority", () => {
+test("vNext dependencies include canonical Training, trusted action adapters, bridge, reference lifecycle, and initiative client", () => {
   for (const dependency of [
     "ari-vnext-training-context.js",
-    "ari-vnext-operation-registry.js",
+    "ari-vnext-action-adapter.js",
     "ari-vnext-activity-adapter.js",
-    "ari-vnext-meal-plan-adapter.js",
     "ari-vnext-bridge.js",
-    "ari-vnext-context-guard.js",
     "ari-vnext-reference-state.js",
     "ari-vnext-initiative.js"
   ]) {
     assert.match(runtimeSource, new RegExp(dependency.replaceAll(".", "\\.")));
   }
-  assert.doesNotMatch(runtimeSource, /ari-vnext-action-adapter\.js/);
-  assert.match(runtimeSource, /OperationRegistry is the only Ari application execution API/);
 });
 
 test("Mission-capable runtime cache chain reaches Home and iOS WebViews", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.5\.0"/);
+  assert.match(runtimeSource, /const VERSION = "1\.4\.4"/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
-  assert.match(runtimeSource, /ari-vnext-reference-state\.js\?v=1\.3\.0/);
-  assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.9\.0/);
-  assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.9\.0"\)/);
+  assert.match(runtimeSource, /ari-vnext-reference-state\.js\?v=1\.2\.0/);
+  assert.match(runtimeSource, /ari-vnext-initiative\.js\?v=1\.3\.0/);
+  assert.match(runtimeSource, /versionAtLeast\(window\.AriVNextInitiative\?\.version, "1\.3\.0"\)/);
   assert.match(initiativeSource, /ari-vnext-nutrition-resolution-adapter\.js\?v=1\.1\.0/);
   assert.match(initiativeSource, /AriVNextNutritionResolutionAdapter\?\.ready === true/);
   assert.match(resilienceSource, /Version: 1\.3\.4/);
   assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.4\.1"/);
-  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.5/);
+  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.4\.4/);
   assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.4/);
 });
 
 test("trusted app actions remain outside direct model execution", () => {
-  assert.match(runtimeSource, /AriVNextOperationRegistry\.createPending/);
-  assert.match(runtimeSource, /AriVNextOperationRegistry\.executeConfirmed/);
+  assert.match(runtimeSource, /createCalBuddyPendingAction/);
   assert.match(runtimeSource, /legacy\.confirmPendingAction/);
+  assert.match(runtimeSource, /executeConfirmed/);
   assert.match(runtimeSource, /Typed and button confirmations share the same trusted action boundary/);
-  assert.doesNotMatch(runtimeSource, /createCalBuddyPendingAction/);
 });
 
 test("typed yes and no cannot leave stale mapped pending actions", () => {
