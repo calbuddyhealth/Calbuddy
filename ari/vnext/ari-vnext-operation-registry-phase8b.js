@@ -19,7 +19,7 @@
   const CIRCLE_ACTION_TYPES = [
     "circle_create_meetup", "circle_join_meetup", "circle_leave_meetup", "circle_cancel_meetup",
     "circle_create_mission", "circle_join_mission", "circle_submit_mission_progress",
-    "circle_create_crew", "circle_accept_circle_crew_invite", "circle_decline_circle_crew_invite",
+    "circle_create_crew", "circle_accept_crew_invite", "circle_decline_crew_invite",
     "circle_leave_crew", "circle_archive_crew"
   ];
 
