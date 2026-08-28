@@ -27,6 +27,6 @@ test("deli records use one default portion with scalable servings", () => {
 });
 
 test("Nutrition loader includes deli meats module", () => {
-  assert.match(loader, /const VERSION = "1\.0\.3"/);
-  assert.match(loader, /proteins\/AriFoodDeliMeatsCore\.js\?v=1\.0\.0/);
+  assert.match(loader, /const VERSION = "1\.0\.4"/);
+  assert.match(loader, /proteins\/AriFoodDeliMeatsCore\.js\?v=1\.0\.1/);
 });
