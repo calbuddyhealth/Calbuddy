@@ -11,13 +11,23 @@ const paths = [
 const sources = paths.map((path) => ({ path, source: fs.readFileSync(path, "utf8") }));
 
 function macroRows(source) {
-  return [...source.matchAll(/\{ calories:\s*(\d+(?:\.\d+)?), protein:\s*(\d+(?:\.\d+)?), carbs:\s*(\d+(?:\.\d+)?), fat:\s*(\d+(?:\.\d+)?)/g)]
+  const objectRows = [...source.matchAll(/\{ calories:\s*(\d+(?:\.\d+)?), protein:\s*(\d+(?:\.\d+)?), carbs:\s*(\d+(?:\.\d+)?), fat:\s*(\d+(?:\.\d+)?)/g)]
     .map((match) => ({
       calories: Number(match[1]),
       protein: Number(match[2]),
       carbs: Number(match[3]),
       fat: Number(match[4])
     }));
+
+  const deliRows = [...source.matchAll(/\["deli-[^"]+",\s*"[^"]+",\s*\[[^\]]*\],\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*\d+(?:\.\d+)?\]/g)]
+    .map((match) => ({
+      calories: Number(match[1]),
+      protein: Number(match[2]),
+      carbs: Number(match[3]),
+      fat: Number(match[4])
+    }));
+
+  return [...objectRows, ...deliRows];
 }
 
 test("generic curated foods are estimates, never falsely marked verified", () => {
