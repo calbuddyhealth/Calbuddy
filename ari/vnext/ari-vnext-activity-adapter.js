@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.2.0";
+  const VERSION = "2.3.0";
   const SOURCE = "ari_vnext_activity_adapter";
   let servicePromise = null;
   let operationRegistered = false;
@@ -216,6 +216,8 @@
 
   if (!registerOperation()) window.addEventListener("ari:vnextOperationRegistryReady", registerOperation, { once: true });
 
-  import("./ari-vnext-weight-goals-service-adapter.js?v=1.0.0").catch((error) => { console.warn("[Ari vNext] Weight/Goals service adapter failed to load:", error?.message || error); });
+  import("./ari-vnext-domain-bootstrap.js?v=1.0.0").catch((error) => {
+    console.warn("[Ari vNext] Domain bootstrap failed to load:", error?.message || error);
+  });
   window.dispatchEvent(new CustomEvent("ari:vnextActivityReady", { detail: { version: VERSION, source: SOURCE } }));
 })();
