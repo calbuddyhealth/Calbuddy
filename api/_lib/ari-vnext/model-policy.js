@@ -1,11 +1,14 @@
-// ARI vNext model routing.
+// ARI vNext model routing — Phase 10C adaptive cost/quality policy.
+// Model choice controls reasoning cost only. It never controls mutation trust,
+// reference authority, confirmation, or execution.
 
-export const MODEL_POLICY_VERSION = "2.3.0";
+export const MODEL_POLICY_VERSION = "2.4.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
+  const routing = resolveRoutingClass(route);
   if (intelligence?.advancedEnabled === true) {
-    return resolveAdvancedModelPolicy(route, intelligence);
+    return resolveAdvancedModelPolicy(route, intelligence, routing);
   }
 
   const fastModel = process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
@@ -18,13 +21,15 @@ export function resolveModelPolicy(route = {}) {
   const nutritionLogging = isNutritionLoggingTurn(route);
   const model = nutritionLogging
     ? nutritionModel
-    : mode === "current"
+    : routing.routingClass === "current"
       ? currentModel
-      : mode === "deep"
+      : routing.requiresStrongModel
         ? deepModel
-        : mode === "fast"
+        : routing.fastEligible
           ? fastModel
-          : primaryModel;
+          : mode === "fast"
+            ? fastModel
+            : primaryModel;
   const supportsReasoning = isReasoningModel(model);
 
   return {
@@ -37,22 +42,92 @@ export function resolveModelPolicy(route = {}) {
     reasoningEffort: supportsReasoning
       ? nutritionLogging
         ? "low"
-        : mode === "deep"
+        : routing.requiresStrongModel
           ? "high"
-          : mode === "current"
+          : routing.routingClass === "current"
             ? "low"
-            : "medium"
+            : mode === "fast" || routing.fastEligible
+              ? "low"
+              : "medium"
       : null,
-    maxOutputTokens: nutritionLogging ? 1800 : mode === "deep" ? 2200 : mode === "current" ? 1200 : mode === "standard" ? 1800 : 700,
-    timeoutMs: nutritionLogging ? 26000 : mode === "deep" ? 45000 : mode === "current" ? 25000 : mode === "standard" ? 26000 : 12000,
-    costTier: nutritionLogging ? "nutrition_economy" : mode === "deep" ? "escalated" : mode === "current" ? "live_search" : "economy",
+    maxOutputTokens: nutritionLogging
+      ? 1800
+      : routing.routingClass === "current"
+        ? 1200
+        : routing.requiresStrongModel
+          ? 2200
+          : routing.fastEligible || mode === "fast"
+            ? 700
+            : 1800,
+    timeoutMs: nutritionLogging
+      ? 26000
+      : routing.routingClass === "current"
+        ? 25000
+        : routing.requiresStrongModel
+          ? 45000
+          : routing.fastEligible || mode === "fast"
+            ? 12000
+            : 26000,
+    costTier: nutritionLogging
+      ? "nutrition_economy"
+      : routing.routingClass === "current"
+        ? "live_search"
+        : routing.requiresStrongModel
+          ? "escalated"
+          : "economy",
     liveSearchRequired: Boolean(route?.currentInfo),
     casualConversation: route?.casualConversation === true,
-    nutritionResolutionModel: nutritionLogging
+    nutritionResolutionModel: nutritionLogging,
+    routingClass: routing.routingClass,
+    routingReason: routing.routingReason,
+    fastEligible: routing.fastEligible,
+    requiresStrongModel: routing.requiresStrongModel,
+    escalationAllowed: routing.fastEligible,
+    escalationModel: routing.fastEligible ? deepModel : null,
+    escalationReason: routing.fastEligible ? "provider_failure_or_trust_repair_only" : null
   };
 }
 
-function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
+export function resolveRoutingClass(route = {}) {
+  const nutritionLogging = isNutritionLoggingTurn(route);
+  if (nutritionLogging) {
+    return routing("nutrition_logging", "Trusted nutrition logging uses the dedicated interpreter; canonical nutrition truth stays outside the model.", false, false);
+  }
+
+  if (route?.currentInfo) {
+    return routing("current", "Fresh external information is required, so route to the search-capable current-information path.", false, true);
+  }
+
+  if (route?.health) {
+    return routing("high_stakes", "Health-related reasoning stays on the stronger path rather than being downgraded for cost.", false, true);
+  }
+
+  if (route?.developer || route?.complexity === "deep") {
+    return routing("deep_reasoning", "Developer or explicitly deep work requires the stronger reasoning path.", false, true);
+  }
+
+  const appDomains = activeAppDomains(route);
+  const crossDomain = appDomains.length >= 2;
+  if (route?.coachingState || crossDomain) {
+    return routing("cross_domain_coaching", "Coaching or cross-domain synthesis requires stronger reasoning even when the user message is short.", false, true);
+  }
+
+  if (route?.casualConversation === true) {
+    return routing("casual", "Low-stakes casual conversation is eligible for the fast model.", true, false);
+  }
+
+  if (appDomains.length === 1 && route?.complexity === "fast") {
+    return routing("simple_app", `Simple single-domain ${appDomains[0]} work is eligible for the fast model; trust checks remain unchanged.`, true, false);
+  }
+
+  if (appDomains.length === 0 && route?.complexity === "fast") {
+    return routing("meaningful_conversation", "A short meaningful non-app conversation is not automatically downgraded for Advanced Ari.", false, false);
+  }
+
+  return routing("standard", "Ordinary work uses the account tier's standard reasoning path.", false, false);
+}
+
+function resolveAdvancedModelPolicy(route = {}, intelligence = {}, routing = resolveRoutingClass(route)) {
   const owner = intelligence?.ownerEligible === true || intelligence?.accessClass === "owner";
   const premium = !owner && (intelligence?.premiumEligible === true || intelligence?.accessClass === "premium");
   const casualConversation = route?.casualConversation === true;
@@ -66,12 +141,14 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     : process.env.OPENAI_ARI_PREMIUM_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
   const nutritionModel = process.env.OPENAI_ARI_NUTRITION_MODEL || "gpt-5.6-luna";
 
-  // Advanced conversational/coaching work remains on the advanced model. Only a
-  // Nutrition LOGGING turn uses the dedicated economy interpreter because the
-  // trusted resolver, not the language model, determines nutrition truth.
+  // Advanced entitlement controls access to the advanced model; it does not mean
+  // every trivial app read should spend the flagship model. High-value conversation,
+  // coaching, deep/current/high-stakes work stays advanced. Bounded simple app work
+  // and casual chatter can use the fast model without changing trust authority.
+  const useFast = !nutritionLogging && routing.fastEligible === true;
   const model = nutritionLogging
     ? nutritionModel
-    : casualConversation
+    : useFast
       ? fastModel
       : advancedModel;
   const mode = resolveWorkMode(route);
@@ -80,7 +157,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const reasoningEffort = supportsReasoning
     ? nutritionLogging
       ? "low"
-      : resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation })
+      : useFast
+        ? "low"
+        : resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation })
     : null;
 
   return {
@@ -94,8 +173,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     reasoningEffort,
     maxOutputTokens: nutritionLogging
       ? 1800
-      : casualConversation
-        ? 500
+      : useFast
+        ? routing.routingClass === "casual" ? 500 : 900
         : mode === "deep"
           ? 3200
           : mode === "current"
@@ -105,7 +184,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
               : 2400,
     timeoutMs: nutritionLogging
       ? 26000
-      : casualConversation
+      : useFast
         ? 12000
         : reasoningEffort === "xhigh" || reasoningEffort === "max"
           ? 60000
@@ -116,13 +195,20 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
               : 40000,
     costTier: nutritionLogging
       ? "nutrition_economy"
-      : casualConversation
+      : useFast
         ? owner ? "owner_fast" : "premium_fast"
         : owner ? "owner_advanced_sol" : "premium_advanced",
     liveSearchRequired: Boolean(route?.currentInfo),
     conversationBeta: true,
     casualConversation,
-    nutritionResolutionModel: nutritionLogging
+    nutritionResolutionModel: nutritionLogging,
+    routingClass: routing.routingClass,
+    routingReason: routing.routingReason,
+    fastEligible: routing.fastEligible,
+    requiresStrongModel: routing.requiresStrongModel,
+    escalationAllowed: useFast,
+    escalationModel: useFast ? advancedModel : null,
+    escalationReason: useFast ? "provider_failure_or_trust_repair_only" : null
   };
 }
 
@@ -138,6 +224,15 @@ function isNutritionLoggingTurn(route = {}) {
     route?.currentInfo !== true &&
     route?.coachingState !== true
   );
+}
+
+function activeAppDomains(route = {}) {
+  return ["nutrition", "training", "goals", "social"]
+    .filter((key) => route?.[key] === true);
+}
+
+function routing(routingClass, routingReason, fastEligible, requiresStrongModel) {
+  return { routingClass, routingReason, fastEligible, requiresStrongModel };
 }
 
 function resolveWorkMode(route = {}) {
