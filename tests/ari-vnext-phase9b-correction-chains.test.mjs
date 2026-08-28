@@ -192,7 +192,7 @@ test("Phase 9B delete then bare pronoun cannot retarget the only surviving meal"
 
 test("Phase 9B an explicit new selector can move on from a deleted anchor", () => {
   const result = resolveReferenceTarget({
-    message: "Change the salmon to 600 calories.",
+    message: "Actually change the salmon to 600 calories.",
     referenceState: {
       references: [meal({ id: "ref_live_salmon", name: "Salmon Bowl", category: "dinner" })],
       recentInvalidations: [invalidation()]
