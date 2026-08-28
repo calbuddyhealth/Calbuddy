@@ -1,8 +1,11 @@
 // ARI vNext — Phase 9C compound-aware orchestration wrapper.
 // Phase 10A adds request-scoped model-call/token/latency auditing around the
 // existing trust path without changing what Ari is allowed to do.
+// Phase 10D applies trust-preserving context budgets before each single-action
+// core pass while leaving canonical app/reference state intact.
 
 import { COMPOUND_ACTION_VERSION, MAX_COMPOUND_ACTIONS, splitCompoundActionClauses } from "./compound-actions.js";
+import { budgetTurnContext } from "./context-budget.js";
 import { runAriVNext as runAriVNextCore } from "./orchestrator-core.js";
 import {
   markCompoundFanout,
@@ -72,21 +75,36 @@ export async function runAriVNext(turn = {}) {
 
 async function runObservedAriVNext(turn = {}, trace = null) {
   const clauses = compoundClauses(turn?.message || "");
+
+  if (clauses.length < 2) {
+    const budgeted = budgetTurnContext(turn);
+    turn = {
+      ...budgeted.turn,
+      phase10dContextBudget: budgeted.budget
+    };
+  }
   if (clauses.length < 2) return await runAriVNextCore(turn);
 
   markCompoundFanout(trace, clauses.length);
 
-  const subResults = await Promise.all(clauses.map((clause, index) => runAriVNextCore({
-    ...turn,
-    message: clause,
-    pendingAction: null,
-    phase9cCompound: {
-      version: COMPOUND_ACTION_VERSION,
-      index,
-      total: clauses.length,
-      originalMessage: clean(turn?.message, 1600)
-    }
-  })));
+  const subResults = await Promise.all(clauses.map(async (clause, index) => {
+    const budgeted = budgetTurnContext({
+      ...turn,
+      message: clause,
+      pendingAction: null,
+      phase9cCompound: {
+        version: COMPOUND_ACTION_VERSION,
+        index,
+        total: clauses.length,
+        originalMessage: clean(turn?.message, 1600)
+      }
+    });
+
+    return await runAriVNextCore({
+      ...budgeted.turn,
+      phase10dContextBudget: budgeted.budget
+    });
+  }));
 
   const proposals = [];
   for (let index = 0; index < subResults.length; index += 1) {
