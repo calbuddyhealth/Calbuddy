@@ -234,6 +234,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-github-edit.js",
     "ari-github-read.js",
     "ari-owner-intelligence-controls.js",
+    "ari-owner-observability.js",
     "ari-signals-scan.js",
     "ari-signals.js",
     "ari-vnext-circle-context-bridge.js",
@@ -263,6 +264,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("secure-ai-gateway.js"), true, "compatibility AI routes must remain behind the secure gateway");
   assert.equal(names.has("ari-vnext.js"), true, "vNext primary runtime must remain present");
   assert.equal(names.has("ari-owner-intelligence-controls.js"), true, "owner intelligence controls must remain explicit server API surface");
+  assert.equal(names.has("ari-owner-observability.js"), true, "owner observability must remain explicit reviewed server API surface");
   assert.equal(names.has("ari-circle-push-dispatch.js"), true, "Circle native push dispatcher must remain explicit reviewed server API surface");
   assert.equal(names.has("ari-vnext-circle-context-bridge.js"), true, "ARI Next context transport bridge must remain explicit reviewed server API surface");
 
