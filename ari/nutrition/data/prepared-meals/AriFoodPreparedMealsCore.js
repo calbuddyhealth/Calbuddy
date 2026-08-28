@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: AriFoodPreparedMealsCore.js
-// Version: 1.0.0
+// Version: 1.0.1
 //
 // Purpose:
 //   Curated everyday prepared-meal fallbacks for ARI Nutrition.
@@ -14,12 +14,14 @@
 //   - Branded/restaurant items belong in separate exact-match data.
 //   - Generic values are representative estimates, not a claim that
 //     every recipe or restaurant preparation is identical.
+//   - Serving mass and macro-derived calories are sanity-checked so
+//     the default is useful for an everyday user, not merely plausible.
 // =====================================================
 
 (function initializeAriFoodPreparedMealsCore(global) {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const MODULE_NAME = "AriFoodPreparedMealsCore";
   const VERIFIED_AT = "2026-08-28";
 
@@ -36,10 +38,8 @@
       tags: ["prepared-meal", "burger", "generic", "everyday"],
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "sandwich", grams: 150 },
-      nutrition: { calories: 303, protein: 17, carbs: 30, fat: 14, fiber: 1.5, sugar: 6, sodiumMg: 720 },
-      servings: [
-        { id: "one-sandwich", label: "1 cheeseburger", amount: 1, unit: "sandwich", grams: 150, isDefault: true }
-      ]
+      nutrition: { calories: 320, protein: 17, carbs: 31, fat: 14, fiber: 1.5, sugar: 6, sodiumMg: 720 },
+      servings: [{ id: "one-sandwich", label: "1 cheeseburger", amount: 1, unit: "sandwich", grams: 150, isDefault: true }]
     },
     {
       id: "prepared-turkey-sandwich",
@@ -54,9 +54,7 @@
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "sandwich", grams: 180 },
       nutrition: { calories: 300, protein: 22, carbs: 34, fat: 8, fiber: 3, sugar: 5, sodiumMg: 820 },
-      servings: [
-        { id: "one-sandwich", label: "1 sandwich", amount: 1, unit: "sandwich", grams: 180, isDefault: true }
-      ]
+      servings: [{ id: "one-sandwich", label: "1 sandwich", amount: 1, unit: "sandwich", grams: 180, isDefault: true }]
     },
     {
       id: "prepared-grilled-cheese",
@@ -71,9 +69,7 @@
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "sandwich", grams: 140 },
       nutrition: { calories: 400, protein: 16, carbs: 33, fat: 22, fiber: 2, sugar: 5, sodiumMg: 900 },
-      servings: [
-        { id: "one-sandwich", label: "1 sandwich", amount: 1, unit: "sandwich", grams: 140, isDefault: true }
-      ]
+      servings: [{ id: "one-sandwich", label: "1 sandwich", amount: 1, unit: "sandwich", grams: 140, isDefault: true }]
     },
     {
       id: "prepared-chicken-burrito",
@@ -88,9 +84,7 @@
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "burrito", grams: 300 },
       nutrition: { calories: 500, protein: 30, carbs: 55, fat: 18, fiber: 7, sugar: 4, sodiumMg: 1100 },
-      servings: [
-        { id: "one-burrito", label: "1 burrito", amount: 1, unit: "burrito", grams: 300, isDefault: true }
-      ]
+      servings: [{ id: "one-burrito", label: "1 burrito", amount: 1, unit: "burrito", grams: 300, isDefault: true }]
     },
     {
       id: "prepared-bean-cheese-burrito",
@@ -105,9 +99,7 @@
       popularity: 95,
       nutritionBasis: { type: "unit", amount: 1, unit: "burrito", grams: 240 },
       nutrition: { calories: 380, protein: 14, carbs: 52, fat: 13, fiber: 8, sugar: 3, sodiumMg: 950 },
-      servings: [
-        { id: "one-burrito", label: "1 burrito", amount: 1, unit: "burrito", grams: 240, isDefault: true }
-      ]
+      servings: [{ id: "one-burrito", label: "1 burrito", amount: 1, unit: "burrito", grams: 240, isDefault: true }]
     },
     {
       id: "prepared-beef-taco",
@@ -122,9 +114,7 @@
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "taco", grams: 110 },
       nutrition: { calories: 210, protein: 10, carbs: 21, fat: 10, fiber: 3, sugar: 2, sodiumMg: 430 },
-      servings: [
-        { id: "one-taco", label: "1 taco", amount: 1, unit: "taco", grams: 110, isDefault: true }
-      ]
+      servings: [{ id: "one-taco", label: "1 taco", amount: 1, unit: "taco", grams: 110, isDefault: true }]
     },
     {
       id: "prepared-chicken-quesadilla",
@@ -139,9 +129,7 @@
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "quesadilla", grams: 220 },
       nutrition: { calories: 450, protein: 28, carbs: 34, fat: 22, fiber: 3, sugar: 3, sodiumMg: 900 },
-      servings: [
-        { id: "one-quesadilla", label: "1 quesadilla", amount: 1, unit: "quesadilla", grams: 220, isDefault: true }
-      ]
+      servings: [{ id: "one-quesadilla", label: "1 quesadilla", amount: 1, unit: "quesadilla", grams: 220, isDefault: true }]
     },
     {
       id: "prepared-spaghetti-meat-sauce",
@@ -156,9 +144,7 @@
       popularity: 100,
       nutritionBasis: { type: "volume", amount: 1, unit: "cup", grams: 250 },
       nutrition: { calories: 330, protein: 17, carbs: 45, fat: 10, fiber: 4, sugar: 8, sodiumMg: 650 },
-      servings: [
-        { id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 250, isDefault: true }
-      ]
+      servings: [{ id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 250, isDefault: true }]
     },
     {
       id: "prepared-mac-cheese",
@@ -173,9 +159,7 @@
       popularity: 100,
       nutritionBasis: { type: "volume", amount: 1, unit: "cup", grams: 220 },
       nutrition: { calories: 350, protein: 14, carbs: 45, fat: 13, fiber: 2, sugar: 6, sodiumMg: 720 },
-      servings: [
-        { id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 220, isDefault: true }
-      ]
+      servings: [{ id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 220, isDefault: true }]
     },
     {
       id: "prepared-chicken-noodle-soup",
@@ -190,9 +174,7 @@
       popularity: 100,
       nutritionBasis: { type: "volume", amount: 1, unit: "cup", grams: 245 },
       nutrition: { calories: 150, protein: 9, carbs: 18, fat: 5, fiber: 2, sugar: 3, sodiumMg: 760 },
-      servings: [
-        { id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 245, isDefault: true }
-      ]
+      servings: [{ id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 245, isDefault: true }]
     },
     {
       id: "prepared-beef-chili",
@@ -207,9 +189,7 @@
       popularity: 95,
       nutritionBasis: { type: "volume", amount: 1, unit: "cup", grams: 255 },
       nutrition: { calories: 300, protein: 20, carbs: 30, fat: 12, fiber: 8, sugar: 6, sodiumMg: 850 },
-      servings: [
-        { id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 255, isDefault: true }
-      ]
+      servings: [{ id: "one-cup", label: "1 cup", amount: 1, unit: "cup", grams: 255, isDefault: true }]
     },
     {
       id: "prepared-pepperoni-pizza-slice",
@@ -224,14 +204,12 @@
       popularity: 100,
       nutritionBasis: { type: "unit", amount: 1, unit: "slice", grams: 120 },
       nutrition: { calories: 300, protein: 13, carbs: 34, fat: 13, fiber: 2, sugar: 4, sodiumMg: 700 },
-      servings: [
-        { id: "one-slice", label: "1 slice", amount: 1, unit: "slice", grams: 120, isDefault: true }
-      ]
+      servings: [{ id: "one-slice", label: "1 slice", amount: 1, unit: "slice", grams: 120, isDefault: true }]
     }
   ].map((food) => Object.freeze({
     ...food,
     source: MODULE_NAME,
-    verified: true,
+    verified: false,
     metadata: Object.freeze({
       foodFamily: "prepared-meals",
       genericFood: true,
@@ -240,12 +218,13 @@
       dataVerifiedAt: VERIFIED_AT,
       confidence: "medium",
       sourceProvenance: Object.freeze({
-        provider: "Curated generic nutrition references",
-        sourceType: "frozen representative prepared-food estimate",
+        provider: "USDA FoodData Central / FNDDS reference anchor",
+        sourceType: "curated representative generic prepared-food estimate",
         verifiedAt: VERIFIED_AT
       }),
       offlineReference: true,
-      notes: "Representative generic prepared-food entry. Recipe and restaurant variations can materially change nutrition."
+      estimate: true,
+      notes: "Representative generic prepared-food estimate. Recipe, ingredient, and restaurant variations can materially change nutrition."
     })
   })));
 
