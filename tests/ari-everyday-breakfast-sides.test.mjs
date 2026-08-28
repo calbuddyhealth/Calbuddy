@@ -40,6 +40,6 @@ test("common sides coverage includes high-frequency everyday foods", () => {
 });
 
 test("Nutrition lazy loader includes both curated prepared-meal modules", () => {
-  assert.match(loader, /prepared-meals\/AriFoodPreparedMealsCore\.js\?v=1\.0\.0/);
-  assert.match(loader, /prepared-meals\/AriFoodEverydayBreakfastSides\.js\?v=1\.0\.0/);
+  assert.match(loader, /prepared-meals\/AriFoodPreparedMealsCore\.js\?v=1\.0\.1/);
+  assert.match(loader, /prepared-meals\/AriFoodEverydayBreakfastSides\.js\?v=1\.0\.1/);
 });
