@@ -62,9 +62,11 @@ test("Training proposal and persistence services own canonical surgical edit API
   assert.match(proposal, /resolveDayExercise/);
   assert.match(proposal, /completed workout cannot be rewritten/i);
   assert.match(service, /applyValidatedWorkoutEdit/);
-  assert.match(service, /addExercise/);
+  assert.match(service, /controller\.addExercise/);
   assert.match(service, /moveExercise/);
-  assert.match(service, /removeExercise/);
-  assert.match(service, /setExerciseSets|setExerciseReps/);
-  assert.match(service, /replaceExercise/);
+  assert.match(service, /controller\.removeExercise/);
+  assert.match(service, /controller\.updateExercise/);
+  assert.match(service, /controller\.setDateTitle/);
+  assert.match(service, /controller\.setDateDuration/);
+  assert.match(service, /workout_edit_target_changed/);
 });
