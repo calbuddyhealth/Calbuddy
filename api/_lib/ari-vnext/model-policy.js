@@ -2,7 +2,7 @@
 // Model choice controls reasoning cost only. It never controls mutation trust,
 // reference authority, confirmation, or execution.
 
-export const MODEL_POLICY_VERSION = "2.4.0";
+export const MODEL_POLICY_VERSION = "2.4.1";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -19,11 +19,12 @@ export function resolveModelPolicy(route = {}) {
 
   const mode = resolveWorkMode(route);
   const nutritionLogging = isNutritionLoggingTurn(route);
+  const deepRequired = ["high_stakes", "deep_reasoning"].includes(routing.routingClass);
   const model = nutritionLogging
     ? nutritionModel
     : routing.routingClass === "current"
       ? currentModel
-      : routing.requiresStrongModel
+      : deepRequired
         ? deepModel
         : routing.fastEligible
           ? fastModel
@@ -42,11 +43,11 @@ export function resolveModelPolicy(route = {}) {
     reasoningEffort: supportsReasoning
       ? nutritionLogging
         ? "low"
-        : routing.requiresStrongModel
+        : deepRequired
           ? "high"
           : routing.routingClass === "current"
             ? "low"
-            : mode === "fast" || routing.fastEligible
+            : routing.fastEligible || mode === "fast"
               ? "low"
               : "medium"
       : null,
@@ -54,7 +55,7 @@ export function resolveModelPolicy(route = {}) {
       ? 1800
       : routing.routingClass === "current"
         ? 1200
-        : routing.requiresStrongModel
+        : deepRequired
           ? 2200
           : routing.fastEligible || mode === "fast"
             ? 700
@@ -63,7 +64,7 @@ export function resolveModelPolicy(route = {}) {
       ? 26000
       : routing.routingClass === "current"
         ? 25000
-        : routing.requiresStrongModel
+        : deepRequired
           ? 45000
           : routing.fastEligible || mode === "fast"
             ? 12000
@@ -72,7 +73,7 @@ export function resolveModelPolicy(route = {}) {
       ? "nutrition_economy"
       : routing.routingClass === "current"
         ? "live_search"
-        : routing.requiresStrongModel
+        : deepRequired
           ? "escalated"
           : "economy",
     liveSearchRequired: Boolean(route?.currentInfo),
@@ -109,7 +110,7 @@ export function resolveRoutingClass(route = {}) {
   const appDomains = activeAppDomains(route);
   const crossDomain = appDomains.length >= 2;
   if (route?.coachingState || crossDomain) {
-    return routing("cross_domain_coaching", "Coaching or cross-domain synthesis requires stronger reasoning even when the user message is short.", false, true);
+    return routing("cross_domain_coaching", "Coaching or cross-domain synthesis must not use the fast path merely because the message is short.", false, true);
   }
 
   if (route?.casualConversation === true) {
@@ -117,6 +118,9 @@ export function resolveRoutingClass(route = {}) {
   }
 
   if (appDomains.length === 1 && route?.complexity === "fast") {
+    if (appDomains[0] === "nutrition") {
+      return routing("nutrition_advice", "Nutrition advice remains quality-sensitive for Advanced Ari; only routine Nutrition logging uses the dedicated economy interpreter.", false, false);
+    }
     return routing("simple_app", `Simple single-domain ${appDomains[0]} work is eligible for the fast model; trust checks remain unchanged.`, true, false);
   }
 
@@ -143,8 +147,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}, routing = res
 
   // Advanced entitlement controls access to the advanced model; it does not mean
   // every trivial app read should spend the flagship model. High-value conversation,
-  // coaching, deep/current/high-stakes work stays advanced. Bounded simple app work
-  // and casual chatter can use the fast model without changing trust authority.
+  // Nutrition advice, coaching, deep/current/high-stakes work stays advanced. Bounded
+  // simple Training/Goals/Social work and casual chatter can use the fast model without
+  // changing trust authority.
   const useFast = !nutritionLogging && routing.fastEligible === true;
   const model = nutritionLogging
     ? nutritionModel
