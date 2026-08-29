@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync('ari/nutrition/data/branded/AriFoodTopBrandsBatch1.js', 'utf8');
+const loader = fs.readFileSync('js/nutrition-food-loader.js', 'utf8');
+const nutritionHtml = fs.readFileSync('nutrition.html', 'utf8');
 
 function loadRecords() {
   let registered = [];
@@ -52,4 +54,11 @@ test('top brands batch 1 normalization preserves label energy within rounding to
     const scaledCalories = food.nutrition.calories * amount / 100;
     assert.ok(Math.abs(scaledCalories - label.calories) <= 0.15, `${food.id} canonical calories must scale back to the label`);
   }
+});
+
+test('top brands batch 1 is wired through the lazy Nutrition loader', () => {
+  assert.match(loader, /Version: 1\.0\.6/);
+  assert.match(loader, /const VERSION = "1\.0\.6"/);
+  assert.match(loader, /branded\/AriFoodTopBrandsBatch1\.js\?v=1\.0\.0/);
+  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.6/);
 });
