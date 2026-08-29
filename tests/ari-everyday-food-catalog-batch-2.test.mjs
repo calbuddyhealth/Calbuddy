@@ -57,6 +57,6 @@ test("batch 2 portions and nutrition stay within defensible generic-food bounds"
 
 test("loader includes batch 2 module", () => {
   const loader = read("js/nutrition-food-loader.js");
-  assert.match(loader, /Version: 1\.0\.5/);
+  assert.match(loader, /Version: 1\.0\.6/);
   assert.match(loader, /AriFoodEverydaySoupsMeals2\.js\?v=1\.0\.0/);
 });
