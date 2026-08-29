@@ -1,9 +1,12 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.5
+   Version: 1.0.6
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
+
+   V1.0.6:
+   - Adds Top Brands gap batch 1 with 14 verified products across 10 missing brands.
 
    V1.0.5:
    - Adds curated everyday soups and simple meals batch 2.
@@ -15,7 +18,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.5";
+  const VERSION = "1.0.6";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -35,6 +38,7 @@
     "ari/nutrition/data/beverages/AriFoodWaterBrands.js",
     "ari/nutrition/data/beverages/AriFoodBeverageBrands2.js",
     "ari/nutrition/data/beverages/AriFoodBeverageBrands3.js",
+    "ari/nutrition/data/branded/AriFoodTopBrandsBatch1.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondiments.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondimentsCore.js",
     "ari/nutrition/data/condiments/AriFoodCondimentBrands.js",
