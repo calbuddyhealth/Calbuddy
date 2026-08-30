@@ -122,16 +122,22 @@ function parseArguments(value) {
   }
 }
 
+function isMissing(value) {
+  return value === null || value === undefined || value === "";
+}
+
 function validateResolvedMealArguments(args = {}) {
   if (!String(args?.name || "").trim()) return { valid: false, error: "meal_name_required" };
 
-  const calories = Number(args?.calories);
+  if (isMissing(args?.calories)) return { valid: false, error: "meal_nutrition_required" };
+  const calories = Number(args.calories);
   if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) {
     return { valid: false, error: "meal_nutrition_required" };
   }
 
   for (const [key, max] of [["proteinG", 1000], ["carbsG", 1500], ["fatG", 1000]]) {
-    const value = Number(args?.[key]);
+    if (isMissing(args?.[key])) return { valid: false, error: "meal_nutrition_required" };
+    const value = Number(args[key]);
     if (!Number.isFinite(value) || value < 0 || value > max) {
       return { valid: false, error: "meal_nutrition_required" };
     }
