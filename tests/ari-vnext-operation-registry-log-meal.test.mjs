@@ -157,7 +157,7 @@ test("registry owns migrated logging operations while preserving fallback for un
   assert.equal(registry.ready, true);
   assert.equal(registry.hasOperation("log_meal"), true);
   assert.equal(registry.hasOperation("log_weight"), true);
-  assert.equal(registry.hasOperation("update_goal"), false);
+  assert.equal(registry.hasOperation("update_goal"), true);
 
   const meal = await harness.adapter.createCalBuddyPendingAction(makePending());
   assert.equal(meal.success, true);
@@ -174,10 +174,10 @@ test("registry owns migrated logging operations while preserving fallback for un
   assert.equal(harness.fallbackCreates, 0);
 
   await harness.adapter.createCalBuddyPendingAction({
-    id: "goal-1",
-    name: "update_goal",
-    sourceTurnId: "turn-goal-1",
-    arguments: { goalType: "target_weight", value: 180, unit: "lb" }
+    id: "workout-edit-1",
+    name: "edit_workout",
+    sourceTurnId: "turn-workout-edit-1",
+    arguments: { dateText: "today", editType: "move" }
   });
   assert.equal(harness.fallbackCreates, 1);
 });
