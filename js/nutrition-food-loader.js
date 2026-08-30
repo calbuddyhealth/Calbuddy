@@ -1,9 +1,12 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.6
+   Version: 1.0.7
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
+
+   V1.0.7:
+   - Adds Top Brands batch 2 with high-demand deli, cheese, salad, frozen meal, and frozen pizza products.
 
    V1.0.6:
    - Adds Top Brands gap batch 1 with 14 verified products across 10 missing brands.
@@ -18,7 +21,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.6";
+  const VERSION = "1.0.7";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -39,6 +42,7 @@
     "ari/nutrition/data/beverages/AriFoodBeverageBrands2.js",
     "ari/nutrition/data/beverages/AriFoodBeverageBrands3.js",
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch1.js?v=1.0.0",
+    "ari/nutrition/data/branded/AriFoodTopBrandsBatch2.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondiments.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondimentsCore.js",
     "ari/nutrition/data/condiments/AriFoodCondimentBrands.js",
