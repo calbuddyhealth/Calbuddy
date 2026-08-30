@@ -6,7 +6,7 @@
    search, hybrid search, and calculator architecture.
 
    V1.0.9:
-   - Adds Top Brands batch 4 with deli ham, Swiss/provolone, salad, and frozen convenience meals.
+   - Adds Top Brands batch 4 with deli ham, Swiss cheese, Southwest salad kits, and frozen convenience meals.
 
    V1.0.8:
    - Adds Top Brands batch 3 with deli ham, sliced cheddar, frozen burrito, nuggets, and frozen pizza.
