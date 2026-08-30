@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.13.0";
+export const TOOL_REGISTRY_VERSION = "1.12.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const CREW_TOOL_NAMES = new Set([
