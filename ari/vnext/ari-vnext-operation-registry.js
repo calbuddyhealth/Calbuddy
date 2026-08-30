@@ -8,10 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
-  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight"]);
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -146,15 +146,55 @@
     };
   }
 
+  async function prepareLogActivity(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The activity action is missing its turn-bound identity.");
+    }
+
+    const preparer = window.AriVNextActivityAdapter?.prepare;
+    if (typeof preparer !== "function") {
+      return failure("activity_preparer_unavailable", "The canonical Training activity preparer is unavailable.");
+    }
+
+    const args = pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
+      ? pending.arguments
+      : {};
+    const prepared = await preparer(pending, args);
+
+    if (!prepared?.success || prepared?.action?.action_type !== "log_activity") {
+      return failure(
+        prepared?.code || "activity_prepare_failed",
+        prepared?.message || "That activity could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "log_activity",
+        source: SOURCE
+      }
+    };
+  }
+
   function prepareOperation(pending = {}) {
     const name = clean(pending?.name, 120);
     if (name === "log_meal") return prepareLogMeal(pending);
     if (name === "log_weight") return prepareLogWeight(pending);
+    if (name === "log_activity") {
+      return failure("activity_requires_async_preparation", "Activity logging requires the canonical Training activity preparer.");
+    }
     return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
   }
 
+  async function prepareOperationAsync(pending = {}) {
+    if (clean(pending?.name, 120) === "log_activity") return await prepareLogActivity(pending);
+    return prepareOperation(pending);
+  }
+
   async function createOperationPending(pending = {}) {
-    const prepared = prepareOperation(pending);
+    const prepared = await prepareOperationAsync(pending);
     if (!prepared.success) return prepared;
 
     if (typeof window.CalBuddy?.createPendingAction !== "function") {
@@ -218,7 +258,7 @@
       return failure("vnext_action_expired", `That pending ${operationName.replaceAll("_", " ")} expired. Ask Ari to prepare it again.`);
     }
 
-    const prepared = prepareOperation(pending);
+    const prepared = await prepareOperationAsync(pending);
     if (!prepared.success) return prepared;
 
     if (typeof window.CalBuddy?.executeAction !== "function") {
@@ -281,6 +321,7 @@
       return OWNED_OPERATIONS.has(clean(name, 120));
     },
     prepare: prepareOperation,
+    prepareAsync: prepareOperationAsync,
     createPending: createOperationPending,
     executeConfirmed: executeOwnedOperation,
     clearMatchingPendingCopies,
