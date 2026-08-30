@@ -604,8 +604,30 @@
       return failure("vnext_action_expired", `That pending ${operationName.replaceAll("_", " ")} expired. Ask Ari to prepare it again.`);
     }
 
-    const prepared = await prepareOperationAsync(pending);
-    if (!prepared.success) return prepared;
+    let prepared;
+    if (operationName === "cancel_workout") {
+      const stored = window.CalBuddy?.getPendingAction?.() || null;
+      if (
+        clean(stored?.vnext_action_id, 220) !== clean(pending?.id, 220) ||
+        clean(stored?.action_type, 120) !== "cancel_workout"
+      ) {
+        return failure(
+          "workout_cancel_prepared_snapshot_missing",
+          "The prepared workout cancellation is no longer available. Ask Ari to prepare it again."
+        );
+      }
+      prepared = {
+        success: true,
+        action: stored,
+        resolution: {
+          operation: "cancel_workout",
+          source: SOURCE
+        }
+      };
+    } else {
+      prepared = await prepareOperationAsync(pending);
+      if (!prepared.success) return prepared;
+    }
 
     if (operationName === "plan_workout") {
       const adapter = window.AriVNextActionAdapter;
