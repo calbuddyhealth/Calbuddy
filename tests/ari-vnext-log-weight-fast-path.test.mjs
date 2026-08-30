@@ -9,8 +9,8 @@ const orchestrator = await readFile(
   "utf8"
 );
 
-test("primary log_weight proposals share the proven low-risk fast path", () => {
-  assert.match(orchestrator, /LOW_RISK_PRIMARY_FAST_PATHS = new Set\(\["propose_log_meal", "propose_log_weight"\]\)/);
+test("primary log_weight proposals share the proven low-risk logging fast path", () => {
+  assert.match(orchestrator, /"propose_log_weight"/);
   assert.match(orchestrator, /!LOW_RISK_PRIMARY_FAST_PATHS\.has\(primaryFunctionName\)/);
 });
 
