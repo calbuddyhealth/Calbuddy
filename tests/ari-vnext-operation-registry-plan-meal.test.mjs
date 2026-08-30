@@ -197,7 +197,7 @@ function makeHarness({ executeSuccess = true, prepareSuccess = true } = {}) {
 test("registry owns plan_meal while preserving canonical Meal Plan preparation", async () => {
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
-  assert.equal(registry.version, "1.5.0");
+  assert.equal(registry.version, "1.6.0");
   assert.equal(registry.hasOperation("plan_meal"), true);
 
   const pending = makePending();
