@@ -13,6 +13,7 @@ const orchestratorSource = await readFile(
 );
 
 function pending(goalType, value, overrides = {}) {
+  const { arguments: argumentOverrides = {}, ...restOverrides } = overrides;
   return {
     id: `goal-${goalType}`,
     name: "update_goal",
@@ -23,10 +24,14 @@ function pending(goalType, value, overrides = {}) {
       value,
       unit: "lb",
       instruction: "",
-      ...(overrides.arguments || {})
+      ...argumentOverrides
     },
-    ...overrides
+    ...restOverrides
   };
+}
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function harness({ executeSuccess = true } = {}) {
@@ -121,7 +126,7 @@ test("goal registry preserves all four existing trusted profile mappings", () =>
 
   const calories = registry.prepare(pending("daily_calorie_goal", 2200));
   assert.equal(calories.success, true);
-  assert.deepEqual(calories.action.payload, { daily_calorie_goal: 2200 });
+  assert.deepEqual(plain(calories.action.payload), { daily_calorie_goal: 2200 });
 
   const targetKg = registry.prepare(pending("target_weight", 82, { arguments: { unit: "kg" } }));
   assert.equal(targetKg.success, true);
@@ -129,11 +134,11 @@ test("goal registry preserves all four existing trusted profile mappings", () =>
 
   const weekly = registry.prepare(pending("weekly_weight_change", -1.5));
   assert.equal(weekly.success, true);
-  assert.deepEqual(weekly.action.payload, { weekly_weight_change_goal: 1.5 });
+  assert.deepEqual(plain(weekly.action.payload), { weekly_weight_change_goal: 1.5 });
 
   const mode = registry.prepare(pending("goal_mode", null, { arguments: { instruction: "I want to maintain" } }));
   assert.equal(mode.success, true);
-  assert.deepEqual(mode.action.payload, { goal: "maintain" });
+  assert.deepEqual(plain(mode.action.payload), { goal: "maintain" });
 });
 
 test("goal registry rejects invalid values before pending creation", async () => {
