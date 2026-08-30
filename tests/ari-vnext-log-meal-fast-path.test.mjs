@@ -7,9 +7,10 @@ const orchestrator = await readFile(
   "utf8"
 );
 
-test("primary log_meal proposals bypass the semantic verifier fast path", () => {
+test("primary log_meal proposals bypass the semantic verifier through the shared logging fast path", () => {
   assert.match(orchestrator, /const primaryFunctionName = String\(functionCall\?\.name \|\| ""\)\.trim\(\)/);
-  assert.match(orchestrator, /primaryFunctionName !== "propose_log_meal"/);
+  assert.match(orchestrator, /"propose_log_meal"/);
+  assert.match(orchestrator, /!LOW_RISK_PRIMARY_FAST_PATHS\.has\(primaryFunctionName\)/);
 });
 
 test("missed command-like requests still retain semantic verifier fallback", () => {
