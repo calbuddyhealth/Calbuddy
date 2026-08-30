@@ -21,7 +21,11 @@ import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
-const LOW_RISK_PRIMARY_FAST_PATHS = new Set(["propose_log_meal", "propose_log_weight"]);
+const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
+  "propose_log_meal",
+  "propose_log_weight",
+  "propose_log_activity"
+]);
 
 export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
@@ -687,6 +691,19 @@ export function formatDeterministicPendingReply(applicationAction = "", args = {
     if (!Number.isFinite(value) || value <= 0) return "Ready to log your weight. Confirm to save it.";
     const displayValue = Number(value.toFixed(2));
     return `Ready to log your weight at ${displayValue} ${unit}. Confirm to save it.`;
+  }
+
+  if (action === "log_activity") {
+    const name = String(args?.activityName || "activity").replace(/\s+/g, " ").trim().slice(0, 160) || "activity";
+    const durationMinutes = Number(args?.durationMinutes);
+    const caloriesBurned = Number(args?.caloriesBurned);
+    const durationText = Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? ` (${Math.round(durationMinutes)} min)`
+      : "";
+    const calorieText = Number.isFinite(caloriesBurned) && caloriesBurned > 0
+      ? ` — ${Math.round(caloriesBurned)} calories burned`
+      : "";
+    return `Ready to log ${name}${durationText}${calorieText}. Confirm to save it.`;
   }
 
   return "";
