@@ -56,9 +56,7 @@ test('top brands batch 1 normalization preserves label energy within rounding to
   }
 });
 
-test('top brands batch 1 is wired through the lazy Nutrition loader', () => {
-  assert.match(loader, /Version: 1\.0\.6/);
-  assert.match(loader, /const VERSION = "1\.0\.6"/);
+test('top brands batch 1 remains wired through the lazy Nutrition loader', () => {
   assert.match(loader, /branded\/AriFoodTopBrandsBatch1\.js\?v=1\.0\.0/);
-  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.6/);
+  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.7/);
 });
