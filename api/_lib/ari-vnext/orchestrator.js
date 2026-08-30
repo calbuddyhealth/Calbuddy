@@ -21,6 +21,7 @@ import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const LOW_RISK_PRIMARY_FAST_PATHS = new Set(["propose_log_meal", "propose_log_weight"]);
 
 export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
@@ -167,15 +168,13 @@ export async function runAriVNext(turn = {}) {
       .map((tool) => String(tool.name))
   );
 
-  // A correct primary log_meal proposal is now the low-risk fast path: OpenAI
-  // already made the semantic decision, trusted validation still checks the
-  // payload, and user confirmation is still required before execution. Keep
-  // the semantic verifier as a fallback when the primary model misses a
-  // command-like request, chooses a different operation, or handles any other
-  // mutation that has not yet earned this fast path.
+  // Proven low-risk logging operations trust the primary model when it already
+  // selected the correct capability. Trusted validation and explicit user
+  // confirmation remain mandatory. The verifier still recovers command-like
+  // turns where the primary model did not select one of these proven paths.
   const primaryFunctionName = String(functionCall?.name || "").trim();
   const shouldVerify =
-    primaryFunctionName !== "propose_log_meal" &&
+    !LOW_RISK_PRIMARY_FAST_PATHS.has(primaryFunctionName) &&
     (Boolean(functionCall) || shouldReviewNoToolTurn(turn));
   const semanticActionReview = shouldVerify
     ? await reviewExplicitApplicationIntent({ turn, route, tools })
@@ -669,17 +668,28 @@ function extractOutputText(data = {}) {
 }
 
 export function formatDeterministicPendingReply(applicationAction = "", args = {}) {
-  if (String(applicationAction || "").trim() !== "log_meal") return "";
+  const action = String(applicationAction || "").trim();
 
-  const name = String(args?.name || "meal").replace(/\s+/g, " ").trim().slice(0, 160) || "meal";
-  const servingSize = String(args?.servingSize || "").replace(/\s+/g, " ").trim().slice(0, 120);
-  const calories = Number(args?.calories);
-  const calorieText = Number.isFinite(calories) && calories > 0
-    ? ` — ${Math.round(calories)} calories`
-    : "";
-  const servingText = servingSize ? ` (${servingSize})` : "";
+  if (action === "log_meal") {
+    const name = String(args?.name || "meal").replace(/\s+/g, " ").trim().slice(0, 160) || "meal";
+    const servingSize = String(args?.servingSize || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const calories = Number(args?.calories);
+    const calorieText = Number.isFinite(calories) && calories > 0
+      ? ` — ${Math.round(calories)} calories`
+      : "";
+    const servingText = servingSize ? ` (${servingSize})` : "";
+    return `Ready to log ${name}${servingText}${calorieText}. Confirm to save it.`;
+  }
 
-  return `Ready to log ${name}${servingText}${calorieText}. Confirm to save it.`;
+  if (action === "log_weight") {
+    const value = Number(args?.value);
+    const unit = String(args?.unit || "lb").trim().toLowerCase() === "kg" ? "kg" : "lb";
+    if (!Number.isFinite(value) || value <= 0) return "Ready to log your weight. Confirm to save it.";
+    const displayValue = Number(value.toFixed(2));
+    return `Ready to log your weight at ${displayValue} ${unit}. Confirm to save it.`;
+  }
+
+  return "";
 }
 
 function publicActionReview(review = null) {
