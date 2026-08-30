@@ -1,16 +1,17 @@
 // ARI vNext — canonical trusted operation registry.
 //
-// First permanent cutover: log_meal. Other operations continue through the
-// existing trusted adapter until they are migrated and proven independently.
-// This prevents another all-at-once adapter deletion while giving Nutrition one
-// authoritative preparation/execution path.
+// Permanent cutovers are migrated one operation at a time. Unmigrated
+// operations continue through the existing trusted adapter until their callers
+// and regression contracts are proven independently. This prevents another
+// all-at-once adapter deletion while converging on one execution system.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -32,6 +33,10 @@
 
   function failure(code, message, extra = {}) {
     return { success: false, code, message, ...extra };
+  }
+
+  function validPendingIdentity(pending = {}) {
+    return Boolean(pending?.id && pending?.sourceTurnId);
   }
 
   function isResolvedMeal(args = {}) {
@@ -59,7 +64,7 @@
   }
 
   function prepareLogMeal(pending = {}) {
-    if (!pending?.id || !pending?.sourceTurnId) {
+    if (!validPendingIdentity(pending)) {
       return failure("invalid_pending_action", "The meal action is missing its turn-bound identity.");
     }
 
@@ -102,8 +107,54 @@
     };
   }
 
-  async function createLogMealPending(pending = {}) {
-    const prepared = prepareLogMeal(pending);
+  function prepareLogWeight(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The weight action is missing its turn-bound identity.");
+    }
+
+    const args = pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
+      ? pending.arguments
+      : {};
+    const value = finite(args?.value);
+    const unit = clean(args?.unit, 12).toLowerCase();
+
+    if (value === null || value <= 0 || value > 1500) {
+      return failure("weight_out_of_range", "A valid weight is required.");
+    }
+
+    const normalizedUnit = unit === "kg" ? "kg" : "lb";
+    const pounds = normalizedUnit === "kg" ? value * 2.2046226218 : value;
+
+    return {
+      success: true,
+      action: {
+        action_type: "log_weight",
+        payload: {
+          weight: round1(pounds),
+          notes: normalizedUnit === "kg"
+            ? `Entered as ${round1(value)} kg by Ari vNext.`
+            : "Logged by Ari vNext."
+        },
+        confirmation_text: `Log your weight as ${round1(value)} ${normalizedUnit}?`
+      },
+      resolution: {
+        operation: "log_weight",
+        unit: normalizedUnit,
+        normalizedWeightLb: round1(pounds),
+        source: SOURCE
+      }
+    };
+  }
+
+  function prepareOperation(pending = {}) {
+    const name = clean(pending?.name, 120);
+    if (name === "log_meal") return prepareLogMeal(pending);
+    if (name === "log_weight") return prepareLogWeight(pending);
+    return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
+  }
+
+  async function createOperationPending(pending = {}) {
+    const prepared = prepareOperation(pending);
     if (!prepared.success) return prepared;
 
     if (typeof window.CalBuddy?.createPendingAction !== "function") {
@@ -151,17 +202,23 @@
     return true;
   }
 
-  async function executeLogMeal(input = {}) {
+  async function executeOwnedOperation(input = {}) {
     const pending = input?.vnextPendingAction || null;
-    if (!pending?.id || !pending?.sourceTurnId) {
-      return failure("missing_vnext_pending_action", "There is no turn-bound meal action to execute.");
+    const operationName = clean(pending?.name, 120);
+
+    if (!validPendingIdentity(pending)) {
+      return failure("missing_vnext_pending_action", "There is no turn-bound action to execute.");
+    }
+
+    if (!OWNED_OPERATIONS.has(operationName)) {
+      return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
     }
 
     if (pending?.expiresAt && Date.parse(pending.expiresAt) < Date.now()) {
-      return failure("vnext_action_expired", "That pending meal expired. Ask Ari to prepare it again.");
+      return failure("vnext_action_expired", `That pending ${operationName.replaceAll("_", " ")} expired. Ask Ari to prepare it again.`);
     }
 
-    const prepared = prepareLogMeal(pending);
+    const prepared = prepareOperation(pending);
     if (!prepared.success) return prepared;
 
     if (typeof window.CalBuddy?.executeAction !== "function") {
@@ -196,13 +253,13 @@
     const fallbackExecute = adapter.executeConfirmed.bind(adapter);
 
     adapter.createCalBuddyPendingAction = async function registryCreatePending(pending = {}) {
-      if (clean(pending?.name, 120) === "log_meal") return await createLogMealPending(pending);
+      if (OWNED_OPERATIONS.has(clean(pending?.name, 120))) return await createOperationPending(pending);
       return await fallbackCreate(pending);
     };
 
     adapter.executeConfirmed = async function registryExecuteConfirmed(input = {}) {
       const pending = input?.vnextPendingAction || null;
-      if (clean(pending?.name, 120) === "log_meal") return await executeLogMeal(input);
+      if (OWNED_OPERATIONS.has(clean(pending?.name, 120))) return await executeOwnedOperation(input);
       return await fallbackExecute(input);
     };
 
@@ -221,20 +278,15 @@
     source: SOURCE,
     ready: false,
     hasOperation(name = "") {
-      return clean(name, 120) === "log_meal";
+      return OWNED_OPERATIONS.has(clean(name, 120));
     },
-    prepare(pending = {}) {
-      if (clean(pending?.name, 120) !== "log_meal") {
-        return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
-      }
-      return prepareLogMeal(pending);
-    },
-    createPending: createLogMealPending,
-    executeConfirmed: executeLogMeal,
+    prepare: prepareOperation,
+    createPending: createOperationPending,
+    executeConfirmed: executeOwnedOperation,
     clearMatchingPendingCopies,
     reconcileOrphanedLegacyPending,
     snapshot() {
-      return { version: VERSION, operations: ["log_meal"], source: SOURCE };
+      return { version: VERSION, operations: Array.from(OWNED_OPERATIONS), source: SOURCE };
     }
   };
 
