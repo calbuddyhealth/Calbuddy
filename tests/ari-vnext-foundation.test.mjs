@@ -15,14 +15,16 @@ test("ordinary nutrition statement is context, not an action by itself", () => {
   assert.equal(turn.pendingAction, null);
 });
 
-test("workout language routes to training rather than nutrition", () => {
+test("workout language routes to training while semantic health capabilities remain available", () => {
   const turn = buildCurrentTurn({ message: "Create a shoulder workout tomorrow" }, "user-1");
   const route = routeContext(turn);
   assert.equal(route.training, true);
   assert.equal(route.nutrition, false);
   const toolNames = getAriTools(route).map((tool) => tool.name);
   assert.equal(toolNames.includes("propose_workout_plan"), true);
-  assert.equal(toolNames.includes("propose_log_meal"), false);
+  // Context routing optimizes what Ari loads; it no longer hides supported
+  // core health capabilities from the primary model.
+  assert.equal(toolNames.includes("propose_log_meal"), true);
 });
 
 test("elliptical follow-up can use recent context", () => {
