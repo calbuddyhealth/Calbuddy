@@ -8,10 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
-  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity"]);
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -37,6 +37,29 @@
 
   function validPendingIdentity(pending = {}) {
     return Boolean(pending?.id && pending?.sourceTurnId);
+  }
+
+  function pendingArguments(pending = {}) {
+    return pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
+      ? pending.arguments
+      : {};
+  }
+
+  function normalizeGoalType(value) {
+    const text = clean(value, 80).toLowerCase().replace(/[\s-]+/g, "_");
+    const aliases = {
+      calorie_goal: "daily_calorie_goal",
+      calories: "daily_calorie_goal",
+      daily_calories: "daily_calorie_goal",
+      daily_calorie_goal: "daily_calorie_goal",
+      target_weight: "target_weight",
+      goal_weight: "target_weight",
+      weekly_weight_change: "weekly_weight_change",
+      weekly_change: "weekly_weight_change",
+      goal_mode: "goal_mode",
+      goal: "goal_mode"
+    };
+    return aliases[text] || null;
   }
 
   function isResolvedMeal(args = {}) {
@@ -68,10 +91,7 @@
       return failure("invalid_pending_action", "The meal action is missing its turn-bound identity.");
     }
 
-    const args = pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
-      ? pending.arguments
-      : {};
-
+    const args = pendingArguments(pending);
     if (!isResolvedMeal(args)) {
       return failure(
         "meal_nutrition_required",
@@ -112,9 +132,7 @@
       return failure("invalid_pending_action", "The weight action is missing its turn-bound identity.");
     }
 
-    const args = pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
-      ? pending.arguments
-      : {};
+    const args = pendingArguments(pending);
     const value = finite(args?.value);
     const unit = clean(args?.unit, 12).toLowerCase();
 
@@ -156,9 +174,7 @@
       return failure("activity_preparer_unavailable", "The canonical Training activity preparer is unavailable.");
     }
 
-    const args = pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
-      ? pending.arguments
-      : {};
+    const args = pendingArguments(pending);
     const prepared = await preparer(pending, args);
 
     if (!prepared?.success || prepared?.action?.action_type !== "log_activity") {
@@ -178,10 +194,76 @@
     };
   }
 
+  function prepareUpdateGoal(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The goal action is missing its turn-bound identity.");
+    }
+
+    const args = pendingArguments(pending);
+    const goalType = normalizeGoalType(args?.goalType);
+    const value = args?.value === null || args?.value === undefined ? null : finite(args.value);
+
+    if (!goalType) {
+      return failure("unsupported_goal_type", "That goal change is not mapped to a trusted ARI XP profile field yet.");
+    }
+
+    const payload = {};
+    if (goalType === "daily_calorie_goal") {
+      if (value === null || value < 800 || value > 8000) {
+        return failure("calorie_goal_out_of_range", "The calorie goal is outside the supported range.");
+      }
+      payload.daily_calorie_goal = Math.round(value);
+    }
+
+    if (goalType === "target_weight") {
+      if (value === null || value <= 0 || value > 1500) {
+        return failure("target_weight_out_of_range", "The target weight is outside the supported range.");
+      }
+      payload.target_weight_lbs = clean(args?.unit, 12).toLowerCase() === "kg"
+        ? round1(value * 2.2046226218)
+        : round1(value);
+    }
+
+    if (goalType === "weekly_weight_change") {
+      if (value === null || Math.abs(value) > 10) {
+        return failure("weekly_change_out_of_range", "The weekly weight change is outside the supported range.");
+      }
+      payload.weekly_weight_change_goal = Math.abs(value);
+    }
+
+    if (goalType === "goal_mode") {
+      const instruction = clean(args?.instruction, 200).toLowerCase();
+      const mode = /\b(cut|lose|loss)\b/.test(instruction)
+        ? "lose"
+        : /\b(bulk|gain)\b/.test(instruction)
+          ? "gain"
+          : /\b(maintain|maintenance)\b/.test(instruction)
+            ? "maintain"
+            : null;
+      if (!mode) return failure("goal_mode_required", "A clear goal mode is required.");
+      payload.goal = mode;
+    }
+
+    return {
+      success: true,
+      action: {
+        action_type: "update_goal_profile",
+        payload,
+        confirmation_text: `Update your ${goalType.replaceAll("_", " ")}?`
+      },
+      resolution: {
+        operation: "update_goal",
+        goalType,
+        source: SOURCE
+      }
+    };
+  }
+
   function prepareOperation(pending = {}) {
     const name = clean(pending?.name, 120);
     if (name === "log_meal") return prepareLogMeal(pending);
     if (name === "log_weight") return prepareLogWeight(pending);
+    if (name === "update_goal") return prepareUpdateGoal(pending);
     if (name === "log_activity") {
       return failure("activity_requires_async_preparation", "Activity logging requires the canonical Training activity preparer.");
     }
