@@ -31,18 +31,17 @@ test('top brands batch 4 adds everyday deli, cheese, salad, and frozen convenien
   const ids = new Set(records.map(food => food.id));
   for (const id of [
     'protein-brand-oscar-mayer-deli-fresh-black-forest-ham',
-    'dairy-brand-sargento-provolone-smoke-slices',
     'dairy-brand-sargento-swiss-slices',
     'prepared-brand-taylor-farms-southwest-chopped-salad-kit',
+    'prepared-brand-fresh-express-southwest-chopped-salad-kit',
     'prepared-brand-hot-pockets-pepperoni-pizza',
     'prepared-brand-lean-cuisine-herb-roasted-chicken',
     'prepared-brand-stouffers-macaroni-cheese-for-one'
   ]) assert.ok(ids.has(id), `${id} should be present`);
 
   assert.ok(records.some(food => food.tags.includes('deli-meat')));
-  assert.ok(records.some(food => food.tags.includes('provolone')));
   assert.ok(records.some(food => food.tags.includes('swiss')));
-  assert.ok(records.some(food => food.tags.includes('salad-kit')));
+  assert.ok(records.filter(food => food.tags.includes('salad-kit')).length >= 2);
   assert.ok(records.filter(food => food.tags.includes('frozen-meal')).length >= 3);
 });
 
@@ -67,9 +66,9 @@ test('top brands batch 4 keeps high-value consumer search aliases', () => {
   const { records } = loadRecords();
   const byId = new Map(records.map(food => [food.id, food]));
   assert.ok(byId.get('protein-brand-oscar-mayer-deli-fresh-black-forest-ham')?.aliases.includes('Oscar Mayer deli ham'));
-  assert.ok(byId.get('dairy-brand-sargento-provolone-smoke-slices')?.aliases.includes('Sargento provolone'));
   assert.ok(byId.get('dairy-brand-sargento-swiss-slices')?.aliases.includes('Sargento Swiss'));
   assert.ok(byId.get('prepared-brand-taylor-farms-southwest-chopped-salad-kit')?.aliases.includes('Taylor Farms Southwest'));
+  assert.ok(byId.get('prepared-brand-fresh-express-southwest-chopped-salad-kit')?.aliases.includes('Fresh Express Southwest'));
   assert.ok(byId.get('prepared-brand-hot-pockets-pepperoni-pizza')?.aliases.includes('Hot Pockets pepperoni'));
   assert.ok(byId.get('prepared-brand-lean-cuisine-herb-roasted-chicken')?.aliases.includes('Lean Cuisine herb chicken'));
   assert.ok(byId.get('prepared-brand-stouffers-macaroni-cheese-for-one')?.aliases.includes("Stouffer's mac and cheese"));
