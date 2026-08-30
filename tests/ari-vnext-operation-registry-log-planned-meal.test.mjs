@@ -160,9 +160,9 @@ test("registry owns log_planned_meal while preserving the canonical Meal Plan pr
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
 
-  assert.equal(registry.version, "1.4.0");
+  assert.equal(registry.version, "1.5.0");
   assert.equal(registry.hasOperation("log_planned_meal"), true);
-  assert.equal(registry.hasOperation("plan_meal"), false);
+  assert.equal(registry.hasOperation("plan_meal"), true);
 
   const pending = makePending();
   const mapped = await harness.adapter.createCalBuddyPendingAction(pending);
@@ -225,13 +225,13 @@ test("failed planned meal execution preserves matching pending state for retry",
   assert.equal(harness.legacyPending.vnext_action_id, "planned-failure");
 });
 
-test("full Meal Plan creation remains on compatibility fallback", async () => {
+test("unmigrated workout editing remains on compatibility fallback", async () => {
   const harness = makeHarness();
   await harness.adapter.createCalBuddyPendingAction({
-    id: "plan-meal-1",
-    name: "plan_meal",
-    sourceTurnId: "turn-plan-meal-1",
-    arguments: { meals: [] }
+    id: "workout-edit-1",
+    name: "edit_workout",
+    sourceTurnId: "turn-workout-edit-1",
+    arguments: { dateText: "today", editType: "move" }
   });
 
   assert.equal(harness.fallbackCreates, 1);
