@@ -167,10 +167,16 @@ export async function runAriVNext(turn = {}) {
       .map((tool) => String(tool.name))
   );
 
-  // The primary model remains the main semantic authority. A tiny GPT-4o-mini
-  // verifier is used only when the primary model attempts a mutation, or when
-  // a command-like turn received no tool call and may have been missed.
-  const shouldVerify = Boolean(functionCall) || shouldReviewNoToolTurn(turn);
+  // A correct primary log_meal proposal is now the low-risk fast path: OpenAI
+  // already made the semantic decision, trusted validation still checks the
+  // payload, and user confirmation is still required before execution. Keep
+  // the semantic verifier as a fallback when the primary model misses a
+  // command-like request, chooses a different operation, or handles any other
+  // mutation that has not yet earned this fast path.
+  const primaryFunctionName = String(functionCall?.name || "").trim();
+  const shouldVerify =
+    primaryFunctionName !== "propose_log_meal" &&
+    (Boolean(functionCall) || shouldReviewNoToolTurn(turn));
   const semanticActionReview = shouldVerify
     ? await reviewExplicitApplicationIntent({ turn, route, tools })
     : null;
@@ -232,9 +238,6 @@ export async function runAriVNext(turn = {}) {
       ? reviewedDecision
       : "";
 
-  // If Ari's first pass tried to write from a statement/question and the
-  // semantic verifier confidently says there is no write permission, suppress
-  // the tool and let Ari answer conversationally with no mutation tools visible.
   if (functionCall && reviewedDecision === "none" && reviewConfidence >= 0.84) {
     first = await callResponses({
       turn,
@@ -246,10 +249,6 @@ export async function runAriVNext(turn = {}) {
     functionCall = null;
   }
 
-  // If the verifier confidently resolves a different explicit capability—or
-  // catches an explicit request the first pass merely talked about—rerun the
-  // full Ari brain with that one function required. The verifier never creates
-  // arguments itself.
   if (
     reviewedToolName &&
     (!functionCall || String(functionCall.name) !== reviewedToolName)
@@ -296,10 +295,6 @@ export async function runAriVNext(turn = {}) {
 
   let validation = validateToolCall(functionCall, route);
 
-  // One bounded correction pass keeps a malformed model tool call from turning
-  // into a user-visible failure. The same function is required and the model is
-  // told the exact validator error; trusted validation still decides whether the
-  // repaired arguments are acceptable.
   if (!validation.valid) {
     const repairInstructions = [
       instructions,
@@ -350,11 +345,6 @@ export async function runAriVNext(turn = {}) {
     confirmationRequired: true
   });
 
-  // Logging a resolved meal no longer spends a second primary-model call just
-  // to word the confirmation. OpenAI still owns semantic interpretation and
-  // argument construction; trusted validation still owns whether the proposal
-  // is allowed. The confirmed payload itself is the source of truth for this
-  // deterministic reply, so wording cannot drift away from what will execute.
   const deterministicReply = formatDeterministicPendingReply(applicationAction, pendingAction.arguments);
   if (deterministicReply) {
     return {
@@ -627,8 +617,6 @@ function shouldReviewNoToolTurn(turn = {}) {
   const text = String(turn?.message || "").trim().toLowerCase();
   if (!text) return false;
 
-  // This does not decide the action. It only decides whether to spend the
-  // small semantic-verifier call after the primary brain chose no tool.
   return /\b(?:can you|could you|please|i want you to|help me|log|record|save|add|create|build|make|plan|change|update|replace|remove|track|start|finish|complete|cancel|set\s+(?:it|that|this|me|my)|put\s+(?:it|that|this|together)|figure\s+out.+for\s+me)\b/i.test(text);
 }
 
