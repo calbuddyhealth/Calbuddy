@@ -8,10 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.5.0";
+  const VERSION = "1.6.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
-  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal"]);
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal", "plan_workout"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -317,6 +317,39 @@
     };
   }
 
+  async function preparePlanWorkout(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The workout plan is missing its turn-bound identity.");
+    }
+
+    const adapter = window.AriVNextActionAdapter;
+    const preparer = adapter?.mapWorkoutPlanValidated;
+    if (typeof preparer !== "function") {
+      return failure("workout_preparer_unavailable", "The canonical Training workout preparer is unavailable.");
+    }
+
+    const prepared = await preparer.call(adapter, pending, pendingArguments(pending));
+    if (
+      !prepared?.success ||
+      prepared?.action?.action_type !== "plan_workout" ||
+      !prepared?.action?.payload?.vnext_prebuilt_workout
+    ) {
+      return failure(
+        prepared?.code || "workout_prepare_failed",
+        prepared?.message || "That workout could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "plan_workout",
+        source: SOURCE
+      }
+    };
+  }
+
   function prepareOperation(pending = {}) {
     const name = clean(pending?.name, 120);
     if (name === "log_meal") return prepareLogMeal(pending);
@@ -331,6 +364,9 @@
     if (name === "plan_meal") {
       return failure("meal_plan_requires_async_preparation", "Meal Plan creation requires the canonical Meal Plan preparer.");
     }
+    if (name === "plan_workout") {
+      return failure("workout_requires_async_preparation", "Workout planning requires the canonical Training workout preparer.");
+    }
     return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
   }
 
@@ -339,6 +375,7 @@
     if (name === "log_activity") return await prepareLogActivity(pending);
     if (name === "log_planned_meal") return await prepareLogPlannedMeal(pending);
     if (name === "plan_meal") return await preparePlanMeal(pending);
+    if (name === "plan_workout") return await preparePlanWorkout(pending);
     return prepareOperation(pending);
   }
 
@@ -409,6 +446,22 @@
 
     const prepared = await prepareOperationAsync(pending);
     if (!prepared.success) return prepared;
+
+    if (operationName === "plan_workout") {
+      const adapter = window.AriVNextActionAdapter;
+      const executor = adapter?.executeValidatedWorkout;
+      if (typeof executor !== "function") {
+        return failure("workout_executor_unavailable", "The canonical Training workout executor is unavailable.");
+      }
+
+      const execution = await executor.call(adapter, {
+        action: prepared.action,
+        pending,
+        currentTurnId: clean(input?.currentTurnId, 220) || null
+      });
+      if (execution?.success !== false) clearMatchingPendingCopies(pending);
+      return execution;
+    }
 
     if (typeof window.CalBuddy?.executeAction !== "function") {
       return failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
