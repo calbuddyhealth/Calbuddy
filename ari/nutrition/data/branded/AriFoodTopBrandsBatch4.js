@@ -38,19 +38,6 @@
       sourceUrl: "https://www.oscarmayer.com/products/00044700072615-deli-fresh-black-forest-uncured-ham"
     },
     {
-      id: "dairy-brand-sargento-provolone-smoke-slices",
-      name: "Provolone with Smoke Flavor Sliced Cheese",
-      displayName: "Sargento Provolone with Smoke Flavor Sliced Cheese",
-      brand: "Sargento",
-      category: "dairy",
-      state: "ready-to-eat",
-      preparation: "packaged-sliced-cheese",
-      aliases: ["Sargento provolone", "Sargento provolone slices", "Sargento sliced provolone", "Sargento smoked provolone", "provolone cheese slices"],
-      tags: ["cheese", "provolone", "sliced-cheese", "sandwich"],
-      labelNutrition: { servingLabel: "1 slice (19 g)", servingGrams: 19, calories: 70, protein: 5, carbs: 0, fat: 5, fiber: 0, sugar: 0, saturatedFat: 3, transFat: 0, cholesterol: 15, sodium: 130, potassium: 25 },
-      sourceUrl: "https://www.sargento.com/our-cheese/sliced-cheese/sargento-sliced-provolone-natural-cheese-with-natural-smoke-flavor-24-slices"
-    },
-    {
       id: "dairy-brand-sargento-swiss-slices",
       name: "Swiss Sliced Cheese",
       displayName: "Sargento Swiss Sliced Cheese",
@@ -75,6 +62,19 @@
       tags: ["salad", "salad-kit", "southwest", "prepared-meal"],
       labelNutrition: { servingLabel: "1 cup (100 g)", servingGrams: 100, calories: 150, protein: 4, carbs: 9, fat: 12, fiber: 2, sugar: 3, saturatedFat: 2, transFat: 0, cholesterol: 5, sodium: 170, potassium: 260 },
       sourceUrl: "https://www.taylorfarms.com/products/southwest-chopped-kit/"
+    },
+    {
+      id: "prepared-brand-fresh-express-southwest-chopped-salad-kit",
+      name: "Southwest Chopped Salad Kit",
+      displayName: "Fresh Express Southwest Chopped Salad Kit",
+      brand: "Fresh Express",
+      category: "prepared-meals",
+      state: "ready-to-eat",
+      preparation: "packaged-salad-kit",
+      aliases: ["Fresh Express Southwest", "Fresh Express Southwest salad", "Fresh Express Southwest chopped kit", "Southwest salad kit Fresh Express"],
+      tags: ["salad", "salad-kit", "southwest", "prepared-meal"],
+      labelNutrition: { servingLabel: "1 cup (100 g)", servingGrams: 100, calories: 100, protein: 4, carbs: 9, fat: 6, fiber: 2, sugar: 4, saturatedFat: 1.5, transFat: 0, cholesterol: 10, sodium: 250, potassium: 230 },
+      sourceUrl: "https://www.freshexpress.com/products/salad-chopped-kits/southwest-chopped-salad-kit"
     },
     {
       id: "prepared-brand-hot-pockets-pepperoni-pizza",
