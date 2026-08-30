@@ -205,7 +205,7 @@ test("registry owns plan_workout while preserving canonical Training validation"
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
 
-  assert.equal(registry.version, "1.6.0");
+  assert.equal(registry.version, "1.7.0");
   assert.equal(registry.hasOperation("plan_workout"), true);
   assert.equal(registry.hasOperation("edit_workout"), false);
 
