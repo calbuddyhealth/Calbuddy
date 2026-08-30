@@ -8,10 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.4.0";
+  const VERSION = "1.5.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
-  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal"]);
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -288,6 +288,35 @@
     };
   }
 
+  async function preparePlanMeal(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The Meal Plan action is missing its turn-bound identity.");
+    }
+
+    const adapter = window.AriVNextActionAdapter;
+    const preparer = adapter?.prepareCalBuddyAction;
+    if (typeof preparer !== "function") {
+      return failure("meal_plan_preparer_unavailable", "The canonical Meal Plan preparer is unavailable.");
+    }
+
+    const prepared = await preparer.call(adapter, pending);
+    if (!prepared?.success || prepared?.action?.action_type !== "plan_meal") {
+      return failure(
+        prepared?.code || "meal_plan_prepare_failed",
+        prepared?.message || "That Meal Plan could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "plan_meal",
+        source: SOURCE
+      }
+    };
+  }
+
   function prepareOperation(pending = {}) {
     const name = clean(pending?.name, 120);
     if (name === "log_meal") return prepareLogMeal(pending);
@@ -299,6 +328,9 @@
     if (name === "log_planned_meal") {
       return failure("planned_meal_requires_async_preparation", "Planned meal logging requires the canonical Meal Plan preparer.");
     }
+    if (name === "plan_meal") {
+      return failure("meal_plan_requires_async_preparation", "Meal Plan creation requires the canonical Meal Plan preparer.");
+    }
     return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
   }
 
@@ -306,6 +338,7 @@
     const name = clean(pending?.name, 120);
     if (name === "log_activity") return await prepareLogActivity(pending);
     if (name === "log_planned_meal") return await prepareLogPlannedMeal(pending);
+    if (name === "plan_meal") return await preparePlanMeal(pending);
     return prepareOperation(pending);
   }
 
