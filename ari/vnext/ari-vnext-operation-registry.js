@@ -8,10 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.0";
+  const VERSION = "1.7.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
-  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal", "plan_workout"]);
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal", "plan_workout", "cancel_workout"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -43,6 +43,34 @@
     return pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
       ? pending.arguments
       : {};
+  }
+
+  function isIsoDate(value) {
+    const text = clean(value, 20);
+    if (!/^20\d{2}-\d{2}-\d{2}$/.test(text)) return false;
+    const [year, month, day] = text.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  }
+
+  function hasWorkout(day = {}) {
+    return Boolean(day?.type === "workout" && Array.isArray(day?.exercises) && day.exercises.length > 0);
+  }
+
+  function workoutFingerprint(day = {}) {
+    const workoutId = clean(day?.workoutId || day?.id, 220);
+    const title = clean(day?.title, 180);
+    const exercises = (Array.isArray(day?.exercises) ? day.exercises : [])
+      .map((entry) => clean(entry?.exerciseId || entry?.id, 160))
+      .filter(Boolean);
+    return `${workoutId}|${title}|${exercises.join(",")}`;
+  }
+
+  function formatDateLabel(value = "") {
+    const [year, month, day] = clean(value, 20).split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) return clean(value, 20) || "that date";
+    return new Intl.DateTimeFormat(undefined, { weekday: "long", month: "short", day: "numeric" }).format(date);
   }
 
   function normalizeGoalType(value) {
@@ -350,6 +378,65 @@
     };
   }
 
+  async function prepareCancelWorkout(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The workout cancellation is missing its turn-bound identity.");
+    }
+
+    const args = pendingArguments(pending);
+    const scheduledDate = clean(args?.scheduledDate, 20);
+    if (!isIsoDate(scheduledDate)) {
+      return failure("workout_cancel_exact_date_required", "An exact workout date is required before Ari can cancel the plan.");
+    }
+
+    const adapter = window.AriVNextActionAdapter;
+    const getController = adapter?.getWorkoutController;
+    if (typeof getController !== "function") {
+      return failure("workout_controller_unavailable", "The canonical Training workout controller is unavailable.");
+    }
+
+    let controller;
+    try {
+      controller = await getController.call(adapter);
+    } catch (error) {
+      return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
+    }
+
+    if (typeof controller?.getDate !== "function" || typeof controller?.clearDate !== "function" || typeof controller?.save !== "function") {
+      return failure("workout_cancel_executor_unavailable", "The canonical Training cancellation path is unavailable.");
+    }
+
+    const day = controller.getDate(scheduledDate);
+    if (!hasWorkout(day)) {
+      return failure("workout_cancel_target_missing", `There isn't a planned workout on ${formatDateLabel(scheduledDate)}.`);
+    }
+    if (day?.completed === true || day?.progress?.completed === true) {
+      return failure("workout_cancel_completed_session", "A completed workout cannot be cancelled as a planned workout.");
+    }
+
+    const title = clean(day?.title, 180) || "Workout";
+    const fingerprint = workoutFingerprint(day);
+
+    return {
+      success: true,
+      action: {
+        action_type: "cancel_workout",
+        payload: {
+          scheduled_date: scheduledDate,
+          expected_workout_fingerprint: fingerprint,
+          expected_workout_title: title
+        },
+        confirmation_text: `Remove ${title} from ${formatDateLabel(scheduledDate)}?`
+      },
+      resolution: {
+        operation: "cancel_workout",
+        scheduledDate,
+        workoutTitle: title,
+        source: SOURCE
+      }
+    };
+  }
+
   function prepareOperation(pending = {}) {
     const name = clean(pending?.name, 120);
     if (name === "log_meal") return prepareLogMeal(pending);
@@ -367,6 +454,9 @@
     if (name === "plan_workout") {
       return failure("workout_requires_async_preparation", "Workout planning requires the canonical Training workout preparer.");
     }
+    if (name === "cancel_workout") {
+      return failure("workout_cancel_requires_async_preparation", "Workout cancellation requires canonical Training state.");
+    }
     return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
   }
 
@@ -376,6 +466,7 @@
     if (name === "log_planned_meal") return await prepareLogPlannedMeal(pending);
     if (name === "plan_meal") return await preparePlanMeal(pending);
     if (name === "plan_workout") return await preparePlanWorkout(pending);
+    if (name === "cancel_workout") return await prepareCancelWorkout(pending);
     return prepareOperation(pending);
   }
 
@@ -428,6 +519,75 @@
     return true;
   }
 
+  async function executeCancelWorkout({ pending, prepared, currentTurnId = null } = {}) {
+    const adapter = window.AriVNextActionAdapter;
+    const getController = adapter?.getWorkoutController;
+    if (typeof getController !== "function") {
+      return failure("workout_controller_unavailable", "The canonical Training workout controller is unavailable.");
+    }
+
+    let controller;
+    try {
+      controller = await getController.call(adapter);
+    } catch (error) {
+      return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
+    }
+
+    const payload = prepared?.action?.payload || {};
+    const scheduledDate = clean(payload?.scheduled_date, 20);
+    const expectedFingerprint = clean(payload?.expected_workout_fingerprint, 1000);
+    const expectedTitle = clean(payload?.expected_workout_title, 180) || "Workout";
+
+    const current = controller.getDate(scheduledDate);
+    if (!hasWorkout(current)) {
+      return failure("workout_cancel_target_missing", `There isn't a planned workout on ${formatDateLabel(scheduledDate)}.`);
+    }
+    if (current?.completed === true || current?.progress?.completed === true) {
+      return failure("workout_cancel_completed_session", "A completed workout cannot be cancelled as a planned workout.");
+    }
+    if (!expectedFingerprint || workoutFingerprint(current) !== expectedFingerprint) {
+      return failure("workout_cancel_target_changed", "That workout changed after Ari prepared the cancellation. Ask Ari to prepare it again.");
+    }
+
+    const cleared = controller.clearDate(scheduledDate);
+    if (!cleared) {
+      return failure("workout_cancel_save_failed", "Training could not remove that planned workout safely.");
+    }
+
+    const remoteSaved = await controller.save({ remote: true });
+    if (remoteSaved === false) {
+      return failure("workout_cancel_remote_save_failed", "The workout was removed locally but ARI XP could not safely confirm the remote save.");
+    }
+
+    window.dispatchEvent(new CustomEvent("ari:workoutPlanUpdated", {
+      detail: {
+        scheduledDate,
+        mode: "cancel",
+        operation: "cancel",
+        source: SOURCE,
+        version: VERSION,
+        vnextActionId: pending?.id || null,
+        confirmationTurnId: clean(currentTurnId, 220) || null
+      }
+    }));
+
+    return {
+      success: true,
+      result: {
+        scheduled_date: scheduledDate,
+        removed_workout_title: expectedTitle,
+        reply: `${expectedTitle} has been removed from ${formatDateLabel(scheduledDate)}.`
+      },
+      action: {
+        ...prepared.action,
+        vnext_action_id: pending.id,
+        vnext_source_turn_id: pending.sourceTurnId,
+        vnext_confirmation_turn_id: clean(currentTurnId, 220) || null,
+        vnext_source: SOURCE
+      }
+    };
+  }
+
   async function executeOwnedOperation(input = {}) {
     const pending = input?.vnextPendingAction || null;
     const operationName = clean(pending?.name, 120);
@@ -457,6 +617,16 @@
       const execution = await executor.call(adapter, {
         action: prepared.action,
         pending,
+        currentTurnId: clean(input?.currentTurnId, 220) || null
+      });
+      if (execution?.success !== false) clearMatchingPendingCopies(pending);
+      return execution;
+    }
+
+    if (operationName === "cancel_workout") {
+      const execution = await executeCancelWorkout({
+        pending,
+        prepared,
         currentTurnId: clean(input?.currentTurnId, 220) || null
       });
       if (execution?.success !== false) clearMatchingPendingCopies(pending);
