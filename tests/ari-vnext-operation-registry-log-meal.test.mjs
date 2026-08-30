@@ -31,6 +31,22 @@ function makePending(id = "meal-action-1", overrides = {}) {
   };
 }
 
+function makeWeightPending(id = "weight-action-1", overrides = {}) {
+  return {
+    id,
+    name: "log_weight",
+    sourceTurnId: `turn-${id}`,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    arguments: {
+      value: 185.6,
+      unit: "lb",
+      dateText: "today",
+      ...(overrides.arguments || {})
+    },
+    ...overrides
+  };
+}
+
 function makeHarness({ executeSuccess = true } = {}) {
   let bridgePending = makePending();
   let legacyPending = null;
@@ -54,7 +70,7 @@ function makeHarness({ executeSuccess = true } = {}) {
     async executeAction(action) {
       executed.push(action);
       return executeSuccess
-        ? { success: true, reply: "Meal logged." }
+        ? { success: true, reply: "Saved." }
         : { success: false, message: "Write failed." };
     }
   };
@@ -105,6 +121,8 @@ function makeHarness({ executeSuccess = true } = {}) {
     Object,
     Math,
     Promise,
+    Set,
+    Array,
     setInterval,
     clearInterval
   });
@@ -133,25 +151,33 @@ function makeHarness({ executeSuccess = true } = {}) {
   };
 }
 
-test("registry owns log_meal while preserving fallback for unmigrated operations", async () => {
+test("registry owns migrated logging operations while preserving fallback for unmigrated operations", async () => {
   const harness = makeHarness();
-  assert.equal(harness.window.AriVNextOperationRegistry.ready, true);
-  assert.equal(harness.window.AriVNextOperationRegistry.hasOperation("log_meal"), true);
-  assert.equal(harness.window.AriVNextOperationRegistry.hasOperation("log_weight"), false);
+  const registry = harness.window.AriVNextOperationRegistry;
+  assert.equal(registry.ready, true);
+  assert.equal(registry.hasOperation("log_meal"), true);
+  assert.equal(registry.hasOperation("log_weight"), true);
+  assert.equal(registry.hasOperation("update_goal"), false);
 
-  const mapped = await harness.adapter.createCalBuddyPendingAction(makePending());
-  assert.equal(mapped.success, true);
-  assert.equal(mapped.action.action_type, "log_meal");
-  assert.equal(mapped.action.payload.calories, 540);
-  assert.equal(mapped.action.payload.protein_g, 48);
-  assert.equal(mapped.action.vnext_action_id, "meal-action-1");
+  const meal = await harness.adapter.createCalBuddyPendingAction(makePending());
+  assert.equal(meal.success, true);
+  assert.equal(meal.action.action_type, "log_meal");
+  assert.equal(meal.action.payload.calories, 540);
+  assert.equal(meal.action.payload.protein_g, 48);
+  assert.equal(meal.action.vnext_action_id, "meal-action-1");
+
+  const weight = await harness.adapter.createCalBuddyPendingAction(makeWeightPending());
+  assert.equal(weight.success, true);
+  assert.equal(weight.action.action_type, "log_weight");
+  assert.equal(weight.action.payload.weight, 185.6);
+  assert.equal(weight.action.vnext_action_id, "weight-action-1");
   assert.equal(harness.fallbackCreates, 0);
 
   await harness.adapter.createCalBuddyPendingAction({
-    id: "weight-1",
-    name: "log_weight",
-    sourceTurnId: "turn-weight-1",
-    arguments: { value: 180 }
+    id: "goal-1",
+    name: "update_goal",
+    sourceTurnId: "turn-goal-1",
+    arguments: { goalType: "target_weight", value: 180, unit: "lb" }
   });
   assert.equal(harness.fallbackCreates, 1);
 });
@@ -164,6 +190,35 @@ test("unresolved meal nutrition is rejected before a pending action is created",
 
   assert.equal(result.success, false);
   assert.equal(result.code, "meal_nutrition_required");
+  assert.equal(harness.legacyPending, null);
+  assert.equal(harness.fallbackCreates, 0);
+});
+
+test("weight registry preserves pounds and normalizes kilograms before execution", async () => {
+  const harness = makeHarness();
+
+  const pounds = harness.window.AriVNextOperationRegistry.prepare(makeWeightPending("weight-lb"));
+  assert.equal(pounds.success, true);
+  assert.equal(pounds.action.payload.weight, 185.6);
+  assert.equal(pounds.action.confirmation_text, "Log your weight as 185.6 lb?");
+
+  const kilograms = harness.window.AriVNextOperationRegistry.prepare(
+    makeWeightPending("weight-kg", { arguments: { value: 84.2, unit: "kg" } })
+  );
+  assert.equal(kilograms.success, true);
+  assert.equal(kilograms.action.payload.weight, 185.6);
+  assert.equal(kilograms.action.payload.notes, "Entered as 84.2 kg by Ari vNext.");
+  assert.equal(kilograms.action.confirmation_text, "Log your weight as 84.2 kg?");
+});
+
+test("invalid weight is rejected before a pending action is created", async () => {
+  const harness = makeHarness();
+  const result = await harness.adapter.createCalBuddyPendingAction(
+    makeWeightPending("weight-invalid", { arguments: { value: 0 } })
+  );
+
+  assert.equal(result.success, false);
+  assert.equal(result.code, "weight_out_of_range");
   assert.equal(harness.legacyPending, null);
   assert.equal(harness.fallbackCreates, 0);
 });
@@ -184,6 +239,28 @@ test("successful meal execution writes once and clears only matching pending cop
   assert.equal(harness.executed[0].action_type, "log_meal");
   assert.equal(harness.executed[0].vnext_action_id, "meal-success");
   assert.equal(harness.executed[0].vnext_confirmation_turn_id, "confirm-turn");
+  assert.equal(harness.bridgePending, null);
+  assert.equal(harness.legacyPending, null);
+  assert.equal(harness.fallbackExecutes, 0);
+});
+
+test("successful weight execution uses the registry lifecycle and keeps exact action identity", async () => {
+  const harness = makeHarness();
+  const pending = makeWeightPending("weight-success");
+  harness.setBridgePending(pending);
+  await harness.adapter.createCalBuddyPendingAction(pending);
+
+  const execution = await harness.adapter.executeConfirmed({
+    vnextPendingAction: pending,
+    currentTurnId: "confirm-weight"
+  });
+
+  assert.equal(execution.success, true);
+  assert.equal(harness.executed.length, 1);
+  assert.equal(harness.executed[0].action_type, "log_weight");
+  assert.equal(harness.executed[0].payload.weight, 185.6);
+  assert.equal(harness.executed[0].vnext_action_id, "weight-success");
+  assert.equal(harness.executed[0].vnext_confirmation_turn_id, "confirm-weight");
   assert.equal(harness.bridgePending, null);
   assert.equal(harness.legacyPending, null);
   assert.equal(harness.fallbackExecutes, 0);
@@ -216,15 +293,16 @@ test("completed meal does not block a new meal with a new action identity", asyn
 });
 
 test("failed execution preserves pending state inside the operation registry", async () => {
-  const harness = makeHarness({ executeSuccess: false });
-  const pending = makePending("meal-failure");
-  harness.setBridgePending(pending);
-  await harness.adapter.createCalBuddyPendingAction(pending);
+  for (const pending of [makePending("meal-failure"), makeWeightPending("weight-failure")]) {
+    const harness = makeHarness({ executeSuccess: false });
+    harness.setBridgePending(pending);
+    await harness.adapter.createCalBuddyPendingAction(pending);
 
-  const execution = await harness.adapter.executeConfirmed({ vnextPendingAction: pending });
+    const execution = await harness.adapter.executeConfirmed({ vnextPendingAction: pending });
 
-  assert.equal(execution.success, false);
-  assert.equal(harness.executed.length, 1);
-  assert.equal(harness.bridgePending.id, "meal-failure");
-  assert.equal(harness.legacyPending.vnext_action_id, "meal-failure");
+    assert.equal(execution.success, false);
+    assert.equal(harness.executed.length, 1);
+    assert.equal(harness.bridgePending.id, pending.id);
+    assert.equal(harness.legacyPending.vnext_action_id, pending.id);
+  }
 });
