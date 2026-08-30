@@ -16,6 +16,7 @@ function loadRecords() {
       remove() { return true; }
     }
   };
+  sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   vm.runInNewContext(source, sandbox, { filename: 'AriFoodTopBrandsBatch2.js' });
   return { records: registered, api: sandbox.AriFoodTopBrandsBatch2 };
