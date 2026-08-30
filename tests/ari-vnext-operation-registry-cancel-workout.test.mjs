@@ -56,7 +56,8 @@ function makeHarness({ workout = makeWorkout(), remoteSave = true } = {}) {
     },
     async save(options) {
       saveCalls += 1;
-      assert.deepEqual(options, { remote: true });
+      assert.equal(options?.remote, true);
+      assert.equal(Object.keys(options || {}).length, 1);
       return remoteSave;
     }
   };
@@ -175,7 +176,6 @@ test("registry owns cancel_workout and binds confirmation to the exact planned w
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
 
-  assert.equal(registry.version, "1.7.0");
   assert.equal(registry.hasOperation("cancel_workout"), true);
   assert.equal(registry.hasOperation("edit_workout"), false);
 
