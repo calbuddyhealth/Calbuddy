@@ -1,16 +1,17 @@
 // ARI vNext — canonical trusted operation registry.
 //
-// First permanent cutover: log_meal. Other operations continue through the
-// existing trusted adapter until they are migrated and proven independently.
-// This prevents another all-at-once adapter deletion while giving Nutrition one
-// authoritative preparation/execution path.
+// Permanent cutovers are migrated one operation at a time. Unmigrated
+// operations continue through the existing trusted adapter until their callers
+// and regression contracts are proven independently. This prevents another
+// all-at-once adapter deletion while converging on one execution system.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.6.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal", "plan_workout"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -32,6 +33,33 @@
 
   function failure(code, message, extra = {}) {
     return { success: false, code, message, ...extra };
+  }
+
+  function validPendingIdentity(pending = {}) {
+    return Boolean(pending?.id && pending?.sourceTurnId);
+  }
+
+  function pendingArguments(pending = {}) {
+    return pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
+      ? pending.arguments
+      : {};
+  }
+
+  function normalizeGoalType(value) {
+    const text = clean(value, 80).toLowerCase().replace(/[\s-]+/g, "_");
+    const aliases = {
+      calorie_goal: "daily_calorie_goal",
+      calories: "daily_calorie_goal",
+      daily_calories: "daily_calorie_goal",
+      daily_calorie_goal: "daily_calorie_goal",
+      target_weight: "target_weight",
+      goal_weight: "target_weight",
+      weekly_weight_change: "weekly_weight_change",
+      weekly_change: "weekly_weight_change",
+      goal_mode: "goal_mode",
+      goal: "goal_mode"
+    };
+    return aliases[text] || null;
   }
 
   function isResolvedMeal(args = {}) {
@@ -59,14 +87,11 @@
   }
 
   function prepareLogMeal(pending = {}) {
-    if (!pending?.id || !pending?.sourceTurnId) {
+    if (!validPendingIdentity(pending)) {
       return failure("invalid_pending_action", "The meal action is missing its turn-bound identity.");
     }
 
-    const args = pending?.arguments && typeof pending.arguments === "object" && !Array.isArray(pending.arguments)
-      ? pending.arguments
-      : {};
-
+    const args = pendingArguments(pending);
     if (!isResolvedMeal(args)) {
       return failure(
         "meal_nutrition_required",
@@ -102,8 +127,260 @@
     };
   }
 
-  async function createLogMealPending(pending = {}) {
-    const prepared = prepareLogMeal(pending);
+  function prepareLogWeight(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The weight action is missing its turn-bound identity.");
+    }
+
+    const args = pendingArguments(pending);
+    const value = finite(args?.value);
+    const unit = clean(args?.unit, 12).toLowerCase();
+
+    if (value === null || value <= 0 || value > 1500) {
+      return failure("weight_out_of_range", "A valid weight is required.");
+    }
+
+    const normalizedUnit = unit === "kg" ? "kg" : "lb";
+    const pounds = normalizedUnit === "kg" ? value * 2.2046226218 : value;
+
+    return {
+      success: true,
+      action: {
+        action_type: "log_weight",
+        payload: {
+          weight: round1(pounds),
+          notes: normalizedUnit === "kg"
+            ? `Entered as ${round1(value)} kg by Ari vNext.`
+            : "Logged by Ari vNext."
+        },
+        confirmation_text: `Log your weight as ${round1(value)} ${normalizedUnit}?`
+      },
+      resolution: {
+        operation: "log_weight",
+        unit: normalizedUnit,
+        normalizedWeightLb: round1(pounds),
+        source: SOURCE
+      }
+    };
+  }
+
+  async function prepareLogActivity(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The activity action is missing its turn-bound identity.");
+    }
+
+    const preparer = window.AriVNextActivityAdapter?.prepare;
+    if (typeof preparer !== "function") {
+      return failure("activity_preparer_unavailable", "The canonical Training activity preparer is unavailable.");
+    }
+
+    const args = pendingArguments(pending);
+    const prepared = await preparer(pending, args);
+
+    if (!prepared?.success || prepared?.action?.action_type !== "log_activity") {
+      return failure(
+        prepared?.code || "activity_prepare_failed",
+        prepared?.message || "That activity could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "log_activity",
+        source: SOURCE
+      }
+    };
+  }
+
+  function prepareUpdateGoal(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The goal action is missing its turn-bound identity.");
+    }
+
+    const args = pendingArguments(pending);
+    const goalType = normalizeGoalType(args?.goalType);
+    const value = args?.value === null || args?.value === undefined ? null : finite(args.value);
+
+    if (!goalType) {
+      return failure("unsupported_goal_type", "That goal change is not mapped to a trusted ARI XP profile field yet.");
+    }
+
+    const payload = {};
+    if (goalType === "daily_calorie_goal") {
+      if (value === null || value < 800 || value > 8000) {
+        return failure("calorie_goal_out_of_range", "The calorie goal is outside the supported range.");
+      }
+      payload.daily_calorie_goal = Math.round(value);
+    }
+
+    if (goalType === "target_weight") {
+      if (value === null || value <= 0 || value > 1500) {
+        return failure("target_weight_out_of_range", "The target weight is outside the supported range.");
+      }
+      payload.target_weight_lbs = clean(args?.unit, 12).toLowerCase() === "kg"
+        ? round1(value * 2.2046226218)
+        : round1(value);
+    }
+
+    if (goalType === "weekly_weight_change") {
+      if (value === null || Math.abs(value) > 10) {
+        return failure("weekly_change_out_of_range", "The weekly weight change is outside the supported range.");
+      }
+      payload.weekly_weight_change_goal = Math.abs(value);
+    }
+
+    if (goalType === "goal_mode") {
+      const instruction = clean(args?.instruction, 200).toLowerCase();
+      const mode = /\b(cut|lose|loss)\b/.test(instruction)
+        ? "lose"
+        : /\b(bulk|gain)\b/.test(instruction)
+          ? "gain"
+          : /\b(maintain|maintenance)\b/.test(instruction)
+            ? "maintain"
+            : null;
+      if (!mode) return failure("goal_mode_required", "A clear goal mode is required.");
+      payload.goal = mode;
+    }
+
+    return {
+      success: true,
+      action: {
+        action_type: "update_goal_profile",
+        payload,
+        confirmation_text: `Update your ${goalType.replaceAll("_", " ")}?`
+      },
+      resolution: {
+        operation: "update_goal",
+        goalType,
+        source: SOURCE
+      }
+    };
+  }
+
+  async function prepareLogPlannedMeal(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The planned meal action is missing its turn-bound identity.");
+    }
+
+    const adapter = window.AriVNextActionAdapter;
+    const preparer = adapter?.prepareCalBuddyAction;
+    if (typeof preparer !== "function") {
+      return failure("meal_plan_preparer_unavailable", "The canonical Meal Plan preparer is unavailable.");
+    }
+
+    const prepared = await preparer.call(adapter, pending);
+    if (!prepared?.success || prepared?.action?.action_type !== "log_planned_meal") {
+      return failure(
+        prepared?.code || "planned_meal_prepare_failed",
+        prepared?.message || "That planned meal could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "log_planned_meal",
+        source: SOURCE
+      }
+    };
+  }
+
+  async function preparePlanMeal(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The Meal Plan action is missing its turn-bound identity.");
+    }
+
+    const adapter = window.AriVNextActionAdapter;
+    const preparer = adapter?.prepareCalBuddyAction;
+    if (typeof preparer !== "function") {
+      return failure("meal_plan_preparer_unavailable", "The canonical Meal Plan preparer is unavailable.");
+    }
+
+    const prepared = await preparer.call(adapter, pending);
+    if (!prepared?.success || prepared?.action?.action_type !== "plan_meal") {
+      return failure(
+        prepared?.code || "meal_plan_prepare_failed",
+        prepared?.message || "That Meal Plan could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "plan_meal",
+        source: SOURCE
+      }
+    };
+  }
+
+  async function preparePlanWorkout(pending = {}) {
+    if (!validPendingIdentity(pending)) {
+      return failure("invalid_pending_action", "The workout plan is missing its turn-bound identity.");
+    }
+
+    const adapter = window.AriVNextActionAdapter;
+    const preparer = adapter?.mapWorkoutPlanValidated;
+    if (typeof preparer !== "function") {
+      return failure("workout_preparer_unavailable", "The canonical Training workout preparer is unavailable.");
+    }
+
+    const prepared = await preparer.call(adapter, pending, pendingArguments(pending));
+    if (
+      !prepared?.success ||
+      prepared?.action?.action_type !== "plan_workout" ||
+      !prepared?.action?.payload?.vnext_prebuilt_workout
+    ) {
+      return failure(
+        prepared?.code || "workout_prepare_failed",
+        prepared?.message || "That workout could not be prepared safely."
+      );
+    }
+
+    return {
+      ...prepared,
+      resolution: {
+        ...(prepared?.resolution || {}),
+        operation: "plan_workout",
+        source: SOURCE
+      }
+    };
+  }
+
+  function prepareOperation(pending = {}) {
+    const name = clean(pending?.name, 120);
+    if (name === "log_meal") return prepareLogMeal(pending);
+    if (name === "log_weight") return prepareLogWeight(pending);
+    if (name === "update_goal") return prepareUpdateGoal(pending);
+    if (name === "log_activity") {
+      return failure("activity_requires_async_preparation", "Activity logging requires the canonical Training activity preparer.");
+    }
+    if (name === "log_planned_meal") {
+      return failure("planned_meal_requires_async_preparation", "Planned meal logging requires the canonical Meal Plan preparer.");
+    }
+    if (name === "plan_meal") {
+      return failure("meal_plan_requires_async_preparation", "Meal Plan creation requires the canonical Meal Plan preparer.");
+    }
+    if (name === "plan_workout") {
+      return failure("workout_requires_async_preparation", "Workout planning requires the canonical Training workout preparer.");
+    }
+    return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
+  }
+
+  async function prepareOperationAsync(pending = {}) {
+    const name = clean(pending?.name, 120);
+    if (name === "log_activity") return await prepareLogActivity(pending);
+    if (name === "log_planned_meal") return await prepareLogPlannedMeal(pending);
+    if (name === "plan_meal") return await preparePlanMeal(pending);
+    if (name === "plan_workout") return await preparePlanWorkout(pending);
+    return prepareOperation(pending);
+  }
+
+  async function createOperationPending(pending = {}) {
+    const prepared = await prepareOperationAsync(pending);
     if (!prepared.success) return prepared;
 
     if (typeof window.CalBuddy?.createPendingAction !== "function") {
@@ -151,18 +428,40 @@
     return true;
   }
 
-  async function executeLogMeal(input = {}) {
+  async function executeOwnedOperation(input = {}) {
     const pending = input?.vnextPendingAction || null;
-    if (!pending?.id || !pending?.sourceTurnId) {
-      return failure("missing_vnext_pending_action", "There is no turn-bound meal action to execute.");
+    const operationName = clean(pending?.name, 120);
+
+    if (!validPendingIdentity(pending)) {
+      return failure("missing_vnext_pending_action", "There is no turn-bound action to execute.");
+    }
+
+    if (!OWNED_OPERATIONS.has(operationName)) {
+      return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
     }
 
     if (pending?.expiresAt && Date.parse(pending.expiresAt) < Date.now()) {
-      return failure("vnext_action_expired", "That pending meal expired. Ask Ari to prepare it again.");
+      return failure("vnext_action_expired", `That pending ${operationName.replaceAll("_", " ")} expired. Ask Ari to prepare it again.`);
     }
 
-    const prepared = prepareLogMeal(pending);
+    const prepared = await prepareOperationAsync(pending);
     if (!prepared.success) return prepared;
+
+    if (operationName === "plan_workout") {
+      const adapter = window.AriVNextActionAdapter;
+      const executor = adapter?.executeValidatedWorkout;
+      if (typeof executor !== "function") {
+        return failure("workout_executor_unavailable", "The canonical Training workout executor is unavailable.");
+      }
+
+      const execution = await executor.call(adapter, {
+        action: prepared.action,
+        pending,
+        currentTurnId: clean(input?.currentTurnId, 220) || null
+      });
+      if (execution?.success !== false) clearMatchingPendingCopies(pending);
+      return execution;
+    }
 
     if (typeof window.CalBuddy?.executeAction !== "function") {
       return failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
@@ -196,13 +495,13 @@
     const fallbackExecute = adapter.executeConfirmed.bind(adapter);
 
     adapter.createCalBuddyPendingAction = async function registryCreatePending(pending = {}) {
-      if (clean(pending?.name, 120) === "log_meal") return await createLogMealPending(pending);
+      if (OWNED_OPERATIONS.has(clean(pending?.name, 120))) return await createOperationPending(pending);
       return await fallbackCreate(pending);
     };
 
     adapter.executeConfirmed = async function registryExecuteConfirmed(input = {}) {
       const pending = input?.vnextPendingAction || null;
-      if (clean(pending?.name, 120) === "log_meal") return await executeLogMeal(input);
+      if (OWNED_OPERATIONS.has(clean(pending?.name, 120))) return await executeOwnedOperation(input);
       return await fallbackExecute(input);
     };
 
@@ -221,20 +520,16 @@
     source: SOURCE,
     ready: false,
     hasOperation(name = "") {
-      return clean(name, 120) === "log_meal";
+      return OWNED_OPERATIONS.has(clean(name, 120));
     },
-    prepare(pending = {}) {
-      if (clean(pending?.name, 120) !== "log_meal") {
-        return failure("operation_handler_unavailable", "That operation has not been migrated to the registry yet.");
-      }
-      return prepareLogMeal(pending);
-    },
-    createPending: createLogMealPending,
-    executeConfirmed: executeLogMeal,
+    prepare: prepareOperation,
+    prepareAsync: prepareOperationAsync,
+    createPending: createOperationPending,
+    executeConfirmed: executeOwnedOperation,
     clearMatchingPendingCopies,
     reconcileOrphanedLegacyPending,
     snapshot() {
-      return { version: VERSION, operations: ["log_meal"], source: SOURCE };
+      return { version: VERSION, operations: Array.from(OWNED_OPERATIONS), source: SOURCE };
     }
   };
 
