@@ -13,6 +13,22 @@ import {
 export const TOOL_REGISTRY_VERSION = "1.12.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
+// Core health mutations are semantic capabilities, not context-routing results.
+// OpenAI should be able to understand natural requests like "log a High Noon"
+// even when the lightweight context router does not recognize the noun. Context
+// routing still decides what supporting data to preload; trusted validation and
+// execution remain authoritative for whether a proposed mutation can proceed.
+const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
+  "propose_log_meal",
+  "propose_today_meal_plan",
+  "propose_log_planned_meal",
+  "propose_log_activity",
+  "propose_workout_plan",
+  "propose_edit_workout",
+  "propose_log_weight",
+  "propose_update_goal"
+]);
+
 const CREW_TOOL_NAMES = new Set([
   "propose_create_circle_crew",
   "propose_accept_circle_crew_invite",
@@ -23,6 +39,15 @@ const CREW_TOOL_NAMES = new Set([
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
+}
+
+function semanticHealthCapabilityRoute(route = {}) {
+  return {
+    ...route,
+    nutrition: true,
+    training: true,
+    goals: true
+  };
 }
 
 function crewTools(route = {}) {
@@ -147,7 +172,16 @@ function validateResolvedMealArguments(args = {}) {
 }
 
 export function getAriTools(route = {}) {
-  const coreTools = getCoreAriTools(route).map(hardenCoreToolContract);
+  const routedCoreTools = getCoreAriTools(route);
+  const semanticHealthTools = getCoreAriTools(semanticHealthCapabilityRoute(route))
+    .filter((tool) => SEMANTIC_HEALTH_TOOL_NAMES.has(String(tool?.name || "")));
+
+  const coreByName = new Map();
+  for (const tool of [...routedCoreTools, ...semanticHealthTools]) {
+    if (tool?.name) coreByName.set(String(tool.name), tool);
+  }
+
+  const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
   return [...coreTools, ...crewTools(route)];
 }
 
@@ -161,7 +195,12 @@ export function validateToolCall(call = {}, route = {}) {
     if (!nutritionValidation.valid) return nutritionValidation;
   }
 
-  if (!CREW_TOOL_NAMES.has(name)) return validateCoreToolCall(call, route);
+  if (!CREW_TOOL_NAMES.has(name)) {
+    const validationRoute = SEMANTIC_HEALTH_TOOL_NAMES.has(name)
+      ? semanticHealthCapabilityRoute(route)
+      : route;
+    return validateCoreToolCall(call, validationRoute);
+  }
 
   if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) {
     return { valid: false, error: "tool_not_allowed_for_turn" };
