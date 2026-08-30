@@ -19,8 +19,18 @@ test("log_meal confirmation is rendered deterministically from the pending paylo
   );
 });
 
-test("non-meal operations still use the existing model-confirmation path during this cutover", () => {
-  assert.equal(formatDeterministicPendingReply("log_weight", { value: 185 }), "");
-  assert.equal(formatDeterministicPendingReply("log_activity", { activityName: "Walk" }), "");
+test("proven logging operations use deterministic confirmation while complex mutations retain the model path", () => {
+  assert.equal(
+    formatDeterministicPendingReply("log_weight", { value: 185, unit: "lb" }),
+    "Ready to log your weight at 185 lb. Confirm to save it."
+  );
+  assert.equal(
+    formatDeterministicPendingReply("log_activity", {
+      activityName: "Walk",
+      durationMinutes: 30,
+      caloriesBurned: 140
+    }),
+    "Ready to log Walk (30 min) — 140 calories burned. Confirm to save it."
+  );
   assert.equal(formatDeterministicPendingReply("edit_workout", { exercise: "Squat" }), "");
 });
