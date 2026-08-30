@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.12.0";
+export const TOOL_REGISTRY_VERSION = "1.13.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 // Core health mutations are semantic capabilities, not context-routing results.
@@ -25,6 +25,7 @@ const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
   "propose_log_activity",
   "propose_workout_plan",
   "propose_edit_workout",
+  "propose_cancel_workout",
   "propose_log_weight",
   "propose_update_goal"
 ]);
@@ -48,6 +49,23 @@ function semanticHealthCapabilityRoute(route = {}) {
     training: true,
     goals: true
   };
+}
+
+function workoutCancelTools() {
+  return [
+    functionTool(
+      "propose_cancel_workout",
+      "Propose cancelling or removing one EXISTING planned workout only when the CURRENT user explicitly asks Ari to cancel, delete, remove, undo, or clear the entire planned workout. This is for the whole planned workout, not one exercise. Resolve the requested calendar day to an exact YYYY-MM-DD date before calling this tool; never guess between multiple possible dates. The trusted Training layer will verify the exact current workout, refuse completed workouts, and require confirmation before removal.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          scheduledDate: { type: "string" }
+        },
+        required: ["scheduledDate"]
+      }
+    )
+  ];
 }
 
 function crewTools(route = {}) {
@@ -151,6 +169,14 @@ function isMissing(value) {
   return value === null || value === undefined || value === "";
 }
 
+function isIsoDate(value) {
+  const text = String(value || "").trim();
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(text)) return false;
+  const [year, month, day] = text.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
 function validateResolvedMealArguments(args = {}) {
   if (!String(args?.name || "").trim()) return { valid: false, error: "meal_name_required" };
 
@@ -182,7 +208,7 @@ export function getAriTools(route = {}) {
   }
 
   const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
-  return [...coreTools, ...crewTools(route)];
+  return [...coreTools, ...workoutCancelTools(), ...crewTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
@@ -193,6 +219,14 @@ export function validateToolCall(call = {}, route = {}) {
     if (!args) return { valid: false, error: "invalid_tool_arguments" };
     const nutritionValidation = validateResolvedMealArguments(args);
     if (!nutritionValidation.valid) return nutritionValidation;
+  }
+
+  if (name === "propose_cancel_workout") {
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+    const scheduledDate = String(args?.scheduledDate || "").trim();
+    if (!isIsoDate(scheduledDate)) return { valid: false, error: "workout_cancel_exact_date_required" };
+    return { valid: true, name, arguments: { scheduledDate } };
   }
 
   if (!CREW_TOOL_NAMES.has(name)) {
@@ -222,6 +256,8 @@ export function validateToolCall(call = {}, route = {}) {
 }
 
 export function toolToApplicationAction(name = "") {
+  if (name === "propose_cancel_workout") return "cancel_workout";
+
   const crewAction = ({
     propose_create_circle_crew: "create_circle_crew",
     propose_accept_circle_crew_invite: "accept_circle_crew_invite",

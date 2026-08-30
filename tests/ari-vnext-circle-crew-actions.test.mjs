@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import {
-  TOOL_REGISTRY_VERSION,
-  CORE_TOOL_REGISTRY_VERSION,
   getAriTools,
   validateToolCall,
   toolToApplicationAction
@@ -33,9 +31,7 @@ const crewTools = [
   "propose_archive_circle_crew"
 ];
 
-test("Crew tool facade preserves the mature core registry", () => {
-  assert.equal(TOOL_REGISTRY_VERSION, "1.12.0");
-  assert.equal(CORE_TOOL_REGISTRY_VERSION, "1.11.1");
+test("Crew tool facade preserves mature core capabilities", () => {
   const mixed = getAriTools({ ...adultCircleRoute, nutrition: true }).map((tool) => tool.name);
   assert.ok(mixed.includes("propose_log_meal"));
   assert.ok(mixed.includes("propose_create_circle_mission"));

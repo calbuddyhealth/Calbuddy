@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getAriTools, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
+import { getAriTools, toolToApplicationAction, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
 
 const neutralRoute = {
   nutrition: false,
@@ -41,6 +41,7 @@ test("core health mutation capabilities remain visible when context routing miss
     "propose_log_activity",
     "propose_workout_plan",
     "propose_edit_workout",
+    "propose_cancel_workout",
     "propose_log_weight",
     "propose_update_goal"
   ]) {
@@ -67,6 +68,23 @@ test("trusted validation accepts a resolved meal even when the context router mi
   assert.equal(result.valid, true, result.error);
   assert.equal(result.arguments.name, "High Noon Raspberry Vodka Seltzer");
   assert.equal(result.arguments.calories, 100);
+});
+
+test("workout cancellation requires an exact resolved calendar date", () => {
+  const valid = validateToolCall({
+    name: "propose_cancel_workout",
+    arguments: JSON.stringify({ scheduledDate: "2026-08-30" })
+  }, neutralRoute);
+  assert.equal(valid.valid, true, valid.error);
+  assert.equal(valid.arguments.scheduledDate, "2026-08-30");
+  assert.equal(toolToApplicationAction("propose_cancel_workout"), "cancel_workout");
+
+  const unresolved = validateToolCall({
+    name: "propose_cancel_workout",
+    arguments: JSON.stringify({ scheduledDate: "today" })
+  }, neutralRoute);
+  assert.equal(unresolved.valid, false);
+  assert.equal(unresolved.error, "workout_cancel_exact_date_required");
 });
 
 test("teen entitlement still prevents adult goal mutation capability", () => {
