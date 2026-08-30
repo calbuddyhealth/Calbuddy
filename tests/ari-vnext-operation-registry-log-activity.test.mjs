@@ -167,7 +167,7 @@ test("registry owns log_activity while preserving the canonical Training prepare
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
 
-  assert.equal(registry.version, "1.2.0");
+  assert.equal(registry.version, "1.3.0");
   assert.equal(registry.hasOperation("log_activity"), true);
 
   const pending = makeActivityPending();
@@ -234,10 +234,10 @@ test("failed activity execution preserves matching pending state for retry", asy
 test("unmigrated operations still use the compatibility fallback", async () => {
   const harness = makeHarness();
   await harness.adapter.createCalBuddyPendingAction({
-    id: "goal-1",
-    name: "update_goal",
-    sourceTurnId: "turn-goal-1",
-    arguments: { goalType: "target_weight", value: 180, unit: "lb" }
+    id: "workout-edit-1",
+    name: "edit_workout",
+    sourceTurnId: "turn-workout-edit-1",
+    arguments: { dateText: "today", editType: "move" }
   });
 
   assert.equal(harness.fallbackCreates, 1);
