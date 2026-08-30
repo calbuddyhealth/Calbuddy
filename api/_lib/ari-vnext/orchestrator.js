@@ -350,6 +350,43 @@ export async function runAriVNext(turn = {}) {
     confirmationRequired: true
   });
 
+  // Logging a resolved meal no longer spends a second primary-model call just
+  // to word the confirmation. OpenAI still owns semantic interpretation and
+  // argument construction; trusted validation still owns whether the proposal
+  // is allowed. The confirmed payload itself is the source of truth for this
+  // deterministic reply, so wording cannot drift away from what will execute.
+  const deterministicReply = formatDeterministicPendingReply(applicationAction, pendingAction.arguments);
+  if (deterministicReply) {
+    return {
+      success: true,
+      ready: true,
+      reply: deterministicReply,
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction,
+      action: {
+        type: "proposed_action",
+        applicationAction,
+        pendingActionId: pendingAction.id,
+        arguments: pendingAction.arguments
+      },
+      provider: providerSummary(first),
+      semanticActionReview: publicActionReview(semanticActionReview),
+      source: "ari_vnext_action_proposal"
+    };
+  }
+
   const toolResult = {
     status: "confirmation_required",
     pendingActionId: pendingAction.id,
@@ -641,6 +678,20 @@ function extractOutputText(data = {}) {
     .map((part) => part.text)
     .join("")
     .trim();
+}
+
+export function formatDeterministicPendingReply(applicationAction = "", args = {}) {
+  if (String(applicationAction || "").trim() !== "log_meal") return "";
+
+  const name = String(args?.name || "meal").replace(/\s+/g, " ").trim().slice(0, 160) || "meal";
+  const servingSize = String(args?.servingSize || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  const calories = Number(args?.calories);
+  const calorieText = Number.isFinite(calories) && calories > 0
+    ? ` — ${Math.round(calories)} calories`
+    : "";
+  const servingText = servingSize ? ` (${servingSize})` : "";
+
+  return `Ready to log ${name}${servingText}${calorieText}. Confirm to save it.`;
 }
 
 function publicActionReview(review = null) {
