@@ -124,6 +124,9 @@ window.Ari = window.Ari || {};
     };
   }
 
+  // Runtime treats AriVNextInitiative as its final dependency. Do not publish it
+  // until the operation registry is actually ready, otherwise Home/Nutrition can
+  // race ahead and fall back to the legacy log_meal mapper.
   ensureRegistry()
     .then(() => {
       window.AriVNextInitiative = createClient();
