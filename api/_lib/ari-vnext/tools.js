@@ -1,7 +1,7 @@
 // ARI vNext — Crew-aware model-visible application capabilities.
 // The mature nutrition/training/goals/Meetup/Mission registry remains unchanged
-// in tools-core.js. This facade adds only bounded, confirmation-gated Crew
-// proposals on top of that trusted registry.
+// in tools-core.js. This facade adds bounded Crew proposals and hardens any
+// operation contracts that must agree with the trusted browser executor.
 
 import {
   TOOL_REGISTRY_VERSION as CORE_REGISTRY_VERSION,
@@ -13,6 +13,22 @@ import {
 export const TOOL_REGISTRY_VERSION = "1.12.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
+// Core health mutations are semantic capabilities, not context-routing results.
+// OpenAI should be able to understand natural requests like "log a High Noon"
+// even when the lightweight context router does not recognize the noun. Context
+// routing still decides what supporting data to preload; trusted validation and
+// execution remain authoritative for whether a proposed mutation can proceed.
+const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
+  "propose_log_meal",
+  "propose_today_meal_plan",
+  "propose_log_planned_meal",
+  "propose_log_activity",
+  "propose_workout_plan",
+  "propose_edit_workout",
+  "propose_log_weight",
+  "propose_update_goal"
+]);
+
 const CREW_TOOL_NAMES = new Set([
   "propose_create_circle_crew",
   "propose_accept_circle_crew_invite",
@@ -23,6 +39,15 @@ const CREW_TOOL_NAMES = new Set([
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
+}
+
+function semanticHealthCapabilityRoute(route = {}) {
+  return {
+    ...route,
+    nutrition: true,
+    training: true,
+    goals: true
+  };
 }
 
 function crewTools(route = {}) {
@@ -85,27 +110,104 @@ function crewTools(route = {}) {
   ];
 }
 
+function hardenCoreToolContract(tool = {}) {
+  if (tool?.name !== "propose_log_meal") return tool;
+
+  const parameters = tool?.parameters && typeof tool.parameters === "object"
+    ? tool.parameters
+    : {};
+  const properties = parameters?.properties && typeof parameters.properties === "object"
+    ? parameters.properties
+    : {};
+
+  return {
+    ...tool,
+    description:
+      "Propose logging food or a meal only when the CURRENT user message explicitly asks to log, add, record, or save it. Do not use for nutrition questions or statements about eating. Resolve or estimate a complete nutrition payload before proposing the mutation; calories, protein, carbs, and fat must all be numeric because the trusted executor will not accept unresolved nutrition. Clearly mark estimates in notes.",
+    parameters: {
+      ...parameters,
+      properties: {
+        ...properties,
+        calories: { type: "number" },
+        proteinG: { type: "number" },
+        carbsG: { type: "number" },
+        fatG: { type: "number" }
+      }
+    }
+  };
+}
+
+function parseArguments(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : null;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isMissing(value) {
+  return value === null || value === undefined || value === "";
+}
+
+function validateResolvedMealArguments(args = {}) {
+  if (!String(args?.name || "").trim()) return { valid: false, error: "meal_name_required" };
+
+  if (isMissing(args?.calories)) return { valid: false, error: "meal_nutrition_required" };
+  const calories = Number(args.calories);
+  if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) {
+    return { valid: false, error: "meal_nutrition_required" };
+  }
+
+  for (const [key, max] of [["proteinG", 1000], ["carbsG", 1500], ["fatG", 1000]]) {
+    if (isMissing(args?.[key])) return { valid: false, error: "meal_nutrition_required" };
+    const value = Number(args[key]);
+    if (!Number.isFinite(value) || value < 0 || value > max) {
+      return { valid: false, error: "meal_nutrition_required" };
+    }
+  }
+
+  return { valid: true };
+}
+
 export function getAriTools(route = {}) {
-  return [...getCoreAriTools(route), ...crewTools(route)];
+  const routedCoreTools = getCoreAriTools(route);
+  const semanticHealthTools = getCoreAriTools(semanticHealthCapabilityRoute(route))
+    .filter((tool) => SEMANTIC_HEALTH_TOOL_NAMES.has(String(tool?.name || "")));
+
+  const coreByName = new Map();
+  for (const tool of [...routedCoreTools, ...semanticHealthTools]) {
+    if (tool?.name) coreByName.set(String(tool.name), tool);
+  }
+
+  const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
+  return [...coreTools, ...crewTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
   const name = String(call?.name || "").trim();
-  if (!CREW_TOOL_NAMES.has(name)) return validateCoreToolCall(call, route);
+
+  if (name === "propose_log_meal") {
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+    const nutritionValidation = validateResolvedMealArguments(args);
+    if (!nutritionValidation.valid) return nutritionValidation;
+  }
+
+  if (!CREW_TOOL_NAMES.has(name)) {
+    const validationRoute = SEMANTIC_HEALTH_TOOL_NAMES.has(name)
+      ? semanticHealthCapabilityRoute(route)
+      : route;
+    return validateCoreToolCall(call, validationRoute);
+  }
 
   if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) {
     return { valid: false, error: "tool_not_allowed_for_turn" };
   }
 
-  let args = null;
-  try {
-    args = typeof call?.arguments === "string" ? JSON.parse(call.arguments) : call?.arguments;
-  } catch {
-    return { valid: false, error: "invalid_tool_arguments" };
-  }
-  if (!args || typeof args !== "object" || Array.isArray(args)) {
-    return { valid: false, error: "invalid_tool_arguments" };
-  }
+  const args = parseArguments(call?.arguments);
+  if (!args) return { valid: false, error: "invalid_tool_arguments" };
 
   if (name === "propose_create_circle_crew") {
     const candidateKey = String(args?.candidateKey || "").trim().toLowerCase();

@@ -21,6 +21,11 @@ import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
+  "propose_log_meal",
+  "propose_log_weight",
+  "propose_log_activity"
+]);
 
 export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
@@ -167,10 +172,14 @@ export async function runAriVNext(turn = {}) {
       .map((tool) => String(tool.name))
   );
 
-  // The primary model remains the main semantic authority. A tiny GPT-4o-mini
-  // verifier is used only when the primary model attempts a mutation, or when
-  // a command-like turn received no tool call and may have been missed.
-  const shouldVerify = Boolean(functionCall) || shouldReviewNoToolTurn(turn);
+  // Proven low-risk logging operations trust the primary model when it already
+  // selected the correct capability. Trusted validation and explicit user
+  // confirmation remain mandatory. The verifier still recovers command-like
+  // turns where the primary model did not select one of these proven paths.
+  const primaryFunctionName = String(functionCall?.name || "").trim();
+  const shouldVerify =
+    !LOW_RISK_PRIMARY_FAST_PATHS.has(primaryFunctionName) &&
+    (Boolean(functionCall) || shouldReviewNoToolTurn(turn));
   const semanticActionReview = shouldVerify
     ? await reviewExplicitApplicationIntent({ turn, route, tools })
     : null;
@@ -232,9 +241,6 @@ export async function runAriVNext(turn = {}) {
       ? reviewedDecision
       : "";
 
-  // If Ari's first pass tried to write from a statement/question and the
-  // semantic verifier confidently says there is no write permission, suppress
-  // the tool and let Ari answer conversationally with no mutation tools visible.
   if (functionCall && reviewedDecision === "none" && reviewConfidence >= 0.84) {
     first = await callResponses({
       turn,
@@ -246,10 +252,6 @@ export async function runAriVNext(turn = {}) {
     functionCall = null;
   }
 
-  // If the verifier confidently resolves a different explicit capability—or
-  // catches an explicit request the first pass merely talked about—rerun the
-  // full Ari brain with that one function required. The verifier never creates
-  // arguments itself.
   if (
     reviewedToolName &&
     (!functionCall || String(functionCall.name) !== reviewedToolName)
@@ -296,10 +298,6 @@ export async function runAriVNext(turn = {}) {
 
   let validation = validateToolCall(functionCall, route);
 
-  // One bounded correction pass keeps a malformed model tool call from turning
-  // into a user-visible failure. The same function is required and the model is
-  // told the exact validator error; trusted validation still decides whether the
-  // repaired arguments are acceptable.
   if (!validation.valid) {
     const repairInstructions = [
       instructions,
@@ -349,6 +347,38 @@ export async function runAriVNext(turn = {}) {
     args: canonical.arguments,
     confirmationRequired: true
   });
+
+  const deterministicReply = formatDeterministicPendingReply(applicationAction, pendingAction.arguments);
+  if (deterministicReply) {
+    return {
+      success: true,
+      ready: true,
+      reply: deterministicReply,
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction,
+      action: {
+        type: "proposed_action",
+        applicationAction,
+        pendingActionId: pendingAction.id,
+        arguments: pendingAction.arguments
+      },
+      provider: providerSummary(first),
+      semanticActionReview: publicActionReview(semanticActionReview),
+      source: "ari_vnext_action_proposal"
+    };
+  }
 
   const toolResult = {
     status: "confirmation_required",
@@ -590,8 +620,6 @@ function shouldReviewNoToolTurn(turn = {}) {
   const text = String(turn?.message || "").trim().toLowerCase();
   if (!text) return false;
 
-  // This does not decide the action. It only decides whether to spend the
-  // small semantic-verifier call after the primary brain chose no tool.
   return /\b(?:can you|could you|please|i want you to|help me|log|record|save|add|create|build|make|plan|change|update|replace|remove|track|start|finish|complete|cancel|set\s+(?:it|that|this|me|my)|put\s+(?:it|that|this|together)|figure\s+out.+for\s+me)\b/i.test(text);
 }
 
@@ -641,6 +669,44 @@ function extractOutputText(data = {}) {
     .map((part) => part.text)
     .join("")
     .trim();
+}
+
+export function formatDeterministicPendingReply(applicationAction = "", args = {}) {
+  const action = String(applicationAction || "").trim();
+
+  if (action === "log_meal") {
+    const name = String(args?.name || "meal").replace(/\s+/g, " ").trim().slice(0, 160) || "meal";
+    const servingSize = String(args?.servingSize || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const calories = Number(args?.calories);
+    const calorieText = Number.isFinite(calories) && calories > 0
+      ? ` — ${Math.round(calories)} calories`
+      : "";
+    const servingText = servingSize ? ` (${servingSize})` : "";
+    return `Ready to log ${name}${servingText}${calorieText}. Confirm to save it.`;
+  }
+
+  if (action === "log_weight") {
+    const value = Number(args?.value);
+    const unit = String(args?.unit || "lb").trim().toLowerCase() === "kg" ? "kg" : "lb";
+    if (!Number.isFinite(value) || value <= 0) return "Ready to log your weight. Confirm to save it.";
+    const displayValue = Number(value.toFixed(2));
+    return `Ready to log your weight at ${displayValue} ${unit}. Confirm to save it.`;
+  }
+
+  if (action === "log_activity") {
+    const name = String(args?.activityName || "activity").replace(/\s+/g, " ").trim().slice(0, 160) || "activity";
+    const durationMinutes = Number(args?.durationMinutes);
+    const caloriesBurned = Number(args?.caloriesBurned);
+    const durationText = Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? ` (${Math.round(durationMinutes)} min)`
+      : "";
+    const calorieText = Number.isFinite(caloriesBurned) && caloriesBurned > 0
+      ? ` — ${Math.round(caloriesBurned)} calories burned`
+      : "";
+    return `Ready to log ${name}${durationText}${calorieText}. Confirm to save it.`;
+  }
+
+  return "";
 }
 
 function publicActionReview(review = null) {

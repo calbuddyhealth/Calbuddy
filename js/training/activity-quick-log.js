@@ -1,15 +1,16 @@
-// ARI XP Training — Quick Log + compact manual activity ledger.
-// Manual/Ari activities stay separate from planned workout completion.
+// ARI XP Training — Quick Log + completed manual/Ari activity ledger.
+// Manual/Ari activities project into Training as completed activities without claiming planned workout completion.
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   let servicePromise = null;
   let estimateTimer = null;
   let caloriesUserEdited = false;
   let editingActivityId = null;
   let lastRenderedDate = null;
+  const revealedActivityDates = new Set();
 
   const $ = (id) => document.getElementById(id);
 
@@ -102,8 +103,8 @@
     card.innerHTML = `
       <summary>
         <span class="ari-manual-activity-summary__left">
-          <span class="ari-manual-activity-kicker">OTHER ACTIVITY</span>
-          <span id="ariManualActivitySummaryTitle" class="ari-manual-activity-title">Manual activity</span>
+          <span class="ari-manual-activity-kicker">COMPLETED ACTIVITY</span>
+          <span id="ariManualActivitySummaryTitle" class="ari-manual-activity-title">Completed activity</span>
         </span>
         <span class="ari-manual-activity-summary__right">
           <span id="ariManualActivitySummaryCalories" class="ari-manual-activity-calories">0 kcal</span>
@@ -382,7 +383,7 @@
       const reps = Number(activity?.reps_per_set) > 0 ? ` × ${Math.round(Number(activity.reps_per_set))}` : "";
       pieces.push(`${Math.round(Number(activity.sets))} sets${reps}`);
     }
-    return pieces.join(" • ") || "Manual activity";
+    return pieces.join(" • ") || "Completed activity";
   }
 
   async function renderManualActivities({ open = null } = {}) {
@@ -399,11 +400,14 @@
     if (!activities.length) {
       card.hidden = true;
       list.replaceChildren();
+      revealedActivityDates.delete(date);
       return;
     }
 
     const total = activities.reduce((sum, item) => sum + Math.max(Number(item?.calories_burned) || 0, 0), 0);
-    $("ariManualActivitySummaryTitle").textContent = `${activities.length} ${activities.length === 1 ? "activity" : "activities"}`;
+    $("ariManualActivitySummaryTitle").textContent = activities.length === 1
+      ? (activities[0]?.activity_name || "Completed activity")
+      : `${activities.length} completed activities`;
     $("ariManualActivitySummaryCalories").textContent = `${Math.round(total).toLocaleString()} kcal`;
 
     list.innerHTML = activities.map((activity) => `
@@ -423,8 +427,16 @@
     `).join("");
 
     card.hidden = false;
-    if (open === true) card.open = true;
-    if (open === false) card.open = false;
+    if (open === true) {
+      card.open = true;
+      revealedActivityDates.add(date);
+    } else if (open === false) {
+      card.open = false;
+      revealedActivityDates.add(date);
+    } else if (!revealedActivityDates.has(date)) {
+      card.open = true;
+      revealedActivityDates.add(date);
+    }
     card.dataset.activityJson = JSON.stringify(activities);
   }
 
@@ -514,7 +526,7 @@
       }
     });
     window.addEventListener("ari:activityChanged", () => void renderManualActivities());
-    window.addEventListener("ari:activityLogged", () => void renderManualActivities());
+    window.addEventListener("ari:activityLogged", () => void renderManualActivities({ open: true }));
     window.addEventListener("focus", () => {
       const date = selectedDate();
       if (date !== lastRenderedDate) void renderManualActivities();
