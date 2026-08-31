@@ -1,9 +1,12 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.12
+   Version: 1.0.13
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
+
+   V1.0.13:
+   - Adds Top Brands batch 7 with 25 de-duplicated Eggo and MorningStar Farms foods.
 
    V1.0.12:
    - Adds Top Brands batch 6 with 25 additional frozen meals, breakfast foods, and pizzas.
@@ -36,7 +39,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.12";
+  const VERSION = "1.0.13";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -62,6 +65,7 @@
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch4.js?v=1.0.0",
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch5.js?v=1.1.0",
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch6.js?v=1.0.0",
+    "ari/nutrition/data/branded/AriFoodTopBrandsBatch7.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondiments.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondimentsCore.js",
     "ari/nutrition/data/condiments/AriFoodCondimentBrands.js",
