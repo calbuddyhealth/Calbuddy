@@ -1,9 +1,12 @@
 /* =====================================================
    ARI Nutrition Food Loader
-   Version: 1.0.8
+   Version: 1.0.9
    Keeps the local food database off Nutrition's critical
    rendering path while preserving the existing registry,
    search, hybrid search, and calculator architecture.
+
+   V1.0.9:
+   - Adds Top Brands batch 4 with deli ham, Swiss cheese, Southwest salad kits, and frozen convenience meals.
 
    V1.0.8:
    - Adds Top Brands batch 3 with deli ham, sliced cheddar, frozen burrito, nuggets, and frozen pizza.
@@ -24,7 +27,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.8";
+  const VERSION = "1.0.9";
   const FOOD_BATCH_SIZE = 3;
   const REGISTRY_SCRIPT = "ari/nutrition/AriFoodRegistry.js?v=2.0.1";
   const ENGINE_SCRIPTS = Object.freeze([
@@ -47,6 +50,7 @@
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch1.js?v=1.0.0",
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch2.js?v=1.0.0",
     "ari/nutrition/data/branded/AriFoodTopBrandsBatch3.js?v=1.0.0",
+    "ari/nutrition/data/branded/AriFoodTopBrandsBatch4.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondiments.js?v=1.0.0",
     "ari/nutrition/data/condiments/AriFoodCondimentsCore.js",
     "ari/nutrition/data/condiments/AriFoodCondimentBrands.js",
