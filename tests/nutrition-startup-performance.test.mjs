@@ -21,14 +21,14 @@ function indexOfRequired(source, needle) {
 test("Nutrition no longer parser-loads the food database", () => {
   assert.equal((nutritionHtml.match(/<script[^>]+ari\/nutrition\/data\//g) || []).length, 0, "food data modules must not be parser-blocking script tags");
   assert.equal(nutritionHtml.includes("<script src=\"ari/nutrition/AriFoodRegistry.js"), false, "food registry must be loaded by the interaction-driven loader");
-  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.12/);
+  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.13/);
 });
 
 test("Nutrition binds its functional controllers before food hydration", () => {
   const controller = indexOfRequired(nutritionHtml, "js/nutrition.js?v=4.2.2");
   const barcode = indexOfRequired(nutritionHtml, "js/nutrition-barcode-scan.js?v=1.0.0");
   const lazyBarcode = indexOfRequired(nutritionHtml, "js/nutrition-barcode-lazy.js?v=1.0.0");
-  const food = indexOfRequired(nutritionHtml, "js/nutrition-food-loader.js?v=1.0.12");
+  const food = indexOfRequired(nutritionHtml, "js/nutrition-food-loader.js?v=1.0.13");
   assert.ok(controller < food, "Nutrition controller must bind before food hydration can start");
   assert.ok(barcode < food, "barcode controls must bind before food hydration can start");
   assert.ok(lazyBarcode < food, "barcode lazy decoder must be ready before food hydration can start");
@@ -69,7 +69,7 @@ test("Nutrition cache-bust references match consolidated controllers", () => {
   assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.6\.0/);
   assert.match(nutritionHtml, /assets\/css\/nutrition-scan\.css\?v=1\.0\.2/);
   assert.match(nutritionHtml, /js\/nutrition-scan-save-bridge\.js\?v=1\.0\.1/);
-  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.12/);
+  assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.13/);
 });
 
 test("Meal Plan has one controller instead of a compact post-render patch", () => {
