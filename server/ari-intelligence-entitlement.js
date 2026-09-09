@@ -2,7 +2,7 @@
 // Account role, subscription state, and intelligence strength are intentionally
 // separate so owner privileges can never be inferred from a paid subscription.
 
-export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.3.0";
+export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.4.0";
 
 const REASONING_PROFILES = new Set(["adaptive", "economy", "balanced", "deep"]);
 
@@ -21,49 +21,58 @@ export function resolveAriIntelligenceEntitlement({
     .toLowerCase() === "true";
   const normalizedTier = String(subscriptionTier || "").trim().toLowerCase() || "free";
   const normalizedStatus = String(subscriptionStatus || "").trim().toLowerCase() || "unknown";
+  const ariUnlimitedEligible = Boolean(
+    normalizedTier === "ari_unlimited" &&
+    ["active", "trialing"].includes(normalizedStatus)
+  );
   const premiumEligible = Boolean(
     premiumFeatureEnabled &&
     ["premium", "pro"].includes(normalizedTier) &&
     ["active", "trialing"].includes(normalizedStatus)
   );
 
-  const advancedAllowed = ownerEligible || premiumEligible;
-  // Owner Mode retains an explicit server-side beta switch. A premium subscriber
-  // receives Premium Advanced automatically once the product-level feature flag
-  // is enabled and the commercial entitlement is active.
-  const requestedAdvanced = ownerEligible ? controls?.enabled === true : premiumEligible;
+  const advancedAllowed = ownerEligible || ariUnlimitedEligible || premiumEligible;
+  // Owner Mode retains an explicit server-side beta switch. Ari Unlimited and
+  // Premium Advanced enable chat intelligence without inheriting owner powers.
+  const requestedAdvanced = ownerEligible ? controls?.enabled === true : (ariUnlimitedEligible || premiumEligible);
   const advancedEnabled = advancedAllowed && requestedAdvanced;
   const reasoningProfile = advancedEnabled
     ? normalizeReasoningProfile(controls?.reasoningProfile)
     : "standard";
 
   const accountRole = ownerEligible ? "owner" : "user";
-  const accessClass = ownerEligible ? "owner" : premiumEligible ? "premium" : "casual";
+  const accessClass = ownerEligible
+    ? "owner"
+    : ariUnlimitedEligible
+      ? "ari_unlimited"
+      : premiumEligible
+        ? "premium"
+        : "casual";
   const intelligenceTier = advancedEnabled
-    ? ownerEligible ? "owner_experimental" : "premium_advanced"
+    ? ownerEligible
+      ? "owner_experimental"
+      : ariUnlimitedEligible
+        ? "ari_unlimited"
+        : "premium_advanced"
     : "standard";
 
-  // Owner cognitive state is an administrative/development capability. Premium
-  // intelligence must never inherit this simply because the subscriber pays.
+  // Owner cognitive state is an administrative/development capability. Neither
+  // Ari Unlimited nor paid intelligence may inherit it.
   const cognitiveLoopAllowed = ownerEligible;
   const cognitiveLoopEnabled = ownerEligible && advancedEnabled;
 
   return {
     version: ARI_INTELLIGENCE_ENTITLEMENT_VERSION,
-
-    // Backward-compatible coarse tier used by existing telemetry/UI.
     tier: advancedEnabled ? "advanced" : "standard",
-
-    // Explicitly separated entitlement dimensions.
     accountRole,
     subscriptionTier: normalizedTier,
     subscriptionStatus: normalizedStatus,
     accessClass,
     intelligenceTier,
-
     advancedAllowed,
     advancedEnabled,
     ownerEligible,
+    ariUnlimitedEligible,
     premiumEligible,
     reasoningProfile,
     conversationBeta: advancedEnabled,
@@ -71,7 +80,11 @@ export function resolveAriIntelligenceEntitlement({
     cognitiveLoopEnabled,
     cognitiveLoopOwnerOnly: true,
     source: advancedEnabled
-      ? ownerEligible ? "owner_beta" : "premium"
+      ? ownerEligible
+        ? "owner_beta"
+        : ariUnlimitedEligible
+          ? "ari_unlimited"
+          : "premium"
       : advancedAllowed
         ? "eligible_not_enabled"
         : "standard_default"
