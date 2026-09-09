@@ -2,6 +2,8 @@ import { normalizeReasoningProfile } from "./ari-intelligence-entitlement.js";
 
 const CONTROL_TABLE = "ari_intelligence_controls";
 const PROFILE_TABLE = "profiles";
+const ACCESS_TABLE = "ari_chat_access_entitlements";
+const ARI_UNLIMITED_PLAN = "ari_unlimited";
 
 export async function loadAriIntelligenceControls({ userId } = {}) {
   const id = cleanUserId(userId);
@@ -38,11 +40,35 @@ export async function saveAriIntelligenceControls({ userId, enabled = false, rea
   return { enabled: row?.advanced_enabled === true, reasoningProfile: normalizeReasoningProfile(row?.reasoning_profile || payload.reasoning_profile), updatedAt: row?.updated_at || payload.updated_at, source: "server_store" };
 }
 
+export async function loadAriUnlimitedEntitlement({ userId } = {}) {
+  const id = cleanUserId(userId);
+  const config = supabaseServiceConfig();
+  if (!id || !config) return { enabled: false, source: "unavailable" };
+  try {
+    const params = new URLSearchParams({ select: "plan,enabled,updated_at", user_id: `eq.${id}`, plan: `eq.${ARI_UNLIMITED_PLAN}`, enabled: "eq.true", limit: "1" });
+    const response = await fetch(`${config.url}/rest/v1/${ACCESS_TABLE}?${params.toString()}`, { headers: serviceHeaders(config.key), cache: "no-store" });
+    if (!response.ok) return { enabled: false, source: "read_failed" };
+    const rows = await response.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return row?.enabled === true
+      ? { enabled: true, plan: ARI_UNLIMITED_PLAN, updatedAt: row.updated_at || null, source: ACCESS_TABLE }
+      : { enabled: false, source: "not_entitled" };
+  } catch {
+    return { enabled: false, source: "read_failed" };
+  }
+}
+
 export async function loadAriCommercialEntitlement({ userId } = {}) {
   const id = cleanUserId(userId);
   const config = supabaseServiceConfig();
   const premiumFeatureEnabled = String(process.env.ARI_PREMIUM_ADVANCED_ENABLED || "").trim().toLowerCase() === "true";
   if (!id || !config) return { subscriptionTier: "", subscriptionStatus: "", source: "unavailable" };
+
+  const unlimited = await loadAriUnlimitedEntitlement({ userId: id });
+  if (unlimited.enabled) {
+    return { subscriptionTier: ARI_UNLIMITED_PLAN, subscriptionStatus: "active", source: unlimited.source };
+  }
+  if (!premiumFeatureEnabled) return { subscriptionTier: "", subscriptionStatus: "", source: "premium_disabled" };
 
   try {
     const params = new URLSearchParams({ select: "subscription_tier,subscription_status", id: `eq.${id}`, limit: "1" });
@@ -50,16 +76,11 @@ export async function loadAriCommercialEntitlement({ userId } = {}) {
     if (!response.ok) return { subscriptionTier: "", subscriptionStatus: "", source: "read_failed" };
     const rows = await response.json().catch(() => []);
     const row = Array.isArray(rows) ? rows[0] : rows;
-    const tier = String(row?.subscription_tier || "").trim().toLowerCase();
-    const status = String(row?.subscription_status || "").trim().toLowerCase();
-
-    // Ari Unlimited is a private server-side chat entitlement and is intentionally
-    // independent of the public Premium Advanced rollout flag.
-    if (tier === "ari_unlimited") {
-      return { subscriptionTier: tier, subscriptionStatus: status, source: "profiles_ari_unlimited" };
-    }
-    if (!premiumFeatureEnabled) return { subscriptionTier: "", subscriptionStatus: "", source: "premium_disabled" };
-    return { subscriptionTier: tier, subscriptionStatus: status, source: "profiles" };
+    return {
+      subscriptionTier: String(row?.subscription_tier || "").trim().toLowerCase(),
+      subscriptionStatus: String(row?.subscription_status || "").trim().toLowerCase(),
+      source: "profiles"
+    };
   } catch {
     return { subscriptionTier: "", subscriptionStatus: "", source: "read_failed" };
   }
