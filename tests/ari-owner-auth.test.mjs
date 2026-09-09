@@ -230,6 +230,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-circle-moderation.js",
     "ari-circle-push-dispatch.js",
     "ari-conversation.js",
+    "ari-daily-chat-quota.js",
     "ari-food-search.js",
     "ari-github-edit.js",
     "ari-github-read.js",
@@ -263,6 +264,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("ari-vnext.js"), true, "vNext primary runtime must remain present");
   assert.equal(names.has("ari-owner-intelligence-controls.js"), true, "owner intelligence controls must remain explicit server API surface");
   assert.equal(names.has("ari-circle-push-dispatch.js"), true, "Circle native push dispatcher must remain explicit reviewed server API surface");
+  assert.equal(names.has("ari-daily-chat-quota.js"), true, "daily chat quota must remain an explicit reviewed server API surface");
 
   for (const removed of [
     "actions.js",
