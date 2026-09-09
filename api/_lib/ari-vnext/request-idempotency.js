@@ -2,7 +2,16 @@
 // A client retry with the same user_id + turn_id must never start a second
 // OpenAI request while the first attempt is processing or after it completes.
 
-export const ARI_REQUEST_IDEMPOTENCY_VERSION = "1.0.1";
+import {
+  consumeDailyChatQuota,
+  dailyLimitReply,
+  loadDailyChatQuota,
+  publicDailyChatQuota,
+  releaseDailyChatQuota,
+  reserveDailyChatQuota
+} from "./daily-chat-quota.js";
+
+export const ARI_REQUEST_IDEMPOTENCY_VERSION = "1.1.0";
 
 const TABLE = "ari_request_dedup";
 const READ_TIMEOUT_MS = 700;
@@ -14,15 +23,62 @@ export async function claimAriRequest({ userId, turnId } = {}) {
   const turn = clean(turnId, 200);
   const config = supabaseConfig();
 
-  // Idempotency is a cost/reliability enhancement, not a reason to break chat
-  // if a rolling deployment briefly reaches code before the migration exists.
+  // A missing idempotency store remains fail-open for availability, matching the
+  // pre-quota contract. Quota itself is enforced whenever the normal server
+  // storage boundary is configured.
   if (!user || !turn || !config) {
     return { enabled: false, claimed: true, replay: null, inProgress: false };
   }
 
+  let claim = null;
   try {
-    return await claimWithConfig({ user, turn, config, allowExpiredRetry: true });
+    claim = await claimWithConfig({ user, turn, config, allowExpiredRetry: true });
+    if (!claim?.claimed || claim?.replay || claim?.inProgress) return claim;
+
+    const quota = await reserveDailyChatQuota({ userId: user, turnId: turn });
+    if (quota?.allowed === false) {
+      await deleteExisting({ user, turn, config }).catch(() => false);
+      return {
+        enabled: true,
+        claimed: false,
+        replay: {
+          success: false,
+          ready: false,
+          code: "ARI_DAILY_CHAT_LIMIT",
+          reply: dailyLimitReply(quota),
+          quota: publicDailyChatQuota(quota),
+          source: "ari_vnext_daily_chat_quota"
+        },
+        inProgress: false,
+        source: "daily_quota_limit"
+      };
+    }
+
+    return { ...claim, quota: publicDailyChatQuota(quota) };
   } catch (error) {
+    if (claim?.claimed) {
+      await deleteExisting({ user, turn, config }).catch(() => false);
+      await releaseDailyChatQuota({ userId: user, turnId: turn }).catch(() => false);
+    }
+
+    if (error?.code === "ARI_QUOTA_UNAVAILABLE") {
+      console.warn("[ARI Daily Chat Quota] Claim unavailable:", error?.message || error);
+      return {
+        enabled: true,
+        claimed: false,
+        replay: {
+          success: false,
+          ready: false,
+          code: "ARI_QUOTA_UNAVAILABLE",
+          reply: "Ari couldn't verify your daily question allowance. Please try again in a moment.",
+          quota: null,
+          source: "ari_vnext_daily_chat_quota"
+        },
+        inProgress: false,
+        source: "daily_quota_unavailable"
+      };
+    }
+
     if (error?.name !== "AbortError") {
       console.warn("[ARI Request Idempotency] Claim unavailable:", error?.message || error);
     }
@@ -42,13 +98,21 @@ export async function completeAriRequest({ userId, turnId, responsePayload } = {
   const config = supabaseConfig();
   if (!user || !turn || !config) return false;
 
-  // Store only what a duplicate browser request needs to replay the completed
-  // turn. Large world/cognitive state is persisted in its own authoritative
-  // stores and does not belong in a seven-day request-dedup row.
-  const payload = buildReplayPayload(responsePayload);
-  if (!payload) return false;
-
   try {
+    // The reservation already occupies one daily slot, so this snapshot is the
+    // user-visible post-turn count. Store it with the replay payload before the
+    // request is marked completed, then convert the reservation to consumed.
+    const quota = await loadDailyChatQuota({ userId: user }).catch(() => null);
+    if (responsePayload && typeof responsePayload === "object" && quota) {
+      responsePayload.quota = publicDailyChatQuota(quota);
+    }
+
+    // Store only what a duplicate browser request needs to replay the completed
+    // turn. Large world/cognitive state is persisted in its own authoritative
+    // stores and does not belong in a seven-day request-dedup row.
+    const payload = buildReplayPayload(responsePayload);
+    if (!payload) return false;
+
     const params = new URLSearchParams({
       user_id: `eq.${user}`,
       turn_id: `eq.${turn}`,
@@ -65,7 +129,12 @@ export async function completeAriRequest({ userId, turnId, responsePayload } = {
         updated_at: now
       })
     }, WRITE_TIMEOUT_MS);
-    return response.ok;
+
+    if (!response.ok) return false;
+    await consumeDailyChatQuota({ userId: user, turnId: turn }).catch((error) => {
+      console.warn("[ARI Daily Chat Quota] Consume failed:", error?.message || error);
+    });
+    return true;
   } catch (error) {
     if (error?.name !== "AbortError") {
       console.warn("[ARI Request Idempotency] Completion persistence failed:", error?.message || error);
@@ -90,8 +159,10 @@ export async function releaseAriRequest({ userId, turnId } = {}) {
       method: "DELETE",
       headers: serverHeaders(config.key, { Prefer: "return=minimal" })
     }, WRITE_TIMEOUT_MS);
+    await releaseDailyChatQuota({ userId: user, turnId: turn }).catch(() => false);
     return response.ok;
   } catch {
+    await releaseDailyChatQuota({ userId: user, turnId: turn }).catch(() => false);
     return false;
   }
 }
@@ -236,7 +307,8 @@ function buildReplayPayload(value) {
     safety: safePayload(value.safety),
     modelPolicy: safePayload(value.modelPolicy),
     semanticActionReview: safePayload(value.semanticActionReview),
-    intelligenceEntitlement: safePayload(value.intelligenceEntitlement)
+    intelligenceEntitlement: safePayload(value.intelligenceEntitlement),
+    quota: safePayload(value.quota)
   };
 }
 
