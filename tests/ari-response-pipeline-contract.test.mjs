@@ -117,7 +117,7 @@ test("Home cache chain points at current quota-aware runtime and bridge assets",
   assert.match(homeSource, /js\/auth\.js\?v=1\.10\.16/);
   assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.5/);
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
-  assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.3/);
+  assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.4/);
   assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.9/);
   assert.match(runtimeSource, /const VERSION = "1\.3\.9"/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.9\.0/);
