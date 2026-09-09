@@ -1,4 +1,10 @@
-/* ARI XP — Daily question quota composer UI v1.0.0 */
+/* ARI XP — Daily question quota composer UI v1.0.1 */
+
+/* The bridge retains its generic fallback status for other surfaces. Home owns
+   the compact composer pill, so suppress that fallback here to avoid duplicates. */
+body.ari-home-page #ariDailyQuotaStatus {
+  display: none !important;
+}
 
 .ari-composer-meta {
   display: flex;
