@@ -4,11 +4,13 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.8.0",
+  version: "1.9.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
   peerReflectionPreferenceKey: "ari_vnext_peer_reflection_enabled",
+  quotaTimezoneKey: "",
+  dailyQuota: null,
 
   async ask(message, options = {}) {
     const text = String(message || "").trim();
@@ -17,6 +19,40 @@ window.AriVNextBridge = {
     const session = await this.getSession();
     const accessToken = String(session?.access_token || "").trim();
     if (!accessToken) throw new Error("A signed-in ARI session is required.");
+
+    const pending = this.getPendingAction();
+    // Confirmation and cancellation do not require a new model turn. Keep them
+    // entirely on the existing trusted pending-action boundary so they never
+    // consume another daily Ari question.
+    if (pending && isPendingConfirmationText(text)) {
+      return {
+        success: true,
+        ready: true,
+        reply: "",
+        pendingAction: pending,
+        action: {
+          type: "execute_pending_action",
+          applicationAction: pending?.name || "none",
+          pendingActionId: pending?.id || null,
+          arguments: pending?.arguments || {}
+        },
+        quota: this.dailyQuota,
+        source: "ari_vnext_local_pending_confirmation"
+      };
+    }
+    if (pending && isPendingCancellationText(text)) {
+      return {
+        success: true,
+        ready: true,
+        reply: "Okay — I won't make that change.",
+        pendingAction: pending,
+        action: { type: "cancel_pending_action", pendingActionId: pending?.id || null },
+        quota: this.dailyQuota,
+        source: "ari_vnext_local_pending_cancel"
+      };
+    }
+
+    await this.syncDailyQuotaTimezone({ accessToken, signal: options?.signal || null });
 
     const history = Array.isArray(options?.history) ? options.history.slice(-16) : [];
     const context = await this.buildContext({ ...options, message: text, history });
@@ -36,7 +72,7 @@ window.AriVNextBridge = {
       preferences: options?.preferences || options?.userContext?.preferences || {},
       // vNext owns identity, permissions, and durable memory retrieval. Do not
       // forward the legacy CalBuddy coachMemorySummary prompt into the model.
-      pendingAction: this.getPendingAction()
+      pendingAction: pending
     };
 
     let response;
@@ -67,17 +103,31 @@ window.AriVNextBridge = {
       throw error;
     }
 
-    if (!response.ok) throw new Error(data?.error || "Ari vNext request failed.");
+    if (data?.quota) this.publishDailyQuota(data.quota);
+
+    if (!response.ok) {
+      if (["ARI_DAILY_CHAT_LIMIT", "ARI_QUOTA_UNAVAILABLE"].includes(String(data?.code || ""))) {
+        return {
+          success: false,
+          ready: false,
+          reply: data?.reply || data?.error || "Ari is unavailable right now.",
+          quota: data?.quota || this.dailyQuota,
+          code: data?.code,
+          source: data?.source || "ari_vnext_daily_chat_quota"
+        };
+      }
+      throw new Error(data?.error || "Ari vNext request failed.");
+    }
 
     if (data?.pendingAction) this.setPendingAction(data.pendingAction);
     if (data?.action?.type === "cancel_pending_action") this.clearPendingAction();
 
     if (data?.action?.type === "execute_pending_action") {
-      const pending = data?.pendingAction || this.getPendingAction();
-      if (isExperimentAction(data?.action?.applicationAction || pending?.name)) {
-        const execution = await this.executeExperimentPending({ pendingAction: pending, accessToken });
+      const executionPending = data?.pendingAction || this.getPendingAction();
+      if (isExperimentAction(data?.action?.applicationAction || executionPending?.name)) {
+        const execution = await this.executeExperimentPending({ pendingAction: executionPending, accessToken });
         data.experimentExecution = execution;
-        data.reply = experimentExecutionReply(execution, pending);
+        data.reply = experimentExecutionReply(execution, executionPending);
       }
       this.clearPendingAction();
     }
@@ -93,6 +143,59 @@ window.AriVNextBridge = {
     });
 
     return data;
+  },
+
+  async syncDailyQuotaTimezone({ accessToken, signal = null } = {}) {
+    let timezone = "UTC";
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      timezone = "UTC";
+    }
+    if (this.quotaTimezoneKey === timezone) return true;
+
+    try {
+      const response = await fetch("/api/ari-daily-chat-quota", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${String(accessToken || "").trim()}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ timezone }),
+        cache: "no-store",
+        ...(signal ? { signal } : {})
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        this.quotaTimezoneKey = timezone;
+        if (data?.quota) this.publishDailyQuota(data.quota);
+        return true;
+      }
+    } catch (error) {
+      if (error?.name === "AbortError" || signal?.aborted) throw makeBridgeAbortError();
+    }
+    // Timezone synchronization improves local-midnight accuracy, but a temporary
+    // status-endpoint failure must not bypass the server-side quota itself.
+    return false;
+  },
+
+  publishDailyQuota(quota = null) {
+    if (!quota || typeof quota !== "object") return null;
+    this.dailyQuota = {
+      enabled: quota.enabled !== false,
+      allowed: quota.allowed !== false,
+      unlimited: quota.unlimited === true,
+      used: finiteOrNull(quota.used),
+      remaining: finiteOrNull(quota.remaining),
+      dailyLimit: finiteOrNull(quota.dailyLimit),
+      timezone: String(quota.timezone || "").slice(0, 100) || null,
+      localDate: String(quota.localDate || "").slice(0, 20) || null,
+      resetAt: String(quota.resetAt || "").slice(0, 80) || null,
+      source: String(quota.source || "").slice(0, 80) || null
+    };
+    renderDailyQuotaIndicator(this.dailyQuota);
+    window.dispatchEvent(new CustomEvent("ari:dailyQuota", { detail: { quota: this.dailyQuota } }));
+    return this.dailyQuota;
   },
 
   async executeExperimentPending({ pendingAction, accessToken } = {}) {
@@ -355,6 +458,58 @@ window.AriVNextBridge = {
   }
 };
 
+function renderDailyQuotaIndicator(quota = {}) {
+  const input = document.getElementById("ariInput");
+  if (!input) return;
+
+  let status = document.getElementById("ariDailyQuotaStatus");
+  if (!status) {
+    status = document.createElement("div");
+    status.id = "ariDailyQuotaStatus";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    Object.assign(status.style, {
+      width: "100%",
+      flexBasis: "100%",
+      boxSizing: "border-box",
+      marginTop: "6px",
+      padding: "0 4px",
+      textAlign: "right",
+      fontSize: "11px",
+      lineHeight: "1.35",
+      letterSpacing: ".01em",
+      opacity: ".68",
+      pointerEvents: "none"
+    });
+    input.insertAdjacentElement("afterend", status);
+  }
+
+  if (quota?.unlimited === true) {
+    status.textContent = "Ari questions · Unlimited";
+    return;
+  }
+
+  const remaining = finiteOrNull(quota?.remaining);
+  const limit = finiteOrNull(quota?.dailyLimit);
+  if (remaining === null || limit === null) {
+    status.textContent = "";
+    status.hidden = true;
+    return;
+  }
+  status.hidden = false;
+  status.textContent = `${remaining} of ${limit} Ari questions remaining · Resets at midnight`;
+}
+
+function isPendingConfirmationText(value = "") {
+  const text = String(value || "").replace(/’/g, "'").trim().toLowerCase();
+  return /^(?:(?:yes|yep|yeah)(?:[,\s]+(?:please|(?:log|save|add|do) it))?|(?:i )?confirm(?:ed| it| that)?|do it|go ahead|save it|log it|add it|make it|update it|that's right|correct)[.!\s]*$/.test(text);
+}
+
+function isPendingCancellationText(value = "") {
+  const text = String(value || "").replace(/’/g, "'").trim().toLowerCase();
+  return /^(?:no|nope|(?:please )?cancel(?: it| that| this)?|never mind|nevermind|(?:don't|do not)(?: (?:log|save|add|do) (?:it|that|this))?|stop)[.!\s]*$/.test(text);
+}
+
 function needsCanonicalTrainingContext(message, history = []) {
   const text = String(message || "").trim();
   if (!text) return false;
@@ -453,6 +608,12 @@ function signedWeeklyGoal(value, goalType) {
   if (/gain|bulk/.test(mode)) return magnitude;
   if (/maintain|maintenance/.test(mode)) return 0;
   return number;
+}
+
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 window.Ari.vNextBridge = window.AriVNextBridge;

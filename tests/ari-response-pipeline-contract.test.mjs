@@ -93,8 +93,13 @@ function bridgeSandbox(fetchImpl) {
     setTimeout,
     clearTimeout
   };
+  const document = {
+    getElementById() { return null; }
+  };
   const sandbox = {
     window: windowObject,
+    document,
+    Intl,
     sessionStorage: storage(),
     localStorage: storage(),
     CustomEvent: FakeCustomEvent,
@@ -108,21 +113,21 @@ function bridgeSandbox(fetchImpl) {
   return sandbox;
 }
 
-test("Home cache chain points at current repaired runtime and bridge assets", () => {
+test("Home cache chain points at current quota-aware runtime and bridge assets", () => {
   assert.match(homeSource, /js\/auth\.js\?v=1\.10\.16/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.4/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.5/);
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
-  assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.3/);
-  assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.\d+/);
-  assert.match(runtimeSource, /const VERSION = "1\.3\.8"/);
-  assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.7\.2/);
+  assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.4/);
+  assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.9/);
+  assert.match(runtimeSource, /const VERSION = "1\.3\.9"/);
+  assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.9\.0/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
 });
 
 test("runtime publishes canonical and compatibility identities together", () => {
   const { sandbox, events } = runtimeSandbox();
   assert.equal(sandbox.window.Ari.Runtime, sandbox.window.AriRuntime);
-  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.8");
+  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.9");
   assert.equal(typeof sandbox.window.Ari.Runtime.ask, "function");
   assert.ok(events.some((event) => event.type === "ari:runtimeReady"));
 });
@@ -139,9 +144,18 @@ test("an aborted Home turn never falls back into legacy Rebirth", async () => {
   assert.equal(getLegacyCalls(), 0);
 });
 
-test("bridge forwards Home AbortSignal to /api/ari-vnext and exposes 202 as processing", async () => {
+test("bridge syncs quota timezone then forwards Home AbortSignal to /api/ari-vnext", async () => {
   let capturedSignal = null;
+  const calls = [];
   const sandbox = bridgeSandbox(async (url, init = {}) => {
+    calls.push(url);
+    if (url === "/api/ari-daily-chat-quota") {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, quota: { allowed: true, remaining: 10, dailyLimit: 10 } })
+      };
+    }
     assert.equal(url, "/api/ari-vnext");
     capturedSignal = init.signal || null;
     return {
@@ -166,12 +180,13 @@ test("bridge forwards Home AbortSignal to /api/ari-vnext and exposes 202 as proc
     }),
     (error) => error?.code === "ARI_TURN_IN_PROGRESS" && error?.transient === true
   );
+  assert.deepEqual(calls, ["/api/ari-daily-chat-quota", "/api/ari-vnext"]);
   assert.equal(capturedSignal, controller.signal);
 });
 
 test("Home loader is version-aware, dual-namespace aware, and bounded", () => {
   assert.match(resilienceSource, /window\.AriRuntime, window\.Ari\?\.Runtime/);
-  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.8"/);
+  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.3\.9"/);
   assert.match(resilienceSource, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilienceSource, /loadRuntimeController\(\{ signal \}\)/);
   assert.match(resilienceSource, /ARI_TURN_IN_PROGRESS/);
