@@ -10,14 +10,9 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.13.0";
+export const TOOL_REGISTRY_VERSION = "1.13.1";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
-// Core health mutations are semantic capabilities, not context-routing results.
-// OpenAI should be able to understand natural requests like "log a High Noon"
-// even when the lightweight context router does not recognize the noun. Context
-// routing still decides what supporting data to preload; trusted validation and
-// execution remain authoritative for whether a proposed mutation can proceed.
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
   "propose_log_meal",
   "propose_today_meal_plan",
@@ -26,6 +21,7 @@ const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
   "propose_workout_plan",
   "propose_edit_workout",
   "propose_cancel_workout",
+  "propose_replace_workout",
   "propose_log_weight",
   "propose_update_goal"
 ]);
@@ -68,90 +64,65 @@ function workoutCancelTools() {
   ];
 }
 
-function crewTools(route = {}) {
-  if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) return [];
-
+function workoutReplaceTools() {
   return [
     functionTool(
-      "propose_create_circle_crew",
-      "Propose creating one private ARI Circle Crew only when the CURRENT user explicitly asks Ari to create or make a Crew from an evidence-backed Crew candidate already present in Action Network context. Use only the opaque candidateKey supplied by trusted context; never choose, add, remove, or invent founding members. The trusted server revalidates repeated completed Meetup evidence and blocking before creation. Other founding members are invited and must explicitly accept.",
+      "propose_replace_workout",
+      "Propose replacing one ENTIRE EXISTING planned workout with a newly built workout when the CURRENT user explicitly asks to change the workout's overall focus/type or rebuild the whole session (for example: change today's leg day to chest day, make tomorrow's workout a back workout instead, or replace Friday's workout with full body). Do NOT use this for one-exercise edits; use propose_edit_workout for add/remove/replace/move/prescription changes. The replacement must include the exact target date and a complete new workout. The trusted Training layer verifies that a workout exists, refuses completed workouts, validates every new exercise against the canonical registry, keeps the original untouched on validation failure, and requires confirmation before replacement.",
       {
         type: "object",
         additionalProperties: false,
         properties: {
-          candidateKey: { type: "string" },
-          name: { type: "string" }
+          dateText: { type: "string" },
+          focus: { type: "string" },
+          durationMinutes: { type: ["number", "null"] },
+          difficulty: { type: "string" },
+          warmup: { type: "string" },
+          exercises: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                name: { type: "string" },
+                sets: { type: ["number", "null"] },
+                reps: { type: ["number", "null"] },
+                restSeconds: { type: ["number", "null"] },
+                notes: { type: "string" }
+              },
+              required: ["name", "sets", "reps", "restSeconds", "notes"]
+            }
+          },
+          finisher: { type: "string" },
+          notes: { type: "string" }
         },
-        required: ["candidateKey", "name"]
-      }
-    ),
-    functionTool(
-      "propose_accept_circle_crew_invite",
-      "Propose accepting one specific pending ARI Circle Crew invitation only when the CURRENT user explicitly asks to accept or join that Crew. Use the exact Crew UUID from private Circle context. This cannot invite anyone else or alter Crew membership beyond the signed-in user's own invitation.",
-      {
-        type: "object",
-        additionalProperties: false,
-        properties: { crewId: { type: "string" } },
-        required: ["crewId"]
-      }
-    ),
-    functionTool(
-      "propose_decline_circle_crew_invite",
-      "Propose declining one specific pending ARI Circle Crew invitation only when the CURRENT user explicitly asks to decline, reject, or pass on that invitation. Use the exact Crew UUID from private Circle context.",
-      {
-        type: "object",
-        additionalProperties: false,
-        properties: { crewId: { type: "string" } },
-        required: ["crewId"]
-      }
-    ),
-    functionTool(
-      "propose_leave_circle_crew",
-      "Propose leaving one specific ARI Circle Crew only when the CURRENT user explicitly asks to leave or exit a Crew they are an active member of. Use the exact Crew UUID from private Circle context. Do not use this for an owner who asks to close the entire Crew; owners archive instead.",
-      {
-        type: "object",
-        additionalProperties: false,
-        properties: { crewId: { type: "string" } },
-        required: ["crewId"]
-      }
-    ),
-    functionTool(
-      "propose_archive_circle_crew",
-      "Propose archiving one specific ARI Circle Crew only when the CURRENT user explicitly asks to archive, close, or end a Crew they own. This changes the Crew for all members, so never infer it from a member asking to leave. Use the exact Crew UUID from private Circle context.",
-      {
-        type: "object",
-        additionalProperties: false,
-        properties: { crewId: { type: "string" } },
-        required: ["crewId"]
+        required: ["dateText", "focus", "durationMinutes", "difficulty", "warmup", "exercises", "finisher", "notes"]
       }
     )
   ];
 }
 
+function crewTools(route = {}) {
+  if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) return [];
+
+  return [
+    functionTool("propose_create_circle_crew", "Propose creating one private ARI Circle Crew only when the CURRENT user explicitly asks Ari to create or make a Crew from an evidence-backed Crew candidate already present in Action Network context. Use only the opaque candidateKey supplied by trusted context; never choose, add, remove, or invent founding members. The trusted server revalidates repeated completed Meetup evidence and blocking before creation. Other founding members are invited and must explicitly accept.", { type: "object", additionalProperties: false, properties: { candidateKey: { type: "string" }, name: { type: "string" } }, required: ["candidateKey", "name"] }),
+    functionTool("propose_accept_circle_crew_invite", "Propose accepting one specific pending ARI Circle Crew invitation only when the CURRENT user explicitly asks to accept or join that Crew. Use the exact Crew UUID from private Circle context. This cannot invite anyone else or alter Crew membership beyond the signed-in user's own invitation.", { type: "object", additionalProperties: false, properties: { crewId: { type: "string" } }, required: ["crewId"] }),
+    functionTool("propose_decline_circle_crew_invite", "Propose declining one specific pending ARI Circle Crew invitation only when the CURRENT user explicitly asks to decline, reject, or pass on that invitation. Use the exact Crew UUID from private Circle context.", { type: "object", additionalProperties: false, properties: { crewId: { type: "string" } }, required: ["crewId"] }),
+    functionTool("propose_leave_circle_crew", "Propose leaving one specific ARI Circle Crew only when the CURRENT user explicitly asks to leave or exit a Crew they are an active member of. Use the exact Crew UUID from private Circle context. Do not use this for an owner who asks to close the entire Crew; owners archive instead.", { type: "object", additionalProperties: false, properties: { crewId: { type: "string" } }, required: ["crewId"] }),
+    functionTool("propose_archive_circle_crew", "Propose archiving one specific ARI Circle Crew only when the CURRENT user explicitly asks to archive, close, or end a Crew they own. This changes the Crew for all members, so never infer it from a member asking to leave. Use the exact Crew UUID from private Circle context.", { type: "object", additionalProperties: false, properties: { crewId: { type: "string" } }, required: ["crewId"] })
+  ];
+}
+
 function hardenCoreToolContract(tool = {}) {
   if (tool?.name !== "propose_log_meal") return tool;
-
-  const parameters = tool?.parameters && typeof tool.parameters === "object"
-    ? tool.parameters
-    : {};
-  const properties = parameters?.properties && typeof parameters.properties === "object"
-    ? parameters.properties
-    : {};
-
+  const parameters = tool?.parameters && typeof tool.parameters === "object" ? tool.parameters : {};
+  const properties = parameters?.properties && typeof parameters.properties === "object" ? parameters.properties : {};
   return {
     ...tool,
-    description:
-      "Propose logging food or a meal only when the CURRENT user message explicitly asks to log, add, record, or save it. Do not use for nutrition questions or statements about eating. Resolve or estimate a complete nutrition payload before proposing the mutation; calories, protein, carbs, and fat must all be numeric because the trusted executor will not accept unresolved nutrition. Clearly mark estimates in notes.",
-    parameters: {
-      ...parameters,
-      properties: {
-        ...properties,
-        calories: { type: "number" },
-        proteinG: { type: "number" },
-        carbsG: { type: "number" },
-        fatG: { type: "number" }
-      }
-    }
+    description: "Propose logging food or a meal only when the CURRENT user message explicitly asks to log, add, record, or save it. Do not use for nutrition questions or statements about eating. Resolve or estimate a complete nutrition payload before proposing the mutation; calories, protein, carbs, and fat must all be numeric because the trusted executor will not accept unresolved nutrition. Clearly mark estimates in notes.",
+    parameters: { ...parameters, properties: { ...properties, calories: { type: "number" }, proteinG: { type: "number" }, carbsG: { type: "number" }, fatG: { type: "number" } } }
   };
 }
 
@@ -179,36 +150,24 @@ function isIsoDate(value) {
 
 function validateResolvedMealArguments(args = {}) {
   if (!String(args?.name || "").trim()) return { valid: false, error: "meal_name_required" };
-
   if (isMissing(args?.calories)) return { valid: false, error: "meal_nutrition_required" };
   const calories = Number(args.calories);
-  if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) {
-    return { valid: false, error: "meal_nutrition_required" };
-  }
-
+  if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) return { valid: false, error: "meal_nutrition_required" };
   for (const [key, max] of [["proteinG", 1000], ["carbsG", 1500], ["fatG", 1000]]) {
     if (isMissing(args?.[key])) return { valid: false, error: "meal_nutrition_required" };
     const value = Number(args[key]);
-    if (!Number.isFinite(value) || value < 0 || value > max) {
-      return { valid: false, error: "meal_nutrition_required" };
-    }
+    if (!Number.isFinite(value) || value < 0 || value > max) return { valid: false, error: "meal_nutrition_required" };
   }
-
   return { valid: true };
 }
 
 export function getAriTools(route = {}) {
   const routedCoreTools = getCoreAriTools(route);
-  const semanticHealthTools = getCoreAriTools(semanticHealthCapabilityRoute(route))
-    .filter((tool) => SEMANTIC_HEALTH_TOOL_NAMES.has(String(tool?.name || "")));
-
+  const semanticHealthTools = getCoreAriTools(semanticHealthCapabilityRoute(route)).filter((tool) => SEMANTIC_HEALTH_TOOL_NAMES.has(String(tool?.name || "")));
   const coreByName = new Map();
-  for (const tool of [...routedCoreTools, ...semanticHealthTools]) {
-    if (tool?.name) coreByName.set(String(tool.name), tool);
-  }
-
+  for (const tool of [...routedCoreTools, ...semanticHealthTools]) if (tool?.name) coreByName.set(String(tool.name), tool);
   const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
-  return [...coreTools, ...workoutCancelTools(), ...crewTools(route)];
+  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
@@ -229,17 +188,22 @@ export function validateToolCall(call = {}, route = {}) {
     return { valid: true, name, arguments: { scheduledDate } };
   }
 
+  if (name === "propose_replace_workout") {
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+    const dateText = String(args?.dateText || "").trim();
+    if (!isIsoDate(dateText)) return { valid: false, error: "workout_replace_exact_date_required" };
+    if (!String(args?.focus || "").trim()) return { valid: false, error: "workout_replace_focus_required" };
+    if (!Array.isArray(args?.exercises) || args.exercises.length < 1) return { valid: false, error: "workout_replace_exercises_required" };
+    return { valid: true, name, arguments: { ...args, dateText } };
+  }
+
   if (!CREW_TOOL_NAMES.has(name)) {
-    const validationRoute = SEMANTIC_HEALTH_TOOL_NAMES.has(name)
-      ? semanticHealthCapabilityRoute(route)
-      : route;
+    const validationRoute = SEMANTIC_HEALTH_TOOL_NAMES.has(name) ? semanticHealthCapabilityRoute(route) : route;
     return validateCoreToolCall(call, validationRoute);
   }
 
-  if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) {
-    return { valid: false, error: "tool_not_allowed_for_turn" };
-  }
-
+  if (!(route?.social && route?.circleAllowed === true && route?.teenMode !== true)) return { valid: false, error: "tool_not_allowed_for_turn" };
   const args = parseArguments(call?.arguments);
   if (!args) return { valid: false, error: "invalid_tool_arguments" };
 
@@ -257,7 +221,7 @@ export function validateToolCall(call = {}, route = {}) {
 
 export function toolToApplicationAction(name = "") {
   if (name === "propose_cancel_workout") return "cancel_workout";
-
+  if (name === "propose_replace_workout") return "replace_workout";
   const crewAction = ({
     propose_create_circle_crew: "create_circle_crew",
     propose_accept_circle_crew_invite: "accept_circle_crew_invite",
