@@ -1,6 +1,6 @@
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "2.1.0";
+export const MODEL_POLICY_VERSION = "2.2.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -47,19 +47,26 @@ export function resolveModelPolicy(route = {}) {
 
 function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const owner = intelligence?.ownerEligible === true || intelligence?.accessClass === "owner";
-  const premium = !owner && (intelligence?.premiumEligible === true || intelligence?.accessClass === "premium");
+  const ariUnlimited = !owner && (
+    intelligence?.ariUnlimitedEligible === true ||
+    intelligence?.accessClass === "ari_unlimited"
+  );
+  const premium = !owner && !ariUnlimited && (
+    intelligence?.premiumEligible === true ||
+    intelligence?.accessClass === "premium"
+  );
   const casualConversation = route?.casualConversation === true;
 
-  const advancedModel = owner
+  // Ari Unlimited deliberately receives the same chat-model class as Owner Mode,
+  // but this does not confer owner identity, cognitive loop, or developer access.
+  const ownerGradeChat = owner || ariUnlimited;
+  const advancedModel = ownerGradeChat
     ? process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6"
     : process.env.OPENAI_ARI_PREMIUM_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6";
-  const fastModel = owner
+  const fastModel = ownerGradeChat
     ? process.env.OPENAI_ARI_OWNER_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini"
     : process.env.OPENAI_ARI_PREMIUM_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
 
-  // Advanced accounts stay advanced for real conversation and advice, even when
-  // the prompt is short. Only narrow casual conversation (hello/thanks/etc.) is
-  // moved to the fast model.
   const model = casualConversation ? fastModel : advancedModel;
   const mode = resolveWorkMode(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
@@ -70,8 +77,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 
   return {
     version: MODEL_POLICY_VERSION,
-    intelligenceTier: intelligence?.intelligenceTier || (owner ? "owner_experimental" : "premium_advanced"),
-    accessClass: intelligence?.accessClass || (owner ? "owner" : premium ? "premium" : "casual"),
+    intelligenceTier: intelligence?.intelligenceTier || (owner ? "owner_experimental" : ariUnlimited ? "ari_unlimited" : "premium_advanced"),
+    accessClass: intelligence?.accessClass || (owner ? "owner" : ariUnlimited ? "ari_unlimited" : premium ? "premium" : "casual"),
     mode,
     model,
     supportsReasoning,
@@ -96,8 +103,16 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
             ? 30000
             : 40000,
     costTier: casualConversation
-      ? owner ? "owner_fast" : "premium_fast"
-      : owner ? "owner_advanced_sol" : "premium_advanced",
+      ? owner
+        ? "owner_fast"
+        : ariUnlimited
+          ? "ari_unlimited_fast"
+          : "premium_fast"
+      : owner
+        ? "owner_advanced_sol"
+        : ariUnlimited
+          ? "ari_unlimited_advanced_sol"
+          : "premium_advanced",
     liveSearchRequired: Boolean(route?.currentInfo),
     conversationBeta: true,
     casualConversation
