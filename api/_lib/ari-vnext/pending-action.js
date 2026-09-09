@@ -2,7 +2,7 @@
 
 import { makeId } from "./current-turn.js";
 
-export const PENDING_ACTION_VERSION = "1.0.0";
+export const PENDING_ACTION_VERSION = "1.1.0";
 
 export function createPendingAction({ turn, name, args = {}, confirmationRequired = true } = {}) {
   const createdAt = new Date();
@@ -23,13 +23,15 @@ export function createPendingAction({ turn, name, args = {}, confirmationRequire
 }
 
 export function isConfirmationMessage(message = "") {
-  const text = String(message || "").trim().toLowerCase();
-  return /^(yes|yep|yeah|confirm|confirmed|do it|go ahead|save it|log it|add it|make it|update it|that's right|correct)[.!\s]*$/.test(text);
+  const text = String(message || "").replace(/’/g, "'").trim().toLowerCase();
+  return /^(?:(?:yes|yep|yeah)(?:[,\s]+(?:please|(?:log|save|add|do) it))?|(?:i )?confirm(?:ed| it| that)?|do it|go ahead|save it|log it|add it|make it|update it|that's right|correct)[.!\s]*$/.test(text);
 }
 
 export function isCancellationMessage(message = "") {
-  const text = String(message || "").trim().toLowerCase();
-  return /^(no|nope|cancel|never mind|nevermind|don't|do not|stop)[.!\s]*$/.test(text);
+  const text = String(message || "").replace(/’/g, "'").trim().toLowerCase();
+  // Match only a complete cancellation. A replacement request such as
+  // "cancel it and log a banana" must still reach the action planner.
+  return /^(?:no|nope|(?:please )?cancel(?: it| that| this)?|never mind|nevermind|(?:don't|do not)(?: (?:log|save|add|do) (?:it|that|this))?|stop)[.!\s]*$/.test(text);
 }
 
 export function resolvePendingActionIntent(turn = {}) {

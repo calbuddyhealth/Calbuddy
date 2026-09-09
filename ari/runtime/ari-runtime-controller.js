@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.7
+// Version: 1.3.8
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -35,7 +35,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.7";
+  const VERSION = "1.3.8";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -291,6 +291,16 @@
     return "Confirm this Ari change?";
   }
 
+  function clearMatchingPendingAction(pending = {}) {
+    if (!pending?.id) return;
+    if (window.AriVNextBridge?.getPendingAction?.()?.id === pending.id) {
+      window.AriVNextBridge.clearPendingAction();
+    }
+    if (CalBuddy.getPendingAction?.()?.vnext_action_id === pending.id) {
+      CalBuddy.clearPendingAction?.();
+    }
+  }
+
   async function normalizePendingAction(result = {}) {
     const pending = result?.pendingAction;
     if (!pending?.id || !pending?.name) return result;
@@ -305,15 +315,23 @@
       };
     }
 
-    const mapped = await window.AriVNextActionAdapter.createCalBuddyPendingAction(pending);
+    let mapped;
+    try {
+      mapped = await window.AriVNextActionAdapter.createCalBuddyPendingAction(pending);
+    } catch (error) {
+      mapped = { success: false, code: "mapping_failed", message: error?.message || "I couldn't prepare its confirmation. Please try again." };
+    }
     if (!mapped?.success || !mapped?.action) {
       console.warn(
         "Ari vNext action mapping blocked:",
         mapped?.code || mapped?.message || "unknown mapping error"
       );
+      clearMatchingPendingAction(pending);
       return {
         ...result,
         pendingAction: null,
+        action: null,
+        reply: `That change was not saved. ${mapped?.message || "I couldn't prepare its confirmation. Please try again."}`,
         actionMapping: {
           success: false,
           code: mapped?.code || "mapping_failed",
@@ -346,7 +364,9 @@
 
   async function executeTypedConfirmation(result = {}) {
     const actionType = clean(result?.action?.type);
-    const pending = result?.pendingAction || null;
+    // The legacy mirror may have no database-generated id. Confirmation belongs
+    // to the original turn-bound proposal, not that optional audit row.
+    const pending = result?.vnextPendingAction || result?.pendingAction || null;
 
     if (actionType === "cancel_pending_action") {
       if (legacy.cancelPendingAction && CalBuddy.getPendingAction?.()) {
@@ -369,30 +389,35 @@
       };
     }
 
-    const originalPending = result?.vnextPendingAction || window.AriVNextBridge?.getPendingAction?.();
+    const originalPending = result?.vnextPendingAction || window.AriVNextBridge?.getPendingAction?.() || pending;
     if (!originalPending?.id) return result;
 
-    const execution = await window.AriVNextActionAdapter.executeConfirmed({
-      vnextPendingAction: originalPending,
-      currentTurnId: result?.turn?.turnId || result?.turnId || null
-    });
-    window.AriVNextBridge?.clearPendingAction?.();
-    if (execution?.success) CalBuddy.clearPendingAction?.();
+    let execution;
+    try {
+      execution = await window.AriVNextActionAdapter.executeConfirmed({
+        vnextPendingAction: originalPending,
+        currentTurnId: result?.turn?.turnId || result?.turnId || null
+      });
+    } catch (error) {
+      execution = { success: false, message: error?.message || "That change could not be completed." };
+    }
 
     if (!execution?.success) {
+      window.AriVNextBridge?.setPendingAction?.(originalPending);
       return {
         ...result,
-        pendingAction: null,
+        pendingAction: CalBuddy.getPendingAction?.() || result.pendingAction,
         execution,
-        reply: execution?.message || "That change could not be completed."
+        reply: execution?.message || execution?.result?.message || execution?.result?.reply || "That change could not be completed."
       };
     }
 
+    clearMatchingPendingAction(originalPending);
     return {
       ...result,
       pendingAction: null,
       execution,
-      reply: execution?.result?.reply || result.reply
+      reply: execution?.result?.reply || "Saved."
     };
   }
 
@@ -541,7 +566,7 @@
     if (getMode() !== "vnext") return legacy.cancelPendingAction?.();
     window.AriVNextBridge?.clearPendingAction?.();
     if (CalBuddy.getPendingAction?.()) legacy.cancelPendingAction?.();
-    return true;
+    return { success: true, cancelled: true, reply: "Cancelled. That pending change was not saved." };
   }
 
   async function checkInitiative(options = {}) {
