@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.3.1";
   const SOURCE = "ari_vnext_action_adapter";
   const WORKOUT_CONTROLLER_URL = "js/training/workout-plan-controller.js";
 
@@ -159,7 +159,6 @@
       }
       if (goalType === "weekly_weight_change") {
         if (value === null || Math.abs(value) > 10) return failure("weekly_change_out_of_range", "The weekly weight change is outside the supported range.");
-        // ARI XP stores this as magnitude; goal mode supplies lose/gain direction.
         payload.weekly_weight_change_goal = Math.abs(value);
       }
       if (goalType === "goal_mode") {
@@ -183,7 +182,7 @@
     },
 
     async mapWorkoutPlanValidated(pending, args) {
-      const scheduledDate = resolveDate(args.dateText);
+      const scheduledDate = resolveWorkoutDate(args.dateText, pending?.sourceMessage);
       if (!scheduledDate) return failure("workout_date_required", "An exact workout date is required before ARI XP can save the plan.");
 
       const requestedExercises = Array.isArray(args.exercises) ? args.exercises.slice(0, 16) : [];
@@ -286,7 +285,7 @@
     },
 
     async mapWorkoutEditValidated(pending, args) {
-      const scheduledDate = resolveDate(args.dateText);
+      const scheduledDate = resolveWorkoutDate(args.dateText, pending?.sourceMessage);
       if (!scheduledDate) return failure("workout_edit_date_required", "An exact workout date is required before Ari can edit the plan.");
 
       let controller;
@@ -764,6 +763,10 @@
     if (focus?.goal === "cardio") return "cardio";
     if (focus?.goal === "mobility") return "mobility";
     return "strength";
+  }
+
+  function resolveWorkoutDate(dateText, sourceMessage) {
+    return resolveDate(dateText) || resolveDate(sourceMessage);
   }
 
   function resolveDate(value) {
