@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-workout-plan-action.js
-// Version: 3.0.0
+// Version: 3.0.1
 // Purpose:
 //   SINGLE originator for Ari-created workout mutations.
 //   Command meaning comes ONLY from the central OpenAI intent router.
@@ -13,7 +13,7 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "3.0.0";
+  const VERSION = "3.0.1";
   const SOURCE = "ari_workout_action_v3_central_router";
   const CONFLICT_KEY = "ariWorkoutPlanConflict";
   const EDIT_KEY = "ariWorkoutEditContext";
@@ -218,11 +218,20 @@
 
   function saveConflict(value) { localStorage.setItem(CONFLICT_KEY, JSON.stringify({ ...value, saved_at: new Date().toISOString() })); }
   function clearConflict() { localStorage.removeItem(CONFLICT_KEY); }
+  function clearEditContext() { localStorage.removeItem(EDIT_KEY); }
   function readConflict() {
     try {
       const value = JSON.parse(localStorage.getItem(CONFLICT_KEY) || "null");
       if (!value?.scheduled_date || !value?.requested_message) return null;
       if (Date.now() - new Date(value.saved_at || 0).getTime() > 15 * 60 * 1000) { clearConflict(); return null; }
+      return value;
+    } catch { return null; }
+  }
+  function readEditContext() {
+    try {
+      const value = JSON.parse(localStorage.getItem(EDIT_KEY) || "null");
+      if (!value?.scheduled_date) return null;
+      if (Date.now() - new Date(value.saved_at || 0).getTime() > 15 * 60 * 1000) { clearEditContext(); return null; }
       return value;
     } catch { return null; }
   }
@@ -253,6 +262,7 @@
     if (!saved) throw new Error("Training could not update the workout on that date.");
     await controller.save({ remote: true });
     clearConflict();
+    clearEditContext();
     window.dispatchEvent(new CustomEvent("ari:workoutPlanUpdated", { detail: { scheduledDate, mode, source: SOURCE, version: VERSION } }));
     const actionWord = mode === "replace" ? "replaced" : mode === "add" ? "updated" : "set";
     return { success: true, workout: workoutToSave, scheduled_date: scheduledDate, reply: `${clean(workoutToSave.title) || "Workout"} is ${actionWord} for ${formatDateLabel(scheduledDate)}.` };
@@ -281,9 +291,12 @@
       if (pendingWorkout && isPendingWorkoutRevision(message, decision, pendingWorkout)) {
         const merged = mergePendingWorkoutRequest(message, decision, pendingWorkout);
         if (!parseDateKey(merged.scheduledDate)) return { reply: "What day do you want the revised workout on?", pendingAction: pendingWorkout, emotion: "coach", workoutDateRequired: true, intentDecision: decision };
-        const mode = clean(pendingWorkout?.payload?.existing_workout_mode || "create").toLowerCase();
+        const existing = await inspectDate(merged.scheduledDate);
+        const inheritedMode = clean(pendingWorkout?.payload?.existing_workout_mode || "create").toLowerCase();
+        const mode = existing && inheritedMode === "create" ? "replace" : inheritedMode;
         CalBuddy.cancelPendingAction?.();
         clearConflict();
+        clearEditContext();
         const replacement = buildPendingActionFromOptions(message, merged.decision, merged.scheduledDate, mode, merged.focusId, merged.builderOptions);
         const action = await CalBuddy.createPendingAction(replacement);
         return {
@@ -297,6 +310,23 @@
         };
       }
 
+      const editContext = readEditContext();
+      if (editContext && isTrainingDecision(decision)) {
+        const requestedDate = resolveRequestedDate(clean(decision?.entities?.workout_date_text) || message) || clean(editContext.scheduled_date);
+        const existing = await inspectDate(requestedDate);
+        if (existing) {
+          const entities = { ...(decision.entities || {}) };
+          if (!clean(entities.workout_date_text)) entities.workout_date_text = requestedDate;
+          const replacementDecision = { ...decision, domain: "training", action: "plan_workout", entities };
+          const pending = buildPendingAction(message, replacementDecision, requestedDate, "replace");
+          clearEditContext();
+          clearConflict();
+          const action = await CalBuddy.createPendingAction(pending);
+          return { reply: action.confirmation_text, pendingAction: action, emotion: "coach", workoutPlanProposed: true, existingWorkoutMode: "replace", workoutEditConvertedToReplacement: true, intentDecision: decision };
+        }
+        clearEditContext();
+      }
+
       const storedConflict = readConflict();
       const choice = storedConflict ? conflictChoice(message) : null;
       if (storedConflict && choice) {
@@ -307,6 +337,7 @@
         }
         const pending = buildPendingAction(storedConflict.requested_message, storedConflict.intent_decision || {}, storedConflict.scheduled_date, choice);
         clearConflict();
+        clearEditContext();
         const action = await CalBuddy.createPendingAction(pending);
         return { reply: action.confirmation_text, pendingAction: action, emotion: "coach", workoutPlanProposed: true, existingWorkoutMode: choice, intentDecision: decision || storedConflict.intent_decision || null };
       }
@@ -319,6 +350,16 @@
 
       if (clean(decision.action) === "edit_workout") {
         if (!existing) return { reply: `I don’t see a workout planned for ${formatDateLabel(requestedDate)}. Do you want me to create one instead?`, pendingAction: null, emotion: "coach", intentDecision: decision };
+        const entities = decision.entities || {};
+        const hasConcreteRevision = Boolean(clean(entities.workout_focus) || entities.duration_minutes != null || clean(entities.difficulty) || clean(entities.exercise));
+        if (hasConcreteRevision) {
+          const replacementDecision = { ...decision, action: "plan_workout" };
+          const pending = buildPendingAction(message, replacementDecision, requestedDate, "replace");
+          clearConflict();
+          clearEditContext();
+          const action = await CalBuddy.createPendingAction(pending);
+          return { reply: action.confirmation_text, pendingAction: action, emotion: "coach", workoutPlanProposed: true, existingWorkoutMode: "replace", workoutEditConvertedToReplacement: true, intentDecision: decision };
+        }
         localStorage.setItem(EDIT_KEY, JSON.stringify({ scheduled_date: requestedDate, existing_title: existing.title, requested_message: message, router_entities: decision.entities || {}, saved_at: new Date().toISOString() }));
         return { reply: `I found ${existing.title} for ${existing.dateLabel}. I’ll keep it intact until you confirm the exact change.`, pendingAction: null, emotion: "coach", workoutEditMode: true, scheduled_date: requestedDate, intentDecision: decision };
       }
@@ -328,6 +369,7 @@
         return { reply: `You already have ${existing.title} planned for ${existing.dateLabel}. Do you want me to replace it, add the new work to it, or edit the existing workout?`, pendingAction: null, emotion: "coach", workoutPlanConflict: true, scheduled_date: requestedDate, intentDecision: decision };
       }
 
+      clearEditContext();
       const pending = buildPendingAction(message, decision, requestedDate, "create");
       const action = await CalBuddy.createPendingAction(pending);
       return { reply: action.confirmation_text, pendingAction: action, emotion: "coach", workoutPlanProposed: true, intentDecision: decision };
