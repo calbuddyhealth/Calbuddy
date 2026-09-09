@@ -24,7 +24,7 @@ test("Home cutover defaults to Ari vNext but preserves Rebirth as fallback", () 
 
 test("Home resilience waits for the runtime controller before asking Ari", () => {
   assert.match(resilienceSource, /ari-runtime-controller\.js/);
-  assert.match(resilienceSource, /await loadRuntimeController\(\)/);
+  assert.match(resilienceSource, /await loadRuntimeController\(\{ signal \}\)/);
   assert.match(resilienceSource, /const response = await CalBuddy\.askAri/);
 });
 
@@ -40,12 +40,13 @@ test("vNext dependencies include canonical Training, trusted action adapters, br
   }
 });
 
-test("Mission-capable runtime cache chain reaches Home and iOS WebViews", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.3\.8"/);
+test("quota-aware runtime cache chain reaches Home and iOS WebViews", () => {
+  assert.match(runtimeSource, /const VERSION = "1\.3\.9"/);
+  assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.9\.0/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
-  assert.match(resilienceSource, /Version: 1\.3\.4/);
-  assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.3\.8"/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.4/);
+  assert.match(resilienceSource, /Version: 1\.3\.5/);
+  assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.3\.9"/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.5/);
 });
 
 test("trusted app actions remain outside direct model execution", () => {
