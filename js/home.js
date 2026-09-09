@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.4.0
+// Version: 3.4.1
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
 //
 // V3.4.0:
@@ -63,6 +63,7 @@ let ariThinkingSequenceTimer = null;
 let ariThinkingSequenceFrame = 1;
 let ariThinkingSequencePhase = "idle";
 let ariPresenceFocus = false;
+let ariActionInFlight = false;
 
 const ARI_ASSETS = {
   heroOpen: "assets/ari/ari-idle-open.png",
@@ -953,23 +954,66 @@ function hidePendingAction() {
   document.getElementById("pendingActionBar")?.classList.remove("show");
 }
 
+function rememberAriActionOutcome(message, reply) {
+  ariChatHistory.push({ role: "user", content: message }, { role: "assistant", content: reply });
+  ariChatHistory = ariChatHistory.slice(-10);
+  // Buttons are real conversation events. They do not pass through askAri's
+  // server writer, so retain their outcomes using the existing history writer.
+  Promise.resolve().then(() => CalBuddy.saveConversationTurn?.({ message, reply })).catch((error) => {
+    console.warn("Ari action outcome history could not be saved:", error?.message || error);
+  });
+}
+
+function setAriActionBusy(busy) {
+  ariActionInFlight = busy;
+  const bar = document.getElementById("pendingActionBar");
+  bar?.setAttribute("aria-busy", String(busy));
+  for (const button of bar?.querySelectorAll("button") || []) button.disabled = busy;
+}
+
 async function confirmAriAction() {
-  const result = await CalBuddy.confirmPendingAction();
-
-  addAriMessage(result.reply || "Done.", "ari");
-  setAriPose("idleOpen");
-  hidePendingAction();
-
-  await refreshHomeDashboard();
-  resetAriAfterDelay();
+  if (ariActionInFlight) return;
+  const pending = CalBuddy.getPendingAction?.();
+  const message = `Confirm pending action: ${pending?.confirmation_text || "the current proposal"}`;
+  setAriActionBusy(true);
+  try {
+    const result = await CalBuddy.confirmPendingAction();
+    const succeeded = result?.success === true && result?.result?.success !== false;
+    const reply = succeeded
+      ? result?.reply || result?.result?.reply || "Saved."
+      : result?.message || result?.result?.message || result?.result?.reply || result?.reply || "I couldn't confirm that change was saved.";
+    addAriMessage(reply, "ari");
+    rememberAriActionOutcome(message, reply);
+    const remaining = CalBuddy.getPendingAction?.();
+    if (remaining) showPendingAction(remaining);
+    else hidePendingAction();
+    try {
+      await refreshHomeDashboard();
+    } catch (error) {
+      console.warn("Dashboard refresh after Ari action failed:", error?.message || error);
+    }
+  } catch (error) {
+    const reply = error?.message || "I couldn't confirm that change was saved.";
+    addAriMessage(reply, "ari");
+    rememberAriActionOutcome(message, reply);
+    const remaining = CalBuddy.getPendingAction?.();
+    if (remaining) showPendingAction(remaining);
+    else hidePendingAction();
+  } finally {
+    setAriActionBusy(false);
+    setAriPose("idleOpen");
+    resetAriAfterDelay();
+  }
 }
 
 function cancelAriAction() {
+  if (ariActionInFlight) return;
+  const pending = CalBuddy.getPendingAction?.();
   const result = CalBuddy.cancelPendingAction();
-
-  addAriMessage(result.reply || "No problem.", "ari");
+  const reply = result?.reply || "Cancelled. That pending change was not saved.";
+  addAriMessage(reply, "ari");
+  rememberAriActionOutcome(`Cancel pending action: ${pending?.confirmation_text || "the current proposal"}`, reply);
   setAriPose("idleOpen");
   hidePendingAction();
-
   resetAriAfterDelay();
 }

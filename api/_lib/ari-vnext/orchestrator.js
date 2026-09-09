@@ -1,6 +1,7 @@
 // ARI vNext — model-first orchestration through OpenAI Responses API.
 
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
+import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./action-response.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
@@ -270,11 +271,32 @@ export async function runAriVNext(turn = {}) {
     }
   }
 
+  // Recover once when the model promises an action without producing one.
+  // Reuse the current turn and the available capabilities; normal argument
+  // validation and explicit confirmation still apply to any repaired proposal.
+  if (!functionCall && actionReplyRequiresProposal(extractOutputText(first))) {
+    try {
+      first = await callResponses({
+        turn,
+        policy: modelPolicy,
+        instructions: instructions + "\nACTION RESPONSE CORRECTION\nYour previous reply described preparing or completing an app change, but no application function was returned. No change was saved. If the CURRENT request explicitly asks for a supported mutation, return its matching function now. Otherwise answer without claiming a pending or completed change. A cancelled earlier proposal does not disable future proposals.",
+        input,
+        tools: reviewedDecision === "none" && reviewConfidence >= 0.84 ? [] : tools
+      });
+      functionCall = findFunctionCall(first?.output);
+    } catch {
+      // The final evidence guard still returns an honest failure if repair is
+      // unavailable. Do not send this unprepared action to a legacy fallback.
+    }
+  }
+
   if (!functionCall) {
+    const guardedReply = guardUnpreparedActionReply(extractOutputText(first));
     return {
       success: true,
       ready: true,
-      reply: extractOutputText(first),
+      reply: guardedReply.reply,
+      actionPreparation: guardedReply.actionPreparation,
       route,
       safety,
       communication,
@@ -476,7 +498,7 @@ function buildInstructions({
     "\nARI XP PRODUCT BOUNDARIES\nMeal Plan is strictly today-only. Never generate, schedule, or imply support for a future Meal Plan. If the user asks for tomorrow or another future day, state that Meal Plan only tracks today. Planned food is not consumed food. Calories burned do not increase the Nutrition food allowance unless the product contract explicitly changes. Never invent a missing Daily Calorie Goal.",
     "\nDATA FIDELITY\nFor any proposed write, preserve every explicit quantity and named item from the CURRENT user request. Do not silently drop components. If a user asks to log multiple foods as one meal, the single meal record must represent all of those foods with combined nutrition and clear serving details.",
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
-    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' or 'I ate the breakfast you planned' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation."
+    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' or 'I ate the breakfast you planned' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation. Cancelling a proposal cancels only that proposal; a later explicit request must create a fresh proposal. Application functions prepare changes for confirmation; this model pass never executes those writes. Never claim that a change was logged or saved, and never ask the user to confirm a change without returning the application function that prepares it."
   );
 
   return sections.join("\n");
