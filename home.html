@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="assets/css/home-menu-polish.css?v=2.1.0" />
 <link rel="stylesheet" href="assets/css/app-health.css?v=1.0.0" />
 <link rel="stylesheet" href="assets/css/ari-signals.css?v=1.0.0" />
+<link rel="stylesheet" href="assets/css/ari-quota-ui.css?v=1.0.0" />
 </head>
 <body class="ari-home-page">
 <main class="ari-v1-home welcome-mode" id="ariApp">
@@ -38,7 +39,7 @@
 <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()" aria-hidden="true"></div>
 <section class="ari-welcome" id="ariWelcome"><div class="ari-hero-stage"><div class="ari-hero-halo" aria-hidden="true"></div><img id="ariHero" class="ari-hero-img" data-ari-mascot src="assets/ari/ari-idle-open.png" alt="Ari" /></div><p id="ariWelcomeQuestion" class="ari-welcome-question" aria-live="polite" hidden>What are you working on?</p></section>
 <section class="ari-conversation-shell" id="ariConversationShell" aria-live="polite"><div id="ariThinkingStatus" class="ari-thinking-status" role="status" aria-live="polite" aria-hidden="true"><span class="ari-thinking-status-name">ARI</span><span class="ari-thinking-status-copy">THINKING</span><span class="ari-thinking-particles" aria-hidden="true"><span></span><span></span><span></span></span></div><div id="ariMessages" class="ari-thread"></div><p id="ariPresenceHint" class="ari-presence-hint" aria-hidden="true">TAP TO RETURN</p><div id="pendingActionBar" class="pending-action-bar"><p id="pendingActionText">Confirm this action?</p><div class="pending-action-buttons"><button type="button" onclick="confirmAriAction()">YES</button><button type="button" onclick="cancelAriAction()">CANCEL</button></div></div></section>
-<div class="ari-bottom-input"><div class="ari-input-shell"><label class="ari-input-label" for="ariInput">ASK ARI</label><div class="ari-input-row"><textarea id="ariInput" rows="1" maxlength="4000" placeholder="What are you working on?" aria-label="Ask Ari" oninput="autoResizeAriInput()" onkeydown="handleAriEnter(event)"></textarea><button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()" aria-label="Send message to Ari">SEND</button></div></div></div>
+<div class="ari-bottom-input"><div class="ari-input-shell"><div class="ari-composer-meta"><label class="ari-input-label" for="ariInput">ASK ARI</label><button id="ariDailyQuotaPill" class="ari-quota-pill" type="button" hidden aria-label="Ari questions remaining"></button></div><div id="ariDailyQuotaDetail" class="ari-quota-detail" role="status" aria-live="polite" hidden></div><div class="ari-input-row"><textarea id="ariInput" rows="1" maxlength="4000" placeholder="What are you working on?" aria-label="Ask Ari" oninput="autoResizeAriInput()" onkeydown="handleAriEnter(event)"></textarea><button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()" aria-label="Send message to Ari">SEND</button></div></div></div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
@@ -61,4 +62,5 @@
 <script src="js/ari-activity-guard.js?v=1.0.0"></script>
 <script src="js/home-conversation-persistence.js?v=1.0.0"></script>
 <script src="js/app-health-nav.js?v=1.0.0"></script>
+<script src="js/ari-quota-ui.js?v=1.0.0"></script>
 </body></html>
