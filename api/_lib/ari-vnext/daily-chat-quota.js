@@ -1,8 +1,10 @@
 // ARI vNext — server-authoritative daily chat quota.
 // Regular accounts receive a bounded number of paid AI turns per local day.
-// Owner identity is derived only from the server-side owner user ID.
+// Owner identity remains separate from the private Ari Unlimited chat entitlement.
 
-export const ARI_DAILY_CHAT_QUOTA_VERSION = "1.0.0";
+import { loadAriUnlimitedEntitlement } from "../../../server/ari-intelligence-control-store.js";
+
+export const ARI_DAILY_CHAT_QUOTA_VERSION = "1.1.0";
 
 const RESERVATION_TABLE = "ari_daily_chat_quota_reservations";
 const SETTINGS_TABLE = "ari_daily_chat_quota_settings";
@@ -28,6 +30,7 @@ export async function reserveDailyChatQuota({ userId, turnId } = {}) {
   if (!user || !turn) return unavailableQuota("invalid_identity");
 
   if (isOwnerQuotaExempt(user)) return ownerQuota();
+  if (await isAriUnlimited(user)) return ariUnlimitedQuota();
 
   const config = supabaseConfig();
   if (!config) return unavailableQuota("storage_unavailable");
@@ -63,6 +66,7 @@ export async function consumeDailyChatQuota({ userId, turnId } = {}) {
   const turn = clean(turnId, 200);
   if (!user || !turn) return unavailableQuota("invalid_identity");
   if (isOwnerQuotaExempt(user)) return ownerQuota();
+  if (await isAriUnlimited(user)) return ariUnlimitedQuota();
 
   const config = supabaseConfig();
   if (!config) return unavailableQuota("storage_unavailable");
@@ -88,7 +92,9 @@ export async function consumeDailyChatQuota({ userId, turnId } = {}) {
 export async function releaseDailyChatQuota({ userId, turnId } = {}) {
   const user = clean(userId, 200);
   const turn = clean(turnId, 200);
-  if (!user || !turn || isOwnerQuotaExempt(user)) return true;
+  if (!user || !turn) return true;
+  if (isOwnerQuotaExempt(user)) return true;
+  if (await isAriUnlimited(user)) return true;
 
   const config = supabaseConfig();
   if (!config) return false;
@@ -145,6 +151,7 @@ export async function loadDailyChatQuota({ userId } = {}) {
   const user = clean(userId, 200);
   if (!user) return unavailableQuota("invalid_identity");
   if (isOwnerQuotaExempt(user)) return ownerQuota();
+  if (await isAriUnlimited(user)) return ariUnlimitedQuota();
   const config = supabaseConfig();
   if (!config) return unavailableQuota("storage_unavailable");
   const timezone = await resolveSavedTimezone({ userId: user, config });
@@ -170,6 +177,11 @@ export function publicDailyChatQuota(value = null) {
 export function dailyLimitReply(quota = {}) {
   const limit = finiteOrNull(quota.dailyLimit) || dailyChatLimit();
   return `You've used your ${limit} Ari questions for today. Your questions reset at midnight.`;
+}
+
+async function isAriUnlimited(userId) {
+  const entitlement = await loadAriUnlimitedEntitlement({ userId }).catch(() => null);
+  return entitlement?.enabled === true;
 }
 
 async function loadQuotaSnapshot({ userId, config, timezone }) {
@@ -206,8 +218,6 @@ async function resolveSavedTimezone({ userId, config }) {
   const settings = await readSettings({ userId, config });
   if (normalizeTimezone(settings?.timezone)) return settings.timezone;
 
-  // Native push already stores the device's IANA timezone for many accounts.
-  // Reuse that trusted server-side preference before falling back to UTC.
   const params = new URLSearchParams({
     select: "timezone",
     user_id: `eq.${userId}`,
@@ -254,6 +264,22 @@ function ownerQuota() {
     localDate: null,
     resetAt: null,
     source: "owner_exempt"
+  };
+}
+
+function ariUnlimitedQuota() {
+  return {
+    enabled: true,
+    allowed: true,
+    unlimited: true,
+    reserved: false,
+    used: null,
+    remaining: null,
+    dailyLimit: null,
+    timezone: null,
+    localDate: null,
+    resetAt: null,
+    source: "ari_unlimited"
   };
 }
 
@@ -317,7 +343,6 @@ function nextMidnightIso(timezone) {
   const today = dateInTimezone(now, timezone);
   const [year, month, day] = today.split("-").map(Number);
   const approximate = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0));
-  // Find the UTC instant that formats as 00:00 on the next local calendar day.
   for (let minutes = -14 * 60; minutes <= 14 * 60; minutes += 15) {
     const candidate = new Date(approximate.getTime() + minutes * 60000);
     const parts = new Intl.DateTimeFormat("en-CA", {
