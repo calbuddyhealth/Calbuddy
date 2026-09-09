@@ -1,18 +1,26 @@
-// ARI XP — Home composer daily question quota UI v1.0.0
+// ARI XP — Home composer daily question quota UI v1.0.1
 (() => {
   "use strict";
 
   const pill = document.getElementById("ariDailyQuotaPill");
   const detail = document.getElementById("ariDailyQuotaDetail");
   const send = document.getElementById("ariSendBtn");
-  if (!pill || !send) return;
+  const input = document.getElementById("ariInput");
+  if (!pill || !send || !input) return;
 
   let quota = null;
   let detailTimer = null;
+  let enforcingButtonState = false;
 
   function finite(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
+  }
+
+  function isExhausted() {
+    if (!quota || quota.unlimited === true) return false;
+    const remaining = finite(quota.remaining);
+    return remaining !== null && (remaining <= 0 || quota.allowed === false);
   }
 
   function setDetail(text = "") {
@@ -21,6 +29,24 @@
     detail.hidden = !text;
     clearTimeout(detailTimer);
     if (text) detailTimer = setTimeout(() => { detail.hidden = true; }, 3200);
+  }
+
+  function enforceSendState() {
+    if (enforcingButtonState || send.classList.contains("ari-stop-btn")) return;
+    enforcingButtonState = true;
+    try {
+      if (isExhausted()) {
+        send.dataset.ariQuotaDisabled = "true";
+        send.disabled = true;
+        send.setAttribute("aria-disabled", "true");
+      } else if (send.dataset.ariQuotaDisabled === "true") {
+        send.disabled = false;
+        send.removeAttribute("aria-disabled");
+        delete send.dataset.ariQuotaDisabled;
+      }
+    } finally {
+      enforcingButtonState = false;
+    }
   }
 
   function applyQuota(next = null) {
@@ -32,8 +58,7 @@
       pill.textContent = "UNLIMITED";
       pill.dataset.state = "unlimited";
       pill.setAttribute("aria-label", "Ari questions unlimited");
-      if (send.dataset.ariQuotaDisabled === "true") send.disabled = false;
-      delete send.dataset.ariQuotaDisabled;
+      enforceSendState();
       return;
     }
 
@@ -53,16 +78,7 @@
         ? `Daily Ari question limit reached. ${limit} questions per day. Resets at midnight.`
         : `${remaining} of ${limit} Ari questions remaining. Resets at midnight.`
     );
-
-    if (exhausted) {
-      if (!send.disabled) send.dataset.ariQuotaDisabled = "true";
-      send.disabled = true;
-      send.setAttribute("aria-disabled", "true");
-    } else if (send.dataset.ariQuotaDisabled === "true") {
-      send.disabled = false;
-      send.removeAttribute("aria-disabled");
-      delete send.dataset.ariQuotaDisabled;
-    }
+    enforceSendState();
   }
 
   async function loadQuota() {
@@ -103,6 +119,23 @@
     event.preventDefault();
     pill.click();
   });
+
+  // The Home composer temporarily turns SEND into STOP while Ari is thinking.
+  // When it changes back to SEND, re-apply a zero-quota lock if needed.
+  new MutationObserver(() => queueMicrotask(enforceSendState)).observe(send, {
+    attributes: true,
+    attributeFilter: ["class", "disabled"]
+  });
+
+  // Disabled buttons block taps, but Home also supports Enter-to-send directly
+  // from the textarea. Block that keyboard path when the daily quota is empty.
+  input.addEventListener("keydown", (event) => {
+    if (!isExhausted() || event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const limit = finite(quota?.dailyLimit) || 10;
+    setDetail(`You've used your ${limit} Ari questions for today · Resets at midnight`);
+  }, true);
 
   window.addEventListener("ari:dailyQuota", (event) => applyQuota(event?.detail?.quota));
 
