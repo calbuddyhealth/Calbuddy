@@ -41,7 +41,7 @@
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
-    "ari/vnext/ari-vnext-action-adapter.js?v=1.3.0",
+    "ari/vnext/ari-vnext-action-adapter.js?v=1.3.1",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.7.2",
@@ -364,8 +364,6 @@
 
   async function executeTypedConfirmation(result = {}) {
     const actionType = clean(result?.action?.type);
-    // The legacy mirror may have no database-generated id. Confirmation belongs
-    // to the original turn-bound proposal, not that optional audit row.
     const pending = result?.vnextPendingAction || result?.pendingAction || null;
 
     if (actionType === "cancel_pending_action") {
