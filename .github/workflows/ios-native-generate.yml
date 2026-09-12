@@ -77,7 +77,7 @@ jobs:
           npm run ios:sync
           npm run cap:doctor
 
-      - name: Verify Build 7 configuration, push capability, and privacy purpose strings
+      - name: Verify Build 7 configuration, push capability, privacy purpose strings, and production bundle hygiene
         shell: bash
         run: |
           set -euo pipefail
@@ -86,6 +86,7 @@ jobs:
 
           test -f "$PLIST"
           test -f "$ENTITLEMENTS"
+          test ! -f "www/ari-lab.html"
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST"
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
