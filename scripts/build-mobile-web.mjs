@@ -21,6 +21,7 @@ const excludedDirectories = new Set([
 ]);
 
 const excludedRootFiles = new Set([
+  "ari-lab.html",
   "capacitor.config.json",
   "package.json",
   "package-lock.json",
