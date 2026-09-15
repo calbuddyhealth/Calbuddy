@@ -1,7 +1,18 @@
-/* ARI Circle Messages — isolated mobile thread shell v1.0.0 */
+/* ARI Circle Messages — isolated mobile thread shell v1.0.1 */
 
 :root {
   --ari-messages-vvh: 100dvh;
+}
+
+/* Messages is a focused surface. The shared ARI Circle shell may still load for
+   age/owner checks, but its fixed Feed/Connect dock must never cover the DM composer. */
+body.ari-circle-messages-surface.circle-v5-real-world {
+  padding-bottom: 0 !important;
+  color-scheme: light;
+}
+
+body.ari-circle-messages-surface .circle-v5-bottom-nav {
+  display: none !important;
 }
 
 @media (max-width: 700px) {
