@@ -32,7 +32,7 @@ test("current Circle V5 presentation ends in consolidated visual and XP authorit
 
 
 test("shared ARI Circle header stays text-only and pearl while owner verification stays server-bound", () => {
-  assert.match(shell, /const VERSION = "5\.3\.1"/);
+  assert.match(shell, /const VERSION = "5\.3\.2"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-wordmark/);
   assert.doesNotMatch(shell, /circle-v51-orbit-mark/);
@@ -43,6 +43,15 @@ test("shared ARI Circle header stays text-only and pearl while owner verificatio
   assert.doesNotMatch(shell, /\.from\s*\(/);
   assert.match(shell, /fetch\("\/api\/ari-github-read"/);
   assert.match(shell, /payload\?\.isOwner === true/);
+});
+
+
+test("Missions stay owner-only while Meetups remain available to members", () => {
+  assert.match(shell, /path\.includes\("ari-circle-quest"\)/);
+  assert.match(shell, /MISSIONS_ROUTE_FALLBACK = "ari-circle-meetup\.html"/);
+  assert.match(shell, /window\.location\.replace\(ownerRouteFallback\(\)\)/);
+  assert.match(shell, /ownerAccess \? `<a href="ari-circle-quests\.html"/);
+  assert.match(shell, /<a href="ari-circle-meetup\.html"/);
 });
 
 

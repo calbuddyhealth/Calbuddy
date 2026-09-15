@@ -135,8 +135,8 @@ test("Feed keeps posts and Moments while adding live Happening discovery", () =>
   assert.doesNotMatch(happening, />Create a meetup</);
 });
 
-test("Circle keeps one primary shell while ARI Next is owner-only", () => {
-  assert.match(shell, /const VERSION = "5\.3\.1"/);
+test("Circle keeps one primary shell while experimental owner surfaces stay gated", () => {
+  assert.match(shell, /const VERSION = "5\.3\.2"/);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
   assert.match(shell, /ownerAccess \? navLink\("arinext", "ari-circle-v6\.html", "ARI Next"\) : ""/);
@@ -147,6 +147,7 @@ test("Circle keeps one primary shell while ARI Next is owner-only", () => {
   assert.match(shell, /payload\?\.isOwner === true/);
   assert.match(shell, /ensureConnectModeNav/);
   assert.match(shell, />Meetups<\/a>/);
+  assert.match(shell, /ownerAccess \? `<a href="ari-circle-quests\.html"/);
   assert.match(shell, />Missions<\/a>/);
   assert.doesNotMatch(shell, /ari-circle-partners\.html/);
   assert.doesNotMatch(shell, /ari-circle-challenges\.html/);

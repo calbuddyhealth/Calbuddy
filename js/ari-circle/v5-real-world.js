@@ -1,13 +1,13 @@
 /* =============================================================
-   ARI CIRCLE V5.3.1 — REAL WORLD SOCIAL SHELL
-   Feed · Connect for members; ARI Next remains owner-only while it is experimental.
+   ARI CIRCLE V5.3.2 — REAL WORLD SOCIAL SHELL
+   Feed · Connect for members; Missions + ARI Next remain owner-only while experimental.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.3.1";
+  const VERSION = "5.3.2";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -26,6 +26,7 @@
   const NAV_MODEL = "feed-connect-owner-ari-next";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
   const OWNER_ROUTE_FALLBACK = "ari-circle-feed.html";
+  const MISSIONS_ROUTE_FALLBACK = "ari-circle-meetup.html";
   let queued = false;
   let happeningLoaded = false;
   let profileLoaded = false;
@@ -50,7 +51,11 @@
 
   function isOwnerOnlyPath() {
     const path = pathName();
-    return path.endsWith("/ari-circle-v6.html") || path.includes("ari-circle-explore");
+    return path.endsWith("/ari-circle-v6.html") || path.includes("ari-circle-explore") || path.includes("ari-circle-quest");
+  }
+
+  function ownerRouteFallback() {
+    return pathName().includes("ari-circle-quest") ? MISSIONS_ROUTE_FALLBACK : OWNER_ROUTE_FALLBACK;
   }
 
   function holdOwnerOnlyRoute() {
@@ -95,7 +100,7 @@
 
       if (isOwnerOnlyPath()) {
         if (!verified) {
-          window.location.replace(OWNER_ROUTE_FALLBACK);
+          window.location.replace(ownerRouteFallback());
           return false;
         }
         releaseOwnerOnlyRoute();
@@ -129,7 +134,7 @@
     const style = document.createElement("style");
     style.id = CONNECT_STYLE_ID;
     style.textContent = `
-      .circle-connect-mode-nav{margin:0 0 18px;padding:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;border:1px solid rgba(122,141,177,.2);border-radius:16px;background:rgba(255,255,255,.72)}
+      .circle-connect-mode-nav{margin:0 0 18px;padding:4px;display:grid;grid-template-columns:1fr;gap:4px;border:1px solid rgba(122,141,177,.2);border-radius:16px;background:rgba(255,255,255,.72)}
       .circle-connect-mode-nav a{display:flex;align-items:center;justify-content:center;min-height:42px;border-radius:12px;text-decoration:none;font:800 .78rem/1 Inter,sans-serif;letter-spacing:.01em;color:#6f819d}
       .circle-connect-mode-nav a.is-active{background:#fff;color:#142033;box-shadow:0 8px 24px rgba(31,45,70,.10)}
     `;
@@ -213,8 +218,9 @@
 
     nav.innerHTML = `
       <a href="ari-circle-meetup.html" class="${isMeetups ? "is-active" : ""}"${isMeetups ? ' aria-current="page"' : ""}>Meetups</a>
-      <a href="ari-circle-quests.html" class="${isMissions ? "is-active" : ""}"${isMissions ? ' aria-current="page"' : ""}>Missions</a>
+      ${ownerAccess ? `<a href="ari-circle-quests.html" class="${isMissions ? "is-active" : ""}"${isMissions ? ' aria-current="page"' : ""}>Missions</a>` : ""}
     `;
+    nav.style.gridTemplateColumns = ownerAccess ? "1fr 1fr" : "1fr";
   }
 
   function removeRedundantQuestDrawerLink() {

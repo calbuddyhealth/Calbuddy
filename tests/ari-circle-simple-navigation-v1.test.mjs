@@ -23,13 +23,15 @@ test("Circle primary navigation keeps ARI Next behind verified owner access", ()
   assert.match(shell, /payload\?\.isOwner === true/);
 });
 
-test("ARI Next and Explore fail closed for non-owner direct navigation", () => {
+test("ARI Next, Explore, and Missions fail closed for non-owner direct navigation", () => {
   assert.match(shell, /function isOwnerOnlyPath\(\)/);
   assert.match(shell, /ari-circle-v6\.html/);
   assert.match(shell, /ari-circle-explore/);
+  assert.match(shell, /path\.includes\("ari-circle-quest"\)/);
   assert.match(shell, /document\.documentElement\.style\.visibility = "hidden"/);
-  assert.match(shell, /window\.location\.replace\(OWNER_ROUTE_FALLBACK\)/);
+  assert.match(shell, /window\.location\.replace\(ownerRouteFallback\(\)\)/);
   assert.match(shell, /OWNER_ROUTE_FALLBACK = "ari-circle-feed\.html"/);
+  assert.match(shell, /MISSIONS_ROUTE_FALLBACK = "ari-circle-meetup\.html"/);
 });
 
 test("ARI Next is the Ari-driven recommendation surface without duplicate location questions", () => {
@@ -47,13 +49,14 @@ test("ARI Next is the Ari-driven recommendation surface without duplicate locati
   assert.doesNotMatch(css, /v6-mode-nav|v6-moments-bridge/);
 });
 
-test("Connect owns Meetups and Missions as peer modes instead of separate primary tabs", () => {
+test("Connect keeps Meetups public while Missions is an owner-only peer mode", () => {
   assert.match(shell, /function ensureConnectModeNav\(\)/);
   assert.match(shell, /aria-label", "Connect sections"/);
   assert.match(shell, /href="ari-circle-meetup\.html"/);
   assert.match(shell, />Meetups<\/a>/);
-  assert.match(shell, /href="ari-circle-quests\.html"/);
+  assert.match(shell, /ownerAccess \? `<a href="ari-circle-quests\.html"/);
   assert.match(shell, />Missions<\/a>/);
+  assert.match(shell, /nav\.style\.gridTemplateColumns = ownerAccess \? "1fr 1fr" : "1fr"/);
   assert.match(shell, /ari-circle-meetup.*return "connect"/s);
   assert.match(shell, /ari-circle-quest.*return "connect"/s);
   assert.doesNotMatch(shell, /navLink\("quests"|navLink\("missions"|navLink\("meetup"/);
