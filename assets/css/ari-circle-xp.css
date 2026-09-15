@@ -1,7 +1,8 @@
 /* =============================================================
    ARI CIRCLE — REAL WORLD XP VISUAL AUTHORITY
-   Version: 1.0.1
+   Version: 1.0.2
    Shared reward/progression presentation for Profile + Meet Up.
+   Build 7: XP surfaces are owner-only while progression is experimental.
    Visual only: no XP math, caps, or award rules live here.
 ============================================================= */
 
@@ -333,6 +334,26 @@ body.circle-v5-real-world .circle-xp-profile-copy > p {
   font: 850 .58rem/1 Inter,sans-serif !important;
   letter-spacing: .01em;
   white-space: nowrap;
+}
+
+/* ---------------- BUILD 7 OWNER-ONLY XP RELEASE GATE ----------------
+   The secure ARI Next navigation item is added only after server-backed owner
+   verification. Until that owner marker exists, experimental XP/reputation
+   surfaces stay out of the member/reviewer experience. The database separately
+   prevents XP awards for non-owner accounts. */
+html:not(:has([data-circle-v5-nav="arinext"])) .circle-xp-profile-card,
+html:not(:has([data-circle-v5-nav="arinext"])) #circleV5ActivityCard,
+html:not(:has([data-circle-v5-nav="arinext"])) #meetupXpCard,
+html:not(:has([data-circle-v5-nav="arinext"])) .circle-v5-xp-chip,
+html:not(:has([data-circle-v5-nav="arinext"])) .circle-xp-reward-chip,
+html:not(:has([data-circle-v5-nav="arinext"])) #createQuestButton,
+html:not(:has([data-circle-v5-nav="arinext"])) section[aria-labelledby="questListTitle"],
+html:not(:has([data-circle-v5-nav="arinext"])) #createQuestDialog,
+html:not(:has([data-circle-v5-nav="arinext"])) #questCompletionDialog,
+html:not(:has([data-circle-v5-nav="arinext"])) #questReviewDialog,
+html:not(:has([data-circle-v5-nav="arinext"])) .circle-mission-v2-zero-xp,
+html:not(:has([data-circle-v5-nav="arinext"])) #hostMeetupForm > p.circle-v5-form-note:last-of-type {
+  display: none !important;
 }
 
 @media (max-width: 520px) {
