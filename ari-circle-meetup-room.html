@@ -12,9 +12,9 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
-  <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-v1.css?v=1.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-v1.css?v=1.2.0" />
 </head>
-<body class="circle-v5-real-world">
+<body class="circle-v5-real-world meetup-room-surface">
   <div class="meetup-room-loading" id="meetupRoomLoading" role="status" aria-live="polite">Opening meetup room…</div>
 
   <main class="circle-v5-page meetup-room-page" id="meetupRoomPage" hidden>
@@ -26,10 +26,7 @@
 
     <div class="circle-v5-page-main meetup-room-main">
       <section class="meetup-room-hero" aria-labelledby="meetupRoomTitle">
-        <div class="meetup-room-kicker-row">
-          <p>MEETUP ROOM</p>
-          <span class="meetup-room-status" id="meetupRoomStatusBadge">Scheduled</span>
-        </div>
+        <span class="meetup-room-status" id="meetupRoomStatusBadge" hidden>Scheduled</span>
         <h1 id="meetupRoomTitle">Meetup</h1>
         <p class="meetup-room-description" id="meetupRoomDescription" hidden></p>
         <div class="meetup-room-meta">
@@ -41,14 +38,14 @@
       </section>
 
       <section class="meetup-room-section meetup-room-point" aria-labelledby="meetingPointTitle">
-        <div class="meetup-room-section-head">
-          <div><p>MEET HERE</p><h2 id="meetingPointTitle">📍 Meeting point</h2></div>
+        <div class="meetup-room-section-head meetup-room-section-head--simple">
+          <h2 id="meetingPointTitle">📍 Meeting point</h2>
         </div>
 
         <div class="meetup-room-point-summary">
           <div class="meetup-room-point-copy">
             <strong id="meetingPointValue">Not set yet</strong>
-            <span id="meetingPointPrivacy">Private to attendees</span>
+            <span id="meetingPointPrivacy">Attendees only</span>
           </div>
           <div class="meetup-room-point-actions">
             <button class="circle-v5-button meetup-room-copy" id="copyMeetingPoint" type="button" hidden>Copy</button>
@@ -67,20 +64,20 @@
       </section>
 
       <section class="meetup-room-section meetup-room-people" aria-labelledby="goingTitle">
-        <div class="meetup-room-section-head">
-          <div><p>PEOPLE</p><h2 id="goingTitle">Going</h2></div>
-        </div>
-        <div class="meetup-room-attendees" id="meetupAttendeeList" aria-live="polite"></div>
+        <details class="meetup-room-people-disclosure">
+          <summary id="goingTitle">Who’s going</summary>
+          <div class="meetup-room-attendees" id="meetupAttendeeList" aria-live="polite"></div>
+        </details>
       </section>
 
       <section class="meetup-room-section meetup-room-chat" aria-labelledby="meetupChatTitle">
-        <div class="meetup-room-section-head">
-          <div><p>CHAT</p><h2 id="meetupChatTitle">Meetup chat</h2></div>
-          <span class="meetup-room-chat-state" id="meetupChatState">Live</span>
+        <div class="meetup-room-section-head meetup-room-section-head--simple">
+          <h2 id="meetupChatTitle">Chat</h2>
+          <span class="meetup-room-chat-state" id="meetupChatState" hidden>Live</span>
         </div>
 
         <div class="meetup-room-messages" id="meetupRoomMessages" aria-live="polite"></div>
-        <div class="meetup-room-chat-empty" id="meetupChatEmpty">No messages yet. Say something 👋</div>
+        <div class="meetup-room-chat-empty" id="meetupChatEmpty">No messages yet.</div>
 
         <div class="meetup-room-quick-actions" id="meetupRoomQuickActions" aria-label="Quick meetup messages">
           <button type="button" data-meetup-quick-message="On my way 🚶">On my way</button>
@@ -89,11 +86,11 @@
         </div>
 
         <form class="meetup-room-composer" id="meetupRoomMessageForm">
-          <textarea id="meetupRoomMessageInput" maxlength="1000" rows="1" placeholder="Say something…" aria-label="Message the meetup"></textarea>
+          <textarea id="meetupRoomMessageInput" maxlength="1000" rows="1" placeholder="Message…" aria-label="Message the meetup"></textarea>
           <button class="circle-v5-button-primary" id="meetupRoomSend" type="submit">Send</button>
         </form>
         <p class="meetup-room-readonly" id="meetupRoomReadonly" hidden>This meetup chat is now read-only.</p>
-        <p class="meetup-room-archive-note" id="meetupRoomArchiveNote"></p>
+        <p class="meetup-room-archive-note" id="meetupRoomArchiveNote" hidden></p>
       </section>
     </div>
   </main>

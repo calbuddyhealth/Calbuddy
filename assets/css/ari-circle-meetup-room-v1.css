@@ -511,3 +511,128 @@
     transform: none;
   }
 }
+
+/* Build 7: make the meetup room a focused coordination surface. */
+body.meetup-room-surface .circle-connect-mode-nav,
+body.meetup-room-surface .circle-v5-bottom-nav {
+  display: none !important;
+}
+
+body.meetup-room-surface .meetup-room-main {
+  gap: 10px;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
+body.meetup-room-surface .meetup-room-status,
+body.meetup-room-surface .meetup-room-countdown,
+body.meetup-room-surface .meetup-room-chat-state,
+body.meetup-room-surface .meetup-room-archive-note {
+  display: none !important;
+}
+
+body.meetup-room-surface .meetup-room-hero {
+  padding: 17px 18px;
+}
+
+body.meetup-room-surface .meetup-room-hero h1 {
+  margin: 0 0 7px;
+}
+
+body.meetup-room-surface .meetup-room-meta {
+  margin-top: 0;
+}
+
+body.meetup-room-surface .meetup-room-section-head--simple {
+  justify-content: flex-start;
+}
+
+body.meetup-room-surface .meetup-room-section-head--simple h2 {
+  margin: 0;
+}
+
+body.meetup-room-surface .meetup-room-point-summary {
+  margin-top: 10px;
+}
+
+body.meetup-room-surface .meetup-room-point-copy {
+  gap: 2px;
+}
+
+body.meetup-room-surface .meetup-room-point-copy span {
+  font-size: .62rem;
+}
+
+body.meetup-room-surface .meetup-room-people {
+  padding: 0;
+  overflow: hidden;
+}
+
+body.meetup-room-surface .meetup-room-people-disclosure {
+  margin: 0;
+}
+
+body.meetup-room-surface .meetup-room-people-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+  padding: 0 17px;
+  color: #17233d;
+  cursor: pointer;
+  list-style: none;
+  font: 850 .92rem/1.2 Inter, sans-serif;
+}
+
+body.meetup-room-surface .meetup-room-people-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+body.meetup-room-surface .meetup-room-people-disclosure summary::after {
+  content: "›";
+  color: #73809a;
+  font: 800 1.25rem/1 Inter, sans-serif;
+  transition: transform .18s ease;
+}
+
+body.meetup-room-surface .meetup-room-people-disclosure[open] summary::after {
+  transform: rotate(90deg);
+}
+
+body.meetup-room-surface .meetup-room-people-disclosure[open] summary {
+  border-bottom: 1px solid rgba(38, 72, 140, .07);
+}
+
+body.meetup-room-surface .meetup-room-attendees {
+  margin: 0;
+  padding: 5px 17px 10px;
+}
+
+body.meetup-room-surface .meetup-room-attendee__copy span {
+  display: none;
+}
+
+body.meetup-room-surface .meetup-room-chat {
+  min-height: 350px;
+}
+
+body.meetup-room-surface .meetup-room-chat-empty {
+  padding: 28px 8px 20px;
+}
+
+body.meetup-room-surface .meetup-room-composer {
+  bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+body.meetup-room-surface #meetupRoomToast {
+  bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 520px) {
+  body.meetup-room-surface .meetup-room-section {
+    padding: 14px 15px;
+  }
+
+  body.meetup-room-surface .meetup-room-people {
+    padding: 0;
+  }
+}
