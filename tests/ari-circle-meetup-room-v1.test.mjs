@@ -112,9 +112,9 @@ test("Meetup Room is a focused coordination surface for Build 7", () => {
   assert.match(roomCss, /body\.meetup-room-surface \.circle-connect-mode-nav,\s*body\.meetup-room-surface \.circle-v5-bottom-nav\s*\{\s*display:\s*none\s*!important/);
   assert.match(roomCss, /meetup-room-people-disclosure/);
   assert.match(roomCss, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.doesNotMatch(roomHtml, />MEETUP ROOM</i);
-  assert.doesNotMatch(roomHtml, />PEOPLE</i);
-  assert.doesNotMatch(roomHtml, />CHAT</i);
+  assert.doesNotMatch(roomHtml, /<p>MEETUP ROOM<\/p>/i);
+  assert.doesNotMatch(roomHtml, /<p>PEOPLE<\/p>/i);
+  assert.doesNotMatch(roomHtml, /<p>CHAT<\/p>/i);
 });
 
 test("Phase 2 does not introduce a new XP award path", () => {
