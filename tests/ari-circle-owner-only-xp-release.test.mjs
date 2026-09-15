@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const css = fs.readFileSync(new URL("../assets/css/ari-circle-xp.css", import.meta.url), "utf8");
+const releaseGate = fs.readFileSync(new URL("../assets/css/ari-circle-xp-release-gate.css", import.meta.url), "utf8");
+const meetup = fs.readFileSync(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
+const feed = fs.readFileSync(new URL("../ari-circle-feed.html", import.meta.url), "utf8");
+const profileLoader = fs.readFileSync(new URL("../js/ari-circle/profile/profile-v3-loader.js", import.meta.url), "utf8");
 const migration = fs.readFileSync(new URL("../supabase/migrations/20260914173500_ari_circle_owner_only_xp_release_gate.sql", import.meta.url), "utf8");
 
 test("member Circle surfaces hide experimental XP while verified owner mode keeps it available", () => {
@@ -14,6 +18,22 @@ test("member Circle surfaces hide experimental XP while verified owner mode keep
   assert.match(css, /#createQuestButton/);
   assert.match(css, /section\[aria-labelledby=["']questListTitle["']\]/);
   assert.match(css, /\.circle-mission-v2-zero-xp/);
+});
+
+test("Meetups applies a fresh hard release gate that beats its XP display rules", () => {
+  assert.match(meetup, /ari-circle-xp-release-gate\.css\?v=1\.0\.0/i);
+  assert.match(releaseGate, /html:not\(:has\(\[data-circle-v5-nav="arinext"\]\)\) #meetupPage #meetupXpCard/);
+  assert.match(releaseGate, /html:not\(:has\(\[data-circle-v5-nav="arinext"\]\)\) #meetupPage \.circle-v5-xp-chip/);
+  assert.match(releaseGate, /display:\s*none\s*!important/i);
+});
+
+test("member-facing Circle entry points load the current owner-only XP stylesheet", () => {
+  assert.match(meetup, /ari-circle-xp\.css\?v=1\.0\.2/i);
+  assert.match(feed, /ari-circle-xp\.css\?v=1\.0\.2/i);
+  assert.match(profileLoader, /ari-circle-xp\.css\?v=1\.0\.2/i);
+  assert.doesNotMatch(meetup, /ari-circle-xp\.css\?v=1\.0\.1/i);
+  assert.doesNotMatch(feed, /ari-circle-xp\.css\?v=1\.0\.1/i);
+  assert.doesNotMatch(profileLoader, /ari-circle-xp\.css\?v=1\.0\.1/i);
 });
 
 test("server XP ledger rejects awards for non-owner accounts", () => {

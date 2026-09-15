@@ -27,7 +27,7 @@ test("current Circle V5 presentation ends in consolidated visual and XP authorit
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
     assert.doesNotMatch(html, /ari-circle-v5-minimal-premium\.css/);
   }
-  assert.match(meetup, /ari-circle-xp\.css\?v=1\.0\.1/);
+  assert.match(meetup, /ari-circle-xp\.css\?v=1\.0\.2/);
 });
 
 

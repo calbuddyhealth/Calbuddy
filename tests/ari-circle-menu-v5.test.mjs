@@ -137,7 +137,7 @@ test("Profile compatibility stays Profile-only and does not recreate primary nav
 
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
   assert.match(profileLoader, /v4-ui\.js\?v=5\.4\.0/);
-  assert.match(profileLoader, /ari-circle-xp\.css\?v=1\.0\.1/);
+  assert.match(profileLoader, /ari-circle-xp\.css\?v=1\.0\.2/);
   assert.doesNotMatch(profileLoader, /profile-social-flow|profile-connection-authority|v4-flow-fixes\.js|AriCircleV4FlowFixes/);
 
   assert.match(profileFriends, /PROFILE FRIENDS/);
