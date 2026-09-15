@@ -28,4 +28,11 @@ assert.match(css, /\.circle-notification-item__count/);
 assert.match(css, /\.circle-notifications-toolbar \{[\s\S]*position: absolute !important;/);
 assert.match(css, /\.circle-dialog__header \{[\s\S]*padding: 13px 196px 11px 16px !important;/);
 
+// Build 7 mobile stability: notification cards must stay in normal document flow
+// and request cards must grow to fit their optional action row instead of overlapping neighbors.
+assert.match(css, /\.circle-notifications-list \{[\s\S]*display: flex !important;[\s\S]*flex-direction: column !important;[\s\S]*gap: 6px !important;/);
+assert.match(css, /\.circle-notifications-list > \.circle-notification-item \{[\s\S]*flex: 0 0 auto !important;[\s\S]*align-self: stretch !important;/);
+assert.match(css, /\.circle-notification-item--request \{[\s\S]*grid-template-rows: minmax\(42px, auto\) max-content !important;[\s\S]*height: max-content !important;[\s\S]*overflow: visible !important;/);
+assert.match(css, /\.circle-notification-item__title \{[\s\S]*white-space: normal !important;[\s\S]*overflow-wrap: anywhere !important;/);
+
 console.log('ARI Circle Activity inbox V2 contracts OK');
