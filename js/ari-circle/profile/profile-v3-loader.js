@@ -128,7 +128,7 @@ if (!document.getElementById(XP_STYLE_ID)) {
   const link = document.createElement("link");
   link.id = XP_STYLE_ID;
   link.rel = "stylesheet";
-  link.href = "assets/css/ari-circle-xp.css?v=1.0.1";
+  link.href = "assets/css/ari-circle-xp.css?v=1.0.2";
   document.head.append(link);
 }
 
