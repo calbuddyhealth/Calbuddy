@@ -1,0 +1,9 @@
+/* ARI Circle Meetup Room — iOS form-focus stability
+   Keep text-entry controls at 16px or larger so iPhone Safari/WKWebView
+   does not auto-zoom the page when a field receives focus. */
+
+body.meetup-room-surface .meetup-room-point-form .circle-v5-input,
+body.meetup-room-surface .meetup-room-composer textarea {
+  font-size: 16px !important;
+  line-height: 1.35;
+}
