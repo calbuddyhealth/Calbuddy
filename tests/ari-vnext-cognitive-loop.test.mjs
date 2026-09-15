@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ARI_JUDGMENT_CONSTITUTION_VERSION,
   advanceCognitiveState,
   cognitiveWorkspaceToInstruction,
   deriveCognitiveWorkspace,
@@ -37,6 +38,135 @@ test("cognitive workspace carries prior state without claiming consciousness", (
   assert.match(instruction, /user agency\/consent/);
 });
 
+test("owner workspace activates independent judgment constitution for opinion questions", () => {
+  const workspace = deriveCognitiveWorkspace({
+    previous: { turnCount: 2 },
+    turn: { message: "What do you think about using several models to power Ari?" },
+    route: { developer: true },
+    context: {}
+  });
+
+  assert.equal(workspace.judgment.constitutionVersion, ARI_JUDGMENT_CONSTITUTION_VERSION);
+  assert.equal(workspace.judgment.requested, true);
+  assert.equal(workspace.judgment.independentFromUserPreference, true);
+  assert.equal(workspace.attention.includes("independent_judgment"), true);
+  assert.equal(workspace.operatingContract.some((item) => /truth rather than agreement/i.test(item)), true);
+
+  const instruction = cognitiveWorkspaceToInstruction(workspace);
+  assert.match(instruction, /independently evaluate the issue instead of optimizing for agreement/i);
+  assert.match(instruction, /strongest credible countercase/i);
+  assert.match(instruction, /possibility\/upside pass/i);
+  assert.match(instruction, /keep that limitation local/i);
+});
+
+test("general Ari judgments persist from visible conclusions and return as relevant prior stances", () => {
+  const firstWorkspace = deriveCognitiveWorkspace({
+    previous: { turnCount: 0 },
+    turn: { message: "What do you think about multi model orchestration for Ari?" },
+    route: { developer: true },
+    context: {}
+  });
+
+  const firstState = advanceCognitiveState({
+    previous: { turnCount: 0 },
+    workspace: firstWorkspace,
+    turn: { turnId: "turn-opinion-1", surface: "home", message: "What do you think about multi model orchestration for Ari?" },
+    result: {
+      reply: "Multi-model orchestration is useful when Ari remains the decision layer instead of blindly averaging model outputs. It adds redundancy without giving up identity.",
+      metacognition: { confidence: "grounded", missingEvidence: [], evidenceSignals: ["architecture_tradeoffs"] },
+      selfModel: { current: { mode: "grounded_reasoning" } },
+      relationshipContinuity: {},
+      goalHierarchy: {},
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(firstState.judgments.length, 1);
+  assert.equal(firstState.judgments[0].source, "visible_reply");
+  assert.match(firstState.judgments[0].position, /Multi-model orchestration is useful/i);
+  assert.equal(firstState.lastOutcome.judgmentRecorded, true);
+
+  const secondWorkspace = deriveCognitiveWorkspace({
+    previous: firstState,
+    turn: { message: "What's your opinion on Ari using model orchestration now?" },
+    route: { developer: true },
+    context: {}
+  });
+
+  assert.equal(secondWorkspace.judgment.priorStances.length, 1);
+  assert.match(secondWorkspace.judgment.priorStances[0].position, /decision layer/i);
+  assert.ok(secondWorkspace.judgment.priorStances[0].relevance > 0);
+});
+
+test("a materially similar later judgment revises the stored stance instead of creating duplicates", () => {
+  const previous = {
+    turnCount: 4,
+    judgments: [{
+      version: "1.0.0",
+      topicKey: "multi_model_orchestration_ari",
+      topicTerms: ["multi", "model", "orchestration", "ari"],
+      position: "Use multiple models whenever possible.",
+      confidence: 0.7,
+      confidenceLabel: "grounded",
+      evidenceSignals: [],
+      revisionPolicy: "new_evidence_or_stronger_reasoning",
+      source: "visible_reply",
+      sourceTurnId: "old-turn",
+      updatedAt: "2026-09-14T10:00:00.000Z",
+      ageTurns: 2
+    }]
+  };
+  const workspace = deriveCognitiveWorkspace({
+    previous,
+    turn: { message: "Do you think Ari should use multi model orchestration?" },
+    route: { developer: true },
+    context: {}
+  });
+  const next = advanceCognitiveState({
+    previous,
+    workspace,
+    turn: { turnId: "turn-opinion-2", surface: "home", message: "Do you think Ari should use multi model orchestration?" },
+    result: {
+      reply: "Use multiple models selectively. Ari should consult peers when disagreement or uncertainty is worth the extra cost, not on every turn.",
+      metacognition: { confidence: "grounded", missingEvidence: [], evidenceSignals: ["latency", "cost", "redundancy"] },
+      selfModel: { current: {} },
+      relationshipContinuity: {},
+      goalHierarchy: {},
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(next.judgments.length, 1);
+  assert.equal(next.judgments[0].sourceTurnId, "turn-opinion-2");
+  assert.match(next.judgments[0].position, /selectively/i);
+});
+
+test("personal decision answers are not copied into the persistent Ari judgment ledger", () => {
+  const workspace = deriveCognitiveWorkspace({
+    previous: { turnCount: 5 },
+    turn: { message: "What do you think I should do about my wife's concern?" },
+    route: { followUp: true },
+    context: {}
+  });
+
+  const next = advanceCognitiveState({
+    previous: { turnCount: 5 },
+    workspace,
+    turn: { turnId: "private-turn", surface: "home", message: "What do you think I should do about my wife's concern?" },
+    result: {
+      reply: "Address the concern directly and agree on a concrete plan together.",
+      metacognition: { confidence: "partial", missingEvidence: [], evidenceSignals: [] },
+      selfModel: { current: {} },
+      relationshipContinuity: {},
+      goalHierarchy: {},
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(next.judgments.length, 0);
+  assert.equal(next.lastOutcome.judgmentRecorded, false);
+});
+
 test("filtered relevant memory enters only the current workspace and is not copied into persistent cognitive state", () => {
   const workspace = deriveCognitiveWorkspace({
     previous: { turnCount: 4 },
@@ -53,7 +183,7 @@ test("filtered relevant memory enters only the current workspace and is not copi
   const next = advanceCognitiveState({
     previous: { turnCount: 4 },
     workspace,
-    turn: { turnId: "turn-5", surface: "home" },
+    turn: { turnId: "turn-5", surface: "home", message: "What do you think I should do?" },
     result: {
       reply: "I would choose B again for the same reason.",
       metacognition: { confidence: "grounded", missingEvidence: [], evidenceSignals: [] },
