@@ -18,7 +18,7 @@ test("exact meeting point is private room data, not part of public meetup discov
   assert.ok(publicListStart >= 0 && requestStart > publicListStart);
   assert.doesNotMatch(publicMeetupMigration.slice(publicListStart, requestStart), /meeting_point/i);
   assert.match(roomHtml, /Meeting point/i);
-  assert.match(roomHtml, /Private to attendees/i);
+  assert.match(roomHtml, /Attendees only/i);
 });
 
 test("meetup chat rows are not directly exposed to browser roles", () => {
@@ -63,8 +63,9 @@ test("Meet Up flows directly into the room for hosts and instant joins", () => {
   assert.match(meetupJs, /location\.href = roomUrl\(id\)/);
 });
 
-test("Meetup Room shows the host once inside the People list instead of a duplicate POC card", () => {
-  assert.match(roomHtml, /<p>PEOPLE<\/p><h2 id="goingTitle">Going<\/h2>/);
+test("Meetup Room keeps attendees available behind a compact disclosure instead of a permanent profile block", () => {
+  assert.match(roomHtml, /<details class="meetup-room-people-disclosure">/);
+  assert.match(roomHtml, /<summary id="goingTitle">Who’s going<\/summary>/);
   assert.doesNotMatch(roomHtml, /POINT OF CONTACT/i);
   assert.doesNotMatch(roomHtml, /id="meetupHostProfile"/);
   assert.match(roomJs, /const hostActions = isHost/);
@@ -98,17 +99,22 @@ test("Meetup Room loader collapses instead of pushing the loaded room down one v
     "the full-height loader should leave layout before the room becomes visible"
   );
   assert.match(roomJs, /if \(firstReveal\) requestAnimationFrame\(\(\) => window\.scrollTo\(0, 0\)\)/);
-  assert.match(roomHtml, /ari-circle-meetup-room-v1\.css\?v=1\.1\.0/);
+  assert.match(roomHtml, /ari-circle-meetup-room-v1\.css\?v=1\.2\.0/);
   assert.match(roomHtml, /meetup-room-v1\.js\?v=1\.1\.0/);
 });
 
-test("Meetup Room keeps the core coordination surface compact", () => {
-  assert.match(roomHtml, /id="meetupRoomCountdown"/);
-  assert.match(roomJs, /function countdownText/);
-  assert.match(roomHtml, /No messages yet\. Say something 👋/);
-  assert.match(roomJs, /Chat available until/);
-  assert.doesNotMatch(roomHtml, /Use this chat for meetup details/i);
-  assert.doesNotMatch(roomHtml, /The host can start with the meetup details/i);
+test("Meetup Room is a focused coordination surface for Build 7", () => {
+  assert.match(roomHtml, /body class="circle-v5-real-world meetup-room-surface"/);
+  assert.match(roomHtml, /<h2 id="meetupChatTitle">Chat<\/h2>/);
+  assert.match(roomHtml, /No messages yet\./);
+  assert.match(roomHtml, /placeholder="Message…"/);
+  assert.match(roomHtml, /id="meetupRoomArchiveNote" hidden/);
+  assert.match(roomCss, /body\.meetup-room-surface \.circle-connect-mode-nav,\s*body\.meetup-room-surface \.circle-v5-bottom-nav\s*\{\s*display:\s*none\s*!important/);
+  assert.match(roomCss, /meetup-room-people-disclosure/);
+  assert.match(roomCss, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.doesNotMatch(roomHtml, />MEETUP ROOM</i);
+  assert.doesNotMatch(roomHtml, />PEOPLE</i);
+  assert.doesNotMatch(roomHtml, />CHAT</i);
 });
 
 test("Phase 2 does not introduce a new XP award path", () => {
