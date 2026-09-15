@@ -556,3 +556,34 @@
     display: none !important;
   }
 }
+
+/* Build 7: keep variable-height Activity rows in normal document flow on iPhone. */
+#circle-notifications-dialog .circle-notifications-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+#circle-notifications-dialog .circle-notifications-list > .circle-notification-item {
+  flex: 0 0 auto !important;
+  box-sizing: border-box !important;
+  align-self: stretch !important;
+  isolation: isolate !important;
+}
+
+#circle-notifications-dialog .circle-notification-item--request {
+  grid-template-rows: minmax(42px, auto) max-content !important;
+  height: max-content !important;
+  overflow: visible !important;
+}
+
+#circle-notifications-dialog .circle-notification-item--request .circle-notification-item__body,
+#circle-notifications-dialog .circle-notification-item--request .circle-notification-item__content,
+#circle-notifications-dialog .circle-notification-item--request .circle-notification-item__actions {
+  overflow: visible !important;
+}
+
+#circle-notifications-dialog .circle-notification-item__title {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
