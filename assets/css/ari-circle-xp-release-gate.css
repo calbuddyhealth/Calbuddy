@@ -1,0 +1,18 @@
+/* ARI Circle Build 7 — experimental XP release gate v1.0.0
+   Normal members and App Review accounts must not see unfinished XP/progression.
+   The ARI Next nav item is added only after server-backed owner verification. */
+
+html:not(:has([data-circle-v5-nav="arinext"])) #meetupPage #meetupXpCard,
+html:not(:has([data-circle-v5-nav="arinext"])) #meetupPage .circle-v5-xp-chip,
+html:not(:has([data-circle-v5-nav="arinext"])) #meetupPage .circle-xp-reward-chip,
+html:not(:has([data-circle-v5-nav="arinext"])) body.circle-v5-real-world .circle-xp-profile-card,
+html:not(:has([data-circle-v5-nav="arinext"])) #circleV5ActivityCard,
+html:not(:has([data-circle-v5-nav="arinext"])) #createQuestButton,
+html:not(:has([data-circle-v5-nav="arinext"])) section[aria-labelledby="questListTitle"],
+html:not(:has([data-circle-v5-nav="arinext"])) #createQuestDialog,
+html:not(:has([data-circle-v5-nav="arinext"])) #questCompletionDialog,
+html:not(:has([data-circle-v5-nav="arinext"])) #questReviewDialog,
+html:not(:has([data-circle-v5-nav="arinext"])) .circle-mission-v2-zero-xp,
+html:not(:has([data-circle-v5-nav="arinext"])) #hostMeetupForm > p.circle-v5-form-note:last-of-type {
+  display: none !important;
+}
