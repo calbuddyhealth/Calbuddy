@@ -41,12 +41,24 @@ export function shouldRunBlindReasoningArena({
   const message = clean(turn?.message, 5000);
   const route = result?.route || {};
   if (message.length < 40 || route?.followUp === true) return false;
-  if (route?.health || route?.social || route?.memory) return false;
+
+  // A fair blind comparison requires both candidates to receive materially the
+  // same evidence. Skip routes where Ari may have private user state, health
+  // context, live information, or app-specific fitness data that the standalone
+  // challenger intentionally does not receive.
+  if (
+    route?.health ||
+    route?.social ||
+    route?.memory ||
+    route?.currentInfo ||
+    route?.training ||
+    route?.nutrition ||
+    route?.goals
+  ) return false;
   if (SENSITIVE_SIGNAL.test(message)) return false;
 
   const reasoningRich = Boolean(
     route?.developer ||
-    route?.currentInfo ||
     route?.complexity === "deep" ||
     REASONING_SIGNAL.test(message)
   );
