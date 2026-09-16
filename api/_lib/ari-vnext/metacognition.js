@@ -4,9 +4,16 @@
 
 import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
 
-export const ARI_METACOGNITION_VERSION = "1.2.0";
+export const ARI_METACOGNITION_VERSION = "1.3.0";
 
-export function deriveMetacognition({ route = {}, context = {}, safety = {}, coachingState = null, longitudinalState = null } = {}) {
+export function deriveMetacognition({
+  route = {},
+  context = {},
+  safety = {},
+  coachingState = null,
+  longitudinalState = null,
+  modelPolicy = null
+} = {}) {
   const requestedDomains = [];
   if (route?.training) requestedDomains.push("training");
   if (route?.nutrition) requestedDomains.push("nutrition");
@@ -44,6 +51,7 @@ export function deriveMetacognition({ route = {}, context = {}, safety = {}, coa
     route,
     context,
     safety,
+    modelPolicy,
     evidence: {
       confidence,
       missingEvidence: missing,
@@ -105,7 +113,7 @@ export function metacognitionToInstruction(state = null) {
     "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
     "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
     cortexInstruction ? `\n${cortexInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 6200);
+  ].filter(Boolean).join("\n").slice(0, 6800);
 }
 
 function hasTrainingEvidence(context = {}) {

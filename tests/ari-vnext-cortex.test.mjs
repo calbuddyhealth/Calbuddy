@@ -44,7 +44,7 @@ test("unfamiliar ordinary problems preserve broad general reasoning without forc
     evidence: { confidence: "grounded", missingEvidence: [] }
   });
 
-  assert.equal(ARI_CORTEX_VERSION, "0.1.0");
+  assert.equal(ARI_CORTEX_VERSION, "0.2.0");
   assert.equal(ARI_CORTEX_KERNEL_VERSION, "1.0.0");
   assert.equal(plan.active, true);
   assert.equal(plan.mode, "general");
@@ -56,26 +56,39 @@ test("unfamiliar ordinary problems preserve broad general reasoning without forc
 });
 
 test("deep developer problems earn deliberate Cortex intervention", () => {
-  const plan = deriveAriCortexPlan({
-    route: { complexity: "deep", developer: true },
-    context: ownerContext({
-      userWorldModel: {
-        ariAdaptiveStrategies: { activeCount: 2, active: [{ strategyKey: "one" }, { strategyKey: "two" }] }
-      }
-    }),
-    safety: { highStakes: false },
-    evidence: { confidence: "grounded", missingEvidence: [] }
-  });
+  const prior = process.env.OPENAI_ARI_CORTEX_ADVISER_MODEL;
+  process.env.OPENAI_ARI_CORTEX_ADVISER_MODEL = "teacher-model";
 
-  assert.equal(plan.mode, "deliberate");
-  assert.equal(plan.interventionLevel, "deep");
-  assert.ok(plan.selectedCapabilities.includes("general_reasoning"));
-  assert.ok(plan.selectedCapabilities.includes("hypothesis_search"));
-  assert.ok(plan.selectedCapabilities.includes("countercase"));
-  assert.ok(plan.selectedCapabilities.includes("possibility_search"));
-  assert.ok(plan.selectedCapabilities.includes("adaptive_strategies"));
-  assert.equal(plan.authority.finalSynthesis, "ari");
-  assert.equal(plan.authority.teacherCanOverride, false);
+  try {
+    const plan = deriveAriCortexPlan({
+      route: { complexity: "deep", developer: true },
+      context: ownerContext({
+        userWorldModel: {
+          ariAdaptiveStrategies: { activeCount: 2, active: [{ strategyKey: "one" }, { strategyKey: "two" }] }
+        }
+      }),
+      safety: { highStakes: false },
+      evidence: { confidence: "grounded", missingEvidence: [] },
+      modelPolicy: { model: "ari-primary" }
+    });
+
+    assert.equal(plan.mode, "deliberate");
+    assert.equal(plan.interventionLevel, "deep");
+    assert.ok(plan.selectedCapabilities.includes("general_reasoning"));
+    assert.ok(plan.selectedCapabilities.includes("hypothesis_search"));
+    assert.ok(plan.selectedCapabilities.includes("countercase"));
+    assert.ok(plan.selectedCapabilities.includes("possibility_search"));
+    assert.ok(plan.selectedCapabilities.includes("adaptive_strategies"));
+    assert.ok(plan.selectedCapabilities.includes("external_adviser"));
+    assert.equal(plan.adviser.shouldConsult, true);
+    assert.equal(plan.adviser.selected.model, "teacher-model");
+    assert.equal(plan.authority.finalSynthesis, "ari");
+    assert.equal(plan.authority.teacherCanOverride, false);
+    assert.equal(plan.authority.adviserCanOverride, false);
+  } finally {
+    if (prior === undefined) delete process.env.OPENAI_ARI_CORTEX_ADVISER_MODEL;
+    else process.env.OPENAI_ARI_CORTEX_ADVISER_MODEL = prior;
+  }
 });
 
 test("fresh information activates research and verification when web research is available", () => {
@@ -95,6 +108,8 @@ test("fresh information activates research and verification when web research is
     assert.equal(plan.needs.verification, true);
     assert.ok(plan.selectedCapabilities.includes("web_research"));
     assert.ok(plan.selectedCapabilities.includes("evidence_verification"));
+    assert.equal(plan.adviser.toolPriority, "web_search_first");
+    assert.equal(plan.adviser.shouldConsult, false);
   } finally {
     if (prior === undefined) delete process.env.ARI_VNEXT_WEB_SEARCH_ENABLED;
     else process.env.ARI_VNEXT_WEB_SEARCH_ENABLED = prior;
@@ -138,6 +153,7 @@ test("high-consequence constraints preserve unrelated reasoning branches", () =>
   assert.ok(constraint.blocks.includes("unsafe_execution"));
   assert.ok(constraint.unaffected.includes("general_reasoning"));
   assert.ok(constraint.unaffected.includes("hypothesis_search"));
+  assert.equal(plan.adviser.shouldConsult, false);
   assert.equal(plan.authority.safetyAndAuthorizationAuthoritative, true);
 });
 
@@ -168,15 +184,17 @@ test("metacognition wires Cortex into the model instruction without exposing hid
   const state = deriveMetacognition({
     route: { complexity: "deep", developer: true },
     context: ownerContext(),
-    safety: { highStakes: false }
+    safety: { highStakes: false },
+    modelPolicy: { model: "ari-primary" }
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.2.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.3.0");
   assert.equal(state.cortex.active, true);
   assert.match(instruction, /ARI CORTEX — ADAPTIVE EXECUTIVE PLAN/);
   assert.match(instruction, /GENERAL REASONING FALLBACK is always available/i);
   assert.match(instruction, /Specialized orchestration must earn intervention/i);
+  assert.match(instruction, /Dynamic adviser selection/i);
   assert.match(instruction, /narrow constraint must remain narrow/i);
   assert.match(instruction, /Do not expose hidden chain-of-thought/i);
 });
