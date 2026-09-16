@@ -30,26 +30,27 @@ The plan is wired through Ari's metacognition layer rather than replacing the ba
 
 ## Phase 2 — dynamic adviser/provider routing
 
-Version `0.2.0` adds an adviser-selection layer while preserving the Phase 1 kernel.
+Version `0.2.0` adds adviser selection and bounded pre-synthesis consultation while preserving the Phase 1 kernel.
 
-Cortex can now build a ranked adviser registry from configured model slots, current problem domains, the primary model, and teacher-reliability evidence accumulated from Reasoning Academy strategies and blind arena outcomes. Candidate models receive different weights depending on whether observed evidence currently supports using them as an advisor, peer, mentor, or critic-only source.
+Cortex builds a ranked adviser registry from configured model slots, current problem domains, the primary model, and teacher-reliability evidence accumulated from Reasoning Academy strategies and blind arena outcomes. Candidate models receive different weights depending on whether observed evidence currently supports using them as an advisor, peer, mentor, or critic-only source.
 
-The routing layer also applies bounded cost/latency controls:
+On eligible deep, non-sensitive turns, Cortex may make one bounded independent adviser call before Ari's primary synthesis. The adviser receives the current problem and role, but not Ari's private app context or hidden reasoning. It returns a compact structured memo containing a conclusion, assumptions, counterpoints, uncertainties, and verification suggestions. That memo is injected as fallible evidence into Ari's final synthesis.
+
+The routing layer applies bounded cost/latency controls:
 
 - at most one independent adviser call per turn
 - configurable timeout and output-token ceilings
 - no adviser latency on ordinary turns where specialization has not earned deep intervention
 - live web research is preferred over an unbrowsed adviser for freshness-sensitive questions
 - private/app-specific and high-consequence context remains with Ari's primary reasoning path in this phase
+- adviser failure is local: Ari continues through the normal primary reasoning path
 
 The adviser contract is intentionally narrow. An adviser cannot mutate app state, change permissions, override confirmation rules, alter safety boundaries, or become Ari's executive authority. Even when reliability evidence favors a teacher model, Ari still owns final synthesis.
 
-A bounded adviser executor is included for structured, non-chain-of-thought advisory memos. The executive plan exposes which provider/model would be selected and why, so later orchestration can invoke it without changing the kernel contract.
-
 ## Planned next phases
 
-1. Wire bounded adviser execution directly into pre-synthesis orchestration on eligible turns, with the returned memo treated as fallible evidence.
-2. Add shadow-mode challenger routing so new Cortex policies can be benchmarked against the incumbent before promotion.
-3. Persist compact Cortex outcome telemetry for routing quality, latency, cost, and downstream result quality.
+1. Add shadow-mode challenger routing so new Cortex policies can be benchmarked against the incumbent before promotion.
+2. Persist compact Cortex outcome telemetry for routing quality, latency, cost, adviser usefulness, and downstream result quality.
+3. Use those outcomes to learn when adviser consultation itself is worth the latency rather than relying only on static intervention thresholds.
 4. Add provider adapters beyond the current Responses API path without changing the executive contract.
 5. Allow versioned Cortex policies to evolve while retaining rollback and the permanent general-reasoning fallback.
