@@ -3,8 +3,9 @@
 // or exposes hidden chain-of-thought.
 
 import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
+import { deriveOmegaRCTState, omegaRCTToInstruction } from "./omega-rct.js";
 
-export const ARI_METACOGNITION_VERSION = "1.3.0";
+export const ARI_METACOGNITION_VERSION = "1.4.0";
 
 export function deriveMetacognition({
   route = {},
@@ -47,7 +48,7 @@ export function deriveMetacognition({
   if (longitudinalState?.weight?.available) evidenceSignals.push("weight_velocity");
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
 
-  const cortex = deriveAriCortexPlan({
+  const cortexBase = deriveAriCortexPlan({
     route,
     context,
     safety,
@@ -59,6 +60,24 @@ export function deriveMetacognition({
     }
   });
 
+  const omegaRCT = deriveOmegaRCTState({
+    route,
+    context,
+    safety,
+    evidence: {
+      confidence,
+      missingEvidence: missing,
+      evidenceSignals,
+      outcomeLearningApplied: Boolean(
+        context?.userWorldModel?.ariCognitiveWorkspace?.epistemic?.outcomeLearningApplied
+      )
+    }
+  });
+
+  const cortex = cortexBase?.active
+    ? { ...cortexBase, omegaRCT }
+    : cortexBase;
+
   return {
     version: ARI_METACOGNITION_VERSION,
     attention: requestedDomains.length ? requestedDomains : ["conversation"],
@@ -67,6 +86,7 @@ export function deriveMetacognition({
     missingEvidence: missing,
     evidenceSignals,
     cortex,
+    omegaRCT,
     exploration: {
       consequenceTier,
       uncertaintyIsInformationNotParalysis: true,
@@ -98,6 +118,7 @@ export function metacognitionToInstruction(state = null) {
     : "none";
   const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
   const cortexInstruction = cortexPlanToInstruction(state?.cortex);
+  const omegaInstruction = omegaRCTToInstruction(state?.omegaRCT);
 
   return [
     `Evidence confidence: ${state.confidence}.`,
@@ -112,8 +133,9 @@ export function metacognitionToInstruction(state = null) {
     "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
     "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
     "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
-    cortexInstruction ? `\n${cortexInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 6800);
+    cortexInstruction ? `\n${cortexInstruction}` : "",
+    omegaInstruction ? `\n${omegaInstruction}` : ""
+  ].filter(Boolean).join("\n").slice(0, 10400);
 }
 
 function hasTrainingEvidence(context = {}) {
