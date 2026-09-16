@@ -112,7 +112,7 @@ test("teacher lesson becomes only a testing strategy and retains transferable me
     userVisibleSummary: "I am testing a stronger way to compare competing explanations before committing."
   });
 
-  assert.equal(ARI_REASONING_ACADEMY_VERSION, "1.0.0");
+  assert.equal(ARI_REASONING_ACADEMY_VERSION, "1.1.0");
   assert.equal(normalized.proposal.strategyKey, "competing_hypotheses_before_commitment");
   assert.equal(normalized.proposal.status, "testing");
   assert.equal(normalized.proposal.confidence, 0.88);
