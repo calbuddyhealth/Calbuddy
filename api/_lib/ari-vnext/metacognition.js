@@ -2,7 +2,9 @@
 // This tracks what evidence is available for the current turn; it never stores
 // or exposes hidden chain-of-thought.
 
-export const ARI_METACOGNITION_VERSION = "1.1.0";
+import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
+
+export const ARI_METACOGNITION_VERSION = "1.2.0";
 
 export function deriveMetacognition({ route = {}, context = {}, safety = {}, coachingState = null, longitudinalState = null } = {}) {
   const requestedDomains = [];
@@ -38,6 +40,17 @@ export function deriveMetacognition({ route = {}, context = {}, safety = {}, coa
   if (longitudinalState?.weight?.available) evidenceSignals.push("weight_velocity");
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
 
+  const cortex = deriveAriCortexPlan({
+    route,
+    context,
+    safety,
+    evidence: {
+      confidence,
+      missingEvidence: missing,
+      evidenceSignals
+    }
+  });
+
   return {
     version: ARI_METACOGNITION_VERSION,
     attention: requestedDomains.length ? requestedDomains : ["conversation"],
@@ -45,6 +58,7 @@ export function deriveMetacognition({ route = {}, context = {}, safety = {}, coa
     coverage,
     missingEvidence: missing,
     evidenceSignals,
+    cortex,
     exploration: {
       consequenceTier,
       uncertaintyIsInformationNotParalysis: true,
@@ -75,6 +89,7 @@ export function metacognitionToInstruction(state = null) {
     ? state.evidenceSignals.join(", ")
     : "none";
   const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
+  const cortexInstruction = cortexPlanToInstruction(state?.cortex);
 
   return [
     `Evidence confidence: ${state.confidence}.`,
@@ -88,8 +103,9 @@ export function metacognitionToInstruction(state = null) {
     "Ask a clarifying question only when the missing fact genuinely blocks a useful answer or a safe app mutation.",
     "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
     "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
-    "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution."
-  ].join("\n").slice(0, 2600);
+    "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
+    cortexInstruction ? `\n${cortexInstruction}` : ""
+  ].filter(Boolean).join("\n").slice(0, 6200);
 }
 
 function hasTrainingEvidence(context = {}) {
