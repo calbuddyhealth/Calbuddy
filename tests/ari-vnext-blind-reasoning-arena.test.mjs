@@ -114,6 +114,38 @@ test("arena runs for explicit owner benchmark prompts but excludes sensitive and
   }
 });
 
+test("arena excludes turns where Ari has material evidence the standalone challenger does not receive", () => {
+  const priorEnabled = process.env.ARI_REASONING_ARENA_ENABLED;
+  process.env.ARI_REASONING_ARENA_ENABLED = "true";
+
+  try {
+    const base = {
+      turn: { turnId: "fairness", message: "Run a blind benchmark and compare the reasoning behind these two approaches in detail." },
+      academy: { active: true },
+      result: {
+        success: true,
+        reply: "A substantial answer.",
+        safety: { highStakes: false },
+        route: { developer: false, followUp: false, complexity: "deep" },
+        action: null
+      }
+    };
+
+    for (const gatedRoute of ["currentInfo", "training", "nutrition", "goals", "health", "social", "memory"]) {
+      assert.equal(shouldRunBlindReasoningArena({
+        ...base,
+        result: {
+          ...base.result,
+          route: { ...base.result.route, [gatedRoute]: true }
+        }
+      }), false, `${gatedRoute} must be excluded from self-contained blind comparison`);
+    }
+  } finally {
+    if (priorEnabled === undefined) delete process.env.ARI_REASONING_ARENA_ENABLED;
+    else process.env.ARI_REASONING_ARENA_ENABLED = priorEnabled;
+  }
+});
+
 test("arena domains identify developer and decision reasoning without user identity data", () => {
   const domains = deriveBlindArenaDomains({
     route: { developer: true, currentInfo: false },
