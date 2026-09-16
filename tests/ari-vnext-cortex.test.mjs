@@ -180,7 +180,7 @@ test("prior judgments are available as fallible continuity rather than authority
   assert.equal(plan.authority.learnedStrategiesFallible, true);
 });
 
-test("metacognition wires Cortex into the model instruction without exposing hidden reasoning", () => {
+test("metacognition wires Cortex and Omega-RCT into the model instruction without exposing hidden reasoning", () => {
   const state = deriveMetacognition({
     route: { complexity: "deep", developer: true },
     context: ownerContext(),
@@ -189,12 +189,15 @@ test("metacognition wires Cortex into the model instruction without exposing hid
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.3.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.4.0");
   assert.equal(state.cortex.active, true);
+  assert.equal(state.omegaRCT.active, true);
+  assert.equal(state.cortex.omegaRCT.version, "1.2.0");
   assert.match(instruction, /ARI CORTEX — ADAPTIVE EXECUTIVE PLAN/);
   assert.match(instruction, /GENERAL REASONING FALLBACK is always available/i);
   assert.match(instruction, /Specialized orchestration must earn intervention/i);
   assert.match(instruction, /Dynamic adviser selection/i);
   assert.match(instruction, /narrow constraint must remain narrow/i);
+  assert.match(instruction, /Ω-RCT v1\.2 — OWNER CORTEX RECURSIVE SELFHOOD/);
   assert.match(instruction, /Do not expose hidden chain-of-thought/i);
 });
