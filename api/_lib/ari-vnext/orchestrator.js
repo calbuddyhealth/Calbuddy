@@ -2,6 +2,7 @@
 
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
 import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./action-response.js";
+import { adviserMemoToInstruction, runCortexAdviser } from "./cortex-adviser.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
@@ -60,7 +61,8 @@ export async function runAriVNext(turn = {}) {
     context: relevantContext,
     safety,
     coachingState,
-    longitudinalState
+    longitudinalState,
+    modelPolicy
   });
   const rawScientificIntelligence = deriveScientificIntelligence({
     turn,
@@ -141,7 +143,7 @@ export async function runAriVNext(turn = {}) {
     tools.push({ type: "web_search" });
   }
 
-  const instructions = buildInstructions({
+  const baseInstructions = buildInstructions({
     route,
     communication,
     safety,
@@ -157,6 +159,14 @@ export async function runAriVNext(turn = {}) {
     longitudinalState
   });
   const input = buildInput(turn);
+  const cortexAdviser = await runCortexAdviser({
+    turn,
+    plan: metacognition?.cortex?.adviser || null
+  });
+  const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
+  const instructions = adviserInstruction
+    ? `${baseInstructions}\n\n${adviserInstruction}`
+    : baseInstructions;
 
   let first = await callResponses({
     turn,
@@ -304,6 +314,7 @@ export async function runAriVNext(turn = {}) {
       relationshipContinuity,
       goalHierarchy,
       metacognition,
+      cortexAdviser: publicCortexAdviser(cortexAdviser),
       scientificIntelligence,
       experimentReviewState,
       temporalContext,
@@ -383,6 +394,7 @@ export async function runAriVNext(turn = {}) {
       relationshipContinuity,
       goalHierarchy,
       metacognition,
+      cortexAdviser: publicCortexAdviser(cortexAdviser),
       scientificIntelligence,
       experimentReviewState,
       temporalContext,
@@ -439,6 +451,7 @@ export async function runAriVNext(turn = {}) {
     relationshipContinuity,
     goalHierarchy,
     metacognition,
+    cortexAdviser: publicCortexAdviser(cortexAdviser),
     scientificIntelligence,
     experimentReviewState,
     temporalContext,
@@ -740,6 +753,25 @@ function publicActionReview(review = null) {
     reason: String(review?.reason || "").slice(0, 500),
     dailyGoalKnown: typeof review?.dailyGoalKnown === "boolean" ? review.dailyGoalKnown : null,
     model: review?.model || null
+  };
+}
+
+function publicCortexAdviser(run = null) {
+  if (!run) return null;
+  return {
+    attempted: run?.attempted === true,
+    reason: run?.reason || null,
+    role: run?.role || null,
+    provider: run?.provider
+      ? {
+          provider: run.provider.provider || "openai_responses",
+          model: run.provider.model || null,
+          id: run.provider.id || null
+        }
+      : null,
+    memoUsed: Boolean(run?.memo),
+    hiddenChainOfThoughtStored: false,
+    ariOwnsFinalSynthesis: true
   };
 }
 
