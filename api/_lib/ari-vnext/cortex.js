@@ -187,12 +187,12 @@ function deriveExecutiveSignals({ route, safety, confidence, missingEvidence, ju
 }
 
 function scoreIntervention(signals = {}) {
-  let score = 0.06;
-  if (signals.deepComplexity) score += 0.34;
-  if (signals.developerProblem) score += 0.18;
-  if (signals.freshnessRequired) score += 0.28;
-  if (signals.highConsequence) score += 0.24;
-  if (signals.judgmentRequested) score += 0.24;
+  let score = 0.08;
+  if (signals.deepComplexity) score += 0.42;
+  if (signals.developerProblem) score += 0.22;
+  if (signals.freshnessRequired) score += 0.3;
+  if (signals.highConsequence) score += 0.3;
+  if (signals.judgmentRequested) score += 0.3;
   if (signals.evidenceIncomplete) score += 0.18;
   if (signals.priorJudgmentRelevant) score += 0.08;
   if (signals.crossDomain) score += 0.1;
