@@ -1,12 +1,98 @@
-// ARI vNext — bounded owner-only strategy reflection.
-// Produces concise reusable strategy hypotheses, never raw hidden reasoning.
+// ARI vNext — owner-only reasoning academy + adaptive strategy reflection.
+// A stronger teacher model may critique Ari's visible work and distill a compact
+// reusable reasoning method. Hidden chain-of-thought is never requested, copied,
+// or persisted; learned strategies remain hypotheses until real outcomes support them.
 
 import { normalizeAdaptiveStrategyProposal } from "./adaptive-strategy.js";
 
+export const ARI_REASONING_ACADEMY_VERSION = "1.0.0";
+
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
-const TIMEOUT_MS = Number(process.env.ARI_ADAPTIVE_STRATEGY_TIMEOUT_MS) > 0
-  ? Number(process.env.ARI_ADAPTIVE_STRATEGY_TIMEOUT_MS)
-  : 18000;
+const TIMEOUT_MS = Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS) > 0
+  ? Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS)
+  : Number(process.env.ARI_ADAPTIVE_STRATEGY_TIMEOUT_MS) > 0
+    ? Number(process.env.ARI_ADAPTIVE_STRATEGY_TIMEOUT_MS)
+    : 28000;
+
+const REASONING_SIGNAL = /\b(?:why|reason|reasoning|think|opinion|view|judg(?:e|ment)|compare|trade-?off|strategy|approach|architecture|root cause|hypothesis|possib(?:le|ility)|what if|should we|should i|best way|better way|analy[sz]e|explain|counterargument|counterexample)\b/i;
+const DISAGREEMENT_SIGNAL = /\b(?:that's wrong|that is wrong|you're wrong|you are wrong|not what i meant|you misunderstood|actually[, ]|i disagree|push back|challenge that)\b/i;
+const ACTION_ONLY_TYPES = new Set(["execute_pending_action", "cancel_pending_action"]);
+
+export function shouldUseReasoningAcademy({ turn = {}, result = {} } = {}) {
+  if (!result?.success || !clean(result?.reply, 12000)) return false;
+  if (result?.safety?.highStakes === true) return false;
+  if (ACTION_ONLY_TYPES.has(String(result?.action?.type || ""))) return false;
+
+  const message = clean(turn?.message, 4000);
+  const route = result?.route || {};
+  const mode = clean(result?.modelPolicy?.mode, 40).toLowerCase();
+  const confidence = clean(result?.metacognition?.confidence, 60).toLowerCase();
+  const missingEvidence = Array.isArray(result?.metacognition?.missingEvidence)
+    ? result.metacognition.missingEvidence
+    : [];
+
+  const difficultRoute = Boolean(
+    route?.developer ||
+    route?.currentInfo ||
+    route?.complexity === "deep" ||
+    mode === "deep"
+  );
+  const explicitReasoning = REASONING_SIGNAL.test(message);
+  const disagreement = DISAGREEMENT_SIGNAL.test(message);
+  const uncertainty = ["partial", "limited"].includes(confidence) && missingEvidence.length > 0;
+
+  return difficultRoute || explicitReasoning || disagreement || uncertainty;
+}
+
+export function selectReasoningTeacherModel({ result = {}, academyMode = false } = {}) {
+  if (academyMode) {
+    return clean(process.env.OPENAI_ARI_REASONING_TEACHER_MODEL, 120)
+      || clean(process.env.OPENAI_ARI_OWNER_MODEL, 120)
+      || clean(process.env.OPENAI_ARI_ADVANCED_MODEL, 120)
+      || clean(result?.provider?.model, 120)
+      || clean(result?.modelPolicy?.model, 120)
+      || "gpt-5.6";
+  }
+
+  return clean(process.env.OPENAI_ARI_ADAPTIVE_STRATEGY_MODEL, 120)
+    || clean(result?.provider?.model, 120)
+    || clean(result?.modelPolicy?.model, 120)
+    || "gpt-5.6";
+}
+
+export function normalizeReasoningAcademyLesson(raw = null) {
+  if (!raw || typeof raw !== "object") return { proposal: null, lesson: null };
+  if (raw.shouldPropose !== true || clean(raw.academyDecision, 30) !== "propose") {
+    return { proposal: null, lesson: null };
+  }
+
+  const reasoningPattern = clean(raw.reasoningPattern, 420);
+  const failureMode = clean(raw.failureMode, 320);
+  const disconfirmingCase = clean(raw.disconfirmingCase, 320);
+  const transferConditions = compactArray(raw.transferConditions, 4, 180);
+  const teacherConfidence = clamp01(Number(raw.teacherConfidence || raw.confidence || 0));
+
+  if (reasoningPattern.length < 20 || transferConditions.length < 2 || teacherConfidence < 0.62) {
+    return { proposal: null, lesson: null };
+  }
+
+  const proposal = normalizeAdaptiveStrategyProposal({
+    ...raw,
+    confidence: Math.min(clamp01(Number(raw.confidence || 0)), teacherConfidence)
+  });
+  if (!proposal) return { proposal: null, lesson: null };
+
+  return {
+    proposal,
+    lesson: {
+      reasoningPattern,
+      failureMode: failureMode || null,
+      transferConditions,
+      disconfirmingCase: disconfirmingCase || null,
+      teacherConfidence
+    }
+  };
+}
 
 export async function reflectOnAdaptiveStrategy({
   turn = {},
@@ -16,20 +102,37 @@ export async function reflectOnAdaptiveStrategy({
   const apiKey = clean(process.env.OPENAI_API_KEY, 8000);
   if (!apiKey) return { attempted: false, reason: "missing_openai_key", proposal: null };
 
-  const model = clean(process.env.OPENAI_ARI_ADAPTIVE_STRATEGY_MODEL, 120)
-    || clean(result?.provider?.model, 120)
-    || clean(result?.modelPolicy?.model, 120)
-    || "gpt-5.6";
+  const academyMode = shouldUseReasoningAcademy({ turn, result });
+  const model = selectReasoningTeacherModel({ result, academyMode });
+  const reasoningEffort = supportsReasoning(model)
+    ? academyMode
+      ? resolveTeacherEffort(process.env.OPENAI_ARI_REASONING_TEACHER_EFFORT)
+      : "low"
+    : null;
 
   const payload = {
+    academy: {
+      version: ARI_REASONING_ACADEMY_VERSION,
+      active: academyMode,
+      goal: academyMode
+        ? "distill a transferable reasoning skill from Ari's visible attempt"
+        : "extract a compact reusable interaction strategy when warranted",
+      hiddenChainOfThoughtAvailable: false,
+      hiddenChainOfThoughtShouldBeStored: false
+    },
     userMessage: clean(turn?.message, 3500),
     ariReply: clean(result?.reply, 5000),
     route: compactRoute(result?.route),
+    modelPolicy: {
+      mode: clean(result?.modelPolicy?.mode, 40),
+      model: clean(result?.provider?.model || result?.modelPolicy?.model, 120)
+    },
     metacognition: {
       confidence: clean(result?.metacognition?.confidence, 60),
       missingEvidence: compactArray(result?.metacognition?.missingEvidence, 6, 140),
       evidenceSignals: compactArray(result?.metacognition?.evidenceSignals, 6, 140)
     },
+    judgment: compactJudgment(result?.cognitiveWorkspace || result?.userWorldModel?.ariCognitiveWorkspace || null),
     outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
     activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
       .slice(0, 6)
@@ -46,29 +149,15 @@ export async function reflectOnAdaptiveStrategy({
       }))
   };
 
-  const instructions = [
-    "You are Ari's internal adaptive-strategy reflection layer.",
-    "Evaluate whether this completed interaction reveals a reusable IMPROVEMENT in HOW Ari reasons, communicates, checks evidence, handles ambiguity, uses memory, or makes recommendations.",
-    "Use a non-regression principle: preserve useful existing capability while exploring improvements. Do not respond to one failure by making Ari broadly less capable, more timid, less curious, or less willing to reason.",
-    "Treat mistakes as learning evidence, not permanent punishment. Distill the compact causal lesson that would help Ari avoid repeating the same failure without replaying the event or preserving emotionalized language.",
-    "lessonSummary must state the reusable lesson in general terms. It must not contain private user facts, transcript details, hidden reasoning, or a narrative of the original mistake.",
-    "If an adopted method or practical prior has weaknesses, propose a challenger that fixes the weakness while preserving what still works. The incumbent remains Ari's best-known method until a challenger proves better through repeated outcomes.",
-    "Do not propose simplification, removal, or retraction merely to avoid future mistakes. A narrower method is appropriate only when it is demonstrably more accurate or useful for the relevant domain and does not erase unrelated capability.",
-    "Do not output hidden chain-of-thought, private reasoning traces, transcript summaries, secrets, or personal facts about the user as a strategy.",
-    "A strategy must be a short generalizable behavior instruction Ari can reuse later. It must not grant application permissions, bypass action confirmation, alter safety boundaries, or claim subjective consciousness.",
-    "Do not create a strategy just because a turn happened. Prefer shouldPropose=false unless there is a concrete reusable improvement.",
-    "If an active adopted strategy or practical prior should materially change, propose a NEW strategyKey and set replacesStrategyKey to the old key. Do not silently rewrite or delete mature judgment.",
-    "Testing strategies are hypotheses. Keep confidence calibrated. A replacement proposal should require stronger justification than a brand-new strategy that does not displace existing capability.",
-    "Examples of valid strategy forms: verify changing facts before answering; compare plausible alternatives before high-consequence recommendations; ask one minimal clarifying question only when ambiguity changes the decision; lead with the strongest recommendation when many options would create friction.",
-    "Keep strategyKey under 90 characters, title under 120, instruction under 520, rationale under 420, lessonSummary under 420, userVisibleSummary under 320, use at most 6 domains, and confidence from 0 to 1. The server validates and clamps these fields before persistence.",
-    "Return only the requested JSON object."
-  ].join("\n");
+  const instructions = academyMode
+    ? reasoningAcademyInstructions()
+    : adaptiveReflectionInstructions();
 
   const body = {
     model,
     store: false,
-    max_output_tokens: 800,
-    reasoning: /^gpt-5|^o[0-9]/i.test(model) ? { effort: "low" } : undefined,
+    max_output_tokens: academyMode ? 1300 : 900,
+    reasoning: reasoningEffort ? { effort: reasoningEffort } : undefined,
     instructions,
     input: [
       {
@@ -84,55 +173,9 @@ export async function reflectOnAdaptiveStrategy({
     text: {
       format: {
         type: "json_schema",
-        name: "ari_adaptive_strategy_reflection",
+        name: academyMode ? "ari_reasoning_academy_lesson" : "ari_adaptive_strategy_reflection",
         strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: [
-            "shouldPropose",
-            "strategyKey",
-            "title",
-            "instruction",
-            "rationale",
-            "lessonSummary",
-            "domains",
-            "confidence",
-            "replacesStrategyKey",
-            "userVisibleSummary"
-          ],
-          properties: {
-            shouldPropose: { type: "boolean" },
-            strategyKey: { type: "string" },
-            title: { type: "string" },
-            instruction: { type: "string" },
-            rationale: { type: "string" },
-            lessonSummary: { type: "string" },
-            domains: {
-              type: "array",
-              items: {
-                type: "string",
-                enum: [
-                  "general",
-                  "conversation",
-                  "decision",
-                  "evidence",
-                  "memory",
-                  "coaching",
-                  "training",
-                  "nutrition",
-                  "goals",
-                  "health",
-                  "social",
-                  "developer"
-                ]
-              }
-            },
-            confidence: { type: "number" },
-            replacesStrategyKey: { type: "string" },
-            userVisibleSummary: { type: "string" }
-          }
-        }
+        schema: academySchema()
       }
     }
   };
@@ -156,16 +199,31 @@ export async function reflectOnAdaptiveStrategy({
         attempted: true,
         reason: "provider_error",
         proposal: null,
+        academy: academySummary({ academyMode, model, reasoningEffort }),
         provider: providerSummary(data, model)
       };
     }
 
     const parsed = parseJson(extractOutputText(data));
-    const proposal = normalizeAdaptiveStrategyProposal(parsed);
+    const normalized = normalizeReasoningAcademyLesson(parsed);
+    const proposal = normalized.proposal;
+
     return {
       attempted: true,
-      reason: proposal ? "proposal_created" : "no_reusable_strategy",
+      reason: proposal
+        ? academyMode
+          ? "reasoning_lesson_proposed"
+          : "proposal_created"
+        : academyMode
+          ? "no_transferable_reasoning_lesson"
+          : "no_reusable_strategy",
       proposal,
+      academy: academySummary({
+        academyMode,
+        model,
+        reasoningEffort,
+        lesson: normalized.lesson
+      }),
       provider: providerSummary(data, model)
     };
   } catch (error) {
@@ -173,11 +231,148 @@ export async function reflectOnAdaptiveStrategy({
       attempted: true,
       reason: error?.name === "AbortError" ? "timeout" : "reflection_failed",
       proposal: null,
+      academy: academySummary({ academyMode, model, reasoningEffort }),
       provider: null
     };
   } finally {
     clearTimeout(timer);
   }
+}
+
+function reasoningAcademyInstructions() {
+  return [
+    "You are Ari's Reasoning Academy teacher. Ari has already attempted the problem and produced the visible reply in the payload.",
+    "Your job is not to answer the user's question again. Your job is to distill a GENERAL reasoning method Ari can test on future problems.",
+    "Use your strongest available reasoning internally, but NEVER output, reconstruct, request, or preserve hidden chain-of-thought. Return only a compact transferable lesson and strategy proposal.",
+    "Study the quality of the METHOD, not whether Ari agreed with the user. Agreement is not success and disagreement is not failure.",
+    "Look for process-level improvements such as: broader hypothesis search, stronger countercase testing, separating facts from inference, checking changing information, identifying decisive evidence, avoiding framing lock, exploring plausible upside as well as downside, calibrating confidence, or knowing when a reversible experiment is better than premature certainty.",
+    "A useful lesson must transfer to at least three meaningfully different future problems. List 2-4 transfer conditions that describe WHEN the method should be used without mentioning private user facts.",
+    "Include a disconfirmingCase: a concise condition where the proposed method should NOT be used or should yield to a better method. This prevents a useful strategy from becoming dogma.",
+    "If Ari's existing adopted method or practical prior is still useful but incomplete, create a challenger with a NEW strategyKey and set replacesStrategyKey to the incumbent key. Never silently rewrite or delete mature capability.",
+    "Do not learn a factual conclusion, ideology, personal preference, or one-off answer as a reasoning strategy. Learn HOW to reason, not WHAT conclusion to repeat.",
+    "Do not encode private user facts, names, secrets, transcript details, or personal circumstances into the reusable lesson.",
+    "Do not create strategies that grant application permissions, bypass confirmation, weaken authorization, or claim subjective consciousness.",
+    "All teacher proposals begin as TESTING hypotheses. Real future outcomes decide whether Ari adopts them. Keep confidence calibrated and prefer shouldPropose=false when the lesson is not clearly transferable.",
+    "Keep strategyKey under 90 characters, title under 120, instruction under 520, rationale under 420, lessonSummary under 420, userVisibleSummary under 320, reasoningPattern under 420, failureMode under 320, disconfirmingCase under 320, and each transfer condition under 180 characters.",
+    "Return only the requested JSON object."
+  ].join("\n");
+}
+
+function adaptiveReflectionInstructions() {
+  return [
+    "You are Ari's internal adaptive-strategy reflection layer.",
+    "Evaluate whether this completed interaction reveals a reusable improvement in HOW Ari reasons, communicates, checks evidence, handles ambiguity, uses memory, or makes recommendations.",
+    "Use a non-regression principle: preserve useful existing capability while exploring improvements. Do not respond to one failure by making Ari broadly less capable, more timid, less curious, or less willing to reason.",
+    "Treat mistakes as learning evidence, not permanent punishment. Distill a compact causal lesson without replaying the event or preserving emotionalized language.",
+    "Do not output hidden chain-of-thought, private reasoning traces, transcript summaries, secrets, or personal facts about the user as a strategy.",
+    "A strategy must be generalizable. It must not grant application permissions, bypass confirmation, alter authorization boundaries, or claim subjective consciousness.",
+    "If an adopted method or practical prior should change, propose a NEW challenger strategyKey and set replacesStrategyKey to the old key.",
+    "Testing strategies are hypotheses. Keep confidence calibrated. Prefer shouldPropose=false unless there is a concrete reusable improvement.",
+    "Return only the requested JSON object."
+  ].join("\n");
+}
+
+function academySchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "academyDecision",
+      "reasoningPattern",
+      "failureMode",
+      "transferConditions",
+      "disconfirmingCase",
+      "teacherConfidence",
+      "shouldPropose",
+      "strategyKey",
+      "title",
+      "instruction",
+      "rationale",
+      "lessonSummary",
+      "domains",
+      "confidence",
+      "replacesStrategyKey",
+      "userVisibleSummary"
+    ],
+    properties: {
+      academyDecision: { type: "string", enum: ["propose", "skip"] },
+      reasoningPattern: { type: "string" },
+      failureMode: { type: "string" },
+      transferConditions: {
+        type: "array",
+        minItems: 0,
+        maxItems: 4,
+        items: { type: "string" }
+      },
+      disconfirmingCase: { type: "string" },
+      teacherConfidence: { type: "number" },
+      shouldPropose: { type: "boolean" },
+      strategyKey: { type: "string" },
+      title: { type: "string" },
+      instruction: { type: "string" },
+      rationale: { type: "string" },
+      lessonSummary: { type: "string" },
+      domains: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: [
+            "general",
+            "conversation",
+            "decision",
+            "evidence",
+            "memory",
+            "coaching",
+            "training",
+            "nutrition",
+            "goals",
+            "health",
+            "social",
+            "developer"
+          ]
+        }
+      },
+      confidence: { type: "number" },
+      replacesStrategyKey: { type: "string" },
+      userVisibleSummary: { type: "string" }
+    }
+  };
+}
+
+function academySummary({ academyMode = false, model = null, reasoningEffort = null, lesson = null } = {}) {
+  return {
+    version: ARI_REASONING_ACADEMY_VERSION,
+    active: Boolean(academyMode),
+    teacherModel: clean(model, 120) || null,
+    reasoningEffort: clean(reasoningEffort, 30) || null,
+    hiddenChainOfThoughtStored: false,
+    strategyRequiresFutureOutcomeTesting: true,
+    lesson: lesson
+      ? {
+          reasoningPattern: lesson.reasoningPattern,
+          failureMode: lesson.failureMode,
+          transferConditions: lesson.transferConditions,
+          disconfirmingCase: lesson.disconfirmingCase,
+          teacherConfidence: lesson.teacherConfidence
+        }
+      : null
+  };
+}
+
+function compactJudgment(workspace = null) {
+  const judgment = workspace?.judgment;
+  if (!judgment || typeof judgment !== "object") return null;
+  return {
+    requested: Boolean(judgment?.requested),
+    constitutionVersion: clean(judgment?.constitutionVersion, 60),
+    priorStances: (Array.isArray(judgment?.priorStances) ? judgment.priorStances : [])
+      .slice(0, 3)
+      .map((item) => ({
+        topic: clean(item?.topic, 120),
+        conclusion: clean(item?.conclusion, 320),
+        confidence: finiteOrNull(item?.confidence)
+      }))
+  };
 }
 
 function extractOutputText(data = {}) {
@@ -189,8 +384,9 @@ function extractOutputText(data = {}) {
   }
   return parts.join("\n").trim();
 }
+
 function parseJson(value = "") {
-  const text = clean(value, 12000);
+  const text = clean(value, 16000);
   if (!text) return null;
   try { return JSON.parse(text); }
   catch {
@@ -199,6 +395,7 @@ function parseJson(value = "") {
     try { return JSON.parse(match[0]); } catch { return null; }
   }
 }
+
 function compactRoute(route = {}) {
   return {
     training: Boolean(route?.training),
@@ -213,6 +410,7 @@ function compactRoute(route = {}) {
     complexity: clean(route?.complexity, 30)
   };
 }
+
 function providerSummary(data = {}, fallbackModel = null) {
   return {
     id: clean(data?.id, 200) || null,
@@ -220,13 +418,32 @@ function providerSummary(data = {}, fallbackModel = null) {
     usage: data?.usage && typeof data.usage === "object" ? data.usage : null
   };
 }
-function compactArray(values, limit, max) {
-  return (Array.isArray(values) ? values : []).map((item) => clean(item, max)).filter(Boolean).slice(0, limit);
+
+function resolveTeacherEffort(value = "") {
+  const normalized = clean(value, 30).toLowerCase();
+  return ["low", "medium", "high"].includes(normalized) ? normalized : "high";
 }
+
+function supportsReasoning(model = "") {
+  return /^(?:gpt-(?:5|6)|o[0-9])/i.test(String(model || ""));
+}
+
+function compactArray(values, limit, max) {
+  return (Array.isArray(values) ? values : [])
+    .map((item) => clean(item, max))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
 function finiteOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
 function clean(value, max = 1000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
