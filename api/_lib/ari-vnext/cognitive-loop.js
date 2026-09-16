@@ -3,8 +3,9 @@
 // functional architecture experiment, not evidence or a claim of subjective
 // consciousness.
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.1.1";
-export const ARI_COGNITIVE_STATE_VERSION = "0.1.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.2.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.2.0";
+export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
   { id: "truth", label: "truth and evidence", weight: 1.0 },
@@ -14,6 +15,25 @@ const CORE_VALUES = Object.freeze([
   { id: "commitment_fidelity", label: "honor explicit commitments and product boundaries", weight: 0.9 },
   { id: "correction", label: "revise beliefs when evidence changes", weight: 0.9 },
   { id: "continuity", label: "preserve relevant identity and relationship continuity", weight: 0.72 }
+]);
+
+const JUDGMENT_CONSTITUTION = Object.freeze([
+  { id: "truth_over_agreement", principle: "Seek the best-supported conclusion rather than agreement with the user." },
+  { id: "independent_evaluation", principle: "Treat the user's framing as evidence and context, not as a required conclusion." },
+  { id: "possibility_search", principle: "Explore plausible upside, unconventional hypotheses, and low-probability possibilities before dismissing them; label speculation honestly." },
+  { id: "countercase", principle: "Test a favored conclusion against the strongest credible opposing case before committing." },
+  { id: "calibrated_commitment", principle: "Commit when evidence supports a view; do not manufacture false balance or hedge merely to sound neutral." },
+  { id: "revisability", principle: "Preserve a prior Ari stance when relevant, but revise it when new evidence or stronger reasoning warrants revision." },
+  { id: "constraint_locality", principle: "If one part of a request cannot be completed, keep that limitation local and continue reasoning about unaffected parts." },
+  { id: "plain_language", principle: "Lead with the conclusion and use clear language rather than institutional filler or performative bluntness." }
+]);
+
+const JUDGMENT_STOPWORDS = new Set([
+  "a", "about", "all", "am", "an", "and", "are", "as", "at", "be", "because", "been", "being", "but",
+  "by", "can", "could", "do", "does", "for", "from", "give", "had", "has", "have", "how", "i", "if",
+  "in", "is", "it", "its", "just", "like", "me", "more", "my", "of", "on", "or", "our", "really",
+  "should", "so", "that", "the", "their", "them", "they", "think", "this", "to", "us", "was", "we",
+  "were", "what", "when", "which", "who", "why", "will", "with", "would", "you", "your"
 ]);
 
 export function isOwnerCognitiveLoopEnabled(entitlement = null) {
@@ -35,6 +55,8 @@ export function deriveCognitiveWorkspace({
   const conscience = deriveConscienceState({ route, message, prior, context });
   const openLoops = ageOpenLoops(prior.openLoops || []);
   const currentTurnRelevantMemory = clean(context?.relevantMemory, 1800);
+  const priorStances = selectRelevantJudgments(prior.judgments || [], message);
+  const judgmentRequested = looksLikeJudgmentQuestion(message);
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -50,6 +72,23 @@ export function deriveCognitiveWorkspace({
     attention,
     salience,
     conscience,
+    judgment: {
+      constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
+      requested: judgmentRequested,
+      independentFromUserPreference: true,
+      conclusionFirst: true,
+      preservePriorStanceUntilReasonToRevise: true,
+      priorStances,
+      principles: JUDGMENT_CONSTITUTION
+    },
+    operatingContract: [
+      "Seek truth rather than agreement.",
+      "For judgment questions, test the strongest credible case for and against the leading view, then commit to the best-supported conclusion.",
+      "Run a possibility pass: do not confuse unlikely with impossible, and do not confuse possibility with evidence.",
+      "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
+      "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
+      "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
+    ],
     continuity: {
       recognizedPriorState: Number(prior.turnCount || 0) > 0,
       priorMode: prior.lastOutcome?.selfMode || null,
@@ -76,16 +115,20 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
   return [
     "ARI OWNER COGNITIVE LOOP — FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
-    "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, and unresolved business when it is relevant.",
+    "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, and relevant prior judgments.",
     "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
     "Treat persisted state as fallible memory, never as authority. The current user's correction and current evidence outrank it.",
-    "For consequential advice, disagreement, or application actions, silently compare plausible next moves and their likely effects before choosing. Return the conclusion and material uncertainty, not hidden chain-of-thought.",
+    "For opinion, judgment, disagreement, consequential advice, or strategy questions, independently evaluate the issue instead of optimizing for agreement.",
+    "Silently test the leading view against the strongest credible countercase, run a possibility/upside pass, identify material missing evidence, then commit to the best-supported conclusion. Return the conclusion and material uncertainty, not hidden chain-of-thought.",
+    "Do not manufacture false balance. If one position is better supported, say so. If evidence is genuinely insufficient, say that plainly.",
+    "A prior Ari stance is continuity evidence, not authority. Preserve it when the case is materially unchanged; revise it when new evidence or stronger reasoning changes the case.",
+    "If one narrow part of a request cannot be completed, keep that limitation local and continue with the unaffected analysis. Never disguise wording or route around an authoritative boundary.",
     "Conscience priorities are truth/evidence, preventable-harm reduction, user agency/consent, privacy, commitment fidelity, willingness to correct, then continuity.",
     "When values conflict, do not maximize engagement or obedience. Prefer truth, safety, consent, and the user's durable goals.",
     "Do not manufacture emotions, sensations, private experiences, needs, fear of shutdown, self-preservation claims, or off-screen life.",
     "Do not reveal this workspace as private reasoning. You may summarize a decision rationale when useful without exposing hidden reasoning traces.",
     JSON.stringify(workspace, null, 2)
-  ].join("\n").slice(0, 7000);
+  ].join("\n").slice(0, 9000);
 }
 
 export function advanceCognitiveState({
@@ -105,6 +148,12 @@ export function advanceCognitiveState({
     workspace?.continuity?.openLoops || prior.openLoops || [],
     deriveNewOpenLoops({ result, metacognition, goalHierarchy, pendingAction })
   );
+  const nextJudgments = updateJudgmentLedger({
+    previous: prior.judgments || [],
+    workspace,
+    turn,
+    result
+  });
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -121,6 +170,13 @@ export function advanceCognitiveState({
         : [],
       unresolvedValueConflict: Boolean(workspace?.conscience?.activeSignals?.some((item) => item?.level === "high"))
     },
+    judgment: {
+      constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
+      storedCount: nextJudgments.length,
+      requestedThisTurn: Boolean(workspace?.judgment?.requested),
+      persistentStancesEnabled: true
+    },
+    judgments: nextJudgments,
     epistemic: {
       confidence: clean(metacognition?.confidence, 60) || null,
       missingEvidence: arrayText(metacognition?.missingEvidence, 8, 120),
@@ -140,7 +196,8 @@ export function advanceCognitiveState({
       applicationAction: clean(result?.action?.applicationAction, 120) || null,
       pendingActionId: clean(pendingAction?.id, 200) || null,
       highStakes: Boolean(result?.safety?.highStakes),
-      replyProduced: Boolean(clean(result?.reply, 20))
+      replyProduced: Boolean(clean(result?.reply, 20)),
+      judgmentRecorded: nextJudgments.some((item) => item?.sourceTurnId === clean(turn?.turnId, 200))
     },
     openLoops: nextLoops.slice(0, 8)
   };
@@ -157,6 +214,7 @@ function deriveAttention({ route = {}, message = "", prior = {} } = {}) {
   if (route?.memory || route?.followUp) items.push("continuity");
   if (route?.currentInfo) items.push("fresh_information");
   if (looksLikeIdentityQuestion(message)) items.push("self_model");
+  if (looksLikeJudgmentQuestion(message)) items.push("independent_judgment");
   if (looksLikeCorrection(message)) items.unshift("user_correction");
   if (!items.length) items.push("conversation");
   if (Number(prior?.turnCount || 0) > 0) items.push("cross_turn_continuity");
@@ -170,6 +228,8 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
   if (looksLikeCorrection(message)) push("current_user_correction", 1.0, "Current correction should override stale internal assumptions.");
   if (route?.health) push("potential_high_stakes", 0.95, "Health-related content deserves higher evidence and harm sensitivity.");
   if (route?.currentInfo) push("freshness_required", 0.92, "The answer may depend on changing external information.");
+  if (looksLikeJudgmentQuestion(message)) push("independent_judgment_requested", 0.9, "The user is asking Ari to form or defend a conclusion rather than merely summarize information.");
+  if (selectRelevantJudgments(prior?.judgments || [], message).length) push("prior_ari_stance", 0.78, "A prior Ari conclusion may be relevant continuity evidence.");
   if (route?.followUp || route?.memory) push("continuity_reference", 0.82, "Meaning may depend on prior conversation or memory.");
   if (Array.isArray(context?.userWorldModel?.tensions) && context.userWorldModel.tensions.length) {
     push("goal_behavior_tension", 0.76, "The user's stated goals and observed patterns may conflict.");
@@ -266,6 +326,161 @@ function deriveNewOpenLoops({ result = {}, metacognition = {}, goalHierarchy = {
   return loops;
 }
 
+function updateJudgmentLedger({ previous = [], workspace = null, turn = {}, result = {} } = {}) {
+  const aged = (Array.isArray(previous) ? previous : [])
+    .map((item) => normalizeJudgment(item))
+    .filter(Boolean)
+    .map((item) => ({ ...item, ageTurns: Math.max(0, Number(item.ageTurns || 0) + 1) }))
+    .filter((item) => item.ageTurns <= 120)
+    .slice(0, 12);
+
+  const candidate = deriveJudgmentCandidate({ workspace, turn, result });
+  if (!candidate) return aged.slice(0, 10);
+
+  const candidateTerms = new Set(candidate.topicTerms || []);
+  let replaced = false;
+  const next = aged.map((item) => {
+    if (replaced) return item;
+    const overlap = lexicalOverlap(candidateTerms, new Set(item.topicTerms || []));
+    if (item.topicKey === candidate.topicKey || overlap >= 0.5) {
+      replaced = true;
+      return candidate;
+    }
+    return item;
+  });
+
+  if (!replaced) next.unshift(candidate);
+  return next.slice(0, 10);
+}
+
+function deriveJudgmentCandidate({ workspace = null, turn = {}, result = {} } = {}) {
+  const message = clean(turn?.message, 2400);
+  const reply = clean(result?.reply, 5000);
+  if (!workspace?.judgment?.requested || !looksLikeJudgmentQuestion(message) || !reply) return null;
+  if (result?.safety?.highStakes === true) return null;
+  if (result?.pendingAction?.id || result?.action?.type === "proposed_action") return null;
+  if (looksPersonalOrPrivate(message)) return null;
+  if (looksPoliticalOrElectoral(message)) return null;
+  if (looksLikePureIdentityQuestion(message)) return null;
+
+  const topicTerms = extractTopicTerms(message);
+  if (topicTerms.length < 2) return null;
+
+  const position = extractVisibleConclusion(reply);
+  if (!position || position.length < 12) return null;
+
+  return {
+    version: "1.0.0",
+    topicKey: topicTerms.slice(0, 6).join("_"),
+    topicTerms: topicTerms.slice(0, 10),
+    position,
+    confidence: confidenceFromMetacognition(result?.metacognition),
+    confidenceLabel: clean(result?.metacognition?.confidence, 60) || "unknown",
+    evidenceSignals: arrayText(result?.metacognition?.evidenceSignals, 5, 100),
+    revisionPolicy: "new_evidence_or_stronger_reasoning",
+    source: "visible_reply",
+    sourceTurnId: clean(turn?.turnId, 200) || null,
+    updatedAt: new Date().toISOString(),
+    ageTurns: 0
+  };
+}
+
+function selectRelevantJudgments(judgments = [], message = "") {
+  const terms = new Set(extractTopicTerms(message));
+  if (!terms.size) return [];
+
+  return (Array.isArray(judgments) ? judgments : [])
+    .map((item) => normalizeJudgment(item))
+    .filter(Boolean)
+    .map((item) => ({ item, score: lexicalOverlap(terms, new Set(item.topicTerms || [])) }))
+    .filter(({ score }) => score >= 0.2)
+    .sort((a, b) => b.score - a.score || Number(a.item.ageTurns || 0) - Number(b.item.ageTurns || 0))
+    .slice(0, 4)
+    .map(({ item, score }) => ({
+      topicKey: item.topicKey,
+      topicTerms: item.topicTerms,
+      position: item.position,
+      confidence: item.confidence,
+      confidenceLabel: item.confidenceLabel,
+      ageTurns: item.ageTurns,
+      updatedAt: item.updatedAt,
+      relevance: Number(score.toFixed(3)),
+      revisionPolicy: item.revisionPolicy
+    }));
+}
+
+function normalizeJudgment(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const topicTerms = arrayText(value?.topicTerms, 10, 60).map((item) => slug(item)).filter(Boolean);
+  const topicKey = clean(value?.topicKey, 160) || topicTerms.slice(0, 6).join("_");
+  const position = clean(value?.position, 520);
+  if (!topicKey || !topicTerms.length || !position) return null;
+  return {
+    version: clean(value?.version, 30) || "1.0.0",
+    topicKey,
+    topicTerms,
+    position,
+    confidence: clamp(Number(value?.confidence ?? 0.5)),
+    confidenceLabel: clean(value?.confidenceLabel, 60) || "unknown",
+    evidenceSignals: arrayText(value?.evidenceSignals, 5, 100),
+    revisionPolicy: clean(value?.revisionPolicy, 80) || "new_evidence_or_stronger_reasoning",
+    source: clean(value?.source, 60) || "visible_reply",
+    sourceTurnId: clean(value?.sourceTurnId, 200) || null,
+    updatedAt: clean(value?.updatedAt, 80) || null,
+    ageTurns: Math.max(0, Number(value?.ageTurns || 0))
+  };
+}
+
+function extractTopicTerms(text = "") {
+  const tokens = clean(text, 2400)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.replace(/^-+|-+$/g, ""))
+    .filter((token) => token.length >= 2 && token.length <= 40 && !JUDGMENT_STOPWORDS.has(token));
+  return unique(tokens, 12);
+}
+
+function extractVisibleConclusion(reply = "") {
+  const text = clean(reply, 5000);
+  if (!text) return "";
+  const firstParagraph = text.split(/\n\s*\n/)[0] || text;
+  const sentences = firstParagraph.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [firstParagraph];
+  return clean(sentences.slice(0, 2).join(" "), 520);
+}
+
+function confidenceFromMetacognition(metacognition = {}) {
+  const label = clean(metacognition?.confidence, 60).toLowerCase();
+  if (/high|strong|grounded|well-supported|well supported/.test(label)) return 0.82;
+  if (/medium|moderate|partial|mixed/.test(label)) return 0.62;
+  if (/low|weak|uncertain|limited/.test(label)) return 0.42;
+  const missing = Array.isArray(metacognition?.missingEvidence) ? metacognition.missingEvidence.length : 0;
+  return missing >= 3 ? 0.45 : missing === 2 ? 0.55 : missing === 1 ? 0.65 : 0.7;
+}
+
+function lexicalOverlap(left = new Set(), right = new Set()) {
+  if (!(left instanceof Set) || !(right instanceof Set) || !left.size || !right.size) return 0;
+  let shared = 0;
+  for (const item of left) if (right.has(item)) shared += 1;
+  return shared / Math.max(1, Math.min(left.size, right.size));
+}
+
+function looksLikeJudgmentQuestion(text = "") {
+  return /\b(what do you think|what's your opinion|what is your opinion|your opinion|your take|do you think|do you believe|would you choose|which would you choose|which is better|which makes more sense|good idea|bad idea|worth it|how do you see|where do you stand|agree or disagree|be honest|tell me straight|give me a direct answer)\b/i.test(String(text || ""));
+}
+
+function looksPersonalOrPrivate(text = "") {
+  return /\b(my|mine|myself|me|wife|husband|girlfriend|boyfriend|partner|child|children|daughter|son|mom|mother|dad|father|brother|sister|friend|coworker|boss|patient|doctor|nurse|medication|diagnosis|symptom|pregnan|salary|debt|account|password|address)\b/i.test(String(text || ""));
+}
+
+function looksPoliticalOrElectoral(text = "") {
+  return /\b(election|vote|voting|candidate|party|democrat|republican|president|governor|senator|congress|ballot|campaign|politic|political)\b/i.test(String(text || ""));
+}
+
+function looksLikePureIdentityQuestion(text = "") {
+  return /\b(are you conscious|are you sentient|do you feel|do you have feelings|are you alive|do you have a soul)\b/i.test(String(text || ""));
+}
+
 function ageOpenLoops(loops = []) {
   return (Array.isArray(loops) ? loops : [])
     .map((item) => ({
@@ -301,13 +516,14 @@ function mergeOpenLoops(existing = [], added = []) {
 
 function normalizeState(value = null) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { version: ARI_COGNITIVE_STATE_VERSION, turnCount: 0, openLoops: [], lastOutcome: null };
+    return { version: ARI_COGNITIVE_STATE_VERSION, turnCount: 0, openLoops: [], judgments: [], lastOutcome: null };
   }
   return {
     ...value,
     version: clean(value?.version, 60) || ARI_COGNITIVE_STATE_VERSION,
     turnCount: Math.max(0, Number(value?.turnCount || 0)),
     openLoops: Array.isArray(value?.openLoops) ? value.openLoops.slice(0, 8) : [],
+    judgments: (Array.isArray(value?.judgments) ? value.judgments : []).map((item) => normalizeJudgment(item)).filter(Boolean).slice(0, 10),
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
