@@ -206,7 +206,12 @@ export async function reflectOnAdaptiveStrategy({
 
     const parsed = parseJson(extractOutputText(data));
     const normalized = normalizeReasoningAcademyLesson(parsed);
-    const proposal = normalized.proposal;
+    const proposal = normalized.proposal
+      ? {
+          ...normalized.proposal,
+          sourceKind: academyMode ? "reasoning_academy" : "adaptive_reflection"
+        }
+      : null;
 
     return {
       attempted: true,
