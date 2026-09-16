@@ -6,6 +6,7 @@ import {
   evaluateStrategyOutcome,
   normalizeAdaptiveStrategyProposal
 } from "./adaptive-strategy.js";
+import { deriveTeacherReliabilityFromStrategies } from "./teacher-reliability.js";
 
 const STRATEGY_TABLE = "ari_vnext_adaptive_strategies";
 const USE_TABLE = "ari_vnext_strategy_uses";
@@ -19,9 +20,13 @@ export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, mes
     userId: id,
     feedback: classifyFeedback(message)
   });
-  const rows = await loadActiveStrategyRows({ userId: id });
+  const rows = await loadStrategyRows({ userId: id });
+  const activeState = deriveAdaptiveStrategyState({ strategies: rows, route });
   return {
-    state: deriveAdaptiveStrategyState({ strategies: rows, route }),
+    state: {
+      ...activeState,
+      teacherReliability: deriveTeacherReliabilityFromStrategies(rows)
+    },
     feedbackResolution
   };
 }
@@ -60,6 +65,7 @@ export async function recordAdaptiveStrategyUses({ userId, strategies = [], turn
 export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceModel = null } = {}) {
   const id = cleanUserId(userId);
   const config = supabaseConfig();
+  const sourceKind = clean(proposal?.sourceKind, 60) || "adaptive_reflection";
   const normalized = normalizeAdaptiveStrategyProposal(proposal);
   if (!id || !config || !normalized) return { stored: false, reason: "invalid_proposal" };
 
@@ -76,6 +82,14 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
   }
 
   const now = new Date().toISOString();
+  const metadata = {
+    ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+    createdBy: sourceKind === "reasoning_academy" ? "ari_reasoning_academy" : "ari_adaptive_strategy_reflection",
+    sourceKind,
+    hiddenChainOfThoughtStored: false,
+    practicalPriorEligible: true,
+    teacherIsExecutiveAuthority: false
+  };
   const row = existing
     ? {
         title: normalized.title,
@@ -87,6 +101,7 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
         source_model: clean(sourceModel, 120) || existing.sourceModel || null,
         replaces_strategy_key: normalized.replacesStrategyKey,
         user_visible_summary: normalized.userVisibleSummary,
+        metadata,
         updated_at: now
       }
     : {
@@ -103,11 +118,7 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
         source_model: clean(sourceModel, 120) || null,
         replaces_strategy_key: normalized.replacesStrategyKey,
         user_visible_summary: normalized.userVisibleSummary,
-        metadata: {
-          createdBy: "ari_adaptive_strategy_reflection",
-          hiddenChainOfThoughtStored: false,
-          practicalPriorEligible: true
-        },
+        metadata,
         updated_at: now
       };
 
@@ -284,16 +295,16 @@ async function loadMaturityEvidence({ userId, strategyId, currentTurnId, current
   }
 }
 
-async function loadActiveStrategyRows({ userId } = {}) {
+async function loadStrategyRows({ userId } = {}) {
   const id = cleanUserId(userId);
   const config = supabaseConfig();
   if (!id || !config) return [];
   const params = new URLSearchParams({
     user_id: `eq.${id}`,
-    status: "in.(testing,adopted,practical_prior)",
-    select: "id,strategy_key,title,instruction,rationale,lesson_summary,domains,status,confidence,maturity_score,trials,positive_outcomes,negative_outcomes,neutral_outcomes,source_model,replaces_strategy_key,user_visible_summary,first_proposed_at,last_used_at,adopted_at,matured_at,retired_at,updated_at",
+    status: "in.(testing,adopted,practical_prior,retired)",
+    select: "id,strategy_key,title,instruction,rationale,lesson_summary,domains,status,confidence,maturity_score,trials,positive_outcomes,negative_outcomes,neutral_outcomes,source_model,replaces_strategy_key,user_visible_summary,metadata,first_proposed_at,last_used_at,adopted_at,matured_at,retired_at,updated_at",
     order: "updated_at.desc",
-    limit: "18"
+    limit: "40"
   });
   try {
     const response = await timedFetch(`${config.url}/rest/v1/${STRATEGY_TABLE}?${params.toString()}`, {
@@ -385,6 +396,7 @@ function classifyFeedback(message) {
 
 function normalizeRow(row) {
   if (!row || typeof row !== "object") return null;
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
   return {
     id: clean(row.id, 120),
     strategyKey: clean(row.strategy_key, 100),
@@ -401,6 +413,8 @@ function normalizeRow(row) {
     negativeOutcomes: Math.max(0, Number(row.negative_outcomes || 0)),
     neutralOutcomes: Math.max(0, Number(row.neutral_outcomes || 0)),
     sourceModel: clean(row.source_model, 120) || null,
+    sourceKind: clean(metadata.sourceKind, 60) || null,
+    metadata,
     replacesStrategyKey: clean(row.replaces_strategy_key, 100) || null,
     userVisibleSummary: clean(row.user_visible_summary, 360),
     firstProposedAt: row.first_proposed_at || null,
@@ -426,7 +440,8 @@ function emptyPreparation() {
       practicalPriorCount: 0,
       adoptedCount: 0,
       testingCount: 0,
-      active: []
+      active: [],
+      teacherReliability: deriveTeacherReliabilityFromStrategies([])
     },
     feedbackResolution: { resolved: 0, feedback: "neutral", lifecycleChanges: [] }
   };
