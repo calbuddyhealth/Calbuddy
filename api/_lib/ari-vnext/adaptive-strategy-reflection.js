@@ -4,8 +4,13 @@
 // or persisted; learned strategies remain hypotheses until real outcomes support them.
 
 import { normalizeAdaptiveStrategyProposal } from "./adaptive-strategy.js";
+import {
+  runBlindReasoningArena,
+  shouldRunBlindReasoningArena
+} from "./blind-reasoning-arena.js";
+import { persistBlindReasoningArenaResult } from "./reasoning-arena-store.js";
 
-export const ARI_REASONING_ACADEMY_VERSION = "1.0.0";
+export const ARI_REASONING_ACADEMY_VERSION = "1.1.0";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS) > 0
@@ -200,6 +205,7 @@ export async function reflectOnAdaptiveStrategy({
         reason: "provider_error",
         proposal: null,
         academy: academySummary({ academyMode, model, reasoningEffort }),
+        arena: { attempted: false, reason: "academy_provider_error", stored: false },
         provider: providerSummary(data, model)
       };
     }
@@ -212,6 +218,43 @@ export async function reflectOnAdaptiveStrategy({
           sourceKind: academyMode ? "reasoning_academy" : "adaptive_reflection"
         }
       : null;
+    const academy = academySummary({
+      academyMode,
+      model,
+      reasoningEffort,
+      lesson: normalized.lesson
+    });
+
+    let arena = { attempted: false, reason: "not_selected", stored: false, record: null };
+    if (shouldRunBlindReasoningArena({
+      turn,
+      result,
+      academy,
+      proposalCreated: Boolean(proposal)
+    })) {
+      const arenaRun = await runBlindReasoningArena({
+        turn,
+        result,
+        teacherModel: model
+      });
+      const persistence = arenaRun?.record && turn?.userId
+        ? await persistBlindReasoningArenaResult({ userId: turn.userId, record: arenaRun.record })
+        : { stored: false, reason: arenaRun?.reason || "no_record" };
+      arena = {
+        attempted: Boolean(arenaRun?.attempted),
+        reason: arenaRun?.reason || "unknown",
+        stored: Boolean(persistence?.stored),
+        winner: arenaRun?.record?.winner || null,
+        confidence: arenaRun?.record?.confidence ?? null,
+        evidenceWeight: arenaRun?.record?.evidenceWeight ?? null,
+        domains: arenaRun?.record?.domains || [],
+        challengerModel: arenaRun?.record?.challengerModel || null,
+        judgeModel: arenaRun?.record?.judgeModel || null,
+        judgeIndependent: arenaRun?.record?.judgeIndependent === true,
+        rawCandidatesStored: false,
+        hiddenChainOfThoughtStored: false
+      };
+    }
 
     return {
       attempted: true,
@@ -223,12 +266,8 @@ export async function reflectOnAdaptiveStrategy({
           ? "no_transferable_reasoning_lesson"
           : "no_reusable_strategy",
       proposal,
-      academy: academySummary({
-        academyMode,
-        model,
-        reasoningEffort,
-        lesson: normalized.lesson
-      }),
+      academy,
+      arena,
       provider: providerSummary(data, model)
     };
   } catch (error) {
@@ -237,6 +276,7 @@ export async function reflectOnAdaptiveStrategy({
       reason: error?.name === "AbortError" ? "timeout" : "reflection_failed",
       proposal: null,
       academy: academySummary({ academyMode, model, reasoningEffort }),
+      arena: { attempted: false, reason: "reflection_failed", stored: false },
       provider: null
     };
   } finally {
@@ -352,6 +392,7 @@ function academySummary({ academyMode = false, model = null, reasoningEffort = n
     reasoningEffort: clean(reasoningEffort, 30) || null,
     hiddenChainOfThoughtStored: false,
     strategyRequiresFutureOutcomeTesting: true,
+    blindArenaAvailable: true,
     lesson: lesson
       ? {
           reasoningPattern: lesson.reasoningPattern,

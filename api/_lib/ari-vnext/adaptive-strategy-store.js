@@ -6,6 +6,7 @@ import {
   evaluateStrategyOutcome,
   normalizeAdaptiveStrategyProposal
 } from "./adaptive-strategy.js";
+import { loadRecentBlindReasoningArenaResults } from "./reasoning-arena-store.js";
 import { deriveTeacherReliabilityFromStrategies } from "./teacher-reliability.js";
 
 const STRATEGY_TABLE = "ari_vnext_adaptive_strategies";
@@ -20,12 +21,15 @@ export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, mes
     userId: id,
     feedback: classifyFeedback(message)
   });
-  const rows = await loadStrategyRows({ userId: id });
+  const [rows, arenaResults] = await Promise.all([
+    loadStrategyRows({ userId: id }),
+    loadRecentBlindReasoningArenaResults({ userId: id, limit: 80 })
+  ]);
   const activeState = deriveAdaptiveStrategyState({ strategies: rows, route });
   return {
     state: {
       ...activeState,
-      teacherReliability: deriveTeacherReliabilityFromStrategies(rows)
+      teacherReliability: deriveTeacherReliabilityFromStrategies(rows, arenaResults)
     },
     feedbackResolution
   };
@@ -441,7 +445,7 @@ function emptyPreparation() {
       adoptedCount: 0,
       testingCount: 0,
       active: [],
-      teacherReliability: deriveTeacherReliabilityFromStrategies([])
+      teacherReliability: deriveTeacherReliabilityFromStrategies([], [])
     },
     feedbackResolution: { resolved: 0, feedback: "neutral", lifecycleChanges: [] }
   };
