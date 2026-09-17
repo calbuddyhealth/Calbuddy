@@ -1,6 +1,6 @@
 // api/ari-github-edit.js
 // Ari GitHub Edit Endpoint
-// V2.2.0 — Supabase-verified owner authorization + isolated autonomous development branch
+// V2.2.1 — Supabase-verified owner authorization + isolated autonomous development branch
 
 import {
   sendOwnerAuthorizationError,
@@ -434,6 +434,7 @@ export function isSafeAutonomousDevelopmentBranch({ autonomousBranch = "", produ
 export function isProtectedAutonomousDevelopmentPath(filePath = "") {
   const path = String(filePath || "").trim();
   if (!path) return true;
+  if (path === ".env" || path.startsWith(".env.")) return true;
   return AUTONOMOUS_DEV_PROTECTED_PATHS.some((protectedPath) =>
     protectedPath.endsWith("/")
       ? path.startsWith(protectedPath)
