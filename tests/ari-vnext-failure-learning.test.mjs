@@ -16,6 +16,7 @@ test("ordinary uncertainty remains exploratory instead of becoming paralysis", (
     context: {},
     safety: { highStakes: false }
   });
+  const instruction = metacognitionToInstruction(state);
 
   assert.equal(state.confidence, "limited");
   assert.equal(state.exploration.consequenceTier, "ordinary");
@@ -23,8 +24,9 @@ test("ordinary uncertainty remains exploratory instead of becoming paralysis", (
   assert.equal(state.exploration.reversibleExperimentAllowed, true);
   assert.equal(state.rules.lowConfidenceIsNotAStopSignal, true);
   assert.equal(state.rules.guardConsequencesNotImagination, true);
-  assert.match(metacognitionToInstruction(state), /not, by itself, a reason to stop thinking/i);
-  assert.match(metacognitionToInstruction(state), /reversible experiment/i);
+  assert.match(instruction, /not automatically a stop signal/i);
+  assert.match(instruction, /bounded reversible experimentation/i);
+  assert.equal(state.executivePolicy.directives.askUserOnlyIfBlocked, true);
 });
 
 test("high-consequence uncertainty preserves execution checks without suppressing reasoning", () => {
@@ -33,13 +35,15 @@ test("high-consequence uncertainty preserves execution checks without suppressin
     context: { training: { summary: "available" } },
     safety: { highStakes: true }
   });
+  const instruction = metacognitionToInstruction(state);
 
   assert.equal(state.confidence, "cautious");
   assert.equal(state.exploration.hypothesisFormationAllowed, true);
   assert.equal(state.exploration.reversibleExperimentAllowed, false);
   assert.equal(state.exploration.consequentialExecutionRequiresExistingChecks, true);
-  assert.match(metacognitionToInstruction(state), /reason broadly/i);
-  assert.match(metacognitionToInstruction(state), /authorization/i);
+  assert.equal(state.executivePolicy.directives.verificationDepth, "high");
+  assert.match(instruction, /hard enforcement/i);
+  assert.match(instruction, /authorization/i);
 });
 
 test("real vNext confidence labels can trigger adaptive reflection on ordinary uncertainty", () => {
