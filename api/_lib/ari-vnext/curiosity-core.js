@@ -79,6 +79,9 @@ export function advanceCuriosityState({
 } = {}) {
   const prior = normalizeCuriosityState(persisted);
   const workspace = context?.userWorldModel?.ariCognitiveWorkspace || null;
+  const ownerEligible = Boolean(workspace?.ownerOnly === true && workspace?.functionalExperiment === true);
+  if (!ownerEligible) return prior;
+
   const inferredRoute = inferRouteFromTurn(turn, workspace);
   const topics = inferTopics({ route: inferredRoute, workspace });
   const missingEvidence = extractMissingEvidence(workspace);
