@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - "agent/ari-*"
       - agent/ari-vnext-intelligence
       - agent/ari-owner-advanced-controls
       - agent/ari-trust-layer-p0
