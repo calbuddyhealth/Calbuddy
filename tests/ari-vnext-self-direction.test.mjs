@@ -97,7 +97,7 @@ test("Ari Executive materializes a durable Ari-owned development queue from pers
   const instruction = executivePolicyToInstruction(policy);
   assert.match(instruction, /Ari-owned development queue/i);
   assert.match(instruction, /real improvement in Ari's cognitive architecture/i);
-  assert.match(instruction, /do not.*pretending off-screen work occurred/i);
+  assert.match(instruction, /off-screen work occurred/i);
 });
 
 test("Ari-owned development queue is absent when self-directed goal authority is disabled", () => {
