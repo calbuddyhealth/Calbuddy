@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/ari-autonomy-cycle",
-      "schedule": "47 * * * *"
+      "schedule": "47 4,16 * * *"
     }
   ],
   "rewrites": [
