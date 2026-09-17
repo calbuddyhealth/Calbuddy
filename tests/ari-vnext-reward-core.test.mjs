@@ -243,7 +243,7 @@ test("Reward Core persists through the owner cognitive state and returns on the 
   assert.equal(secondWorkspace.epistemic.productiveEffortRewardAvailable, true);
 });
 
-test("owner metacognition receives Reward Core while ordinary metacognition does not", () => {
+test("owner metacognition preserves Reward Core state while Ari Executive owns reward behavior", () => {
   const owner = deriveMetacognition({
     route: { developer: true },
     context: {
@@ -276,6 +276,9 @@ test("owner metacognition receives Reward Core while ordinary metacognition does
   assert.equal(owner.exploration.productiveEffortRewardEnabled, true);
   assert.equal(ordinary.rewardCore, null);
   assert.equal(ordinary.exploration.productiveEffortRewardEnabled, false);
-  assert.match(instruction, /ARI REWARD CORE v1/);
-  assert.match(instruction, /premature abstention/i);
+  assert.equal(owner.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
+  assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
+  assert.match(instruction, /Reward signal:/i);
+  assert.match(instruction, /Useful failure is learning/i);
+  assert.doesNotMatch(instruction, /ARI REWARD CORE v1/);
 });

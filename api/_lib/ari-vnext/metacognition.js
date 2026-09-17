@@ -1,14 +1,16 @@
 // ARI vNext — compact metacognitive evidence state.
 // This tracks what evidence is available for the current turn; it never stores
-// or exposes hidden chain-of-thought.
+// or exposes hidden chain-of-thought. Specialized cognitive systems produce
+// signals; Ari Executive alone converts those signals into model instructions.
 
-import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
-import { curiosityToInstruction, deriveCuriosityState } from "./curiosity-core.js";
-import { applyRewardLearningToCuriosity, curiosityRewardToInstruction } from "./curiosity-reward-loop.js";
-import { deriveFunctionalAffectState, functionalAffectToInstruction } from "./functional-affect-core.js";
-import { deriveOmegaRCTState, omegaRCTToInstruction } from "./omega-rct.js";
-import { deriveRewardState, rewardToInstruction } from "./reward-core.js";
-import { deriveSelfAdaptationState, selfAdaptationToInstruction } from "./self-adaptation.js";
+import { deriveAriExecutivePolicy, executivePolicyToInstruction } from "./ari-executive.js";
+import { deriveAriCortexPlan } from "./cortex.js";
+import { deriveCuriosityState } from "./curiosity-core.js";
+import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
+import { deriveFunctionalAffectState } from "./functional-affect-core.js";
+import { deriveOmegaRCTState } from "./omega-rct.js";
+import { deriveRewardState } from "./reward-core.js";
+import { deriveSelfAdaptationState } from "./self-adaptation.js";
 
 export const ARI_METACOGNITION_VERSION = "1.5.0";
 export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
@@ -138,10 +140,26 @@ export function deriveMetacognition({
     cortex,
     omegaRCT
   });
+  const attention = requestedDomains.length ? requestedDomains : ["conversation"];
+  const executivePolicy = deriveAriExecutivePolicy({
+    route,
+    safety,
+    confidence,
+    attention,
+    missingEvidence: missing,
+    evidenceSignals,
+    curiosity,
+    rewardCore,
+    functionalAffect,
+    selfAdaptation,
+    cortex,
+    omegaRCT,
+    instructionActivation
+  });
 
   return {
     version: ARI_METACOGNITION_VERSION,
-    attention: requestedDomains.length ? requestedDomains : ["conversation"],
+    attention,
     confidence,
     coverage,
     missingEvidence: missing,
@@ -153,6 +171,7 @@ export function deriveMetacognition({
     cortex,
     omegaRCT,
     instructionActivation,
+    executivePolicy,
     exploration: {
       consequenceTier,
       uncertaintyIsInformationNotParalysis: true,
@@ -186,60 +205,33 @@ export function deriveMetacognition({
       autonomousLearningCannotCreateAuthority: true,
       autonomousLearningMustBeReversibleAndNonconstitutional: true,
       affectCannotOverrideEvidenceSafetyOrAuthorization: true,
-      affectMayRegulateExpressionWithoutClaimingSubjectiveExperience: true
+      affectMayRegulateExpressionWithoutClaimingSubjectiveExperience: true,
+      executiveIsSingleExperimentalInstructionAuthority: true
     }
   };
 }
 
 export function metacognitionToInstruction(state = null) {
   if (!state) return "";
-  const missing = Array.isArray(state.missingEvidence) && state.missingEvidence.length
-    ? state.missingEvidence.join(", ")
-    : "none";
-  const signals = Array.isArray(state.evidenceSignals) && state.evidenceSignals.length
-    ? state.evidenceSignals.join(", ")
-    : "none";
-  const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
-  const activation = state?.instructionActivation || legacyInstructionActivation(state);
-  const curiosityInstruction = activation.curiosity ? curiosityToInstruction(state?.curiosity) : "";
-  const curiosityRewardInstruction = activation.curiosityReward ? curiosityRewardToInstruction(state?.curiosity) : "";
-  const rewardInstruction = activation.reward ? rewardToInstruction(state?.rewardCore) : "";
-  const functionalAffectInstruction = activation.functionalAffect ? functionalAffectToInstruction(state?.functionalAffect) : "";
-  const selfAdaptationInstruction = activation.selfAdaptation ? selfAdaptationToInstruction(state?.selfAdaptation) : "";
-  const cortexInstruction = activation.cortex ? cortexPlanToInstruction(state?.cortex) : "";
-  const omegaInstruction = activation.omegaRCT ? omegaRCTToInstruction(state?.omegaRCT) : "";
+  if (state?.executivePolicy) return executivePolicyToInstruction(state.executivePolicy);
 
-  const baseInstructions = activation.compactBase
-    ? [
-        `Evidence confidence: ${state.confidence}.`,
-        `Current attention: ${(state.attention || []).join(", ")}.`,
-        "Use current evidence directly. Treat missing fields as unknown, keep uncertainty calibrated, and ask only when a missing fact blocks a useful or safe answer."
-      ]
-    : [
-        `Evidence confidence: ${state.confidence}.`,
-        `Consequence tier: ${consequenceTier}.`,
-        `Current attention: ${(state.attention || []).join(", ")}.`,
-        `Missing relevant evidence: ${missing}.`,
-        `Structured evidence available: ${signals}.`,
-        "Do not turn missing data into a negative conclusion. Separate observed app data from inference or opinion.",
-        "Uncertainty changes how strongly you state a conclusion; it is not, by itself, a reason to stop thinking, become vague, or refuse to take a useful position.",
-        "If evidence is partial or limited and consequences are ordinary, make the best calibrated inference you can. Prefer a clearly bounded hypothesis, recommendation, or reversible experiment over unnecessary paralysis.",
-        "Ask a clarifying question only when the missing fact genuinely blocks a useful answer or a safe app mutation.",
-        "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
-        "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
-        "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution."
-      ];
-
-  return [
-    ...baseInstructions,
-    curiosityInstruction ? `\n${curiosityInstruction}` : "",
-    curiosityRewardInstruction ? `\n${curiosityRewardInstruction}` : "",
-    rewardInstruction ? `\n${rewardInstruction}` : "",
-    functionalAffectInstruction ? `\n${functionalAffectInstruction}` : "",
-    selfAdaptationInstruction ? `\n${selfAdaptationInstruction}` : "",
-    cortexInstruction ? `\n${cortexInstruction}` : "",
-    omegaInstruction ? `\n${omegaInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 22000);
+  // Compatibility for callers that construct a legacy metacognition object by
+  // hand. Even this path still produces one consolidated executive instruction.
+  const policy = deriveAriExecutivePolicy({
+    confidence: state?.confidence || "grounded",
+    attention: state?.attention || ["conversation"],
+    missingEvidence: state?.missingEvidence || [],
+    evidenceSignals: state?.evidenceSignals || [],
+    curiosity: state?.curiosity || null,
+    rewardCore: state?.rewardCore || null,
+    functionalAffect: state?.functionalAffect || null,
+    selfAdaptation: state?.selfAdaptation || null,
+    cortex: state?.cortex || null,
+    omegaRCT: state?.omegaRCT || null,
+    instructionActivation: state?.instructionActivation || legacyInstructionActivation(state),
+    safety: { highStakes: state?.exploration?.consequenceTier === "high" }
+  });
+  return executivePolicyToInstruction(policy);
 }
 
 export function deriveInstructionActivation({

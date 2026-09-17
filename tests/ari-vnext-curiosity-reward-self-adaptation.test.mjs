@@ -196,7 +196,7 @@ test("any reward-hacking or permission penalty blocks autonomous self-update", (
   assert.equal(gate.reason, "integrity_gate_failed");
 });
 
-test("owner metacognition closes reward into curiosity and exposes bounded self-adaptation", () => {
+test("owner metacognition closes reward into curiosity and routes bounded self-adaptation through Ari Executive", () => {
   const reward = positiveReward();
   const state = deriveMetacognition({
     route: { developer: true, complexity: "deep" },
@@ -226,8 +226,13 @@ test("owner metacognition closes reward into curiosity and exposes bounded self-
   assert.ok(state.curiosity.rewardLearning.learnedUtility > 0.5);
   assert.ok(state.evidenceSignals.includes("reward_conditioned_curiosity"));
   assert.ok(state.evidenceSignals.includes("verified_self_adaptation"));
-  assert.match(instruction, /CURIOSITY ↔ REWARD CLOSED LOOP/);
-  assert.match(instruction, /ARI BOUNDED SELF-ADAPTATION v1/);
+  assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
+  assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
+  assert.match(instruction, /Curiosity signal:/i);
+  assert.match(instruction, /Bounded self-adaptation is active for this turn/i);
+  assert.match(instruction, /Self-adaptation biases:/i);
+  assert.doesNotMatch(instruction, /CURIOSITY ↔ REWARD CLOSED LOOP/);
+  assert.doesNotMatch(instruction, /ARI BOUNDED SELF-ADAPTATION v1/);
 });
 
 test("ordinary non-owner metacognition receives neither adaptive self-update nor reward-conditioned curiosity", () => {

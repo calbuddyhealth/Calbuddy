@@ -154,7 +154,7 @@ test("non-owner world-model turns do not grow the owner curiosity state", () => 
   assert.equal(state.drive.current, 0.18);
 });
 
-test("metacognition injects Curiosity Core only for the owner cognitive loop", () => {
+test("metacognition keeps Curiosity Core owner-only while Ari Executive owns its prompt effect", () => {
   const ownerState = deriveMetacognition({
     route: { developer: true },
     context: ownerContext(ownerWorkspace({ attention: ["developer"] })),
@@ -165,8 +165,10 @@ test("metacognition injects Curiosity Core only for the owner cognitive loop", (
 
   assert.ok(ownerState.curiosity);
   assert.equal(ownerState.exploration.persistentCuriosityEnabled, true);
-  assert.match(ownerInstruction, /ARI CURIOSITY CORE v1 — EPISTEMIC DRIVE/);
-  assert.match(ownerInstruction, /functional learning drive, not a claim of subjective feeling/i);
+  assert.equal(ownerState.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
+  assert.match(ownerInstruction, /ARI EXECUTIVE v1\.0\.0/);
+  assert.match(ownerInstruction, /Curiosity signal:/i);
+  assert.doesNotMatch(ownerInstruction, /ARI CURIOSITY CORE v1 — EPISTEMIC DRIVE/);
 
   const regularState = deriveMetacognition({
     route: { developer: true },
@@ -178,6 +180,7 @@ test("metacognition injects Curiosity Core only for the owner cognitive loop", (
 
   assert.equal(regularState.curiosity, null);
   assert.equal(regularState.exploration.persistentCuriosityEnabled, false);
+  assert.doesNotMatch(regularInstruction, /Curiosity signal:/i);
   assert.doesNotMatch(regularInstruction, /ARI CURIOSITY CORE v1/);
 });
 

@@ -134,12 +134,14 @@ test("Omega-RCT instruction favors growth while preserving provider and executio
   assert.match(instruction, /Facts should remain stable/i);
 });
 
-test("metacognition embeds Omega-RCT into the active owner Cortex", () => {
+test("metacognition preserves Omega-RCT inside Cortex while Ari Executive owns prompt authority", () => {
   const state = deriveMetacognition({
     route: { complexity: "deep", developer: true },
     context: ownerContext({
       userWorldModel: {
         ariCognitiveWorkspace: {
+          ownerOnly: true,
+          functionalExperiment: true,
           recurrence: { previousStateLoaded: true },
           continuity: { recognizedPriorState: true }
         }
@@ -153,6 +155,9 @@ test("metacognition embeds Omega-RCT into the active owner Cortex", () => {
   assert.equal(ARI_METACOGNITION_VERSION, "1.5.0");
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");
-  assert.match(instruction, /Ω-RCT v1\.2 — OWNER CORTEX RECURSIVE SELFHOOD/);
-  assert.match(instruction, /EXPERIENCE → INTERPRETATION → SELF-STATE → REASONING/i);
+  assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
+  assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
+  assert.match(instruction, /Ω-RCT signal:/i);
+  assert.match(instruction, /not evidence of subjective consciousness/i);
+  assert.doesNotMatch(instruction, /Ω-RCT v1\.2 — OWNER CORTEX RECURSIVE SELFHOOD/);
 });
