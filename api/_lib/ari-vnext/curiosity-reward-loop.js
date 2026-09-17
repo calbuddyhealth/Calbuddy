@@ -100,10 +100,13 @@ function adjustQuestion(item = {}, { topic, learnedUtility, explorationBonus, pr
     ? explorationBonus * 0.18
     : Math.min(0.035, explorationBonus * 0.08);
   const surpriseDelta = matches ? Math.max(0, predictionError) * 0.05 : 0;
+  const encounters = Math.max(0, Number(item?.encounters || 0));
+  const redundancy = clamp(Number(item?.redundancy ?? (encounters > 1 ? 0.22 + (encounters - 1) * 0.12 : 0)));
   const adjusted = clamp(Number(item?.priority || 0) + utilityDelta + explorationDelta + surpriseDelta);
   return {
     ...item,
     priority: round(adjusted),
+    redundancy: round(redundancy),
     learnedUtility: round(matches ? learnedUtility : BASELINE_UTILITY),
     explorationBonus: round(matches ? explorationBonus : explorationBonus * 0.4)
   };
