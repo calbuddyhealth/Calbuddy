@@ -71,7 +71,8 @@ test("Reward Core v1 exposes productive-effort learning without subjective rewar
   assert.equal(state.policy.rewardCannotChangePermissions, true);
   assert.match(instruction, /Trying is valuable when the attempt is plausible, nonredundant, evidence-seeking/);
   assert.match(instruction, /Reward cannot grant permissions/);
-  assert.doesNotMatch(instruction, /I feel rewarded|pleasure|dopamine rush/i);
+  assert.match(instruction, /not pleasure, emotion, craving/i);
+  assert.doesNotMatch(instruction, /\bI (?:feel|experience) (?:reward|pleasure)|dopamine rush\b/i);
 });
 
 test("productive effort and information gain earn substantial partial reward even without an app action", () => {
