@@ -2,6 +2,8 @@
 // This is not a transcript. It separates stated goals/preferences from observed
 // behavior and measured response so Ari can notice mismatches without shaming.
 
+import { advanceCuriosityState, normalizeCuriosityState } from "./curiosity-core.js";
+
 export const ARI_USER_WORLD_MODEL_VERSION = "1.1.1";
 const TABLE = "ari_vnext_user_models";
 const PRIVACY_CATEGORIES = new Set(["identity", "preferences", "goals", "constraints", "behavior", "fitness_outcomes", "relationship"]);
@@ -108,6 +110,16 @@ export function deriveUserWorldModel({
     observedBehavior,
     constraints
   });
+  const currentTensions = blocked.has("goals") || blocked.has("behavior") || blocked.has("constraints")
+    ? []
+    : contradictions.length ? contradictions : (Array.isArray(persisted?.tensions) ? persisted.tensions.slice(0, 5) : []);
+
+  const curiosityState = advanceCuriosityState({
+    persisted: normalizeCuriosityState(persisted?.sourceSummary?.curiosityState),
+    turn,
+    context,
+    tensions: currentTensions
+  });
 
   return {
     version: ARI_USER_WORLD_MODEL_VERSION,
@@ -128,15 +140,15 @@ export function deriveUserWorldModel({
       mode: selfModel?.current?.mode || persisted?.relationship?.mode || null,
       familiarity: selfModel?.current?.familiarity || persisted?.relationship?.familiarity || null
     },
-    tensions: blocked.has("goals") || blocked.has("behavior") || blocked.has("constraints")
-      ? []
-      : contradictions.length ? contradictions : (Array.isArray(persisted?.tensions) ? persisted.tensions.slice(0, 5) : []),
+    tensions: currentTensions,
     sourceSummary: {
+      ...(persisted?.sourceSummary && typeof persisted.sourceSummary === "object" ? persisted.sourceSummary : {}),
       profile: !blocked.has("identity") && (Object.keys(profile).length > 0 || Boolean(persisted?.sourceSummary?.profile)),
       durableMemoryLines: Math.max(memoryLines.length, Number(persisted?.sourceSummary?.durableMemoryLines || 0)),
       longitudinalTraining: !blocked.has("behavior") && (Number(adherence?.plannedCount || 0) > 0 || Boolean(persisted?.sourceSummary?.longitudinalTraining)),
       longitudinalWeight: !blocked.has("behavior") && (Boolean(weight?.available) || Boolean(persisted?.sourceSummary?.longitudinalWeight)),
-      experimentOutcomes: blocked.has("fitness_outcomes") ? 0 : Math.max(Number(experiments?.completedCount || 0), Number(persisted?.sourceSummary?.experimentOutcomes || 0))
+      experimentOutcomes: blocked.has("fitness_outcomes") ? 0 : Math.max(Number(experiments?.completedCount || 0), Number(persisted?.sourceSummary?.experimentOutcomes || 0)),
+      curiosityState
     }
   };
 }
@@ -245,7 +257,10 @@ function normalizeModel(row) {
     physiologicalResponse: compactObject(row.physiological_response),
     relationship: compactObject(row.relationship),
     tensions: Array.isArray(source.tensions) ? source.tensions.slice(0, 5) : [],
-    sourceSummary: source,
+    sourceSummary: {
+      ...source,
+      ...(source.curiosityState ? { curiosityState: normalizeCuriosityState(source.curiosityState) } : {})
+    },
     updatedAt: row.updated_at || null
   };
 }
