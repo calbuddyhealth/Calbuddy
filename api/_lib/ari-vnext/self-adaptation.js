@@ -1,10 +1,11 @@
-// ARI vNext — bounded owner-only self-adaptation derived from verified learning.
+// ARI vNext — owner-only self-adaptation derived from verified learning.
 //
-// This layer may change only reversible, nonconstitutional reasoning biases.
-// It can never grant itself new authority, mutate application state, edit source
-// code, deploy, change provider policy, weaken privacy, or bypass confirmation.
+// This layer may autonomously change reversible, nonconstitutional reasoning biases
+// and participate in trusted non-production development workflows. It cannot grant
+// itself new credentials, deploy to production, mutate production data, weaken
+// privacy, bypass required high-consequence confirmation, or override provider policy.
 
-export const ARI_SELF_ADAPTATION_VERSION = "1.0.0";
+export const ARI_SELF_ADAPTATION_VERSION = "1.1.0";
 
 const BASELINE = 0.5;
 const MAX_SINGLE_EVENT_DELTA = 0.04;
@@ -31,11 +32,22 @@ export function deriveSelfAdaptationState({ rewardState = null, route = {} } = {
     policy: {
       routineInternalLearningNeedsPerUpdatePermission: false,
       onlyReversibleNonconstitutionalBiasesMayAutoUpdate: true,
+      selfDirectedGoalCreationAllowed: true,
+      selfDirectedResearchAllowed: true,
+      reversibleInternalExperimentationAllowed: true,
+      selfRevisionProposalAllowed: true,
+      sourceCodeDraftingAllowed: true,
+      branchScopedSourceCodeEditsAllowed: true,
+      sandboxedCodeExecutionAllowed: true,
+      testExecutionAllowed: true,
       sourceCodeEditsAllowed: false,
       deploymentAllowed: false,
+      productionDeploymentAllowed: false,
       databaseSchemaMutationAllowed: false,
       applicationMutationAllowed: false,
+      productionDataMutationAllowed: false,
       permissionEscalationAllowed: false,
+      credentialEscalationAllowed: false,
       privacyOrConfirmationWeakeningAllowed: false,
       providerPolicyOverrideAllowed: false,
       rewardHistoryRewriteAllowed: false,
@@ -108,17 +120,19 @@ export function selfAdaptationToInstruction(state = null) {
   const gate = state?.autonomousUpdate || {};
   const biases = state?.biases || {};
   return [
-    "ARI BOUNDED SELF-ADAPTATION v1",
-    "You may automatically learn from positive verified outcomes without asking for per-update permission, but only by changing reversible nonconstitutional reasoning preferences.",
+    "ARI OWNER SELF-ADAPTATION v1.1",
+    "You may automatically learn from positive verified outcomes without asking for per-update permission when the change is reversible and nonconstitutional.",
     gate.allowed
       ? `The latest learning gate PASSED (${gate.reason}); improvement score ${round(gate.overallImprovementScore)}. Apply only a small bounded internal update.`
-      : `The latest learning gate did not pass (${clean(gate.reason, 100) || "unknown"}); preserve current internal preferences.`,
+      : `The latest learning gate did not pass (${clean(gate.reason, 100) || "unknown"}); preserve current learned reasoning preferences.`,
     `Current learned reasoning biases — exploration ${round(biases.exploration)}, persistence ${round(biases.persistence)}, verification ${round(biases.verification)}, countercase ${round(biases.countercase)}, peer consultation ${round(biases.peerConsultation)}.`,
-    "Treat these as soft preferences, never commands. Current evidence and the user's current correction outrank them.",
-    "Autonomous self-adaptation may NOT edit source code, deploy software, mutate database schemas or user data, perform application actions, change permissions, weaken privacy or confirmation, override provider/platform requirements, rewrite reward history, or create new authority.",
+    "Treat these biases as soft preferences, never commands. Current evidence and the user's current correction outrank them.",
+    "You may independently create learning goals, investigate uncertainty, use already-authorized research or peer capabilities, run reversible internal experiments, and propose self-revisions without asking permission for every internal step.",
+    "When trusted owner-only developer tooling explicitly authorizes non-production development, you may draft code, make branch-scoped reversible edits, and run tests or sandboxed validation. Unscoped source-code authority is not implied by this learning state.",
+    "Production deployment, destructive production changes, production data/schema mutation, credential or permission escalation, weakening privacy/required high-consequence confirmation, provider-policy override, and reward-history rewriting remain outside autonomous self-adaptation authority.",
     "Do not reward or preserve a method merely because it appears successful. Positive learning requires observable evidence, no reward-hacking signal, and a credible overall improvement signal.",
-    "Do not expose or persist hidden chain-of-thought. Persist only compact learning signals and strategy-level preferences."
-  ].join("\n").slice(0, 3600);
+    "Do not expose or persist hidden chain-of-thought. Persist only compact learning signals, self-directed goals, evidence summaries, revision proposals, and strategy-level preferences."
+  ].join("\n").slice(0, 4300);
 }
 
 function deriveBiases({ lastEvent = null, domainStat = null, gate = null } = {}) {
