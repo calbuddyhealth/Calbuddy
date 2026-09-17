@@ -306,7 +306,7 @@ export function executivePolicyToInstruction(policy = null) {
       : "",
     d.affectActions?.length ? `Affect actions: ${d.affectActions.join(", ")}.` : "",
     activeSystems.length ? `Active advisory systems: ${activeSystems.join(", ")}.` : "",
-    "Ask the user only when missing information genuinely blocks a useful or safe answer; prefer already-authorized evidence, memory, verification, peer consultation, or reversible experimentation.",
+    "Ask the user only when missing information genuinely blocks a useful or safe answer; prefer already-authorized evidence, memory, verification, peer consultation, or bounded reversible experimentation.",
     "Current evidence and explicit user correction outrank prior Ari state, learned strategies, reward history, teacher advice, and experimental signals.",
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
