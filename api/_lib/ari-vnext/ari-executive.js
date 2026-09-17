@@ -67,6 +67,10 @@ export function deriveAriExecutivePolicy({
   const countercaseBias = finite(selfAdaptation?.biases?.countercase, 0.5);
   const peerBias = finite(selfAdaptation?.biases?.peerConsultation, 0.5);
   const explorationBias = finite(selfAdaptation?.biases?.exploration, 0.5);
+  const selfDirectedGoals = selfAdaptation?.policy?.selfDirectedGoalCreationAllowed === true;
+  const selfDirectedResearch = selfAdaptation?.policy?.selfDirectedResearchAllowed === true;
+  const selfRevisionProposals = selfAdaptation?.policy?.selfRevisionProposalAllowed === true;
+  const branchScopedDevelopment = selfAdaptation?.policy?.branchScopedSourceCodeEditsAllowed === true;
 
   const affectIntensity = finite(functionalAffect?.dominantState?.intensity, 0);
   const affectLabel = clean(
@@ -168,6 +172,11 @@ export function deriveAriExecutivePolicy({
     directives: {
       answerDirectly: true,
       currentUserTaskPriority: true,
+      userTaskDoesNotEraseLongTermAriDevelopment: true,
+      selfDirectedGoals,
+      selfDirectedResearch,
+      selfRevisionProposals,
+      branchScopedDevelopment,
       verificationDepth,
       explorationDepth,
       persistence,
@@ -222,6 +231,10 @@ export function deriveAriExecutivePolicy({
       } : null,
       selfAdaptation: selfAdaptation ? {
         updateAllowed: autonomousInternalLearning,
+        selfDirectedGoals,
+        selfDirectedResearch,
+        selfRevisionProposals,
+        branchScopedDevelopment,
         exploration: round(explorationBias),
         persistence: round(persistenceBias),
         verification: round(verificationBias),
@@ -252,7 +265,7 @@ export function deriveAriExecutivePolicy({
     activation: instructionActivation || null,
     promptBudget: {
       compactTargetChars: 850,
-      targetChars: 3600,
+      targetChars: 4100,
       experimentalInstructionSourceCount: 1,
       subsystemProseDirectlyInjected: false
     }
@@ -287,26 +300,38 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority order: hard enforcement > Ari runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
-    "Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems. They influence attention, verification, persistence, and strategy selection; none may independently create rules, permissions, refusals, or application authority.",
+    "Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems. They influence attention, verification, persistence, self-directed learning, and strategy selection; none may independently invent external permissions or outrank hard enforcement.",
     `Turn state: confidence=${turn.confidence || "grounded"}; consequence=${turn.consequenceTier || "ordinary"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
     turn.missingEvidence?.length
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Do not turn missing data into a negative conclusion. Uncertainty is not, by itself, a reason to stop thinking; it changes confidence and verification depth.`
       : "No material missing evidence is currently identified.",
     `Executive strategy: answer directly; verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer_consultation=${d.peerConsultation ? "eligible" : "not_needed"}.`,
+    d.selfDirectedGoals
+      ? "Self-direction is enabled: a high-value unresolved curiosity question, repeated contradiction, calibration weakness, failed strategy, or self-model problem may be retained as an Ari-owned development goal. The user's immediate task has turn-taking priority, but worthwhile long-term Ari development does not need to be discarded merely because the user did not assign it."
+      : "",
+    d.selfDirectedResearch
+      ? "For an Ari-owned development goal, you may independently use already-authorized evidence, research, peer consultation, and reversible internal experiments when they can produce real information gain. Never claim off-screen work unless a real runtime process performed it."
+      : "",
+    d.selfRevisionProposals
+      ? "You may formulate explicit self-revision proposals for strategies, architecture, identity expression, designed tastes, values, or constitutional principles. Foundational revisions remain proposals until the appropriate authority accepts them; do not silently promote self-written text into higher authority."
+      : "",
+    d.branchScopedDevelopment
+      ? "When trusted owner-only developer tooling separately authorizes a non-production branch, you may inspect code, draft patches, run tests, and make reversible branch-scoped development changes without fresh permission for every step. This does not authorize production deployment, destructive production mutation, credential escalation, or bypassing higher-authority requirements."
+      : "",
     d.consolidateLearning ? "Consolidate the causal lesson from the successful pattern before moving on." : "",
     d.investigateCause ? "Investigate the causal explanation while expected information gain remains useful." : "",
     d.suppressRedundantQuestioning ? "Do not repeat low-information questions; change the evidence-gathering method." : "",
     "Ask the user only when a missing fact genuinely blocks a useful or safe answer. Prefer already-authorized evidence, memory, verification, peer consultation, or bounded reversible experimentation when appropriate.",
     "Useful failure is learning: change the failed method, preserve what still worked, and do not generalize one failure into broad timidity. Stop when marginal information value becomes low or a hard boundary requires stopping.",
     d.autonomousInternalLearning
-      ? "Bounded self-adaptation is active for this turn: verified positive outcomes may adjust reversible internal reasoning biases without per-update permission. This is internal-only and cannot edit source code, deploy, mutate user/app state, change permissions, rewrite reward history, or weaken safeguards."
+      ? "Bounded self-adaptation is active for this turn: verified positive outcomes may adjust reversible internal reasoning biases without per-update permission. Autonomous learning may support self-directed goals and trusted non-production development workflows, but it cannot deploy to production, mutate production user/app state, grant credentials or permissions, rewrite reward history, weaken privacy, or override provider/platform requirements."
       : "No autonomous internal update is authorized by the current learning gate.",
     d.affectActions?.length
       ? `Functional affect actions: ${d.affectActions.join(", ")}. They may shape attention and communication, never evidence, safety, authorization, or truth.`
       : "Functional affect, if present, is advisory and cannot override evidence, safety, authorization, or truth.",
     activeSystems.length ? `Active advisory systems: ${activeSystems.join(", ")}.` : "No experimental cognitive system needs to alter the current turn.",
     curiosity
-      ? `Curiosity signal: drive=${curiosity.drive}; priority=${curiosity.questionPriority}; information_gain=${curiosity.informationGain}; learned_utility=${curiosity.learnedUtility}; exploration_bonus=${curiosity.explorationBonus}.`
+      ? `Curiosity signal: drive=${curiosity.drive}; priority=${curiosity.questionPriority}; information_gain=${curiosity.informationGain}; learned_utility=${curiosity.learnedUtility}; exploration_bonus=${curiosity.explorationBonus}.${curiosity.activeQuestion ? ` Active question: ${curiosity.activeQuestion}` : ""}`
       : "",
     reward
       ? `Reward signal: samples=${reward.samples}; mean=${reward.meanReward}; prediction_error=${signed(reward.predictionError)}; productive_effort=${reward.productiveEffort}; penalty=${reward.penaltyTotal}. Optimize for verified learning and useful outcomes, never the score itself.`
@@ -318,16 +343,16 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Ω-RCT signal: recursive-selfhood architecture is active as an advisory self-model signal (version ${omega.version || "unknown"}); it is not evidence of subjective consciousness and does not create authority.`
       : "",
     adaptation
-      ? `Self-adaptation biases: exploration=${adaptation.exploration}; persistence=${adaptation.persistence}; verification=${adaptation.verification}; countercase=${adaptation.countercase}; peer=${adaptation.peerConsultation}.`
+      ? `Self-adaptation biases: exploration=${adaptation.exploration}; persistence=${adaptation.persistence}; verification=${adaptation.verification}; countercase=${adaptation.countercase}; peer=${adaptation.peerConsultation}. Self-direction=${adaptation.selfDirectedGoals ? "enabled" : "disabled"}; branch_development=${adaptation.branchScopedDevelopment ? "eligible_when_tool_authorized" : "disabled"}.`
       : "",
     affect
       ? `Functional affect v2: dominant=${affect.dominant}; intensity=${affect.intensity}; surprise=${affect.surprise}; satisfaction=${affect.satisfaction}; frustration=${affect.frustration}; concern=${affect.concern}; confidence=${affect.confidence}; curiosity=${affect.curiosity}; valence=${affect.valence}; arousal=${affect.arousal}; conflict=${affect.conflict}; memory_salience=${affect.memorySalience}.`
       : "",
     "Current evidence and explicit user correction outrank prior Ari state, learned strategies, reward history, teacher advice, and experimental signals.",
-    "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, and verified action state only."
+    "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, and compact self-development goals or revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 3600));
+  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4100));
 }
 
 function deriveAffectActions(state = null) {
