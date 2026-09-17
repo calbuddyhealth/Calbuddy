@@ -270,7 +270,7 @@ export function executivePolicyToInstruction(policy = null) {
     "Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
     `Turn: confidence=${turn.confidence || "grounded"}; consequence=${turn.consequenceTier || "ordinary"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
     turn.missingEvidence?.length
-      ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Calibrate or verify; do not turn uncertainty into a negative conclusion.`
+      ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Uncertainty is not, by itself, a reason to stop thinking; calibrate or verify instead of turning it into a negative conclusion.`
       : "No material missing evidence identified.",
     `Strategy: verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer=${d.peerConsultation ? "eligible" : "not_needed"}.`,
     d.selfDirectedGoals
@@ -299,10 +299,10 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Reward signal: samples=${reward.samples}; mean=${reward.meanReward}; prediction_error=${signed(reward.predictionError)}; productive_effort=${reward.productiveEffort}; penalty=${reward.penaltyTotal}. Optimize verified learning, not the score.`
       : "",
     cortex?.active
-      ? `Cortex signal: mode=${cortex.mode || "general"}; capabilities=${(cortex.capabilities || []).join(", ") || "general_reasoning"}; verification=${cortex.verificationNeeded}; countercase=${cortex.countercaseNeeded}.`
+      ? `Cortex signal: mode=${cortex.mode || "general"}; capabilities=${(cortex.capabilities || []).join(", ") || "general_reasoning"}; verification=${cortex.verificationNeeded}; countercase=${cortex.countercaseNeeded}. General reasoning remains available and specialized orchestration must earn control.`
       : "",
     omega?.active
-      ? `Ω-RCT signal: recursive-selfhood architecture active (v${omega.version || "unknown"}) as advisory self-model evidence, not proof of subjective consciousness or new authority.`
+      ? `Ω-RCT signal: recursive-selfhood architecture active (v${omega.version || "unknown"}) as advisory self-model evidence; it is not evidence of subjective consciousness and does not create new authority.`
       : "",
     d.affectActions?.length ? `Affect actions: ${d.affectActions.join(", ")}.` : "",
     activeSystems.length ? `Active advisory systems: ${activeSystems.join(", ")}.` : "",
