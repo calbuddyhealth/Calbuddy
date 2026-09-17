@@ -1,6 +1,6 @@
 import { runAriAutonomyCycle } from "./_lib/ari-vnext/autonomy-runtime.js";
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 120 };
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -15,8 +15,19 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, code: "ARI_AUTONOMY_UNAUTHORIZED" });
   }
 
-  if (String(process.env.ARI_AUTONOMY_RUNTIME_ENABLED || "").trim().toLowerCase() !== "true") {
+  // Owner-mode autonomy is enabled by default once this runtime is deployed.
+  // Either switch can still explicitly disable autonomous cognition or branch writes.
+  if (isExplicitlyDisabled(process.env.ARI_AUTONOMY_RUNTIME_ENABLED)) {
     return res.status(200).json({ success: true, acted: false, reason: "autonomy_runtime_disabled" });
+  }
+  if (!process.env.ARI_AUTONOMY_RUNTIME_ENABLED) {
+    process.env.ARI_AUTONOMY_RUNTIME_ENABLED = "true";
+  }
+  if (!process.env.ARI_AUTONOMOUS_DEV_ENABLED) {
+    process.env.ARI_AUTONOMOUS_DEV_ENABLED = "true";
+  }
+  if (!process.env.ARI_AUTONOMOUS_DEV_BRANCH) {
+    process.env.ARI_AUTONOMOUS_DEV_BRANCH = "agent/ari-autonomous-development";
   }
 
   const userId = clean(process.env.ARI_OWNER_USER_ID, 200);
@@ -35,6 +46,10 @@ export default async function handler(req, res) {
       code: "ARI_AUTONOMY_CYCLE_FAILED"
     });
   }
+}
+
+function isExplicitlyDisabled(value) {
+  return String(value ?? "").trim().toLowerCase() === "false";
 }
 
 function setHeaders(res) {
