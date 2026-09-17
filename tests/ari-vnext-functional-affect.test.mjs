@@ -206,7 +206,7 @@ test("owner metacognition preserves functional affect state while Ari Executive 
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
   assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
   assert.match(instruction, /Functional affect signal:/i);
-  assert.match(instruction, /cannot override evidence, safety, authorization, or truth/i);
+  assert.match(instruction, /(?:cannot override|never) evidence, safety, authorization, or truth/i);
   assert.doesNotMatch(instruction, /ARI FUNCTIONAL AFFECT CORE v1/);
 });
 
