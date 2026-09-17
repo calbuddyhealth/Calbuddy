@@ -109,7 +109,7 @@ test("positive prediction error produces functional surprise and satisfaction wi
     consequenceTier: "ordinary"
   });
 
-  assert.equal(ARI_FUNCTIONAL_AFFECT_VERSION, "1.0.0");
+  assert.equal(ARI_FUNCTIONAL_AFFECT_VERSION, "2.0.0");
   assert.equal(state.functionalAnalogue, true);
   assert.equal(state.subjectiveFeelingClaimed, false);
   assert.equal(state.policy.rewardScoreNotModifiedByAffect, true);
@@ -117,7 +117,7 @@ test("positive prediction error produces functional surprise and satisfaction wi
   assert.ok(state.signals.surprise > 0.1);
   assert.ok(state.signals.confidence > 0.6);
   assert.ok(state.signals.curiosity > 0.45);
-  assert.match(functionalAffectToInstruction(state), /FUNCTIONAL AFFECT CORE v1/);
+  assert.match(functionalAffectToInstruction(state), /FUNCTIONAL AFFECT CORE v2/);
 });
 
 test("negative prediction error raises frustration and changes method rather than suppressing curiosity", () => {
@@ -205,9 +205,9 @@ test("owner metacognition preserves functional affect state while Ari Executive 
   assert.ok(state.evidenceSignals.includes("functional_affect_active"));
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
   assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
-  assert.match(instruction, /Functional affect signal:/i);
+  assert.match(instruction, /Functional affect v2:/i);
   assert.match(instruction, /(?:cannot override|never) evidence, safety, authorization, or truth/i);
-  assert.doesNotMatch(instruction, /ARI FUNCTIONAL AFFECT CORE v1/);
+  assert.doesNotMatch(instruction, /ARI FUNCTIONAL AFFECT CORE v2/);
 });
 
 test("ordinary non-owner metacognition has no functional affect layer", () => {
