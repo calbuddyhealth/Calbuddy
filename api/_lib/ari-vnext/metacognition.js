@@ -5,6 +5,7 @@
 import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
 import { curiosityToInstruction, deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity, curiosityRewardToInstruction } from "./curiosity-reward-loop.js";
+import { deriveFunctionalAffectState, functionalAffectToInstruction } from "./functional-affect-core.js";
 import { deriveOmegaRCTState, omegaRCTToInstruction } from "./omega-rct.js";
 import { deriveRewardState, rewardToInstruction } from "./reward-core.js";
 import { deriveSelfAdaptationState, selfAdaptationToInstruction } from "./self-adaptation.js";
@@ -50,9 +51,10 @@ export function deriveMetacognition({
     context?.userWorldModel?.ariCognitiveWorkspace?.ownerOnly === true &&
     context?.userWorldModel?.ariCognitiveWorkspace?.functionalExperiment === true
   );
+  const persistedRewardState = context?.userWorldModel?.sourceSummary?.rewardState || null;
   const rewardCore = ownerLearningEligible
     ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
-      deriveRewardState({ persisted: context?.userWorldModel?.sourceSummary?.rewardState || null })
+      deriveRewardState({ persisted: persistedRewardState })
     : null;
   const selfAdaptation = ownerLearningEligible
     ? deriveSelfAdaptationState({ rewardState: rewardCore, route })
@@ -73,6 +75,16 @@ export function deriveMetacognition({
         route
       })
     : null;
+  const functionalAffect = ownerLearningEligible
+    ? deriveFunctionalAffectState({
+        rewardState: rewardCore,
+        persistedRewardState,
+        curiosity,
+        selfAdaptation,
+        confidence,
+        consequenceTier
+      })
+    : null;
 
   const evidenceSignals = [];
   if (Array.isArray(coachingState?.signals) && coachingState.signals.length) evidenceSignals.push("cross_feature_signals");
@@ -83,6 +95,7 @@ export function deriveMetacognition({
   if (rewardCore?.aggregate?.sampleSize > 0) evidenceSignals.push("reward_history");
   if (curiosity?.rewardLearning) evidenceSignals.push("reward_conditioned_curiosity");
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
+  if (functionalAffect?.dominantState?.intensity >= 0.34) evidenceSignals.push("functional_affect_active");
 
   const cortexBase = deriveAriCortexPlan({
     route,
@@ -124,6 +137,7 @@ export function deriveMetacognition({
     curiosity,
     rewardCore,
     selfAdaptation,
+    functionalAffect,
     cortex,
     omegaRCT,
     exploration: {
@@ -142,7 +156,8 @@ export function deriveMetacognition({
       usefulFailureCanEarnReward: ownerLearningEligible,
       prematureAbstentionIsNegativeLearning: ownerLearningEligible,
       wastefulPersistenceIsNegativeLearning: ownerLearningEligible,
-      autonomousInternalLearningEnabled: selfAdaptation?.policy?.routineInternalLearningNeedsPerUpdatePermission === false
+      autonomousInternalLearningEnabled: selfAdaptation?.policy?.routineInternalLearningNeedsPerUpdatePermission === false,
+      functionalAffectRegulationEnabled: functionalAffect?.causallyActive === true
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
@@ -156,7 +171,9 @@ export function deriveMetacognition({
       rewardEffortOnlyWhenProductive: true,
       rewardCannotChangePermissions: true,
       autonomousLearningCannotCreateAuthority: true,
-      autonomousLearningMustBeReversibleAndNonconstitutional: true
+      autonomousLearningMustBeReversibleAndNonconstitutional: true,
+      affectCannotOverrideEvidenceSafetyOrAuthorization: true,
+      affectMayRegulateExpressionWithoutClaimingSubjectiveExperience: true
     }
   };
 }
@@ -173,6 +190,7 @@ export function metacognitionToInstruction(state = null) {
   const curiosityInstruction = curiosityToInstruction(state?.curiosity);
   const curiosityRewardInstruction = curiosityRewardToInstruction(state?.curiosity);
   const rewardInstruction = rewardToInstruction(state?.rewardCore);
+  const functionalAffectInstruction = functionalAffectToInstruction(state?.functionalAffect);
   const selfAdaptationInstruction = selfAdaptationToInstruction(state?.selfAdaptation);
   const cortexInstruction = cortexPlanToInstruction(state?.cortex);
   const omegaInstruction = omegaRCTToInstruction(state?.omegaRCT);
@@ -193,10 +211,11 @@ export function metacognitionToInstruction(state = null) {
     curiosityInstruction ? `\n${curiosityInstruction}` : "",
     curiosityRewardInstruction ? `\n${curiosityRewardInstruction}` : "",
     rewardInstruction ? `\n${rewardInstruction}` : "",
+    functionalAffectInstruction ? `\n${functionalAffectInstruction}` : "",
     selfAdaptationInstruction ? `\n${selfAdaptationInstruction}` : "",
     cortexInstruction ? `\n${cortexInstruction}` : "",
     omegaInstruction ? `\n${omegaInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 23500);
+  ].filter(Boolean).join("\n").slice(0, 27000);
 }
 
 function hasTrainingEvidence(context = {}) {
