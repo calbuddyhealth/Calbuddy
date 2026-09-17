@@ -24,7 +24,7 @@ test("ordinary uncertainty remains exploratory instead of becoming paralysis", (
   assert.equal(state.exploration.reversibleExperimentAllowed, true);
   assert.equal(state.rules.lowConfidenceIsNotAStopSignal, true);
   assert.equal(state.rules.guardConsequencesNotImagination, true);
-  assert.match(instruction, /not automatically a stop signal/i);
+  assert.match(instruction, /not, by itself, a reason to stop thinking/i);
   assert.match(instruction, /bounded reversible experimentation/i);
   assert.equal(state.executivePolicy.directives.askUserOnlyIfBlocked, true);
 });
