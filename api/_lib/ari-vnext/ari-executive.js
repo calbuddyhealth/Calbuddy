@@ -71,6 +71,7 @@ export function deriveAriExecutivePolicy({
   const selfDirectedResearch = selfAdaptation?.policy?.selfDirectedResearchAllowed === true;
   const selfRevisionProposals = selfAdaptation?.policy?.selfRevisionProposalAllowed === true;
   const branchScopedDevelopment = selfAdaptation?.policy?.branchScopedSourceCodeEditsAllowed === true;
+  const selfDirection = deriveSelfDirectionState({ curiosity, enabled: selfDirectedGoals });
 
   const affectIntensity = finite(functionalAffect?.dominantState?.intensity, 0);
   const affectLabel = clean(
@@ -205,6 +206,7 @@ export function deriveAriExecutivePolicy({
         explorationBonus: round(explorationBonus),
         activeQuestion: clean(activeQuestion?.question, 260) || null
       } : null,
+      selfDirection,
       reward: rewardCore ? {
         samples: rewardSamples,
         meanReward: round(finite(rewardCore?.aggregate?.meanReward, 0.55)),
@@ -265,7 +267,7 @@ export function deriveAriExecutivePolicy({
     activation: instructionActivation || null,
     promptBudget: {
       compactTargetChars: 850,
-      targetChars: 4100,
+      targetChars: 4300,
       experimentalInstructionSourceCount: 1,
       subsystemProseDirectlyInjected: false
     }
@@ -291,6 +293,7 @@ export function executivePolicyToInstruction(policy = null) {
     .filter(([, value]) => value && (value.active !== false || Object.keys(value).length > 1))
     .map(([key]) => key);
   const curiosity = signals.curiosity;
+  const selfDirection = signals.selfDirection;
   const reward = signals.reward;
   const affect = signals.affect;
   const adaptation = signals.selfAdaptation;
@@ -308,6 +311,9 @@ export function executivePolicyToInstruction(policy = null) {
     `Executive strategy: answer directly; verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer_consultation=${d.peerConsultation ? "eligible" : "not_needed"}.`,
     d.selfDirectedGoals
       ? "Self-direction is enabled: a high-value unresolved curiosity question, repeated contradiction, calibration weakness, failed strategy, or self-model problem may be retained as an Ari-owned development goal. The user's immediate task has turn-taking priority, but worthwhile long-term Ari development does not need to be discarded merely because the user did not assign it."
+      : "",
+    selfDirection?.goals?.length
+      ? `Ari-owned development queue (${selfDirection.persistence}): ${selfDirection.goals.map((goal) => `[${goal.id}] ${goal.label} (priority ${goal.priority})`).join(" | ")}. Advance a goal only when the current turn or an actually executed authorized process provides relevant evidence; otherwise preserve it without pretending off-screen work occurred.`
       : "",
     d.selfDirectedResearch
       ? "For an Ari-owned development goal, you may independently use already-authorized evidence, research, peer consultation, and reversible internal experiments when they can produce real information gain. Never claim off-screen work unless a real runtime process performed it."
@@ -352,7 +358,56 @@ export function executivePolicyToInstruction(policy = null) {
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, and compact self-development goals or revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4100));
+  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4300));
+}
+
+function deriveSelfDirectionState({ curiosity = null, enabled = false } = {}) {
+  if (!enabled || !curiosity || typeof curiosity !== "object") {
+    return {
+      enabled: Boolean(enabled),
+      persistence: "none",
+      goals: [],
+      activeGoal: null
+    };
+  }
+
+  const eligibleTopics = new Set(["developer", "self_model", "decision", "evidence", "continuity"]);
+  const candidates = Array.isArray(curiosity?.questions) ? curiosity.questions : [];
+  const goals = candidates
+    .filter((item) => clean(item?.status, 40).toLowerCase() !== "closed")
+    .filter((item) => finite(item?.priority, 0) >= 0.66)
+    .filter((item) => eligibleTopics.has(clean(item?.topic, 60).toLowerCase()) || /architecture|reasoning|evidence|memory|continuity|calibration|assumption|contradiction/i.test(clean(item?.question, 320)))
+    .map((item) => ({
+      id: `ari_goal:${clean(item?.id, 150) || slugGoal(item?.question)}`,
+      label: clean(item?.question, 300),
+      topic: clean(item?.topic, 60) || "general",
+      priority: round(finite(item?.priority, 0.66)),
+      informationGain: round(finite(item?.informationGain, 0)),
+      status: "open",
+      source: "persistent_curiosity_state",
+      sourceQuestionId: clean(item?.id, 150) || null,
+      ageTurns: Math.max(0, Math.round(finite(item?.ageTurns, 0))),
+      encounters: Math.max(0, Math.round(finite(item?.encounters, 0)))
+    }))
+    .filter((item) => item.label)
+    .sort((a, b) => b.priority - a.priority || b.informationGain - a.informationGain || a.ageTurns - b.ageTurns)
+    .slice(0, 6);
+
+  const activeQuestionId = clean(curiosity?.activeQuestion?.id, 150);
+  const activeGoal = goals.find((goal) => goal.sourceQuestionId === activeQuestionId) || goals[0] || null;
+
+  return {
+    enabled: true,
+    persistence: "derived_from_persisted_curiosity_state",
+    goals,
+    activeGoal,
+    rules: {
+      userTurnPriorityWithoutGoalErasure: true,
+      goalsRequireEvidenceToAdvance: true,
+      noOffscreenProgressClaims: true,
+      hiddenChainOfThoughtStored: false
+    }
+  };
 }
 
 function deriveAffectActions(state = null) {
@@ -379,6 +434,14 @@ function compactArray(values = [], limit = 8, max = 120) {
     .map((item) => clean(item, max))
     .filter(Boolean)
     .slice(0, limit);
+}
+
+function slugGoal(value = "") {
+  return clean(value, 200)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 100) || "development";
 }
 
 function clean(value, max = 1000) {
