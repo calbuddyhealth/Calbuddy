@@ -88,7 +88,7 @@ test("owner, premium, and casual entitlements remain separate dimensions", () =>
   });
 });
 
-test("owner greetings use a fast model while short meaningful advice stays Advanced Ari", () => {
+test("owner greetings keep the Advanced Ari model with low reasoning while meaningful advice stays Advanced Ari", () => {
   withEnv({
     OPENAI_ARI_OWNER_MODEL: "gpt-5.6",
     OPENAI_ARI_OWNER_FAST_MODEL: "gpt-4o-mini"
@@ -107,7 +107,9 @@ test("owner greetings use a fast model while short meaningful advice stays Advan
       context: { intelligenceEntitlement: entitlement }
     });
     const greetingPolicy = resolveModelPolicy(greetingRoute);
-    assert.equal(greetingPolicy.model, "gpt-4o-mini");
+    assert.equal(greetingPolicy.model, "gpt-5.6");
+    assert.equal(greetingPolicy.reasoningEffort, "low");
+    assert.equal(greetingPolicy.ownerModelContinuity, true);
     assert.equal(greetingPolicy.casualConversation, true);
 
     const adviceRoute = routeContext({
