@@ -227,6 +227,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   // and /api/usage are Vercel rewrites into secure-ai-gateway. Only actual
   // serverless entry-point files belong in this reviewed allowlist.
   const reviewed = [
+    "ari-autonomy-cycle.js",
     "ari-circle-moderation.js",
     "ari-circle-push-dispatch.js",
     "ari-conversation.js",
@@ -265,6 +266,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("ari-owner-intelligence-controls.js"), true, "owner intelligence controls must remain explicit server API surface");
   assert.equal(names.has("ari-circle-push-dispatch.js"), true, "Circle native push dispatcher must remain explicit reviewed server API surface");
   assert.equal(names.has("ari-daily-chat-quota.js"), true, "daily chat quota must remain an explicit reviewed server API surface");
+  assert.equal(names.has("ari-autonomy-cycle.js"), true, "owner autonomy cycle must remain an explicit reviewed server API surface");
 
   for (const removed of [
     "actions.js",

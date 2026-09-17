@@ -4,6 +4,10 @@
     {
       "path": "/api/ari-signals-scan",
       "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/ari-autonomy-cycle",
+      "schedule": "47 * * * *"
     }
   ],
   "rewrites": [
