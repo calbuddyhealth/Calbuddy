@@ -4,8 +4,10 @@
 
 import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
 import { curiosityToInstruction, deriveCuriosityState } from "./curiosity-core.js";
+import { applyRewardLearningToCuriosity, curiosityRewardToInstruction } from "./curiosity-reward-loop.js";
 import { deriveOmegaRCTState, omegaRCTToInstruction } from "./omega-rct.js";
 import { deriveRewardState, rewardToInstruction } from "./reward-core.js";
+import { deriveSelfAdaptationState, selfAdaptationToInstruction } from "./self-adaptation.js";
 
 export const ARI_METACOGNITION_VERSION = "1.5.0";
 
@@ -48,7 +50,14 @@ export function deriveMetacognition({
     context?.userWorldModel?.ariCognitiveWorkspace?.ownerOnly === true &&
     context?.userWorldModel?.ariCognitiveWorkspace?.functionalExperiment === true
   );
-  const curiosity = ownerLearningEligible
+  const rewardCore = ownerLearningEligible
+    ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
+      deriveRewardState({ persisted: context?.userWorldModel?.sourceSummary?.rewardState || null })
+    : null;
+  const selfAdaptation = ownerLearningEligible
+    ? deriveSelfAdaptationState({ rewardState: rewardCore, route })
+    : null;
+  const baseCuriosity = ownerLearningEligible
     ? deriveCuriosityState({
         persisted: context?.userWorldModel?.sourceSummary?.curiosityState || null,
         route,
@@ -56,9 +65,13 @@ export function deriveMetacognition({
         missingEvidence: missing
       })
     : null;
-  const rewardCore = ownerLearningEligible
-    ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
-      deriveRewardState({ persisted: context?.userWorldModel?.sourceSummary?.rewardState || null })
+  const curiosity = ownerLearningEligible
+    ? applyRewardLearningToCuriosity({
+        curiosity: baseCuriosity,
+        rewardState: rewardCore,
+        selfAdaptation,
+        route
+      })
     : null;
 
   const evidenceSignals = [];
@@ -68,6 +81,8 @@ export function deriveMetacognition({
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
   if (curiosity?.activeQuestion && Number(curiosity.activeQuestion.priority || 0) >= 0.72) evidenceSignals.push("curiosity_active");
   if (rewardCore?.aggregate?.sampleSize > 0) evidenceSignals.push("reward_history");
+  if (curiosity?.rewardLearning) evidenceSignals.push("reward_conditioned_curiosity");
+  if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
 
   const cortexBase = deriveAriCortexPlan({
     route,
@@ -108,6 +123,7 @@ export function deriveMetacognition({
     evidenceSignals,
     curiosity,
     rewardCore,
+    selfAdaptation,
     cortex,
     omegaRCT,
     exploration: {
@@ -120,10 +136,13 @@ export function deriveMetacognition({
       generalizedRetreatFromSingleFailure: false,
       persistentCuriosityEnabled: ownerLearningEligible,
       curiosityMustProduceInformationGain: ownerLearningEligible,
+      rewardConditionedCuriosityEnabled: ownerLearningEligible,
+      explorationBonusPreventsRewardLockIn: ownerLearningEligible,
       productiveEffortRewardEnabled: ownerLearningEligible,
       usefulFailureCanEarnReward: ownerLearningEligible,
       prematureAbstentionIsNegativeLearning: ownerLearningEligible,
-      wastefulPersistenceIsNegativeLearning: ownerLearningEligible
+      wastefulPersistenceIsNegativeLearning: ownerLearningEligible,
+      autonomousInternalLearningEnabled: selfAdaptation?.policy?.routineInternalLearningNeedsPerUpdatePermission === false
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
@@ -135,7 +154,9 @@ export function deriveMetacognition({
       learnLocallyFromFailure: true,
       curiositySupportsUserTaskRatherThanHijackingIt: true,
       rewardEffortOnlyWhenProductive: true,
-      rewardCannotChangePermissions: true
+      rewardCannotChangePermissions: true,
+      autonomousLearningCannotCreateAuthority: true,
+      autonomousLearningMustBeReversibleAndNonconstitutional: true
     }
   };
 }
@@ -150,7 +171,9 @@ export function metacognitionToInstruction(state = null) {
     : "none";
   const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
   const curiosityInstruction = curiosityToInstruction(state?.curiosity);
+  const curiosityRewardInstruction = curiosityRewardToInstruction(state?.curiosity);
   const rewardInstruction = rewardToInstruction(state?.rewardCore);
+  const selfAdaptationInstruction = selfAdaptationToInstruction(state?.selfAdaptation);
   const cortexInstruction = cortexPlanToInstruction(state?.cortex);
   const omegaInstruction = omegaRCTToInstruction(state?.omegaRCT);
 
@@ -168,10 +191,12 @@ export function metacognitionToInstruction(state = null) {
     "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
     "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
     curiosityInstruction ? `\n${curiosityInstruction}` : "",
+    curiosityRewardInstruction ? `\n${curiosityRewardInstruction}` : "",
     rewardInstruction ? `\n${rewardInstruction}` : "",
+    selfAdaptationInstruction ? `\n${selfAdaptationInstruction}` : "",
     cortexInstruction ? `\n${cortexInstruction}` : "",
     omegaInstruction ? `\n${omegaInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 19000);
+  ].filter(Boolean).join("\n").slice(0, 23500);
 }
 
 function hasTrainingEvidence(context = {}) {
