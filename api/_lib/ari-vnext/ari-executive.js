@@ -5,7 +5,7 @@
 // instructions for the primary model. Hard server-side enforcement remains
 // authoritative and cannot be weakened by this module.
 
-export const ARI_EXECUTIVE_VERSION = "1.1.0";
+export const ARI_EXECUTIVE_VERSION = "1.0.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
