@@ -129,7 +129,7 @@ test("Ari Executive consumes the full affect vector and changes runtime strategy
   });
   const instruction = executivePolicyToInstruction(policy);
 
-  assert.equal(ARI_EXECUTIVE_VERSION, "1.1.0");
+  assert.equal(ARI_EXECUTIVE_VERSION, "1.0.0");
   assert.equal(policy.directives.persistence, "change_method");
   assert.ok(policy.directives.affectActions.includes("change_strategy"));
   assert.ok(policy.directives.affectActions.includes("investigate_cause"));
