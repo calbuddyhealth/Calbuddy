@@ -12,7 +12,7 @@ import { deriveOmegaRCTState } from "./omega-rct.js";
 import { deriveRewardState } from "./reward-core.js";
 import { deriveSelfAdaptationState } from "./self-adaptation.js";
 
-export const ARI_METACOGNITION_VERSION = "1.5.0";
+export const ARI_METACOGNITION_VERSION = "1.6.0";
 export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
 
 export function deriveMetacognition({
@@ -55,6 +55,10 @@ export function deriveMetacognition({
     context?.userWorldModel?.ariCognitiveWorkspace?.functionalExperiment === true
   );
   const persistedRewardState = context?.userWorldModel?.sourceSummary?.rewardState || null;
+  const persistedAffectState =
+    context?.userWorldModel?.ariCognitiveWorkspace?.affectState ||
+    context?.userWorldModel?.sourceSummary?.affectState ||
+    null;
   const rewardCore = ownerLearningEligible
     ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
       deriveRewardState({ persisted: persistedRewardState })
@@ -82,6 +86,7 @@ export function deriveMetacognition({
     ? deriveFunctionalAffectState({
         rewardState: rewardCore,
         persistedRewardState,
+        persistedAffectState,
         curiosity,
         selfAdaptation,
         confidence,
@@ -99,6 +104,7 @@ export function deriveMetacognition({
   if (curiosity?.rewardLearning) evidenceSignals.push("reward_conditioned_curiosity");
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
   if (functionalAffect?.dominantState?.intensity >= 0.34) evidenceSignals.push("functional_affect_active");
+  if (functionalAffect?.persistence?.priorStateUsed === true) evidenceSignals.push("functional_affect_persistent");
 
   const cortexBase = deriveAriCortexPlan({
     route,
@@ -189,7 +195,8 @@ export function deriveMetacognition({
       prematureAbstentionIsNegativeLearning: ownerLearningEligible,
       wastefulPersistenceIsNegativeLearning: ownerLearningEligible,
       autonomousInternalLearningEnabled: selfAdaptation?.policy?.routineInternalLearningNeedsPerUpdatePermission === false,
-      functionalAffectRegulationEnabled: functionalAffect?.causallyActive === true
+      functionalAffectRegulationEnabled: functionalAffect?.causallyActive === true,
+      persistentAffectEnabled: functionalAffect?.persistence?.enabled === true
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
@@ -215,8 +222,6 @@ export function metacognitionToInstruction(state = null) {
   if (!state) return "";
   if (state?.executivePolicy) return executivePolicyToInstruction(state.executivePolicy);
 
-  // Compatibility for callers that construct a legacy metacognition object by
-  // hand. Even this path still produces one consolidated executive instruction.
   const policy = deriveAriExecutivePolicy({
     confidence: state?.confidence || "grounded",
     attention: state?.attention || ["conversation"],
