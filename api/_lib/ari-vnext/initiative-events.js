@@ -17,7 +17,7 @@ export async function listRecentInitiatives({ userId, limit = 20 } = {}) {
   });
   try {
     const response = await fetch(`${config.url}/rest/v1/${TABLE}?${params.toString()}`, { headers: serverHeaders(config.key) });
-    if (!response.ok) return null;
+    if (!response.ok) return [];
     const rows = await response.json().catch(() => []);
     return Array.isArray(rows) ? rows.map(normalizeRow) : [];
   } catch {
