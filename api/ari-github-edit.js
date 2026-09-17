@@ -1,12 +1,27 @@
 // api/ari-github-edit.js
 // Ari GitHub Edit Endpoint
-// V2.1.0 — Supabase-verified owner authorization
+// V2.2.0 — Supabase-verified owner authorization + isolated autonomous development branch
 
 import {
   sendOwnerAuthorizationError,
   setOwnerSecurityHeaders,
   verifyOwnerRequest
 } from "../server/ari-owner-auth.js";
+
+const AUTONOMOUS_DEV_MAX_FIND_CHARS = 12000;
+const AUTONOMOUS_DEV_MAX_REPLACE_CHARS = 12000;
+const AUTONOMOUS_DEV_PROTECTED_PATHS = Object.freeze([
+  ".github/",
+  ".env",
+  "OWNER_MODE_SECURITY.md",
+  "vercel.json",
+  "package.json",
+  "package-lock.json",
+  "api/ari-github-edit.js",
+  "api/ari-owner-intelligence-controls.js",
+  "server/ari-owner-auth.js",
+  "supabase/"
+]);
 
 export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
@@ -28,9 +43,9 @@ export default async function handler(req, res) {
 
     const token = String(process.env.GITHUB_TOKEN || "").trim();
     const repo = String(process.env.GITHUB_REPO || "").trim();
-    const branch = String(process.env.GITHUB_BRANCH || "").trim();
+    const productionBranch = String(process.env.GITHUB_BRANCH || "").trim();
 
-    if (!token || !repo || !branch) {
+    if (!token || !repo || !productionBranch) {
       return res.status(500).json({
         success: false,
         error: "GitHub env variables missing",
@@ -48,7 +63,8 @@ export default async function handler(req, res) {
       commitMessage,
       confirmationText,
       previousContent,
-      replaceAll = false
+      replaceAll = false,
+      autonomousDevelopment = false
     } = req.body || {};
 
     if (!["preview", "commit", "undo"].includes(mode)) {
@@ -75,6 +91,29 @@ export default async function handler(req, res) {
       });
     }
 
+    const autonomous = autonomousDevelopment === true;
+    const autonomousPolicy = autonomous
+      ? resolveAutonomousDevelopmentPolicy({
+          productionBranch,
+          filePath,
+          mode,
+          operation,
+          find,
+          replace,
+          replaceAll
+        })
+      : { allowed: false, branch: productionBranch, reason: "manual_mode" };
+
+    if (autonomous && !autonomousPolicy.allowed) {
+      return res.status(403).json({
+        success: false,
+        error: autonomousPolicy.message || "Autonomous development request rejected",
+        code: autonomousPolicy.code || "AUTONOMOUS_DEVELOPMENT_REJECTED",
+        reason: autonomousPolicy.reason || null
+      });
+    }
+
+    const branch = autonomous ? autonomousPolicy.branch : productionBranch;
     const apiBase = `https://api.github.com/repos/${repo}/contents/${encodeURIComponentPath(
       filePath
     )}`;
@@ -124,7 +163,7 @@ export default async function handler(req, res) {
     let editedContent = "";
 
     if (mode === "undo") {
-      if (confirmationText !== "CONFIRM GITHUB EDIT") {
+      if (!autonomous && confirmationText !== "CONFIRM GITHUB EDIT") {
         return res.status(403).json({
           success: false,
           error: "Exact confirmation required: CONFIRM GITHUB EDIT",
@@ -151,11 +190,20 @@ export default async function handler(req, res) {
         branch,
         filePath,
         message: `Undo Ari edit to ${filePath}`,
-        mode: "undo"
+        mode: "undo",
+        autonomousDevelopment: autonomous
       });
     }
 
     if (operation === "full_replace") {
+      if (autonomous) {
+        return res.status(403).json({
+          success: false,
+          error: "Autonomous development only permits exact replace operations",
+          code: "AUTONOMOUS_FULL_REPLACE_BLOCKED"
+        });
+      }
+
       if (typeof newContent !== "string" || !newContent.trim()) {
         return res.status(400).json({
           success: false,
@@ -186,7 +234,7 @@ export default async function handler(req, res) {
         currentContent,
         find,
         replace: String(replace),
-        replaceAll
+        replaceAll: autonomous ? false : replaceAll
       });
 
       if (!result.changed) {
@@ -228,20 +276,23 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         mode: "preview",
+        authorizationMode: autonomous ? "autonomous_development" : "owner_confirmation",
+        autonomousDevelopment: autonomous,
         filePath,
         branch,
         operation,
-        replaceAll,
+        replaceAll: autonomous ? false : replaceAll,
         currentContent,
         proposedContent: editedContent,
         diffSummary: buildDiffSummary(currentContent, editedContent),
-        message:
-          "Preview ready. No GitHub changes were made. Type CONFIRM GITHUB EDIT to commit."
+        message: autonomous
+          ? "Preview ready on the isolated Ari development branch. No GitHub changes were made."
+          : "Preview ready. No GitHub changes were made. Type CONFIRM GITHUB EDIT to commit."
       });
     }
 
     if (mode === "commit") {
-      if (confirmationText !== "CONFIRM GITHUB EDIT") {
+      if (!autonomous && confirmationText !== "CONFIRM GITHUB EDIT") {
         return res.status(403).json({
           success: false,
           error: "Exact confirmation required: CONFIRM GITHUB EDIT",
@@ -259,11 +310,14 @@ export default async function handler(req, res) {
         filePath,
         message: commitMessage || `Ari update ${filePath}`,
         mode: "commit",
+        autonomousDevelopment: autonomous,
         rollbackPayload: {
           mode: "undo",
           filePath,
           previousContent: currentContent,
-          confirmationText: "CONFIRM GITHUB EDIT"
+          ...(autonomous
+            ? { autonomousDevelopment: true }
+            : { confirmationText: "CONFIRM GITHUB EDIT" })
         }
       });
     }
@@ -283,6 +337,120 @@ export default async function handler(req, res) {
       github: err.github || null
     });
   }
+}
+
+export function resolveAutonomousDevelopmentPolicy({
+  productionBranch = "",
+  filePath = "",
+  mode = "",
+  operation = "replace",
+  find = "",
+  replace = "",
+  replaceAll = false,
+  enabled = String(process.env.ARI_AUTONOMOUS_DEV_ENABLED || "").trim().toLowerCase() === "true",
+  autonomousBranch = String(process.env.ARI_AUTONOMOUS_DEV_BRANCH || "").trim()
+} = {}) {
+  if (!enabled) {
+    return autonomousBlocked(
+      "AUTONOMOUS_DEVELOPMENT_DISABLED",
+      "autonomous_development_disabled",
+      "Autonomous development is not enabled on this deployment."
+    );
+  }
+
+  if (!isSafeAutonomousDevelopmentBranch({ autonomousBranch, productionBranch })) {
+    return autonomousBlocked(
+      "AUTONOMOUS_BRANCH_UNSAFE",
+      "unsafe_or_missing_autonomous_branch",
+      "Autonomous development requires a dedicated non-production agent/ari-* branch."
+    );
+  }
+
+  if (!["preview", "commit", "undo"].includes(mode)) {
+    return autonomousBlocked(
+      "AUTONOMOUS_MODE_UNSUPPORTED",
+      "unsupported_mode",
+      "Autonomous development supports preview, commit, and undo only."
+    );
+  }
+
+  if (isProtectedAutonomousDevelopmentPath(filePath)) {
+    return autonomousBlocked(
+      "AUTONOMOUS_PATH_PROTECTED",
+      "protected_control_plane_path",
+      "This file is protected from autonomous development edits."
+    );
+  }
+
+  if (mode !== "undo") {
+    if (operation !== "replace") {
+      return autonomousBlocked(
+        "AUTONOMOUS_OPERATION_UNSUPPORTED",
+        "exact_replace_required",
+        "Autonomous development only permits exact replace operations."
+      );
+    }
+
+    if (replaceAll === true) {
+      return autonomousBlocked(
+        "AUTONOMOUS_REPLACE_ALL_BLOCKED",
+        "replace_all_not_allowed",
+        "Autonomous development does not permit replaceAll."
+      );
+    }
+
+    const findText = String(find || "");
+    const replaceText = String(replace ?? "");
+    if (!findText || findText.length > AUTONOMOUS_DEV_MAX_FIND_CHARS || replaceText.length > AUTONOMOUS_DEV_MAX_REPLACE_CHARS) {
+      return autonomousBlocked(
+        "AUTONOMOUS_PATCH_TOO_LARGE",
+        "patch_exceeds_autonomous_scope",
+        "Autonomous development patches must be bounded exact replacements."
+      );
+    }
+  }
+
+  return {
+    allowed: true,
+    branch: autonomousBranch,
+    reason: "owner_verified_isolated_reversible_development",
+    confirmationRequired: false,
+    productionAuthority: false,
+    exactReplaceOnly: mode !== "undo",
+    replaceAllAllowed: false
+  };
+}
+
+export function isSafeAutonomousDevelopmentBranch({ autonomousBranch = "", productionBranch = "" } = {}) {
+  const branch = String(autonomousBranch || "").trim();
+  const production = String(productionBranch || "").trim();
+  if (!branch) return false;
+  if (production && branch === production) return false;
+  if (/^(main|master|production|prod)$/i.test(branch)) return false;
+  if (!/^agent\/ari-[a-z0-9._/-]+$/i.test(branch)) return false;
+  return true;
+}
+
+export function isProtectedAutonomousDevelopmentPath(filePath = "") {
+  const path = String(filePath || "").trim();
+  if (!path) return true;
+  return AUTONOMOUS_DEV_PROTECTED_PATHS.some((protectedPath) =>
+    protectedPath.endsWith("/")
+      ? path.startsWith(protectedPath)
+      : path === protectedPath || path.startsWith(`${protectedPath}/`)
+  );
+}
+
+function autonomousBlocked(code, reason, message) {
+  return {
+    allowed: false,
+    branch: null,
+    code,
+    reason,
+    message,
+    confirmationRequired: true,
+    productionAuthority: false
+  };
 }
 
 function applyReplace({ currentContent, find, replace, replaceAll = false }) {
@@ -329,7 +497,8 @@ async function commitToGithub({
   filePath,
   message,
   mode,
-  rollbackPayload = null
+  rollbackPayload = null,
+  autonomousDevelopment = false
 }) {
   const encoded = Buffer.from(editedContent, "utf8").toString("base64");
 
@@ -346,14 +515,19 @@ async function commitToGithub({
   return res.status(200).json({
     success: true,
     mode,
+    authorizationMode: autonomousDevelopment ? "autonomous_development" : "owner_confirmation",
+    autonomousDevelopment,
+    productionAuthority: false,
     filePath,
     branch,
     commit: result.commit?.html_url || null,
     rollbackPayload,
     message:
       mode === "undo"
-        ? "Undo commit created. Vercel should redeploy automatically."
-        : "GitHub commit created. Vercel should redeploy automatically."
+        ? "Undo commit created on the selected branch."
+        : autonomousDevelopment
+          ? "Autonomous development commit created on the isolated Ari branch. Production was not changed."
+          : "GitHub commit created. Vercel should redeploy automatically."
   });
 }
 
