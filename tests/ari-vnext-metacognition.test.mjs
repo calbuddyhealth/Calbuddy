@@ -9,11 +9,14 @@ test("missing training evidence is represented as uncertainty rather than failur
     context: {},
     safety: {}
   });
+  const instruction = metacognitionToInstruction(state);
 
   assert.equal(state.coverage.training, false);
   assert.equal(state.confidence, "limited");
   assert.ok(state.missingEvidence.includes("training"));
-  assert.match(metacognitionToInstruction(state), /Do not turn missing data into a negative conclusion/i);
+  assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
+  assert.match(instruction, /Missing evidence: training/i);
+  assert.match(instruction, /not automatically a stop signal/i);
 });
 
 test("actual training and goal context produces grounded evidence state", () => {
@@ -39,4 +42,5 @@ test("high stakes turns remain cautious even with complete evidence", () => {
   });
 
   assert.equal(state.confidence, "cautious");
+  assert.equal(state.executivePolicy.directives.verificationDepth, "high");
 });
