@@ -2,7 +2,7 @@
 
 import { maybeDeliverAriSignalPush } from "./ari-signals.js";
 
-export const ARI_INITIATIVE_EVENTS_VERSION = "1.1.0";
+export const ARI_INITIATIVE_EVENTS_VERSION = "1.2.0";
 const TABLE = "ari_vnext_initiative_events";
 
 export async function listRecentInitiatives({ userId, limit = 20 } = {}) {
@@ -45,19 +45,58 @@ export function shouldSuppressInitiative({ candidate = null, events = [], now = 
     : { suppress: false, reason: "cooldown_elapsed", ageHours: round(ageHours, 1), requiredHours: required };
 }
 
+// Autonomous development uses Ari Signals as an owner handoff surface, not an
+// activity feed. A useful code commit becomes a merge recommendation. Research
+// becomes a Jose + ChatGPT request only when the evidence points to a blocker or
+// broader change Ari cannot safely finish inside her isolated branch authority.
+// Quiet restraint is a successful autonomy outcome and should not create noise.
+export function formatAutonomyOwnerBriefing(candidate = null) {
+  if (!candidate || typeof candidate !== "object") return candidate;
+  if (clean(candidate.source, 80) !== "ari_autonomy_runtime") return candidate;
+
+  const reasonId = clean(candidate.reasonId, 200);
+  if (reasonId === "ari_autonomous_branch_commit") {
+    return {
+      ...candidate,
+      priority: "high",
+      opener: "I recommend merging this autonomous improvement after review.",
+      context: clean(candidate.context, 620),
+      followUpPrompt: `Why I want it merged: ${clean(candidate.followUpPrompt, 760)}`,
+      action: "review_autonomous_commit",
+      cooldownHours: 24
+    };
+  }
+
+  if (reasonId !== "ari_autonomous_research_cycle") return candidate;
+  if (!autonomyResearchNeedsOwner(candidate)) return null;
+
+  return {
+    ...candidate,
+    priority: "high",
+    opener: "I need Jose + ChatGPT on one of my development goals.",
+    context: clean(candidate.context, 620),
+    followUpPrompt: `What I want help with: ${clean(candidate.followUpPrompt, 760)}`,
+    action: "collaborate_on_autonomous_goal",
+    cooldownHours: 24
+  };
+}
+
 export async function recordInitiativeSurface({ userId, candidate } = {}) {
+  const surfacedCandidate = formatAutonomyOwnerBriefing(candidate);
+  if (!surfacedCandidate) return { stored: false, reason: "autonomy_no_owner_action_needed" };
+
   const config = supabaseConfig();
   const id = clean(userId, 200);
-  if (!config || !id || !candidate?.initiativeKey) return { stored: false };
+  if (!config || !id || !surfacedCandidate?.initiativeKey) return { stored: false };
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + clampInt(candidate.cooldownHours, 12, 168, 48) * 3600000).toISOString();
+  const expiresAt = new Date(now.getTime() + clampInt(surfacedCandidate.cooldownHours, 12, 168, 48) * 3600000).toISOString();
   const row = {
     user_id: id,
-    initiative_key: clean(candidate.initiativeKey, 260),
-    reason_id: clean(candidate.reasonId, 200) || "initiative",
-    priority: clean(candidate.priority, 40) || "medium",
+    initiative_key: clean(surfacedCandidate.initiativeKey, 260),
+    reason_id: clean(surfacedCandidate.reasonId, 200) || "initiative",
+    priority: clean(surfacedCandidate.priority, 40) || "medium",
     status: "surfaced",
-    payload: compactCandidate(candidate),
+    payload: compactCandidate(surfacedCandidate),
     surfaced_at: now.toISOString(),
     expires_at: expiresAt,
     updated_at: now.toISOString()
@@ -75,7 +114,7 @@ export async function recordInitiativeSurface({ userId, candidate } = {}) {
     const push = await maybeDeliverAriSignalPush({
       userId: id,
       signalId: event?.id,
-      candidate
+      candidate: surfacedCandidate
     }).catch(() => ({ attempted: false, reason: "push_delivery_failed" }));
     return { stored: true, event, push };
   } catch {
@@ -108,6 +147,15 @@ export async function updateInitiativeStatus({ userId, initiativeId, status } = 
   } catch {
     return { success: false, code: "initiative_update_failed" };
   }
+}
+
+function autonomyResearchNeedsOwner(candidate = {}) {
+  const text = `${clean(candidate.context, 1000)} ${clean(candidate.followUpPrompt, 1200)}`
+    .replace(/no production code was changed\.?/gi, " ")
+    .toLowerCase();
+  if (!text.trim()) return false;
+
+  return /\b(?:blocked|blocker|cannot|can't|unable|unavailable|missing|requires?|needed|need help|broader|outside|multiple files|migration|schema|workflow|credential|permission|authorization|authentication|security|deployment|deploy|vercel|supabase|production boundary|owner action|manual intervention)\b/i.test(text);
 }
 
 function compactCandidate(candidate = {}) {
