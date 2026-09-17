@@ -57,7 +57,8 @@ export function deriveMetacognition({
       })
     : null;
   const rewardCore = ownerLearningEligible
-    ? deriveRewardState({ persisted: context?.userWorldModel?.sourceSummary?.rewardState || null })
+    ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
+      deriveRewardState({ persisted: context?.userWorldModel?.sourceSummary?.rewardState || null })
     : null;
 
   const evidenceSignals = [];
