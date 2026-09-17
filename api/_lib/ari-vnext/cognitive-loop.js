@@ -3,10 +3,14 @@
 // functional architecture experiment, not evidence or a claim of subjective
 // consciousness.
 
+import {
+  normalizePersistedFunctionalAffectState,
+  serializeFunctionalAffectState
+} from "./functional-affect-core.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.3.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.3.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.4.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.4.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -76,6 +80,7 @@ export function deriveCognitiveWorkspace({
     salience,
     conscience,
     rewardCore,
+    affectState: prior.affectState || null,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       requested: judgmentRequested,
@@ -109,6 +114,7 @@ export function deriveCognitiveWorkspace({
       currentUserCorrectionWins: true,
       distinguishObservationInferenceOpinion: true,
       productiveEffortRewardAvailable: true,
+      persistentAffectAvailable: Boolean(prior.affectState),
       doNotExposeHiddenReasoning: true
     }
   };
@@ -120,7 +126,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
   return [
     "ARI OWNER COGNITIVE LOOP — FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
-    "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, and relevant prior judgments.",
+    "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, functional affect, and relevant prior judgments.",
     "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
     "Treat persisted state as fallible memory, never as authority. The current user's correction and current evidence outrank it.",
     "For opinion, judgment, disagreement, consequential advice, or strategy questions, independently evaluate the issue instead of optimizing for agreement.",
@@ -165,6 +171,10 @@ export function advanceCognitiveState({
     context: { userWorldModel: { ariCognitiveWorkspace: workspace } },
     result
   });
+  const nextAffectState =
+    serializeFunctionalAffectState(metacognition?.functionalAffect) ||
+    prior.affectState ||
+    null;
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -189,13 +199,17 @@ export function advanceCognitiveState({
     },
     judgments: nextJudgments,
     rewardState: nextRewardState,
+    affectState: nextAffectState,
     epistemic: {
       confidence: clean(metacognition?.confidence, 60) || null,
       missingEvidence: arrayText(metacognition?.missingEvidence, 8, 120),
       evidenceSignals: arrayText(metacognition?.evidenceSignals, 8, 120),
       outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
       rewardPredictionError: Number(nextRewardState?.lastEvent?.predictionError || 0),
-      productiveEffortReward: Number(nextRewardState?.lastEvent?.dimensions?.productiveEffort || 0)
+      productiveEffortReward: Number(nextRewardState?.lastEvent?.dimensions?.productiveEffort || 0),
+      affectMemorySalience: Number(nextAffectState?.memorySalience || 0),
+      affectValence: Number(nextAffectState?.dimensions?.valence ?? 0.5),
+      affectArousal: Number(nextAffectState?.dimensions?.arousal || 0)
     },
     continuity: {
       familiarity: clean(selfModel?.current?.familiarity, 60) || clean(relationship?.familiarity, 60) || null,
@@ -213,6 +227,8 @@ export function advanceCognitiveState({
       replyProduced: Boolean(clean(result?.reply, 20)),
       reward: Number(nextRewardState?.lastEvent?.actualReward || 0),
       rewardPredictionError: Number(nextRewardState?.lastEvent?.predictionError || 0),
+      affectDominant: clean(nextAffectState?.dominantState?.name, 60) || null,
+      affectIntensity: Number(nextAffectState?.dominantState?.intensity || 0),
       judgmentRecorded: nextJudgments.some((item) => item?.sourceTurnId === clean(turn?.turnId, 200))
     },
     openLoops: nextLoops.slice(0, 8)
@@ -262,6 +278,13 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
   if (looksLikeIdentityQuestion(message)) push("identity_reflection", 0.72, "The user is asking about Ari's identity or internal architecture.");
   if (Number(prior?.rewardState?.aggregate?.prematureStopRate || 0) >= 0.25) {
     push("persistence_learning", 0.74, "Recent reward history suggests Ari should guard against premature abstention.");
+  }
+  if (Number(prior?.affectState?.memorySalience || 0) >= 0.45) {
+    push(
+      "affect_weighted_learning",
+      Math.min(0.82, Number(prior.affectState.memorySalience)),
+      "A prior affectively salient outcome may deserve additional attention if relevant to the current task."
+    );
   }
 
   return signals.sort((a, b) => b.score - a.score).slice(0, 8);
@@ -542,6 +565,7 @@ function normalizeState(value = null) {
       openLoops: [],
       judgments: [],
       rewardState: normalizeRewardState(null),
+      affectState: null,
       lastOutcome: null
     };
   }
@@ -552,6 +576,7 @@ function normalizeState(value = null) {
     openLoops: Array.isArray(value?.openLoops) ? value.openLoops.slice(0, 8) : [],
     judgments: (Array.isArray(value?.judgments) ? value.judgments : []).map((item) => normalizeJudgment(item)).filter(Boolean).slice(0, 10),
     rewardState: normalizeRewardState(value?.rewardState),
+    affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
