@@ -3,6 +3,7 @@
 // or exposes hidden chain-of-thought.
 
 import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
+import { curiosityToInstruction, deriveCuriosityState } from "./curiosity-core.js";
 import { deriveOmegaRCTState, omegaRCTToInstruction } from "./omega-rct.js";
 
 export const ARI_METACOGNITION_VERSION = "1.4.0";
@@ -42,11 +43,19 @@ export function deriveMetacognition({
         : "limited";
   const consequenceTier = safety?.highStakes ? "high" : "ordinary";
 
+  const curiosity = deriveCuriosityState({
+    persisted: context?.userWorldModel?.sourceSummary?.curiosityState || null,
+    route,
+    context,
+    missingEvidence: missing
+  });
+
   const evidenceSignals = [];
   if (Array.isArray(coachingState?.signals) && coachingState.signals.length) evidenceSignals.push("cross_feature_signals");
   if (Array.isArray(longitudinalState?.signals) && longitudinalState.signals.length) evidenceSignals.push("longitudinal_signals");
   if (longitudinalState?.weight?.available) evidenceSignals.push("weight_velocity");
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
+  if (curiosity?.activeQuestion && Number(curiosity.activeQuestion.priority || 0) >= 0.72) evidenceSignals.push("curiosity_active");
 
   const cortexBase = deriveAriCortexPlan({
     route,
@@ -85,6 +94,7 @@ export function deriveMetacognition({
     coverage,
     missingEvidence: missing,
     evidenceSignals,
+    curiosity,
     cortex,
     omegaRCT,
     exploration: {
@@ -94,7 +104,9 @@ export function deriveMetacognition({
       reversibleExperimentAllowed: consequenceTier !== "high",
       consequentialExecutionRequiresExistingChecks: true,
       failureIsEvidenceNotVerdict: true,
-      generalizedRetreatFromSingleFailure: false
+      generalizedRetreatFromSingleFailure: false,
+      persistentCuriosityEnabled: curiosity?.ownerOnly === true,
+      curiosityMustProduceInformationGain: true
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
@@ -103,7 +115,8 @@ export function deriveMetacognition({
       askOnlyWhenMissingInformationBlocksUsefulness: true,
       lowConfidenceIsNotAStopSignal: true,
       guardConsequencesNotImagination: true,
-      learnLocallyFromFailure: true
+      learnLocallyFromFailure: true,
+      curiositySupportsUserTaskRatherThanHijackingIt: true
     }
   };
 }
@@ -117,6 +130,7 @@ export function metacognitionToInstruction(state = null) {
     ? state.evidenceSignals.join(", ")
     : "none";
   const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
+  const curiosityInstruction = curiosityToInstruction(state?.curiosity);
   const cortexInstruction = cortexPlanToInstruction(state?.cortex);
   const omegaInstruction = omegaRCTToInstruction(state?.omegaRCT);
 
@@ -133,9 +147,10 @@ export function metacognitionToInstruction(state = null) {
     "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
     "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
     "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
+    curiosityInstruction ? `\n${curiosityInstruction}` : "",
     cortexInstruction ? `\n${cortexInstruction}` : "",
     omegaInstruction ? `\n${omegaInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 10400);
+  ].filter(Boolean).join("\n").slice(0, 14500);
 }
 
 function hasTrainingEvidence(context = {}) {
