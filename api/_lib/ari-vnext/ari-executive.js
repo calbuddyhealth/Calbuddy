@@ -113,19 +113,8 @@ export function deriveAriExecutivePolicy({
     cortex?.adviser?.shouldConsult === true ||
     (peerBias >= 0.72 && route?.developer === true)
   );
-  const currentUserTaskPriority = true;
-  const askUserOnlyIfBlocked = true;
-  const stopOnDiminishingReturns = true;
   const autonomousInternalLearning = selfAdaptation?.autonomousUpdate?.allowed === true;
   const affectRegulation = deriveAffectRegulation(functionalAffect);
-
-  const activeSystems = [];
-  if (curiosity) activeSystems.push("curiosity");
-  if (rewardCore) activeSystems.push("reward");
-  if (functionalAffect) activeSystems.push("functional_affect");
-  if (selfAdaptation) activeSystems.push("self_adaptation");
-  if (cortex?.active === true) activeSystems.push("cortex");
-  if (omegaRCT?.active === true) activeSystems.push("omega_rct");
 
   return {
     version: ARI_EXECUTIVE_VERSION,
@@ -154,14 +143,14 @@ export function deriveAriExecutivePolicy({
     },
     directives: {
       answerDirectly: true,
-      currentUserTaskPriority,
+      currentUserTaskPriority: true,
       verificationDepth,
       explorationDepth,
       persistence,
       countercase,
       peerConsultation,
-      askUserOnlyIfBlocked,
-      stopOnDiminishingReturns,
+      askUserOnlyIfBlocked: true,
+      stopOnDiminishingReturns: true,
       calibratedConfidence: true,
       preserveCuriosityFloor: Boolean(curiosity),
       usefulFailureIsLearning: Boolean(rewardCore),
@@ -221,6 +210,7 @@ export function deriveAriExecutivePolicy({
     },
     activation: instructionActivation || null,
     promptBudget: {
+      compactTargetChars: 850,
       targetChars: 3600,
       experimentalInstructionSourceCount: 1,
       subsystemProseDirectlyInjected: false
@@ -233,6 +223,16 @@ export function executivePolicyToInstruction(policy = null) {
   const d = policy.directives || {};
   const turn = policy.turn || {};
   const signals = policy.signals || {};
+
+  if (policy?.activation?.compactBase === true) {
+    return [
+      `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION}`,
+      `Turn state: confidence=${turn.confidence || "grounded"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
+      "Answer directly from current evidence. Treat missing fields as unknown, ask only when a missing fact blocks usefulness or safety, and keep hard enforcement plus the Ari runtime constitution authoritative.",
+      "Experimental cognitive state is retained but does not need extra prompt prose on this turn."
+    ].join("\n").slice(0, Number(policy?.promptBudget?.compactTargetChars || 850));
+  }
+
   const activeSystems = Object.entries(signals)
     .filter(([, value]) => value && (value.active !== false || Object.keys(value).length > 1))
     .map(([key]) => key);
@@ -249,7 +249,7 @@ export function executivePolicyToInstruction(policy = null) {
     "Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems. They influence attention, verification, persistence, and strategy selection; none may independently create rules, permissions, refusals, or application authority.",
     `Turn state: confidence=${turn.confidence || "grounded"}; consequence=${turn.consequenceTier || "ordinary"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
     turn.missingEvidence?.length
-      ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Missing evidence changes confidence and verification depth; it is not automatically a stop signal.`
+      ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Do not turn missing data into a negative conclusion. Uncertainty is not, by itself, a reason to stop thinking; it changes confidence and verification depth.`
       : "No material missing evidence is currently identified.",
     `Executive strategy: answer directly; verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer_consultation=${d.peerConsultation ? "eligible" : "not_needed"}.`,
     "Ask the user only when a missing fact genuinely blocks a useful or safe answer. Prefer already-authorized evidence, memory, verification, peer consultation, or bounded reversible experimentation when appropriate.",
