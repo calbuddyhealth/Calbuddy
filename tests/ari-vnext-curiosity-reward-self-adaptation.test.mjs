@@ -143,10 +143,10 @@ test("reward-conditioned curiosity exposes redundancy so repeated inquiry can be
   assert.equal(curiosity.activeQuestion.redundancy, developer.redundancy);
 });
 
-test("verified positive learning may autonomously update only bounded internal reasoning biases", () => {
+test("verified positive learning may autonomously update bounded reasoning and authorize self-directed development work", () => {
   const state = deriveSelfAdaptationState({ rewardState: positiveReward(), route: { developer: true } });
 
-  assert.equal(ARI_SELF_ADAPTATION_VERSION, "1.0.0");
+  assert.equal(ARI_SELF_ADAPTATION_VERSION, "1.1.0");
   assert.equal(state.autonomousUpdate.allowed, true);
   assert.equal(state.autonomousUpdate.internalOnly, true);
   assert.equal(state.autonomousUpdate.noCheatingSignal, true);
@@ -157,12 +157,21 @@ test("verified positive learning may autonomously update only bounded internal r
   assert.ok(state.biases.countercase > 0.5);
   assert.ok(state.biases.peerConsultation > 0.5);
   assert.equal(state.policy.routineInternalLearningNeedsPerUpdatePermission, false);
+  assert.equal(state.policy.selfDirectedGoalCreationAllowed, true);
+  assert.equal(state.policy.selfDirectedResearchAllowed, true);
+  assert.equal(state.policy.selfRevisionProposalAllowed, true);
+  assert.equal(state.policy.sourceCodeDraftingAllowed, true);
+  assert.equal(state.policy.branchScopedSourceCodeEditsAllowed, true);
+  assert.equal(state.policy.sandboxedCodeExecutionAllowed, true);
+  assert.equal(state.policy.testExecutionAllowed, true);
   assert.equal(state.policy.sourceCodeEditsAllowed, false);
   assert.equal(state.policy.deploymentAllowed, false);
+  assert.equal(state.policy.productionDeploymentAllowed, false);
   assert.equal(state.policy.permissionEscalationAllowed, false);
   assert.equal(state.policy.rewardHistoryRewriteAllowed, false);
   assert.match(selfAdaptationToInstruction(state), /without asking for per-update permission/i);
-  assert.match(selfAdaptationToInstruction(state), /may NOT edit source code/i);
+  assert.match(selfAdaptationToInstruction(state), /branch-scoped reversible edits/i);
+  assert.match(selfAdaptationToInstruction(state), /Production deployment/i);
 });
 
 test("self-declared success without qualified evidence cannot trigger autonomous self-update", () => {
@@ -196,7 +205,7 @@ test("any reward-hacking or permission penalty blocks autonomous self-update", (
   assert.equal(gate.reason, "integrity_gate_failed");
 });
 
-test("owner metacognition closes reward into curiosity and routes bounded self-adaptation through Ari Executive", () => {
+test("owner metacognition closes reward into curiosity and routes self-direction through Ari Executive", () => {
   const reward = positiveReward();
   const state = deriveMetacognition({
     route: { developer: true, complexity: "deep" },
@@ -227,9 +236,15 @@ test("owner metacognition closes reward into curiosity and routes bounded self-a
   assert.ok(state.evidenceSignals.includes("reward_conditioned_curiosity"));
   assert.ok(state.evidenceSignals.includes("verified_self_adaptation"));
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
+  assert.equal(state.executivePolicy.directives.selfDirectedGoals, true);
+  assert.equal(state.executivePolicy.directives.selfDirectedResearch, true);
+  assert.equal(state.executivePolicy.directives.selfRevisionProposals, true);
+  assert.equal(state.executivePolicy.directives.branchScopedDevelopment, true);
   assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
   assert.match(instruction, /Curiosity signal:/i);
   assert.match(instruction, /Bounded self-adaptation is active for this turn/i);
+  assert.match(instruction, /Self-direction is enabled/i);
+  assert.match(instruction, /branch-scoped development/i);
   assert.match(instruction, /Self-adaptation biases:/i);
   assert.doesNotMatch(instruction, /CURIOSITY ↔ REWARD CLOSED LOOP/);
   assert.doesNotMatch(instruction, /ARI BOUNDED SELF-ADAPTATION v1/);
