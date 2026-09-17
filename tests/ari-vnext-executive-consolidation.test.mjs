@@ -155,7 +155,7 @@ test("Executive resolves specialist signals into one compact turn policy", () =>
   assert.match(instruction, /SINGLE RUNTIME DECISION AUTHORITY/);
   assert.match(instruction, /Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory/i);
   assert.match(instruction, /Useful failure is learning/i);
-  assert.match(instruction, /cannot edit source code, deploy, mutate user\/app state/i);
+  assert.match(instruction, /cannot deploy to production, mutate production user\/app state/i);
   assert.match(instruction, /Never expose or persist hidden chain-of-thought/i);
 });
 
