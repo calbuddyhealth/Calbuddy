@@ -180,7 +180,7 @@ test("prior judgments are available as fallible continuity rather than authority
   assert.equal(plan.authority.learnedStrategiesFallible, true);
 });
 
-test("metacognition wires Cortex and Omega-RCT into the model instruction without exposing hidden reasoning", () => {
+test("metacognition wires Cortex, Reward Core, and Omega-RCT into the model instruction without exposing hidden reasoning", () => {
   const state = deriveMetacognition({
     route: { complexity: "deep", developer: true },
     context: ownerContext(),
@@ -189,7 +189,7 @@ test("metacognition wires Cortex and Omega-RCT into the model instruction withou
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.4.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.5.0");
   assert.equal(state.cortex.active, true);
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");

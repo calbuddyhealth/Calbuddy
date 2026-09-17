@@ -150,7 +150,7 @@ test("metacognition embeds Omega-RCT into the active owner Cortex", () => {
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.4.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.5.0");
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");
   assert.match(instruction, /Ω-RCT v1\.2 — OWNER CORTEX RECURSIVE SELFHOOD/);

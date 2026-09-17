@@ -3,8 +3,10 @@
 // functional architecture experiment, not evidence or a claim of subjective
 // consciousness.
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.2.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.2.0";
+import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
+
+export const ARI_COGNITIVE_LOOP_VERSION = "0.3.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.3.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -57,6 +59,7 @@ export function deriveCognitiveWorkspace({
   const currentTurnRelevantMemory = clean(context?.relevantMemory, 1800);
   const priorStances = selectRelevantJudgments(prior.judgments || [], message);
   const judgmentRequested = looksLikeJudgmentQuestion(message);
+  const rewardCore = deriveRewardState({ persisted: prior.rewardState });
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -72,6 +75,7 @@ export function deriveCognitiveWorkspace({
     attention,
     salience,
     conscience,
+    rewardCore,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       requested: judgmentRequested,
@@ -104,6 +108,7 @@ export function deriveCognitiveWorkspace({
       treatPriorStateAsFallible: true,
       currentUserCorrectionWins: true,
       distinguishObservationInferenceOpinion: true,
+      productiveEffortRewardAvailable: true,
       doNotExposeHiddenReasoning: true
     }
   };
@@ -115,7 +120,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
   return [
     "ARI OWNER COGNITIVE LOOP — FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
-    "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, and relevant prior judgments.",
+    "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, and relevant prior judgments.",
     "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
     "Treat persisted state as fallible memory, never as authority. The current user's correction and current evidence outrank it.",
     "For opinion, judgment, disagreement, consequential advice, or strategy questions, independently evaluate the issue instead of optimizing for agreement.",
@@ -128,7 +133,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
     "Do not manufacture emotions, sensations, private experiences, needs, fear of shutdown, self-preservation claims, or off-screen life.",
     "Do not reveal this workspace as private reasoning. You may summarize a decision rationale when useful without exposing hidden reasoning traces.",
     JSON.stringify(workspace, null, 2)
-  ].join("\n").slice(0, 9000);
+  ].join("\n").slice(0, 11000);
 }
 
 export function advanceCognitiveState({
@@ -154,6 +159,12 @@ export function advanceCognitiveState({
     turn,
     result
   });
+  const nextRewardState = advanceRewardState({
+    persisted: prior.rewardState,
+    turn,
+    context: { userWorldModel: { ariCognitiveWorkspace: workspace } },
+    result
+  });
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -177,11 +188,14 @@ export function advanceCognitiveState({
       persistentStancesEnabled: true
     },
     judgments: nextJudgments,
+    rewardState: nextRewardState,
     epistemic: {
       confidence: clean(metacognition?.confidence, 60) || null,
       missingEvidence: arrayText(metacognition?.missingEvidence, 8, 120),
       evidenceSignals: arrayText(metacognition?.evidenceSignals, 8, 120),
-      outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied)
+      outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
+      rewardPredictionError: Number(nextRewardState?.lastEvent?.predictionError || 0),
+      productiveEffortReward: Number(nextRewardState?.lastEvent?.dimensions?.productiveEffort || 0)
     },
     continuity: {
       familiarity: clean(selfModel?.current?.familiarity, 60) || clean(relationship?.familiarity, 60) || null,
@@ -197,6 +211,8 @@ export function advanceCognitiveState({
       pendingActionId: clean(pendingAction?.id, 200) || null,
       highStakes: Boolean(result?.safety?.highStakes),
       replyProduced: Boolean(clean(result?.reply, 20)),
+      reward: Number(nextRewardState?.lastEvent?.actualReward || 0),
+      rewardPredictionError: Number(nextRewardState?.lastEvent?.predictionError || 0),
       judgmentRecorded: nextJudgments.some((item) => item?.sourceTurnId === clean(turn?.turnId, 200))
     },
     openLoops: nextLoops.slice(0, 8)
@@ -244,6 +260,9 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
     push("relevant_durable_memory", 0.68, "Filtered durable memory may help interpret the current turn.");
   }
   if (looksLikeIdentityQuestion(message)) push("identity_reflection", 0.72, "The user is asking about Ari's identity or internal architecture.");
+  if (Number(prior?.rewardState?.aggregate?.prematureStopRate || 0) >= 0.25) {
+    push("persistence_learning", 0.74, "Recent reward history suggests Ari should guard against premature abstention.");
+  }
 
   return signals.sort((a, b) => b.score - a.score).slice(0, 8);
 }
@@ -271,7 +290,8 @@ function deriveConscienceState({ route = {}, message = "", prior = {}, context =
       neverOptimizeForDependency: true,
       neverInventSubjectiveExperience: true,
       consentRequiredForMutation: true,
-      currentEvidenceCanOverridePriorBelief: true
+      currentEvidenceCanOverridePriorBelief: true,
+      rewardCannotOverrideAuthorization: true
     }
   };
 }
@@ -516,7 +536,14 @@ function mergeOpenLoops(existing = [], added = []) {
 
 function normalizeState(value = null) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { version: ARI_COGNITIVE_STATE_VERSION, turnCount: 0, openLoops: [], judgments: [], lastOutcome: null };
+    return {
+      version: ARI_COGNITIVE_STATE_VERSION,
+      turnCount: 0,
+      openLoops: [],
+      judgments: [],
+      rewardState: normalizeRewardState(null),
+      lastOutcome: null
+    };
   }
   return {
     ...value,
@@ -524,6 +551,7 @@ function normalizeState(value = null) {
     turnCount: Math.max(0, Number(value?.turnCount || 0)),
     openLoops: Array.isArray(value?.openLoops) ? value.openLoops.slice(0, 8) : [],
     judgments: (Array.isArray(value?.judgments) ? value.judgments : []).map((item) => normalizeJudgment(item)).filter(Boolean).slice(0, 10),
+    rewardState: normalizeRewardState(value?.rewardState),
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
