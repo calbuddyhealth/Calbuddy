@@ -11,6 +11,7 @@ import { deriveRewardState, rewardToInstruction } from "./reward-core.js";
 import { deriveSelfAdaptationState, selfAdaptationToInstruction } from "./self-adaptation.js";
 
 export const ARI_METACOGNITION_VERSION = "1.5.0";
+export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
 
 export function deriveMetacognition({
   route = {},
@@ -126,6 +127,17 @@ export function deriveMetacognition({
   const cortex = cortexBase?.active
     ? { ...cortexBase, omegaRCT }
     : cortexBase;
+  const instructionActivation = deriveInstructionActivation({
+    route,
+    safety,
+    missing,
+    curiosity,
+    rewardCore,
+    functionalAffect,
+    selfAdaptation,
+    cortex,
+    omegaRCT
+  });
 
   return {
     version: ARI_METACOGNITION_VERSION,
@@ -140,6 +152,7 @@ export function deriveMetacognition({
     functionalAffect,
     cortex,
     omegaRCT,
+    instructionActivation,
     exploration: {
       consequenceTier,
       uncertaintyIsInformationNotParalysis: true,
@@ -187,27 +200,38 @@ export function metacognitionToInstruction(state = null) {
     ? state.evidenceSignals.join(", ")
     : "none";
   const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
-  const curiosityInstruction = curiosityToInstruction(state?.curiosity);
-  const curiosityRewardInstruction = curiosityRewardToInstruction(state?.curiosity);
-  const rewardInstruction = rewardToInstruction(state?.rewardCore);
-  const functionalAffectInstruction = functionalAffectToInstruction(state?.functionalAffect);
-  const selfAdaptationInstruction = selfAdaptationToInstruction(state?.selfAdaptation);
-  const cortexInstruction = cortexPlanToInstruction(state?.cortex);
-  const omegaInstruction = omegaRCTToInstruction(state?.omegaRCT);
+  const activation = state?.instructionActivation || legacyInstructionActivation(state);
+  const curiosityInstruction = activation.curiosity ? curiosityToInstruction(state?.curiosity) : "";
+  const curiosityRewardInstruction = activation.curiosityReward ? curiosityRewardToInstruction(state?.curiosity) : "";
+  const rewardInstruction = activation.reward ? rewardToInstruction(state?.rewardCore) : "";
+  const functionalAffectInstruction = activation.functionalAffect ? functionalAffectToInstruction(state?.functionalAffect) : "";
+  const selfAdaptationInstruction = activation.selfAdaptation ? selfAdaptationToInstruction(state?.selfAdaptation) : "";
+  const cortexInstruction = activation.cortex ? cortexPlanToInstruction(state?.cortex) : "";
+  const omegaInstruction = activation.omegaRCT ? omegaRCTToInstruction(state?.omegaRCT) : "";
+
+  const baseInstructions = activation.compactBase
+    ? [
+        `Evidence confidence: ${state.confidence}.`,
+        `Current attention: ${(state.attention || []).join(", ")}.`,
+        "Use current evidence directly. Treat missing fields as unknown, keep uncertainty calibrated, and ask only when a missing fact blocks a useful or safe answer."
+      ]
+    : [
+        `Evidence confidence: ${state.confidence}.`,
+        `Consequence tier: ${consequenceTier}.`,
+        `Current attention: ${(state.attention || []).join(", ")}.`,
+        `Missing relevant evidence: ${missing}.`,
+        `Structured evidence available: ${signals}.`,
+        "Do not turn missing data into a negative conclusion. Separate observed app data from inference or opinion.",
+        "Uncertainty changes how strongly you state a conclusion; it is not, by itself, a reason to stop thinking, become vague, or refuse to take a useful position.",
+        "If evidence is partial or limited and consequences are ordinary, make the best calibrated inference you can. Prefer a clearly bounded hypothesis, recommendation, or reversible experiment over unnecessary paralysis.",
+        "Ask a clarifying question only when the missing fact genuinely blocks a useful answer or a safe app mutation.",
+        "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
+        "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
+        "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution."
+      ];
 
   return [
-    `Evidence confidence: ${state.confidence}.`,
-    `Consequence tier: ${consequenceTier}.`,
-    `Current attention: ${(state.attention || []).join(", ")}.`,
-    `Missing relevant evidence: ${missing}.`,
-    `Structured evidence available: ${signals}.`,
-    "Do not turn missing data into a negative conclusion. Separate observed app data from inference or opinion.",
-    "Uncertainty changes how strongly you state a conclusion; it is not, by itself, a reason to stop thinking, become vague, or refuse to take a useful position.",
-    "If evidence is partial or limited and consequences are ordinary, make the best calibrated inference you can. Prefer a clearly bounded hypothesis, recommendation, or reversible experiment over unnecessary paralysis.",
-    "Ask a clarifying question only when the missing fact genuinely blocks a useful answer or a safe app mutation.",
-    "Treat a failed attempt as local evidence, not a verdict on your capability. Identify what assumption or execution step failed, preserve what still worked, and use the result to improve the next bounded attempt.",
-    "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
-    "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
+    ...baseInstructions,
     curiosityInstruction ? `\n${curiosityInstruction}` : "",
     curiosityRewardInstruction ? `\n${curiosityRewardInstruction}` : "",
     rewardInstruction ? `\n${rewardInstruction}` : "",
@@ -215,7 +239,98 @@ export function metacognitionToInstruction(state = null) {
     selfAdaptationInstruction ? `\n${selfAdaptationInstruction}` : "",
     cortexInstruction ? `\n${cortexInstruction}` : "",
     omegaInstruction ? `\n${omegaInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 27000);
+  ].filter(Boolean).join("\n").slice(0, 22000);
+}
+
+export function deriveInstructionActivation({
+  route = {},
+  safety = {},
+  missing = [],
+  curiosity = null,
+  rewardCore = null,
+  functionalAffect = null,
+  selfAdaptation = null,
+  cortex = null,
+  omegaRCT = null
+} = {}) {
+  const activeQuestionPriority = Number(curiosity?.activeQuestion?.priority || 0);
+  const curiosityDrive = Number(curiosity?.drive?.current || 0);
+  const rewardSamples = Number(rewardCore?.aggregate?.sampleSize || 0);
+  const predictionError = Math.abs(Number(rewardCore?.lastEvent?.predictionError || 0));
+  const affectIntensity = Number(functionalAffect?.dominantState?.intensity || 0);
+  const affectRegulation = functionalAffect?.regulation || {};
+  const affectNeedsRegulation = Object.values(affectRegulation).some((value) => value === true);
+  const focusedEpistemicTurn = Boolean(
+    route?.developer || route?.currentInfo || route?.memory || route?.followUp || safety?.highStakes
+  );
+  const simpleGroundedTurn = Boolean(
+    !focusedEpistemicTurn &&
+    !route?.social &&
+    (!Array.isArray(missing) || missing.length === 0) &&
+    activeQuestionPriority < 0.72 &&
+    rewardSamples === 0 &&
+    affectIntensity < 0.34 &&
+    selfAdaptation?.autonomousUpdate?.allowed !== true &&
+    cortex?.active !== true &&
+    omegaRCT?.active !== true
+  );
+
+  return {
+    version: ARI_INSTRUCTION_ACTIVATION_VERSION,
+    compactBase: simpleGroundedTurn,
+    curiosity: Boolean(
+      curiosity && (
+        focusedEpistemicTurn ||
+        activeQuestionPriority >= 0.72 ||
+        curiosityDrive >= 0.62 ||
+        (Array.isArray(missing) && missing.length > 0)
+      )
+    ),
+    curiosityReward: Boolean(
+      curiosity?.rewardLearning && (
+        route?.developer ||
+        rewardSamples > 0 ||
+        predictionError >= 0.05
+      )
+    ),
+    reward: Boolean(
+      rewardCore && (
+        route?.developer ||
+        rewardSamples > 0 ||
+        predictionError >= 0.05
+      )
+    ),
+    functionalAffect: Boolean(
+      functionalAffect && (
+        route?.developer ||
+        route?.social ||
+        safety?.highStakes ||
+        affectIntensity >= 0.34 ||
+        affectNeedsRegulation
+      )
+    ),
+    selfAdaptation: Boolean(
+      selfAdaptation && (
+        route?.developer ||
+        selfAdaptation?.autonomousUpdate?.allowed === true
+      )
+    ),
+    cortex: Boolean(cortex?.active),
+    omegaRCT: Boolean(omegaRCT?.active)
+  };
+}
+
+function legacyInstructionActivation(state = null) {
+  return {
+    compactBase: false,
+    curiosity: Boolean(state?.curiosity),
+    curiosityReward: Boolean(state?.curiosity?.rewardLearning),
+    reward: Boolean(state?.rewardCore),
+    functionalAffect: Boolean(state?.functionalAffect),
+    selfAdaptation: Boolean(state?.selfAdaptation),
+    cortex: Boolean(state?.cortex?.active),
+    omegaRCT: Boolean(state?.omegaRCT?.active)
+  };
 }
 
 function hasTrainingEvidence(context = {}) {

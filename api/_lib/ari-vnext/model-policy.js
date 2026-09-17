@@ -1,6 +1,6 @@
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "2.2.0";
+export const MODEL_POLICY_VERSION = "2.3.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -57,8 +57,11 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   );
   const casualConversation = route?.casualConversation === true;
 
-  // Ari Unlimited deliberately receives the same chat-model class as Owner Mode,
-  // but this does not confer owner identity, cognitive loop, or developer access.
+  // Ari Unlimited deliberately receives the same advanced chat-model class as
+  // Owner Mode for non-casual turns, but this does not confer owner identity,
+  // cognitive loop, or developer access. Owner Mode always keeps the strongest
+  // configured owner model underneath Ari; latency is controlled through
+  // reasoning effort rather than swapping the model out for casual chat.
   const ownerGradeChat = owner || ariUnlimited;
   const advancedModel = ownerGradeChat
     ? process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6"
@@ -67,12 +70,12 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     ? process.env.OPENAI_ARI_OWNER_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini"
     : process.env.OPENAI_ARI_PREMIUM_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
 
-  const model = casualConversation ? fastModel : advancedModel;
+  const model = owner ? advancedModel : casualConversation ? fastModel : advancedModel;
   const mode = resolveWorkMode(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
-    ? resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation })
+    ? resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation, owner })
     : null;
 
   return {
@@ -85,7 +88,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     reasoningProfile,
     reasoningEffort,
     maxOutputTokens: casualConversation
-      ? 500
+      ? owner
+        ? 900
+        : 500
       : mode === "deep"
         ? 3200
         : mode === "current"
@@ -94,7 +99,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
             ? 1400
             : 2400,
     timeoutMs: casualConversation
-      ? 12000
+      ? owner
+        ? 22000
+        : 12000
       : reasoningEffort === "xhigh" || reasoningEffort === "max"
         ? 60000
         : mode === "deep"
@@ -104,7 +111,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
             : 40000,
     costTier: casualConversation
       ? owner
-        ? "owner_fast"
+        ? "owner_advanced_sol_low"
         : ariUnlimited
           ? "ari_unlimited_fast"
           : "premium_fast"
@@ -115,6 +122,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
           : "premium_advanced",
     liveSearchRequired: Boolean(route?.currentInfo),
     conversationBeta: true,
+    ownerModelContinuity: owner,
     casualConversation
   };
 }
@@ -150,14 +158,15 @@ function resolveAdvancedReasoningEffort({
   mode = "standard",
   reasoningProfile = "adaptive",
   route = {},
-  casualConversation = false
+  casualConversation = false,
+  owner = false
 } = {}) {
   if (casualConversation) return "low";
   if (reasoningProfile === "economy") return "low";
   if (reasoningProfile === "balanced") return mode === "fast" ? "low" : "medium";
   if (reasoningProfile === "deep") return "xhigh";
   if (mode === "fast") return "low";
-  if (mode === "current") return "low";
+  if (mode === "current") return owner ? "medium" : "low";
   if (mode === "deep" || route?.health || route?.developer) return "high";
   return "medium";
 }
