@@ -16,7 +16,7 @@ test("missing training evidence is represented as uncertainty rather than failur
   assert.ok(state.missingEvidence.includes("training"));
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
   assert.match(instruction, /Missing evidence: training/i);
-  assert.match(instruction, /not automatically a stop signal/i);
+  assert.match(instruction, /not, by itself, a reason to stop thinking/i);
 });
 
 test("actual training and goal context produces grounded evidence state", () => {
