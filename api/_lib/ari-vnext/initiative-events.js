@@ -72,7 +72,7 @@ export function formatAutonomyOwnerBriefing(candidate = null) {
 
   return {
     ...candidate,
-    priority: "medium",
+    priority: "high",
     opener: "I need Jose + ChatGPT on one of my development goals.",
     context: clean(candidate.context, 620),
     followUpPrompt: `What I want help with: ${clean(candidate.followUpPrompt, 760)}`,
