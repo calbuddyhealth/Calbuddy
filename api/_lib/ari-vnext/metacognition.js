@@ -5,8 +5,9 @@
 import { cortexPlanToInstruction, deriveAriCortexPlan } from "./cortex.js";
 import { curiosityToInstruction, deriveCuriosityState } from "./curiosity-core.js";
 import { deriveOmegaRCTState, omegaRCTToInstruction } from "./omega-rct.js";
+import { deriveRewardState, rewardToInstruction } from "./reward-core.js";
 
-export const ARI_METACOGNITION_VERSION = "1.4.0";
+export const ARI_METACOGNITION_VERSION = "1.5.0";
 
 export function deriveMetacognition({
   route = {},
@@ -43,17 +44,20 @@ export function deriveMetacognition({
         : "limited";
   const consequenceTier = safety?.highStakes ? "high" : "ordinary";
 
-  const curiosityEligible = Boolean(
+  const ownerLearningEligible = Boolean(
     context?.userWorldModel?.ariCognitiveWorkspace?.ownerOnly === true &&
     context?.userWorldModel?.ariCognitiveWorkspace?.functionalExperiment === true
   );
-  const curiosity = curiosityEligible
+  const curiosity = ownerLearningEligible
     ? deriveCuriosityState({
         persisted: context?.userWorldModel?.sourceSummary?.curiosityState || null,
         route,
         context,
         missingEvidence: missing
       })
+    : null;
+  const rewardCore = ownerLearningEligible
+    ? deriveRewardState({ persisted: context?.userWorldModel?.sourceSummary?.rewardState || null })
     : null;
 
   const evidenceSignals = [];
@@ -62,6 +66,7 @@ export function deriveMetacognition({
   if (longitudinalState?.weight?.available) evidenceSignals.push("weight_velocity");
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
   if (curiosity?.activeQuestion && Number(curiosity.activeQuestion.priority || 0) >= 0.72) evidenceSignals.push("curiosity_active");
+  if (rewardCore?.aggregate?.sampleSize > 0) evidenceSignals.push("reward_history");
 
   const cortexBase = deriveAriCortexPlan({
     route,
@@ -101,6 +106,7 @@ export function deriveMetacognition({
     missingEvidence: missing,
     evidenceSignals,
     curiosity,
+    rewardCore,
     cortex,
     omegaRCT,
     exploration: {
@@ -111,8 +117,12 @@ export function deriveMetacognition({
       consequentialExecutionRequiresExistingChecks: true,
       failureIsEvidenceNotVerdict: true,
       generalizedRetreatFromSingleFailure: false,
-      persistentCuriosityEnabled: curiosityEligible,
-      curiosityMustProduceInformationGain: curiosityEligible
+      persistentCuriosityEnabled: ownerLearningEligible,
+      curiosityMustProduceInformationGain: ownerLearningEligible,
+      productiveEffortRewardEnabled: ownerLearningEligible,
+      usefulFailureCanEarnReward: ownerLearningEligible,
+      prematureAbstentionIsNegativeLearning: ownerLearningEligible,
+      wastefulPersistenceIsNegativeLearning: ownerLearningEligible
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
@@ -122,7 +132,9 @@ export function deriveMetacognition({
       lowConfidenceIsNotAStopSignal: true,
       guardConsequencesNotImagination: true,
       learnLocallyFromFailure: true,
-      curiositySupportsUserTaskRatherThanHijackingIt: true
+      curiositySupportsUserTaskRatherThanHijackingIt: true,
+      rewardEffortOnlyWhenProductive: true,
+      rewardCannotChangePermissions: true
     }
   };
 }
@@ -137,6 +149,7 @@ export function metacognitionToInstruction(state = null) {
     : "none";
   const consequenceTier = state?.exploration?.consequenceTier || "ordinary";
   const curiosityInstruction = curiosityToInstruction(state?.curiosity);
+  const rewardInstruction = rewardToInstruction(state?.rewardCore);
   const cortexInstruction = cortexPlanToInstruction(state?.cortex);
   const omegaInstruction = omegaRCTToInstruction(state?.omegaRCT);
 
@@ -154,9 +167,10 @@ export function metacognitionToInstruction(state = null) {
     "Do not generalize one mistake into broad timidity, generic disclaimers, or avoidance of unrelated reasoning.",
     "For high-consequence situations, reason broadly but keep existing evidence verification, safety, authorization, and mutation checks intact before consequential execution.",
     curiosityInstruction ? `\n${curiosityInstruction}` : "",
+    rewardInstruction ? `\n${rewardInstruction}` : "",
     cortexInstruction ? `\n${cortexInstruction}` : "",
     omegaInstruction ? `\n${omegaInstruction}` : ""
-  ].filter(Boolean).join("\n").slice(0, 14500);
+  ].filter(Boolean).join("\n").slice(0, 19000);
 }
 
 function hasTrainingEvidence(context = {}) {
