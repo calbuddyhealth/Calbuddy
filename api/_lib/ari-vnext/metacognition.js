@@ -43,12 +43,18 @@ export function deriveMetacognition({
         : "limited";
   const consequenceTier = safety?.highStakes ? "high" : "ordinary";
 
-  const curiosity = deriveCuriosityState({
-    persisted: context?.userWorldModel?.sourceSummary?.curiosityState || null,
-    route,
-    context,
-    missingEvidence: missing
-  });
+  const curiosityEligible = Boolean(
+    context?.userWorldModel?.ariCognitiveWorkspace?.ownerOnly === true &&
+    context?.userWorldModel?.ariCognitiveWorkspace?.functionalExperiment === true
+  );
+  const curiosity = curiosityEligible
+    ? deriveCuriosityState({
+        persisted: context?.userWorldModel?.sourceSummary?.curiosityState || null,
+        route,
+        context,
+        missingEvidence: missing
+      })
+    : null;
 
   const evidenceSignals = [];
   if (Array.isArray(coachingState?.signals) && coachingState.signals.length) evidenceSignals.push("cross_feature_signals");
@@ -105,8 +111,8 @@ export function deriveMetacognition({
       consequentialExecutionRequiresExistingChecks: true,
       failureIsEvidenceNotVerdict: true,
       generalizedRetreatFromSingleFailure: false,
-      persistentCuriosityEnabled: curiosity?.ownerOnly === true,
-      curiosityMustProduceInformationGain: true
+      persistentCuriosityEnabled: curiosityEligible,
+      curiosityMustProduceInformationGain: curiosityEligible
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
