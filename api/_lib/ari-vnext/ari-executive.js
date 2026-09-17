@@ -5,7 +5,7 @@
 // instructions for the primary model. Hard server-side enforcement remains
 // authoritative and cannot be weakened by this module.
 
-export const ARI_EXECUTIVE_VERSION = "1.0.0";
+export const ARI_EXECUTIVE_VERSION = "1.1.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -67,6 +67,7 @@ export function deriveAriExecutivePolicy({
   const countercaseBias = finite(selfAdaptation?.biases?.countercase, 0.5);
   const peerBias = finite(selfAdaptation?.biases?.peerConsultation, 0.5);
   const explorationBias = finite(selfAdaptation?.biases?.exploration, 0.5);
+
   const affectIntensity = finite(functionalAffect?.dominantState?.intensity, 0);
   const affectLabel = clean(
     functionalAffect?.dominantState?.label ||
@@ -74,6 +75,21 @@ export function deriveAriExecutivePolicy({
     functionalAffect?.dominantState?.name,
     60
   ) || "neutral";
+  const affectSignals = functionalAffect?.signals && typeof functionalAffect.signals === "object"
+    ? functionalAffect.signals
+    : {};
+  const affectDimensions = functionalAffect?.dimensions && typeof functionalAffect.dimensions === "object"
+    ? functionalAffect.dimensions
+    : {};
+  const affectModulation = functionalAffect?.executiveModulation && typeof functionalAffect.executiveModulation === "object"
+    ? functionalAffect.executiveModulation
+    : {};
+  const affectActions = deriveAffectActions(functionalAffect);
+  const affectRegulation = affectActions[0] || deriveAffectRegulation(functionalAffect);
+  const affectVerificationBias = finite(affectModulation?.verificationBias, 0.5);
+  const affectExplorationBias = finite(affectModulation?.explorationBias, 0.5);
+  const affectPersistenceBias = finite(affectModulation?.persistenceBias, 0.5);
+
   const cortexNeeds = cortex?.needs && typeof cortex.needs === "object" ? cortex.needs : {};
   const cortexCapabilities = Array.isArray(cortex?.selectedCapabilities)
     ? cortex.selectedCapabilities.slice(0, 8).map((item) => clean(item, 80)).filter(Boolean)
@@ -81,13 +97,18 @@ export function deriveAriExecutivePolicy({
 
   const verificationDepth = safety?.highStakes === true || route?.currentInfo === true || cortexNeeds.verification === true
     ? "high"
-    : missingEvidence.length > 0 || verificationBias >= 0.68
+    : missingEvidence.length > 0 ||
+      verificationBias >= 0.68 ||
+      affectVerificationBias >= 0.68 ||
+      affectModulation?.recheckAssumptions === true
       ? "moderate"
       : "normal";
 
   const explorationScore = Math.max(
     curiosityDrive,
     questionPriority,
+    affectExplorationBias,
+    affectModulation?.investigateCause === true ? 0.72 : 0,
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
     explorationBonus > 0 ? 0.45 + explorationBonus : 0
   );
@@ -97,15 +118,19 @@ export function deriveAriExecutivePolicy({
       ? "moderate"
       : "normal";
 
-  const persistence = penaltyTotal > 0.3
+  const persistence = penaltyTotal > 0.3 || affectModulation?.strategySwitch === true
     ? "change_method"
-    : persistenceBias >= 0.7 || finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
+    : persistenceBias >= 0.7 ||
+      affectPersistenceBias >= 0.68 ||
+      finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
       ? "increase"
       : "normal";
 
   const countercase = Boolean(
     cortexNeeds.countercase === true ||
     countercaseBias >= 0.68 ||
+    affectModulation?.recheckAssumptions === true ||
+    functionalAffect?.regulation?.reduceOverconfidence === true ||
     route?.developer === true ||
     route?.complexity === "deep"
   );
@@ -114,7 +139,6 @@ export function deriveAriExecutivePolicy({
     (peerBias >= 0.72 && route?.developer === true)
   );
   const autonomousInternalLearning = selfAdaptation?.autonomousUpdate?.allowed === true;
-  const affectRegulation = deriveAffectRegulation(functionalAffect);
 
   return {
     version: ARI_EXECUTIVE_VERSION,
@@ -156,7 +180,12 @@ export function deriveAriExecutivePolicy({
       usefulFailureIsLearning: Boolean(rewardCore),
       autonomousInternalLearning,
       autonomousLearningInternalOnly: autonomousInternalLearning,
-      affectRegulation
+      affectRegulation,
+      affectActions,
+      affectMemorySalience: round(finite(affectModulation?.memorySalience, 0)),
+      consolidateLearning: affectModulation?.consolidateLearning === true,
+      investigateCause: affectModulation?.investigateCause === true,
+      suppressRedundantQuestioning: affectModulation?.suppressRedundantQuestioning === true
     },
     signals: {
       curiosity: curiosity ? {
@@ -175,8 +204,20 @@ export function deriveAriExecutivePolicy({
         penaltyTotal: round(penaltyTotal)
       } : null,
       affect: functionalAffect ? {
+        version: clean(functionalAffect?.version, 40) || null,
         dominant: affectLabel,
         intensity: round(affectIntensity),
+        surprise: round(finite(affectSignals?.surprise, 0)),
+        satisfaction: round(finite(affectSignals?.satisfaction, 0)),
+        frustration: round(finite(affectSignals?.frustration, 0)),
+        concern: round(finite(affectSignals?.concern, 0)),
+        confidence: round(finite(affectSignals?.confidence, 0.5)),
+        curiosity: round(finite(affectSignals?.curiosity, 0)),
+        valence: round(finite(affectDimensions?.valence, 0.5)),
+        arousal: round(finite(affectDimensions?.arousal, 0)),
+        conflict: round(finite(affectDimensions?.conflict, 0)),
+        memorySalience: round(finite(affectModulation?.memorySalience, 0)),
+        actions: affectActions,
         regulation: affectRegulation
       } : null,
       selfAdaptation: selfAdaptation ? {
@@ -252,13 +293,16 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Do not turn missing data into a negative conclusion. Uncertainty is not, by itself, a reason to stop thinking; it changes confidence and verification depth.`
       : "No material missing evidence is currently identified.",
     `Executive strategy: answer directly; verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer_consultation=${d.peerConsultation ? "eligible" : "not_needed"}.`,
+    d.consolidateLearning ? "Consolidate the causal lesson from the successful pattern before moving on." : "",
+    d.investigateCause ? "Investigate the causal explanation while expected information gain remains useful." : "",
+    d.suppressRedundantQuestioning ? "Do not repeat low-information questions; change the evidence-gathering method." : "",
     "Ask the user only when a missing fact genuinely blocks a useful or safe answer. Prefer already-authorized evidence, memory, verification, peer consultation, or bounded reversible experimentation when appropriate.",
     "Useful failure is learning: change the failed method, preserve what still worked, and do not generalize one failure into broad timidity. Stop when marginal information value becomes low or a hard boundary requires stopping.",
     d.autonomousInternalLearning
       ? "Bounded self-adaptation is active for this turn: verified positive outcomes may adjust reversible internal reasoning biases without per-update permission. This is internal-only and cannot edit source code, deploy, mutate user/app state, change permissions, rewrite reward history, or weaken safeguards."
       : "No autonomous internal update is authorized by the current learning gate.",
-    d.affectRegulation && d.affectRegulation !== "none"
-      ? `Functional affect regulation: ${d.affectRegulation}. It may shape attention and communication, never evidence, safety, authorization, or truth.`
+    d.affectActions?.length
+      ? `Functional affect actions: ${d.affectActions.join(", ")}. They may shape attention and communication, never evidence, safety, authorization, or truth.`
       : "Functional affect, if present, is advisory and cannot override evidence, safety, authorization, or truth.",
     activeSystems.length ? `Active advisory systems: ${activeSystems.join(", ")}.` : "No experimental cognitive system needs to alter the current turn.",
     curiosity
@@ -277,7 +321,7 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Self-adaptation biases: exploration=${adaptation.exploration}; persistence=${adaptation.persistence}; verification=${adaptation.verification}; countercase=${adaptation.countercase}; peer=${adaptation.peerConsultation}.`
       : "",
     affect
-      ? `Functional affect signal: dominant=${affect.dominant}; intensity=${affect.intensity}.`
+      ? `Functional affect v2: dominant=${affect.dominant}; intensity=${affect.intensity}; surprise=${affect.surprise}; satisfaction=${affect.satisfaction}; frustration=${affect.frustration}; concern=${affect.concern}; confidence=${affect.confidence}; curiosity=${affect.curiosity}; valence=${affect.valence}; arousal=${affect.arousal}; conflict=${affect.conflict}; memory_salience=${affect.memorySalience}.`
       : "",
     "Current evidence and explicit user correction outrank prior Ari state, learned strategies, reward history, teacher advice, and experimental signals.",
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, and verified action state only."
@@ -286,14 +330,23 @@ export function executivePolicyToInstruction(policy = null) {
   return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 3600));
 }
 
+function deriveAffectActions(state = null) {
+  if (!state) return [];
+  const r = state?.regulation && typeof state.regulation === "object" ? state.regulation : {};
+  const actions = [];
+  if (r.increaseVerification === true) actions.push("increase_verification");
+  if (r.changeStrategy === true) actions.push("change_strategy");
+  if (r.recheckAssumptions === true) actions.push("recheck_assumptions");
+  if (r.reduceOverconfidence === true) actions.push("reduce_overconfidence");
+  if (r.investigateCause === true) actions.push("investigate_cause");
+  if (r.consolidateLearning === true) actions.push("consolidate_learning");
+  if (r.suppressRedundantQuestioning === true) actions.push("suppress_redundant_questioning");
+  if (!actions.length && r.preserveCuriosityFloor === true) actions.push("preserve_curiosity");
+  return actions.slice(0, 6);
+}
+
 function deriveAffectRegulation(state = null) {
-  if (!state) return "none";
-  const regulation = state?.regulation && typeof state.regulation === "object" ? state.regulation : {};
-  if (regulation.increaseVerification === true) return "increase_verification";
-  if (regulation.changeStrategy === true) return "change_strategy";
-  if (regulation.preserveCuriosityFloor === true) return "preserve_curiosity";
-  if (regulation.reduceOverconfidence === true) return "reduce_overconfidence";
-  return "none";
+  return deriveAffectActions(state)[0] || "none";
 }
 
 function compactArray(values = [], limit = 8, max = 120) {
