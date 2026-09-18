@@ -10,10 +10,13 @@ test("browser bridge only builds canonical Training history when the turn needs 
   assert.match(source, /canonicalTrainingLoaded/);
 });
 
-test("server only hydrates recent cross-session conversation for continuity-dependent wording", () => {
+test("server keeps fast-path hydration selective but explicit recall bypasses the short-history stop", () => {
   const source = fs.readFileSync(new URL("../api/ari-vnext.js", import.meta.url), "utf8");
   assert.match(source, /function shouldRecoverRecentConversation/);
-  assert.match(source, /history\.length >= 2/);
+  assert.match(source, /isConversationRecallRequest\(text, history\)/);
+  assert.match(source, /if \(history\.length >= 2\) return false/);
+  assert.match(source, /force: recallRequested/);
+  assert.match(source, /searchUserConversationHistory/);
   assert.match(source, /last time\|earlier\|before\|remember when\|we talked\|we discussed\|we decided/);
   assert.match(source, /continue from\|pick up where/);
   assert.doesNotMatch(source, /\^\(hey\|hello\|what'?s up/);
