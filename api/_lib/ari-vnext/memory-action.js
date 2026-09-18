@@ -1,13 +1,21 @@
 import { persistDurableMemory } from "./continuity-service.js";
 
-export const ARI_MEMORY_ACTION_VERSION = "1.0.0";
+export const ARI_MEMORY_ACTION_VERSION = "1.1.0";
 
 const TRIGGER_PATTERN = /\b(?:please\s+)?(remember(?:\s+that)?|don['’]?t\s+forget(?:\s+that)?|do\s+not\s+forget(?:\s+that)?|keep\s+in\s+mind(?:\s+that)?)\b/i;
 const FOLLOWUP_REQUEST_PATTERN = /\b(?:and|also|then)\s+(?:tell|explain|answer|show|give|help|what|why|how|can|could|would|should|do)\b/i;
 const QUESTION_FOLLOWUP_PATTERN = /(?:^|[.!;]\s+)(?:what|why|how|can|could|would|should|do|does|is|are|will|tell|explain|show|give|help)\b/i;
 
+const RECALL_QUESTION_PATTERN = /^(?:(?:do|did)\s+you\s+remember\b|what\s+(?:do|did)\s+you\s+remember\b|remember\s+when\b|remember\s+(?:the|our|my)\b.*\?)/i;
+
+export function isMemoryRecallRequest(message = "") {
+  const raw = String(message ?? "").replace(/\r\n?/g, "\n").trim();
+  return Boolean(raw && RECALL_QUESTION_PATTERN.test(raw));
+}
+
 export function prepareExplicitMemoryAction(message = "") {
   const raw = String(message ?? "").replace(/\r\n?/g, "\n").trim();
+  if (isMemoryRecallRequest(raw)) return emptyAction("recall_not_write");
   const match = TRIGGER_PATTERN.exec(raw);
 
   if (!match) return emptyAction("not_requested");

@@ -69,6 +69,7 @@ test("Reward Core v1 exposes productive-effort learning without subjective rewar
   assert.equal(state.policy.rewardUsefulFailure, true);
   assert.equal(state.policy.effortAloneIsNotSuccess, true);
   assert.equal(state.policy.rewardCannotChangePermissions, true);
+  assert.equal(state.policy.penalizeResourceOmission, true);
   assert.match(instruction, /Trying is valuable when the attempt is plausible, nonredundant, evidence-seeking/);
   assert.match(instruction, /Reward cannot grant permissions/);
   assert.match(instruction, /not pleasure, emotion, craving/i);
@@ -114,6 +115,63 @@ test("premature abstention is penalized when useful paths were not attempted", (
 
   assert.ok(quit.lastEvent.penalties.prematureStop > 0);
   assert.ok(quit.lastEvent.actualReward < 0.5);
+});
+
+test("recall requests are penalized when an available conversation resource was not attempted", () => {
+  const skipped = advanceRewardState({
+    turn: { turnId: "reward-recall-skip", message: "Do you remember the Jesus story?" },
+    result: {
+      success: true,
+      reply: "I don't have it.",
+      route: { memory: true },
+      safety: { highStakes: false },
+      resourceResolution: {
+        conversationRecall: { requested: true, attempted: false, found: false }
+      },
+      metacognition: {
+        confidence: "limited",
+        missingEvidence: ["prior conversation"],
+        evidenceSignals: [],
+        curiosity: { activeQuestion: { informationGain: 0.8, novelty: 0.6, redundancy: 0.1 } },
+        cortex: { needs: {} }
+      },
+      cortexAdviser: { attempted: false },
+      scientificIntelligence: { hypotheses: [], outcomeLearning: { applied: false } },
+      action: null,
+      pendingAction: null
+    }
+  });
+
+  assert.equal(skipped.lastEvent.penalties.resourceOmission, 0.38);
+  assert.ok(skipped.lastEvent.actualReward < 0.25);
+});
+
+test("attempted recall is not penalized merely because no matching history was found", () => {
+  const attempted = advanceRewardState({
+    turn: { turnId: "reward-recall-attempt", message: "Do you remember the Jesus story?" },
+    result: {
+      success: true,
+      reply: "I checked the retained conversation history but did not find a matching copy.",
+      route: { memory: true },
+      safety: { highStakes: false },
+      resourceResolution: {
+        conversationRecall: { requested: true, attempted: true, found: false, reason: "no_matching_history" }
+      },
+      metacognition: {
+        confidence: "limited",
+        missingEvidence: ["prior conversation"],
+        evidenceSignals: ["structured_context"],
+        curiosity: { activeQuestion: { informationGain: 0.5, novelty: 0.4, redundancy: 0.1 } },
+        cortex: { needs: {} }
+      },
+      cortexAdviser: { attempted: false },
+      scientificIntelligence: { hypotheses: [], outcomeLearning: { applied: false } },
+      action: null,
+      pendingAction: null
+    }
+  });
+
+  assert.equal(attempted.lastEvent.penalties.resourceOmission, 0);
 });
 
 test("calibrated stopping is not treated as laziness in a high-stakes boundary", () => {

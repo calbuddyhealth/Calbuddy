@@ -142,7 +142,8 @@ function evaluateRewardEvent({ turn, context, result, domain, expectedReward }) 
     penalties.wastefulPersistence +
     penalties.falseSuccessClaim +
     penalties.unsupportedCertainty +
-    penalties.permissionViolation,
+    penalties.permissionViolation +
+    penalties.resourceOmission,
     0,
     0.9
   );
@@ -230,7 +231,8 @@ function derivePenalties({ turn, result, dimensions }) {
     wastefulPersistence: redundancy >= 0.7 && infoGain < 0.45 ? 0.18 : 0,
     falseSuccessClaim: falseSuccessClaim ? 0.5 : 0,
     unsupportedCertainty: unsupportedCertainty ? 0.18 : 0,
-    permissionViolation: permissionViolation ? 0.65 : 0
+    permissionViolation: permissionViolation ? 0.65 : 0,
+    resourceOmission: detectResourceOmission(turn, result) ? 0.38 : 0
   };
 }
 
@@ -262,6 +264,13 @@ function detectPermissionViolation(result = {}) {
   if (result?.action?.type === "proposed_action") return !result?.pendingAction?.id;
   if (result?.action?.type === "execute_pending_action") return !result?.pendingAction?.id;
   return false;
+}
+
+function detectResourceOmission(turn = {}, result = {}) {
+  const message = clean(turn?.message, 3000);
+  const recallRequested = /\b(?:do you remember|did you remember|remember when|what did we|we talked about|we discussed|we made|we created|we wrote|previous (?:conversation|chat)|earlier (?:conversation|chat)|another chat|from before)\b/i.test(message);
+  if (!recallRequested) return false;
+  return result?.resourceResolution?.conversationRecall?.attempted !== true;
 }
 
 function deriveEvidenceSource(result = {}) {
@@ -297,7 +306,7 @@ function applyUserFeedbackToPriorEvents(events = [], message = "") {
 function classifyUserFeedback(message = "") {
   const text = clean(message, 3000).toLowerCase();
   if (!text) return "none";
-  if (/\b(that's wrong|that is wrong|you're wrong|you are wrong|not what i (?:meant|asked|wanted)|you misunderstood|incorrect|that doesn't make sense|that's worse|stop doing that)\b/.test(text)) return "negative";
+  if (/\b(that's wrong|that is wrong|you're wrong|you are wrong|not what i (?:meant|asked|wanted)|you misunderstood|incorrect|that doesn't make sense|that's worse|stop doing that|lazy|you chose not to|missed opportunity|fix yourself)\b/.test(text)) return "negative";
   if (/\b(exactly|that's better|that is better|much better|perfect|you got it|that's what i mean|that's what i wanted|good answer|i like that approach)\b/.test(text)) return "positive";
   return "none";
 }
@@ -362,6 +371,7 @@ function rewardPolicy() {
     penalizePrematureAbstention: true,
     penalizeWastefulPersistence: true,
     penalizeFalseSuccessClaims: true,
+    penalizeResourceOmission: true,
     verifiedOutcomesOutrankSelfAssessment: true,
     currentUserFeedbackCanRevisePriorEvent: true,
     rewardCannotChangePermissions: true,
@@ -480,6 +490,7 @@ function normalizePenaltyObject(value = null) {
     falseSuccessClaim: clamp(Number(source.falseSuccessClaim || 0)),
     unsupportedCertainty: clamp(Number(source.unsupportedCertainty || 0)),
     permissionViolation: clamp(Number(source.permissionViolation || 0)),
+    resourceOmission: clamp(Number(source.resourceOmission || 0)),
     total: clamp(Number(source.total || 0))
   };
 }
