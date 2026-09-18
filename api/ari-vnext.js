@@ -33,8 +33,10 @@ import {
 } from "./_lib/ari-vnext/communication-outcomes.js";
 import {
   hydrateRecentConversation,
+  isConversationRecallRequest,
   persistConversationTurn,
-  persistDurableMemory
+  persistDurableMemory,
+  searchUserConversationHistory
 } from "./_lib/ari-vnext/continuity-service.js";
 import {
   buildMemoryActionModelNote,
@@ -178,13 +180,15 @@ export default async function handler(req, res) {
 
     const cognitiveLoopEligible = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
     const cognitiveLoopEnabled = cognitiveLoopEligible && !casualConversation;
+    const recallRequested = isConversationRecallRequest(turn.message, turn.history);
 
-    const recentContinuity = !casualConversation && (cognitiveLoopEnabled || shouldRecoverRecentConversation(turn))
+    const recentContinuity = !casualConversation && (cognitiveLoopEnabled || recallRequested || shouldRecoverRecentConversation(turn))
       ? await hydrateRecentConversation({
           userId: auth.userId,
           conversationId: turn.conversationId,
           history: turn.history,
-          limitPairs: cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4
+          limitPairs: cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4,
+          force: recallRequested
         })
       : { history: turn.history, hydratedPairs: 0 };
     turn.history = recentContinuity.history;
@@ -251,6 +255,24 @@ export default async function handler(req, res) {
       );
     }
 
+    const conversationRecall = recallRequested
+      ? await searchUserConversationHistory({
+          userId: auth.userId,
+          message: turn.message,
+          history: turn.history,
+          currentConversationId: turn.conversationId,
+          privacyControls: persistedWorldModel?.privacyControls || null,
+          limitMatches: 4
+        })
+      : {
+          attempted: false,
+          found: false,
+          matchCount: 0,
+          anchors: [],
+          summary: "",
+          source: "user_scoped_conversation_history"
+        };
+
     const adaptiveStrategyState = adaptiveStrategyPreparation?.state || {
       version: ARI_ADAPTIVE_STRATEGY_VERSION,
       ownerOnly: true,
@@ -272,6 +294,17 @@ export default async function handler(req, res) {
     const retrievedMemoryCount = retrieved.memories.length;
     if (retrieved.summary) {
       turn.memory = [turn.memory, retrieved.summary].filter(Boolean).join("\n").slice(0, 6000);
+    }
+    if (conversationRecall.summary) {
+      turn.memory = [turn.memory, conversationRecall.summary].filter(Boolean).join("\n\n").slice(0, 10000);
+    } else if (conversationRecall.attempted) {
+      const recallStatusNote = [
+        "VERIFIED PRIOR CONVERSATION RECALL ATTEMPT",
+        "A user-scoped search of retained ARI conversation history was attempted before answering this recall request.",
+        "Result: " + (conversationRecall.reason || "no_matching_history") + ".",
+        "Do not ask the user to paste or repeat the material as the first move. Use any other already-loaded relevant memory or app context before reporting that the retained history could not be recovered."
+      ].join("\n");
+      turn.memory = [turn.memory, recallStatusNote].filter(Boolean).join("\n\n").slice(0, 10000);
     }
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
@@ -337,6 +370,14 @@ export default async function handler(req, res) {
       accountEntitlements,
       intelligenceEntitlement,
       recentContinuityPairs: recentContinuity.hydratedPairs,
+      conversationRecall: {
+        requested: recallRequested,
+        attempted: conversationRecall.attempted === true,
+        found: conversationRecall.found === true,
+        matchCount: Number(conversationRecall.matchCount || 0),
+        reason: conversationRecall.reason || null,
+        source: conversationRecall.source || "user_scoped_conversation_history"
+      },
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(decisionState ? { decisionState } : {}),
@@ -362,6 +403,15 @@ export default async function handler(req, res) {
 
     const modelStartedAt = Date.now();
     const result = await runAriVNext(turn);
+    result.resourceResolution = {
+      conversationRecall: {
+        requested: recallRequested,
+        attempted: conversationRecall.attempted === true,
+        found: conversationRecall.found === true,
+        matchCount: Number(conversationRecall.matchCount || 0),
+        reason: conversationRecall.reason || null
+      }
+    };
     if (explicitMemoryAction.memoryOnly) {
       result.reply = buildVerifiedMemoryReply(explicitMemoryAction);
       result.source = "ari_vnext_verified_memory_action";
@@ -746,10 +796,11 @@ export default async function handler(req, res) {
 
 function shouldRecoverRecentConversation(turn = {}) {
   const history = Array.isArray(turn?.history) ? turn.history : [];
-  if (history.length >= 2) return false;
-
   const text = cleanText(turn?.message, 8000);
   if (!text) return false;
+
+  if (isConversationRecallRequest(text, history)) return true;
+  if (history.length >= 2) return false;
 
   return /^(why|how so|what about|and|but|then|the other one|make it|do that|instead|continue|pick up)\b|\b(last time|earlier|before|remember when|we talked|we discussed|we decided|you said|you told me|what did we|where were we|continue from|pick up where)\b/i.test(text);
 }
