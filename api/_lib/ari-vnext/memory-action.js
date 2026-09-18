@@ -1,6 +1,6 @@
 import { persistDurableMemory } from "./continuity-service.js";
 
-export const ARI_MEMORY_ACTION_VERSION = "1.0.0";
+export const ARI_MEMORY_ACTION_VERSION = "1.1.0";
 
 const TRIGGER_PATTERN = /\b(?:please\s+)?(remember(?:\s+that)?|don['’]?t\s+forget(?:\s+that)?|do\s+not\s+forget(?:\s+that)?|keep\s+in\s+mind(?:\s+that)?)\b/i;
 const FOLLOWUP_REQUEST_PATTERN = /\b(?:and|also|then)\s+(?:tell|explain|answer|show|give|help|what|why|how|can|could|would|should|do)\b/i;
