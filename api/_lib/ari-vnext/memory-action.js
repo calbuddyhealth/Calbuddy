@@ -6,8 +6,16 @@ const TRIGGER_PATTERN = /\b(?:please\s+)?(remember(?:\s+that)?|don['’]?t\s+for
 const FOLLOWUP_REQUEST_PATTERN = /\b(?:and|also|then)\s+(?:tell|explain|answer|show|give|help|what|why|how|can|could|would|should|do)\b/i;
 const QUESTION_FOLLOWUP_PATTERN = /(?:^|[.!;]\s+)(?:what|why|how|can|could|would|should|do|does|is|are|will|tell|explain|show|give|help)\b/i;
 
+const RECALL_QUESTION_PATTERN = /^(?:(?:do|did)\s+you\s+remember\b|what\s+(?:do|did)\s+you\s+remember\b|remember\s+when\b|remember\s+(?:the|our|my)\b.*\?)/i;
+
+export function isMemoryRecallRequest(message = "") {
+  const raw = String(message ?? "").replace(/\r\n?/g, "\n").trim();
+  return Boolean(raw && RECALL_QUESTION_PATTERN.test(raw));
+}
+
 export function prepareExplicitMemoryAction(message = "") {
   const raw = String(message ?? "").replace(/\r\n?/g, "\n").trim();
+  if (isMemoryRecallRequest(raw)) return emptyAction("recall_not_write");
   const match = TRIGGER_PATTERN.exec(raw);
 
   if (!match) return emptyAction("not_requested");
