@@ -64,7 +64,7 @@ export function isConversationRecallRequest(message = "", history = []) {
   const raw = clean(message, 2200);
   if (!raw) return false;
 
-  const explicit = /\b(?:do you remember|did you remember|remember when|what did we|what was (?:that|the)|where were we|we talked about|we discussed|we made|we created|we wrote|previous (?:conversation|chat)|earlier (?:conversation|chat)|old (?:conversation|chat)|another chat|from before|tell me .{0,80}\b(?:we|you)\b .{0,40}\b(?:made|created|wrote|came up with))\b/i.test(raw);
+  const explicit = /\b(?:do you remember|did you remember|what (?:do|did) you remember|remember when|what did we|what was (?:that|the)|where were we|we talked about|we discussed|we made|we created|we wrote|previous (?:conversation|chat)|earlier (?:conversation|chat)|old (?:conversation|chat)|another chat|from before|tell me .{0,80}\b(?:we|you)\b .{0,40}\b(?:made|created|wrote|came up with))\b/i.test(raw);
   if (explicit) return true;
 
   const referential = /^(?:do|did)\s+you\s+remember\s+(?:it|that|this)\b/i.test(raw);
