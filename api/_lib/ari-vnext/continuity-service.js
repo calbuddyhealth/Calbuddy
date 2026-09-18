@@ -2,14 +2,14 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.6.0";
+export const CONTINUITY_SERVICE_VERSION = "1.7.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
 const TRANSIENT_PATTERN = /\b(right now|for today|today only|just today|this minute|this second)\b/i;
 const SENSITIVE_PATTERN = /\b(diagnos|medication|medicine|pregnan|sexual|bank|debt|income|salary|passport|immigration|legal case)\b/i;
 
-export async function hydrateRecentConversation({ userId, conversationId = null, history = [], limitPairs = 4 } = {}) {
+export async function hydrateRecentConversation({ userId, conversationId = null, history = [], limitPairs = 4, force = false } = {}) {
   const safeUserId = clean(userId, 200);
   const safeConversationId = conversationUuid(conversationId);
   const existing = normalizeHistory(history);
@@ -17,7 +17,7 @@ export async function hydrateRecentConversation({ userId, conversationId = null,
   // Server continuity is thread-scoped. Never fall back to "latest turns for this
   // user" when the caller has no valid conversation id because that can blend
   // two intentionally separate conversations together.
-  if (!safeUserId || !safeConversationId || existing.length >= 4) {
+  if (!safeUserId || !safeConversationId || (!force && existing.length >= 4)) {
     return { history: existing, hydratedPairs: 0 };
   }
 
@@ -57,6 +57,103 @@ export async function hydrateRecentConversation({ userId, conversationId = null,
   } catch (error) {
     if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Recent conversation hydration failed:", error?.message || error);
     return { history: existing, hydratedPairs: 0 };
+  }
+}
+
+export function isConversationRecallRequest(message = "", history = []) {
+  const raw = clean(message, 2200);
+  if (!raw) return false;
+
+  const explicit = /\b(?:do you remember|did you remember|remember when|what did we|what was (?:that|the)|where were we|we talked about|we discussed|we made|we created|we wrote|previous (?:conversation|chat)|earlier (?:conversation|chat)|old (?:conversation|chat)|another chat|from before|tell me .{0,80}\b(?:we|you)\b .{0,40}\b(?:made|created|wrote|came up with))\b/i.test(raw);
+  if (explicit) return true;
+
+  const referential = /^(?:do|did)\s+you\s+remember\s+(?:it|that|this)\b/i.test(raw);
+  if (!referential) return false;
+
+  return normalizeHistory(history).some((item) => recallAnchors(item.content).length > 0);
+}
+
+export async function searchUserConversationHistory({
+  userId,
+  message,
+  history = [],
+  currentConversationId = null,
+  privacyControls = null,
+  limitMatches = 4
+} = {}) {
+  const safeUserId = clean(userId, 200);
+  const safeCurrentConversationId = conversationUuid(currentConversationId);
+  const normalizedHistory = normalizeHistory(history);
+  const requested = isConversationRecallRequest(message, normalizedHistory);
+  if (!safeUserId || !requested) {
+    return { attempted: false, found: false, matchCount: 0, anchors: [], summary: "", source: "user_scoped_conversation_history" };
+  }
+
+  const anchors = recallAnchors([message, ...normalizedHistory.slice(-6).map((item) => item.content)].join(" "));
+  if (!anchors.length) {
+    return { attempted: true, found: false, matchCount: 0, anchors: [], summary: "", reason: "no_recall_anchors", source: "user_scoped_conversation_history" };
+  }
+
+  const config = supabaseConfig();
+  if (!config) {
+    return { attempted: true, found: false, matchCount: 0, anchors, summary: "", reason: "continuity_store_unavailable", source: "user_scoped_conversation_history" };
+  }
+
+  try {
+    const params = new URLSearchParams({
+      select: "conversation_id,user_message,assistant_message,created_at",
+      user_id: `eq.${safeUserId}`,
+      expires_at: `gt.${new Date().toISOString()}`,
+      order: "created_at.desc",
+      limit: "120"
+    });
+    const response = await timedFetch(`${config.url}/rest/v1/ari_conversation_turns?${params.toString()}`, {
+      headers: serverHeaders(config.key)
+    }, Math.max(READ_TIMEOUT_MS, 1200));
+    if (!response.ok) {
+      return { attempted: true, found: false, matchCount: 0, anchors, summary: "", reason: `history_read_${response.status}`, source: "user_scoped_conversation_history" };
+    }
+
+    const rows = await response.json().catch(() => []);
+    const blocked = blockedCategories(privacyControls);
+    const scored = (Array.isArray(rows) ? rows : [])
+      .filter((row) => !safeCurrentConversationId || conversationUuid(row?.conversation_id) !== safeCurrentConversationId)
+      .filter((row) => recallRowAllowed(row, blocked))
+      .map((row) => ({ row, score: recallScore(row, anchors) }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || Date.parse(b.row?.created_at || 0) - Date.parse(a.row?.created_at || 0))
+      .slice(0, Math.max(1, Math.min(6, Number(limitMatches) || 4)));
+
+    if (!scored.length) {
+      return { attempted: true, found: false, matchCount: 0, anchors, summary: "", reason: "no_matching_history", source: "user_scoped_conversation_history" };
+    }
+
+    const summary = [
+      "VERIFIED PRIOR CONVERSATION RECALL",
+      "The following snippets came from this signed-in user's retained ARI conversation history. Use them as evidence; do not invent missing parts.",
+      ...scored.flatMap(({ row }, index) => {
+        const user = clean(row?.user_message, 1400);
+        const assistant = clean(row?.assistant_message, 2200);
+        const when = clean(row?.created_at, 80);
+        return [
+          `Match ${index + 1}${when ? ` (${when})` : ""}:`,
+          ...(user ? [`User: ${user}`] : []),
+          ...(assistant ? [`Ari: ${assistant}`] : [])
+        ];
+      })
+    ].join("\n").slice(0, 9000);
+
+    return {
+      attempted: true,
+      found: true,
+      matchCount: scored.length,
+      anchors,
+      summary,
+      source: "user_scoped_conversation_history"
+    };
+  } catch (error) {
+    if (error?.name !== "AbortError") console.warn("[ARI vNext Continuity] Cross-conversation recall failed:", error?.message || error);
+    return { attempted: true, found: false, matchCount: 0, anchors, summary: "", reason: error?.name === "AbortError" ? "history_read_timeout" : "history_read_failed", source: "user_scoped_conversation_history" };
   }
 }
 
@@ -445,6 +542,50 @@ function mergeHistory(serverHistory = [], existing = []) {
     output.push(item);
   }
   return output;
+}
+
+function recallAnchors(value = "") {
+  const stop = new Set([
+    "about", "again", "another", "before", "chat", "conversation", "created", "did", "earlier", "from", "have", "made",
+    "remember", "said", "story", "tell", "that", "the", "this", "what", "when", "where", "with", "wrote", "you", "your", "we",
+    "our", "was", "were", "are", "and", "but", "for", "not", "can", "could", "would", "should", "please", "it"
+  ]);
+  return [...new Set(
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s'-]/g, " ")
+      .split(/\s+/)
+      .filter((item) => item.length >= 3 && !stop.has(item))
+  )].slice(0, 10);
+}
+
+function recallScore(row = {}, anchors = []) {
+  const text = `${clean(row?.user_message, 3000)} ${clean(row?.assistant_message, 5000)}`.toLowerCase();
+  if (!text) return 0;
+  let score = 0;
+  for (const anchor of anchors) {
+    if (!anchor) continue;
+    if (text.includes(anchor)) score += anchor.length >= 7 ? 3 : anchor.length >= 5 ? 2 : 1;
+  }
+  return score;
+}
+
+function recallRowAllowed(row = {}, blocked = new Set()) {
+  if (!blocked?.size) return true;
+  const text = `${clean(row?.user_message, 3000)} ${clean(row?.assistant_message, 5000)}`.toLowerCase();
+  const patterns = {
+    identity: /\b(name|age|birthday|job|occupation|work as|i am|i'm)\b/i,
+    preferences: /\b(prefer|favorite|favourite|like|dislike|hate|love)\b/i,
+    goals: /\b(goal|target|trying to|want to lose|want to gain|want to maintain|cutting|bulking)\b/i,
+    constraints: /\b(can't|cannot|schedule|shift|budget|equipment|allerg|injur|pain|access)\b/i,
+    relationship: /\b(wife|husband|spouse|brother|sister|friend|partner|relationship)\b/i,
+    fitness_outcomes: /\b(workout|training|strength|recovery|performance|weight|nutrition|calorie)\b/i
+  };
+  for (const category of blocked) {
+    const pattern = patterns[category];
+    if (pattern?.test(text)) return false;
+  }
+  return true;
 }
 
 function keywords(value) {
