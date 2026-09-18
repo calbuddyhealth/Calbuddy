@@ -86,6 +86,7 @@ test("runtime constitution is short, canonical, and contains the permanent autho
   assert.match(ARI_RUNTIME_CONSTITUTION, /Truth and evidence outrank agreement/i);
   assert.match(ARI_RUNTIME_CONSTITUTION, /Learning cannot create authority/i);
   assert.match(ARI_RUNTIME_CONSTITUTION, /Never expose or persist hidden chain-of-thought/i);
+  assert.match(ARI_RUNTIME_CONSTITUTION, /Before declaring needed information unavailable/i);
 });
 
 test("persona is a compact voice layer that inherits the runtime constitution instead of restating policy blocks", () => {
@@ -151,11 +152,13 @@ test("Executive resolves specialist signals into one compact turn policy", () =>
   assert.equal(policy.directives.verificationDepth, "high");
   assert.equal(policy.directives.countercase, true);
   assert.equal(policy.directives.autonomousInternalLearning, true);
+  assert.equal(policy.directives.resolveAvailableResourcesBeforeAbstention, true);
   assert.ok(instruction.length <= 3600);
   assert.match(instruction, /SINGLE RUNTIME DECISION AUTHORITY/);
   assert.match(instruction, /Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory/i);
   assert.match(instruction, /Useful failure is learning/i);
   assert.match(instruction, /cannot deploy to production, mutate production user\/app state/i);
+  assert.match(instruction, /Before saying needed information is unavailable/i);
   assert.match(instruction, /Never expose or persist hidden chain-of-thought/i);
 });
 
