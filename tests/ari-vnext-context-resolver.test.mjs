@@ -8,7 +8,9 @@ import {
 } from "../api/_lib/ari-vnext/authoritative-context.js";
 import {
   hydrateRecentConversation,
-  persistConversationTurn
+  isConversationRecallRequest,
+  persistConversationTurn,
+  searchUserConversationHistory
 } from "../api/_lib/ari-vnext/continuity-service.js";
 import { buildCurrentTurn } from "../api/_lib/ari-vnext/current-turn.js";
 
@@ -184,6 +186,50 @@ test("server continuity refuses to blend conversations when no valid thread id i
   });
   assert.deepEqual(result, { history: [], hydratedPairs: 0 });
   assert.equal(calls, 0);
+});
+
+test("explicit recall searches retained conversations for the signed-in user before giving up", async () => {
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const currentConversationId = "11111111-1111-4111-8111-111111111111";
+  const priorConversationId = "22222222-2222-4222-8222-222222222222";
+  let requestedUrl = "";
+
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return response([
+      {
+        conversation_id: currentConversationId,
+        user_message: "People love the Jesus story.",
+        assistant_message: "That's great traction.",
+        created_at: "2026-09-17T16:00:00Z"
+      },
+      {
+        conversation_id: priorConversationId,
+        user_message: "Make the burglar look around for who said Jesus is watching.",
+        assistant_message: "The burglar eventually sees the parrot, who says the Rottweiler is Jesus.",
+        created_at: "2026-09-16T16:00:00Z"
+      }
+    ]);
+  };
+
+  const message = "Tell me the Jesus story we made.";
+  assert.equal(isConversationRecallRequest(message, []), true);
+
+  const result = await searchUserConversationHistory({
+    userId: "user-1",
+    message,
+    history: [{ role: "user", content: "People love your Jesus story." }],
+    currentConversationId
+  });
+
+  assert.equal(result.attempted, true);
+  assert.equal(result.found, true);
+  assert.equal(result.matchCount, 1);
+  assert.match(result.summary, /Rottweiler is Jesus/i);
+  assert.match(requestedUrl, /user_id=eq\.user-1/);
+  assert.match(requestedUrl, /ari_conversation_turns/);
+  assert.doesNotMatch(result.summary, /That's great traction/i);
 });
 
 test("conversation session sync never upserts a client UUID over another user's row", async () => {
