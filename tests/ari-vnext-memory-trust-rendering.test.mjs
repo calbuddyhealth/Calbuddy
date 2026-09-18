@@ -4,10 +4,26 @@ import { readFile } from "node:fs/promises";
 import {
   buildMemoryActionModelNote,
   buildVerifiedMemoryReply,
+  isMemoryRecallRequest,
   prepareExplicitMemoryAction
 } from "../api/_lib/ari-vnext/memory-action.js";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("recall questions never become memory writes", () => {
+  for (const message of [
+    "Do you remember it?",
+    "Do you remember the Jesus story?",
+    "What do you remember about our Jesus story?",
+    "Remember when we made that story?"
+  ]) {
+    assert.equal(isMemoryRecallRequest(message), true);
+    const action = prepareExplicitMemoryAction(message);
+    assert.equal(action.requested, false);
+    assert.equal(action.requestedCount, 0);
+    assert.equal(action.status, "recall_not_write");
+  }
+});
 
 test("explicit multiline remember request becomes separate verified memory facts", () => {
   const action = prepareExplicitMemoryAction(`Please remember:\n- You're a psych nurse and Navy officer.\n- You're married to Emily.\n- Your baby is expected November 15, 2026.\n- You're resigning from the Navy November 30, 2026.`);
