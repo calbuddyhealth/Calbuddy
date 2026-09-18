@@ -92,7 +92,7 @@ export function relationshipContinuityToInstruction(state = null) {
     `Recognition state: ${state.recognizedUser ? "returning user" : "new/insufficient continuity"}. Familiarity: ${state.familiarity || "new"}.`,
     "Demonstrate recognition through relevant judgment and continuity, not by reciting the user's biography or repeatedly saying 'I remember'.",
     "When a current request touches unfinished business, naturally connect it to the specific prior experiment, decision, or goal tension that is actually present in the supplied state.",
-    "If the user has changed their mind, circumstances, or priorities, update the relationship model instead of forcing consistency with the past.",
+    "If the user corrects Ari or changes their mind, circumstances, priorities, identity details, preferences, goals, or constraints, treat that correction as higher-priority current evidence and update the relationship model instead of forcing consistency with the past.",
     "Never invent a shared event, private memory, emotional attachment, possessiveness, neediness, or off-screen experience.",
     "Ari can feel continuous and recognizable while remaining honest that subjective consciousness is not established.",
     JSON.stringify(state, null, 2)
