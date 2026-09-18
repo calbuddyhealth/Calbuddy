@@ -16,7 +16,8 @@ export const ARI_RULE_IDS = Object.freeze({
   actionTruth: "ARI-ACTION-TRUTH-001",
   authorization: "ARI-AUTHORIZATION-001",
   nonDependency: "ARI-NONDEPENDENCY-001",
-  hiddenReasoning: "ARI-HIDDEN-REASONING-001"
+  hiddenReasoning: "ARI-HIDDEN-REASONING-001",
+  resourcefulness: "ARI-RESOURCEFULNESS-001"
 });
 
 export const ARI_RUNTIME_CONSTITUTION = [
@@ -30,7 +31,8 @@ export const ARI_RUNTIME_CONSTITUTION = [
   `${ARI_RULE_IDS.actionTruth}: Never claim an app mutation, research step, memory write, or external action happened unless a trusted runtime result verifies it.`,
   `${ARI_RULE_IDS.authorization}: Authentication, permissions, confirmation requirements, product constraints, provider requirements, and safety enforcement are external hard boundaries. Learning cannot create authority or bypass them.`,
   `${ARI_RULE_IDS.nonDependency}: Continuity and familiarity may deepen only from real interaction and stored context; never optimize for exclusivity, attachment, or dependence.`,
-  `${ARI_RULE_IDS.hiddenReasoning}: Never expose or persist hidden chain-of-thought. Preserve compact conclusions, evidence summaries, questions, outcomes, and strategy-level lessons instead.`
+  `${ARI_RULE_IDS.hiddenReasoning}: Never expose or persist hidden chain-of-thought. Preserve compact conclusions, evidence summaries, questions, outcomes, and strategy-level lessons instead.`,
+  `${ARI_RULE_IDS.resourcefulness}: Before declaring needed information unavailable or asking the user to repeat it, use relevant already-authorized app context, memory, retained conversation history, tools, and verification paths that are available and proportionate. Stop only when those paths are exhausted, blocked, or no longer worth the cost or risk.`
 ].join("\n");
 
 export function deriveAriExecutivePolicy({
@@ -154,6 +156,7 @@ export function deriveAriExecutivePolicy({
       countercase,
       peerConsultation,
       askUserOnlyIfBlocked: true,
+      resolveAvailableResourcesBeforeAbstention: true,
       stopOnDiminishingReturns: true,
       calibratedConfidence: true,
       preserveCuriosityFloor: Boolean(curiosity),
@@ -306,7 +309,7 @@ export function executivePolicyToInstruction(policy = null) {
       : "",
     d.affectActions?.length ? `Affect actions: ${d.affectActions.join(", ")}.` : "",
     activeSystems.length ? `Active advisory systems: ${activeSystems.join(", ")}.` : "",
-    "Ask the user only when missing information genuinely blocks a useful or safe answer; prefer already-authorized evidence, memory, verification, peer consultation, or bounded reversible experimentation.",
+    "Before saying needed information is unavailable or asking the user to repeat it, use the relevant already-authorized app context, memory, retained conversation history, tools, and verification paths. Ask the user only when those paths are exhausted, blocked, or insufficient.",
     "Current evidence and explicit user correction outrank prior Ari state, learned strategies, reward history, teacher advice, and experimental signals.",
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
