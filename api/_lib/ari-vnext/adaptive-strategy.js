@@ -1,8 +1,8 @@
 // ARI vNext — owner-only adaptive reasoning strategy policy.
 // Strategies are compact reusable instructions, not hidden chain-of-thought.
 
-export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.3.1";
-export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.3.1";
+export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.4.0";
+export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.4.0";
 
 const ACTIVE_STATUSES = new Set(["testing", "adopted", "practical_prior"]);
 const ALLOWED_DOMAINS = new Set([
@@ -225,7 +225,8 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
 export function shouldRunAdaptiveStrategyReflection({
   message = "",
   result = null,
-  cognitiveTurnCount = 0
+  cognitiveTurnCount = 0,
+  decisionOutcomeLearning = null
 } = {}) {
   if (!result?.success || !clean(result?.reply, 12000)) return false;
   if (["execute_pending_action", "cancel_pending_action"].includes(String(result?.action?.type || ""))) return false;
@@ -233,6 +234,7 @@ export function shouldRunAdaptiveStrategyReflection({
   const text = clean(message, 4000).toLowerCase();
   const correction = classifyStrategyFeedback(text) === "negative" || /\bactually\b|\bi meant\b|\bcorrection\b/.test(text);
   const outcomeLearning = result?.scientificIntelligence?.outcomeLearning?.applied === true;
+  const realWorldOutcomeLearning = decisionOutcomeLearning?.resolved === true;
   const periodicReview = Number(cognitiveTurnCount || 0) > 0 && Number(cognitiveTurnCount || 0) % 5 === 0;
   const confidence = String(result?.metacognition?.confidence || "").toLowerCase();
   const missingEvidence = Array.isArray(result?.metacognition?.missingEvidence)
@@ -243,7 +245,7 @@ export function shouldRunAdaptiveStrategyReflection({
     missingEvidence.length >= 1 &&
     result?.safety?.highStakes !== true;
 
-  return correction || outcomeLearning || periodicReview || uncertaintyReview;
+  return correction || outcomeLearning || realWorldOutcomeLearning || periodicReview || uncertaintyReview;
 }
 
 export function normalizeAdaptiveStrategyProposal(raw = null) {
