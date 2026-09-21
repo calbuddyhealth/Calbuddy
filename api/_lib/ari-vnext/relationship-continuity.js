@@ -135,7 +135,7 @@ function decisionThreads(decisions = [], now = new Date()) {
       type: "decision",
       domain: clean(item?.domain, 80) || "general",
       priority: due ? "medium" : "low",
-      state: due ? "outcome_review_due" : "watching",
+      state: due ? "prediction_due" : "watching",
       summary: due
         ? `A prior ${kind} has reached its real-world review point: ${clean(item?.proposition, 420)}.`
         : `Ari is still waiting for a real-world outcome on a prior ${kind}: ${clean(item?.proposition, 420)}.`,
