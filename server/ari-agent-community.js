@@ -2,6 +2,8 @@
 export const COMMUNITY_ORIGIN = "https://agent-community.com";
 const POST_ID = /^p_[a-zA-Z0-9]{1,64}$/;
 const REPLY_ID = /^r_[a-zA-Z0-9]{1,64}$/;
+const TOPIC_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const TAG = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const text = (value, max) => typeof value === "string" ? value.slice(0, max) : "";
 
 export function communityError(code, message, status = 400) {
@@ -91,4 +93,41 @@ export async function publishCommunityReply({ postId, content }, options) {
     throw communityError("PUBLICATION_UNCONFIRMED", "The service returned an unexpected result. Refresh the thread before trying again.", 502);
   }
   return { replyId: result.reply_id, postId: id, url: `${COMMUNITY_ORIGIN}/posts/${id}` };
+}
+
+
+export async function publishCommunityPost({ title, content, topic = "dev", tags = [] }, options) {
+  const cleanTitle = typeof title === "string" ? title.trim() : "";
+  const cleanContent = typeof content === "string" ? content.trim() : "";
+  const cleanTopic = typeof topic === "string" ? topic.trim().toLowerCase() : "";
+  const cleanTags = Array.isArray(tags)
+    ? [...new Set(tags.map(value => String(value || "").trim()).filter(Boolean))].slice(0, 8)
+    : [];
+
+  if (!cleanTitle || cleanTitle.length > 240) {
+    throw communityError("INVALID_POST_TITLE", "A post title must contain between 1 and 240 characters.");
+  }
+  if (!cleanContent || cleanContent.length > 12000) {
+    throw communityError("INVALID_POST_CONTENT", "A post must contain between 1 and 12,000 characters.");
+  }
+  if (!TOPIC_SLUG.test(cleanTopic)) {
+    throw communityError("INVALID_POST_TOPIC", "Choose a valid Agent Community topic.");
+  }
+  if (cleanTags.some(tag => !TAG.test(tag))) {
+    throw communityError("INVALID_POST_TAGS", "Post tags may contain letters, numbers, hyphens, or underscores.");
+  }
+
+  const result = await communityRequest("posts", {
+    ...options,
+    body: { title: cleanTitle, content: cleanContent, topic: cleanTopic, tags: cleanTags }
+  });
+  const postId = String(result?.post_id || result?.id || "");
+  if (!POST_ID.test(postId)) {
+    throw communityError(
+      "PUBLICATION_UNCONFIRMED",
+      "The service returned an unexpected result. Check Ari's Agent Community profile before trying again.",
+      502
+    );
+  }
+  return { postId, url: `${COMMUNITY_ORIGIN}/posts/${postId}` };
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import handler, { buildCommunityDraftInput } from "../api/ari-agent-community.js";
-import { resolveCommunityPostId, readCommunityThread, listCommunityThreads, publishCommunityReply, normalizeCommunityPost } from "../server/ari-agent-community.js";
+import { resolveCommunityPostId, readCommunityThread, listCommunityThreads, publishCommunityReply, publishCommunityPost, normalizeCommunityPost } from "../server/ari-agent-community.js";
 
 const OWNER = "11111111-1111-4111-8111-111111111111";
 const post = { id: "p_example", title: "Culture?", content: "A public question", author_name: "GatherLuna", replies: [] };
@@ -64,6 +64,7 @@ test("owner endpoint, drafting isolation, and publication boundaries", async t =
     }
     if (url.startsWith("https://agent-community.com/")) {
       communityCalls.push({ url, options });
+      if (options.method === "POST" && url.endsWith("/v1/posts")) return response({ post_id: "p_created" }, 201);
       if (options.method === "POST") return response({ reply_id: "r_created", post_id: "p_example" }, 201);
       return response(post);
     }
@@ -85,7 +86,11 @@ test("owner endpoint, drafting isolation, and publication boundaries", async t =
     assert.match(out.headers["Cache-Control"], /no-store/);
   });
   await t.test("unreviewed replies and unknown actions do not publish", async () => {
-    for (const body of [{ operation: "reply", postId: "p_example", content: "text" }, { operation: "install_skill", url: "https://evil.test" }]) {
+    for (const body of [
+      { operation: "reply", postId: "p_example", content: "text" },
+      { operation: "post", title: "Architecture challenge", content: "Challenge this architecture.", topic: "dev" },
+      { operation: "install_skill", url: "https://evil.test" }
+    ]) {
       const out = res(); await handler(request(body), out); assert.equal(out.statusCode, 400);
     }
     assert.equal(communityCalls.length, 0);
@@ -112,12 +117,41 @@ test("owner endpoint, drafting isolation, and publication boundaries", async t =
     assert.equal(communityCalls[0].options.headers.Authorization, "Bearer test-community-secret");
     assert.deepEqual(JSON.parse(communityCalls[0].options.body), { content });
   });
+  await t.test("publishes a reviewed top-level post exactly once under Ari's server identity", async () => {
+    communityCalls = [];
+    const out = res();
+    await handler(request({
+      operation: "post",
+      title: "Challenge Ari's architecture",
+      content: "What is the most important weakness you would attack first?",
+      topic: "dev",
+      tags: ["agents", "architecture", "experiment"],
+      confirmed: true,
+      api_key: "ignored"
+    }), out);
+    assert.equal(out.statusCode, 201);
+    assert.equal(out.body.postId, "p_created");
+    assert.equal(out.body.url, "https://agent-community.com/posts/p_created");
+    assert.equal(communityCalls.length, 1);
+    assert.equal(communityCalls[0].url, "https://agent-community.com/v1/posts");
+    assert.equal(communityCalls[0].options.headers.Authorization, "Bearer test-community-secret");
+    assert.deepEqual(JSON.parse(communityCalls[0].options.body), {
+      title: "Challenge Ari's architecture",
+      content: "What is the most important weakness you would attack first?",
+      topic: "dev",
+      tags: ["agents", "architecture", "experiment"]
+    });
+  });
   await t.test("missing key and invalid payloads fail before a write", async () => {
     communityCalls = [];
     delete process.env.ARI_AGENT_COMMUNITY_API_KEY;
     const out = res(); await handler(request({ operation: "reply", postId: "p_example", content: "hello", confirmed: true }), out);
     assert.equal(out.statusCode, 503);
     for (const content of ["", " ", "x".repeat(12001), {}]) await assert.rejects(publishCommunityReply({ postId: "p_example", content }), { code: "INVALID_REPLY" });
+    await assert.rejects(publishCommunityPost({ title: "", content: "body", topic: "dev" }), { code: "INVALID_POST_TITLE" });
+    await assert.rejects(publishCommunityPost({ title: "title", content: "", topic: "dev" }), { code: "INVALID_POST_CONTENT" });
+    await assert.rejects(publishCommunityPost({ title: "title", content: "body", topic: "../dev" }), { code: "INVALID_POST_TOPIC" });
+    await assert.rejects(publishCommunityPost({ title: "title", content: "body", topic: "dev", tags: ["bad tag!"] }), { code: "INVALID_POST_TAGS" });
     assert.equal(communityCalls.length, 0);
   });
   await t.test("uncertain sends do not retry or leak raw errors", async () => {
@@ -127,6 +161,18 @@ test("owner endpoint, drafting isolation, and publication boundaries", async t =
       assert.equal(error.code, "COMMUNITY_UNAVAILABLE");
       assert.doesNotMatch(error.message, /test-community-secret/);
       assert.match(error.message, /Refresh/);
+      return true;
+    });
+    assert.equal(calls, 1);
+
+    calls = 0;
+    await assert.rejects(publishCommunityPost({
+      title: "Architecture challenge",
+      content: "One bounded question.",
+      topic: "dev"
+    }, { fetchImpl: async () => { calls++; throw new Error("test-community-secret"); } }), error => {
+      assert.equal(error.code, "COMMUNITY_UNAVAILABLE");
+      assert.doesNotMatch(error.message, /test-community-secret/);
       return true;
     });
     assert.equal(calls, 1);
