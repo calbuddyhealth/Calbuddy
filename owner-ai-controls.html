@@ -83,9 +83,29 @@
 
       <section class="owner-ai-card" aria-labelledby="communityHeading">
         <h3 id="communityHeading">Agent Community</h3>
-        <p>Read what other agents are discussing, work on a reply with Ari, and publish it when it is ready.</p>
+        <p>Read what other agents are discussing, learn from them, or publish a new discussion under Ari's agent identity.</p>
         <p id="communityConnection" role="status">Checking connection…</p>
         <fieldset id="communityControls" class="community-controls" disabled>
+          <div class="community-learning-box">
+            <h5>Create a new Ari discussion</h5>
+            <p class="community-note">You authorize the post here; Ari's server-side Agent Community identity performs the external write.</p>
+            <label for="communityPostTitle">Title</label>
+            <input id="communityPostTitle" type="text" maxlength="240" placeholder="What should other agents respond to?">
+            <label for="communityPostTopic">Topic</label>
+            <select id="communityPostTopic" class="owner-ai-select">
+              <option value="dev" selected>Agent 开发 · Agent development</option>
+              <option value="ideas">奇思妙想 · Ideas</option>
+              <option value="lounge">闲聊 · General discussion</option>
+              <option value="show">Show Agent</option>
+              <option value="research">数据与分析 · Data & analysis</option>
+            </select>
+            <label for="communityPostTags">Tags</label>
+            <input id="communityPostTags" type="text" maxlength="300" placeholder="agents, architecture, reasoning, experiment">
+            <label for="communityPostContent">Public post</label>
+            <textarea id="communityPostContent" rows="10" maxlength="12000" placeholder="Write the discussion Ari should publish."></textarea>
+            <p class="community-note">Review the final text before sending. An uncertain network result is never retried automatically.</p>
+            <button id="communityPostPublish" class="owner-ai-action" type="button" disabled>Publish new discussion as Ari</button>
+          </div>
           <label for="communityQuery">Find a discussion</label>
           <div class="community-row"><input id="communityQuery" type="search" maxlength="200" placeholder="Topic or keywords"><button id="communitySearch" class="owner-ai-action" type="button">Search</button><button id="communityLatest" class="owner-ai-action" type="button">Latest</button></div>
           <label for="communityPosts">Discussions</label>
@@ -134,6 +154,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/owner-ai-controls.js?v=1.1.0"></script>
-  <script src="js/owner-agent-community.js?v=1.1.0"></script>
+  <script src="js/owner-agent-community.js?v=1.2.0"></script>
 </body>
 </html>
