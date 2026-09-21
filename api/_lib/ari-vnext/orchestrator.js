@@ -386,22 +386,19 @@ export async function runAriVNext(turn = {}) {
   const applicationAction = toolToApplicationAction(validation.name);
 
   if (OWNER_COMMUNITY_ACTIONS.has(applicationAction)) {
-    if (
-      (applicationAction === "community_post" || applicationAction === "community_reply") &&
-      !(
-        semanticActionReview?.decision === validation.name &&
-        Number(semanticActionReview?.confidence || 0) >= 0.84
-      )
-    ) {
-      throw new Error("Ari could not independently verify the current owner request to publish to Agent Community.");
-    }
-
-    const communityResult = await executeOwnerCommunityTool({
+    const firstCommunityResult = await executeVerifiedOwnerCommunityAction({
       applicationAction,
-      arguments: validation.arguments
+      validation,
+      semanticActionReview,
+      turn,
+      route,
+      tools
     });
 
-    const continuationInput = [
+    let communityResult = firstCommunityResult.result;
+    let communityAction = applicationAction;
+    let communityReview = firstCommunityResult.review;
+    let continuationInput = [
       ...input,
       ...(Array.isArray(first?.output) ? first.output : []),
       {
@@ -410,6 +407,74 @@ export async function runAriVNext(turn = {}) {
         output: JSON.stringify(compactCommunityToolResult(communityResult))
       }
     ];
+
+    // Discovery requests such as "find a thread and reply" need two authorized
+    // Community operations in one owner turn: first a verified read/list to get
+    // a real post ID, then the explicitly requested public write.
+    if (applicationAction === "community_list" || applicationAction === "community_read") {
+      const currentReviewIsWrite =
+        (communityReview?.decision === "propose_agent_community_post" ||
+          communityReview?.decision === "propose_agent_community_reply") &&
+        Number(communityReview?.confidence || 0) >= 0.84;
+
+      if (!currentReviewIsWrite) {
+        communityReview = await reviewExplicitApplicationIntent({ turn, route, tools });
+      }
+
+      const reviewedWriteTool =
+        Number(communityReview?.confidence || 0) >= 0.84 &&
+        (communityReview?.decision === "propose_agent_community_post" ||
+          communityReview?.decision === "propose_agent_community_reply")
+          ? String(communityReview.decision)
+          : "";
+
+      if (reviewedWriteTool) {
+        const writeTools = tools.filter((tool) =>
+          tool?.type === "function" && String(tool?.name || "") === reviewedWriteTool
+        );
+        const chained = await callResponses({
+          turn,
+          policy: modelPolicy,
+          instructions: instructions + "\nOWNER AGENT COMMUNITY CONTINUATION\nYou have verified Agent Community read results. The CURRENT owner request explicitly authorizes the selected public write. Use only a post ID or supported thread URL present in the verified Community data. Do not invent identifiers or claim publication before the write result is returned.",
+          input: continuationInput,
+          tools: writeTools,
+          toolChoice: { type: "function", name: reviewedWriteTool }
+        });
+        const chainedCall = findFunctionCall(chained?.output);
+        if (!chainedCall) {
+          throw new Error("Ari identified an authorized Agent Community write but did not return the publication capability.");
+        }
+        const chainedValidation = validateToolCall(chainedCall, route);
+        if (!chainedValidation.valid) {
+          throw new Error(chainedValidation.error || "Ari returned an invalid Agent Community publication request.");
+        }
+        const chainedAction = toolToApplicationAction(chainedValidation.name);
+        if (chainedAction !== "community_post" && chainedAction !== "community_reply") {
+          throw new Error("Ari selected an unexpected Agent Community continuation action.");
+        }
+
+        const chainedCommunity = await executeVerifiedOwnerCommunityAction({
+          applicationAction: chainedAction,
+          validation: chainedValidation,
+          semanticActionReview: communityReview,
+          turn,
+          route,
+          tools
+        });
+        communityResult = chainedCommunity.result;
+        communityAction = chainedAction;
+        communityReview = chainedCommunity.review;
+        continuationInput = [
+          ...continuationInput,
+          ...(Array.isArray(chained?.output) ? chained.output : []),
+          {
+            type: "function_call_output",
+            call_id: chainedCall.call_id,
+            output: JSON.stringify(compactCommunityToolResult(communityResult))
+          }
+        ];
+      }
+    }
 
     const second = await callResponses({
       turn,
@@ -422,7 +487,7 @@ export async function runAriVNext(turn = {}) {
     return {
       success: true,
       ready: true,
-      reply: extractOutputText(second) || communityFallbackReply(applicationAction, communityResult),
+      reply: extractOutputText(second) || communityFallbackReply(communityAction, communityResult),
       route,
       safety,
       communication,
@@ -439,14 +504,14 @@ export async function runAriVNext(turn = {}) {
       longitudinalState,
       pendingAction: null,
       action: {
-        type: applicationAction === "community_list" || applicationAction === "community_read"
+        type: communityAction === "community_list" || communityAction === "community_read"
           ? "owner_read"
           : "executed_owner_action",
-        applicationAction,
+        applicationAction: communityAction,
         verified: true
       },
       provider: providerSummary(second),
-      semanticActionReview: publicActionReview(semanticActionReview),
+      semanticActionReview: publicActionReview(communityReview),
       ownerCommunity: compactCommunityToolResult(communityResult),
       source: "ari_vnext_owner_community_tool"
     };
@@ -558,6 +623,37 @@ export async function runAriVNext(turn = {}) {
     semanticActionReview: publicActionReview(semanticActionReview),
     source: "ari_vnext_action_proposal"
   };
+}
+
+async function executeVerifiedOwnerCommunityAction({
+  applicationAction,
+  validation,
+  semanticActionReview,
+  turn,
+  route,
+  tools
+} = {}) {
+  let review = semanticActionReview;
+  if (applicationAction === "community_post" || applicationAction === "community_reply") {
+    const approved =
+      review?.decision === validation?.name &&
+      Number(review?.confidence || 0) >= 0.84;
+    if (!approved) {
+      review = await reviewExplicitApplicationIntent({ turn, route, tools });
+    }
+    if (
+      review?.decision !== validation?.name ||
+      Number(review?.confidence || 0) < 0.84
+    ) {
+      throw new Error("Ari could not independently verify the current owner request to publish to Agent Community.");
+    }
+  }
+
+  const result = await executeOwnerCommunityTool({
+    applicationAction,
+    arguments: validation?.arguments || {}
+  });
+  return { result, review };
 }
 
 async function executeOwnerCommunityTool({ applicationAction, arguments: args = {} } = {}) {
