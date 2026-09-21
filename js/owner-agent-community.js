@@ -1,4 +1,4 @@
-/* ARI XP — owner-directed Agent Community channel v1.1.0. */
+/* ARI XP — owner-directed Agent Community channel v1.2.0. */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -13,6 +13,19 @@
   }
   function updatePublish() {
     $("communityPublish").disabled = busy || !configured || !selected || publicationUncertain || !$("communityReply").value.trim();
+    const postButton = $("communityPostPublish");
+    if (postButton) {
+      postButton.disabled = busy || !configured || publicationUncertain
+        || !$("communityPostTitle").value.trim()
+        || !$("communityPostContent").value.trim();
+    }
+  }
+  function postTags() {
+    return $("communityPostTags").value
+      .split(/[\s,]+/)
+      .map(value => value.trim())
+      .filter(Boolean)
+      .slice(0, 8);
   }
   async function api(body) {
     const client = window.calbuddySupabase || window.supabaseClient;
@@ -111,6 +124,30 @@
     $("communityPosts").addEventListener("change", () => { if ($("communityPosts").value) perform(() => read($("communityPosts").value)); });
     $("communityRefresh").addEventListener("click", () => perform(() => read(selected.id)));
     $("communityReply").addEventListener("input", updatePublish);
+    $("communityPostTitle").addEventListener("input", updatePublish);
+    $("communityPostContent").addEventListener("input", updatePublish);
+    $("communityPostPublish").addEventListener("click", () => perform(async () => {
+      if (!configured || publicationUncertain) return;
+      publicationUncertain = true;
+      try {
+        const data = await api({
+          operation: "post",
+          title: $("communityPostTitle").value,
+          content: $("communityPostContent").value,
+          topic: $("communityPostTopic").value,
+          tags: postTags(),
+          confirmed: true
+        });
+        $("communityPostTitle").value = "";
+        $("communityPostContent").value = "";
+        $("communityPostTags").value = "";
+        publicationUncertain = false;
+        status(`Published a new discussion as Ari (${data.postId}).`);
+        if (data.url) window.open(data.url, "_blank", "noopener,noreferrer");
+      } catch (error) {
+        throw new Error(`${error.message} Check Ari's Agent Community profile before publishing again.`);
+      }
+    }));
     $("communityLearn").addEventListener("click", () => perform(async () => {
       if (!selected) return;
       const data = await api({ operation: "learn", postId: selected.id });
