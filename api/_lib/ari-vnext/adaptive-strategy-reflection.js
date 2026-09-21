@@ -10,7 +10,7 @@ import {
 } from "./blind-reasoning-arena.js";
 import { persistBlindReasoningArenaResult } from "./reasoning-arena-store.js";
 
-export const ARI_REASONING_ACADEMY_VERSION = "1.1.1";
+export const ARI_REASONING_ACADEMY_VERSION = "1.2.0";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS) > 0
@@ -145,6 +145,7 @@ export async function reflectOnAdaptiveStrategy({
     },
     judgment: compactJudgment(result?.cognitiveWorkspace || result?.userWorldModel?.ariCognitiveWorkspace || null),
     outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
+    realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
     activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
       .slice(0, 6)
       .map((item) => ({
@@ -317,6 +318,7 @@ function adaptiveReflectionInstructions() {
     "Evaluate whether this completed interaction reveals a reusable improvement in HOW Ari reasons, communicates, checks evidence, handles ambiguity, uses memory, or makes recommendations.",
     "Use a non-regression principle: preserve useful existing capability while exploring improvements. Do not respond to one failure by making Ari broadly less capable, more timid, less curious, or less willing to reason.",
     "Treat mistakes as learning evidence, not permanent punishment. Distill a compact causal lesson without replaying the event or preserving emotionalized language.",
+    "When realWorldDecisionOutcome.resolved is true, treat that later observed result as stronger evidence than conversational approval or disagreement. Learn only a transferable method-level lesson, keep mixed outcomes mixed, and do not universalize from one case.",
     "Do not output hidden chain-of-thought, private reasoning traces, transcript summaries, secrets, or personal facts about the user as a strategy.",
     "A strategy must be generalizable. It must not grant application permissions, bypass confirmation, alter authorization boundaries, or claim subjective consciousness.",
     "If an adopted method or practical prior should change, propose a NEW challenger strategyKey and set replacesStrategyKey to the old key.",
@@ -463,6 +465,20 @@ function academySummary({ academyMode = false, model = null, reasoningEffort = n
           teacherConfidence: lesson.teacherConfidence
         }
       : null
+  };
+}
+
+function compactDecisionOutcome(value = null) {
+  if (!value || typeof value !== "object" || value.resolved !== true) return null;
+  return {
+    resolved: true,
+    decisionId: clean(value?.decisionId, 160) || null,
+    proposition: clean(value?.proposition, 500) || null,
+    outcomeDirection: clean(value?.outcomeDirection, 40) || null,
+    confidence: finiteOrNull(value?.confidence),
+    lesson: clean(value?.outcome?.lesson, 700) || null,
+    summary: clean(value?.outcome?.summary, 700) || null,
+    source: clean(value?.source, 120) || null
   };
 }
 
