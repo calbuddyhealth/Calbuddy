@@ -9,6 +9,7 @@ const paths = [
   "ari/vnext/ari-vnext-bridge.js",
   "ari/vnext/ari-vnext-action-adapter.js",
   "ari/vnext/ari-vnext-operation-registry.js",
+  "js/training/ari-whole-workout-replacement.js",
   "js/home.js",
   "ari/runtime/ari-runtime-controller.js"
 ];

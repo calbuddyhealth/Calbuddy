@@ -65,7 +65,7 @@ test("ZXing is absent from initial HTML and loaded only for web scanning", () =>
 });
 
 test("Nutrition cache-bust references match consolidated controllers", () => {
-  assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.17/);
+  assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.18/);
   assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.6\.0/);
   assert.match(nutritionHtml, /assets\/css\/nutrition-scan\.css\?v=1\.0\.2/);
   assert.match(nutritionHtml, /js\/nutrition-scan-save-bridge\.js\?v=1\.0\.1/);
