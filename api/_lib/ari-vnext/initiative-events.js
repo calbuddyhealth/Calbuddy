@@ -2,7 +2,7 @@
 
 import { maybeDeliverAriSignalPush } from "./ari-signals.js";
 
-export const ARI_INITIATIVE_EVENTS_VERSION = "1.2.0";
+export const ARI_INITIATIVE_EVENTS_VERSION = "1.3.0";
 const TABLE = "ari_vnext_initiative_events";
 
 export async function listRecentInitiatives({ userId, limit = 20 } = {}) {
@@ -56,12 +56,16 @@ export function formatAutonomyOwnerBriefing(candidate = null) {
 
   const reasonId = clean(candidate.reasonId, 200);
   if (reasonId === "ari_autonomous_branch_commit") {
+    const artifact = verifiedAutonomousCommitArtifact(candidate?.artifact);
+    if (!artifact) return null;
+
     return {
       ...candidate,
+      artifact,
       priority: "high",
-      opener: "I recommend merging this autonomous improvement after review.",
+      opener: "I created an isolated code improvement that is ready for review.",
       context: clean(candidate.context, 620),
-      followUpPrompt: `Why I want it merged: ${clean(candidate.followUpPrompt, 760)}`,
+      followUpPrompt: `Review evidence: ${clean(candidate.followUpPrompt, 680)} Commit ${artifact.commitSha.slice(0, 12)} on ${artifact.branch}.`,
       action: "review_autonomous_commit",
       cooldownHours: 24
     };
@@ -169,10 +173,43 @@ function compactCandidate(candidate = {}) {
     followUpPrompt: clean(candidate.followUpPrompt, 1000),
     action: clean(candidate.action, 120),
     context: clean(candidate.context, 900),
+    artifact: verifiedAutonomousCommitArtifact(candidate?.artifact),
     cooldownHours: clampInt(candidate.cooldownHours, 12, 168, 48),
     requiresLanguageModelCall: false
   };
 }
+function verifiedAutonomousCommitArtifact(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const commitSha = clean(value.commitSha, 120);
+  const commitUrl = clean(value.commitUrl, 1000);
+  const branch = clean(value.branch, 240);
+  const filePath = clean(value.filePath, 500);
+  const status = clean(value.status, 80) || "pending_ci";
+
+  if (!/^[a-f0-9]{7,64}$/i.test(commitSha)) return null;
+  if (!/^agent\/ari-[a-z0-9._/-]+$/i.test(branch)) return null;
+  if (!filePath || filePath.startsWith("/") || filePath.includes("..") || filePath.includes("\\")) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(commitUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") return null;
+  if (!new RegExp(`/commit/${commitSha}(?:$|[?#])`, "i").test(parsed.pathname + parsed.search + parsed.hash)) return null;
+
+  return {
+    type: "github_commit",
+    commitSha,
+    commitUrl,
+    branch,
+    filePath,
+    status,
+    productionChanged: false
+  };
+}
+
 function normalizeRow(row) {
   if (!row || typeof row !== "object") return null;
   return {

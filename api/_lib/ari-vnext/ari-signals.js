@@ -1,7 +1,7 @@
 import { connect } from "node:http2";
 import { createPrivateKey, sign } from "node:crypto";
 
-export const ARI_SIGNALS_VERSION = "1.0.0";
+export const ARI_SIGNALS_VERSION = "1.0.1";
 const INITIATIVE_TABLE = "ari_vnext_initiative_events";
 const PREF_TABLE = "ari_signal_preferences";
 const DEVICE_TABLE = "ari_push_devices";
@@ -228,6 +228,12 @@ async function listPushDevices({ userId } = {}) {
 function signalFromRow(row) {
   if (!row || typeof row !== "object") return null;
   const payload = safeObject(row.payload);
+  if (
+    clean(row.reason_id, 200) === "ari_autonomous_branch_commit" &&
+    !hasVerifiedAutonomyCommitArtifact(payload?.artifact)
+  ) {
+    return null;
+  }
   const classified = classifyInitiativeAsSignal({
     reasonId: row.reason_id,
     priority: row.priority,
@@ -255,6 +261,27 @@ function signalFromRow(row) {
     dismissedAt: row.dismissed_at || null,
     unread: row.status === "surfaced"
   };
+}
+
+export function hasVerifiedAutonomyCommitArtifact(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const commitSha = clean(value.commitSha, 120);
+  const commitUrl = clean(value.commitUrl, 1000);
+  const branch = clean(value.branch, 240);
+  const filePath = clean(value.filePath, 500);
+
+  if (!/^[a-f0-9]{7,64}$/i.test(commitSha)) return false;
+  if (!/^agent\/ari-[a-z0-9._/-]+$/i.test(branch)) return false;
+  if (!filePath || filePath.startsWith("/") || filePath.includes("..") || filePath.includes("\\")) return false;
+
+  try {
+    const parsed = new URL(commitUrl);
+    if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") return false;
+    return new RegExp(`/commit/${commitSha}(?:$|[?#])`, "i")
+      .test(parsed.pathname + parsed.search + parsed.hash);
+  } catch {
+    return false;
+  }
 }
 
 function normalizePreferences(row = {}) {
