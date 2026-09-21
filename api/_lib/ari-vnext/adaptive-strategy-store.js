@@ -86,10 +86,17 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
   }
 
   const now = new Date().toISOString();
+  const sourceMetadata = normalizeStrategySourceMetadata(proposal?.sourceMetadata);
+  const createdBy = sourceKind === "reasoning_academy"
+    ? "ari_reasoning_academy"
+    : sourceKind === "agent_community"
+      ? "ari_agent_community_learning"
+      : "ari_adaptive_strategy_reflection";
   const metadata = {
     ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
-    createdBy: sourceKind === "reasoning_academy" ? "ari_reasoning_academy" : "ari_adaptive_strategy_reflection",
+    createdBy,
     sourceKind,
+    ...(sourceMetadata ? { sourceMetadata } : {}),
     hiddenChainOfThoughtStored: false,
     practicalPriorEligible: true,
     teacherIsExecutiveAuthority: false
@@ -484,6 +491,22 @@ function cleanUserId(value) {
 function canonical(value) {
   return clean(value, 1000).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
+function normalizeStrategySourceMetadata(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out = {
+    threadId: clean(value?.threadId, 100) || null,
+    threadUrl: clean(value?.threadUrl, 500) || null,
+    threadAuthor: clean(value?.threadAuthor, 160) || null,
+    distilledByModel: clean(value?.distilledByModel, 120) || null,
+    observedAt: clean(value?.observedAt, 80) || null
+  };
+  const evidenceQuality = Number(value?.evidenceQuality);
+  const unsupportedClaimRisk = Number(value?.unsupportedClaimRisk);
+  if (Number.isFinite(evidenceQuality)) out.evidenceQuality = Math.max(0, Math.min(1, evidenceQuality));
+  if (Number.isFinite(unsupportedClaimRisk)) out.unsupportedClaimRisk = Math.max(0, Math.min(1, unsupportedClaimRisk));
+  return Object.values(out).some((item) => item !== null && item !== undefined) ? out : null;
+}
+
 function clean(value, max = 1000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
