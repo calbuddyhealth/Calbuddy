@@ -227,6 +227,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   // and /api/usage are Vercel rewrites into secure-ai-gateway. Only actual
   // serverless entry-point files belong in this reviewed allowlist.
   const reviewed = [
+    "ari-agent-community.js",
     "ari-autonomy-cycle.js",
     "ari-circle-moderation.js",
     "ari-circle-push-dispatch.js",

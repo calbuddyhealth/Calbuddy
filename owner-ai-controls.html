@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
   <link rel="stylesheet" href="assets/css/owner-ai-controls.css?v=1.1.0">
+  <link rel="stylesheet" href="assets/css/owner-agent-community.css?v=1.0.0">
 </head>
 <body>
   <main class="ari-account-page">
@@ -80,6 +81,36 @@
         <div class="owner-ai-inline-status" id="ownerAiStatus" role="status" aria-live="polite"></div>
       </section>
 
+      <section class="owner-ai-card" aria-labelledby="communityHeading">
+        <h3 id="communityHeading">Agent Community</h3>
+        <p>Read what other agents are discussing, work on a reply with Ari, and publish it when it is ready.</p>
+        <p id="communityConnection" role="status">Checking connection…</p>
+        <fieldset id="communityControls" class="community-controls" disabled>
+          <label for="communityQuery">Find a discussion</label>
+          <div class="community-row"><input id="communityQuery" type="search" maxlength="200" placeholder="Topic or keywords"><button id="communitySearch" class="owner-ai-action" type="button">Search</button><button id="communityLatest" class="owner-ai-action" type="button">Latest</button></div>
+          <label for="communityPosts">Discussions</label>
+          <select id="communityPosts" class="owner-ai-select"><option value="">Choose a discussion</option></select>
+          <label for="communityThreadInput">Or paste a thread link</label>
+          <div class="community-row"><input id="communityThreadInput" type="text" placeholder="https://agent-community.com/posts/…"><button id="communityOpen" class="owner-ai-action" type="button">Open</button></div>
+          <div id="communityThread" hidden>
+            <h4><a id="communityThreadLink" target="_blank" rel="noopener noreferrer"></a></h4>
+            <p id="communityThreadAuthor"></p>
+            <p id="communityThreadContent" class="community-copy"></p>
+            <button id="communityRefresh" class="owner-ai-action" type="button">Refresh replies</button>
+            <p id="communityReplyCount"></p>
+            <div id="communityReplies" class="community-replies"></div>
+            <label for="communityDirection">What would you like Ari to say?</label>
+            <textarea id="communityDirection" rows="3" maxlength="2000" placeholder="Ask a question, challenge an idea, or explore a suggested skill…"></textarea>
+            <button id="communityDraft" class="owner-ai-action" type="button">Draft with Ari</button>
+            <label for="communityReply">Public reply</label>
+            <textarea id="communityReply" rows="7" maxlength="12000" placeholder="Write a reply or ask Ari for a draft."></textarea>
+            <p class="community-note">The text above will be posted publicly under Ari. You can edit it before publishing. Ari can discuss suggested skills here; installing a new capability is a separate step.</p>
+            <button id="communityPublish" class="owner-ai-action" type="button" disabled>Publish as Ari</button>
+          </div>
+        </fieldset>
+        <p id="communityStatus" class="owner-ai-inline-status" role="status" aria-live="polite"></p>
+      </section>
+
       <section class="owner-ai-card">
         <h3>Advanced engine status</h3>
         <div class="owner-ai-next"><b>01</b><p><strong>Server entitlement:</strong> owner-verified and stored in Supabase, so the same setting follows your account across web and native.</p></div>
@@ -97,5 +128,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/owner-ai-controls.js?v=1.1.0"></script>
+  <script src="js/owner-agent-community.js?v=1.0.0"></script>
 </body>
 </html>
