@@ -213,11 +213,7 @@ export async function runAriVNext(turn = {}) {
     !LOW_RISK_PRIMARY_FAST_PATHS.has(primaryFunctionName) &&
     (Boolean(functionCall) || shouldReviewNoToolTurn(turn));
   const semanticActionReview = shouldVerify
-    ? await reviewExplicitApplicationIntent({
-        turn,
-        route,
-        tools: tools.filter((tool) => !READ_ONLY_OWNER_COMMUNITY_TOOLS.has(String(tool?.name || "")))
-      })
+    ? await reviewExplicitApplicationIntent({ turn, route, tools })
     : null;
 
   if (
