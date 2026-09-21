@@ -727,8 +727,12 @@ export default async function handler(req, res) {
             testingCount: adaptiveStrategyState?.testingCount || 0,
             feedbackResolved: Number(adaptiveStrategyFeedback?.resolved || 0),
             reflectionAttempted: Boolean(adaptiveStrategyReflection?.attempted),
+            reflectionReason: cleanText(adaptiveStrategyReflection?.reason, 120) || null,
+            reflectionMode: adaptiveStrategyReflection?.academy?.active === true ? "reasoning_academy" : "adaptive_reflection",
+            reflectionModel: cleanText(adaptiveStrategyReflection?.provider?.model, 120) || null,
             strategyProposed: Boolean(adaptiveStrategyReflection?.proposal),
             strategyStored: Boolean(adaptiveStrategyProposalPersistence?.stored),
+            strategyPersistenceReason: cleanText(adaptiveStrategyProposalPersistence?.reason, 120) || null,
             strategyUsesStored: adaptiveStrategyUsesStored,
             evolutionSignalsStored: adaptiveStrategySignalsStored,
             strategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : []).map((item) => ({
