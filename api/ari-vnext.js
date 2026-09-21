@@ -493,7 +493,8 @@ export default async function handler(req, res) {
     const shouldReflectOnStrategy = cognitiveLoopEnabled && shouldRunAdaptiveStrategyReflection({
       message: turn.message,
       result,
-      cognitiveTurnCount
+      cognitiveTurnCount,
+      decisionOutcomeLearning
     });
     const adaptiveStrategyReflection = shouldReflectOnStrategy
       ? await reflectOnAdaptiveStrategy({
