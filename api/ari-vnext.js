@@ -48,8 +48,13 @@ import {
   buildDecisionRecord,
   listRecentDecisions,
   recordDecision,
+  resolveDecision,
   summarizeDecisionState
 } from "./_lib/ari-vnext/decision-journal.js";
+import {
+  buildLongHorizonDecisionRecord,
+  detectReportedDecisionOutcome
+} from "./_lib/ari-vnext/long-horizon-outcomes.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
@@ -195,6 +200,7 @@ export default async function handler(req, res) {
 
     const routePreview = routeContext(turn);
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
+    const shouldLoadDecisionHistory = Boolean(!casualConversation && (fitnessRoute || cognitiveLoopEnabled));
     const shouldLoadConversationLearning = !casualConversation || cleanText(turn.message, 2000).length >= 12;
     const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || cognitiveLoopEnabled));
     const strategyPreparationPromise = cognitiveLoopEnabled
@@ -232,8 +238,8 @@ export default async function handler(req, res) {
       casualConversation
         ? Promise.resolve(null)
         : loadUserWorldModel({ userId: auth.userId }),
-      fitnessRoute
-        ? listRecentDecisions({ userId: auth.userId, limit: 12 })
+      shouldLoadDecisionHistory
+        ? listRecentDecisions({ userId: auth.userId, limit: cognitiveLoopEnabled ? 20 : 12 })
         : Promise.resolve([]),
       shouldLoadConversationLearning
         ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })
@@ -308,7 +314,38 @@ export default async function handler(req, res) {
     }
 
     const experimentLedger = fitnessRoute ? summarizeExperimentLedger(experiments) : null;
-    const decisionState = fitnessRoute ? summarizeDecisionState(recentDecisions) : null;
+    const reportedDecisionOutcome = shouldLoadDecisionHistory
+      ? detectReportedDecisionOutcome({
+          message: turn.message,
+          decisions: recentDecisions,
+          now: turn.createdAt ? new Date(turn.createdAt) : new Date()
+        })
+      : { matched: false, reason: "decision_history_not_loaded" };
+    const decisionOutcomeResolution = reportedDecisionOutcome?.matched
+      ? await resolveDecision({
+          userId: auth.userId,
+          decisionId: reportedDecisionOutcome.decisionId,
+          outcomeDirection: reportedDecisionOutcome.outcomeDirection,
+          outcome: reportedDecisionOutcome.outcome,
+          source: "explicit_user_real_world_report"
+        })
+      : { resolved: false, reason: reportedDecisionOutcome?.reason || "no_reported_outcome" };
+    const effectiveDecisions = decisionOutcomeResolution?.resolved && decisionOutcomeResolution?.decision
+      ? [
+          decisionOutcomeResolution.decision,
+          ...recentDecisions.filter((item) => String(item?.id || "") !== String(decisionOutcomeResolution.decision.id || ""))
+        ]
+      : recentDecisions;
+    const decisionOutcomeLearning = {
+      resolved: decisionOutcomeResolution?.resolved === true,
+      decisionId: decisionOutcomeResolution?.decision?.id || reportedDecisionOutcome?.decisionId || null,
+      proposition: decisionOutcomeResolution?.decision?.proposition || null,
+      outcomeDirection: decisionOutcomeResolution?.decision?.outcomeDirection || reportedDecisionOutcome?.outcomeDirection || null,
+      confidence: reportedDecisionOutcome?.confidence ?? null,
+      outcome: decisionOutcomeResolution?.decision?.outcome || null,
+      source: decisionOutcomeResolution?.resolved ? "explicit_user_real_world_report" : null
+    };
+    const decisionState = shouldLoadDecisionHistory ? summarizeDecisionState(effectiveDecisions) : null;
     const communicationLearning = communicationOutcomes.length
       ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })
       : null;
@@ -337,8 +374,8 @@ export default async function handler(req, res) {
       turn.memory = [turn.memory, memoryActionNote].filter(Boolean).join("\n\n").slice(0, 8000);
     }
 
-    const temporalTimeline = fitnessRoute
-      ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: recentDecisions, limit: 24 })
+    const temporalTimeline = shouldLoadDecisionHistory
+      ? deriveTemporalTimeline({ context: turn.context || {}, experiments, decisions: effectiveDecisions, limit: 24 })
       : null;
 
     const cognitiveWorkspace = cognitiveLoopEnabled
@@ -381,6 +418,7 @@ export default async function handler(req, res) {
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(decisionState ? { decisionState } : {}),
+      ...(decisionOutcomeLearning?.resolved ? { decisionOutcomeLearning } : {}),
       ...(communicationLearning ? { communicationLearning } : {}),
       memoryCapability: {
         persistentUserMemory: true,
@@ -472,9 +510,18 @@ export default async function handler(req, res) {
         })
       : { stored: false, reason: adaptiveStrategyReflection?.reason || "no_proposal" };
 
-    const decisionRecord = fitnessRoute
+    const scientificDecisionRecord = fitnessRoute
       ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
       : null;
+    const decisionRecord = scientificDecisionRecord || (cognitiveLoopEnabled
+      ? buildLongHorizonDecisionRecord({
+          turnId: turn.turnId,
+          turn,
+          route: result?.route || routePreview,
+          result,
+          now: turn.createdAt ? new Date(turn.createdAt) : new Date()
+        })
+      : null);
     const proactiveInsights = fitnessRoute
       ? deriveProactiveInsights({
           coachingState: result?.coachingState || null,
@@ -538,6 +585,8 @@ export default async function handler(req, res) {
             experimentReadiness: result?.scientificIntelligence?.experiment?.readiness || null,
             outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
             calibrationSampleSize: decisionState?.calibration?.sampleSize || 0,
+            dueDecisionCount: decisionState?.dueCount || 0,
+            decisionOutcomeResolved: decisionOutcomeLearning?.resolved === true,
             communicationLearningSamples: communicationLearning?.resolvedCount || 0,
             conversationStyleAutomatic: savedConversationStyle.automatic !== false,
             conversationStyleLockCount: Array.isArray(savedConversationStyle.explicitLocks)
@@ -694,6 +743,7 @@ export default async function handler(req, res) {
       experimentLedger,
       userWorldModel: runtimeWorldModel,
       decisionState,
+      decisionOutcomeLearning,
       communicationLearning,
       conversationStyle: {
         automatic: savedConversationStyle.automatic !== false,
