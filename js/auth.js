@@ -2,7 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
-// V1.10.18 — Loads quota-aware central Ari router v1.5.4.
+// V1.10.18 — Loads quota-aware central Ari router v1.5.5.
 // V1.10.17 — Loads consolidated Nutrition ledger/trust/data-quality runtime versions.
 // V1.10.16 — Enforces browser account isolation before Ari action/runtime boot.
 // V1.10.15 — Loads central Ari router v1.5.3 / runtime v1.3.4 response-pipeline repair.
