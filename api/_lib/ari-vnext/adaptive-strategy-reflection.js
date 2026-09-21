@@ -10,7 +10,7 @@ import {
 } from "./blind-reasoning-arena.js";
 import { persistBlindReasoningArenaResult } from "./reasoning-arena-store.js";
 
-export const ARI_REASONING_ACADEMY_VERSION = "1.1.0";
+export const ARI_REASONING_ACADEMY_VERSION = "1.1.1";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS) > 0
@@ -99,6 +99,12 @@ export function normalizeReasoningAcademyLesson(raw = null) {
   };
 }
 
+export function normalizeAdaptiveReflectionProposal(raw = null) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (raw.shouldPropose !== true) return null;
+  return normalizeAdaptiveStrategyProposal(raw);
+}
+
 export async function reflectOnAdaptiveStrategy({
   turn = {},
   result = {},
@@ -180,7 +186,7 @@ export async function reflectOnAdaptiveStrategy({
         type: "json_schema",
         name: academyMode ? "ari_reasoning_academy_lesson" : "ari_adaptive_strategy_reflection",
         strict: true,
-        schema: academySchema()
+        schema: academyMode ? academySchema() : adaptiveReflectionSchema()
       }
     }
   };
@@ -211,7 +217,9 @@ export async function reflectOnAdaptiveStrategy({
     }
 
     const parsed = parseJson(extractOutputText(data));
-    const normalized = normalizeReasoningAcademyLesson(parsed);
+    const normalized = academyMode
+      ? normalizeReasoningAcademyLesson(parsed)
+      : { proposal: normalizeAdaptiveReflectionProposal(parsed), lesson: null };
     const proposal = normalized.proposal
       ? {
           ...normalized.proposal,
@@ -313,8 +321,61 @@ function adaptiveReflectionInstructions() {
     "A strategy must be generalizable. It must not grant application permissions, bypass confirmation, alter authorization boundaries, or claim subjective consciousness.",
     "If an adopted method or practical prior should change, propose a NEW challenger strategyKey and set replacesStrategyKey to the old key.",
     "Testing strategies are hypotheses. Keep confidence calibrated. Prefer shouldPropose=false unless there is a concrete reusable improvement.",
+    "When shouldPropose=false, return empty strings/arrays for proposal fields rather than inventing a lesson.",
+    "This lightweight reflection does NOT need Reasoning Academy transferConditions, reasoningPattern, failureMode, disconfirmingCase, teacherConfidence, or academyDecision fields.",
     "Return only the requested JSON object."
   ].join("\n");
+}
+
+function adaptiveReflectionSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "shouldPropose",
+      "strategyKey",
+      "title",
+      "instruction",
+      "rationale",
+      "lessonSummary",
+      "domains",
+      "confidence",
+      "replacesStrategyKey",
+      "userVisibleSummary"
+    ],
+    properties: {
+      shouldPropose: { type: "boolean" },
+      strategyKey: { type: "string" },
+      title: { type: "string" },
+      instruction: { type: "string" },
+      rationale: { type: "string" },
+      lessonSummary: { type: "string" },
+      domains: {
+        type: "array",
+        maxItems: 6,
+        items: {
+          type: "string",
+          enum: [
+            "general",
+            "conversation",
+            "decision",
+            "evidence",
+            "memory",
+            "coaching",
+            "training",
+            "nutrition",
+            "goals",
+            "health",
+            "social",
+            "developer"
+          ]
+        }
+      },
+      confidence: { type: "number" },
+      replacesStrategyKey: { type: "string" },
+      userVisibleSummary: { type: "string" }
+    }
+  };
 }
 
 function academySchema() {
