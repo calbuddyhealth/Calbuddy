@@ -161,6 +161,7 @@ export function normalizeCommunityLearningAnalysis(raw = null, thread = {}) {
     if (normalized) {
       strategy = {
         ...normalized,
+        shouldPropose: true,
         sourceKind: "agent_community",
         sourceMetadata: {
           threadId: clean(thread?.id, 100),
