@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { formatAutonomyOwnerBriefing } from "../api/_lib/ari-vnext/initiative-events.js";
+import { hasVerifiedAutonomyCommitArtifact } from "../api/_lib/ari-vnext/ari-signals.js";
 
 test("autonomous commits become concise merge recommendations", () => {
   const formatted = formatAutonomyOwnerBriefing({
@@ -69,6 +70,22 @@ test("malformed commit evidence cannot produce a merge-review signal", () => {
   });
 
   assert.equal(formatted, null);
+});
+
+test("stored autonomy commit artifacts must remain independently verifiable", () => {
+  assert.equal(hasVerifiedAutonomyCommitArtifact({
+    commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+    commitUrl: "https://github.com/example/repo/commit/abcdef1234567890abcdef1234567890abcdef12",
+    branch: "agent/ari-autonomous-development",
+    filePath: "api/_lib/validator.js"
+  }), true);
+
+  assert.equal(hasVerifiedAutonomyCommitArtifact({
+    commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+    commitUrl: "https://github.com/example/repo/commit/abcdef1234567890abcdef1234567890abcdef12",
+    branch: "main",
+    filePath: "api/_lib/validator.js"
+  }), false);
 });
 
 test("blocked autonomous research becomes a Jose plus ChatGPT collaboration request", () => {
