@@ -2,7 +2,7 @@
 // Gives Ari a natural sense of shared history without inventing intimacy,
 // emotions, memories, or subjective consciousness.
 
-export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.0.1";
+export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.1.0";
 
 export function deriveRelationshipContinuity({
   userWorldModel = null,
@@ -122,20 +122,23 @@ function experimentThreads(experiments = [], now = new Date()) {
 
 function decisionThreads(decisions = [], now = new Date()) {
   const nowMs = dateValue(now);
-  return decisions.slice(0, 5).map((item) => {
+  return decisions.slice(0, 6).map((item) => {
+    const explicitReviewMs = dateValue(item?.prediction?.reviewAt);
     const horizonDays = finiteOrNull(item?.prediction?.horizonDays);
     const createdMs = dateValue(item?.createdAt);
-    const dueMs = horizonDays !== null && createdMs ? createdMs + horizonDays * 86400000 : 0;
+    const fallbackDueMs = horizonDays !== null && createdMs ? createdMs + horizonDays * 86400000 : 0;
+    const dueMs = explicitReviewMs || fallbackDueMs;
     const due = Boolean(dueMs && dueMs <= nowMs);
+    const kind = clean(item?.prediction?.kind, 40) || (item?.decisionType === "long_horizon_recommendation" ? "recommendation" : "prediction");
     return {
       id: `decision:${clean(item?.id, 160)}`,
       type: "decision",
-      domain: clean(item?.domain, 80) || "fitness",
+      domain: clean(item?.domain, 80) || "general",
       priority: due ? "medium" : "low",
-      state: due ? "prediction_due" : "watching",
+      state: due ? "outcome_review_due" : "watching",
       summary: due
-        ? `Ari previously made a prediction that has reached its observation horizon: ${clean(item?.proposition, 420)}.`
-        : `Ari is still watching a prior judgment: ${clean(item?.proposition, 420)}.`,
+        ? `A prior ${kind} has reached its real-world review point: ${clean(item?.proposition, 420)}.`
+        : `Ari is still waiting for a real-world outcome on a prior ${kind}: ${clean(item?.proposition, 420)}.`,
       dueAt: dueMs ? new Date(dueMs).toISOString() : null,
       referenceId: item?.id || null
     };
