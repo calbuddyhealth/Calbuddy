@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>Connect ARI XP Owner</title>
+  <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/owner-ai-controls.css?v=1.1.0">
+</head>
+<body>
+  <main class="ari-account-page">
+    <header class="ari-account-header">
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI XP home">
+        <span class="ari-brand-title">ARI</span>
+        <span class="ari-brand-subtitle">EXPERIENCE</span>
+      </a>
+    </header>
+
+    <section class="ari-page-hero">
+      <div class="ari-page-symbol" aria-hidden="true">A+</div>
+      <p class="ari-page-kicker">OWNER AUTHORIZATION</p>
+      <h1 class="ari-page-title">Connect ARI XP Owner</h1>
+      <p class="ari-page-description">
+        Review an AI client's request to use your ARI XP owner tools. Your password is entered only into ARI XP/Supabase and is never shared with the AI client.
+      </p>
+    </section>
+
+    <div class="owner-ai-shell" style="display:block">
+      <section class="owner-ai-card" id="oauthSignInCard" hidden>
+        <h2>Sign in to continue</h2>
+        <p>This authorization can only be approved by the configured ARI XP owner account.</p>
+        <label for="oauthEmail">Email</label>
+        <input id="oauthEmail" type="email" autocomplete="username">
+        <label for="oauthPassword">Password</label>
+        <input id="oauthPassword" type="password" autocomplete="current-password">
+        <div style="height:12px"></div>
+        <button class="owner-ai-action" id="oauthSignIn" type="button">Sign in securely</button>
+      </section>
+
+      <section class="owner-ai-card" id="oauthConsentCard" hidden>
+        <h2>Authorize this connection?</h2>
+        <p><strong id="oauthClientName">AI client</strong> is requesting access to your ARI XP Owner MCP tools.</p>
+        <div class="owner-ai-note">
+          <strong>Requested scopes</strong>
+          <p id="oauthScopes">Loading…</p>
+        </div>
+        <p id="oauthClientDetails"></p>
+        <p>
+          ARI XP will still enforce owner authorization on every tool call. External write tools such as public Agent Community posts remain identifiable as write actions to compatible MCP clients.
+        </p>
+        <div class="community-row">
+          <button class="owner-ai-action" id="oauthApprove" type="button">Approve connection</button>
+          <button class="owner-ai-action" id="oauthDeny" type="button">Deny</button>
+        </div>
+      </section>
+
+      <section class="owner-ai-card" id="oauthMessageCard">
+        <p id="oauthMessage" role="status" aria-live="polite">Preparing authorization…</p>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/oauth-consent.js?v=1.0.0"></script>
+</body>
+</html>
