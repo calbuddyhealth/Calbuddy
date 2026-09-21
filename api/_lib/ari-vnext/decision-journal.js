@@ -117,21 +117,25 @@ export async function recordDecision({ userId, record } = {}) {
   }
 }
 
-export async function resolveDecisionForExperiment({ userId, hypothesisId, outcomeDirection, outcome = {}, source = "experiment_ledger" } = {}) {
+export async function resolveDecision({
+  userId,
+  decisionId,
+  outcomeDirection,
+  outcome = {},
+  source = "observed_outcome"
+} = {}) {
   const config = supabaseConfig();
   const id = clean(userId, 200);
-  const hypothesis = clean(hypothesisId, 120);
-  if (!config || !id || !hypothesis) return false;
-  const open = await listRecentDecisions({ userId: id, statuses: ["open"], limit: 20 });
-  const match = open.find((item) => clean(item?.prediction?.hypothesisId, 120) === hypothesis);
-  if (!match) return false;
+  const decision = clean(decisionId, 200);
+  if (!config || !id || !decision) return { resolved: false, reason: "decision_store_unavailable" };
+
   const direction = normalizeResolution(outcomeDirection);
   const now = new Date().toISOString();
   try {
-    const params = new URLSearchParams({ id: `eq.${match.id}`, user_id: `eq.${id}`, status: "eq.open" });
+    const params = new URLSearchParams({ id: "eq." + decision, user_id: "eq." + id, status: "eq.open" });
     const response = await fetch(`${config.url}/rest/v1/${TABLE}?${params.toString()}`, {
       method: "PATCH",
-      headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
+      headers: serverHeaders(config.key, { Prefer: "return=representation" }),
       body: JSON.stringify({
         status: "resolved",
         outcome_direction: direction,
@@ -141,16 +145,41 @@ export async function resolveDecisionForExperiment({ userId, hypothesisId, outco
         updated_at: now
       })
     });
-    return response.ok;
+    const data = await response.json().catch(() => []);
+    const saved = Array.isArray(data) ? data[0] : data;
+    return response.ok && saved
+      ? { resolved: true, decision: normalizeDecision(saved) }
+      : { resolved: false, reason: "open_decision_not_found" };
   } catch {
-    return false;
+    return { resolved: false, reason: "decision_update_failed" };
   }
 }
 
-export function summarizeDecisionState(decisions = []) {
+export async function resolveDecisionForExperiment({ userId, hypothesisId, outcomeDirection, outcome = {}, source = "experiment_ledger" } = {}) {
+  const id = clean(userId, 200);
+  const hypothesis = clean(hypothesisId, 120);
+  if (!id || !hypothesis) return false;
+  const open = await listRecentDecisions({ userId: id, statuses: ["open"], limit: 20 });
+  const match = open.find((item) => clean(item?.prediction?.hypothesisId, 120) === hypothesis);
+  if (!match) return false;
+  const resolved = await resolveDecision({
+    userId: id,
+    decisionId: match.id,
+    outcomeDirection,
+    outcome,
+    source
+  });
+  return resolved.resolved === true;
+}
+
+export function summarizeDecisionState(decisions = [], now = new Date()) {
   const rows = Array.isArray(decisions) ? decisions : [];
   const open = rows.filter((item) => item.status === "open");
   const resolved = rows.filter((item) => item.status === "resolved");
+  const nowMs = now instanceof Date ? now.getTime() : Date.parse(String(now || ""));
+  const due = open
+    .map((item) => ({ ...item, reviewDueAt: decisionReviewDueAt(item) }))
+    .filter((item) => item.reviewDueAt && Date.parse(item.reviewDueAt) <= (Number.isFinite(nowMs) ? nowMs : Date.now()));
   const calibration = summarizeCalibration(resolved);
   const domains = [...new Set(resolved.map((item) => clean(item?.domain, 80)).filter(Boolean))];
   const byDomain = {};
@@ -169,7 +198,10 @@ export function summarizeDecisionState(decisions = []) {
     version: ARI_DECISION_JOURNAL_VERSION,
     openCount: open.length,
     resolvedCount: resolved.length,
-    recentOpen: open.slice(0, 4),
+    dueCount: due.length,
+    due: due.slice(0, 4),
+    recentOpen: open.slice(0, 6),
+    recentResolved: resolved.slice(0, 6),
     calibration,
     calibrationByDomain: byDomain,
     confidenceGuidance: calibrationGuidance(calibration),
@@ -203,7 +235,7 @@ export function decisionStateToInstruction(state = null) {
     "This is a compact history of Ari's prior judgments and whether later evidence supported or weakened them. It is not hidden reasoning.",
     "Do not repeat an old conclusion simply because Ari said it before. Current evidence outranks consistency with the past.",
     state?.confidenceGuidance || "Do not modify confidence from historical calibration until the sample is large enough.",
-    "When a prior judgment was weakened, treat that as a reason to examine alternatives more carefully under similar conditions.",
+    "When a prior judgment was weakened, treat that as a reason to examine alternatives more carefully under similar conditions.",\n    "For long-horizon decisions, real-world outcomes outrank conversational agreement. A due review is an invitation to compare the original expectation with what actually happened.",\n    "A resolved outcome is bounded evidence, not a universal rule. Transfer the lesson only when the future context is materially similar.",
     JSON.stringify(state, null, 2)
   ].join("\n").slice(0, 8500);
 }
