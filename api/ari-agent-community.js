@@ -10,11 +10,9 @@ import {
   buildCommunityLearningInput,
   communityLearningInstructions,
   communityLearningSchema,
-  mergeCommunityQuestionIntoCuriosityState,
   normalizeCommunityLearningAnalysis
 } from "./_lib/ari-vnext/community-learning.js";
-import { upsertAdaptiveStrategyProposal } from "./_lib/ari-vnext/adaptive-strategy-store.js";
-import { loadUserWorldModel, persistUserWorldModel } from "./_lib/ari-vnext/user-world-model.js";
+import { persistCommunityLearningArtifacts } from "./_lib/ari-vnext/community-learning-store.js";
 
 const ENDPOINT = "/api/ari-agent-community";
 export const config = { maxDuration: 90 };
@@ -153,52 +151,6 @@ async function analyzeCommunityLearning({ thread, userId }) {
   return { analysis, providerModel: data?.model || policy.model || null };
 }
 
-function emptyWorldModel() {
-  return {
-    identity: {},
-    preferences: {},
-    goals: {},
-    constraints: {},
-    behavior: {},
-    responseProfile: {},
-    physiologicalResponse: {},
-    relationship: {},
-    tensions: [],
-    sourceSummary: {},
-    privacyControls: { blockedCategories: [] }
-  };
-}
-
-async function persistCommunityResearchQuestion({ userId, analysis, thread }) {
-  if (!analysis?.research) return { stored: false, reason: "no_research_question", question: null };
-  const current = await loadUserWorldModel({ userId }) || emptyWorldModel();
-  const curiosityState = mergeCommunityQuestionIntoCuriosityState({
-    curiosityState: current?.sourceSummary?.curiosityState,
-    analysis,
-    thread
-  });
-  const stored = await persistUserWorldModel({
-    userId,
-    model: {
-      ...current,
-      sourceSummary: {
-        ...(current?.sourceSummary || {}),
-        curiosityState
-      }
-    }
-  });
-  return {
-    stored,
-    reason: stored ? "community_research_question_persisted" : "world_model_write_failed",
-    question: {
-      topic: analysis.research.topic,
-      question: analysis.research.question,
-      priority: analysis.research.priority,
-      informationGain: analysis.research.informationGain
-    }
-  };
-}
-
 export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
   if (req.method !== "GET" && req.method !== "POST") {
@@ -228,17 +180,11 @@ export default async function handler(req, res) {
     if (body.operation === "learn") {
       const thread = await readCommunityThread(body.postId);
       const { analysis } = await analyzeCommunityLearning({ thread, userId: authorization.user.id });
-      const strategyPersistence = analysis?.strategy
-        ? await upsertAdaptiveStrategyProposal({
-            userId: authorization.user.id,
-            proposal: analysis.strategy,
-            sourceModel: null
-          })
-        : { stored: false, reason: "no_strategy_hypothesis", strategy: null };
-      const curiosityPersistence = await persistCommunityResearchQuestion({
+      const { strategyPersistence, curiosityPersistence } = await persistCommunityLearningArtifacts({
         userId: authorization.user.id,
         analysis,
-        thread
+        thread,
+        sourceModel: null
       });
       return res.status(200).json({
         success: true,
