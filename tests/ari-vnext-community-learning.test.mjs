@@ -292,8 +292,8 @@ test("owner learn operation stores only existing bounded learning primitives", a
   assert.equal(out.body.success, true);
   assert.equal(out.body.published, false);
   assert.equal(out.body.learning.strategy.status, "testing");
-  assert.equal(out.body.strategyPersistence.stored, true);
-  assert.equal(out.body.curiosityPersistence.stored, true);
+  assert.equal(out.body.strategyPersistence.stored, true, JSON.stringify(out.body.strategyPersistence));
+  assert.equal(out.body.curiosityPersistence.stored, true, JSON.stringify(out.body.curiosityPersistence));
   assert.equal(strategyWrites, 1);
   assert.equal(worldModelWrites, 1);
   assert.equal(communityWrites, 0);
