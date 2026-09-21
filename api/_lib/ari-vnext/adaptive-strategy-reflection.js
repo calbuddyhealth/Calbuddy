@@ -10,7 +10,7 @@ import {
 } from "./blind-reasoning-arena.js";
 import { persistBlindReasoningArenaResult } from "./reasoning-arena-store.js";
 
-export const ARI_REASONING_ACADEMY_VERSION = "1.2.0";
+export const ARI_REASONING_ACADEMY_VERSION = "1.1.1";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS) > 0
