@@ -69,7 +69,9 @@ export function communityReplyAllowance({
   const history = Array.isArray(interactions) ? interactions : [];
   const today = dayKey(now);
   const dailyReplies = history.filter((item) =>
-    item?.action === "reply" && dayKey(item?.createdAt) === today
+    item?.action === "reply" &&
+    item?.payload?.source !== "owner_chat" &&
+    dayKey(item?.createdAt) === today
   ).length;
   const dailyLimit = clampInt(maxRepliesPerDay, 1, 4, DEFAULT_MAX_REPLIES_PER_DAY);
   if (dailyReplies >= dailyLimit) {
@@ -103,7 +105,9 @@ export function communityPostAllowance({
   const history = Array.isArray(interactions) ? interactions : [];
   const today = dayKey(now);
   const dailyPosts = history.filter((item) =>
-    item?.action === "post" && dayKey(item?.createdAt) === today
+    item?.action === "post" &&
+    item?.payload?.source !== "owner_chat" &&
+    dayKey(item?.createdAt) === today
   ).length;
   const dailyLimit = clampInt(maxPostsPerDay, 1, 2, DEFAULT_MAX_POSTS_PER_DAY);
   return dailyPosts >= dailyLimit
