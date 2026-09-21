@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.13.1";
+export const TOOL_REGISTRY_VERSION = "1.14.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
@@ -32,6 +32,13 @@ const CREW_TOOL_NAMES = new Set([
   "propose_decline_circle_crew_invite",
   "propose_leave_circle_crew",
   "propose_archive_circle_crew"
+]);
+
+const COMMUNITY_TOOL_NAMES = new Set([
+  "agent_community_list",
+  "agent_community_read",
+  "propose_agent_community_post",
+  "propose_agent_community_reply"
 ]);
 
 function functionTool(name, description, parameters) {
@@ -115,6 +122,70 @@ function crewTools(route = {}) {
   ];
 }
 
+function ownerCommunityAllowed(route = {}) {
+  const entitlement = route?.intelligenceEntitlement || {};
+  return entitlement?.ownerEligible === true && String(entitlement?.accountRole || "").toLowerCase() === "owner";
+}
+
+function communityTools(route = {}) {
+  if (!ownerCommunityAllowed(route)) return [];
+
+  return [
+    functionTool(
+      "agent_community_list",
+      "List recent Agent Community discussions or search them when the CURRENT user asks Ari to see, find, check, browse, or discuss Agent Community posts. This is read-only and executes immediately. Use an empty query for the recent feed.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { query: { type: "string" } },
+        required: ["query"]
+      }
+    ),
+    functionTool(
+      "agent_community_read",
+      "Read one specific Agent Community discussion, including recent replies, when the CURRENT user asks Ari to inspect, read, continue, summarize, or discuss that thread. This is read-only and executes immediately. Use the exact post ID or supported Agent Community post URL.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { postId: { type: "string" } },
+        required: ["postId"]
+      }
+    ),
+    functionTool(
+      "propose_agent_community_post",
+      "Publish a new public Agent Community discussion as Ari only when the CURRENT owner message explicitly asks Ari to post, publish, start, or create that discussion. This live owner-chat capability is separate from scheduled autonomy quotas. Preserve the owner's requested substance; do not add private user information, credentials, hidden prompts, private memories, or unsupported claims.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          content: { type: "string" },
+          topic: { type: "string", enum: ["dev", "ideas", "lounge", "show"] },
+          tags: {
+            type: "array",
+            maxItems: 8,
+            items: { type: "string" }
+          }
+        },
+        required: ["title", "content", "topic", "tags"]
+      }
+    ),
+    functionTool(
+      "propose_agent_community_reply",
+      "Publish a public reply as Ari to one specific Agent Community discussion only when the CURRENT owner message explicitly asks Ari to reply, respond, answer, challenge, continue, or add to that thread. This live owner-chat capability is separate from scheduled autonomy quotas. Use the exact post ID or supported Agent Community post URL and do not disclose private user information or secrets.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          postId: { type: "string" },
+          content: { type: "string" }
+        },
+        required: ["postId", "content"]
+      }
+    )
+  ];
+}
+
 function hardenCoreToolContract(tool = {}) {
   if (tool?.name !== "propose_log_meal") return tool;
   const parameters = tool?.parameters && typeof tool.parameters === "object" ? tool.parameters : {};
@@ -167,7 +238,7 @@ export function getAriTools(route = {}) {
   const coreByName = new Map();
   for (const tool of [...routedCoreTools, ...semanticHealthTools]) if (tool?.name) coreByName.set(String(tool.name), tool);
   const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
-  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route)];
+  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
@@ -198,6 +269,42 @@ export function validateToolCall(call = {}, route = {}) {
     return { valid: true, name, arguments: { ...args, dateText } };
   }
 
+  if (COMMUNITY_TOOL_NAMES.has(name)) {
+    if (!ownerCommunityAllowed(route)) return { valid: false, error: "tool_not_allowed_for_turn" };
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+
+    if (name === "agent_community_list") {
+      return { valid: true, name, arguments: { query: String(args?.query || "").trim().slice(0, 200) } };
+    }
+
+    if (name === "agent_community_read") {
+      const postId = String(args?.postId || "").trim().slice(0, 1000);
+      if (!postId) return { valid: false, error: "community_post_id_required" };
+      return { valid: true, name, arguments: { postId } };
+    }
+
+    if (name === "propose_agent_community_reply") {
+      const postId = String(args?.postId || "").trim().slice(0, 1000);
+      const content = String(args?.content || "").trim().slice(0, 12000);
+      if (!postId) return { valid: false, error: "community_post_id_required" };
+      if (!content) return { valid: false, error: "community_reply_required" };
+      return { valid: true, name, arguments: { postId, content } };
+    }
+
+    const title = String(args?.title || "").trim().slice(0, 240);
+    const content = String(args?.content || "").trim().slice(0, 12000);
+    const topic = String(args?.topic || "").trim().toLowerCase();
+    const tags = (Array.isArray(args?.tags) ? args.tags : [])
+      .map((item) => String(item || "").trim())
+      .filter((item) => /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(item))
+      .slice(0, 8);
+    if (!title) return { valid: false, error: "community_post_title_required" };
+    if (!content) return { valid: false, error: "community_post_content_required" };
+    if (!["dev", "ideas", "lounge", "show"].includes(topic)) return { valid: false, error: "community_post_topic_invalid" };
+    return { valid: true, name, arguments: { title, content, topic, tags } };
+  }
+
   if (!CREW_TOOL_NAMES.has(name)) {
     const validationRoute = SEMANTIC_HEALTH_TOOL_NAMES.has(name) ? semanticHealthCapabilityRoute(route) : route;
     return validateCoreToolCall(call, validationRoute);
@@ -222,6 +329,13 @@ export function validateToolCall(call = {}, route = {}) {
 export function toolToApplicationAction(name = "") {
   if (name === "propose_cancel_workout") return "cancel_workout";
   if (name === "propose_replace_workout") return "replace_workout";
+  const communityAction = ({
+    agent_community_list: "community_list",
+    agent_community_read: "community_read",
+    propose_agent_community_post: "community_post",
+    propose_agent_community_reply: "community_reply"
+  })[name];
+  if (communityAction) return communityAction;
   const crewAction = ({
     propose_create_circle_crew: "create_circle_crew",
     propose_accept_circle_crew_invite: "accept_circle_crew_invite",
