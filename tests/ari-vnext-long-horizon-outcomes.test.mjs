@@ -243,7 +243,7 @@ test("relationship continuity uses explicit long-horizon review dates", () => {
 
   const thread = continuity.unfinishedThreads.find((item) => item.referenceId === "decision-due");
   assert.ok(thread);
-  assert.equal(thread.state, "outcome_review_due");
+  assert.equal(thread.state, "prediction_due");
   assert.equal(thread.dueAt, "2026-09-20T00:00:00.000Z");
 });
 
