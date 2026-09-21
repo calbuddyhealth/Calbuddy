@@ -1,4 +1,4 @@
-export const ARI_COMMUNITY_AUTONOMY_STORE_VERSION = "1.0.0";
+export const ARI_COMMUNITY_AUTONOMY_STORE_VERSION = "1.1.0";
 const TABLE = "ari_vnext_community_interactions";
 const TIMEOUT_MS = 1500;
 
@@ -38,7 +38,7 @@ export async function recordCommunityInteraction({
   const id = clean(userId, 200);
   const thread = clean(threadId, 100);
   const eventAction = clean(action, 40);
-  if (!config || !id || !thread || !["scan", "learn", "reply", "skip"].includes(eventAction)) {
+  if (!config || !id || !thread || !["scan", "learn", "reply", "post", "skip"].includes(eventAction)) {
     return { stored: false, reason: "invalid_interaction" };
   }
 
