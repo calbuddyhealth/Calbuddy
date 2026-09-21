@@ -9,16 +9,16 @@ const FUTURE_SIGNAL = /\b(?:will|likely|expect|predict|prediction|forecast|what 
 const REPLY_DECISION_SIGNAL = /\b(?:i recommend|my recommendation|you should|we should|best option|better approach|worth|likely|i expect|i'd expect|would probably|should improve|go with|keep using|switch to|use |build |choose )\b/i;
 const TRANSIENT_FACT = /\b(?:weather|forecast|temperature|score|standings|stock price|market price|exchange rate|who is|president|governor|senator|election poll|release date|availability)\b/i;
 
-const NEGATIVE_OUTCOME = /\b(?:did(?:n't| not) work|failed|failure|backfired|made (?:it|things) worse|you were wrong|that was wrong|your recommendation was wrong|did(?:n't| not) pan out|turned out badly|was a mistake|wasn't successful|was not successful)\b/i;
+const NEGATIVE_OUTCOME = /\b(?:did(?:n't| not) work|failed(?:\s+to)?|was a failure|resulted in failure|backfired|made (?:it|things) worse|you were wrong|that was wrong|your recommendation was wrong|did(?:n't| not) pan out|turned out badly|was a mistake|wasn't successful|was not successful)\b/i;
 const MIXED_OUTCOME = /\b(?:mixed result|mixed results|partly worked|partially worked|somewhat worked|kind of worked|sort of worked|worked but|helped but|mixed outcome)\b/i;
 const POSITIVE_OUTCOME = /\b(?:that worked|it worked|worked out|worked well|ended up working|turned out well|you were right|that was right|your recommendation was right|successful|was a success|paid off|helped a lot|good call)\b/i;
 const DEICTIC_OUTCOME = /\b(?:that|it|this|your advice|your recommendation|you were|good call)\b/i;
 
 const STOPWORDS = new Set([
-  "about","after","again","against","also","because","been","before","being","between","both","could","does","doing",
+  "about","after","again","against","also","and","because","been","before","being","between","both","could","does","doing",
   "from","have","having","into","just","more","most","much","only","other","over","same","should","some","such","than",
   "that","their","them","then","there","these","they","this","those","through","under","very","what","when","where","which",
-  "while","with","would","your","you're","youre","were","will","worked","work","right","wrong","recommendation","advice"
+  "the","while","with","would","your","you're","youre","were","will","well","worked","work","right","wrong","recommendation","advice"
 ]);
 
 export function buildLongHorizonDecisionRecord({
