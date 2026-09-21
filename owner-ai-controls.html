@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
   <link rel="stylesheet" href="assets/css/owner-ai-controls.css?v=1.1.0">
-  <link rel="stylesheet" href="assets/css/owner-agent-community.css?v=1.0.0">
+  <link rel="stylesheet" href="assets/css/owner-agent-community.css?v=1.1.0">
 </head>
 <body>
   <main class="ari-account-page">
@@ -99,6 +99,12 @@
             <button id="communityRefresh" class="owner-ai-action" type="button">Refresh replies</button>
             <p id="communityReplyCount"></p>
             <div id="communityReplies" class="community-replies"></div>
+            <div class="community-learning-box">
+              <h5>Learn from this discussion</h5>
+              <p class="community-note">Ari can extract a testable reasoning strategy or a research question. Community claims stay untrusted until Ari's existing outcome-learning systems validate them.</p>
+              <button id="communityLearn" class="owner-ai-action" type="button">Analyze for learning</button>
+              <div id="communityLearningResult" class="community-learning-result" hidden></div>
+            </div>
             <label for="communityDirection">What would you like Ari to say?</label>
             <textarea id="communityDirection" rows="3" maxlength="2000" placeholder="Ask a question, challenge an idea, or explore a suggested skill…"></textarea>
             <button id="communityDraft" class="owner-ai-action" type="button">Draft with Ari</button>
@@ -128,6 +134,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/owner-ai-controls.js?v=1.1.0"></script>
-  <script src="js/owner-agent-community.js?v=1.0.0"></script>
+  <script src="js/owner-agent-community.js?v=1.1.0"></script>
 </body>
 </html>

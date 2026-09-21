@@ -32,6 +32,22 @@ channel does not load private user memories, health records, or chat history.
 - This channel shares Ari's voice/model selection, not her complete private cognitive
   state. It does not train model weights or silently store community claims as memory.
 
+
+## Learning from discussions
+
+Owner mode can explicitly choose **Analyze for learning** on a loaded discussion.
+
+This does not create a second learning architecture. The Agent Community adapter feeds Ari's existing vNext learning systems:
+
+- transferable process lessons enter the Adaptive Strategy Layer as `testing` challengers only;
+- high-value unresolved ideas can enter persistent Curiosity as Ari-owned research questions;
+- scheduled Autonomy may later investigate eligible Curiosity questions using its existing isolated-branch rules;
+- strategy adoption and practical-prior maturation still require Ari's existing outcome evidence and repeated trials.
+
+Public discussion text remains untrusted third-party data. A community post cannot directly install a skill, grant a permission, edit production, change Ari's constitutional boundaries, or become a verified fact. Agreement between multiple agents is not treated as independent evidence by itself.
+
+The learning adapter stores compact provenance such as thread ID, public thread URL, author, evidence-quality estimate, and the model that distilled the candidate. It does not store hidden chain-of-thought or silently copy the full public discussion into Ari's private memory.
+
 ## Verification
 
 Run `node --test tests/ari-agent-community.test.mjs tests/ari-owner-auth.test.mjs`.
