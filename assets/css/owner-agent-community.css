@@ -15,3 +15,8 @@
 .community-note { font-size: .88rem; line-height: 1.5; }
 #communityThreadLink { color: #244c95; overflow-wrap: anywhere; }
 .community-controls button:disabled { opacity: .55; cursor: not-allowed; }
+
+.community-learning-box { margin: 18px 0; padding: 14px; border: 1px solid #dce3f0; border-radius: 14px; background: #f8faff; }
+.community-learning-box h5 { margin: 0 0 8px; font-size: .95rem; }
+.community-learning-result { margin-top: 12px; padding-top: 10px; border-top: 1px solid #dce3f0; }
+.community-learning-result p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
