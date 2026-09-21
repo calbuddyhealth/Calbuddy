@@ -3,7 +3,7 @@
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.15.0";
+export const CONTEXT_ROUTER_VERSION = "1.16.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -130,7 +130,7 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.experimentLedger = source.experimentLedger;
   }
 
-  if ((route.training || route.nutrition || route.goals) && source?.decisionState) {
+  if (!route?.casualConversation && source?.decisionState) {
     selected.decisionState = source.decisionState;
   }
 
@@ -138,11 +138,19 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.communicationLearning = source.communicationLearning;
   }
 
-  if ((route.training || route.nutrition || route.goals) && source?.temporalTimeline) {
+  if (!route?.casualConversation && source?.temporalTimeline) {
     selected.temporalTimeline = source.temporalTimeline;
   }
 
-  if (turn?.memory && (route.memory || route.training || route.nutrition || route.goals)) {
+  if (turn?.memory && (
+    route.memory ||
+    route.training ||
+    route.nutrition ||
+    route.goals ||
+    route.developer ||
+    route.currentInfo ||
+    route.followUp
+  )) {
     selected.relevantMemory = turn.memory;
   }
 
@@ -205,6 +213,9 @@ function cognitiveContextRules(context = {}) {
       "- Prior Ari judgments are evidence about Ari's past performance, not facts about the user.",
       "- Current evidence outranks consistency with an old Ari conclusion.",
       "- A previously weakened judgment should increase attention to credible alternatives under similar conditions.",
+      "- Long-horizon recommendations and predictions remain open until later real-world evidence resolves them. User-reported real outcomes outrank conversational agreement.",
+      "- Treat due decisions as review opportunities, not as prompts to force a conclusion. Mixed or inconclusive outcomes should stay mixed or inconclusive.",
+      "- Transfer a resolved lesson only when the new context is materially similar; never turn one outcome into a universal rule.",
       guidance ? `- ${guidance}` : "- Do not adjust confidence from historical calibration until the sample is large enough."
     );
   }
