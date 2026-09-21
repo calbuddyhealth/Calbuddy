@@ -1,5 +1,5 @@
 import { verifyOwnerRequest, setOwnerSecurityHeaders, sendOwnerAuthorizationError } from "../server/ari-owner-auth.js";
-import { communityError, listCommunityThreads, readCommunityThread, publishCommunityReply } from "../server/ari-agent-community.js";
+import { communityError, listCommunityThreads, readCommunityThread, publishCommunityReply, publishCommunityPost } from "../server/ari-agent-community.js";
 import { loadAriIntelligenceControls } from "../server/ari-intelligence-control-store.js";
 import { resolveAriIntelligenceEntitlement } from "../server/ari-intelligence-entitlement.js";
 import { resolveModelPolicy } from "./_lib/ari-vnext/model-policy.js";
@@ -210,7 +210,7 @@ export default async function handler(req, res) {
     if (!authorization.authorized) return sendOwnerAuthorizationError(res, authorization);
     if (req.method === "GET") return res.status(200).json({
       success: true, configured: Boolean(String(process.env.ARI_AGENT_COMMUNITY_API_KEY || "").trim()),
-      agentName: "Ari", capabilities: ["read_threads", "draft_reply", "learn_from_thread", "publish_reviewed_reply"], automaticSkillInstallation: false
+      agentName: "Ari", capabilities: ["read_threads", "draft_reply", "learn_from_thread", "publish_reviewed_reply", "publish_reviewed_post"], automaticSkillInstallation: false
     });
     let body = req.body;
     if (typeof body === "string") {
@@ -252,6 +252,11 @@ export default async function handler(req, res) {
     if (body.operation === "reply") {
       if (body.confirmed !== true) throw communityError("REVIEW_REQUIRED", "Review the reply and choose Publish as Ari.");
       const published = await publishCommunityReply(body);
+      return res.status(201).json({ success: true, published: true, ...published });
+    }
+    if (body.operation === "post") {
+      if (body.confirmed !== true) throw communityError("REVIEW_REQUIRED", "Review the new discussion and choose Publish as Ari.");
+      const published = await publishCommunityPost(body);
       return res.status(201).json({ success: true, published: true, ...published });
     }
     throw communityError("UNKNOWN_OPERATION", "Unsupported Agent Community action.");
