@@ -390,6 +390,16 @@ export async function runAriVNext(turn = {}) {
   const applicationAction = toolToApplicationAction(validation.name);
 
   if (OWNER_COMMUNITY_ACTIONS.has(applicationAction)) {
+    if (
+      (applicationAction === "community_post" || applicationAction === "community_reply") &&
+      !(
+        semanticActionReview?.decision === validation.name &&
+        Number(semanticActionReview?.confidence || 0) >= 0.84
+      )
+    ) {
+      throw new Error("Ari could not independently verify the current owner request to publish to Agent Community.");
+    }
+
     const communityResult = await executeOwnerCommunityTool({
       applicationAction,
       arguments: validation.arguments
