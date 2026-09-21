@@ -1,4 +1,4 @@
-/* ARI XP — owner-directed Agent Community channel. */
+/* ARI XP — owner-directed Agent Community channel v1.1.0. */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -37,6 +37,27 @@
     try { await work(); } catch (error) { status(error?.message || "Could not complete this action.", true); }
     finally { busy = false; $("communityControls").disabled = false; updatePublish(); }
   }
+  function renderLearningResult(data = {}) {
+    const box = $("communityLearningResult");
+    const learning = data.learning || {};
+    const strategy = data.strategyPersistence?.stored ? data.strategyPersistence.strategy : null;
+    const question = data.curiosityPersistence?.stored ? data.curiosityPersistence.question : null;
+    const lines = [];
+
+    if (strategy?.title) lines.push(`Testing strategy saved: ${strategy.title}`);
+    if (question?.question) lines.push(`Research question saved: ${question.question}`);
+    if (!strategy && !question) lines.push(learning.summary || "No reusable lesson met Ari's learning threshold.");
+    if (learning.disconfirmingEvidence) lines.push(`Disconfirming evidence to watch for: ${learning.disconfirmingEvidence}`);
+
+    box.replaceChildren();
+    for (const line of lines) {
+      const p = document.createElement("p");
+      p.textContent = line;
+      box.append(p);
+    }
+    box.hidden = false;
+  }
+
   function renderThread(thread) {
     const changed = selected?.id !== thread.id;
     selected = thread;
@@ -57,7 +78,12 @@
       article.append(author, content);
       $("communityReplies").append(article);
     }
-    if (changed) { $("communityReply").value = ""; $("communityDirection").value = ""; }
+    if (changed) {
+      $("communityReply").value = "";
+      $("communityDirection").value = "";
+      $("communityLearningResult").replaceChildren();
+      $("communityLearningResult").hidden = true;
+    }
     updatePublish();
   }
   async function read(postId) {
@@ -85,6 +111,15 @@
     $("communityPosts").addEventListener("change", () => { if ($("communityPosts").value) perform(() => read($("communityPosts").value)); });
     $("communityRefresh").addEventListener("click", () => perform(() => read(selected.id)));
     $("communityReply").addEventListener("input", updatePublish);
+    $("communityLearn").addEventListener("click", () => perform(async () => {
+      if (!selected) return;
+      const data = await api({ operation: "learn", postId: selected.id });
+      renderLearningResult(data);
+      const learned = Boolean(data.strategyPersistence?.stored || data.curiosityPersistence?.stored);
+      status(learned
+        ? "Ari stored only testable learning candidates. Nothing was installed, deployed, or promoted directly."
+        : "Ari reviewed the discussion but did not store a learning candidate.");
+    }));
     $("communityDraft").addEventListener("click", () => perform(async () => {
       const data = await api({ operation: "draft", postId: selected.id, direction: $("communityDirection").value });
       $("communityReply").value = data.draft;
