@@ -199,9 +199,9 @@ export function summarizeDecisionState(decisions = [], now = new Date()) {
     openCount: open.length,
     resolvedCount: resolved.length,
     dueCount: due.length,
-    due: due.slice(0, 4),
-    recentOpen: open.slice(0, 6),
-    recentResolved: resolved.slice(0, 6),
+    due: due.slice(0, 4).map(compactDecisionStateRow),
+    recentOpen: open.slice(0, 6).map(compactDecisionStateRow),
+    recentResolved: resolved.slice(0, 6).map(compactDecisionStateRow),
     calibration,
     calibrationByDomain: byDomain,
     confidenceGuidance: calibrationGuidance(calibration),
@@ -238,6 +238,34 @@ export function decisionStateToInstruction(state = null) {
     "When a prior judgment was weakened, treat that as a reason to examine alternatives more carefully under similar conditions.",\n    "For long-horizon decisions, real-world outcomes outrank conversational agreement. A due review is an invitation to compare the original expectation with what actually happened.",\n    "A resolved outcome is bounded evidence, not a universal rule. Transfer the lesson only when the future context is materially similar.",
     JSON.stringify(state, null, 2)
   ].join("\n").slice(0, 8500);
+}
+
+function compactDecisionStateRow(item = {}) {
+  return {
+    id: item?.id || null,
+    domain: clean(item?.domain, 80),
+    decisionType: clean(item?.decisionType, 80),
+    proposition: clean(item?.proposition, 700),
+    confidence: finiteOrNull(item?.confidence),
+    prediction: {
+      kind: clean(item?.prediction?.kind, 40) || null,
+      statement: clean(item?.prediction?.statement, 700) || null,
+      horizonDays: finiteOrNull(item?.prediction?.horizonDays),
+      reviewAt: item?.prediction?.reviewAt || null,
+      reviewQuestion: clean(item?.prediction?.reviewQuestion, 700) || null,
+      hypothesisId: clean(item?.prediction?.hypothesisId, 120) || null
+    },
+    status: clean(item?.status, 40),
+    outcomeDirection: clean(item?.outcomeDirection, 40) || null,
+    outcome: {
+      summary: clean(item?.outcome?.summary, 700) || null,
+      lesson: clean(item?.outcome?.lesson, 900) || null,
+      observedAt: item?.outcome?.observedAt || null
+    },
+    reviewDueAt: item?.reviewDueAt || decisionReviewDueAt(item),
+    createdAt: item?.createdAt || null,
+    resolvedAt: item?.resolvedAt || null
+  };
 }
 
 function calibrationGuidance(calibration = {}) {
