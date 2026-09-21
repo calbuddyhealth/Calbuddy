@@ -9,7 +9,7 @@ test("Owner page loads WebMCP Site Tools at top level", () => {
   assert.match(html, /js\/owner-site-tools\.js\?v=1\.0\.0/);
   assert.match(source, /document\?\.modelContext/);
   assert.match(source, /registerTool/);
-  assert.doesNotMatch(html, /\\\\n/);
+  assert.doesNotMatch(html, /\\n/);
 });
 
 test("WebMCP tools verify signed-in owner before registration and on every request", () => {
