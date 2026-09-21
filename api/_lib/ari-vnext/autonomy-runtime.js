@@ -13,7 +13,7 @@ import { normalizeCuriosityState } from "./curiosity-core.js";
 import { recordInitiativeSurface } from "./initiative-events.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
 
-export const ARI_AUTONOMY_RUNTIME_VERSION = "1.0.0";
+export const ARI_AUTONOMY_RUNTIME_VERSION = "1.0.1";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const MAX_FIND_CHARS = 12000;
@@ -441,6 +441,17 @@ async function surfaceDevelopmentUpdate({ userId, goal, action }) {
       ? `Goal: ${clean(goal.label, 360)}. Evidence: ${clean(action.evidence, 480)}. Commit: ${clean(action.commitUrl, 500)}. CI is pending.`
       : `Goal: ${clean(goal.label, 360)}. Evidence: ${clean(action.evidence, 650)}.`,
     action: committed ? "review_autonomous_commit" : "review_autonomous_learning",
+    ...(committed ? {
+      artifact: {
+        type: "github_commit",
+        commitSha: clean(action.commitSha, 120),
+        commitUrl: clean(action.commitUrl, 1000),
+        branch: clean(action.branch, 240),
+        filePath: clean(action.filePath, 500),
+        status: clean(action.status, 80) || "pending_ci",
+        productionChanged: false
+      }
+    } : {}),
     cooldownHours: committed ? 24 : 48
   };
   return recordInitiativeSurface({ userId, candidate }).catch(() => ({ stored: false }));
