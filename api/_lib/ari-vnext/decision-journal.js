@@ -1,7 +1,9 @@
 // ARI vNext — autobiographical journal of meaningful judgments and predictions.
 // Stores compact conclusions + provenance, never hidden chain-of-thought.
 
-export const ARI_DECISION_JOURNAL_VERSION = "1.1.0";
+import { decisionReviewDueAt } from "./long-horizon-outcomes.js";
+
+export const ARI_DECISION_JOURNAL_VERSION = "1.2.0";
 const TABLE = "ari_vnext_decisions";
 
 export async function listRecentDecisions({ userId, statuses = [], limit = 12 } = {}) {
