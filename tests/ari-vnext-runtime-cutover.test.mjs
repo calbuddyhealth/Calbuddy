@@ -32,6 +32,7 @@ test("vNext dependencies include canonical Training, trusted action adapters, br
   for (const dependency of [
     "ari-vnext-training-context.js",
     "ari-vnext-action-adapter.js",
+    "ari-whole-workout-replacement.js",
     "ari-vnext-activity-adapter.js",
     "ari-vnext-bridge.js",
     "ari-vnext-initiative.js"
@@ -41,12 +42,18 @@ test("vNext dependencies include canonical Training, trusted action adapters, br
 });
 
 test("quota-aware runtime cache chain reaches Home and iOS WebViews", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.3\.9"/);
+  assert.match(runtimeSource, /const VERSION = "1\.3\.10"/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.9\.0/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
   assert.match(resilienceSource, /Version: 1\.3\.5/);
   assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.3\.9"/);
   assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.5/);
+});
+
+test("vNext readiness guarantees the whole-workout replacement executor", () => {
+  assert.match(runtimeSource, /ari-whole-workout-replacement\.js\?v=1\.0\.0/);
+  assert.match(runtimeSource, /__ariWholeWorkoutReplacementV1/);
+  assert.match(runtimeSource, /AriVNextActionAdapter\.__ariWholeWorkoutReplacementV1 === true/);
 });
 
 test("trusted app actions remain outside direct model execution", () => {
