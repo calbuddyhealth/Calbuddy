@@ -235,7 +235,9 @@ export function decisionStateToInstruction(state = null) {
     "This is a compact history of Ari's prior judgments and whether later evidence supported or weakened them. It is not hidden reasoning.",
     "Do not repeat an old conclusion simply because Ari said it before. Current evidence outranks consistency with the past.",
     state?.confidenceGuidance || "Do not modify confidence from historical calibration until the sample is large enough.",
-    "When a prior judgment was weakened, treat that as a reason to examine alternatives more carefully under similar conditions.",\n    "For long-horizon decisions, real-world outcomes outrank conversational agreement. A due review is an invitation to compare the original expectation with what actually happened.",\n    "A resolved outcome is bounded evidence, not a universal rule. Transfer the lesson only when the future context is materially similar.",
+    "When a prior judgment was weakened, treat that as a reason to examine alternatives more carefully under similar conditions.",
+    "For long-horizon decisions, real-world outcomes outrank conversational agreement. A due review is an invitation to compare the original expectation with what actually happened.",
+    "A resolved outcome is bounded evidence, not a universal rule. Transfer the lesson only when the future context is materially similar.",
     JSON.stringify(state, null, 2)
   ].join("\n").slice(0, 8500);
 }
