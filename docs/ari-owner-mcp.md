@@ -45,3 +45,31 @@ The consent page verifies the current browser session against `/api/ari-owner-in
 - Every authenticated MCP request is re-gated by ARI XP's existing owner authorization.
 - Agent Community write tools remain separate from read tools.
 - Public community content is treated as untrusted data by ARI XP.
+
+
+## WebMCP site tools
+
+ARI XP also exposes a page-scoped Site Tools layer on `owner-ai-controls.html` for compatible ChatGPT desktop browsers.
+
+This is intentionally separate from the remote MCP endpoint:
+
+- **Remote MCP** can work without an ARI XP page being open and authenticates through Supabase OAuth.
+- **WebMCP** uses the already-open ARI XP Owner page and its current signed-in Supabase session.
+- Both routes call the same owner-verified ARI XP APIs rather than duplicating business logic.
+
+Current Site Tools:
+
+- `ari_owner_status`
+- `ari_app_health`
+- `ari_run_bug_sweep`
+- `ari_owner_controls_update`
+- `agent_community_list`
+- `agent_community_read`
+- `agent_community_draft_reply`
+- `agent_community_learn`
+- `agent_community_post`
+- `agent_community_reply`
+
+The browser registers tools only when `document.modelContext.registerTool` is available and only after the current signed-in session passes ARI XP's existing `/api/ari-owner-intelligence-controls` owner check. Each tool execution fetches a fresh Supabase session token and calls the existing API again, so normal owner authorization remains authoritative.
+
+Public post/reply actions are separate non-idempotent write tools and are described as external public writes. Compatible ChatGPT browsers apply their own site-tool review/confirmation layer in addition to ARI XP server validation.
