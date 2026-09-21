@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ARI_REASONING_ACADEMY_VERSION,
+  normalizeAdaptiveReflectionProposal,
   normalizeReasoningAcademyLesson,
   selectReasoningTeacherModel,
   shouldUseReasoningAcademy
@@ -112,12 +113,47 @@ test("teacher lesson becomes only a testing strategy and retains transferable me
     userVisibleSummary: "I am testing a stronger way to compare competing explanations before committing."
   });
 
-  assert.equal(ARI_REASONING_ACADEMY_VERSION, "1.1.0");
+  assert.equal(ARI_REASONING_ACADEMY_VERSION, "1.1.1");
   assert.equal(normalized.proposal.strategyKey, "competing_hypotheses_before_commitment");
   assert.equal(normalized.proposal.status, "testing");
   assert.equal(normalized.proposal.confidence, 0.88);
   assert.equal(normalized.lesson.transferConditions.length, 3);
   assert.match(normalized.lesson.disconfirmingCase, /simpler direct answer/i);
+});
+
+test("lightweight adaptive reflection can persist a valid strategy without Reasoning Academy-only fields", () => {
+  const proposal = normalizeAdaptiveReflectionProposal({
+    shouldPropose: true,
+    strategyKey: "verify_action_state_before_claiming_completion",
+    title: "Verify action state before claiming completion",
+    instruction: "Before saying an external action or code change happened, require current machine-verifiable evidence for that state.",
+    rationale: "This prevents language from outrunning actual runtime state while preserving concise recommendations and proposals.",
+    lessonSummary: "Implementation claims should follow verifiable implementation evidence.",
+    domains: ["developer", "evidence"],
+    confidence: 0.81,
+    replacesStrategyKey: "",
+    userVisibleSummary: "I am testing a stricter evidence check for claims that an action was completed."
+  });
+
+  assert.ok(proposal);
+  assert.equal(proposal.strategyKey, "verify_action_state_before_claiming_completion");
+  assert.equal(proposal.status, "testing");
+  assert.equal(proposal.confidence, 0.81);
+});
+
+test("lightweight adaptive reflection still skips when it found no reusable improvement", () => {
+  assert.equal(normalizeAdaptiveReflectionProposal({
+    shouldPropose: false,
+    strategyKey: "",
+    title: "",
+    instruction: "",
+    rationale: "",
+    lessonSummary: "",
+    domains: [],
+    confidence: 0,
+    replacesStrategyKey: "",
+    userVisibleSummary: ""
+  }), null);
 });
 
 test("reasoning academy rejects lessons that do not demonstrate transfer", () => {
