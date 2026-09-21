@@ -13,16 +13,62 @@ test("autonomous commits become concise merge recommendations", () => {
     confidence: 0.87,
     opener: "old opener",
     context: "Improved contradiction checking. Changed validator.js on agent/ari-autonomous-development. Production was not changed.",
-    followUpPrompt: "Goal: improve contradiction checking. Evidence: regression test now catches the failure. Commit: https://github.com/example/commit/abc. CI is pending.",
+    followUpPrompt: "Goal: improve contradiction checking. Evidence: regression test now catches the failure. CI is pending.",
     action: "review_autonomous_commit",
+    artifact: {
+      type: "github_commit",
+      commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+      commitUrl: "https://github.com/example/repo/commit/abcdef1234567890abcdef1234567890abcdef12",
+      branch: "agent/ari-autonomous-development",
+      filePath: "api/_lib/validator.js",
+      status: "pending_ci",
+      productionChanged: false
+    },
     cooldownHours: 48
   });
 
   assert.ok(formatted);
-  assert.match(formatted.opener, /recommend merging/i);
-  assert.match(formatted.followUpPrompt, /why i want it merged/i);
+  assert.match(formatted.opener, /ready for review/i);
+  assert.match(formatted.followUpPrompt, /review evidence/i);
+  assert.equal(formatted.artifact.commitSha, "abcdef1234567890abcdef1234567890abcdef12");
+  assert.equal(formatted.artifact.productionChanged, false);
   assert.equal(formatted.action, "review_autonomous_commit");
   assert.equal(formatted.cooldownHours, 24);
+});
+
+test("a commit-labeled signal without verifiable commit evidence stays quiet", () => {
+  const formatted = formatAutonomyOwnerBriefing({
+    initiativeKey: "ari_autonomy:goal:2026-09-17T19",
+    reasonId: "ari_autonomous_branch_commit",
+    source: "ari_autonomy_runtime",
+    priority: "high",
+    confidence: 0.87,
+    opener: "I created something.",
+    context: "A model-generated summary claims a change exists.",
+    followUpPrompt: "Please merge it.",
+    action: "review_autonomous_commit",
+    cooldownHours: 24
+  });
+
+  assert.equal(formatted, null);
+});
+
+test("malformed commit evidence cannot produce a merge-review signal", () => {
+  const formatted = formatAutonomyOwnerBriefing({
+    initiativeKey: "ari_autonomy:goal:2026-09-17T19",
+    reasonId: "ari_autonomous_branch_commit",
+    source: "ari_autonomy_runtime",
+    artifact: {
+      type: "github_commit",
+      commitSha: "not-a-sha",
+      commitUrl: "https://example.com/not-a-commit",
+      branch: "main",
+      filePath: "../unsafe.js",
+      status: "pending_ci"
+    }
+  });
+
+  assert.equal(formatted, null);
 });
 
 test("blocked autonomous research becomes a Jose plus ChatGPT collaboration request", () => {
