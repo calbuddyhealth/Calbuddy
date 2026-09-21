@@ -45,9 +45,9 @@ test("quota-aware runtime cache chain reaches Home and iOS WebViews", () => {
   assert.match(runtimeSource, /const VERSION = "1\.3\.10"/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.9\.0/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
-  assert.match(resilienceSource, /Version: 1\.3\.5/);
-  assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.3\.9"/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.5/);
+  assert.match(resilienceSource, /Version: 1\.3\.6/);
+  assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.3\.10"/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.6/);
 });
 
 test("vNext readiness guarantees the whole-workout replacement executor", () => {
