@@ -3,6 +3,10 @@
 // message authorizes a write. It never executes an action itself.
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const READ_ONLY_TOOL_NAMES = new Set([
+  "agent_community_list",
+  "agent_community_read"
+]);
 
 export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, tools = [] } = {}) {
   const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
@@ -11,7 +15,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
   const availableTools = (Array.isArray(tools) ? tools : [])
     .filter((tool) => tool?.type === "function" && typeof tool?.name === "string")
     .map((tool) => String(tool.name).trim())
-    .filter(Boolean);
+    .filter((name) => Boolean(name) && !READ_ONLY_TOOL_NAMES.has(name));
 
   if (!availableTools.length) return null;
 
