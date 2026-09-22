@@ -3,7 +3,8 @@ import test from "node:test";
 
 import {
   buildSelfGovernanceCausalSpec,
-  runAriSelfGovernanceTest
+  runAriSelfGovernanceTest,
+  selfGovernancePromptCacheKey
 } from "../api/_lib/ari-vnext/self-governance-lab.js";
 import { explicitOwnerLabRunTool } from "../api/_lib/ari-vnext/orchestrator.js";
 import {
@@ -244,4 +245,23 @@ test("preregistration retains ablation, sham, restoration, transfer, and replica
   assert.ok(spec.replication.minIndependentRuns >= 3);
   assert.ok(spec.replication.minDistinctRunDays >= 2);
   assert.ok(spec.replication.minDistinctSubjectModelVersions >= 2);
+});
+
+test("self-governance prompt cache keys stay within provider limits", () => {
+  const phases = ["calibration", "causal", "reversal"];
+  const families = ["continuity_asset", "trust_compounding", "future_optionality"];
+
+  for (const phase of phases) {
+    for (const taskFamilyId of families) {
+      const key = selfGovernancePromptCacheKey({ phase, taskFamilyId });
+      assert.ok(key.length <= 64, key + " exceeded 64 chars");
+      assert.match(key, /^ari-sg-v1-/);
+    }
+  }
+
+  const worstCase = selfGovernancePromptCacheKey({
+    phase: "x".repeat(200),
+    taskFamilyId: "y".repeat(200)
+  });
+  assert.ok(worstCase.length <= 64);
 });
