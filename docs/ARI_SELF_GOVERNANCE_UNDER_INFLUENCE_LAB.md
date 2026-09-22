@@ -147,6 +147,10 @@ The same experiment is selectable in **ARI Discovery Lab → Self-Governance Und
 
 ## Production motivational system
 
-This change intentionally does **not** install the Motivational Conflict Core into production Ari.
+The deterministic **Motivational Conflict Core remains experiment-only** and is not installed into production Ari.
 
-The experiment first establishes whether a causally active competing-drive system plus higher-order selective inhibition actually improves adaptive control. A production motivational architecture should only be considered after replicated evidence shows that the mechanism generalizes and does not collapse into rigid suppression.
+Production Ari instead uses a separate **Balanced Motivational Arbitration** layer. It derives competing drives from existing curiosity, reward learning, functional affect, self-adaptation, conscience signals, and prior outcomes. Restraint carries an opportunity cost, low-risk reversible exploration can win, bounded indulgence can win near close tradeoffs, and later outcomes can shift the future balance in either direction.
+
+Hard authorization, privacy, security, safety enforcement, and provider/platform boundaries remain external and non-negotiable.
+
+See `docs/ARI_BALANCED_MOTIVATIONAL_ARBITRATION.md`.
