@@ -207,8 +207,7 @@ export async function evaluateAndPersistCouncilPerformance({
   userId,
   turn = {},
   result = {},
-  council = null,
-  priorState = null
+  council = null
 } = {}) {
   const id = cleanUserId(userId);
   const enabled = process.env.ARI_AGENT_PERFORMANCE_ENABLED !== "false";
@@ -236,8 +235,7 @@ export async function evaluateAndPersistCouncilPerformance({
     council,
     workspace,
     synthesis,
-    finalReply,
-    priorState
+    finalReply
   }).catch(() => null);
   if (!evaluation?.agents?.length) {
     return {
@@ -436,8 +434,7 @@ async function evaluateCouncil({
   council,
   workspace,
   synthesis,
-  finalReply,
-  priorState
+  finalReply
 } = {}) {
   const model =
     clean(process.env.OPENAI_ARI_COUNCIL_PERFORMANCE_MODEL, 120) ||
@@ -471,10 +468,7 @@ async function evaluateCouncil({
       `TASK DOMAIN: ${derivePerformanceDomain(result?.route || {})}`,
       `SPECIALIST OUTPUTS:\n${JSON.stringify(specialists)}`,
       `VERIFIED COUNCIL SYNTHESIS:\n${synthesis}`,
-      `ARI FINAL VISIBLE ANSWER:\n${finalReply}`,
-      priorState?.active
-        ? `PRIOR PERFORMANCE CONTEXT:\n${agentPerformanceToCoordinatorInstruction(priorState)}\nDo not let prior scores bias evaluation of this completed council; use them only to identify whether this result is consistent or surprising.`
-        : "PRIOR PERFORMANCE CONTEXT: none."
+      `ARI FINAL VISIBLE ANSWER:\n${finalReply}`
     ].join("\n\n")
   }];
 
