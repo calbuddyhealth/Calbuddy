@@ -1240,7 +1240,11 @@ function normalizeOutcomeEvent(row = {}) {
     ? row.contributions
         .map((item) => ({
           role: slugRole(item?.role),
-          model: clean(item?.model, 120) || "unknown"
+          model: clean(item?.model, 120) || "unknown",
+          contributionScore: clamp01(item?.contributionScore),
+          evidenceQuality: clamp01(item?.evidenceQuality),
+          unsupportedRisk: clamp01(item?.unsupportedRisk),
+          verdict: normalizeVerdict(item?.verdict)
         }))
         .filter((item) => item.role)
     : [];
@@ -1264,13 +1268,28 @@ function applyOutcomeEvidenceToAgentProfiles(profiles = [], events = []) {
     const outcomeValues = matching
       .map((event) => outcomeStatusValue(event.outcomeStatus))
       .filter(Number.isFinite);
+    const latestContribution = matching
+      .flatMap((event) => Array.isArray(event.contributions) ? event.contributions : [])
+      .find((item) =>
+        item.role === profile.role &&
+        item.model === profile.model
+      ) || null;
+    const recentFields = latestContribution
+      ? {
+          lastScore: latestContribution.contributionScore,
+          lastEvidenceQuality: latestContribution.evidenceQuality,
+          lastUnsupportedRisk: latestContribution.unsupportedRisk,
+          lastVerdict: latestContribution.verdict
+        }
+      : {};
     if (!outcomeValues.length) {
-      return { ...profile, outcomeSampleCount: 0, outcomeScore: null };
+      return { ...profile, ...recentFields, outcomeSampleCount: 0, outcomeScore: null };
     }
     const outcomeScore = mean(outcomeValues);
     const weight = Math.min(0.35, outcomeValues.length * 0.1);
     return {
       ...profile,
+      ...recentFields,
       outcomeSampleCount: outcomeValues.length,
       outcomeScore: round(outcomeScore, 3),
       reliabilityScore: round(
