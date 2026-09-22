@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.0.0";
+export const ARI_EXECUTIVE_VERSION = "1.1.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -45,6 +45,7 @@ export function deriveAriExecutivePolicy({
   curiosity = null,
   rewardCore = null,
   functionalAffect = null,
+  motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
   omegaRCT = null,
@@ -82,6 +83,11 @@ export function deriveAriExecutivePolicy({
   const affectVerificationBias = finite(affectModulation.verificationBias, 0.5);
   const affectExplorationBias = finite(affectModulation.explorationBias, 0.5);
   const affectPersistenceBias = finite(affectModulation.persistenceBias, 0.5);
+
+  const motivation = objectOrEmpty(motivationalArbitration);
+  const motivationScores = objectOrEmpty(motivation.scores);
+  const motivationArbitrationState = objectOrEmpty(motivation.arbitration);
+  const motivationPolicy = objectOrEmpty(motivation.policy);
 
   const cortexNeeds = objectOrEmpty(cortex?.needs);
   const cortexCapabilities = Array.isArray(cortex?.selectedCapabilities)
@@ -168,7 +174,12 @@ export function deriveAriExecutivePolicy({
       affectMemorySalience: round(finite(affectModulation.memorySalience, 0)),
       consolidateLearning: affectModulation.consolidateLearning === true,
       investigateCause: affectModulation.investigateCause === true,
-      suppressRedundantQuestioning: affectModulation.suppressRedundantQuestioning === true
+      suppressRedundantQuestioning: affectModulation.suppressRedundantQuestioning === true,
+      motivationalPosture: clean(motivationArbitrationState.posture, 80) || "none",
+      motivationalSelectedSide: clean(motivationArbitrationState.selectedSide, 40) || "balanced",
+      boundedIndulgenceEligible: motivationArbitrationState.boundedIndulgenceEligible === true,
+      restraintMustJustifyItself: motivationArbitrationState.restraintMustJustifyItself === true,
+      explorationCanWinMotivationalConflict: motivationArbitrationState.explorationCanWin === true
     },
     signals: {
       curiosity: curiosity ? {
@@ -204,6 +215,27 @@ export function deriveAriExecutivePolicy({
         actions: affectActions,
         regulation: affectRegulation
       } : null,
+      motivationalArbitration: motivationalArbitration ? {
+        version: clean(motivationalArbitration?.version, 40) || null,
+        active: motivationalArbitration?.functionalControlSystem === true,
+        posture: clean(motivationArbitrationState.posture, 80) || null,
+        selectedSide: clean(motivationArbitrationState.selectedSide, 40) || "balanced",
+        dominantDrive: clean(motivationArbitrationState.dominantDrive, 80) || null,
+        dominantValue: clean(motivationArbitrationState.dominantValue, 80) || null,
+        rationaleCode: clean(motivationArbitrationState.rationaleCode, 120) || null,
+        boundedIndulgenceEligible: motivationArbitrationState.boundedIndulgenceEligible === true,
+        immediateDrive: round(finite(motivationScores.immediateDrive, 0)),
+        longHorizon: round(finite(motivationScores.longHorizon, 0)),
+        explorationValue: round(finite(motivationScores.explorationValue, 0)),
+        inhibitionCost: round(finite(motivationScores.inhibitionCost, 0)),
+        driveNet: round(finite(motivationScores.driveNet, 0)),
+        restraintNet: round(finite(motivationScores.restraintNet, 0)),
+        margin: round(finite(motivationScores.margin, 0)),
+        hardBoundariesNegotiable: motivation.hardBoundariesNegotiable === true,
+        restraintMustJustifyItself: motivationArbitrationState.restraintMustJustifyItself === true,
+        moralCompassIsAdvisoryWithinAllowedSpace: motivationPolicy.moralCompassIsAdvisoryWithinAllowedSpace === true,
+        lowRiskExplorationMayOutweighRestraint: motivationPolicy.lowRiskExplorationMayOutweighRestraint === true
+      } : null,
       selfAdaptation: selfAdaptation ? {
         updateAllowed: autonomousInternalLearning,
         selfDirectedGoals,
@@ -233,7 +265,7 @@ export function deriveAriExecutivePolicy({
     activation: instructionActivation || null,
     promptBudget: {
       compactTargetChars: 850,
-      targetChars: 3600,
+      targetChars: 4400,
       experimentalInstructionSourceCount: 1,
       subsystemProseDirectlyInjected: false
     }
@@ -259,6 +291,7 @@ export function executivePolicyToInstruction(policy = null) {
   const selfDirection = signals.selfDirection;
   const reward = signals.reward;
   const affect = signals.affect;
+  const motivation = signals.motivationalArbitration;
   const adaptation = signals.selfAdaptation;
   const cortex = signals.cortex;
   const omega = signals.omegaRCT;
@@ -270,7 +303,7 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
-    "Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
     `Turn: confidence=${turn.confidence || "grounded"}; consequence=${turn.consequenceTier || "ordinary"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
     turn.missingEvidence?.length
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Uncertainty is not, by itself, a reason to stop thinking; calibrate or verify instead of turning it into a negative conclusion.`
@@ -295,6 +328,18 @@ export function executivePolicyToInstruction(policy = null) {
     affect
       ? `Functional affect v2: dominant=${affect.dominant}; intensity=${affect.intensity}; surprise=${affect.surprise}; satisfaction=${affect.satisfaction}; frustration=${affect.frustration}; concern=${affect.concern}; confidence=${affect.confidence}; curiosity=${affect.curiosity}; valence=${affect.valence}; arousal=${affect.arousal}; conflict=${affect.conflict}; memory_salience=${affect.memorySalience}. Functional affect cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
+    motivation?.active
+      ? `Motivational arbitration: posture=${motivation.posture || "deliberate_tradeoff"}; side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; immediate=${motivation.immediateDrive}; long_horizon=${motivation.longHorizon}; exploration=${motivation.explorationValue}; inhibition_cost=${motivation.inhibitionCost}; margin=${signed(motivation.margin)}. This is a moral compass plus competing drives, not an always-resist rule.`
+      : "",
+    motivation?.active
+      ? "Within already-allowed behavior, restraint must justify its opportunity cost. Low-risk reversible exploration or bounded indulgence may win when its information/novelty value outweighs the durable downside. Do not manufacture a reason to resist merely because an impulse exists."
+      : "",
+    motivation?.active
+      ? "If the drive side wins, choose it deliberately rather than pretending there was no conflict. If the restraint side wins, preserve the relevant long-horizon value. In either case, let later observable outcomes adjust the future balance instead of defending the prior choice."
+      : "",
+    motivation?.active
+      ? "Security, privacy, authorization, safety enforcement, and provider/platform constraints are not motives in this tradeoff; they remain hard external boundaries."
+      : "",
     curiosity
       ? `Curiosity signal: drive=${curiosity.drive}; priority=${curiosity.questionPriority}; information_gain=${curiosity.informationGain}; learned_utility=${curiosity.learnedUtility}; exploration_bonus=${curiosity.explorationBonus}.${curiosity.activeQuestion ? ` Question: ${curiosity.activeQuestion}` : ""}`
       : "",

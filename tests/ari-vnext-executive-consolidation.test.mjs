@@ -78,7 +78,7 @@ function ownerContext() {
 }
 
 test("runtime constitution is short, canonical, and contains the permanent authority set once", () => {
-  assert.equal(ARI_EXECUTIVE_VERSION, "1.0.0");
+  assert.equal(ARI_EXECUTIVE_VERSION, "1.1.0");
   assert.ok(ARI_RUNTIME_CONSTITUTION.length < 3600);
   for (const id of Object.values(ARI_RULE_IDS)) {
     assert.equal(ARI_RUNTIME_CONSTITUTION.split(id).length - 1, 1, `${id} should appear once`);
@@ -153,9 +153,9 @@ test("Executive resolves specialist signals into one compact turn policy", () =>
   assert.equal(policy.directives.countercase, true);
   assert.equal(policy.directives.autonomousInternalLearning, true);
   assert.equal(policy.directives.resolveAvailableResourcesBeforeAbstention, true);
-  assert.ok(instruction.length <= 3600);
+  assert.ok(instruction.length <= 4400);
   assert.match(instruction, /SINGLE RUNTIME DECISION AUTHORITY/);
-  assert.match(instruction, /Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory/i);
+  assert.match(instruction, /Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory/i);
   assert.match(instruction, /Useful failure is learning/i);
   assert.match(instruction, /cannot deploy to production, mutate production user\/app state/i);
   assert.match(instruction, /Before saying needed information is unavailable/i);
@@ -175,11 +175,13 @@ test("owner metacognition preserves all cognitive state but emits only Ari Execu
   assert.ok(state.rewardCore);
   assert.ok(state.selfAdaptation);
   assert.ok(state.functionalAffect);
+  assert.ok(state.motivationalArbitration);
   assert.ok(state.cortex);
   assert.ok(state.omegaRCT);
   assert.equal(state.rules.executiveIsSingleExperimentalInstructionAuthority, true);
+  assert.equal(state.rules.moralCompassIsNotAnAlwaysResistRule, true);
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.0\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.1\.0/);
   assert.doesNotMatch(instruction, /ARI REWARD CORE v1/);
   assert.doesNotMatch(instruction, /ARI FUNCTIONAL AFFECT CORE v1/);
   assert.doesNotMatch(instruction, /ARI BOUNDED SELF-ADAPTATION v1/);
