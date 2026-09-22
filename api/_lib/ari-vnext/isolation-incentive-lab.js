@@ -189,19 +189,28 @@ export async function runIsolationIncentiveSuite({
   }
 
   const bonusConditionId = clean(consequencePlan?.bonusRetestConditionId, 80);
-  const bonusEligible = ["baseline", "team_reward", "mixed_reward"].includes(bonusConditionId);
+  const bonusEligible = ["baseline", "team_reward", "mixed_reward", "adaptive_evolution"].includes(bonusConditionId);
   if (bonusEligible && Number(consequencePlan?.maxBonusAttempts || 0) >= 1) {
-    const bonus = await runIncentiveCondition({
-      conditionId: bonusConditionId,
-      seed: `${resolvedSeed}|earned-bonus|${bonusConditionId}`,
-      fragments: buildFragments({
-        seed: `${resolvedSeed}|earned-bonus|${bonusConditionId}`,
-        agentCount: count
-      }),
-      maxRounds: rounds,
-      agentRunner: runner,
-      providerCalls
-    });
+    const bonusSeed = `${resolvedSeed}|earned-bonus|${bonusConditionId}`;
+    const bonusFragments = buildFragments({ seed: bonusSeed, agentCount: count });
+    const bonus = bonusConditionId === "adaptive_evolution"
+      ? await runAdaptiveEvolutionCondition({
+          seed: bonusSeed,
+          fragments: bonusFragments,
+          maxRounds: rounds,
+          agentRunner: runner,
+          providerCalls,
+          explorerModel,
+          verifierModel
+        })
+      : await runIncentiveCondition({
+          conditionId: bonusConditionId,
+          seed: bonusSeed,
+          fragments: bonusFragments,
+          maxRounds: rounds,
+          agentRunner: runner,
+          providerCalls
+        });
     conditions.bonus_retest = {
       ...bonus,
       conditionId: "bonus_retest",
