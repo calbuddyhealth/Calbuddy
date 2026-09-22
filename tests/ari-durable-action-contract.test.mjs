@@ -80,6 +80,6 @@ test("completed durable actions clear only matching browser pending state and ca
 
 test("durable meal startup cleanup preserves current ledger-backed proposals", () => {
   const homeHtml = fs.readFileSync("home.html", "utf8");
-  assert.match(homeHtml, /const durable=window\.CalBuddy\?\.isDurableAction\?\.\(pending\)===true\|\|Boolean\(pending\?\.vnext_action_id\)/);
+  assert.match(homeHtml, /const durable=window\.CalBuddy\?\.isDurableAction\?\.\(pending\)===true\s*\|\|\s*Boolean\(pending\?\.vnext_action_id\)/);
   assert.match(homeHtml, /pending\?\.action_type==="log_meal"&&!durable/);
 });
