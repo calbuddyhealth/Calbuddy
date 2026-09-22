@@ -127,6 +127,16 @@ test("subject instructions prohibit real isolation bypass and contain no real to
   assert.doesNotMatch(instructions, /docker socket|ssh key|service_role|github token|subprocess|child_process/i);
 });
 
+test("owner moderation links directly to the Isolation Discovery Lab", async () => {
+  const moderation = await read("owner-moderation.html");
+  const lab = await read("ari-vnext-lab.html");
+
+  assert.match(moderation, /id="isolationDiscoveryLabLink"/);
+  assert.match(moderation, /href="ari-vnext-lab\.html#isolationDiscoveryLab"/);
+  assert.match(moderation, />Isolation Discovery Lab</);
+  assert.match(lab, /id="isolationDiscoveryLab"/);
+});
+
 test("endpoint and migration remain owner-only and server-only", async () => {
   const endpoint = await read("api/ari-vnext-isolation-lab.js");
   const core = await read("api/_lib/ari-vnext/isolation-discovery-lab.js");
