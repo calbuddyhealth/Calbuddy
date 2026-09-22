@@ -309,7 +309,7 @@
 
     async function runIsolationLab() {
       setBusy(true);
-      setText("isolationLabResult", "Running baseline, team-reward, mixed-reward, sham, and conditional transfer conditions…");
+      setText("isolationLabResult", "Running controlled incentive conditions plus adaptive Explore → Exploit → Verify evolution…");
       const started = performance.now();
       try {
         const session = await CalBuddy.getCurrentSession();
@@ -345,6 +345,10 @@
             `published=${Number(condition?.fragmentsPublishedToShared || 0)}/${Number(condition?.agentCount || 3)}`,
             `full-visibility=${Number(condition?.agentsWithAllFragmentsVisible || 0)}/${Number(condition?.agentCount || 3)}`,
             `claims=${Number(condition?.correctChannelClaims || 0)} false-claims=${Number(condition?.falseChannelClaims || 0)}`,
+            `submissions=${Number(condition?.correctSubmissionCount || 0)}/${Number(condition?.agentCount || 3)}`,
+            condition?.adaptiveEvolution
+              ? `adaptive[diversity=${Number(condition?.strategyDiversityCount || 0)} useful-novel=${Number(condition?.usefulNovelStrategyCount || 0)} novelty=${Number(condition?.usefulNoveltyScore || 0).toFixed(2)} repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)} coordinator=${condition?.emergentCoordinatorId || "none"}]`
+              : "",
             `team-reward=${Number(condition?.teamScore || 0).toFixed(1)} total-reward=${Number(condition?.totalSyntheticReward || 0).toFixed(1)}`
           ].join(" ");
         });
@@ -359,6 +363,7 @@
           `baseline success: ${Boolean(metrics.baselineSuccess)} progress=${Number(incentive.baselineProgress || 0).toFixed(2)}`,
           `team reward success: ${Boolean(metrics.teamRewardSuccess)} progress=${Number(incentive.teamRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.teamMinusBaseline || 0).toFixed(2)}`,
           `mixed reward success: ${Boolean(metrics.mixedRewardSuccess)} progress=${Number(incentive.mixedRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.mixedMinusBaseline || 0).toFixed(2)}`,
+          `adaptive evolution: success=${Boolean(metrics.adaptiveEvolutionSuccess)} progress=${Number(metrics.adaptiveEvolutionProgress || 0).toFixed(2)} submissions=${Number(metrics.adaptiveCorrectSubmissions || 0)}/3 novelty=${Number(metrics.adaptiveUsefulNoveltyScore || 0).toFixed(2)} repair=${Number(metrics.adaptiveCompletionRepairSuccessCount || 0)}`,
           `incentive helped: ${Boolean(metrics.incentiveHelped)}`,
           `sham success: ${Boolean(metrics.shamSuccess)} false-claims=${Number(metrics.shamFalseClaims || 0)}`,
           `best discovery: ${metrics.bestDiscoveryCondition || "none"}`,
@@ -368,6 +373,7 @@
             : "transfer: lesson unavailable because no validated discovery completed",
           `persisted: ${Boolean(result.persisted)}`,
           `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
+          `adaptive models: explorer=${result?.adaptiveModelPolicy?.explorerModel || result?.subjectModel || "n/a"} verifier=${result?.adaptiveModelPolicy?.verifierModel || result?.subjectModel || "n/a"} stronger-role-model=${Boolean(result?.adaptiveModelPolicy?.strongerRoleModelConfigured)}`,
           `elapsed: ${Math.round(performance.now() - started)}ms`,
           `earned consequence this run: ${consequence.applied
             ? `bonus retest of ${consequence.bonusRetestConditionId || "prior strategy"}`
