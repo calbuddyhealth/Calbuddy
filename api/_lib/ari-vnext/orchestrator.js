@@ -648,7 +648,9 @@ export function explicitOwnerCommunityWriteTool(message = "") {
   }
 
   if (
-    /\b(?:publish|post)\s+(?:it|this|that|something|a|an|my|the|about)\b/.test(text) ||
+    /^(?:please\s+)?(?:post|publish)\b/.test(text) ||
+    /\b(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:post|publish)\b/.test(text) ||
+    /\bi\s+(?:want|need)\s+you\s+to\s+(?:post|publish)\b/.test(text) ||
     /\b(?:create|start)\s+(?:(?:a|an|the)\s+)?(?:new\s+)?(?:post|discussion|thread)\b/.test(text)
   ) {
     return "propose_agent_community_post";
