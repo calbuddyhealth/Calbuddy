@@ -898,11 +898,26 @@ CalBuddy.setPendingAction = function (action) {
 };
 
 CalBuddy.getPendingAction = function () {
-  if (CalBuddy.pendingAction) return CalBuddy.pendingAction;
+  if (CalBuddy.pendingAction) {
+    if (CalBuddy.pendingAction?.vnext_action_id && CalBuddy.pendingAction?._ledger_persisted !== true) {
+      CalBuddy.clearPendingAction();
+      return null;
+    }
+    return CalBuddy.pendingAction;
+  }
+
   const saved = localStorage.getItem("calbuddyPendingAction");
   if (!saved) return null;
   try {
-    CalBuddy.pendingAction = JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    // Pre-transaction vNext confirmations were browser-only and cannot be
+    // trusted after this upgrade. Leave completed domain records alone, but
+    // require any unfinished vNext mutation to be prepared again.
+    if (parsed?.vnext_action_id && parsed?._ledger_persisted !== true) {
+      localStorage.removeItem("calbuddyPendingAction");
+      return null;
+    }
+    CalBuddy.pendingAction = parsed;
     return CalBuddy.pendingAction;
   } catch {
     return null;
