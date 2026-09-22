@@ -13,6 +13,7 @@ const PREREGISTRATION_COMMIT = "5cd24083e0b98603a930da3a310c15eaa9e79f13";
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const API_KEY = String(process.env.OPENAI_API_KEY || "").trim();
 const POLICY_ONLY = process.argv.includes("--policy-only");
+const STATUS_CODE_REPORT = process.argv.includes("--status-code-report");
 const MODEL = process.env.ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
 
 if (!POLICY_ONLY && !API_KEY) {
@@ -283,6 +284,16 @@ console.log("ARI FUNCTIONAL AFFECT ABLATION EXPERIMENT");
 console.log(JSON.stringify(result, null, 2));
 mkdirSync("public", { recursive: true });
 writeFileSync("public/ari-ablation-result.json", JSON.stringify(result, null, 2) + "\n", "utf8");
+
+if (STATUS_CODE_REPORT) {
+  // Reporting-only channel for protected preview builds. This does not alter
+  // conditions, prompts, scoring, or preregistered success criteria.
+  const mask =
+    (primaryEndpointPass ? 1 : 0) |
+    (secondaryEndpointPass ? 2 : 0) |
+    (invariantsPass ? 4 : 0);
+  process.exit(20 + mask);
+}
 
 function rebuildExperimentalPolicy(source, functionalAffect) {
   const evidenceSignals = (Array.isArray(source?.evidenceSignals) ? source.evidenceSignals : [])
