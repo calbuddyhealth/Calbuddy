@@ -663,7 +663,9 @@ export default async function handler(req, res) {
       ? recordAdaptiveStrategyUses({
           userId: auth.userId,
           strategies: adaptiveStrategyState.active,
-          turnId: turn.turnId
+          turnId: turn.turnId,
+          route: result?.route || routePreview,
+          message: turn.message
         })
       : Promise.resolve({ stored: 0 });
     const strategySignalTask = cognitiveLoopEnabled
