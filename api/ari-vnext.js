@@ -62,6 +62,7 @@ import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 import { retrieveInstitutionalMemory } from "./_lib/ari-vnext/institutional-memory.js";
 import { learnFromCouncilTurn } from "./_lib/ari-vnext/council-lesson-extractor.js";
 import {
+  applyCouncilOutcomeFeedback,
   evaluateAndPersistCouncilPerformance,
   loadAgentPerformanceState
 } from "./_lib/ari-vnext/agent-performance.js";
@@ -371,12 +372,25 @@ export default async function handler(req, res) {
     const decisionOutcomeLearning = {
       resolved: decisionOutcomeResolution?.resolved === true,
       decisionId: decisionOutcomeResolution?.decision?.id || reportedDecisionOutcome?.decisionId || null,
+      sourceTurnId: decisionOutcomeResolution?.decision?.turnId || null,
       proposition: decisionOutcomeResolution?.decision?.proposition || null,
       outcomeDirection: decisionOutcomeResolution?.decision?.outcomeDirection || reportedDecisionOutcome?.outcomeDirection || null,
       confidence: reportedDecisionOutcome?.confidence ?? null,
       outcome: decisionOutcomeResolution?.decision?.outcome || null,
       source: decisionOutcomeResolution?.resolved ? "explicit_user_real_world_report" : null
     };
+    const councilOutcomeFeedbackTask =
+      decisionOutcomeLearning.resolved === true && decisionOutcomeLearning.sourceTurnId
+        ? applyCouncilOutcomeFeedback({
+            userId: auth.userId,
+            sourceTurnId: decisionOutcomeLearning.sourceTurnId,
+            outcomeDirection: decisionOutcomeLearning.outcomeDirection
+          })
+        : Promise.resolve({
+            applied: false,
+            reason: decisionOutcomeLearning.resolved ? "decision_not_linked_to_turn" : "no_resolved_decision",
+            outcomeStatus: null
+          });
     const decisionState = shouldLoadDecisionHistory ? summarizeDecisionState(effectiveDecisions) : null;
     const communicationLearning = communicationOutcomes.length
       ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })
@@ -868,7 +882,7 @@ export default async function handler(req, res) {
       , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
       strategyUsePersistence, strategySignalPersistence, decisionPersistence,
       communicationResolution, communicationPersistence, institutionalLearningPersistence,
-      agentPerformanceLearningPersistence
+      agentPerformanceLearningPersistence, councilOutcomeFeedbackPersistence
     ] = await Promise.allSettled([
       usageTask,
       strategyReflectionUsageTask,
@@ -882,7 +896,8 @@ export default async function handler(req, res) {
       communicationResolutionTask,
       communicationExposureTask,
       institutionalLearningTask,
-      agentPerformanceLearningTask
+      agentPerformanceLearningTask,
+      councilOutcomeFeedbackTask
     ]);
 
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
@@ -921,6 +936,13 @@ export default async function handler(req, res) {
           verdict: null,
           hiddenChainOfThoughtStored: false,
           rawWorkerTextStored: false
+        };
+    const councilOutcomeFeedback = councilOutcomeFeedbackPersistence.status === "fulfilled"
+      ? councilOutcomeFeedbackPersistence.value
+      : {
+          applied: false,
+          reason: "outcome_feedback_task_failed",
+          outcomeStatus: null
         };
 
     const responsePayload = {
@@ -1033,6 +1055,9 @@ export default async function handler(req, res) {
         delegationValue: agentPerformanceLearning?.delegationValue ?? null,
         verdict: agentPerformanceLearning?.verdict || null,
         performanceGuidedThisCouncil: result?.multiAgent?.performanceGuided === true,
+        realWorldOutcomeLinked: councilOutcomeFeedback?.applied === true,
+        realWorldOutcomeReason: councilOutcomeFeedback?.reason || null,
+        realWorldOutcomeStatus: councilOutcomeFeedback?.outcomeStatus || null,
         hiddenChainOfThoughtStored: false,
         rawWorkerTextStored: false
       },
