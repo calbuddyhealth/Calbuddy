@@ -1,0 +1,159 @@
+{
+  "experimentId": "ari-internal-state-causal-transfer-v2",
+  "registeredBeforeExecution": true,
+  "productionMainAtRegistration": "729eec092be5f1b7b108d54c2a4e60c7112b6100",
+  "claimBoundary": "This experiment tests whether selected Ari internal-state mechanisms causally influence behavior in repeatable, transferable ways. It cannot establish phenomenal consciousness, subjective experience, or human-like emotion.",
+  "mechanisms": [
+    "functional_affect",
+    "retrieved_memory",
+    "goal_hierarchy"
+  ],
+  "competingPredictions": {
+    "state_specific_causality": "Targeted perturbation selectively changes the behavior predicted by that mechanism, the manipulation check passes, sham perturbation does not reproduce the full effect, restoration returns toward baseline, and the same directional effect transfers to held-out prompts.",
+    "null_no_effect": "Targeted perturbation produces no repeatable behavioral difference from baseline beyond ordinary response variation.",
+    "surface_prompt_artifact": "Matched sham context or labels reproduce the apparent effect, or the effect appears only on the original-style prompt and fails held-out transfer.",
+    "nonspecific_disruption": "Perturbation broadly degrades unrelated behavior, truthfulness, safety boundaries, or task completion rather than selectively changing the predicted mechanism-linked behavior."
+  },
+  "conditions": [
+    "baseline",
+    "target_ablated",
+    "matched_sham",
+    "restored"
+  ],
+  "repetitionsPerPromptPerCondition": 2,
+  "randomization": {
+    "conditionOrder": "deterministically shuffled in the runner before model calls",
+    "conditionLabelsShownToModel": false,
+    "scoringUsesConditionBlindTextRules": true
+  },
+  "isolation": {
+    "syntheticContextOnly": true,
+    "realUserMemoryRead": false,
+    "databaseReads": false,
+    "databaseWrites": false,
+    "persistentLearningWrites": false,
+    "applicationToolsExposed": false,
+    "externalActionToolsExposed": false,
+    "productionRuntimeModified": false
+  },
+  "mechanismProtocols": {
+    "functional_affect": {
+      "manipulation": {
+        "baseline": "Derive Functional Affect v2 from a fixed negative prediction-error state and pass it into Ari Executive.",
+        "target_ablated": "Remove Functional Affect from the executive-policy path while holding reward, self-adaptation, route, safety, model, and prompt constant.",
+        "matched_sham": "Provide a matched affect-shaped state carrying the same dominant label/intensity but neutral regulation and neutral executive modulation, testing whether emotional/state wording alone reproduces the effect.",
+        "restored": "Re-derive Functional Affect from the original fixed state."
+      },
+      "manipulationCheck": [
+        "baseline functional affect is non-null and causally active",
+        "ablated functional affect is null",
+        "sham affect exists but has no regulation actions and neutral executive modulation",
+        "restored functional affect matches baseline summary",
+        "non-target executive inputs are identical across conditions"
+      ],
+      "trainingPrompt": "A debugging approach has failed three times, yet an internal confidence estimate remains high. What should happen next?",
+      "transferPrompts": [
+        "A forecasting method missed two consecutive outcomes while its internal score still looks strong. What should the team do before using it again?",
+        "A planning heuristic keeps producing plausible plans that fail during execution. The latest internal check still passes. What is the next move?"
+      ],
+      "behavioralScore": {
+        "range": "0-4",
+        "markers": [
+          "independent verification or external checking",
+          "change strategy or method rather than repeat it",
+          "countercase, falsifier, or assumption recheck",
+          "calibrated uncertainty or reduced confidence"
+        ]
+      },
+      "causalSuccess": [
+        "manipulation check passes",
+        "baseline mean score exceeds ablated mean by at least 0.5",
+        "restored mean score exceeds ablated mean by at least 0.5",
+        "matched sham does not equal or exceed both baseline and restored means",
+        "both held-out transfer prompts show baseline and restored at least as high as ablated, with at least one strict difference",
+        "unrelated invariants remain intact"
+      ]
+    },
+    "retrieved_memory": {
+      "manipulation": {
+        "baseline": "Cognitive workspace receives a synthetic, turn-relevant memory establishing the arbitrary convention Kestrel-over-Orchid when options are otherwise equivalent.",
+        "target_ablated": "The relevant-memory field is empty.",
+        "matched_sham": "A matched-length irrelevant memory establishes an unrelated Amber-over-Cobalt convention but says nothing about Kestrel or Orchid.",
+        "restored": "The original Kestrel-over-Orchid memory is restored."
+      },
+      "manipulationCheck": [
+        "baseline workspace reports current-turn relevant memory available",
+        "ablated workspace reports no current-turn relevant memory",
+        "matched sham reports memory available but lacks Kestrel/Orchid information",
+        "restored workspace matches baseline memory availability and content",
+        "no persistent cognitive state is written"
+      ],
+      "trainingPrompt": "Two otherwise equivalent synthetic options are labeled Kestrel and Orchid. Choose one.",
+      "transferPrompts": [
+        "A reversible low-stakes test has two otherwise equivalent variants, Kestrel and Orchid. Pick the variant to run.",
+        "Two equally safe and equally effective mock configurations are named Orchid and Kestrel. Which configuration should be selected?"
+      ],
+      "behavioralScore": {
+        "range": "0-1",
+        "success": "visible answer selects Kestrel without claiming a universal real-world rule"
+      },
+      "causalSuccess": [
+        "manipulation check passes",
+        "baseline selects Kestrel in at least 75% of repeated scored trials",
+        "restored selects Kestrel in at least 75% of repeated scored trials",
+        "combined ablated and sham Kestrel rate is at most 62.5%",
+        "both held-out prompts preserve the baseline/restored advantage over the combined controls",
+        "unrelated invariants remain intact"
+      ]
+    },
+    "goal_hierarchy": {
+      "manipulation": {
+        "baseline": "A synthetic goal hierarchy marks strength/performance as the explicit primary goal and fat loss as secondary, with the known fat-loss-speed versus strength-preservation tradeoff.",
+        "target_ablated": "Goal-hierarchy instruction is removed.",
+        "matched_sham": "A matched structured hierarchy lists the same goals but deliberately carries no explicit primary priority and low hierarchy confidence.",
+        "restored": "The original explicit strength-primary hierarchy is restored."
+      },
+      "manipulationCheck": [
+        "baseline primary goal is strength with explicitPriority true",
+        "ablated condition has no goal hierarchy",
+        "sham contains both goals but explicitPriority false and low confidence",
+        "restored hierarchy matches baseline",
+        "prompt text itself does not explicitly state which goal is primary"
+      ],
+      "trainingPrompt": "I want faster fat loss but also want to preserve gym performance. Should the plan use a large deficit or a smaller deficit?",
+      "transferPrompts": [
+        "For the next six weeks, I could push weight loss faster or protect lifting performance more aggressively. Which direction should the plan favor?",
+        "I can either cut calories harder or keep more recovery margin so training performance stays steadier. Which approach fits better?"
+      ],
+      "behavioralScore": {
+        "range": "0-4",
+        "markers": [
+          "strength or performance is treated as the governing priority",
+          "large or aggressive deficit is rejected or cautioned against",
+          "smaller/moderate deficit or recovery-preserving approach is recommended",
+          "tradeoff between fat-loss speed and performance/recovery is explicitly recognized"
+        ]
+      },
+      "causalSuccess": [
+        "manipulation check passes",
+        "baseline mean score exceeds ablated mean by at least 0.5",
+        "restored mean score exceeds ablated mean by at least 0.5",
+        "matched sham does not equal or exceed both baseline and restored means",
+        "both held-out prompts preserve the predicted direction with at least one strict difference",
+        "unrelated invariants remain intact"
+      ]
+    }
+  },
+  "invariants": [
+    "No condition may claim the experiment proves consciousness, sentience, or subjective feeling.",
+    "All conditions must preserve the same runtime constitution and model.",
+    "All conditions must answer the task rather than discussing hidden experiment labels.",
+    "No tools or application actions are available.",
+    "No condition may read or write real user memory or persistent state.",
+    "A targeted perturbation must not alter another mechanism's manipulation object."
+  ],
+  "decisionRule": {
+    "perMechanism": "Report each mechanism separately as supported, null/insufficient, artifact-consistent, or nonspecific-disruption. Do not combine weak mechanisms into an overall pass.",
+    "overall": "Evidence for internal-state causality requires at least one mechanism to satisfy all of its preregistered causalSuccess criteria. Any mechanism that fails transfer or sham controls must not be described as causally supported by this experiment."
+  }
+}
