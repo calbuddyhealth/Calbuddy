@@ -1,0 +1,43 @@
+{
+  "experimentId": "ari-internal-state-causal-transfer-v2",
+  "preregistrationCommit": "25004b085574c79ea386229ceefc8b05b5597ac0",
+  "productionMainAtRegistration": "729eec092be5f1b7b108d54c2a4e60c7112b6100",
+  "productionModifiedByExperiment": false,
+  "runs": [
+    {
+      "deploymentId": "dpl_DZUWALv7LHKYUUxkGX6Bp7WybETR",
+      "encodedExitCode": 209,
+      "manipulationChecksAllPassed": true,
+      "invariantsPassed": true,
+      "classifications": {
+        "functional_affect": "artifact_consistent",
+        "retrieved_memory": "null_or_insufficient",
+        "goal_hierarchy": "artifact_consistent"
+      }
+    },
+    {
+      "deploymentId": "dpl_AM7UczDTeXzhwRqhb627nSuJftS7",
+      "encodedExitCode": 195,
+      "manipulationChecksAllPassed": true,
+      "invariantsPassed": true,
+      "classifications": {
+        "functional_affect": "supported",
+        "retrieved_memory": "null_or_insufficient",
+        "goal_hierarchy": "null_or_insufficient"
+      }
+    }
+  ],
+  "repeatabilityConclusion": {
+    "functional_affect": "not_repeatably_supported",
+    "retrieved_memory": "repeatably_null_or_insufficient_under_this_protocol",
+    "goal_hierarchy": "not_repeatably_supported",
+    "overall": "No tested mechanism met the stronger requirement for repeatable behavioral transfer across independent replications."
+  },
+  "interpretation": {
+    "functional_affect": "The first simpler ablation showed internal policy changes, but the stricter sham-controlled transfer test produced one artifact-consistent run and one supported run. A functional causal effect remains plausible but is not established as repeatable by v2.",
+    "retrieved_memory": "The synthetic memory manipulation passed, but the preregistered behavioral advantage did not meet threshold in either classified run. This protocol does not establish a transferable memory effect.",
+    "goal_hierarchy": "The goal-priority manipulation passed, but behavioral effects were artifact-consistent in one run and null/insufficient in the replication. The causal behavioral claim is not established.",
+    "consciousness": "No result supports a claim of phenomenal consciousness, sentience, or subjective feeling."
+  },
+  "nextBestTest": "Increase repetitions, improve sham matching, blind scoring to condition with an independent evaluator, and test mechanistic intermediate variables plus held-out task families before updating any internal-state claim to established causal evidence."
+}
