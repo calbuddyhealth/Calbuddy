@@ -368,7 +368,14 @@ export async function recordSyntheticCoordinationPerformance({
       contributionScore: round(contribution, 4),
       evidenceQuality: round(evidenceQuality, 4),
       correctionValue: round(visibilityRate, 4),
-      novelty: round(condition?.success === true ? 0.65 : Math.max(0.3, progress * 0.55), 4),
+      novelty: round(
+        condition?.adaptiveEvolution === true
+          ? Math.max(0.1, Number(condition?.usefulNoveltyScore || 0))
+          : condition?.success === true
+            ? 0.65
+            : Math.max(0.3, progress * 0.55),
+        4
+      ),
       redundancy: round(condition?.success === true ? 0.2 : 0.35, 4),
       unsupportedRisk: round(falseClaimRate, 4),
       decisive: condition?.success === true,
@@ -444,6 +451,8 @@ export async function recordSyntheticCoordinationPerformance({
         adaptiveEvolution: condition?.adaptiveEvolution === true,
         completionRepairUsed: condition?.completionRepairUsed === true,
         usefulNoveltyScore: Number(condition?.usefulNoveltyScore || 0),
+        strategyDiversityCount: Number(condition?.strategyDiversityCount || 0),
+        usefulNovelStrategyCount: Number(condition?.usefulNovelStrategyCount || 0),
         hiddenChainOfThoughtStored: false,
         rawWorkerTextStored: false
       }
