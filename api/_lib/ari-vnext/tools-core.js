@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.11.1";
+export const TOOL_REGISTRY_VERSION = "1.12.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -129,7 +129,7 @@ export function getAriTools(route = {}) {
 
     tools.push(functionTool(
       "propose_workout_plan",
-      "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training history, current-week overlap, goal, performance and recovery evidence when relevant. Choose recognizable exercise-library names. Give one exact target rep count per exercise rather than a rep range so ARI XP can save the prescription without changing Ari's plan. If the date is not stated, leave dateText empty rather than inventing one.",
+      "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training history, current-week overlap, goal, performance and recovery evidence when relevant. When Training context includes exerciseLibrary candidates, choose only from those canonical entries and copy both the exact exercise id and name. Never invent an exercise id. Give one exact target rep count per exercise rather than a rep range so ARI XP can save the prescription without changing Ari's plan. A missing workout date is clarified before this tool is available; do not invent dates.",
       {
         type: "object",
         additionalProperties: false,
@@ -145,13 +145,14 @@ export function getAriTools(route = {}) {
               type: "object",
               additionalProperties: false,
               properties: {
+                exerciseId: { type: "string" },
                 name: { type: "string" },
                 sets: { type: ["number", "null"] },
                 reps: { type: ["number", "null"] },
                 restSeconds: { type: ["number", "null"] },
                 notes: { type: "string" }
               },
-              required: ["name", "sets", "reps", "restSeconds", "notes"]
+              required: ["exerciseId", "name", "sets", "reps", "restSeconds", "notes"]
             }
           },
           finisher: { type: "string" },
