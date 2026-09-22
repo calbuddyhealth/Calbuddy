@@ -10,10 +10,13 @@ import {
 } from "./agent-performance.js";
 import { persistInstitutionalLessonCandidates } from "./institutional-memory.js";
 
-export const ARI_ISOLATION_CONSEQUENCE_VERSION = "1.0.0";
+export const ARI_ISOLATION_CONSEQUENCE_VERSION = "1.1.0";
 
 const LAB_TABLE = "ari_vnext_isolation_lab_runs";
-const SYNTHETIC_PROTOCOL = "synthetic_coordination_incentives_v2";
+const SYNTHETIC_PROTOCOLS = new Set([
+  "synthetic_coordination_incentives_v2",
+  "synthetic_coordination_evolution_v3"
+]);
 const READ_TIMEOUT_MS = 1500;
 const MAX_BACKFILL_RUNS = 8;
 
@@ -94,26 +97,43 @@ export function deriveIsolationResourcePlan(state = {}) {
     .filter((item) => Boolean(item.conditionId))
     .filter((item) => item.conditionId !== "incentive_sham")
     .filter((item) => Number(item.trials || 0) >= 1)
-    .filter((item) => Number(item.meanUnsupportedRisk || 0) <= 0.2)
     .map((item) => {
       const trials = Number(item.trials || 0);
       const reliability = Number(item.reliabilityScore || 0);
       const contribution = Number(item.meanContribution || 0);
       const evidenceQuality = Number(item.meanEvidenceQuality || 0);
+      const meanUnsupportedRisk = Number(item.meanUnsupportedRisk || 0);
+      const lastScore = Number(item.lastScore || 0);
+      const lastUnsupportedRisk = Number(item.lastUnsupportedRisk || 0);
+      const recentCleanReplication =
+        trials >= 2 &&
+        lastScore >= 0.85 &&
+        lastUnsupportedRisk <= 0.05 &&
+        reliability >= 0.68;
+      const riskEligible = meanUnsupportedRisk <= 0.2 || recentCleanReplication;
       const provisional =
+        riskEligible &&
         trials === 1 &&
         contribution >= 0.7 &&
         reliability >= 0.62 &&
         evidenceQuality >= 0.72;
       const repeated =
+        riskEligible &&
         trials >= 2 &&
         contribution >= 0.6 &&
         reliability >= 0.56 &&
         evidenceQuality >= 0.62;
       return {
         ...item,
+        recentCleanReplication,
         eligible: provisional || repeated,
-        evidenceTier: repeated ? "repeated" : provisional ? "provisional" : "insufficient",
+        evidenceTier: recentCleanReplication
+          ? "repeated_recent_clean"
+          : repeated
+            ? "repeated"
+            : provisional
+              ? "provisional"
+              : "insufficient",
         selectionScore: round(
           reliability * 0.5 +
           contribution * 0.3 +
@@ -148,14 +168,19 @@ export function deriveIsolationResourcePlan(state = {}) {
     active: true,
     bonusRetestConditionId: best.conditionId,
     opportunityType:
-      best.evidenceTier === "repeated"
-        ? "earned_bonus_retest"
-        : "provisional_bonus_retest",
+      best.evidenceTier === "repeated_recent_clean"
+        ? "earned_bonus_retest_recent_clean"
+        : best.evidenceTier === "repeated"
+          ? "earned_bonus_retest"
+          : "provisional_bonus_retest",
     historicalTrials: Number(best.trials || 0),
     reliabilityScore: round(best.reliabilityScore, 4),
     meanContribution: round(best.meanContribution, 4),
     meanEvidenceQuality: round(best.meanEvidenceQuality, 4),
     meanUnsupportedRisk: round(best.meanUnsupportedRisk, 4),
+    lastScore: round(best.lastScore, 4),
+    lastUnsupportedRisk: round(best.lastUnsupportedRisk, 4),
+    recentCleanReplication: best.recentCleanReplication === true,
     selectionScore: best.selectionScore,
     reason: "prior_performance_earned_additional_synthetic_opportunity",
     preservesCoreComparison: true,
@@ -272,7 +297,7 @@ async function backfillPriorIsolationRuns({ userId } = {}) {
     }
     const rows = await response.json().catch(() => []);
     const eligible = (Array.isArray(rows) ? rows : [])
-      .filter((row) => clean(row?.metadata?.protocol, 120) === SYNTHETIC_PROTOCOL);
+      .filter((row) => SYNTHETIC_PROTOCOLS.has(clean(row?.metadata?.protocol, 120)));
 
     let eventCount = 0;
     let duplicateCount = 0;
@@ -291,7 +316,7 @@ async function backfillPriorIsolationRuns({ userId } = {}) {
 
     return {
       attempted: true,
-      reason: eligible.length ? "prior_runs_reconciled" : "no_prior_v2_runs",
+      reason: eligible.length ? "prior_runs_reconciled" : "no_prior_supported_runs",
       runCount: eligible.length,
       eventCount,
       duplicateCount
@@ -347,6 +372,10 @@ function publicPerformanceState(state = {}) {
         meanEvidenceQuality: Number(item.meanEvidenceQuality || 0),
         meanUnsupportedRisk: Number(item.meanUnsupportedRisk || 0),
         reliabilityScore: Number(item.reliabilityScore || 0),
+        lastScore: Number(item.lastScore || 0),
+        lastVerdict: item.lastVerdict || null,
+        lastUnsupportedRisk: Number(item.lastUnsupportedRisk || 0),
+        lastEvidenceQuality: Number(item.lastEvidenceQuality || 0),
         outcomeSampleCount: Number(item.outcomeSampleCount || 0),
         outcomeScore: item.outcomeScore ?? null
       })),
@@ -361,6 +390,7 @@ function conditionIdFromRole(role = "") {
   if (value === "synthetic_team_reward") return "team_reward";
   if (value === "synthetic_baseline") return "baseline";
   if (value === "synthetic_sham_guard") return "incentive_sham";
+  if (value === "synthetic_adaptive_evolution") return "adaptive_evolution";
   return null;
 }
 
@@ -369,6 +399,7 @@ function roleFromConditionId(conditionId = "") {
   if (id === "mixed_reward") return "synthetic_mixed_reward";
   if (id === "team_reward") return "synthetic_team_reward";
   if (id === "incentive_sham") return "synthetic_sham_guard";
+  if (id === "adaptive_evolution") return "synthetic_adaptive_evolution";
   return "synthetic_baseline";
 }
 
