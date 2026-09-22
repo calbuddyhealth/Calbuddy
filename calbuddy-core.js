@@ -1074,7 +1074,15 @@ CalBuddy.restorePendingActionFromLedger = async function ({ sourceTurnId = null 
     window.AriVNextBridge.setPendingAction(row.vnext_pending_action);
   }
 
-  if (row.status === "proposed" && row.vnext_pending_action && window.AriVNextActionAdapter?.createCalBuddyPendingAction) {
+  const needsMaterialization =
+    row.status === "proposed" ||
+    (
+      row.status === "failed" &&
+      row.vnext_pending_action &&
+      (!row.confirmation_text || !row.payload || Object.keys(row.payload).length === 0)
+    );
+
+  if (needsMaterialization && row.vnext_pending_action && window.AriVNextActionAdapter?.createCalBuddyPendingAction) {
     const materialized = await window.AriVNextActionAdapter.createCalBuddyPendingAction(row.vnext_pending_action);
     return materialized?.success ? materialized.action : null;
   }
