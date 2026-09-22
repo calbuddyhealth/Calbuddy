@@ -3,7 +3,7 @@
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
 import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./action-response.js";
 import { adviserMemoToInstruction, runCortexAdviser } from "./cortex-adviser.js";
-import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";
+import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";\nimport { institutionalMemoryToInstruction } from "./institutional-memory.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
@@ -180,6 +180,9 @@ export async function runAriVNext(turn = {}) {
     coachingState,
     longitudinalState
   });
+  const institutionalMemoryInstruction = institutionalMemoryToInstruction(
+    turn?.context?.institutionalMemory || null
+  );
   const input = buildInput(turn);
   const multiAgentCouncil = await runAriMultiAgentCouncil({
     turn,
@@ -197,7 +200,12 @@ export async function runAriVNext(turn = {}) {
         plan: metacognition?.cortex?.adviser || null
       });
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
-  const instructions = [baseInstructions, adviserInstruction, councilInstruction]
+  const instructions = [
+    baseInstructions,
+    institutionalMemoryInstruction,
+    adviserInstruction,
+    councilInstruction
+  ]
     .filter(Boolean)
     .join("\n\n");
 
@@ -335,7 +343,7 @@ export async function runAriVNext(turn = {}) {
 
   if (!functionCall) {
     const guardedReply = guardUnpreparedActionReply(extractOutputText(first));
-    return {
+    return withInternalCouncil({
       success: true,
       ready: true,
       reply: guardedReply.reply,
@@ -360,7 +368,7 @@ export async function runAriVNext(turn = {}) {
       provider: providerSummary(first),
       semanticActionReview: publicActionReview(semanticActionReview),
       source: "ari_vnext"
-    };
+    }, multiAgentCouncil);
   }
 
   let validation = validateToolCall(functionCall, route);
@@ -1171,6 +1179,17 @@ function publicCortexAdviser(run = null) {
     hiddenChainOfThoughtStored: false,
     ariOwnsFinalSynthesis: true
   };
+}
+
+function withInternalCouncil(payload = {}, council = null) {
+  if (!payload || typeof payload !== "object" || !council?.active) return payload;
+  Object.defineProperty(payload, "_multiAgentCouncil", {
+    value: council,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  return payload;
 }
 
 function providerSummary(data = {}) {
