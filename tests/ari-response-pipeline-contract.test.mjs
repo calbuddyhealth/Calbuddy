@@ -127,7 +127,7 @@ test("Home cache chain points at current quota-aware runtime and bridge assets",
 test("runtime publishes canonical and compatibility identities together", () => {
   const { sandbox, events } = runtimeSandbox();
   assert.equal(sandbox.window.Ari.Runtime, sandbox.window.AriRuntime);
-  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.10");
+  assert.equal(sandbox.window.Ari.Runtime.version, "1.3.11");
   assert.equal(typeof sandbox.window.Ari.Runtime.ask, "function");
   assert.ok(events.some((event) => event.type === "ari:runtimeReady"));
 });
