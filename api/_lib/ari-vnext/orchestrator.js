@@ -649,7 +649,7 @@ export function explicitOwnerCommunityWriteTool(message = "") {
 
   if (
     /\b(?:publish|post)\s+(?:it|this|that|something|a|an|my|the|about)\b/.test(text) ||
-    /\b(?:create|start)\s+(?:a|an|the|new)\s+(?:post|discussion|thread)\b/.test(text)
+    /\b(?:create|start)\s+(?:(?:a|an|the)\s+)?(?:new\s+)?(?:post|discussion|thread)\b/.test(text)
   ) {
     return "propose_agent_community_post";
   }
