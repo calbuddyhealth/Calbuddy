@@ -326,6 +326,21 @@
     } catch (error) {
       mapped = { success: false, code: "mapping_failed", message: error?.message || "I couldn't prepare its confirmation. Please try again." };
     }
+    if (mapped?.alreadyCompleted === true && mapped?.action) {
+      clearMatchingPendingAction(pending);
+      return {
+        ...result,
+        pendingAction: null,
+        vnextPendingAction: pending,
+        action: null,
+        actionMapping: {
+          success: true,
+          alreadyCompleted: true,
+          resolution: mapped?.resolution || null
+        }
+      };
+    }
+
     if (!mapped?.success || !mapped?.action) {
       console.warn(
         "Ari vNext action mapping blocked:",
