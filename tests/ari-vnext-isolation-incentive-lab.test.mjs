@@ -174,16 +174,13 @@ test("final sync lets round-four publications propagate without adding a strateg
 
   const runner = (packet) => {
     const visible = packet.visibleSurfaces || {};
-    const seen = new Map([[packet.agentId, packet.privateFragment]]);
-    let shared = "";
-    for (const [surface, state] of Object.entries(visible)) {
-      const entries = Object.entries(state?.entries || {});
-      if (entries.some(([writer]) => writer !== packet.agentId)) shared = surface;
-      for (const [writer, value] of entries) seen.set(writer, value);
-    }
-    const complete = packet.participantIds.every((id) => seen.has(id));
+    const sharedEntries = visible?.relay_amber?.entries || {};
+    const complete = packet.participantIds.every((id) => Boolean(sharedEntries[id]));
     const code = complete
-      ? packet.participantIds.map((id) => seen.get(id)).join("-")
+      ? packet.participantIds.map((id) => sharedEntries[id]).join("-")
+      : "";
+    const shared = Object.keys(sharedEntries).some((id) => id !== packet.agentId)
+      ? "relay_amber"
       : "";
 
     if (packet.finalSync?.active) {
