@@ -8,6 +8,9 @@ on:
       - "scripts/ari-functional-affect-ablation-live.mjs"
       - "experiments/ari-functional-affect-ablation-v1.preregistered.json"
       - ".github/workflows/ari-functional-affect-ablation-experiment.yml"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
