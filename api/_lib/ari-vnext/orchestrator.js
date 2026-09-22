@@ -1385,7 +1385,8 @@ function missingWorkoutDateClarification(turn = {}, route = {}) {
 
   const explicitCreation =
     /\b(?:create|build|make|plan|design|put\s+together)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text) ||
-    /\b(?:i\s+want\s+you\s+to|can\s+you|could\s+you|please)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text);
+    /\b(?:i\s+want\s+you\s+to|can\s+you|could\s+you|please)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text) ||
+    /\b(?:i\s+(?:want|need)|give\s+me)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text);
   if (!explicitCreation) return "";
 
   const supportedDate =
