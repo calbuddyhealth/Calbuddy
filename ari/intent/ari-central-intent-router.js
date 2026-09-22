@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/intent/ari-central-intent-router.js
-// Version: 1.5.5
+// Version: 1.5.6
 // Purpose:
 //   Preserve the legacy semantic action boundary only for likely mutations,
 //   then boot Ari vNext as the shared primary intelligence on Home + Nutrition.
