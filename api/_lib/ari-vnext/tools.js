@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.14.1";
+export const TOOL_REGISTRY_VERSION = "1.15.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
@@ -39,6 +39,10 @@ const COMMUNITY_TOOL_NAMES = new Set([
   "agent_community_read",
   "propose_agent_community_post",
   "propose_agent_community_reply"
+]);
+
+const LAB_TOOL_NAMES = new Set([
+  "ari_lab_run_consciousness_test"
 ]);
 
 function functionTool(name, description, parameters) {
@@ -125,6 +129,26 @@ function crewTools(route = {}) {
 function ownerCommunityAllowed(route = {}) {
   const entitlement = route?.intelligenceEntitlement || {};
   return entitlement?.ownerEligible === true && String(entitlement?.accountRole || "").toLowerCase() === "owner";
+}
+
+function labTools(route = {}) {
+  if (!ownerCommunityAllowed(route)) return [];
+
+  return [
+    functionTool(
+      "ari_lab_run_consciousness_test",
+      "Run Ari's owner-only internal-state causal Lab when the CURRENT owner explicitly asks Ari to run a consciousness, conscious, sentience, self-awareness, or internal-state causal test. This evaluates functional causal effects only and must never be presented as proof of phenomenal consciousness or subjective experience. Use mode=pilot unless the owner explicitly asks for a full, preregistered, replication-grade, or exhaustive test. The current supported mechanism is functional_affect_regulation.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          mode: { type: "string", enum: ["pilot", "full"] },
+          mechanism: { type: "string", enum: ["functional_affect_regulation"] }
+        },
+        required: ["mode", "mechanism"]
+      }
+    )
+  ];
 }
 
 function communityTools(route = {}) {
@@ -238,7 +262,7 @@ export function getAriTools(route = {}) {
   const coreByName = new Map();
   for (const tool of [...routedCoreTools, ...semanticHealthTools]) if (tool?.name) coreByName.set(String(tool.name), tool);
   const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
-  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route)];
+  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route), ...labTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
@@ -267,6 +291,19 @@ export function validateToolCall(call = {}, route = {}) {
     if (!String(args?.focus || "").trim()) return { valid: false, error: "workout_replace_focus_required" };
     if (!Array.isArray(args?.exercises) || args.exercises.length < 1) return { valid: false, error: "workout_replace_exercises_required" };
     return { valid: true, name, arguments: { ...args, dateText } };
+  }
+
+  if (LAB_TOOL_NAMES.has(name)) {
+    if (!ownerCommunityAllowed(route)) return { valid: false, error: "tool_not_allowed_for_turn" };
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+    const mode = String(args?.mode || "").trim().toLowerCase();
+    const mechanism = String(args?.mechanism || "").trim().toLowerCase();
+    if (!["pilot", "full"].includes(mode)) return { valid: false, error: "ari_lab_mode_invalid" };
+    if (mechanism !== "functional_affect_regulation") {
+      return { valid: false, error: "ari_lab_mechanism_invalid" };
+    }
+    return { valid: true, name, arguments: { mode, mechanism } };
   }
 
   if (COMMUNITY_TOOL_NAMES.has(name)) {
@@ -329,6 +366,7 @@ export function validateToolCall(call = {}, route = {}) {
 export function toolToApplicationAction(name = "") {
   if (name === "propose_cancel_workout") return "cancel_workout";
   if (name === "propose_replace_workout") return "replace_workout";
+  if (name === "ari_lab_run_consciousness_test") return "lab_consciousness_test";
   const communityAction = ({
     agent_community_list: "community_list",
     agent_community_read: "community_read",

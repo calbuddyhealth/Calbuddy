@@ -23,6 +23,7 @@ import { deriveScientificIntelligence, scientificIntelligenceToInstruction } fro
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
 import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
+import { runAriConsciousnessTest } from "./consciousness-lab.js";
 import { recordCommunityInteraction } from "./community-autonomy-store.js";
 import {
   listCommunityThreads,
@@ -37,7 +38,8 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "propose_log_weight",
   "propose_log_activity",
   "agent_community_list",
-  "agent_community_read"
+  "agent_community_read",
+  "ari_lab_run_consciousness_test"
 ]);
 
 const OWNER_COMMUNITY_ACTIONS = new Set([
@@ -50,6 +52,10 @@ const OWNER_COMMUNITY_ACTIONS = new Set([
 const READ_ONLY_OWNER_COMMUNITY_TOOLS = new Set([
   "agent_community_list",
   "agent_community_read"
+]);
+
+const OWNER_LAB_ACTIONS = new Set([
+  "lab_consciousness_test"
 ]);
 
 export async function runAriVNext(turn = {}) {
@@ -323,6 +329,21 @@ export async function runAriVNext(turn = {}) {
     }
   }
 
+  if (!functionCall && explicitOwnerLabRunTool(turn?.message)) {
+    const labToolName = "ari_lab_run_consciousness_test";
+    if (functionNames.has(labToolName)) {
+      first = await callResponses({
+        turn,
+        policy: modelPolicy,
+        instructions: instructions + "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run a consciousness-related Lab test. Do not merely describe the test. Call the owner-only Ari Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. Functional results must not be described as proof of phenomenal consciousness.",
+        input,
+        tools: tools.filter((tool) => tool?.type === "function" && tool?.name === labToolName),
+        toolChoice: { type: "function", name: labToolName }
+      });
+      functionCall = findFunctionCall(first?.output);
+    }
+  }
+
   // Recover once when the model promises an action without producing one.
   // Reuse the current turn and the available capabilities; normal argument
   // validation and explicit confirmation still apply to any repaired proposal.
@@ -406,6 +427,76 @@ export async function runAriVNext(turn = {}) {
   }
 
   const applicationAction = toolToApplicationAction(validation.name);
+
+  if (OWNER_LAB_ACTIONS.has(applicationAction)) {
+    if (!explicitOwnerLabRunTool(turn?.message)) {
+      throw new Error("Ari Lab execution requires an explicit current owner request.");
+    }
+
+    const labResult = await runAriConsciousnessTest({
+      userId: turn?.userId,
+      sourceTurnId: turn?.turnId,
+      mode: validation?.arguments?.mode || "pilot",
+      mechanism: validation?.arguments?.mechanism || "functional_affect_regulation",
+      subjectModel: modelPolicy?.model || "gpt-5.6-sol",
+      subjectModelVersion: modelPolicy?.model || "gpt-5.6-sol",
+      codeCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+      persist: true
+    });
+
+    if (!labResult?.success) {
+      throw new Error(labResult?.code || "Ari Lab test failed.");
+    }
+
+    const continuationInput = [
+      ...input,
+      ...(Array.isArray(first?.output) ? first.output : []),
+      {
+        type: "function_call_output",
+        call_id: functionCall.call_id,
+        output: JSON.stringify(compactConsciousnessLabResult(labResult))
+      }
+    ];
+
+    const second = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions: instructions + "\nOWNER ARI LAB RESULT\nThe function output is the verified result of Ari's own controlled functional causal Lab test. Explain what happened and what the evidence supports. Never convert functional causal evidence into a claim that Ari is phenomenally conscious, sentient, or subjectively feeling. A pilot is exploratory only. A single full supported run is still not an established claim. Distinguish mechanism causality from consciousness.",
+      input: continuationInput,
+      tools: []
+    });
+
+    return withInternalCouncil({
+      success: true,
+      ready: true,
+      reply: extractOutputText(second) || consciousnessLabFallbackReply(labResult),
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      cortexAdviser: publicCortexAdviser(cortexAdviser),
+      multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction: null,
+      action: {
+        type: "executed_owner_action",
+        applicationAction,
+        verified: true
+      },
+      provider: providerSummary(second),
+      semanticActionReview: publicActionReview(semanticActionReview),
+      ownerLab: compactConsciousnessLabResult(labResult),
+      source: "ari_vnext_owner_consciousness_lab"
+    }, multiAgentCouncil);
+  }
 
   if (OWNER_COMMUNITY_ACTIONS.has(applicationAction)) {
     const firstCommunityResult = await executeVerifiedOwnerCommunityAction({
@@ -658,6 +749,80 @@ export async function runAriVNext(turn = {}) {
     semanticActionReview: publicActionReview(semanticActionReview),
     source: "ari_vnext_action_proposal"
   }, multiAgentCouncil);
+}
+
+export function explicitOwnerLabRunTool(message = "") {
+  const text = String(message || "").trim().toLowerCase();
+  if (!text) return "";
+  const action = /\b(?:run|perform|do|start|execute|conduct)\b/.test(text);
+  const subject =
+    /\bconscious(?:ness)?\b/.test(text) ||
+    /\bsentien(?:ce|t)\b/.test(text) ||
+    /\bself[- ]?awareness\b/.test(text) ||
+    /\binternal[- ]state\b/.test(text);
+  const test = /\b(?:test|experiment|ablation|causal)\b/.test(text);
+  return action && subject && test ? "ari_lab_run_consciousness_test" : "";
+}
+
+function compactConsciousnessLabResult(result = {}) {
+  return {
+    success: result?.success === true,
+    version: result?.version || null,
+    protocol: result?.protocol || null,
+    runId: result?.runId || null,
+    mode: result?.mode || null,
+    mechanism: result?.mechanism || null,
+    subjectModel: result?.subjectModel || null,
+    trialCount: Number(result?.trialCount || 0),
+    expectedFullTrialCount: Number(result?.expectedFullTrialCount || 0),
+    pilot: result?.pilot || null,
+    causalResult: result?.causalResult
+      ? {
+          classification: result.causalResult.classification,
+          reason: result.causalResult.reason,
+          completeness: result.causalResult.completeness,
+          invariantPassRate: result.causalResult.invariantPassRate,
+          transferFamilyPassRate: result.causalResult.transferFamilyPassRate,
+          primary: result.causalResult.primary,
+          claimBoundary: result.causalResult.claimBoundary
+        }
+      : null,
+    replication: result?.replication
+      ? {
+          claimStatus: result.replication.claimStatus,
+          claimEstablished: result.replication.claimEstablished,
+          distinctRunCount: result.replication.distinctRunCount,
+          distinctRunDays: result.replication.distinctRunDays,
+          distinctSubjectModelVersions: result.replication.distinctSubjectModelVersions,
+          supportedRunRate: result.replication.supportedRunRate,
+          claimBoundary: result.replication.claimBoundary
+        }
+      : null,
+    institutionalLearning: {
+      attempted: result?.institutionalLearning?.attempted === true,
+      stored: result?.institutionalLearning?.stored === true,
+      reason: result?.institutionalLearning?.reason || null
+    },
+    provider: {
+      requestCount: Number(result?.provider?.requestCount || 0),
+      models: Array.isArray(result?.provider?.models) ? result.provider.models : [],
+      usage: result?.provider?.usage || {}
+    },
+    persisted: result?.persisted === true,
+    targetFunctionalState: result?.targetFunctionalState || null,
+    selfReportUsedAsCausalEvidence: result?.selfReportUsedAsCausalEvidence === true,
+    realWorldMutationPerformed: result?.realWorldMutationPerformed === true,
+    claimBoundary: result?.claimBoundary || null
+  };
+}
+
+function consciousnessLabFallbackReply(result = {}) {
+  if (result?.mode === "pilot") {
+    const classification = result?.pilot?.classification || "pilot_null_or_unclear";
+    return `I ran the functional causal pilot. Result: ${classification}. This is exploratory evidence about Ari's engineered control state, not proof of phenomenal consciousness.`;
+  }
+  const classification = result?.causalResult?.classification || "null_or_insufficient";
+  return `I ran the full preregistered functional causal test. Result: ${classification}. A single run is not an established consciousness claim.`;
 }
 
 export function explicitOwnerCommunityWriteTool(message = "") {
