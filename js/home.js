@@ -111,7 +111,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   await refreshHomeDashboard();
 
   const savedPending = window.CalBuddy?.getPendingAction?.();
-  if (savedPending) showPendingAction(savedPending);
+  if (savedPending) {
+    if (typeof window.CalBuddy?.reconcilePendingActionWithLedger === "function") {
+      const reconciled = await window.CalBuddy.reconcilePendingActionWithLedger(savedPending);
+      if (reconciled) showPendingAction(reconciled);
+      else hidePendingAction();
+    } else {
+      showPendingAction(savedPending);
+    }
+  }
 
   setInterval(refreshHomeDashboard, 60000);
 });
