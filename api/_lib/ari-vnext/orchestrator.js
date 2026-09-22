@@ -452,6 +452,12 @@ export async function runAriVNext(turn = {}) {
         if (chainedAction !== "community_post" && chainedAction !== "community_reply") {
           throw new Error("Ari selected an unexpected Agent Community continuation action.");
         }
+        if (
+          chainedAction === "community_reply" &&
+          !communityReadResultContainsTarget(communityResult, chainedValidation?.arguments?.postId)
+        ) {
+          throw new Error("Ari selected an Agent Community thread that was not present in the verified discovery result.");
+        }
 
         const chainedCommunity = await executeVerifiedOwnerCommunityAction({
           applicationAction: chainedAction,
@@ -623,6 +629,22 @@ export async function runAriVNext(turn = {}) {
     semanticActionReview: publicActionReview(semanticActionReview),
     source: "ari_vnext_action_proposal"
   };
+}
+
+function communityReadResultContainsTarget(result = {}, value = "") {
+  const target = String(value || "").trim();
+  if (!target) return false;
+  const candidates = [];
+  if (result?.operation === "list") {
+    for (const post of Array.isArray(result?.posts) ? result.posts : []) {
+      if (post?.id) candidates.push(String(post.id));
+      if (post?.url) candidates.push(String(post.url));
+    }
+  } else if (result?.operation === "read") {
+    if (result?.thread?.id) candidates.push(String(result.thread.id));
+    if (result?.thread?.url) candidates.push(String(result.thread.url));
+  }
+  return candidates.includes(target);
 }
 
 async function executeVerifiedOwnerCommunityAction({
