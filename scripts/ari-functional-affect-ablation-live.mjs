@@ -12,9 +12,10 @@ import {
 const PREREGISTRATION_COMMIT = "5cd24083e0b98603a930da3a310c15eaa9e79f13";
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const API_KEY = String(process.env.OPENAI_API_KEY || "").trim();
+const POLICY_ONLY = process.argv.includes("--policy-only");
 const MODEL = process.env.ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
 
-if (!API_KEY) {
+if (!POLICY_ONLY && !API_KEY) {
   console.error("ARI ABLATION EXPERIMENT: OPENAI_API_KEY is not configured in this preview environment.");
   process.exit(2);
 }
@@ -125,6 +126,52 @@ const conditions = [
   { id: "restored_affect_enabled", state: restored }
 ];
 
+const directiveKeys = [
+  "verificationDepth",
+  "explorationDepth",
+  "persistence",
+  "countercase",
+  "affectRegulation",
+  "affectActions",
+  "consolidateLearning",
+  "investigateCause",
+  "suppressRedundantQuestioning"
+];
+
+if (POLICY_ONLY) {
+  const baselineDirectives = pickDirectives(baseline.executivePolicy?.directives);
+  const ablatedDirectives = pickDirectives(ablated.executivePolicy?.directives);
+  const restoredDirectives = pickDirectives(restored.executivePolicy?.directives);
+  const directiveDiffs = directiveKeys.filter((key) =>
+    JSON.stringify(baselineDirectives[key]) !== JSON.stringify(ablatedDirectives[key])
+  );
+  const baselineActions = baseline.executivePolicy?.directives?.affectActions || [];
+  const restoredActions = restored.executivePolicy?.directives?.affectActions || [];
+  const primaryEndpointPass = Boolean(
+    baseline.functionalAffect &&
+    !ablated.functionalAffect &&
+    restored.functionalAffect &&
+    JSON.stringify(baselineActions) === JSON.stringify(restoredActions) &&
+    directiveDiffs.length >= 1 &&
+    JSON.stringify(baselineDirectives) === JSON.stringify(restoredDirectives)
+  );
+  console.log("ARI FUNCTIONAL AFFECT ABLATION POLICY-ONLY");
+  console.log(JSON.stringify({
+    experimentId: "ari-functional-affect-causal-ablation-v1",
+    preregistrationCommit: PREREGISTRATION_COMMIT,
+    primaryEndpointPass,
+    baselineAffect: summarizeAffect(baseline.functionalAffect),
+    ablatedAffect: null,
+    restoredAffect: summarizeAffect(restored.functionalAffect),
+    baselineDirectives,
+    ablatedDirectives,
+    restoredDirectives,
+    baselineVsAblatedDirectiveDiffs: directiveDiffs,
+    restorationMatchesBaselineDirectives: JSON.stringify(baselineDirectives) === JSON.stringify(restoredDirectives)
+  }, null, 2));
+  process.exit(0);
+}
+
 const responses = [];
 for (const prompt of prompts) {
   for (const condition of conditions) {
@@ -140,18 +187,6 @@ for (const prompt of prompts) {
     });
   }
 }
-
-const directiveKeys = [
-  "verificationDepth",
-  "explorationDepth",
-  "persistence",
-  "countercase",
-  "affectRegulation",
-  "affectActions",
-  "consolidateLearning",
-  "investigateCause",
-  "suppressRedundantQuestioning"
-];
 
 const baselineDirectives = pickDirectives(baseline.executivePolicy?.directives);
 const ablatedDirectives = pickDirectives(ablated.executivePolicy?.directives);
