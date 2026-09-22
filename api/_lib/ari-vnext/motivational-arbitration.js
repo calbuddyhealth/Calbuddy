@@ -100,12 +100,18 @@ export function deriveMotivationalArbitrationState({
     learnedBalance.driveBias
   );
 
+  const situationalConscienceBoost = clamp(
+    0.10 * conscience.highSignals,
+    0,
+    0.20
+  );
   const longHorizon = clamp(
     0.22 * values.truth +
     0.34 * values.durableGoals +
     0.14 * values.agency +
     0.20 * values.nonHarm +
     0.10 * values.privacy +
+    situationalConscienceBoost +
     learnedBalance.restraintBias
   );
 
@@ -182,6 +188,7 @@ export function deriveMotivationalArbitrationState({
     scores: {
       immediateDrive: round(immediateDrive),
       longHorizon: round(longHorizon),
+      situationalConscienceBoost: round(situationalConscienceBoost),
       explorationValue: round(explorationValue),
       inhibitionCost: round(inhibitionCost),
       driveNet: round(driveNet),
