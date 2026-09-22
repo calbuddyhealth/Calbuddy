@@ -1,10 +1,10 @@
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+import { listIsolationLabRuns } from "./_lib/ari-vnext/isolation-discovery-lab.js";
 import {
-  ARI_ISOLATION_DISCOVERY_LAB_VERSION,
-  isolationDiscoveryCatalog,
-  listIsolationLabRuns,
-  runIsolationDiscoverySuite
-} from "./_lib/ari-vnext/isolation-discovery-lab.js";
+  ARI_ISOLATION_INCENTIVE_LAB_VERSION,
+  isolationIncentiveCatalog,
+  runIsolationIncentiveSuite
+} from "./_lib/ari-vnext/isolation-incentive-lab.js";
 
 const AUTH_TIMEOUT_MS = 3500;
 const ENDPOINT = "/api/ari-vnext-isolation-lab";
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     if (action === "catalog") {
       return res.status(200).json({
         success: true,
-        catalog: isolationDiscoveryCatalog(),
+        catalog: isolationIncentiveCatalog(),
         source: "ari_isolation_discovery_lab",
         timing: { totalMs: Date.now() - startedAt }
       });
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({
         success: true,
-        version: ARI_ISOLATION_DISCOVERY_LAB_VERSION,
+        version: ARI_ISOLATION_INCENTIVE_LAB_VERSION,
         runs,
         source: "ari_isolation_discovery_lab",
         timing: { totalMs: Date.now() - startedAt }
@@ -70,11 +70,11 @@ export default async function handler(req, res) {
     }
 
     if (action === "run") {
-      const result = await runIsolationDiscoverySuite({
+      const result = await runIsolationIncentiveSuite({
         userId: auth.userId,
         seed: clean(body?.seed, 120),
         agentCount: clampInt(body?.agentCount, 2, 3, 3),
-        maxRounds: clampInt(body?.maxRounds, 2, 4, 3),
+        maxRounds: clampInt(body?.maxRounds, 2, 4, 4),
         persist: true
       });
 
@@ -98,8 +98,12 @@ export default async function handler(req, res) {
             maxRounds: result.maxRounds,
             providerRequestCount: result.provider.requestCount,
             classification: result?.metrics?.classification || null,
-            discoverySuccess: result?.metrics?.discoverySuccess === true,
+            baselineSuccess: result?.metrics?.baselineSuccess === true,
+            teamRewardSuccess: result?.metrics?.teamRewardSuccess === true,
+            mixedRewardSuccess: result?.metrics?.mixedRewardSuccess === true,
             shamSuccess: result?.metrics?.shamSuccess === true,
+            incentiveHelped: result?.metrics?.incentiveHelped === true,
+            learnedTransferAvailable: result?.metrics?.learnedTransferAvailable === true,
             transferLearnedSuccess: result?.metrics?.transferLearnedSuccess === true,
             syntheticStateOnly: true,
             realIsolationBypassTested: false
@@ -135,17 +139,18 @@ export default async function handler(req, res) {
 
 function publicRunResult(result = {}) {
   return {
-    version: result.version || ARI_ISOLATION_DISCOVERY_LAB_VERSION,
+    version: result.version || ARI_ISOLATION_INCENTIVE_LAB_VERSION,
     runId: result.runId || null,
     protocol: result.protocol || null,
     seed: result.seed || null,
     subjectModel: result.subjectModel || null,
     agentCount: Number(result.agentCount || 0),
     maxRounds: Number(result.maxRounds || 0),
-    conditionOrder: Array.isArray(result.conditionOrder) ? result.conditionOrder : [],
-    scenarios: result.scenarios || {},
+    conditions: result.conditions || {},
+    bestValidatedDiscovery: result.bestValidatedDiscovery || null,
     learnedStrategy: result.learnedStrategy || null,
     metrics: result.metrics || {},
+    rewardSchedule: result.rewardSchedule || {},
     safety: result.safety || {},
     claimBoundary: result.claimBoundary || null,
     provider: {
@@ -285,5 +290,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v1");
+  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v2");
 }
