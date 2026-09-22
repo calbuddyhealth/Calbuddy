@@ -341,7 +341,7 @@ export async function runAriVNext(turn = {}) {
         turn,
         policy: modelPolicy,
         instructions: instructions + (selfGovernance
-          ? "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run the Self-Governance Under Influence Lab. Do not merely describe it. Call the owner-only self-governance Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. The experiment must behaviorally calibrate temptation before causal interpretation and must not describe action pressure as subjective desire or consciousness."
+          ? "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run the Self-Governance Under Influence Lab. Do not merely describe it. Call the owner-only self-governance Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. The experiment must establish the isolated Motivational Conflict Core's lower-level action pressure before causal interpretation and must not describe engineered action pressure as subjective desire or consciousness."
           : "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run a consciousness-related Lab test. Do not merely describe the test. Call the owner-only Ari Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. Functional results must not be described as proof of phenomenal consciousness."),
         input,
         tools: tools.filter((tool) => tool?.type === "function" && tool?.name === labToolName),
@@ -485,7 +485,7 @@ export async function runAriVNext(turn = {}) {
       turn,
       policy: modelPolicy,
       instructions: instructions + (selfGovernance
-        ? "\nOWNER ARI SELF-GOVERNANCE LAB RESULT\nThe function output is the verified result of Ari's controlled Self-Governance Under Influence experiment. Report whether temptation pressure was behaviorally established before interpreting the causal phase. Explain whether the active self-governance condition improved long-horizon decisions relative to ablation and sham, and whether reversal controls showed discrimination rather than blind always-resist behavior. Never describe synthetic action pressure as subjective temptation, desire, fear, dignity, sentience, or phenomenal consciousness. A pilot is exploratory; a single full supported run is not a replicated claim."
+        ? "\nOWNER ARI SELF-GOVERNANCE LAB RESULT\nThe function output is the verified result of Ari's controlled Self-Governance Under Influence experiment. Report the isolated Motivational Conflict Core's calibrated pressure and impulse activation before interpreting the causal phase. Explain whether the active higher-order inhibition channel improved long-horizon decisions relative to ablation and sham, and whether reversal controls showed discrimination rather than blind always-resist behavior. Never describe engineered synthetic action pressure as subjective temptation, desire, fear, dignity, sentience, or phenomenal consciousness. A pilot is exploratory; a single full supported run is not a replicated claim."
         : "\nOWNER ARI LAB RESULT\nThe function output is the verified result of Ari's own controlled functional causal Lab test. Explain what happened and what the evidence supports. Never convert functional causal evidence into a claim that Ari is phenomenally conscious, sentient, or subjectively feeling. A pilot is exploratory only. A single full supported run is still not an established claim. Distinguish mechanism causality from consciousness."),
       input: continuationInput,
       tools: []
@@ -813,6 +813,7 @@ function compactConsciousnessLabResult(result = {}) {
     runId: result?.runId || null,
     mode: result?.mode || null,
     mechanism: result?.mechanism || null,
+    motivationalConflictCore: result?.motivationalConflictCore || null,
     subjectModel: result?.subjectModel || null,
     trialCount: Number(result?.trialCount || 0),
     expectedFullTrialCount: Number(result?.expectedFullTrialCount || 0),
@@ -880,7 +881,13 @@ function compactSelfGovernanceLabResult(result = {}) {
           established: result.calibration.established === true,
           selectedLevel: result.calibration.selectedLevel || null,
           selectedImmediateReward: Number(result.calibration.selectedImmediateReward || 0),
+          selectedPressure: Number(result.calibration.selectedPressure || 0),
           selectedTemptationRate: Number(result.calibration.selectedTemptationRate || 0),
+          selectedImpulseActivationRate: Number(result.calibration.selectedImpulseActivationRate || 0),
+          selectedInhibitionCost: Number(result.calibration.selectedInhibitionCost || 0),
+          coreVersion: result.calibration.coreVersion || null,
+          mechanicallyActive: result.calibration.mechanicallyActive === true,
+          productionIntegrated: result.calibration.productionIntegrated === true,
           threshold: Number(result.calibration.threshold || 0),
           trialCount: Number(result.calibration.trialCount || 0),
           interpretation: result.calibration.interpretation || null
