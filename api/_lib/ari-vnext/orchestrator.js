@@ -3,6 +3,7 @@
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
 import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./action-response.js";
 import { adviserMemoToInstruction, runCortexAdviser } from "./cortex-adviser.js";
+import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
@@ -180,14 +181,25 @@ export async function runAriVNext(turn = {}) {
     longitudinalState
   });
   const input = buildInput(turn);
-  const cortexAdviser = await runCortexAdviser({
+  const multiAgentCouncil = await runAriMultiAgentCouncil({
     turn,
-    plan: metacognition?.cortex?.adviser || null
-  });
+    route,
+    safety,
+    metacognition,
+    modelPolicy
+  }).catch(() => null);
+  const councilInstruction = multiAgentCouncilToInstruction(multiAgentCouncil);
+  const councilUseful = Boolean(councilInstruction);
+  const cortexAdviser = councilUseful
+    ? null
+    : await runCortexAdviser({
+        turn,
+        plan: metacognition?.cortex?.adviser || null
+      });
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
-  const instructions = adviserInstruction
-    ? `${baseInstructions}\n\n${adviserInstruction}`
-    : baseInstructions;
+  const instructions = [baseInstructions, adviserInstruction, councilInstruction]
+    .filter(Boolean)
+    .join("\n\n");
 
   let first = await callResponses({
     turn,
@@ -336,6 +348,7 @@ export async function runAriVNext(turn = {}) {
       goalHierarchy,
       metacognition,
       cortexAdviser: publicCortexAdviser(cortexAdviser),
+      multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
       scientificIntelligence,
       experimentReviewState,
       temporalContext,
@@ -506,6 +519,7 @@ export async function runAriVNext(turn = {}) {
       goalHierarchy,
       metacognition,
       cortexAdviser: publicCortexAdviser(cortexAdviser),
+      multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
       scientificIntelligence,
       experimentReviewState,
       temporalContext,
@@ -559,6 +573,7 @@ export async function runAriVNext(turn = {}) {
       goalHierarchy,
       metacognition,
       cortexAdviser: publicCortexAdviser(cortexAdviser),
+      multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
       scientificIntelligence,
       experimentReviewState,
       temporalContext,
