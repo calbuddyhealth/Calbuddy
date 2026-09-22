@@ -166,7 +166,9 @@
     document.getElementById("rebirthBtn").addEventListener("click", () => runRebirth());
     document.getElementById("compareBtn").addEventListener("click", compareBoth);
     document.getElementById("resetBtn").addEventListener("click", resetState);
-    document.getElementById("isolationLabBtn").addEventListener("click", runIsolationLab);\n    document.getElementById("isolationExperimentSelect").addEventListener("change", syncIsolationModeControl);\n    syncIsolationModeControl();
+    document.getElementById("isolationLabBtn").addEventListener("click", runIsolationLab);
+    document.getElementById("isolationExperimentSelect").addEventListener("change", syncIsolationModeControl);
+    syncIsolationModeControl();
 
     async function compareBoth() {
       const message = promptInput.value.trim();
@@ -519,7 +521,8 @@
     }
 
     function setBusy(busy) {
-      document.querySelectorAll("#labShell button").forEach((button) => { button.disabled = busy; });\n      document.querySelectorAll("#labShell select").forEach((select) => { select.disabled = busy; });
+      document.querySelectorAll("#labShell button").forEach((button) => { button.disabled = busy; });
+      document.querySelectorAll("#labShell select").forEach((select) => { select.disabled = busy; });
     }
 
     function setText(id, text) {
