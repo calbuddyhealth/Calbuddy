@@ -3,7 +3,8 @@
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
 import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./action-response.js";
 import { adviserMemoToInstruction, runCortexAdviser } from "./cortex-adviser.js";
-import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";\nimport { institutionalMemoryToInstruction } from "./institutional-memory.js";
+import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";
+import { institutionalMemoryToInstruction } from "./institutional-memory.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
