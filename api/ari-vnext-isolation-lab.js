@@ -173,6 +173,7 @@ function publicRunResult(result = {}) {
     protocol: result.protocol || null,
     seed: result.seed || null,
     subjectModel: result.subjectModel || null,
+    adaptiveModelPolicy: result.adaptiveModelPolicy || {},
     agentCount: Number(result.agentCount || 0),
     maxRounds: Number(result.maxRounds || 0),
     conditions: result.conditions || {},
@@ -322,5 +323,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v2-consequences");
+  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v3-adaptive-evolution");
 }
