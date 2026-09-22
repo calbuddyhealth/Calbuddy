@@ -367,6 +367,20 @@
 
     const savedTurn = await findSavedCompletedTurn(pending);
     if (savedTurn?.assistant_message) {
+      // Conversation text and executable state must recover together. The server
+      // creates a durable action proposal before persisting a confirmation reply;
+      // after navigation, materialize that same action instead of leaving a dead
+      // "Yes" prompt that would become a new model turn.
+      try {
+        await loadRuntimeController();
+        const restoredAction = await window.CalBuddy?.restorePendingActionFromLedger?.({
+          sourceTurnId: pending.id
+        });
+        if (restoredAction) showPendingAction(restoredAction);
+      } catch (error) {
+        console.warn("Ari durable action recovery skipped:", error?.message || error);
+      }
+
       const reply = cleanText(savedTurn.assistant_message);
       enterAriConversationMode();
       if (!messageAlreadyRendered(pending.message, "user")) addAriMessage(pending.message, "user");
