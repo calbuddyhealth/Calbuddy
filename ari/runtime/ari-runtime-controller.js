@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.10
+// Version: 1.3.11
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -35,17 +35,17 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.10";
+  const VERSION = "1.3.11";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
-    "ari/vnext/ari-vnext-training-context.js?v=1.0.0",
-    "ari/vnext/ari-vnext-action-adapter.js?v=1.3.1",
+    "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
+    "ari/vnext/ari-vnext-action-adapter.js?v=1.4.0",
     "js/training/ari-whole-workout-replacement.js?v=1.0.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
-    "ari/vnext/ari-vnext-bridge.js?v=1.9.0",
+    "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
     "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
   ];
@@ -192,7 +192,7 @@
     if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
-        versionAtLeast(window.AriVNextBridge?.version, "1.9.0");
+        versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
     if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
@@ -236,7 +236,7 @@
   function vNextReady() {
     return Boolean(
       typeof window.AriVNextBridge?.ask === "function" &&
-      versionAtLeast(window.AriVNextBridge?.version, "1.9.0") &&
+      versionAtLeast(window.AriVNextBridge?.version, "1.10.0") &&
       window.AriVNextActionAdapter &&
       window.AriVNextActionAdapter.__ariWholeWorkoutReplacementV1 === true &&
       window.AriVNextActivityAdapter &&
@@ -326,6 +326,21 @@
     } catch (error) {
       mapped = { success: false, code: "mapping_failed", message: error?.message || "I couldn't prepare its confirmation. Please try again." };
     }
+    if (mapped?.alreadyCompleted === true && mapped?.action) {
+      clearMatchingPendingAction(pending);
+      return {
+        ...result,
+        pendingAction: null,
+        vnextPendingAction: pending,
+        action: null,
+        actionMapping: {
+          success: true,
+          alreadyCompleted: true,
+          resolution: mapped?.resolution || null
+        }
+      };
+    }
+
     if (!mapped?.success || !mapped?.action) {
       console.warn(
         "Ari vNext action mapping blocked:",

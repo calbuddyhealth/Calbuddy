@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { missingWorkoutDateClarification } from "../api/_lib/ari-vnext/orchestrator.js";
 import path from "node:path";
 
 const root = process.cwd();
@@ -24,7 +25,26 @@ test("relative workout dates remain deterministic", () => {
   assert.match(adapter, /const weekdays = \["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"\]/);
 });
 
-test("runtime cache-busts the corrected action adapter", () => {
-  assert.match(adapter, /const VERSION = "1\.3\.1"/);
-  assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.3\.1/);
+test("missing workout dates are clarified before a saveable proposal is generated", () => {
+  assert.equal(
+    missingWorkoutDateClarification({ message: "Create a chest workout" }, { training: true }),
+    "What day do you want the chest workout for?"
+  );
+  assert.equal(
+    missingWorkoutDateClarification({ message: "I need a leg workout" }, { training: true }),
+    "What day do you want the leg workout for?"
+  );
+  assert.equal(
+    missingWorkoutDateClarification({ message: "Create a chest workout for today" }, { training: true }),
+    ""
+  );
+  assert.equal(
+    missingWorkoutDateClarification({ message: "Create a chest workout next Tuesday" }, { training: true }),
+    ""
+  );
+});
+
+test("runtime cache-busts the durable action adapter", () => {
+  assert.match(adapter, /const VERSION = "1\.4\.0"/);
+  assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.4\.0/);
 });

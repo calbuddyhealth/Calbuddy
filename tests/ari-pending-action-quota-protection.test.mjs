@@ -11,7 +11,7 @@ test("pending-action recovery patch is syntactically valid", () => {
 
 test("Home loads pending-action recovery after home behavior and before quota UI", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.1');
-  const recoveryIndex = home.indexOf('js/ari-pending-action-recovery.js?v=1.0.0');
+  const recoveryIndex = home.indexOf('js/ari-pending-action-recovery.js?v=1.1.0');
   const quotaIndex = home.indexOf('js/ari-quota-ui.js?v=1.0.0');
   assert.ok(homeIndex >= 0);
   assert.ok(recoveryIndex > homeIndex);
@@ -47,4 +47,11 @@ test("recovered pending actions get a usable confirmation label", () => {
   assert.match(source, /plan_workout/);
   assert.match(source, /Save this workout plan\?/);
   assert.match(source, /confirmation_text/);
+});
+
+
+test("pending-action recovery can rebuild state from the durable action ledger", () => {
+  assert.match(source, /restoreDurablePendingAction/);
+  assert.match(source, /restorePendingActionFromLedger/);
+  assert.match(source, /if \(!pending\) pending = await restoreDurablePendingAction\(\)/);
 });

@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.6.4";
+CalBuddy.version = "3.7.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 CalBuddy.dashboardRefreshPromise = null;
@@ -890,50 +890,390 @@ CalBuddy.logUsage = async function ({ message = "", usage_type = "chat", model =
 PENDING ACTIONS
 ----------------------------- */
 CalBuddy.setPendingAction = function (action) {
-  CalBuddy.pendingAction = action;
-  localStorage.setItem("calbuddyPendingAction", JSON.stringify(action));
-  window.dispatchEvent(new CustomEvent("calbuddy:pendingAction", { detail: { action } }));
-  return action;
+  CalBuddy.pendingAction = action || null;
+  if (action) localStorage.setItem("calbuddyPendingAction", JSON.stringify(action));
+  else localStorage.removeItem("calbuddyPendingAction");
+  window.dispatchEvent(new CustomEvent("calbuddy:pendingAction", { detail: { action: action || null } }));
+  return action || null;
 };
+
 CalBuddy.getPendingAction = function () {
-  if (CalBuddy.pendingAction) return CalBuddy.pendingAction;
+  if (CalBuddy.pendingAction) {
+    if (CalBuddy.pendingAction?.vnext_action_id && CalBuddy.pendingAction?._ledger_persisted !== true) {
+      CalBuddy.clearPendingAction();
+      return null;
+    }
+    return CalBuddy.pendingAction;
+  }
+
   const saved = localStorage.getItem("calbuddyPendingAction");
   if (!saved) return null;
   try {
-    CalBuddy.pendingAction = JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    // Pre-transaction vNext confirmations were browser-only and cannot be
+    // trusted after this upgrade. Leave completed domain records alone, but
+    // require any unfinished vNext mutation to be prepared again.
+    if (parsed?.vnext_action_id && parsed?._ledger_persisted !== true) {
+      localStorage.removeItem("calbuddyPendingAction");
+      return null;
+    }
+    CalBuddy.pendingAction = parsed;
     return CalBuddy.pendingAction;
   } catch {
     return null;
   }
 };
+
 CalBuddy.clearPendingAction = function () {
   CalBuddy.pendingAction = null;
   localStorage.removeItem("calbuddyPendingAction");
   window.dispatchEvent(new CustomEvent("calbuddy:pendingActionCleared"));
 };
-CalBuddy.createPendingAction = async function ({ action_type, payload, confirmation_text = null }) {
+
+CalBuddy.isDurableAction = function (action = null) {
+  return Boolean(action?.id && (action?.vnext_action_id || action?.source_turn_id || action?.user_id));
+};
+
+CalBuddy.createPendingAction = async function ({
+  action_type,
+  payload,
+  confirmation_text = null,
+  source_turn_id = null,
+  vnext_action_id = null,
+  vnext_pending_action = null,
+  expires_at = null
+}) {
   const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  const now = new Date().toISOString();
   const action = {
     action_type,
     status: "pending",
     payload: payload || {},
     confirmation_text,
-    created_at: new Date().toISOString()
+    source_turn_id,
+    vnext_action_id,
+    vnext_pending_action,
+    expires_at,
+    updated_at: now
   };
-  CalBuddy.setPendingAction(action);
-  if (user && window.calbuddySupabase) {
-    const { data, error } = await window.calbuddySupabase
+
+  // vNext proposals must have a durable server-created ledger row. Never fall
+  // back to an ephemeral browser-only confirmation for a vNext mutation.
+  if (vnext_action_id) {
+    if (!user?.id || !client) {
+      return { ...action, _ledger_persisted: false, _ledger_error: "action_ledger_unavailable" };
+    }
+
+    const { data: existing, error: lookupError } = await client
       .from("ai_app_actions")
-      .insert({ user_id: user.id, ...action })
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("vnext_action_id", vnext_action_id)
+      .maybeSingle();
+
+    if (lookupError || !existing?.id) {
+      return {
+        ...action,
+        _ledger_persisted: false,
+        _ledger_error: lookupError?.message || "durable_action_proposal_missing"
+      };
+    }
+
+    if (existing.status === "completed") {
+      return { ...existing, _ledger_persisted: true, _ledger_already_completed: true };
+    }
+    if (["cancelled", "expired"].includes(String(existing.status || ""))) {
+      return {
+        ...existing,
+        _ledger_persisted: false,
+        _ledger_error: `action_${existing.status}`
+      };
+    }
+
+    const { data, error } = await client
+      .from("ai_app_actions")
+      .update({
+        action_type,
+        status: "pending",
+        payload: payload || {},
+        confirmation_text,
+        source_turn_id: source_turn_id || existing.source_turn_id,
+        vnext_pending_action: vnext_pending_action || existing.vnext_pending_action,
+        expires_at: expires_at || existing.expires_at,
+        error_code: null,
+        error_message: null,
+        failed_at: null,
+        updated_at: now
+      })
+      .eq("id", existing.id)
+      .eq("user_id", user.id)
+      .in("status", ["proposed", "pending", "failed"])
+      .select()
+      .single();
+
+    if (error || !data?.id) {
+      return {
+        ...existing,
+        ...action,
+        _ledger_persisted: false,
+        _ledger_error: error?.message || "action_ledger_materialization_failed"
+      };
+    }
+
+    const stored = { ...data, _ledger_persisted: true };
+    CalBuddy.setPendingAction(stored);
+    return stored;
+  }
+
+  // Legacy actions remain backward-compatible. New vNext actions never use this
+  // browser-only fallback.
+  const localAction = {
+    ...action,
+    created_at: now
+  };
+  CalBuddy.setPendingAction(localAction);
+
+  if (user?.id && client) {
+    const { data, error } = await client
+      .from("ai_app_actions")
+      .insert({ user_id: user.id, ...localAction })
       .select()
       .single();
     if (!error && data) {
-      CalBuddy.setPendingAction(data);
-      return data;
+      const stored = { ...data, _ledger_persisted: true };
+      CalBuddy.setPendingAction(stored);
+      return stored;
     }
   }
-  return action;
+
+  return { ...localAction, _ledger_persisted: false };
 };
+
+CalBuddy.restorePendingActionFromLedger = async function ({ sourceTurnId = null } = {}) {
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  if (!user?.id || !client) return null;
+
+  let query = client
+    .from("ai_app_actions")
+    .select("*")
+    .eq("user_id", user.id)
+    .in("status", ["proposed", "pending", "failed"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (sourceTurnId) query = query.eq("source_turn_id", String(sourceTurnId));
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("Ari action ledger recovery failed:", error.message);
+    return null;
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row?.id) return null;
+
+  const expiresAt = Date.parse(String(row.expires_at || row?.vnext_pending_action?.expiresAt || ""));
+  if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+    void client
+      .from("ai_app_actions")
+      .update({ status: "expired", updated_at: new Date().toISOString() })
+      .eq("id", row.id)
+      .eq("user_id", user.id)
+      .in("status", ["proposed", "pending", "failed"]);
+    return null;
+  }
+
+  if (row.vnext_pending_action && window.AriVNextBridge?.setPendingAction) {
+    window.AriVNextBridge.setPendingAction(row.vnext_pending_action);
+  }
+
+  const needsMaterialization =
+    row.status === "proposed" ||
+    (
+      row.status === "failed" &&
+      row.vnext_pending_action &&
+      (!row.confirmation_text || !row.payload || Object.keys(row.payload).length === 0)
+    );
+
+  if (needsMaterialization && row.vnext_pending_action && window.AriVNextActionAdapter?.createCalBuddyPendingAction) {
+    const materialized = await window.AriVNextActionAdapter.createCalBuddyPendingAction(row.vnext_pending_action);
+    return materialized?.success ? materialized.action : null;
+  }
+
+  if (row.status === "pending" || row.status === "failed") {
+    return CalBuddy.setPendingAction({ ...row, _ledger_persisted: true });
+  }
+
+  return null;
+};
+
+CalBuddy.markVNextActionFailed = async function (pending = {}, failure = {}) {
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  const actionId = String(pending?.id || "").trim();
+  if (!user?.id || !client || !actionId) return { success: false };
+
+  const now = new Date().toISOString();
+  const code = String(failure?.code || "action_mapping_failed").slice(0, 160);
+  const message = String(failure?.message || "Ari could not safely prepare this action.").slice(0, 1200);
+  const { data, error } = await client
+    .from("ai_app_actions")
+    .update({
+      status: "failed",
+      error_code: code,
+      error_message: message,
+      failed_at: now,
+      updated_at: now
+    })
+    .eq("user_id", user.id)
+    .eq("vnext_action_id", actionId)
+    .in("status", ["proposed", "pending", "failed"])
+    .select()
+    .maybeSingle();
+
+  return { success: !error && Boolean(data?.id), action: data || null };
+};
+
+CalBuddy.beginPendingActionExecution = async function (action = CalBuddy.getPendingAction()) {
+  if (!CalBuddy.isDurableAction(action)) {
+    return { success: true, durable: false, action };
+  }
+
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  if (!user?.id || !client || !action?.id) {
+    return { success: false, code: "action_ledger_unavailable", message: "The pending action could not be verified." };
+  }
+
+  if (action.status === "completed") {
+    return { success: true, durable: true, alreadyCompleted: true, action, result: action.result || {} };
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from("ai_app_actions")
+    .update({
+      status: "executing",
+      confirmed_at: action.confirmed_at || now,
+      execution_started_at: now,
+      attempt_count: Math.max(0, Number(action.attempt_count || 0)) + 1,
+      error_code: null,
+      error_message: null,
+      updated_at: now
+    })
+    .eq("id", action.id)
+    .eq("user_id", user.id)
+    .in("status", ["pending", "failed"])
+    .select()
+    .maybeSingle();
+
+  if (!error && data?.id) {
+    CalBuddy.setPendingAction({ ...data, _ledger_persisted: true });
+    return { success: true, durable: true, action: data };
+  }
+
+  const { data: current } = await client
+    .from("ai_app_actions")
+    .select("*")
+    .eq("id", action.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (current?.status === "completed") {
+    return {
+      success: true,
+      durable: true,
+      alreadyCompleted: true,
+      action: current,
+      result: current.result || {}
+    };
+  }
+
+  return {
+    success: false,
+    durable: true,
+    code: current?.status === "executing" ? "action_already_executing" : "action_execution_claim_failed",
+    message: current?.status === "executing"
+      ? "That action is already being completed."
+      : error?.message || "The pending action could not be claimed safely."
+  };
+};
+
+CalBuddy.completePendingAction = async function (action, result = {}, { confirmationTurnId = null } = {}) {
+  if (!CalBuddy.isDurableAction(action)) return { success: true, durable: false, action };
+
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  if (!user?.id || !client || !action?.id) return { success: false, code: "action_ledger_unavailable" };
+
+  let safeResult = {};
+  try {
+    safeResult = JSON.parse(JSON.stringify(result || {}));
+  } catch {
+    safeResult = { reply: String(result?.reply || "Completed.").slice(0, 1000) };
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from("ai_app_actions")
+    .update({
+      status: "completed",
+      result: safeResult,
+      completed_at: now,
+      confirmation_turn_id: confirmationTurnId || null,
+      error_code: null,
+      error_message: null,
+      updated_at: now
+    })
+    .eq("id", action.id)
+    .eq("user_id", user.id)
+    .eq("status", "executing")
+    .select()
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    return {
+      success: false,
+      durable: true,
+      code: "action_receipt_write_failed",
+      message: "The app change may have completed, but Ari could not verify its completion receipt. Refresh before trying again."
+    };
+  }
+
+  return { success: true, durable: true, action: data, result: data.result || safeResult };
+};
+
+CalBuddy.failPendingAction = async function (action, failure = {}) {
+  if (!CalBuddy.isDurableAction(action)) return { success: false, durable: false };
+
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  if (!user?.id || !client || !action?.id) return { success: false, durable: true };
+
+  const code = String(failure?.code || failure?.error || "action_execution_failed").slice(0, 160);
+  const message = String(failure?.message || failure?.reply || failure?.result?.message || "The action could not be completed.").slice(0, 1200);
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from("ai_app_actions")
+    .update({
+      status: "failed",
+      error_code: code,
+      error_message: message,
+      failed_at: now,
+      updated_at: now
+    })
+    .eq("id", action.id)
+    .eq("user_id", user.id)
+    .in("status", ["proposed", "pending", "executing", "failed"])
+    .select()
+    .maybeSingle();
+
+  if (!error && data?.id) CalBuddy.setPendingAction({ ...data, _ledger_persisted: true });
+  return { success: !error && Boolean(data?.id), durable: true, action: data || action };
+};
+
 CalBuddy.executeAction = async function (action) {
   const type = action.action_type || action.type;
   const payload = action.payload || {};
@@ -1056,26 +1396,93 @@ CalBuddy.confirmPendingAction = async function () {
       reply: "I don’t have anything waiting to confirm."
     };
   }
-  try {
-    const result = await CalBuddy.executeAction(action);
+
+  const claim = await CalBuddy.beginPendingActionExecution(action);
+  if (!claim?.success) {
+    CalBuddy.setAriMood("concerned");
+    return {
+      success: false,
+      code: claim?.code || "action_execution_claim_failed",
+      reply: claim?.message || "I couldn't safely confirm that action."
+    };
+  }
+
+  if (claim.alreadyCompleted) {
     CalBuddy.clearPendingAction();
     CalBuddy.setAriMood("success");
     return {
-  success: true,
-  result,
-  reply: result?.reply || "Done — I updated that for you."
-};
+      success: true,
+      alreadyCompleted: true,
+      result: claim.result || {},
+      reply: claim.result?.reply || "That change was already saved."
+    };
+  }
+
+  const executingAction = claim.action || action;
+  try {
+    const result = await CalBuddy.executeAction(executingAction);
+    if (result?.success === false) {
+      await CalBuddy.failPendingAction(executingAction, result);
+      CalBuddy.setAriMood("concerned");
+      return {
+        success: false,
+        result,
+        reply: result?.message || result?.reply || "I couldn't confirm that change was saved."
+      };
+    }
+
+    const receipt = await CalBuddy.completePendingAction(executingAction, result);
+    if (!receipt?.success) {
+      CalBuddy.setAriMood("concerned");
+      return {
+        success: false,
+        result,
+        code: receipt?.code || "action_receipt_write_failed",
+        reply: receipt?.message || "The change may have completed, but Ari could not verify it."
+      };
+    }
+
+    CalBuddy.clearPendingAction();
+    CalBuddy.setAriMood("success");
+    return {
+      success: true,
+      result,
+      receipt: receipt.action || null,
+      reply: result?.reply || "Done — I updated that for you."
+    };
   } catch (error) {
+    await CalBuddy.failPendingAction(executingAction, {
+      code: "action_executor_exception",
+      message: error?.message || "Action execution failed."
+    });
     CalBuddy.setAriMood("concerned");
     return {
       success: false,
       error: error.message,
-      reply: "I tried to do that, but something glitched."
+      reply: "I tried to do that, but the save did not complete."
     };
   }
 };
+
 CalBuddy.cancelPendingAction = function () {
+  const action = CalBuddy.getPendingAction();
   CalBuddy.clearPendingAction();
+
+  if (CalBuddy.isDurableAction(action)) {
+    Promise.resolve().then(async () => {
+      const user = await CalBuddy.getCurrentUser();
+      const client = window.calbuddySupabase || CalBuddy.supabase;
+      if (!user?.id || !client || !action?.id) return;
+      const now = new Date().toISOString();
+      await client
+        .from("ai_app_actions")
+        .update({ status: "cancelled", cancelled_at: now, updated_at: now })
+        .eq("id", action.id)
+        .eq("user_id", user.id)
+        .in("status", ["proposed", "pending", "failed"]);
+    }).catch(() => {});
+  }
+
   CalBuddy.setAriMood("idle");
   return {
     success: true,

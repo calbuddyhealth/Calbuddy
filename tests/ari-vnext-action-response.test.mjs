@@ -11,6 +11,8 @@ test("a reply cannot substitute for an actual action proposal or save result", (
     "Done — I saved that meal for you.",
     "I recorded your weight.",
     "Your meal has been logged.",
+    "The chest workout has been successfully saved for today.",
+    "Your workout was successfully recorded.",
     "I’m ready to log the banana.",
     "I'll log that for you.",
     "Ready to log **a banana**. Confirm to save it.",

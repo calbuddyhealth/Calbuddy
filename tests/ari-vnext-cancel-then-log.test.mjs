@@ -68,10 +68,41 @@ function harness() {
     if (path === "ari/runtime/ari-runtime-controller.js") {
       Object.assign(context.CalBuddy, {
         askAri: async () => { throw new Error("Unexpected legacy fallback"); },
-        getCurrentSession: async () => ({ access_token: "test-token" }),
-        getCurrentUser: async () => null,
+        getCurrentSession: async () => ({ access_token: "test-token", user: { id: "user-1" } }),
+        getCurrentUser: async () => ({ id: "user-1" }),
         getUserContext: async () => ({}),
         saveConversationTurn: async (turn) => { savedTurns.push(turn); return true; },
+        createPendingAction: async (action = {}) => {
+          const stored = {
+            ...action,
+            id: `ledger-${action.vnext_action_id || "legacy"}`,
+            user_id: "user-1",
+            status: "pending",
+            _ledger_persisted: true
+          };
+          context.CalBuddy.setPendingAction(stored);
+          return stored;
+        },
+        beginPendingActionExecution: async (action) => {
+          if (action?.status === "completed") {
+            return { success: true, durable: true, alreadyCompleted: true, action, result: action.result || {} };
+          }
+          const executing = { ...action, status: "executing", _ledger_persisted: true };
+          context.CalBuddy.setPendingAction(executing);
+          return { success: true, durable: true, action: executing };
+        },
+        completePendingAction: async (action, result = {}) => ({
+          success: true,
+          durable: true,
+          action: { ...action, status: "completed", result, _ledger_persisted: true },
+          result
+        }),
+        failPendingAction: async (action, failure = {}) => {
+          const failed = { ...action, status: "failed", error_message: failure?.message || null, _ledger_persisted: true };
+          context.CalBuddy.setPendingAction(failed);
+          return { success: true, durable: true, action: failed };
+        },
+        markVNextActionFailed: async () => ({ success: true }),
         logMeal: async (payload) => {
           if (failWrite) return { success: false, message: "Meal save failed." };
           writes.push(payload);

@@ -1,9 +1,10 @@
-// ARI XP — pending-action recovery + quota protection v1.0.0
+// ARI XP — pending-action recovery + quota protection v1.1.0
 (() => {
   "use strict";
 
   const CONFIRM_RE = /^(?:(?:yes|yep|yeah)(?:[,\s]+(?:please|(?:log|save|add|do) it))?|(?:i )?confirm(?:ed| it| that)?|do it|go ahead|save it|log it|add it|make it|update it|that's right|correct)[.!\s]*$/i;
   const CANCEL_RE = /^(?:no|nope|(?:please )?cancel(?: it| that| this)?|never mind|nevermind|(?:don't|do not)(?: (?:log|save|add|do) (?:it|that|this))?|stop)[.!\s]*$/i;
+  let durableRestorePromise = null;
 
   function clean(value = "") {
     return String(value || "").replace(/’/g, "'").trim();
@@ -111,26 +112,45 @@
     return true;
   }
 
-  function syncPendingActionBar() {
+  async function restoreDurablePendingAction() {
+    if (currentPendingAction()) return currentPendingAction();
+    if (durableRestorePromise) return await durableRestorePromise;
+    if (typeof window.CalBuddy?.restorePendingActionFromLedger !== "function") return null;
+
+    durableRestorePromise = Promise.resolve()
+      .then(() => window.CalBuddy.restorePendingActionFromLedger())
+      .catch((error) => {
+        console.warn("Ari pending ledger recovery failed:", error?.message || error);
+        return null;
+      })
+      .finally(() => {
+        durableRestorePromise = null;
+      });
+    return await durableRestorePromise;
+  }
+
+  async function syncPendingActionBar() {
     installSendGuard();
-    if (currentPendingAction()) showRecoveredPending();
+    let pending = currentPendingAction();
+    if (!pending) pending = await restoreDurablePendingAction();
+    if (pending || currentPendingAction()) showRecoveredPending(pending || currentPendingAction());
     else hideRecoveredPendingIfEmpty();
   }
 
   window.addEventListener("calbuddy:pendingAction", syncPendingActionBar);
   window.addEventListener("ari:vnextPendingAction", syncPendingActionBar);
-  window.addEventListener("ari:runtimeReady", () => window.setTimeout(syncPendingActionBar, 0));
+  window.addEventListener("ari:runtimeReady", () => window.setTimeout(() => void syncPendingActionBar(), 0));
   window.addEventListener("calbuddy:pendingActionCleared", hideRecoveredPendingIfEmpty);
   window.addEventListener("ari:vnextPendingActionCleared", hideRecoveredPendingIfEmpty);
-  window.addEventListener("focus", syncPendingActionBar);
-  window.addEventListener("pageshow", () => window.setTimeout(syncPendingActionBar, 0));
+  window.addEventListener("focus", () => void syncPendingActionBar());
+  window.addEventListener("pageshow", () => window.setTimeout(() => void syncPendingActionBar(), 0));
 
   document.addEventListener("DOMContentLoaded", () => {
-    syncPendingActionBar();
-    window.setTimeout(syncPendingActionBar, 250);
-    window.setTimeout(syncPendingActionBar, 900);
+    void syncPendingActionBar();
+    window.setTimeout(() => void syncPendingActionBar(), 250);
+    window.setTimeout(() => void syncPendingActionBar(), 900);
   });
 
   // home.js is normally already loaded when this patch executes.
-  syncPendingActionBar();
+  void syncPendingActionBar();
 })();

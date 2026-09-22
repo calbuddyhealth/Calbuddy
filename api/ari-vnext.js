@@ -59,6 +59,7 @@ import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext
 import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import { persistAriActionProposal } from "./_lib/ari-vnext/action-ledger.js";
 import { retrieveInstitutionalMemory } from "./_lib/ari-vnext/institutional-memory.js";
 import { learnFromCouncilTurn } from "./_lib/ari-vnext/council-lesson-extractor.js";
 import {
@@ -524,6 +525,29 @@ export default async function handler(req, res) {
 
     const modelStartedAt = Date.now();
     const result = await runAriVNext(turn);
+
+    const actionLedgerProposal =
+      result?.action?.type === "proposed_action" && result?.pendingAction?.id
+        ? await persistAriActionProposal({
+            userId: auth.userId,
+            pendingAction: result.pendingAction
+          })
+        : { stored: false, required: false, reason: "no_action_proposal" };
+
+    // A confirmation prompt is not allowed to outlive its executable action.
+    // If the durable proposal cannot be recorded, do not expose a dead "Yes"
+    // prompt that a later navigation or retry could misinterpret.
+    if (actionLedgerProposal.required && !actionLedgerProposal.stored) {
+      result.reply = "I couldn't prepare that change for confirmation, so nothing was saved. Please ask me to try it again.";
+      result.pendingAction = null;
+      result.action = null;
+      result.actionPreparation = {
+        success: false,
+        code: "action_ledger_persistence_failed",
+        reason: actionLedgerProposal.reason || "ledger_write_failed"
+      };
+    }
+
     result.resourceResolution = {
       conversationRecall: {
         requested: recallRequested,
@@ -1079,6 +1103,7 @@ export default async function handler(req, res) {
         turnStored: continuityTurnStored,
         conversationId: turn.conversationId || null
       },
+      actionLedger: actionLedgerProposal,
       durableMemoryStored,
       worldModelStored,
       cognitiveStateStored,

@@ -170,6 +170,33 @@ export async function runAriVNext(turn = {}) {
     };
   }
 
+  const workoutDateClarification = missingWorkoutDateClarification(turn, route);
+  if (workoutDateClarification) {
+    return {
+      success: true,
+      ready: true,
+      reply: workoutDateClarification,
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction: null,
+      action: null,
+      provider: null,
+      semanticActionReview: null,
+      source: "ari_vnext_workout_date_clarification"
+    };
+  }
+
   const tools = getAriTools(route);
   if (route.currentInfo && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
     tools.push({ type: "web_search" });
@@ -1348,6 +1375,30 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export function missingWorkoutDateClarification(turn = {}, route = {}) {
+  if (!route?.training) return "";
+
+  const text = String(turn?.message || "").trim();
+  if (!text) return "";
+
+  const explicitCreation =
+    /\b(?:create|build|make|plan|design|put\s+together)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text) ||
+    /\b(?:i\s+want\s+you\s+to|can\s+you|could\s+you|please)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text) ||
+    /\b(?:i\s+(?:want|need)|give\s+me)\b.{0,80}\b(?:workout|training\s+session)\b/i.test(text);
+  if (!explicitCreation) return "";
+
+  const supportedDate =
+    /\b(?:today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.test(text) ||
+    /\b20\d{2}-\d{1,2}-\d{1,2}\b/.test(text) ||
+    /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/.test(text);
+  if (supportedDate) return "";
+
+  const focus = text.match(/\b(chest|back|shoulder|shoulders|biceps?|triceps?|arms?|legs?|lower body|core|abs|cardio|full body|total body)\b/i)?.[1];
+  return focus
+    ? `What day do you want the ${focus.toLowerCase()} workout for?`
+    : "What day do you want the workout for?";
 }
 
 function shouldReviewNoToolTurn(turn = {}) {

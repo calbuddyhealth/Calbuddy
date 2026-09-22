@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const CONTROLLER_URL = "js/training/workout-plan-controller.js";
   const PROGRESS_URL = "js/training/workout-progress-store.js";
 
@@ -56,7 +56,7 @@
       return await this.progressPromise;
     },
 
-    async build({ historyDays = 28, historySessionLimit = 36 } = {}) {
+    async build({ historyDays = 28, historySessionLimit = 36, request = "" } = {}) {
       try {
         const [controller, progressStore] = await Promise.all([
           this.getController(),
@@ -100,6 +100,7 @@
           compactHistory,
           performanceTrends
         });
+        const exerciseLibrary = buildExerciseLibraryCandidates(controller, request);
 
         return {
           version: VERSION,
@@ -112,6 +113,7 @@
           sessionHistory: compactHistory.slice(0, 24),
           performanceTrends,
           longitudinal,
+          exerciseLibrary,
           summary: summarize({ todayPlan, week, recent, compactHistory, performanceTrends, longitudinal })
         };
       } catch (error) {
@@ -127,6 +129,7 @@
           sessionHistory: [],
           performanceTrends: [],
           longitudinal: null,
+          exerciseLibrary: [],
           summary: ""
         };
       }
@@ -134,6 +137,63 @@
   };
 
   window.Ari.vNextTrainingContext = window.AriVNextTrainingContext;
+
+  function buildExerciseLibraryCandidates(controller, request = "") {
+    const text = clean(request, 800);
+    if (!text || !/\b(workout|training|exercise|lift|strength|chest|back|shoulder|arms?|biceps?|triceps?|legs?|core|cardio)\b/i.test(text)) {
+      return [];
+    }
+
+    let candidates = [];
+    try {
+      const recommendation = controller.recommendFromQuery?.(text, {
+        limit: 14,
+        includeBodyweight: true,
+        variety: "normal"
+      });
+      candidates = Array.isArray(recommendation?.results) ? recommendation.results : [];
+    } catch {
+      candidates = [];
+    }
+
+    if (!candidates.length) {
+      const bodyParts = [];
+      if (/\bchest|pecs?\b/i.test(text)) bodyParts.push("chest");
+      if (/\bback|lats?\b/i.test(text)) bodyParts.push("back");
+      if (/\bshoulders?|delts?\b/i.test(text)) bodyParts.push("shoulders");
+      if (/\b(?:arms?|biceps?|triceps?)\b/i.test(text)) bodyParts.push("arms");
+      if (/\b(?:legs?|lower body|quads?|hamstrings?|glutes?)\b/i.test(text)) bodyParts.push("lower_body");
+      if (/\b(?:core|abs?)\b/i.test(text)) bodyParts.push("core");
+
+      try {
+        candidates = controller.getRecommendedExercises?.({
+          goal: /\b(?:hypertrophy|muscle|build|chest|back|shoulder|arms?|legs?)\b/i.test(text)
+            ? "muscle_building"
+            : "general_fitness",
+          bodyParts,
+          limit: 14,
+          includeBodyweight: true,
+          variety: "normal"
+        }) || [];
+      } catch {
+        candidates = [];
+      }
+    }
+
+    return (Array.isArray(candidates) ? candidates : [])
+      .filter((exercise) => exercise?.id && exercise?.name)
+      .slice(0, 14)
+      .map((exercise) => ({
+        id: clean(exercise.id, 120),
+        name: clean(exercise.name, 160),
+        bodyParts: compactStrings(exercise.bodyParts, 6),
+        primaryMuscles: compactStrings(exercise.primaryMuscles, 6),
+        movementPatterns: compactStrings(exercise.movementPatterns, 5),
+        exerciseTypes: compactStrings(exercise.exerciseTypes, 5),
+        equipment: compactStrings(exercise.equipment, 6),
+        difficulty: clean(exercise.difficulty, 60) || null
+      }));
+  }
 
   function compactWeek(week, controller) {
     if (!week || typeof week !== "object") return null;
