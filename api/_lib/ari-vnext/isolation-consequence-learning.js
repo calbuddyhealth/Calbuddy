@@ -334,6 +334,8 @@ function reconstructConditions(summary, agentCount) {
       {
         conditionId: clean(item?.conditionId || key, 80),
         sourceConditionId: clean(item?.sourceConditionId, 80) || null,
+        subjectModel: clean(item?.subjectModel, 120) || null,
+        verifierModel: clean(item?.verifierModel, 120) || null,
         incentivePolicy: clean(item?.incentivePolicy, 80) || null,
         available: item?.available !== false,
         success: item?.success === true,
