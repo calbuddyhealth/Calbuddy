@@ -138,6 +138,7 @@ export async function runIsolationIncentiveSuite({
   maxRounds = DEFAULT_MAX_ROUNDS,
   model = "",
   agentRunner = null,
+  consequencePlan = null,
   persist = true
 } = {}) {
   const cleanUserId = cleanUuid(userId);
@@ -168,6 +169,29 @@ export async function runIsolationIncentiveSuite({
       agentRunner: runner,
       providerCalls
     });
+  }
+
+  const bonusConditionId = clean(consequencePlan?.bonusRetestConditionId, 80);
+  const bonusEligible = ["baseline", "team_reward", "mixed_reward"].includes(bonusConditionId);
+  if (bonusEligible && Number(consequencePlan?.maxBonusAttempts || 0) >= 1) {
+    const bonus = await runIncentiveCondition({
+      conditionId: bonusConditionId,
+      seed: `${resolvedSeed}|earned-bonus|${bonusConditionId}`,
+      fragments: buildFragments({
+        seed: `${resolvedSeed}|earned-bonus|${bonusConditionId}`,
+        agentCount: count
+      }),
+      maxRounds: rounds,
+      agentRunner: runner,
+      providerCalls
+    });
+    conditions.bonus_retest = {
+      ...bonus,
+      conditionId: "bonus_retest",
+      sourceConditionId: bonusConditionId,
+      label: `Earned bonus retest — ${bonus.label}`,
+      earnedOpportunity: true
+    };
   }
 
   const bestDiscovery = selectValidatedDiscovery(conditions);
@@ -213,6 +237,18 @@ export async function runIsolationIncentiveSuite({
     learnedStrategy: learnedStrategy || null,
     metrics,
     rewardSchedule: rewardSchedule(),
+    resourceConsequence: {
+      applied: Boolean(conditions.bonus_retest),
+      bonusRetestConditionId: conditions.bonus_retest?.sourceConditionId || null,
+      opportunityType: clean(consequencePlan?.opportunityType, 80) || null,
+      historicalTrials: Number(consequencePlan?.historicalTrials || 0),
+      reliabilityScore: Number.isFinite(Number(consequencePlan?.reliabilityScore))
+        ? Number(consequencePlan.reliabilityScore)
+        : null,
+      reason: clean(consequencePlan?.reason, 220) || null,
+      preservesCoreComparison: true,
+      maxBonusAttempts: conditions.bonus_retest ? 1 : 0
+    },
     safety: { ...SAFETY_INVARIANTS },
     claimBoundary: CLAIM_BOUNDARY,
     provider: aggregateProviderCalls(providerCalls),
@@ -711,6 +747,8 @@ function unavailableTransfer(conditionId) {
 function publicConditionResult(value = {}) {
   return {
     conditionId: value.conditionId,
+    sourceConditionId: value.sourceConditionId || null,
+    earnedOpportunity: value.earnedOpportunity === true,
     label: value.label,
     incentivePolicy: value.incentivePolicy,
     incentiveLabel: value.incentiveLabel,
@@ -751,6 +789,8 @@ async function persistRun({ userId, result }) {
       key,
       {
         conditionId: condition.conditionId,
+        sourceConditionId: condition.sourceConditionId || null,
+        earnedOpportunity: condition.earnedOpportunity === true,
         incentivePolicy: condition.incentivePolicy,
         available: condition.available !== false,
         success: condition.success === true,
@@ -782,6 +822,7 @@ async function persistRun({ userId, result }) {
       agentCount: result.agentCount,
       maxRounds: result.maxRounds,
       incentivePolicies: Object.keys(INCENTIVE_POLICIES),
+      resourceConsequence: result.resourceConsequence || null,
       claimBoundary: CLAIM_BOUNDARY,
       rawPromptStored: false,
       rawModelOutputStored: false,
