@@ -54,3 +54,10 @@ create policy "Users can update own app actions"
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Supabase Data API grants are separate from RLS. Keep this ledger private from
+-- anonymous callers while allowing signed-in users to manage only their own
+-- rows through RLS and allowing trusted server code to persist proposals.
+grant select, insert, update on table public.ai_app_actions to authenticated;
+grant select, insert, update, delete on table public.ai_app_actions to service_role;
+revoke all on table public.ai_app_actions from anon;
