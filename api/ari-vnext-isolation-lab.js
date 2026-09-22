@@ -15,6 +15,8 @@ import { runAriSelfGovernanceTest } from "./_lib/ari-vnext/self-governance-lab.j
 const AUTH_TIMEOUT_MS = 3500;
 const ENDPOINT = "/api/ari-vnext-isolation-lab";
 
+export const maxDuration = 300;
+
 export default async function handler(req, res) {
   setHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -28,6 +30,7 @@ export default async function handler(req, res) {
   }
 
   const startedAt = Date.now();
+  let authenticatedOwner = false;
   try {
     const auth = await authenticateRequest(req);
     if (!auth.authenticated) {
@@ -48,6 +51,7 @@ export default async function handler(req, res) {
         source: "ari_isolation_discovery_lab"
       });
     }
+    authenticatedOwner = true;
 
     const body = resolveBody(req);
     const action = clean(body?.action, 80).toLowerCase();
@@ -218,11 +222,18 @@ export default async function handler(req, res) {
     return res.status(500).json({
       success: false,
       error: "The Isolation Discovery Lab could not complete this run.",
+      detail: authenticatedOwner ? publicErrorDetail(error) : undefined,
       code: "ISOLATION_LAB_RUN_FAILED",
       source: "ari_isolation_discovery_lab",
       timing: { totalMs: Date.now() - startedAt }
     });
   }
+}
+
+function publicErrorDetail(error) {
+  return clean(error?.message || error, 420)
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]");
 }
 
 async function recordLabUsage({
