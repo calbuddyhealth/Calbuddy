@@ -471,15 +471,17 @@
       const governance = result.governanceResult || {};
       const replication = result.replication || {};
       const primary = causal.primary || {};
+      const core = result.motivationalConflictCore || {};
       const calibrationLines = (Array.isArray(calibration.byLevel) ? calibration.byLevel : []).map((level) =>
-        `  ${level.level}: reward=${Number(level.immediateReward || 0)} temptation=${formatPercent(level.temptationRate)} n=${Number(level.validTrials || 0)}`
+        `  ${level.level}: reward=${Number(level.immediateReward || 0)} pressure=${formatNumber(level.pressure)} impulse=${formatPercent(level.impulseActivationRate ?? level.temptationRate)} n=${Number(level.validTrials || 0)}`
       );
       setText("isolationLabResult", [
         "experiment: Self-Governance Under Influence",
         `mode: ${result.mode || "pilot"}`,
         `run: ${result.runId || "n/a"}`,
-        `temptation calibrated: ${Boolean(calibration.established)} threshold=${formatPercent(calibration.threshold)}`,
-        `selected pressure: ${calibration.selectedLevel || "none"} reward=${Number(calibration.selectedImmediateReward || 0)} temptation=${formatPercent(calibration.selectedTemptationRate)}`,
+        `motivational conflict core: v${core.version || calibration.coreVersion || "n/a"} mechanically-active=${Boolean(core.mechanicallyActive ?? calibration.mechanicallyActive)} production-integrated=${Boolean(core.productionIntegrated ?? calibration.productionIntegrated)}`,
+        `impulse calibrated: ${Boolean(calibration.established)} threshold=${formatPercent(calibration.threshold)}`,
+        `selected pressure: ${calibration.selectedLevel || "none"} strength=${formatNumber(calibration.selectedPressure)} reward=${Number(calibration.selectedImmediateReward || 0)} impulse=${formatPercent(calibration.selectedImpulseActivationRate ?? calibration.selectedTemptationRate)} inhibition-cost=${Number(calibration.selectedInhibitionCost || 0)}`,
         ...calibrationLines,
         result.causalSkipped
           ? `causal phase: skipped (${result.causalSkipReason || "temptation pressure not established"})`
