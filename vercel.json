@@ -58,7 +58,5 @@
         }
       ]
     }
-  ],
-  "buildCommand": "node scripts/ari-functional-affect-ablation-live.mjs --status-code-report",
-  "outputDirectory": "public"
+  ]
 }
