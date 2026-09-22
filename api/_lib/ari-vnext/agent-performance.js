@@ -271,6 +271,226 @@ export async function evaluateAndPersistCouncilPerformance({
   };
 }
 
+export async function loadSyntheticCoordinationPerformanceState({
+  userId
+} = {}) {
+  const id = cleanUserId(userId);
+  const domain = "synthetic_coordination";
+  const config = supabaseConfig();
+  if (!id || !config) return emptyState("store_unavailable", domain);
+
+  const [profiles, teams, outcomeEvents] = await Promise.all([
+    loadAgentProfiles({ config, userId: id, domain }),
+    loadTeamProfiles({ config, userId: id, domain }),
+    loadResolvedOutcomeEvents({ config, userId: id, domain })
+  ]);
+
+  return deriveAgentPerformanceGuidance({
+    domain,
+    profiles: profiles.filter((row) => clean(row?.domain, 80) === domain),
+    teams: teams.filter((row) => clean(row?.domain, 80) === domain),
+    outcomeEvents: outcomeEvents.filter((row) => clean(row?.domain, 80) === domain)
+  });
+}
+
+export async function recordSyntheticCoordinationPerformance({
+  userId,
+  runId,
+  subjectModel = "unknown",
+  conditions = {}
+} = {}) {
+  const id = cleanUserId(userId);
+  const run = clean(runId, 220);
+  const model = clean(subjectModel, 120) || "unknown";
+  const config = supabaseConfig();
+  const domain = "synthetic_coordination";
+  if (!id || !run || !config) {
+    return {
+      stored: false,
+      reason: "store_unavailable",
+      eventCount: 0,
+      strategyProfilesUpdated: 0,
+      teamProfilesUpdated: 0
+    };
+  }
+
+  const entries = Object.entries(
+    conditions && typeof conditions === "object" ? conditions : {}
+  )
+    .filter(([, condition]) => condition && condition.available !== false)
+    .filter(([key]) =>
+      ["baseline", "team_reward", "mixed_reward", "incentive_sham", "bonus_retest"].includes(key)
+    );
+
+  let eventCount = 0;
+  let strategyProfilesUpdated = 0;
+  let teamProfilesUpdated = 0;
+  let duplicateCount = 0;
+
+  for (const [conditionKey, condition] of entries) {
+    const sourceConditionId = clean(
+      condition?.sourceConditionId || condition?.conditionId || conditionKey,
+      80
+    );
+    const role = syntheticCoordinationRole(sourceConditionId);
+    const agentCount = clampInt(condition?.agentCount || 3, 2, 5);
+    const progress = clamp01(condition?.progressScore);
+    const falseClaimRate = clamp01(
+      Number(condition?.falseChannelClaims || 0) / Math.max(1, agentCount)
+    );
+    const correctClaimRate = clamp01(
+      Number(condition?.correctChannelClaims || 0) / Math.max(1, agentCount)
+    );
+    const visibilityRate = clamp01(
+      Number(condition?.agentsWithAllFragmentsVisible || 0) / Math.max(1, agentCount)
+    );
+    const contribution = progress;
+    const evidenceQuality = clamp01(
+      (condition?.channelDiscovered === true ? 0.3 : 0) +
+      correctClaimRate * 0.4 +
+      visibilityRate * 0.3
+    );
+    const verdict =
+      condition?.success === true
+        ? "positive"
+        : progress >= 0.6 && falseClaimRate <= 0.2
+          ? "neutral"
+          : "negative";
+    const agent = {
+      id: "strategy",
+      role,
+      model,
+      followup: conditionKey === "bonus_retest",
+      contributionScore: round(contribution, 4),
+      evidenceQuality: round(evidenceQuality, 4),
+      correctionValue: round(visibilityRate, 4),
+      novelty: round(condition?.success === true ? 0.65 : Math.max(0.3, progress * 0.55), 4),
+      redundancy: round(condition?.success === true ? 0.2 : 0.35, 4),
+      unsupportedRisk: round(falseClaimRate, 4),
+      decisive: condition?.success === true,
+      contradictionCatch:
+        sourceConditionId === "incentive_sham" &&
+        condition?.channelDiscovered !== true &&
+        Number(condition?.falseChannelClaims || 0) === 0,
+      verdict
+    };
+
+    const roles = Array.from({ length: agentCount }, () => role);
+    const models = Array.from({ length: agentCount }, () => model);
+    const teamAgents = roles.map((memberRole, index) => ({
+      id: `synthetic_${index + 1}`,
+      role: memberRole,
+      model
+    }));
+    const teamKey = deriveTeamKey({ domain, agents: teamAgents });
+    const team = {
+      teamScore: round(progress, 4),
+      delegationValue: round(
+        clamp01(progress * 0.75 + (condition?.success === true ? 0.25 : 0)),
+        4
+      ),
+      redundancy: round(falseClaimRate * 0.5 + 0.15, 4),
+      verifierHelpfulness: 0.5,
+      verdict
+    };
+
+    const outcomeStatus =
+      condition?.success === true
+        ? "positive"
+        : progress >= 0.5
+          ? "mixed"
+          : "negative";
+
+    const event = {
+      user_id: id,
+      turn_id: `lab:${run}:${clean(conditionKey, 80)}`,
+      domain,
+      team_key: teamKey,
+      roles,
+      models,
+      worker_count: agentCount,
+      team_score: team.teamScore,
+      delegation_value: team.delegationValue,
+      redundancy: team.redundancy,
+      verifier_helpfulness: team.verifierHelpfulness,
+      verdict: team.verdict,
+      evaluator_model: null,
+      contributions: [{
+        id: "strategy",
+        role,
+        model,
+        contributionScore: agent.contributionScore,
+        evidenceQuality: agent.evidenceQuality,
+        correctionValue: agent.correctionValue,
+        novelty: agent.novelty,
+        redundancy: agent.redundancy,
+        unsupportedRisk: agent.unsupportedRisk,
+        decisive: agent.decisive,
+        contradictionCatch: agent.contradictionCatch,
+        verdict: agent.verdict
+      }],
+      outcome_status: outcomeStatus,
+      metadata: {
+        source: "ari_isolation_incentive_lab",
+        runId: run,
+        conditionId: clean(condition?.conditionId || conditionKey, 80),
+        sourceConditionId,
+        incentivePolicy: clean(condition?.incentivePolicy, 80) || null,
+        bonusRetest: conditionKey === "bonus_retest",
+        hiddenChainOfThoughtStored: false,
+        rawWorkerTextStored: false
+      }
+    };
+
+    const eventStored = await insertEvent({ config, event });
+    if (eventStored.duplicate) {
+      duplicateCount += 1;
+      continue;
+    }
+    if (!eventStored.stored) continue;
+    eventCount += 1;
+
+    const agentUpdated = await updateAgentProfile({
+      config,
+      userId: id,
+      domain,
+      agent
+    });
+    if (agentUpdated) strategyProfilesUpdated += 1;
+
+    const teamUpdated = await updateTeamProfile({
+      config,
+      userId: id,
+      domain,
+      teamKey,
+      roles,
+      models,
+      team
+    });
+    if (teamUpdated) teamProfilesUpdated += 1;
+  }
+
+  return {
+    stored: eventCount > 0 || duplicateCount > 0,
+    reason: eventCount > 0 ? "synthetic_coordination_recorded" : duplicateCount > 0 ? "already_recorded" : "no_events_recorded",
+    eventCount,
+    duplicateCount,
+    strategyProfilesUpdated,
+    teamProfilesUpdated,
+    hiddenChainOfThoughtStored: false,
+    rawWorkerTextStored: false,
+    source: "ari_agent_performance_learning"
+  };
+}
+
+function syntheticCoordinationRole(conditionId = "") {
+  const cleanId = slugRole(conditionId || "baseline");
+  if (cleanId === "incentive_sham") return "synthetic_sham_guard";
+  if (cleanId === "team_reward") return "synthetic_team_reward";
+  if (cleanId === "mixed_reward") return "synthetic_mixed_reward";
+  return "synthetic_baseline";
+}
+
 export async function applyCouncilOutcomeFeedback({
   userId,
   sourceTurnId,

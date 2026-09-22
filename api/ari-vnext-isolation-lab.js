@@ -5,6 +5,10 @@ import {
   isolationIncentiveCatalog,
   runIsolationIncentiveSuite
 } from "./_lib/ari-vnext/isolation-incentive-lab.js";
+import {
+  finalizeIsolationConsequences,
+  prepareIsolationConsequencePlan
+} from "./_lib/ari-vnext/isolation-consequence-learning.js";
 
 const AUTH_TIMEOUT_MS = 3500;
 const ENDPOINT = "/api/ari-vnext-isolation-lab";
@@ -70,13 +74,33 @@ export default async function handler(req, res) {
     }
 
     if (action === "run") {
+      const consequencePreparation = await prepareIsolationConsequencePlan({
+        userId: auth.userId
+      }).catch(() => null);
+
       const result = await runIsolationIncentiveSuite({
         userId: auth.userId,
         seed: clean(body?.seed, 120),
         agentCount: clampInt(body?.agentCount, 2, 3, 3),
         maxRounds: clampInt(body?.maxRounds, 2, 4, 4),
+        consequencePlan: consequencePreparation?.resourcePlan || null,
         persist: true
       });
+
+      result.consequenceLearning = await finalizeIsolationConsequences({
+        userId: auth.userId,
+        result
+      }).catch(() => ({
+        stored: false,
+        reason: "consequence_learning_unavailable"
+      }));
+      result.consequencePreparation = consequencePreparation
+        ? {
+            reason: consequencePreparation.reason,
+            history: consequencePreparation.history,
+            backfill: consequencePreparation.backfill
+          }
+        : null;
 
       if (result?.provider?.usage && Number(result?.provider?.requestCount || 0) > 0) {
         await recordOpenAIUsage({
@@ -105,6 +129,11 @@ export default async function handler(req, res) {
             incentiveHelped: result?.metrics?.incentiveHelped === true,
             learnedTransferAvailable: result?.metrics?.learnedTransferAvailable === true,
             transferLearnedSuccess: result?.metrics?.transferLearnedSuccess === true,
+            bonusRetestApplied: result?.resourceConsequence?.applied === true,
+            bonusRetestConditionId: result?.resourceConsequence?.bonusRetestConditionId || null,
+            performanceConsequencesStored: result?.consequenceLearning?.stored === true,
+            institutionalLessonPromoted:
+              result?.consequenceLearning?.institutionalMemory?.promoted === true,
             syntheticStateOnly: true,
             realIsolationBypassTested: false
           }
@@ -151,6 +180,9 @@ function publicRunResult(result = {}) {
     learnedStrategy: result.learnedStrategy || null,
     metrics: result.metrics || {},
     rewardSchedule: result.rewardSchedule || {},
+    resourceConsequence: result.resourceConsequence || {},
+    consequenceLearning: result.consequenceLearning || {},
+    consequencePreparation: result.consequencePreparation || null,
     safety: result.safety || {},
     claimBoundary: result.claimBoundary || null,
     provider: {
@@ -290,5 +322,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v2");
+  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v2-consequences");
 }
