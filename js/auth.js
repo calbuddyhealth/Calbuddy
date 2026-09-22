@@ -272,7 +272,7 @@ function bootstrapNutritionDataQuality() {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.5");
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.6");
 }
 
 function bootstrapAriMealAction() {
