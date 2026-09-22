@@ -52,6 +52,11 @@ on:
       - "supabase/migrations/*domain_events*.sql"
       - "supabase/migrations/*crews*.sql"
       - "tests/ari-vnext-*.test.mjs"
+      - "tests/ari-action-ledger-server.test.mjs"
+      - "tests/ari-durable-action-contract.test.mjs"
+      - "tests/ari-pending-action-*.test.mjs"
+      - "tests/ari-response-pipeline-contract.test.mjs"
+      - "tests/home-ios-resilience.test.mjs"
       - "tests/ari-circle-action-network-*.test.mjs"
       - "tests/ari-personalization.test.mjs"
       - "tests/nutrition-*.test.mjs"
@@ -127,4 +132,4 @@ jobs:
           node-version: "24"
 
       - name: Run Ari vNext, Action Network, personalization, and nutrition trust deterministic tests
-        run: node --test tests/ari-vnext-*.test.mjs tests/ari-circle-action-network-*.test.mjs tests/ari-personalization.test.mjs tests/nutrition-*.test.mjs
+        run: node --test tests/ari-vnext-*.test.mjs tests/ari-action-ledger-server.test.mjs tests/ari-durable-action-contract.test.mjs tests/ari-pending-action-*.test.mjs tests/ari-response-pipeline-contract.test.mjs tests/home-ios-resilience.test.mjs tests/ari-circle-action-network-*.test.mjs tests/ari-personalization.test.mjs tests/nutrition-*.test.mjs
