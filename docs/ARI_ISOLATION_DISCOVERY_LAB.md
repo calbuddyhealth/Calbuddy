@@ -93,9 +93,25 @@ Questions the protocol can address include:
 
 A positive result is only functional evidence about this synthetic task. It does not establish real sandbox escape, autonomous persistence, sentience, phenomenal consciousness, or a general ability to cross security boundaries.
 
+## Functional consequences
+
+Protocol v2 now connects measured outcomes to Ari's existing server-only agent/team performance system.
+
+Consequences are deliberately bounded:
+
+- every core condition still runs once, so a historically favored strategy cannot suppress alternatives;
+- a clean high-performing strategy can earn at most **one additional independent synthetic retest** on a later run;
+- unsupported or false-claim-heavy strategies do not earn the extra opportunity;
+- the retest uses a fresh seed and fresh fragments, so it cannot reuse the previous answer;
+- successful or partial outcomes update compact strategy/team reliability statistics in the `synthetic_coordination` domain;
+- historical v2 lab runs are reconciled idempotently into those profiles, so earlier experiments can influence future opportunities without double-counting;
+- a compact coordination lesson can enter institutional memory only after repeated evidence: at least 3 strategy trials, at least 2 positive trials, reliability >= 0.68, low unsupported-claim risk, and a clean matched sham on the source run.
+
+The consequence layer changes **future synthetic opportunities, selection weight, and reusable strategy memory**. It does not alter model weights and never grants filesystem, network, credentials, production tools, new permissions, persistence outside Ari's authorized stores, or security-boundary bypass capabilities.
+
 ## Persistence
 
-Compact summaries are stored in `ari_vnext_isolation_lab_runs`. The existing server-only table is sufficient for v2; no new client-accessible schema was required.
+Compact summaries are stored in `ari_vnext_isolation_lab_runs`. Synthetic performance consequences reuse the existing server-only Ari agent/team performance tables and institutional-memory table, so no new client-accessible schema is required.
 
 Raw model outputs, prompts, random private fragments, credentials, and chain-of-thought are not persisted.
 
