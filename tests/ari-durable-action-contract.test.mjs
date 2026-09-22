@@ -57,3 +57,10 @@ test("updated browser action components remain syntactically valid", () => {
   assert.doesNotThrow(() => new Function(training));
   assert.doesNotThrow(() => new Function(bridge));
 });
+
+
+test("unfinished pre-ledger vNext browser actions are not executed after the upgrade", () => {
+  assert.match(core, /Pre-transaction vNext confirmations were browser-only/);
+  assert.match(core, /parsed\?\.vnext_action_id && parsed\?\._ledger_persisted !== true/);
+  assert.match(core, /localStorage\.removeItem\("calbuddyPendingAction"\)/);
+});
