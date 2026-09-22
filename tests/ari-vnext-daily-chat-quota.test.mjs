@@ -95,7 +95,7 @@ test("authenticated quota endpoint saves timezone and returns a quota snapshot",
 });
 
 test("browser bridge syncs IANA timezone, renders remaining questions, and bypasses model for pending yes or cancel", () => {
-  assert.match(bridge, /version: "1\.9\.0"/);
+  assert.match(bridge, /version: "1\.10\.0"/);
   assert.match(bridge, /Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/);
   assert.match(bridge, /\/api\/ari-daily-chat-quota/);
   assert.match(bridge, /ariDailyQuotaStatus/);
@@ -107,11 +107,11 @@ test("browser bridge syncs IANA timezone, renders remaining questions, and bypas
 });
 
 test("runtime and Home require the quota-aware bridge and runtime versions", () => {
-  assert.match(runtime, /const VERSION = "1\.3\.10"/);
-  assert.match(runtime, /ari-vnext-bridge\.js\?v=1\.9\.0/);
-  assert.match(runtime, /versionAtLeast\(window\.AriVNextBridge\?\.version, "1\.9\.0"\)/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.3\.10"/);
-  assert.match(router, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.10/);
+  assert.match(runtime, /const VERSION = "1\.3\.11"/);
+  assert.match(runtime, /ari-vnext-bridge\.js\?v=1\.10\.0/);
+  assert.match(runtime, /versionAtLeast\(window\.AriVNextBridge\?\.version, "1\.10\.0"\)/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.3\.11"/);
+  assert.match(router, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.11/);
 });
 
 test("database quota boundary is atomic, local-day aware, and service-role only", () => {
