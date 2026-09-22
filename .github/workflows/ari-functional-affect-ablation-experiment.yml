@@ -34,4 +34,4 @@ jobs:
           node-version: "24"
 
       - name: Run preregistered functional affect ablation
-        run: node scripts/ari-functional-affect-ablation-live.mjs
+        run: node scripts/ari-functional-affect-ablation-live.mjs --policy-only
