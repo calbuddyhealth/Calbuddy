@@ -12,6 +12,7 @@ import { communicationLearningToInstruction } from "./communication-outcomes.js"
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { evaluateExperimentSnapshot } from "./experiment-ledger.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
+import { resolveMealNutritionFromFoodSearch } from "./food-resolution.js";
 import { deriveGoalHierarchy, goalHierarchyToInstruction } from "./goal-hierarchy.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
@@ -431,6 +432,12 @@ export async function runAriVNext(turn = {}) {
     }, multiAgentCouncil);
   }
 
+  let nutritionResolution = null;
+  ({ functionCall, nutritionResolution } = await enrichMealFunctionCall({
+    functionCall,
+    turn
+  }));
+
   let validation = validateToolCall(functionCall, route);
 
   if (!validation.valid) {
@@ -465,7 +472,16 @@ export async function runAriVNext(turn = {}) {
       tools,
       toolChoice: { type: "function", name: String(functionCall.name) }
     });
-    const repairedCall = findFunctionCall(repaired?.output);
+    let repairedCall = findFunctionCall(repaired?.output);
+    let repairedNutritionResolution = null;
+    if (repairedCall) {
+      const enrichedRepair = await enrichMealFunctionCall({
+        functionCall: repairedCall,
+        turn
+      });
+      repairedCall = enrichedRepair.functionCall;
+      repairedNutritionResolution = enrichedRepair.nutritionResolution;
+    }
     const repairedValidation = repairedCall
       ? validateToolCall(repairedCall, route)
       : { valid: false, error: "missing_repaired_tool_call" };
@@ -476,6 +492,7 @@ export async function runAriVNext(turn = {}) {
 
     first = repaired;
     functionCall = repairedCall;
+    if (repairedNutritionResolution) nutritionResolution = repairedNutritionResolution;
     validation = repairedValidation;
   }
 
@@ -769,6 +786,7 @@ export async function runAriVNext(turn = {}) {
         applicationAction,
         semanticActionReview
       }),
+      nutritionResolution: publicNutritionResolution(nutritionResolution),
       source: "ari_vnext_action_proposal"
     }, multiAgentCouncil);
   }
@@ -832,8 +850,16 @@ export async function runAriVNext(turn = {}) {
       applicationAction,
       semanticActionReview
     }),
+    nutritionResolution: publicNutritionResolution(nutritionResolution),
     source: "ari_vnext_action_proposal"
   }, multiAgentCouncil);
+}
+
+function formatMacro(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "0";
+  const rounded = Math.round(number * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
 export function explicitOwnerLabRunTool(message = "") {
@@ -1473,6 +1499,58 @@ function findFunctionCall(output = []) {
   return output.find((item) => item?.type === "function_call" && item?.name && item?.call_id) || null;
 }
 
+async function enrichMealFunctionCall({ functionCall = null, turn = {} } = {}) {
+  if (String(functionCall?.name || "") !== "propose_log_meal") {
+    return { functionCall, nutritionResolution: null };
+  }
+
+  let args;
+  try {
+    args = typeof functionCall?.arguments === "string"
+      ? JSON.parse(functionCall.arguments)
+      : functionCall?.arguments;
+  } catch {
+    return { functionCall, nutritionResolution: null };
+  }
+
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return { functionCall, nutritionResolution: null };
+  }
+
+  const resolution = await resolveMealNutritionFromFoodSearch({
+    arguments: args,
+    message: turn?.message || ""
+  }).catch(() => null);
+
+  if (!resolution?.resolved || !resolution?.arguments) {
+    return { functionCall, nutritionResolution: resolution || null };
+  }
+
+  return {
+    functionCall: {
+      ...functionCall,
+      arguments: JSON.stringify(resolution.arguments)
+    },
+    nutritionResolution: resolution
+  };
+}
+
+function publicNutritionResolution(resolution = null) {
+  if (!resolution) return null;
+  return {
+    version: resolution?.version || "1.0.0",
+    resolved: resolution?.resolved === true,
+    reason: resolution?.reason || null,
+    source: resolution?.source || "ari_food_search",
+    appliedFields: Array.isArray(resolution?.appliedFields) ? resolution.appliedFields.slice(0, 8) : [],
+    preservedExplicitFields: Array.isArray(resolution?.preservedExplicitFields)
+      ? resolution.preservedExplicitFields.slice(0, 8)
+      : [],
+    match: resolution?.match || null,
+    servingResolution: resolution?.servingResolution || null
+  };
+}
+
 function extractOutputText(data = {}) {
   if (typeof data?.output_text === "string" && data.output_text.trim()) return data.output_text.trim();
   if (!Array.isArray(data?.output)) return "";
@@ -1493,11 +1571,17 @@ export function formatDeterministicPendingReply(applicationAction = "", args = {
     const name = String(args?.name || "meal").replace(/\s+/g, " ").trim().slice(0, 160) || "meal";
     const servingSize = String(args?.servingSize || "").replace(/\s+/g, " ").trim().slice(0, 120);
     const calories = Number(args?.calories);
-    const calorieText = Number.isFinite(calories) && calories > 0
-      ? ` — ${Math.round(calories)} calories`
+    const protein = Number(args?.proteinG);
+    const carbs = Number(args?.carbsG);
+    const fat = Number(args?.fatG);
+    const hasCompleteNutrition = [calories, protein, carbs, fat]
+      .every((value) => Number.isFinite(value) && value >= 0);
+    const estimated = /\bestimat(?:e|ed|ion)\b/i.test(String(args?.notes || ""));
+    const nutritionText = hasCompleteNutrition
+      ? ` — ${estimated ? "estimated " : ""}${Math.round(calories)} calories · ${formatMacro(protein)}g protein · ${formatMacro(carbs)}g carbs · ${formatMacro(fat)}g fat`
       : "";
     const servingText = servingSize ? ` (${servingSize})` : "";
-    return `Ready to log ${name}${servingText}${calorieText}. Confirm to save it.`;
+    return `Ready to log ${name}${servingText}${nutritionText}. Confirm to save it.`;
   }
 
   if (action === "log_weight") {
