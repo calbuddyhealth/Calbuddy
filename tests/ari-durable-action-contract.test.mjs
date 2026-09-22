@@ -24,6 +24,9 @@ test("server action proposal persistence precedes durable conversation persisten
 test("ledger lifecycle is idempotent and success requires a completed receipt", () => {
   assert.match(migration, /'proposed','pending','executing','completed','failed','cancelled','expired'/);
   assert.match(migration, /unique index if not exists ai_app_actions_user_vnext_action_uidx/);
+  assert.match(migration, /grant select, insert, update on table public\.ai_app_actions to authenticated/);
+  assert.match(migration, /grant select, insert, update, delete on table public\.ai_app_actions to service_role/);
+  assert.match(migration, /revoke all on table public\.ai_app_actions from anon/);
   assert.match(core, /beginPendingActionExecution/);
   assert.match(core, /\.in\("status", \["pending", "failed"\]\)/);
   assert.match(core, /completePendingAction/);

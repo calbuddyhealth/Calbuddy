@@ -434,13 +434,28 @@ export async function runAriVNext(turn = {}) {
   let validation = validateToolCall(functionCall, route);
 
   if (!validation.valid) {
+    const mealNutritionRepair =
+      String(functionCall?.name || "") === "propose_log_meal" &&
+      String(validation?.error || "") === "meal_nutrition_required"
+        ? [
+            "MEAL NUTRITION REPAIR:",
+            "The user asked to log food but did not need to provide calories or macros.",
+            "Infer the most likely food and serving from the CURRENT message.",
+            "Estimate calories, protein, carbs, and fat when exact nutrition is unavailable; use reasonable nutrition knowledge rather than refusing simply because the user omitted numbers.",
+            "If the message names a recognizable restaurant or branded item, preserve that identity and estimate the standard serving unless the serving itself is genuinely ambiguous.",
+            "Mark estimated values clearly in notes. Do not pretend an estimate is exact.",
+            "Only ask the user a clarification if the food identity or amount is too ambiguous to make a reasonable estimate."
+          ].join("\n")
+        : "";
+
     const repairInstructions = [
       instructions,
       "\nTOOL ARGUMENT CORRECTION",
       `Your previous ${String(functionCall.name || "application")} function call failed trusted validation with: ${String(validation.error || "invalid_arguments")}.`,
       "Reissue the SAME function with corrected arguments only. Preserve the user's request exactly; do not switch actions.",
+      mealNutritionRepair,
       "For Meal Plan, use at most one breakfast, one lunch, one dinner, and one snack. Never create duplicate meal slots."
-    ].join("\n");
+    ].filter(Boolean).join("\n");
 
     const repaired = await callResponses({
       turn,
