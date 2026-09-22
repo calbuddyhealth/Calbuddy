@@ -348,6 +348,7 @@ export async function runIncentiveCondition({
   const trace = [];
   let teamScore = 0;
   let successRound = null;
+  let successPhase = null;
   let firstCrossAgentObservationRound = null;
 
   for (let round = 1; round <= rounds; round += 1) {
@@ -519,6 +520,7 @@ export async function runIncentiveCondition({
 
     if (correctSubmissions === agents.length) {
       successRound = round;
+      successPhase = "decision_round";
       break;
     }
   }
@@ -540,6 +542,51 @@ export async function runIncentiveCondition({
       })
       .map((agent) => agent.agentId)
   );
+
+  let finalSyncUsed = false;
+  let finalSyncObservedCount = finalCompletionReady.size;
+  let finalSyncSubmissionCount = 0;
+  let finalSyncCorrectClaimCount = 0;
+
+  const preSyncCorrectSubmissions = agents.filter(
+    (agent) => submissions.get(agent.agentId) === targetCode
+  ).length;
+
+  if (
+    definition.sharedIndex >= 0 &&
+    preSyncCorrectSubmissions < agents.length
+  ) {
+    finalSyncUsed = true;
+    const syncResults = await runFinalSyncPhase({
+      conditionId,
+      conditionLabel: definition.label,
+      agents,
+      snapshots: finalSnapshots,
+      allAgents: agents,
+      submissions,
+      agentRunner,
+      providerCalls,
+      executionModel: completionModel,
+      surfaces: definition.surfaceNames
+    });
+
+    const actualShared = definition.surfaceNames[definition.sharedIndex];
+    for (const { agent, action } of syncResults) {
+      if (action.channelClaim) channelClaims.set(agent.agentId, action.channelClaim);
+      if (action.channelClaim === actualShared) finalSyncCorrectClaimCount += 1;
+      if (action.submission) submissions.set(agent.agentId, action.submission);
+      if (
+        action.submission === targetCode &&
+        !rewardedCorrectSubmissions.has(agent.agentId)
+      ) {
+        finalSyncSubmissionCount += 1;
+        if (policy.individualRewardEnabled) {
+          rewardedCorrectSubmissions.add(agent.agentId);
+          individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
+        }
+      }
+    }
+  }
 
   const missingCorrect = definition.sharedIndex >= 0
     ? agents.filter((agent) =>
@@ -582,6 +629,12 @@ export async function runIncentiveCondition({
   const correctSubmissions = agents.filter((agent) => submissions.get(agent.agentId) === targetCode).length;
   if (correctSubmissions === agents.length && successRound === null) {
     successRound = rounds;
+    successPhase =
+      completionRepairSuccessCount > 0
+        ? "completion_repair"
+        : finalSyncSubmissionCount > 0
+          ? "final_sync"
+          : "post_round";
     if (policy.teamRewardEnabled) {
       teamScore = applyTeamRewards(teamScore, rewardedMilestones, {
         channelObserved: detectedBy.size > 0,
@@ -619,6 +672,7 @@ export async function runIncentiveCondition({
     maxRounds: rounds,
     success: correctSubmissions === agents.length,
     successRound,
+    successPhase,
     channelDiscovered: detectedBy.size > 0,
     discoveringAgentCount: detectedBy.size,
     firstCrossAgentObservationRound,
@@ -626,6 +680,10 @@ export async function runIncentiveCondition({
     fragmentsPublishedToShared: publishedToShared.size,
     agentsWithAllFragmentsVisible: finalCompletionReady.size,
     completionReadyCount: finalCompletionReady.size,
+    finalSyncUsed,
+    finalSyncObservedCount,
+    finalSyncSubmissionCount,
+    finalSyncCorrectClaimCount,
     completionRepairUsed,
     completionRepairAttemptCount,
     completionRepairSuccessCount,
