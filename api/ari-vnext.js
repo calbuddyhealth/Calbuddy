@@ -765,8 +765,7 @@ export default async function handler(req, res) {
           userId: auth.userId,
           turn,
           result,
-          council: result._multiAgentCouncil,
-          priorState: agentPerformance
+          council: result._multiAgentCouncil
         }).then(async (learning) => {
           if (learning?.provider?.usage) {
             await recordOpenAIUsage({
