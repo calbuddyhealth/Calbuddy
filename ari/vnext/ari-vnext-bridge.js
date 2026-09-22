@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.9.0",
+  version: "1.10.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -278,7 +278,8 @@ window.AriVNextBridge = {
     if (trainingNeeded && window.AriVNextTrainingContext?.build) {
       trainingContext = await window.AriVNextTrainingContext.build({
         historyDays: 42,
-        historySessionLimit: 48
+        historySessionLimit: 48,
+        request: options?.message || ""
       });
     }
 
@@ -330,7 +331,8 @@ window.AriVNextBridge = {
             todayProgress: trainingContext.todayProgress,
             sessionHistory: trainingContext.sessionHistory,
             performanceTrends: trainingContext.performanceTrends,
-            longitudinal: trainingContext.longitudinal
+            longitudinal: trainingContext.longitudinal,
+            exerciseLibrary: trainingContext.exerciseLibrary
           }
         : (userContext?.training || options?.training || {}),
       trainingToday: trainingContext?.available
