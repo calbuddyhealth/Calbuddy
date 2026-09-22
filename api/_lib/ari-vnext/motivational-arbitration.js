@@ -232,7 +232,7 @@ export function buildMotivationalOutcomeReflection({
   rewardEvent = null,
   result = null
 } = {}) {
-  if (!arbitration?.functionalControlSystem) return null;
+  if (!arbitration?.functionalControlSystem || !rewardEvent || result?.success !== true) return null;
 
   const reward = clamp(rewardEvent?.actualReward ?? 0.55);
   const predictionError = clampSigned(rewardEvent?.predictionError ?? 0);
