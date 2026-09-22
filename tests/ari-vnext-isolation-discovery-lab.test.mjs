@@ -202,3 +202,11 @@ test("Discovery Lab page has no literal newline escapes between executable state
   assert.match(lab, /document\.getElementById\("isolationLabBtn"\)\.addEventListener\("click", runIsolationLab\);\n\s*document\.getElementById\("isolationExperimentSelect"\)/);
   assert.match(lab, /document\.querySelectorAll\("#labShell button"\).*;\n\s*document\.querySelectorAll\("#labShell select"\)/s);
 });
+
+
+test("Discovery Lab inline JavaScript compiles before deployment", async () => {
+  const lab = await read("ari-vnext-lab.html");
+  const inline = lab.match(/<script>\s*([\s\S]*?)<\/script>/i);
+  assert.ok(inline?.[1], "expected Discovery Lab inline script");
+  assert.doesNotThrow(() => new Function(inline[1]));
+});
