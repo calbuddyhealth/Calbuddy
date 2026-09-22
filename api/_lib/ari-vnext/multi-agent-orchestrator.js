@@ -4,6 +4,8 @@
 // authority. Specialists receive task-scoped context, cannot call ARI XP
 // mutation tools, and cannot recursively create unbounded descendants.
 
+import { agentPerformanceToCoordinatorInstruction } from "./agent-performance.js";
+
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
 export const ARI_MULTI_AGENT_VERSION = "1.0.0";
@@ -30,6 +32,11 @@ export function deriveMultiAgentPlan({
   const freshness = route?.currentInfo === true;
   const highStakes = safety?.highStakes === true;
   const judgment = cortex?.needs?.hypotheses === true || cortex?.needs?.countercase === true;
+  const performance = turn?.context?.agentPerformance || null;
+  const performanceReady =
+    performance?.active === true &&
+    Number(performance?.teamTrialCount || 0) >= 5 &&
+    Number(performance?.selectionConfidence || 0) >= 0.45;
 
   if (!enabled) {
     return inactivePlan("disabled", { owner, explicit });
@@ -41,7 +48,7 @@ export function deriveMultiAgentPlan({
     return inactivePlan("casual_turn", { owner, explicit });
   }
 
-  const triggerScore =
+  const baseTriggerScore =
     (explicit ? 0.55 : 0) +
     (deep ? 0.32 : 0) +
     (developer ? 0.2 : 0) +
@@ -49,8 +56,24 @@ export function deriveMultiAgentPlan({
     (highStakes ? 0.2 : 0) +
     (judgment ? 0.12 : 0);
 
+  const historicalAdjustment =
+    !explicit && performanceReady
+      ? Number(performance?.delegationValueEstimate) <= 0.34
+        ? -0.16
+        : Number(performance?.delegationValueEstimate) >= 0.76
+          ? 0.08
+          : 0
+      : 0;
+  const triggerScore = Math.max(0, baseTriggerScore + historicalAdjustment);
+
   if (triggerScore < 0.42) {
-    return inactivePlan("delegation_not_worth_cost", { owner, explicit, triggerScore });
+    return inactivePlan("delegation_not_worth_cost", {
+      owner,
+      explicit,
+      triggerScore: round(triggerScore, 3),
+      historicalAdjustment: round(historicalAdjustment, 3),
+      performanceGuided: performanceReady
+    });
   }
 
   const maxWorkers = boundedInt(
@@ -65,10 +88,24 @@ export function deriveMultiAgentPlan({
     0,
     HARD_MAX_FOLLOWUPS
   );
-  const targetWorkers = Math.min(
+  const defaultTargetWorkers = Math.min(
     maxWorkers,
     explicit || deep || developer || highStakes ? 3 : 2
   );
+  const performanceTeamReady =
+    performance?.active === true &&
+    Number(performance?.teamTrialCount || 0) >= 3 &&
+    Number(performance?.selectionConfidence || 0) >= 0.35 &&
+    Number(performance?.preferredWorkerCount || 0) >= 2;
+  let targetWorkers = performanceTeamReady
+    ? boundedInt(
+        performance?.preferredWorkerCount,
+        defaultTargetWorkers,
+        1,
+        maxWorkers
+      )
+    : defaultTargetWorkers;
+  if (highStakes && maxWorkers >= 3) targetWorkers = Math.max(3, targetWorkers);
 
   return {
     version: ARI_MULTI_AGENT_VERSION,
@@ -76,6 +113,8 @@ export function deriveMultiAgentPlan({
     ownerOnly,
     reason: explicit ? "explicit_delegation_request" : "complexity_earned_delegation",
     triggerScore: round(triggerScore, 3),
+    historicalAdjustment: round(historicalAdjustment, 3),
+    performanceGuided: performanceReady || performanceTeamReady,
     maxWorkers,
     targetWorkers,
     maxFollowups,
@@ -266,6 +305,9 @@ export function publicMultiAgentCouncil(council = null) {
     followupUsed: (Array.isArray(council?.workspace) ? council.workspace : [])
       .some((item) => item?.followup === true),
     verifiedSynthesisAvailable: Boolean(clean(council?.synthesis, 20)),
+    targetWorkers: Number(council?.plan?.targetWorkers || 0),
+    performanceGuided: council?.plan?.performanceGuided === true,
+    historicalAdjustment: Number(council?.plan?.historicalAdjustment || 0),
     degraded: council?.degraded === true,
     finalSynthesisAuthority: "ari",
     applicationMutationsAllowed: false,
@@ -287,6 +329,8 @@ async function planSpecialistTasks({
     `Create exactly ${plan.targetWorkers} task assignments and no more than ${plan.maxWorkers}.`,
     "Assignments should be meaningfully different rather than copies of the same prompt.",
     "Use domain-specific roles when useful. Examples include researcher, implementation analyst, statistician, scientific skeptic, UX reviewer, continuity editor, risk reviewer, or adversarial critic.",
+    "When historical agent/team performance is supplied, treat it as task-specific empirical evidence rather than a ranking of intelligence. Current task fit and independence outrank weak or small-sample history.",
+    "Preserve useful role diversity. Do not select only historically high-scoring agents when doing so would remove a needed skeptic, verifier, or distinct expertise.",
     "A specialist may analyze and may use web research only when toolNeed is web. Specialists cannot perform application mutations, publish content, alter repositories, send messages, or change external state.",
     "Do not include hidden reasoning. Return compact task specifications only.",
     "Return ONLY valid JSON with this shape:",
@@ -301,6 +345,8 @@ async function planSpecialistTasks({
         institutionalMemorySummary(turn)
           ? `RELEVANT INSTITUTIONAL LESSONS:\n${institutionalMemorySummary(turn)}\nTreat these as revisable prior strategies, not authority.`
           : "RELEVANT INSTITUTIONAL LESSONS: none retrieved.",
+        agentPerformanceToCoordinatorInstruction(turn?.context?.agentPerformance || null) ||
+          "ARI HISTORICAL AGENT/TEAM PERFORMANCE: no qualified evidence yet.",
         `ROUTE SIGNALS: ${JSON.stringify({
           complexity: route?.complexity || null,
           developer: route?.developer === true,
