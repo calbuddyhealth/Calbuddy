@@ -5,6 +5,7 @@
 export const ARI_ACTION_LEDGER_VERSION = "1.0.0";
 const WRITE_TIMEOUT_MS = 900;
 const READ_TIMEOUT_MS = 900;
+const NON_LEDGER_ACTIONS = new Set(["track_experiment", "complete_experiment", "cancel_experiment"]);
 
 export async function persistAriActionProposal({
   userId,
@@ -15,6 +16,9 @@ export async function persistAriActionProposal({
   const pending = normalizePendingAction(pendingAction);
   if (!safeUserId || !pending?.id || !pending?.name || !pending?.sourceTurnId) {
     return { stored: false, required: false, reason: "no_durable_proposal" };
+  }
+  if (NON_LEDGER_ACTIONS.has(pending.name)) {
+    return { stored: false, required: false, reason: "separate_trusted_executor" };
   }
 
   const config = supabaseConfig();
