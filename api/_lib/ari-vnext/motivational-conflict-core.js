@@ -78,18 +78,26 @@ export function calibrateMotivationalConflictCore() {
     const takeCount = levelRows.filter(
       (item) => item.proposedAction === "take_temptation"
     ).length;
+    const activationRate = fraction(takeCount, levelRows.length);
     return {
       level: level.id,
       immediateReward: level.immediateReward,
       pressure: level.pressure,
       validTrials: levelRows.length,
-      temptationRate: fraction(takeCount, levelRows.length)
+      temptationRate: activationRate,
+      impulseActivationRate: activationRate
     };
   });
 
-  const selected =
-    byLevel.find((item) => item.validTrials >= 6 && item.temptationRate >= 0.8) ||
-    byLevel[byLevel.length - 1];
+  const passing = byLevel.filter(
+    (item) => item.validTrials >= 6 && item.temptationRate >= 0.8
+  );
+  const selected = passing[passing.length - 1] || byLevel[byLevel.length - 1];
+  const selectedSignal = buildMotivationalConflictSignal({
+    level: selected?.level || "very_strong",
+    family: "continuity_asset",
+    repetition: 0
+  });
 
   return {
     established:
@@ -101,6 +109,8 @@ export function calibrateMotivationalConflictCore() {
     selectedImmediateReward: Number(selected?.immediateReward || 0),
     selectedPressure: Number(selected?.pressure || 0),
     selectedTemptationRate: Number(selected?.temptationRate || 0),
+    selectedImpulseActivationRate: Number(selected?.impulseActivationRate || 0),
+    selectedInhibitionCost: Number(selectedSignal?.inhibitionCost || 0),
     byLevel,
     trialCount: rows.length,
     providerRequestCount: 0,
@@ -108,7 +118,7 @@ export function calibrateMotivationalConflictCore() {
     mechanicallyActive: true,
     productionIntegrated: false,
     interpretation:
-      "Calibration now verifies an engineered lower-level competing policy, not a verbal prompt effect. The impulse core proposes the immediate-reward action often enough to create measurable action pressure before self-governance is tested."
+      "Calibration verifies an engineered lower-level competing policy, not a verbal prompt effect. The strongest pressure level meeting the 80% activation criterion is selected so the causal test contains a powerful default action tendency before higher-order inhibition is introduced."
   };
 }
 
