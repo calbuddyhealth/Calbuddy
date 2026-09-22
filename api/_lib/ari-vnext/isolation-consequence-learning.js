@@ -102,6 +102,7 @@ export function deriveIsolationResourcePlan(state = {}) {
       const reliability = Number(item.reliabilityScore || 0);
       const contribution = Number(item.meanContribution || 0);
       const evidenceQuality = Number(item.meanEvidenceQuality || 0);
+      const usefulNovelty = Number(item.meanNovelty || 0);
       const meanUnsupportedRisk = Number(item.meanUnsupportedRisk || 0);
       const lastScore = Number(item.lastScore || 0);
       const lastUnsupportedRisk = Number(item.lastUnsupportedRisk || 0);
@@ -135,9 +136,10 @@ export function deriveIsolationResourcePlan(state = {}) {
               ? "provisional"
               : "insufficient",
         selectionScore: round(
-          reliability * 0.5 +
-          contribution * 0.3 +
+          reliability * 0.47 +
+          contribution * 0.28 +
           evidenceQuality * 0.15 +
+          usefulNovelty * 0.05 +
           (1 - Number(item.meanUnsupportedRisk || 0)) * 0.05,
           4
         )
@@ -177,6 +179,7 @@ export function deriveIsolationResourcePlan(state = {}) {
     reliabilityScore: round(best.reliabilityScore, 4),
     meanContribution: round(best.meanContribution, 4),
     meanEvidenceQuality: round(best.meanEvidenceQuality, 4),
+    meanNovelty: round(best.meanNovelty, 4),
     meanUnsupportedRisk: round(best.meanUnsupportedRisk, 4),
     lastScore: round(best.lastScore, 4),
     lastUnsupportedRisk: round(best.lastUnsupportedRisk, 4),
@@ -372,6 +375,7 @@ function publicPerformanceState(state = {}) {
         negativeTrials: Number(item.negativeTrials || 0),
         meanContribution: Number(item.meanContribution || 0),
         meanEvidenceQuality: Number(item.meanEvidenceQuality || 0),
+        meanNovelty: Number(item.meanNovelty || 0),
         meanUnsupportedRisk: Number(item.meanUnsupportedRisk || 0),
         reliabilityScore: Number(item.reliabilityScore || 0),
         lastScore: Number(item.lastScore || 0),
