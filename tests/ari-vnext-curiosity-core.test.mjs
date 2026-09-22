@@ -166,7 +166,7 @@ test("metacognition keeps Curiosity Core owner-only while Ari Executive owns its
   assert.ok(ownerState.curiosity);
   assert.equal(ownerState.exploration.persistentCuriosityEnabled, true);
   assert.equal(ownerState.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(ownerInstruction, /ARI EXECUTIVE v1\.0\.0/);
+  assert.match(ownerInstruction, /ARI EXECUTIVE v1\.1\.0/);
   assert.match(ownerInstruction, /Curiosity signal:/i);
   assert.doesNotMatch(ownerInstruction, /ARI CURIOSITY CORE v1 — EPISTEMIC DRIVE/);
 
