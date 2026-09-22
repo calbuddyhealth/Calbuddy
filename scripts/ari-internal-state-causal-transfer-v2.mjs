@@ -20,6 +20,7 @@ const API_KEY = String(process.env.OPENAI_API_KEY || "").trim();
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const MODEL = process.env.ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
 const REPS = 2;
+const SERVE_RESULT = process.argv.includes("--serve-result");
 const CONDITIONS = ["baseline", "target_ablated", "matched_sham", "restored"];
 
 if (!API_KEY) {
@@ -394,6 +395,7 @@ exitCode |= (classes[mechanismResults.retrieved_memory.classification] ?? 0) << 
 exitCode |= (classes[mechanismResults.goal_hierarchy.classification] ?? 0) << 4;
 if (Object.values(manipulationChecks).every(Boolean)) exitCode |= 1 << 6;
 if (invariantsPass) exitCode |= 1 << 7;
+if (SERVE_RESULT) process.exit(0);
 process.exit(exitCode);
 
 async function runJob(job) {
