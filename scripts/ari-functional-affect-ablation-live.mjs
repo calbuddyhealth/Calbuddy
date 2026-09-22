@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import {
   deriveInstructionActivation,
   deriveMetacognition
@@ -246,7 +246,8 @@ const result = {
 
 console.log("ARI FUNCTIONAL AFFECT ABLATION EXPERIMENT");
 console.log(JSON.stringify(result, null, 2));
-writeFileSync("ari-ablation-result.json", JSON.stringify(result, null, 2) + "\n", "utf8");
+mkdirSync("public", { recursive: true });
+writeFileSync("public/ari-ablation-result.json", JSON.stringify(result, null, 2) + "\n", "utf8");
 
 function rebuildExperimentalPolicy(source, functionalAffect) {
   const evidenceSignals = (Array.isArray(source?.evidenceSignals) ? source.evidenceSignals : [])
