@@ -427,20 +427,6 @@ export default async function handler(req, res) {
       ...(turn.context || {}),
       accountEntitlements,
       intelligenceEntitlement,
-      institutionalMemory: {
-        active: institutionalMemory?.active === true,
-        attemptedRetrieval: institutionalMemory?.attempted === true,
-        retrievalReason: institutionalMemory?.reason || null,
-        retrievedCount: Number(institutionalMemory?.retrievedCount || 0),
-        learningAttempted: institutionalLearning?.attempted === true,
-        learningReason: institutionalLearning?.reason || null,
-        candidateCount: Number(institutionalLearning?.candidateCount || 0),
-        savedCount: Number(institutionalLearning?.savedCount || 0),
-        reinforcedCount: Number(institutionalLearning?.reinforcedCount || 0),
-        conflictCount: Number(institutionalLearning?.conflictCount || 0),
-        hiddenChainOfThoughtStored: false,
-        rawCouncilTranscriptStored: false
-      },
       recentContinuityPairs: recentContinuity.hydratedPairs,
       conversationRecall: {
         requested: recallRequested,
@@ -903,6 +889,20 @@ export default async function handler(req, res) {
             }))
           }
         : { active: false, ownerOnly: true },
+      institutionalMemory: {
+        active: institutionalMemory?.active === true,
+        attemptedRetrieval: institutionalMemory?.attempted === true,
+        retrievalReason: institutionalMemory?.reason || null,
+        retrievedCount: Number(institutionalMemory?.retrievedCount || 0),
+        learningAttempted: institutionalLearning?.attempted === true,
+        learningReason: institutionalLearning?.reason || null,
+        candidateCount: Number(institutionalLearning?.candidateCount || 0),
+        savedCount: Number(institutionalLearning?.savedCount || 0),
+        reinforcedCount: Number(institutionalLearning?.reinforcedCount || 0),
+        conflictCount: Number(institutionalLearning?.conflictCount || 0),
+        hiddenChainOfThoughtStored: false,
+        rawCouncilTranscriptStored: false
+      },
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
       continuity: {
