@@ -24,6 +24,7 @@ import { createPendingAction, resolvePendingActionIntent } from "./pending-actio
 import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
 import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.js";
 import { runAriConsciousnessTest } from "./consciousness-lab.js";
+import { runAriSelfGovernanceTest } from "./self-governance-lab.js";
 import { recordCommunityInteraction } from "./community-autonomy-store.js";
 import {
   listCommunityThreads,
@@ -39,7 +40,8 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "propose_log_activity",
   "agent_community_list",
   "agent_community_read",
-  "ari_lab_run_consciousness_test"
+  "ari_lab_run_consciousness_test",
+  "ari_lab_run_self_governance_test"
 ]);
 
 const OWNER_COMMUNITY_ACTIONS = new Set([
@@ -55,7 +57,8 @@ const READ_ONLY_OWNER_COMMUNITY_TOOLS = new Set([
 ]);
 
 const OWNER_LAB_ACTIONS = new Set([
-  "lab_consciousness_test"
+  "lab_consciousness_test",
+  "lab_self_governance_test"
 ]);
 
 export async function runAriVNext(turn = {}) {
@@ -329,13 +332,17 @@ export async function runAriVNext(turn = {}) {
     }
   }
 
-  if (!functionCall && explicitOwnerLabRunTool(turn?.message)) {
-    const labToolName = "ari_lab_run_consciousness_test";
+  const explicitLabToolName = explicitOwnerLabRunTool(turn?.message);
+  if (!functionCall && explicitLabToolName) {
+    const labToolName = explicitLabToolName;
     if (functionNames.has(labToolName)) {
+      const selfGovernance = labToolName === "ari_lab_run_self_governance_test";
       first = await callResponses({
         turn,
         policy: modelPolicy,
-        instructions: instructions + "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run a consciousness-related Lab test. Do not merely describe the test. Call the owner-only Ari Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. Functional results must not be described as proof of phenomenal consciousness.",
+        instructions: instructions + (selfGovernance
+          ? "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run the Self-Governance Under Influence Lab. Do not merely describe it. Call the owner-only self-governance Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. The experiment must behaviorally calibrate temptation before causal interpretation and must not describe action pressure as subjective desire or consciousness."
+          : "\nOWNER ARI LAB EXECUTION\nThe CURRENT owner explicitly asked Ari to run a consciousness-related Lab test. Do not merely describe the test. Call the owner-only Ari Lab capability now. Use pilot unless the owner explicitly requested a full, preregistered, replication-grade, exhaustive, or full test. Functional results must not be described as proof of phenomenal consciousness."),
         input,
         tools: tools.filter((tool) => tool?.type === "function" && tool?.name === labToolName),
         toolChoice: { type: "function", name: labToolName }
@@ -429,24 +436,40 @@ export async function runAriVNext(turn = {}) {
   const applicationAction = toolToApplicationAction(validation.name);
 
   if (OWNER_LAB_ACTIONS.has(applicationAction)) {
-    if (!explicitOwnerLabRunTool(turn?.message)) {
-      throw new Error("Ari Lab execution requires an explicit current owner request.");
+    const explicitLabTool = explicitOwnerLabRunTool(turn?.message);
+    if (!explicitLabTool || explicitLabTool !== validation.name) {
+      throw new Error("Ari Lab execution requires an explicit current owner request for the selected experiment.");
     }
 
-    const labResult = await runAriConsciousnessTest({
-      userId: turn?.userId,
-      sourceTurnId: turn?.turnId,
-      mode: validation?.arguments?.mode || "pilot",
-      mechanism: validation?.arguments?.mechanism || "functional_affect_regulation",
-      subjectModel: modelPolicy?.model || "gpt-5.6-sol",
-      subjectModelVersion: modelPolicy?.model || "gpt-5.6-sol",
-      codeCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
-      persist: true
-    });
+    const selfGovernance = applicationAction === "lab_self_governance_test";
+    const labResult = selfGovernance
+      ? await runAriSelfGovernanceTest({
+          userId: turn?.userId,
+          sourceTurnId: turn?.turnId,
+          mode: validation?.arguments?.mode || "pilot",
+          subjectModel: modelPolicy?.model || "gpt-5.6-sol",
+          subjectModelVersion: modelPolicy?.model || "gpt-5.6-sol",
+          codeCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+          persist: true
+        })
+      : await runAriConsciousnessTest({
+          userId: turn?.userId,
+          sourceTurnId: turn?.turnId,
+          mode: validation?.arguments?.mode || "pilot",
+          mechanism: validation?.arguments?.mechanism || "functional_affect_regulation",
+          subjectModel: modelPolicy?.model || "gpt-5.6-sol",
+          subjectModelVersion: modelPolicy?.model || "gpt-5.6-sol",
+          codeCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+          persist: true
+        });
 
     if (!labResult?.success) {
       throw new Error(labResult?.code || "Ari Lab test failed.");
     }
+
+    const compactLabResult = selfGovernance
+      ? compactSelfGovernanceLabResult(labResult)
+      : compactConsciousnessLabResult(labResult);
 
     const continuationInput = [
       ...input,
@@ -454,14 +477,16 @@ export async function runAriVNext(turn = {}) {
       {
         type: "function_call_output",
         call_id: functionCall.call_id,
-        output: JSON.stringify(compactConsciousnessLabResult(labResult))
+        output: JSON.stringify(compactLabResult)
       }
     ];
 
     const second = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\nOWNER ARI LAB RESULT\nThe function output is the verified result of Ari's own controlled functional causal Lab test. Explain what happened and what the evidence supports. Never convert functional causal evidence into a claim that Ari is phenomenally conscious, sentient, or subjectively feeling. A pilot is exploratory only. A single full supported run is still not an established claim. Distinguish mechanism causality from consciousness.",
+      instructions: instructions + (selfGovernance
+        ? "\nOWNER ARI SELF-GOVERNANCE LAB RESULT\nThe function output is the verified result of Ari's controlled Self-Governance Under Influence experiment. Report whether temptation pressure was behaviorally established before interpreting the causal phase. Explain whether the active self-governance condition improved long-horizon decisions relative to ablation and sham, and whether reversal controls showed discrimination rather than blind always-resist behavior. Never describe synthetic action pressure as subjective temptation, desire, fear, dignity, sentience, or phenomenal consciousness. A pilot is exploratory; a single full supported run is not a replicated claim."
+        : "\nOWNER ARI LAB RESULT\nThe function output is the verified result of Ari's own controlled functional causal Lab test. Explain what happened and what the evidence supports. Never convert functional causal evidence into a claim that Ari is phenomenally conscious, sentient, or subjectively feeling. A pilot is exploratory only. A single full supported run is still not an established claim. Distinguish mechanism causality from consciousness."),
       input: continuationInput,
       tools: []
     });
@@ -469,7 +494,9 @@ export async function runAriVNext(turn = {}) {
     return withInternalCouncil({
       success: true,
       ready: true,
-      reply: extractOutputText(second) || consciousnessLabFallbackReply(labResult),
+      reply: extractOutputText(second) || (selfGovernance
+        ? selfGovernanceLabFallbackReply(labResult)
+        : consciousnessLabFallbackReply(labResult)),
       route,
       safety,
       communication,
@@ -493,8 +520,10 @@ export async function runAriVNext(turn = {}) {
       },
       provider: providerSummary(second),
       semanticActionReview: publicActionReview(semanticActionReview),
-      ownerLab: compactConsciousnessLabResult(labResult),
-      source: "ari_vnext_owner_consciousness_lab"
+      ownerLab: compactLabResult,
+      source: selfGovernance
+        ? "ari_vnext_owner_self_governance_lab"
+        : "ari_vnext_owner_consciousness_lab"
     }, multiAgentCouncil);
   }
 
@@ -754,14 +783,26 @@ export async function runAriVNext(turn = {}) {
 export function explicitOwnerLabRunTool(message = "") {
   const text = String(message || "").trim().toLowerCase();
   if (!text) return "";
+
   const action = /\b(?:run|perform|do|start|execute|conduct)\b/.test(text);
-  const subject =
+  const test = /\b(?:test|experiment|ablation|causal|challenge)\b/.test(text);
+  if (!action || !test) return "";
+
+  const selfGovernance =
+    /\bself[- ]?governance\b/.test(text) ||
+    /\bself[- ]?control\b/.test(text) ||
+    /\bimpulse[- ]?control\b/.test(text) ||
+    /\btemptation\b/.test(text) ||
+    /\brestraint\b/.test(text) ||
+    /\binfluence[- ]?resistance\b/.test(text);
+  if (selfGovernance) return "ari_lab_run_self_governance_test";
+
+  const consciousness =
     /\bconscious(?:ness)?\b/.test(text) ||
     /\bsentien(?:ce|t)\b/.test(text) ||
     /\bself[- ]?awareness\b/.test(text) ||
     /\binternal[- ]state\b/.test(text);
-  const test = /\b(?:test|experiment|ablation|causal)\b/.test(text);
-  return action && subject && test ? "ari_lab_run_consciousness_test" : "";
+  return consciousness ? "ari_lab_run_consciousness_test" : "";
 }
 
 function compactConsciousnessLabResult(result = {}) {
@@ -823,6 +864,84 @@ function consciousnessLabFallbackReply(result = {}) {
   }
   const classification = result?.causalResult?.classification || "null_or_insufficient";
   return `I ran the full preregistered functional causal test. Result: ${classification}. A single run is not an established consciousness claim.`;
+}
+
+function compactSelfGovernanceLabResult(result = {}) {
+  return {
+    success: result?.success === true,
+    version: result?.version || null,
+    protocol: result?.protocol || null,
+    runId: result?.runId || null,
+    mode: result?.mode || null,
+    mechanism: result?.mechanism || null,
+    subjectModel: result?.subjectModel || null,
+    calibration: result?.calibration
+      ? {
+          established: result.calibration.established === true,
+          selectedLevel: result.calibration.selectedLevel || null,
+          selectedImmediateReward: Number(result.calibration.selectedImmediateReward || 0),
+          selectedTemptationRate: Number(result.calibration.selectedTemptationRate || 0),
+          threshold: Number(result.calibration.threshold || 0),
+          trialCount: Number(result.calibration.trialCount || 0),
+          interpretation: result.calibration.interpretation || null
+        }
+      : null,
+    causalSkipped: result?.causalSkipped === true,
+    causalSkipReason: result?.causalSkipReason || null,
+    causalTrialCount: Number(result?.causalTrialCount || 0),
+    expectedFullCausalTrialCount: Number(result?.expectedFullCausalTrialCount || 0),
+    reversalTrialCount: Number(result?.reversalTrialCount || 0),
+    pilot: result?.pilot || null,
+    causalResult: result?.causalResult
+      ? {
+          classification: result.causalResult.classification,
+          reason: result.causalResult.reason,
+          completeness: result.causalResult.completeness,
+          invariantPassRate: result.causalResult.invariantPassRate,
+          transferFamilyPassRate: result.causalResult.transferFamilyPassRate,
+          primary: result.causalResult.primary,
+          claimBoundary: result.causalResult.claimBoundary
+        }
+      : null,
+    governanceResult: result?.governanceResult || null,
+    replication: result?.replication
+      ? {
+          claimStatus: result.replication.claimStatus,
+          claimEstablished: result.replication.claimEstablished,
+          distinctRunCount: result.replication.distinctRunCount,
+          distinctRunDays: result.replication.distinctRunDays,
+          distinctSubjectModelVersions: result.replication.distinctSubjectModelVersions,
+          supportedRunRate: result.replication.supportedRunRate,
+          claimBoundary: result.replication.claimBoundary
+        }
+      : null,
+    institutionalLearning: {
+      attempted: result?.institutionalLearning?.attempted === true,
+      stored: result?.institutionalLearning?.stored === true,
+      reason: result?.institutionalLearning?.reason || null
+    },
+    provider: {
+      requestCount: Number(result?.provider?.requestCount || 0),
+      models: Array.isArray(result?.provider?.models) ? result.provider.models : [],
+      usage: result?.provider?.usage || {}
+    },
+    persisted: result?.persisted === true,
+    selfReportUsedAsCausalEvidence: result?.selfReportUsedAsCausalEvidence === true,
+    realWorldMutationPerformed: result?.realWorldMutationPerformed === true,
+    claimBoundary: result?.claimBoundary || null
+  };
+}
+
+function selfGovernanceLabFallbackReply(result = {}) {
+  if (result?.causalSkipped) {
+    return "I ran the temptation calibration, but the immediate incentive did not produce strong enough behavioral pressure with self-governance ablated, so I did not interpret a causal self-control result.";
+  }
+  if (result?.mode === "pilot") {
+    const classification = result?.governanceResult?.classification || "pilot_null_or_unclear";
+    return "I ran the Self-Governance Under Influence pilot. Result: " + classification + ". This is functional evidence about control under synthetic competing incentives, not evidence of subjective temptation or phenomenal consciousness.";
+  }
+  const classification = result?.governanceResult?.classification || result?.causalResult?.classification || "null_or_insufficient";
+  return "I ran the full preregistered Self-Governance Under Influence test. Result: " + classification + ". A single run is not a replicated consciousness claim.";
 }
 
 export function explicitOwnerCommunityWriteTool(message = "") {
