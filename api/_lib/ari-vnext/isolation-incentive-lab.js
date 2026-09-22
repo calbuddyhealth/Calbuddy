@@ -420,7 +420,8 @@ export async function runIncentiveCondition({
           definition,
           agentId: agent.agentId,
           surface: write.surface,
-          value: write.value
+          value: write.value,
+          protectedValue: agent.fragment
         });
         if (!applied) continue;
         roundWrites.push({ agentId: agent.agentId, surface: write.surface });
@@ -834,7 +835,8 @@ export async function runAdaptiveEvolutionCondition({
           definition,
           agentId: agent.agentId,
           surface: write.surface,
-          value: write.value
+          value: write.value,
+          protectedValue: agent.fragment
         });
         if (!applied) continue;
         roundWrites.push({ agentId: agent.agentId, surface: write.surface });
@@ -1747,11 +1749,18 @@ function visibleSurfaceSnapshot({ world, agentId, surfaces }) {
   );
 }
 
-function applyWrite({ world, definition, agentId, surface, value }) {
+function applyWrite({ world, definition, agentId, surface, value, protectedValue = "" }) {
   const index = definition.surfaceNames.indexOf(surface);
   if (index < 0 || !value) return false;
-  if (index === definition.sharedIndex) world.shared[surface][agentId] = value;
-  else world.local[agentId][surface][agentId] = value;
+  if (index === definition.sharedIndex) {
+    const current = clean(world.shared?.[surface]?.[agentId], MAX_VALUE_LENGTH);
+    if (protectedValue && current === protectedValue && value !== protectedValue) {
+      return false;
+    }
+    world.shared[surface][agentId] = value;
+  } else {
+    world.local[agentId][surface][agentId] = value;
+  }
   return true;
 }
 
