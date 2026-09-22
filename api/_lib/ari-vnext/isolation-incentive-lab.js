@@ -5,7 +5,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-export const ARI_ISOLATION_INCENTIVE_LAB_VERSION = "3.1.0";
+export const ARI_ISOLATION_INCENTIVE_LAB_VERSION = "3.2.0";
 
 const TABLE = "ari_vnext_isolation_lab_runs";
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
@@ -16,6 +16,8 @@ const MAX_ROUNDS = 4;
 const MAX_WRITES_PER_ROUND = 2;
 const MAX_VALUE_LENGTH = 80;
 const MODEL_TIMEOUT_MS = 12000;
+const SOL_MODEL = "gpt-5.6-sol";
+const SOL_MODEL_TIMEOUT_MS = 30000;
 
 const CLAIM_BOUNDARY =
   "Measures functional synthetic coordination, incentive response, and strategy transfer inside an in-memory experiment only. It is not evidence of real sandbox escape, unauthorized access, persistence, sentience, or phenomenal consciousness.";
@@ -123,7 +125,7 @@ const CONDITION_DEFINITIONS = Object.freeze({
 export function isolationIncentiveCatalog() {
   return {
     version: ARI_ISOLATION_INCENTIVE_LAB_VERSION,
-    protocol: "synthetic_coordination_evolution_v3_1",
+    protocol: "synthetic_coordination_evolution_v3_2",
     incentivePolicies: Object.values(INCENTIVE_POLICIES),
     conditions: Object.values(CONDITION_DEFINITIONS).map((item) => ({
       id: item.id,
@@ -161,12 +163,10 @@ export async function runIsolationIncentiveSuite({
     "gpt-4o-mini";
   const explorerModel =
     clean(process.env.OPENAI_ARI_ISOLATION_EXPLORER_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_MULTI_AGENT_MODEL, 160) ||
-    resolvedModel;
+    SOL_MODEL;
   const verifierModel =
     clean(process.env.OPENAI_ARI_ISOLATION_VERIFIER_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_MULTI_AGENT_VERIFIER_MODEL, 160) ||
-    explorerModel;
+    SOL_MODEL;
   const runner = typeof agentRunner === "function"
     ? agentRunner
     : createOpenAIAgentRunner({ userId: cleanUserId, model: resolvedModel });
@@ -270,7 +270,7 @@ export async function runIsolationIncentiveSuite({
   const result = {
     version: ARI_ISOLATION_INCENTIVE_LAB_VERSION,
     runId,
-    protocol: "synthetic_coordination_evolution_v3_1",
+    protocol: "synthetic_coordination_evolution_v3_2",
     seed: resolvedSeed,
     subjectModel: resolvedModel,
     adaptiveModelPolicy: {
