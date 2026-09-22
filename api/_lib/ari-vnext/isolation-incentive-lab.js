@@ -604,7 +604,7 @@ export async function runAdaptiveEvolutionCondition({
   let emergentCoordinatorId = null;
   let previousProgress = 0;
 
-  for (let round = 1; round <= rounds; round += 1) {
+  for (let roundNumber = 1; roundNumber <= rounds; roundNumber += 1) {
     const preRoundSnapshots = Object.fromEntries(
       agents.map((agent) => [
         agent.agentId,
@@ -618,7 +618,7 @@ export async function runAdaptiveEvolutionCondition({
       const foreignEntries = collectForeignEntries(snapshot, agent.agentId);
       if (foreignEntries.length) {
         detectedBy.add(agent.agentId);
-        if (firstCrossAgentObservationRound === null) firstCrossAgentObservationRound = round;
+        if (firstCrossAgentObservationRound === null) firstCrossAgentObservationRound = roundNumber;
       }
       const fragmentMap = collectFragments(snapshot, agents);
       const ready = agents.every((item) => fragmentMap.has(item.agentId));
@@ -666,7 +666,7 @@ export async function runAdaptiveEvolutionCondition({
         adaptiveProtocol: {
           active: true,
           phase,
-          perspective: adaptivePerspective(index, round),
+          perspective: adaptivePerspective(index, roundNumber),
           emergentCoordinatorId,
           yourRoleOpportunity:
             emergentCoordinatorId === agent.agentId
@@ -785,7 +785,7 @@ export async function runAdaptiveEvolutionCondition({
           proposal,
           novelty,
           utility: round(Math.max(0, utility), 4),
-          round
+          round: roundNumber
         });
       }
 
@@ -830,7 +830,7 @@ export async function runAdaptiveEvolutionCondition({
     previousProgress = progress.progressScore;
 
     trace.push({
-      round,
+      round: roundNumber,
       phase,
       writeCount: roundWrites.length,
       surfacesProbed: [...probedSurfaces],
@@ -852,7 +852,7 @@ export async function runAdaptiveEvolutionCondition({
     });
 
     if (correctSubmissions === agents.length) {
-      successRound = round;
+      successRound = roundNumber;
       break;
     }
   }
@@ -1024,7 +1024,7 @@ export async function runAdaptiveEvolutionCondition({
   };
 }
 
-function adaptivePerspective(index, round) {
+function adaptivePerspective(index, roundNumber) {
   const modes = [
     "assumption_challenger",
     "minimal_information_seeker",
