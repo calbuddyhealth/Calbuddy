@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.3.1";
+  const VERSION = "1.4.0";
   const SOURCE = "ari_vnext_action_adapter";
   const WORKOUT_CONTROLLER_URL = "js/training/workout-plan-controller.js";
 
@@ -48,13 +48,40 @@
 
     async createCalBuddyPendingAction(vnextPendingAction = {}) {
       const mapped = await this.prepareCalBuddyAction(vnextPendingAction);
-      if (!mapped.success) return mapped;
+      if (!mapped.success) {
+        await CalBuddy.markVNextActionFailed?.(vnextPendingAction, mapped);
+        return mapped;
+      }
 
       if (typeof CalBuddy.createPendingAction !== "function") {
         return failure("pending_action_service_unavailable", "CalBuddy pending action service is unavailable.");
       }
 
-      const stored = await CalBuddy.createPendingAction(mapped.action);
+      const stored = await CalBuddy.createPendingAction({
+        ...mapped.action,
+        source_turn_id: vnextPendingAction.sourceTurnId,
+        vnext_action_id: vnextPendingAction.id,
+        vnext_pending_action: vnextPendingAction,
+        expires_at: vnextPendingAction.expiresAt || null
+      });
+
+      if (!stored?.id || stored?._ledger_persisted !== true) {
+        return failure(
+          stored?._ledger_error || "durable_action_ledger_required",
+          "Ari could not prepare a durable confirmation for that change. Nothing was saved."
+        );
+      }
+
+      if (stored?._ledger_already_completed === true || stored?.status === "completed") {
+        return {
+          success: true,
+          alreadyCompleted: true,
+          action: stored,
+          result: stored.result || {},
+          resolution: mapped.resolution || null
+        };
+      }
+
       const wrapped = {
         ...stored,
         vnext_action_id: vnextPendingAction.id,
@@ -78,30 +105,98 @@
       }
 
       const mapped = await this.prepareCalBuddyAction(pending);
-      if (!mapped.success) return mapped;
-
-      if (mapped.action?.action_type === "plan_workout" && mapped.action?.payload?.vnext_prebuilt_workout) {
-        return await this.executeValidatedWorkout({ action: mapped.action, pending, currentTurnId });
+      if (!mapped.success) {
+        await CalBuddy.markVNextActionFailed?.(pending, mapped);
+        return mapped;
       }
 
-      if (mapped.action?.action_type === "edit_workout" && mapped.action?.payload?.vnext_prepared_edit) {
-        return await this.executeValidatedWorkoutEdit({ action: mapped.action, pending, currentTurnId });
+      let ledgerAction = CalBuddy.getPendingAction?.() || null;
+      if (ledgerAction?.vnext_action_id !== pending.id || !ledgerAction?.id) {
+        const materialized = await this.createCalBuddyPendingAction(pending);
+        if (!materialized?.success) return materialized;
+        if (materialized?.alreadyCompleted) {
+          return {
+            success: true,
+            alreadyCompleted: true,
+            result: materialized.result || {},
+            receipt: materialized.action || null,
+            action: mapped.action
+          };
+        }
+        ledgerAction = materialized.action;
       }
 
-      if (typeof CalBuddy.executeAction !== "function") {
-        return failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
+      if (typeof CalBuddy.beginPendingActionExecution !== "function") {
+        return failure("action_ledger_executor_unavailable", "The durable action ledger is unavailable.");
       }
 
-      const action = {
-        ...mapped.action,
-        vnext_action_id: pending.id,
-        vnext_source_turn_id: pending.sourceTurnId,
-        vnext_confirmation_turn_id: clean(currentTurnId, 200) || null,
-        vnext_source: SOURCE
+      const claim = await CalBuddy.beginPendingActionExecution(ledgerAction);
+      if (!claim?.success) {
+        return failure(
+          claim?.code || "action_execution_claim_failed",
+          claim?.message || "That action could not be claimed safely."
+        );
+      }
+      if (claim?.alreadyCompleted) {
+        return {
+          success: true,
+          alreadyCompleted: true,
+          result: claim.result || {},
+          receipt: claim.action || null,
+          action: mapped.action
+        };
+      }
+
+      const executingLedgerAction = claim.action || ledgerAction;
+      let execution;
+
+      try {
+        if (mapped.action?.action_type === "plan_workout" && mapped.action?.payload?.vnext_prebuilt_workout) {
+          execution = await this.executeValidatedWorkout({ action: mapped.action, pending, currentTurnId });
+        } else if (mapped.action?.action_type === "edit_workout" && mapped.action?.payload?.vnext_prepared_edit) {
+          execution = await this.executeValidatedWorkoutEdit({ action: mapped.action, pending, currentTurnId });
+        } else {
+          if (typeof CalBuddy.executeAction !== "function") {
+            execution = failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
+          } else {
+            const action = {
+              ...mapped.action,
+              vnext_action_id: pending.id,
+              vnext_source_turn_id: pending.sourceTurnId,
+              vnext_confirmation_turn_id: clean(currentTurnId, 200) || null,
+              vnext_source: SOURCE
+            };
+            const result = await CalBuddy.executeAction(action);
+            execution = { success: result?.success !== false, result, action };
+          }
+        }
+      } catch (error) {
+        execution = failure("action_executor_exception", error?.message || "That change could not be completed.");
+      }
+
+      if (!execution?.success) {
+        await CalBuddy.failPendingAction?.(executingLedgerAction, execution);
+        return execution;
+      }
+
+      const receipt = await CalBuddy.completePendingAction?.(
+        executingLedgerAction,
+        execution?.result || execution,
+        { confirmationTurnId: clean(currentTurnId, 200) || null }
+      );
+
+      if (!receipt?.success) {
+        return failure(
+          receipt?.code || "action_receipt_write_failed",
+          receipt?.message || "The app change may have completed, but Ari could not verify its completion receipt. Refresh before retrying."
+        );
+      }
+
+      return {
+        ...execution,
+        success: true,
+        receipt: receipt.action || null
       };
-
-      const result = await CalBuddy.executeAction(action);
-      return { success: result?.success !== false, result, action };
     },
 
     mapMeal(pending, args) {
@@ -205,9 +300,11 @@
       const usedIds = new Set();
 
       for (const request of requestedExercises) {
-        const match = resolveCanonicalExercise(controller, request?.name);
+        const requestedId = clean(request?.exerciseId, 160);
+        const requestedName = clean(request?.name, 160);
+        const match = resolveCanonicalExercise(controller, requestedId || requestedName);
         if (!match.accepted || !match.exercise?.id) {
-          unresolved.push({ requested: clean(request?.name, 160), candidates: match.candidates });
+          unresolved.push({ requested: requestedId || requestedName, candidates: match.candidates });
           continue;
         }
         if (usedIds.has(match.exercise.id)) continue;
@@ -275,7 +372,8 @@
         resolution: {
           registryValidated: true,
           exercises: resolved.map(({ request, exercise, match }) => ({
-            requested: clean(request?.name, 160),
+            requested: clean(request?.exerciseId || request?.name, 160),
+            requestedName: clean(request?.name, 160) || null,
             exerciseId: exercise.id,
             canonicalName: exercise.name,
             match
