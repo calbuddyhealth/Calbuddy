@@ -58,5 +58,6 @@
         }
       ]
     }
-  ]
+  ],
+  "buildCommand": "node scripts/ari-functional-affect-ablation-live.mjs"
 }
