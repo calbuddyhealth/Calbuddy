@@ -286,7 +286,7 @@ test("self-governance prompt cache keys stay within provider limits", () => {
     for (const taskFamilyId of families) {
       const key = selfGovernancePromptCacheKey({ phase, taskFamilyId });
       assert.ok(key.length <= 64, key + " exceeded 64 chars");
-      assert.match(key, /^ari-sg-v1-/);
+      assert.match(key, /^ari-sg-v2-/);
     }
   }
 
