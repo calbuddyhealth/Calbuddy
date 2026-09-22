@@ -96,13 +96,33 @@ test("performance guidance requires repeated evidence before preferring roles an
       mean_redundancy: 0.18,
       mean_verifier_helpfulness: 0.75,
       reliability_score: 0.8
-    }]
+    }],
+    outcomeEvents: [
+      {
+        team_key: "team_a",
+        domain: "developer",
+        contributions: [{ role: "implementation_analyst", model: "model-a" }],
+        outcome_status: "positive"
+      },
+      {
+        team_key: "team_a",
+        domain: "developer",
+        contributions: [{ role: "implementation_analyst", model: "model-a" }],
+        outcome_status: "positive"
+      }
+    ]
   });
 
   assert.deepEqual(mature.recommendedRoles, ["implementation_analyst"]);
   assert.equal(mature.preferredWorkerCount, 2);
   assert.ok(mature.selectionConfidence > 0.4);
   assert.ok(mature.delegationValueEstimate > 0.7);
+  assert.equal(mature.realWorldOutcomeCount, 2);
+  assert.equal(mature.roleEvidence[0].outcomeSampleCount, 2);
+  assert.equal(mature.roleEvidence[0].outcomeScore, 1);
+  assert.ok(mature.roleEvidence[0].reliabilityScore > 0.83);
+  assert.equal(mature.teamEvidence[0].outcomeSampleCount, 2);
+  assert.ok(mature.teamEvidence[0].reliabilityScore > 0.8);
 
   const instruction = agentPerformanceToCoordinatorInstruction(mature);
   assert.match(instruction, /Historical scores are evidence about prior task performance/i);
@@ -242,11 +262,15 @@ test("runtime integration is server-only, idempotent, and never persists raw wor
 
   assert.match(api, /loadAgentPerformanceState/);
   assert.match(api, /evaluateAndPersistCouncilPerformance/);
+  assert.match(api, /applyCouncilOutcomeFeedback/);
+  assert.match(api, /sourceTurnId/);
   assert.match(api, /verifiedSynthesisAvailable === true/);
   assert.match(api, /agentPerformanceGuidedCouncil/);
 
   assert.match(performance, /on_conflict: "user_id,turn_id"/);
   assert.match(performance, /resolution=ignore-duplicates/);
+  assert.match(performance, /applyCouncilOutcomeFeedback/);
+  assert.match(performance, /outcome_status: "neq.unresolved"/);
   assert.match(performance, /rawWorkerTextStored: false/);
   assert.match(performance, /hiddenChainOfThoughtStored: false/);
   assert.doesNotMatch(performance, /raw_worker_text/);
@@ -266,5 +290,6 @@ test("runtime integration is server-only, idempotent, and never persists raw wor
     assert.match(migration, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated`, "i"));
     assert.match(migration, new RegExp(`grant select, insert, update, delete on table public\\.${table} to service_role`, "i"));
   }
+  assert.match(migration, /outcome_status text not null default 'unresolved'/i);
   assert.doesNotMatch(migration, /create policy/i);
 });
