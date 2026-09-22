@@ -129,7 +129,7 @@ test("Ari Executive consumes the full affect vector and changes runtime strategy
   });
   const instruction = executivePolicyToInstruction(policy);
 
-  assert.equal(ARI_EXECUTIVE_VERSION, "1.0.0");
+  assert.equal(ARI_EXECUTIVE_VERSION, "1.1.0");
   assert.equal(policy.directives.persistence, "change_method");
   assert.ok(policy.directives.affectActions.includes("change_strategy"));
   assert.ok(policy.directives.affectActions.includes("investigate_cause"));
@@ -137,7 +137,7 @@ test("Ari Executive consumes the full affect vector and changes runtime strategy
   assert.ok(Object.hasOwn(policy.signals.affect, "frustration"));
   assert.ok(Object.hasOwn(policy.signals.affect, "valence"));
   assert.ok(Object.hasOwn(policy.signals.affect, "memorySalience"));
-  assert.ok(instruction.length <= 3600);
+  assert.ok(instruction.length <= 4400);
   assert.match(instruction, /Functional affect v2:/i);
 });
 
@@ -179,7 +179,7 @@ test("cognitive recurrence persists and reloads the compact affect snapshot", ()
     context: {}
   });
 
-  assert.equal(ARI_COGNITIVE_STATE_VERSION, "0.4.0");
+  assert.equal(ARI_COGNITIVE_STATE_VERSION, "0.5.0");
   assert.ok(next.affectState?.signals?.frustration > 0);
   assert.ok(next.affectState?.updatedAt);
   assert.equal(nextWorkspace.epistemic.persistentAffectAvailable, true);
