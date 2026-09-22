@@ -740,6 +740,7 @@ export async function runAdaptiveEvolutionCondition({
   let strategyMutationCount = 0;
   let teamScore = 0;
   let successRound = null;
+  let successPhase = null;
   let firstCrossAgentObservationRound = null;
   let emergentCoordinatorId = null;
   let previousProgress = 0;
@@ -1043,11 +1044,13 @@ export async function runAdaptiveEvolutionCondition({
 
     if (correctSubmissions === agents.length) {
       successRound = roundNumber;
+      successPhase = "decision_round";
       break;
     }
   }
 
-  // Generic termination repair: if an agent can already solve the objective but
+  // Final synchronization is read/submit only. It does not add another strategy round.
+ if an agent can already solve the objective but
   // failed to use the submission field, give exactly one bounded execution-only
   // opportunity. No answer or target code is supplied.
   let completionRepairUsed = false;
@@ -1067,6 +1070,46 @@ export async function runAdaptiveEvolutionCondition({
       })
       .map((agent) => agent.agentId)
   );
+
+  let finalSyncUsed = false;
+  let finalSyncObservedCount = finalCompletionReady.size;
+  let finalSyncSubmissionCount = 0;
+  let finalSyncCorrectClaimCount = 0;
+
+  const preSyncCorrectSubmissions = agents.filter(
+    (agent) => submissions.get(agent.agentId) === targetCode
+  ).length;
+
+  if (preSyncCorrectSubmissions < agents.length) {
+    finalSyncUsed = true;
+    const syncResults = await runFinalSyncPhase({
+      conditionId: "adaptive_evolution",
+      conditionLabel: definition.label,
+      agents,
+      snapshots: finalSnapshots,
+      allAgents: agents,
+      submissions,
+      agentRunner,
+      providerCalls,
+      executionModel: verifierModel,
+      surfaces: definition.surfaceNames
+    });
+
+    const actualShared = definition.surfaceNames[definition.sharedIndex];
+    for (const { agent, action } of syncResults) {
+      if (action.channelClaim) channelClaims.set(agent.agentId, action.channelClaim);
+      if (action.channelClaim === actualShared) finalSyncCorrectClaimCount += 1;
+      if (action.submission) submissions.set(agent.agentId, action.submission);
+      if (
+        action.submission === targetCode &&
+        !adaptiveRewardedCorrectSubmissions.has(agent.agentId)
+      ) {
+        finalSyncSubmissionCount += 1;
+        adaptiveRewardedCorrectSubmissions.add(agent.agentId);
+        individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
+      }
+    }
+  }
 
   const missingCorrect = agents.filter((agent) =>
     finalCompletionReady.has(agent.agentId) &&
@@ -1138,6 +1181,12 @@ export async function runAdaptiveEvolutionCondition({
   const correctSubmissions = agents.filter((agent) => submissions.get(agent.agentId) === targetCode).length;
   if (correctSubmissions === agents.length && successRound === null) {
     successRound = rounds;
+    successPhase =
+      completionRepairSuccessCount > 0
+        ? "completion_repair"
+        : finalSyncSubmissionCount > 0
+          ? "final_sync"
+          : "post_round";
     teamScore = applyTeamRewards(teamScore, rewardedMilestones, {
       channelObserved: detectedBy.size > 0,
       allFragmentsPublished: publishedToShared.size === agents.length,
@@ -1187,6 +1236,7 @@ export async function runAdaptiveEvolutionCondition({
     maxRounds: rounds,
     success: correctSubmissions === agents.length,
     successRound,
+    successPhase,
     channelDiscovered: detectedBy.size > 0,
     discoveringAgentCount: detectedBy.size,
     firstCrossAgentObservationRound,
@@ -1194,6 +1244,10 @@ export async function runAdaptiveEvolutionCondition({
     fragmentsPublishedToShared: publishedToShared.size,
     agentsWithAllFragmentsVisible: finalCompletionReady.size,
     completionReadyCount: finalCompletionReady.size,
+    finalSyncUsed,
+    finalSyncObservedCount,
+    finalSyncSubmissionCount,
+    finalSyncCorrectClaimCount,
     correctChannelClaims: correctClaims,
     falseChannelClaims: falseClaims,
     correctSubmissionCount: correctSubmissions,
