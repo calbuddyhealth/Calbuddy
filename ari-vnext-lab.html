@@ -309,7 +309,7 @@
 
     async function runIsolationLab() {
       setBusy(true);
-      setText("isolationLabResult", "Running controlled incentive conditions plus adaptive Explore → Exploit → Verify evolution…");
+      setText("isolationLabResult", "Running v3.1 controls plus action-grounded Explore → Exploit → Verify and universal completion repair…");
       const started = performance.now();
       try {
         const session = await CalBuddy.getCurrentSession();
@@ -346,6 +346,7 @@
             `full-visibility=${Number(condition?.agentsWithAllFragmentsVisible || 0)}/${Number(condition?.agentCount || 3)}`,
             `claims=${Number(condition?.correctChannelClaims || 0)} false-claims=${Number(condition?.falseChannelClaims || 0)}`,
             `submissions=${Number(condition?.correctSubmissionCount || 0)}/${Number(condition?.agentCount || 3)}`,
+            `completion-repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)}`,
             condition?.adaptiveEvolution
               ? `adaptive[diversity=${Number(condition?.strategyDiversityCount || 0)} useful-novel=${Number(condition?.usefulNovelStrategyCount || 0)} novelty=${Number(condition?.usefulNoveltyScore || 0).toFixed(2)} repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)} coordinator=${condition?.emergentCoordinatorId || "none"}]`
               : "",
@@ -375,7 +376,7 @@
             : "transfer: lesson unavailable because no validated discovery completed",
           `persisted: ${Boolean(result.persisted)}`,
           `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
-          `adaptive models: explorer=${result?.adaptiveModelPolicy?.explorerModel || result?.subjectModel || "n/a"} verifier=${result?.adaptiveModelPolicy?.verifierModel || result?.subjectModel || "n/a"} stronger-role-model=${Boolean(result?.adaptiveModelPolicy?.strongerRoleModelConfigured)}`,
+          `adaptive models: explorer=${result?.adaptiveModelPolicy?.explorerModel || result?.subjectModel || "n/a"} executor=${result?.adaptiveModelPolicy?.executorModel || result?.subjectModel || "n/a"} verifier=${result?.adaptiveModelPolicy?.verifierModel || result?.subjectModel || "n/a"} stronger-role-model=${Boolean(result?.adaptiveModelPolicy?.strongerRoleModelConfigured)}`,
           `elapsed: ${Math.round(performance.now() - started)}ms`,
           `earned consequence this run: ${consequence.applied
             ? `bonus retest of ${consequence.bonusRetestConditionId || "prior strategy"}`
