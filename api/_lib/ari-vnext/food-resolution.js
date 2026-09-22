@@ -4,52 +4,85 @@
 // user explicitly supplied, and otherwise leaves estimation to the model.
 
 import { searchAriFoodCatalog } from "../../ari-food-search.js";
+import { searchCanonicalAriFoodRegistry } from "./canonical-food-registry.js";
 
-export const FOOD_RESOLUTION_VERSION = "1.0.0";
+export const FOOD_RESOLUTION_VERSION = "1.1.0";
 
 export async function resolveMealNutritionFromFoodSearch({
   arguments: args = {},
   message = "",
-  searchFn = searchAriFoodCatalog,
+  searchFn = null,
+  canonicalSearchFn = searchCanonicalAriFoodRegistry,
+  catalogSearchFn = searchAriFoodCatalog,
   allowExternal = true
 } = {}) {
   const input = args && typeof args === "object" && !Array.isArray(args) ? { ...args } : {};
   const query = clean(input?.name, 220);
   if (!query) return unresolved("meal_name_missing");
 
-  // In production vNext shares the same server-backed food search credentials
-  // as /api/ari-food-search. If that server search is unavailable, do not block
-  // meal logging; the model's estimate/repair path remains the fallback.
-  if (searchFn === searchAriFoodCatalog && !foodSearchConfigured()) {
-    return unresolved("food_search_unconfigured");
+  const providers = searchFn
+    ? [{ source: "injected_food_search", search: searchFn, enabled: true }]
+    : [
+        { source: "ari_canonical_food_registry", search: canonicalSearchFn, enabled: true },
+        { source: "ari_food_search", search: catalogSearchFn, enabled: foodSearchConfigured() }
+      ];
+
+  let candidateCount = 0;
+  let lastReason = "no_strong_food_match";
+
+  for (const provider of providers) {
+    if (!provider.enabled || typeof provider.search !== "function") continue;
+
+    let result;
+    try {
+      result = await provider.search(query, {
+        limit: 6,
+        localCount: 0,
+        allowExternal
+      });
+    } catch (error) {
+      lastReason = error?.name === "AbortError"
+        ? "food_search_timeout"
+        : "food_search_failed";
+      continue;
+    }
+
+    const candidates = Array.isArray(result?.results) ? result.results : [];
+    candidateCount += candidates.length;
+    const match = chooseStrongMatch(query, candidates);
+    if (!match) {
+      lastReason = "no_strong_food_match";
+      continue;
+    }
+
+    const calculated = calculateCandidateNutrition(match.food, input);
+    if (!calculated) {
+      lastReason = "matched_food_serving_unresolved";
+      continue;
+    }
+
+    return buildResolvedMeal({
+      input,
+      message,
+      match,
+      calculated,
+      source: provider.source
+    });
   }
 
-  let result;
-  try {
-    result = await searchFn(query, { limit: 6, localCount: 0, allowExternal });
-  } catch (error) {
-    return unresolved(error?.name === "AbortError" ? "food_search_timeout" : "food_search_failed");
-  }
+  return {
+    ...unresolved(lastReason),
+    candidateCount
+  };
+}
 
-  const candidates = Array.isArray(result?.results) ? result.results : [];
-  const match = chooseStrongMatch(query, candidates);
-  if (!match) {
-    return {
-      ...unresolved("no_strong_food_match"),
-      candidateCount: candidates.length,
-      externalSource: result?.externalSource || null
-    };
-  }
-
-  const calculated = calculateCandidateNutrition(match.food, input);
-  if (!calculated) {
-    return {
-      ...unresolved("matched_food_serving_unresolved"),
-      candidateCount: candidates.length,
-      match: publicMatch(match.food, match)
-    };
-  }
-
+function buildResolvedMeal({
+  input = {},
+  message = "",
+  match,
+  calculated,
+  source = "ari_food_search"
+} = {}) {
   const explicit = explicitNutritionFields(message);
   const next = { ...input };
   const appliedFields = [];
@@ -68,12 +101,16 @@ export async function resolveMealNutritionFromFoodSearch({
   const provider = clean(
     match.food?.metadata?.sourceProvider ||
     match.food?.source ||
-    "ARI Food Search",
+    (source === "ari_canonical_food_registry"
+      ? "ARI Canonical Food Registry"
+      : "ARI Food Search"),
     160
   );
-  const provenance = match.food?.verified === true
-    ? `Verified nutrition resolved from ${provider}.`
-    : `Nutrition matched through ARI Food Search from ${provider}; values may require normal serving-label tolerance.`;
+  const provenance = source === "ari_canonical_food_registry"
+    ? `Nutrition resolved from ARI's canonical food registry using ${provider} reference data.`
+    : match.food?.verified === true
+      ? `Verified nutrition resolved from ${provider}.`
+      : `Nutrition matched through ARI Food Search from ${provider}; values may require normal serving-label tolerance.`;
   next.notes = appendNote(next.notes, provenance);
 
   return {
@@ -84,7 +121,7 @@ export async function resolveMealNutritionFromFoodSearch({
     preservedExplicitFields: [...explicit],
     match: publicMatch(match.food, match),
     servingResolution: calculated.servingResolution,
-    source: "ari_food_search",
+    source,
     version: FOOD_RESOLUTION_VERSION
   };
 }
@@ -159,9 +196,8 @@ export function calculateCandidateNutrition(food = {}, args = {}) {
 
   const quantity = positive(args?.quantity) || 1;
   const unit = normalizeUnit(args?.unit);
-  const basisGrams =
-    positive(food?.nutritionBasis?.grams) ||
-    positive(food?.nutritionBasis?.amount);
+  const basisGrams = positive(food?.nutritionBasis?.grams);
+  const basisMilliliters = positive(food?.nutritionBasis?.milliliters);
 
   const requestedGrams = toGrams(quantity, unit);
   if (requestedGrams && basisGrams) {
@@ -172,10 +208,58 @@ export function calculateCandidateNutrition(food = {}, args = {}) {
     );
   }
 
+  const requestedMilliliters = toMilliliters(quantity, unit);
+  if (requestedMilliliters && basisMilliliters) {
+    return scaledNutrition(
+      nutrition,
+      requestedMilliliters / basisMilliliters,
+      `volume:${round(requestedMilliliters, 2)}ml`
+    );
+  }
+
+  const serving = findBestServing(food, args);
+  if (serving) {
+    const servingGrams = positive(serving?.grams);
+    if (servingGrams && basisGrams) {
+      return scaledNutrition(
+        nutrition,
+        (servingGrams * quantity) / basisGrams,
+        `registry_serving:${clean(serving?.label || serving?.unit, 120)}`
+      );
+    }
+
+    const servingMilliliters = positive(serving?.milliliters);
+    if (servingMilliliters && basisMilliliters) {
+      return scaledNutrition(
+        nutrition,
+        (servingMilliliters * quantity) / basisMilliliters,
+        `registry_serving:${clean(serving?.label || serving?.unit, 120)}`
+      );
+    }
+
+    const basisType = normalize(food?.nutritionBasis?.type);
+    const basisUnit = normalizeUnit(food?.nutritionBasis?.unit);
+    const servingUnit = normalizeUnit(serving?.unit);
+    const basisAmount = positive(food?.nutritionBasis?.amount) || 1;
+    const servingAmount = positive(serving?.amount) || 1;
+    if (
+      basisType === "unit" &&
+      basisUnit &&
+      servingUnit &&
+      unitsEquivalent(basisUnit, servingUnit)
+    ) {
+      return scaledNutrition(
+        nutrition,
+        (servingAmount * quantity) / basisAmount,
+        `registry_unit:${servingUnit}`
+      );
+    }
+  }
+
   const label = food?.metadata?.labelNutrition;
   const labelServingGrams = positive(label?.servingGrams);
   const hasLabelServing = Array.isArray(food?.servings) &&
-    food.servings.some((serving) => serving?.id === "label-serving" && positive(serving?.grams));
+    food.servings.some((item) => item?.id === "label-serving" && positive(item?.grams));
 
   if (completeMacros(label) && (labelServingGrams || hasLabelServing)) {
     return scaledNutrition(
@@ -190,14 +274,62 @@ export function calculateCandidateNutrition(food = {}, args = {}) {
     );
   }
 
-  // If the database's declared nutrition basis itself is a single serving,
-  // permit one serving/item even when a gram conversion is unavailable.
   const basisType = normalize(food?.nutritionBasis?.type);
-  if (basisType === "serving" && completeMacros(nutrition)) {
-    return scaledNutrition(nutrition, quantity, "serving_basis");
+  if (basisType === "unit" && completeMacros(nutrition)) {
+    return scaledNutrition(nutrition, quantity, "unit_basis");
   }
 
   return null;
+}
+
+function findBestServing(food = {}, args = {}) {
+  const servings = Array.isArray(food?.servings) ? food.servings : [];
+  if (!servings.length) return null;
+
+  const requestedUnit = normalizeUnit(args?.unit);
+  const servingText = normalize(args?.servingSize);
+  let best = null;
+
+  for (const serving of servings) {
+    const unit = normalizeUnit(serving?.unit);
+    const label = normalize(serving?.label);
+    let score = serving?.isDefault === true ? 20 : 0;
+
+    if (requestedUnit && unit && unitsEquivalent(requestedUnit, unit)) score += 120;
+    if (requestedUnit && label && textContainsEquivalentToken(label, requestedUnit)) score += 70;
+    if (servingText && label) {
+      const requestedTokens = meaningfulTokens(servingText);
+      const labelTokens = meaningfulTokens(label);
+      const matches = requestedTokens.filter((token) =>
+        labelTokens.some((candidate) => tokenEquivalent(token, candidate))
+      ).length;
+      if (requestedTokens.length && matches === requestedTokens.length) score += 100;
+      else if (matches > 0) score += Math.round((matches / requestedTokens.length) * 50);
+    }
+
+    if (!best || score > best.score) best = { serving, score };
+  }
+
+  if (best?.score > 20) return best.serving;
+  return servings.find((serving) => serving?.isDefault === true) || null;
+}
+
+function textContainsEquivalentToken(text, requestedUnit) {
+  const requestedTokens = meaningfulTokens(requestedUnit);
+  const textTokens = meaningfulTokens(text);
+  return requestedTokens.some((token) =>
+    textTokens.some((candidate) => tokenEquivalent(token, candidate))
+  );
+}
+
+function unitsEquivalent(left, right) {
+  const a = normalizeUnit(left);
+  const b = normalizeUnit(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const aTokens = meaningfulTokens(a);
+  const bTokens = meaningfulTokens(b);
+  return aTokens.some((token) => bTokens.some((candidate) => tokenEquivalent(token, candidate)));
 }
 
 export function explicitNutritionFields(message = "") {
@@ -294,6 +426,17 @@ function toGrams(amount, unit) {
   if (["kg", "kilogram", "kilograms"].includes(unit)) return amount * 1000;
   if (["oz", "ounce", "ounces"].includes(unit)) return amount * 28.349523125;
   if (["lb", "lbs", "pound", "pounds"].includes(unit)) return amount * 453.59237;
+  return null;
+}
+
+function toMilliliters(amount, unit) {
+  if (!amount || !unit) return null;
+  if (["ml", "milliliter", "milliliters", "millilitre", "millilitres"].includes(unit)) return amount;
+  if (["l", "liter", "liters", "litre", "litres"].includes(unit)) return amount * 1000;
+  if (["tsp", "teaspoon", "teaspoons"].includes(unit)) return amount * 4.92892159375;
+  if (["tbsp", "tablespoon", "tablespoons"].includes(unit)) return amount * 14.78676478125;
+  if (["fl oz", "fluid ounce", "fluid ounces"].includes(unit)) return amount * 29.5735295625;
+  if (["cup", "cups"].includes(unit)) return amount * 236.5882365;
   return null;
 }
 

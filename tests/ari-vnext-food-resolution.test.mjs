@@ -7,6 +7,10 @@ import {
   explicitNutritionFields,
   resolveMealNutritionFromFoodSearch
 } from "../api/_lib/ari-vnext/food-resolution.js";
+import {
+  ensureCanonicalFoodRegistry,
+  searchCanonicalAriFoodRegistry
+} from "../api/_lib/ari-vnext/canonical-food-registry.js";
 
 function chickFilAFood() {
   return {
@@ -185,4 +189,44 @@ test("match scoring accepts a real branded identity and rejects token overlap al
     }]
   );
   assert.equal(weak, null);
+});
+
+
+test("vNext server loads the same canonical ARI food registry used by Nutrition", async () => {
+  const state = await ensureCanonicalFoodRegistry();
+  assert.equal(state.ready, true);
+  assert.ok(state.foodCount > 100, `expected canonical registry to contain real food coverage, found ${state.foodCount}`);
+
+  const result = await searchCanonicalAriFoodRegistry("banana", { limit: 5 });
+  assert.equal(result.success, true);
+  assert.ok(result.results.length > 0);
+  assert.ok(result.results.some((food) => /banana/i.test(food.displayName || food.name)));
+  assert.equal(result.results[0].metadata.sourceType, "ari_canonical_registry");
+});
+
+test("default vNext meal resolution uses canonical banana serving macros before model estimates", async () => {
+  const result = await resolveMealNutritionFromFoodSearch({
+    arguments: {
+      name: "Banana",
+      quantity: 1,
+      unit: "banana",
+      servingSize: "1 medium banana",
+      mealCategory: "Snack",
+      calories: 120,
+      proteinG: 2,
+      carbsG: 30,
+      fatG: 1,
+      notes: "Estimated by model."
+    },
+    message: "I ate a medium banana. Log that."
+  });
+
+  assert.equal(result.resolved, true);
+  assert.equal(result.source, "ari_canonical_food_registry");
+  assert.equal(result.arguments.calories, 105);
+  assert.equal(result.arguments.proteinG, 1.3);
+  assert.equal(result.arguments.carbsG, 27);
+  assert.equal(result.arguments.fatG, 0.4);
+  assert.match(result.arguments.notes, /canonical food registry/i);
+  assert.match(result.servingResolution, /registry_serving/i);
 });
