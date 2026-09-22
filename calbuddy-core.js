@@ -930,6 +930,164 @@ CalBuddy.clearPendingAction = function () {
   window.dispatchEvent(new CustomEvent("calbuddy:pendingActionCleared"));
 };
 
+CalBuddy.pendingActionMatches = function (left = null, right = null) {
+  if (!left || !right) return false;
+  const ids = (action) => {
+    const values = [
+      action?.id,
+      action?.vnext_action_id,
+      action?.vnextActionId,
+      action?.vnext_pending_action?.id,
+      action?.vnextPendingAction?.id
+    ];
+    if (
+      action?.name &&
+      action?.sourceTurnId &&
+      !action?.action_type &&
+      action?.id
+    ) {
+      values.push(action.id);
+    }
+    return new Set(values.map((value) => String(value || "").trim()).filter(Boolean));
+  };
+  const leftIds = ids(left);
+  const rightIds = ids(right);
+  for (const id of leftIds) {
+    if (rightIds.has(id)) return true;
+  }
+  return false;
+};
+
+CalBuddy.clearPendingActionStateFor = function (action = null) {
+  if (!action) return false;
+  let cleared = false;
+  const current = CalBuddy.getPendingAction?.() || null;
+  if (current && CalBuddy.pendingActionMatches(current, action)) {
+    CalBuddy.clearPendingAction();
+    cleared = true;
+  }
+
+  const bridgePending = window.AriVNextBridge?.getPendingAction?.() || null;
+  if (
+    bridgePending &&
+    CalBuddy.pendingActionMatches(bridgePending, action) &&
+    typeof window.AriVNextBridge?.clearPendingAction === "function"
+  ) {
+    window.AriVNextBridge.clearPendingAction();
+    cleared = true;
+  }
+
+  return cleared;
+};
+
+CalBuddy.reconcilePendingActionWithLedger = async function (
+  action = CalBuddy.getPendingAction?.() || window.AriVNextBridge?.getPendingAction?.() || null
+) {
+  if (!action) return null;
+
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  if (!user?.id || !client) return action;
+
+  const explicitVNextId = String(
+    action?.vnext_action_id ||
+    action?.vnextActionId ||
+    action?.vnext_pending_action?.id ||
+    action?.vnextPendingAction?.id ||
+    ""
+  ).trim();
+  const bridgeStyleVNextId =
+    !explicitVNextId &&
+    action?.name &&
+    action?.sourceTurnId &&
+    !action?.action_type
+      ? String(action?.id || "").trim()
+      : "";
+  const vnextActionId = explicitVNextId || bridgeStyleVNextId;
+  const ledgerId =
+    !vnextActionId && action?.action_type
+      ? String(action?.id || "").trim()
+      : "";
+
+  if (!vnextActionId && !ledgerId) return action;
+
+  let query = client
+    .from("ai_app_actions")
+    .select("*")
+    .eq("user_id", user.id);
+
+  query = vnextActionId
+    ? query.eq("vnext_action_id", vnextActionId)
+    : query.eq("id", ledgerId);
+
+  const { data: row, error } = await query.maybeSingle();
+  if (error) {
+    console.warn("Ari pending action reconciliation failed:", error.message);
+    return action;
+  }
+
+  // A durable vNext confirmation without a ledger row is not executable.
+  if (!row?.id) {
+    CalBuddy.clearPendingActionStateFor(action);
+    return null;
+  }
+
+  const status = String(row.status || "").toLowerCase();
+  if (["completed", "cancelled", "expired", "executing"].includes(status)) {
+    CalBuddy.clearPendingActionStateFor(row);
+    CalBuddy.clearPendingActionStateFor(action);
+    return null;
+  }
+
+  const expiresAt = Date.parse(String(row.expires_at || row?.vnext_pending_action?.expiresAt || ""));
+  if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+    void client
+      .from("ai_app_actions")
+      .update({ status: "expired", updated_at: new Date().toISOString() })
+      .eq("id", row.id)
+      .eq("user_id", user.id)
+      .in("status", ["proposed", "pending", "failed"]);
+    CalBuddy.clearPendingActionStateFor(row);
+    CalBuddy.clearPendingActionStateFor(action);
+    return null;
+  }
+
+  if (
+    row.vnext_pending_action &&
+    window.AriVNextBridge?.setPendingAction &&
+    !CalBuddy.pendingActionMatches(window.AriVNextBridge?.getPendingAction?.(), row.vnext_pending_action)
+  ) {
+    window.AriVNextBridge.setPendingAction(row.vnext_pending_action);
+  }
+
+  if (
+    row.status === "proposed" &&
+    row.vnext_pending_action &&
+    window.AriVNextActionAdapter?.createCalBuddyPendingAction
+  ) {
+    const materialized = await window.AriVNextActionAdapter.createCalBuddyPendingAction(row.vnext_pending_action);
+    if (materialized?.alreadyCompleted) {
+      CalBuddy.clearPendingActionStateFor(row);
+      return null;
+    }
+    return materialized?.success ? materialized.action : null;
+  }
+
+  if (row.status === "pending" || row.status === "failed") {
+    const current = CalBuddy.getPendingAction?.() || null;
+    if (
+      current &&
+      CalBuddy.pendingActionMatches(current, row) &&
+      String(current.status || "") === String(row.status || "")
+    ) {
+      return current;
+    }
+    return CalBuddy.setPendingAction({ ...row, _ledger_persisted: true });
+  }
+
+  return null;
+};
+
 CalBuddy.isDurableAction = function (action = null) {
   return Boolean(action?.id && (action?.vnext_action_id || action?.source_turn_id || action?.user_id));
 };
@@ -1242,6 +1400,11 @@ CalBuddy.completePendingAction = async function (action, result = {}, { confirma
     };
   }
 
+  // Completion is terminal for this exact proposal. Retire only matching browser
+  // copies so a later log request with a fresh vNext action id remains independent.
+  CalBuddy.clearPendingActionStateFor(data);
+  window.dispatchEvent(new CustomEvent("calbuddy:actionCompleted", { detail: { action: data } }));
+
   return { success: true, durable: true, action: data, result: data.result || safeResult };
 };
 
@@ -1466,7 +1629,8 @@ CalBuddy.confirmPendingAction = async function () {
 
 CalBuddy.cancelPendingAction = function () {
   const action = CalBuddy.getPendingAction();
-  CalBuddy.clearPendingAction();
+  if (action) CalBuddy.clearPendingActionStateFor(action);
+  else CalBuddy.clearPendingAction();
 
   if (CalBuddy.isDurableAction(action)) {
     Promise.resolve().then(async () => {
