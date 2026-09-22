@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.4.1
+// Version: 3.4.2
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
 //
 // V3.4.0:
@@ -111,7 +111,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   await refreshHomeDashboard();
 
   const savedPending = window.CalBuddy?.getPendingAction?.();
-  if (savedPending) showPendingAction(savedPending);
+  if (savedPending) {
+    if (typeof window.CalBuddy?.reconcilePendingActionWithLedger === "function") {
+      const reconciled = await window.CalBuddy.reconcilePendingActionWithLedger(savedPending);
+      if (reconciled) showPendingAction(reconciled);
+      else hidePendingAction();
+    } else {
+      showPendingAction(savedPending);
+    }
+  }
 
   setInterval(refreshHomeDashboard, 60000);
 });

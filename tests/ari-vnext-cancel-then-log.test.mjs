@@ -224,3 +224,34 @@ test("an exception while preparing an action stays inside the action failure bou
   assert.match(result.reply, /not saved/);
   assert.equal(h.context.AriVNextBridge.getPendingAction(), null);
 });
+
+
+test("completed meal action does not block later meal logs in the same conversation", async () => {
+  const h = harness();
+
+  await h.propose(meal("meal-one", "Eggs", {
+    calories: 180,
+    proteinG: 13,
+    carbsG: 2,
+    fatG: 12,
+    servingSize: "2 eggs"
+  }));
+  assert.equal(h.context.CalBuddy.getPendingAction().vnext_action_id, "meal-one");
+  await h.context.confirmAriAction();
+
+  assert.deepEqual(h.writes.map((entry) => entry.name), ["Eggs"]);
+  assert.equal(h.context.CalBuddy.getPendingAction(), null);
+  assert.equal(h.context.AriVNextBridge.getPendingAction(), null);
+  assert.equal(h.visible, false);
+
+  await h.propose(meal("meal-two", "Banana"));
+  assert.equal(h.context.CalBuddy.getPendingAction().vnext_action_id, "meal-two");
+  assert.equal(h.context.AriVNextBridge.getPendingAction().id, "meal-two");
+  assert.equal(h.visible, true);
+
+  await h.context.confirmAriAction();
+  assert.deepEqual(h.writes.map((entry) => entry.name), ["Eggs", "Banana"]);
+  assert.equal(h.context.CalBuddy.getPendingAction(), null);
+  assert.equal(h.context.AriVNextBridge.getPendingAction(), null);
+  assert.equal(h.visible, false);
+});

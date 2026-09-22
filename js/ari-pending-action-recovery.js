@@ -1,4 +1,4 @@
-// ARI XP — pending-action recovery + quota protection v1.1.0
+// ARI XP — pending-action recovery + quota protection v1.2.0
 (() => {
   "use strict";
 
@@ -14,6 +14,40 @@
     const legacy = window.CalBuddy?.getPendingAction?.() || null;
     if (legacy) return legacy;
     return window.AriVNextBridge?.getPendingAction?.() || null;
+  }
+
+  async function reconcilePendingAction(action = currentPendingAction()) {
+    if (!action) return null;
+
+    const status = clean(action?.status).toLowerCase();
+    if (["completed", "cancelled", "expired", "executing"].includes(status)) {
+      window.CalBuddy?.clearPendingActionStateFor?.(action);
+      return null;
+    }
+
+    if (typeof window.CalBuddy?.reconcilePendingActionWithLedger === "function") {
+      try {
+        return await window.CalBuddy.reconcilePendingActionWithLedger(action);
+      } catch (error) {
+        console.warn("Ari pending action reconciliation failed:", error?.message || error);
+      }
+    }
+
+    return action;
+  }
+
+  async function firstReconciledPendingAction() {
+    const first = currentPendingAction();
+    if (!first) return null;
+
+    const reconciled = await reconcilePendingAction(first);
+    if (reconciled) return reconciled;
+
+    // Clearing a stale action from one store can reveal a different, newer
+    // proposal in the other store. Reconcile that identity independently.
+    const second = currentPendingAction();
+    if (!second || window.CalBuddy?.pendingActionMatches?.(first, second)) return null;
+    return await reconcilePendingAction(second);
   }
 
   function pendingConfirmationText(action = {}) {
@@ -58,10 +92,21 @@
   }
 
   async function interceptPendingConfirmation(message = "") {
-    const pending = currentPendingAction();
-    if (!pending) return false;
+    const candidate = currentPendingAction();
+    if (!candidate) return false;
 
     const text = clean(message);
+    if (!CONFIRM_RE.test(text) && !CANCEL_RE.test(text)) return false;
+
+    const pending = await firstReconciledPendingAction();
+    if (!pending) {
+      // The user was responding to a stale terminal card. Consume the response
+      // locally instead of turning "yes" or "cancel" into a new LLM turn.
+      clearComposer();
+      hideRecoveredPendingIfEmpty();
+      return true;
+    }
+
     if (CONFIRM_RE.test(text)) {
       clearComposer();
       showRecoveredPending(pending);
@@ -69,14 +114,10 @@
       return true;
     }
 
-    if (CANCEL_RE.test(text)) {
-      clearComposer();
-      showRecoveredPending(pending);
-      await window.cancelAriAction?.();
-      return true;
-    }
-
-    return false;
+    clearComposer();
+    showRecoveredPending(pending);
+    await window.cancelAriAction?.();
+    return true;
   }
 
   function installSendGuard() {
@@ -131,9 +172,12 @@
 
   async function syncPendingActionBar() {
     installSendGuard();
-    let pending = currentPendingAction();
+
+    let pending = await firstReconciledPendingAction();
     if (!pending) pending = await restoreDurablePendingAction();
-    if (pending || currentPendingAction()) showRecoveredPending(pending || currentPendingAction());
+    if (pending) pending = await reconcilePendingAction(pending);
+
+    if (pending) showRecoveredPending(pending);
     else hideRecoveredPendingIfEmpty();
   }
 

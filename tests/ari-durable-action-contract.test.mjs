@@ -9,6 +9,7 @@ const training = fs.readFileSync("ari/vnext/ari-vnext-training-context.js", "utf
 const bridge = fs.readFileSync("ari/vnext/ari-vnext-bridge.js", "utf8");
 const tools = fs.readFileSync("api/_lib/ari-vnext/tools-core.js", "utf8");
 const resilience = fs.readFileSync("js/home-resilience.js", "utf8");
+const pendingRecovery = fs.readFileSync("js/ari-pending-action-recovery.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260922223000_ari_action_transaction_ledger.sql", "utf8");
 
 test("server action proposal persistence precedes durable conversation persistence", () => {
@@ -66,4 +67,21 @@ test("unfinished pre-ledger vNext browser actions are not executed after the upg
   assert.match(core, /Pre-transaction vNext confirmations were browser-only/);
   assert.match(core, /parsed\?\.vnext_action_id && parsed\?\._ledger_persisted !== true/);
   assert.match(core, /localStorage\.removeItem\("calbuddyPendingAction"\)/);
+});
+
+
+test("completed durable actions clear only matching browser pending state and cannot be re-shown after navigation", () => {
+  assert.match(core, /pendingActionMatches/);
+  assert.match(core, /clearPendingActionStateFor/);
+  assert.match(core, /reconcilePendingActionWithLedger/);
+  assert.match(core, /\["completed", "cancelled", "expired", "executing"\]\.includes\(status\)/);
+  assert.match(core, /CalBuddy\.clearPendingActionStateFor\(data\)/);
+  assert.match(pendingRecovery, /firstReconciledPendingAction/);
+  assert.match(pendingRecovery, /reconcilePendingActionWithLedger/);
+});
+
+test("durable meal startup cleanup preserves current ledger-backed proposals", () => {
+  const homeHtml = fs.readFileSync("home.html", "utf8");
+  assert.match(homeHtml, /const durable=window\.CalBuddy\?\.isDurableAction\?\.\(pending\)===true\s*\|\|\s*Boolean\(pending\?\.vnext_action_id\)/);
+  assert.match(homeHtml, /pending\?\.action_type==="log_meal"&&!durable/);
 });
