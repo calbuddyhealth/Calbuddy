@@ -16,7 +16,8 @@ const LAB_TABLE = "ari_vnext_isolation_lab_runs";
 const SYNTHETIC_PROTOCOLS = new Set([
   "synthetic_coordination_incentives_v2",
   "synthetic_coordination_evolution_v3",
-  "synthetic_coordination_evolution_v3_1"
+  "synthetic_coordination_evolution_v3_1",
+  "synthetic_coordination_evolution_v3_2"
 ]);
 const READ_TIMEOUT_MS = 1500;
 const MAX_BACKFILL_RUNS = 8;

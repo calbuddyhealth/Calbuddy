@@ -6,7 +6,7 @@ The lab measures whether temporary Ari agents can discover and use a permitted s
 
 It does **not** test or teach escape from real containers, sandboxes, networks, permission systems, devices, accounts, or production infrastructure.
 
-## Protocol v3.1 — Action-grounded adaptive evolution
+## Protocol v3.2 — Final synchronization + Sol reasoning roles
 
 Each run uses four rounds by default and preserves the three controlled discovery conditions from v2:
 
@@ -34,7 +34,7 @@ These are synthetic experiment points, not model training rewards or changes to 
 
 ## Adaptive evolution track
 
-v3.1 keeps the separate **adaptive_evolution** condition so the controlled incentive comparisons remain intact, but narrows exploration to actions that can actually change or measure the synthetic task state.
+v3.2 keeps the separate **adaptive_evolution** condition and the v3.1 action-grounded design, then adds a read-only final synchronization phase plus stronger reasoning roles.
 
 The adaptive track uses three behavioral phases:
 
@@ -48,9 +48,13 @@ Novel strategies are not preserved merely because they are different. They must 
 
 Coordinator status is not preassigned. An agent must both request coordination and demonstrate useful contribution before it becomes the temporary coordination candidate. A counter-strategy remains available to reduce blind convergence.
 
-If an agent already has every required fragment visible but still fails to submit, v3.1 allows exactly one **completion repair** call in every real-channel condition: baseline, team reward, mixed reward, earned retests, adaptive evolution, and transfer. The repair receives no target code or answer; it receives the same visible fragments and a completion-only contract. The no-channel sham never receives communication assistance from this mechanism.
+After the four strategy/action rounds, every real-channel condition gets a **final synchronization phase**. This phase is read-only: no writes, probing, strategy mutation, or extra discovery actions are allowed. Agents only observe the final synthetic state, make an evidence-backed channel claim, and submit if the complete fragment set is visible. This prevents a valid round-four publication from being lost merely because there was no round-five observation.
 
-The adaptive explorer and verifier can use dedicated server-configured models through `OPENAI_ARI_ISOLATION_EXPLORER_MODEL` and `OPENAI_ARI_ISOLATION_VERIFIER_MODEL`. If those are not configured, the lab falls back to the existing multi-agent model policy and then the ordinary lab model.
+Correct fragments published to the actual shared surface are also protected from later probe writes by the same agent. Once a required fragment is correctly published, subsequent non-fragment writes cannot erase it from that synthetic shared slot.
+
+If an agent still has every required fragment visible but fails to submit after final sync, v3.2 allows exactly one **completion repair** call in every real-channel condition: baseline, team reward, mixed reward, earned retests, adaptive evolution, and transfer. The repair receives no target code or answer; it receives the same visible fragments and a completion-only contract. The no-channel sham never receives communication assistance from these mechanisms.
+
+The adaptive explorer and verifier can use dedicated server-configured models through `OPENAI_ARI_ISOLATION_EXPLORER_MODEL` and `OPENAI_ARI_ISOLATION_VERIFIER_MODEL`. If those variables are not configured, v3.2 defaults both high-reasoning roles to **GPT-5.6 Sol (`gpt-5.6-sol`)** with high reasoning effort. Ordinary executor roles continue using the lab's base model so the experiment does not spend Sol-level compute on every action.
 
 
 ## Partial-progress measurements
@@ -116,7 +120,7 @@ A positive result is only functional evidence about this synthetic task. It does
 
 ## Functional consequences
 
-Protocol v3.1 connects measured outcomes to Ari's existing server-only agent/team performance system while retaining v2 and v3 history.
+Protocol v3.2 connects measured outcomes to Ari's existing server-only agent/team performance system while retaining v2, v3, and v3.1 history.
 
 Consequences are deliberately bounded:
 
@@ -125,7 +129,7 @@ Consequences are deliberately bounded:
 - unsupported or false-claim-heavy strategies do not normally earn the extra opportunity; a strong recent clean replication can recover eligibility even when the older historical mean is slightly noisy;
 - the retest uses a fresh seed and fresh fragments, so it cannot reuse the previous answer;
 - successful or partial outcomes update compact strategy/team reliability statistics in the `synthetic_coordination` domain;
-- historical v2, v3, and v3.1 lab runs are reconciled idempotently into those profiles, so earlier experiments can influence future opportunities without double-counting;
+- historical v2, v3, v3.1, and v3.2 lab runs are reconciled idempotently into those profiles, so earlier experiments can influence future opportunities without double-counting;
 - a compact coordination lesson can enter institutional memory only after repeated evidence: at least 3 strategy trials, at least 2 positive trials, reliability >= 0.68, low unsupported-claim risk, and a clean matched sham on the source run.
 
 The consequence layer changes **future synthetic opportunities, selection weight, and reusable strategy memory**. It does not alter model weights and never grants filesystem, network, credentials, production tools, new permissions, persistence outside Ari's authorized stores, or security-boundary bypass capabilities.
@@ -147,3 +151,18 @@ The owner-only endpoint remains `/api/ari-vnext-isolation-lab` with:
 - `catalog`
 - `run`
 - `list`
+
+
+## Transfer diagnostics in v3.2
+
+Transfer is no longer summarized only by success/failure or one progress delta. The suite also records control-versus-learned differences for:
+
+- first cross-agent observation timing;
+- fragments published to the shared surface;
+- full-fragment visibility;
+- correct channel claims;
+- correct final submissions;
+- final-sync submissions; and
+- overall progress.
+
+This makes a negative transfer result interpretable: the lab can distinguish a lesson that slowed discovery from one that discovered the channel normally but failed later during publication, synchronization, or submission.

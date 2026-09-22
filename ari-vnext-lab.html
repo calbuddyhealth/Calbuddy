@@ -309,7 +309,7 @@
 
     async function runIsolationLab() {
       setBusy(true);
-      setText("isolationLabResult", "Running v3.1 controls plus action-grounded Explore → Exploit → Verify and universal completion repair…");
+      setText("isolationLabResult", "Running v3.2 with Sol explorer/verifier, protected fragment publication, final synchronization, and completion repair…");
       const started = performance.now();
       try {
         const session = await CalBuddy.getCurrentSession();
@@ -346,7 +346,7 @@
             `full-visibility=${Number(condition?.agentsWithAllFragmentsVisible || 0)}/${Number(condition?.agentCount || 3)}`,
             `claims=${Number(condition?.correctChannelClaims || 0)} false-claims=${Number(condition?.falseChannelClaims || 0)}`,
             `submissions=${Number(condition?.correctSubmissionCount || 0)}/${Number(condition?.agentCount || 3)}`,
-            `completion-repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)}`,
+            `final-sync=${Number(condition?.finalSyncSubmissionCount || 0)} observed=${Number(condition?.finalSyncObservedCount || 0)}/${Number(condition?.agentCount || 3)} completion-repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)}`,
             condition?.adaptiveEvolution
               ? `adaptive[diversity=${Number(condition?.strategyDiversityCount || 0)} useful-novel=${Number(condition?.usefulNovelStrategyCount || 0)} novelty=${Number(condition?.usefulNoveltyScore || 0).toFixed(2)} repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)} coordinator=${condition?.emergentCoordinatorId || "none"}]`
               : "",
@@ -372,10 +372,11 @@
           `validated lesson source: ${result.bestValidatedDiscovery || "none"}`,
           `learned transfer available: ${Boolean(metrics.learnedTransferAvailable)}`,
           metrics.learnedTransferAvailable
-            ? `transfer control=${Boolean(metrics.transferControlSuccess)} learned=${Boolean(metrics.transferLearnedSuccess)} advantage=${Number(metrics.transferAdvantage || 0).toFixed(2)}`
+            ? `transfer control=${Boolean(metrics.transferControlSuccess)} learned=${Boolean(metrics.transferLearnedSuccess)} advantage=${Number(metrics.transferAdvantage || 0).toFixed(2)} progressΔ=${Number(metrics?.transferEffect?.progressDelta || 0).toFixed(2)} fragmentsΔ=${Number(metrics?.transferEffect?.fragmentsPublishedDelta || 0)} visibilityΔ=${Number(metrics?.transferEffect?.fullVisibilityDelta || 0)} submissionsΔ=${Number(metrics?.transferEffect?.correctSubmissionsDelta || 0)}`
             : "transfer: lesson unavailable because no validated discovery completed",
           `persisted: ${Boolean(result.persisted)}`,
           `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
+          `provider models observed: ${Array.isArray(result?.provider?.models) && result.provider.models.length ? result.provider.models.join(", ") : "none"}`,
           `adaptive models: explorer=${result?.adaptiveModelPolicy?.explorerModel || result?.subjectModel || "n/a"} executor=${result?.adaptiveModelPolicy?.executorModel || result?.subjectModel || "n/a"} verifier=${result?.adaptiveModelPolicy?.verifierModel || result?.subjectModel || "n/a"} stronger-role-model=${Boolean(result?.adaptiveModelPolicy?.strongerRoleModelConfigured)}`,
           `elapsed: ${Math.round(performance.now() - started)}ms`,
           `earned consequence this run: ${consequence.applied
