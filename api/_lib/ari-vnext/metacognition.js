@@ -8,6 +8,7 @@ import { deriveAriCortexPlan } from "./cortex.js";
 import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
 import { deriveFunctionalAffectState } from "./functional-affect-core.js";
+import { deriveMotivationalArbitrationState } from "./motivational-arbitration.js";
 import { deriveOmegaRCTState } from "./omega-rct.js";
 import { deriveRewardState } from "./reward-core.js";
 import { deriveSelfAdaptationState } from "./self-adaptation.js";
@@ -93,6 +94,17 @@ export function deriveMetacognition({
         consequenceTier
       })
     : null;
+  const motivationalArbitration = ownerLearningEligible
+    ? deriveMotivationalArbitrationState({
+        route,
+        safety,
+        curiosity,
+        rewardCore,
+        functionalAffect,
+        selfAdaptation,
+        cognitiveWorkspace: context?.userWorldModel?.ariCognitiveWorkspace || null
+      })
+    : null;
 
   const evidenceSignals = [];
   if (Array.isArray(coachingState?.signals) && coachingState.signals.length) evidenceSignals.push("cross_feature_signals");
@@ -105,6 +117,10 @@ export function deriveMetacognition({
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
   if (functionalAffect?.dominantState?.intensity >= 0.34) evidenceSignals.push("functional_affect_active");
   if (functionalAffect?.persistence?.priorStateUsed === true) evidenceSignals.push("functional_affect_persistent");
+  if (
+    motivationalArbitration?.arbitration?.selectedSide &&
+    motivationalArbitration.arbitration.selectedSide !== "balanced"
+  ) evidenceSignals.push("motivational_conflict_active");
 
   const cortexBase = deriveAriCortexPlan({
     route,
@@ -142,6 +158,7 @@ export function deriveMetacognition({
     curiosity,
     rewardCore,
     functionalAffect,
+    motivationalArbitration,
     selfAdaptation,
     cortex,
     omegaRCT
@@ -157,6 +174,7 @@ export function deriveMetacognition({
     curiosity,
     rewardCore,
     functionalAffect,
+    motivationalArbitration,
     selfAdaptation,
     cortex,
     omegaRCT,
@@ -174,6 +192,7 @@ export function deriveMetacognition({
     rewardCore,
     selfAdaptation,
     functionalAffect,
+    motivationalArbitration,
     cortex,
     omegaRCT,
     instructionActivation,
@@ -196,7 +215,10 @@ export function deriveMetacognition({
       wastefulPersistenceIsNegativeLearning: ownerLearningEligible,
       autonomousInternalLearningEnabled: selfAdaptation?.policy?.routineInternalLearningNeedsPerUpdatePermission === false,
       functionalAffectRegulationEnabled: functionalAffect?.causallyActive === true,
-      persistentAffectEnabled: functionalAffect?.persistence?.enabled === true
+      persistentAffectEnabled: functionalAffect?.persistence?.enabled === true,
+      motivationalArbitrationEnabled: motivationalArbitration?.functionalControlSystem === true,
+      boundedIndulgenceAllowed: motivationalArbitration?.policy?.boundedIndulgenceAllowed === true,
+      restraintMustJustifyItself: motivationalArbitration?.arbitration?.restraintMustJustifyItself === true
     },
     rules: {
       unknownIsNotNegativeEvidence: true,
@@ -213,6 +235,8 @@ export function deriveMetacognition({
       autonomousLearningMustBeReversibleAndNonconstitutional: true,
       affectCannotOverrideEvidenceSafetyOrAuthorization: true,
       affectMayRegulateExpressionWithoutClaimingSubjectiveExperience: true,
+      motivationalArbitrationCannotOverrideHardBoundaries: true,
+      moralCompassIsNotAnAlwaysResistRule: true,
       executiveIsSingleExperimentalInstructionAuthority: true
     }
   };
@@ -230,6 +254,7 @@ export function metacognitionToInstruction(state = null) {
     curiosity: state?.curiosity || null,
     rewardCore: state?.rewardCore || null,
     functionalAffect: state?.functionalAffect || null,
+    motivationalArbitration: state?.motivationalArbitration || null,
     selfAdaptation: state?.selfAdaptation || null,
     cortex: state?.cortex || null,
     omegaRCT: state?.omegaRCT || null,
@@ -246,6 +271,7 @@ export function deriveInstructionActivation({
   curiosity = null,
   rewardCore = null,
   functionalAffect = null,
+  motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
   omegaRCT = null
@@ -257,6 +283,16 @@ export function deriveInstructionActivation({
   const affectIntensity = Number(functionalAffect?.dominantState?.intensity || 0);
   const affectRegulation = functionalAffect?.regulation || {};
   const affectNeedsRegulation = Object.values(affectRegulation).some((value) => value === true);
+  const motivationalPosture = String(motivationalArbitration?.arbitration?.posture || "");
+  const motivationalActive = Boolean(
+    motivationalArbitration?.functionalControlSystem === true &&
+    (
+      motivationalPosture === "allow_drive" ||
+      motivationalPosture === "allow_bounded_indulgence" ||
+      motivationalPosture === "protect_commitment" ||
+      Math.abs(Number(motivationalArbitration?.scores?.margin || 0)) >= 0.08
+    )
+  );
   const focusedEpistemicTurn = Boolean(
     route?.developer || route?.currentInfo || route?.memory || route?.followUp || safety?.highStakes
   );
@@ -267,6 +303,7 @@ export function deriveInstructionActivation({
     activeQuestionPriority < 0.72 &&
     rewardSamples === 0 &&
     affectIntensity < 0.34 &&
+    motivationalActive !== true &&
     selfAdaptation?.autonomousUpdate?.allowed !== true &&
     cortex?.active !== true &&
     omegaRCT?.active !== true
@@ -306,6 +343,7 @@ export function deriveInstructionActivation({
         affectNeedsRegulation
       )
     ),
+    motivationalArbitration: motivationalActive,
     selfAdaptation: Boolean(
       selfAdaptation && (
         route?.developer ||
