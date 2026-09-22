@@ -120,6 +120,10 @@ test("a valid meal proposal keeps the existing one-call fast path", async (t) =>
   assert.equal(result.requestUnderstanding.selectedTool, "propose_log_meal");
   assert.equal(result.requestUnderstanding.applicationAction, "log_meal");
   assert.equal(result.requestUnderstanding.hiddenChainOfThoughtStored, false);
+  assert.match(result.reply, /105 calories/i);
+  assert.match(result.reply, /1\.3g protein/i);
+  assert.match(result.reply, /27g carbs/i);
+  assert.match(result.reply, /0\.4g fat/i);
   assert.equal(requests.length, 1);
 });
 

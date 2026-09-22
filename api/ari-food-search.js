@@ -32,6 +32,61 @@ const PRIVATE_LABEL_BRANDS = [
   "kirkland", "member's mark", "members mark"
 ];
 
+export async function searchAriFoodCatalog(queryValue, options = {}) {
+  const query = cleanText(queryValue, 160);
+  const limit = clampInteger(options?.limit, 1, MAX_LIMIT, DEFAULT_LIMIT);
+  const localCount = clampInteger(options?.localCount, 0, 100, 0);
+  const allowExternal = options?.allowExternal !== false;
+
+  if (query.length < 2) {
+    return {
+      success: true,
+      query,
+      results: [],
+      catalogHits: 0,
+      externalSource: null,
+      source: "ari_food_search"
+    };
+  }
+
+  const databaseResults = await searchCatalog(query, limit);
+  let externalResults = [];
+  let externalSource = null;
+  const enoughCombinedResults =
+    databaseResults.length + localCount >= Math.min(6, limit);
+  const externalEligible =
+    allowExternal && (query.includes(" ") || query.length >= 6);
+
+  if (!enoughCombinedResults && externalEligible) {
+    const usdaKey = cleanText(process.env.USDA_FDC_API_KEY, 500);
+    if (usdaKey) {
+      externalResults = await searchUsdaBranded(query, Math.max(limit, 10), usdaKey);
+      externalSource = externalResults.length ? "usda" : null;
+    }
+    if (!externalResults.length) {
+      externalResults = await searchOpenFoodFacts(query, Math.max(limit, 12));
+      externalSource = externalResults.length ? "open_food_facts" : externalSource;
+    }
+  }
+
+  const merged = mergeAndRank(query, databaseResults, externalResults, limit);
+
+  if (externalResults.length) {
+    cacheExternalResults(externalResults.slice(0, 10)).catch((error) => {
+      console.warn("[ARI Food Search Cache Warning]", error?.message || error);
+    });
+  }
+
+  return {
+    success: true,
+    query,
+    results: merged.map(toClientFood),
+    catalogHits: databaseResults.length,
+    externalSource,
+    source: "ari_food_search"
+  };
+}
+
 export default async function handler(req, res) {
   setHeaders(res);
 
@@ -616,6 +671,7 @@ function toClientFood(food) {
       sourceUrl: food.sourceUrl || null,
       confidence: clampNumber(food.confidence, 0, 1, 0.5),
       cached: food.cached === true,
+      searchScore: Number(food.score) || 0,
       labelNutrition: food.labelNutrition || makeLabelNutrition(food)
     }
   };
@@ -699,7 +755,10 @@ function readUsdaNutrient(food, nutrientNumbers = [], names = [], requiredUnit =
 
 function getSupabaseServerConfig() {
   const url = cleanText(process.env.SUPABASE_URL, 1000).replace(/\/+$/, "");
-  const serviceRoleKey = cleanText(process.env.SUPABASE_SERVICE_ROLE_KEY, 5000);
+  const serviceRoleKey = cleanText(
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY,
+    8000
+  );
   const publicKey = cleanText(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || serviceRoleKey, 5000);
   return url ? { url, serviceRoleKey, publicKey } : null;
 }
