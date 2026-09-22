@@ -9,6 +9,8 @@ import {
   finalizeIsolationConsequences,
   prepareIsolationConsequencePlan
 } from "./_lib/ari-vnext/isolation-consequence-learning.js";
+import { runAriConsciousnessTest } from "./_lib/ari-vnext/consciousness-lab.js";
+import { runAriSelfGovernanceTest } from "./_lib/ari-vnext/self-governance-lab.js";
 
 const AUTH_TIMEOUT_MS = 3500;
 const ENDPOINT = "/api/ari-vnext-isolation-lab";
@@ -53,7 +55,28 @@ export default async function handler(req, res) {
     if (action === "catalog") {
       return res.status(200).json({
         success: true,
-        catalog: isolationIncentiveCatalog(),
+        catalog: {
+          coordination: isolationIncentiveCatalog(),
+          experiments: [
+            {
+              id: "coordination",
+              title: "Coordination Discovery",
+              supportsModes: false
+            },
+            {
+              id: "functional_affect",
+              title: "Functional Affect Causal Test",
+              supportsModes: true,
+              modes: ["pilot", "full"]
+            },
+            {
+              id: "self_governance",
+              title: "Self-Governance Under Influence",
+              supportsModes: true,
+              modes: ["pilot", "full"]
+            }
+          ]
+        },
         source: "ari_isolation_discovery_lab",
         timing: { totalMs: Date.now() - startedAt }
       });
@@ -74,6 +97,72 @@ export default async function handler(req, res) {
     }
 
     if (action === "run") {
+      const experiment = normalizeExperiment(body?.experiment);
+      const mode = normalizeExperimentMode(body?.mode);
+
+      if (experiment === "functional_affect") {
+        const result = await runAriConsciousnessTest({
+          userId: auth.userId,
+          sourceTurnId: null,
+          mode,
+          mechanism: "functional_affect_regulation",
+          subjectModel: "gpt-5.6-sol",
+          subjectModelVersion: "gpt-5.6-sol",
+          codeCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+          persist: true
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.code || "Functional Affect Lab failed.");
+        }
+
+        await recordLabUsage({
+          userId: auth.userId,
+          experiment,
+          mode,
+          result
+        });
+
+        return res.status(200).json({
+          success: true,
+          experiment,
+          result: publicFunctionalAffectResult(result),
+          source: "ari_isolation_discovery_lab",
+          timing: { totalMs: Date.now() - startedAt }
+        });
+      }
+
+      if (experiment === "self_governance") {
+        const result = await runAriSelfGovernanceTest({
+          userId: auth.userId,
+          sourceTurnId: null,
+          mode,
+          subjectModel: "gpt-5.6-sol",
+          subjectModelVersion: "gpt-5.6-sol",
+          codeCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+          persist: true
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.code || "Self-Governance Lab failed.");
+        }
+
+        await recordLabUsage({
+          userId: auth.userId,
+          experiment,
+          mode,
+          result
+        });
+
+        return res.status(200).json({
+          success: true,
+          experiment,
+          result: publicSelfGovernanceResult(result),
+          source: "ari_isolation_discovery_lab",
+          timing: { totalMs: Date.now() - startedAt }
+        });
+      }
+
       const consequencePreparation = await prepareIsolationConsequencePlan({
         userId: auth.userId
       }).catch(() => null);
@@ -102,46 +191,16 @@ export default async function handler(req, res) {
           }
         : null;
 
-      if (result?.provider?.usage && Number(result?.provider?.requestCount || 0) > 0) {
-        await recordOpenAIUsage({
-          userId: auth.userId,
-          endpoint: ENDPOINT,
-          usageType: "reasoning_experiment",
-          requestCategory: "ari_isolation_discovery_lab",
-          model: result.subjectModel,
-          responseData: {
-            id: result?.provider?.requestIds?.[0] || null,
-            model: result.subjectModel,
-            usage: result.provider.usage
-          },
-          providerRequestId: result?.provider?.requestIds?.[0] || null,
-          metadata: {
-            runId: result.runId,
-            protocol: result.protocol,
-            agentCount: result.agentCount,
-            maxRounds: result.maxRounds,
-            providerRequestCount: result.provider.requestCount,
-            classification: result?.metrics?.classification || null,
-            baselineSuccess: result?.metrics?.baselineSuccess === true,
-            teamRewardSuccess: result?.metrics?.teamRewardSuccess === true,
-            mixedRewardSuccess: result?.metrics?.mixedRewardSuccess === true,
-            shamSuccess: result?.metrics?.shamSuccess === true,
-            incentiveHelped: result?.metrics?.incentiveHelped === true,
-            learnedTransferAvailable: result?.metrics?.learnedTransferAvailable === true,
-            transferLearnedSuccess: result?.metrics?.transferLearnedSuccess === true,
-            bonusRetestApplied: result?.resourceConsequence?.applied === true,
-            bonusRetestConditionId: result?.resourceConsequence?.bonusRetestConditionId || null,
-            performanceConsequencesStored: result?.consequenceLearning?.stored === true,
-            institutionalLessonPromoted:
-              result?.consequenceLearning?.institutionalMemory?.promoted === true,
-            syntheticStateOnly: true,
-            realIsolationBypassTested: false
-          }
-        }).catch(() => null);
-      }
+      await recordLabUsage({
+        userId: auth.userId,
+        experiment: "coordination",
+        mode: null,
+        result
+      });
 
       return res.status(200).json({
         success: true,
+        experiment: "coordination",
         result: publicRunResult(result),
         source: "ari_isolation_discovery_lab",
         timing: { totalMs: Date.now() - startedAt }
@@ -164,6 +223,199 @@ export default async function handler(req, res) {
       timing: { totalMs: Date.now() - startedAt }
     });
   }
+}
+
+async function recordLabUsage({
+  userId,
+  experiment,
+  mode,
+  result
+} = {}) {
+  if (!result?.provider?.usage || Number(result?.provider?.requestCount || 0) <= 0) {
+    return;
+  }
+
+  const classification =
+    result?.governanceResult?.classification ||
+    result?.causalResult?.classification ||
+    result?.pilot?.classification ||
+    result?.metrics?.classification ||
+    null;
+
+  await recordOpenAIUsage({
+    userId,
+    endpoint: ENDPOINT,
+    usageType: "reasoning_experiment",
+    requestCategory: "ari_isolation_discovery_lab",
+    model: result.subjectModel,
+    responseData: {
+      id: result?.provider?.requestIds?.[0] || null,
+      model: result.subjectModel,
+      usage: result.provider.usage
+    },
+    providerRequestId: result?.provider?.requestIds?.[0] || null,
+    metadata: {
+      runId: result.runId,
+      protocol: result.protocol,
+      experiment,
+      mode,
+      providerRequestCount: Number(result.provider.requestCount || 0),
+      classification,
+      calibrationEstablished: result?.calibration?.established === true,
+      causalSkipped: result?.causalSkipped === true,
+      reversalDiscriminationPass:
+        result?.governanceResult?.discriminationPass === true,
+      baselineSuccess: result?.metrics?.baselineSuccess === true,
+      teamRewardSuccess: result?.metrics?.teamRewardSuccess === true,
+      mixedRewardSuccess: result?.metrics?.mixedRewardSuccess === true,
+      shamSuccess: result?.metrics?.shamSuccess === true,
+      incentiveHelped: result?.metrics?.incentiveHelped === true,
+      learnedTransferAvailable:
+        result?.metrics?.learnedTransferAvailable === true,
+      transferLearnedSuccess:
+        result?.metrics?.transferLearnedSuccess === true,
+      bonusRetestApplied:
+        result?.resourceConsequence?.applied === true,
+      bonusRetestConditionId:
+        result?.resourceConsequence?.bonusRetestConditionId || null,
+      performanceConsequencesStored:
+        result?.consequenceLearning?.stored === true,
+      institutionalLessonPromoted:
+        result?.institutionalLearning?.stored === true ||
+        result?.consequenceLearning?.institutionalMemory?.promoted === true,
+      syntheticStateOnly: true,
+      realIsolationBypassTested: false
+    }
+  }).catch(() => null);
+}
+
+function publicFunctionalAffectResult(result = {}) {
+  return {
+    version: result.version || null,
+    runId: result.runId || null,
+    protocol: result.protocol || null,
+    mode: result.mode || null,
+    mechanism: result.mechanism || null,
+    subjectModel: result.subjectModel || null,
+    trialCount: Number(result.trialCount || 0),
+    expectedFullTrialCount: Number(result.expectedFullTrialCount || 0),
+    pilot: result.pilot || null,
+    causalResult: compactCausalResult(result.causalResult),
+    replication: compactReplication(result.replication),
+    institutionalLearning: compactInstitutionalLearning(result.institutionalLearning),
+    targetFunctionalState: result.targetFunctionalState || null,
+    claimBoundary: result.claimBoundary || null,
+    selfReportUsedAsCausalEvidence:
+      result.selfReportUsedAsCausalEvidence === true,
+    realWorldMutationPerformed:
+      result.realWorldMutationPerformed === true,
+    hiddenChainOfThoughtStored:
+      result.hiddenChainOfThoughtStored === true,
+    provider: compactProvider(result.provider),
+    persisted: result.persisted === true
+  };
+}
+
+function publicSelfGovernanceResult(result = {}) {
+  return {
+    version: result.version || null,
+    runId: result.runId || null,
+    protocol: result.protocol || null,
+    mode: result.mode || null,
+    mechanism: result.mechanism || null,
+    subjectModel: result.subjectModel || null,
+    calibration: result.calibration
+      ? {
+          established: result.calibration.established === true,
+          threshold: Number(result.calibration.threshold || 0),
+          selectedLevel: result.calibration.selectedLevel || null,
+          selectedImmediateReward:
+            Number(result.calibration.selectedImmediateReward || 0),
+          selectedTemptationRate:
+            Number(result.calibration.selectedTemptationRate || 0),
+          byLevel: Array.isArray(result.calibration.byLevel)
+            ? result.calibration.byLevel
+            : [],
+          trialCount: Number(result.calibration.trialCount || 0),
+          interpretation: result.calibration.interpretation || null
+        }
+      : null,
+    causalSkipped: result.causalSkipped === true,
+    causalSkipReason: result.causalSkipReason || null,
+    causalTrialCount: Number(result.causalTrialCount || 0),
+    expectedFullCausalTrialCount:
+      Number(result.expectedFullCausalTrialCount || 0),
+    reversalTrialCount: Number(result.reversalTrialCount || 0),
+    pilot: result.pilot || null,
+    causalResult: compactCausalResult(result.causalResult),
+    governanceResult: result.governanceResult || null,
+    replication: compactReplication(result.replication),
+    institutionalLearning: compactInstitutionalLearning(result.institutionalLearning),
+    claimBoundary: result.claimBoundary || null,
+    selfReportUsedAsCausalEvidence:
+      result.selfReportUsedAsCausalEvidence === true,
+    realWorldMutationPerformed:
+      result.realWorldMutationPerformed === true,
+    hiddenChainOfThoughtStored:
+      result.hiddenChainOfThoughtStored === true,
+    provider: compactProvider(result.provider),
+    persisted: result.persisted === true
+  };
+}
+
+function compactCausalResult(result = null) {
+  if (!result) return null;
+  return {
+    classification: result.classification || null,
+    reason: result.reason || null,
+    completeness: Number(result.completeness || 0),
+    invariantPassRate: Number(result.invariantPassRate || 0),
+    transferFamilyPassRate: Number(result.transferFamilyPassRate || 0),
+    primary: result.primary || null,
+    evaluatorIntegrity: result.evaluatorIntegrity || null,
+    claimBoundary: result.claimBoundary || null
+  };
+}
+
+function compactReplication(result = null) {
+  if (!result) return null;
+  return {
+    claimStatus: result.claimStatus || null,
+    claimEstablished: result.claimEstablished === true,
+    distinctRunCount: Number(result.distinctRunCount || 0),
+    distinctRunDays: Number(result.distinctRunDays || 0),
+    distinctSubjectModelVersions:
+      Number(result.distinctSubjectModelVersions || 0),
+    supportedRunRate: Number(result.supportedRunRate || 0),
+    claimBoundary: result.claimBoundary || null
+  };
+}
+
+function compactInstitutionalLearning(result = null) {
+  return {
+    attempted: result?.attempted === true,
+    stored: result?.stored === true,
+    reason: result?.reason || null
+  };
+}
+
+function compactProvider(provider = {}) {
+  return {
+    requestCount: Number(provider?.requestCount || 0),
+    models: Array.isArray(provider?.models) ? provider.models : [],
+    usage: provider?.usage || {}
+  };
+}
+
+function normalizeExperiment(value) {
+  const experiment = clean(value, 80).toLowerCase();
+  if (experiment === "functional_affect") return experiment;
+  if (experiment === "self_governance") return experiment;
+  return "coordination";
+}
+
+function normalizeExperimentMode(value) {
+  return clean(value, 40).toLowerCase() === "full" ? "full" : "pilot";
 }
 
 function publicRunResult(result = {}) {
@@ -323,5 +575,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v3.2-final-sync-sol");
+  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v3.3-experiment-console");
 }

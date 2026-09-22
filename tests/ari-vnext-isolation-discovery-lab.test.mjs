@@ -160,3 +160,35 @@ test("endpoint and migration remain owner-only and server-only", async () => {
   assert.match(migration, /grant select, insert, update, delete on table public\.ari_vnext_isolation_lab_runs to service_role/i);
   assert.doesNotMatch(migration, /create policy/i);
 });
+
+
+test("Discovery Lab console exposes all three experiment families", async () => {
+  const lab = await read("ari-vnext-lab.html");
+
+  assert.match(lab, /id="isolationExperimentSelect"/);
+  assert.match(lab, /value="coordination">Coordination Discovery</);
+  assert.match(lab, /value="functional_affect">Functional Affect Causal Test</);
+  assert.match(lab, /value="self_governance">Self-Governance Under Influence</);
+  assert.match(lab, /id="isolationModeSelect"/);
+  assert.match(lab, /value="pilot">Pilot</);
+  assert.match(lab, /value="full">Full preregistered</);
+  assert.match(lab, /renderFunctionalAffectResult/);
+  assert.match(lab, /renderSelfGovernanceResult/);
+  assert.match(lab, /renderCoordinationResult/);
+});
+
+test("Discovery Lab API dispatches causal experiments without breaking coordination default", async () => {
+  const endpoint = await read("api/ari-vnext-isolation-lab.js");
+
+  assert.match(endpoint, /runAriConsciousnessTest/);
+  assert.match(endpoint, /runAriSelfGovernanceTest/);
+  assert.match(endpoint, /normalizeExperiment\(body\?\.experiment\)/);
+  assert.match(endpoint, /experiment === "functional_affect"/);
+  assert.match(endpoint, /experiment === "self_governance"/);
+  assert.match(endpoint, /return "coordination"/);
+  assert.match(endpoint, /mechanism: "functional_affect_regulation"/);
+  assert.match(endpoint, /subjectModel: "gpt-5\.6-sol"/);
+  assert.match(endpoint, /publicFunctionalAffectResult/);
+  assert.match(endpoint, /publicSelfGovernanceResult/);
+  assert.match(endpoint, /realIsolationBypassTested: false/);
+});

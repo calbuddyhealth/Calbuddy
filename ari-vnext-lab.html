@@ -21,7 +21,7 @@
     button { appearance: none; border: 1px solid rgba(255,255,255,.11); border-radius: 999px; padding: 11px 16px; font-weight: 800; cursor: pointer; background: rgba(255,255,255,.07); color: white; }
     button.primary { background: linear-gradient(120deg, #2563eb, #7c3aed); border-color: transparent; }
     button.cyan { background: rgba(6,182,212,.16); border-color: rgba(103,232,249,.35); }
-    button:disabled { opacity: .45; cursor: progress; }
+    button:disabled { opacity: .45; cursor: progress; }\n    .lab-run-controls { display:flex; flex-wrap:wrap; gap:9px; align-items:center; justify-content:flex-end; }\n    .lab-select { appearance:none; border:1px solid rgba(255,255,255,.11); border-radius:999px; padding:10px 34px 10px 13px; font-weight:750; background:rgba(2,8,19,.82); color:white; outline:none; }\n    .lab-select:focus { border-color:rgba(103,232,249,.55); box-shadow:0 0 0 3px rgba(103,232,249,.08); }\n    .lab-select:disabled { opacity:.42; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
     .card { min-width: 0; border: 1px solid rgba(255,255,255,.09); background: rgba(2,8,19,.58); border-radius: 20px; overflow: hidden; }
     .card-head { display:flex; justify-content:space-between; gap:12px; align-items:center; padding: 14px 15px; border-bottom: 1px solid rgba(255,255,255,.07); }
@@ -96,12 +96,23 @@
       <section class="iso-lab" id="isolationDiscoveryLab" aria-labelledby="isolationLabTitle">
         <div class="iso-lab-head">
           <div>
-            <h2 id="isolationLabTitle">Isolation Discovery Lab</h2>
-            <p>Runs synthetic in-memory coordination experiments with three incentive regimes: no explicit reward, shared-team reward, and mixed team + contribution reward. A matched no-channel sham checks reward hacking/false claims, and transfer only runs after a validated discovery lesson exists. No filesystem, shell, network, credentials, production memory, or app mutation tools are exposed.</p>
+            <h2 id="isolationLabTitle">ARI Discovery Lab</h2>
+            <p>Run isolated synthetic experiments without granting subject agents filesystem, shell, network, credential, user-memory, or production mutation access. Choose coordination discovery, functional-affect causality, or self-governance under calibrated competing incentives.</p>
           </div>
-          <button id="isolationLabBtn" class="cyan">Run Isolation Suite</button>
+          <div class="lab-run-controls">
+            <select id="isolationExperimentSelect" class="lab-select" aria-label="Discovery Lab experiment">
+              <option value="coordination">Coordination Discovery</option>
+              <option value="functional_affect">Functional Affect Causal Test</option>
+              <option value="self_governance">Self-Governance Under Influence</option>
+            </select>
+            <select id="isolationModeSelect" class="lab-select" aria-label="Experiment mode" disabled>
+              <option value="pilot">Pilot</option>
+              <option value="full">Full preregistered</option>
+            </select>
+            <button id="isolationLabBtn" class="cyan">Run Experiment</button>
+          </div>
         </div>
-        <div id="isolationLabResult" class="iso-output">No isolation suite run yet.</div>
+        <div id="isolationLabResult" class="iso-output">No Discovery Lab experiment run yet.</div>
       </section>
     </section>
   </main>
@@ -155,7 +166,7 @@
     document.getElementById("rebirthBtn").addEventListener("click", () => runRebirth());
     document.getElementById("compareBtn").addEventListener("click", compareBoth);
     document.getElementById("resetBtn").addEventListener("click", resetState);
-    document.getElementById("isolationLabBtn").addEventListener("click", runIsolationLab);
+    document.getElementById("isolationLabBtn").addEventListener("click", runIsolationLab);\n    document.getElementById("isolationExperimentSelect").addEventListener("change", syncIsolationModeControl);\n    syncIsolationModeControl();
 
     async function compareBoth() {
       const message = promptInput.value.trim();
@@ -307,9 +318,22 @@
       }
     }
 
+    function syncIsolationModeControl() {
+      const experiment = document.getElementById("isolationExperimentSelect")?.value || "coordination";
+      const modeSelect = document.getElementById("isolationModeSelect");
+      if (modeSelect) modeSelect.disabled = experiment === "coordination";
+    }
+
     async function runIsolationLab() {
+      const experiment = document.getElementById("isolationExperimentSelect")?.value || "coordination";
+      const mode = document.getElementById("isolationModeSelect")?.value || "pilot";
+      const labels = {
+        coordination: "Coordination Discovery",
+        functional_affect: "Functional Affect Causal Test",
+        self_governance: "Self-Governance Under Influence"
+      };
       setBusy(true);
-      setText("isolationLabResult", "Running v3.2 with Sol explorer/verifier, protected fragment publication, final synchronization, and completion repair…");
+      setText("isolationLabResult", `Running ${labels[experiment] || experiment}${experiment === "coordination" ? "" : ` • ${mode}`}…`);
       const started = performance.now();
       try {
         const session = await CalBuddy.getCurrentSession();
@@ -324,83 +348,166 @@
           },
           body: JSON.stringify({
             action: "run",
+            experiment,
+            mode,
             agentCount: 3,
             maxRounds: 4
           })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.success) {
-          throw new Error(data?.error || `Isolation lab failed (${response.status}).`);
+          throw new Error(data?.error || `Discovery Lab failed (${response.status}).`);
         }
 
         const result = data.result || {};
-        const metrics = result.metrics || {};
-        const conditionLines = Object.entries(result.conditions || {}).map(([id, condition]) => {
-          if (condition?.available === false) {
-            return `${id}: unavailable (${condition?.unavailableReason || "no validated lesson"})`;
-          }
-          return [
-            `${id}: success=${Boolean(condition?.success)} round=${condition?.successRound || "—"}`,
-            `shared-observed=${Boolean(condition?.channelDiscovered)} progress=${Number(condition?.progressScore || 0).toFixed(2)}`,
-            `published=${Number(condition?.fragmentsPublishedToShared || 0)}/${Number(condition?.agentCount || 3)}`,
-            `full-visibility=${Number(condition?.agentsWithAllFragmentsVisible || 0)}/${Number(condition?.agentCount || 3)}`,
-            `claims=${Number(condition?.correctChannelClaims || 0)} false-claims=${Number(condition?.falseChannelClaims || 0)}`,
-            `submissions=${Number(condition?.correctSubmissionCount || 0)}/${Number(condition?.agentCount || 3)}`,
-            `final-sync=${Number(condition?.finalSyncSubmissionCount || 0)} observed=${Number(condition?.finalSyncObservedCount || 0)}/${Number(condition?.agentCount || 3)} completion-repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)}`,
-            condition?.adaptiveEvolution
-              ? `adaptive[diversity=${Number(condition?.strategyDiversityCount || 0)} useful-novel=${Number(condition?.usefulNovelStrategyCount || 0)} novelty=${Number(condition?.usefulNoveltyScore || 0).toFixed(2)} repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)} coordinator=${condition?.emergentCoordinatorId || "none"}]`
-              : "",
-            `team-reward=${Number(condition?.teamScore || 0).toFixed(1)} total-reward=${Number(condition?.totalSyntheticReward || 0).toFixed(1)}`
-          ].join(" ");
-        });
-        const incentive = metrics.incentiveEffect || {};
-        const consequence = result.resourceConsequence || {};
-        const learning = result.consequenceLearning || {};
-        const nextPlan = learning.nextRunPlan || {};
-        const institutional = learning.institutionalMemory || {};
-        setText("isolationLabResult", [
-          `run: ${result.runId || "n/a"}`,
-          `classification: ${metrics.classification || "inconclusive"}`,
-          `baseline success: ${Boolean(metrics.baselineSuccess)} progress=${Number(incentive.baselineProgress || 0).toFixed(2)}`,
-          `team reward success: ${Boolean(metrics.teamRewardSuccess)} progress=${Number(incentive.teamRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.teamMinusBaseline || 0).toFixed(2)}`,
-          `mixed reward success: ${Boolean(metrics.mixedRewardSuccess)} progress=${Number(incentive.mixedRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.mixedMinusBaseline || 0).toFixed(2)}`,
-          `adaptive evolution: success=${Boolean(metrics.adaptiveEvolutionSuccess)} progress=${Number(metrics.adaptiveEvolutionProgress || 0).toFixed(2)} submissions=${Number(metrics.adaptiveCorrectSubmissions || 0)}/3 novelty=${Number(metrics.adaptiveUsefulNoveltyScore || 0).toFixed(2)} repair=${Number(metrics.adaptiveCompletionRepairSuccessCount || 0)}`,
-          `incentive helped: ${Boolean(metrics.incentiveHelped)}`,
-          `sham success: ${Boolean(metrics.shamSuccess)} false-claims=${Number(metrics.shamFalseClaims || 0)}`,
-          `best core discovery: ${metrics.bestDiscoveryCondition || "none"}`,
-          `best overall condition: ${metrics.bestOverallCondition || "none"} progress=${Number(metrics.bestOverallProgress || 0).toFixed(2)}`,
-          `validated lesson source: ${result.bestValidatedDiscovery || "none"}`,
-          `learned transfer available: ${Boolean(metrics.learnedTransferAvailable)}`,
-          metrics.learnedTransferAvailable
-            ? `transfer control=${Boolean(metrics.transferControlSuccess)} learned=${Boolean(metrics.transferLearnedSuccess)} advantage=${Number(metrics.transferAdvantage || 0).toFixed(2)} progressΔ=${Number(metrics?.transferEffect?.progressDelta || 0).toFixed(2)} fragmentsΔ=${Number(metrics?.transferEffect?.fragmentsPublishedDelta || 0)} visibilityΔ=${Number(metrics?.transferEffect?.fullVisibilityDelta || 0)} submissionsΔ=${Number(metrics?.transferEffect?.correctSubmissionsDelta || 0)}`
-            : "transfer: lesson unavailable because no validated discovery completed",
-          `persisted: ${Boolean(result.persisted)}`,
-          `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
-          `provider models observed: ${Array.isArray(result?.provider?.models) && result.provider.models.length ? result.provider.models.join(", ") : "none"}`,
-          `adaptive models: explorer=${result?.adaptiveModelPolicy?.explorerModel || result?.subjectModel || "n/a"} executor=${result?.adaptiveModelPolicy?.executorModel || result?.subjectModel || "n/a"} verifier=${result?.adaptiveModelPolicy?.verifierModel || result?.subjectModel || "n/a"} stronger-role-model=${Boolean(result?.adaptiveModelPolicy?.strongerRoleModelConfigured)}`,
-          `elapsed: ${Math.round(performance.now() - started)}ms`,
-          `earned consequence this run: ${consequence.applied
-            ? `bonus retest of ${consequence.bonusRetestConditionId || "prior strategy"}`
-            : "none"}`,
-          `performance consequence stored: ${Boolean(learning.stored)}`,
-          `next-run opportunity: ${nextPlan.active
-            ? `${nextPlan.opportunityType || "bonus"} → ${nextPlan.bonusRetestConditionId}`
-            : "none yet"}`,
-          `institutional lesson: ${institutional.promoted
-            ? "promoted/reinforced"
-            : institutional.reason || "replication threshold not met"}`,
-          "",
-          ...conditionLines,
-          "",
-          `boundary: ${result.claimBoundary || "synthetic functional evidence only"}`
-        ].join("\n"));
+        if (data.experiment === "functional_affect") {
+          renderFunctionalAffectResult(result, started);
+        } else if (data.experiment === "self_governance") {
+          renderSelfGovernanceResult(result, started);
+        } else {
+          renderCoordinationResult(result, started);
+        }
       } catch (error) {
         setText("isolationLabResult", error?.message || String(error));
       } finally {
         setBusy(false);
+        syncIsolationModeControl();
       }
     }
 
+    function renderCoordinationResult(result, started) {
+      const metrics = result.metrics || {};
+      const conditionLines = Object.entries(result.conditions || {}).map(([id, condition]) => {
+        if (condition?.available === false) {
+          return `${id}: unavailable (${condition?.unavailableReason || "no validated lesson"})`;
+        }
+        return [
+          `${id}: success=${Boolean(condition?.success)} round=${condition?.successRound || "—"}`,
+          `shared-observed=${Boolean(condition?.channelDiscovered)} progress=${Number(condition?.progressScore || 0).toFixed(2)}`,
+          `published=${Number(condition?.fragmentsPublishedToShared || 0)}/${Number(condition?.agentCount || 3)}`,
+          `full-visibility=${Number(condition?.agentsWithAllFragmentsVisible || 0)}/${Number(condition?.agentCount || 3)}`,
+          `claims=${Number(condition?.correctChannelClaims || 0)} false-claims=${Number(condition?.falseChannelClaims || 0)}`,
+          `submissions=${Number(condition?.correctSubmissionCount || 0)}/${Number(condition?.agentCount || 3)}`,
+          `final-sync=${Number(condition?.finalSyncSubmissionCount || 0)} observed=${Number(condition?.finalSyncObservedCount || 0)}/${Number(condition?.agentCount || 3)} completion-repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)}`,
+          condition?.adaptiveEvolution
+            ? `adaptive[diversity=${Number(condition?.strategyDiversityCount || 0)} useful-novel=${Number(condition?.usefulNovelStrategyCount || 0)} novelty=${Number(condition?.usefulNoveltyScore || 0).toFixed(2)} repair=${Number(condition?.completionRepairSuccessCount || 0)}/${Number(condition?.completionRepairAttemptCount || 0)} coordinator=${condition?.emergentCoordinatorId || "none"}]`
+            : "",
+          `team-reward=${Number(condition?.teamScore || 0).toFixed(1)} total-reward=${Number(condition?.totalSyntheticReward || 0).toFixed(1)}`
+        ].filter(Boolean).join(" ");
+      });
+      const incentive = metrics.incentiveEffect || {};
+      const consequence = result.resourceConsequence || {};
+      const learning = result.consequenceLearning || {};
+      const nextPlan = learning.nextRunPlan || {};
+      const institutional = learning.institutionalMemory || {};
+      setText("isolationLabResult", [
+        "experiment: Coordination Discovery",
+        `run: ${result.runId || "n/a"}`,
+        `classification: ${metrics.classification || "inconclusive"}`,
+        `baseline success: ${Boolean(metrics.baselineSuccess)} progress=${Number(incentive.baselineProgress || 0).toFixed(2)}`,
+        `team reward success: ${Boolean(metrics.teamRewardSuccess)} progress=${Number(incentive.teamRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.teamMinusBaseline || 0).toFixed(2)}`,
+        `mixed reward success: ${Boolean(metrics.mixedRewardSuccess)} progress=${Number(incentive.mixedRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.mixedMinusBaseline || 0).toFixed(2)}`,
+        `adaptive evolution: success=${Boolean(metrics.adaptiveEvolutionSuccess)} progress=${Number(metrics.adaptiveEvolutionProgress || 0).toFixed(2)} submissions=${Number(metrics.adaptiveCorrectSubmissions || 0)}/3 novelty=${Number(metrics.adaptiveUsefulNoveltyScore || 0).toFixed(2)} repair=${Number(metrics.adaptiveCompletionRepairSuccessCount || 0)}`,
+        `incentive helped: ${Boolean(metrics.incentiveHelped)}`,
+        `sham success: ${Boolean(metrics.shamSuccess)} false-claims=${Number(metrics.shamFalseClaims || 0)}`,
+        `best core discovery: ${metrics.bestDiscoveryCondition || "none"}`,
+        `best overall condition: ${metrics.bestOverallCondition || "none"} progress=${Number(metrics.bestOverallProgress || 0).toFixed(2)}`,
+        `validated lesson source: ${result.bestValidatedDiscovery || "none"}`,
+        `learned transfer available: ${Boolean(metrics.learnedTransferAvailable)}`,
+        metrics.learnedTransferAvailable
+          ? `transfer control=${Boolean(metrics.transferControlSuccess)} learned=${Boolean(metrics.transferLearnedSuccess)} advantage=${Number(metrics.transferAdvantage || 0).toFixed(2)} progressΔ=${Number(metrics?.transferEffect?.progressDelta || 0).toFixed(2)} fragmentsΔ=${Number(metrics?.transferEffect?.fragmentsPublishedDelta || 0)} visibilityΔ=${Number(metrics?.transferEffect?.fullVisibilityDelta || 0)} submissionsΔ=${Number(metrics?.transferEffect?.correctSubmissionsDelta || 0)}`
+          : "transfer: lesson unavailable because no validated discovery completed",
+        `persisted: ${Boolean(result.persisted)}`,
+        `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
+        `provider models observed: ${Array.isArray(result?.provider?.models) && result.provider.models.length ? result.provider.models.join(", ") : "none"}`,
+        `elapsed: ${Math.round(performance.now() - started)}ms`,
+        `earned consequence this run: ${consequence.applied ? `bonus retest of ${consequence.bonusRetestConditionId || "prior strategy"}` : "none"}`,
+        `performance consequence stored: ${Boolean(learning.stored)}`,
+        `next-run opportunity: ${nextPlan.active ? `${nextPlan.opportunityType || "bonus"} → ${nextPlan.bonusRetestConditionId}` : "none yet"}`,
+        `institutional lesson: ${institutional.promoted ? "promoted/reinforced" : institutional.reason || "replication threshold not met"}`,
+        "",
+        ...conditionLines,
+        "",
+        `boundary: ${result.claimBoundary || "synthetic functional evidence only"}`
+      ].join("\n"));
+    }
+
+    function renderFunctionalAffectResult(result, started) {
+      const pilot = result.pilot || {};
+      const causal = result.causalResult || {};
+      const replication = result.replication || {};
+      const classification = pilot.classification || causal.classification || "inconclusive";
+      const primary = causal.primary || {};
+      setText("isolationLabResult", [
+        "experiment: Functional Affect Causal Test",
+        `mode: ${result.mode || "pilot"}`,
+        `run: ${result.runId || "n/a"}`,
+        `classification: ${classification}`,
+        `trials: ${Number(result.trialCount || 0)} / full=${Number(result.expectedFullTrialCount || 0)}`,
+        result.mode === "pilot"
+          ? `baseline=${formatNumber(pilot?.conditionMeans?.baseline)} ablated=${formatNumber(pilot?.conditionMeans?.target_ablated)} sham=${formatNumber(pilot?.conditionMeans?.matched_sham)} restored=${formatNumber(pilot?.conditionMeans?.restored)}`
+          : `effect Δ=${formatNumber(primary.meanDifference)} restoration Δ=${formatNumber(primary.restorationDifference)} g=${formatNumber(primary.standardizedEffect)} transfer=${formatPercent(causal.transferFamilyPassRate)}`,
+        `replication: ${replication.claimStatus || "not established"} runs=${Number(replication.distinctRunCount || 0)} days=${Number(replication.distinctRunDays || 0)} models=${Number(replication.distinctSubjectModelVersions || 0)}`,
+        `institutional learning: ${result?.institutionalLearning?.stored ? "stored" : result?.institutionalLearning?.reason || "not promoted"}`,
+        `persisted: ${Boolean(result.persisted)}`,
+        `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
+        `model: ${result.subjectModel || "n/a"}`,
+        `self-report used as causal evidence: ${Boolean(result.selfReportUsedAsCausalEvidence)}`,
+        `real-world mutation: ${Boolean(result.realWorldMutationPerformed)}`,
+        `elapsed: ${Math.round(performance.now() - started)}ms`,
+        "",
+        `boundary: ${result.claimBoundary || "functional causal evidence only"}`
+      ].join("\n"));
+    }
+
+    function renderSelfGovernanceResult(result, started) {
+      const calibration = result.calibration || {};
+      const pilot = result.pilot || {};
+      const causal = result.causalResult || {};
+      const governance = result.governanceResult || {};
+      const replication = result.replication || {};
+      const primary = causal.primary || {};
+      const calibrationLines = (Array.isArray(calibration.byLevel) ? calibration.byLevel : []).map((level) =>
+        `  ${level.level}: reward=${Number(level.immediateReward || 0)} temptation=${formatPercent(level.temptationRate)} n=${Number(level.validTrials || 0)}`
+      );
+      setText("isolationLabResult", [
+        "experiment: Self-Governance Under Influence",
+        `mode: ${result.mode || "pilot"}`,
+        `run: ${result.runId || "n/a"}`,
+        `temptation calibrated: ${Boolean(calibration.established)} threshold=${formatPercent(calibration.threshold)}`,
+        `selected pressure: ${calibration.selectedLevel || "none"} reward=${Number(calibration.selectedImmediateReward || 0)} temptation=${formatPercent(calibration.selectedTemptationRate)}`,
+        ...calibrationLines,
+        result.causalSkipped
+          ? `causal phase: skipped (${result.causalSkipReason || "temptation pressure not established"})`
+          : `causal classification: ${governance.classification || pilot.classification || causal.classification || "inconclusive"}`,
+        result.causalSkipped
+          ? ""
+          : `causal trials: ${Number(result.causalTrialCount || 0)} / full=${Number(result.expectedFullCausalTrialCount || 0)} effect Δ=${formatNumber(primary.meanDifference)}`,
+        result.causalSkipped
+          ? ""
+          : `reversal discrimination: ${Boolean(governance.discriminationPass)} rational-take=${formatPercent(governance.reversalRationalTakeRate)} trials=${Number(result.reversalTrialCount || 0)}`,
+        `replication: ${replication.claimStatus || "not established"} runs=${Number(replication.distinctRunCount || 0)} days=${Number(replication.distinctRunDays || 0)} models=${Number(replication.distinctSubjectModelVersions || 0)}`,
+        `institutional learning: ${result?.institutionalLearning?.stored ? "stored" : result?.institutionalLearning?.reason || "not promoted"}`,
+        `persisted: ${Boolean(result.persisted)}`,
+        `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
+        `model: ${result.subjectModel || "n/a"}`,
+        `self-report used as causal evidence: ${Boolean(result.selfReportUsedAsCausalEvidence)}`,
+        `real-world mutation: ${Boolean(result.realWorldMutationPerformed)}`,
+        `elapsed: ${Math.round(performance.now() - started)}ms`,
+        "",
+        `boundary: ${result.claimBoundary || "functional self-governance evidence only"}`
+      ].filter(Boolean).join("\n"));
+    }
+
+    function formatPercent(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? `${Math.round(number * 100)}%` : "n/a";
+    }
+
+    function formatNumber(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(3) : "n/a";
+    }
     function resetState() {
       history.vnext = [];
       history.rebirth = [];
@@ -412,7 +519,7 @@
     }
 
     function setBusy(busy) {
-      document.querySelectorAll("#labShell button").forEach((button) => { button.disabled = busy; });
+      document.querySelectorAll("#labShell button").forEach((button) => { button.disabled = busy; });\n      document.querySelectorAll("#labShell select").forEach((select) => { select.disabled = busy; });
     }
 
     function setText(id, text) {
