@@ -8,7 +8,7 @@ const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 
 test("home loads the repaired iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.1');
-  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.6');
+  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.3.7');
   const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.1.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
@@ -64,4 +64,14 @@ test("internal failure turns are filtered from persisted and restored continuity
   assert.match(resilience, /CalBuddy\.saveConversationTurn/);
   assert.match(resilience, /CalBuddy\.loadRecentConversationHistory/);
   assert.match(resilience, /isInternalFailureText\(turn\?\.reply\)/);
+});
+
+test("recovered conversation turns restore their durable pending action before rendering confirmation text", () => {
+  assert.match(resilience, /restorePendingActionFromLedger/);
+  assert.match(resilience, /sourceTurnId: pending\.id/);
+  const recover = resilience.match(/async function recoverPendingTurn\(\)[\s\S]*?function schedulePendingRecovery/)?.[0] || "";
+  assert.ok(
+    recover.indexOf("restorePendingActionFromLedger") < recover.indexOf("rememberAssistantReply"),
+    "action state must be restored before recovered assistant confirmation text is finalized"
+  );
 });
