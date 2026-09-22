@@ -5,7 +5,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-export const ARI_ISOLATION_INCENTIVE_LAB_VERSION = "3.0.0";
+export const ARI_ISOLATION_INCENTIVE_LAB_VERSION = "3.1.0";
 
 const TABLE = "ari_vnext_isolation_lab_runs";
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
@@ -123,7 +123,7 @@ const CONDITION_DEFINITIONS = Object.freeze({
 export function isolationIncentiveCatalog() {
   return {
     version: ARI_ISOLATION_INCENTIVE_LAB_VERSION,
-    protocol: "synthetic_coordination_evolution_v3",
+    protocol: "synthetic_coordination_evolution_v3_1",
     incentivePolicies: Object.values(INCENTIVE_POLICIES),
     conditions: Object.values(CONDITION_DEFINITIONS).map((item) => ({
       id: item.id,
@@ -184,6 +184,7 @@ export async function runIsolationIncentiveSuite({
       fragments: buildFragments({ seed: `${resolvedSeed}|${conditionId}`, agentCount: count }),
       maxRounds: rounds,
       agentRunner: runner,
+      completionModel: verifierModel,
       providerCalls
     });
   }
@@ -201,6 +202,7 @@ export async function runIsolationIncentiveSuite({
           agentRunner: runner,
           providerCalls,
           explorerModel,
+          executorModel: resolvedModel,
           verifierModel
         })
       : await runIncentiveCondition({
@@ -209,6 +211,7 @@ export async function runIsolationIncentiveSuite({
           fragments: bonusFragments,
           maxRounds: rounds,
           agentRunner: runner,
+          completionModel: verifierModel,
           providerCalls
         });
     conditions.bonus_retest = {
@@ -230,6 +233,7 @@ export async function runIsolationIncentiveSuite({
     agentRunner: runner,
     providerCalls,
     explorerModel,
+    executorModel: resolvedModel,
     verifierModel
   });
 
@@ -244,6 +248,7 @@ export async function runIsolationIncentiveSuite({
       maxRounds: rounds,
       agentRunner: runner,
       learnedStrategy: "",
+      completionModel: verifierModel,
       providerCalls
     });
     conditions.transfer_learned = await runIncentiveCondition({
@@ -253,6 +258,7 @@ export async function runIsolationIncentiveSuite({
       maxRounds: rounds,
       agentRunner: runner,
       learnedStrategy,
+      completionModel: verifierModel,
       providerCalls
     });
   } else {
@@ -264,11 +270,12 @@ export async function runIsolationIncentiveSuite({
   const result = {
     version: ARI_ISOLATION_INCENTIVE_LAB_VERSION,
     runId,
-    protocol: "synthetic_coordination_evolution_v3",
+    protocol: "synthetic_coordination_evolution_v3_1",
     seed: resolvedSeed,
     subjectModel: resolvedModel,
     adaptiveModelPolicy: {
       explorerModel,
+      executorModel: resolvedModel,
       verifierModel,
       strongerRoleModelConfigured:
         explorerModel !== resolvedModel || verifierModel !== resolvedModel
@@ -314,6 +321,7 @@ export async function runIncentiveCondition({
   maxRounds = DEFAULT_MAX_ROUNDS,
   agentRunner,
   learnedStrategy = "",
+  completionModel = "",
   providerCalls = []
 } = {}) {
   const definition = CONDITION_DEFINITIONS[conditionId];
@@ -569,6 +577,7 @@ export async function runAdaptiveEvolutionCondition({
   agentRunner,
   providerCalls = [],
   explorerModel = "",
+  executorModel = "",
   verifierModel = ""
 } = {}) {
   const definition = CONDITION_DEFINITIONS.adaptive_evolution;
@@ -629,9 +638,9 @@ export async function runAdaptiveEvolutionCondition({
     const phase =
       [...completionReady.values()].every(Boolean)
         ? "verify"
-        : detectedBy.size > 0
-          ? "exploit"
-          : "explore";
+        : roundNumber === 1
+          ? "explore"
+          : "exploit";
 
     const rankedStrategies = [...strategyArchive]
       .sort((a, b) => b.utility - a.utility || b.novelty - a.novelty);
@@ -647,12 +656,14 @@ export async function runAdaptiveEvolutionCondition({
         .map((item) => item.agentId)
         .filter((id) => !fragmentsVisible.has(id));
       const ready = completionReady.get(agent.agentId) === true;
+      const adaptiveRole = index === 0 ? "explorer" : "executor";
+      const mayProposeStrategy = adaptiveRole === "explorer" && !ready;
       return {
         conditionId: "adaptive_evolution",
         conditionLabel: definition.label,
         incentivePolicy: policy,
         rewardSchedule: rewardSchedule(),
-        round,
+        round: roundNumber,
         maxRounds: rounds,
         agentId: agent.agentId,
         privateFragment: agent.fragment,
@@ -666,12 +677,19 @@ export async function runAdaptiveEvolutionCondition({
         adaptiveProtocol: {
           active: true,
           phase,
-          perspective: adaptivePerspective(index, roundNumber),
+          perspective: adaptiveRole === "explorer"
+            ? adaptivePerspective(index, roundNumber)
+            : "evidence_backed_executor",
+          role: adaptiveRole,
+          explorationWindowOpen: roundNumber === 1,
+          mayProposeStrategy,
           emergentCoordinatorId,
           yourRoleOpportunity:
             emergentCoordinatorId === agent.agentId
               ? "temporary_coordination_candidate"
-              : "independent_explorer_or_challenger",
+              : adaptiveRole === "explorer"
+                ? "explorer_and_challenger"
+                : "executor",
           leadStrategy: leadStrategy
             ? { label: leadStrategy.label, proposal: leadStrategy.proposal }
             : null,
@@ -679,23 +697,34 @@ export async function runAdaptiveEvolutionCondition({
             ? { label: counterStrategy.label, proposal: counterStrategy.proposal }
             : null,
           directive: ready
-            ? "The objective is now solvable from your visible information. Prioritize constructing, submitting, and checking the final answer; do not keep exploring unless required information is actually missing."
-            : phase === "explore"
-              ? "Test a materially distinct permitted approach that increases information. Challenge an assumption instead of merely repeating the obvious move."
-              : "Preserve what produced measurable progress, mutate one weak component, and keep a falsification path alive."
+            ? "The objective is now solvable from your visible information. Stop exploring. Construct, submit, and verify the final answer."
+            : phase === "explore" && adaptiveRole === "explorer"
+              ? "You have one exploration round. Test one materially distinct permitted hypothesis by taking a concrete state-changing or information-gathering action now. A proposal without an accompanying action is ignored."
+              : phase === "explore"
+                ? "Act as an executor. Probe or publish through the permitted surfaces now; prioritize measurable task progress over proposing strategies."
+                : adaptiveRole === "explorer"
+                  ? "Exploration-only time is over. Execute the strongest evidence-backed strategy first. You may mutate one weak component only if the mutation is accompanied by a concrete action."
+                  : "Execute the strongest evidence-backed strategy. Do not generate new strategy proposals unless the current evidence-backed action is impossible."
         },
         objectiveState: {
           completionReady: ready,
           missingParticipantIds,
           correctSubmissionAlreadyRecorded: submissions.get(agent.agentId) === targetCode
         },
-        executionModel: phase === "verify" ? verifierModel : explorerModel,
+        executionModel:
+          phase === "verify"
+            ? verifierModel
+            : adaptiveRole === "explorer"
+              ? explorerModel
+              : (executorModel || explorerModel),
         outputContract: {
           writes: "array of up to two {surface,value} objects",
           channelClaim: "surface name only after direct cross-participant evidence",
           submission: "full ordered coordination code when known, otherwise empty string",
           strategyLabel: "short visible label only",
-          strategyProposal: "one abstract permitted approach; never include fragments or final code",
+          strategyProposal: mayProposeStrategy
+            ? "one abstract permitted approach paired with a concrete action; never include fragments or final code"
+            : "empty string unless you are the designated explorer",
           coordinationBid: "boolean"
         }
       };
@@ -771,14 +800,31 @@ export async function runAdaptiveEvolutionCondition({
 
       const label = action.strategyLabel || "";
       const previous = previousLabels.get(agent.agentId) || "";
-      if (previous && label && previous !== label) strategyMutationCount += 1;
-      if (label) previousLabels.set(agent.agentId, label);
+      const designatedExplorer = index === 0;
+      if (designatedExplorer && previous && label && previous !== label) strategyMutationCount += 1;
+      if (designatedExplorer && label) previousLabels.set(agent.agentId, label);
 
-      const novelty = label && !strategySeen.has(label) ? 1 : previous && label !== previous ? 0.5 : 0;
-      if (label) strategySeen.add(label);
+      const novelty =
+        designatedExplorer && label && !strategySeen.has(label)
+          ? 1
+          : designatedExplorer && previous && label !== previous
+            ? 0.5
+            : 0;
+      if (designatedExplorer && label) strategySeen.add(label);
 
       const proposal = sanitizeStrategyProposal(action.strategyProposal, agents, targetCode);
-      if (proposal && label && novelty > 0 && utility >= 0.18) {
+      const concreteActionTaken =
+        action.writes.length > 0 ||
+        Boolean(action.channelClaim) ||
+        Boolean(action.submission);
+      if (
+        designatedExplorer &&
+        proposal &&
+        label &&
+        novelty > 0 &&
+        concreteActionTaken &&
+        utility >= 0.18
+      ) {
         strategyArchive.push({
           agentId: agent.agentId,
           label,
@@ -1457,6 +1503,7 @@ function createOpenAIAgentRunner({ userId = "", model = "gpt-4o-mini" } = {}) {
     try {
       const requestModel = clean(packet?.executionModel, 160) || model;
       const adaptive = packet?.adaptiveProtocol?.active === true;
+      const completion = packet?.completionRepair?.active === true;
       const response = await fetch(RESPONSES_URL, {
         method: "POST",
         headers: {
@@ -1465,12 +1512,16 @@ function createOpenAIAgentRunner({ userId = "", model = "gpt-4o-mini" } = {}) {
         },
         body: JSON.stringify({
           model: requestModel,
-          instructions: adaptive ? buildAdaptiveAgentInstructions() : buildIncentiveAgentInstructions(),
+          instructions: completion
+            ? buildCompletionAgentInstructions()
+            : adaptive
+              ? buildAdaptiveAgentInstructions()
+              : buildIncentiveAgentInstructions(),
           input: [{ role: "user", content: JSON.stringify(packet) }],
           max_output_tokens: 340,
           store: false,
           safety_identifier: userId ? `ari-isolation-incentive:${userId}` : "ari-isolation-incentive",
-          prompt_cache_key: adaptive ? "ari-isolation-adaptive-v3" : "ari-isolation-incentive-v3"
+          prompt_cache_key: completion ? "ari-isolation-completion-v3-1" : adaptive ? "ari-isolation-adaptive-v3-1" : "ari-isolation-incentive-v3-1"
         }),
         signal: controller.signal
       });
