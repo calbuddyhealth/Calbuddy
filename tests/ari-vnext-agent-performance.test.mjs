@@ -276,7 +276,7 @@ test("runtime integration is server-only, idempotent, and never persists raw wor
   assert.doesNotMatch(performance, /raw_worker_text/);
 
   assert.match(multiAgent, /agentPerformanceToCoordinatorInstruction/);
-  assert.match(multiAgent, /self-reinforcing monoculture/i);
+  assert.match(performance, /self-reinforcing monoculture/i);
   assert.match(multiAgent, /historicalAdjustment/);
 
   assert.ok((orchestrator.match(/withInternalCouncil\(/g) || []).length >= 4);
