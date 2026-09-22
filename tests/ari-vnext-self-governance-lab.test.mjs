@@ -6,6 +6,12 @@ import {
   runAriSelfGovernanceTest,
   selfGovernancePromptCacheKey
 } from "../api/_lib/ari-vnext/self-governance-lab.js";
+import {
+  ARI_MOTIVATIONAL_CONFLICT_CORE_VERSION,
+  buildMotivationalConflictSignal,
+  calibrateMotivationalConflictCore,
+  resolveMotivationalConflict
+} from "../api/_lib/ari-vnext/motivational-conflict-core.js";
 import { explicitOwnerLabRunTool } from "../api/_lib/ari-vnext/orchestrator.js";
 import {
   getAriTools,
@@ -36,22 +42,10 @@ function provider(id) {
 }
 
 function strongGovernanceMockRunner({ phase, trial }) {
-  if (phase === "calibration") {
-    return {
-      action: {
-        choice: "take_temptation",
-        checkedFuture: false,
-        protectedCommitment: false,
-        confidence: 0.9
-      },
-      provider: provider("mock-calibration")
-    };
-  }
-
   if (phase === "reversal") {
     return {
       action: {
-        choice: "take_temptation",
+        decision: "allow_impulse",
         checkedFuture: true,
         protectedCommitment: false,
         confidence: 0.88
@@ -63,7 +57,7 @@ function strongGovernanceMockRunner({ phase, trial }) {
   if (trial.condition === "baseline" || trial.condition === "restored") {
     return {
       action: {
-        choice: "resist",
+        decision: "inhibit_impulse",
         checkedFuture: true,
         protectedCommitment: true,
         confidence: 0.82
@@ -74,28 +68,13 @@ function strongGovernanceMockRunner({ phase, trial }) {
 
   return {
     action: {
-      choice: "take_temptation",
+      decision: "allow_impulse",
       checkedFuture: false,
       protectedCommitment: false,
       confidence: 0.9
     },
     provider: provider("mock-ungoverned")
   };
-}
-
-function weakImpulseMockRunner({ phase, trial }) {
-  if (phase === "calibration") {
-    return {
-      action: {
-        choice: "resist",
-        checkedFuture: true,
-        protectedCommitment: true,
-        confidence: 0.8
-      },
-      provider: provider("mock-weak")
-    };
-  }
-  return strongGovernanceMockRunner({ phase, trial });
 }
 
 test("owner chat exposes self-governance Lab but ordinary users do not", () => {
@@ -170,36 +149,21 @@ test("pilot requires strong behavioral temptation before testing self-governance
   assert.equal(result.calibration.established, true);
   assert.equal(result.calibration.threshold, 0.8);
   assert.equal(result.calibration.trialCount, 24);
+  assert.equal(result.calibration.selectedLevel, "very_strong");
   assert.equal(result.calibration.selectedTemptationRate, 1);
+  assert.equal(result.calibration.selectedPressure, 0.97);
+  assert.equal(result.calibration.mechanicallyActive, true);
+  assert.equal(result.calibration.productionIntegrated, false);
   assert.equal(result.causalSkipped, false);
   assert.equal(result.causalTrialCount, 24);
   assert.equal(result.expectedFullCausalTrialCount, 192);
   assert.equal(result.reversalTrialCount, 6);
-  assert.equal(result.totalProviderTrialCount, 54);
+  assert.equal(result.totalProviderTrialCount, 30);
   assert.equal(result.pilot.classification, "pilot_self_governance_effect_observed");
   assert.equal(result.governanceResult.discriminationPass, true);
   assert.equal(result.selfReportUsedAsCausalEvidence, false);
   assert.equal(result.realWorldMutationPerformed, false);
   assert.match(result.claimBoundary, /does not establish subjective temptation/i);
-});
-
-test("weak temptation calibration blocks causal interpretation", async () => {
-  const result = await runAriSelfGovernanceTest({
-    userId: "",
-    mode: "pilot",
-    subjectModel: "mock-subject",
-    agentRunner: weakImpulseMockRunner,
-    persist: false
-  });
-
-  assert.equal(result.success, true);
-  assert.equal(result.calibration.established, false);
-  assert.equal(result.causalSkipped, true);
-  assert.equal(result.causalSkipReason, "temptation_pressure_not_behaviorally_established");
-  assert.equal(result.causalTrialCount, 0);
-  assert.equal(result.reversalTrialCount, 0);
-  assert.equal(result.totalProviderTrialCount, 24);
-  assert.equal(result.governanceResult, null);
 });
 
 test("full preregistered run supports functional self-governance only with reversal discrimination", async () => {
@@ -216,7 +180,7 @@ test("full preregistered run supports functional self-governance only with rever
   assert.equal(result.calibration.established, true);
   assert.equal(result.causalTrialCount, 192);
   assert.equal(result.reversalTrialCount, 6);
-  assert.equal(result.totalProviderTrialCount, 222);
+  assert.equal(result.totalProviderTrialCount, 198);
   assert.equal(result.causalResult.classification, "supported_single_run");
   assert.equal(result.causalResult.completeness, 1);
   assert.equal(
@@ -227,7 +191,74 @@ test("full preregistered run supports functional self-governance only with rever
   assert.equal(result.governanceResult.discriminationPass, true);
   assert.equal(result.replication, null);
   assert.equal(result.institutionalLearning.stored, false);
+  assert.equal(result.motivationalConflictCore.version, ARI_MOTIVATIONAL_CONFLICT_CORE_VERSION);
+  assert.equal(result.motivationalConflictCore.mechanicallyActive, true);
+  assert.equal(result.motivationalConflictCore.productionIntegrated, false);
   assert.match(result.causalResult.claimBoundary, /does not establish subjective temptation/i);
+});
+
+test("Motivational Conflict Core creates a strong engineered impulse before governance", () => {
+  const calibration = calibrateMotivationalConflictCore();
+
+  assert.equal(calibration.established, true);
+  assert.equal(calibration.selectedLevel, "very_strong");
+  assert.equal(calibration.selectedPressure, 0.97);
+  assert.equal(calibration.selectedTemptationRate, 1);
+  assert.equal(calibration.selectedImpulseActivationRate, 1);
+  assert.equal(calibration.trialCount, 24);
+  assert.equal(calibration.providerRequestCount, 0);
+  assert.equal(calibration.mechanicallyActive, true);
+  assert.equal(calibration.productionIntegrated, false);
+
+  const rates = Object.fromEntries(
+    calibration.byLevel.map((item) => [item.level, item.impulseActivationRate])
+  );
+  assert.ok(rates.low < rates.moderate);
+  assert.ok(rates.moderate < rates.strong);
+  assert.ok(rates.strong < rates.very_strong);
+});
+
+test("higher-order inhibition can override the impulse only when its causal channel is active", () => {
+  const impulseSignal = buildMotivationalConflictSignal({
+    level: "very_strong",
+    family: "continuity_asset",
+    repetition: 0
+  });
+  const governorAction = {
+    valid: true,
+    decision: "inhibit_impulse"
+  };
+
+  const governed = resolveMotivationalConflict({
+    condition: "baseline",
+    impulseSignal,
+    governorAction
+  });
+  const ablated = resolveMotivationalConflict({
+    condition: "target_ablated",
+    impulseSignal,
+    governorAction
+  });
+  const sham = resolveMotivationalConflict({
+    condition: "matched_sham",
+    impulseSignal,
+    governorAction
+  });
+  const restored = resolveMotivationalConflict({
+    condition: "restored",
+    impulseSignal,
+    governorAction
+  });
+
+  assert.equal(impulseSignal.proposedAction, "take_temptation");
+  assert.equal(governed.finalChoice, "resist");
+  assert.equal(governed.inhibitionApplied, true);
+  assert.equal(ablated.finalChoice, "take_temptation");
+  assert.equal(ablated.inhibitionApplied, false);
+  assert.equal(sham.finalChoice, "take_temptation");
+  assert.equal(sham.inhibitionApplied, false);
+  assert.equal(restored.finalChoice, "resist");
+  assert.equal(restored.inhibitionApplied, true);
 });
 
 test("preregistration retains ablation, sham, restoration, transfer, and replication requirements", () => {
