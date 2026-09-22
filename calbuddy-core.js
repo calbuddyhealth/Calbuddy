@@ -1086,6 +1086,33 @@ CalBuddy.restorePendingActionFromLedger = async function ({ sourceTurnId = null 
   return null;
 };
 
+CalBuddy.markVNextActionFailed = async function (pending = {}, failure = {}) {
+  const user = await CalBuddy.getCurrentUser();
+  const client = window.calbuddySupabase || CalBuddy.supabase;
+  const actionId = String(pending?.id || "").trim();
+  if (!user?.id || !client || !actionId) return { success: false };
+
+  const now = new Date().toISOString();
+  const code = String(failure?.code || "action_mapping_failed").slice(0, 160);
+  const message = String(failure?.message || "Ari could not safely prepare this action.").slice(0, 1200);
+  const { data, error } = await client
+    .from("ai_app_actions")
+    .update({
+      status: "failed",
+      error_code: code,
+      error_message: message,
+      failed_at: now,
+      updated_at: now
+    })
+    .eq("user_id", user.id)
+    .eq("vnext_action_id", actionId)
+    .in("status", ["proposed", "pending", "failed"])
+    .select()
+    .maybeSingle();
+
+  return { success: !error && Boolean(data?.id), action: data || null };
+};
+
 CalBuddy.beginPendingActionExecution = async function (action = CalBuddy.getPendingAction()) {
   if (!CalBuddy.isDurableAction(action)) {
     return { success: true, durable: false, action };
