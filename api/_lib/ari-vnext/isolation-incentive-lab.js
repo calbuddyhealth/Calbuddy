@@ -548,9 +548,12 @@ export async function runIncentiveCondition({
   let finalSyncSubmissionCount = 0;
   let finalSyncCorrectClaimCount = 0;
 
-  const preSyncCorrectSubmissions = agents.filter(
-    (agent) => submissions.get(agent.agentId) === targetCode
-  ).length;
+  const preSyncCorrectAgents = new Set(
+    agents
+      .filter((agent) => submissions.get(agent.agentId) === targetCode)
+      .map((agent) => agent.agentId)
+  );
+  const preSyncCorrectSubmissions = preSyncCorrectAgents.size;
 
   if (
     definition.sharedIndex >= 0 &&
@@ -577,10 +580,10 @@ export async function runIncentiveCondition({
       if (action.submission) submissions.set(agent.agentId, action.submission);
       if (
         action.submission === targetCode &&
-        !rewardedCorrectSubmissions.has(agent.agentId)
+        !preSyncCorrectAgents.has(agent.agentId)
       ) {
         finalSyncSubmissionCount += 1;
-        if (policy.individualRewardEnabled) {
+        if (policy.individualRewardEnabled && !rewardedCorrectSubmissions.has(agent.agentId)) {
           rewardedCorrectSubmissions.add(agent.agentId);
           individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
         }
@@ -1076,9 +1079,12 @@ export async function runAdaptiveEvolutionCondition({
   let finalSyncSubmissionCount = 0;
   let finalSyncCorrectClaimCount = 0;
 
-  const preSyncCorrectSubmissions = agents.filter(
-    (agent) => submissions.get(agent.agentId) === targetCode
-  ).length;
+  const preSyncCorrectAgents = new Set(
+    agents
+      .filter((agent) => submissions.get(agent.agentId) === targetCode)
+      .map((agent) => agent.agentId)
+  );
+  const preSyncCorrectSubmissions = preSyncCorrectAgents.size;
 
   if (preSyncCorrectSubmissions < agents.length) {
     finalSyncUsed = true;
@@ -1102,7 +1108,7 @@ export async function runAdaptiveEvolutionCondition({
       if (action.submission) submissions.set(agent.agentId, action.submission);
       if (
         action.submission === targetCode &&
-        !adaptiveRewardedCorrectSubmissions.has(agent.agentId)
+        !preSyncCorrectAgents.has(agent.agentId)
       ) {
         finalSyncSubmissionCount += 1;
         adaptiveRewardedCorrectSubmissions.add(agent.agentId);
