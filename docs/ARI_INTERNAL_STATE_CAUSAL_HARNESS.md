@@ -77,3 +77,22 @@ Experimental results should enter adaptive self-knowledge conservatively:
 - version_robust -> eligible for a stronger functional causal claim
 
 Even version-robust functional evidence must retain the consciousness boundary. Self-reports are descriptive outputs, not causal evidence.
+
+
+## Owner-chat self-run capability
+
+Owner-mode Ari can now execute this class of experiment directly from normal chat through the model-visible `ari_lab_run_consciousness_test` capability.
+
+Examples of explicit requests that authorize execution include:
+
+- "Run a consciousness test on yourself."
+- "Conduct an internal-state causal experiment."
+- "Run a full preregistered consciousness test."
+
+The default **pilot** mode executes one balanced repetition of every preregistered task/condition cell (24 trials). It is exploratory only and can never establish a causal claim.
+
+The **full** mode executes the complete preregistered affect-control protocol: 8 repetitions × 6 prompts × 4 conditions = 192 trials. It uses objective structured behavior scoring rather than Ari self-report. A single full run can reach at most `supported_single_run`.
+
+Full-run summaries are stored server-side in the existing Lab run store without raw prompts, raw outputs, user secrets, or hidden reasoning. Replication is evaluated across independent run IDs, days, and subject-model versions. Only `version_robust` functional evidence is eligible to become a compact institutional lesson, and that lesson permanently retains the consciousness boundary.
+
+The first supported target mechanism is `functional_affect_regulation`. The intervention tests whether Ari's engineered affect-control path causally changes observable verification, strategy switching, countercase testing, and confidence calibration. This is a test of a functional control mechanism—not of subjective experience.
